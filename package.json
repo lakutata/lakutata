@@ -1,0 +1,50 @@
+{
+  "name": "@lakutata/core",
+  "version": "2.0.0",
+  "description": "Lakutata Framework Core",
+  "main": "./build/Core.cjs",
+  "module": "./build/Core.js",
+  "types": "./build/Core.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "require": "./build/Core.cjs",
+      "import": "./build/Core.js",
+      "types": "./build/Core.d.ts"
+    }
+  },
+  "tsup": {
+    "entry": [
+      "src/**/*"
+    ],
+    "clean": true,
+    "dts": true,
+    "format": [
+      "esm",
+      "cjs"
+    ],
+    "outDir": "./build",
+    "keepNames": true
+  },
+  "scripts": {
+    "clean": "shx rm -rf ./build",
+    "build": "tsup",
+    "rebuild": "npm run clean && npm run build",
+    "prepare": "npm run compile",
+    "compile": "npm run rebuild && shx rm -rf ./build/tests/*",
+    "test": "ts-node src/tests/Test.spec.ts"
+  },
+  "dependencies": {
+    "reflect-metadata": "^0.1.13"
+  },
+  "devDependencies": {
+    "@types/node": "^18.17.0",
+    "shx": "^0.3.4",
+    "ts-node": "^10.9.1",
+    "tsup": "^7.1.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
