@@ -1733,7 +1733,6 @@ export interface StringSchema<TSchema = string> extends AnySchema<TSchema> {
 }
 
 export interface SymbolSchema<TSchema = Symbol> extends AnySchema<TSchema> {
-    // TODO: support number and symbol index
     map(iterable: Iterable<[string | number | boolean | symbol, symbol]> | { [key: string]: symbol }): this;
 }
 
