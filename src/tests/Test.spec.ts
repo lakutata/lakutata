@@ -1,5 +1,6 @@
-import {readdir} from 'fs/promises'
+import {Application} from '../Application.js'
+
 
 (async () => {
-    console.log(await readdir('./'))
+    await new Application().test()
 })()
