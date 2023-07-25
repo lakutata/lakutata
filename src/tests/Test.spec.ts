@@ -1,8 +1,8 @@
-import {Application} from '../Application.js'
-// import {Validator,StringSchema,NumberSchema,ObjectSchema} from '../../build/lib/Validator.js'
+import {Application} from '../Core.js'
+import {Validator} from '../Core.js'
 
 (async () => {
     await new Application().test()
 
-    // const sch = Validator.Object().concat()
+    const sch = Validator.Object()
 })()
