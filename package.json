@@ -18,13 +18,18 @@
       "src/**/*"
     ],
     "clean": true,
-    "dts": true,
+    "dts": {
+      "resolve": true
+    },
     "format": [
       "esm",
       "cjs"
     ],
     "outDir": "./build",
-    "keepNames": true
+    "keepNames": true,
+    "noExternal": [
+      "joi"
+    ]
   },
   "scripts": {
     "clean": "shx rm -rf ./build",
@@ -42,6 +47,7 @@
     "@typescript-eslint/eslint-plugin": "^6.2.0",
     "@typescript-eslint/parser": "^6.2.0",
     "eslint": "^8.45.0",
+    "joi": "^17.9.2",
     "shx": "^0.3.4",
     "ts-node": "^10.9.1",
     "tsup": "^7.1.0",

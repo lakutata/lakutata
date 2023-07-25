@@ -4,6 +4,7 @@
     "lib": [
       "ES2022"
     ],
+    "declaration": true,
     "moduleDetection": "auto",
     "module": "ES2022",
     "rootDir": "src",
