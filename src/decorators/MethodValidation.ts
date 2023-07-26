@@ -1,5 +1,11 @@
-import {ArraySchema, Schema, ValidationOptions, ValidationResult, Validator} from '../lib/Validator.js'
+import {ArraySchema, Schema, ValidationOptions, Validator} from '../lib/Validator.js'
 import {isAsyncFunction} from 'util/types'
+
+const defaultValidationOptions: ValidationOptions = {
+    allowUnknown: true,
+    stripUnknown: true,
+    debug: false
+}
 
 /**
  * 方法接收参数验证装饰器
@@ -8,6 +14,7 @@ import {isAsyncFunction} from 'util/types'
  * @constructor
  */
 export const Accept = (argumentSchemas: Schema | Schema[], options?: ValidationOptions) => (target: Object, propertyKey: string, descriptor: TypedPropertyDescriptor<(...args: any[]) => any | Promise<any>>) => {
+    options = options ? Object.assign({}, defaultValidationOptions, options) : defaultValidationOptions
     descriptor.writable = false
     const originalMethod: (...args: any[]) => any | Promise<any> = descriptor.value as any
     const schema: ArraySchema = Validator.Array().ordered(...(Array.isArray(argumentSchemas) ? argumentSchemas : [argumentSchemas]))

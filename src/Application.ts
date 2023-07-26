@@ -9,8 +9,11 @@ export class Application {
         const gg = 1
     }
 
-    @Accept(Validator.Object({a: Validator.String().required()}))
-    public test(obj, bb,cc) {
-        console.log('obj:', obj, bb,cc)
+    @Accept(Validator.Object({
+        a: Validator.String().required(),
+        cc: Validator.String().optional().default('bbbbbb')
+    }), {stripUnknown: true})
+    public test(obj, bb, cc) {
+        console.log('obj:', obj, bb, cc)
     }
 }
