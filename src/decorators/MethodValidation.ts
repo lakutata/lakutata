@@ -2,6 +2,8 @@ import {ArraySchema, Schema, ValidationOptions, Validator} from '../lib/Validato
 import {isAsyncFunction} from 'util/types'
 
 const defaultValidationOptions: ValidationOptions = {
+    abortEarly: true,
+    cache: false,
     allowUnknown: true,
     stripUnknown: true,
     debug: false
@@ -27,13 +29,8 @@ export const Accept = (argumentSchemas: Schema | Schema[], options?: ValidationO
             } catch (e) {
                 errorMessages.push((e as Error).message)
                 const errorMessage: string = errorMessages.join(' ')
-                if (target['generateException']) {
-                    //todo throw target['generateException'](InvalidMethodAcceptException, (e as Error).message)
-                    throw new Error(errorMessage)
-                } else {
-                    //todo throw new InvalidMethodAcceptException((e as Error).message)
-                    throw new Error(errorMessage)
-                }
+                //todo throw new InvalidMethodAcceptException((e as Error).message)
+                throw new Error(errorMessage)
             }
             return originalMethod.apply(this, args)
         }
@@ -43,13 +40,8 @@ export const Accept = (argumentSchemas: Schema | Schema[], options?: ValidationO
             if (error) {
                 errorMessages.push(error.message)
                 const errorMessage: string = errorMessages.join(' ')
-                if (target['generateException']) {
-                    //todo throw target['generateException'](InvalidMethodAcceptException, (e as Error).message)
-                    throw new Error(errorMessage)
-                } else {
-                    //todo throw new InvalidMethodAcceptException((e as Error).message)
-                    throw new Error(errorMessage)
-                }
+                //todo throw new InvalidMethodAcceptException((e as Error).message)
+                throw new Error(errorMessage)
             }
             return originalMethod.apply(this, value)
         }

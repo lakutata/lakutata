@@ -10,7 +10,7 @@ export class Application {
     }
 
     @Accept(Validator.Object({
-        a: Validator.String().required(),
+        a: Validator.String().required().valid('1','2','3'),
         cc: Validator.String().optional().default('bbbbbb')
     }), {stripUnknown: true})
     public test(obj, bb, cc) {
