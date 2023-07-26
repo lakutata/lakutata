@@ -1,5 +1,5 @@
 import {Accept, Return} from './decorators/MethodValidation.js'
-import {Validator} from './lib/Validator.js'
+import {Validator} from './utils/Validator.js'
 
 export class Application {
     //todo

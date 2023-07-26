@@ -1,4 +1,4 @@
-import {ArraySchema, Schema, ValidationOptions, Validator} from '../lib/Validator.js'
+import {ArraySchema, Schema, ValidationOptions, Validator} from '../utils/Validator.js'
 import {isAsyncFunction} from 'util/types'
 import {InvalidMethodReturnException} from '../exceptions/InvalidMethodReturnException.js'
 import {InvalidMethodAcceptException} from '../exceptions/InvalidMethodAcceptException.js'
