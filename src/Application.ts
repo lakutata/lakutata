@@ -1,4 +1,4 @@
-import {Accept} from './decorators/MethodValidation.js'
+import {Accept, Return} from './decorators/MethodValidation.js'
 import {Validator} from './lib/Validator.js'
 
 export class Application {
@@ -10,10 +10,12 @@ export class Application {
     }
 
     @Accept(Validator.Object({
-        a: Validator.String().required().valid('1','2','3'),
+        a: Validator.String().required().valid('1', '2', '3'),
         cc: Validator.String().optional().default('bbbbbb')
     }), {stripUnknown: true})
+    @Return(Validator.Object({test: Validator.String().required()}))
     public test(obj, bb, cc) {
         console.log('obj:', obj, bb, cc)
+        return {test: '123', bbc: 123}
     }
 }
