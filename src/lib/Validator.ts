@@ -1,20 +1,4 @@
-import {
-    string,
-    number,
-    boolean,
-    date,
-    object,
-    any,
-    func,
-    binary,
-    array,
-    alternatives,
-    ref,
-    symbol,
-    forbidden,
-    in as In,
-    attempt
-} from 'joi'
+import Joi from 'joi'
 
 export class Validator {
 
@@ -23,7 +7,7 @@ export class Validator {
      * @constructor
      */
     public static Any<TSchema = any>(): AnySchema<TSchema> {
-        return any<TSchema>()
+        return Joi.any<TSchema>()
     }
 
     /**
@@ -31,7 +15,7 @@ export class Validator {
      * @constructor
      */
     public static String<TSchema = string>(): StringSchema<TSchema> {
-        return string<TSchema>()
+        return Joi.string<TSchema>()
     }
 
     /**
@@ -39,7 +23,7 @@ export class Validator {
      * @constructor
      */
     public static Number<TSchema = number>(): NumberSchema<TSchema> {
-        return number<TSchema>()
+        return Joi.number<TSchema>()
     }
 
     /**
@@ -47,7 +31,7 @@ export class Validator {
      * @constructor
      */
     public static Boolean<TSchema = boolean>(): BooleanSchema<TSchema> {
-        return boolean<TSchema>()
+        return Joi.boolean<TSchema>()
     }
 
     /**
@@ -55,7 +39,7 @@ export class Validator {
      * @constructor
      */
     public static Date<TSchema = Date>(): DateSchema<TSchema> {
-        return date<TSchema>()
+        return Joi.date<TSchema>()
     }
 
     /**
@@ -64,7 +48,7 @@ export class Validator {
      * @constructor
      */
     public static Object<TSchema = any, isStrict = false, T = TSchema>(schema?: SchemaMap<T, isStrict>): ObjectSchema<TSchema> {
-        return object<TSchema, isStrict, T>(schema as any)
+        return Joi.object<TSchema, isStrict, T>(schema as any)
     }
 
     /**
@@ -73,7 +57,7 @@ export class Validator {
      * @constructor
      */
     public static Array<TSchema = any[]>(...types: SchemaLikeWithoutArray[]): ArraySchema<TSchema> {
-        return array<TSchema>().items(...types)
+        return Joi.array<TSchema>().items(...types)
     }
 
     /**
@@ -81,7 +65,7 @@ export class Validator {
      * @constructor
      */
     public static Binary<TSchema = Buffer>(): BinarySchema<TSchema> {
-        return binary<TSchema>()
+        return Joi.binary<TSchema>()
     }
 
     /**
@@ -89,7 +73,7 @@ export class Validator {
      * @constructor
      */
     public static Function<TSchema = Function>(): FunctionSchema<TSchema> {
-        return func<TSchema>()
+        return Joi.func<TSchema>()
     }
 
     /**
@@ -97,7 +81,7 @@ export class Validator {
      * @constructor
      */
     public static Symbol<TSchema = Symbol>(): SymbolSchema<TSchema> {
-        return symbol<TSchema>()
+        return Joi.symbol<TSchema>()
     }
 
     /**
@@ -106,7 +90,7 @@ export class Validator {
      * @constructor
      */
     public static Alternatives<TSchema = any>(...types: SchemaLike[]): AlternativesSchema<TSchema> {
-        return alternatives<TSchema>(...types)
+        return Joi.alternatives<TSchema>(...types)
     }
 
     /**
@@ -116,7 +100,7 @@ export class Validator {
      * @constructor
      */
     public static Ref(key: string, options?: ReferenceOptions): Reference {
-        return ref(key, options)
+        return Joi.ref(key, options)
     }
 
     /**
@@ -124,7 +108,7 @@ export class Validator {
      * @constructor
      */
     public static Forbidden(): Schema {
-        return forbidden()
+        return Joi.forbidden()
     }
 
     /**
@@ -134,7 +118,7 @@ export class Validator {
      * @constructor
      */
     public static In(ref: string, options?: ReferenceOptions): Reference {
-        return In(ref, options)
+        return Joi.in(ref, options)
     }
 
     /**
@@ -145,7 +129,7 @@ export class Validator {
      * @constructor
      */
     public static Attempt<TSchema extends Schema>(value: any, schema: TSchema, options?: ValidationOptions): TSchema extends Schema<infer Value> ? Value : never {
-        return attempt(value, schema, options) as any
+        return Joi.attempt(value, schema, options) as any
     }
 }
 

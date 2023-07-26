@@ -1,13 +1,51 @@
+import {ArraySchema, Schema, ValidationOptions, ValidationResult, Validator} from '../lib/Validator.js'
+import {isAsyncFunction} from 'util/types'
+
 /**
  * 方法接收参数验证装饰器
- * @param {AnySchema | AnySchema[]} argumentSchemas
- * @param {{strict?: boolean, stripUnknown?: boolean}} options
- * @returns {(target: Object, propertyKey: string, descriptor: TypedPropertyDescriptor<(...args: any[]) => any>) => TypedPropertyDescriptor<(...args: any[]) => any>}
+ * @param argumentSchemas
+ * @param options
  * @constructor
  */
-export const Accept: () => (target: Object, propertyKey: string, descriptor: TypedPropertyDescriptor<(...args: any[]) => any>) => TypedPropertyDescriptor<(...args: any[]) => any> = () => {
-    return (target: Object, propertyKey: string, descriptor: TypedPropertyDescriptor<(...args: any[]) => any | Promise<any>>) => {
-        console.log('Accept')
-        return descriptor
+export const Accept = (argumentSchemas: Schema | Schema[], options?: ValidationOptions) => (target: Object, propertyKey: string, descriptor: TypedPropertyDescriptor<(...args: any[]) => any | Promise<any>>) => {
+    descriptor.writable = false
+    const originalMethod: (...args: any[]) => any | Promise<any> = descriptor.value as any
+    const schema: ArraySchema = Validator.Array().ordered(...(Array.isArray(argumentSchemas) ? argumentSchemas : [argumentSchemas]))
+    const argumentSchemaLength: number = Array.isArray(argumentSchemas) ? argumentSchemas.length : 1
+    const errorMessages: string[] = [`Method [${propertyKey}] accept argument`]
+    if (isAsyncFunction(originalMethod)) {
+        descriptor.value = async function (...args: any[]) {
+            try {
+                args = await schema.concat(Validator.Array().ordered(...new Array(args.length - argumentSchemaLength).fill(Validator.Any()))).validateAsync(args, options)
+            } catch (e) {
+                errorMessages.push((e as Error).message)
+                const errorMessage: string = errorMessages.join(' ')
+                if (target['generateException']) {
+                    //todo throw target['generateException'](InvalidMethodAcceptException, (e as Error).message)
+                    throw new Error(errorMessage)
+                } else {
+                    //todo throw new InvalidMethodAcceptException((e as Error).message)
+                    throw new Error(errorMessage)
+                }
+            }
+            return originalMethod.apply(this, args)
+        }
+    } else {
+        descriptor.value = function (...args: any[]) {
+            const {error, value} = schema.concat(Validator.Array().ordered(...new Array(args.length - argumentSchemaLength).fill(Validator.Any()))).validate(args, options)
+            if (error) {
+                errorMessages.push(error.message)
+                const errorMessage: string = errorMessages.join(' ')
+                if (target['generateException']) {
+                    //todo throw target['generateException'](InvalidMethodAcceptException, (e as Error).message)
+                    throw new Error(errorMessage)
+                } else {
+                    //todo throw new InvalidMethodAcceptException((e as Error).message)
+                    throw new Error(errorMessage)
+                }
+            }
+            return originalMethod.apply(this, value)
+        }
     }
+    return descriptor
 }
