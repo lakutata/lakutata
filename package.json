@@ -48,6 +48,7 @@
     "@typescript-eslint/parser": "^6.2.0",
     "eslint": "^8.45.0",
     "joi": "^17.9.2",
+    "pupa": "^3.1.0",
     "shx": "^0.3.4",
     "ts-node": "^10.9.1",
     "tsup": "^7.1.0",

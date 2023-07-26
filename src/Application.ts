@@ -4,7 +4,6 @@ import {Validator} from './lib/Validator.js'
 export class Application {
     //todo
 
-
     constructor() {
         const gg = 1
     }
