@@ -78,6 +78,8 @@
   "keywords": [
     "lakutata",
     "framework",
-    "typescript"
+    "typescript",
+    "esm",
+    "cjs"
   ]
 }
