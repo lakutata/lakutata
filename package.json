@@ -27,9 +27,7 @@
     ],
     "outDir": "./build",
     "keepNames": true,
-    "noExternal": [
-      "joi"
-    ]
+    "external": "pkgJson"
   },
   "scripts": {
     "clean": "shx rm -rf ./build",
