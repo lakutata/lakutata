@@ -1,3 +1,5 @@
+import 'reflect-metadata'
+
 /**
  * 验证器
  */

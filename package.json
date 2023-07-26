@@ -27,7 +27,11 @@
     ],
     "outDir": "./build",
     "keepNames": true,
-    "external": "pkgJson"
+    "external": "pkgJson",
+    "minify": "terser",
+    "terserOptions": {
+      "compress": true
+    }
   },
   "scripts": {
     "clean": "shx rm -rf ./build",
@@ -48,6 +52,7 @@
     "joi": "^17.9.2",
     "pupa": "^3.1.0",
     "shx": "^0.3.4",
+    "terser": "^5.19.2",
     "ts-node": "^10.9.1",
     "tsup": "^7.1.0",
     "typescript": "^5.0.0"
