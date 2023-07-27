@@ -16,6 +16,7 @@
     }
   },
   "tsup": {
+    "target": "es2017",
     "entry": [
       "src/**/*"
     ],
@@ -27,6 +28,7 @@
       "esm",
       "cjs"
     ],
+    "shims": true,
     "outDir": "./build",
     "keepNames": true,
     "external": "pkgJson",

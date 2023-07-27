@@ -6,7 +6,7 @@ export class Application {
     //todo
 
     constructor(options: IApplicationOptions) {
-
+        // process.nextTick()
     }
 
     @Accept(Validator.Object({
