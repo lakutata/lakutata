@@ -1,11 +1,12 @@
-import {Accept, Return} from './decorators/MethodValidation.js'
-import {Validator} from './utils/Validator.js'
+import {Accept, Return} from '../decorators/MethodDecorators.js'
+import {Validator} from '../Validator.js'
+import {IApplicationOptions} from '../interfaces/IApplicationOptions.js'
 
 export class Application {
     //todo
 
-    constructor() {
-        const gg = 1
+    constructor(options: IApplicationOptions) {
+
     }
 
     @Accept(Validator.Object({
@@ -13,7 +14,7 @@ export class Application {
         cc: Validator.String().optional().default('bbbbbb')
     }), {stripUnknown: true})
     @Return(Validator.Object({test: Validator.String().required()}))
-    public test(obj, bb, cc) {
+    public async test(obj, bb, cc) {
         console.log('obj:', obj, bb, cc)
         return {test: '123', bbc: 123}
     }

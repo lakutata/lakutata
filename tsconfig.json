@@ -13,6 +13,7 @@
       "reflect-metadata",
       "node"
     ],
+    "importHelpers": true,
     "experimentalDecorators": true,
     "resolveJsonModule": true,
     "allowJs": true,

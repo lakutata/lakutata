@@ -1,16 +1,18 @@
 {
   "name": "@lakutata2/core",
-  "version": "2.0.0",
+  "version": "2.0.5",
   "description": "Lakutata Framework Core",
-  "main": "./build/Core.cjs",
-  "module": "./build/Core.js",
-  "types": "./build/Core.d.ts",
   "type": "module",
   "exports": {
     ".": {
       "require": "./build/Core.cjs",
       "import": "./build/Core.js",
       "types": "./build/Core.d.ts"
+    },
+    "./validator": {
+      "require": "./build/Validator.cjs",
+      "import": "./build/Validator.js",
+      "types": "./build/Validator.d.ts"
     }
   },
   "tsup": {
@@ -42,7 +44,8 @@
     "test": "ts-node src/tests/Test.spec.ts"
   },
   "dependencies": {
-    "reflect-metadata": "^0.1.13"
+    "reflect-metadata": "^0.1.13",
+    "tslib": "^2.6.1"
   },
   "devDependencies": {
     "@types/node": "^18.17.0",

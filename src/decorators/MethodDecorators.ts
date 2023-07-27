@@ -1,4 +1,4 @@
-import {ArraySchema, Schema, ValidationOptions, Validator} from '../utils/Validator.js'
+import {ArraySchema, Schema, ValidationOptions, Validator} from '../Validator.js'
 import {isAsyncFunction} from 'util/types'
 import {InvalidMethodReturnException} from '../exceptions/InvalidMethodReturnException.js'
 import {InvalidMethodAcceptException} from '../exceptions/InvalidMethodAcceptException.js'
@@ -28,15 +28,24 @@ export const Accept = (argumentSchemas: Schema | Schema[], options?: ValidationO
             try {
                 args = await schema.concat(Validator.Array().ordered(...new Array(args.length - argumentSchemaLength).fill(Validator.Any()))).validateAsync(args, options)
             } catch (e) {
-                throw new InvalidMethodAcceptException('Method [{propertyKey}] accept argument {reason}', {propertyKey: propertyKey, reason: (e as Error).message})
+                throw new InvalidMethodAcceptException('Method [{propertyKey}] accept argument {reason}', {
+                    propertyKey: propertyKey,
+                    reason: (e as Error).message
+                })
             }
             return originalMethod.apply(this, args)
         }
     } else {
         descriptor.value = function (...args: any[]) {
-            const {error, value} = schema.concat(Validator.Array().ordered(...new Array(args.length - argumentSchemaLength).fill(Validator.Any()))).validate(args, options)
+            const {
+                error,
+                value
+            } = schema.concat(Validator.Array().ordered(...new Array(args.length - argumentSchemaLength).fill(Validator.Any()))).validate(args, options)
             if (error) {
-                throw new InvalidMethodAcceptException('Method [{propertyKey}] accept argument {reason}', {propertyKey: propertyKey, reason: error.message})
+                throw new InvalidMethodAcceptException('Method [{propertyKey}] accept argument {reason}', {
+                    propertyKey: propertyKey,
+                    reason: error.message
+                })
             }
             return originalMethod.apply(this, value)
         }
@@ -60,7 +69,10 @@ export const Return = (returnSchema: Schema, options?: ValidationOptions) => (ta
             try {
                 return await returnSchema.validateAsync(asyncResult, options)
             } catch (e) {
-                throw new InvalidMethodReturnException('Method [{propertyKey}] return value {reason}', {propertyKey: propertyKey, reason: (e as Error).message})
+                throw new InvalidMethodReturnException('Method [{propertyKey}] return value {reason}', {
+                    propertyKey: propertyKey,
+                    reason: (e as Error).message
+                })
             }
         }
     } else {
@@ -68,7 +80,10 @@ export const Return = (returnSchema: Schema, options?: ValidationOptions) => (ta
             const syncResult = originalMethod.apply(this, args)
             const {error, value} = returnSchema.validate(syncResult, options)
             if (error) {
-                throw new InvalidMethodReturnException('Method [{propertyKey}] return value {reason}', {propertyKey: propertyKey, reason: error.message})
+                throw new InvalidMethodReturnException('Method [{propertyKey}] return value {reason}', {
+                    propertyKey: propertyKey,
+                    reason: error.message
+                })
             }
             return value
         }
