@@ -13,7 +13,6 @@ import {InvalidDTOValueException} from '../../exceptions/InvalidDTOValueExceptio
     }
 })()
 export class DTO {
-
     /**
      * 使用该DTO验证数据（同步）
      */

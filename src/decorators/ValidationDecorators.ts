@@ -6,8 +6,7 @@ import {IConstructor} from '../interfaces/IConstructor.js'
 import {DTO_CLASS, DTO_SCHEMAS} from '../constants/MetadataKey.js'
 import {defaultValidationOptions} from '../constants/DefaultValue.js'
 
-interface AcceptTypedPropertyDescriptor extends TypedPropertyDescriptor<(...args: any[]) => any | Promise<any>> {
-}
+type TFunction = (...args: any[]) => any | Promise<any>
 
 /**
  * 属性参数验证
@@ -18,10 +17,10 @@ export function Accept(schema: Schema): (target: Object, propertyKey: string | s
  * 方法参数验证
  * @constructor
  */
-export function Accept(argumentSchemas: Schema | Schema[], options?: ValidationOptions): (target: Object, propertyKey: string, descriptor: AcceptTypedPropertyDescriptor) => AcceptTypedPropertyDescriptor
-export function Accept(DTOs: IConstructor<DTO> | IConstructor<DTO>[], options?: ValidationOptions): (target: Object, propertyKey: string, descriptor: AcceptTypedPropertyDescriptor) => AcceptTypedPropertyDescriptor
+export function Accept(argumentSchemas: Schema | Schema[], options?: ValidationOptions): (target: Object, propertyKey: string, descriptor: TypedPropertyDescriptor<TFunction>) => TypedPropertyDescriptor<TFunction>
+export function Accept(DTOs: IConstructor<DTO> | IConstructor<DTO>[], options?: ValidationOptions): (target: Object, propertyKey: string, descriptor: TypedPropertyDescriptor<TFunction>) => TypedPropertyDescriptor<TFunction>
 export function Accept(inp: Schema | Schema[] | IConstructor<DTO> | IConstructor<DTO>[], options?: ValidationOptions): any {
-    return function (target: Object, propertyKey: string, descriptor: AcceptTypedPropertyDescriptor | undefined): AcceptTypedPropertyDescriptor | void {
+    return function (target: Object, propertyKey: string, descriptor: TypedPropertyDescriptor<TFunction> | undefined): TypedPropertyDescriptor<TFunction> | void {
         if (descriptor === undefined) {
             //属修饰器
             const schema: Schema = inp as Schema
