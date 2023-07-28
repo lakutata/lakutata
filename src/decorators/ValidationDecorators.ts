@@ -19,7 +19,7 @@ export function Accept(schema: Schema): (target: Object, propertyKey: string | s
  * @constructor
  */
 export function Accept(argumentSchemas: Schema | Schema[], options?: ValidationOptions): (target: Object, propertyKey: string, descriptor: AcceptTypedPropertyDescriptor) => AcceptTypedPropertyDescriptor
-export function Accept(rules: IConstructor<DTO> | IConstructor<DTO>[], options?: ValidationOptions): (target: Object, propertyKey: string, descriptor: AcceptTypedPropertyDescriptor) => AcceptTypedPropertyDescriptor
+export function Accept(DTOs: IConstructor<DTO> | IConstructor<DTO>[], options?: ValidationOptions): (target: Object, propertyKey: string, descriptor: AcceptTypedPropertyDescriptor) => AcceptTypedPropertyDescriptor
 export function Accept(inp: Schema | Schema[] | IConstructor<DTO> | IConstructor<DTO>[], options?: ValidationOptions): any {
     return function (target: Object, propertyKey: string, descriptor: AcceptTypedPropertyDescriptor | undefined): AcceptTypedPropertyDescriptor | void {
         if (descriptor === undefined) {
@@ -36,7 +36,7 @@ export function Accept(inp: Schema | Schema[] | IConstructor<DTO> | IConstructor
             inputs.forEach(input => {
                 if (Reflect.hasMetadata(DTO_CLASS, input)) {
                     //DTO类的构造函数
-                    Reflect.getMetadata(DTO_SCHEMAS, input)
+                    argumentSchemas.push(Validator.Object(Reflect.getMetadata(DTO_SCHEMAS, input)))
                     // new (input as IConstructor<Rule>)
                 } else {
                     //Schema实例

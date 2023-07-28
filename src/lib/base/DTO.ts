@@ -4,14 +4,14 @@ import {IConstructor} from '../../interfaces/IConstructor.js'
 import {defaultValidationOptions} from '../../constants/DefaultValue.js'
 import {InvalidDTOValueException} from '../../exceptions/InvalidDTOValueException.js'
 
+
 @(() => {
-    return <TFunction extends DTO>(target: TFunction): TFunction => {
+    return <TFunction extends IConstructor<any>>(target: TFunction): TFunction => {
         Reflect.defineMetadata(DTO_CLASS, true, target)
         if (!Reflect.hasMetadata(DTO_SCHEMAS, target)) Reflect.defineMetadata(DTO_SCHEMAS, {}, target)
         return target
     }
 })()
-
 export class DTO {
 
     /**
@@ -22,7 +22,7 @@ export class DTO {
         const schema: ObjectSchema<T> = Validator.Object(Reflect.getMetadata(DTO_SCHEMAS, this.constructor))
         const {error, value} = schema.validate(data, options)
         if (error) throw new InvalidDTOValueException(error.message)
-        return value!
+        return Object.assign(new this(), value)
     }
 
     /**
@@ -34,7 +34,8 @@ export class DTO {
         options = options ? Object.assign({}, defaultValidationOptions, options) : defaultValidationOptions
         const schema: ObjectSchema<T> = Validator.Object(Reflect.getMetadata(DTO_SCHEMAS, this.constructor))
         try {
-            return await schema.validateAsync(data, options)
+            const value: T = await schema.validateAsync(data, options)
+            return Object.assign(new this(), value)
         } catch (e) {
             throw new InvalidDTOValueException((e as Error).message)
         }

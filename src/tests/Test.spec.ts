@@ -21,7 +21,13 @@ import {Validator} from '../Validator.js'
 
     class YY extends DTO {
         @Accept(Validator.String())
-        public aa
+        public aa: string
+
+        @Accept(Validator.String().required())
+        public cc: string
+
+        @Accept(Validator.String().default('uuuu'))
+        public dd:string
     }
 
     class XX extends DTO {
@@ -37,12 +43,13 @@ import {Validator} from '../Validator.js'
     }
 
     const test = YY.concat(XX)
-YY.validate('').aa
-    console.log(await YY.validateAsync({aa:'gggggg'}))
+
+    console.log(YY.validate({aa: 'gggggg'},{stripUnknown:false}))
+    // console.log(await YY.validateAsync({aa: 'gggggg'}))
     // YY.validate()
     // console.log(YY.schema().validate({aa:'aaaaa'}))
 
-    new BB().test({aa: 'aaa'})
+    new BB().test({aa: 'aaa',cc:'uuuuuu',dd:'yyyy'})
 
     // console.error(new InvalidMethodAcceptException('I love {a} and {b}', {a: 'bb', b: 'mm'}))
 })()
