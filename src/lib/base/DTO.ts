@@ -19,7 +19,7 @@ export class DTO {
      */
     public static validate<T extends DTO>(this: IConstructor<T>, data: any, options?: ValidationOptions): T {
         options = options ? Object.assign({}, defaultValidationOptions, options) : defaultValidationOptions
-        const schema: ObjectSchema<T> = Validator.Object(Reflect.getMetadata(DTO_SCHEMAS, this.constructor))
+        const schema: ObjectSchema<T> = Validator.Object(Reflect.getMetadata(DTO_SCHEMAS, this))
         const {error, value} = schema.validate(data, options)
         if (error) throw new InvalidDTOValueException(error.message)
         return Object.assign(new this(), value)
@@ -32,7 +32,7 @@ export class DTO {
      */
     public static async validateAsync<T extends DTO>(this: IConstructor<T>, data: any, options?: ValidationOptions): Promise<T> {
         options = options ? Object.assign({}, defaultValidationOptions, options) : defaultValidationOptions
-        const schema: ObjectSchema<T> = Validator.Object(Reflect.getMetadata(DTO_SCHEMAS, this.constructor))
+        const schema: ObjectSchema<T> = Validator.Object(Reflect.getMetadata(DTO_SCHEMAS, this))
         try {
             const value: T = await schema.validateAsync(data, options)
             return Object.assign(new this(), value)

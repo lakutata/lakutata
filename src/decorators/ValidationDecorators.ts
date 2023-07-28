@@ -25,7 +25,7 @@ export function Accept(inp: Schema | Schema[] | IConstructor<DTO> | IConstructor
         if (descriptor === undefined) {
             //属修饰器
             const schema: Schema = inp as Schema
-            if (!Reflect.hasMetadata(DTO_SCHEMAS, target)) Reflect.defineMetadata(DTO_SCHEMAS, {}, target.constructor)
+            if (!Reflect.hasMetadata(DTO_SCHEMAS, target.constructor)) Reflect.defineMetadata(DTO_SCHEMAS, {}, target.constructor)
             const schemas: SchemaMap = Reflect.getMetadata(DTO_SCHEMAS, target.constructor)
             schemas[propertyKey] = schema
             Reflect.defineMetadata(DTO_SCHEMAS, schemas, target.constructor)
@@ -37,7 +37,6 @@ export function Accept(inp: Schema | Schema[] | IConstructor<DTO> | IConstructor
                 if (Reflect.hasMetadata(DTO_CLASS, input)) {
                     //DTO类的构造函数
                     argumentSchemas.push(Validator.Object(Reflect.getMetadata(DTO_SCHEMAS, input)))
-                    // new (input as IConstructor<Rule>)
                 } else {
                     //Schema实例
                     argumentSchemas.push(input as Schema)
