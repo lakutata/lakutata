@@ -28,16 +28,24 @@ import {Validator} from '../Validator.js'
 
         @Accept(Validator.String().default('uuuu'))
         public dd?: string
+
+        @Accept(Validator.Number().required())
+        public pp: number
     }
 
     class XX extends DTO {
-        @Accept(Validator.Number())
+
+        @Accept(Validator.Number().required())
         public bb
+
+        @Accept(YY.schema().required())
+        public xx: YY
+
     }
 
     class BB {
-        @Accept(YY)
-        public test(opt: YY) {
+        @Accept(XX)
+        public test(opt: XX) {
             console.log('test output:', opt)
         }
     }
@@ -49,10 +57,14 @@ import {Validator} from '../Validator.js'
     // YY.validate()
     // console.log(YY.schema().validate({aa:'aaaaa'}))
 
-    const data: any = {aa: 'aaa',cc:'eeeee'}
+    const data1: any = {aa: 'aaa', cc: 'eeeee', pp: 1, bb: 1}
+    const data2: any = {bb: 1, xx: {aa: 'aaa', cc: 'eeeee', pp: 1}}
 
-    new BB().test(data)
-    console.log('validate output:',await YY.validateAsync(data))
+    // console.log(XX.schema())
+
+    // new BB().test(data)
+    // console.log('validate output:', await YY.validateAsync(data))
+    console.log('validate output:', await XX.validateAsync(data2))
 
     // console.error(new InvalidMethodAcceptException('I love {a} and {b}', {a: 'bb', b: 'mm'}))
 })()

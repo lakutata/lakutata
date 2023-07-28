@@ -1,6 +1,6 @@
-import {Accept, Return} from '../decorators/MethodDecorators.js'
 import {Validator} from '../Validator.js'
 import {IApplicationOptions} from '../interfaces/IApplicationOptions.js'
+import {Accept, Return} from '../decorators/ValidationDecorators.js'
 
 export class Application {
     //todo
@@ -19,7 +19,9 @@ export class Application {
         return {test: '123', bbc: 123}
     }
 
-    public test2(opt) {
+    @Return(Validator.Object({a: Validator.Number(), b: Validator.String(), c: Validator.Boolean()}))
+    public async test2(opt) {
         console.log(opt)
+        return {a: 1, b: '1', c: true}
     }
 }

@@ -8,11 +8,18 @@ import {InvalidDTOValueException} from '../../exceptions/InvalidDTOValueExceptio
 @(() => {
     return <TFunction extends IConstructor<any>>(target: TFunction): TFunction => {
         Reflect.defineMetadata(DTO_CLASS, true, target)
-        if (!Reflect.hasMetadata(DTO_SCHEMAS, target)) Reflect.defineMetadata(DTO_SCHEMAS, {}, target)
         return target
     }
 })()
 export class DTO {
+    /**
+     * 获取DTO的数据验证定义
+     */
+    public static schema<T extends DTO>(this: IConstructor<T>): ObjectSchema<T> {
+        // console.log(Validator.Object(Reflect.getMetadata(DTO_SCHEMAS, this)))
+        return Validator.Object(Reflect.getMetadata(DTO_SCHEMAS, this))
+    }
+
     /**
      * 使用该DTO验证数据（同步）
      */
