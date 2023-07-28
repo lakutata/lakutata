@@ -18,4 +18,8 @@ export class Application {
         console.log('obj:', obj, bb, cc)
         return {test: '123', bbc: 123}
     }
+
+    public test2(opt) {
+        console.log(opt)
+    }
 }
