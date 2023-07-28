@@ -8,6 +8,6 @@ export {InvalidMethodAcceptException} from './exceptions/InvalidMethodAcceptExce
 export {InvalidMethodReturnException} from './exceptions/InvalidMethodReturnException.js'
 
 //接口
-export {IApplicationOptions} from './interfaces/IApplicationOptions.js'
+export {IConstructor} from './interfaces/IConstructor.js'
 
 //类型

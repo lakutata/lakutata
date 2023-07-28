@@ -1,7 +1,6 @@
 import {Application} from '../Core.js'
 import pupa from 'pupa'
 import {InvalidMethodAcceptException} from '../exceptions/InvalidMethodAcceptException.js'
-import {Abcd} from './Abcd.js'
 import {DTO} from '../lib/base/DTO.js'
 import {Accept} from '../decorators/ValidationDecorators.js'
 import {Validator} from '../Validator.js'
@@ -16,7 +15,7 @@ import {Validator} from '../Validator.js'
     console.log(await new Application({
         id: 'test',
         name: 'test',
-        timezone: 'Asia/Shanghai'
+        // timezone: 'Asia/Shanghai'
     }).test2({a: '1', b: 1, c: true}))
 
     class YY extends DTO {

@@ -1,12 +1,18 @@
 import {Validator} from '../Validator.js'
-import {IApplicationOptions} from '../interfaces/IApplicationOptions.js'
 import {Accept, Return} from '../decorators/ValidationDecorators.js'
+import {ApplicationOptions} from '../options/ApplicationOptions.js'
+import {EventEmitter} from 'events'
 
-export class Application {
-    //todo
+export class Application extends EventEmitter {
 
-    constructor(options: IApplicationOptions) {
-        // process.nextTick()
+    constructor(options: ApplicationOptions) {
+        super()
+        this.boot(options)
+    }
+
+    @Accept(ApplicationOptions)
+    protected boot(options: ApplicationOptions): void {
+        //todo
     }
 
     @Accept(Validator.Object({
