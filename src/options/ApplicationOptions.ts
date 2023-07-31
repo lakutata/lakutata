@@ -10,7 +10,7 @@ export class ApplicationOptions extends DTO {
     @Accept(Validator.String().required())
     readonly name: string
 
-    @Accept(Validator.String().optional().default(process.env.TZ ? process.env.TZ : 'Asia/Shanghai'))
+    @Accept(Validator.String().optional())
     readonly timezone?: string
 
 }
