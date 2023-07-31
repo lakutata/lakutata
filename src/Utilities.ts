@@ -1,5 +1,7 @@
 import sortArray from 'sort-array'
 import {ISortArrayOptions} from './interfaces/ISortArrayOptions.js'
+import sortKeys from 'sort-keys'
+import {ISortObjectOptions} from './interfaces/ISortObjectOptions.js'
 
 /**
  * 集合转数组
@@ -50,4 +52,25 @@ export function SortArray<T = any>(arr: T[], ...options: ISortArrayOptions<T>[])
         })
         return sortArray(arr, sortsOptions)
     }
+}
+
+/**
+ * 对象排序
+ * @param object
+ * @param options
+ * @constructor
+ */
+export function SortObject<T extends Record<string, any>>(object: T, options?: ISortObjectOptions): T {
+    return sortKeys(object, {
+        deep: options?.deep, compare: (a: string, b: string): number => {
+            switch (options?.order) {
+                case 'asc':
+                    return a.localeCompare(b)
+                case 'desc':
+                    return -a.localeCompare(b)
+                default:
+                    return a.localeCompare(b)
+            }
+        }
+    })
 }

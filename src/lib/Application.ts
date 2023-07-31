@@ -1,6 +1,6 @@
-import {ApplicationOptions} from '../Core.js'
 import {Validator} from '../Validator.js'
 import {Accept, Return} from '../Decorators.js'
+import {ApplicationOptions} from '../Core.js'
 import {EventEmitter} from 'events'
 
 export class Application extends EventEmitter {

@@ -1,3 +1,4 @@
+import 'reflect-metadata'
 import Joi from 'joi'
 
 export class Validator {

@@ -4,7 +4,6 @@ import {IConstructor} from '../../interfaces/IConstructor.js'
 import {defaultValidationOptions} from '../../constants/DefaultValue.js'
 import {InvalidDTOValueException} from '../../exceptions/InvalidDTOValueException.js'
 
-
 @(() => {
     return <TFunction extends IConstructor<any>>(target: TFunction): TFunction => {
         Reflect.defineMetadata(DTO_CLASS, true, target)
@@ -16,7 +15,6 @@ export class DTO {
      * 获取DTO的数据验证定义
      */
     public static schema<T extends DTO>(this: IConstructor<T>): ObjectSchema<T> {
-        // console.log(Validator.Object(Reflect.getMetadata(DTO_SCHEMAS, this)))
         return Validator.Object(Reflect.getMetadata(DTO_SCHEMAS, this))
     }
 
