@@ -13,6 +13,21 @@
       "require": "./build/Validator.cjs",
       "import": "./build/Validator.js",
       "types": "./build/Validator.d.ts"
+    },
+    "./decorator": {
+      "require": "./build/Decorators.cjs",
+      "import": "./build/Decorators.js",
+      "types": "./build/Decorators.d.ts"
+    },
+    "./exception": {
+      "require": "./build/Exceptions.cjs",
+      "import": "./build/Exceptions.js",
+      "types": "./build/Exceptions.d.ts"
+    },
+    "./utility": {
+      "require": "./build/Utilities.cjs",
+      "import": "./build/Utilities.js",
+      "types": "./build/Utilities.d.ts"
     }
   },
   "tsup": {
@@ -53,10 +68,12 @@
     "@types/node": "^18.17.0",
     "@typescript-eslint/eslint-plugin": "^6.2.0",
     "@typescript-eslint/parser": "^6.2.0",
+    "awilix": "^8.0.1",
     "eslint": "^8.45.0",
     "joi": "^17.9.2",
     "pupa": "^3.1.0",
     "shx": "^0.3.4",
+    "sort-array": "^4.1.5",
     "terser": "^5.19.2",
     "ts-node": "^10.9.1",
     "tsup": "^7.1.0",
