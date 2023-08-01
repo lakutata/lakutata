@@ -83,3 +83,13 @@ export function SortObject<T extends Record<string, any>>(object: T, options?: I
         }
     })
 }
+
+/**
+ * 配置对象属性
+ * @param target
+ * @param properties
+ * @constructor
+ */
+export function ConfigureObjectProperties<T extends object = object>(target: T, properties: Record<string, any>): void {
+    Object.keys(properties ? properties : {}).forEach((propertyKey: string) => target[propertyKey] = properties![propertyKey])
+}

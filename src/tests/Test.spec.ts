@@ -10,6 +10,7 @@ import {asClass, asValue} from '../lib/ioc/Resolvers.js'
 import {AsyncConstructor} from 'async-constructor'
 import {async} from 'fast-glob'
 import {Container} from '../lib/base/Container.js'
+import {BaseObject} from '../lib/base/BaseObject.js'
 
 // console.log(Application)
 
@@ -63,7 +64,7 @@ import {Container} from '../lib/base/Container.js'
         }
     }
 
-    console.log('typeof Test2:',typeof Test2)
+    console.log('typeof Test2:', typeof Test2)
 
     const ctr = createContainer({injectionMode: InjectionMode.PROXY})
     const container = new Container()
@@ -75,5 +76,26 @@ import {Container} from '../lib/base/Container.js'
     const test1 = await container.get('test1')
     // console.log(test1)
     console.log(await test1.ruuu())
+
+    class PPP {
+    }
+
+    class OB extends BaseObject {
+        protected readonly test: string
+
+        protected readonly hh = () => {
+        }
+
+        protected async init(): Promise<void> {
+            console.log('dfdfdf')
+        }
+    }
+
+    console.log(OB.className())
+
+    // console.log(await new OB({test: 'world'}))
+    const obInstance = await OB.instantiate({test1: 'world111'})
+    obInstance.setProperty('test1', 'gg')
+    console.log(obInstance,obInstance['init'], obInstance.hasProperty('init'), obInstance.hasMethod('init'))
 
 })()
