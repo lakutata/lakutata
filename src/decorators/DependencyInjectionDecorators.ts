@@ -9,7 +9,7 @@ type InjectMappingObject = {
 }
 
 /**
- * 空参数时使用propertyKey作为注入项的名称
+ * 使用所修饰的属性名作为注入项的名称
  * @constructor
  */
 export function Inject<T extends BaseObject>(): (target: T, propertyKey: string) => void
