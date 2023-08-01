@@ -11,7 +11,7 @@ import {AsyncConstructor} from 'async-constructor'
 import {Container} from '../lib/base/Container.js'
 import {BaseObject} from '../lib/base/BaseObject.js'
 import {Component} from '../lib/base/Component.js'
-import {Inject} from '../decorators/DependencyInjectionDecorators.js'
+import {Configurable, Inject} from '../decorators/DependencyInjectionDecorators.js'
 
 // console.log(Application)
 
@@ -87,7 +87,7 @@ import {Inject} from '../decorators/DependencyInjectionDecorators.js'
         @Inject()
         protected readonly ctn
 
-        // @Inject()
+        @Configurable()
         protected readonly oo
 
         protected readonly hh = () => {

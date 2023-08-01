@@ -1,5 +1,6 @@
-export const DTO_CLASS: string = 'lakutata:dto.class'
-export const DTO_SCHEMAS: string = 'lakutata:dto.schemas'
+export const DTO_CLASS: Symbol = Symbol('LAKUTATA.DTO.CLASS')
+export const DTO_SCHEMAS: Symbol = Symbol('LAKUTATA.DTO.SCHEMAS')
 
-export const DI_CONTAINER_CREATOR_CONSTRUCTOR: string = 'lakutata:di.container.creator.constructor'
-export const DI_TARGET_CONSTRUCTOR_INJECTS: string = 'lakutata:di.target.constructor.injects'
+export const DI_CONTAINER_CREATOR_CONSTRUCTOR: Symbol = Symbol('LAKUTATA.DI.CONTAINER.CREATOR.CONSTRUCTOR')
+export const DI_TARGET_CONSTRUCTOR_INJECTS: Symbol = Symbol('LAKUTATA.DI.TARGET.CONSTRUCTOR.INJECTS')
+export const DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS: Symbol = Symbol('LAKUTATA.DI.TARGET.CONSTRUCTOR.CONFIGURABLE.ITEMS')

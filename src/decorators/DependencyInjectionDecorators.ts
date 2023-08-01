@@ -1,7 +1,7 @@
 import {BaseObject} from '../lib/base/BaseObject.js'
 import {IConstructor} from '../interfaces/IConstructor.js'
 import {As} from '../Utilities.js'
-import {DI_TARGET_CONSTRUCTOR_INJECTS} from '../constants/MetadataKey.js'
+import {DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, DI_TARGET_CONSTRUCTOR_INJECTS} from '../constants/MetadataKey.js'
 
 type InjectMappingObject = {
     injectKey: string
@@ -38,7 +38,8 @@ export function Inject<T extends BaseObject>(name?: string): (target: T, propert
  */
 export function Configurable<T extends BaseObject>(): (target: T, propertyKey: string) => void {
     return function <T extends BaseObject>(target: T, propertyKey: string): void {
-        console.log('Configurable')
-        //todo
+        const targetConstructor: IConstructor<T> = As<IConstructor<T>>(target.constructor)
+        if (!Reflect.hasMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, targetConstructor)) Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, new Set<string>(), targetConstructor)
+        As<Set<string>>(Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, targetConstructor)).add(propertyKey)
     }
 }
