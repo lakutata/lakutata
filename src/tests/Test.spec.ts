@@ -82,13 +82,13 @@ import {Inject} from '../decorators/DependencyInjectionDecorators.js'
 
         protected readonly test: string
 
-        @Inject('ctn')
+        @Inject()
         protected readonly test1: Test1
 
-        @Inject('test1')
+        @Inject()
         protected readonly ctn
 
-        @Inject()
+        // @Inject()
         protected readonly oo
 
         protected readonly hh = () => {
