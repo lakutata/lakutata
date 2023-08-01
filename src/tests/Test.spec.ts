@@ -9,6 +9,7 @@ import {InjectionMode} from '../lib/ioc/InjectionMode.js'
 import {asClass, asValue} from '../lib/ioc/Resolvers.js'
 import {AsyncConstructor} from 'async-constructor'
 import {async} from 'fast-glob'
+import {Container} from '../lib/base/Container.js'
 
 // console.log(Application)
 
@@ -26,7 +27,7 @@ import {async} from 'fast-glob'
     })
 
     class Test1 extends AsyncConstructor {
-        protected ctn: IDependencyInjectionContainer
+        protected ctn: Container
 
         constructor({ctn}) {
             super(async () => {
@@ -38,7 +39,7 @@ import {async} from 'fast-glob'
         }
 
         public async ruuu() {
-            const test2 = await this.ctn.resolve('test2')
+            const test2 = await this.ctn.get('test2')
             return test2.run()
         }
 
@@ -55,7 +56,6 @@ import {async} from 'fast-glob'
                 console.log('test2')
                 this.test1 = await test1
             })
-
         }
 
         public run() {
@@ -63,13 +63,14 @@ import {async} from 'fast-glob'
         }
     }
 
-    const container = createContainer({injectionMode: InjectionMode.PROXY})
+    const ctr = createContainer({injectionMode: InjectionMode.PROXY})
+    const container = new Container()
     container.register({
         ctn: asValue(container),
         test1: asClass(Test1),
         test2: asClass(Test2)
     })
-    const test1 = await container.resolve('test1')
+    const test1 = await container.get('test1')
     // console.log(test1)
     console.log(await test1.ruuu())
 

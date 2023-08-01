@@ -11,7 +11,7 @@ import {
     asClass,
     asFunction,
     DisposableResolver,
-    BuildResolverOptions
+    BuildResolverOptions, BuildResolver
 } from './Resolvers.js'
 import {last, nameValueToObject, isClass} from './Utils.js'
 import {InjectionMode, InjectionModeType} from './InjectionMode.js'
@@ -223,7 +223,7 @@ export function createContainer<T extends object = any, U extends object = any>(
     /**
      * 传递给函数的Proxy，使它们可以在不知道依赖项来自何处的情况下解析它们。我称之为“cradle（摇篮）”，因为它是注册事物在解析时产生生命的地方。
      */
-    const cradle = new Proxy(
+    const cradle: T = new Proxy(
         {
             [util.inspect.custom]: toStringRepresentationFn
         },
@@ -240,7 +240,7 @@ export function createContainer<T extends object = any, U extends object = any>(
              * @param _target
              * @param name
              */
-            set: (_target: object, name: string) => {
+            set: (_target: object, name: string): boolean => {
                 throw new Error(
                     `Attempted setting property "${
                         name as any
@@ -258,22 +258,19 @@ export function createContainer<T extends object = any, U extends object = any>(
             /**
              * Used for `Object.keys`.
              */
-            getOwnPropertyDescriptor(target: object, key: string | symbol) {
-                const regs = rollUpRegistrations()
-                if (Object.getOwnPropertyDescriptor(regs, key)) {
-                    return {
-                        enumerable: true,
-                        configurable: true
-                    }
+            getOwnPropertyDescriptor(target: object, key: string | symbol): PropertyDescriptor | undefined {
+                const regs: RegistrationHash = rollUpRegistrations()
+                if (Object.getOwnPropertyDescriptor(regs, key)) return {
+                    enumerable: true,
+                    configurable: true
                 }
-
                 return undefined
             }
         }
     ) as T
 
     // The container being exposed.
-    const container = {
+    const container: IDependencyInjectionContainer & any = {
         options,
         cradle,
         inspect,
@@ -298,12 +295,11 @@ export function createContainer<T extends object = any, U extends object = any>(
     const familyTree: Array<IDependencyInjectionContainer> = parentContainer
             ? [container].concat((parentContainer as any)[FAMILY_TREE])
             : [container]
-
         // 保存它，以便我们可以从作用域容器中访问它
     ;(container as any)[FAMILY_TREE] = familyTree
 
     // 我们需要对根容器的引用，以便我们可以检索和存储单例对象
-    const rootContainer = last(familyTree)
+    const rootContainer: IDependencyInjectionContainer = last(familyTree)
 
     return container
 
@@ -330,8 +326,8 @@ export function createContainer<T extends object = any, U extends object = any>(
     /**
      * 用于为摇篮提供迭代器。
      */
-    function* cradleIterator() {
-        const registrations = rollUpRegistrations()
+    function* cradleIterator(): Generator {
+        const registrations: RegistrationHash = rollUpRegistrations()
         for (const registrationName in registrations) {
             yield registrationName
         }
@@ -348,14 +344,12 @@ export function createContainer<T extends object = any, U extends object = any>(
      * 为解析器添加一个注册项。
      */
     function register(arg1: any, arg2: any): IDependencyInjectionContainer<T> {
-        const obj = nameValueToObject(arg1, arg2)
-        const keys = [...Object.keys(obj), ...Object.getOwnPropertySymbols(obj)]
-
+        const obj: Record<string | symbol, any> = nameValueToObject(arg1, arg2)
+        const keys: (string | symbol)[] = [...Object.keys(obj), ...Object.getOwnPropertySymbols(obj)]
         for (const key of keys) {
-            const value = obj[key as any] as Resolver<any>
+            const value: Resolver<any> = obj[key as any] as Resolver<any>
             registrations[key as any] = value
         }
-
         return container
     }
 
@@ -371,15 +365,9 @@ export function createContainer<T extends object = any, U extends object = any>(
      * @param name
      */
     function getRegistration(name: string | symbol) {
-        const resolver = registrations[name]
-        if (resolver) {
-            return resolver
-        }
-
-        if (parentContainer) {
-            return parentContainer.getRegistration(name)
-        }
-
+        const resolver: Resolver<any> = registrations[name]
+        if (resolver) return resolver
+        if (parentContainer) return parentContainer.getRegistration(name)
         return null
     }
 
@@ -392,7 +380,7 @@ export function createContainer<T extends object = any, U extends object = any>(
         resolveOpts = resolveOpts || {}
         try {
             // Grab the registration by name.
-            const resolver = getRegistration(name)
+            const resolver: Resolver<any> | null = getRegistration(name)
             if (resolutionStack.indexOf(name) > -1) {
                 throw new DependencyInjectionResolutionError(
                     name,
@@ -401,13 +389,9 @@ export function createContainer<T extends object = any, U extends object = any>(
                 )
             }
             // Used in JSON.stringify.
-            if (name === 'toJSON') {
-                return toStringRepresentationFn
-            }
+            if (name === 'toJSON') return toStringRepresentationFn
             // Used in console.log.
-            if (name === 'constructor') {
-                return createContainer
-            }
+            if (name === 'constructor') return createContainer
             if (!resolver) {
                 // Checks for some edge cases.
                 switch (name) {
@@ -420,7 +404,7 @@ export function createContainer<T extends object = any, U extends object = any>(
                     case Symbol.toStringTag:
                         return CRADLE_STRING_TAG
                     // Edge case: Promise unwrapping will look for a "then" property and attempt to call it.
-                    // Return undefined so that we won't cause a resolution error. (issue #109)
+                    // Return undefined so that we won't cause a resolution error.
                     case 'then':
                         return undefined
                     // When using `Array.from` or spreading the cradle, this will
@@ -504,12 +488,9 @@ export function createContainer<T extends object = any, U extends object = any>(
         targetOrResolver: Resolver<T> | ClassOrFunctionReturning<T>,
         opts?: BuildResolverOptions<T>
     ): T {
-        if (targetOrResolver && (targetOrResolver as Resolver<T>).resolve) {
-            return (targetOrResolver as Resolver<T>).resolve(container)
-        }
-
-        const funcName = 'build'
-        const paramName = 'targetOrResolver'
+        if (targetOrResolver && (targetOrResolver as Resolver<T>).resolve) return (targetOrResolver as Resolver<T>).resolve(container)
+        const funcName: string = 'build'
+        const paramName: string = 'targetOrResolver'
         DependencyInjectionTypeError.assert(
             targetOrResolver,
             funcName,
@@ -524,8 +505,7 @@ export function createContainer<T extends object = any, U extends object = any>(
             'a function or class',
             targetOrResolver
         )
-
-        const resolver = isClass(targetOrResolver as any)
+        const resolver: BuildResolver<T> & DisposableResolver<T> = isClass(targetOrResolver as any)
             ? asClass(targetOrResolver as Constructor<T>, opts)
             : asFunction(targetOrResolver as FunctionReturning<T>, opts)
         return resolver.resolve(container)
@@ -547,7 +527,7 @@ export function createContainer<T extends object = any, U extends object = any>(
         const _loadModulesDeps = {
             require:
                 options!.require ||
-                function (uri) {
+                function (uri: string) {
                     return require(uri)
                 },
             listModules,
@@ -572,15 +552,13 @@ export function createContainer<T extends object = any, U extends object = any>(
      * 销毁该容器及其子容器，对所有可释放的注册进行清理并清除缓存
      */
     async function dispose(): Promise<void> {
-        const entries = Array.from(container.cache.entries())
+        const entries: [(string | symbol), CacheEntry][] = Array.from(container.cache.entries())
         container.cache.clear()
         return Promise.all(
-            entries.map(([name, entry]) => {
+            entries.map(([name, entry]): Promise<void> => {
                 const {resolver, value} = entry
-                const disposable = resolver as DisposableResolver<any>
-                if (disposable.dispose) {
-                    return Promise.resolve().then(() => disposable.dispose!(value))
-                }
+                const disposable: DisposableResolver<any> = resolver as DisposableResolver<any>
+                if (disposable.dispose) return Promise.resolve().then(() => disposable.dispose!(value))
                 return Promise.resolve()
             })
         ).then(() => undefined)
