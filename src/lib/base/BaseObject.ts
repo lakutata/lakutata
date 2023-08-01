@@ -1,6 +1,6 @@
 import {AsyncConstructor} from 'async-constructor'
 import {IConstructor} from '../../interfaces/IConstructor.js'
-import {ConfigureObjectProperties} from '../../Utilities.js'
+import {As, ConfigureObjectProperties} from '../../Utilities.js'
 
 export class BaseObject extends AsyncConstructor {
     /**
@@ -36,7 +36,7 @@ export class BaseObject extends AsyncConstructor {
      * @param propertyKey
      */
     public getProperty<T = any>(propertyKey: string): T {
-        return this[propertyKey] as T
+        return As<T>(this[propertyKey])
     }
 
     /**
@@ -44,7 +44,7 @@ export class BaseObject extends AsyncConstructor {
      * @param propertyKey
      */
     public hasProperty(propertyKey: string): boolean {
-        return (this as any).hasOwnProperty(propertyKey) || this[propertyKey] !== undefined
+        return As(this).hasOwnProperty(propertyKey) || this[propertyKey] !== undefined
     }
 
     /**
@@ -62,8 +62,7 @@ export class BaseObject extends AsyncConstructor {
      * @param properties
      */
     public static async instantiate<T extends BaseObject>(this: IConstructor<T>, properties?: Record<string, any>): Promise<T> {
-        const promiseInstance: PromiseLike<T> = (new this(properties)) as any
-        return await promiseInstance
+        return await As<PromiseLike<T>>(new this(properties))
     }
 
     /**
