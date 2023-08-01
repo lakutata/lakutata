@@ -11,6 +11,7 @@ import {AsyncConstructor} from 'async-constructor'
 import {async} from 'fast-glob'
 import {Container} from '../lib/base/Container.js'
 import {BaseObject} from '../lib/base/BaseObject.js'
+import {Component} from '../lib/base/Component.js'
 
 // console.log(Application)
 
@@ -68,20 +69,20 @@ import {BaseObject} from '../lib/base/BaseObject.js'
 
     const ctr = createContainer({injectionMode: InjectionMode.PROXY})
     const container = new Container()
-    container.register({
-        ctn: asValue(container),
-        test1: asClass(Test1),
-        test2: asClass(Test2)
-    })
-    const test1 = await container.get('test1')
+
+    // const test1 = await container.get('test1')
     // console.log(test1)
-    console.log(await test1.ruuu())
+    // console.log(await test1.ruuu())
 
     class PPP {
     }
 
-    class OB extends BaseObject {
+    class OB extends Component {
         protected readonly test: string
+
+        protected readonly test1:Test1
+
+        protected readonly ctn
 
         protected readonly hh = () => {
         }
@@ -94,8 +95,19 @@ import {BaseObject} from '../lib/base/BaseObject.js'
     console.log(OB.className())
 
     // console.log(await new OB({test: 'world'}))
-    const obInstance = await OB.instantiate({test1: 'world111'})
-    obInstance.setProperty('test1', 'gg')
-    console.log(obInstance,obInstance['init'], obInstance.hasProperty('init'), obInstance.hasMethod('init'))
+    // const obInstance = await OB.instantiate({test1: 'world111'})
+    // obInstance.setProperty('test1', 'gg')
+    // console.log(obInstance,obInstance['init'], obInstance.hasProperty('init'), obInstance.hasMethod('init'))
+
+    container.register({
+        ctn: asValue(container),
+        test1: asClass(Test1),
+        test2: asClass(Test2),
+        ob:asClass(OB)
+    })
+
+    // console.log(await container.get('base'))
+    console.log(await container.get('ob'))
+    // console.log(await container.get('test1'))
 
 })()

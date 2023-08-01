@@ -18,6 +18,7 @@ import {InjectionMode, InjectionModeType} from './InjectionMode.js'
 import {Lifetime} from './Lifetime.js'
 import {DependencyInjectionResolutionError, DependencyInjectionTypeError} from './Errors.js'
 import {importModule} from './LoadModuleNative.js'
+import {DI_CONTAINER_CREATOR_CONSTRUCTOR} from '../../constants/MetadataKey.js'
 
 /**
  * 从createContainer返回的容器具有一些方法和属性。
@@ -564,3 +565,5 @@ export function createContainer<T extends object = any, U extends object = any>(
         ).then(() => undefined)
     }
 }
+
+Reflect.defineMetadata(DI_CONTAINER_CREATOR_CONSTRUCTOR, true, createContainer)

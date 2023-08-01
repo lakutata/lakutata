@@ -1,6 +1,7 @@
 import {AsyncConstructor} from 'async-constructor'
 import {IConstructor} from '../../interfaces/IConstructor.js'
 import {As, ConfigureObjectProperties} from '../../Utilities.js'
+import {DI_CONTAINER_CREATOR_CONSTRUCTOR} from '../../constants/MetadataKey.js'
 
 export class BaseObject extends AsyncConstructor {
     /**
@@ -9,7 +10,20 @@ export class BaseObject extends AsyncConstructor {
      */
     constructor(properties?: Record<string, any>) {
         super(async (): Promise<void> => {
-            ConfigureObjectProperties(this, properties ? properties : {})
+            if (properties) {
+                if (Reflect.getMetadata(DI_CONTAINER_CREATOR_CONSTRUCTOR, properties.constructor)) {
+                    const resolveInjectPromises: Promise<void>[] = []
+                    Object.keys(properties).forEach((injectPropertyKey: string) => {
+                        if (this.hasProperty(injectPropertyKey)) {
+                            //todo 做是否有inject修饰器的判断
+                            resolveInjectPromises.push(new Promise((resolve, reject) => (async (): Promise<any> => properties[injectPropertyKey])().then(injectItem => resolve(this.setProperty(injectPropertyKey, injectItem))).catch(reject)))
+                        }
+                    })
+                    await Promise.all(resolveInjectPromises)
+                } else {
+                    ConfigureObjectProperties(this, properties ? properties : {})
+                }
+            }
             await this.init()
         })
     }
