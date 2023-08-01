@@ -4,7 +4,9 @@ import {Application, ApplicationOptions, DTO} from '../Core.js'
 import {InvalidMethodAcceptException} from '../exceptions/InvalidMethodAcceptException.js'
 import {Validator} from '../Validator.js'
 import {Accept} from '../Decorators.js'
-import {createContainer, InjectionMode, asClass, asValue, AwilixContainer} from 'awilix'
+import {IContainer, createContainer} from '../lib/ioc/Container.js'
+import {InjectionMode} from '../lib/ioc/InjectionMode.js'
+import {asClass, asValue} from '../lib/ioc/Resolvers.js'
 
 // console.log(Application)
 
@@ -15,14 +17,14 @@ import {createContainer, InjectionMode, asClass, asValue, AwilixContainer} from 
 // })
 
 (async () => {
-    new Application({
+    await new Application({
         id: 'test',
         name: 'test',
         timezone: 'Asia/Shanghai'
     })
 
     class Test1 {
-        protected readonly ctn: AwilixContainer
+        protected readonly ctn: IContainer
 
         constructor({ctn}) {
             console.log('test1')
