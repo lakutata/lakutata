@@ -63,6 +63,8 @@ import {Container} from '../lib/base/Container.js'
         }
     }
 
+    console.log('typeof Test2:',typeof Test2)
+
     const ctr = createContainer({injectionMode: InjectionMode.PROXY})
     const container = new Container()
     container.register({
