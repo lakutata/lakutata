@@ -1,4 +1,4 @@
-import {ResolutionStack} from './Container.js'
+import {ResolutionStack} from './DependencyInjectionContainer.js'
 import {DependencyInjectionException} from '../../exceptions/DependencyInjectionException.js'
 
 /**

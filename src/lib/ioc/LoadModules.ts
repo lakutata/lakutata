@@ -7,7 +7,7 @@ import {
     asFunction,
     BuildResolverOptions, BuildResolver
 } from './Resolvers.js'
-import {IContainer} from './Container.js'
+import {IDependencyInjectionContainer} from './DependencyInjectionContainer.js'
 import {isClass, isFunction} from './Utils.js'
 import {camelCase} from 'camel-case'
 
@@ -54,7 +54,7 @@ export type NameFormatter = (
  */
 export interface LoadModulesDeps {
     listModules: typeof listModules
-    container: IContainer
+    container: IDependencyInjectionContainer
 
     require(path: string): any | Promise<any>
 }
@@ -80,7 +80,7 @@ export function loadModules<ESM extends boolean = false>(
  * on them, and call their default exported function with the
  * container as the first parameter.
  *
- * @param  {IContainer} dependencies.container
+ * @param  {IDependencyInjectionContainer} dependencies.container
  * The container to install loaded modules in.
  *
  * @param  {Function} dependencies.listModules
@@ -127,13 +127,13 @@ export function loadModules<ESM extends boolean>(
 
 /**
  * Loads the modules using native ES6 modules and the async import()
- * @param {IContainer} container
+ * @param {IDependencyInjectionContainer} container
  * @param {ModuleDescriptor[]} modules
  * @param {LoadModulesOptions} opts
  */
 async function loadEsModules<ESM extends boolean>(
     dependencies: LoadModulesDeps,
-    container: IContainer,
+    container: IDependencyInjectionContainer,
     modules: ModuleDescriptor[],
     opts: LoadModulesOptions<ESM>
 ): Promise<LoadModulesResult> {
@@ -213,13 +213,13 @@ function parseLoadedModule(
  * Registers the modules
  *
  * @param {ModuleDescriptorVal[][]} modulesToRegister
- * @param {IContainer} container
+ * @param {IDependencyInjectionContainer} container
  * @param {ModuleDescriptor[]} modules
  * @param {LoadModulesOptions} opts
  */
 function registerModules<ESM extends boolean>(
     modulesToRegister: LoadedModuleDescriptor[][],
-    container: IContainer,
+    container: IDependencyInjectionContainer,
     modules: ModuleDescriptor[],
     opts: LoadModulesOptions<ESM>
 ): LoadModulesResult {
@@ -237,7 +237,7 @@ function registerModules<ESM extends boolean>(
  */
 function optsWithDefaults<ESM extends boolean = false>(
     opts: Partial<LoadModulesOptions<ESM>> | undefined,
-    container: IContainer
+    container: IDependencyInjectionContainer
 ): LoadModulesOptions<ESM> {
     return {
         // Does a somewhat-deep merge on the registration options.
@@ -252,12 +252,12 @@ function optsWithDefaults<ESM extends boolean = false>(
 /**
  * Given a module descriptor, reads it and registers it's value with the container.
  *
- * @param {IContainer} container
+ * @param {IDependencyInjectionContainer} container
  * @param {LoadModulesOptions} opts
  * @param {ModuleDescriptor} moduleDescriptor
  */
 function registerDescriptor<ESM extends boolean = false>(
-    container: IContainer,
+    container: IDependencyInjectionContainer,
     opts: LoadModulesOptions<ESM>,
     moduleDescriptor: LoadedModuleDescriptor & { value: any }
 ) {

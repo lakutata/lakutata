@@ -21,9 +21,9 @@ import {importModule} from './LoadModuleNative.js'
 
 /**
  * 从createContainer返回的容器具有一些方法和属性。
- * @interface IContainer
+ * @interface IDependencyInjectionContainer
  */
-export interface IContainer<Cradle extends object = any> {
+export interface IDependencyInjectionContainer<Cradle extends object = any> {
     /**
      * 容器配置的选项。
      */
@@ -45,7 +45,7 @@ export interface IContainer<Cradle extends object = any> {
     /**
      * 以当前容器为父容器，创建一个作用域容器。
      */
-    createScope<T extends object = {}>(): IContainer<Cradle & T>
+    createScope<T extends object = {}>(): IDependencyInjectionContainer<Cradle & T>
 
     /**
      * Used by `util.inspect`.
@@ -227,13 +227,13 @@ const CRADLE_STRING_TAG: string = 'DependencyInjectionContainerCradle'
  * @param {string} options.injectionMode
  * 容器用于解析依赖项的模式。默认为 'Proxy'。
  *
- * @return {IContainer<T>}
+ * @return {IDependencyInjectionContainer<T>}
  * 容器实例。
  */
 export function createContainer<T extends object = any, U extends object = any>(
     options?: ContainerOptions,
-    parentContainer?: IContainer<U>
-): IContainer<T> {
+    parentContainer?: IDependencyInjectionContainer<U>
+): IDependencyInjectionContainer<T> {
     options = {
         injectionMode: InjectionMode.PROXY,
         ...options
@@ -328,7 +328,7 @@ export function createContainer<T extends object = any, U extends object = any>(
     }
 
     // 跟踪家族树
-    const familyTree: Array<IContainer> = parentContainer
+    const familyTree: Array<IDependencyInjectionContainer> = parentContainer
             ? [container].concat((parentContainer as any)[FAMILY_TREE])
             : [container]
 
@@ -383,14 +383,14 @@ export function createContainer<T extends object = any, U extends object = any>(
      * @return {object}
      * The scoped container.
      */
-    function createScope<P extends object>(): IContainer<P & T> {
-        return createContainer(options, container as IContainer<T>)
+    function createScope<P extends object>(): IDependencyInjectionContainer<P & T> {
+        return createContainer(options, container as IDependencyInjectionContainer<T>)
     }
 
     /**
      * 为解析器添加一个注册项。
      */
-    function register(arg1: any, arg2: any): IContainer<T> {
+    function register(arg1: any, arg2: any): IDependencyInjectionContainer<T> {
         const obj = nameValueToObject(arg1, arg2)
         const keys = [...Object.keys(obj), ...Object.getOwnPropertySymbols(obj)]
 
@@ -600,7 +600,7 @@ export function createContainer<T extends object = any, U extends object = any>(
     function loadModules<ESM extends boolean = false>(
         globPatterns: Array<string | GlobWithOptions>,
         opts: LoadModulesOptions<ESM>
-    ): ESM extends false ? IContainer : Promise<IContainer>
+    ): ESM extends false ? IDependencyInjectionContainer : Promise<IDependencyInjectionContainer>
     /**
      * Binds `lib/loadModules` to this container, and provides
      * real implementations of it's dependencies.
@@ -613,7 +613,7 @@ export function createContainer<T extends object = any, U extends object = any>(
     function loadModules<ESM extends boolean = false>(
         globPatterns: Array<string | GlobWithOptions>,
         opts: LoadModulesOptions<ESM>
-    ): Promise<IContainer> | IContainer {
+    ): Promise<IDependencyInjectionContainer> | IDependencyInjectionContainer {
         const _loadModulesDeps = {
             require:
                 options!.require ||

@@ -3,7 +3,7 @@ import {InjectionMode, InjectionModeType} from './InjectionMode.js'
 import {isFunction, uniq} from './Utils.js'
 import {parseParameterList, Parameter} from './ParamParser.js'
 import {DependencyInjectionTypeError} from './Errors.js'
-import {IContainer, FunctionReturning, ResolveOptions} from './Container.js'
+import {IDependencyInjectionContainer, FunctionReturning, ResolveOptions} from './DependencyInjectionContainer.js'
 
 /**
  * RESOLVER符号可以由通过loadModules加载的模块使用，用于配置它们的生命周期、注入模式等。
@@ -15,14 +15,14 @@ export const RESOLVER = Symbol('Dependency Injection Resolver Config')
  * @type {Function}
  */
 export type InjectorFunction = <T extends object>(
-    container: IContainer<T>
+    container: IDependencyInjectionContainer<T>
 ) => object
 
 /**
  * asClass()、asFunction()或asValue()返回的解析器对象。
  */
 export interface Resolver<T> extends ResolverOptions<T> {
-    resolve<U extends object>(container: IContainer<U>): T
+    resolve<U extends object>(container: IDependencyInjectionContainer<U>): T
 }
 
 /**
@@ -333,12 +333,12 @@ function updateResolver<T, A extends Resolver<T>, B>(
 /**
  * 返回一个包装的resolve函数，从注入器提供值，并推迟到container.resolve。
  *
- * @param  {IContainer} container
+ * @param  {IDependencyInjectionContainer} container
  * @param  {Object} locals
  * @return {Function}
  */
 function wrapWithLocals<T extends object>(
-    container: IContainer<T>,
+    container: IDependencyInjectionContainer<T>,
     locals: any
 ) {
     return function wrappedResolve(name: string, resolveOpts: ResolveOptions) {
@@ -358,7 +358,7 @@ function wrapWithLocals<T extends object>(
  * @return {Proxy}
  */
 function createInjectorProxy<T extends object>(
-    container: IContainer<T>,
+    container: IDependencyInjectionContainer<T>,
     injector: InjectorFunction
 ) {
     const locals = injector(container) as any
@@ -450,7 +450,7 @@ function generateResolve(fn: Function, dependencyParseTarget?: Function) {
     // Use a regular function instead of an arrow function to facilitate binding to the resolver.
     return function resolve<T extends object>(
         this: BuildResolver<any>,
-        container: IContainer<T>
+        container: IDependencyInjectionContainer<T>
     ) {
         // Because the container holds a global reolutionMode we need to determine it in the proper order of precedence:
         // resolver -> container -> default value

@@ -4,9 +4,11 @@ import {Application, ApplicationOptions, DTO} from '../Core.js'
 import {InvalidMethodAcceptException} from '../exceptions/InvalidMethodAcceptException.js'
 import {Validator} from '../Validator.js'
 import {Accept} from '../Decorators.js'
-import {IContainer, createContainer} from '../lib/ioc/Container.js'
+import {IDependencyInjectionContainer, createContainer} from '../lib/ioc/DependencyInjectionContainer.js'
 import {InjectionMode} from '../lib/ioc/InjectionMode.js'
 import {asClass, asValue} from '../lib/ioc/Resolvers.js'
+import {AsyncConstructor} from 'async-constructor'
+import {async} from 'fast-glob'
 
 // console.log(Application)
 
@@ -23,17 +25,21 @@ import {asClass, asValue} from '../lib/ioc/Resolvers.js'
         timezone: 'Asia/Shanghai'
     })
 
-    class Test1 {
-        protected readonly ctn: IContainer
+    class Test1 extends AsyncConstructor {
+        protected ctn: IDependencyInjectionContainer
 
         constructor({ctn}) {
-            console.log('test1')
-            this.ctn = ctn
-            // throw new Error('ffff')
+            super(async () => {
+                console.log('test1')
+                this.ctn = await ctn
+                // throw new Error('ffff')
+            })
+
         }
 
-        public ruuu() {
-            return this.ctn.resolve('test2').run()
+        public async ruuu() {
+            const test2 = await this.ctn.resolve('test2')
+            return test2.run()
         }
 
         public run() {
@@ -41,12 +47,15 @@ import {asClass, asValue} from '../lib/ioc/Resolvers.js'
         }
     }
 
-    class Test2 {
-        protected readonly test1: Test1
+    class Test2 extends AsyncConstructor {
+        protected test1: Test1
 
         constructor({test1}) {
-            console.log('test2')
-            this.test1 = test1
+            super(async () => {
+                console.log('test2')
+                this.test1 = await test1
+            })
+
         }
 
         public run() {
@@ -57,10 +66,11 @@ import {asClass, asValue} from '../lib/ioc/Resolvers.js'
     const container = createContainer({injectionMode: InjectionMode.PROXY})
     container.register({
         ctn: asValue(container),
-        test1: asClass(Test1, {lifetime: 'SINGLETON'}),
+        test1: asClass(Test1),
         test2: asClass(Test2)
     })
-
-    console.log(container.resolve('test1').ruuu())
+    const test1 = await container.resolve('test1')
+    // console.log(test1)
+    console.log(await test1.ruuu())
 
 })()
