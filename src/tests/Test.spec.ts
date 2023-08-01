@@ -8,7 +8,6 @@ import {IDependencyInjectionContainer, createContainer} from '../lib/ioc/Depende
 import {InjectionMode} from '../lib/ioc/InjectionMode.js'
 import {asClass, asValue} from '../lib/ioc/Resolvers.js'
 import {AsyncConstructor} from 'async-constructor'
-import {async} from 'fast-glob'
 import {Container} from '../lib/base/Container.js'
 import {BaseObject} from '../lib/base/BaseObject.js'
 import {Component} from '../lib/base/Component.js'
@@ -51,18 +50,15 @@ import {Inject} from '../decorators/DependencyInjectionDecorators.js'
         }
     }
 
-    class Test2 extends AsyncConstructor {
+    class Test2 extends Component {
+        @Inject()
         protected test1: Test1
 
-        constructor({test1}) {
-            super(async () => {
-                console.log('test2')
-                this.test1 = await test1
-            })
-        }
+        // @Inject()
+        // protected ob:OB
 
         public run() {
-            return this.test1.run()
+            // return this.test1.run()
         }
     }
 
@@ -84,6 +80,9 @@ import {Inject} from '../decorators/DependencyInjectionDecorators.js'
 
         @Inject()
         protected readonly test1: Test1
+
+        @Inject()
+        protected readonly test2: Test2
 
         @Inject()
         protected readonly ctn
@@ -115,6 +114,7 @@ import {Inject} from '../decorators/DependencyInjectionDecorators.js'
 
     // console.log(await container.get('base'))
     console.log(await container.get('ob'))
+    console.log(await container.get('test2'))
     // console.log(await container.get('test1'))
 
 })()

@@ -31,3 +31,14 @@ export function Inject<T extends BaseObject>(name?: string): (target: T, propert
         As<Map<string, string>>(Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_INJECTS, targetConstructor)).set(injectMappingObject.propertyKey, injectMappingObject.injectKey)
     }
 }
+
+/**
+ * 可配置参数项
+ * @constructor
+ */
+export function Configurable<T extends BaseObject>(): (target: T, propertyKey: string) => void {
+    return function <T extends BaseObject>(target: T, propertyKey: string): void {
+        console.log('Configurable')
+        //todo
+    }
+}
