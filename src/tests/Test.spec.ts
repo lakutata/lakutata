@@ -29,6 +29,7 @@ import {asClass, asValue} from '../lib/ioc/Resolvers.js'
         constructor({ctn}) {
             console.log('test1')
             this.ctn = ctn
+            // throw new Error('ffff')
         }
 
         public ruuu() {
