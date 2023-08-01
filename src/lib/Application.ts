@@ -1,29 +1,30 @@
-import {EventEmitter} from 'events'
 import {ApplicationOptions} from '../options/ApplicationOptions.js'
-import {Accept, Return} from '../decorators/ValidationDecorators.js'
 import {AsyncConstructor} from 'async-constructor'
 
 export class Application extends AsyncConstructor {
 
-    protected aa: number
+    protected readonly options: ApplicationOptions
 
     constructor(options: ApplicationOptions) {
-        super(async (): Promise<void> => {
-            await this.boot(options)
-            this.aa = 666
-        })
+        super(async (): Promise<void> => await this.bootstrap())
+        this.options = ApplicationOptions.validate(options)
+        process.env.appId = this.options.id
+        process.env.appName = this.options.name
+        process.env.TZ = this.options.timezone
     }
 
-    @Accept(ApplicationOptions)
-    protected async boot(options: ApplicationOptions): Promise<void> {
+    /**
+     * 应用程序启动引导
+     * @protected
+     */
+    protected async bootstrap(): Promise<void> {
         //todo
-        console.log('boot')
+        console.log('bootstrap')
     }
 
     public config() {
     }
 
     public ready() {
-        console.log('this.aa', this.aa)
     }
 }
