@@ -1,37 +1,25 @@
 import {ResolutionStack} from './DependencyInjectionContainer.js'
 import {DependencyInjectionException} from '../../exceptions/DependencyInjectionException.js'
+import {EOL} from 'os'
 
 /**
- * Newline.
- */
-const EOL: string = '\n'
-
-/**
- * An extendable error class.
+ * 可扩展错误类
  */
 export class ExtendableError extends DependencyInjectionException {
     /**
-     * Constructor for the error.
-     *
-     * @param  {String} message
-     * The error message.
+     * 可扩展错误类构造函数
+     * @param message
      */
     constructor(message: string) {
         super(message)
-
-        // extending Error is weird and does not propagate `message`
         Object.defineProperty(this, 'message', {
             enumerable: false,
             value: message
         })
-
         Object.defineProperty(this, 'name', {
             enumerable: false,
             value: this.constructor.name
         })
-
-        // Not all browsers have this function.
-        /* istanbul ignore else */
         if ('captureStackTrace' in Error) {
             Error.captureStackTrace(this, this.constructor)
         } else {
@@ -46,24 +34,15 @@ export class ExtendableError extends DependencyInjectionException {
 }
 
 /**
- * Error thrown to indicate a type mismatch.
+ * 抛出的错误，用于指示类型不匹配
  */
 export class DependencyInjectionTypeError extends ExtendableError {
     /**
-     * Constructor, takes the function name, expected and given
-     * type to produce an error.
-     *
-     * @param {string} funcDescription
-     * Name of the function being guarded.
-     *
-     * @param {string} paramName
-     * The parameter there was an issue with.
-     *
-     * @param {string} expectedType
-     * Name of the expected type.
-     *
-     * @param {string} givenType
-     * Name of the given type.
+     * 构造函数，接受函数名称、期望的类型和给定的类型，以生成错误
+     * @param funcDescription
+     * @param paramName
+     * @param expectedType
+     * @param givenType
      */
     constructor(
         funcDescription: string,
@@ -77,22 +56,12 @@ export class DependencyInjectionTypeError extends ExtendableError {
     }
 
     /**
-     * Asserts the given condition, throws an error otherwise.
-     *
-     * @param {*} condition
-     * The condition to check
-     *
-     * @param {string} funcDescription
-     * Name of the function being guarded.
-     *
-     * @param {string} paramName
-     * The parameter there was an issue with.
-     *
-     * @param {string} expectedType
-     * Name of the expected type.
-     *
-     * @param {string} givenType
-     * Name of the given type.
+     * 断言给定的条件，否则抛出错误
+     * @param condition
+     * @param funcDescription
+     * @param paramName
+     * @param expectedType
+     * @param givenType
      */
     static assert<T>(
         condition: T,
@@ -114,37 +83,26 @@ export class DependencyInjectionTypeError extends ExtendableError {
 }
 
 /**
- * A nice error class, so we can do an instanceOf check.
+ * 一个友好的错误类，以便我们可以进行 instanceof 检查
  */
 export class DependencyInjectionResolutionError extends ExtendableError {
     /**
-     * Constructor, takes the registered modules and unresolved tokens
-     * to create a message.
-     *
-     * @param {string|symbol} name
-     * The name of the module that could not be resolved.
-     *
-     * @param  {string[]} resolutionStack
-     * The current resolution stack
+     * 构造函数，接受注册的模块和未解析的标记，以创建一条消息
+     * @param name
+     * @param resolutionStack
+     * @param message
      */
     constructor(
         name: string | symbol,
         resolutionStack: ResolutionStack,
         message?: string
     ) {
-        if (typeof name === 'symbol') {
-            name = (name as any).toString()
-        }
-        resolutionStack = resolutionStack.map((val) =>
-            typeof val === 'symbol' ? (val as any).toString() : val
-        )
+        if (typeof name === 'symbol') name = (name as any).toString()
+        resolutionStack = resolutionStack.map((val) => typeof val === 'symbol' ? (val as any).toString() : val)
         resolutionStack.push(name)
-        const resolutionPathString = resolutionStack.join(' -> ')
-        let msg = `Could not resolve '${name as any}'.`
-        if (message) {
-            msg += ` ${message}`
-        }
-
+        const resolutionPathString: string = resolutionStack.join(' -> ')
+        let msg: string = `Could not resolve '${name as any}'.`
+        if (message) msg += ` ${message}`
         msg += EOL + EOL
         msg += `Resolution path: ${resolutionPathString}`
         super(msg)

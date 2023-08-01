@@ -1,5 +1,5 @@
 /**
- * Token type.
+ * 标记类型
  */
 export type TokenType =
     | 'ident'
@@ -13,7 +13,7 @@ export type TokenType =
     | 'EOF'
 
 /**
- * Lexer Token.
+ * 词法分析器标记
  */
 export interface Token {
     type: TokenType
@@ -21,19 +21,18 @@ export interface Token {
 }
 
 /**
- * Flags that can be passed to the tokenizer to toggle certain things.
+ * 可以传递给标记器的标志，用于切换某些功能
  */
 export const enum TokenizerFlags {
     None = 0,
     /**
-     * If this is set, the tokenizer will not attempt to be smart about skipping expressions.
+     * 如果设置了此选项，标记器将不会尝试智能跳过表达式
      */
     Dumb = 1,
 }
 
 /**
- * Creates a tokenizer for the specified source.
- *
+ * 为指定的源代码创建一个标记器
  * @param source
  */
 export function createTokenizer(source: string) {
@@ -46,16 +45,15 @@ export function createTokenizer(source: string) {
     // Whenever we reach a paren, we increment these.
     let parenLeft = 0
     let parenRight = 0
-
     return {
         next,
         done
     }
 
     /**
-     * Advances the tokenizer and returns the next token.
+     * 推进标记器并返回下一个标记
      */
-    function next(nextFlags = TokenizerFlags.None): Token {
+    function next(nextFlags: TokenizerFlags = TokenizerFlags.None): Token {
         flags = nextFlags
         advance()
         return createToken()
@@ -68,17 +66,13 @@ export function createTokenizer(source: string) {
         value = ''
         type = 'EOF'
         while (true) {
-            if (pos >= end) {
-                return (type = 'EOF')
-            }
-
-            let ch = source.charAt(pos)
+            if (pos >= end) return (type = 'EOF')
+            let ch: string = source.charAt(pos)
             // Whitespace is irrelevant
             if (isWhiteSpace(ch)) {
                 pos++
                 continue
             }
-
             switch (ch) {
                 case '(':
                     pos++
@@ -105,14 +99,14 @@ export function createTokenizer(source: string) {
                     return (type = ch)
                 case '/':
                     pos++
-                    const nextCh = source.charAt(pos)
+                    const nextCh: string = source.charAt(pos)
                     if (nextCh === '/') {
-                        skipUntil((c) => c === '\n', true)
+                        skipUntil((c: string): boolean => c === '\n', true)
                         pos++
                     }
                     if (nextCh === '*') {
-                        skipUntil((c) => {
-                            const closing = source.charAt(pos + 1)
+                        skipUntil((c: string) => {
+                            const closing: string = source.charAt(pos + 1)
                             return c === '*' && closing === '/'
                         }, true)
                         pos++
@@ -124,7 +118,6 @@ export function createTokenizer(source: string) {
                         scanIdentifier()
                         return type
                     }
-
                     // Elegantly skip over tokens we don't care about.
                     pos++
             }
@@ -132,70 +125,53 @@ export function createTokenizer(source: string) {
     }
 
     /**
-     * Scans an identifier, given it's already been proven
-     * we are ready to do so.
+     * 扫描标识符，假设已经准备好这样做
      */
-    function scanIdentifier() {
-        const identStart = source.charAt(pos)
-        const start = ++pos
-        while (isIdentifierPart(source.charAt(pos))) {
-            pos++
-        }
+    function scanIdentifier(): string {
+        const identStart: string = source.charAt(pos)
+        const start: number = ++pos
+        while (isIdentifierPart(source.charAt(pos))) pos++
         value = '' + identStart + source.substring(start, pos)
         type = value === 'function' || value === 'class' ? value : 'ident'
-        if (type !== 'ident') {
-            value = ''
-        }
+        if (type !== 'ident') value = ''
         return value
     }
 
     /**
-     * Skips everything until the next comma or the end of the parameter list.
-     * Checks the parenthesis balance so we correctly skip function calls.
+     * 跳过直到下一个逗号或参数列表结束的所有内容。检查括号平衡，以便正确跳过函数调用
      */
-    function skipExpression() {
-        skipUntil((ch) => {
-            const isAtRoot = parenLeft === parenRight + 1
-            if (ch === ',' && isAtRoot) {
-                return true
-            }
-
+    function skipExpression(): void {
+        skipUntil((ch: string): boolean => {
+            const isAtRoot: boolean = parenLeft === parenRight + 1
+            if (ch === ',' && isAtRoot) return true
             if (ch === '(') {
                 parenLeft++
                 return false
             }
-
             if (ch === ')') {
                 parenRight++
                 if (isAtRoot) {
                     return true
                 }
             }
-
             return false
         })
     }
 
     /**
-     * Skips strings and whilespace until the predicate is true.
-     *
-     * @param callback stops skipping when this returns `true`.
-     * @param dumb if `true`, does not skip whitespace and strings;
-     * it only stops once the callback returns `true`.
+     * 跳过字符串和空格，直到谓词为真
+     * @param callback 当此函数返回true时停止跳过
+     * @param dumb 如果为true，则不跳过空格和字符串；它只会在回调函数返回true时停止
      */
-    function skipUntil(callback: (ch: string) => boolean, dumb = false) {
+    function skipUntil(callback: (ch: string) => boolean, dumb: boolean = false): void {
         while (pos < source.length) {
-            let ch = source.charAt(pos)
-            if (callback(ch)) {
-                return
-            }
-
+            let ch: string = source.charAt(pos)
+            if (callback(ch)) return
             if (!dumb) {
                 if (isWhiteSpace(ch)) {
                     pos++
                     continue
                 }
-
                 if (isStringQuote(ch)) {
                     skipString()
                     continue
@@ -206,25 +182,24 @@ export function createTokenizer(source: string) {
     }
 
     /**
-     * Given the current position is at a string quote, skips the entire string.
+     * 假设当前位置在字符串引号处，跳过整个字符串
      */
-    function skipString() {
+    function skipString(): void {
         const quote = source.charAt(pos)
         pos++
         while (pos < source.length) {
-            const ch = source.charAt(pos)
-            const prev = source.charAt(pos - 1)
+            const ch: string = source.charAt(pos)
+            const prev: string = source.charAt(pos - 1)
             // Checks if the quote was escaped.
             if (ch === quote && prev !== '\\') {
                 pos++
                 return
             }
-
             // Template strings are a bit tougher, we want to skip the interpolated values.
             if (quote === '`') {
-                const next = source.charAt(pos + 1)
+                const next: string = source.charAt(pos + 1)
                 if (next === '$') {
-                    const afterDollar = source.charAt(pos + 2)
+                    const afterDollar: string = source.charAt(pos + 2)
                     if (afterDollar === '{') {
                         // This is the start of an interpolation; skip the ${
                         pos = pos + 2
@@ -234,34 +209,29 @@ export function createTokenizer(source: string) {
                     }
                 }
             }
-
             pos++
         }
     }
 
     /**
-     * Creates a token from the current state.
+     * 根据当前状态创建一个标记
      */
     function createToken(): Token {
-        if (value) {
-            return {value, type}
-        }
+        if (value) return {value, type}
         return {type}
     }
 
     /**
-     * Determines if we are done parsing.
+     * 确定是否完成解析
      */
-    function done() {
+    function done(): boolean {
         return type === 'EOF'
     }
 }
 
 /**
- * Determines if the given character is a whitespace character.
- *
- * @param  {string}  ch
- * @return {boolean}
+ * 确定给定的字符是否为空格字符
+ * @param ch
  */
 function isWhiteSpace(ch: string): boolean {
     switch (ch) {
@@ -274,9 +244,8 @@ function isWhiteSpace(ch: string): boolean {
 }
 
 /**
- * Determines if the specified character is a string quote.
- * @param  {string}  ch
- * @return {boolean}
+ * 确定指定的字符是否为字符串引号
+ * @param ch
  */
 function isStringQuote(ch: string): boolean {
     switch (ch) {
@@ -288,21 +257,18 @@ function isStringQuote(ch: string): boolean {
     return false
 }
 
-// NOTE: I've added the `.` character so that member expression paths
-// are seen as identifiers. This is so we don't get a constructor token for
-// stuff like `MyClass.prototype.constructor()`
-const IDENT_START_EXPR = /^[_$a-zA-Z\xA0-\uFFFF]$/
-const IDENT_PART_EXPR = /^[._$a-zA-Z0-9\xA0-\uFFFF]$/
+const IDENT_START_EXPR: RegExp = /^[_$a-zA-Z\xA0-\uFFFF]$/
+const IDENT_PART_EXPR: RegExp = /^[._$a-zA-Z0-9\xA0-\uFFFF]$/
 
 /**
- * Determines if the character is a valid JS identifier start character.
+ * 确定字符是否为有效的 JavaScript 标识符起始字符
  */
-function isIdentifierStart(ch: string) {
+function isIdentifierStart(ch: string): boolean {
     return IDENT_START_EXPR.test(ch)
 }
 
 /**
- * Determines if the character is a valid JS identifier start character.
+ * 确定字符是否为有效的 JavaScript 标识符起始字符
  */
 function isIdentifierPart(ch: string) {
     return IDENT_PART_EXPR.test(ch)

@@ -1,27 +1,22 @@
 /**
- * Lifetime type.
+ * 生命周期类型
  */
 export type LifetimeType = 'SINGLETON' | 'TRANSIENT' | 'SCOPED'
 
 /**
- * Lifetime types.
+ * 生命周期类型
  */
 export const Lifetime: Record<LifetimeType, LifetimeType> = {
     /**
-     * The registration will be resolved once and only once.
-     * @type {String}
+     * 注册项将会被解析一次且仅一次
      */
     SINGLETON: 'SINGLETON',
-
     /**
-     * The registration will be resolved every time (never cached).
-     * @type {String}
+     * 注册项每次都会被解析(不会缓存)
      */
     TRANSIENT: 'TRANSIENT',
-
     /**
-     * The registration will be resolved once per scope.
-     * @type {String}
+     * 注册项将在每个作用域中解析一次
      */
-    SCOPED: 'SCOPED',
+    SCOPED: 'SCOPED'
 }

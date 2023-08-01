@@ -1,23 +1,19 @@
 /**
- * Injection mode type.
+ * 注入模式类型
  */
 export type InjectionModeType = 'PROXY' | 'CLASSIC'
 
 /**
- * Resolution modes.
+ * 解析模式
  */
 export const InjectionMode: Record<InjectionModeType, InjectionModeType> = {
     /**
-     * The dependencies will be resolved by injecting the cradle proxy.
-     *
-     * @type {String}
+     * 依赖项将通过注入摇篮代理来解析
      */
     PROXY: 'PROXY',
 
     /**
-     * The dependencies will be resolved by inspecting parameter names of the function/constructor.
-     *
-     * @type {String}
+     * 依赖项将通过检查函数/构造函数的参数名称来解析
      */
     CLASSIC: 'CLASSIC'
 }

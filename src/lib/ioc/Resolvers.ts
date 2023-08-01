@@ -116,16 +116,8 @@ export interface BuildResolverOptions<T>
 export type Constructor<T> = { new(...args: any[]): T }
 
 /**
- * 创建一个简单的值解析器，其中给定的值将始终被解析。
- *
- * @param  {string} name
- * 要注册值的名称。
- *
- * @param  {*} value
- * 要解析的值。
- *
- * @return {object}
- * 解析器。
+ * 创建一个简单的值解析器，其中给定的值将始终被解析
+ * @param value
  */
 export function asValue<T>(value: T): Resolver<T> {
     return {
@@ -134,19 +126,9 @@ export function asValue<T>(value: T): Resolver<T> {
 }
 
 /**
- * 创建一个工厂解析器，当请求时，将使用new调用给定的工厂函数。
- *
- * @param  {string} name
- * 要注册值的名称。
- *
- * @param  {Function} fn
- * 要注册的函数。
- *
- * @param {object} opts
- * 解析器的额外选项。
- *
- * @return {object}
- * 解析器。
+ * 创建一个工厂解析器，当请求时，将使用new调用给定的工厂函数
+ * @param fn
+ * @param opts
  */
 export function asFunction<T>(
     fn: FunctionReturning<T>,
@@ -155,36 +137,22 @@ export function asFunction<T>(
     if (!isFunction(fn)) {
         throw new DependencyInjectionTypeError('asFunction', 'fn', 'function', fn)
     }
-
     const defaults = {
         lifetime: Lifetime.TRANSIENT
     }
-
     opts = makeOptions(defaults, opts, (fn as any)[RESOLVER])
-
     const resolve = generateResolve(fn)
     let result = {
         resolve,
         ...opts
     }
-
     return createDisposableResolver(createBuildResolver(result))
 }
 
 /**
- * 类似于工厂解析器，但适用于需要 new 的类。
- *
- * @param  {string} name
- * 要注册值的名称。
- *
- * @param  {Class} Type
- * 要注册的类。
- *
- * @param {object} opts
- * 解析器的额外选项。
- *
- * @return {object}
- * 解析器。
+ * 类似于工厂解析器，但适用于需要 new 的类
+ * @param Type
+ * @param opts
  */
 export function asClass<T = {}>(
     Type: Constructor<T>,
@@ -193,18 +161,14 @@ export function asClass<T = {}>(
     if (!isFunction(Type)) {
         throw new DependencyInjectionTypeError('asClass', 'Type', 'class', Type)
     }
-
-    const defaults = {
+    const defaults: { lifetime: LifetimeType } = {
         lifetime: Lifetime.TRANSIENT
     }
-
     opts = makeOptions(defaults, opts, (Type as any)[RESOLVER])
-
     // A function to handle object construction for us, as to make the generateResolve more reusable
     const newClass = function newClass() {
         return Reflect.construct(Type, arguments)
     }
-
     const resolve = generateResolve(newClass, Type)
     return createDisposableResolver(
         createBuildResolver({
@@ -219,20 +183,15 @@ export function asClass<T = {}>(
  */
 export function aliasTo<T>(name: string): Resolver<T> {
     return {
-        resolve(container) {
+        resolve(container: IDependencyInjectionContainer): T {
             return container.resolve(name)
         }
     }
 }
 
 /**
- * 给定一个选项对象，创建一个流式接口以管理它。
- *
- * @param {*} obj
- * 要返回的对象。
- *
- * @return {object}
- * 这个接口。
+ * 给定一个选项对象，创建一个流式接口以管理它
+ * @param obj
  */
 export function createBuildResolver<T, B extends Resolver<T>>(
     obj: B
@@ -290,7 +249,7 @@ export function createDisposableResolver<T, B extends Resolver<T>>(
 }
 
 /**
- * 部分应用参数到给定的函数。
+ * 部分应用参数到给定的函数
  */
 function partial<T1, R>(fn: (arg1: T1) => R, arg1: T1): () => R {
     return function partiallyApplied(this: any): R {
@@ -299,23 +258,16 @@ function partial<T1, R>(fn: (arg1: T1) => R, arg1: T1): () => R {
 }
 
 /**
- * 基于默认值创建一个选项对象。
- *
- * @param  {object} defaults
- * 默认选项。
- *
- * @param  {...} rest
- * 要检查并可能分配给结果对象的输入。
- *
- * @return {object}
+ * 基于默认值创建一个选项对象
+ * @param defaults
+ * @param rest
  */
 function makeOptions<T, O>(defaults: T, ...rest: Array<O | undefined>): T & O {
     return Object.assign({}, defaults, ...rest) as T & O
 }
 
 /**
- * 创建一个新的解析器，其属性从两者中合并。
- *
+ * 创建一个新的解析器，其属性从两者中合并
  * @param source
  * @param target
  */
@@ -331,31 +283,24 @@ function updateResolver<T, A extends Resolver<T>, B>(
 }
 
 /**
- * 返回一个包装的resolve函数，从注入器提供值，并推迟到container.resolve。
- *
- * @param  {IDependencyInjectionContainer} container
- * @param  {Object} locals
- * @return {Function}
+ * 返回一个包装的resolve函数，从注入器提供值，并推迟到container.resolve
+ * @param container
+ * @param locals
  */
 function wrapWithLocals<T extends object>(
     container: IDependencyInjectionContainer<T>,
     locals: any
 ) {
     return function wrappedResolve(name: string, resolveOpts: ResolveOptions) {
-        if (name in locals) {
-            return locals[name]
-        }
-
+        if (name in locals) return locals[name]
         return container.resolve(name, resolveOpts)
     }
 }
 
 /**
- * 返回一个新的代理（Proxy），在委托给实际容器之前，检查来自injector的结果是否包含值。
- *
- * @param  {Object} cradle
- * @param  {Function} injector
- * @return {Proxy}
+ * 返回一个新的代理（Proxy），在委托给实际容器之前，检查来自injector的结果是否包含值
+ * @param container
+ * @param injector
  */
 function createInjectorProxy<T extends object>(
     container: IDependencyInjectionContainer<T>,
@@ -372,7 +317,7 @@ function createInjectorProxy<T extends object>(
         {},
         {
             /**
-             * Resolves the value by first checking the locals, then the container.
+             * 首先通过检查局部变量，然后再检查容器来解析值
              */
             get(target: any, name: string | symbol) {
                 if (name === Symbol.iterator) {
@@ -390,14 +335,12 @@ function createInjectorProxy<T extends object>(
                 }
                 return container.resolve(name as string)
             },
-
             /**
              * Used for `Object.keys`.
              */
             ownKeys() {
                 return allKeys
             },
-
             /**
              * Used for `Object.keys`.
              */
@@ -408,45 +351,26 @@ function createInjectorProxy<T extends object>(
                         configurable: true
                     }
                 }
-
                 return undefined
             }
         }
     )
-
     return proxy
 }
 
 /**
- * 返回一个用于构建依赖图的解析函数。
- *
- * @this {Registration}
- * this 上下文是一个解析器。
- *
- * @param {Function} fn
- * 用于构造的函数。
- *
- * @param {Function} dependencyParseTarget
- * 用于解析构造目标的依赖项的函数。
- *
- * @param {boolean} isFunction
- * 解析目标是一个实际函数还是一个用于构造函数的掩码？
- *
- * @return {Function}
- * 用于依赖项解析的函数。
+ * 返回一个用于构建依赖图的解析函数
+ * @param fn
+ * @param dependencyParseTarget
  */
 function generateResolve(fn: Function, dependencyParseTarget?: Function) {
     // If the function used for dependency parsing is falsy, use the supplied function
-    if (!dependencyParseTarget) {
-        dependencyParseTarget = fn
-    }
-
+    if (!dependencyParseTarget) dependencyParseTarget = fn
     // Parse out the dependencies
     // NOTE: we do this regardless of whether PROXY is used or not,
     // because if this fails, we want it to fail early (at startup) rather
     // than at resolution time.
-    const dependencies = parseDependencies(dependencyParseTarget)
-
+    const dependencies: Parameter[] = parseDependencies(dependencyParseTarget)
     // Use a regular function instead of an arrow function to facilitate binding to the resolver.
     return function resolve<T extends object>(
         this: BuildResolver<any>,
@@ -454,33 +378,26 @@ function generateResolve(fn: Function, dependencyParseTarget?: Function) {
     ) {
         // Because the container holds a global reolutionMode we need to determine it in the proper order of precedence:
         // resolver -> container -> default value
-        const injectionMode =
+        const injectionMode: InjectionModeType =
             this.injectionMode ||
             container.options.injectionMode ||
             InjectionMode.PROXY
-
         if (injectionMode !== InjectionMode.CLASSIC) {
             // If we have a custom injector, we need to wrap the cradle.
             const cradle = this.injector
                 ? createInjectorProxy(container, this.injector)
                 : container.cradle
-
             // Return the target injected with the cradle
             return fn(cradle)
         }
-
         // We have dependencies so we need to resolve them manually
         if (dependencies.length > 0) {
             const resolve = this.injector
                 ? wrapWithLocals(container, this.injector(container))
                 : container.resolve
-
-            const children = dependencies.map((p) =>
-                resolve(p.name, {allowUnregistered: p.optional})
-            )
+            const children: any[] = dependencies.map((p: Parameter) => resolve(p.name, {allowUnregistered: p.optional}))
             return fn(...children)
         }
-
         return fn()
     }
 }
@@ -490,7 +407,7 @@ function generateResolve(fn: Function, dependencyParseTarget?: Function) {
  * 如果它是一个继承自另一个类的类，并且它没有定义构造函数，则尝试解析它的父类构造函数。
  */
 function parseDependencies(fn: Function): Array<Parameter> {
-    const result = parseParameterList(fn.toString())
+    const result: Parameter[] | null = parseParameterList(fn.toString())
     if (!result) {
         // No defined constructor for a class, check if there is a parent
         // we can parse.
@@ -501,6 +418,5 @@ function parseDependencies(fn: Function): Array<Parameter> {
         }
         return []
     }
-
     return result
 }

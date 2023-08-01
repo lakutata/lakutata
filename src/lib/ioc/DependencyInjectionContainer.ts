@@ -55,8 +55,6 @@ export interface IDependencyInjectionContainer<Cradle extends object = any> {
     /**
      * 将lib/loadModules绑定到当前容器，并提供它所依赖的实际实现。
      * 此外，将解析使用dependsOn API的任何模块。
-     *
-     * @see src/load-modules.ts documentation.
      */
     loadModules<ESM extends boolean = false>(
         globPatterns: Array<string | GlobWithOptions>,
@@ -74,13 +72,9 @@ export interface IDependencyInjectionContainer<Cradle extends object = any> {
     register(nameAndRegistrationPair: NameAndRegistrationPair<Cradle>): this
 
     /**
-     * 解析具有给定名称的注册。
-     *
-     * @param  {string} name
-     * 要解析的注册的名称。
-     *
-     * @return {*}
-     * 解析的结果。
+     * 解析具有给定名称的注册
+     * @param name
+     * @param resolveOptions
      */
     resolve<K extends keyof Cradle>(
         name: K,
@@ -88,47 +82,35 @@ export interface IDependencyInjectionContainer<Cradle extends object = any> {
     ): Cradle[K]
 
     /**
-     * 解析具有给定名称的注册。
-     *
-     * @param  {string} name
-     * 要解析的注册的名称。
-     *
-     * @return {*}
-     * 解析的结果。
+     * 解析具有给定名称的注册
+     * @param name
+     * @param resolveOptions
      */
     resolve<T>(name: string | symbol, resolveOptions?: ResolveOptions): T
 
     /**
-     * 检查具有给定名称的注册是否存在。
-     *
-     * @param {string | symbol} name
-     * 要解析的注册的名称。
-     *
-     * @return {boolean}
-     * 注册是否存在。
+     * 检查具有给定名称的注册是否存在
+     * @param name
      */
     hasRegistration(name: string | symbol): boolean
 
     /**
-     * 递归地通过名称获取注册（如果存在于当前容器或其任何父容器中）。
-     *
-     * @param name {string | symbol} 注册的名称。
+     * 递归地通过名称获取注册（如果存在于当前容器或其任何父容器中）
+     * @param name
      */
     getRegistration<K extends keyof Cradle>(name: K): Resolver<Cradle[K]> | null
 
     /**
-     * 如果当前容器或其任何父容器中存在具有指定名称的注册，则递归获取该注册。
-     *
-     * @param name {string | symbol} The registration name.
+     * 如果当前容器或其任何父容器中存在具有指定名称的注册，则递归获取该注册
+     * @param name
      */
     getRegistration<T = unknown>(name: string | symbol): Resolver<T> | null
 
     /**
-     * 给定一个解析器、类或函数，构建它并返回。
-     * 不缓存它，这意味着如果传递了一个解析器，那么不会使用任何在生命周期中配置的设置。
-     *
-     * @param {Resolver|Class|Function} targetOrResolver
-     * @param {ResolverOptions} opts
+     * 给定一个解析器、类或函数，构建它并返回
+     * 不缓存它，这意味着如果传递了一个解析器，那么不会使用任何在生命周期中配置的设置
+     * @param targetOrResolver
+     * @param opts
      */
     build<T>(
         targetOrResolver: ClassOrFunctionReturning<T> | Resolver<T>,
@@ -136,8 +118,8 @@ export interface IDependencyInjectionContainer<Cradle extends object = any> {
     ): T
 
     /**
-     * 销毁该容器及其子容器，对所有可释放的注册进行清理并清除缓存。
-     * 仅适用于具有SCOPED或SINGLETON生命周期的注册。
+     * 销毁该容器及其子容器，对所有可释放的注册进行清理并清除缓存
+     * 仅适用于具有SCOPED或SINGLETON生命周期的注册
      */
     dispose(): Promise<void>
 }
@@ -219,16 +201,9 @@ const ROLL_UP_REGISTRATIONS = Symbol('rollUpRegistrations')
 const CRADLE_STRING_TAG: string = 'DependencyInjectionContainerCradle'
 
 /**
- * 创建一个依赖注入容器实例。
- *
- * @param {Function} options.require
- * 要使用的 require 函数。默认为 require。
- *
- * @param {string} options.injectionMode
- * 容器用于解析依赖项的模式。默认为 'Proxy'。
- *
- * @return {IDependencyInjectionContainer<T>}
- * 容器实例。
+ * 创建一个依赖注入容器实例
+ * @param options
+ * @param parentContainer
  */
 export function createContainer<T extends object = any, U extends object = any>(
     options?: ContainerOptions,
@@ -254,24 +229,16 @@ export function createContainer<T extends object = any, U extends object = any>(
         },
         {
             /**
-             * 当进行container.cradle.*的get调用时，会调用get处理程序。
-             *
-             * @param  {object} _target
-             * 代理的目标对象。与此无关
-             *
-             * @param  {string} name
-             * 属性名
-             *
-             * @return {*}
-             * resolve 调用返回的任何内容
+             * 当进行container.cradle.*的get调用时，会调用get处理程序
+             * @param _target
+             * @param name
              */
             get: (_target: object, name: string): any => resolve(name),
 
             /**
-             * 在cradle上设置内容会抛出错误。
-             *
-             * @param  {object} _target
-             * @param  {string} name
+             * 在cradle上设置内容会抛出错误
+             * @param _target
+             * @param name
              */
             set: (_target: object, name: string) => {
                 throw new Error(
@@ -350,15 +317,8 @@ export function createContainer<T extends object = any, U extends object = any>(
     }
 
     /**
-     * 从家族树中合并注册项。
-     *
-     * 这可能会非常耗费资源。仅在迭代摇篮代理时使用，这并不是日常使用中应该做的事情，主要用于调试。
-     *
-     * @param {boolean} bustCache
-     * Forces a recomputation.
-     *
-     * @return {object}
-     * The merged registrations object.
+     * 从家族树中合并注册项
+     * 这可能会非常耗费资源。仅在迭代摇篮代理时使用，这并不是日常使用中应该做的事情，主要用于调试
      */
     function rollUpRegistrations(): RegistrationHash {
         return {
@@ -378,10 +338,7 @@ export function createContainer<T extends object = any, U extends object = any>(
     }
 
     /**
-     * 创建一个作用域容器。
-     *
-     * @return {object}
-     * The scoped container.
+     * 创建一个作用域容器
      */
     function createScope<P extends object>(): IDependencyInjectionContainer<P & T> {
         return createContainer(options, container as IDependencyInjectionContainer<T>)
@@ -410,9 +367,8 @@ export function createContainer<T extends object = any, U extends object = any>(
     }
 
     /**
-     * 如果在当前容器或其任何父容器中存在具有指定名称的注册项，则递归获取该注册项。
-     *
-     * @param name {string | symbol} The registration name.
+     * 如果在当前容器或其任何父容器中存在具有指定名称的注册项，则递归获取该注册项
+     * @param name
      */
     function getRegistration(name: string | symbol) {
         const resolver = registrations[name]
@@ -428,20 +384,12 @@ export function createContainer<T extends object = any, U extends object = any>(
     }
 
     /**
-     * 使用给定名称解析注册项。
-     *
-     * @param {string | symbol} name
-     * The name of the registration to resolve.
-     *
-     * @param {ResolveOptions} resolveOpts
-     * The resolve options.
-     *
-     * @return {any}
-     * Whatever was resolved.
+     * 使用给定名称解析注册项
+     * @param name
+     * @param resolveOpts
      */
     function resolve(name: string | symbol, resolveOpts?: ResolveOptions): any {
         resolveOpts = resolveOpts || {}
-
         try {
             // Grab the registration by name.
             const resolver = getRegistration(name)
@@ -452,17 +400,14 @@ export function createContainer<T extends object = any, U extends object = any>(
                     'Cyclic dependencies detected.'
                 )
             }
-
             // Used in JSON.stringify.
             if (name === 'toJSON') {
                 return toStringRepresentationFn
             }
-
             // Used in console.log.
             if (name === 'constructor') {
                 return createContainer
             }
-
             if (!resolver) {
                 // Checks for some edge cases.
                 switch (name) {
@@ -487,16 +432,13 @@ export function createContainer<T extends object = any, U extends object = any>(
                 if (resolveOpts.allowUnregistered) {
                     return undefined
                 }
-
                 throw new DependencyInjectionResolutionError(name, resolutionStack)
             }
-
             // Pushes the currently-resolving module name onto the stack
             resolutionStack.push(name)
-
             // Do the thing
             let cached: CacheEntry | undefined
-            let resolved
+            let resolved: any
             switch (resolver.lifetime || Lifetime.TRANSIENT) {
                 case Lifetime.TRANSIENT:
                     // Transient lifetime means resolve every time.
@@ -546,25 +488,17 @@ export function createContainer<T extends object = any, U extends object = any>(
     }
 
     /**
-     * Checks if the registration with the given name exists.
-     *
-     * @param {string | symbol} name
-     * The name of the registration to resolve.
-     *
-     * @return {boolean}
-     * Whether or not the registration exists.
+     * 检查是否存在具有给定名称的注册项
+     * @param name
      */
     function hasRegistration(name: string | symbol): boolean {
         return !!getRegistration(name)
     }
 
     /**
-     * Given a registration, class or function, builds it up and returns it.
-     * Does not cache it, this means that any lifetime configured in case of passing
-     * a registration will not be used.
-     *
-     * @param {Resolver|Class|Function} targetOrResolver
-     * @param {ResolverOptions} opts
+     * 给定一个注册项、类或函数，构建其并返回。不会缓存它，这意味着如果传递了注册项，则不会使用任何配置的生命周期
+     * @param targetOrResolver
+     * @param opts
      */
     function build<T>(
         targetOrResolver: Resolver<T> | ClassOrFunctionReturning<T>,
@@ -602,13 +536,9 @@ export function createContainer<T extends object = any, U extends object = any>(
         opts: LoadModulesOptions<ESM>
     ): ESM extends false ? IDependencyInjectionContainer : Promise<IDependencyInjectionContainer>
     /**
-     * Binds `lib/loadModules` to this container, and provides
-     * real implementations of it's dependencies.
-     *
-     * Additionally, any modules using the `dependsOn` API
-     * will be resolved.
-     *
-     * @see lib/loadModules.js documentation.
+     * 将 lib/loadModules 绑定到此容器，并提供其依赖项的真实实现。此外，任何使用 dependsOn API 的模块都将被解析
+     * @param globPatterns
+     * @param opts
      */
     function loadModules<ESM extends boolean = false>(
         globPatterns: Array<string | GlobWithOptions>,
@@ -639,10 +569,9 @@ export function createContainer<T extends object = any, U extends object = any>(
     }
 
     /**
-     * Disposes this container and it's children, calling the disposer
-     * on all disposable registrations and clearing the cache.
+     * 销毁该容器及其子容器，对所有可释放的注册进行清理并清除缓存
      */
-    function dispose(): Promise<void> {
+    async function dispose(): Promise<void> {
         const entries = Array.from(container.cache.entries())
         container.cache.clear()
         return Promise.all(

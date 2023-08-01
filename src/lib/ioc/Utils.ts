@@ -1,14 +1,9 @@
-import {createTokenizer} from './FunctionTokenizer.js'
+import {createTokenizer, Token} from './FunctionTokenizer.js'
 import {Constructor} from './Resolvers.js'
 
 /**
- * Quick flatten utility to flatten a 2-dimensional array.
- *
- * @param  {Array<Array<Item>>} array
- * The array to flatten.
- *
- * @return {Array<Item>}
- * The flattened array.
+ * 一个快速的展开工具，用于展开一个二维数组
+ * @param array
  */
 export function flatten<T>(array: Array<Array<T>>): Array<T> {
     const result: Array<T> = []
@@ -17,96 +12,62 @@ export function flatten<T>(array: Array<Array<T>>): Array<T> {
             result.push(item)
         })
     })
-
     return result
 }
 
 /**
- * Creates a { name: value } object if the input isn't already in that format.
- *
- * @param  {string|object} name
- * Either a string or an object.
- *
- * @param  {*} value
- * The value, only used if name is not an object.
- *
- * @return {object}
+ * 如果输入的格式不是{name: value}，则创建一个{name: value}对象
+ * @param name
+ * @param value
  */
 export function nameValueToObject(
     name: string | symbol | object,
     value?: any
 ): Record<string | symbol, any> {
-    let obj = name
-    if (typeof obj === 'string' || typeof obj === 'symbol') {
-        return {[name as any]: value}
-    }
-
+    let obj: string | symbol | object = name
+    if (typeof obj === 'string' || typeof obj === 'symbol') return {[name as any]: value}
     return obj
 }
 
 /**
- * Returns the last item in the array.
- *
- * @param  {*[]} arr
- * The array.
- *
- * @return {*}
- * The last element.
+ * 返回数组中的最后一个元素
+ * @param arr
  */
 export function last<T>(arr: Array<T>): T {
     return arr[arr.length - 1]
 }
 
 /**
- * Determines if the given function is a class.
- *
- * @param  {Function} fn
- * @return {boolean}
+ * 确定给定的函数是否是一个类
+ * @param fn
  */
 export function isClass(fn: Function | Constructor<any>): boolean {
     /*tslint:disable-next-line*/
     if (typeof fn !== 'function') {
         return false
     }
-
     // Should only need 2 tokens.
     const tokenizer = createTokenizer(fn.toString())
     const first = tokenizer.next()
-    if (first.type === 'class') {
-        return true
-    }
-
-    const second = tokenizer.next()
+    if (first.type === 'class') return true
+    const second: Token = tokenizer.next()
     if (first.type === 'function' && second.value) {
-        if (second.value[0] === second.value[0].toUpperCase()) {
-            return true
-        }
+        if (second.value[0] === second.value[0].toUpperCase()) return true
     }
-
     return false
 }
 
 /**
- * Determines if the given value is a function.
- *
- * @param  {Any} val
- * Any value to check if it's a function.
- *
- * @return {boolean}
- * true if the value is a function, false otherwise.
+ * 确定给定的值是否是一个函数
+ * @param val
  */
 export function isFunction(val: any): boolean {
     return typeof val === 'function'
 }
 
 /**
- * Returns the unique items in the array.
- *
- * @param {Array<T>}
- * The array to remove dupes from.
- *
- * @return {Array<T>}
- * The deduped array.
+ * 数组去重
+ * @param arr
  */
 export function uniq<T>(arr: Array<T>): Array<T> {
     return Array.from(new Set(arr))

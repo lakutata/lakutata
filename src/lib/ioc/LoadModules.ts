@@ -12,7 +12,7 @@ import {isClass, isFunction} from './Utils.js'
 import {camelCase} from 'camel-case'
 
 /**
- * Metadata of the module as well as the loaded module itself.
+ * 模块的元数据以及加载的模块本身
  * @interface LoadedModuleDescriptor
  */
 export interface LoadedModuleDescriptor extends ModuleDescriptor {
@@ -20,7 +20,7 @@ export interface LoadedModuleDescriptor extends ModuleDescriptor {
 }
 
 /**
- * The options when invoking loadModules().
+ * 调用loadModules()时的选项
  * @interface LoadModulesOptions
  */
 export interface LoadModulesOptions<ESM extends boolean = false> {
@@ -31,17 +31,14 @@ export interface LoadModulesOptions<ESM extends boolean = false> {
 }
 
 /**
- * Name formatting options when using loadModules().
+ * 在使用loadModules()时，名称格式化的选项
  * @type BuiltInNameFormatters
  */
 export type BuiltInNameFormatters = 'camelCase'
 
 /**
- * Takes in the filename of the module being loaded as well as the module descriptor,
- * and returns a string which is used to register the module in the container.
- *
- * `descriptor.name` is the same as `name`.
- *
+ * 接受正在加载的模块的文件名和模块描述符，并返回一个字符串，用于在容器中注册模块
+ * descriptor.name与name相同
  * @type {NameFormatter}
  */
 export type NameFormatter = (
@@ -50,7 +47,7 @@ export type NameFormatter = (
 ) => string
 
 /**
- * Dependencies for `loadModules`
+ * loadModules的依赖项
  */
 export interface LoadModulesDeps {
     listModules: typeof listModules
@@ -60,11 +57,11 @@ export interface LoadModulesDeps {
 }
 
 const nameFormatters: Record<string, NameFormatter> = {
-    camelCase: (s) => camelCase(s)
+    camelCase: (s: string) => camelCase(s)
 }
 
 /**
- * The list of loaded modules
+ * 加载的模块列表
  */
 export interface LoadModulesResult {
     loadedModules: Array<ModuleDescriptor>
@@ -76,33 +73,31 @@ export function loadModules<ESM extends boolean = false>(
     opts?: LoadModulesOptions<ESM>
 ): ESM extends true ? Promise<LoadModulesResult> : LoadModulesResult
 /**
- * Given an array of glob strings, will call `require`
- * on them, and call their default exported function with the
- * container as the first parameter.
+ * 给定一个 glob 字符串数组，将在它们上调用 require，并将容器作为第一个参数调用其默认导出的函数
  *
  * @param  {IDependencyInjectionContainer} dependencies.container
- * The container to install loaded modules in.
+ * 要安装加载的模块的容器
  *
  * @param  {Function} dependencies.listModules
- * The listModules function to use for listing modules.
+ * 用于列出模块的listModules函数
  *
  * @param  {Function} dependencies.require
- * The require function - it's a dependency because it makes testing easier.
+ * require函数 - 这是一个依赖项，因为它使得测试更加容易
  *
  * @param  {String[]} globPatterns
- * The array of globs to use when loading modules.
+ * 加载模块时要使用的 glob 数组
  *
  * @param  {Object} opts
- * Passed to `listModules`, e.g. `{ cwd: '...' }`.
+ * 传递给listModules的选项，例如{ cwd: '...' }
  *
  * @param  {(string, ModuleDescriptor) => string} opts.formatName
- * Used to format the name the module is registered with in the container.
+ * 用于格式化模块在容器中注册的名称
  *
  * @param  {boolean} opts.esModules
- * Set to `true` to use Node's native ECMAScriptModules modules
+ * 将其设置为true以使用Node的原生ECMAScript模块
  *
  * @return {Object}
- * Returns an object describing the result.
+ * 返回描述结果的对象
  */
 export function loadModules<ESM extends boolean>(
     dependencies: LoadModulesDeps,
@@ -110,14 +105,13 @@ export function loadModules<ESM extends boolean>(
     opts?: LoadModulesOptions<ESM>
 ): Promise<LoadModulesResult> | LoadModulesResult {
     opts ??= {}
-    const container = dependencies.container
+    const container: IDependencyInjectionContainer = dependencies.container
     opts = optsWithDefaults(opts, container)
-    const modules = dependencies.listModules(globPatterns, opts)
-
+    const modules: ModuleDescriptor[] = dependencies.listModules(globPatterns, opts)
     if (opts.esModules) {
         return loadEsModules(dependencies, container, modules, opts)
     } else {
-        const result = modules.map((m) => {
+        const result: LoadedModuleDescriptor[][] = modules.map((m: ModuleDescriptor) => {
             const loaded = dependencies.require(m.path)
             return parseLoadedModule(loaded, m)
         })
@@ -126,7 +120,7 @@ export function loadModules<ESM extends boolean>(
 }
 
 /**
- * Loads the modules using native ES6 modules and the async import()
+ * 使用原生的ES6模块和异步的import()加载模块
  * @param {IDependencyInjectionContainer} container
  * @param {ModuleDescriptor[]} modules
  * @param {LoadModulesOptions} opts
@@ -142,17 +136,14 @@ async function loadEsModules<ESM extends boolean>(
         const fileUrl = pathToFileURL(m.path).toString()
         importPromises.push(dependencies.require(fileUrl))
     }
-    const imports = await Promise.all(importPromises)
+    const imports: any[] = await Promise.all(importPromises)
     const result: any[] = []
-    for (let i = 0; i < modules.length; i++) {
-        result.push(parseLoadedModule(imports[i], modules[i]))
-    }
+    for (let i = 0; i < modules.length; i++) result.push(parseLoadedModule(imports[i], modules[i]))
     return registerModules(result, container, modules, opts)
 }
 
 /**
- * Parses the module which has been required
- *
+ * 解析已经被引入的模块
  * @param {any} loaded
  * @param {ModuleDescriptor} m
  */
@@ -161,23 +152,16 @@ function parseLoadedModule(
     m: ModuleDescriptor
 ): Array<LoadedModuleDescriptor> {
     const items: Array<LoadedModuleDescriptor> = []
-    // Meh, it happens.
-    if (!loaded) {
-        return items
-    }
-
+    if (!loaded) return items
     if (isFunction(loaded)) {
-        // for module.exports = ...
         items.push({
             name: m.name,
             path: m.path,
             value: loaded,
             opts: m.opts
         })
-
         return items
     }
-
     if (loaded.default && isFunction(loaded.default)) {
         // ES6 default export
         items.push({
@@ -187,7 +171,6 @@ function parseLoadedModule(
             opts: m.opts
         })
     }
-
     // loop through non-default exports, but require the RESOLVER property set for
     // it to be a valid service module export.
     for (const key of Object.keys(loaded)) {
@@ -195,7 +178,6 @@ function parseLoadedModule(
             // default case handled separately due to its different name (file name)
             continue
         }
-
         if (isFunction(loaded[key]) && RESOLVER in loaded[key]) {
             items.push({
                 name: key,
@@ -205,13 +187,11 @@ function parseLoadedModule(
             })
         }
     }
-
     return items
 }
 
 /**
- * Registers the modules
- *
+ * 注册模块
  * @param {ModuleDescriptorVal[][]} modulesToRegister
  * @param {IDependencyInjectionContainer} container
  * @param {ModuleDescriptor[]} modules
@@ -233,7 +213,7 @@ function registerModules<ESM extends boolean>(
 }
 
 /**
- * Returns a new options object with defaults applied.
+ * 返回一个具有应用默认值的新选项对象
  */
 function optsWithDefaults<ESM extends boolean = false>(
     opts: Partial<LoadModulesOptions<ESM>> | undefined,
@@ -250,8 +230,7 @@ function optsWithDefaults<ESM extends boolean = false>(
 }
 
 /**
- * Given a module descriptor, reads it and registers it's value with the container.
- *
+ * 给定一个模块描述符，读取它并将其值注册到容器中
  * @param {IDependencyInjectionContainer} container
  * @param {LoadModulesOptions} opts
  * @param {ModuleDescriptor} moduleDescriptor
@@ -260,40 +239,28 @@ function registerDescriptor<ESM extends boolean = false>(
     container: IDependencyInjectionContainer,
     opts: LoadModulesOptions<ESM>,
     moduleDescriptor: LoadedModuleDescriptor & { value: any }
-) {
+): void {
     const inlineConfig = moduleDescriptor.value[RESOLVER]
     let name = inlineConfig && inlineConfig.name
     if (!name) {
         name = moduleDescriptor.name
         let formatter = opts.formatName
         if (formatter) {
-            if (typeof formatter === 'string') {
-                formatter = nameFormatters[formatter]
-            }
-
-            if (formatter) {
-                name = formatter(name, moduleDescriptor)
-            }
+            if (typeof formatter === 'string') formatter = nameFormatters[formatter]
+            if (formatter) name = formatter(name, moduleDescriptor)
         }
     }
-
     let moduleDescriptorOpts = moduleDescriptor.opts
-
-    if (typeof moduleDescriptorOpts === 'string') {
-        moduleDescriptorOpts = {lifetime: moduleDescriptorOpts}
-    }
-
+    if (typeof moduleDescriptorOpts === 'string') moduleDescriptorOpts = {lifetime: moduleDescriptorOpts}
     const regOpts: BuildResolver<any> = {
         ...opts.resolverOptions,
         ...moduleDescriptorOpts,
         ...inlineConfig
     }
-
     const reg: Function = regOpts.register
         ? regOpts.register
         : isClass(moduleDescriptor.value)
             ? asClass
             : asFunction
-
     container.register(name, reg(moduleDescriptor.value, regOpts))
 }

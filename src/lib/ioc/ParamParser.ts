@@ -1,33 +1,29 @@
 import {createTokenizer, Token, TokenizerFlags} from './FunctionTokenizer.js'
 
 /**
- * A parameter for a function.
+ * 一个函数的参数
  */
 export interface Parameter {
     /**
-     * Parameter name.
+     * 参数名
      */
     name: string
     /**
-     * True if the parameter is optional.
+     * 如果参数是可选的，则为true
      */
     optional: boolean
 }
 
-/*
- * Parses the parameter list of a function string, including ES6 class constructors.
- *
- * @param {string} source
- * The source of a function to extract the parameter list from
- *
+/**
+ * 解析函数字符串的参数列表，包括ES6类的构造函数
+ * @param source
+ * 要从中提取参数列表的函数的源代码
  * @return {Array<Parameter> | null}
- * Returns an array of parameters, or `null` if no
- * constructor was found for a class.
+ * 返回参数数组，如果未找到类的构造函数，则返回null
  */
 export function parseParameterList(source: string): Array<Parameter> | null {
     const {next: _next, done} = createTokenizer(source)
     const params: Array<Parameter> = []
-
     let t: Token = null!
     nextToken()
     while (!done()) {
@@ -36,18 +32,13 @@ export function parseParameterList(source: string): Array<Parameter> | null {
                 skipUntilConstructor()
                 // If we didn't find a constructor token, then we know that there
                 // are no dependencies in the defined class.
-                if (!isConstructorToken()) {
-                    return null
-                }
+                if (!isConstructorToken()) return null
                 // Next token is the constructor identifier.
                 nextToken()
                 break
             case 'function':
                 const next = nextToken()
-                if (next.type === 'ident' || next.type === '*') {
-                    // This is the function name or a generator star. Skip it.
-                    nextToken()
-                }
+                if (next.type === 'ident' || next.type === '*') nextToken() // This is the function name or a generator star. Skip it.
                 break
             case '(':
                 // Start parsing parameter names.
@@ -71,19 +62,16 @@ export function parseParameterList(source: string): Array<Parameter> | null {
                 }
                 params.push(param)
                 return params
-            /* istanbul ignore next */
             default:
                 throw unexpected()
         }
     }
-
     return params
 
     /**
-     * After having been placed within the parameter list of
-     * a function, parses the parameters.
+     * 在被放置在函数的参数列表中后，解析参数
      */
-    function parseParams() {
+    function parseParams(): void {
         // Current token is a left-paren
         let param: Parameter = {name: '', optional: false}
         while (!done()) {
@@ -104,7 +92,6 @@ export function parseParameterList(source: string): Array<Parameter> | null {
                         params.push(param)
                     }
                     return
-                /* istanbul ignore next */
                 default:
                     throw unexpected()
             }
@@ -112,16 +99,14 @@ export function parseParameterList(source: string): Array<Parameter> | null {
     }
 
     /**
-     * Skips until we reach the constructor identifier.
+     * 跳过直到遇到构造函数标识符
      */
-    function skipUntilConstructor() {
-        while (!isConstructorToken() && !done()) {
-            nextToken(TokenizerFlags.Dumb)
-        }
+    function skipUntilConstructor(): void {
+        while (!isConstructorToken() && !done()) nextToken(TokenizerFlags.Dumb)
     }
 
     /**
-     * Determines if the current token represents a constructor, and the next token after it is a paren
+     * 确定当前令牌是否表示构造函数，并且它之后的下一个令牌是括号
      * @return {boolean}
      */
     function isConstructorToken(): boolean {
@@ -129,19 +114,17 @@ export function parseParameterList(source: string): Array<Parameter> | null {
     }
 
     /**
-     * Advances the tokenizer and stores the previous token in history
+     * 前进到分词器，并将前一个令牌存储在历史记录中
      */
-    function nextToken(flags = TokenizerFlags.None) {
+    function nextToken(flags: TokenizerFlags = TokenizerFlags.None) {
         t = _next(flags)
         return t
     }
 
     /**
-     * Returns an error describing an unexpected token.
+     * 返回描述意外令牌的错误
      */
-
-    /* istanbul ignore next */
-    function unexpected() {
+    function unexpected(): SyntaxError {
         return new SyntaxError(
             `Parsing parameter list, did not expect ${t.type} token${
                 t.value ? ` (${t.value})` : ''

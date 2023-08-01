@@ -22,6 +22,15 @@ export function ArrayToSet<T = any>(arr: T[]): Set<T> {
 }
 
 /**
+ * 数组去重
+ * @param arr
+ * @constructor
+ */
+export function UniqueArray<T>(arr: T[]): T[] {
+    return Array.from(new Set(arr))
+}
+
+/**
  * 数组排序
  * @param arr
  * @param options

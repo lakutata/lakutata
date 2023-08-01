@@ -5,7 +5,7 @@ import {BuildResolverOptions, ResolverOptions} from './Resolvers.js'
 import {LifetimeType} from './Lifetime.js'
 
 /**
- * The options when invoking listModules().
+ * 调用listModules()时的选项
  * @interface ListModulesOptions
  */
 export interface ListModulesOptions {
@@ -14,8 +14,7 @@ export interface ListModulesOptions {
 }
 
 /**
- * An object containing the module name and path (full path to module).
- *
+ * 一个包含模块名称和路径（模块的完整路径）的对象
  * @interface ModuleDescriptor
  */
 export interface ModuleDescriptor {
@@ -25,29 +24,18 @@ export interface ModuleDescriptor {
 }
 
 /**
- * A glob pattern with associated registration options.
+ * 一个带有关联注册选项的 glob 模式
  */
 export type GlobWithOptions =
     | [string]
     | [string, BuildResolverOptions<any> | LifetimeType]
 
-// Regex to extract the module name.
-const nameExpr = /(.*)\..*/i
+const nameExpr: RegExp = /(.*)\..*/i
 
 /**
- * Internal method for globbing a single pattern.
- *
- * @param  {String} globPattern
- * The glob pattern.
- *
- * @param  {String} opts.cwd
- * Current working directory, used for resolving filepaths.
- * Defaults to `process.cwd()`.
- *
- * @return {[{name, path, opts}]}
- * The module names and paths.
- *
- * @api private
+ * 用于模糊匹配单个模式的内部方法
+ * @param globPattern
+ * @param opts
  */
 function _listModules(
     globPattern: string | GlobWithOptions,
@@ -59,12 +47,10 @@ function _listModules(
         patternOpts = globPattern[1] as ResolverOptions<any>
         globPattern = globPattern[0]
     }
-
     // Replace Windows path separators with Posix path
     globPattern = globPattern.replace(/\\/g, '/')
-
-    const result = opts.glob!(globPattern, {cwd: opts.cwd})
-    const mapped = result.map((p) => ({
+    const result: string[] = opts.glob!(globPattern, {cwd: opts.cwd})
+    const mapped = result.map((p: string) => ({
         name: nameExpr.exec(path.basename(p))![1],
         path: path.resolve(opts!.cwd!, p),
         opts: patternOpts
@@ -73,27 +59,14 @@ function _listModules(
 }
 
 /**
- * Returns a list of {name, path} pairs,
- * where the name is the module name, and path is the actual
- * full path to the module.
- *
- * @param  {String|Array<String>} globPatterns
- * The glob pattern as a string or an array of strings.
- *
- * @param  {String} opts.cwd
- * Current working directory, used for resolving filepaths.
- * Defaults to `process.cwd()`.
- *
- * @return {[{name, path}]}
- * An array of objects with the module names and paths.
+ * 返回一个{name, path}对的列表，其中name是模块名称，path是模块的实际完整路径
+ * @param globPatterns
+ * @param opts
  */
 export function listModules(
     globPatterns: string | Array<string | GlobWithOptions>,
     opts?: ListModulesOptions
-) {
-    if (Array.isArray(globPatterns)) {
-        return flatten(globPatterns.map((p) => _listModules(p, opts)))
-    }
-
+): ModuleDescriptor[] {
+    if (Array.isArray(globPatterns)) return flatten(globPatterns.map((p: string | GlobWithOptions) => _listModules(p, opts)))
     return _listModules(globPatterns, opts)
 }
