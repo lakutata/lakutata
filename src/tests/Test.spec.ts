@@ -12,6 +12,7 @@ import {async} from 'fast-glob'
 import {Container} from '../lib/base/Container.js'
 import {BaseObject} from '../lib/base/BaseObject.js'
 import {Component} from '../lib/base/Component.js'
+import {Inject} from '../decorators/DependencyInjectionDecorators.js'
 
 // console.log(Application)
 
@@ -78,11 +79,17 @@ import {Component} from '../lib/base/Component.js'
     }
 
     class OB extends Component {
+
         protected readonly test: string
 
-        protected readonly test1:Test1
+        @Inject('ctn')
+        protected readonly test1: Test1
 
+        @Inject('test1')
         protected readonly ctn
+
+        @Inject()
+        protected readonly oo
 
         protected readonly hh = () => {
         }
@@ -103,7 +110,7 @@ import {Component} from '../lib/base/Component.js'
         ctn: asValue(container),
         test1: asClass(Test1),
         test2: asClass(Test2),
-        ob:asClass(OB)
+        ob: asClass(OB)
     })
 
     // console.log(await container.get('base'))

@@ -102,9 +102,8 @@ export class DependencyInjectionResolutionError extends ExtendableError {
         resolutionStack.push(name)
         const resolutionPathString: string = resolutionStack.join(' -> ')
         let msg: string = `Could not resolve '${name as any}'.`
-        if (message) msg += ` ${message}`
-        msg += EOL + EOL
-        msg += `Resolution path: ${resolutionPathString}`
+        if (message) msg = `${msg} ${message}`
+        msg = `${msg} Resolution path: ${resolutionPathString}`
         super(msg)
     }
 }
