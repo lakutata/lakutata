@@ -114,7 +114,7 @@ export class DependencyInjectionTypeError extends ExtendableError {
 }
 
 /**
- * A nice error class so we can do an instanceOf check.
+ * A nice error class, so we can do an instanceOf check.
  */
 export class DependencyInjectionResolutionError extends ExtendableError {
     /**
