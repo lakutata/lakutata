@@ -28,6 +28,11 @@
       "require": "./build/Utilities.cjs",
       "import": "./build/Utilities.js",
       "types": "./build/Utilities.d.ts"
+    },
+    "./crypto": {
+      "require": "./build/Crypto.cjs",
+      "import": "./build/Crypto.js",
+      "types": "./build/Crypto.d.ts"
     }
   },
   "tsup": {
@@ -65,11 +70,13 @@
     "tslib": "^2.6.1"
   },
   "devDependencies": {
+    "@types/crypto-js": "^4.1.1",
     "@types/node": "^18.17.0",
     "@typescript-eslint/eslint-plugin": "^6.2.0",
     "@typescript-eslint/parser": "^6.2.0",
     "async-constructor": "^0.4.17",
     "camel-case": "^4.1.2",
+    "crypto-js": "^4.1.1",
     "eslint": "^8.45.0",
     "fast-glob": "^3.3.1",
     "is-glob": "^4.0.3",

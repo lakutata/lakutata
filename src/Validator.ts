@@ -1,4 +1,5 @@
 import 'reflect-metadata'
+import 'reflect-metadata'
 import Joi from 'joi'
 import {As, isGlobString} from './Utilities.js'
 

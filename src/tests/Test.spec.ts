@@ -14,6 +14,8 @@ import {Component} from '../lib/base/Component.js'
 import {Configurable, Inject} from '../decorators/DependencyInjectionDecorators.js'
 import {DI_CONTAINER_CREATOR_CONSTRUCTOR} from '../constants/MetadataKey.js'
 import {LoadEntryCommonOptions} from '../options/LoadEntryCommonOptions.js'
+import {MDSTest1} from './mds/MDSTest1.js'
+import {Crypto} from '../Crypto.js'
 
 // console.log(Application)
 
@@ -46,7 +48,7 @@ import {LoadEntryCommonOptions} from '../options/LoadEntryCommonOptions.js'
 
         public async ruuu() {
             const test2 = await this.ctn.get('test2')
-            return test2.run()
+            // return test2.run()
         }
 
         public run() {
@@ -115,6 +117,6 @@ import {LoadEntryCommonOptions} from '../options/LoadEntryCommonOptions.js'
         }
     })
 
-    console.log(await container.get('MDSTest1'))
+    console.log(await container.get(MDSTest1))
 
 })()

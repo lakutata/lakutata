@@ -1,3 +1,4 @@
+import 'reflect-metadata'
 import sortArray from 'sort-array'
 import {ISortArrayOptions} from './interfaces/ISortArrayOptions.js'
 import sortKeys from 'sort-keys'
