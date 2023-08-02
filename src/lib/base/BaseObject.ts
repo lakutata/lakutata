@@ -1,7 +1,11 @@
 import {AsyncConstructor} from 'async-constructor'
 import {IConstructor} from '../../interfaces/IConstructor.js'
 import {As, ConfigureObjectProperties} from '../../Utilities.js'
-import {DI_CONTAINER_CREATOR_CONSTRUCTOR, DI_TARGET_CONSTRUCTOR_INJECTS} from '../../constants/MetadataKey.js'
+import {
+    DI_CONTAINER_CREATOR_CONSTRUCTOR, DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS,
+    DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT,
+    DI_TARGET_CONSTRUCTOR_INJECTS
+} from '../../constants/MetadataKey.js'
 
 export class BaseObject extends AsyncConstructor {
     /**
@@ -13,8 +17,8 @@ export class BaseObject extends AsyncConstructor {
             if (properties) {
                 if (Reflect.getMetadata(DI_CONTAINER_CREATOR_CONSTRUCTOR, properties.constructor)) {
                     const resolveInjectPromises: Promise<void>[] = []
-                    const injectMappingMap: Map<string, string> = Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_INJECTS, this.constructor)
-                    injectMappingMap.forEach((injectKey: string, propertyKey: string): void => {
+                    const injectMappingMap: Map<string, string> | undefined = Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_INJECTS, this.constructor)
+                    injectMappingMap?.forEach((injectKey: string, propertyKey: string): void => {
                         if (!Reflect.getOwnPropertyDescriptor(properties, injectKey)) return properties[injectKey]
                         Object.keys(properties).forEach((injectPropertyKey: string): void => {
                             if (injectPropertyKey === injectKey && this.hasProperty(propertyKey)) {
@@ -22,10 +26,16 @@ export class BaseObject extends AsyncConstructor {
                             }
                         })
                     })
-
                     await Promise.all(resolveInjectPromises)
                 } else {
                     ConfigureObjectProperties(this, properties ? properties : {})
+                }
+            }
+            const config: Record<string, any> | undefined = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT, this.constructor)
+            if (config) {
+                const configurableItems: Set<string> | undefined = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, this.constructor)
+                if (configurableItems) {
+                    configurableItems.forEach((propertyKey: string): void => this[propertyKey] = Object.hasOwn(config, propertyKey) ? config[propertyKey] : this[propertyKey])
                 }
             }
             await this.init()

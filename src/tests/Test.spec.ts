@@ -66,7 +66,7 @@ import {LoadEntryCommonOptions} from '../options/LoadEntryCommonOptions.js'
         }
     }
 
-    console.log('typeof Test2:', typeof Test2)
+    // console.log('typeof Test2:', typeof Test2)
 
     const ctr = createContainer({injectionMode: InjectionMode.PROXY})
     const container = new Container()
@@ -82,23 +82,15 @@ import {LoadEntryCommonOptions} from '../options/LoadEntryCommonOptions.js'
 
         protected readonly test: string
 
-        @Inject()
-        protected readonly test1: Test1
-
-        @Inject()
-        protected readonly test2: Test2
-
-        @Inject()
-        protected readonly ctn
-
         @Configurable()
         protected readonly oo
 
-        protected readonly hh = () => {
-        }
-
         protected async init(): Promise<void> {
             console.log('dfdfdf')
+        }
+
+        public async testRun() {
+            return 'hahahahah'
         }
     }
 
@@ -107,30 +99,22 @@ import {LoadEntryCommonOptions} from '../options/LoadEntryCommonOptions.js'
     // obInstance.setProperty('test1', 'gg')
     // console.log(obInstance,obInstance['init'], obInstance.hasProperty('init'), obInstance.hasMethod('init'))
 
-    container.register({
-        ctn: asValue(container),
-        test1: asClass(Test1),
-        test2: asClass(Test2),
-        ob: asClass(OB, {
-            injector: (container) => {
-                return Object.assign({}, container.registrations, {pppppppp: 'dddddd'})
-                // const obj= {nnnnnnnnnn: 'abcd'}
-                // Reflect.defineMetadata(DI_CONTAINER_CREATOR_CONSTRUCTOR,true,obj)
-                // return obj
-            }
-        })
-    })
-
     // console.log(await container.get('base'))
-    console.log(await container.get('ob'))
-    console.log(await container.get('test2'))
+    // console.log(await container.get('ob'))
+    // console.log(await container.get('test2'))
     // console.log(await container.get('test1'))
 
-    container.load({
-        'testjs': {
-            // lifetime: 'SINGLETON',
-            // params: {}
+    await container.load({
+        '/Users/alex/WebstormProjects/core/src/tests/mds/**/*': {
+            lifetime: 'SINGLETON',
+            config: {tester: 'this is tester'}
             // class: OB
+        },
+        ob: {
+            class: OB
         }
     })
+
+    console.log(await container.get('MDSTest1'))
+
 })()
