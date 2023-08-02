@@ -9,6 +9,7 @@ import {LoadEntryClassOptions} from '../../options/LoadEntryClassOptions.js'
 import {Accept} from '../../decorators/ValidationDecorators.js'
 import {Validator} from '../../Validator.js'
 import {BaseObject} from './BaseObject.js'
+import isGlob from 'is-glob'
 
 export class Container {
 
@@ -44,8 +45,13 @@ export class Container {
      */
     @Accept(Validator.Object().pattern(Validator.String(), Validator.Alternatives().try(LoadEntryCommonOptions.schema(), LoadEntryClassOptions.schema())))
     public async load<T extends BaseObject>(options: Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<T>>): Promise<void> {
-        const xx: Record<string, any> = {
-            './*.js': {lifetime: ''}
+        for (const key in options) {
+            const entryOptions: LoadEntryCommonOptions | LoadEntryClassOptions<T> = options[key]
+            if (LoadEntryClassOptions.isValid(entryOptions)) {
+                console.log('LoadEntryClassOptions')
+            } else {
+                console.log('LoadEntryCommonOptions')
+            }
         }
     }
 

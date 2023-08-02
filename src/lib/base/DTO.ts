@@ -15,7 +15,7 @@ export class DTO {
      * 获取DTO的数据验证定义
      */
     public static schema<T extends DTO>(this: IConstructor<T>): ObjectSchema<T> {
-        return Validator.Object(Reflect.getMetadata(DTO_SCHEMAS, this))
+        return Validator.Object(Reflect.getOwnMetadata(DTO_SCHEMAS, this))
     }
 
     /**
@@ -23,7 +23,7 @@ export class DTO {
      */
     public static validate<T extends DTO>(this: IConstructor<T>, data: any, options?: ValidationOptions): T {
         options = options ? Object.assign({}, defaultValidationOptions, options) : defaultValidationOptions
-        const schema: ObjectSchema<T> = Validator.Object(Reflect.getMetadata(DTO_SCHEMAS, this))
+        const schema: ObjectSchema<T> = Validator.Object(Reflect.getOwnMetadata(DTO_SCHEMAS, this))
         const {error, value} = schema.validate(data, options)
         if (error) throw new InvalidDTOValueException(error.message)
         return Object.assign(new this(), value)
@@ -36,7 +36,7 @@ export class DTO {
      */
     public static async validateAsync<T extends DTO>(this: IConstructor<T>, data: any, options?: ValidationOptions): Promise<T> {
         options = options ? Object.assign({}, defaultValidationOptions, options) : defaultValidationOptions
-        const schema: ObjectSchema<T> = Validator.Object(Reflect.getMetadata(DTO_SCHEMAS, this))
+        const schema: ObjectSchema<T> = Validator.Object(Reflect.getOwnMetadata(DTO_SCHEMAS, this))
         try {
             const value: T = await schema.validateAsync(data, options)
             return Object.assign(new this(), value)
@@ -46,13 +46,27 @@ export class DTO {
     }
 
     /**
+     * 验证数据是否符合DTO
+     * @param data
+     * @param options
+     */
+    public static isValid(data: any, options?: ValidationOptions): boolean {
+        try {
+            this.validate(data, options)
+            return true
+        } catch (e) {
+            return false
+        }
+    }
+
+    /**
      * 合并DTO并返回新的DTO
      */
     public static concat<T extends typeof this>(...args: T[]): T {
         const anonymousDTO = class extends this {
         }
-        let anonymousDTOSchema = Reflect.getMetadata(DTO_SCHEMAS, this)
-        args.forEach(dto => anonymousDTOSchema = Object.assign(anonymousDTOSchema, Reflect.getMetadata(DTO_SCHEMAS, dto)))
+        let anonymousDTOSchema = Reflect.getOwnMetadata(DTO_SCHEMAS, this)
+        args.forEach(dto => anonymousDTOSchema = Object.assign(anonymousDTOSchema, Reflect.getOwnMetadata(DTO_SCHEMAS, dto)))
         Reflect.defineMetadata(DTO_SCHEMAS, anonymousDTOSchema, anonymousDTO)
         return Object.assign(anonymousDTO, ...args)
     }

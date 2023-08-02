@@ -25,8 +25,8 @@ export function Accept(inp: Schema | Schema[] | IConstructor<DTO> | IConstructor
         if (descriptor === undefined) {
             //属性修饰器
             const schema: Schema = inp as Schema
-            if (!Reflect.hasMetadata(DTO_SCHEMAS, target.constructor)) Reflect.defineMetadata(DTO_SCHEMAS, {}, target.constructor)
-            const schemas: SchemaMap = Reflect.getMetadata(DTO_SCHEMAS, target.constructor)
+            if (!Reflect.hasOwnMetadata(DTO_SCHEMAS, target.constructor)) Reflect.defineMetadata(DTO_SCHEMAS, {}, target.constructor)
+            const schemas: SchemaMap = Reflect.getOwnMetadata(DTO_SCHEMAS, target.constructor)
             schemas[propertyKey] = schema
             Reflect.defineMetadata(DTO_SCHEMAS, schemas, target.constructor)
         } else {

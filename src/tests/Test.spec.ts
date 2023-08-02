@@ -13,6 +13,7 @@ import {BaseObject} from '../lib/base/BaseObject.js'
 import {Component} from '../lib/base/Component.js'
 import {Configurable, Inject} from '../decorators/DependencyInjectionDecorators.js'
 import {DI_CONTAINER_CREATOR_CONSTRUCTOR} from '../constants/MetadataKey.js'
+import {LoadEntryCommonOptions} from '../options/LoadEntryCommonOptions.js'
 
 // console.log(Application)
 
@@ -126,6 +127,10 @@ import {DI_CONTAINER_CREATOR_CONSTRUCTOR} from '../constants/MetadataKey.js'
     // console.log(await container.get('test1'))
 
     container.load({
-        test: {lifetime: 'SINGLETON', class: OB}
+        'testjs': {
+            // lifetime: 'SINGLETON',
+            // params: {}
+            // class: OB
+        }
     })
 })()
