@@ -3,7 +3,12 @@ import {
     IDependencyInjectionContainer,
     NameAndRegistrationPair
 } from '../ioc/DependencyInjectionContainer.js'
-import {Resolver} from '../ioc/Resolvers.js'
+import {asClass, Resolver} from '../ioc/Resolvers.js'
+import {LoadEntryCommonOptions} from '../../options/LoadEntryCommonOptions.js'
+import {LoadEntryClassOptions} from '../../options/LoadEntryClassOptions.js'
+import {Accept} from '../../decorators/ValidationDecorators.js'
+import {Validator} from '../../Validator.js'
+import {BaseObject} from './BaseObject.js'
 
 export class Container {
 
@@ -18,7 +23,7 @@ export class Container {
      * @param name
      */
     public async get<T = any>(name: string | symbol): Promise<T> {
-        return await this._dic.resolve(name)
+        return await new Promise<T>((resolve, reject) => (async (): Promise<T> => this._dic.resolve(name))().then(resolve).catch(reject))
     }
 
     /**
@@ -31,6 +36,17 @@ export class Container {
     public register(a: any, b?: any): this {
         this._dic.register(a, b)
         return this
+    }
+
+    /**
+     * 载入注入项目
+     * @param options
+     */
+    @Accept(Validator.Object().pattern(Validator.String(), Validator.Alternatives().try(LoadEntryCommonOptions.schema(), LoadEntryClassOptions.schema())))
+    public async load<T extends BaseObject>(options: Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<T>>): Promise<void> {
+        const xx: Record<string, any> = {
+            './*.js': {lifetime: ''}
+        }
     }
 
 }

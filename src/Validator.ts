@@ -1,5 +1,6 @@
 import 'reflect-metadata'
 import Joi from 'joi'
+import {As} from './Utilities.js'
 
 export class Validator {
 
@@ -75,6 +76,19 @@ export class Validator {
      */
     public static Function<TSchema = Function>(): FunctionSchema<TSchema> {
         return Joi.func<TSchema>()
+    }
+
+    /**
+     * 类验证器
+     * @param inheritsFrom
+     * @constructor
+     */
+    public static Class<TSchema = Function>(inheritsFrom?: TSchema): FunctionSchema<TSchema> {
+        if (!inheritsFrom) return Joi.func<TSchema>().class()
+        return Joi.func<TSchema>().class().custom((value: TSchema, helpers: CustomHelpers) => {
+            if (value instanceof As(inheritsFrom) || value['prototype'] instanceof As(inheritsFrom)) return value
+            return helpers.error('any.invalid')
+        }, 'Class Validation')
     }
 
     /**

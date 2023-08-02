@@ -12,6 +12,7 @@ import {Container} from '../lib/base/Container.js'
 import {BaseObject} from '../lib/base/BaseObject.js'
 import {Component} from '../lib/base/Component.js'
 import {Configurable, Inject} from '../decorators/DependencyInjectionDecorators.js'
+import {DI_CONTAINER_CREATOR_CONSTRUCTOR} from '../constants/MetadataKey.js'
 
 // console.log(Application)
 
@@ -22,10 +23,12 @@ import {Configurable, Inject} from '../decorators/DependencyInjectionDecorators.
 // })
 
 (async () => {
+
     await new Application({
         id: 'test',
         name: 'test',
-        timezone: 'Asia/Shanghai'
+        timezone: 'Asia/Shanghai',
+        entries: []
     })
 
     class Test1 extends AsyncConstructor {
@@ -98,8 +101,6 @@ import {Configurable, Inject} from '../decorators/DependencyInjectionDecorators.
         }
     }
 
-    console.log(OB.className())
-
     // console.log(await new OB({test: 'world'}))
     // const obInstance = await OB.instantiate({test1: 'world111'})
     // obInstance.setProperty('test1', 'gg')
@@ -109,7 +110,14 @@ import {Configurable, Inject} from '../decorators/DependencyInjectionDecorators.
         ctn: asValue(container),
         test1: asClass(Test1),
         test2: asClass(Test2),
-        ob: asClass(OB)
+        ob: asClass(OB, {
+            injector: (container) => {
+                return Object.assign({}, container.registrations, {pppppppp: 'dddddd'})
+                // const obj= {nnnnnnnnnn: 'abcd'}
+                // Reflect.defineMetadata(DI_CONTAINER_CREATOR_CONSTRUCTOR,true,obj)
+                // return obj
+            }
+        })
     })
 
     // console.log(await container.get('base'))
@@ -117,4 +125,7 @@ import {Configurable, Inject} from '../decorators/DependencyInjectionDecorators.
     console.log(await container.get('test2'))
     // console.log(await container.get('test1'))
 
+    container.load({
+        test: {lifetime: 'SINGLETON', class: OB}
+    })
 })()

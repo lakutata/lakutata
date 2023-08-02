@@ -1,9 +1,12 @@
 import {ApplicationOptions} from '../options/ApplicationOptions.js'
-import {AsyncConstructor} from 'async-constructor'
+import {BaseObject} from './base/BaseObject.js'
+import {Container} from './base/Container.js'
 
-export class Application extends AsyncConstructor {
+export class Application extends BaseObject {
 
     protected readonly options: ApplicationOptions
+
+    protected readonly container: Container
 
     constructor(options: ApplicationOptions) {
         super(async (): Promise<void> => await this.bootstrap())
@@ -11,6 +14,7 @@ export class Application extends AsyncConstructor {
         process.env.appId = this.options.id
         process.env.appName = this.options.name
         process.env.TZ = this.options.timezone
+        this.container = new Container()
     }
 
     /**
@@ -20,11 +24,5 @@ export class Application extends AsyncConstructor {
     protected async bootstrap(): Promise<void> {
         //todo
         console.log('bootstrap')
-    }
-
-    public config() {
-    }
-
-    public ready() {
     }
 }

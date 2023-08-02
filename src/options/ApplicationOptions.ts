@@ -13,4 +13,6 @@ export class ApplicationOptions extends DTO {
     @Accept(Validator.String().optional())
     readonly timezone?: string
 
+    @Accept(Validator.Array().optional().default([]))
+    readonly entries: any[] = []
 }
