@@ -2,6 +2,7 @@ import sortArray from 'sort-array'
 import {ISortArrayOptions} from './interfaces/ISortArrayOptions.js'
 import sortKeys from 'sort-keys'
 import {ISortObjectOptions} from './interfaces/ISortObjectOptions.js'
+import isGlob from 'is-glob'
 
 /**
  * 集合转数组
@@ -101,4 +102,12 @@ export function ConfigureObjectProperties<T extends object = object>(target: T, 
  */
 export function As<T = any>(inp: any): T {
     return inp as T
+}
+
+/**
+ * 判断是否为通配符匹配操作符字符串
+ * @param inp
+ */
+export function isGlobString(inp: string): boolean {
+    return isGlob(inp)
 }

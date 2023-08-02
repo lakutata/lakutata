@@ -1,6 +1,6 @@
 import 'reflect-metadata'
 import Joi from 'joi'
-import {As} from './Utilities.js'
+import {As, isGlobString} from './Utilities.js'
 
 export class Validator {
 
@@ -89,6 +89,18 @@ export class Validator {
             if (value instanceof As(inheritsFrom) || value['prototype'] instanceof As(inheritsFrom)) return value
             return helpers.error('any.invalid')
         }, 'Class Validation')
+    }
+
+    /**
+     * 通配符匹配操作符字符串验证器
+     * @constructor
+     */
+    public static Glob<TSchema = string>(): StringSchema<TSchema> {
+        return Joi.string<TSchema>().custom((value: TSchema, helpers: CustomHelpers) => {
+            if (typeof value === 'string' && isGlobString(value)) return value
+            return helpers.error('any.invalid')
+
+        }, 'Glob Validation')
     }
 
     /**
