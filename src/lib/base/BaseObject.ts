@@ -71,11 +71,11 @@ export class BaseObject extends AsyncConstructor {
                                 }
                             }
                             Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTY, value, this, propertyKey)
-                            if (options.onSet) options.onSet(value)
+                            if (options.onSet) options.onSet.call(this, value)
                         },
                         get(): any {
                             const value: any = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTY, this, propertyKey)
-                            if (options.onGet) options.onGet(value)
+                            if (options.onGet) options.onGet.call(this, value)
                             return value
                         }
                     })

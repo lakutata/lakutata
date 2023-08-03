@@ -27,11 +27,19 @@ export abstract class Interval extends BaseObject {
      */
     @Configurable({
         onSet: function (this: Interval): void {
-            //todo 重载定时任务
+            this.reloadJob()
         },
         accept: Validator.Number().min(1)
     })
     public interval: number = 1
+
+    /**
+     * 重载任务
+     * @protected
+     */
+    protected reloadJob(): void {
+        console.log('reload')
+    }
 
     protected async init(): Promise<void> {
         console.log('this.interval:', this.interval)
