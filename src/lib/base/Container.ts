@@ -18,12 +18,16 @@ import {
 } from '../../constants/MetadataKey.js'
 import {InvalidGlobStringException} from '../../exceptions/InvalidGlobStringException.js'
 import objectHash from 'object-hash'
+import {Application} from '../Application.js'
 
 export class Container {
 
+    protected readonly app: Application
+
     protected readonly _dic: IDependencyInjectionContainer
 
-    constructor(parent?: Container) {
+    constructor(app: Application, parent?: Container) {
+        this.app = app
         this._dic = createContainer({injectionMode: 'PROXY'}, parent?._dic)
     }
 
@@ -67,7 +71,7 @@ export class Container {
             pairs[name] = asClass(inheritFromBaseObjectClass, {
                 lifetime: options.lifetime,
                 dispose: (instance: T) => instance.getMethod('destroy', false)()
-            })
+            }).inject(()=>({Application}))
         })
         return pairs
     }
@@ -115,7 +119,7 @@ export class Container {
         this._dic.register(name, asClass(constructor, {
             lifetime: options?.lifetime ? options.lifetime : 'SINGLETON',
             dispose: (instance: T) => instance.getMethod('destroy', false)()
-        }))
+        }).inject(()=>({Application})))
     }
 
     /**
@@ -132,7 +136,7 @@ export class Container {
                 pairs[key] = asClass(As<LoadEntryClassOptions<T>>(entryOptions).class, {
                     lifetime: entryOptions.lifetime,
                     dispose: (instance: T) => instance.getMethod('destroy', false)()
-                })
+                }).inject(()=>({Application}))
             } else {
                 pairs = {...pairs, ...(await this.getEntryConstructorsByGlob<T>(key, entryOptions))}
             }
@@ -144,7 +148,7 @@ export class Container {
      * 以当前容器为父容器，创建一个作用域容器
      */
     public createScope(): Container {
-        return new Container(this)
+        return new Container(this.app, this)
     }
 
     /**

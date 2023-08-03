@@ -19,7 +19,7 @@ export class Application extends AsyncConstructor {
         process.env.appId = this.options.id
         process.env.appName = this.options.name
         process.env.TZ = this.options.timezone
-        this.container = new Container()
+        this.container = new Container(this)
     }
 
     /**

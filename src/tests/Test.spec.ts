@@ -63,19 +63,11 @@ import {MDSTest0} from './mds/MDSTest0.js'
         }
     }
 
-    // console.log('typeof Test2:', typeof Test2)
-
-    const ctr = createContainer({injectionMode: InjectionMode.PROXY})
-    const container = new Container()
-
-    // const test1 = await container.get('test1')
-    // console.log(test1)
-    // console.log(await test1.ruuu())
-
-    class PPP {
-    }
 
     class OB extends Component {
+
+        @Inject(MDSTest1)
+        protected readonly MDSTest1:MDSTest1
 
         protected readonly test: string
 
@@ -112,6 +104,7 @@ import {MDSTest0} from './mds/MDSTest0.js'
         protected count: number = 0
 
         protected async executor(): Promise<void> {
+            // console.log(this)
             console.log('count:', ++this.count, this.output, this.constructor.name)
         }
     }
