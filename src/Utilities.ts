@@ -4,6 +4,7 @@ import {ISortArrayOptions} from './interfaces/ISortArrayOptions.js'
 import sortKeys from 'sort-keys'
 import {ISortObjectOptions} from './interfaces/ISortObjectOptions.js'
 import isGlob from 'is-glob'
+import * as randomString from 'randomstring'
 
 /**
  * 集合转数组
@@ -109,6 +110,70 @@ export function As<T = any>(inp: any): T {
  * 判断是否为通配符匹配操作符字符串
  * @param inp
  */
-export function isGlobString(inp: string): boolean {
+export function IsGlobString(inp: string): boolean {
     return isGlob(inp)
+}
+
+/**
+ * 生成随机字符串
+ */
+export function RandomString(): string
+/**
+ * 生成指定长度的随机字符串
+ * @param length
+ */
+export function RandomString(length: number): string
+/**
+ * 生成仅包含字符集内字符的指定长度字符串
+ * @param length
+ * @param charset
+ */
+export function RandomString(length: number, charset: string): string
+/**
+ * 生成仅包含[0-9 a-z A-Z]的指定长度字符串
+ * @param length
+ * @param charset
+ */
+export function RandomString(length: number, charset: 'alphanumeric'): string
+/**
+ * 生成仅包含[a-z A-Z]的指定长度字符串
+ * @param length
+ * @param charset
+ */
+export function RandomString(length: number, charset: 'alphabetic'): string
+/**
+ * 生成仅包含[0-9]的指定长度字符串
+ * @param length
+ * @param charset
+ */
+export function RandomString(length: number, charset: 'numeric'): string
+/**
+ * 生成仅包含[0-9 a-f]的指定长度字符串
+ * @param length
+ * @param charset
+ */
+export function RandomString(length: number, charset: 'hex'): string
+/**
+ * 生成仅包含[01]的指定长度字符串
+ * @param length
+ * @param charset
+ */
+export function RandomString(length: number, charset: 'binary'): string
+/**
+ * 生成仅包含[0-7]的指定长度字符串
+ * @param length
+ * @param charset
+ */
+export function RandomString(length: number, charset: 'octal'): string
+/**
+ * 生成仅包含字符集数组内字符规则的指定长度字符串
+ * @param length
+ * @param charset
+ */
+export function RandomString(length: number, charset: ('alphanumeric' | 'alphabetic' | 'numeric' | 'hex' | 'binary' | 'octal' | string)[]): string
+export function RandomString(length?: number, charset?: string | string[]): string {
+    return randomString.generate({
+        length: length !== undefined ? length : 32,
+        charset: As<string>(charset !== undefined ? charset : 'alphanumeric')
+    })
 }

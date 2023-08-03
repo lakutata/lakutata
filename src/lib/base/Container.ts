@@ -9,19 +9,22 @@ import {LoadEntryClassOptions} from '../../options/LoadEntryClassOptions.js'
 import {Accept} from '../../decorators/ValidationDecorators.js'
 import {Validator} from '../../Validator.js'
 import {BaseObject} from './BaseObject.js'
-import {As, isGlobString} from '../../Utilities.js'
+import {As, IsGlobString, RandomString} from '../../Utilities.js'
 import fastGlob from 'fast-glob'
 import {IConstructor} from '../../interfaces/IConstructor.js'
-import {DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT} from '../../constants/MetadataKey.js'
+import {
+    DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT,
+    DI_TARGET_CONSTRUCTOR_UNIQUE_MARK
+} from '../../constants/MetadataKey.js'
 import {InvalidGlobStringException} from '../../exceptions/InvalidGlobStringException.js'
-import {Crypto} from '../../Crypto.js'
+import objectHash from 'object-hash'
 
 export class Container {
 
     protected readonly _dic: IDependencyInjectionContainer
 
-    constructor() {
-        this._dic = createContainer({injectionMode: 'PROXY'})
+    constructor(parent?: Container) {
+        this._dic = createContainer({injectionMode: 'PROXY'}, parent?._dic)
     }
 
     /**
@@ -31,7 +34,7 @@ export class Container {
      * @protected
      */
     protected async getEntryConstructorsByGlob<T extends BaseObject>(glob: string, options: LoadEntryCommonOptions): Promise<NameAndRegistrationPair<any>> {
-        if (!isGlobString(glob)) throw new InvalidGlobStringException('"{0}" is not valid glob string', [glob])
+        if (!IsGlobString(glob)) throw new InvalidGlobStringException('"{0}" is not valid glob string', [glob])
         const matchedFilenames: string[] = await fastGlob(glob)
         const inheritFromBaseObjectClasses: IConstructor<T>[] = []
         const loadEntryByGlobPromises: Promise<void>[] = []
@@ -46,7 +49,7 @@ export class Container {
         const pairs: NameAndRegistrationPair<any> = {}
         inheritFromBaseObjectClasses.forEach((inheritFromBaseObjectClass: IConstructor<T>): void => {
             this.assignConfigToInjectConstructorMetadata<T>(inheritFromBaseObjectClass, options.config)
-            pairs[this.stringifyConstructor(inheritFromBaseObjectClass)] = asClass(inheritFromBaseObjectClass, {lifetime: options.lifetime})
+            pairs[this.stringifyGlobImportConstructor(inheritFromBaseObjectClass)] = asClass(inheritFromBaseObjectClass, {lifetime: options.lifetime})
         })
         return pairs
     }
@@ -67,9 +70,15 @@ export class Container {
      * @param constructor
      * @protected
      */
-    protected stringifyConstructor<T extends BaseObject>(constructor: IConstructor<T>): string {
-        const stringify: string = `${constructor.name}:${constructor.toString()}`
-        return Crypto.MD5(stringify)
+    protected stringifyGlobImportConstructor<T extends BaseObject>(constructor: IConstructor<T>): string {
+        const constructorRecord: Record<string, string> = {
+            globImport: 'yes',
+            name: constructor.name,
+            string: constructor.toString()
+        }
+        if (!Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_UNIQUE_MARK, constructor)) Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_UNIQUE_MARK, RandomString(32), constructor)
+        constructorRecord.uniqueMark = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_UNIQUE_MARK, constructor)
+        return objectHash(constructorRecord).toString()
     }
 
     /**
@@ -83,7 +92,7 @@ export class Container {
      */
     public async get<T extends BaseObject>(constructor: IConstructor<T>): Promise<T>
     public async get<T extends BaseObject>(inp: string | IConstructor<T>): Promise<T> {
-        const name: string = typeof inp === 'string' ? inp : this.stringifyConstructor(inp)
+        const name: string = typeof inp === 'string' ? inp : this.stringifyGlobImportConstructor(inp)
         return await new Promise<T>((resolve, reject) => (async (): Promise<T> => this._dic.resolve(name))().then(resolve).catch(reject))
     }
 
@@ -104,6 +113,13 @@ export class Container {
             }
         }
         this._dic.register(pairs)
+    }
+
+    /**
+     * 以当前容器为父容器，创建一个作用域容器
+     */
+    public createScope(): Container {
+        return new Container(this)
     }
 
 }

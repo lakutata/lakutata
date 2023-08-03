@@ -1,7 +1,7 @@
 import 'reflect-metadata'
 import 'reflect-metadata'
 import Joi from 'joi'
-import {As, isGlobString} from './Utilities.js'
+import {As, IsGlobString} from './Utilities.js'
 
 export class Validator {
 
@@ -98,7 +98,7 @@ export class Validator {
      */
     public static Glob<TSchema = string>(): StringSchema<TSchema> {
         return Joi.string<TSchema>().custom((value: TSchema, helpers: CustomHelpers) => {
-            if (typeof value === 'string' && isGlobString(value)) return value
+            if (typeof value === 'string' && IsGlobString(value)) return value
             return helpers.error('any.invalid')
 
         }, 'Glob Validation')
