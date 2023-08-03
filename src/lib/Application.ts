@@ -23,6 +23,9 @@ export class Application extends AsyncConstructor {
      */
     protected async bootstrap(): Promise<void> {
         await this.container.load(this.options.entries)
+        for (const item of this.options.bootstrap) {
+            if (typeof item === 'string') await this.container.get(item)
+        }
     }
 
     /**

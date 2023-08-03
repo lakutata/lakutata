@@ -106,12 +106,16 @@ import {MDSTest0} from './mds/MDSTest0.js'
         // @Inject(Application)
         // protected readonly app: Application
 
+        @Configurable()
+        protected readonly output: string
+
         protected count: number = 0
 
         protected async executor(): Promise<void> {
-            console.log('count:', ++this.count)
+            console.log('count:', ++this.count, this.output, this.constructor.name)
         }
     }
+
 
     new Application({
         id: 'test',
@@ -119,13 +123,21 @@ import {MDSTest0} from './mds/MDSTest0.js'
         timezone: 'Asia/Shanghai',
         entries: {
             ob: {class: OB, lifetime: 'SINGLETON', config: {oo: 'kkkkkkk'}},
-            itv: {class: IntervalTest, lifetime: 'SINGLETON', config: {interval: 1000, mode: 'SEQ'}}
+            itv: {class: IntervalTest, lifetime: 'SINGLETON', config: {interval: 1000, mode: 'SEQ', output: 'hi!'}},
+            itv2: {class: IntervalTest, lifetime: 'SINGLETON', config: {interval: 500, mode: 'SEQ', output: 'oh!'}}
             // '/Users/alex/WebstormProjects/core/src/tests/mds/**/*': {
             //     lifetime: 'SINGLETON',
             //     config: {tester: 'this is tester'}
             //     // class: OB
             // }
-        }
+        },
+        bootstrap: [
+            'itv2',
+            'ob',
+            'itv',
+            async (x: Application) => {
+            }
+        ]
     })
 
     // await app.exit()

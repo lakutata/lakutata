@@ -4,6 +4,7 @@ import Joi from 'joi'
 import {As, IsGlobString} from './Utilities.js'
 import {InvalidValueException} from './exceptions/InvalidValueException.js'
 import {defaultValidationOptions} from './constants/DefaultValue.js'
+import {isAsyncFunction} from 'util/types'
 
 export class Validator {
 
@@ -79,6 +80,25 @@ export class Validator {
      */
     public static Function<TSchema = Function>(): FunctionSchema<TSchema> {
         return Joi.func<TSchema>()
+    }
+
+    /**
+     * 异步方法类型验证
+     * @constructor
+     */
+    public static AsyncFunction<TSchema = Function>(): FunctionSchema<TSchema> {
+        return Joi.func<TSchema>().custom((value: TSchema, helpers) => {
+            if (isAsyncFunction(value)) return value
+            return helpers.error('asyncFunc.invalid')
+        }, 'Async Function Validation').error((errors: ErrorReport[]) => {
+            for (const error of errors) {
+                if (error.code === 'asyncFunc.invalid') {
+                    error.message = 'Expected AsyncFunction but got Function'
+                    return error
+                }
+            }
+            return errors[0]
+        })
     }
 
     /**

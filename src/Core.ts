@@ -14,7 +14,7 @@ export {ISortObjectOptions} from './interfaces/ISortObjectOptions.js'
 export {ISortArrayOptions} from './interfaces/ISortArrayOptions.js'
 
 //类型
-
+export {AsyncFunction} from './types/AsyncFunction.js'
 
 //基础类
 export {DTO} from './lib/base/DTO.js'

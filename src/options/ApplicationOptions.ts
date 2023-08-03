@@ -4,6 +4,9 @@ import {Validator} from '../Validator.js'
 import {LoadEntryClassOptions} from './LoadEntryClassOptions.js'
 import {LoadEntryCommonOptions} from './LoadEntryCommonOptions.js'
 import {BaseObject} from '../lib/base/BaseObject.js'
+import {IConstructor} from '../interfaces/IConstructor.js'
+import {AsyncFunction} from '../types/AsyncFunction.js'
+import {Application} from '../lib/Application.js'
 
 export class ApplicationOptions<T extends BaseObject = BaseObject> extends DTO {
 
@@ -28,6 +31,28 @@ export class ApplicationOptions<T extends BaseObject = BaseObject> extends DTO {
     /**
      * 应用程序依赖注入对象配置
      */
-    @Accept(Validator.Object().pattern(Validator.String(), Validator.Alternatives().try(LoadEntryClassOptions.schema(), LoadEntryCommonOptions.schema())).optional().default({}))
+    @Accept(Validator
+        .Object()
+        .pattern(
+            Validator.String(),
+            Validator.Alternatives().try(
+                LoadEntryClassOptions.schema(),
+                LoadEntryCommonOptions.schema()
+            )
+        )
+        .optional()
+        .default({}))
     readonly entries: Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<T>>
+
+    /**
+     * 应用程序引导启动组件
+     */
+    @Accept(Validator.Array(
+        Validator.Alternatives().try(
+            Validator.String(),
+            Validator.Class(BaseObject),
+            Validator.AsyncFunction()
+        )
+    ))
+    readonly bootstrap: (string | IConstructor<T> | AsyncFunction<Application, void>)[]
 }
