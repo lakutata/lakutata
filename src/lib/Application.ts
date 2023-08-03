@@ -23,7 +23,6 @@ export class Application extends AsyncConstructor {
      */
     protected async bootstrap(): Promise<void> {
         await this.container.load(this.options.entries)
-        await this.container.get('itv')
     }
 
     /**
@@ -33,4 +32,5 @@ export class Application extends AsyncConstructor {
         await this.container.destroy()
         process.exit(0)
     }
+
 }

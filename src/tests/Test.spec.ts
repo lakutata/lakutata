@@ -102,6 +102,10 @@ import {MDSTest0} from './mds/MDSTest0.js'
     // console.log(await container.get('test1'))
 
     class IntervalTest extends Interval {
+
+        // @Inject(Application)
+        // protected readonly app: Application
+
         protected count: number = 0
 
         protected async executor(): Promise<void> {
@@ -109,7 +113,7 @@ import {MDSTest0} from './mds/MDSTest0.js'
         }
     }
 
-    const app = await new Application({
+    new Application({
         id: 'test',
         name: 'test',
         timezone: 'Asia/Shanghai',
