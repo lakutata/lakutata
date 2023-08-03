@@ -7,6 +7,8 @@ import {
     DI_TARGET_CONSTRUCTOR_INJECTS
 } from '../constants/MetadataKey.js'
 import {Container} from '../lib/base/Container.js'
+import {Schema, ValidationOptions} from '../Validator.js'
+import {DTO} from '../lib/base/DTO.js'
 
 type InjectMappingObject = {
     injectKey: string
@@ -16,6 +18,8 @@ type InjectMappingObject = {
 export type ConfigurableOptions = {
     onSet?: (value: any) => any
     onGet?: (value: any) => any
+    accept?: Schema | IConstructor<DTO>
+    acceptOptions?: ValidationOptions
 }
 
 /**

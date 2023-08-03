@@ -7,10 +7,12 @@ import {
     DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS,
     DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT,
     DI_TARGET_CONSTRUCTOR_INJECTS,
-    OBJECT_INIT_MARK, DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTY
+    OBJECT_INIT_MARK, DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTY, DTO_CLASS, DTO_SCHEMAS
 } from '../../constants/MetadataKey.js'
 import {MethodNotFoundException} from '../../exceptions/MethodNotFoundException.js'
 import {ConfigurableOptions} from '../../decorators/DependencyInjectionDecorators.js'
+import {Schema, Validator} from '../../Validator.js'
+import {defaultValidationOptions} from '../../constants/DefaultValue.js'
 
 export class BaseObject extends AsyncConstructor {
     /**
@@ -51,6 +53,11 @@ export class BaseObject extends AsyncConstructor {
                 configurableOptionsMap.forEach((options: ConfigurableOptions, propertyKey: string): void => {
                     Object.defineProperty(this, propertyKey, {
                         set: (value: any): void => {
+                            if (options.accept) {
+                                const schema: Schema = Reflect.hasMetadata(DTO_CLASS, options.accept) ? Validator.Object(Reflect.getMetadata(DTO_SCHEMAS, options.accept)) : As<Schema>(options.accept)
+                                options.acceptOptions = options.acceptOptions ? Object.assign({}, defaultValidationOptions, options.acceptOptions) : defaultValidationOptions
+                                value = Validator.validate(value, schema, options.acceptOptions)
+                            }
                             Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTY, options.onSet ? options.onSet(value) : value, this, propertyKey)
                         },
                         get(): any {

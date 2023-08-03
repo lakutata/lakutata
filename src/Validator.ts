@@ -2,6 +2,8 @@ import 'reflect-metadata'
 import 'reflect-metadata'
 import Joi from 'joi'
 import {As, IsGlobString} from './Utilities.js'
+import {InvalidValueException} from './exceptions/InvalidValueException.js'
+import {defaultValidationOptions} from './constants/DefaultValue.js'
 
 export class Validator {
 
@@ -158,6 +160,34 @@ export class Validator {
      */
     public static Attempt<TSchema extends Schema>(value: any, schema: TSchema, options?: ValidationOptions): TSchema extends Schema<infer Value> ? Value : never {
         return Joi.attempt(value, schema, options) as any
+    }
+
+    /**
+     * 根据Schema验证数据（同步方法）
+     * @param data
+     * @param schema
+     * @param options
+     */
+    public static validate<T = any>(data: T, schema: Schema, options?: ValidationOptions): T {
+        options = options ? Object.assign({}, defaultValidationOptions, options) : defaultValidationOptions
+        const {error, value} = schema.validate(data, options)
+        if (error) throw new InvalidValueException(error.message)
+        return value
+    }
+
+    /**
+     * 根据Schema验证数据（异步方法）
+     * @param data
+     * @param schema
+     * @param options
+     */
+    public static async validateAsync<T = any>(data: T, schema: Schema, options?: ValidationOptions): Promise<T> {
+        options = options ? Object.assign({}, defaultValidationOptions, options) : defaultValidationOptions
+        try {
+            return schema.validateAsync(data, options)
+        } catch (e) {
+            throw new InvalidValueException((e as Error).message)
+        }
     }
 }
 

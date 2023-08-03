@@ -25,10 +25,10 @@ export abstract class Interval extends BaseObject {
      * 执行时间间隔
      */
     @Configurable({
-        onSet: function (this: Interval, value: number) {
-            console.log(value)
-            return value + 1
-        }
+        onSet: function (this: Interval, value: number): number {
+            return !!value ? value : 1
+        },
+        onGet: value => value
     })
     public interval: number = 1
 

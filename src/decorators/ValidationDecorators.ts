@@ -6,6 +6,7 @@ import {IConstructor} from '../interfaces/IConstructor.js'
 import {DTO_CLASS, DTO_SCHEMAS} from '../constants/MetadataKey.js'
 import {defaultValidationOptions} from '../constants/DefaultValue.js'
 import {InvalidMethodReturnException} from '../exceptions/InvalidMethodReturnException.js'
+import {As} from '../Utilities.js'
 
 type TFunction = (...args: any[]) => any | Promise<any>
 
@@ -39,7 +40,7 @@ export function Accept(inp: Schema | Schema[] | IConstructor<DTO> | IConstructor
                     argumentSchemas.push(Validator.Object(Reflect.getMetadata(DTO_SCHEMAS, input)))
                 } else {
                     //Schema实例
-                    argumentSchemas.push(input as Schema)
+                    argumentSchemas.push(As<Schema>(input))
                 }
             })
             options = options ? Object.assign({}, defaultValidationOptions, options) : defaultValidationOptions
@@ -49,8 +50,9 @@ export function Accept(inp: Schema | Schema[] | IConstructor<DTO> | IConstructor
             const argumentSchemaLength: number = Array.isArray(argumentSchemas) ? argumentSchemas.length : 1
             if (isAsyncFunction(originalMethod)) {
                 descriptor.value = async function (...args: any[]) {
+                    const argumentCount: number = args.length - argumentSchemaLength
                     try {
-                        args = await schema.concat(Validator.Array().ordered(...new Array(args.length - argumentSchemaLength).fill(Validator.Any()))).validateAsync(args, options)
+                        args = await Validator.validateAsync(args, schema.concat(Validator.Array().ordered(...new Array(argumentCount >= 0 ? argumentCount : 0).fill(Validator.Any()))), options)
                     } catch (e) {
                         throw new InvalidMethodAcceptException('Method [{propertyKey}] accept argument {reason}', {
                             propertyKey: propertyKey,
@@ -62,17 +64,15 @@ export function Accept(inp: Schema | Schema[] | IConstructor<DTO> | IConstructor
             } else {
                 descriptor.value = function (...args: any[]) {
                     const argumentCount: number = args.length - argumentSchemaLength
-                    const {
-                        error,
-                        value
-                    } = schema.concat(Validator.Array().ordered(...new Array(argumentCount >= 0 ? argumentCount : 0).fill(Validator.Any()))).validate(args, options)
-                    if (error) {
+                    try {
+                        args = Validator.validate(args, schema.concat(Validator.Array().ordered(...new Array(argumentCount >= 0 ? argumentCount : 0).fill(Validator.Any()))), options)
+                    } catch (e) {
                         throw new InvalidMethodAcceptException('Method [{propertyKey}] accept argument {reason}', {
                             propertyKey: propertyKey,
-                            reason: error.message
+                            reason: (e as Error).message
                         })
                     }
-                    return originalMethod.apply(this, value)
+                    return originalMethod.apply(this, args)
                 }
             }
             return descriptor
