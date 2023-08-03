@@ -38,7 +38,7 @@ export class Container {
         }
         if (!Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_UNIQUE_MARK, constructor)) Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_UNIQUE_MARK, RandomString(32), constructor)
         constructorRecord.uniqueMark = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_UNIQUE_MARK, constructor)
-        return objectHash(constructorRecord).toString()
+        return `${objectHash(constructorRecord).toString()}_$$${constructor.name}`
     }
 
     /**

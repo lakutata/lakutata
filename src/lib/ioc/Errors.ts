@@ -98,10 +98,11 @@ export class DependencyInjectionResolutionError extends ExtendableError {
         message?: string
     ) {
         if (typeof name === 'symbol') name = (name as any).toString()
+        const purifiedName: string = (name as any).split('_$$').reverse()[0]
         resolutionStack = resolutionStack.map((val) => typeof val === 'symbol' ? (val as any).toString() : val)
-        resolutionStack.push(name)
+        resolutionStack.push(purifiedName)
         const resolutionPathString: string = resolutionStack.join(' -> ')
-        let msg: string = `Could not resolve '${name as any}'.`
+        let msg: string = `Could not resolve '${purifiedName}'.`
         if (message) msg = `${msg} ${message}`
         msg = `${msg} Resolution path: ${resolutionPathString}`
         super(msg)
