@@ -25,11 +25,11 @@ export abstract class Interval extends BaseObject {
 
     /**
      * 执行模式
-     * ONE_BY_ONE 当一次执行结束后等待指定时间间隔后才会进行下一次执行
-     * TIME_BY_TIME 在指定的时间间隔后不管当前执行是否结束均进行下一次执行
+     * SEQ 当一次执行结束后等待指定时间间隔后才会进行下一次执行
+     * TIME 在指定的时间间隔后不管当前执行是否结束均进行下一次执行
      */
-    @Configurable({accept: Validator.String().valid('ONE_BY_ONE', 'TIME_BY_TIME')})
-    public mode: 'ONE_BY_ONE' | 'TIME_BY_TIME' = 'ONE_BY_ONE'
+    @Configurable({accept: Validator.String().valid('SEQ', 'TIME')})
+    public mode: 'SEQ' | 'TIME' = 'SEQ'
 
     /**
      * 执行时间间隔
@@ -68,7 +68,7 @@ export abstract class Interval extends BaseObject {
      * @protected
      */
     protected async runExecutor(): Promise<void> {
-        if ((this.mode === 'ONE_BY_ONE' && !!this._$executing)) return
+        if (this.mode === 'SEQ' && !!this._$executing) return
         this._$executing += 1
         await this.executor()
         this._$executing -= 1

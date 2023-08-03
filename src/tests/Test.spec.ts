@@ -105,7 +105,6 @@ import {MDSTest0} from './mds/MDSTest0.js'
         protected count: number = 0
 
         protected async executor(): Promise<void> {
-            await Delay(3000)
             console.log('count:', ++this.count)
         }
     }
@@ -116,7 +115,7 @@ import {MDSTest0} from './mds/MDSTest0.js'
         timezone: 'Asia/Shanghai',
         entries: {
             ob: {class: OB, lifetime: 'SINGLETON', config: {oo: 'kkkkkkk'}},
-            itv: {class: IntervalTest, lifetime: 'SINGLETON', config: {interval: 1000, mode: 'TIME_BY_TIME'}}
+            itv: {class: IntervalTest, lifetime: 'SINGLETON', config: {interval: 1000, mode: 'SEQ'}}
             // '/Users/alex/WebstormProjects/core/src/tests/mds/**/*': {
             //     lifetime: 'SINGLETON',
             //     config: {tester: 'this is tester'}
