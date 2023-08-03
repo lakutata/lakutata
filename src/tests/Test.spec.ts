@@ -124,18 +124,19 @@ import {MDSTest0} from './mds/MDSTest0.js'
         entries: {
             ob: {class: OB, lifetime: 'SINGLETON', config: {oo: 'kkkkkkk'}},
             itv: {class: IntervalTest, lifetime: 'SINGLETON', config: {interval: 1000, mode: 'SEQ', output: 'hi!'}},
-            itv2: {class: IntervalTest, lifetime: 'SINGLETON', config: {interval: 500, mode: 'SEQ', output: 'oh!'}}
-            // '/Users/alex/WebstormProjects/core/src/tests/mds/**/*': {
-            //     lifetime: 'SINGLETON',
-            //     config: {tester: 'this is tester'}
-            //     // class: OB
-            // }
+            itv2: {class: IntervalTest, lifetime: 'SINGLETON', config: {interval: 500, mode: 'SEQ', output: 'oh!'}},
+            '/Users/alex/WebstormProjects/core/src/tests/mds/**/*': {
+                lifetime: 'SINGLETON',
+                config: {tester: 'this is tester'}
+            }
         },
         bootstrap: [
             'itv2',
             'ob',
             'itv',
+            MDSTest1,
             async (x: Application) => {
+                console.log('dfsdfsdfs111111')
             }
         ]
     })
