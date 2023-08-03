@@ -6,6 +6,7 @@ import {
     DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT,
     DI_TARGET_CONSTRUCTOR_INJECTS
 } from '../../constants/MetadataKey.js'
+import {MethodNotFoundException} from '../../exceptions/MethodNotFoundException.js'
 
 export class BaseObject extends AsyncConstructor {
     /**
@@ -51,6 +52,14 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
+     * Destroy function
+     * @protected
+     */
+    protected async destroy(): Promise<void> {
+        //To be override in child class
+    }
+
+    /**
      * Set object property
      * @param propertyKey
      * @param value
@@ -83,6 +92,25 @@ export class BaseObject extends AsyncConstructor {
         const propertyExists: boolean = this.hasProperty(name)
         if (!propertyExists) return false
         return typeof this.getProperty(name) === 'function'
+    }
+
+    /**
+     * Get method from object
+     * @param name
+     * @param throwExceptionIfNotFound
+     */
+    public getMethod(name: string, throwExceptionIfNotFound: boolean = false): (...args: any[]) => any | Promise<any> {
+        if (this.hasMethod(name)) {
+            return (...args: any[]) => this[name](...args)
+        } else if (throwExceptionIfNotFound) {
+            throw new MethodNotFoundException('Method "{methodName}" not found in "{className}"', {methodName: name, className: this.constructor.name})
+        } else {
+            return (...args: any[]): void => {
+                /**
+                 * Do Nothing
+                 */
+            }
+        }
     }
 
     /**

@@ -3,6 +3,7 @@ import {ObjectSchema, ValidationOptions, Validator} from '../../Validator.js'
 import {IConstructor} from '../../interfaces/IConstructor.js'
 import {defaultValidationOptions} from '../../constants/DefaultValue.js'
 import {InvalidDTOValueException} from '../../exceptions/InvalidDTOValueException.js'
+import {ParentConstructor} from '../../Utilities.js'
 
 @(() => {
     return <TFunction extends IConstructor<any>>(target: TFunction): TFunction => {
@@ -11,11 +12,14 @@ import {InvalidDTOValueException} from '../../exceptions/InvalidDTOValueExceptio
     }
 })()
 export class DTO {
+
     /**
      * 获取DTO的数据验证定义
      */
     public static schema<T extends DTO>(this: IConstructor<T>): ObjectSchema<T> {
-        return Validator.Object(Reflect.getOwnMetadata(DTO_SCHEMAS, this))
+        const parentConstructor: IConstructor<T> | null = ParentConstructor(this)
+        const parentSchema: ObjectSchema<T> = (parentConstructor && parentConstructor.schema) ? parentConstructor.schema() : Validator.Object()
+        return parentSchema.concat(Validator.Object(Reflect.getOwnMetadata(DTO_SCHEMAS, this) ? Reflect.getOwnMetadata(DTO_SCHEMAS, this) : {}))
     }
 
     /**
@@ -23,7 +27,7 @@ export class DTO {
      */
     public static validate<T extends DTO>(this: IConstructor<T>, data: any, options?: ValidationOptions): T {
         options = options ? Object.assign({}, defaultValidationOptions, options) : defaultValidationOptions
-        const schema: ObjectSchema<T> = Validator.Object(Reflect.getOwnMetadata(DTO_SCHEMAS, this))
+        const schema: ObjectSchema<T> = this.schema()
         const {error, value} = schema.validate(data, options)
         if (error) throw new InvalidDTOValueException(error.message)
         return Object.assign(new this(), value)
@@ -36,7 +40,7 @@ export class DTO {
      */
     public static async validateAsync<T extends DTO>(this: IConstructor<T>, data: any, options?: ValidationOptions): Promise<T> {
         options = options ? Object.assign({}, defaultValidationOptions, options) : defaultValidationOptions
-        const schema: ObjectSchema<T> = Validator.Object(Reflect.getOwnMetadata(DTO_SCHEMAS, this))
+        const schema: ObjectSchema<T> = this.schema()
         try {
             const value: T = await schema.validateAsync(data, options)
             return Object.assign(new this(), value)

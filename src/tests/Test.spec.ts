@@ -6,16 +6,16 @@ import {Validator} from '../Validator.js'
 import {Accept} from '../Decorators.js'
 import {IDependencyInjectionContainer, createContainer} from '../lib/ioc/DependencyInjectionContainer.js'
 import {InjectionMode} from '../lib/ioc/InjectionMode.js'
-import {asClass, asValue} from '../lib/ioc/Resolvers.js'
 import {AsyncConstructor} from 'async-constructor'
 import {Container} from '../lib/base/Container.js'
 import {BaseObject} from '../lib/base/BaseObject.js'
 import {Component} from '../lib/base/Component.js'
 import {Configurable, Inject} from '../decorators/DependencyInjectionDecorators.js'
-import {DI_CONTAINER_CREATOR_CONSTRUCTOR, DI_TARGET_CONSTRUCTOR_UNIQUE_MARK} from '../constants/MetadataKey.js'
 import {LoadEntryCommonOptions} from '../options/LoadEntryCommonOptions.js'
 import {MDSTest1} from './mds/MDSTest1.js'
 import {Crypto} from '../Crypto.js'
+import {LoadEntryClassOptions} from '../options/LoadEntryClassOptions.js'
+import {ParentConstructor} from '../Utilities.js'
 
 // console.log(Application)
 
@@ -26,13 +26,6 @@ import {Crypto} from '../Crypto.js'
 // })
 
 (async () => {
-
-    await new Application({
-        id: 'test',
-        name: 'test',
-        timezone: 'Asia/Shanghai',
-        entries: []
-    })
 
     class Test1 extends AsyncConstructor {
         protected ctn: Container
@@ -92,7 +85,7 @@ import {Crypto} from '../Crypto.js'
         }
 
         public async testRun() {
-            return 'hahahahah'
+            return 'hahahahah' + this.oo
         }
     }
 
@@ -106,17 +99,33 @@ import {Crypto} from '../Crypto.js'
     // console.log(await container.get('test2'))
     // console.log(await container.get('test1'))
 
-    await container.load({
-        '/Users/alex/WebstormProjects/core/src/tests/mds/**/*': {
-            lifetime: 'SINGLETON',
-            config: {tester: 'this is tester'}
-            // class: OB
-        },
-        ob: {
-            class: OB
+    await new Application({
+        id: 'test',
+        name: 'test',
+        timezone: 'Asia/Shanghai',
+        entries: {
+            ob: {class: OB, lifetime: 'SINGLETON', config: {oo: 'kkkkkkk'}},
+            '/Users/alex/WebstormProjects/core/src/tests/mds/**/*': {
+                lifetime: 'SINGLETON',
+                config: {tester: 'this is tester'}
+                // class: OB
+            }
         }
     })
 
-    console.log(await container.get(MDSTest1))
+    // new LoadEntryClassOptions()
+
+    // await container.load({
+    //     '/Users/alex/WebstormProjects/core/src/tests/mds/**/*': {
+    //         lifetime: 'SINGLETON',
+    //         config: {tester: 'this is tester'}
+    //         // class: OB
+    //     },
+    //     ob: {
+    //         class: OB
+    //     }
+    // })
+    //
+    // console.log(await container.get(MDSTest1))
 
 })()

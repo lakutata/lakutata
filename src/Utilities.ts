@@ -5,6 +5,7 @@ import sortKeys from 'sort-keys'
 import {ISortObjectOptions} from './interfaces/ISortObjectOptions.js'
 import isGlob from 'is-glob'
 import * as randomString from 'randomstring'
+import {IConstructor} from './interfaces/IConstructor.js'
 
 /**
  * 集合转数组
@@ -176,4 +177,17 @@ export function RandomString(length?: number, charset?: string | string[]): stri
         length: length !== undefined ? length : 32,
         charset: As<string>(charset !== undefined ? charset : 'alphanumeric')
     })
+}
+
+/**
+ * 获取类实例/构造函数所继承的父类的构造函数
+ * @param target
+ * @constructor
+ */
+export function ParentConstructor<T extends Function = any>(target: T): IConstructor<any> | null
+export function ParentConstructor<T extends Function = any>(target: IConstructor<T>): IConstructor<any> | null {
+    const rootProto: unknown = Symbol.constructor.prototype.constructor.__proto__
+    const constructor: Function = (!!target[Symbol.hasInstance] && target.prototype) ? target : target.constructor
+    const proto: IConstructor<any> = constructor.prototype.constructor.__proto__
+    return proto === rootProto ? null : proto
 }

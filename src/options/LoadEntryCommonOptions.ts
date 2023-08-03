@@ -7,7 +7,7 @@ export class LoadEntryCommonOptions extends DTO {
     /**
      * 生命周期
      */
-    @Accept(Validator.String().valid('SINGLETON', 'TRANSIENT', 'SCOPED').optional().default('TRANSIENT'))
+    @Accept(Validator.String().valid('SINGLETON', 'TRANSIENT', 'SCOPED').optional().default('SINGLETON'))
     public readonly lifetime?: 'SINGLETON' | 'TRANSIENT' | 'SCOPED'
 
     /**

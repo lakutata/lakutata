@@ -49,7 +49,10 @@ export class Container {
         const pairs: NameAndRegistrationPair<any> = {}
         inheritFromBaseObjectClasses.forEach((inheritFromBaseObjectClass: IConstructor<T>): void => {
             this.assignConfigToInjectConstructorMetadata<T>(inheritFromBaseObjectClass, options.config)
-            pairs[this.stringifyGlobImportConstructor(inheritFromBaseObjectClass)] = asClass(inheritFromBaseObjectClass, {lifetime: options.lifetime})
+            pairs[this.stringifyGlobImportConstructor(inheritFromBaseObjectClass)] = asClass(inheritFromBaseObjectClass, {
+                lifetime: options.lifetime,
+                dispose: (instance: T) => instance.getMethod('destroy', false)()
+            })
         })
         return pairs
     }
@@ -107,7 +110,10 @@ export class Container {
             const entryOptions: LoadEntryCommonOptions | LoadEntryClassOptions<T> = options[key]
             if (LoadEntryClassOptions.isValid(entryOptions)) {
                 this.assignConfigToInjectConstructorMetadata<T>(As<LoadEntryClassOptions<T>>(entryOptions).class, entryOptions.config)
-                pairs[key] = asClass(As<LoadEntryClassOptions<T>>(entryOptions).class, {lifetime: entryOptions.lifetime})
+                pairs[key] = asClass(As<LoadEntryClassOptions<T>>(entryOptions).class, {
+                    lifetime: entryOptions.lifetime,
+                    dispose: (instance: T) => instance.getMethod('destroy', false)()
+                })
             } else {
                 pairs = {...pairs, ...(await this.getEntryConstructorsByGlob<T>(key, entryOptions))}
             }
@@ -122,4 +128,10 @@ export class Container {
         return new Container(this)
     }
 
+    /**
+     * 销毁当前容器
+     */
+    public async destroy(): Promise<void> {
+        await this._dic.dispose()
+    }
 }

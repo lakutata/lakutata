@@ -1,8 +1,8 @@
 import {ApplicationOptions} from '../options/ApplicationOptions.js'
-import {BaseObject} from './base/BaseObject.js'
 import {Container} from './base/Container.js'
+import {AsyncConstructor} from 'async-constructor'
 
-export class Application extends BaseObject {
+export class Application extends AsyncConstructor {
 
     protected readonly options: ApplicationOptions
 
@@ -22,7 +22,9 @@ export class Application extends BaseObject {
      * @protected
      */
     protected async bootstrap(): Promise<void> {
-        //todo
-        console.log('bootstrap')
+        await this.container.load(this.options.entries)
+        const ob=await this.container.get<any>('ob')
+        console.log(await ob.testRun())
+        await this.container.destroy()
     }
 }
