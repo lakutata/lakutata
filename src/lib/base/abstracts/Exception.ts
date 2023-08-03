@@ -1,4 +1,6 @@
 import pupa from 'pupa'
+import {camelCase} from 'camel-case'
+import {As} from '../../../Utilities.js'
 
 export abstract class Exception extends Error {
     public abstract errno: number | string
@@ -22,14 +24,18 @@ export abstract class Exception extends Error {
             } catch (e) {
                 this.message = 'Unknown (broken exception template or data)'
             }
-        } else {
+        } else if (a) {
             if (typeof (a) === 'string') {
                 //Error message
                 this.message = a as string
             } else {
                 //Error instance
-                this.message = (a as Error).message
+                this.message = As<Error>(a).message
             }
+        } else {
+            //Empty message
+            const message: string = camelCase(this.name, {delimiter: ' '}).toLowerCase()
+            this.message = `${message.charAt(0).toUpperCase()}${message.slice(1)}`
         }
         this.errMsg = this.message
         this.err = this.name

@@ -2,6 +2,7 @@ import {BaseObject} from '../BaseObject.js'
 import {IsObjectInitialized} from '../../../Utilities.js'
 import {clearInterval} from 'timers'
 import {Configurable} from '../../../decorators/DependencyInjectionDecorators.js'
+import {Validator} from '../../../Validator.js'
 
 export abstract class Interval extends BaseObject {
     /**
@@ -18,17 +19,17 @@ export abstract class Interval extends BaseObject {
      * ONE_BY_ONE 当一次执行结束后等待指定时间间隔后才会进行下一次执行
      * TIME_BY_TIME 在指定的时间间隔后不管当前执行是否结束均进行下一次执行
      */
-    @Configurable()
+    @Configurable({accept: Validator.String().valid('ONE_BY_ONE', 'TIME_BY_TIME')})
     public readonly mode: 'ONE_BY_ONE' | 'TIME_BY_TIME' = 'ONE_BY_ONE'
 
     /**
      * 执行时间间隔
      */
     @Configurable({
-        onSet: function (this: Interval, value: number): number {
-            return !!value ? value : 1
+        onSet: function (this: Interval): void {
+            //todo 重载定时任务
         },
-        onGet: value => value
+        accept: Validator.Number().min(1)
     })
     public interval: number = 1
 

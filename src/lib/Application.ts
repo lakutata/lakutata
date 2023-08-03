@@ -23,7 +23,7 @@ export class Application extends AsyncConstructor {
      */
     protected async bootstrap(): Promise<void> {
         await this.container.load(this.options.entries)
-        console.log(await this.container.get('itv'))
+        await this.container.get('itv')
     }
 
     /**

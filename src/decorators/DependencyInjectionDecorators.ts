@@ -16,8 +16,8 @@ type InjectMappingObject = {
 }
 
 export type ConfigurableOptions = {
-    onSet?: (value: any) => any
-    onGet?: (value: any) => any
+    onSet?: (value: any) => void
+    onGet?: (value: any) => void
     accept?: Schema | IConstructor<DTO>
     acceptOptions?: ValidationOptions
 }

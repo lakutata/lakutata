@@ -13,6 +13,8 @@ import {MethodNotFoundException} from '../../exceptions/MethodNotFoundException.
 import {ConfigurableOptions} from '../../decorators/DependencyInjectionDecorators.js'
 import {Schema, Validator} from '../../Validator.js'
 import {defaultValidationOptions} from '../../constants/DefaultValue.js'
+import {InvalidConfigurableValueException} from '../../exceptions/InvalidConfigurableValueException.js'
+import {InvalidValueException} from '../../exceptions/InvalidValueException.js'
 
 export class BaseObject extends AsyncConstructor {
     /**
@@ -50,23 +52,35 @@ export class BaseObject extends AsyncConstructor {
                         if (!configurableOptionsMap.has(propertyKey)) configurableOptionsMap.set(propertyKey, options)
                     })
                 }
+                const configurableInitValueMap: Map<string, any> = new Map()
                 configurableOptionsMap.forEach((options: ConfigurableOptions, propertyKey: string): void => {
+                    configurableInitValueMap.set(propertyKey, this[propertyKey])
                     Object.defineProperty(this, propertyKey, {
                         set: (value: any): void => {
                             if (options.accept) {
                                 const schema: Schema = Reflect.hasMetadata(DTO_CLASS, options.accept) ? Validator.Object(Reflect.getMetadata(DTO_SCHEMAS, options.accept)) : As<Schema>(options.accept)
                                 options.acceptOptions = options.acceptOptions ? Object.assign({}, defaultValidationOptions, options.acceptOptions) : defaultValidationOptions
-                                value = Validator.validate(value, schema, options.acceptOptions)
+                                try {
+                                    value = Validator.validate(value, schema, options.acceptOptions)
+                                } catch (e) {
+                                    throw new InvalidConfigurableValueException('{className}\'s property "{propertyKey}" validate error: {message}', {
+                                        className: this.constructor.name,
+                                        propertyKey: propertyKey,
+                                        message: As<InvalidValueException>(e).errMsg
+                                    })
+                                }
                             }
-                            Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTY, options.onSet ? options.onSet(value) : value, this, propertyKey)
+                            Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTY, value, this, propertyKey)
+                            if (options.onSet) options.onSet(value)
                         },
                         get(): any {
                             const value: any = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTY, this, propertyKey)
-                            return options.onGet ? options.onGet(value) : value
+                            if (options.onGet) options.onGet(value)
+                            return value
                         }
                     })
                 })
-                if (configurableItems) configurableItems.forEach((propertyKey: string): void => this[propertyKey] = Object.hasOwn(config, propertyKey) ? config[propertyKey] : this[propertyKey])
+                if (configurableItems) configurableItems.forEach((propertyKey: string): void => this[propertyKey] = Object.hasOwn(config, propertyKey) ? config[propertyKey] : configurableInitValueMap.get(propertyKey))
             }
             await this.init()
             Reflect.defineMetadata(OBJECT_INIT_MARK, true, this)
