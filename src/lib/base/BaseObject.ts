@@ -7,7 +7,11 @@ import {
     DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS,
     DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT,
     DI_TARGET_CONSTRUCTOR_INJECTS,
-    OBJECT_INIT_MARK, DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTY, DTO_CLASS, DTO_SCHEMAS
+    OBJECT_INIT_MARK,
+    DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTY,
+    DTO_CLASS,
+    DTO_SCHEMAS,
+    DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME
 } from '../../constants/MetadataKey.js'
 import {MethodNotFoundException} from '../../exceptions/MethodNotFoundException.js'
 import {ConfigurableOptions} from '../../decorators/DependencyInjectionDecorators.js'
@@ -40,7 +44,7 @@ export class BaseObject extends AsyncConstructor {
                     ConfigureObjectProperties(this, properties ? properties : {})
                 }
             }
-            const config: Record<string, any> | undefined = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT, this.constructor)
+            const config: Record<string, any> | undefined = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT, this.constructor, Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME, this))
             if (config) {
                 const configurableOptionsMap: Map<string, ConfigurableOptions> = As<Map<string, ConfigurableOptions> | undefined>(Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OPTIONS, this)) ? As<Map<string, ConfigurableOptions>>(Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OPTIONS, this.constructor)) : new Map()
                 let configurableItems: Set<string> | undefined = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, this.constructor)

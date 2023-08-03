@@ -13,7 +13,7 @@ import {As, IsGlobString, RandomString} from '../../Utilities.js'
 import fastGlob from 'fast-glob'
 import {IConstructor} from '../../interfaces/IConstructor.js'
 import {
-    DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT,
+    DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT, DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME,
     DI_TARGET_CONSTRUCTOR_UNIQUE_MARK
 } from '../../constants/MetadataKey.js'
 import {InvalidGlobStringException} from '../../exceptions/InvalidGlobStringException.js'
@@ -62,8 +62,9 @@ export class Container {
         await Promise.all(loadEntryByGlobPromises)
         const pairs: NameAndRegistrationPair<any> = {}
         inheritFromBaseObjectClasses.forEach((inheritFromBaseObjectClass: IConstructor<T>): void => {
-            this.assignConfigToInjectConstructorMetadata<T>(inheritFromBaseObjectClass, options.config)
-            pairs[Container.stringifyConstructor(inheritFromBaseObjectClass)] = asClass(inheritFromBaseObjectClass, {
+            const name: string = Container.stringifyConstructor(inheritFromBaseObjectClass)
+            this.assignConfigToInjectConstructorMetadata<T>(name, inheritFromBaseObjectClass, options.config)
+            pairs[name] = asClass(inheritFromBaseObjectClass, {
                 lifetime: options.lifetime,
                 dispose: (instance: T) => instance.getMethod('destroy', false)()
             })
@@ -73,13 +74,14 @@ export class Container {
 
     /**
      * 将配置对象加载至注入项的构造函数元数据中
+     * @param name
      * @param constructor
      * @param config
      * @protected
      */
-    protected assignConfigToInjectConstructorMetadata<T extends BaseObject>(constructor: IConstructor<T>, config?: Record<string, any>): void {
+    protected assignConfigToInjectConstructorMetadata<T extends BaseObject>(name: string, constructor: IConstructor<T>, config?: Record<string, any>): void {
         if (!config) return
-        Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT, config, constructor)
+        Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT, config, constructor, name)
     }
 
     /**
@@ -94,7 +96,11 @@ export class Container {
     public async get<T extends BaseObject>(constructor: IConstructor<T>): Promise<T>
     public async get<T extends BaseObject>(inp: string | IConstructor<T>): Promise<T> {
         const name: string = typeof inp === 'string' ? inp : Container.stringifyConstructor(inp)
-        return await new Promise<T>((resolve, reject) => (async (): Promise<T> => this._dic.resolve(name))().then(resolve).catch(reject))
+        return await new Promise<T>((resolve, reject) => (async (): Promise<T> => {
+            const injectItem = this._dic.resolve(name)
+            if (typeof injectItem === 'object' || typeof injectItem === 'function') Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME, name, injectItem)
+            return injectItem
+        })().then(resolve).catch(reject))
     }
 
     /**
@@ -104,8 +110,9 @@ export class Container {
      */
     @Accept([Validator.Class(BaseObject), LoadEntryCommonOptions.schema().optional().default({})])
     public registerClass<T extends BaseObject>(constructor: IConstructor<T>, options?: LoadEntryCommonOptions): void {
-        if (options?.config) this.assignConfigToInjectConstructorMetadata<T>(constructor, options.config)
-        this._dic.register(Container.stringifyConstructor(constructor), asClass(constructor, {
+        const name: string = Container.stringifyConstructor(constructor)
+        if (options?.config) this.assignConfigToInjectConstructorMetadata<T>(name, constructor, options.config)
+        this._dic.register(name, asClass(constructor, {
             lifetime: options?.lifetime ? options.lifetime : 'SINGLETON',
             dispose: (instance: T) => instance.getMethod('destroy', false)()
         }))
@@ -121,7 +128,7 @@ export class Container {
         for (const key in options) {
             const entryOptions: LoadEntryCommonOptions | LoadEntryClassOptions<T> = options[key]
             if (LoadEntryClassOptions.isValid(entryOptions)) {
-                this.assignConfigToInjectConstructorMetadata<T>(As<LoadEntryClassOptions<T>>(entryOptions).class, entryOptions.config)
+                this.assignConfigToInjectConstructorMetadata<T>(key, As<LoadEntryClassOptions<T>>(entryOptions).class, entryOptions.config)
                 pairs[key] = asClass(As<LoadEntryClassOptions<T>>(entryOptions).class, {
                     lifetime: entryOptions.lifetime,
                     dispose: (instance: T) => instance.getMethod('destroy', false)()
