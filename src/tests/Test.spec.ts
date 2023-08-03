@@ -105,14 +105,14 @@ import {ParentConstructor} from '../Utilities.js'
         timezone: 'Asia/Shanghai',
         entries: {
             ob: {class: OB, lifetime: 'SINGLETON', config: {oo: 'kkkkkkk'}},
-            '/Users/alex/WebstormProjects/core/src/tests/mds/**/*': {
-                lifetime: 'SINGLETON',
-                config: {tester: 'this is tester'}
-                // class: OB
-            }
+            // '/Users/alex/WebstormProjects/core/src/tests/mds/**/*': {
+            //     lifetime: 'SINGLETON',
+            //     config: {tester: 'this is tester'}
+            //     // class: OB
+            // }
         }
     })
-    
+
     await app.exit()
 
     // new LoadEntryClassOptions()

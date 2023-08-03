@@ -8,6 +8,16 @@ import * as randomString from 'randomstring'
 import {IConstructor} from './interfaces/IConstructor.js'
 
 /**
+ * 传递进来的参数不会有任何作用
+ * @constructor
+ */
+export function ThrowIntoBlackHole(...args: any[]): void {
+    /**
+     * 仅接受参数，但不对参数做任何处理
+     */
+}
+
+/**
  * 集合转数组
  * @param set
  * @constructor

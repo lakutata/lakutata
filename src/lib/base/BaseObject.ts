@@ -1,6 +1,6 @@
 import {AsyncConstructor} from 'async-constructor'
 import {IConstructor} from '../../interfaces/IConstructor.js'
-import {As, ConfigureObjectProperties} from '../../Utilities.js'
+import {As, ConfigureObjectProperties, ThrowIntoBlackHole} from '../../Utilities.js'
 import {
     DI_CONTAINER_CREATOR_CONSTRUCTOR, DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS,
     DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT,
@@ -105,11 +105,7 @@ export class BaseObject extends AsyncConstructor {
         } else if (throwExceptionIfNotFound) {
             throw new MethodNotFoundException('Method "{methodName}" not found in "{className}"', {methodName: name, className: this.constructor.name})
         } else {
-            return (...args: any[]): void => {
-                /**
-                 * Do Nothing
-                 */
-            }
+            return (...args: any[]): void => ThrowIntoBlackHole(...args)
         }
     }
 
