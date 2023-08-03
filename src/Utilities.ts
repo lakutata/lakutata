@@ -30,12 +30,22 @@ export function IsObjectInitialized<T extends BaseObject>(obj: T): boolean {
 
 /**
  * 合并两个Set
- * @param a
- * @param b
  * @constructor
+ * @param s1
+ * @param s2
  */
-export function MergeSet<T = any, U = any>(a: Set<T>, b: Set<U>): Set<T | U> {
-    return new Set<T | U>([...a, ...b])
+export function MergeSet<T = any, U = any>(s1: Set<T>, s2: Set<U>): Set<T | U> {
+    return new Set<T | U>([...s1, ...s2])
+}
+
+/**
+ * 合并两个Map
+ * @constructor
+ * @param m1
+ * @param m2
+ */
+export function MergeMap<K1, V1, K2, V2>(m1: Map<K1, V1>, m2: Map<K2, V2>): Map<K1 | K2, V1 | V2> {
+    return new Map<K1 | K2, V1 | V2>([...m1, ...m2])
 }
 
 /**
