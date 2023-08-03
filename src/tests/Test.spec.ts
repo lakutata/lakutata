@@ -16,6 +16,8 @@ import {MDSTest1} from './mds/MDSTest1.js'
 import {Crypto} from '../Crypto.js'
 import {LoadEntryClassOptions} from '../options/LoadEntryClassOptions.js'
 import {ParentConstructor} from '../Utilities.js'
+import {Interval} from '../lib/base/Interval.js'
+import {MDSTest0} from './mds/MDSTest0.js'
 
 // console.log(Application)
 
@@ -99,12 +101,17 @@ import {ParentConstructor} from '../Utilities.js'
     // console.log(await container.get('test2'))
     // console.log(await container.get('test1'))
 
+    class IntervalTest extends Interval {
+
+    }
+
     const app = await new Application({
         id: 'test',
         name: 'test',
         timezone: 'Asia/Shanghai',
         entries: {
             ob: {class: OB, lifetime: 'SINGLETON', config: {oo: 'kkkkkkk'}},
+            itv: {class: IntervalTest, lifetime: 'SINGLETON', config: {interval: 666}}
             // '/Users/alex/WebstormProjects/core/src/tests/mds/**/*': {
             //     lifetime: 'SINGLETON',
             //     config: {tester: 'this is tester'}
@@ -113,7 +120,7 @@ import {ParentConstructor} from '../Utilities.js'
         }
     })
 
-    await app.exit()
+    // await app.exit()
 
     // new LoadEntryClassOptions()
 

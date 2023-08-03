@@ -61,10 +61,11 @@ export function Accept(inp: Schema | Schema[] | IConstructor<DTO> | IConstructor
                 }
             } else {
                 descriptor.value = function (...args: any[]) {
+                    const argumentCount: number = args.length - argumentSchemaLength
                     const {
                         error,
                         value
-                    } = schema.concat(Validator.Array().ordered(...new Array(args.length - argumentSchemaLength).fill(Validator.Any()))).validate(args, options)
+                    } = schema.concat(Validator.Array().ordered(...new Array(argumentCount >= 0 ? argumentCount : 0).fill(Validator.Any()))).validate(args, options)
                     if (error) {
                         throw new InvalidMethodAcceptException('Method [{propertyKey}] accept argument {reason}', {
                             propertyKey: propertyKey,

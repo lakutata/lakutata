@@ -2,6 +2,7 @@ import {BaseObject} from '../lib/base/BaseObject.js'
 import {IConstructor} from '../interfaces/IConstructor.js'
 import {As} from '../Utilities.js'
 import {DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, DI_TARGET_CONSTRUCTOR_INJECTS} from '../constants/MetadataKey.js'
+import {Container} from '../lib/base/Container.js'
 
 type InjectMappingObject = {
     injectKey: string
@@ -19,7 +20,13 @@ export function Inject<T extends BaseObject>(): (target: T, propertyKey: string)
  * @constructor
  */
 export function Inject<T extends BaseObject>(name: string): (target: T, propertyKey: string) => void
-export function Inject<T extends BaseObject>(name?: string): (target: T, propertyKey: string) => void {
+/**
+ * 使用注入项的构造函数
+ * @param constructor
+ * @constructor
+ */
+export function Inject<T extends BaseObject,U extends BaseObject>(constructor: IConstructor<U>): (target: T, propertyKey: string) => void
+export function Inject<T extends BaseObject>(inp?: string | IConstructor<T>): (target: T, propertyKey: string) => void {
     return function <T extends BaseObject>(target: T, propertyKey: string): void {
         const targetConstructor: IConstructor<T> = As<IConstructor<T>>(target.constructor)
         if (!Reflect.hasMetadata(DI_TARGET_CONSTRUCTOR_INJECTS, targetConstructor)) Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_INJECTS, new Map<string, string>(), targetConstructor)
@@ -27,7 +34,13 @@ export function Inject<T extends BaseObject>(name?: string): (target: T, propert
             injectKey: propertyKey,
             propertyKey: propertyKey
         }
-        if (name) injectMappingObject.injectKey = name
+        if (inp) {
+            if (typeof inp === 'string') {
+                injectMappingObject.injectKey = inp
+            } else {
+                injectMappingObject.injectKey = Container.stringifyConstructor(inp)
+            }
+        }
         As<Map<string, string>>(Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_INJECTS, targetConstructor)).set(injectMappingObject.propertyKey, injectMappingObject.injectKey)
     }
 }
@@ -39,7 +52,7 @@ export function Inject<T extends BaseObject>(name?: string): (target: T, propert
 export function Configurable<T extends BaseObject>(): (target: T, propertyKey: string) => void {
     return function <T extends BaseObject>(target: T, propertyKey: string): void {
         const targetConstructor: IConstructor<T> = As<IConstructor<T>>(target.constructor)
-        if (!Reflect.hasMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, targetConstructor)) Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, new Set<string>(), targetConstructor)
-        As<Set<string>>(Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, targetConstructor)).add(propertyKey)
+        if (!Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, targetConstructor)) Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, new Set<string>(), targetConstructor)
+        As<Set<string>>(Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, targetConstructor)).add(propertyKey)
     }
 }

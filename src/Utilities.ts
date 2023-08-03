@@ -6,6 +6,8 @@ import {ISortObjectOptions} from './interfaces/ISortObjectOptions.js'
 import isGlob from 'is-glob'
 import * as randomString from 'randomstring'
 import {IConstructor} from './interfaces/IConstructor.js'
+import {BaseObject} from './lib/base/BaseObject.js'
+import {OBJECT_INIT_MARK} from './constants/MetadataKey.js'
 
 /**
  * 传递进来的参数不会有任何作用
@@ -15,6 +17,25 @@ export function ThrowIntoBlackHole(...args: any[]): void {
     /**
      * 仅接受参数，但不对参数做任何处理
      */
+}
+
+/**
+ * 对象是否已被初始化
+ * @param obj
+ * @constructor
+ */
+export function IsObjectInitialized<T extends BaseObject>(obj: T): boolean {
+    return !!Reflect.getOwnMetadata(OBJECT_INIT_MARK, obj)
+}
+
+/**
+ * 合并两个Set
+ * @param a
+ * @param b
+ * @constructor
+ */
+export function MergeSet<T = any, U = any>(a: Set<T>, b: Set<U>): Set<T | U> {
+    return new Set<T | U>([...a, ...b])
 }
 
 /**
