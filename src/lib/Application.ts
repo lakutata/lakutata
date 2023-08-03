@@ -30,15 +30,7 @@ export class Application extends AsyncConstructor {
         await this.container.load(this.options.entries)
         for (const item of this.options.bootstrap) {
             if (typeof item === 'string') await this.container.get(item)
-            if (typeof item === 'function') {
-                if (isAsyncFunction(item)) {
-                    //启动引导执行方法
-                    await As<AsyncFunction<Application, void>>(item)(this)
-                } else {
-                    //类构造函数
-                    await this.container.get(As<IConstructor<BaseObject>>(item))
-                }
-            }
+            if (typeof item === 'function') isAsyncFunction(item) ? await As<AsyncFunction<Application, void>>(item)(this) : await this.container.get(As<IConstructor<BaseObject>>(item))
         }
     }
 
