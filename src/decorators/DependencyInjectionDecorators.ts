@@ -1,12 +1,21 @@
 import {BaseObject} from '../lib/base/BaseObject.js'
 import {IConstructor} from '../interfaces/IConstructor.js'
 import {As} from '../Utilities.js'
-import {DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, DI_TARGET_CONSTRUCTOR_INJECTS} from '../constants/MetadataKey.js'
+import {
+    DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS,
+    DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OPTIONS,
+    DI_TARGET_CONSTRUCTOR_INJECTS
+} from '../constants/MetadataKey.js'
 import {Container} from '../lib/base/Container.js'
 
 type InjectMappingObject = {
     injectKey: string
     propertyKey: string
+}
+
+export type ConfigurableOptions = {
+    onSet?: (value: any) => any
+    onGet?: (value: any) => any
 }
 
 /**
@@ -25,7 +34,7 @@ export function Inject<T extends BaseObject>(name: string): (target: T, property
  * @param constructor
  * @constructor
  */
-export function Inject<T extends BaseObject,U extends BaseObject>(constructor: IConstructor<U>): (target: T, propertyKey: string) => void
+export function Inject<T extends BaseObject, U extends BaseObject>(constructor: IConstructor<U>): (target: T, propertyKey: string) => void
 export function Inject<T extends BaseObject>(inp?: string | IConstructor<T>): (target: T, propertyKey: string) => void {
     return function <T extends BaseObject>(target: T, propertyKey: string): void {
         const targetConstructor: IConstructor<T> = As<IConstructor<T>>(target.constructor)
@@ -49,9 +58,11 @@ export function Inject<T extends BaseObject>(inp?: string | IConstructor<T>): (t
  * 可配置参数项
  * @constructor
  */
-export function Configurable<T extends BaseObject>(): (target: T, propertyKey: string) => void {
+export function Configurable<T extends BaseObject>(options?: ConfigurableOptions): (target: T, propertyKey: string) => void {
     return function <T extends BaseObject>(target: T, propertyKey: string): void {
         const targetConstructor: IConstructor<T> = As<IConstructor<T>>(target.constructor)
+        if (!Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OPTIONS, targetConstructor)) Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OPTIONS, new Map<string, ConfigurableOptions>(), targetConstructor)
+        if (options) As<Map<string, ConfigurableOptions>>(Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OPTIONS, targetConstructor)).set(propertyKey, options)
         if (!Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, targetConstructor)) Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, new Set<string>(), targetConstructor)
         As<Set<string>>(Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, targetConstructor)).add(propertyKey)
     }

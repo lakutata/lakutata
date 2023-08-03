@@ -16,7 +16,7 @@ import {MDSTest1} from './mds/MDSTest1.js'
 import {Crypto} from '../Crypto.js'
 import {LoadEntryClassOptions} from '../options/LoadEntryClassOptions.js'
 import {ParentConstructor} from '../Utilities.js'
-import {Interval} from '../lib/base/Interval.js'
+import {Interval} from '../lib/base/abstracts/Interval.js'
 import {MDSTest0} from './mds/MDSTest0.js'
 
 // console.log(Application)
@@ -102,7 +102,9 @@ import {MDSTest0} from './mds/MDSTest0.js'
     // console.log(await container.get('test1'))
 
     class IntervalTest extends Interval {
-
+        protected executor(): Promise<void> | void {
+            console.log('IntervalTest')
+        }
     }
 
     const app = await new Application({

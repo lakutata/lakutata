@@ -2,11 +2,15 @@ import {AsyncConstructor} from 'async-constructor'
 import {IConstructor} from '../../interfaces/IConstructor.js'
 import {As, ConfigureObjectProperties, MergeSet, ParentConstructor, ThrowIntoBlackHole} from '../../Utilities.js'
 import {
-    DI_CONTAINER_CREATOR_CONSTRUCTOR, DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS,
+    DI_CONTAINER_CREATOR_CONSTRUCTOR,
+    DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OPTIONS,
+    DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS,
     DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT,
-    DI_TARGET_CONSTRUCTOR_INJECTS, OBJECT_INIT_MARK
+    DI_TARGET_CONSTRUCTOR_INJECTS,
+    OBJECT_INIT_MARK, DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTY
 } from '../../constants/MetadataKey.js'
 import {MethodNotFoundException} from '../../exceptions/MethodNotFoundException.js'
+import {ConfigurableOptions} from '../../decorators/DependencyInjectionDecorators.js'
 
 export class BaseObject extends AsyncConstructor {
     /**
@@ -34,12 +38,27 @@ export class BaseObject extends AsyncConstructor {
             }
             const config: Record<string, any> | undefined = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT, this.constructor)
             if (config) {
+                const configurableOptionsMap: Map<string, ConfigurableOptions> = As<Map<string, ConfigurableOptions> | undefined>(Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OPTIONS, this)) ? As<Map<string, ConfigurableOptions>>(Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OPTIONS, this.constructor)) : new Map()
                 let configurableItems: Set<string> | undefined = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, this.constructor)
                 let constructor: typeof this.constructor | null = this.constructor
                 while (constructor = ParentConstructor(constructor)) {
                     const parentConfigurableItems: Set<string> | undefined = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, constructor)
                     if (parentConfigurableItems) configurableItems = MergeSet(configurableItems ? configurableItems : new Set<string>(), parentConfigurableItems)
+                    As<Map<string, ConfigurableOptions> | undefined>(Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OPTIONS, constructor))?.forEach((options: ConfigurableOptions, propertyKey: string): void => {
+                        if (!configurableOptionsMap.has(propertyKey)) configurableOptionsMap.set(propertyKey, options)
+                    })
                 }
+                configurableOptionsMap.forEach((options: ConfigurableOptions, propertyKey: string): void => {
+                    Object.defineProperty(this, propertyKey, {
+                        set: (value: any): void => {
+                            Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTY, options.onSet ? options.onSet(value) : value, this, propertyKey)
+                        },
+                        get(): any {
+                            const value: any = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTY, this, propertyKey)
+                            return options.onGet ? options.onGet(value) : value
+                        }
+                    })
+                })
                 if (configurableItems) configurableItems.forEach((propertyKey: string): void => this[propertyKey] = Object.hasOwn(config, propertyKey) ? config[propertyKey] : this[propertyKey])
             }
             await this.init()
@@ -75,9 +94,11 @@ export class BaseObject extends AsyncConstructor {
     /**
      * Get object's property value
      * @param propertyKey
+     * @param defaultValue
      */
-    public getProperty<T = any>(propertyKey: string): T {
-        return As<T>(this[propertyKey])
+    public getProperty<T = any>(propertyKey: string, defaultValue?: T): T {
+        if (this.hasProperty(propertyKey)) return As<T>(this[propertyKey])
+        return As<T>(defaultValue)
     }
 
     /**
