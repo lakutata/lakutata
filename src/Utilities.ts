@@ -8,6 +8,16 @@ import * as randomString from 'randomstring'
 import {IConstructor} from './interfaces/IConstructor.js'
 import {BaseObject} from './lib/base/BaseObject.js'
 import {OBJECT_INIT_MARK} from './constants/MetadataKey.js'
+import {setTimeout} from 'timers/promises'
+
+/**
+ * 异步等待
+ * @param ms
+ * @constructor
+ */
+export async function Delay(ms: number = 1000): Promise<void> {
+    return await setTimeout(ms)
+}
 
 /**
  * 传递进来的参数不会有任何作用

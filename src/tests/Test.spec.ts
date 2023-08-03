@@ -15,7 +15,7 @@ import {LoadEntryCommonOptions} from '../options/LoadEntryCommonOptions.js'
 import {MDSTest1} from './mds/MDSTest1.js'
 import {Crypto} from '../Crypto.js'
 import {LoadEntryClassOptions} from '../options/LoadEntryClassOptions.js'
-import {ParentConstructor} from '../Utilities.js'
+import {Delay, ParentConstructor} from '../Utilities.js'
 import {Interval} from '../lib/base/abstracts/Interval.js'
 import {MDSTest0} from './mds/MDSTest0.js'
 
@@ -102,8 +102,11 @@ import {MDSTest0} from './mds/MDSTest0.js'
     // console.log(await container.get('test1'))
 
     class IntervalTest extends Interval {
-        protected executor(): Promise<void> | void {
-            console.log('IntervalTest')
+        protected count: number = 0
+
+        protected async executor(): Promise<void> {
+            await Delay(3000)
+            console.log('count:', ++this.count)
         }
     }
 
@@ -113,7 +116,7 @@ import {MDSTest0} from './mds/MDSTest0.js'
         timezone: 'Asia/Shanghai',
         entries: {
             ob: {class: OB, lifetime: 'SINGLETON', config: {oo: 'kkkkkkk'}},
-            itv: {class: IntervalTest, lifetime: 'SINGLETON', config: {interval: 666}}
+            itv: {class: IntervalTest, lifetime: 'SINGLETON', config: {interval: 1000, mode: 'TIME_BY_TIME'}}
             // '/Users/alex/WebstormProjects/core/src/tests/mds/**/*': {
             //     lifetime: 'SINGLETON',
             //     config: {tester: 'this is tester'}

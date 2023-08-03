@@ -9,10 +9,19 @@ export abstract class Interval extends BaseObject {
      * 周期调用器
      * @protected
      */
-    protected _interval: NodeJS.Timer = setInterval(() => {
-        if (!IsObjectInitialized(this)) return
-        //todo
-    }, 10)
+    protected _$interval: NodeJS.Timer | null
+
+    /**
+     * 执行器运行指示器
+     * @protected
+     */
+    protected _$executing: number = 0
+
+    /**
+     * 是否被暂停
+     * @protected
+     */
+    protected _$paused: boolean = false
 
     /**
      * 执行模式
@@ -20,13 +29,14 @@ export abstract class Interval extends BaseObject {
      * TIME_BY_TIME 在指定的时间间隔后不管当前执行是否结束均进行下一次执行
      */
     @Configurable({accept: Validator.String().valid('ONE_BY_ONE', 'TIME_BY_TIME')})
-    public readonly mode: 'ONE_BY_ONE' | 'TIME_BY_TIME' = 'ONE_BY_ONE'
+    public mode: 'ONE_BY_ONE' | 'TIME_BY_TIME' = 'ONE_BY_ONE'
 
     /**
      * 执行时间间隔
      */
     @Configurable({
         onSet: function (this: Interval): void {
+            if (this._$paused) return
             this.reloadJob()
         },
         accept: Validator.Number().min(1)
@@ -34,36 +44,67 @@ export abstract class Interval extends BaseObject {
     public interval: number = 1
 
     /**
+     * 定义任务
+     * @protected
+     */
+    protected defineJob(): void {
+        this._$interval = setInterval(async (): Promise<void> => {
+            if (!IsObjectInitialized(this) || this._$paused) return
+            await this.runExecutor()
+        }, this.interval)
+    }
+
+    /**
      * 重载任务
      * @protected
      */
     protected reloadJob(): void {
-        console.log('reload')
-    }
-
-    protected async init(): Promise<void> {
-        console.log('this.interval:', this.interval)
+        if (this._$interval) clearInterval(this._$interval)
+        this.defineJob()
     }
 
     /**
-     * 执行器
+     * 运行执行器
+     * @protected
      */
-    protected abstract executor(): Promise<void> | void
+    protected async runExecutor(): Promise<void> {
+        if ((this.mode === 'ONE_BY_ONE' && !!this._$executing)) return
+        this._$executing += 1
+        await this.executor()
+        this._$executing -= 1
+    }
 
     /**
      * 暂停周期调用器执行
      */
     public pause(): this {
-        //todo
+        this._$paused = true
+        if (this._$interval) clearInterval(this._$interval)
+        this._$interval = null
         return this
+    }
+
+    /**
+     * 调用器是否已暂停执行
+     */
+    public isPaused(): boolean {
+        return this._$paused
     }
 
     /**
      * 恢复周期调用器执行
      */
     public resume(): this {
-        //todo
+        this._$paused = false
+        this.reloadJob()
         return this
+    }
+
+    /**
+     * 调用器是否正在执行中
+     */
+    public isExecuting(): boolean {
+        return !!this._$executing
     }
 
     /**
@@ -71,6 +112,12 @@ export abstract class Interval extends BaseObject {
      * @protected
      */
     protected async destroy(): Promise<void> {
-        clearInterval(this._interval)
+        if (this._$interval) clearInterval(this._$interval)
+        this._$interval = null
     }
+
+    /**
+     * 执行器
+     */
+    protected abstract executor(): Promise<void> | void
 }
