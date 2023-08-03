@@ -23,8 +23,13 @@ export class Application extends AsyncConstructor {
      */
     protected async bootstrap(): Promise<void> {
         await this.container.load(this.options.entries)
-        const ob=await this.container.get<any>('ob')
-        console.log(await ob.testRun())
+    }
+
+    /**
+     * 退出应用程序
+     */
+    public async exit(): Promise<void> {
         await this.container.destroy()
+        process.exit(0)
     }
 }

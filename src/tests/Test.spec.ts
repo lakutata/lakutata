@@ -99,7 +99,7 @@ import {ParentConstructor} from '../Utilities.js'
     // console.log(await container.get('test2'))
     // console.log(await container.get('test1'))
 
-    await new Application({
+    const app = await new Application({
         id: 'test',
         name: 'test',
         timezone: 'Asia/Shanghai',
@@ -112,6 +112,8 @@ import {ParentConstructor} from '../Utilities.js'
             }
         }
     })
+    
+    await app.exit()
 
     // new LoadEntryClassOptions()
 
