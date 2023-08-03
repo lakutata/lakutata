@@ -41,6 +41,7 @@
       "src/**/*"
     ],
     "clean": true,
+    "splitting": true,
     "dts": {
       "resolve": true
     },
