@@ -71,7 +71,7 @@ export class Container {
             pairs[name] = asClass(inheritFromBaseObjectClass, {
                 lifetime: options.lifetime,
                 dispose: (instance: T) => instance.getMethod('destroy', false)()
-            }).inject(()=>({Application}))
+            })
         })
         return pairs
     }
@@ -119,7 +119,7 @@ export class Container {
         this._dic.register(name, asClass(constructor, {
             lifetime: options?.lifetime ? options.lifetime : 'SINGLETON',
             dispose: (instance: T) => instance.getMethod('destroy', false)()
-        }).inject(()=>({Application})))
+        }))
     }
 
     /**
@@ -136,7 +136,7 @@ export class Container {
                 pairs[key] = asClass(As<LoadEntryClassOptions<T>>(entryOptions).class, {
                     lifetime: entryOptions.lifetime,
                     dispose: (instance: T) => instance.getMethod('destroy', false)()
-                }).inject(()=>({Application}))
+                })
             } else {
                 pairs = {...pairs, ...(await this.getEntryConstructorsByGlob<T>(key, entryOptions))}
             }
