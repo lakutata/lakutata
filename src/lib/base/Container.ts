@@ -1,7 +1,7 @@
 import {
     createContainer,
     IDependencyInjectionContainer,
-    NameAndRegistrationPair, ResolveOptions
+    NameAndRegistrationPair
 } from '../ioc/DependencyInjectionContainer.js'
 import {asClass} from '../ioc/Resolvers.js'
 import {LoadEntryCommonOptions} from '../../options/LoadEntryCommonOptions.js'
@@ -13,7 +13,7 @@ import {As, IsGlobString, RandomString} from '../../Utilities.js'
 import fastGlob from 'fast-glob'
 import {IConstructor} from '../../interfaces/IConstructor.js'
 import {
-    DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT, DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME,
+    DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT,
     DI_TARGET_CONSTRUCTOR_UNIQUE_MARK
 } from '../../constants/MetadataKey.js'
 import {InvalidGlobStringException} from '../../exceptions/InvalidGlobStringException.js'
