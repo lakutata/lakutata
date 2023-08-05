@@ -6,6 +6,7 @@ import {TestObject} from './objects/TestObject.js'
 import {TestInterval} from './intervals/TestInterval.js'
 
 (async () => {
+
     new App({
         id: 'test',
         name: 'test',
@@ -15,7 +16,7 @@ import {TestInterval} from './intervals/TestInterval.js'
             testObject: {class: TestObject, lifetime: 'SINGLETON', config: {username: 'tester'}},
             testInterval: {
                 class: TestInterval, lifetime: 'SINGLETON', config: {
-                    interval: 500, mode: 'SEQ'
+                    interval: 1000, mode: 'SEQ'
                 }
             },
             '/Users/alex/WebstormProjects/core/src/tests/mds/**/*': {
