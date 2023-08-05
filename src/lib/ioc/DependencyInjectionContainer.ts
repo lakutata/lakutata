@@ -18,7 +18,10 @@ import {InjectionMode, InjectionModeType} from './InjectionMode.js'
 import {Lifetime} from './Lifetime.js'
 import {DependencyInjectionResolutionError, DependencyInjectionTypeError} from './Errors.js'
 import {importModule} from './LoadModuleNative.js'
-import {DI_CONTAINER_CREATOR_CONSTRUCTOR} from '../../constants/MetadataKey.js'
+import {
+    DI_CONTAINER_CREATOR_CONSTRUCTOR,
+    DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME
+} from '../../constants/MetadataKey.js'
 
 /**
  * 从createContainer返回的容器具有一些方法和属性。
@@ -450,8 +453,7 @@ export function createContainer<T extends object = any, U extends object = any>(
                         resolved = cached.value
                         break
                     }
-
-                    // If we still have not found one, we need to resolve and cache it.
+                    // 如果我们还没有找到一个，我们需要解析并缓存它
                     resolved = resolver.resolve(container)
                     container.cache.set(name, {resolver, value: resolved})
                     break
@@ -462,11 +464,15 @@ export function createContainer<T extends object = any, U extends object = any>(
                         `Unknown lifetime "${resolver.lifetime}"`
                     )
             }
-            // Pop it from the stack again, ready for the next resolution
+            // 再次从堆栈中Pop出对象，为下一次解析做好准备
             resolutionStack.pop()
+            /**
+             * 用于加载配置对象至注入项目内
+             */
+            if (typeof resolved === 'object' || typeof resolved === 'function') Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME, name, resolved)
             return resolved
         } catch (err) {
-            // When we get an error we need to reset the stack.
+            // 当遇到错误时，需要重置堆栈
             resolutionStack = []
             throw err
         }

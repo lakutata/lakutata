@@ -21,6 +21,14 @@ import {InvalidConfigurableValueException} from '../../exceptions/InvalidConfigu
 import {InvalidValueException} from '../../exceptions/InvalidValueException.js'
 
 export class BaseObject extends AsyncConstructor {
+
+    /**
+     * Get instance's class name
+     */
+    public get className(): string {
+        return this.constructor.name
+    }
+
     /**
      * Constructor
      * @param properties

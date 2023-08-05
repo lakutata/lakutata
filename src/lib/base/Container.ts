@@ -1,7 +1,7 @@
 import {
     createContainer,
     IDependencyInjectionContainer,
-    NameAndRegistrationPair
+    NameAndRegistrationPair, ResolveOptions
 } from '../ioc/DependencyInjectionContainer.js'
 import {asClass} from '../ioc/Resolvers.js'
 import {LoadEntryCommonOptions} from '../../options/LoadEntryCommonOptions.js'
@@ -100,11 +100,7 @@ export class Container {
     public async get<T extends BaseObject>(constructor: IConstructor<T>): Promise<T>
     public async get<T extends BaseObject>(inp: string | IConstructor<T>): Promise<T> {
         const name: string = typeof inp === 'string' ? inp : Container.stringifyConstructor(inp)
-        return await new Promise<T>((resolve, reject) => (async (): Promise<T> => {
-            const injectItem = this._dic.resolve(name)
-            if (typeof injectItem === 'object' || typeof injectItem === 'function') Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME, name, injectItem)
-            return injectItem
-        })().then(resolve).catch(reject))
+        return await new Promise<T>((resolve, reject) => (async (): Promise<T> => this._dic.resolve(name))().then(resolve).catch(reject))
     }
 
     /**
