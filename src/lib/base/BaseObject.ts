@@ -33,24 +33,22 @@ export class BaseObject extends AsyncConstructor {
      * Constructor
      * @param properties
      */
-    constructor(properties?: Record<string, any>) {
+    constructor(properties: Record<string, any> = {}) {
         super(async (): Promise<void> => {
-            if (properties) {
-                if (Reflect.getMetadata(DI_CONTAINER_CREATOR_CONSTRUCTOR, properties.constructor)) {
-                    const resolveInjectPromises: Promise<void>[] = []
-                    const injectMappingMap: Map<string, string> | undefined = Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_INJECTS, this.constructor)
-                    injectMappingMap?.forEach((injectKey: string, propertyKey: string): void => {
-                        if (!Reflect.getOwnPropertyDescriptor(properties, injectKey)) return properties[injectKey]
-                        Object.keys(properties).forEach((injectPropertyKey: string): void => {
-                            if (injectPropertyKey === injectKey && this.hasProperty(propertyKey)) {
-                                resolveInjectPromises.push(new Promise((resolve, reject) => (async (): Promise<any> => properties[injectPropertyKey])().then(injectItem => resolve(this.setProperty(propertyKey, injectItem))).catch(reject)))
-                            }
-                        })
+            if (Reflect.getMetadata(DI_CONTAINER_CREATOR_CONSTRUCTOR, properties.constructor)) {
+                const resolveInjectPromises: Promise<void>[] = []
+                const injectMappingMap: Map<string, string> | undefined = Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_INJECTS, this.constructor)
+                injectMappingMap?.forEach((injectKey: string, propertyKey: string): void => {
+                    if (!Reflect.getOwnPropertyDescriptor(properties, injectKey)) return properties[injectKey]
+                    Object.keys(properties).forEach((injectPropertyKey: string): void => {
+                        if (injectPropertyKey === injectKey && this.hasProperty(propertyKey)) {
+                            resolveInjectPromises.push(new Promise((resolve, reject) => (async (): Promise<any> => properties[injectPropertyKey])().then(injectItem => resolve(this.setProperty(propertyKey, injectItem))).catch(reject)))
+                        }
                     })
-                    await Promise.all(resolveInjectPromises)
-                } else {
-                    ConfigureObjectProperties(this, properties ? properties : {})
-                }
+                })
+                await Promise.all(resolveInjectPromises)
+            } else {
+                ConfigureObjectProperties(this, properties ? properties : {})
             }
             const config: Record<string, any> | undefined = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT, this.constructor, Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME, this))
             if (config) {
@@ -161,7 +159,10 @@ export class BaseObject extends AsyncConstructor {
         if (this.hasMethod(name)) {
             return (...args: any[]) => this[name](...args)
         } else if (throwExceptionIfNotFound) {
-            throw new MethodNotFoundException('Method "{methodName}" not found in "{className}"', {methodName: name, className: this.constructor.name})
+            throw new MethodNotFoundException('Method "{methodName}" not found in "{className}"', {
+                methodName: name,
+                className: this.constructor.name
+            })
         } else {
             return (...args: any[]): void => ThrowIntoBlackHole(...args)
         }
