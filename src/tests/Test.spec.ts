@@ -15,7 +15,7 @@ import {TestInterval} from './intervals/TestInterval.js'
             testObject: {class: TestObject, lifetime: 'SINGLETON', config: {username: 'tester'}},
             testInterval: {
                 class: TestInterval, lifetime: 'SINGLETON', config: {
-                    interval: 500, mode: 'SEQ', output: 'hi!'
+                    interval: 500, mode: 'SEQ'
                 }
             },
             '/Users/alex/WebstormProjects/core/src/tests/mds/**/*': {
