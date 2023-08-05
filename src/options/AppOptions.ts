@@ -6,9 +6,9 @@ import {LoadEntryCommonOptions} from './LoadEntryCommonOptions.js'
 import {BaseObject} from '../lib/base/BaseObject.js'
 import {IConstructor} from '../interfaces/IConstructor.js'
 import {AsyncFunction} from '../types/AsyncFunction.js'
-import {Application} from '../lib/Application.js'
+import {App} from '../lib/App.js'
 
-export class ApplicationOptions<T extends BaseObject = BaseObject> extends DTO {
+export class AppOptions<T extends BaseObject = BaseObject> extends DTO {
 
     /**
      * 应用程序ID
@@ -54,5 +54,5 @@ export class ApplicationOptions<T extends BaseObject = BaseObject> extends DTO {
             Validator.AsyncFunction()
         )
     ))
-    readonly bootstrap: (string | IConstructor<T> | AsyncFunction<Application, void>)[]
+    readonly bootstrap: (string | IConstructor<T> | AsyncFunction<App, void>)[]
 }

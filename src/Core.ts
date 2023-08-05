@@ -1,10 +1,10 @@
 import 'reflect-metadata'
 
 //主程序
-export {Application} from './lib/Application.js'
+export {App} from './lib/App.js'
 
 //参数选项
-export {ApplicationOptions} from './options/ApplicationOptions.js'
+export {AppOptions} from './options/AppOptions.js'
 export {LoadEntryCommonOptions} from './options/LoadEntryCommonOptions.js'
 export {LoadEntryClassOptions} from './options/LoadEntryClassOptions.js'
 

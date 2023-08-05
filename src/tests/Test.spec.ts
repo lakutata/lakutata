@@ -1,5 +1,5 @@
 import 'reflect-metadata'
-import {Application, ApplicationOptions, DTO} from '../Core.js'
+import {App, AppOptions, DTO} from '../Core.js'
 // import {Application} from '../lib/Application.js'
 import {InvalidMethodAcceptException} from '../exceptions/InvalidMethodAcceptException.js'
 import {Validator} from '../Validator.js'
@@ -110,7 +110,7 @@ import {MDSTest0} from './mds/MDSTest0.js'
     }
 
 
-    new Application({
+    new App({
         id: 'test',
         name: 'test',
         timezone: 'Asia/Shanghai',
@@ -128,7 +128,7 @@ import {MDSTest0} from './mds/MDSTest0.js'
             'ob',
             'itv',
             MDSTest1,
-            async (x: Application) => {
+            async (x: App) => {
                 console.log('dfsdfsdfs111111')
             }
         ]

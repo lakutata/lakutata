@@ -18,15 +18,15 @@ import {
 } from '../../constants/MetadataKey.js'
 import {InvalidGlobStringException} from '../../exceptions/InvalidGlobStringException.js'
 import objectHash from 'object-hash'
-import {Application} from '../Application.js'
+import {App} from '../App.js'
 
 export class Container {
 
-    protected readonly app: Application
+    protected readonly app: App
 
     protected readonly _dic: IDependencyInjectionContainer
 
-    constructor(app: Application, parent?: Container) {
+    constructor(app: App, parent?: Container) {
         this.app = app
         this._dic = createContainer({injectionMode: 'PROXY'}, parent?._dic)
     }
