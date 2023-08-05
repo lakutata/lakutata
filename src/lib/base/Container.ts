@@ -3,7 +3,7 @@ import {
     IDependencyInjectionContainer,
     NameAndRegistrationPair
 } from '../ioc/DependencyInjectionContainer.js'
-import {asClass} from '../ioc/Resolvers.js'
+import {asClass, asFunction, asValue} from '../ioc/Resolvers.js'
 import {LoadEntryCommonOptions} from '../../options/LoadEntryCommonOptions.js'
 import {LoadEntryClassOptions} from '../../options/LoadEntryClassOptions.js'
 import {Accept} from '../../decorators/ValidationDecorators.js'
@@ -29,6 +29,8 @@ export class Container {
     constructor(app: App, parent?: Container) {
         this.app = app
         this._dic = createContainer({injectionMode: 'PROXY'}, parent?._dic)
+        // new Proxy(app,{})
+        // this._dic.register('app', asFunction(()=>new Proxy({},{})))
     }
 
     /**
