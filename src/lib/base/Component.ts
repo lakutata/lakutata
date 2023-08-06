@@ -1,5 +1,6 @@
 import {BaseObject} from './BaseObject.js'
 import {EventEmitter} from 'events'
+import {InjectionProperties} from '../../types/InjectionProperties.js'
 
 export class Component extends BaseObject implements EventEmitter {
 
@@ -9,7 +10,7 @@ export class Component extends BaseObject implements EventEmitter {
      * Constructor
      * @param properties
      */
-    constructor(properties?: Record<string, any>) {
+    constructor(properties: InjectionProperties = {}) {
         super(properties)
         this._$eventEmitter = new EventEmitter()
     }

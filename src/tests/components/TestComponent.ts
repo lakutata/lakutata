@@ -1,10 +1,10 @@
-import {App, Component} from '../../Core.js'
+import {Application, ApplicationOptions, Component} from '../../Core.js'
 import {Configurable, Inject} from '../../decorators/DependencyInjectionDecorators.js'
 
 export class TestComponent extends Component {
 
-    // @Inject()
-    // protected readonly app: App
+    // @Inject(Application)
+    // protected readonly app: Application
 
     @Configurable()
     public readonly greet: string

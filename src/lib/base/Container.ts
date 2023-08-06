@@ -3,7 +3,7 @@ import {
     IDependencyInjectionContainer,
     NameAndRegistrationPair
 } from '../ioc/DependencyInjectionContainer.js'
-import {asClass, asFunction, asValue} from '../ioc/Resolvers.js'
+import {asClass} from '../ioc/Resolvers.js'
 import {LoadEntryCommonOptions} from '../../options/LoadEntryCommonOptions.js'
 import {LoadEntryClassOptions} from '../../options/LoadEntryClassOptions.js'
 import {Accept} from '../../decorators/ValidationDecorators.js'
@@ -14,23 +14,21 @@ import fastGlob from 'fast-glob'
 import {IConstructor} from '../../interfaces/IConstructor.js'
 import {
     DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT,
-    DI_TARGET_CONSTRUCTOR_UNIQUE_MARK
+    DI_TARGET_CONSTRUCTOR_FINGERPRINT,
 } from '../../constants/MetadataKey.js'
 import {InvalidGlobStringException} from '../../exceptions/InvalidGlobStringException.js'
 import objectHash from 'object-hash'
-import {App} from '../App.js'
+import {Module} from './Module.js'
 
-export class Container {
+export class Container<T extends Module = Module> {
 
-    protected readonly app: App
+    protected readonly module?: Module
 
     protected readonly _dic: IDependencyInjectionContainer
 
-    constructor(app: App, parent?: Container) {
-        this.app = app
+    constructor(module?: T, parent?: Container) {
+        this.module = module
         this._dic = createContainer({injectionMode: 'PROXY'}, parent?._dic)
-        // new Proxy(app,{})
-        // this._dic.register('app', asFunction(()=>new Proxy({},{})))
     }
 
     /**
@@ -42,8 +40,8 @@ export class Container {
             name: constructor.name,
             string: constructor.toString()
         }
-        if (!Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_UNIQUE_MARK, constructor)) Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_UNIQUE_MARK, RandomString(32), constructor)
-        constructorRecord.uniqueMark = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_UNIQUE_MARK, constructor)
+        if (!Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_FINGERPRINT, constructor)) Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_FINGERPRINT, RandomString(32), constructor)
+        constructorRecord.fingerprint = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_FINGERPRINT, constructor)
         return `${objectHash(constructorRecord).toString()}_$$${constructor.name}`
     }
 
@@ -144,9 +142,10 @@ export class Container {
 
     /**
      * 以当前容器为父容器，创建一个作用域容器
+     * @param module
      */
-    public createScope(): Container {
-        return new Container(this.app, this)
+    public createScope(module?: Module): Container {
+        return new Container(module ? module : this.module, this)
     }
 
     /**

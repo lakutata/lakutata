@@ -1,5 +1,5 @@
 import 'reflect-metadata'
-import {App} from '../Core.js'
+import {Application} from '../Core.js'
 import {MDSTest1} from './mds/MDSTest1.js'
 import {TestComponent} from './components/TestComponent.js'
 import {TestObject} from './objects/TestObject.js'
@@ -7,7 +7,7 @@ import {TestInterval} from './intervals/TestInterval.js'
 
 (async () => {
 
-    new App({
+    await Application.run({
         id: 'test',
         name: 'test',
         timezone: 'Asia/Shanghai',
@@ -27,7 +27,7 @@ import {TestInterval} from './intervals/TestInterval.js'
         },
         bootstrap: [
             'testInterval',
-            async (x: App) => {
+            async (x: Application) => {
                 console.log('dfsdfsdfs111111')
             }
         ]
