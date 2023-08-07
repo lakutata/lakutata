@@ -11,7 +11,12 @@ import {
     DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTY,
     DTO_CLASS,
     DTO_SCHEMAS,
-    DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME, DI_CONTAINER_INJECT_PROPERTIES, DI_CONTAINER_INJECT_IS_MODULE_GETTER
+    DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME,
+    DI_CONTAINER_INJECT_PROPERTIES,
+    DI_CONTAINER_INJECT_IS_MODULE_GETTER,
+    DI_TARGET_CONSTRUCTOR_SPECIAL_INJECTS,
+    DI_CONTAINER_SPECIAL_INJECT_MODULE_GETTER,
+    DI_CONTAINER_SPECIAL_INJECT_APP_GETTER
 } from '../../constants/MetadataKey.js'
 import {MethodNotFoundException} from '../../exceptions/MethodNotFoundException.js'
 import {ConfigurableOptions} from '../../decorators/DependencyInjectionDecorators.js'
@@ -19,6 +24,8 @@ import {Schema, Validator} from '../../Validator.js'
 import {defaultValidationOptions} from '../../constants/DefaultValue.js'
 import {InvalidConfigurableValueException} from '../../exceptions/InvalidConfigurableValueException.js'
 import {InvalidValueException} from '../../exceptions/InvalidValueException.js'
+import {APP_GETTER_KEY, MODULE_GETTER_KEY} from '../../constants/SpecialKey.js'
+import {async} from 'fast-glob'
 
 export class BaseObject extends AsyncConstructor {
 
@@ -52,6 +59,32 @@ export class BaseObject extends AsyncConstructor {
                         }
                     })
                 })
+                //注入特殊项目（实例所在模块实例、应用程序实例）
+                if (Object.keys(properties).includes(APP_GETTER_KEY) && Object.keys(properties).includes(MODULE_GETTER_KEY)) {
+                    const specialInjectMappingMap: Map<string, Symbol> | undefined = Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_SPECIAL_INJECTS, this.constructor)
+                    const moduleGetter = properties[MODULE_GETTER_KEY]
+                    const appGetter = properties[APP_GETTER_KEY]
+                    specialInjectMappingMap?.forEach((injectKey: Symbol, propertyKey: string): void => {
+                        if (Reflect.getMetadata(DI_CONTAINER_SPECIAL_INJECT_MODULE_GETTER, moduleGetter) && injectKey === DI_CONTAINER_SPECIAL_INJECT_MODULE_GETTER) {
+                            resolveInjectPromises
+                                .push(new Promise((resolve, reject) =>
+                                        (async (): Promise<any> => moduleGetter)()
+                                            .then(getModule => resolve(this.setProperty(propertyKey, getModule())))
+                                            .catch(reject)
+                                    )
+                                )
+                        }
+                        if (Reflect.getMetadata(DI_CONTAINER_SPECIAL_INJECT_APP_GETTER, appGetter) && injectKey === DI_CONTAINER_SPECIAL_INJECT_APP_GETTER) {
+                            resolveInjectPromises
+                                .push(new Promise((resolve, reject) =>
+                                        (async (): Promise<any> => appGetter)()
+                                            .then(getApp => resolve(this.setProperty(propertyKey, getApp())))
+                                            .catch(reject)
+                                    )
+                                )
+                        }
+                    })
+                }
                 await Promise.all(resolveInjectPromises)
             } else {
                 ConfigureObjectProperties(this, properties ? properties : {})

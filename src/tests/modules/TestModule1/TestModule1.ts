@@ -18,8 +18,8 @@ export class TestModule1 extends Module {
     protected readonly greet: string
 
     protected async configure(): Promise<ModuleOptions<this> | undefined> {
-        // return functionConfig()
-        return objectConfig
+        return await functionConfig()
+        // return objectConfig
     }
 
     // protected async entries(): Promise<Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<any>>> {

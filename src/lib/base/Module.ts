@@ -31,7 +31,6 @@ export class Module<T extends Module = any> extends Component {
         this.setProperty('__$$options', this.getProperty('__$$options', {}))
         this.setProperty('__$$container', new Container(this, this.__$$parentContainer))
         this.setProperty('__$$options', await ModuleOptions.validateAsync(this.__$$options))
-        await this.__$$container.registerModule(this)
         await this.__bootstrap()
     }
 

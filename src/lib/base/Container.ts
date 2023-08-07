@@ -14,12 +14,16 @@ import fastGlob from 'fast-glob'
 import {IConstructor} from '../../interfaces/IConstructor.js'
 import {
     DI_CONTAINER_INJECT_IS_MODULE_GETTER,
+    DI_CONTAINER_SPECIAL_INJECT_APP_GETTER,
+    DI_CONTAINER_SPECIAL_INJECT_MODULE_GETTER,
     DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT,
     DI_TARGET_CONSTRUCTOR_FINGERPRINT
 } from '../../constants/MetadataKey.js'
 import {InvalidGlobStringException} from '../../exceptions/InvalidGlobStringException.js'
 import objectHash from 'object-hash'
 import {Module} from './Module.js'
+import {Application} from '../Application.js'
+import {APP_GETTER_KEY, MODULE_GETTER_KEY} from '../../constants/SpecialKey.js'
 
 export class Container<T extends Module = Module> {
 
@@ -35,6 +39,7 @@ export class Container<T extends Module = Module> {
         this.__$$module = module
         this.__$$parent = parent
         this.__$$dic = createContainer({injectionMode: 'PROXY'}, this.__$$parent?.__$$dic)
+        if (this.__$$module) this.registerModule(this.__$$module)
     }
 
     /**
@@ -117,6 +122,24 @@ export class Container<T extends Module = Module> {
     }
 
     /**
+     * 向容器中注册模块实例
+     * @param instance
+     * @protected
+     */
+    protected registerModule<T extends Module>(instance: T): void {
+        const name: string = Container.stringifyConstructor(As<IConstructor<T>>(instance.constructor))
+        const _$$moduleGetter: () => T = () => instance
+        Reflect.defineMetadata(DI_CONTAINER_INJECT_IS_MODULE_GETTER, true, _$$moduleGetter)
+        Reflect.defineMetadata(DI_CONTAINER_SPECIAL_INJECT_MODULE_GETTER, true, _$$moduleGetter)
+        this.__$$additionalPropertyMap.set(name, _$$moduleGetter)
+        this.__$$additionalPropertyMap.set(MODULE_GETTER_KEY, _$$moduleGetter)
+        if (instance instanceof Application) {
+            Reflect.defineMetadata(DI_CONTAINER_SPECIAL_INJECT_APP_GETTER, true, _$$moduleGetter)
+            this.__$$additionalPropertyMap.set(APP_GETTER_KEY, _$$moduleGetter)
+        }
+    }
+
+    /**
      * 通过名称获取容器内的注册项目
      * @param name
      */
@@ -130,17 +153,6 @@ export class Container<T extends Module = Module> {
         const name: string = typeof inp === 'string' ? inp : Container.stringifyConstructor(inp)
         const resolved: T | Promise<T> = this.__$$dic.resolve(name)
         return isPromise(resolved) ? await resolved : resolved
-    }
-
-    /**
-     * 向容器中注册模块实例
-     * @param instance
-     */
-    public async registerModule<T extends Module>(instance: T): Promise<void> {
-        const name: string = Container.stringifyConstructor(As<IConstructor<T>>(instance.constructor))
-        const _$$moduleGetter: () => T = () => instance
-        Reflect.defineMetadata(DI_CONTAINER_INJECT_IS_MODULE_GETTER, true, _$$moduleGetter)
-        this.__$$additionalPropertyMap.set(name, _$$moduleGetter)
     }
 
     /**

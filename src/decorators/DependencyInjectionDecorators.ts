@@ -2,9 +2,11 @@ import {BaseObject} from '../lib/base/BaseObject.js'
 import {IConstructor} from '../interfaces/IConstructor.js'
 import {As} from '../Utilities.js'
 import {
+    DI_CONTAINER_SPECIAL_INJECT_APP_GETTER,
+    DI_CONTAINER_SPECIAL_INJECT_MODULE_GETTER,
     DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS,
     DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OPTIONS,
-    DI_TARGET_CONSTRUCTOR_INJECTS
+    DI_TARGET_CONSTRUCTOR_INJECTS, DI_TARGET_CONSTRUCTOR_SPECIAL_INJECTS
 } from '../constants/MetadataKey.js'
 import {Container} from '../lib/base/Container.js'
 import {Schema, ValidationOptions} from '../Validator.js'
@@ -55,6 +57,39 @@ export function Inject<T extends BaseObject>(inp?: string | IConstructor<T>): (t
             }
         }
         As<Map<string, string>>(Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_INJECTS, targetConstructor)).set(injectMappingObject.propertyKey, injectMappingObject.injectKey)
+    }
+}
+
+/**
+ * 特殊类型数据注入
+ * @param target
+ * @param propertyKey
+ * @param injectKey
+ */
+function specialInject<T extends BaseObject>(target: T, propertyKey: string, specialInjectKey: Symbol): void {
+    const targetConstructor: IConstructor<T> = As<IConstructor<T>>(target.constructor)
+    if (!Reflect.hasMetadata(DI_TARGET_CONSTRUCTOR_SPECIAL_INJECTS, targetConstructor)) Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_SPECIAL_INJECTS, new Map<string, Symbol>(), targetConstructor)
+    As<Map<string, Symbol>>(Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_SPECIAL_INJECTS, targetConstructor)).set(propertyKey, specialInjectKey)
+
+}
+
+/**
+ * 将应用程序对象注入所修饰的属性
+ * @constructor
+ */
+export function InjectApp() {
+    return function <T extends BaseObject>(target: T, propertyKey: string): void {
+        return specialInject(target, propertyKey, DI_CONTAINER_SPECIAL_INJECT_APP_GETTER)
+    }
+}
+
+/**
+ * 将当前类所属的模块对象注入所修饰的属性
+ * @constructor
+ */
+export function InjectModule() {
+    return function <T extends BaseObject>(target: T, propertyKey: string): void {
+        return specialInject(target, propertyKey, DI_CONTAINER_SPECIAL_INJECT_MODULE_GETTER)
     }
 }
 
