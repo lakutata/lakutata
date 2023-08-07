@@ -17,6 +17,7 @@ export {ISortArrayOptions} from './interfaces/ISortArrayOptions.js'
 
 //类型
 export {AsyncFunction} from './types/AsyncFunction.js'
+export {InjectionProperties} from './types/InjectionProperties.js'
 
 //基础类
 export {DTO} from './lib/base/DTO.js'
