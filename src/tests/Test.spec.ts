@@ -8,6 +8,7 @@ import {TestModule1} from './modules/TestModule1/TestModule1.js'
 
 (async () => {
 
+
     await Application.run({
         id: 'test',
         name: 'test',

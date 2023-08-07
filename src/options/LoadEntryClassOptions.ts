@@ -4,9 +4,9 @@ import {BaseObject} from '../lib/base/BaseObject.js'
 import {Validator} from '../Validator.js'
 import {IConstructor} from '../interfaces/IConstructor.js'
 
-export class LoadEntryClassOptions<T extends BaseObject,U = IConstructor<T>> extends LoadEntryCommonOptions {
+export class LoadEntryClassOptions<T extends BaseObject, U = IConstructor<T>> extends LoadEntryCommonOptions {
 
     @Accept(Validator.Class(BaseObject).required())
-    public class: U
+    public readonly class: U
 
 }

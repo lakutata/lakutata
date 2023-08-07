@@ -1,5 +1,4 @@
 import 'reflect-metadata'
-import 'reflect-metadata'
 import Joi from 'joi'
 import {As, IsGlobString} from './Utilities.js'
 import {InvalidValueException} from './exceptions/InvalidValueException.js'
@@ -106,9 +105,10 @@ export class Validator {
      * @param inheritsFrom
      * @constructor
      */
-    public static Class<TSchema = Function>(inheritsFrom?: TSchema): FunctionSchema<TSchema> {
+    public static Class<TSchema = Function>(inheritsFrom?: TSchema | (() => TSchema)): FunctionSchema<TSchema> {
         if (!inheritsFrom) return Joi.func<TSchema>().class()
         return Joi.func<TSchema>().class().custom((value: TSchema, helpers: CustomHelpers) => {
+            if (!As<() => TSchema>(inheritsFrom).prototype) inheritsFrom = As<() => TSchema>(inheritsFrom)()
             if (value instanceof As(inheritsFrom) || value['prototype'] instanceof As(inheritsFrom)) return value
             return helpers.error('any.invalid')
         }, 'Class Validation')

@@ -1,6 +1,5 @@
 import {Component} from './Component.js'
 import {Container} from './Container.js'
-import {InjectionProperties} from '../../types/InjectionProperties.js'
 import {ModuleOptions} from '../../options/ModuleOptions.js'
 import {Configurable} from '../../decorators/DependencyInjectionDecorators.js'
 import {isAsyncFunction} from 'util/types'
@@ -8,6 +7,11 @@ import {As} from '../../Utilities.js'
 import {AsyncFunction} from '../../types/AsyncFunction.js'
 import {IConstructor} from '../../interfaces/IConstructor.js'
 import {BaseObject} from './BaseObject.js'
+import {Return} from '../../decorators/ValidationDecorators.js'
+import {Validator} from '../../Validator.js'
+import {LoadEntryCommonOptions} from '../../options/LoadEntryCommonOptions.js'
+import {LoadEntryClassOptions} from '../../options/LoadEntryClassOptions.js'
+import {LoadModuleOptions} from '../../options/LoadModuleOptions.js'
 
 export class Module<T extends Module = any> extends Component {
 
@@ -20,14 +24,6 @@ export class Module<T extends Module = any> extends Component {
     protected readonly __$$container: Container
 
     /**
-     * Constructor
-     * @param props
-     */
-    constructor(props: InjectionProperties = {}) {
-        super(props)
-    }
-
-    /**
      * 模块初始化函数
      * @protected
      */
@@ -38,10 +34,59 @@ export class Module<T extends Module = any> extends Component {
         await this.__bootstrap()
     }
 
-    // protected load
+    /**
+     * 内联对象元素加载集合
+     * @protected
+     */
+    @Return(Validator
+        .Object()
+        .pattern(
+            Validator.String(),
+            Validator.Alternatives().try(
+                LoadEntryClassOptions.schema(),
+                LoadEntryCommonOptions.schema()
+            )
+        )
+        .optional()
+        .default({}))
+    protected entries(): Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<T>> {
+        return {}
+    }
 
     /**
-     * 启动引导
+     * 内联模块加载配置
+     * @protected
+     */
+    @Return(Validator
+        .Object()
+        .pattern(Validator.String(),
+            Validator.Alternatives().try(
+                Validator.Class(Module),
+                LoadModuleOptions.schema()
+            )
+        ).optional()
+        .default({}))
+    protected modules(): Record<string, IConstructor<T> | LoadModuleOptions<T>> {
+        return {}
+    }
+
+    /**
+     * 内联启动引导配置
+     * @protected
+     */
+    @Return(Validator.Array(
+        Validator.Alternatives().try(
+            Validator.String(),
+            Validator.Class(BaseObject),
+            Validator.AsyncFunction()
+        )
+    ))
+    protected bootstrap<U extends Module>(): (string | IConstructor<T> | AsyncFunction<U, void>)[] {
+        return []
+    }
+
+    /**
+     * 执行启动引导
      * @protected
      */
     protected async __bootstrap(): Promise<void> {
