@@ -35,7 +35,7 @@ import {MD5, RIPEMD160} from '../Hash.js'
     //     console.log(MD5(str))
     //     console.log(hash.digest().toString('hex'))
     // })
-    return
+    // return
     const app = await Application.run({
         id: 'test',
         name: 'test',
