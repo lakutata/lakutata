@@ -59,6 +59,7 @@ export class BaseObject extends AsyncConstructor {
     constructor(properties: Record<string, any> = {}) {
         super(async (): Promise<void> => {
             if (Reflect.getMetadata(DI_CONTAINER_CREATOR_CONSTRUCTOR, properties.constructor) || Reflect.getOwnMetadata(DI_CONTAINER_INJECT_PROPERTIES, properties)) {
+                //对Inject修饰器所修饰的属性进行数据注入
                 const resolveInjectPromises: Promise<void>[] = []
                 const injectMappingMap: Map<string, string> | undefined = Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_INJECTS, this.constructor)
                 injectMappingMap?.forEach((injectKey: string, propertyKey: string): void => {
@@ -107,6 +108,7 @@ export class BaseObject extends AsyncConstructor {
             } else {
                 ConfigureObjectProperties(this, properties ? properties : {})
             }
+            //对Configurable所修饰的对象进行数据注入
             const config: Record<string, any> | undefined = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT, this.constructor, Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME, this))
             if (config) {
                 const configurableOptionsMap: Map<string, ConfigurableOptions> = As<Map<string, ConfigurableOptions> | undefined>(Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OPTIONS, this)) ? As<Map<string, ConfigurableOptions>>(Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OPTIONS, this.constructor)) : new Map()
@@ -231,14 +233,6 @@ export class BaseObject extends AsyncConstructor {
         } else {
             return (...args: any[]): void => ThrowIntoBlackHole(...args)
         }
-    }
-
-    /**
-     * Instantiate the class
-     * @param properties
-     */
-    public static async instantiate<T extends BaseObject>(this: IConstructor<T>, properties?: Record<string, any>): Promise<T> {
-        return await As<PromiseLike<T>>(new this(properties))
     }
 
     /**
