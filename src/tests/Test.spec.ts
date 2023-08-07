@@ -20,10 +20,10 @@ import {TestInterval} from './intervals/TestInterval.js'
                     mode: 'SEQ'
                 }
             },
-            '/Users/alex/WebstormProjects/core/src/tests/mds/**/*': {
-                lifetime: 'SINGLETON',
-                config: {tester: 'this is tester'}
-            }
+            // '/Users/alex/WebstormProjects/core/src/tests/mds/**/*': {
+            //     lifetime: 'SINGLETON',
+            //     config: {tester: 'this is tester'}
+            // }
         },
         bootstrap: [
             'testInterval',

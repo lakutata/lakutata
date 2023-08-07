@@ -9,12 +9,13 @@ import {LoadEntryClassOptions} from '../../options/LoadEntryClassOptions.js'
 import {Accept} from '../../decorators/ValidationDecorators.js'
 import {Validator} from '../../Validator.js'
 import {BaseObject} from './BaseObject.js'
-import {As, IsGlobString, RandomString} from '../../Utilities.js'
+import {As, IsGlobString, isPromise, RandomString} from '../../Utilities.js'
 import fastGlob from 'fast-glob'
 import {IConstructor} from '../../interfaces/IConstructor.js'
 import {
+    DI_CONTAINER_INJECT_IS_MODULE_GETTER,
     DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT,
-    DI_TARGET_CONSTRUCTOR_FINGERPRINT,
+    DI_TARGET_CONSTRUCTOR_FINGERPRINT
 } from '../../constants/MetadataKey.js'
 import {InvalidGlobStringException} from '../../exceptions/InvalidGlobStringException.js'
 import objectHash from 'object-hash'
@@ -26,9 +27,17 @@ export class Container<T extends Module = Module> {
 
     protected readonly _dic: IDependencyInjectionContainer
 
+    protected readonly additionalPropertyMap: Map<string, any> = new Map()
+
     constructor(module?: T, parent?: Container) {
         this.module = module
         this._dic = createContainer({injectionMode: 'PROXY'}, parent?._dic)
+    }
+
+    protected additionalPropertiesInjector(): Record<string, any> {
+        const additionalProperties: Record<string, any> = {}
+        this.additionalPropertyMap.forEach((value, key) => additionalProperties[key] = value)
+        return additionalProperties
     }
 
     /**
@@ -70,7 +79,8 @@ export class Container<T extends Module = Module> {
             this.assignConfigToInjectConstructorMetadata<T>(name, inheritFromBaseObjectClass, options.config)
             pairs[name] = asClass(inheritFromBaseObjectClass, {
                 lifetime: options.lifetime,
-                dispose: (instance: T) => instance.getMethod('destroy', false)()
+                dispose: (instance: T) => instance.getMethod('destroy', false)(),
+                injector: () => this.additionalPropertiesInjector()
             })
         })
         return pairs
@@ -100,22 +110,19 @@ export class Container<T extends Module = Module> {
     public async get<T extends BaseObject>(constructor: IConstructor<T>): Promise<T>
     public async get<T extends BaseObject>(inp: string | IConstructor<T>): Promise<T> {
         const name: string = typeof inp === 'string' ? inp : Container.stringifyConstructor(inp)
-        return await new Promise<T>((resolve, reject) => (async (): Promise<T> => this._dic.resolve(name))().then(resolve).catch(reject))
+        const resolved: T | Promise<T> = this._dic.resolve(name)
+        return isPromise(resolved) ? await resolved : resolved
     }
 
     /**
-     * 向容器中注册类构造函数
-     * @param constructor
-     * @param options
+     * 向容器中注册模块实例
+     * @param instance
      */
-    @Accept([Validator.Class(BaseObject), LoadEntryCommonOptions.schema().optional().default({})])
-    public registerClass<T extends BaseObject>(constructor: IConstructor<T>, options?: LoadEntryCommonOptions): void {
-        const name: string = Container.stringifyConstructor(constructor)
-        if (options?.config) this.assignConfigToInjectConstructorMetadata<T>(name, constructor, options.config)
-        this._dic.register(name, asClass(constructor, {
-            lifetime: options?.lifetime ? options.lifetime : 'SINGLETON',
-            dispose: (instance: T) => instance.getMethod('destroy', false)()
-        }))
+    public async registerModule<T extends Module>(instance: T): Promise<void> {
+        const name: string = Container.stringifyConstructor(As<IConstructor<T>>(instance.constructor))
+        const _$$moduleGetter: () => T = () => instance
+        Reflect.defineMetadata(DI_CONTAINER_INJECT_IS_MODULE_GETTER, true, _$$moduleGetter)
+        this.additionalPropertyMap.set(name, _$$moduleGetter)
     }
 
     /**
@@ -131,7 +138,8 @@ export class Container<T extends Module = Module> {
                 this.assignConfigToInjectConstructorMetadata<T>(key, As<LoadEntryClassOptions<T>>(entryOptions).class, entryOptions.config)
                 pairs[key] = asClass(As<LoadEntryClassOptions<T>>(entryOptions).class, {
                     lifetime: entryOptions.lifetime,
-                    dispose: (instance: T) => instance.getMethod('destroy', false)()
+                    dispose: (instance: T) => instance.getMethod('destroy', false)(),
+                    injector: () => this.additionalPropertiesInjector()
                 })
             } else {
                 pairs = {...pairs, ...(await this.getEntryConstructorsByGlob<T>(key, entryOptions))}

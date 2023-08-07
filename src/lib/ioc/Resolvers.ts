@@ -4,6 +4,7 @@ import {isFunction, uniq} from './Utils.js'
 import {parseParameterList, Parameter} from './ParamParser.js'
 import {DependencyInjectionTypeError} from './Errors.js'
 import {IDependencyInjectionContainer, FunctionReturning, ResolveOptions} from './DependencyInjectionContainer.js'
+import {DI_CONTAINER_INJECT_PROPERTIES} from '../../constants/MetadataKey.js'
 
 /**
  * RESOLVER符号可以由通过loadModules加载的模块使用，用于配置它们的生命周期、注入模式等。
@@ -387,6 +388,8 @@ function generateResolve(fn: Function, dependencyParseTarget?: Function) {
             const cradle = this.injector
                 ? createInjectorProxy(container, this.injector)
                 : container.cradle
+            //Define inject properties metadata
+            Reflect.defineMetadata(DI_CONTAINER_INJECT_PROPERTIES, true, cradle)
             // Return the target injected with the cradle
             return fn(cradle)
         }

@@ -469,7 +469,8 @@ export function createContainer<T extends object = any, U extends object = any>(
             /**
              * 用于加载配置对象至注入项目内
              */
-            if (typeof resolved === 'object' || typeof resolved === 'function') Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME, name, resolved)
+            if ((typeof resolved === 'object' || typeof resolved === 'function') && !Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME, resolved))
+                Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME, name, resolved)
             return resolved
         } catch (err) {
             // 当遇到错误时，需要重置堆栈

@@ -3,13 +3,13 @@ import {Configurable, Inject} from '../../decorators/DependencyInjectionDecorato
 
 export class TestComponent extends Component {
 
-    // @Inject(Application)
-    // protected readonly app: Application
+    @Inject(Application)
+    protected readonly app: Application
 
     @Configurable()
     public readonly greet: string
 
     protected async init(): Promise<void> {
-        console.log(this.className, 'init', this.greet)
+        console.log(this.className, 'init', this.greet,this.app)
     }
 }

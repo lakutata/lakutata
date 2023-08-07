@@ -14,25 +14,42 @@ export class Application extends Module {
 
     protected readonly declare options: ApplicationOptions
 
-    public static async run(options: ApplicationOptions): Promise<Application> {
+    public static async run(options: ApplicationOptions): Promise<void> {
         const rootContainer = new Container()
         options = await ApplicationOptions.validateAsync(options)
         process.env.appId = options.id
         process.env.appName = options.name
         process.env.TZ = options.timezone
-        rootContainer.registerClass(Application, {
-            lifetime: 'SINGLETON', config: {
-                _$options: options,
-                _$parentContainer: rootContainer
+        // await Application.instantiate({
+        //     _$options: options,
+        //     _$parentContainer: rootContainer
+        // })
+        await rootContainer.load({
+            'app': {
+                class: Application,
+                lifetime: 'SINGLETON',
+                config:{
+                    _$options: options,
+                    _$parentContainer: rootContainer
+                }
             }
         })
-        const application: Application = await rootContainer.get<Application>(Application)
+        const application: Application = await rootContainer.get<Application>('app')
+
+        // await rootContainer.registerModule(Application, {
+        //     lifetime: 'SINGLETON', config: {
+        //         _$options: options,
+        //         _$parentContainer: rootContainer
+        //         // _$parentContainer: new Container()
+        //     }
+        // })
+        // const application: Application = await rootContainer.get<Application>(Application)
         // Object.defineProperty(application, 'container', {
         //     get: () => {
         //         return rootContainer
         //     }
         // })
-        return application
+        // return application
     }
 
     /**

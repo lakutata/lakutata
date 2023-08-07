@@ -11,7 +11,7 @@ import {
     DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTY,
     DTO_CLASS,
     DTO_SCHEMAS,
-    DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME
+    DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME, DI_CONTAINER_INJECT_PROPERTIES, DI_CONTAINER_INJECT_IS_MODULE_GETTER
 } from '../../constants/MetadataKey.js'
 import {MethodNotFoundException} from '../../exceptions/MethodNotFoundException.js'
 import {ConfigurableOptions} from '../../decorators/DependencyInjectionDecorators.js'
@@ -35,14 +35,20 @@ export class BaseObject extends AsyncConstructor {
      */
     constructor(properties: Record<string, any> = {}) {
         super(async (): Promise<void> => {
-            if (Reflect.getMetadata(DI_CONTAINER_CREATOR_CONSTRUCTOR, properties.constructor)) {
+            if (Reflect.getMetadata(DI_CONTAINER_CREATOR_CONSTRUCTOR, properties.constructor) || Reflect.getOwnMetadata(DI_CONTAINER_INJECT_PROPERTIES, properties)) {
                 const resolveInjectPromises: Promise<void>[] = []
                 const injectMappingMap: Map<string, string> | undefined = Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_INJECTS, this.constructor)
                 injectMappingMap?.forEach((injectKey: string, propertyKey: string): void => {
                     if (!Reflect.getOwnPropertyDescriptor(properties, injectKey)) return properties[injectKey]
                     Object.keys(properties).forEach((injectPropertyKey: string): void => {
                         if (injectPropertyKey === injectKey && this.hasProperty(propertyKey)) {
-                            resolveInjectPromises.push(new Promise((resolve, reject) => (async (): Promise<any> => properties[injectPropertyKey])().then(injectItem => resolve(this.setProperty(propertyKey, injectItem))).catch(reject)))
+                            resolveInjectPromises
+                                .push(new Promise((resolve, reject) =>
+                                        (async (): Promise<any> => properties[injectPropertyKey])()
+                                            .then(injectItem => resolve(this.setProperty(propertyKey, Reflect.getOwnMetadata(DI_CONTAINER_INJECT_IS_MODULE_GETTER, injectItem) ? injectItem() : injectItem)))
+                                            .catch(reject)
+                                    )
+                                )
                         }
                     })
                 })

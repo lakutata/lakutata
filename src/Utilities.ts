@@ -9,6 +9,15 @@ import {IConstructor} from './interfaces/IConstructor.js'
 import {BaseObject} from './lib/base/BaseObject.js'
 import {OBJECT_INIT_MARK} from './constants/MetadataKey.js'
 import {setTimeout} from 'timers/promises'
+import {isPromise as isBuiltinPromises} from 'util/types'
+
+/**
+ * 判断一个目标对象是否为Promise
+ * @param obj
+ */
+export function isPromise(target: any): boolean {
+    return isBuiltinPromises(target) ? true : !!target && (typeof target === 'object' || typeof target === 'function') && typeof target.then === 'function'
+}
 
 /**
  * 异步等待

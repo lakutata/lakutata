@@ -33,8 +33,8 @@ export class Module<T extends Module = any> extends Component {
      */
     protected async init(): Promise<void> {
         this.setProperty('_$container', new Container(this, this._$parentContainer))
-        // console.log(this._$container)
         this.setProperty('_$options', await ModuleOptions.validateAsync(this._$options))
+        await this._$container.registerModule(this)
         await this.bootstrap()
     }
 
