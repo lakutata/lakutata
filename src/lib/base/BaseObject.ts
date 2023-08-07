@@ -104,6 +104,14 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
+     * Internal destroy function
+     * @protected
+     */
+    protected async __destroy(): Promise<void> {
+        //To be override in child class
+    }
+
+    /**
      * Initialize function
      * @protected
      */

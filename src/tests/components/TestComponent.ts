@@ -11,5 +11,12 @@ export class TestComponent extends Component {
 
     protected async init(): Promise<void> {
         console.log(this.className, 'init', this.greet)
+        // setTimeout(()=>{
+        //     this.app.exit()
+        // },5000)
+    }
+
+    protected async destroy(): Promise<void> {
+        console.log('testComponent destroy')
     }
 }

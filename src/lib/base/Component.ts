@@ -16,11 +16,20 @@ export class Component extends BaseObject implements EventEmitter {
     }
 
     /**
+     * Internal destroy function
+     * @protected
+     */
+    protected async __destroy(): Promise<void> {
+        this.__$$eventEmitter.removeAllListeners()
+        return super.__destroy()
+    }
+
+    /**
      * 组件销毁函数
      * @protected
      */
     protected async destroy(): Promise<void> {
-        this.__$$eventEmitter.removeAllListeners()
+        //在子类中覆写
     }
 
     /**

@@ -34,10 +34,24 @@ export class Container<T extends Module = Module> {
         this._dic = createContainer({injectionMode: 'PROXY'}, parent?._dic)
     }
 
+    /**
+     * 加载额外的信息至注入器
+     * @protected
+     */
     protected additionalPropertiesInjector(): Record<string, any> {
         const additionalProperties: Record<string, any> = {}
         this.additionalPropertyMap.forEach((value, key) => additionalProperties[key] = value)
         return additionalProperties
+    }
+
+    /**
+     * 容器内对象销毁处理方法
+     * @param instance
+     * @protected
+     */
+    protected async disposer<T extends BaseObject>(instance: T): Promise<void> {
+        await instance.getMethod('__destroy', false)()
+        await instance.getMethod('destroy', false)()
     }
 
     /**
@@ -79,7 +93,7 @@ export class Container<T extends Module = Module> {
             this.assignConfigToInjectConstructorMetadata<T>(name, inheritFromBaseObjectClass, options.config)
             pairs[name] = asClass(inheritFromBaseObjectClass, {
                 lifetime: options.lifetime,
-                dispose: (instance: T) => instance.getMethod('destroy', false)(),
+                dispose: (instance: T) => this.disposer(instance),
                 injector: () => this.additionalPropertiesInjector()
             })
         })
@@ -138,7 +152,7 @@ export class Container<T extends Module = Module> {
                 this.assignConfigToInjectConstructorMetadata<T>(key, As<LoadEntryClassOptions<T>>(entryOptions).class, entryOptions.config)
                 pairs[key] = asClass(As<LoadEntryClassOptions<T>>(entryOptions).class, {
                     lifetime: entryOptions.lifetime,
-                    dispose: (instance: T) => instance.getMethod('destroy', false)(),
+                    dispose: (instance: T) => this.disposer(instance),
                     injector: () => this.additionalPropertiesInjector()
                 })
             } else {

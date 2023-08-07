@@ -29,9 +29,8 @@ export class Application extends Module {
     /**
      * 退出应用程序
      */
-    public async exit(): Promise<void> {
-        await this.__$$container.destroy()
-        process.exit(0)
+    public exit(): void {
+        this.__$$parentContainer.destroy().then(() => process.exit(0))
     }
 }
 

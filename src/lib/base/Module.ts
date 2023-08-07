@@ -35,14 +35,16 @@ export class Module<T extends Module = any> extends Component {
         this.setProperty('__$$container', new Container(this, this.__$$parentContainer))
         this.setProperty('__$$options', await ModuleOptions.validateAsync(this.__$$options))
         await this.__$$container.registerModule(this)
-        await this.bootstrap()
+        await this.__bootstrap()
     }
+
+    // protected load
 
     /**
      * 启动引导
      * @protected
      */
-    protected async bootstrap(): Promise<void> {
+    protected async __bootstrap(): Promise<void> {
         await this.__$$container.load(this.__$$options.entries)
         for (const item of this.__$$options.bootstrap) {
             if (typeof item === 'string') await this.__$$container.get(item)
@@ -51,10 +53,19 @@ export class Module<T extends Module = any> extends Component {
     }
 
     /**
+     * 模块内部销毁函数
+     * @protected
+     */
+    protected async __destroy(): Promise<void> {
+        await this.__$$container?.destroy()//在应用程序加载模块的时候需要初始化模块的IoC容器
+        return super.__destroy()
+    }
+
+    /**
      * 模块销毁函数
      * @protected
      */
     protected async destroy(): Promise<void> {
-        await this.__$$container.destroy()
+        //在子类中覆写
     }
 }

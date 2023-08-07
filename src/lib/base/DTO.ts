@@ -74,4 +74,6 @@ export class DTO {
         Reflect.defineMetadata(DTO_SCHEMAS, anonymousDTOSchema, anonymousDTO)
         return Object.assign(anonymousDTO, ...args)
     }
+
+    [prop: string]: any
 }
