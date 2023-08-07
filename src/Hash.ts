@@ -1,3 +1,4 @@
+import 'reflect-metadata'
 import CryptoJs from 'crypto-js'
 
 /**
