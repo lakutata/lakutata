@@ -6,8 +6,15 @@ import {Validator} from '../Validator.js'
 
 export class LoadModuleOptions<T extends Module, U = IConstructor<T>> extends DTO {
 
+    /**
+     * 模块的构造函数
+     */
     @Accept(Validator.Class(() => Module).required())
     public readonly class: U
 
-    [props: string]: any
+    /**
+     * 需要传入的参数
+     */
+    @Accept(Validator.Object().pattern(Validator.String(), Validator.Any()).optional().default({}))
+    public readonly config?: Record<string, any>
 }

@@ -7,6 +7,7 @@ import {LoadEntryCommonOptions} from './LoadEntryCommonOptions.js'
 import {IConstructor} from '../interfaces/IConstructor.js'
 import {AsyncFunction} from '../types/AsyncFunction.js'
 import {Module} from '../lib/base/Module.js'
+import {LoadModuleOptions} from './LoadModuleOptions.js'
 
 export class ModuleOptions<U extends Module, T extends BaseObject = BaseObject> extends DTO {
     /**
@@ -23,7 +24,21 @@ export class ModuleOptions<U extends Module, T extends BaseObject = BaseObject> 
         )
         .optional()
         .default({}))
-    readonly entries: Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<T>>
+    public readonly entries: Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<T>>
+
+    /**
+     * 子模块注入配置
+     */
+    @Accept(Validator
+        .Object()
+        .pattern(Validator.String(),
+            Validator.Alternatives().try(
+                Validator.Class(Module),
+                LoadModuleOptions.schema()
+            )
+        ).optional()
+        .default({}))
+    public readonly modules?: Record<string, IConstructor<Module> | LoadModuleOptions<Module>>
 
     /**
      * 模块引导启动组件
@@ -35,5 +50,5 @@ export class ModuleOptions<U extends Module, T extends BaseObject = BaseObject> 
             Validator.AsyncFunction()
         )
     ))
-    readonly bootstrap: (string | IConstructor<T> | AsyncFunction<U, void>)[]
+    public readonly bootstrap: (string | IConstructor<T> | AsyncFunction<U, void>)[]
 }

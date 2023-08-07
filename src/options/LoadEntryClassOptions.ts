@@ -6,6 +6,9 @@ import {IConstructor} from '../interfaces/IConstructor.js'
 
 export class LoadEntryClassOptions<T extends BaseObject, U = IConstructor<T>> extends LoadEntryCommonOptions {
 
+    /**
+     * 对象元素的构造函数
+     */
     @Accept(Validator.Class(BaseObject).required())
     public readonly class: U
 

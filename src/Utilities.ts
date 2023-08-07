@@ -58,6 +58,16 @@ export function MergeSet<T = any, U = any>(s1: Set<T>, s2: Set<U>): Set<T | U> {
 }
 
 /**
+ * 合并两个数组
+ * @param arr1
+ * @param arr2
+ * @constructor
+ */
+export function MergeArray<T = any, U = any>(arr1: T[], arr2: U[]): (T | U)[] {
+    return [...arr1, ...arr2]
+}
+
+/**
  * 合并两个Map
  * @constructor
  * @param m1

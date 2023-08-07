@@ -8,7 +8,6 @@ import {TestModule1} from './modules/TestModule1/TestModule1.js'
 
 (async () => {
 
-
     await Application.run({
         id: 'test',
         name: 'test',
@@ -17,20 +16,25 @@ import {TestModule1} from './modules/TestModule1/TestModule1.js'
             testComponent: {class: TestComponent, lifetime: 'SINGLETON', config: {greet: 'hello world'}},
             testObject: {class: TestObject, lifetime: 'SINGLETON', config: {username: 'tester'}},
             testInterval: {
-                class: TestInterval, lifetime: 'SINGLETON', config: {
+                class: TestInterval,
+                lifetime: 'SINGLETON',
+                config: {
                     interval: 1000,
                     mode: 'SEQ'
                 }
-            },
-            tm: {class: TestModule1, lifetime: 'SINGLETON'}
+            }
             // '/Users/alex/WebstormProjects/core/src/tests/mds/**/*': {
             //     lifetime: 'SINGLETON',
             //     config: {tester: 'this is tester'}
             // }
         },
-        // modules:{},
+        modules: {
+            tm: {class: TestModule1, config: {greet: 'oh!'}},
+            tm1: TestModule1
+        },
         bootstrap: [
             'tm',
+            'tm1',
             'testInterval',
             async (x: Application) => {
                 console.log('dfsdfsdfs111111')
