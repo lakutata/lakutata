@@ -49,6 +49,8 @@ export class ModuleOptions<U extends Module, T extends BaseObject = BaseObject> 
             Validator.Class(BaseObject),
             Validator.AsyncFunction()
         )
-    ))
-    public readonly bootstrap: (string | IConstructor<T> | AsyncFunction<U, void>)[]
+    )
+        .optional()
+        .default([]))
+    public readonly bootstrap?: (string | IConstructor<T> | AsyncFunction<U, void>)[]
 }
