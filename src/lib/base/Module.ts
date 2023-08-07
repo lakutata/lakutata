@@ -36,6 +36,15 @@ export class Module<T extends Module = any> extends Component {
     }
 
     /**
+     * 内联载入配置对象
+     * @protected
+     */
+    protected async configure(): Promise<ModuleOptions<T> | undefined> {
+        //若需要内联载入配置对象则需要在子类中覆写该方法
+        return
+    }
+
+    /**
      * 内联对象元素加载集合
      * @protected
      */
@@ -50,7 +59,7 @@ export class Module<T extends Module = any> extends Component {
         )
         .optional()
         .default({}))
-    protected entries(): Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<T>> {
+    protected async entries(): Promise<Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<T>>> {
         return {}
     }
 
@@ -67,7 +76,7 @@ export class Module<T extends Module = any> extends Component {
             )
         ).optional()
         .default({}))
-    protected modules(): Record<string, IConstructor<T> | LoadModuleOptions<T>> {
+    protected async modules(): Promise<Record<string, IConstructor<T> | LoadModuleOptions<T>>> {
         return {}
     }
 
@@ -91,8 +100,11 @@ export class Module<T extends Module = any> extends Component {
      * @protected
      */
     protected async __bootstrap(): Promise<void> {
-        const entries: Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<T>> = Object.assign(this.entries(), this.__$$options.entries ? this.__$$options.entries : {})
-        const modules: Record<string, IConstructor<T> | LoadModuleOptions<T>> = Object.assign(this.modules(), this.__$$options.modules ? this.__$$options.modules : {})
+        const configureOptions: ModuleOptions<T> | undefined = await this.configure()
+        if (configureOptions)
+            Object.keys(configureOptions).forEach((propertyKey: string) => Object.defineProperty(this.__$$options, propertyKey, {value: configureOptions[propertyKey]}))
+        const entries: Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<T>> = Object.assign(await this.entries(), this.__$$options.entries ? this.__$$options.entries : {})
+        const modules: Record<string, IConstructor<T> | LoadModuleOptions<T>> = Object.assign(await this.modules(), this.__$$options.modules ? this.__$$options.modules : {})
         const moduleCommonConfig: Record<string, any> = {
             __$$parentContainer: this.__$$container
         }

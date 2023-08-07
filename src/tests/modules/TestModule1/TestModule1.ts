@@ -1,4 +1,3 @@
-import {SubTestComponent} from '../../components/SubTestComponent.js'
 import {Module} from '../../../lib/base/Module.js'
 import {Application} from '../../../lib/Application.js'
 import {Configurable, Inject} from '../../../decorators/DependencyInjectionDecorators.js'
@@ -7,6 +6,8 @@ import {LoadEntryClassOptions} from '../../../options/LoadEntryClassOptions.js'
 import {TestComponent} from '../../components/TestComponent.js'
 import {IConstructor} from '../../../interfaces/IConstructor.js'
 import {AsyncFunction} from '../../../types/AsyncFunction.js'
+import {ModuleOptions} from '../../../options/ModuleOptions.js'
+import {functionConfig, objectConfig} from './config/testConfig.js'
 
 export class TestModule1 extends Module {
 
@@ -16,23 +17,27 @@ export class TestModule1 extends Module {
     @Configurable()
     protected readonly greet: string
 
-    protected entries(): Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<any>> {
-        // console.log(import('../../components/SubTestComponent.js'))
-        return {
-            tt11: {class: TestComponent, config: {greet: 'subModule'}},
-            stc: {class: SubTestComponent}
-        }
+    protected async configure(): Promise<ModuleOptions<this> | undefined> {
+        // return functionConfig()
+        return objectConfig
     }
 
-    protected bootstrap<U extends Module>(): (string | IConstructor<any> | AsyncFunction<U, void>)[] {
-        return [
-            async () => {
-                console.log('TestModule1 bootstrap')
-            },
-            'tt11',
-            'stc'
-        ]
-    }
+    // protected async entries(): Promise<Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<any>>> {
+    //     return {
+    //         tt11: {class: TestComponent, config: {greet: 'subModule'}},
+    //         stc: {class: (await import('../../components/SubTestComponent.js')).SubTestComponent}
+    //     }
+    // }
+    //
+    // protected bootstrap<U extends Module>(): (string | IConstructor<any> | AsyncFunction<U, void>)[] {
+    //     return [
+    //         async () => {
+    //             console.log('TestModule1 bootstrap')
+    //         },
+    //         'tt11',
+    //         'stc'
+    //     ]
+    // }
 
     protected async init(): Promise<void> {
         await super.init()
