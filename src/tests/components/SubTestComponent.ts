@@ -12,7 +12,7 @@ export class SubTestComponent extends Component {
     protected readonly module: TestModule1
 
     protected async init(): Promise<void> {
-        console.log('this is ', this.className)
+        console.log('this is ', this.className,this.app)
     }
 
 }

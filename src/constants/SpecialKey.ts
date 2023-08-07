@@ -1,2 +1,0 @@
-export const APP_GETTER_KEY: string = '__$$LAKUTATA.SPECIAL.APP.GETTER.KEY'
-export const MODULE_GETTER_KEY: string = '__$$LAKUTATA.SPECIAL.MODULE.GETTER.KEY'

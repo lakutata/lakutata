@@ -1,6 +1,13 @@
 import {AsyncConstructor} from 'async-constructor'
 import {IConstructor} from '../../interfaces/IConstructor.js'
-import {As, ConfigureObjectProperties, MergeSet, ParentConstructor, ThrowIntoBlackHole} from '../../Utilities.js'
+import {
+    As,
+    ConfigureObjectProperties,
+    MergeSet,
+    ParentConstructor,
+    RandomString,
+    ThrowIntoBlackHole
+} from '../../Utilities.js'
 import {
     DI_CONTAINER_CREATOR_CONSTRUCTOR,
     DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OPTIONS,
@@ -16,7 +23,9 @@ import {
     DI_CONTAINER_INJECT_IS_MODULE_GETTER,
     DI_TARGET_CONSTRUCTOR_SPECIAL_INJECTS,
     DI_CONTAINER_SPECIAL_INJECT_MODULE_GETTER,
-    DI_CONTAINER_SPECIAL_INJECT_APP_GETTER
+    DI_CONTAINER_SPECIAL_INJECT_APP_GETTER,
+    DI_CONTAINER_INJECT_IS_MODULE_GETTER_KEY,
+    DI_CONTAINER_SPECIAL_INJECT_APP_GETTER_KEY
 } from '../../constants/MetadataKey.js'
 import {MethodNotFoundException} from '../../exceptions/MethodNotFoundException.js'
 import {ConfigurableOptions} from '../../decorators/DependencyInjectionDecorators.js'
@@ -24,9 +33,16 @@ import {Schema, Validator} from '../../Validator.js'
 import {defaultValidationOptions} from '../../constants/DefaultValue.js'
 import {InvalidConfigurableValueException} from '../../exceptions/InvalidConfigurableValueException.js'
 import {InvalidValueException} from '../../exceptions/InvalidValueException.js'
-import {APP_GETTER_KEY, MODULE_GETTER_KEY} from '../../constants/SpecialKey.js'
-import {async} from 'fast-glob'
+import CryptoJs from 'crypto-js'
 
+@(() => {
+    return <TFunction extends IConstructor<any>>(target: TFunction): TFunction => {
+        const nonceStr: string = RandomString(16)
+        Reflect.defineMetadata(DI_CONTAINER_SPECIAL_INJECT_APP_GETTER_KEY, CryptoJs.SHA256(`APP_GETTER_KEY_${nonceStr}`).toString(), target)
+        Reflect.defineMetadata(DI_CONTAINER_INJECT_IS_MODULE_GETTER_KEY, CryptoJs.SHA256(`MODULE_GETTER_KEY_${nonceStr}`).toString(), target)
+        return target
+    }
+})()
 export class BaseObject extends AsyncConstructor {
 
     /**
@@ -60,6 +76,8 @@ export class BaseObject extends AsyncConstructor {
                     })
                 })
                 //注入特殊项目（实例所在模块实例、应用程序实例）
+                const APP_GETTER_KEY: string = Reflect.getMetadata(DI_CONTAINER_SPECIAL_INJECT_APP_GETTER_KEY, BaseObject)
+                const MODULE_GETTER_KEY: string = Reflect.getMetadata(DI_CONTAINER_INJECT_IS_MODULE_GETTER_KEY, BaseObject)
                 if (Object.keys(properties).includes(APP_GETTER_KEY) && Object.keys(properties).includes(MODULE_GETTER_KEY)) {
                     const specialInjectMappingMap: Map<string, Symbol> | undefined = Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_SPECIAL_INJECTS, this.constructor)
                     const moduleGetter = properties[MODULE_GETTER_KEY]

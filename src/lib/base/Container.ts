@@ -13,8 +13,8 @@ import {As, IsGlobString, isPromise, RandomString} from '../../Utilities.js'
 import fastGlob from 'fast-glob'
 import {IConstructor} from '../../interfaces/IConstructor.js'
 import {
-    DI_CONTAINER_INJECT_IS_MODULE_GETTER,
-    DI_CONTAINER_SPECIAL_INJECT_APP_GETTER,
+    DI_CONTAINER_INJECT_IS_MODULE_GETTER, DI_CONTAINER_INJECT_IS_MODULE_GETTER_KEY,
+    DI_CONTAINER_SPECIAL_INJECT_APP_GETTER, DI_CONTAINER_SPECIAL_INJECT_APP_GETTER_KEY,
     DI_CONTAINER_SPECIAL_INJECT_MODULE_GETTER,
     DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT,
     DI_TARGET_CONSTRUCTOR_FINGERPRINT
@@ -23,7 +23,6 @@ import {InvalidGlobStringException} from '../../exceptions/InvalidGlobStringExce
 import objectHash from 'object-hash'
 import {Module} from './Module.js'
 import {Application} from '../Application.js'
-import {APP_GETTER_KEY, MODULE_GETTER_KEY} from '../../constants/SpecialKey.js'
 
 export class Container<T extends Module = Module> {
 
@@ -132,10 +131,10 @@ export class Container<T extends Module = Module> {
         Reflect.defineMetadata(DI_CONTAINER_INJECT_IS_MODULE_GETTER, true, _$$moduleGetter)
         Reflect.defineMetadata(DI_CONTAINER_SPECIAL_INJECT_MODULE_GETTER, true, _$$moduleGetter)
         this.__$$additionalPropertyMap.set(name, _$$moduleGetter)
-        this.__$$additionalPropertyMap.set(MODULE_GETTER_KEY, _$$moduleGetter)
+        this.__$$additionalPropertyMap.set(Reflect.getMetadata(DI_CONTAINER_INJECT_IS_MODULE_GETTER_KEY, BaseObject), _$$moduleGetter)
         if (instance instanceof Application) {
             Reflect.defineMetadata(DI_CONTAINER_SPECIAL_INJECT_APP_GETTER, true, _$$moduleGetter)
-            this.__$$additionalPropertyMap.set(APP_GETTER_KEY, _$$moduleGetter)
+            this.__$$additionalPropertyMap.set(Reflect.getMetadata(DI_CONTAINER_SPECIAL_INJECT_APP_GETTER_KEY, BaseObject), _$$moduleGetter)
         }
     }
 
