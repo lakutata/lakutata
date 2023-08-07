@@ -33,13 +33,13 @@ import {Schema, Validator} from '../../Validator.js'
 import {defaultValidationOptions} from '../../constants/DefaultValue.js'
 import {InvalidConfigurableValueException} from '../../exceptions/InvalidConfigurableValueException.js'
 import {InvalidValueException} from '../../exceptions/InvalidValueException.js'
-import CryptoJs from 'crypto-js'
+import {SHA256} from '../../Hash.js'
 
 @(() => {
     return <TFunction extends IConstructor<any>>(target: TFunction): TFunction => {
         const nonceStr: string = RandomString(16)
-        Reflect.defineMetadata(DI_CONTAINER_SPECIAL_INJECT_APP_GETTER_KEY, CryptoJs.SHA256(`APP_GETTER_KEY_${nonceStr}`).toString(), target)
-        Reflect.defineMetadata(DI_CONTAINER_INJECT_IS_MODULE_GETTER_KEY, CryptoJs.SHA256(`MODULE_GETTER_KEY_${nonceStr}`).toString(), target)
+        Reflect.defineMetadata(DI_CONTAINER_SPECIAL_INJECT_APP_GETTER_KEY, SHA256(`APP_GETTER_KEY_${nonceStr}`).toString(), target)
+        Reflect.defineMetadata(DI_CONTAINER_INJECT_IS_MODULE_GETTER_KEY, SHA256(`MODULE_GETTER_KEY_${nonceStr}`).toString(), target)
         return target
     }
 })()

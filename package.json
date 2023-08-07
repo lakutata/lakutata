@@ -29,6 +29,11 @@
       "import": "./build/Utilities.js",
       "types": "./build/Utilities.d.ts"
     },
+    "./hash": {
+      "require": "./build/Hash.cjs",
+      "import": "./build/Hash.js",
+      "types": "./build/Hash.d.ts"
+    },
     "./crypto": {
       "require": "./build/Crypto.cjs",
       "import": "./build/Crypto.js",
