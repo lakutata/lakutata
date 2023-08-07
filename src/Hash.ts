@@ -1,6 +1,6 @@
 import 'reflect-metadata'
 import CryptoJs from 'crypto-js'
-
+import {createHash} from 'crypto'
 /**
  * MD5哈希算法
  * @param message

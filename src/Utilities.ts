@@ -10,6 +10,36 @@ import {BaseObject} from './lib/base/BaseObject.js'
 import {OBJECT_INIT_MARK} from './constants/MetadataKey.js'
 import {setTimeout} from 'timers/promises'
 import {isPromise as isBuiltinPromises} from 'util/types'
+import intoStream from 'into-stream'
+import {Readable as ReadableStream} from 'stream'
+
+/**
+ * 转换Buffer为可读流
+ * @param inp
+ * @constructor
+ */
+export function ConvertToStream(inp: Buffer): ReadableStream
+/**
+ * 转换TypedArray为可读流
+ * @param inp
+ * @constructor
+ */
+export function ConvertToStream(inp: NodeJS.TypedArray): ReadableStream
+/**
+ * 转换ArrayBuffer为可读流
+ * @param inp
+ * @constructor
+ */
+export function ConvertToStream(inp: ArrayBuffer): ReadableStream
+/**
+ * 转换字符串为可读流
+ * @param inp
+ * @constructor
+ */
+export function ConvertToStream(inp: string): ReadableStream
+export function ConvertToStream(inp: any): ReadableStream {
+    return intoStream(inp)
+}
 
 /**
  * 判断一个目标对象是否为Promise
