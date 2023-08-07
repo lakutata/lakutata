@@ -4,8 +4,10 @@ import {Module} from './base/Module.js'
 
 export class Application extends Module {
 
-    protected readonly declare options: ApplicationOptions
-
+    /**
+     * 执行应用程序
+     * @param options
+     */
     public static async run(options: ApplicationOptions): Promise<Application> {
         options = await ApplicationOptions.validateAsync(options)
         process.env.appId = options.id

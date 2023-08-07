@@ -143,4 +143,18 @@ export class Module<T extends Module = any> extends Component {
     protected async destroy(): Promise<void> {
         //在子类中覆写
     }
+
+    /**
+     * 按照注入名称获取对象
+     * @param name
+     */
+    public async get<T extends BaseObject>(name: string): Promise<T>
+    /**
+     * 按照注入的构造函数获取对象（用于Glob加载的方式）
+     * @param constructor
+     */
+    public async get<T extends BaseObject>(constructor: IConstructor<T>): Promise<T>
+    public async get<T extends BaseObject>(inp: string | IConstructor<T>): Promise<T> {
+        return await this.__$$container.get(As<any>(inp))
+    }
 }
