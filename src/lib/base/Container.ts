@@ -23,15 +23,18 @@ import {Module} from './Module.js'
 
 export class Container<T extends Module = Module> {
 
-    protected readonly module?: Module
+    protected readonly __$$module?: Module
 
-    protected readonly _dic: IDependencyInjectionContainer
+    protected readonly __$$parent?: Container
 
-    protected readonly additionalPropertyMap: Map<string, any> = new Map()
+    protected readonly __$$dic: IDependencyInjectionContainer
+
+    protected readonly __$$additionalPropertyMap: Map<string, any> = new Map()
 
     constructor(module?: T, parent?: Container) {
-        this.module = module
-        this._dic = createContainer({injectionMode: 'PROXY'}, parent?._dic)
+        this.__$$module = module
+        this.__$$parent = parent
+        this.__$$dic = createContainer({injectionMode: 'PROXY'}, this.__$$parent?.__$$dic)
     }
 
     /**
@@ -39,8 +42,9 @@ export class Container<T extends Module = Module> {
      * @protected
      */
     protected additionalPropertiesInjector(): Record<string, any> {
-        const additionalProperties: Record<string, any> = {}
-        this.additionalPropertyMap.forEach((value, key) => additionalProperties[key] = value)
+        const parentAdditionalProperties: Record<string, any> | undefined = this.__$$parent?.additionalPropertiesInjector()
+        const additionalProperties: Record<string, any> = parentAdditionalProperties ? parentAdditionalProperties : {}
+        this.__$$additionalPropertyMap.forEach((value, key) => additionalProperties[key] = value)
         return additionalProperties
     }
 
@@ -124,7 +128,7 @@ export class Container<T extends Module = Module> {
     public async get<T extends BaseObject>(constructor: IConstructor<T>): Promise<T>
     public async get<T extends BaseObject>(inp: string | IConstructor<T>): Promise<T> {
         const name: string = typeof inp === 'string' ? inp : Container.stringifyConstructor(inp)
-        const resolved: T | Promise<T> = this._dic.resolve(name)
+        const resolved: T | Promise<T> = this.__$$dic.resolve(name)
         return isPromise(resolved) ? await resolved : resolved
     }
 
@@ -136,7 +140,7 @@ export class Container<T extends Module = Module> {
         const name: string = Container.stringifyConstructor(As<IConstructor<T>>(instance.constructor))
         const _$$moduleGetter: () => T = () => instance
         Reflect.defineMetadata(DI_CONTAINER_INJECT_IS_MODULE_GETTER, true, _$$moduleGetter)
-        this.additionalPropertyMap.set(name, _$$moduleGetter)
+        this.__$$additionalPropertyMap.set(name, _$$moduleGetter)
     }
 
     /**
@@ -159,7 +163,7 @@ export class Container<T extends Module = Module> {
                 pairs = {...pairs, ...(await this.getEntryConstructorsByGlob<T>(key, entryOptions))}
             }
         }
-        this._dic.register(pairs)
+        this.__$$dic.register(pairs)
     }
 
     /**
@@ -167,13 +171,13 @@ export class Container<T extends Module = Module> {
      * @param module
      */
     public createScope(module?: Module): Container {
-        return new Container(module ? module : this.module, this)
+        return new Container(module ? module : this.__$$module, this)
     }
 
     /**
      * 销毁当前容器
      */
     public async destroy(): Promise<void> {
-        await this._dic.dispose()
+        await this.__$$dic.dispose()
     }
 }
