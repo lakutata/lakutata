@@ -157,4 +157,21 @@ export class Module<T extends Module = any> extends Component {
     public async get<T extends BaseObject>(inp: string | IConstructor<T>): Promise<T> {
         return await this.__$$container.get(As<any>(inp))
     }
+
+    /**
+     * 获取当前的运行环境（开发环境/正式环境）
+     */
+    public mode(): 'development' | 'production' {
+        if (!process.env.NODE_ENV) process.env.NODE_ENV = 'development'
+        switch (process.env.NODE_ENV.toLowerCase()) {
+            case 'production':
+                return 'production'
+            case 'development':
+                return 'development'
+            default: {
+                process.env.NODE_ENV = 'development'
+                return 'development'
+            }
+        }
+    }
 }

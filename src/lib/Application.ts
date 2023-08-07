@@ -13,6 +13,7 @@ export class Application extends Module {
         process.env.appId = options.id
         process.env.appName = options.name
         process.env.TZ = options.timezone
+        process.env.NODE_ENV = options.mode ? options.mode : 'development'
         const rootContainer: Container = new Container()
         const name: string = Container.stringifyConstructor(Application)
         await rootContainer.load({

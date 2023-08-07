@@ -36,8 +36,8 @@ import {TestModule1} from './modules/TestModule1/TestModule1.js'
             'tm',
             'tm1',
             'testInterval',
-            async (x: Application) => {
-                console.log('dfsdfsdfs111111')
+            async (app: Application) => {
+                console.log('app.mode():', app.mode())
             }
         ]
     })
