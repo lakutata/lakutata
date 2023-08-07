@@ -250,6 +250,14 @@ export function RandomString(length?: number, charset?: string | string[]): stri
 }
 
 /**
+ * 生成32位的随机字符串
+ * @constructor
+ */
+export function NonceStr(): string {
+    return RandomString(32, 'alphanumeric')
+}
+
+/**
  * 获取类实例/构造函数所继承的父类的构造函数
  * @param target
  * @constructor
