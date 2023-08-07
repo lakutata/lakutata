@@ -18,6 +18,10 @@ export class TestComponent extends Component {
         // }
     }
 
+    public sayHello(invoker: string): string {
+        return `${invoker} as me to say hello`
+    }
+
     protected async destroy(): Promise<void> {
         console.log('testComponent destroy')
     }
