@@ -1,62 +1,36 @@
 import {ApplicationOptions} from '../options/ApplicationOptions.js'
 import {Container} from './base/Container.js'
-import {isAsyncFunction} from 'util/types'
-import {As} from '../Utilities.js'
-import {AsyncFunction} from '../types/AsyncFunction.js'
-import {IConstructor} from '../interfaces/IConstructor.js'
-import {BaseObject} from './base/BaseObject.js'
 import {Module} from './base/Module.js'
-import {InjectionProperties} from '../types/InjectionProperties.js'
-import {Configurable} from '../decorators/DependencyInjectionDecorators.js'
-import {inherits} from 'util'
 
 export class Application extends Module {
 
     protected readonly declare options: ApplicationOptions
 
-    public static async run(options: ApplicationOptions): Promise<void> {
-        const rootContainer = new Container()
+    public static async run(options: ApplicationOptions): Promise<Application> {
         options = await ApplicationOptions.validateAsync(options)
         process.env.appId = options.id
         process.env.appName = options.name
         process.env.TZ = options.timezone
-        // await Application.instantiate({
-        //     _$options: options,
-        //     _$parentContainer: rootContainer
-        // })
+        const rootContainer: Container = new Container()
+        const name: string = Container.stringifyConstructor(Application)
         await rootContainer.load({
-            'app': {
+            [name]: {
                 class: Application,
                 lifetime: 'SINGLETON',
-                config:{
-                    _$options: options,
-                    _$parentContainer: rootContainer
+                config: {
+                    __$$options: options,
+                    __$$parentContainer: rootContainer
                 }
             }
         })
-        const application: Application = await rootContainer.get<Application>('app')
-
-        // await rootContainer.registerModule(Application, {
-        //     lifetime: 'SINGLETON', config: {
-        //         _$options: options,
-        //         _$parentContainer: rootContainer
-        //         // _$parentContainer: new Container()
-        //     }
-        // })
-        // const application: Application = await rootContainer.get<Application>(Application)
-        // Object.defineProperty(application, 'container', {
-        //     get: () => {
-        //         return rootContainer
-        //     }
-        // })
-        // return application
+        return await rootContainer.get<Application>(name)
     }
 
     /**
      * 退出应用程序
      */
     public async exit(): Promise<void> {
-        await this._$container.destroy()
+        await this.__$$container.destroy()
         process.exit(0)
     }
 }

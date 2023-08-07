@@ -10,6 +10,6 @@ export class TestComponent extends Component {
     public readonly greet: string
 
     protected async init(): Promise<void> {
-        console.log(this.className, 'init', this.greet,this.app)
+        console.log(this.className, 'init', this.greet)
     }
 }

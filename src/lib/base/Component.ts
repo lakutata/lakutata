@@ -4,7 +4,7 @@ import {InjectionProperties} from '../../types/InjectionProperties.js'
 
 export class Component extends BaseObject implements EventEmitter {
 
-    protected _$eventEmitter: EventEmitter
+    protected __$$eventEmitter: EventEmitter
 
     /**
      * Constructor
@@ -12,7 +12,15 @@ export class Component extends BaseObject implements EventEmitter {
      */
     constructor(properties: InjectionProperties = {}) {
         super(properties)
-        this._$eventEmitter = new EventEmitter()
+        this.__$$eventEmitter = new EventEmitter()
+    }
+
+    /**
+     * 组件销毁函数
+     * @protected
+     */
+    protected async destroy(): Promise<void> {
+        this.__$$eventEmitter.removeAllListeners()
     }
 
     /**
@@ -21,7 +29,7 @@ export class Component extends BaseObject implements EventEmitter {
      * @param listener
      */
     public addListener(eventName: string | symbol, listener: (...args: any[]) => void): this {
-        this._$eventEmitter.addListener(eventName, listener)
+        this.__$$eventEmitter.addListener(eventName, listener)
         return this
     }
 
@@ -31,21 +39,21 @@ export class Component extends BaseObject implements EventEmitter {
      * @param args
      */
     public emit(eventName: string | symbol, ...args: any[]): boolean {
-        return this._$eventEmitter.emit(eventName, ...args)
+        return this.__$$eventEmitter.emit(eventName, ...args)
     }
 
     /**
      * 返回一个列出发射器已注册监听器的事件的数组。数组中的值是字符串或符号
      */
     public eventNames(): Array<string | symbol> {
-        return this._$eventEmitter.eventNames()
+        return this.__$$eventEmitter.eventNames()
     }
 
     /**
      * 返回当前最大监听器值
      */
     public getMaxListeners(): number {
-        return this._$eventEmitter.getMaxListeners()
+        return this.__$$eventEmitter.getMaxListeners()
     }
 
     /**
@@ -55,7 +63,7 @@ export class Component extends BaseObject implements EventEmitter {
      * @param listener
      */
     public listenerCount(eventName: string | symbol, listener?: Function): number {
-        return this._$eventEmitter.listenerCount(eventName, listener)
+        return this.__$$eventEmitter.listenerCount(eventName, listener)
     }
 
     /**
@@ -63,7 +71,7 @@ export class Component extends BaseObject implements EventEmitter {
      * @param eventName
      */
     public listeners(eventName: string | symbol): Function[] {
-        return this._$eventEmitter.listeners(eventName)
+        return this.__$$eventEmitter.listeners(eventName)
     }
 
     /**
@@ -72,7 +80,7 @@ export class Component extends BaseObject implements EventEmitter {
      * @param listener
      */
     public off(eventName: string | symbol, listener: (...args: any[]) => void): this {
-        this._$eventEmitter.off(eventName, listener)
+        this.__$$eventEmitter.off(eventName, listener)
         return this
     }
 
@@ -83,7 +91,7 @@ export class Component extends BaseObject implements EventEmitter {
      * @param listener
      */
     public on(eventName: string | symbol, listener: (...args: any[]) => void): this {
-        this._$eventEmitter.on(eventName, listener)
+        this.__$$eventEmitter.on(eventName, listener)
         return this
     }
 
@@ -94,7 +102,7 @@ export class Component extends BaseObject implements EventEmitter {
      * @param listener
      */
     public once(eventName: string | symbol, listener: (...args: any[]) => void): this {
-        this._$eventEmitter.once(eventName, listener)
+        this.__$$eventEmitter.once(eventName, listener)
         return this
     }
 
@@ -105,7 +113,7 @@ export class Component extends BaseObject implements EventEmitter {
      * @param listener
      */
     public prependListener(eventName: string | symbol, listener: (...args: any[]) => void): this {
-        this._$eventEmitter.prependListener(eventName, listener)
+        this.__$$eventEmitter.prependListener(eventName, listener)
         return this
     }
 
@@ -116,7 +124,7 @@ export class Component extends BaseObject implements EventEmitter {
      * @param listener
      */
     public prependOnceListener(eventName: string | symbol, listener: (...args: any[]) => void): this {
-        this._$eventEmitter.prependOnceListener(eventName, listener)
+        this.__$$eventEmitter.prependOnceListener(eventName, listener)
         return this
     }
 
@@ -125,7 +133,7 @@ export class Component extends BaseObject implements EventEmitter {
      * @param eventName
      */
     public rawListeners(eventName: string | symbol): Function[] {
-        return this._$eventEmitter.rawListeners(eventName)
+        return this.__$$eventEmitter.rawListeners(eventName)
     }
 
     /**
@@ -133,7 +141,7 @@ export class Component extends BaseObject implements EventEmitter {
      * @param event
      */
     public removeAllListeners(event?: string | symbol): this {
-        this._$eventEmitter.removeAllListeners(event)
+        this.__$$eventEmitter.removeAllListeners(event)
         return this
     }
 
@@ -143,7 +151,7 @@ export class Component extends BaseObject implements EventEmitter {
      * @param listener
      */
     public removeListener(eventName: string | symbol, listener: (...args: any[]) => void): this {
-        this._$eventEmitter.removeListener(eventName, listener)
+        this.__$$eventEmitter.removeListener(eventName, listener)
         return this
     }
 
@@ -153,7 +161,7 @@ export class Component extends BaseObject implements EventEmitter {
      * @param n
      */
     public setMaxListeners(n: number): this {
-        this._$eventEmitter.setMaxListeners(n)
+        this.__$$eventEmitter.setMaxListeners(n)
         return this
     }
 }

@@ -12,12 +12,12 @@ import {BaseObject} from './BaseObject.js'
 export class Module<T extends Module = any> extends Component {
 
     @Configurable()
-    protected readonly _$options: ModuleOptions<T>
+    protected readonly __$$options: ModuleOptions<T>
 
     @Configurable()
-    protected readonly _$parentContainer: Container
+    protected readonly __$$parentContainer: Container
 
-    protected readonly _$container: Container
+    protected readonly __$$container: Container
 
     /**
      * Constructor
@@ -32,9 +32,9 @@ export class Module<T extends Module = any> extends Component {
      * @protected
      */
     protected async init(): Promise<void> {
-        this.setProperty('_$container', new Container(this, this._$parentContainer))
-        this.setProperty('_$options', await ModuleOptions.validateAsync(this._$options))
-        await this._$container.registerModule(this)
+        this.setProperty('__$$container', new Container(this, this.__$$parentContainer))
+        this.setProperty('__$$options', await ModuleOptions.validateAsync(this.__$$options))
+        await this.__$$container.registerModule(this)
         await this.bootstrap()
     }
 
@@ -43,10 +43,18 @@ export class Module<T extends Module = any> extends Component {
      * @protected
      */
     protected async bootstrap(): Promise<void> {
-        await this._$container.load(this._$options.entries)
-        for (const item of this._$options.bootstrap) {
-            if (typeof item === 'string') await this._$container.get(item)
-            if (typeof item === 'function') isAsyncFunction(item) ? await As<AsyncFunction<ThisType<this>, void>>(item)(this) : await this._$container.get(As<IConstructor<BaseObject>>(item))
+        await this.__$$container.load(this.__$$options.entries)
+        for (const item of this.__$$options.bootstrap) {
+            if (typeof item === 'string') await this.__$$container.get(item)
+            if (typeof item === 'function') isAsyncFunction(item) ? await As<AsyncFunction<ThisType<this>, void>>(item)(this) : await this.__$$container.get(As<IConstructor<BaseObject>>(item))
         }
+    }
+
+    /**
+     * 模块销毁函数
+     * @protected
+     */
+    protected async destroy(): Promise<void> {
+        await this.__$$container.destroy()
     }
 }

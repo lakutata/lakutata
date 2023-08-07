@@ -16,6 +16,6 @@ export class TestInterval extends Interval {
     protected readonly testObject: TestObject
 
     protected executor(): Promise<void> | void {
-        console.log(this.className, 'got username:', this.testObject.getUsername(),this.app)
+        console.log(this.className, 'got username:', this.testObject.getUsername())
     }
 }
