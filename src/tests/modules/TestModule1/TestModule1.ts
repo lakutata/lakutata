@@ -1,6 +1,11 @@
 import {Module} from '../../../lib/base/Module.js'
 import {Application} from '../../../lib/Application.js'
 import {Configurable, Inject} from '../../../decorators/DependencyInjectionDecorators.js'
+import {LoadEntryCommonOptions} from '../../../options/LoadEntryCommonOptions.js'
+import {LoadEntryClassOptions} from '../../../options/LoadEntryClassOptions.js'
+import {TestComponent} from '../../components/TestComponent.js'
+import {IConstructor} from '../../../interfaces/IConstructor.js'
+import {AsyncFunction} from '../../../types/AsyncFunction.js'
 
 export class TestModule1 extends Module {
 
@@ -9,6 +14,21 @@ export class TestModule1 extends Module {
 
     @Configurable()
     protected readonly greet: string
+
+    protected entries(): Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<any>> {
+        return {
+            tt11: {class: TestComponent, config: {greet: 'from sub module!!!!!!!!!'}}
+        }
+    }
+
+    protected bootstrap<U extends Module>(): (string | IConstructor<any> | AsyncFunction<U, void>)[] {
+        return [
+            async () => {
+                console.log('TestModule1 bootstrap')
+            },
+            'tt11'
+        ]
+    }
 
     protected async init(): Promise<void> {
         await super.init()
