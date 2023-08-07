@@ -1,3 +1,4 @@
+import {SubTestComponent} from '../../components/SubTestComponent.js'
 import {Module} from '../../../lib/base/Module.js'
 import {Application} from '../../../lib/Application.js'
 import {Configurable, Inject} from '../../../decorators/DependencyInjectionDecorators.js'
@@ -16,8 +17,10 @@ export class TestModule1 extends Module {
     protected readonly greet: string
 
     protected entries(): Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<any>> {
+        // console.log(import('../../components/SubTestComponent.js'))
         return {
-            tt11: {class: TestComponent, config: {greet: 'from sub module!!!!!!!!!'}}
+            tt11: {class: TestComponent, config: {greet: 'subModule'}},
+            stc: {class: SubTestComponent}
         }
     }
 
@@ -26,7 +29,8 @@ export class TestModule1 extends Module {
             async () => {
                 console.log('TestModule1 bootstrap')
             },
-            'tt11'
+            'tt11',
+            'stc'
         ]
     }
 
