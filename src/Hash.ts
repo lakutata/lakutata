@@ -40,6 +40,8 @@ function hashFallback(algorithm: string, message: string): string {
             return CryptoJs.RIPEMD160(message).toString()
         case 'SHA3':
             return CryptoJs.SHA3(message, {outputLength: parseInt(parts[1])}).toString()
+        case 'SM3':
+            return ''//todo 实现SM3的兼容性处理
         default:
             throw new NotSupportHashException('Algorithm "{0}" is not supported', [algorithm])
     }
@@ -71,6 +73,8 @@ function hmacFallback(algorithm: string, message: string, key: string): string {
             return CryptoJs.HmacRIPEMD160(message, key).toString()
         case 'SHA3':
             return CryptoJs.HmacSHA3(message, key).toString()
+        case 'SM3':
+            return ''//todo 实现SM3的兼容性处理
         default:
             throw new NotSupportHashException('Algorithm "{0}" is not supported', [algorithm])
     }
