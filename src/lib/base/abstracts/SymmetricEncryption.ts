@@ -243,14 +243,28 @@ export abstract class SymmetricEncryption {
     }
 
     /**
-     * 生成随机秘钥，BASE64字符串格式
+     * 获取秘钥，Hex字符串格式
+     */
+    public getKey(): string {
+        return this.key.toString('hex')
+    }
+
+    /**
+     * 获取向量，Hex字符串格式
+     */
+    public getIV(): string | null {
+        return this.allowNullIV ? null : this.iv.toString('hex')
+    }
+
+    /**
+     * 生成随机秘钥，Hex字符串格式
      */
     public static generateKey<T extends SymmetricEncryption>(this: IConstructor<T>): string {
         return randomBytes(new this().keyLength).toString('hex')
     }
 
     /**
-     * 生成随机向量，BASE64字符串格式
+     * 生成随机向量，Hex字符串格式
      */
     public static generateIV<T extends SymmetricEncryption>(this: IConstructor<T>): string {
         return randomBytes(new this().ivLength).toString('hex')

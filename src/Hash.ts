@@ -23,6 +23,8 @@ const HIGH_WATER_MARK: number = 16384
 function hashFallback(algorithm: string, message: string): string {
     const parts: string[] = algorithm.split('-')
     const mainAlgorithm: string = parts[0]
+    // CryptoJs.algo.SHA3.create().update()//todo 可以通过此方法进行update
+    // CryptoJs.algo.SHA3.create().update('').finalize().toString()
     switch (mainAlgorithm) {
         case 'MD5':
             return CryptoJs.MD5(message).toString()
