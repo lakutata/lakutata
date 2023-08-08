@@ -19,6 +19,16 @@ function asyncHash(algorithm: string, message: string): Promise<string> {
 }
 
 /**
+ * 同步哈希
+ * @param algorithm
+ * @param message
+ */
+function syncHash(algorithm: string, message: string): string {
+    const hash: Hash = createHash(algorithm)
+    return hash.update(message).digest().toString('hex')
+}
+
+/**
  * 异步MD5哈希算法
  * @param message
  * @param async
@@ -32,7 +42,7 @@ export async function MD5(message: string, async: true): Promise<string>
  */
 export function MD5(message: string): string
 export function MD5(message: string, async?: boolean): string | Promise<string> {
-    return async ? asyncHash('MD5', message) : CryptoJs.MD5(message).toString()
+    return async ? asyncHash('MD5', message) : syncHash('MD5', message)
 }
 
 /**
@@ -57,7 +67,7 @@ export async function SHA1(message: string, async: true): Promise<string>
  */
 export function SHA1(message: string): string
 export function SHA1(message: string, async?: boolean): string | Promise<string> {
-    return async ? asyncHash('SHA1', message) : CryptoJs.SHA1(message).toString()
+    return async ? asyncHash('SHA1', message) : syncHash('SHA1', message)
 }
 
 /**
@@ -84,7 +94,7 @@ export async function SHA256(message: string, async: true): Promise<string>
  */
 export function SHA256(message: string): string
 export function SHA256(message: string, async?: boolean): string | Promise<string> {
-    return async ? asyncHash('SHA256', message) : CryptoJs.SHA256(message).toString()
+    return async ? asyncHash('SHA256', message) : syncHash('SHA256', message)
 }
 
 /**
@@ -111,7 +121,7 @@ export async function SHA224(message: string, async: true): Promise<string>
  */
 export function SHA224(message: string): string
 export function SHA224(message: string, async?: boolean): string | Promise<string> {
-    return async ? asyncHash('SHA224', message) : CryptoJs.SHA224(message).toString()
+    return async ? asyncHash('SHA224', message) : syncHash('SHA224', message)
 }
 
 /**
@@ -138,7 +148,7 @@ export async function SHA512(message: string, async: true): Promise<string>
  */
 export function SHA512(message: string): string
 export function SHA512(message: string, async?: boolean): string | Promise<string> {
-    return async ? asyncHash('SHA512', message) : CryptoJs.SHA512(message).toString()
+    return async ? asyncHash('SHA512', message) : syncHash('SHA512', message)
 }
 
 /**
@@ -165,7 +175,7 @@ export async function SHA384(message: string, async: true): Promise<string>
  */
 export function SHA384(message: string): string
 export function SHA384(message: string, async?: boolean): string | Promise<string> {
-    return async ? asyncHash('SHA384', message) : CryptoJs.SHA384(message).toString()
+    return async ? asyncHash('SHA384', message) : syncHash('SHA384', message)
 }
 
 /**
@@ -192,7 +202,7 @@ export async function SHA3(message: string, async: true): Promise<string>
  */
 export function SHA3(message: string): string
 export function SHA3(message: string, async?: boolean): string | Promise<string> {
-    return async ? asyncHash('SHA3', message) : CryptoJs.SHA3(message).toString()
+    return async ? asyncHash('SHA3', message) : syncHash('SHA3', message)
 }
 
 /**
@@ -219,5 +229,5 @@ export async function RIPEMD160(message: string, async: true): Promise<string>
  */
 export function RIPEMD160(message: string): string
 export function RIPEMD160(message: string, async?: boolean): string | Promise<string> {
-    return async ? asyncHash('RIPEMD160', message) : CryptoJs.RIPEMD160(message).toString()
+    return async ? asyncHash('RIPEMD160', message) : syncHash('RIPEMD160', message)
 }
