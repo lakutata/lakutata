@@ -3,10 +3,16 @@ import CryptoJs from 'crypto-js'
 import {createHash, createHmac, Hash, Hmac, getHashes} from 'crypto'
 import {ConvertToStream} from './Utilities.js'
 import {NotSupportHashException} from './exceptions/NotSupportHashException.js'
-import ReadableStream = NodeJS.ReadableStream
+import {Readable as ReadableStream} from 'stream'
 
+/**
+ * 系统所支持的哈希算法
+ */
 const SUPPORT_HASHES: string[] = getHashes().map((value: string) => value.toUpperCase())
 
+/**
+ * 数据缓冲区阈值
+ */
 const HIGH_WATER_MARK: number = 16384
 
 /**
