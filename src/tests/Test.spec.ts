@@ -42,9 +42,9 @@ import {CAMELLIA256} from '../lib/crypto/camellia/CAMELLIA256.js'
     // console.log('encryptedMessage:', encryptedMessage)
     // const decryptedMessage: string = aes256.decrypt(encryptedMessage)
     // console.log('decryptedMessage:', decryptedMessage)
-
+    //
     // return
-    
+
     const app = await Application.run({
         id: 'test',
         name: 'test',

@@ -19,6 +19,12 @@ interface SymmetricEncryptionValidateIVLengthResult {
     receivedBytes: number
 }
 
+interface AlgorithmInitializer {
+    blockSize: number
+    cipherCreator: () => Cipher
+    decipherCreator: () => Decipher
+}
+
 /**
  * 同步加密抽象类
  */
@@ -110,7 +116,10 @@ export abstract class SymmetricEncryption {
         this.iv = bytesIV ? bytesIV : randomBytes(this.ivLength)
         this.algorithm = algorithm
         this.allowNullIV = allowNullIV
-        SUPPORT_CIPHERS.includes(this.algorithm.toUpperCase()) ? this.algorithmFoundInitializer() : this.algorithmNotFoundInitializer()
+        const {blockSize, cipherCreator, decipherCreator} = SUPPORT_CIPHERS.includes(this.algorithm.toUpperCase()) ? this.algorithmFoundInitializer() : this.algorithmNotFoundInitializer()
+        this.blockSize = blockSize
+        this.cipherCreator = cipherCreator
+        this.decipherCreator = decipherCreator
         const validateKeyLengthResult: SymmetricEncryptionValidateKeyLengthResult = this.validateKeyLength(this.key)
         if (!validateKeyLengthResult.isValid) throw new InvalidSymmetricCipherKeyLengthException(
             'The key length should be {exceptBytes} bytes ({exceptBits}-bits), but the received key length is {receivedBytes} bytes ({receivedBits}-bits)',
@@ -134,28 +143,22 @@ export abstract class SymmetricEncryption {
      * 当算法在运行环境原生支持时的初始化函数
      * @protected
      */
-    protected algorithmFoundInitializer(): void {
-        const blockSize: number | undefined = getCipherInfo(this.algorithm)?.blockSize
-        this.blockSize = blockSize ? blockSize : this.blockSize
-        this.cipherCreator = () => createCipheriv(this.algorithm, this.key, this.allowNullIV ? null : this.iv)
-        this.decipherCreator = () => createDecipheriv(this.algorithm, this.key, this.allowNullIV ? null : this.iv)
+    protected algorithmFoundInitializer(): AlgorithmInitializer {
+        let blockSize: number | undefined = getCipherInfo(this.algorithm)?.blockSize
+        blockSize = blockSize ? blockSize : this.blockSize
+        return {
+            blockSize: blockSize,
+            cipherCreator: () => createCipheriv(this.algorithm, this.key, this.allowNullIV ? null : this.iv),
+            decipherCreator: () => createDecipheriv(this.algorithm, this.key, this.allowNullIV ? null : this.iv)
+        }
     }
 
     /**
      * 当算法在运行环境原生不支持时的初始化函数
      * @protected
      */
-    protected algorithmNotFoundInitializer(): void {
+    protected algorithmNotFoundInitializer(): AlgorithmInitializer {
         throw new NotSupportCipherException('The algorithm "{algorithm}" is not support', {algorithm: this.algorithm})
-    }
-
-    /**
-     * 运行环境是否需要降级使用该加密算法
-     * @protected
-     */
-    protected isFallbackNeeded(): boolean {
-        //todo
-        return !SUPPORT_CIPHERS.includes(this.algorithm.toUpperCase())
     }
 
     /**
