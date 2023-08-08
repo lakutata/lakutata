@@ -21,7 +21,7 @@ import {
     SHA3_384, SHA3_512,
     SHA512
 } from '../Hash.js'
-import {Stream} from 'stream'
+import {Stream, Writable} from 'stream'
 import {AES128} from '../lib/crypto/aes/AES128.js'
 import {AES192} from '../lib/crypto/aes/AES192.js'
 import {AES256} from '../lib/crypto/aes/AES256.js'
@@ -36,15 +36,16 @@ import {DES} from '../lib/crypto/des/DES.js'
     // console.log(Buffer.from('0123456789abcdef0123456789abcdef0123456789abcdef', 'hex').length)
     // console.log(Buffer.from('0123456789abcdef', 'hex').length)
     // const aa = new DES(DES.generateKey())
-    const aa = new DES(DES.generateKey(), DES.generateIV())
+    // const aa = new DES(DES.generateKey(), DES.generateIV())
+    const aa = new AES192(AES192.generateKey(), AES192.generateIV())
     // const aa = new AES128('nlOVmldyetfj4NEq', 'sJ75BQRFY2E9LKy9')
-    // const aa = new AES128('nlOVmldyetfj4NEq', 'sJ75BQRFY2E9LKy9')
-    const str = 'this is a text'
+    const str = 'this is a textthis is a textthis is a textthis is a textthis is a textthis is a textthis is a text'
 
-    const en = aa.encrypt(str)
-    console.log(en)
-    const de = aa.decrypt(en)
-    console.log(de)
+    const en = await aa.encryptAsync(str)
+    console.log(en, aa.encrypt(str))
+    // const de = ''
+    const de = await aa.decryptAsync(en)
+    console.log(de, '::::::',aa.decrypt(en))
 
     return
     const app = await Application.run({

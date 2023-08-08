@@ -1,7 +1,10 @@
-import {Cipher, createCipheriv, createDecipheriv, Decipher, randomBytes} from 'crypto'
+import {Cipher, createCipheriv, createDecipheriv, Decipher, getCiphers, randomBytes, getCipherInfo} from 'crypto'
 import {InvalidSymmetricCipherKeyLengthException} from '../../../exceptions/InvalidSymmetricCipherKeyLengthException.js'
 import {InvalidSymmetricCipherIVLengthException} from '../../../exceptions/InvalidSymmetricCipherIVLengthException.js'
 import {IConstructor} from '../../../interfaces/IConstructor.js'
+import {ConvertToStream} from '../../../Utilities.js'
+
+const SUPPORT_CIPHERS: string[] = getCiphers().map((value: string) => value.toUpperCase())
 
 interface SymmetricEncryptionValidateKeyLengthResult {
     isValid: boolean
@@ -25,6 +28,12 @@ export abstract class SymmetricEncryption {
      * @protected
      */
     protected algorithm: string
+
+    /**
+     * 加密分组大小
+     * @protected
+     */
+    protected blockSize: number = 16
 
     /**
      * 加解密秘钥
@@ -58,6 +67,22 @@ export abstract class SymmetricEncryption {
     protected abstract readonly ivLength: number
 
     /**
+     * 加密器
+     * @constructor
+     */
+    public get Cipher(): Cipher {
+        return createCipheriv(this.algorithm, this.key, this.allowNullIV ? null : this.iv)
+    }
+
+    /**
+     * 解密器
+     * @constructor
+     */
+    public get Decipher(): Decipher {
+        return createDecipheriv(this.algorithm, this.key, this.allowNullIV ? null : this.iv)
+    }
+
+    /**
      * 初始化加密器
      * @param algorithm
      * @param allowNullIV
@@ -72,6 +97,8 @@ export abstract class SymmetricEncryption {
         this.iv = bytesIV ? bytesIV : randomBytes(this.ivLength)
         this.algorithm = algorithm
         this.allowNullIV = allowNullIV
+        const blockSize: number | undefined = getCipherInfo(this.algorithm)?.blockSize
+        this.blockSize = blockSize ? blockSize : this.blockSize
         const validateKeyLengthResult: SymmetricEncryptionValidateKeyLengthResult = this.validateKeyLength(this.key)
         if (!validateKeyLengthResult.isValid) throw new InvalidSymmetricCipherKeyLengthException(
             'The key length should be {exceptBytes} bytes ({exceptBits}-bits), but the received key length is {receivedBytes} bytes ({receivedBits}-bits)',
@@ -92,19 +119,12 @@ export abstract class SymmetricEncryption {
     }
 
     /**
-     * 创建加密器
+     * 运行环境是否需要降级使用该加密算法
      * @protected
      */
-    protected createCipher(): Cipher {
-        return createCipheriv(this.algorithm, this.key, this.allowNullIV ? null : this.iv)
-    }
-
-    /**
-     * 创建解密器
-     * @protected
-     */
-    protected createDecipher(): Decipher {
-        return createDecipheriv(this.algorithm, this.key, this.allowNullIV ? null : this.iv)
+    protected isFallbackNeeded(): boolean {
+        //todo
+        return !SUPPORT_CIPHERS.includes(this.algorithm.toUpperCase())
     }
 
     /**
@@ -138,8 +158,22 @@ export abstract class SymmetricEncryption {
      * @param message
      */
     public encrypt(message: string): string {
-        const cipher: Cipher = this.createCipher()
+        const cipher: Cipher = this.Cipher
         return `${cipher.update(message, 'utf-8', 'hex')}${cipher.final('hex')}`
+    }
+
+    /**
+     * 异步加密消息
+     * @param message
+     */
+    public async encryptAsync(message: string): Promise<string> {
+        return new Promise((resolve, reject): void => {
+            let cache: Buffer = Buffer.from([])
+            ConvertToStream(message).pipe(this.Cipher)
+                .on('data', (chunk: Buffer) => cache = Buffer.concat([cache, chunk]))
+                .once('error', reject)
+                .once('end', () => resolve(cache.toString('hex')))
+        })
     }
 
     /**
@@ -147,8 +181,30 @@ export abstract class SymmetricEncryption {
      * @param encryptedMessage
      */
     public decrypt(encryptedMessage: string): string {
-        const decipher: Decipher = this.createDecipher()
+        const decipher: Decipher = this.Decipher
         return `${decipher.update(encryptedMessage, 'hex', 'utf-8')}${decipher.final('utf-8')}`
+    }
+
+    /**
+     * 异步解密消息
+     * @param encryptedMessage
+     */
+    public async decryptAsync(encryptedMessage: string): Promise<string> {
+        return new Promise((resolve, reject): void => {
+            const decipher: Decipher = this.Decipher
+            let chunkCache: string = ''
+            let decryptedMessage: string = ''
+            ConvertToStream(encryptedMessage)
+                .on('data', (chunk: string) => {
+                    chunkCache += chunk
+                    if (chunkCache.length >= this.blockSize) {
+                        decryptedMessage += decipher.update(chunkCache, 'hex', 'utf-8')
+                        chunkCache = ''
+                    }
+                })
+                .once('error', reject)
+                .once('end', () => resolve(`${decryptedMessage}${decipher.final('utf-8')}`))
+        })
     }
 
     /**
@@ -164,5 +220,4 @@ export abstract class SymmetricEncryption {
     public static generateIV<T extends SymmetricEncryption>(this: IConstructor<T>): string {
         return randomBytes(new this().ivLength).toString('hex')
     }
-
 }
