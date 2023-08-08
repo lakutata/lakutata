@@ -4,6 +4,9 @@ import {clearInterval} from 'timers'
 import {Configurable} from '../../../decorators/DependencyInjectionDecorators.js'
 import {Validator} from '../../../Validator.js'
 
+/**
+ * 定时器抽象类
+ */
 export abstract class Interval extends BaseObject {
     /**
      * 周期调用器

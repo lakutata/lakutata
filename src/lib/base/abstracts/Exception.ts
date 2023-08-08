@@ -2,6 +2,9 @@ import pupa from 'pupa'
 import {camelCase} from 'camel-case'
 import {As} from '../../../Utilities.js'
 
+/**
+ * 异常抽象类
+ */
 export abstract class Exception extends Error {
     public abstract errno: number | string
     public readonly appId: string = process.env.appId ? process.env.appId : 'Unknown'
