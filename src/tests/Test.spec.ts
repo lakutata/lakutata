@@ -9,7 +9,7 @@ import {ConvertToStream, UniqueArray} from '../Utilities.js'
 import {createHash, createHmac, getHashes, getCiphers} from 'crypto'
 import {
     HmacMD5,
-    HmacRIPEMD160,
+    HmacRIPEMD160, HmacSM3,
     MD5,
     RIPEMD160,
     SHA1,
@@ -19,7 +19,7 @@ import {
     SHA384,
     SHA3_224, SHA3_256,
     SHA3_384, SHA3_512,
-    SHA512
+    SHA512, SM3
 } from '../Hash.js'
 import {Stream, Writable} from 'stream'
 import {AES128} from '../lib/crypto/aes/AES128.js'

@@ -870,3 +870,58 @@ export async function StreamRIPEMD160(readable: ReadableStream): Promise<string>
 export async function StreamHmacRIPEMD160(readable: ReadableStream, key: string): Promise<string> {
     return readableStreamHmacHash('RIPEMD160', readable, key)
 }
+
+/**
+ * 异步SM3哈希算法
+ * @param message
+ * @param async
+ * @constructor
+ */
+export async function SM3(message: string, async: true): Promise<string>
+/**
+ * 同步SM3哈希算法
+ * @param message
+ * @constructor
+ */
+export function SM3(message: string): string
+export function SM3(message: string, async?: true): string | Promise<string> {
+    return async ? asyncHash('SM3', message) : syncHash('SM3', message)
+}
+
+/**
+ * 异步HmacSM3哈希消息认证码算法
+ * @param message
+ * @param key
+ * @param async
+ * @constructor
+ */
+export async function HmacSM3(message: string, key: string, async: true): Promise<string>
+/**
+ * 同步HmacSM3哈希消息认证码算法
+ * @param message
+ * @param key
+ * @constructor
+ */
+export function HmacSM3(message: string, key: string): string
+export function HmacSM3(message: string, key: string, async?: true): string | Promise<string> {
+    return async ? asyncHmacHash('SM3', message, key) : syncHmacHash('SM3', message, key)
+}
+
+/**
+ * 读取流内容的SM3哈希值算法
+ * @param readable
+ * @constructor
+ */
+export async function StreamSM3(readable: ReadableStream): Promise<string> {
+    return readableStreamHash('SM3', readable)
+}
+
+/**
+ * 读取流内容HmacSM3哈希消息认证码算法
+ * @param readable
+ * @param key
+ * @constructor
+ */
+export async function StreamHmacSM3(readable: ReadableStream, key: string): Promise<string> {
+    return readableStreamHmacHash('SM3', readable, key)
+}
