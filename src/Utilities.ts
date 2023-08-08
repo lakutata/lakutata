@@ -10,35 +10,41 @@ import {BaseObject} from './lib/base/BaseObject.js'
 import {OBJECT_INIT_MARK} from './constants/MetadataKey.js'
 import {setTimeout} from 'timers/promises'
 import {isPromise as isBuiltinPromises} from 'util/types'
-import intoStream from 'into-stream'
-import {Readable as ReadableStream} from 'stream'
+import {Readable as ReadableStream, ReadableOptions, Stream} from 'stream'
+
+/**
+ * 将输入对象转换为生成器对象
+ * @param inp
+ * @constructor
+ */
+export function* ConvertToIterable(inp: string | Buffer | NodeJS.TypedArray): Generator {
+    for (let i = 0; i < inp.length; i++) yield inp[i]
+}
 
 /**
  * 转换Buffer为可读流
  * @param inp
+ * @param options
  * @constructor
  */
-export function ConvertToStream(inp: Buffer): ReadableStream
+export function ConvertToStream(inp: Buffer, options?: ReadableOptions): ReadableStream
 /**
  * 转换TypedArray为可读流
  * @param inp
+ * @param options
  * @constructor
  */
-export function ConvertToStream(inp: NodeJS.TypedArray): ReadableStream
-/**
- * 转换ArrayBuffer为可读流
- * @param inp
- * @constructor
- */
-export function ConvertToStream(inp: ArrayBuffer): ReadableStream
+export function ConvertToStream(inp: NodeJS.TypedArray, options?: ReadableOptions): ReadableStream
 /**
  * 转换字符串为可读流
  * @param inp
+ * @param options
  * @constructor
  */
-export function ConvertToStream(inp: string): ReadableStream
-export function ConvertToStream(inp: any): ReadableStream {
-    return intoStream(inp)
+export function ConvertToStream(inp: string, options?: ReadableOptions): ReadableStream
+export function ConvertToStream(inp: any, options?: ReadableOptions): ReadableStream {
+    options = options ? options : {}
+    return Stream.Readable.from(ConvertToIterable(inp), options)
 }
 
 /**

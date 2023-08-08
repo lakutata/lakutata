@@ -6,7 +6,7 @@ import {TestObject} from './objects/TestObject.js'
 import {TestInterval} from './intervals/TestInterval.js'
 import {TestModule1} from './modules/TestModule1/TestModule1.js'
 import {ConvertToStream} from '../Utilities.js'
-import {createHash, createHmac,getHashes} from 'crypto'
+import {createHash, createHmac, getHashes} from 'crypto'
 import {
     HmacMD5,
     HmacRIPEMD160,
@@ -21,25 +21,34 @@ import {
     SHA3_384, SHA3_512,
     SHA512
 } from '../Hash.js'
+import {Stream} from 'stream'
 
 (async () => {
 
-    const str: string = 'this is a testthis is a testthis is a testthis is a testthis is a testthis is a testthis is a testthis is a testthis is a testthis is a testthis is a testthis is a testthis is a test'
+    const str: string = 'this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!this is a test!'
     const key: string = 'key123456'
-
+    function* stringToIterable(str:any):Generator<string> {
+        for (let i = 0; i < str.length; i++) {
+            yield str[i];
+        }
+    }
+    Stream.Readable.from(stringToIterable(str), {highWaterMark: 1}).on('data',(data)=>{
+        console.log('data!!!!',data)
+    })
     // console.log(getHashes())
 
-    console.log('MD5',MD5(str))
-    console.log('SHA1',SHA1(str))
-    console.log('SHA256',SHA256(str))
-    console.log('SHA224',SHA224(str))
-    console.log('SHA512',SHA512(str))
-    console.log('SHA384',SHA384(str))
-    console.log('SHA3_224',SHA3_224(str))
-    console.log('SHA3_256',SHA3_256(str))
-    console.log('SHA3_384',SHA3_384(str))
-    console.log('SHA3_512',SHA3_512(str))
-    console.log('RIPEMD160',RIPEMD160(str))
+    console.log('MD5', await MD5(str, true))
+    console.log('MD5', MD5(str))
+    // console.log('SHA1', await SHA1(str, true))
+    // console.log('SHA256', await SHA256(str, true))
+    // console.log('SHA224', await SHA224(str, true))
+    // console.log('SHA512', await SHA512(str, true))
+    // console.log('SHA384', await SHA384(str, true))
+    // console.log('SHA3_224', await SHA3_224(str, true))
+    // console.log('SHA3_256', await SHA3_256(str, true))
+    // console.log('SHA3_384', await SHA3_384(str, true))
+    // console.log('SHA3_512', await SHA3_512(str, true))
+    // console.log('RIPEMD160', await RIPEMD160(str, true))
 
     // hmac.on('readable', ()=>{
     //     const data=hmac.read()

@@ -6,6 +6,8 @@ import {NotSupportHashException} from './exceptions/NotSupportHashException.js'
 
 const SUPPORT_HASHES: string[] = getHashes().map((value: string) => value.toUpperCase())
 
+const HIGH_WATER_MARK: number = 16384
+
 /**
  * 哈希兼容性处理
  * @param algorithm
@@ -76,7 +78,7 @@ function asyncHash(algorithm: string, message: string): Promise<string> {
     return new Promise<string>((resolve, reject): void => {
         if (SUPPORT_HASHES.includes(algorithm)) {
             const hash: Hash = createHash(algorithm)
-            ConvertToStream(message)
+            ConvertToStream(message, {highWaterMark: HIGH_WATER_MARK})
                 .on('data', chunk => hash.update(chunk))
                 .once('error', reject)
                 .once('end', (): void => {
@@ -128,7 +130,7 @@ function asyncHmacHash(algorithm: string, message: string, key: string): Promise
     return new Promise<string>((resolve, reject): void => {
         if (SUPPORT_HASHES.includes(algorithm)) {
             const hmac: Hmac = createHmac(algorithm, key)
-            ConvertToStream(message)
+            ConvertToStream(message, {highWaterMark: HIGH_WATER_MARK})
                 .on('data', chunk => hmac.update(chunk))
                 .once('error', reject)
                 .once('end', (): void => {
