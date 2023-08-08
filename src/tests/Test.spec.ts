@@ -35,26 +35,16 @@ import {CAMELLIA192} from '../lib/crypto/camellia/CAMELLIA192.js'
 import {CAMELLIA256} from '../lib/crypto/camellia/CAMELLIA256.js'
 
 (async () => {
-    // console.log(UniqueArray(getCiphers().map(value => value.split('-')[0])))
-    // console.log(JSON.stringify(getCiphers()))
 
+    // const str: string = 'this is test text!!!!'
+    // const aes256 = new AES256(AES256.generateKey(), AES256.generateIV())
+    // const encryptedMessage: string = aes256.encrypt(str)
+    // console.log('encryptedMessage:', encryptedMessage)
+    // const decryptedMessage: string = aes256.decrypt(encryptedMessage)
+    // console.log('decryptedMessage:', decryptedMessage)
 
-    // console.log(Buffer.from('0123456789abcdef0123456789abcdef0123456789abcdef', 'hex').length)
-    // console.log(Buffer.from('0123456789abcdef', 'hex').length)
-    // const aa = new DES(DES.generateKey())
-    // const aa = new DES(DES.generateKey(), DES.generateIV())
-    const aa = new CAMELLIA256(CAMELLIA256.generateKey(), CAMELLIA256.generateIV())
-    // const aa = new CAMELLIA256(CAMELLIA256.generateKey())
-    // const aa = new AES128('nlOVmldyetfj4NEq', 'sJ75BQRFY2E9LKy9')
-    const str = 'this is a textthis is a textthis is a textthis is a textthis is a textthis is a textthis is a text'
-
-    const en = await aa.encryptAsync(str)
-    console.log(en, aa.encrypt(str))
-    // const de = ''
-    const de = await aa.decryptAsync(en)
-    console.log(de, '::::::', aa.decrypt(en))
-
-    return
+    // return
+    
     const app = await Application.run({
         id: 'test',
         name: 'test',

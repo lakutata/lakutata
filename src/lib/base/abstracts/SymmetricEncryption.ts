@@ -3,6 +3,7 @@ import {InvalidSymmetricCipherKeyLengthException} from '../../../exceptions/Inva
 import {InvalidSymmetricCipherIVLengthException} from '../../../exceptions/InvalidSymmetricCipherIVLengthException.js'
 import {IConstructor} from '../../../interfaces/IConstructor.js'
 import {ConvertToStream} from '../../../Utilities.js'
+import {NotSupportCipherException} from '../../../exceptions/NotSupportCipherException.js'
 
 const SUPPORT_CIPHERS: string[] = getCiphers().map((value: string) => value.toUpperCase())
 
@@ -71,7 +72,7 @@ export abstract class SymmetricEncryption {
      * @constructor
      */
     public get Cipher(): Cipher {
-        return createCipheriv(this.algorithm, this.key, this.allowNullIV ? null : this.iv)
+        return this.cipherCreator()
     }
 
     /**
@@ -79,8 +80,20 @@ export abstract class SymmetricEncryption {
      * @constructor
      */
     public get Decipher(): Decipher {
-        return createDecipheriv(this.algorithm, this.key, this.allowNullIV ? null : this.iv)
+        return this.decipherCreator()
     }
+
+    /**
+     * 加密器创建函数
+     * @protected
+     */
+    protected cipherCreator: () => Cipher
+
+    /**
+     * 解密器创建函数
+     * @protected
+     */
+    protected decipherCreator: () => Decipher
 
     /**
      * 初始化加密器
@@ -97,8 +110,7 @@ export abstract class SymmetricEncryption {
         this.iv = bytesIV ? bytesIV : randomBytes(this.ivLength)
         this.algorithm = algorithm
         this.allowNullIV = allowNullIV
-        const blockSize: number | undefined = getCipherInfo(this.algorithm)?.blockSize
-        this.blockSize = blockSize ? blockSize : this.blockSize
+        SUPPORT_CIPHERS.includes(this.algorithm.toUpperCase()) ? this.algorithmFoundInitializer() : this.algorithmNotFoundInitializer()
         const validateKeyLengthResult: SymmetricEncryptionValidateKeyLengthResult = this.validateKeyLength(this.key)
         if (!validateKeyLengthResult.isValid) throw new InvalidSymmetricCipherKeyLengthException(
             'The key length should be {exceptBytes} bytes ({exceptBits}-bits), but the received key length is {receivedBytes} bytes ({receivedBits}-bits)',
@@ -116,6 +128,25 @@ export abstract class SymmetricEncryption {
                 receivedBytes: validateIVLengthResult.receivedBytes,
                 receivedBits: validateIVLengthResult.receivedBytes * 8
             })
+    }
+
+    /**
+     * 当算法在运行环境原生支持时的初始化函数
+     * @protected
+     */
+    protected algorithmFoundInitializer(): void {
+        const blockSize: number | undefined = getCipherInfo(this.algorithm)?.blockSize
+        this.blockSize = blockSize ? blockSize : this.blockSize
+        this.cipherCreator = () => createCipheriv(this.algorithm, this.key, this.allowNullIV ? null : this.iv)
+        this.decipherCreator = () => createDecipheriv(this.algorithm, this.key, this.allowNullIV ? null : this.iv)
+    }
+
+    /**
+     * 当算法在运行环境原生不支持时的初始化函数
+     * @protected
+     */
+    protected algorithmNotFoundInitializer(): void {
+        throw new NotSupportCipherException('The algorithm "{algorithm}" is not support', {algorithm: this.algorithm})
     }
 
     /**
@@ -204,7 +235,7 @@ export abstract class SymmetricEncryption {
                     }
                 })
                 .once('error', reject)
-                .once('end', () => resolve(`${decryptedMessage}${decipher.final('utf-8')}`))
+                .once('end', () => resolve(`${decryptedMessage}${decipher.update(chunkCache, 'hex', 'utf-8')}${decipher.final('utf-8')}`))
         })
     }
 
