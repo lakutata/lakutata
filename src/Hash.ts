@@ -3,6 +3,7 @@ import CryptoJs from 'crypto-js'
 import {createHash, createHmac, Hash, Hmac, getHashes} from 'crypto'
 import {ConvertToStream} from './Utilities.js'
 import {NotSupportHashException} from './exceptions/NotSupportHashException.js'
+import ReadableStream = NodeJS.ReadableStream
 
 const SUPPORT_HASHES: string[] = getHashes().map((value: string) => value.toUpperCase())
 
@@ -77,17 +78,15 @@ function hmacFallback(algorithm: string, message: string, key: string): string {
 function asyncHash(algorithm: string, message: string): Promise<string> {
     return new Promise<string>((resolve, reject): void => {
         if (SUPPORT_HASHES.includes(algorithm)) {
-            const hash: Hash = createHash(algorithm)
-            ConvertToStream(message, {highWaterMark: HIGH_WATER_MARK})
-                .on('data', chunk => hash.update(chunk))
-                .once('error', reject)
-                .once('end', (): void => {
-                    try {
-                        return resolve(hash.digest().toString('hex'))
-                    } catch (e) {
-                        return reject(new NotSupportHashException(<Error>e))
-                    }
-                })
+            try {
+                const hash: Hash = createHash(algorithm)
+                ConvertToStream(message, {highWaterMark: HIGH_WATER_MARK})
+                    .on('data', chunk => hash.update(chunk))
+                    .once('error', reject)
+                    .once('end', () => resolve(hash.digest().toString('hex')))
+            } catch (e) {
+                return reject(new NotSupportHashException(<Error>e))
+            }
         } else {
             try {
                 return resolve(hashFallback(algorithm, message))
@@ -129,17 +128,15 @@ function syncHash(algorithm: string, message: string): string {
 function asyncHmacHash(algorithm: string, message: string, key: string): Promise<string> {
     return new Promise<string>((resolve, reject): void => {
         if (SUPPORT_HASHES.includes(algorithm)) {
-            const hmac: Hmac = createHmac(algorithm, key)
-            ConvertToStream(message, {highWaterMark: HIGH_WATER_MARK})
-                .on('data', chunk => hmac.update(chunk))
-                .once('error', reject)
-                .once('end', (): void => {
-                    try {
-                        return resolve(hmac.digest().toString('hex'))
-                    } catch (e) {
-                        return reject(new NotSupportHashException(<Error>e))
-                    }
-                })
+            try {
+                const hmac: Hmac = createHmac(algorithm, key)
+                ConvertToStream(message, {highWaterMark: HIGH_WATER_MARK})
+                    .on('data', chunk => hmac.update(chunk))
+                    .once('error', reject)
+                    .once('end', () => resolve(hmac.digest().toString('hex')))
+            } catch (e) {
+                return reject(new NotSupportHashException(<Error>e))
+            }
         } else {
             try {
                 return resolve(hmacFallback(algorithm, message, key))
@@ -175,6 +172,43 @@ function syncHmacHash(algorithm: string, message: string, key: string): string {
 }
 
 /**
+ * 从读取流计算哈希值
+ * @param algorithm
+ * @param readable
+ */
+function readableStreamHash(algorithm: string, readable: ReadableStream): Promise<string> {
+    return new Promise<string>((resolve, reject): void => {
+        try {
+            const hash: Hash = createHash(algorithm)
+            readable.on('data', chunk => hash.update(chunk))
+                .once('error', reject)
+                .once('end', () => resolve(hash.digest().toString('hex')))
+        } catch (e) {
+            return reject(new NotSupportHashException(<Error>e))
+        }
+    })
+}
+
+/**
+ * 从读取流计算哈希消息认证码
+ * @param algorithm
+ * @param readable
+ * @param key
+ */
+function readableStreamHmacHash(algorithm: string, readable: ReadableStream, key: string): Promise<string> {
+    return new Promise<string>((resolve, reject) => {
+        try {
+            const hmac: Hmac = createHmac(algorithm, key)
+            readable.on('data', chunk => hmac.update(chunk))
+                .once('error', reject)
+                .once('end', () => resolve(hmac.digest().toString('hex')))
+        } catch (e) {
+            return reject(new NotSupportHashException(<Error>e))
+        }
+    })
+}
+
+/**
  * 异步MD5哈希算法
  * @param message
  * @param async
@@ -205,6 +239,25 @@ export async function HmacMD5(message: string, key: string, async: true): Promis
 export function HmacMD5(message: string, key: string): string
 export function HmacMD5(message: string, key: string, async?: true): string | Promise<string> {
     return async ? asyncHmacHash('MD5', message, key) : syncHmacHash('MD5', message, key)
+}
+
+/**
+ * 读取流内容的MD5哈希值算法
+ * @param readable
+ * @constructor
+ */
+export async function StreamMD5(readable: ReadableStream): Promise<string> {
+    return readableStreamHash('MD5', readable)
+}
+
+/**
+ * 读取流内容HmacMD5哈希消息认证码算法
+ * @param readable
+ * @param key
+ * @constructor
+ */
+export async function StreamHmacMD5(readable: ReadableStream, key: string): Promise<string> {
+    return readableStreamHmacHash('MD5', readable, key)
 }
 
 /**
@@ -244,6 +297,25 @@ export function HmacSHA1(message: string, key: string, async?: true): string | P
 }
 
 /**
+ * 读取流内容的SHA1哈希值算法
+ * @param readable
+ * @constructor
+ */
+export async function StreamSHA1(readable: ReadableStream): Promise<string> {
+    return readableStreamHash('SHA1', readable)
+}
+
+/**
+ * 读取流内容HmacSHA1哈希消息认证码算法
+ * @param readable
+ * @param key
+ * @constructor
+ */
+export async function StreamHmacSHA1(readable: ReadableStream, key: string): Promise<string> {
+    return readableStreamHmacHash('SHA1', readable, key)
+}
+
+/**
  * 异步SHA256哈希算法
  * @param message
  * @param async
@@ -277,6 +349,25 @@ export async function HmacSHA256(message: string, key: string, async: true): Pro
 export function HmacSHA256(message: string, key: string): string
 export function HmacSHA256(message: string, key: string, async?: true): string | Promise<string> {
     return async ? asyncHmacHash('SHA256', message, key) : syncHmacHash('SHA256', message, key)
+}
+
+/**
+ * 读取流内容的SHA256哈希值算法
+ * @param readable
+ * @constructor
+ */
+export async function StreamSHA256(readable: ReadableStream): Promise<string> {
+    return readableStreamHash('SHA256', readable)
+}
+
+/**
+ * 读取流内容HmacSHA256哈希消息认证码算法
+ * @param readable
+ * @param key
+ * @constructor
+ */
+export async function StreamHmacSHA256(readable: ReadableStream, key: string): Promise<string> {
+    return readableStreamHmacHash('SHA256', readable, key)
 }
 
 /**
@@ -316,6 +407,25 @@ export function HmacSHA224(message: string, key: string, async?: true): string |
 }
 
 /**
+ * 读取流内容的SHA224哈希值算法
+ * @param readable
+ * @constructor
+ */
+export async function StreamSHA224(readable: ReadableStream): Promise<string> {
+    return readableStreamHash('SHA224', readable)
+}
+
+/**
+ * 读取流内容HmacSHA224哈希消息认证码算法
+ * @param readable
+ * @param key
+ * @constructor
+ */
+export async function StreamHmacSHA224(readable: ReadableStream, key: string): Promise<string> {
+    return readableStreamHmacHash('SHA224', readable, key)
+}
+
+/**
  * 异步SHA512哈希算法
  * @param message
  * @param async
@@ -349,6 +459,25 @@ export async function HmacSHA512(message: string, key: string, async: true): Pro
 export function HmacSHA512(message: string, key: string): string
 export function HmacSHA512(message: string, key: string, async?: true): string | Promise<string> {
     return async ? asyncHmacHash('SHA512', message, key) : syncHmacHash('SHA512', message, key)
+}
+
+/**
+ * 读取流内容的SHA512哈希值算法
+ * @param readable
+ * @constructor
+ */
+export async function StreamSHA512(readable: ReadableStream): Promise<string> {
+    return readableStreamHash('SHA512', readable)
+}
+
+/**
+ * 读取流内容HmacSHA512哈希消息认证码算法
+ * @param readable
+ * @param key
+ * @constructor
+ */
+export async function StreamHmacSHA512(readable: ReadableStream, key: string): Promise<string> {
+    return readableStreamHmacHash('SHA512', readable, key)
 }
 
 /**
@@ -388,6 +517,25 @@ export function HmacSHA384(message: string, key: string, async?: true): string |
 }
 
 /**
+ * 读取流内容的SHA384哈希值算法
+ * @param readable
+ * @constructor
+ */
+export async function StreamSHA384(readable: ReadableStream): Promise<string> {
+    return readableStreamHash('SHA384', readable)
+}
+
+/**
+ * 读取流内容HmacSHA384哈希消息认证码算法
+ * @param readable
+ * @param key
+ * @constructor
+ */
+export async function StreamHmacSHA384(readable: ReadableStream, key: string): Promise<string> {
+    return readableStreamHmacHash('SHA384', readable, key)
+}
+
+/**
  * 异步SHA3哈希算法
  * @param message
  * @param async
@@ -421,6 +569,25 @@ export async function HmacSHA3(message: string, key: string, async: true): Promi
 export function HmacSHA3(message: string, key: string): string
 export function HmacSHA3(message: string, key: string, async?: true): string | Promise<string> {
     return async ? HmacSHA3_512(message, key, true) : HmacSHA3_512(message, key)
+}
+
+/**
+ * 读取流内容的SHA3哈希值算法
+ * @param readable
+ * @constructor
+ */
+export async function StreamSHA3(readable: ReadableStream): Promise<string> {
+    return StreamSHA3_512(readable)
+}
+
+/**
+ * 读取流内容HmacSHA3哈希消息认证码算法
+ * @param readable
+ * @param key
+ * @constructor
+ */
+export async function StreamHmacSHA3(readable: ReadableStream, key: string): Promise<string> {
+    return StreamHmacSHA3_512(readable, key)
 }
 
 /**
@@ -460,6 +627,25 @@ export function HmacSHA3_224(message: string, key: string, async?: true): string
 }
 
 /**
+ * 读取流内容的SHA3_224哈希值算法
+ * @param readable
+ * @constructor
+ */
+export async function StreamSHA3_224(readable: ReadableStream): Promise<string> {
+    return readableStreamHash('SHA3-224', readable)
+}
+
+/**
+ * 读取流内容HmacSHA3_224哈希消息认证码算法
+ * @param readable
+ * @param key
+ * @constructor
+ */
+export async function StreamHmacSHA3_224(readable: ReadableStream, key: string): Promise<string> {
+    return readableStreamHmacHash('SHA3_-24', readable, key)
+}
+
+/**
  * 异步SHA3_256哈希算法
  * @param message
  * @param async
@@ -493,6 +679,25 @@ export async function HmacSHA3_256(message: string, key: string, async: true): P
 export function HmacSHA3_256(message: string, key: string): string
 export function HmacSHA3_256(message: string, key: string, async?: true): string | Promise<string> {
     return async ? asyncHmacHash('SHA3-256', message, key) : syncHmacHash('SHA3-256', message, key)
+}
+
+/**
+ * 读取流内容的SHA3_256哈希值算法
+ * @param readable
+ * @constructor
+ */
+export async function StreamSHA3_256(readable: ReadableStream): Promise<string> {
+    return readableStreamHash('SHA3-256', readable)
+}
+
+/**
+ * 读取流内容HmacSHA3_256哈希消息认证码算法
+ * @param readable
+ * @param key
+ * @constructor
+ */
+export async function StreamHmacSHA3_256(readable: ReadableStream, key: string): Promise<string> {
+    return readableStreamHmacHash('SHA3-256', readable, key)
 }
 
 /**
@@ -532,6 +737,25 @@ export function HmacSHA3_384(message: string, key: string, async?: true): string
 }
 
 /**
+ * 读取流内容的SHA3_384哈希值算法
+ * @param readable
+ * @constructor
+ */
+export async function StreamSHA3_384(readable: ReadableStream): Promise<string> {
+    return readableStreamHash('SHA3-384', readable)
+}
+
+/**
+ * 读取流内容HmacSHA3_384哈希消息认证码算法
+ * @param readable
+ * @param key
+ * @constructor
+ */
+export async function StreamHmacSHA3_384(readable: ReadableStream, key: string): Promise<string> {
+    return readableStreamHmacHash('SHA3-384', readable, key)
+}
+
+/**
  * 异步SHA3_512哈希算法
  * @param message
  * @param async
@@ -568,6 +792,25 @@ export function HmacSHA3_512(message: string, key: string, async?: true): string
 }
 
 /**
+ * 读取流内容的SHA3_512哈希值算法
+ * @param readable
+ * @constructor
+ */
+export async function StreamSHA3_512(readable: ReadableStream): Promise<string> {
+    return readableStreamHash('SHA3-512', readable)
+}
+
+/**
+ * 读取流内容HmacSHA3_512哈希消息认证码算法
+ * @param readable
+ * @param key
+ * @constructor
+ */
+export async function StreamHmacSHA3_512(readable: ReadableStream, key: string): Promise<string> {
+    return readableStreamHmacHash('SHA3-512', readable, key)
+}
+
+/**
  * 异步RIPEMD160哈希算法
  * @param message
  * @param async
@@ -601,4 +844,23 @@ export async function HmacRIPEMD160(message: string, key: string, async: true): 
 export function HmacRIPEMD160(message: string, key: string): string
 export function HmacRIPEMD160(message: string, key: string, async?: true): string | Promise<string> {
     return async ? asyncHmacHash('RIPEMD160', message, key) : syncHmacHash('RIPEMD160', message, key)
+}
+
+/**
+ * 读取流内容的RIPEMD160哈希值算法
+ * @param readable
+ * @constructor
+ */
+export async function StreamRIPEMD160(readable: ReadableStream): Promise<string> {
+    return readableStreamHash('RIPEMD160', readable)
+}
+
+/**
+ * 读取流内容HmacRIPEMD160哈希消息认证码算法
+ * @param readable
+ * @param key
+ * @constructor
+ */
+export async function StreamHmacRIPEMD160(readable: ReadableStream, key: string): Promise<string> {
+    return readableStreamHmacHash('RIPEMD160', readable, key)
 }
