@@ -27,6 +27,12 @@ import {AES192} from '../lib/crypto/aes/AES192.js'
 import {AES256} from '../lib/crypto/aes/AES256.js'
 import {TripleDES} from '../lib/crypto/des/TripleDES.js'
 import {DES} from '../lib/crypto/des/DES.js'
+import {ARIA128} from '../lib/crypto/aria/ARIA128.js'
+import {ARIA192} from '../lib/crypto/aria/ARIA192.js'
+import {ARIA256} from '../lib/crypto/aria/ARIA256.js'
+import {CAMELLIA128} from '../lib/crypto/camellia/CAMELLIA128.js'
+import {CAMELLIA192} from '../lib/crypto/camellia/CAMELLIA192.js'
+import {CAMELLIA256} from '../lib/crypto/camellia/CAMELLIA256.js'
 
 (async () => {
     // console.log(UniqueArray(getCiphers().map(value => value.split('-')[0])))
@@ -37,7 +43,8 @@ import {DES} from '../lib/crypto/des/DES.js'
     // console.log(Buffer.from('0123456789abcdef', 'hex').length)
     // const aa = new DES(DES.generateKey())
     // const aa = new DES(DES.generateKey(), DES.generateIV())
-    const aa = new AES192(AES192.generateKey(), AES192.generateIV())
+    const aa = new CAMELLIA256(CAMELLIA256.generateKey(), CAMELLIA256.generateIV())
+    // const aa = new CAMELLIA256(CAMELLIA256.generateKey())
     // const aa = new AES128('nlOVmldyetfj4NEq', 'sJ75BQRFY2E9LKy9')
     const str = 'this is a textthis is a textthis is a textthis is a textthis is a textthis is a textthis is a text'
 
@@ -45,7 +52,7 @@ import {DES} from '../lib/crypto/des/DES.js'
     console.log(en, aa.encrypt(str))
     // const de = ''
     const de = await aa.decryptAsync(en)
-    console.log(de, '::::::',aa.decrypt(en))
+    console.log(de, '::::::', aa.decrypt(en))
 
     return
     const app = await Application.run({
