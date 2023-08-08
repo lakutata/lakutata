@@ -192,6 +192,7 @@ export abstract class SymmetricEncryption {
     public async decryptAsync(encryptedMessage: string): Promise<string> {
         return new Promise((resolve, reject): void => {
             const decipher: Decipher = this.Decipher
+            decipher.once('error', reject)
             let chunkCache: string = ''
             let decryptedMessage: string = ''
             ConvertToStream(encryptedMessage)
