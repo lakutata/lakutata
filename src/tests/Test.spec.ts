@@ -6,15 +6,41 @@ import {TestObject} from './objects/TestObject.js'
 import {TestInterval} from './intervals/TestInterval.js'
 import {TestModule1} from './modules/TestModule1/TestModule1.js'
 import {ConvertToStream} from '../Utilities.js'
-import {createHash, createHmac} from 'crypto'
-import {MD5, RIPEMD160} from '../Hash.js'
+import {createHash, createHmac,getHashes} from 'crypto'
+import {
+    HmacMD5,
+    HmacRIPEMD160,
+    MD5,
+    RIPEMD160,
+    SHA1,
+    SHA224,
+    SHA256,
+    SHA3,
+    SHA384,
+    SHA3_224, SHA3_256,
+    SHA3_384, SHA3_512,
+    SHA512
+} from '../Hash.js'
 
 (async () => {
 
-    const str: string = 'this is a test'
+    const str: string = 'this is a testthis is a testthis is a testthis is a testthis is a testthis is a testthis is a testthis is a testthis is a testthis is a testthis is a testthis is a testthis is a test'
     const key: string = 'key123456'
 
-    // const hmac=createHmac('md5',key)
+    // console.log(getHashes())
+
+    console.log('MD5',MD5(str))
+    console.log('SHA1',SHA1(str))
+    console.log('SHA256',SHA256(str))
+    console.log('SHA224',SHA224(str))
+    console.log('SHA512',SHA512(str))
+    console.log('SHA384',SHA384(str))
+    console.log('SHA3_224',SHA3_224(str))
+    console.log('SHA3_256',SHA3_256(str))
+    console.log('SHA3_384',SHA3_384(str))
+    console.log('SHA3_512',SHA3_512(str))
+    console.log('RIPEMD160',RIPEMD160(str))
+
     // hmac.on('readable', ()=>{
     //     const data=hmac.read()
     //     if(data){
@@ -35,7 +61,7 @@ import {MD5, RIPEMD160} from '../Hash.js'
     //     console.log(MD5(str))
     //     console.log(hash.digest().toString('hex'))
     // })
-    // return
+    return
     const app = await Application.run({
         id: 'test',
         name: 'test',
