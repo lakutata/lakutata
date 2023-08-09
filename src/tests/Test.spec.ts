@@ -49,8 +49,8 @@ import {CAMELLIA256} from '../lib/crypto/camellia/CAMELLIA256.js'
     const key: string = 'key'
     console.log('MD5', await MD5(message, true))//5d62c319df1ed4b6942524852dfe985a
     console.log('SM3', await SM3(message, true))//b2a68ef04aa74fb6ada7be04f28e5ce09ccc711ddf57a3be093a624053fa87e6
-    console.log('HmacMD5', await HmacMD5(message, key, true))
-    console.log('HmacSM3', await HmacSM3(message, key, true))
+    console.log('HmacMD5', await HmacMD5(message, key, true))//d4e398711797c272185969b8a2c1b7b6
+    console.log('HmacSM3', await HmacSM3(message, key, true))//2aba8b457d8b8e9a1140c5b6b046c8559299fbb6419842a0e87129c94c15d0bd
 
     return
     const app = await Application.run({

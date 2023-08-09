@@ -5,13 +5,14 @@ import {ConvertToStream} from './Utilities.js'
 import {NotSupportHashException} from './exceptions/NotSupportHashException.js'
 import {Readable as ReadableStream} from 'stream'
 import Sm3 from 'crypto-api-v1/src/hasher/sm3.mjs'
-import {toHex} from 'crypto-api-v1/src/encoder/hex.mjs'
+import {toHex as SM3ToHex} from 'crypto-api-v1/src/encoder/hex.mjs'
 import SM3Hmac from 'crypto-api-v1/src/mac/hmac.mjs'
 
 /**
  * 系统所支持的哈希算法
  */
-const SUPPORT_HASHES: string[] = getHashes().map((value: string) => value.toUpperCase())
+// const SUPPORT_HASHES: string[] = getHashes().map((value: string) => value.toUpperCase())
+const SUPPORT_HASHES: string[] = []
 
 /**
  * 数据缓冲区阈值
@@ -144,7 +145,7 @@ function createHashFallback(algorithm: string): HashFallback {
                     return hash
                 },
                 digest(): Buffer {
-                    return Buffer.from(toHex(sm3Hasher.finalize()), 'hex')
+                    return Buffer.from(SM3ToHex(sm3Hasher.finalize()), 'hex')
                 }
             }
             return hash
@@ -164,7 +165,7 @@ function createHmacFallback(algorithm: string, key: string): HashFallback {
     const mainAlgorithm: string = parts[0]
     switch (mainAlgorithm) {
         case 'MD5': {
-            let md5Hasher = CryptoJs.algo.MD5.create()
+            let md5Hasher = CryptoJs.algo.HMAC.create(CryptoJs.algo.MD5, key)
             const hash: HashFallback = {
                 update(data: string): HashFallback {
                     md5Hasher = md5Hasher.update(data)
@@ -276,7 +277,7 @@ function createHmacFallback(algorithm: string, key: string): HashFallback {
                     return hash
                 },
                 digest(): Buffer {
-                    return Buffer.from(toHex(sm3Hmac.finalize()), 'hex')
+                    return Buffer.from(SM3ToHex(sm3Hmac.finalize()), 'hex')
                 }
             }
             return hash
