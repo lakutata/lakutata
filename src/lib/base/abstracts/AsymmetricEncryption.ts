@@ -1,5 +1,6 @@
-import {verify, publicEncrypt} from 'crypto'
 import {IConstructor} from '../../../interfaces/IConstructor.js'
+import {NoAsymmetricEncryptPublicKeyException} from '../../../exceptions/NoAsymmetricEncryptPublicKeyException.js'
+import {NoAsymmetricEncryptPrivateKeyException} from '../../../exceptions/NoAsymmetricEncryptPrivateKeyException.js'
 
 /**
  * 公钥操作方法对象接口
@@ -36,72 +37,146 @@ export interface AsymmetricEncryptionPrivate {
     sign(message: string): string
 }
 
+export interface AsymmetricEncryptionKeyPair {
+    /**
+     * 公钥字符串
+     */
+    publicKey: string
+    /**
+     * 私钥字符串
+     */
+    privateKey: string
+}
+
 export abstract class AsymmetricEncryption {
+
+    protected readonly privateKey: any
+
+    protected readonly publicKey: any
+
+    constructor(keyPair?: Partial<AsymmetricEncryptionKeyPair>) {
+        if (keyPair) {
+            if (keyPair.privateKey) this.privateKey = this.createPrivateKey(keyPair.privateKey)
+            if (keyPair.publicKey) this.publicKey = this.createPublicKey(keyPair.publicKey)
+        }
+    }
+
+    /**
+     * 创建私钥对象
+     * @param privateKeyString
+     * @protected
+     */
+    protected abstract createPrivateKey(privateKeyString: string): any
+
+    /**
+     * 创建公钥对象
+     * @param publicKeyString
+     * @protected
+     */
+    protected abstract createPublicKey(publicKeyString: string): any
+
+    /**
+     * 加密数据
+     * @param message
+     * @protected
+     */
+    protected abstract encrypt(message: string): string
+
+    /**
+     * 解密数据
+     * @param encryptedMessage
+     * @protected
+     */
+    protected abstract decrypt(encryptedMessage: string): string
+
+    /**
+     * 数据签名
+     * @param message
+     * @protected
+     */
+    protected abstract sign(message: string): string
+
+    /**
+     * 生成密钥对
+     * @param options
+     * @protected
+     */
+    protected abstract generateKeyPair(options?: object): Promise<AsymmetricEncryptionKeyPair>
+
+    /**
+     * 验证签名
+     * @param message
+     * @param sign
+     * @protected
+     */
+    protected abstract verify(message: string, sign: string): boolean
 
     /**
      * 公钥操作方法对象
      */
     public get public(): AsymmetricEncryptionPublic {
-        //todo
-        throw new Error('not implemented')
+        if (!this.publicKey) throw new NoAsymmetricEncryptPublicKeyException('Public key not found')
+        return {
+            encrypt: (message: string): string => this.encrypt(message),
+            verify: (message: string, sign: string): boolean => this.verify(message, sign)
+        }
     }
 
     /**
      * 私钥操作方法对象
      */
     public get private(): AsymmetricEncryptionPrivate {
-        //todo
-        throw new Error('not implemented')
-    }
-
-    /**
-     * 加密数据
-     * @param message
-     */
-    public encrypt(message: string): string {
-        throw new Error('not implemented')
-    }
-
-    /**
-     * 解密数据
-     * @param encryptedMessage
-     */
-    public decrypt(encryptedMessage: string): string {
-        throw new Error('not implemented')
+        if (!this.privateKey) throw new NoAsymmetricEncryptPrivateKeyException('Private key not found')
+        return {
+            decrypt: (encryptedMessage: string): string => this.decrypt(encryptedMessage),
+            sign: (message: string): string => this.sign(message)
+        }
     }
 
     /**
      * 生成密钥对
      */
-    public static generateKeyPair<T extends AsymmetricEncryption>(this: IConstructor<T>) {
+    public static async generateKeyPair<T extends AsymmetricEncryption>(this: IConstructor<T>, options?: object): Promise<AsymmetricEncryptionKeyPair> {
+        return await new this().generateKeyPair(options)
+    }
+
+    /**
+     * 加载密钥对并返回不对称加密类实例
+     */
+    public static async loadKeyPair<T extends AsymmetricEncryption>(this: IConstructor<T>, keyPair: AsymmetricEncryptionKeyPair): Promise<T> {
+        //todo 此处应该对密钥对做校验
+        return new this(keyPair)
+    }
+
+    /**
+     * 加载PEM格式证书并返回公钥操作方法对象
+     */
+    public static async loadPEM(): Promise<AsymmetricEncryptionPublic> {
+        //todo
+        throw new Error('not implemented')
+    }
+
+    /**
+     * 加载PFX格式证书并返回公钥操作方法对象
+     */
+    public static async loadPFX(): Promise<AsymmetricEncryptionPublic> {
+        //todo
+        throw new Error('not implemented')
+    }
+
+    /**
+     * 加载CRT格式证书并返回公钥操作方法对象
+     */
+    public static async loadCRT(): Promise<AsymmetricEncryptionPublic> {
+        //todo
+        throw new Error('not implemented')
+    }
+
+    /**
+     * 加载私钥并返回私钥操作方法对象
+     */
+    public static async loadPrivateKey(): Promise<AsymmetricEncryptionPrivate> {
+        //todo
         throw new Error('not implemented')
     }
 }
-
-/**
- * const crypto = require('crypto');
- *
- * // 生成 RSA 密钥对
- * const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
- *   modulusLength: 2048,
- * });
- *
- * // 原始数据
- * const plaintext = 'Hello, RSA!';
- *
- * // 加密数据
- * const encrypted = crypto.publicEncrypt(publicKey, Buffer.from(plaintext));
- * console.log('Encrypted:', encrypted.toString('base64'));
- *
- * // 解密数据
- * const decrypted = crypto.privateDecrypt(privateKey, encrypted);
- * console.log('Decrypted:', decrypted.toString());
- *
- * // 签名数据
- * const sign = crypto.sign('sha256', Buffer.from(plaintext), privateKey);
- * console.log('Signature:', sign.toString('base64'));
- *
- * // 验证签名
- * const verify = crypto.verify('sha256', Buffer.from(plaintext), publicKey, sign);
- * console.log('Signature Verified:', verify);
- */

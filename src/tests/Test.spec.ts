@@ -33,6 +33,7 @@ import {ARIA256} from '../lib/crypto/aria/ARIA256.js'
 import {CAMELLIA128} from '../lib/crypto/camellia/CAMELLIA128.js'
 import {CAMELLIA192} from '../lib/crypto/camellia/CAMELLIA192.js'
 import {CAMELLIA256} from '../lib/crypto/camellia/CAMELLIA256.js'
+import {RSA} from '../lib/crypto/RSA.js'
 
 (async () => {
 
@@ -44,6 +45,17 @@ import {CAMELLIA256} from '../lib/crypto/camellia/CAMELLIA256.js'
     // console.log('decryptedMessage:', decryptedMessage)
     //
     // return
+
+    const msg: string = 'this is a test'
+
+    const rsa = await RSA.loadKeyPair(await RSA.generateKeyPair())
+    const encode: string = rsa.public.encrypt(msg)
+    console.log(encode)
+    const decode: string = rsa.private.decrypt(encode)
+    console.log(decode)
+    const signed: string = rsa.private.sign(msg)
+    console.log(signed)
+    console.log('verify:', rsa.public.verify(msg, signed))
 
     return
     const app = await Application.run({
