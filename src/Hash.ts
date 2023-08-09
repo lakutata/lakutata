@@ -4,6 +4,9 @@ import {createHash, createHmac, Hash, Hmac, getHashes} from 'crypto'
 import {ConvertToStream} from './Utilities.js'
 import {NotSupportHashException} from './exceptions/NotSupportHashException.js'
 import {Readable as ReadableStream} from 'stream'
+import Sm3 from 'crypto-api-v1/src/hasher/sm3.mjs'
+import {toHex} from 'crypto-api-v1/src/encoder/hex.mjs'
+import SM3Hmac from 'crypto-api-v1/src/mac/hmac.mjs'
 
 /**
  * 系统所支持的哈希算法
@@ -15,35 +18,137 @@ const SUPPORT_HASHES: string[] = getHashes().map((value: string) => value.toUppe
  */
 const HIGH_WATER_MARK: number = 16384
 
+interface HashFallback {
+    update(data: string): HashFallback
+
+    digest(): Buffer
+}
+
 /**
  * 哈希兼容性处理
  * @param algorithm
- * @param message
  */
-function hashFallback(algorithm: string, message: string): string {
+function createHashFallback(algorithm: string): HashFallback {
     const parts: string[] = algorithm.split('-')
     const mainAlgorithm: string = parts[0]
-    // CryptoJs.algo.SHA3.create().update()//todo 可以通过此方法进行update
-    // CryptoJs.algo.SHA3.create().update('').finalize().toString()
     switch (mainAlgorithm) {
-        case 'MD5':
-            return CryptoJs.MD5(message).toString()
-        case 'SHA1':
-            return CryptoJs.SHA1(message).toString()
-        case 'SHA256':
-            return CryptoJs.SHA256(message).toString()
-        case 'SHA224':
-            return CryptoJs.SHA224(message).toString()
-        case 'SHA512':
-            return CryptoJs.SHA512(message).toString()
-        case 'SHA384':
-            return CryptoJs.SHA384(message).toString()
-        case 'RIPEMD160':
-            return CryptoJs.RIPEMD160(message).toString()
-        case 'SHA3':
-            return CryptoJs.SHA3(message, {outputLength: parseInt(parts[1])}).toString()
-        case 'SM3':
-            return ''//todo 实现SM3的兼容性处理
+        case 'MD5': {
+            let md5Hasher = CryptoJs.algo.MD5.create()
+            const hash: HashFallback = {
+                update(data: string): HashFallback {
+                    md5Hasher = md5Hasher.update(data)
+                    return hash
+                },
+                digest(): Buffer {
+                    return Buffer.from(md5Hasher.finalize().toString(), 'hex')
+                }
+            }
+            return hash
+        }
+        case 'SHA1': {
+            let sha1Hasher = CryptoJs.algo.SHA1.create()
+            const hash: HashFallback = {
+                update(data: string): HashFallback {
+                    sha1Hasher = sha1Hasher.update(data)
+                    return hash
+                },
+                digest(): Buffer {
+                    return Buffer.from(sha1Hasher.finalize().toString(), 'hex')
+                }
+            }
+            return hash
+        }
+        case 'SHA256': {
+            let sha256Hasher = CryptoJs.algo.SHA256.create()
+            const hash: HashFallback = {
+                update(data: string): HashFallback {
+                    sha256Hasher = sha256Hasher.update(data)
+                    return hash
+                },
+                digest(): Buffer {
+                    return Buffer.from(sha256Hasher.finalize().toString(), 'hex')
+                }
+            }
+            return hash
+        }
+        case 'SHA224': {
+            let sha224Hasher = CryptoJs.algo.SHA224.create()
+            const hash: HashFallback = {
+                update(data: string): HashFallback {
+                    sha224Hasher = sha224Hasher.update(data)
+                    return hash
+                },
+                digest(): Buffer {
+                    return Buffer.from(sha224Hasher.finalize().toString(), 'hex')
+                }
+            }
+            return hash
+        }
+        case 'SHA512': {
+            let sha512Hasher = CryptoJs.algo.SHA512.create()
+            const hash: HashFallback = {
+                update(data: string): HashFallback {
+                    sha512Hasher = sha512Hasher.update(data)
+                    return hash
+                },
+                digest(): Buffer {
+                    return Buffer.from(sha512Hasher.finalize().toString(), 'hex')
+                }
+            }
+            return hash
+        }
+        case 'SHA384': {
+            let sha384Hasher = CryptoJs.algo.SHA384.create()
+            const hash: HashFallback = {
+                update(data: string): HashFallback {
+                    sha384Hasher = sha384Hasher.update(data)
+                    return hash
+                },
+                digest(): Buffer {
+                    return Buffer.from(sha384Hasher.finalize().toString(), 'hex')
+                }
+            }
+            return hash
+        }
+        case 'RIPEMD160': {
+            let ripemd160Hasher = CryptoJs.algo.RIPEMD160.create()
+            const hash: HashFallback = {
+                update(data: string): HashFallback {
+                    ripemd160Hasher = ripemd160Hasher.update(data)
+                    return hash
+                },
+                digest(): Buffer {
+                    return Buffer.from(ripemd160Hasher.finalize().toString(), 'hex')
+                }
+            }
+            return hash
+        }
+        case 'SHA3': {
+            let sha3Hasher = CryptoJs.algo.SHA3.create({outputLength: parseInt(parts[1])})
+            const hash: HashFallback = {
+                update(data: string): HashFallback {
+                    sha3Hasher = sha3Hasher.update(data)
+                    return hash
+                },
+                digest(): Buffer {
+                    return Buffer.from(sha3Hasher.finalize().toString(), 'hex')
+                }
+            }
+            return hash
+        }
+        case 'SM3': {
+            const sm3Hasher = new Sm3()
+            const hash: HashFallback = {
+                update(data: string): HashFallback {
+                    sm3Hasher.update(data)
+                    return hash
+                },
+                digest(): Buffer {
+                    return Buffer.from(toHex(sm3Hasher.finalize()), 'hex')
+                }
+            }
+            return hash
+        }
         default:
             throw new NotSupportHashException('Algorithm "{0}" is not supported', [algorithm])
     }
@@ -52,31 +157,130 @@ function hashFallback(algorithm: string, message: string): string {
 /**
  * 哈希消息认证码兼容性处理
  * @param algorithm
- * @param message
  * @param key
  */
-function hmacFallback(algorithm: string, message: string, key: string): string {
+function createHmacFallback(algorithm: string, key: string): HashFallback {
     const parts: string[] = algorithm.split('-')
     const mainAlgorithm: string = parts[0]
     switch (mainAlgorithm) {
-        case 'MD5':
-            return CryptoJs.HmacMD5(message, key).toString()
-        case 'SHA1':
-            return CryptoJs.HmacSHA1(message, key).toString()
-        case 'SHA256':
-            return CryptoJs.HmacSHA256(message, key).toString()
-        case 'SHA224':
-            return CryptoJs.HmacSHA224(message, key).toString()
-        case 'SHA512':
-            return CryptoJs.HmacSHA512(message, key).toString()
-        case 'SHA384':
-            return CryptoJs.HmacSHA384(message, key).toString()
-        case 'RIPEMD160':
-            return CryptoJs.HmacRIPEMD160(message, key).toString()
-        case 'SHA3':
-            return CryptoJs.HmacSHA3(message, key).toString()
-        case 'SM3':
-            return ''//todo 实现SM3的兼容性处理
+        case 'MD5': {
+            let md5Hasher = CryptoJs.algo.MD5.create()
+            const hash: HashFallback = {
+                update(data: string): HashFallback {
+                    md5Hasher = md5Hasher.update(data)
+                    return hash
+                },
+                digest(): Buffer {
+                    return Buffer.from(md5Hasher.finalize().toString(), 'hex')
+                }
+            }
+            return hash
+        }
+        case 'SHA1': {
+            let sha1Hasher = CryptoJs.algo.HMAC.create(CryptoJs.algo.SHA1, key)
+            const hash: HashFallback = {
+                update(data: string): HashFallback {
+                    sha1Hasher = sha1Hasher.update(data)
+                    return hash
+                },
+                digest(): Buffer {
+                    return Buffer.from(sha1Hasher.finalize().toString(), 'hex')
+                }
+            }
+            return hash
+        }
+        case 'SHA256': {
+            let sha256Hasher = CryptoJs.algo.HMAC.create(CryptoJs.algo.SHA256, key)
+            const hash: HashFallback = {
+                update(data: string): HashFallback {
+                    sha256Hasher = sha256Hasher.update(data)
+                    return hash
+                },
+                digest(): Buffer {
+                    return Buffer.from(sha256Hasher.finalize().toString(), 'hex')
+                }
+            }
+            return hash
+        }
+        case 'SHA224': {
+            let sha224Hasher = CryptoJs.algo.HMAC.create(CryptoJs.algo.SHA224, key)
+            const hash: HashFallback = {
+                update(data: string): HashFallback {
+                    sha224Hasher = sha224Hasher.update(data)
+                    return hash
+                },
+                digest(): Buffer {
+                    return Buffer.from(sha224Hasher.finalize().toString(), 'hex')
+                }
+            }
+            return hash
+        }
+        case 'SHA512': {
+            let sha512Hasher = CryptoJs.algo.HMAC.create(CryptoJs.algo.SHA512, key)
+            const hash: HashFallback = {
+                update(data: string): HashFallback {
+                    sha512Hasher = sha512Hasher.update(data)
+                    return hash
+                },
+                digest(): Buffer {
+                    return Buffer.from(sha512Hasher.finalize().toString(), 'hex')
+                }
+            }
+            return hash
+        }
+        case 'SHA384': {
+            let sha384Hasher = CryptoJs.algo.HMAC.create(CryptoJs.algo.SHA384, key)
+            const hash: HashFallback = {
+                update(data: string): HashFallback {
+                    sha384Hasher = sha384Hasher.update(data)
+                    return hash
+                },
+                digest(): Buffer {
+                    return Buffer.from(sha384Hasher.finalize().toString(), 'hex')
+                }
+            }
+            return hash
+        }
+        case 'RIPEMD160': {
+            let ripemd160Hasher = CryptoJs.algo.HMAC.create(CryptoJs.algo.RIPEMD160, key)
+            const hash: HashFallback = {
+                update(data: string): HashFallback {
+                    ripemd160Hasher = ripemd160Hasher.update(data)
+                    return hash
+                },
+                digest(): Buffer {
+                    return Buffer.from(ripemd160Hasher.finalize().toString(), 'hex')
+                }
+            }
+            return hash
+        }
+        case 'SHA3': {
+            let sha3Hasher = CryptoJs.algo.HMAC.create(CryptoJs.algo.SHA3, key)
+            const hash: HashFallback = {
+                update(data: string): HashFallback {
+                    sha3Hasher = sha3Hasher.update(data)
+                    return hash
+                },
+                digest(): Buffer {
+                    return Buffer.from(sha3Hasher.finalize().toString(), 'hex')
+                }
+            }
+            return hash
+        }
+        case 'SM3': {
+            const sm3Hasher = new Sm3()
+            const sm3Hmac = new SM3Hmac(key, sm3Hasher)
+            const hash: HashFallback = {
+                update(data: string): HashFallback {
+                    sm3Hmac.update(data)
+                    return hash
+                },
+                digest(): Buffer {
+                    return Buffer.from(toHex(sm3Hmac.finalize()), 'hex')
+                }
+            }
+            return hash
+        }
         default:
             throw new NotSupportHashException('Algorithm "{0}" is not supported', [algorithm])
     }
@@ -89,22 +293,14 @@ function hmacFallback(algorithm: string, message: string, key: string): string {
  */
 function asyncHash(algorithm: string, message: string): Promise<string> {
     return new Promise<string>((resolve, reject): void => {
-        if (SUPPORT_HASHES.includes(algorithm)) {
-            try {
-                const hash: Hash = createHash(algorithm)
-                ConvertToStream(message, {highWaterMark: HIGH_WATER_MARK})
-                    .on('data', chunk => hash.update(chunk))
-                    .once('error', reject)
-                    .once('end', () => resolve(hash.digest().toString('hex')))
-            } catch (e) {
-                return reject(new NotSupportHashException(<Error>e))
-            }
-        } else {
-            try {
-                return resolve(hashFallback(algorithm, message))
-            } catch (e) {
-                return reject(e)
-            }
+        try {
+            const hash: Hash | HashFallback = SUPPORT_HASHES.includes(algorithm) ? createHash(algorithm) : createHashFallback(algorithm)
+            ConvertToStream(message, {highWaterMark: HIGH_WATER_MARK})
+                .on('data', chunk => hash.update(chunk))
+                .once('error', reject)
+                .once('end', () => resolve(hash.digest().toString('hex')))
+        } catch (e) {
+            return reject(new NotSupportHashException(<Error>e))
         }
     })
 }
@@ -115,19 +311,11 @@ function asyncHash(algorithm: string, message: string): Promise<string> {
  * @param message
  */
 function syncHash(algorithm: string, message: string): string {
-    if (SUPPORT_HASHES.includes(algorithm)) {
-        try {
-            const hash: Hash = createHash(algorithm)
-            return hash.update(message).digest().toString('hex')
-        } catch (e) {
-            throw new NotSupportHashException(<Error>e)
-        }
-    } else {
-        try {
-            return hashFallback(algorithm, message)
-        } catch (e) {
-            throw e
-        }
+    try {
+        const hash: Hash | HashFallback = SUPPORT_HASHES.includes(algorithm) ? createHash(algorithm) : createHashFallback(algorithm)
+        return hash.update(message).digest().toString('hex')
+    } catch (e) {
+        throw new NotSupportHashException(<Error>e)
     }
 }
 
@@ -139,22 +327,14 @@ function syncHash(algorithm: string, message: string): string {
  */
 function asyncHmacHash(algorithm: string, message: string, key: string): Promise<string> {
     return new Promise<string>((resolve, reject): void => {
-        if (SUPPORT_HASHES.includes(algorithm)) {
-            try {
-                const hmac: Hmac = createHmac(algorithm, key)
-                ConvertToStream(message, {highWaterMark: HIGH_WATER_MARK})
-                    .on('data', chunk => hmac.update(chunk))
-                    .once('error', reject)
-                    .once('end', () => resolve(hmac.digest().toString('hex')))
-            } catch (e) {
-                return reject(new NotSupportHashException(<Error>e))
-            }
-        } else {
-            try {
-                return resolve(hmacFallback(algorithm, message, key))
-            } catch (e) {
-                return reject(e)
-            }
+        try {
+            const hmac: Hmac | HashFallback = SUPPORT_HASHES.includes(algorithm) ? createHmac(algorithm, key) : createHmacFallback(algorithm, key)
+            ConvertToStream(message, {highWaterMark: HIGH_WATER_MARK})
+                .on('data', chunk => hmac.update(chunk))
+                .once('error', reject)
+                .once('end', () => resolve(hmac.digest().toString('hex')))
+        } catch (e) {
+            return reject(new NotSupportHashException(<Error>e))
         }
     })
 }
@@ -166,21 +346,12 @@ function asyncHmacHash(algorithm: string, message: string, key: string): Promise
  * @param key
  */
 function syncHmacHash(algorithm: string, message: string, key: string): string {
-    if (SUPPORT_HASHES.includes(algorithm)) {
-        try {
-            const hmac: Hmac = createHmac(algorithm, key)
-            return hmac.update(message).digest().toString('hex')
-        } catch (e) {
-            throw new NotSupportHashException(<Error>e)
-        }
-    } else {
-        try {
-            return hmacFallback(algorithm, message, key)
-        } catch (e) {
-            throw e
-        }
+    try {
+        const hmac: Hmac | HashFallback = SUPPORT_HASHES.includes(algorithm) ? createHmac(algorithm, key) : createHmacFallback(algorithm, key)
+        return hmac.update(message).digest().toString('hex')
+    } catch (e) {
+        throw new NotSupportHashException(<Error>e)
     }
-
 }
 
 /**
@@ -191,7 +362,7 @@ function syncHmacHash(algorithm: string, message: string, key: string): string {
 function readableStreamHash(algorithm: string, readable: ReadableStream): Promise<string> {
     return new Promise<string>((resolve, reject): void => {
         try {
-            const hash: Hash = createHash(algorithm)
+            const hash: Hash | HashFallback = SUPPORT_HASHES.includes(algorithm) ? createHash(algorithm) : createHashFallback(algorithm)
             readable.on('data', chunk => hash.update(chunk))
                 .once('error', reject)
                 .once('end', () => resolve(hash.digest().toString('hex')))
@@ -210,7 +381,7 @@ function readableStreamHash(algorithm: string, readable: ReadableStream): Promis
 function readableStreamHmacHash(algorithm: string, readable: ReadableStream, key: string): Promise<string> {
     return new Promise<string>((resolve, reject) => {
         try {
-            const hmac: Hmac = createHmac(algorithm, key)
+            const hmac: Hmac | HashFallback = SUPPORT_HASHES.includes(algorithm) ? createHmac(algorithm, key) : createHmacFallback(algorithm, key)
             readable.on('data', chunk => hmac.update(chunk))
                 .once('error', reject)
                 .once('end', () => resolve(hmac.digest().toString('hex')))

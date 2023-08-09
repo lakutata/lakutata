@@ -81,6 +81,7 @@
     "@typescript-eslint/parser": "^6.2.0",
     "async-constructor": "^0.4.17",
     "camel-case": "^4.1.2",
+    "crypto-api-v1": "^1.0.0",
     "crypto-js": "^4.1.1",
     "eslint": "^8.45.0",
     "fast-glob": "^3.3.1",
