@@ -11,8 +11,7 @@ import SM3Hmac from 'crypto-api-v1/src/mac/hmac.mjs'
 /**
  * 系统所支持的哈希算法
  */
-// const SUPPORT_HASHES: string[] = getHashes().map((value: string) => value.toUpperCase())
-const SUPPORT_HASHES: string[] = []
+const SUPPORT_HASHES: string[] = getHashes().map((value: string) => value.toUpperCase())
 
 /**
  * 数据缓冲区阈值
@@ -23,6 +22,16 @@ interface HashFallback {
     update(data: string): HashFallback
 
     digest(): Buffer
+}
+
+/**
+ * 判断是否为内置的哈希算法
+ * @param algorithm
+ */
+function isBuiltinHashAlgorithm(algorithm: string): boolean {
+    //通过IGNORE_BUILT_IN_HASHES环境变量判断是否需要忽略自带的哈希算法
+    if (process.env.IGNORE_BUILT_IN_HASHES) return false
+    return SUPPORT_HASHES.includes(algorithm)
 }
 
 /**
@@ -295,7 +304,7 @@ function createHmacFallback(algorithm: string, key: string): HashFallback {
 function asyncHash(algorithm: string, message: string): Promise<string> {
     return new Promise<string>((resolve, reject): void => {
         try {
-            const hash: Hash | HashFallback = SUPPORT_HASHES.includes(algorithm) ? createHash(algorithm) : createHashFallback(algorithm)
+            const hash: Hash | HashFallback = isBuiltinHashAlgorithm(algorithm) ? createHash(algorithm) : createHashFallback(algorithm)
             ConvertToStream(message, {highWaterMark: HIGH_WATER_MARK})
                 .on('data', chunk => hash.update(chunk))
                 .once('error', reject)
@@ -313,7 +322,7 @@ function asyncHash(algorithm: string, message: string): Promise<string> {
  */
 function syncHash(algorithm: string, message: string): string {
     try {
-        const hash: Hash | HashFallback = SUPPORT_HASHES.includes(algorithm) ? createHash(algorithm) : createHashFallback(algorithm)
+        const hash: Hash | HashFallback = isBuiltinHashAlgorithm(algorithm) ? createHash(algorithm) : createHashFallback(algorithm)
         return hash.update(message).digest().toString('hex')
     } catch (e) {
         throw new NotSupportHashException(<Error>e)
@@ -329,7 +338,7 @@ function syncHash(algorithm: string, message: string): string {
 function asyncHmacHash(algorithm: string, message: string, key: string): Promise<string> {
     return new Promise<string>((resolve, reject): void => {
         try {
-            const hmac: Hmac | HashFallback = SUPPORT_HASHES.includes(algorithm) ? createHmac(algorithm, key) : createHmacFallback(algorithm, key)
+            const hmac: Hmac | HashFallback = isBuiltinHashAlgorithm(algorithm) ? createHmac(algorithm, key) : createHmacFallback(algorithm, key)
             ConvertToStream(message, {highWaterMark: HIGH_WATER_MARK})
                 .on('data', chunk => hmac.update(chunk))
                 .once('error', reject)
@@ -348,7 +357,7 @@ function asyncHmacHash(algorithm: string, message: string, key: string): Promise
  */
 function syncHmacHash(algorithm: string, message: string, key: string): string {
     try {
-        const hmac: Hmac | HashFallback = SUPPORT_HASHES.includes(algorithm) ? createHmac(algorithm, key) : createHmacFallback(algorithm, key)
+        const hmac: Hmac | HashFallback = isBuiltinHashAlgorithm(algorithm) ? createHmac(algorithm, key) : createHmacFallback(algorithm, key)
         return hmac.update(message).digest().toString('hex')
     } catch (e) {
         throw new NotSupportHashException(<Error>e)
@@ -363,7 +372,7 @@ function syncHmacHash(algorithm: string, message: string, key: string): string {
 function readableStreamHash(algorithm: string, readable: ReadableStream): Promise<string> {
     return new Promise<string>((resolve, reject): void => {
         try {
-            const hash: Hash | HashFallback = SUPPORT_HASHES.includes(algorithm) ? createHash(algorithm) : createHashFallback(algorithm)
+            const hash: Hash | HashFallback = isBuiltinHashAlgorithm(algorithm) ? createHash(algorithm) : createHashFallback(algorithm)
             readable.on('data', chunk => hash.update(chunk))
                 .once('error', reject)
                 .once('end', () => resolve(hash.digest().toString('hex')))
@@ -382,7 +391,7 @@ function readableStreamHash(algorithm: string, readable: ReadableStream): Promis
 function readableStreamHmacHash(algorithm: string, readable: ReadableStream, key: string): Promise<string> {
     return new Promise<string>((resolve, reject) => {
         try {
-            const hmac: Hmac | HashFallback = SUPPORT_HASHES.includes(algorithm) ? createHmac(algorithm, key) : createHmacFallback(algorithm, key)
+            const hmac: Hmac | HashFallback = isBuiltinHashAlgorithm(algorithm) ? createHmac(algorithm, key) : createHmacFallback(algorithm, key)
             readable.on('data', chunk => hmac.update(chunk))
                 .once('error', reject)
                 .once('end', () => resolve(hmac.digest().toString('hex')))
