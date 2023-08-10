@@ -1,9 +1,9 @@
 import {Cipher, createCipheriv, createDecipheriv, Decipher, getCiphers, randomBytes, getCipherInfo} from 'crypto'
-import {InvalidSymmetricCipherKeyLengthException} from '../../../exceptions/InvalidSymmetricCipherKeyLengthException.js'
-import {InvalidSymmetricCipherIVLengthException} from '../../../exceptions/InvalidSymmetricCipherIVLengthException.js'
+import {InvalidSymmetricCipherKeyLengthException} from '../../../exceptions/crypto/symmetric/InvalidSymmetricCipherKeyLengthException.js'
+import {InvalidSymmetricCipherIVLengthException} from '../../../exceptions/crypto/symmetric/InvalidSymmetricCipherIVLengthException.js'
 import {IConstructor} from '../../../interfaces/IConstructor.js'
 import {ConvertToStream} from '../../../Utilities.js'
-import {NotSupportCipherException} from '../../../exceptions/NotSupportCipherException.js'
+import {NotSupportCipherException} from '../../../exceptions/crypto/symmetric/NotSupportCipherException.js'
 
 const SUPPORT_CIPHERS: string[] = getCiphers().map((value: string) => value.toUpperCase())
 

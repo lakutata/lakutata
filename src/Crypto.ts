@@ -18,3 +18,6 @@ export {ARIA256} from './lib/crypto/aria/ARIA256.js'
 export {CAMELLIA128} from './lib/crypto/camellia/CAMELLIA128.js'
 export {CAMELLIA192} from './lib/crypto/camellia/CAMELLIA192.js'
 export {CAMELLIA256} from './lib/crypto/camellia/CAMELLIA256.js'
+
+export * from './lib/crypto/RSA.js'
+export * from './lib/crypto/SM2.js'
