@@ -8,6 +8,8 @@ import {IConstructor} from '../interfaces/IConstructor.js'
 import {AsyncFunction} from '../types/AsyncFunction.js'
 import {Module} from '../lib/base/Module.js'
 import {LoadModuleOptions} from './LoadModuleOptions.js'
+import {Component} from '../lib/base/Component.js'
+import {LoadComponentOptions} from './LoadComponentOptions.js'
 
 export class ModuleOptions<U extends Module, T extends BaseObject = BaseObject> extends DTO {
     /**
@@ -25,6 +27,20 @@ export class ModuleOptions<U extends Module, T extends BaseObject = BaseObject> 
         .optional()
         .default({}))
     public readonly entries: Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<T>>
+
+    /**
+     * 组件注入配置
+     */
+    @Accept(Validator
+        .Object()
+        .pattern(Validator.String(),
+            Validator.Alternatives().try(
+                Validator.Class(Component),
+                LoadComponentOptions.schema()
+            )
+        ).optional()
+        .default({}))
+    public readonly components?: Record<string, IConstructor<Component> | LoadComponentOptions<Component>>
 
     /**
      * 子模块注入配置

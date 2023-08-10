@@ -12,11 +12,12 @@ import {Validator} from '../../Validator.js'
 import {LoadEntryCommonOptions} from '../../options/LoadEntryCommonOptions.js'
 import {LoadEntryClassOptions} from '../../options/LoadEntryClassOptions.js'
 import {LoadModuleOptions} from '../../options/LoadModuleOptions.js'
+import {LoadComponentOptions} from '../../options/LoadComponentOptions.js'
 
-export class Module<T extends Module = any> extends Component {
+export class Module<TModule extends Module = any, TComponent extends Component = any> extends Component {
 
     @Configurable()
-    protected readonly __$$options: ModuleOptions<T>
+    protected readonly __$$options: ModuleOptions<TModule>
 
     @Configurable()
     protected readonly __$$parentContainer: Container
@@ -38,7 +39,7 @@ export class Module<T extends Module = any> extends Component {
      * 内联载入配置对象
      * @protected
      */
-    protected async configure(): Promise<ModuleOptions<T> | undefined> {
+    protected async configure(): Promise<ModuleOptions<TModule> | undefined> {
         //若需要内联载入配置对象则需要在子类中覆写该方法
         return
     }
@@ -58,7 +59,24 @@ export class Module<T extends Module = any> extends Component {
         )
         .optional()
         .default({}))
-    protected async entries(): Promise<Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<T>>> {
+    protected async entries(): Promise<Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<TModule>>> {
+        return {}
+    }
+
+    /**
+     * 内联组件加载配置
+     * @protected
+     */
+    @Return(Validator
+        .Object()
+        .pattern(Validator.String(),
+            Validator.Alternatives().try(
+                Validator.Class(Component),
+                LoadComponentOptions.schema()
+            )
+        ).optional()
+        .default({}))
+    protected async components(): Promise<Record<string, IConstructor<TComponent> | LoadComponentOptions<TComponent>>> {
         return {}
     }
 
@@ -75,7 +93,7 @@ export class Module<T extends Module = any> extends Component {
             )
         ).optional()
         .default({}))
-    protected async modules(): Promise<Record<string, IConstructor<T> | LoadModuleOptions<T>>> {
+    protected async modules(): Promise<Record<string, IConstructor<TModule> | LoadModuleOptions<TModule>>> {
         return {}
     }
 
@@ -90,7 +108,7 @@ export class Module<T extends Module = any> extends Component {
             Validator.AsyncFunction()
         )
     ))
-    protected bootstrap<U extends Module>(): (string | IConstructor<T> | AsyncFunction<U, void>)[] {
+    protected bootstrap<U extends Module>(): (string | IConstructor<TModule> | AsyncFunction<U, void>)[] {
         return []
     }
 
@@ -99,18 +117,30 @@ export class Module<T extends Module = any> extends Component {
      * @protected
      */
     protected async __bootstrap(): Promise<void> {
-        const configureOptions: ModuleOptions<T> | undefined = await this.configure()
+        const configureOptions: ModuleOptions<TModule> | undefined = await this.configure()
         if (configureOptions)
             Object.keys(configureOptions).forEach((propertyKey: string) => Object.defineProperty(this.__$$options, propertyKey, {value: configureOptions[propertyKey]}))
-        const entries: Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<T>> = Object.assign(await this.entries(), this.__$$options.entries ? this.__$$options.entries : {})
-        const modules: Record<string, IConstructor<T> | LoadModuleOptions<T>> = Object.assign(await this.modules(), this.__$$options.modules ? this.__$$options.modules : {})
+        const entries: Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<TModule>> = Object.assign(await this.entries(), this.__$$options.entries ? this.__$$options.entries : {})
+        const components: Record<string, IConstructor<TComponent> | LoadComponentOptions<TComponent>> = Object.assign(await this.components(), this.__$$options.components ? this.__$$options.components : {})
+        const modules: Record<string, IConstructor<TModule> | LoadModuleOptions<TModule>> = Object.assign(await this.modules(), this.__$$options.modules ? this.__$$options.modules : {})
         const moduleCommonConfig: Record<string, any> = {
             __$$parentContainer: this.__$$container
         }
+        Object.keys(components).forEach((componentName: string) => {
+            const componentOptions: IConstructor<TComponent> | LoadComponentOptions<TComponent> = components[componentName]
+            entries[componentName] = (As<IConstructor<TComponent>>(componentOptions).prototype instanceof Component) ? {
+                class: As<IConstructor<TComponent>>(componentOptions),
+                lifetime: 'SINGLETON'
+            } : {
+                class: componentOptions.class,
+                lifetime: componentOptions.lifetime ? componentOptions.lifetime : 'SINGLETON',
+                config: componentOptions.config
+            }
+        })
         Object.keys(modules).forEach((moduleName: string) => {
-            const moduleOptions: IConstructor<T> | LoadModuleOptions<T> = modules[moduleName]
-            entries[moduleName] = (As<IConstructor<T>>(moduleOptions).prototype instanceof Module) ? {
-                class: As<IConstructor<T>>(moduleOptions),
+            const moduleOptions: IConstructor<TModule> | LoadModuleOptions<TModule> = modules[moduleName]
+            entries[moduleName] = (As<IConstructor<TModule>>(moduleOptions).prototype instanceof Module) ? {
+                class: As<IConstructor<TModule>>(moduleOptions),
                 lifetime: 'SINGLETON',
                 config: moduleCommonConfig
             } : {

@@ -15,7 +15,6 @@ import {TestModule1} from './modules/TestModule1/TestModule1.js'
         timezone: 'Asia/Shanghai',
         mode: 'production',
         entries: {
-            testComponent: {class: TestComponent, lifetime: 'SINGLETON', config: {greet: 'hello world'}},
             testObject: {class: TestObject, lifetime: 'SINGLETON', config: {username: 'tester'}},
             testInterval: {
                 class: TestInterval,
@@ -29,6 +28,9 @@ import {TestModule1} from './modules/TestModule1/TestModule1.js'
             //     lifetime: 'SINGLETON',
             //     config: {tester: 'this is tester'}
             // }
+        },
+        components: {
+            testComponent: {class: TestComponent, lifetime: 'SINGLETON', config: {greet: 'hello world'}}
         },
         modules: {
             tm: {class: TestModule1, config: {greet: 'oh!'}},
