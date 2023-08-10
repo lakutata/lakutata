@@ -7,8 +7,14 @@ import {
 import {
     InvalidAsymmetricEncryptPublicKeyException
 } from '../../../exceptions/InvalidAsymmetricEncryptPublicKeyException.js'
-import {NonceStr} from '../../../Utilities.js'
+import {As, IsPath, NonceStr} from '../../../Utilities.js'
 import {InvalidAsymmetricEncryptKeyPairException} from '../../../exceptions/InvalidAsymmetricEncryptKeyPairException.js'
+import {PathLike, Stats} from 'fs'
+import {stat, readFile} from 'fs/promises'
+import {AsymmetricEncryptException} from '../../../exceptions/AsymmetricEncryptException.js'
+import {AsymmetricDecryptException} from '../../../exceptions/AsymmetricDecryptException.js'
+import {AsymmetricSignException} from '../../../exceptions/AsymmetricSignException.js'
+import {AsymmetricVerifyException} from '../../../exceptions/AsymmetricVerifyException.js'
 
 /**
  * 公钥操作方法对象接口
@@ -96,11 +102,37 @@ export abstract class AsymmetricEncryption {
     protected abstract createPublicKey(publicKeyString: string): any
 
     /**
+     * 加密数据，供内部调用
+     * @param message
+     * @protected
+     */
+    protected _encrypt(message: string): string {
+        try {
+            return this.encrypt(message)
+        } catch (e) {
+            throw new AsymmetricEncryptException(<Error>e)
+        }
+    }
+
+    /**
      * 加密数据
      * @param message
      * @protected
      */
     protected abstract encrypt(message: string): string
+
+    /**
+     * 解密数据，供内部调用
+     * @param encryptedMessage
+     * @protected
+     */
+    protected _decrypt(encryptedMessage: string): string {
+        try {
+            return this.decrypt(encryptedMessage)
+        } catch (e) {
+            throw new AsymmetricDecryptException(<Error>e)
+        }
+    }
 
     /**
      * 解密数据
@@ -110,6 +142,19 @@ export abstract class AsymmetricEncryption {
     protected abstract decrypt(encryptedMessage: string): string
 
     /**
+     * 数据签名，供内部调用
+     * @param message
+     * @protected
+     */
+    protected _sign(message: string): string {
+        try {
+            return this.sign(message)
+        } catch (e) {
+            throw new AsymmetricSignException(<Error>e)
+        }
+    }
+
+    /**
      * 数据签名
      * @param message
      * @protected
@@ -117,11 +162,18 @@ export abstract class AsymmetricEncryption {
     protected abstract sign(message: string): string
 
     /**
-     * 生成密钥对
-     * @param options
+     * 验证签名，供内部调用
+     * @param message
+     * @param sign
      * @protected
      */
-    protected abstract generateKeyPair(options?: object): Promise<AsymmetricEncryptionKeyPair>
+    protected _verify(message: string, sign: string): boolean {
+        try {
+            return this.verify(message, sign)
+        } catch (e) {
+            throw new AsymmetricVerifyException(<Error>e)
+        }
+    }
 
     /**
      * 验证签名
@@ -132,13 +184,20 @@ export abstract class AsymmetricEncryption {
     protected abstract verify(message: string, sign: string): boolean
 
     /**
+     * 生成密钥对
+     * @param options
+     * @protected
+     */
+    protected abstract generateKeyPair(options?: object): Promise<AsymmetricEncryptionKeyPair>
+
+    /**
      * 公钥操作方法对象
      */
     public get public(): AsymmetricEncryptionPublic {
         if (!this.publicKey) throw new NoAsymmetricEncryptPublicKeyException('Public key not found')
         return {
-            encrypt: (message: string): string => this.encrypt(message),
-            verify: (message: string, sign: string): boolean => this.verify(message, sign)
+            encrypt: (message: string): string => this._encrypt(message),
+            verify: (message: string, sign: string): boolean => this._verify(message, sign)
         }
     }
 
@@ -148,8 +207,8 @@ export abstract class AsymmetricEncryption {
     public get private(): AsymmetricEncryptionPrivate {
         if (!this.privateKey) throw new NoAsymmetricEncryptPrivateKeyException('Private key not found')
         return {
-            decrypt: (encryptedMessage: string): string => this.decrypt(encryptedMessage),
-            sign: (message: string): string => this.sign(message)
+            decrypt: (encryptedMessage: string): string => this._decrypt(encryptedMessage),
+            sign: (message: string): string => this._sign(message)
         }
     }
 
@@ -174,9 +233,20 @@ export abstract class AsymmetricEncryption {
     /**
      * 加载PEM格式证书并返回公钥操作方法对象
      */
-    public static async loadPEM(): Promise<AsymmetricEncryptionPublic> {
-        //todo
-        throw new Error('not implemented')
+    public static async loadPEM(filename: PathLike): Promise<AsymmetricEncryptionPublic>
+    public static async loadPEM(pemContent: string): Promise<AsymmetricEncryptionPublic>
+    public static async loadPEM<T extends AsymmetricEncryption>(this: IConstructor<T>, inp: PathLike | string): Promise<AsymmetricEncryptionPublic> {
+        let pemString: string = As<string>(inp)
+        if (IsPath(inp)) {
+            try {
+                const fileStat: Stats = await stat(inp)
+                if (fileStat.isFile()) pemString = await readFile(inp, {encoding: 'utf-8'})
+            } catch (e) {
+                pemString = As<string>(inp)
+            }
+        }
+        const instance: T = new this({publicKey: pemString})
+        return instance.public
     }
 
     /**
@@ -198,8 +268,19 @@ export abstract class AsymmetricEncryption {
     /**
      * 加载私钥并返回私钥操作方法对象
      */
-    public static async loadPrivateKey(): Promise<AsymmetricEncryptionPrivate> {
-        //todo
-        throw new Error('not implemented')
+    public static async loadPrivateKey(filename: PathLike): Promise<AsymmetricEncryptionPrivate>
+    public static async loadPrivateKey(keyContent: string): Promise<AsymmetricEncryptionPrivate>
+    public static async loadPrivateKey<T extends AsymmetricEncryption>(this: IConstructor<T>, inp: string | PathLike): Promise<AsymmetricEncryptionPrivate> {
+        let keyString: string = As<string>(inp)
+        if (IsPath(inp)) {
+            try {
+                const fileStat: Stats = await stat(inp)
+                if (fileStat.isFile()) keyString = await readFile(inp, {encoding: 'utf-8'})
+            } catch (e) {
+                keyString = As<string>(inp)
+            }
+        }
+        const instance: T = new this({privateKey: keyString})
+        return instance.private
     }
 }

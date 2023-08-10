@@ -45,7 +45,6 @@ export interface RSAKeyPairOptions {
 
 export class RSA extends AsymmetricEncryption {
 
-
     protected createPrivateKey(privateKeyString: string): any {
         return createPrivateKey(privateKeyString)
     }

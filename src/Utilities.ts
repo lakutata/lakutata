@@ -11,6 +11,21 @@ import {OBJECT_INIT_MARK} from './constants/MetadataKey.js'
 import {setTimeout} from 'timers/promises'
 import {isPromise as isBuiltinPromises} from 'util/types'
 import {Readable as ReadableStream, ReadableOptions, Stream} from 'stream'
+import {PathLike} from 'fs'
+
+/**
+ * 判断输入的内容是否为路径
+ * @param inp
+ * @constructor
+ */
+export function IsPath(inp: string | PathLike): boolean {
+    try {
+        const pathRegex: RegExp = /^(\/|\.\.?\/|([A-Za-z]:)?\\)([^\\\/:*?"<>|\r\n]+[\\\/])*[^\\\/:*?"<>|\r\n]*$/
+        return pathRegex.test(As<string>(inp))
+    } catch (e) {
+        return false
+    }
+}
 
 /**
  * 将输入对象转换为生成器对象
