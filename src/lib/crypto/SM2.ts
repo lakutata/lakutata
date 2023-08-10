@@ -60,11 +60,11 @@ export class SM2 extends AsymmetricEncryption {
     }
 
     protected decrypt(encryptedMessage: string): string {
-        return sm2.doDecrypt(encryptedMessage, this.privateKey, this.options.cipherMode, {output: 'string'})
+        return sm2.doDecrypt(Buffer.from(encryptedMessage, 'base64').toString('hex'), this.privateKey, this.options.cipherMode, {output: 'string'})
     }
 
     protected encrypt(message: string): string {
-        return sm2.doEncrypt(message, this.publicKey, this.options.cipherMode)
+        return Buffer.from(sm2.doEncrypt(message, this.publicKey, this.options.cipherMode), 'hex').toString('base64')
     }
 
     protected async generateKeyPair(options?: SM2KeyPairOptions): Promise<AsymmetricEncryptionKeyPair> {
@@ -77,15 +77,15 @@ export class SM2 extends AsymmetricEncryption {
     }
 
     protected sign(message: string): string {
-        return sm2.doSignature(message, this.privateKey, {
+        return Buffer.from(sm2.doSignature(message, this.privateKey, {
             hash: this.options.signatureSM3Hash,
             publicKey: this.publicKey ? this.publicKey : undefined,
             userId: this.options.signatureUserId
-        })
+        }), 'hex').toString('base64')
     }
 
     protected verify(message: string, sign: string): boolean {
-        return sm2.doVerifySignature(message, sign, this.publicKey, {
+        return sm2.doVerifySignature(message, Buffer.from(sign, 'base64').toString('hex'), this.publicKey, {
             hash: this.options.signatureSM3Hash,
             userId: this.options.signatureUserId
         })
