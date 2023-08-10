@@ -1,5 +1,14 @@
 import {AsymmetricEncryption, AsymmetricEncryptionKeyPair} from '../base/abstracts/AsymmetricEncryption.js'
-import {createPrivateKey, createPublicKey, generateKeyPair, privateDecrypt, publicEncrypt, sign, verify} from 'crypto'
+import {
+    createPrivateKey,
+    createPublicKey,
+    generateKeyPair,
+    KeyObject,
+    privateDecrypt,
+    publicEncrypt,
+    sign,
+    verify
+} from 'crypto'
 import {As} from '../../Utilities.js'
 
 export interface RSAKeyPairOptions {
@@ -37,11 +46,11 @@ export interface RSAKeyPairOptions {
 
 export class RSA extends AsymmetricEncryption {
 
-    protected createPrivateKey(privateKeyString: string): any {
+    protected createPrivateKey(privateKeyString: string): KeyObject {
         return createPrivateKey(privateKeyString)
     }
 
-    protected createPublicKey(publicKeyString: string): any {
+    protected createPublicKey(publicKeyString: string): KeyObject {
         return createPublicKey(publicKeyString)
     }
 

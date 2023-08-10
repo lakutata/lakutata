@@ -47,9 +47,7 @@ import path, {dirname} from 'path'
 import {fileURLToPath} from 'url'
 import * as fs from 'fs'
 import {createSecureContext} from 'tls'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename);
+import {SM2} from '../lib/crypto/SM2.js'
 
 (async () => {
 
@@ -66,21 +64,43 @@ const __dirname = dirname(__filename);
 
     const msg: string = 'this is a test'
 
-    const keyPair = await RSA.generateKeyPair()
+    // const rsaKeyPair = await RSA.generateKeyPair()
+    //
+    // const rsa = await RSA.loadKeyPair(rsaKeyPair)
+    //
+    // const pubRsa = await RSA.loadPublicKey(rsaKeyPair.publicKey)
+    //
+    // const privRsa = await RSA.loadPrivateKey(rsaKeyPair.privateKey)
+    //
+    // const encode: string = pubRsa.encrypt(msg)
+    // console.log(encode)
+    // const decode: string = privRsa.decrypt(encode)
+    // console.log(decode)
+    // const signed: string = privRsa.sign(msg)
+    // console.log(signed)
+    // console.log('verify:', pubRsa.verify(msg, signed))
 
-    const rsa = await RSA.loadKeyPair(keyPair)
+    const sm2KeyPair = await SM2.generateKeyPair()
+    // const sm2KeyPair = {
+    //     publicKey: '046a989788317180e13460fa41f8f4e971c05937e94ef226352257feffccf26269fb099da67e22fb4883abe600f7348af2f9b4ca79340f02e16a48a950fae79bb9',
+    //     privateKey: '697f700a46342fe7d162a7cb5d65a7ff4af7a21dae0ef27b91dbd07bbb7543bc'
+    // }
 
-    const pubRsa=await RSA.loadPublicKey(keyPair.publicKey)
 
-    const privRsa=await RSA.loadPrivateKey(keyPair.privateKey)
+    const sm2 = await SM2.loadKeyPair(sm2KeyPair)
+    //
+    const pubSm2 = await SM2.loadPublicKey(sm2KeyPair.publicKey)
+    //
+    const privSm2 = await SM2.loadPrivateKey(sm2KeyPair.privateKey)
+    //
 
-    const encode: string = pubRsa.encrypt(msg)
-    console.log(encode)
-    const decode: string = privRsa.decrypt(encode)
-    console.log(decode)
-    const signed: string = privRsa.sign(msg)
+    const encode: string = pubSm2.encrypt(msg)
+    console.log('encode:',encode)
+    const decode: string = privSm2.decrypt(encode)
+    console.log('decode:',decode)
+    const signed: string = privSm2.sign(msg)
     console.log(signed)
-    console.log('verify:', pubRsa.verify(msg, signed))
+    console.log('verify:', pubSm2.verify(msg, signed))
 
 
     // const app = await Application.run({
