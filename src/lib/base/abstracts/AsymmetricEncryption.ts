@@ -62,6 +62,25 @@ export interface AsymmetricEncryptionKeyPair {
     privateKey: string
 }
 
+/**
+ * 解析获取秘钥内容
+ * 输入为文件时执行文件读取获取
+ * 输入为秘钥字符串时则直接返回
+ * @param inp
+ */
+async function getKeyContent(inp: string | PathLike): Promise<string> {
+    let keyString: string = As<string>(inp)
+    if (IsPath(inp)) {
+        try {
+            const fileStat: Stats = await stat(inp)
+            if (fileStat.isFile()) keyString = await readFile(inp, {encoding: 'utf-8'})
+        } catch (e) {
+            keyString = As<string>(inp)
+        }
+    }
+    return keyString
+}
+
 export abstract class AsymmetricEncryption {
 
     protected readonly privateKey: any
@@ -231,38 +250,13 @@ export abstract class AsymmetricEncryption {
     }
 
     /**
-     * 加载PEM格式证书并返回公钥操作方法对象
+     * 加载公钥并返回公钥操作方法对象
      */
-    public static async loadPEM(filename: PathLike): Promise<AsymmetricEncryptionPublic>
-    public static async loadPEM(pemContent: string): Promise<AsymmetricEncryptionPublic>
-    public static async loadPEM<T extends AsymmetricEncryption>(this: IConstructor<T>, inp: PathLike | string): Promise<AsymmetricEncryptionPublic> {
-        let pemString: string = As<string>(inp)
-        if (IsPath(inp)) {
-            try {
-                const fileStat: Stats = await stat(inp)
-                if (fileStat.isFile()) pemString = await readFile(inp, {encoding: 'utf-8'})
-            } catch (e) {
-                pemString = As<string>(inp)
-            }
-        }
-        const instance: T = new this({publicKey: pemString})
+    public static async loadPublicKey(filename: PathLike): Promise<AsymmetricEncryptionPublic>
+    public static async loadPublicKey(keyContent: string): Promise<AsymmetricEncryptionPublic>
+    public static async loadPublicKey<T extends AsymmetricEncryption>(this: IConstructor<T>, inp: PathLike | string): Promise<AsymmetricEncryptionPublic> {
+        const instance: T = new this({publicKey: await getKeyContent(inp)})
         return instance.public
-    }
-
-    /**
-     * 加载PFX格式证书并返回公钥操作方法对象
-     */
-    public static async loadPFX(): Promise<AsymmetricEncryptionPublic> {
-        //todo
-        throw new Error('not implemented')
-    }
-
-    /**
-     * 加载CRT格式证书并返回公钥操作方法对象
-     */
-    public static async loadCRT(): Promise<AsymmetricEncryptionPublic> {
-        //todo
-        throw new Error('not implemented')
     }
 
     /**
@@ -271,16 +265,7 @@ export abstract class AsymmetricEncryption {
     public static async loadPrivateKey(filename: PathLike): Promise<AsymmetricEncryptionPrivate>
     public static async loadPrivateKey(keyContent: string): Promise<AsymmetricEncryptionPrivate>
     public static async loadPrivateKey<T extends AsymmetricEncryption>(this: IConstructor<T>, inp: string | PathLike): Promise<AsymmetricEncryptionPrivate> {
-        let keyString: string = As<string>(inp)
-        if (IsPath(inp)) {
-            try {
-                const fileStat: Stats = await stat(inp)
-                if (fileStat.isFile()) keyString = await readFile(inp, {encoding: 'utf-8'})
-            } catch (e) {
-                keyString = As<string>(inp)
-            }
-        }
-        const instance: T = new this({privateKey: keyString})
+        const instance: T = new this({privateKey: await getKeyContent(inp)})
         return instance.private
     }
 }

@@ -29,14 +29,6 @@ export interface RSAKeyPairOptions {
          */
         format?: 'pem' | 'der'
         /**
-         * @default undefined
-         */
-        cipher?: string | undefined
-        /**
-         * @default undefined
-         */
-        passphrase?: string | undefined
-        /**
          * @default pkcs1
          */
         type?: 'pkcs1' | 'pkcs8';
@@ -72,8 +64,6 @@ export class RSA extends AsymmetricEncryption {
             options.privateKeyEncoding = options.privateKeyEncoding ? options.privateKeyEncoding : {}
             options.privateKeyEncoding.format = options.privateKeyEncoding.format ? options.privateKeyEncoding.format : 'pem'
             options.privateKeyEncoding.type = options.privateKeyEncoding.type ? options.privateKeyEncoding.type : 'pkcs1'
-            options.privateKeyEncoding.cipher = options.privateKeyEncoding.cipher ? options.privateKeyEncoding.cipher : undefined
-            options.privateKeyEncoding.passphrase = options.privateKeyEncoding.passphrase ? options.privateKeyEncoding.passphrase : undefined
             return generateKeyPair('rsa', As<any>(options), (err: Error | null, publicKey: string | Buffer, privateKey: string | Buffer): void => {
                 if (err) return reject(err)
                 return resolve({

@@ -46,6 +46,7 @@ import {RSA} from '../lib/crypto/RSA.js'
 import path, {dirname} from 'path'
 import {fileURLToPath} from 'url'
 import * as fs from 'fs'
+import {createSecureContext} from 'tls'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename);
@@ -65,14 +66,22 @@ const __dirname = dirname(__filename);
 
     const msg: string = 'this is a test'
 
-    const rsa = await RSA.loadKeyPair(await RSA.generateKeyPair())
-    const encode: string = rsa.public.encrypt(msg)
+    const keyPair = await RSA.generateKeyPair()
+
+    const rsa = await RSA.loadKeyPair(keyPair)
+
+    const pubRsa=await RSA.loadPublicKey(keyPair.publicKey)
+
+    const privRsa=await RSA.loadPrivateKey(keyPair.privateKey)
+
+    const encode: string = pubRsa.encrypt(msg)
     console.log(encode)
-    const decode: string = rsa.private.decrypt(encode)
+    const decode: string = privRsa.decrypt(encode)
     console.log(decode)
-    const signed: string = rsa.private.sign(msg)
+    const signed: string = privRsa.sign(msg)
     console.log(signed)
-    console.log('verify:', rsa.public.verify(msg, signed))
+    console.log('verify:', pubRsa.verify(msg, signed))
+
 
     // const app = await Application.run({
     //     id: 'test',
