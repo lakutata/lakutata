@@ -51,93 +51,39 @@ import {SM2} from '../lib/crypto/SM2.js'
 
 (async () => {
 
-    // const str: string = 'this is test text!!!!'
-    // const aes256 = new AES256(AES256.generateKey(), AES256.generateIV())
-    // const encryptedMessage: string = aes256.encrypt(str)
-    // console.log('encryptedMessage:', encryptedMessage)
-    // const decryptedMessage: string = aes256.decrypt(encryptedMessage)
-    // console.log('decryptedMessage:', decryptedMessage)
-    //
-    // return
-
-    // console.log(await RSA.generateKeyPair())
-
-    const msg: string = 'this is a test'
-
-    const rsaKeyPair = await RSA.generateKeyPair()
-
-    const rsa = await RSA.loadKeyPair(rsaKeyPair)
-
-    const pubRsa = await RSA.loadPublicKey(rsaKeyPair.publicKey, {signatureAlgorithm: 'sha1'})
-
-    const privRsa = await RSA.loadPrivateKey(rsaKeyPair.privateKey, {signatureAlgorithm: 'sha1'})
-
-    const rsaEncode: string = pubRsa.encrypt(msg)
-    console.log(rsaEncode)
-    const rsaDecode: string = privRsa.decrypt(rsaEncode)
-    console.log(rsaDecode)
-    const rsaSigned: string = privRsa.sign(msg)
-    console.log(rsaSigned)
-    console.log('verify:', pubRsa.verify(msg, rsaSigned))
-
-    const sm2KeyPair = await SM2.generateKeyPair()
-    // const sm2KeyPair = {
-    //     publicKey: '046a989788317180e13460fa41f8f4e971c05937e94ef226352257feffccf26269fb099da67e22fb4883abe600f7348af2f9b4ca79340f02e16a48a950fae79bb9',
-    //     privateKey: '697f700a46342fe7d162a7cb5d65a7ff4af7a21dae0ef27b91dbd07bbb7543bc'
-    // }
-
-    console.log(sm2KeyPair)
-
-
-    const sm2 = await SM2.loadKeyPair(sm2KeyPair)
-    //
-    const pubSm2 = await SM2.loadPublicKey(sm2KeyPair.publicKey, {signatureSM3Hash: false})
-    //
-    const privSm2 = await SM2.loadPrivateKey(sm2KeyPair.privateKey, {signatureSM3Hash: false})
-    //
-
-    const sm2Encode: string = pubSm2.encrypt(msg)
-    console.log('encode:', sm2Encode)
-    const sm2Decode: string = privSm2.decrypt(sm2Encode)
-    console.log('decode:', sm2Decode)
-    const sm2Signed: string = privSm2.sign(msg)
-    console.log(sm2Signed)
-    console.log('verify:', pubSm2.verify(msg, sm2Signed))
-
-
-    // const app = await Application.run({
-    //     id: 'test',
-    //     name: 'test',
-    //     timezone: 'Asia/Shanghai',
-    //     mode: 'production',
-    //     entries: {
-    //         testComponent: {class: TestComponent, lifetime: 'SINGLETON', config: {greet: 'hello world'}},
-    //         testObject: {class: TestObject, lifetime: 'SINGLETON', config: {username: 'tester'}},
-    //         testInterval: {
-    //             class: TestInterval,
-    //             lifetime: 'SINGLETON',
-    //             config: {
-    //                 interval: 1000,
-    //                 mode: 'SEQ'
-    //             }
-    //         }
-    //         // '/Users/alex/WebstormProjects/core/src/tests/mds/**/*': {
-    //         //     lifetime: 'SINGLETON',
-    //         //     config: {tester: 'this is tester'}
-    //         // }
-    //     },
-    //     modules: {
-    //         tm: {class: TestModule1, config: {greet: 'oh!'}},
-    //         tm1: TestModule1
-    //     },
-    //     bootstrap: [
-    //         'tm',
-    //         'tm1',
-    //         'testInterval',
-    //         async (app: Application) => {
-    //             console.log('app.mode():', app.mode())
-    //         }
-    //     ]
-    // })
-    // // app.exit()
+    const app = await Application.run({
+        id: 'test',
+        name: 'test',
+        timezone: 'Asia/Shanghai',
+        mode: 'production',
+        entries: {
+            testComponent: {class: TestComponent, lifetime: 'SINGLETON', config: {greet: 'hello world'}},
+            testObject: {class: TestObject, lifetime: 'SINGLETON', config: {username: 'tester'}},
+            testInterval: {
+                class: TestInterval,
+                lifetime: 'SINGLETON',
+                config: {
+                    interval: 1000,
+                    mode: 'SEQ'
+                }
+            }
+            // '/Users/alex/WebstormProjects/core/src/tests/mds/**/*': {
+            //     lifetime: 'SINGLETON',
+            //     config: {tester: 'this is tester'}
+            // }
+        },
+        modules: {
+            tm: {class: TestModule1, config: {greet: 'oh!'}},
+            tm1: TestModule1
+        },
+        bootstrap: [
+            'tm',
+            'tm1',
+            'testInterval',
+            async (app: Application) => {
+                console.log('app.mode():', app.mode())
+            }
+        ]
+    })
+    // app.exit()
 })()
