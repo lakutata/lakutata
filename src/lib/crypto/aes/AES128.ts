@@ -1,7 +1,8 @@
-import {SymmetricEncryption} from '../../base/abstracts/SymmetricEncryption.js'
+import {AlgorithmInitializer, SymmetricEncryption} from '../../base/abstracts/SymmetricEncryption.js'
+import {createCipheriv, createDecipheriv} from 'browserify-cipher'
 
 export class AES128 extends SymmetricEncryption {
-    
+
     protected readonly ivLength: number = 16
 
     protected readonly keyLength: number = 16
@@ -14,5 +15,13 @@ export class AES128 extends SymmetricEncryption {
         const allowNullIV: boolean = iv === undefined
         const algorithm: string = `aes-128-${allowNullIV ? 'ecb' : 'cbc'}`
         this.initCipher(algorithm, allowNullIV, key, iv)
+    }
+
+    protected algorithmNotFoundInitializer(): AlgorithmInitializer {
+        return {
+            blockSize: 16,
+            cipherCreator: () => createCipheriv(this.algorithm, this.key, this.allowNullIV ? null : this.iv),
+            decipherCreator: () => createDecipheriv(this.algorithm, this.key, this.allowNullIV ? null : this.iv)
+        }
     }
 }

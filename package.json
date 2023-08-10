@@ -79,6 +79,7 @@
     "@typescript-eslint/eslint-plugin": "^6.2.0",
     "@typescript-eslint/parser": "^6.2.0",
     "async-constructor": "^0.4.17",
+    "browserify-cipher": "^1.0.1",
     "camel-case": "^4.1.2",
     "crypto-api-v1": "^1.0.0",
     "crypto-js": "^4.1.1",

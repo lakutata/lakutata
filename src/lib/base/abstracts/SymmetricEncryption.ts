@@ -1,6 +1,10 @@
 import {Cipher, createCipheriv, createDecipheriv, Decipher, getCiphers, randomBytes, getCipherInfo} from 'crypto'
-import {InvalidSymmetricCipherKeyLengthException} from '../../../exceptions/crypto/symmetric/InvalidSymmetricCipherKeyLengthException.js'
-import {InvalidSymmetricCipherIVLengthException} from '../../../exceptions/crypto/symmetric/InvalidSymmetricCipherIVLengthException.js'
+import {
+    InvalidSymmetricCipherKeyLengthException
+} from '../../../exceptions/crypto/symmetric/InvalidSymmetricCipherKeyLengthException.js'
+import {
+    InvalidSymmetricCipherIVLengthException
+} from '../../../exceptions/crypto/symmetric/InvalidSymmetricCipherIVLengthException.js'
 import {IConstructor} from '../../../interfaces/IConstructor.js'
 import {ConvertToStream} from '../../../Utilities.js'
 import {NotSupportCipherException} from '../../../exceptions/crypto/symmetric/NotSupportCipherException.js'
@@ -19,7 +23,7 @@ interface SymmetricEncryptionValidateIVLengthResult {
     receivedBytes: number
 }
 
-interface AlgorithmInitializer {
+export interface AlgorithmInitializer {
     blockSize: number
     cipherCreator: () => Cipher
     decipherCreator: () => Decipher
