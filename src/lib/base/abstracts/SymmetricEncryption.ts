@@ -8,6 +8,8 @@ import {
 import {IConstructor} from '../../../interfaces/IConstructor.js'
 import {ConvertToStream} from '../../../Utilities.js'
 import {NotSupportCipherException} from '../../../exceptions/crypto/symmetric/NotSupportCipherException.js'
+import {SymmetricDecryptException} from '../../../exceptions/crypto/symmetric/SymmetricDecryptException.js'
+import {SymmetricEncryptException} from '../../../exceptions/crypto/symmetric/SymmetricEncryptException.js'
 
 const SUPPORT_CIPHERS: string[] = getCiphers().map((value: string) => value.toUpperCase())
 
@@ -196,8 +198,12 @@ export abstract class SymmetricEncryption {
      * @param message
      */
     public encrypt(message: string): string {
-        const cipher: Cipher = this.Cipher
-        return `${cipher.update(message, 'utf-8', 'hex')}${cipher.final('hex')}`
+        try {
+            const cipher: Cipher = this.Cipher
+            return `${cipher.update(message, 'utf-8', 'hex')}${cipher.final('hex')}`
+        } catch (e) {
+            throw new SymmetricEncryptException(<Error>e)
+        }
     }
 
     /**
@@ -205,13 +211,17 @@ export abstract class SymmetricEncryption {
      * @param message
      */
     public async encryptAsync(message: string): Promise<string> {
-        return new Promise((resolve, reject): void => {
-            let cache: Buffer = Buffer.from([])
-            ConvertToStream(message).pipe(this.Cipher)
-                .on('data', (chunk: Buffer) => cache = Buffer.concat([cache, chunk]))
-                .once('error', reject)
-                .once('end', () => resolve(cache.toString('hex')))
-        })
+        try {
+            return await new Promise((resolve, reject): void => {
+                let cache: Buffer = Buffer.from([])
+                ConvertToStream(message).pipe(this.Cipher)
+                    .on('data', (chunk: Buffer) => cache = Buffer.concat([cache, chunk]))
+                    .once('error', reject)
+                    .once('end', () => resolve(cache.toString('hex')))
+            })
+        } catch (e) {
+            throw new SymmetricEncryptException(<Error>e)
+        }
     }
 
     /**
@@ -219,8 +229,12 @@ export abstract class SymmetricEncryption {
      * @param encryptedMessage
      */
     public decrypt(encryptedMessage: string): string {
-        const decipher: Decipher = this.Decipher
-        return `${decipher.update(encryptedMessage, 'hex', 'utf-8')}${decipher.final('utf-8')}`
+        try {
+            const decipher: Decipher = this.Decipher
+            return `${decipher.update(encryptedMessage, 'hex', 'utf-8')}${decipher.final('utf-8')}`
+        } catch (e) {
+            throw new SymmetricDecryptException(<Error>e)
+        }
     }
 
     /**
@@ -228,22 +242,26 @@ export abstract class SymmetricEncryption {
      * @param encryptedMessage
      */
     public async decryptAsync(encryptedMessage: string): Promise<string> {
-        return new Promise((resolve, reject): void => {
-            const decipher: Decipher = this.Decipher
-            decipher.once('error', reject)
-            let chunkCache: string = ''
-            let decryptedMessage: string = ''
-            ConvertToStream(encryptedMessage)
-                .on('data', (chunk: string) => {
-                    chunkCache += chunk
-                    if (chunkCache.length >= this.blockSize) {
-                        decryptedMessage += decipher.update(chunkCache, 'hex', 'utf-8')
-                        chunkCache = ''
-                    }
-                })
-                .once('error', reject)
-                .once('end', () => resolve(`${decryptedMessage}${decipher.update(chunkCache, 'hex', 'utf-8')}${decipher.final('utf-8')}`))
-        })
+        try {
+            return await new Promise((resolve, reject): void => {
+                const decipher: Decipher = this.Decipher
+                decipher.once('error', reject)
+                let chunkCache: string = ''
+                let decryptedMessage: string = ''
+                ConvertToStream(encryptedMessage)
+                    .on('data', (chunk: string) => {
+                        chunkCache += chunk
+                        if (chunkCache.length >= this.blockSize) {
+                            decryptedMessage += decipher.update(chunkCache, 'hex', 'utf-8')
+                            chunkCache = ''
+                        }
+                    })
+                    .once('error', reject)
+                    .once('end', () => resolve(`${decryptedMessage}${decipher.update(chunkCache, 'hex', 'utf-8')}${decipher.final('utf-8')}`))
+            })
+        } catch (e) {
+            throw new SymmetricDecryptException(<Error>e)
+        }
     }
 
     /**
