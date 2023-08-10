@@ -1,6 +1,14 @@
 import {IConstructor} from '../../../interfaces/IConstructor.js'
 import {NoAsymmetricEncryptPublicKeyException} from '../../../exceptions/NoAsymmetricEncryptPublicKeyException.js'
 import {NoAsymmetricEncryptPrivateKeyException} from '../../../exceptions/NoAsymmetricEncryptPrivateKeyException.js'
+import {
+    InvalidAsymmetricEncryptPrivateKeyException
+} from '../../../exceptions/InvalidAsymmetricEncryptPrivateKeyException.js'
+import {
+    InvalidAsymmetricEncryptPublicKeyException
+} from '../../../exceptions/InvalidAsymmetricEncryptPublicKeyException.js'
+import {NonceStr} from '../../../Utilities.js'
+import {InvalidAsymmetricEncryptKeyPairException} from '../../../exceptions/InvalidAsymmetricEncryptKeyPairException.js'
 
 /**
  * 公钥操作方法对象接口
@@ -56,8 +64,20 @@ export abstract class AsymmetricEncryption {
 
     constructor(keyPair?: Partial<AsymmetricEncryptionKeyPair>) {
         if (keyPair) {
-            if (keyPair.privateKey) this.privateKey = this.createPrivateKey(keyPair.privateKey)
-            if (keyPair.publicKey) this.publicKey = this.createPublicKey(keyPair.publicKey)
+            if (keyPair.privateKey) {
+                try {
+                    this.privateKey = this.createPrivateKey(keyPair.privateKey)
+                } catch (e) {
+                    throw new InvalidAsymmetricEncryptPrivateKeyException(<Error>e)
+                }
+            }
+            if (keyPair.publicKey) {
+                try {
+                    this.publicKey = this.createPublicKey(keyPair.publicKey)
+                } catch (e) {
+                    throw new InvalidAsymmetricEncryptPublicKeyException(<Error>e)
+                }
+            }
         }
     }
 
@@ -144,8 +164,11 @@ export abstract class AsymmetricEncryption {
      * 加载密钥对并返回不对称加密类实例
      */
     public static async loadKeyPair<T extends AsymmetricEncryption>(this: IConstructor<T>, keyPair: AsymmetricEncryptionKeyPair): Promise<T> {
-        //todo 此处应该对密钥对做校验
-        return new this(keyPair)
+        const instance: T = new this(keyPair)
+        const nonceStr: string = NonceStr()
+        const signature: string = instance.sign(nonceStr)
+        if (!instance.verify(nonceStr, signature)) throw new InvalidAsymmetricEncryptKeyPairException('Invalid key pair')
+        return instance
     }
 
     /**
