@@ -87,6 +87,8 @@ export abstract class AsymmetricEncryption {
 
     protected readonly publicKey: any
 
+    protected options: Record<string, any> = {}
+
     constructor(keyPair?: Partial<AsymmetricEncryptionKeyPair>) {
         if (keyPair) {
             if (keyPair.privateKey) {
@@ -233,6 +235,7 @@ export abstract class AsymmetricEncryption {
 
     /**
      * 生成密钥对
+     * @param options
      */
     public static async generateKeyPair<T extends AsymmetricEncryption>(this: IConstructor<T>, options?: object): Promise<AsymmetricEncryptionKeyPair> {
         return await new this().generateKeyPair(options)
@@ -240,9 +243,12 @@ export abstract class AsymmetricEncryption {
 
     /**
      * 加载密钥对并返回不对称加密类实例
+     * @param keyPair
+     * @param options
      */
-    public static async loadKeyPair<T extends AsymmetricEncryption>(this: IConstructor<T>, keyPair: AsymmetricEncryptionKeyPair): Promise<T> {
+    public static async loadKeyPair<T extends AsymmetricEncryption>(this: IConstructor<T>, keyPair: AsymmetricEncryptionKeyPair, options?: Record<string, any>): Promise<T> {
         const instance: T = new this(keyPair)
+        instance.options = Object.assign(instance.options, options ? options : {})
         const nonceStr: string = NonceStr()
         const signature: string = instance.sign(nonceStr)
         if (!instance.verify(nonceStr, signature)) throw new InvalidAsymmetricEncryptKeyPairException('Invalid key pair')
@@ -251,21 +257,27 @@ export abstract class AsymmetricEncryption {
 
     /**
      * 加载公钥并返回公钥操作方法对象
+     * @param filename
+     * @param options
      */
-    public static async loadPublicKey(filename: PathLike): Promise<AsymmetricEncryptionPublic>
-    public static async loadPublicKey(keyContent: string): Promise<AsymmetricEncryptionPublic>
-    public static async loadPublicKey<T extends AsymmetricEncryption>(this: IConstructor<T>, inp: PathLike | string): Promise<AsymmetricEncryptionPublic> {
+    public static async loadPublicKey(filename: PathLike, options?: Record<string, any>): Promise<AsymmetricEncryptionPublic>
+    public static async loadPublicKey(keyContent: string, options?: Record<string, any>): Promise<AsymmetricEncryptionPublic>
+    public static async loadPublicKey<T extends AsymmetricEncryption>(this: IConstructor<T>, inp: PathLike | string, options?: Record<string, any>): Promise<AsymmetricEncryptionPublic> {
         const instance: T = new this({publicKey: await getKeyContent(inp)})
+        instance.options = Object.assign(instance.options, options ? options : {})
         return instance.public
     }
 
     /**
      * 加载私钥并返回私钥操作方法对象
+     * @param filename
+     * @param options
      */
-    public static async loadPrivateKey(filename: PathLike): Promise<AsymmetricEncryptionPrivate>
-    public static async loadPrivateKey(keyContent: string): Promise<AsymmetricEncryptionPrivate>
-    public static async loadPrivateKey<T extends AsymmetricEncryption>(this: IConstructor<T>, inp: string | PathLike): Promise<AsymmetricEncryptionPrivate> {
+    public static async loadPrivateKey(filename: PathLike, options?: Record<string, any>): Promise<AsymmetricEncryptionPrivate>
+    public static async loadPrivateKey(keyContent: string, options?: Record<string, any>): Promise<AsymmetricEncryptionPrivate>
+    public static async loadPrivateKey<T extends AsymmetricEncryption>(this: IConstructor<T>, inp: string | PathLike, options?: Record<string, any>): Promise<AsymmetricEncryptionPrivate> {
         const instance: T = new this({privateKey: await getKeyContent(inp)})
+        instance.options = Object.assign(instance.options, options ? options : {})
         return instance.private
     }
 }

@@ -1,4 +1,8 @@
-import {AsymmetricEncryption, AsymmetricEncryptionKeyPair} from '../base/abstracts/AsymmetricEncryption.js'
+import {
+    AsymmetricEncryption,
+    AsymmetricEncryptionKeyPair, AsymmetricEncryptionPrivate,
+    AsymmetricEncryptionPublic
+} from '../base/abstracts/AsymmetricEncryption.js'
 import {
     createPrivateKey,
     createPublicKey,
@@ -10,6 +14,7 @@ import {
     verify
 } from 'crypto'
 import {As} from '../../Utilities.js'
+import {PathLike} from 'fs'
 
 export interface RSAKeyPairOptions {
     /**
@@ -44,7 +49,19 @@ export interface RSAKeyPairOptions {
     }
 }
 
+export interface RSAOptions {
+    /**
+     * 签名或验签时所使用的哈希算法
+     * @default sha256
+     */
+    signatureAlgorithm?: string
+}
+
 export class RSA extends AsymmetricEncryption {
+
+    protected options: RSAOptions = {
+        signatureAlgorithm: 'sha256'
+    }
 
     protected createPrivateKey(privateKeyString: string): KeyObject {
         return createPrivateKey(privateKeyString)
@@ -84,15 +101,27 @@ export class RSA extends AsymmetricEncryption {
     }
 
     protected sign(message: string): string {
-        return sign('sha256', Buffer.from(message), this.privateKey).toString('base64')
+        return sign(this.options.signatureAlgorithm, Buffer.from(message), this.privateKey).toString('base64')
     }
 
     protected verify(message: string, sign: string): boolean {
-        return verify('sha256', Buffer.from(message), this.publicKey, Buffer.from(sign, 'base64'))
+        return verify(this.options.signatureAlgorithm, Buffer.from(message), this.publicKey, Buffer.from(sign, 'base64'))
     }
 
     public static async generateKeyPair(options?: RSAKeyPairOptions): Promise<AsymmetricEncryptionKeyPair> {
         return super.generateKeyPair(options)
+    }
+
+    public static async loadKeyPair<T extends AsymmetricEncryption = RSA>(keyPair: AsymmetricEncryptionKeyPair, options?: RSAOptions): Promise<T> {
+        return As<T>(super.loadKeyPair<RSA>(keyPair, options))
+    }
+
+    public static async loadPublicKey(inp: PathLike | string, options?: RSAOptions): Promise<AsymmetricEncryptionPublic> {
+        return super.loadPublicKey(inp, options)
+    }
+
+    public static async loadPrivateKey(inp: string | PathLike, options?: RSAOptions): Promise<AsymmetricEncryptionPrivate> {
+        return super.loadPrivateKey(inp, options)
     }
 
 }
