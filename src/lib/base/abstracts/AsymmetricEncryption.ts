@@ -1,6 +1,10 @@
 import {IConstructor} from '../../../interfaces/IConstructor.js'
-import {NoAsymmetricEncryptPublicKeyException} from '../../../exceptions/crypto/asymmetric/NoAsymmetricEncryptPublicKeyException.js'
-import {NoAsymmetricEncryptPrivateKeyException} from '../../../exceptions/crypto/asymmetric/NoAsymmetricEncryptPrivateKeyException.js'
+import {
+    NoAsymmetricEncryptPublicKeyException
+} from '../../../exceptions/crypto/asymmetric/NoAsymmetricEncryptPublicKeyException.js'
+import {
+    NoAsymmetricEncryptPrivateKeyException
+} from '../../../exceptions/crypto/asymmetric/NoAsymmetricEncryptPrivateKeyException.js'
 import {
     InvalidAsymmetricEncryptPrivateKeyException
 } from '../../../exceptions/crypto/asymmetric/InvalidAsymmetricEncryptPrivateKeyException.js'
@@ -8,7 +12,9 @@ import {
     InvalidAsymmetricEncryptPublicKeyException
 } from '../../../exceptions/crypto/asymmetric/InvalidAsymmetricEncryptPublicKeyException.js'
 import {As, IsPath, NonceStr} from '../../../Utilities.js'
-import {InvalidAsymmetricEncryptKeyPairException} from '../../../exceptions/crypto/asymmetric/InvalidAsymmetricEncryptKeyPairException.js'
+import {
+    InvalidAsymmetricEncryptKeyPairException
+} from '../../../exceptions/crypto/asymmetric/InvalidAsymmetricEncryptKeyPairException.js'
 import {PathLike, Stats} from 'fs'
 import {stat, readFile} from 'fs/promises'
 import {AsymmetricEncryptException} from '../../../exceptions/crypto/asymmetric/AsymmetricEncryptException.js'
@@ -32,6 +38,11 @@ export interface AsymmetricEncryptionPublic {
      * @param sign
      */
     verify(message: string, sign: string): boolean
+
+    /**
+     * 获取公钥
+     */
+    getPublicKey(): string
 }
 
 /**
@@ -49,6 +60,11 @@ export interface AsymmetricEncryptionPrivate {
      * @param message
      */
     sign(message: string): string
+
+    /**
+     * 获取私钥
+     */
+    getPrivateKey(): string
 }
 
 export interface AsymmetricEncryptionKeyPair {
@@ -83,6 +99,10 @@ async function getKeyContent(inp: string | PathLike): Promise<string> {
 
 export abstract class AsymmetricEncryption {
 
+    protected readonly publicKeyString: string
+
+    protected readonly privateKeyString: string
+
     protected readonly privateKey: any
 
     protected readonly publicKey: any
@@ -94,6 +114,7 @@ export abstract class AsymmetricEncryption {
             if (keyPair.privateKey) {
                 try {
                     this.privateKey = this.createPrivateKey(keyPair.privateKey)
+                    this.privateKeyString = keyPair.privateKey
                 } catch (e) {
                     throw new InvalidAsymmetricEncryptPrivateKeyException(<Error>e)
                 }
@@ -101,6 +122,7 @@ export abstract class AsymmetricEncryption {
             if (keyPair.publicKey) {
                 try {
                     this.publicKey = this.createPublicKey(keyPair.publicKey)
+                    this.publicKeyString = keyPair.publicKey
                 } catch (e) {
                     throw new InvalidAsymmetricEncryptPublicKeyException(<Error>e)
                 }
@@ -212,13 +234,28 @@ export abstract class AsymmetricEncryption {
     protected abstract generateKeyPair(options?: object): Promise<AsymmetricEncryptionKeyPair>
 
     /**
+     * 获取字符串形式的公钥
+     */
+    public getPublicKey(): string {
+        return this.publicKeyString
+    }
+
+    /**
+     * 获取字符串形式的私钥
+     */
+    public getPrivateKey(): string {
+        return this.privateKeyString
+    }
+
+    /**
      * 公钥操作方法对象
      */
     public get public(): AsymmetricEncryptionPublic {
         if (!this.publicKey) throw new NoAsymmetricEncryptPublicKeyException('Public key not found')
         return {
             encrypt: (message: string): string => this._encrypt(message),
-            verify: (message: string, sign: string): boolean => this._verify(message, sign)
+            verify: (message: string, sign: string): boolean => this._verify(message, sign),
+            getPublicKey: (): string => this.getPublicKey()
         }
     }
 
@@ -229,7 +266,8 @@ export abstract class AsymmetricEncryption {
         if (!this.privateKey) throw new NoAsymmetricEncryptPrivateKeyException('Private key not found')
         return {
             decrypt: (encryptedMessage: string): string => this._decrypt(encryptedMessage),
-            sign: (message: string): string => this._sign(message)
+            sign: (message: string): string => this._sign(message),
+            getPrivateKey: (): string => this.getPrivateKey()
         }
     }
 
