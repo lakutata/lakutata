@@ -130,11 +130,9 @@ export class Module<TModule extends Module = any, TComponent extends Component =
         Object.keys(components).forEach((componentName: string) => {
             const componentOptions: IConstructor<TComponent> | LoadComponentOptions<TComponent> = components[componentName]
             entries[componentName] = (As<IConstructor<TComponent>>(componentOptions).prototype instanceof Component) ? {
-                class: As<IConstructor<TComponent>>(componentOptions),
-                lifetime: 'SINGLETON'
+                class: As<IConstructor<TComponent>>(componentOptions)
             } : {
                 class: componentOptions.class,
-                lifetime: componentOptions.lifetime ? componentOptions.lifetime : 'SINGLETON',
                 config: componentOptions.config
             }
         })
@@ -142,11 +140,9 @@ export class Module<TModule extends Module = any, TComponent extends Component =
             const moduleOptions: IConstructor<TModule> | LoadModuleOptions<TModule> = modules[moduleName]
             entries[moduleName] = (As<IConstructor<TModule>>(moduleOptions).prototype instanceof Module) ? {
                 class: As<IConstructor<TModule>>(moduleOptions),
-                lifetime: 'SINGLETON',
                 config: moduleCommonConfig
             } : {
                 class: moduleOptions.class,
-                lifetime: 'SINGLETON',
                 config: Object.assign(moduleOptions.config, moduleCommonConfig)
             }
         })

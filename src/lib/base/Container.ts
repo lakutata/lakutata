@@ -168,7 +168,7 @@ export class Container<T extends Module = Module> {
             if (LoadEntryClassOptions.isValid(entryOptions)) {
                 this.assignConfigToInjectConstructorMetadata<T>(key, As<LoadEntryClassOptions<T>>(entryOptions).class, entryOptions.config)
                 pairs[key] = asClass(As<LoadEntryClassOptions<T>>(entryOptions).class, {
-                    lifetime: entryOptions.lifetime,
+                    lifetime: (As<LoadEntryClassOptions<T>>(entryOptions).class).__LIFETIME,
                     dispose: (instance: T) => this.disposer(instance),
                     injector: () => this.additionalPropertiesInjector()
                 })

@@ -13,12 +13,6 @@ export class LoadComponentOptions<T extends Component, U = IConstructor<T>> exte
     public readonly class: U
 
     /**
-     * 生命周期
-     */
-    @Accept(Validator.String().valid('SINGLETON', 'TRANSIENT', 'SCOPED').optional().default('SINGLETON'))
-    public readonly lifetime?: 'SINGLETON' | 'TRANSIENT' | 'SCOPED'
-
-    /**
      * 需要传入的参数
      */
     @Accept(Validator.Object().pattern(Validator.String(), Validator.Any()).optional().default({}))
