@@ -87,5 +87,8 @@ export class DTO {
         }
     }
 
+    /**
+     * 不严格限制其他字段的属性
+     */
     [prop: string]: any
 }
