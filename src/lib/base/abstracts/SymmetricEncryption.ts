@@ -15,13 +15,13 @@ const SUPPORT_CIPHERS: string[] = getCiphers().map((value: string) => value.toUp
 
 interface SymmetricEncryptionValidateKeyLengthResult {
     isValid: boolean
-    exceptBytes: number
+    expectBytes: number
     receivedBytes: number
 }
 
 interface SymmetricEncryptionValidateIVLengthResult {
     isValid: boolean
-    exceptBytes: number
+    expectBytes: number
     receivedBytes: number
 }
 
@@ -128,18 +128,18 @@ export abstract class SymmetricEncryption {
         this.decipherCreator = decipherCreator
         const validateKeyLengthResult: SymmetricEncryptionValidateKeyLengthResult = this.validateKeyLength(this.key)
         if (!validateKeyLengthResult.isValid) throw new InvalidSymmetricCipherKeyLengthException(
-            'The key length should be {exceptBytes} bytes ({exceptBits}-bits), but the received key length is {receivedBytes} bytes ({receivedBits}-bits)',
+            'The key length should be {expectBytes} bytes ({expectBits}-bits), but the received key length is {receivedBytes} bytes ({receivedBits}-bits)',
             {
-                exceptBytes: validateKeyLengthResult.exceptBytes,
-                exceptBits: validateKeyLengthResult.exceptBytes * 8,
+                expectBytes: validateKeyLengthResult.expectBytes,
+                expectBits: validateKeyLengthResult.expectBytes * 8,
                 receivedBytes: validateKeyLengthResult.receivedBytes,
                 receivedBits: validateKeyLengthResult.receivedBytes * 8
             })
         const validateIVLengthResult: SymmetricEncryptionValidateIVLengthResult = this.validateIVLength(this.iv)
         if (!validateIVLengthResult.isValid) throw new InvalidSymmetricCipherIVLengthException(
-            'The IV length should be {exceptBytes} bytes ({exceptBits}-bits), but the received IV length is {receivedBytes} bytes ({receivedBits}-bits)', {
-                exceptBytes: validateIVLengthResult.exceptBytes,
-                exceptBits: validateIVLengthResult.exceptBytes * 8,
+            'The IV length should be {expectBytes} bytes ({expectBits}-bits), but the received IV length is {receivedBytes} bytes ({receivedBits}-bits)', {
+                expectBytes: validateIVLengthResult.expectBytes,
+                expectBits: validateIVLengthResult.expectBytes * 8,
                 receivedBytes: validateIVLengthResult.receivedBytes,
                 receivedBits: validateIVLengthResult.receivedBytes * 8
             })
@@ -175,7 +175,7 @@ export abstract class SymmetricEncryption {
     protected validateKeyLength(key: Buffer): SymmetricEncryptionValidateKeyLengthResult {
         return {
             isValid: key.length === this.keyLength,
-            exceptBytes: this.keyLength,
+            expectBytes: this.keyLength,
             receivedBytes: key.length
         }
     }
@@ -188,7 +188,7 @@ export abstract class SymmetricEncryption {
     protected validateIVLength(iv: Buffer): SymmetricEncryptionValidateIVLengthResult {
         return {
             isValid: iv.length === this.ivLength,
-            exceptBytes: this.ivLength,
+            expectBytes: this.ivLength,
             receivedBytes: iv.length
         }
     }

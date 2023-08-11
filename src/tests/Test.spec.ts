@@ -26,7 +26,6 @@ import {RandomString} from '../Utilities.js'
                 }
             }
             // '/Users/alex/WebstormProjects/core/src/tests/mds/**/*': {
-            //     lifetime: 'SINGLETON',
             //     config: {tester: 'this is tester'}
             // }
         },
