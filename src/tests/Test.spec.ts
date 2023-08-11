@@ -24,7 +24,7 @@ import {RandomString} from '../Utilities.js'
                 mode: 'SEQ'
             }
             // '/Users/alex/WebstormProjects/core/src/tests/mds/**/*': {
-            //     config: {tester: 'this is tester'}
+            //  tester: 'this is tester'
             // }
         },
         components: {
