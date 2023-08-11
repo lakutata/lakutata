@@ -11,6 +11,13 @@ import {RandomString} from '../Utilities.js'
 
 (async () => {
 
+    class TestDTO extends DTO {
+        @Expect(Validator.String())
+        public aa: string
+    }
+
+    console.log(new TestDTO({aa: '123456'}))
+
     const app = await Application.run({
         id: 'test',
         name: 'test',
