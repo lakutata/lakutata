@@ -10,11 +10,11 @@ export class LoadComponentOptions<T extends Component, U = IConstructor<T>> exte
      * 组件的构造函数
      */
     @Accept(Validator.Class(Component).required())
-    public readonly class: U
+    public declare readonly class: U
 
     /**
      * 需要传入的参数
      */
     @Accept(Validator.Object().pattern(Validator.String(), Validator.Any()).optional().default({}))
-    public readonly config?: Record<string, any>
+    public declare readonly config?: Record<string, any>
 }

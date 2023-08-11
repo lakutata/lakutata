@@ -10,23 +10,23 @@ export class ApplicationOptions<T extends BaseObject = BaseObject> extends Modul
      * 应用程序ID
      */
     @Accept(Validator.String().required())
-    public readonly id: string
+    public declare readonly id: string
 
     /**
      * 应用程序名称
      */
     @Accept(Validator.String().required())
-    public readonly name: string
+    public declare readonly name: string
 
     /**
      * 应用程序时区
      */
     @Accept(Validator.String().optional())
-    public readonly timezone?: string
+    public declare readonly timezone?: string
 
     /**
      * 运行环境（开发环境/正式环境）
      */
     @Accept(Validator.String().valid('development', 'production').optional().default('development'))
-    public readonly mode?: 'development' | 'production'
+    public declare readonly mode?: 'development' | 'production'
 }

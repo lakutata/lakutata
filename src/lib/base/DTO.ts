@@ -3,7 +3,8 @@ import {ObjectSchema, ValidationOptions, Validator} from '../../Validator.js'
 import {IConstructor} from '../../interfaces/IConstructor.js'
 import {defaultValidationOptions} from '../../constants/DefaultValue.js'
 import {InvalidDTOValueException} from '../../exceptions/InvalidDTOValueException.js'
-import {ParentConstructor} from '../../Utilities.js'
+import {As, ConfigureObjectProperties, ParentConstructor} from '../../Utilities.js'
+import {appendAsyncConstructor} from 'async-constructor'
 
 @(() => {
     return <TFunction extends IConstructor<any>>(target: TFunction): TFunction => {
@@ -12,6 +13,24 @@ import {ParentConstructor} from '../../Utilities.js'
     }
 })()
 export class DTO {
+
+    constructor(properties: Record<string, any> = {}, validateOptions: ValidationOptions = defaultValidationOptions, async: boolean = false) {
+        validateOptions = Object.assign({}, defaultValidationOptions, validateOptions)
+        const schema: ObjectSchema = As<IConstructor<DTO>>(this.constructor).schema()
+        if (async) {
+            appendAsyncConstructor(this, async () => {
+                try {
+                    ConfigureObjectProperties(this, await schema.validateAsync(properties, validateOptions))
+                } catch (e) {
+                    throw new InvalidDTOValueException((As<Error>(e).message))
+                }
+            })
+        } else {
+            const {error, value} = schema.validate(properties, validateOptions)
+            if (error) throw new InvalidDTOValueException(error.message)
+            ConfigureObjectProperties(this, value)
+        }
+    }
 
     /**
      * 获取DTO的数据验证定义
@@ -27,10 +46,7 @@ export class DTO {
      */
     public static validate<T extends DTO>(this: IConstructor<T>, data: any, options?: ValidationOptions): T {
         options = options ? Object.assign({}, defaultValidationOptions, options) : defaultValidationOptions
-        const schema: ObjectSchema<T> = this.schema()
-        const {error, value} = schema.validate(data, options)
-        if (error) throw new InvalidDTOValueException(error.message)
-        return Object.assign(new this(), value)
+        return new this(data, options, false)
     }
 
     /**
@@ -40,17 +56,11 @@ export class DTO {
      */
     public static async validateAsync<T extends DTO>(this: IConstructor<T>, data: any, options?: ValidationOptions): Promise<T> {
         options = options ? Object.assign({}, defaultValidationOptions, options) : defaultValidationOptions
-        const schema: ObjectSchema<T> = this.schema()
-        try {
-            const value: T = await schema.validateAsync(data, options)
-            return Object.assign(new this(), value)
-        } catch (e) {
-            throw new InvalidDTOValueException((e as Error).message)
-        }
+        return await As<Promise<T>>(new this(data, options, true))
     }
 
     /**
-     * 验证数据是否符合DTO
+     * 验证数据是否符合DTO（同步）
      * @param data
      * @param options
      */
@@ -64,15 +74,17 @@ export class DTO {
     }
 
     /**
-     * 合并DTO并返回新的DTO
+     * 验证数据是否符合DTO（异步）
+     * @param data
+     * @param options
      */
-    public static concat<T extends typeof this>(...args: T[]): T {
-        const anonymousDTO = class extends this {
+    public static async isValidAsync(data: any, options?: ValidationOptions): Promise<boolean> {
+        try {
+            await this.validateAsync(data, options)
+            return true
+        } catch (e) {
+            return false
         }
-        let anonymousDTOSchema = Reflect.getOwnMetadata(DTO_SCHEMAS, this)
-        args.forEach(dto => anonymousDTOSchema = Object.assign(anonymousDTOSchema, Reflect.getOwnMetadata(DTO_SCHEMAS, dto)))
-        Reflect.defineMetadata(DTO_SCHEMAS, anonymousDTOSchema, anonymousDTO)
-        return Object.assign(anonymousDTO, ...args)
     }
 
     [prop: string]: any

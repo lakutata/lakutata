@@ -26,7 +26,7 @@ export class ModuleOptions<U extends Module, T extends BaseObject = BaseObject> 
         )
         .optional()
         .default({}))
-    public readonly entries: Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<T>>
+    public declare readonly entries: Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<T>>
 
     /**
      * 组件注入配置
@@ -40,7 +40,7 @@ export class ModuleOptions<U extends Module, T extends BaseObject = BaseObject> 
             )
         ).optional()
         .default({}))
-    public readonly components?: Record<string, IConstructor<Component> | LoadComponentOptions<Component>>
+    public declare readonly components?: Record<string, IConstructor<Component> | LoadComponentOptions<Component>>
 
     /**
      * 子模块注入配置
@@ -54,7 +54,7 @@ export class ModuleOptions<U extends Module, T extends BaseObject = BaseObject> 
             )
         ).optional()
         .default({}))
-    public readonly modules?: Record<string, IConstructor<Module> | LoadModuleOptions<Module>>
+    public declare readonly modules?: Record<string, IConstructor<Module> | LoadModuleOptions<Module>>
 
     /**
      * 模块引导启动组件
@@ -68,5 +68,5 @@ export class ModuleOptions<U extends Module, T extends BaseObject = BaseObject> 
     )
         .optional()
         .default([]))
-    public readonly bootstrap?: (string | IConstructor<T> | AsyncFunction<U, void>)[]
+    public declare readonly bootstrap?: (string | IConstructor<T> | AsyncFunction<U, void>)[]
 }

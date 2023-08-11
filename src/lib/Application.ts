@@ -19,7 +19,6 @@ export class Application extends Module {
         await rootContainer.load({
             [name]: {
                 class: Application,
-                lifetime: 'SINGLETON',
                 config: {
                     __$$options: options,
                     __$$parentContainer: rootContainer
