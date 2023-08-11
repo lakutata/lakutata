@@ -19,10 +19,9 @@ import {TestModule1} from './modules/TestModule1/TestModule1.js'
         timezone: 'Asia/Shanghai',
         mode: 'production',
         entries: {
-            testObject: {class: TestObject, lifetime: 'SINGLETON', config: {username: 'tester'}},
+            testObject: {class: TestObject, config: {username: 'tester'}},
             testInterval: {
                 class: TestInterval,
-                lifetime: 'SINGLETON',
                 config: {
                     interval: 1000,
                     mode: 'SEQ'
@@ -34,7 +33,7 @@ import {TestModule1} from './modules/TestModule1/TestModule1.js'
             // }
         },
         components: {
-            testComponent: {class: TestComponent, lifetime: 'SINGLETON', config: {greet: 'hello world'}}
+            testComponent: {class: TestComponent, config: {greet: 'hello world'}}
         },
         modules: {
             tm: {class: TestModule1, config: {greet: 'oh!'}},

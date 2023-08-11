@@ -13,6 +13,5 @@ export class Model extends Component {
         super(properties)
     }
 
-
-
+    //todo
 }
