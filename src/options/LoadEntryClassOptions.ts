@@ -1,4 +1,4 @@
-import {Accept} from '../decorators/ValidationDecorators.js'
+import {Expect} from '../decorators/ValidationDecorators.js'
 import {LoadEntryCommonOptions} from './LoadEntryCommonOptions.js'
 import {BaseObject} from '../lib/base/BaseObject.js'
 import {Validator} from '../Validator.js'
@@ -9,7 +9,7 @@ export class LoadEntryClassOptions<T extends BaseObject, U = IConstructor<T>> ex
     /**
      * 对象元素的构造函数
      */
-    @Accept(Validator.Class(() => BaseObject).required())
+    @Expect(Validator.Class(() => BaseObject).required())
     public declare readonly class: U
 
 }

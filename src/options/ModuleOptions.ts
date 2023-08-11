@@ -1,6 +1,6 @@
 import {DTO} from '../lib/base/DTO.js'
 import {BaseObject} from '../lib/base/BaseObject.js'
-import {Accept} from '../decorators/ValidationDecorators.js'
+import {Expect} from '../decorators/ValidationDecorators.js'
 import {Validator} from '../Validator.js'
 import {LoadEntryClassOptions} from './LoadEntryClassOptions.js'
 import {LoadEntryCommonOptions} from './LoadEntryCommonOptions.js'
@@ -15,7 +15,7 @@ export class ModuleOptions<U extends Module, T extends BaseObject = BaseObject> 
     /**
      * 模块依赖注入对象配置
      */
-    @Accept(Validator
+    @Expect(Validator
         .Object()
         .pattern(
             Validator.String(),
@@ -31,7 +31,7 @@ export class ModuleOptions<U extends Module, T extends BaseObject = BaseObject> 
     /**
      * 组件注入配置
      */
-    @Accept(Validator
+    @Expect(Validator
         .Object()
         .pattern(Validator.String(),
             Validator.Alternatives().try(
@@ -45,7 +45,7 @@ export class ModuleOptions<U extends Module, T extends BaseObject = BaseObject> 
     /**
      * 子模块注入配置
      */
-    @Accept(Validator
+    @Expect(Validator
         .Object()
         .pattern(Validator.String(),
             Validator.Alternatives().try(
@@ -59,7 +59,7 @@ export class ModuleOptions<U extends Module, T extends BaseObject = BaseObject> 
     /**
      * 模块引导启动组件
      */
-    @Accept(Validator.Array(
+    @Expect(Validator.Array(
         Validator.Alternatives().try(
             Validator.String(),
             Validator.Class(BaseObject),
