@@ -6,6 +6,10 @@ import {InvalidDTOValueException} from '../../exceptions/InvalidDTOValueExceptio
 import {As, ConfigureObjectProperties, ParentConstructor} from '../../Utilities.js'
 import {appendAsyncConstructor} from 'async-constructor'
 
+/**
+ * DTO基础类
+ * 在所有继承DTO的子类当中，使用验证器的情况下属性必须要添加“declare”的关键字，否则将会导致验证结果出现空值的情况出现
+ */
 @(() => {
     return <TFunction extends IConstructor<any>>(target: TFunction): TFunction => {
         Reflect.defineMetadata(DTO_CLASS, true, target)
