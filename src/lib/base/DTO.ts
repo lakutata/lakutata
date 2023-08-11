@@ -1,5 +1,5 @@
-import {DTO_CLASS, DTO_SCHEMAS} from '../../constants/MetadataKey.js'
-import {ObjectSchema, ValidationOptions, Validator} from '../../Validator.js'
+import {DTO_CLASS, DTO_INDEX_SIGNATURE_SCHEMAS, DTO_SCHEMAS} from '../../constants/MetadataKey.js'
+import {ObjectSchema, Schema, ValidationOptions, Validator} from '../../Validator.js'
 import {IConstructor} from '../../interfaces/IConstructor.js'
 import {defaultValidationOptions} from '../../constants/DefaultValue.js'
 import {InvalidDTOValueException} from '../../exceptions/InvalidDTOValueException.js'
@@ -37,12 +37,33 @@ export class DTO {
     }
 
     /**
+     * 获取DTO的索引签名验证定义
+     * @protected
+     */
+    protected static patternSchemas<T extends DTO>(this: IConstructor<T>): Schema[] {
+        const parentConstructor: IConstructor<T> | null = ParentConstructor(this)
+        let parentIndexSignatureSchemas: Schema[] = (parentConstructor && parentConstructor.patternSchemas) ? parentConstructor.patternSchemas() : []
+        let selfIndexSignatureSchemas: Schema[] = Reflect.hasOwnMetadata(DTO_INDEX_SIGNATURE_SCHEMAS, this) ? Reflect.getOwnMetadata(DTO_INDEX_SIGNATURE_SCHEMAS, this) : []
+        return (parentIndexSignatureSchemas ? parentIndexSignatureSchemas : []).concat(selfIndexSignatureSchemas)
+    }
+
+    /**
+     * 获取DTO的字段验证定义
+     * @protected
+     */
+    protected static fieldSchema<T extends DTO>(this: IConstructor<T>): ObjectSchema<T> {
+        const parentConstructor: IConstructor<T> | null = ParentConstructor(this)
+        const parentSchema: ObjectSchema<T> = (parentConstructor && parentConstructor.fieldSchema) ? parentConstructor.fieldSchema() : Validator.Object()
+        return parentSchema.concat(Validator.Object(Reflect.hasOwnMetadata(DTO_SCHEMAS, this) ? Reflect.getOwnMetadata(DTO_SCHEMAS, this) : {}))
+    }
+
+    /**
      * 获取DTO的数据验证定义
      */
-    public static schema<T extends DTO>(this: IConstructor<T>): ObjectSchema<T> {
-        const parentConstructor: IConstructor<T> | null = ParentConstructor(this)
-        const parentSchema: ObjectSchema<T> = (parentConstructor && parentConstructor.schema) ? parentConstructor.schema() : Validator.Object()
-        return parentSchema.concat(Validator.Object(Reflect.getOwnMetadata(DTO_SCHEMAS, this) ? Reflect.getOwnMetadata(DTO_SCHEMAS, this) : {}))
+    public static schema(): ObjectSchema<DTO> {
+        const patternAlternativeSchemas: Schema[] = this.patternSchemas()
+        const objectSchema: ObjectSchema<DTO> = this.fieldSchema()
+        return patternAlternativeSchemas.length ? objectSchema.pattern(Validator.String(), Validator.Alternatives().try(...patternAlternativeSchemas)) : objectSchema
     }
 
     /**

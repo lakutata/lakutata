@@ -5,7 +5,7 @@ import {TestComponent} from './components/TestComponent.js'
 import {TestObject} from './objects/TestObject.js'
 import {TestInterval} from './intervals/TestInterval.js'
 import {TestModule1} from './modules/TestModule1/TestModule1.js'
-import {Accept} from '../decorators/ValidationDecorators.js'
+import {Accept, Expect, IndexSignature} from '../decorators/ValidationDecorators.js'
 import {Validator} from '../Validator.js'
 import {RandomString} from '../Utilities.js'
 

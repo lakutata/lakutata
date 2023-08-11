@@ -1,5 +1,6 @@
 import {BaseObject} from '../../lib/base/BaseObject.js'
 import {Configurable, Inject, Lifetime} from '../../decorators/DependencyInjectionDecorators.js'
+import {IndexSignature} from '../../decorators/ValidationDecorators.js'
 
 @Lifetime('SINGLETON')
 export class MDSTest1 extends BaseObject {

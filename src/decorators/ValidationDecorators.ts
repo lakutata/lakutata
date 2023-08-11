@@ -3,7 +3,7 @@ import {DTO} from '../lib/base/DTO.js'
 import {isAsyncFunction} from 'util/types'
 import {InvalidMethodAcceptException} from '../exceptions/InvalidMethodAcceptException.js'
 import {IConstructor} from '../interfaces/IConstructor.js'
-import {DTO_CLASS, DTO_SCHEMAS} from '../constants/MetadataKey.js'
+import {DTO_CLASS, DTO_INDEX_SIGNATURE_SCHEMAS, DTO_SCHEMAS} from '../constants/MetadataKey.js'
 import {defaultValidationOptions} from '../constants/DefaultValue.js'
 import {InvalidMethodReturnException} from '../exceptions/InvalidMethodReturnException.js'
 import {As} from '../Utilities.js'
@@ -15,7 +15,19 @@ type DTOSubClass<T extends DTO> = {
 }
 
 /**
- * 属性参数验证声明
+ * DTO类索引签名验证声明
+ * @constructor
+ */
+export function IndexSignature<T extends typeof DTO>(schema: Schema, ...schemas: Schema[]): (constructor: T) => T {
+    return function <T extends typeof DTO>(constructor: T): T {
+        const patternSchemas: Schema[] = [schema, ...schemas]
+        Reflect.defineMetadata(DTO_INDEX_SIGNATURE_SCHEMAS, patternSchemas, constructor)
+        return constructor
+    }
+}
+
+/**
+ * DTO类属性参数验证声明
  * @constructor
  */
 export function Expect<T extends DTO>(schema: Schema): (target: DTOSubClass<T>, propertyKey: keyof T) => void {
