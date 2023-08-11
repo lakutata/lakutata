@@ -25,10 +25,10 @@ import {
     DI_CONTAINER_SPECIAL_INJECT_MODULE_GETTER,
     DI_CONTAINER_SPECIAL_INJECT_APP_GETTER,
     DI_CONTAINER_INJECT_IS_MODULE_GETTER_KEY,
-    DI_CONTAINER_SPECIAL_INJECT_APP_GETTER_KEY
+    DI_CONTAINER_SPECIAL_INJECT_APP_GETTER_KEY, DI_TARGET_CONSTRUCTOR_LIFETIME, DI_TARGET_CONSTRUCTOR_LIFETIME_LOCK
 } from '../../constants/MetadataKey.js'
 import {MethodNotFoundException} from '../../exceptions/MethodNotFoundException.js'
-import {ConfigurableOptions} from '../../decorators/DependencyInjectionDecorators.js'
+import {ConfigurableOptions, Lifetime} from '../../decorators/DependencyInjectionDecorators.js'
 import {Schema, Validator} from '../../Validator.js'
 import {defaultValidationOptions} from '../../constants/DefaultValue.js'
 import {InvalidConfigurableValueException} from '../../exceptions/InvalidConfigurableValueException.js'
@@ -43,6 +43,7 @@ import {SHA256} from '../../Hash.js'
         return target
     }
 })()
+@Lifetime('TRANSIENT', false)
 export class BaseObject extends AsyncConstructor {
 
     /**
@@ -240,5 +241,19 @@ export class BaseObject extends AsyncConstructor {
      */
     public static className(): string {
         return this.name
+    }
+
+    /**
+     * Return class's lifetime mode
+     */
+    public static get __LIFETIME(): 'SINGLETON' | 'TRANSIENT' | 'SCOPED' {
+        return Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_LIFETIME, this)
+    }
+
+    /**
+     * Return class's lifetime mode is locked
+     */
+    public static get __LIFETIME_LOCKED(): boolean {
+        return !!Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_LIFETIME_LOCK, this)
     }
 }

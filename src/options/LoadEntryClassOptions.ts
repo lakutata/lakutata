@@ -9,7 +9,7 @@ export class LoadEntryClassOptions<T extends BaseObject, U = IConstructor<T>> ex
     /**
      * 对象元素的构造函数
      */
-    @Accept(Validator.Class(BaseObject).required())
+    @Accept(Validator.Class(() => BaseObject).required())
     public readonly class: U
 
 }

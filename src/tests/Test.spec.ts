@@ -1,5 +1,5 @@
 import 'reflect-metadata'
-import {Application} from '../Core.js'
+import {Application, BaseObject} from '../Core.js'
 import {MDSTest1} from './mds/MDSTest1.js'
 import {TestComponent} from './components/TestComponent.js'
 import {TestObject} from './objects/TestObject.js'
@@ -8,6 +8,10 @@ import {TestModule1} from './modules/TestModule1/TestModule1.js'
 
 
 (async () => {
+
+    console.log('__LIFETIME:', TestModule1.__LIFETIME, TestModule1.__LIFETIME_LOCKED)
+    console.log('__LIFETIME:', BaseObject.__LIFETIME, BaseObject.__LIFETIME_LOCKED)
+
 
     const app = await Application.run({
         id: 'test',

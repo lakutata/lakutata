@@ -1,6 +1,6 @@
 import {Module} from '../../../lib/base/Module.js'
 import {Application} from '../../../lib/Application.js'
-import {Configurable, Inject} from '../../../decorators/DependencyInjectionDecorators.js'
+import {Configurable, Inject, Lifetime} from '../../../decorators/DependencyInjectionDecorators.js'
 import {LoadEntryCommonOptions} from '../../../options/LoadEntryCommonOptions.js'
 import {LoadEntryClassOptions} from '../../../options/LoadEntryClassOptions.js'
 import {TestComponent} from '../../components/TestComponent.js'
@@ -9,6 +9,7 @@ import {AsyncFunction} from '../../../types/AsyncFunction.js'
 import {ModuleOptions} from '../../../options/ModuleOptions.js'
 import {functionConfig, objectConfig} from './config/testConfig.js'
 
+@Lifetime('SINGLETON')
 export class TestModule1 extends Module {
 
     @Inject(Application)

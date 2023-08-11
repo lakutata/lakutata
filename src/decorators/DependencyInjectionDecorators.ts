@@ -6,7 +6,10 @@ import {
     DI_CONTAINER_SPECIAL_INJECT_MODULE_GETTER,
     DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS,
     DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OPTIONS,
-    DI_TARGET_CONSTRUCTOR_INJECTS, DI_TARGET_CONSTRUCTOR_SPECIAL_INJECTS
+    DI_TARGET_CONSTRUCTOR_INJECTS,
+    DI_TARGET_CONSTRUCTOR_LIFETIME,
+    DI_TARGET_CONSTRUCTOR_LIFETIME_LOCK,
+    DI_TARGET_CONSTRUCTOR_SPECIAL_INJECTS
 } from '../constants/MetadataKey.js'
 import {Container} from '../lib/base/Container.js'
 import {Schema, ValidationOptions} from '../Validator.js'
@@ -23,6 +26,68 @@ export type ConfigurableOptions = {
     accept?: Schema | IConstructor<DTO>
     acceptOptions?: ValidationOptions
 }
+
+/**
+ * 设定对象的生命周期模式
+ * @param constructor
+ * @param lifetime
+ * @param lock
+ */
+function setObjectLifetime<T extends typeof BaseObject>(constructor: T, lifetime: 'SINGLETON' | 'TRANSIENT' | 'SCOPED', lock: boolean = false): T {
+    if (Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_LIFETIME_LOCK, constructor)) return constructor
+    Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_LIFETIME, lifetime, constructor)
+    if (lock) Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_LIFETIME_LOCK, true, constructor)
+    return constructor
+}
+
+/**
+ * 对象生命周期修饰器
+ * SINGLETON 单例模式
+ * TRANSIENT 瞬态模式
+ * SCOPED 作用域模式
+ * @param lifetime
+ * @param lock
+ * @constructor
+ */
+export function Lifetime<T extends typeof BaseObject>(lifetime: 'SINGLETON' | 'TRANSIENT' | 'SCOPED', lock: boolean = false): (constructor: T) => T {
+    return function <T extends typeof BaseObject>(constructor: T): T {
+        return setObjectLifetime(constructor, lifetime, lock)
+    }
+}
+
+/**
+ * 设置单例模式生命周期
+ * @param lock
+ * @constructor
+ */
+export function Singleton<T extends typeof BaseObject>(lock: boolean = false): (constructor: T) => T {
+    return function <T extends typeof BaseObject>(constructor: T): T {
+        return setObjectLifetime(constructor, 'SINGLETON', lock)
+    }
+}
+
+/**
+ * 设置瞬态模式生命周期
+ * @param lock
+ * @constructor
+ */
+export function Transient<T extends typeof BaseObject>(lock: boolean = false): (constructor: T) => T {
+    return function <T extends typeof BaseObject>(constructor: T): T {
+        return setObjectLifetime(constructor, 'TRANSIENT', lock)
+    }
+}
+
+/**
+ * 设置作用域模式生命周期
+ * @param lock
+ * @constructor
+ */
+export function Scoped<T extends typeof BaseObject>(lock: boolean = false): (constructor: T) => T {
+    return function <T extends typeof BaseObject>(constructor: T): T {
+        return setObjectLifetime(constructor, 'SCOPED', lock)
+    }
+}
+
 
 /**
  * 使用所修饰的属性名作为注入项的名称

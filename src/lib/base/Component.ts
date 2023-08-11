@@ -1,7 +1,9 @@
 import {BaseObject} from './BaseObject.js'
 import {EventEmitter} from 'events'
 import {InjectionProperties} from '../../types/InjectionProperties.js'
+import {Lifetime} from '../../decorators/DependencyInjectionDecorators.js'
 
+@Lifetime('SINGLETON', false)
 export class Component extends BaseObject implements EventEmitter {
 
     protected __$$eventEmitter: EventEmitter

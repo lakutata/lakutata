@@ -1,6 +1,7 @@
 import {BaseObject} from '../../lib/base/BaseObject.js'
-import {Configurable, Inject} from '../../decorators/DependencyInjectionDecorators.js'
+import {Configurable, Inject, Lifetime} from '../../decorators/DependencyInjectionDecorators.js'
 
+@Lifetime('SINGLETON')
 export class MDSTest1 extends BaseObject {
 
     @Configurable()

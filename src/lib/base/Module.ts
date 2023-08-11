@@ -1,7 +1,7 @@
 import {Component} from './Component.js'
 import {Container} from './Container.js'
 import {ModuleOptions} from '../../options/ModuleOptions.js'
-import {Configurable} from '../../decorators/DependencyInjectionDecorators.js'
+import {Configurable, Lifetime} from '../../decorators/DependencyInjectionDecorators.js'
 import {isAsyncFunction} from 'util/types'
 import {As, MergeArray} from '../../Utilities.js'
 import {AsyncFunction} from '../../types/AsyncFunction.js'
@@ -14,6 +14,7 @@ import {LoadEntryClassOptions} from '../../options/LoadEntryClassOptions.js'
 import {LoadModuleOptions} from '../../options/LoadModuleOptions.js'
 import {LoadComponentOptions} from '../../options/LoadComponentOptions.js'
 
+@Lifetime('SINGLETON', true)
 export class Module<TModule extends Module = any, TComponent extends Component = any> extends Component {
 
     @Configurable()
