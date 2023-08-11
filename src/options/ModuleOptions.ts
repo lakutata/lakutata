@@ -26,7 +26,23 @@ export class ModuleOptions<U extends Module, T extends BaseObject = BaseObject> 
         )
         .optional()
         .default({}))
-    public declare readonly entries: Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<T>>
+    public declare readonly entries?: Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<T>>
+
+    /**
+     * 自动对象加载配置
+     */
+    @Expect(Validator.Array(
+            Validator
+                .Alternatives()
+                .try(
+                    Validator.Glob(),
+                    Validator.Class(BaseObject)
+                )
+        )
+            .optional()
+            .default([])
+    )
+    public declare readonly autoload?: (string | IConstructor<T>)[]
 
     /**
      * 组件注入配置

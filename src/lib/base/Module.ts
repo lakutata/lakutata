@@ -3,7 +3,7 @@ import {Container} from './Container.js'
 import {ModuleOptions} from '../../options/ModuleOptions.js'
 import {Configurable, Lifetime} from '../../decorators/DependencyInjectionDecorators.js'
 import {isAsyncFunction} from 'util/types'
-import {As, MergeArray} from '../../Utilities.js'
+import {As, MergeArray, UniqueArray} from '../../Utilities.js'
 import {AsyncFunction} from '../../types/AsyncFunction.js'
 import {IConstructor} from '../../interfaces/IConstructor.js'
 import {BaseObject} from './BaseObject.js'
@@ -15,7 +15,7 @@ import {LoadModuleOptions} from '../../options/LoadModuleOptions.js'
 import {LoadComponentOptions} from '../../options/LoadComponentOptions.js'
 
 @Lifetime('SINGLETON', true)
-export class Module<TModule extends Module = any, TComponent extends Component = any> extends Component {
+export class Module<TModule extends Module = any, TComponent extends Component = any, TBaseObject extends BaseObject = any> extends Component {
 
     @Configurable()
     protected readonly __$$options: ModuleOptions<TModule>
@@ -62,6 +62,24 @@ export class Module<TModule extends Module = any, TComponent extends Component =
         .default({}))
     protected async entries(): Promise<Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<TModule>>> {
         return {}
+    }
+
+    /**
+     * 内联对象自动加载数组集合
+     * @protected
+     */
+    @Return(Validator.Array(
+        Validator
+            .Alternatives()
+            .try(
+                Validator.Glob(),
+                Validator.Class(BaseObject)
+            )
+    )
+        .optional()
+        .default([]))
+    protected async autoload(): Promise<(string | IConstructor<TBaseObject>)[]> {
+        return []
     }
 
     /**
@@ -119,9 +137,18 @@ export class Module<TModule extends Module = any, TComponent extends Component =
      */
     protected async __bootstrap(): Promise<void> {
         const configureOptions: ModuleOptions<TModule> | undefined = await this.configure()
-        if (configureOptions)
+        if (configureOptions) {
             Object.keys(configureOptions).forEach((propertyKey: string) => Object.defineProperty(this.__$$options, propertyKey, {value: configureOptions[propertyKey]}))
+        }
         const entries: Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<TModule>> = Object.assign(await this.entries(), this.__$$options.entries ? this.__$$options.entries : {})
+        const autoload: (string | IConstructor<any>)[] = UniqueArray([...(await this.autoload()), ...(this.__$$options.autoload ? this.__$$options.autoload : [])])
+        autoload.forEach(autoloadItem => {
+            if (typeof autoloadItem === 'string') {
+                entries[autoloadItem] = {}
+            } else {
+                entries[Container.stringifyConstructor(autoloadItem)] = {class: autoloadItem}
+            }
+        })
         const components: Record<string, IConstructor<TComponent> | LoadComponentOptions<TComponent>> = Object.assign(await this.components(), this.__$$options.components ? this.__$$options.components : {})
         const modules: Record<string, IConstructor<TModule> | LoadModuleOptions<TModule>> = Object.assign(await this.modules(), this.__$$options.modules ? this.__$$options.modules : {})
         const moduleCommonConfig: Record<string, any> = {

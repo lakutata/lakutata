@@ -9,7 +9,7 @@ export class MDSTest1 extends BaseObject {
     protected readonly tester: string
 
     protected async init(): Promise<void> {
-        // console.log('mmmmmmm', await this.ob.testRun(), this.tester)
+        console.log('mmmmmmmmmmmmmmmmmmmmmm', this.className)
     }
 
     protected async destroy(): Promise<void> {

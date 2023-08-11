@@ -27,6 +27,10 @@ import {RandomString} from '../Utilities.js'
             //  tester: 'this is tester'
             // }
         },
+        autoload: [
+            // '/Users/alex/WebstormProjects/core/src/tests/mds/**/*',
+            MDSTest1
+        ],
         components: {
             testComponent: {class: TestComponent, greet: 'hello world'}
         },
@@ -38,6 +42,7 @@ import {RandomString} from '../Utilities.js'
             'tm',
             'tm1',
             'testInterval',
+            MDSTest1,
             async (app: Application) => {
                 console.log('app.mode():', app.mode())
             }
