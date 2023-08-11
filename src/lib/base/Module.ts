@@ -218,6 +218,38 @@ export class Module<TModule extends Module = any, TComponent extends Component =
     }
 
     /**
+     * 注入指定字符串名称的对象
+     * @param name
+     * @param options
+     */
+    public async set<T extends BaseObject>(name: string, options: LoadEntryClassOptions<T>): Promise<void>
+    /**
+     * 注入非指定字符串名称的构造函数对象
+     * @param constructor
+     * @param config
+     */
+    public async set<T extends BaseObject>(constructor: IConstructor<T>, config?: Record<string, any>): Promise<void>
+    public async set<T extends BaseObject>(inp: string | IConstructor<T>, b?: LoadEntryClassOptions<T> | Record<string, any>): Promise<void> {
+        await this.__$$container.set(As<any>(inp), b)
+    }
+
+    /**
+     * 注入并创建指定字符串名称的对象
+     * @param name
+     * @param options
+     */
+    public async createObject<T extends BaseObject>(name: string, options: LoadEntryClassOptions<T>): Promise<T>
+    /**
+     * 注入并创建非指定字符串名称的构造函数对象
+     * @param constructor
+     * @param config
+     */
+    public async createObject<T extends BaseObject>(constructor: IConstructor<T>, config?: Record<string, any>): Promise<T>
+    public async createObject<T extends BaseObject>(inp: string | IConstructor<T>, b?: LoadEntryClassOptions<T> | Record<string, any>): Promise<T> {
+        return await this.__$$container.createObject<T>(As<any>(inp), b)
+    }
+
+    /**
      * 获取当前的运行环境（开发环境/正式环境）
      */
     public mode(): 'development' | 'production' {

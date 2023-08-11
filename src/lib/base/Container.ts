@@ -144,22 +144,6 @@ export class Container<T extends Module = Module> {
     }
 
     /**
-     * 通过名称获取容器内的注册项目
-     * @param name
-     */
-    public async get<T extends BaseObject>(name: string): Promise<T>
-    /**
-     * 通过构造函数获取容器内的注册项目
-     * @param constructor
-     */
-    public async get<T extends BaseObject>(constructor: IConstructor<T>): Promise<T>
-    public async get<T extends BaseObject>(inp: string | IConstructor<T>): Promise<T> {
-        const name: string = typeof inp === 'string' ? inp : Container.stringifyConstructor(inp)
-        const resolved: T | Promise<T> = this.__$$dic.resolve(name)
-        return isPromise(resolved) ? await resolved : resolved
-    }
-
-    /**
      * 载入注入项目
      * @param options
      */
@@ -183,6 +167,66 @@ export class Container<T extends Module = Module> {
             }
         }
         this.__$$dic.register(pairs)
+    }
+
+    /**
+     * 通过名称获取容器内的注册项目
+     * @param name
+     */
+    public async get<T extends BaseObject>(name: string): Promise<T>
+    /**
+     * 通过构造函数获取容器内的注册项目
+     * @param constructor
+     */
+    public async get<T extends BaseObject>(constructor: IConstructor<T>): Promise<T>
+    public async get<T extends BaseObject>(inp: string | IConstructor<T>): Promise<T> {
+        const name: string = typeof inp === 'string' ? inp : Container.stringifyConstructor(inp)
+        const resolved: T | Promise<T> = this.__$$dic.resolve(name)
+        return isPromise(resolved) ? await resolved : resolved
+    }
+
+    /**
+     * 注入指定字符串名称的对象
+     * @param name
+     * @param options
+     */
+    public async set<T extends BaseObject>(name: string, options: LoadEntryClassOptions<T>): Promise<string>
+    /**
+     * 注入非指定字符串名称的构造函数对象
+     * @param constructor
+     * @param config
+     */
+    public async set<T extends BaseObject>(constructor: IConstructor<T>, config?: Record<string, any>): Promise<string>
+    public async set<T extends BaseObject>(inp: string | IConstructor<T>, b?: LoadEntryClassOptions<T> | Record<string, any>): Promise<string> {
+        const loadOptions: Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<T>> = {}
+        let name: string
+        if (typeof inp === 'string') {
+            const options: LoadEntryClassOptions<T> = As<LoadEntryClassOptions<T>>(LoadEntryClassOptions.validate(b))
+            name = inp
+            loadOptions[inp] = options
+        } else {
+            const config: Record<string, any> = b ? b : {}
+            name = Container.stringifyConstructor(inp)
+            loadOptions[name] = {class: inp, ...config}
+        }
+        await this.load(loadOptions)
+        return name
+    }
+
+    /**
+     * 注入并创建指定字符串名称的对象
+     * @param name
+     * @param options
+     */
+    public async createObject<T extends BaseObject>(name: string, options: LoadEntryClassOptions<T>): Promise<T>
+    /**
+     * 注入并创建非指定字符串名称的构造函数对象
+     * @param constructor
+     * @param config
+     */
+    public async createObject<T extends BaseObject>(constructor: IConstructor<T>, config?: Record<string, any>): Promise<T>
+    public async createObject<T extends BaseObject>(inp: string | IConstructor<T>, b?: LoadEntryClassOptions<T> | Record<string, any>): Promise<T> {
+        return await this.get<T>(await this.set(As<any>(inp), b))
     }
 
     /**
