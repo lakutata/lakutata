@@ -18,6 +18,12 @@ import {appendAsyncConstructor} from 'async-constructor'
 })()
 export class DTO {
 
+    /**
+     * DTO基类构造函数
+     * @param properties
+     * @param validateOptions
+     * @param async
+     */
     constructor(properties: Record<string, any> = {}, validateOptions: ValidationOptions = defaultValidationOptions, async: boolean = false) {
         validateOptions = Object.assign({}, defaultValidationOptions, validateOptions)
         const schema: ObjectSchema = As<IConstructor<DTO>>(this.constructor).schema()
