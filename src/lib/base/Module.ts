@@ -250,6 +250,13 @@ export class Module<TModule extends Module = any, TComponent extends Component =
     }
 
     /**
+     * 创建一个当前模块的子作用域容器
+     */
+    public createScope(): Container {
+        return this.__$$container.createScope(this)
+    }
+
+    /**
      * 获取当前的运行环境（开发环境/正式环境）
      */
     public mode(): 'development' | 'production' {

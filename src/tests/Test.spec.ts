@@ -45,7 +45,10 @@ import {RandomString} from '../Utilities.js'
             // MDSTest1,
             async (app: Application) => {
                 console.log('app.mode():', app.mode())
-                const res = await app.createObject('mmm', {class: MDSTest1, tester: 'this is tester'})
+                await app.set('mmm', {class: MDSTest1, tester: 'this is tester'})
+                const subScope=app.createScope()
+                await subScope.get('mmm')
+                await subScope.destroy()
             }
         ]
     })
