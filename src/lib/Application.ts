@@ -19,10 +19,8 @@ export class Application extends Module {
         await rootContainer.load({
             [name]: {
                 class: Application,
-                config: {
-                    __$$options: options,
-                    __$$parentContainer: rootContainer
-                }
+                __$$options: options,
+                __$$parentContainer: rootContainer
             }
         })
         return await rootContainer.get<Application>(name)

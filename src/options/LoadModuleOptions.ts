@@ -1,9 +1,10 @@
 import {Module} from '../lib/base/Module.js'
 import {DTO} from '../lib/base/DTO.js'
 import {IConstructor} from '../interfaces/IConstructor.js'
-import {Expect} from '../decorators/ValidationDecorators.js'
+import {Expect, IndexSignature} from '../decorators/ValidationDecorators.js'
 import {Validator} from '../Validator.js'
 
+@IndexSignature(Validator.Any())
 export class LoadModuleOptions<T extends Module, U = IConstructor<T>> extends DTO {
 
     /**
@@ -13,8 +14,7 @@ export class LoadModuleOptions<T extends Module, U = IConstructor<T>> extends DT
     public declare readonly class: U
 
     /**
-     * 需要传入的参数
+     * 需要传入的参数以索引签名的形式声明
      */
-    @Expect(Validator.Object().pattern(Validator.String(), Validator.Any()).optional().default({}))
-    public declare readonly config?: Record<string, any>
+    [key: string]: any
 }

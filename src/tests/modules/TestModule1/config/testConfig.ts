@@ -4,7 +4,7 @@ import {SubTestComponent} from '../../../components/SubTestComponent.js'
 
 const options: ModuleOptions<any> = {
     entries: {
-        tt11: {class: TestComponent, config: {greet: 'subModule'}},
+        tt11: {class: TestComponent, greet: 'subModule'},
         // stc: {class: SubTestComponent}
     },
     bootstrap: [
@@ -21,7 +21,7 @@ export const objectConfig = options
 export async function functionConfig() {
     const options: ModuleOptions<any> = {
         entries: {
-            tt11: {class: TestComponent, config: {greet: 'subModule'}},
+            tt11: {class: TestComponent, greet: 'subModule'},
             // stc: {class: (await import('../../../components/SubTestComponent.js')).SubTestComponent}
             stc: {class: SubTestComponent}
         },

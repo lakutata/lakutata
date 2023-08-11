@@ -17,23 +17,21 @@ import {RandomString} from '../Utilities.js'
         timezone: 'Asia/Shanghai',
         mode: 'production',
         entries: {
-            testObject: {class: TestObject, config: {username: 'tester'}},
+            testObject: {class: TestObject, username: 'tester'},
             testInterval: {
                 class: TestInterval,
-                config: {
-                    interval: 1000,
-                    mode: 'SEQ'
-                }
+                interval: 1000,
+                mode: 'SEQ'
             }
             // '/Users/alex/WebstormProjects/core/src/tests/mds/**/*': {
             //     config: {tester: 'this is tester'}
             // }
         },
         components: {
-            testComponent: {class: TestComponent, config: {greet: 'hello world'}}
+            testComponent: {class: TestComponent,greet: 'hello world'}
         },
         modules: {
-            tm: {class: TestModule1, config: {greet: 'oh!'}},
+            tm: {class: TestModule1, greet: 'oh!'},
             tm1: TestModule1
         },
         bootstrap: [

@@ -100,7 +100,10 @@ export class Container<T extends Module = Module> {
         const pairs: NameAndRegistrationPair<any> = {}
         inheritFromBaseObjectClasses.forEach((inheritFromBaseObjectClass: IConstructor<T>): void => {
             const name: string = Container.stringifyConstructor(inheritFromBaseObjectClass)
-            this.assignConfigToInjectConstructorMetadata<T>(name, inheritFromBaseObjectClass, options.config)
+            this.assignConfigToInjectConstructorMetadata<T>(name, inheritFromBaseObjectClass, (() => {
+                const {class: cls, ...configs} = As<Record<string, any>>(options)
+                return configs
+            })())
             pairs[name] = asClass(inheritFromBaseObjectClass, {
                 lifetime: options.lifetime,
                 dispose: (instance: T) => this.disposer(instance),
@@ -166,7 +169,10 @@ export class Container<T extends Module = Module> {
         for (const key in options) {
             const entryOptions: LoadEntryCommonOptions | LoadEntryClassOptions<T> = options[key]
             if (LoadEntryClassOptions.isValid(entryOptions)) {
-                this.assignConfigToInjectConstructorMetadata<T>(key, As<LoadEntryClassOptions<T>>(entryOptions).class, entryOptions.config)
+                this.assignConfigToInjectConstructorMetadata<T>(key, As<LoadEntryClassOptions<T>>(entryOptions).class, (() => {
+                    const {class: cls, ...configs} = As<Record<string, any>>(entryOptions)
+                    return configs
+                })())
                 pairs[key] = asClass(As<LoadEntryClassOptions<T>>(entryOptions).class, {
                     lifetime: (As<LoadEntryClassOptions<T>>(entryOptions).class).__LIFETIME,
                     dispose: (instance: T) => this.disposer(instance),

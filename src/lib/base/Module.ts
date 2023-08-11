@@ -127,23 +127,29 @@ export class Module<TModule extends Module = any, TComponent extends Component =
         const moduleCommonConfig: Record<string, any> = {
             __$$parentContainer: this.__$$container
         }
-        Object.keys(components).forEach((componentName: string) => {
+        Object.keys(components).forEach((componentName: string): void => {
             const componentOptions: IConstructor<TComponent> | LoadComponentOptions<TComponent> = components[componentName]
             entries[componentName] = (As<IConstructor<TComponent>>(componentOptions).prototype instanceof Component) ? {
                 class: As<IConstructor<TComponent>>(componentOptions)
             } : {
                 class: componentOptions.class,
-                config: componentOptions.config
+                ...(() => {
+                    const {class: cls, ...configs} = componentOptions
+                    return configs
+                })()
             }
         })
-        Object.keys(modules).forEach((moduleName: string) => {
+        Object.keys(modules).forEach((moduleName: string): void => {
             const moduleOptions: IConstructor<TModule> | LoadModuleOptions<TModule> = modules[moduleName]
             entries[moduleName] = (As<IConstructor<TModule>>(moduleOptions).prototype instanceof Module) ? {
                 class: As<IConstructor<TModule>>(moduleOptions),
-                config: moduleCommonConfig
+                ...moduleCommonConfig
             } : {
                 class: moduleOptions.class,
-                config: Object.assign(moduleOptions.config, moduleCommonConfig)
+                ...(() => {
+                    const {class: cls, ...configs} = Object.assign(moduleOptions, moduleCommonConfig)
+                    return configs
+                })()
             }
         })
         await this.__$$container.load(entries)

@@ -1,9 +1,10 @@
-import {Expect} from '../decorators/ValidationDecorators.js'
+import {Expect, IndexSignature} from '../decorators/ValidationDecorators.js'
 import {LoadEntryCommonOptions} from './LoadEntryCommonOptions.js'
 import {BaseObject} from '../lib/base/BaseObject.js'
 import {Validator} from '../Validator.js'
 import {IConstructor} from '../interfaces/IConstructor.js'
 
+@IndexSignature(Validator.Any())
 export class LoadEntryClassOptions<T extends BaseObject, U = IConstructor<T>> extends LoadEntryCommonOptions {
 
     /**
