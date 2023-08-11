@@ -140,6 +140,7 @@ export class Validator {
      * @constructor
      */
     public static Alternatives<TSchema = any>(...types: SchemaLike[]): AlternativesSchema<TSchema> {
+        //@ts-ignore
         return Joi.alternatives<TSchema>(...types)
     }
 

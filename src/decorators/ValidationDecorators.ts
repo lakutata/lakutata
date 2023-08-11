@@ -16,6 +16,7 @@ type DTOSubClass<T extends DTO> = {
 
 /**
  * DTO类索引签名验证声明
+ * [key:string]:{声明的类型Schema}
  * @constructor
  */
 export function IndexSignature<T extends typeof DTO>(schema: Schema, ...schemas: Schema[]): (constructor: T) => T {
