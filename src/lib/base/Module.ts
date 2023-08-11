@@ -142,7 +142,7 @@ export class Module<TModule extends Module = any, TComponent extends Component =
         }
         const entries: Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<TModule>> = Object.assign(await this.entries(), this.__$$options.entries ? this.__$$options.entries : {})
         const autoload: (string | IConstructor<any>)[] = UniqueArray([...(await this.autoload()), ...(this.__$$options.autoload ? this.__$$options.autoload : [])])
-        autoload.forEach(autoloadItem => {
+        autoload.forEach((autoloadItem: string | IConstructor<any>) => {
             if (typeof autoloadItem === 'string') {
                 entries[autoloadItem] = {}
             } else {
