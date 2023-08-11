@@ -28,7 +28,7 @@ import {RandomString} from '../Utilities.js'
             // }
         },
         components: {
-            testComponent: {class: TestComponent,greet: 'hello world'}
+            testComponent: {class: TestComponent, greet: 'hello world'}
         },
         modules: {
             tm: {class: TestModule1, greet: 'oh!'},
