@@ -8,6 +8,7 @@ import {TestModule1} from './modules/TestModule1/TestModule1.js'
 import {Accept, Expect, IndexSignature} from '../decorators/ValidationDecorators.js'
 import {Validator} from '../Validator.js'
 import {RandomString} from '../Utilities.js'
+import {TestModel} from './models/TestModel.js'
 
 (async () => {
 
@@ -46,8 +47,13 @@ import {RandomString} from '../Utilities.js'
             async (app: Application) => {
                 console.log('app.mode():', app.mode())
                 await app.set('mmm', {class: MDSTest1, tester: 'this is tester'})
-                const subScope=app.createScope()
-                await subScope.get('mmm')
+                await app.set('testModel', {class: TestModel, greet: 'hello model'})
+                const subScope = app.createScope()
+                const testModel = (await subScope.get<TestModel>('testModel'))
+                testModel.on('property-changed', console.log)
+                console.log(testModel.eventNames())
+                console.log(testModel.greet);
+                (await subScope.get<TestModel>('testModel')).aa = '666666'
                 await subScope.destroy()
             }
         ]

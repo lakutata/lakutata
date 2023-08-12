@@ -6,15 +6,13 @@ import {Lifetime} from '../../decorators/DependencyInjectionDecorators.js'
 @Lifetime('SINGLETON', false)
 export class Component extends BaseObject implements EventEmitter {
 
-    protected __$$eventEmitter: EventEmitter
-
     /**
      * Constructor
      * @param properties
      */
     constructor(properties: InjectionProperties = {}) {
         super(properties)
-        this.__$$eventEmitter = new EventEmitter()
+        this.setInternalProperty('eventEmitter', new EventEmitter())
     }
 
     /**
@@ -22,7 +20,7 @@ export class Component extends BaseObject implements EventEmitter {
      * @protected
      */
     protected async __destroy(): Promise<void> {
-        this.__$$eventEmitter.removeAllListeners()
+        this.getInternalProperty<EventEmitter>('eventEmitter').removeAllListeners()
         return super.__destroy()
     }
 
@@ -40,7 +38,7 @@ export class Component extends BaseObject implements EventEmitter {
      * @param listener
      */
     public addListener(eventName: string | symbol, listener: (...args: any[]) => void): this {
-        this.__$$eventEmitter.addListener(eventName, listener)
+        this.getInternalProperty<EventEmitter>('eventEmitter').addListener(eventName, listener)
         return this
     }
 
@@ -50,21 +48,21 @@ export class Component extends BaseObject implements EventEmitter {
      * @param args
      */
     public emit(eventName: string | symbol, ...args: any[]): boolean {
-        return this.__$$eventEmitter.emit(eventName, ...args)
+        return this.getInternalProperty<EventEmitter>('eventEmitter').emit(eventName, ...args)
     }
 
     /**
      * 返回一个列出发射器已注册监听器的事件的数组。数组中的值是字符串或符号
      */
     public eventNames(): Array<string | symbol> {
-        return this.__$$eventEmitter.eventNames()
+        return this.getInternalProperty<EventEmitter>('eventEmitter').eventNames()
     }
 
     /**
      * 返回当前最大监听器值
      */
     public getMaxListeners(): number {
-        return this.__$$eventEmitter.getMaxListeners()
+        return this.getInternalProperty<EventEmitter>('eventEmitter').getMaxListeners()
     }
 
     /**
@@ -74,7 +72,7 @@ export class Component extends BaseObject implements EventEmitter {
      * @param listener
      */
     public listenerCount(eventName: string | symbol, listener?: Function): number {
-        return this.__$$eventEmitter.listenerCount(eventName, listener)
+        return this.getInternalProperty<EventEmitter>('eventEmitter').listenerCount(eventName, listener)
     }
 
     /**
@@ -82,7 +80,7 @@ export class Component extends BaseObject implements EventEmitter {
      * @param eventName
      */
     public listeners(eventName: string | symbol): Function[] {
-        return this.__$$eventEmitter.listeners(eventName)
+        return this.getInternalProperty<EventEmitter>('eventEmitter').listeners(eventName)
     }
 
     /**
@@ -91,7 +89,7 @@ export class Component extends BaseObject implements EventEmitter {
      * @param listener
      */
     public off(eventName: string | symbol, listener: (...args: any[]) => void): this {
-        this.__$$eventEmitter.off(eventName, listener)
+        this.getInternalProperty<EventEmitter>('eventEmitter').off(eventName, listener)
         return this
     }
 
@@ -102,7 +100,7 @@ export class Component extends BaseObject implements EventEmitter {
      * @param listener
      */
     public on(eventName: string | symbol, listener: (...args: any[]) => void): this {
-        this.__$$eventEmitter.on(eventName, listener)
+        this.getInternalProperty<EventEmitter>('eventEmitter').on(eventName, listener)
         return this
     }
 
@@ -113,7 +111,7 @@ export class Component extends BaseObject implements EventEmitter {
      * @param listener
      */
     public once(eventName: string | symbol, listener: (...args: any[]) => void): this {
-        this.__$$eventEmitter.once(eventName, listener)
+        this.getInternalProperty<EventEmitter>('eventEmitter').once(eventName, listener)
         return this
     }
 
@@ -124,7 +122,7 @@ export class Component extends BaseObject implements EventEmitter {
      * @param listener
      */
     public prependListener(eventName: string | symbol, listener: (...args: any[]) => void): this {
-        this.__$$eventEmitter.prependListener(eventName, listener)
+        this.getInternalProperty<EventEmitter>('eventEmitter').prependListener(eventName, listener)
         return this
     }
 
@@ -135,7 +133,7 @@ export class Component extends BaseObject implements EventEmitter {
      * @param listener
      */
     public prependOnceListener(eventName: string | symbol, listener: (...args: any[]) => void): this {
-        this.__$$eventEmitter.prependOnceListener(eventName, listener)
+        this.getInternalProperty<EventEmitter>('eventEmitter').prependOnceListener(eventName, listener)
         return this
     }
 
@@ -144,7 +142,7 @@ export class Component extends BaseObject implements EventEmitter {
      * @param eventName
      */
     public rawListeners(eventName: string | symbol): Function[] {
-        return this.__$$eventEmitter.rawListeners(eventName)
+        return this.getInternalProperty<EventEmitter>('eventEmitter').rawListeners(eventName)
     }
 
     /**
@@ -152,7 +150,7 @@ export class Component extends BaseObject implements EventEmitter {
      * @param event
      */
     public removeAllListeners(event?: string | symbol): this {
-        this.__$$eventEmitter.removeAllListeners(event)
+        this.getInternalProperty<EventEmitter>('eventEmitter').removeAllListeners(event)
         return this
     }
 
@@ -162,7 +160,7 @@ export class Component extends BaseObject implements EventEmitter {
      * @param listener
      */
     public removeListener(eventName: string | symbol, listener: (...args: any[]) => void): this {
-        this.__$$eventEmitter.removeListener(eventName, listener)
+        this.getInternalProperty<EventEmitter>('eventEmitter').removeListener(eventName, listener)
         return this
     }
 
@@ -172,7 +170,7 @@ export class Component extends BaseObject implements EventEmitter {
      * @param n
      */
     public setMaxListeners(n: number): this {
-        this.__$$eventEmitter.setMaxListeners(n)
+        this.getInternalProperty<EventEmitter>('eventEmitter').setMaxListeners(n)
         return this
     }
 }

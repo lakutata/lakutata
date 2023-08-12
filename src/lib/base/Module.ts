@@ -29,7 +29,7 @@ export class Module<TModule extends Module = any, TComponent extends Component =
      * 模块初始化函数
      * @protected
      */
-    protected async init(): Promise<void> {
+    protected async __init(): Promise<void> {
         this.setProperty('__$$options', this.getProperty('__$$options', {}))
         this.setProperty('__$$container', new Container(this, this.__$$parentContainer))
         this.setProperty('__$$options', await ModuleOptions.validateAsync(this.__$$options))

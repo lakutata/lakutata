@@ -35,6 +35,8 @@ import {InvalidConfigurableValueException} from '../../exceptions/InvalidConfigu
 import {InvalidValueException} from '../../exceptions/InvalidValueException.js'
 import {SHA256} from '../../Hash.js'
 
+const internalPropertyNameRegExp: RegExp = /__\$\$\$[a-zA-Z0-9~!@#$%^&*()_+\[\]\{\},./\\<>?|\-\*]+\$\$\$__/
+
 @(() => {
     return <TFunction extends IConstructor<any>>(target: TFunction): TFunction => {
         const nonceStr: string = RandomString(16)
@@ -152,9 +154,20 @@ export class BaseObject extends AsyncConstructor {
                 })
                 if (configurableItems) configurableItems.forEach((propertyKey: string): void => this[propertyKey] = Object.hasOwn(config, propertyKey) ? config[propertyKey] : configurableInitValueMap.get(propertyKey))
             }
+            delete this['then']//确保在子类中不会获取到“then”的属性
+            await this.__init()
             await this.init()
             Reflect.defineMetadata(OBJECT_INIT_MARK, true, this)
         })
+    }
+
+    /**
+     * Convert property name to internal property name
+     * @param propertyName
+     * @private
+     */
+    private propertyNameToInternalPropertyName(propertyName: string): string {
+        return `__$$$${propertyName}$$$__`
     }
 
     /**
@@ -162,6 +175,14 @@ export class BaseObject extends AsyncConstructor {
      * @protected
      */
     protected async __destroy(): Promise<void> {
+        //To be override in child class
+    }
+
+    /**
+     * Internal initialize function
+     * @protected
+     */
+    protected async __init(): Promise<void> {
         //To be override in child class
     }
 
@@ -205,7 +226,15 @@ export class BaseObject extends AsyncConstructor {
      * @param propertyKey
      */
     public hasProperty(propertyKey: string): boolean {
-        return As(this).hasOwnProperty(propertyKey) || this[propertyKey] !== undefined
+        return this.propertyNames().includes(propertyKey)
+    }
+
+    /**
+     * Is object has internal property
+     * @param propertyKey
+     */
+    public hasInternalProperty(propertyKey: string): boolean {
+        return this.internalPropertyNames().includes(this.propertyNameToInternalPropertyName(propertyKey))
     }
 
     /**
@@ -234,6 +263,41 @@ export class BaseObject extends AsyncConstructor {
         } else {
             return (...args: any[]): void => ThrowIntoBlackHole(...args)
         }
+    }
+
+    /**
+     * Set internal property
+     * @param propertyKey
+     * @param value
+     */
+    public setInternalProperty(propertyKey: string, value: any): void {
+        this.setProperty(this.propertyNameToInternalPropertyName(propertyKey), value)
+    }
+
+    /**
+     * Get internal property
+     * @param propertyKey
+     * @param defaultValue
+     */
+    public getInternalProperty<T = any>(propertyKey: string, defaultValue?: T): T {
+        if (this.hasInternalProperty(propertyKey)) return As<T>(this[this.propertyNameToInternalPropertyName(propertyKey)])
+        return As<T>(defaultValue)
+    }
+
+    /**
+     * Get property names
+     * Exclude internal property names
+     */
+    public propertyNames(): string[] {
+        return Object.getOwnPropertyNames(this).filter(propertyName => !internalPropertyNameRegExp.test(propertyName))
+    }
+
+    /**
+     * Get internal property names
+     * Exclude non-internal property names
+     */
+    public internalPropertyNames(): string[] {
+        return Object.getOwnPropertyNames(this).filter(propertyName => internalPropertyNameRegExp.test(propertyName))
     }
 
     /**
