@@ -149,24 +149,29 @@ export class Container<T extends Module = Module> {
      */
     @Accept(Validator.Object().pattern(Validator.String(), Validator.Alternatives().try(LoadEntryClassOptions.schema(), LoadEntryCommonOptions.schema())))
     public async load<T extends BaseObject>(options: Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<T>>): Promise<void> {
-        let pairs: NameAndRegistrationPair<any> = {}
+        const loadPairPromises: Promise<NameAndRegistrationPair<any>>[] = []
         for (const key in options) {
-            const entryOptions: LoadEntryCommonOptions | LoadEntryClassOptions<T> = options[key]
-            if (LoadEntryClassOptions.isValid(entryOptions)) {
-                this.assignConfigToInjectConstructorMetadata<T>(key, As<LoadEntryClassOptions<T>>(entryOptions).class, (() => {
-                    const {class: cls, ...configs} = As<Record<string, any>>(entryOptions)
-                    return configs
-                })())
-                pairs[key] = asClass(As<LoadEntryClassOptions<T>>(entryOptions).class, {
-                    lifetime: (As<LoadEntryClassOptions<T>>(entryOptions).class).__LIFETIME,
-                    dispose: (instance: T) => this.disposer(instance),
-                    injector: () => this.additionalPropertiesInjector()
-                })
-            } else {
-                pairs = {...pairs, ...(await this.getEntryConstructorsByGlob<T>(key, entryOptions))}
-            }
+            loadPairPromises.push(new Promise((resolve, reject) => {
+                const entryOptions: LoadEntryCommonOptions | LoadEntryClassOptions<T> = options[key]
+                try {
+                    if (!LoadEntryClassOptions.isValid(entryOptions)) return this.getEntryConstructorsByGlob<T>(key, entryOptions).then(resolve).catch(reject)
+                    this.assignConfigToInjectConstructorMetadata<T>(key, As<LoadEntryClassOptions<T>>(entryOptions).class, (() => {
+                        const {class: cls, ...configs} = As<Record<string, any>>(entryOptions)
+                        return configs
+                    })())
+                    const _pairs: NameAndRegistrationPair<any> = {}
+                    _pairs[key] = asClass(As<LoadEntryClassOptions<T>>(entryOptions).class, {
+                        lifetime: (As<LoadEntryClassOptions<T>>(entryOptions).class).__LIFETIME,
+                        dispose: (instance: T) => this.disposer(instance),
+                        injector: () => this.additionalPropertiesInjector()
+                    })
+                    return resolve(_pairs)
+                } catch (e) {
+                    return reject(e)
+                }
+            }))
         }
-        this.__$$dic.register(pairs)
+        (await Promise.all(loadPairPromises)).forEach((pair: NameAndRegistrationPair<any>) => this.__$$dic.register(pair))
     }
 
     /**

@@ -32,7 +32,7 @@ import {Formatter} from '../components/Formatter.js'
         },
         autoload: [
             // '/Users/alex/WebstormProjects/core/src/tests/mds/**/*',
-            // MDSTest1
+            MDSTest1
         ],
         components: {
             testComponent: {class: TestComponent, greet: 'hello world'}
@@ -41,11 +41,12 @@ import {Formatter} from '../components/Formatter.js'
             tm: {class: TestModule1, greet: 'oh!'},
             tm1: TestModule1
         },
+        controllers:[],
         bootstrap: [
             'tm',
             'tm1',
             'testInterval',
-            // MDSTest1,
+            MDSTest1,
             async (app: Application) => {
                 const formatter = await app.get<Formatter>('formatter')
                 console.log(formatter.asPercent(1))

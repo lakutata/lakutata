@@ -14,12 +14,13 @@ import {LoadEntryClassOptions} from '../../options/LoadEntryClassOptions.js'
 import {LoadModuleOptions} from '../../options/LoadModuleOptions.js'
 import {LoadComponentOptions} from '../../options/LoadComponentOptions.js'
 import {InjectionProperties} from '../../types/InjectionProperties.js'
+import {Controller} from './Controller.js'
 
 /**
  * 模块基类
  */
 @Lifetime('SINGLETON', true)
-export class Module<TModule extends Module = any, TComponent extends Component = any, TBaseObject extends BaseObject = any> extends Component {
+export class Module<TModule extends Module = any, TComponent extends Component = any, TBaseObject extends BaseObject = any, TController extends Controller = any> extends Component {
 
     @Configurable()
     protected readonly __$$options: ModuleOptions<TModule>
@@ -92,6 +93,24 @@ export class Module<TModule extends Module = any, TComponent extends Component =
         .optional()
         .default([]))
     protected async autoload(): Promise<(string | IConstructor<TBaseObject>)[]> {
+        return []
+    }
+
+    /**
+     * 内联控制器加载数组集合
+     * @protected
+     */
+    @Return(Validator.Array(
+        Validator
+            .Alternatives()
+            .try(
+                Validator.Glob(),
+                Validator.Class(Controller)
+            )
+    )
+        .optional()
+        .default([]))
+    protected async controllers(): Promise<(string | IConstructor<TController>)[]> {
         return []
     }
 
@@ -187,6 +206,22 @@ export class Module<TModule extends Module = any, TComponent extends Component =
     }
 
     /**
+     * 向entries中添加自动加载的项目
+     * @param autoloadItems
+     * @param entries
+     * @protected
+     */
+    protected autoloadToEntries(autoloadItems: (string | IConstructor<any>)[], entries: Record<string, any>): void {
+        autoloadItems.forEach((autoloadItem: string | IConstructor<any>) => {
+            if (typeof autoloadItem === 'string') {
+                entries[autoloadItem] = {}
+            } else {
+                entries[Container.stringifyConstructor(autoloadItem)] = {class: autoloadItem}
+            }
+        })
+    }
+
+    /**
      * 执行启动引导
      * @protected
      */
@@ -197,13 +232,9 @@ export class Module<TModule extends Module = any, TComponent extends Component =
         }
         const entries: Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<TModule>> = As<Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<TModule>>>(await this.mergeEntries(await this.entries(), this.__$$options.entries))
         const autoload: (string | IConstructor<any>)[] = UniqueArray([...(await this.autoload()), ...(this.__$$options.autoload ? this.__$$options.autoload : [])])
-        autoload.forEach((autoloadItem: string | IConstructor<any>) => {
-            if (typeof autoloadItem === 'string') {
-                entries[autoloadItem] = {}
-            } else {
-                entries[Container.stringifyConstructor(autoloadItem)] = {class: autoloadItem}
-            }
-        })
+        const controllers: (string | IConstructor<Controller>)[] = UniqueArray([...(await this.controllers()), ...(this.__$$options.controllers ? this.__$$options.controllers : [])])
+        //todo 对controller对象进行解析
+        this.autoloadToEntries([...autoload, ...controllers], entries)//将自动加载项和控制器加载项一同进行加载
         const components: Record<string, IConstructor<TComponent> | LoadComponentOptions<TComponent>> = As<Record<string, IConstructor<TComponent> | LoadComponentOptions<TComponent>>>(await this.mergeEntries(await this.components(), this.__$$options.components))
         const modules: Record<string, IConstructor<TModule> | LoadModuleOptions<TModule>> = As<Record<string, IConstructor<TModule> | LoadModuleOptions<TModule>>>(await this.mergeEntries(await this.modules(), this.__$$options.modules))
         const moduleCommonConfig: Record<string, any> = {

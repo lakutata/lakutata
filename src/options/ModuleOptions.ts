@@ -10,6 +10,7 @@ import {Module} from '../lib/base/Module.js'
 import {LoadModuleOptions} from './LoadModuleOptions.js'
 import {Component} from '../lib/base/Component.js'
 import {LoadComponentOptions} from './LoadComponentOptions.js'
+import {Controller} from '../lib/base/Controller.js'
 
 export class ModuleOptions<U extends Module, T extends BaseObject = BaseObject> extends DTO {
     /**
@@ -43,6 +44,22 @@ export class ModuleOptions<U extends Module, T extends BaseObject = BaseObject> 
             .default([])
     )
     public declare readonly autoload?: (string | IConstructor<T>)[]
+
+    /**
+     * 控制器加载配置
+     */
+    @Expect(Validator.Array(
+            Validator
+                .Alternatives()
+                .try(
+                    Validator.Glob(),
+                    Validator.Class(Controller)
+                )
+        )
+            .optional()
+            .default([])
+    )
+    public declare readonly controllers?: (string | IConstructor<Controller>)[]
 
     /**
      * 组件注入配置
