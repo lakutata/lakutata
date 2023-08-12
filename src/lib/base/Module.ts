@@ -182,7 +182,6 @@ export class Module<TModule extends Module = any, TComponent extends Component =
         if (configureOptions) {
             Object.keys(configureOptions).forEach((propertyKey: string) => Object.defineProperty(this.__$$options, propertyKey, {value: configureOptions[propertyKey]}))
         }
-        // const entries: Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<TModule>> = Object.assign(await this.entries(), this.__$$options.entries ? this.__$$options.entries : {})
         const entries: Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<TModule>> = As<Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<TModule>>>(await this.mergeEntries(await this.entries(), this.__$$options.entries))
         const autoload: (string | IConstructor<any>)[] = UniqueArray([...(await this.autoload()), ...(this.__$$options.autoload ? this.__$$options.autoload : [])])
         autoload.forEach((autoloadItem: string | IConstructor<any>) => {
@@ -192,9 +191,7 @@ export class Module<TModule extends Module = any, TComponent extends Component =
                 entries[Container.stringifyConstructor(autoloadItem)] = {class: autoloadItem}
             }
         })
-        // const components: Record<string, IConstructor<TComponent> | LoadComponentOptions<TComponent>> = Object.assign(await this.components(), this.__$$options.components ? this.__$$options.components : {})
         const components: Record<string, IConstructor<TComponent> | LoadComponentOptions<TComponent>> = As<Record<string, IConstructor<TComponent> | LoadComponentOptions<TComponent>>>(await this.mergeEntries(await this.components(), this.__$$options.components))
-        // const modules: Record<string, IConstructor<TModule> | LoadModuleOptions<TModule>> = Object.assign(await this.modules(), this.__$$options.modules ? this.__$$options.modules : {})
         const modules: Record<string, IConstructor<TModule> | LoadModuleOptions<TModule>> = As<Record<string, IConstructor<TModule> | LoadModuleOptions<TModule>>>(await this.mergeEntries(await this.modules(), this.__$$options.modules))
         const moduleCommonConfig: Record<string, any> = {
             __$$parentContainer: this.__$$container
