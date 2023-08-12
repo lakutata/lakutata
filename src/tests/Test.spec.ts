@@ -12,6 +12,7 @@ import {TestModel} from './models/TestModel.js'
 
 (async () => {
 
+    console.time('app')
     const app = await Application.run({
         id: 'test',
         name: 'test',
@@ -57,5 +58,6 @@ import {TestModel} from './models/TestModel.js'
             }
         ]
     })
+    console.timeEnd('app')
     // app.exit()
 })()

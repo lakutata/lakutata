@@ -29,6 +29,11 @@
       "import": "./build/Utilities.js",
       "types": "./build/Utilities.d.ts"
     },
+    "./formatter": {
+      "require": "./build/Formatter.cjs",
+      "import": "./build/Formatter.js",
+      "types": "./build/Formatter.d.ts"
+    },
     "./hash": {
       "require": "./build/Hash.cjs",
       "import": "./build/Hash.js",

@@ -5,13 +5,13 @@ import {InvalidValueException} from './exceptions/InvalidValueException.js'
 import {defaultValidationOptions} from './constants/DefaultValue.js'
 import {isAsyncFunction} from 'util/types'
 
-export class Validator {
+export class BaseValidator {
 
     /**
      * 任意类型验证
      * @constructor
      */
-    public static Any<TSchema = any>(): AnySchema<TSchema> {
+    public Any<TSchema = any>(): AnySchema<TSchema> {
         return Joi.any<TSchema>()
     }
 
@@ -19,7 +19,7 @@ export class Validator {
      * 字符串类型验证
      * @constructor
      */
-    public static String<TSchema = string>(): StringSchema<TSchema> {
+    public String<TSchema = string>(): StringSchema<TSchema> {
         return Joi.string<TSchema>()
     }
 
@@ -27,7 +27,7 @@ export class Validator {
      * 数字类型验证
      * @constructor
      */
-    public static Number<TSchema = number>(): NumberSchema<TSchema> {
+    public Number<TSchema = number>(): NumberSchema<TSchema> {
         return Joi.number<TSchema>()
     }
 
@@ -35,7 +35,7 @@ export class Validator {
      * 布尔类型验证
      * @constructor
      */
-    public static Boolean<TSchema = boolean>(): BooleanSchema<TSchema> {
+    public Boolean<TSchema = boolean>(): BooleanSchema<TSchema> {
         return Joi.boolean<TSchema>()
     }
 
@@ -43,7 +43,7 @@ export class Validator {
      * 日期类型验证
      * @constructor
      */
-    public static Date<TSchema = Date>(): DateSchema<TSchema> {
+    public Date<TSchema = Date>(): DateSchema<TSchema> {
         return Joi.date<TSchema>()
     }
 
@@ -52,7 +52,7 @@ export class Validator {
      * @param schema
      * @constructor
      */
-    public static Object<TSchema = any, isStrict = false, T = TSchema>(schema?: SchemaMap<T, isStrict>): ObjectSchema<TSchema> {
+    public Object<TSchema = any, isStrict = false, T = TSchema>(schema?: SchemaMap<T, isStrict>): ObjectSchema<TSchema> {
         return Joi.object<TSchema, isStrict, T>(schema as any)
     }
 
@@ -61,7 +61,7 @@ export class Validator {
      * @param types
      * @constructor
      */
-    public static Array<TSchema = any[]>(...types: SchemaLikeWithoutArray[]): ArraySchema<TSchema> {
+    public Array<TSchema = any[]>(...types: SchemaLikeWithoutArray[]): ArraySchema<TSchema> {
         return Joi.array<TSchema>().items(...types)
     }
 
@@ -69,7 +69,7 @@ export class Validator {
      * 二进制类型验证
      * @constructor
      */
-    public static Binary<TSchema = Buffer>(): BinarySchema<TSchema> {
+    public Binary<TSchema = Buffer>(): BinarySchema<TSchema> {
         return Joi.binary<TSchema>()
     }
 
@@ -77,7 +77,7 @@ export class Validator {
      * 方法类型验证
      * @constructor
      */
-    public static Function<TSchema = Function>(): FunctionSchema<TSchema> {
+    public Function<TSchema = Function>(): FunctionSchema<TSchema> {
         return Joi.func<TSchema>()
     }
 
@@ -85,7 +85,7 @@ export class Validator {
      * 异步方法类型验证
      * @constructor
      */
-    public static AsyncFunction<TSchema = Function>(): FunctionSchema<TSchema> {
+    public AsyncFunction<TSchema = Function>(): FunctionSchema<TSchema> {
         return Joi.func<TSchema>().custom((value: TSchema, helpers) => {
             if (isAsyncFunction(value)) return value
             return helpers.error('asyncFunc.invalid')
@@ -105,7 +105,7 @@ export class Validator {
      * @param inheritsFrom
      * @constructor
      */
-    public static Class<TSchema = Function>(inheritsFrom?: TSchema | (() => TSchema)): FunctionSchema<TSchema> {
+    public Class<TSchema = Function>(inheritsFrom?: TSchema | (() => TSchema)): FunctionSchema<TSchema> {
         if (!inheritsFrom) return Joi.func<TSchema>().class()
         return Joi.func<TSchema>().class().custom((value: TSchema, helpers: CustomHelpers) => {
             if (!As<() => TSchema>(inheritsFrom).prototype) inheritsFrom = As<() => TSchema>(inheritsFrom)()
@@ -118,7 +118,7 @@ export class Validator {
      * 通配符匹配操作符字符串验证器
      * @constructor
      */
-    public static Glob<TSchema = string>(): StringSchema<TSchema> {
+    public Glob<TSchema = string>(): StringSchema<TSchema> {
         return Joi.string<TSchema>().custom((value: TSchema, helpers: CustomHelpers) => {
             if (typeof value === 'string' && IsGlobString(value)) return value
             return helpers.error('any.invalid')
@@ -130,7 +130,7 @@ export class Validator {
      * 符号类型验证
      * @constructor
      */
-    public static Symbol<TSchema = Symbol>(): SymbolSchema<TSchema> {
+    public Symbol<TSchema = Symbol>(): SymbolSchema<TSchema> {
         return Joi.symbol<TSchema>()
     }
 
@@ -139,7 +139,7 @@ export class Validator {
      * @param types
      * @constructor
      */
-    public static Alternatives<TSchema = any>(...types: SchemaLike[]): AlternativesSchema<TSchema> {
+    public Alternatives<TSchema = any>(...types: SchemaLike[]): AlternativesSchema<TSchema> {
         //@ts-ignore
         return Joi.alternatives<TSchema>(...types)
     }
@@ -150,7 +150,7 @@ export class Validator {
      * @param options
      * @constructor
      */
-    public static Ref(key: string, options?: ReferenceOptions): Reference {
+    public Ref(key: string, options?: ReferenceOptions): Reference {
         return Joi.ref(key, options)
     }
 
@@ -158,7 +158,7 @@ export class Validator {
      * 将一个键标记为禁止，该键将不允许除undefined以外的任何值。用于明确禁止键。
      * @constructor
      */
-    public static Forbidden(): Schema {
+    public Forbidden(): Schema {
         return Joi.forbidden()
     }
 
@@ -168,7 +168,7 @@ export class Validator {
      * @param options
      * @constructor
      */
-    public static In(ref: string, options?: ReferenceOptions): Reference {
+    public In(ref: string, options?: ReferenceOptions): Reference {
         return Joi.in(ref, options)
     }
 
@@ -179,7 +179,7 @@ export class Validator {
      * @param options
      * @constructor
      */
-    public static Attempt<TSchema extends Schema>(value: any, schema: TSchema, options?: ValidationOptions): TSchema extends Schema<infer Value> ? Value : never {
+    public Attempt<TSchema extends Schema>(value: any, schema: TSchema, options?: ValidationOptions): TSchema extends Schema<infer Value> ? Value : never {
         return Joi.attempt(value, schema, options) as any
     }
 
@@ -189,7 +189,7 @@ export class Validator {
      * @param schema
      * @param options
      */
-    public static validate<T = any>(data: T, schema: Schema, options?: ValidationOptions): T {
+    public validate<T = any>(data: T, schema: Schema, options?: ValidationOptions): T {
         options = options ? Object.assign({}, defaultValidationOptions, options) : defaultValidationOptions
         const {error, value} = schema.validate(data, options)
         if (error) throw new InvalidValueException(error.message)
@@ -202,7 +202,7 @@ export class Validator {
      * @param schema
      * @param options
      */
-    public static async validateAsync<T = any>(data: T, schema: Schema, options?: ValidationOptions): Promise<T> {
+    public async validateAsync<T = any>(data: T, schema: Schema, options?: ValidationOptions): Promise<T> {
         options = options ? Object.assign({}, defaultValidationOptions, options) : defaultValidationOptions
         try {
             return schema.validateAsync(data, options)
@@ -211,6 +211,8 @@ export class Validator {
         }
     }
 }
+
+export const Validator: BaseValidator = new BaseValidator()
 
 export type Types =
     | 'any'
