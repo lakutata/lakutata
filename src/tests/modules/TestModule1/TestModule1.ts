@@ -18,6 +18,12 @@ export class TestModule1 extends Module {
     @Configurable()
     protected readonly greet: string
 
+    protected async entries(): Promise<Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<any>>> {
+        return {
+            tt11: {class: TestComponent, greet: 'subModule'}
+        }
+    }
+
     protected async configure(): Promise<ModuleOptions<this> | undefined> {
         return await functionConfig()
         // return objectConfig
