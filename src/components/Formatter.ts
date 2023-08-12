@@ -143,6 +143,11 @@ export class Formatter extends Component {
      * @param toUnit
      * @param fromUnit
      */
+    @Accept([
+        Validator.Number(),
+        Validator.String().valid('mm2', 'cm2', 'm2', 'ha', 'km2', 'in2', 'ft2', 'ac', 'mi2').required(),
+        Validator.String().valid('mm2', 'cm2', 'm2', 'ha', 'km2', 'in2', 'ft2', 'ac', 'mi2').optional()
+    ])
     public asArea(value: number, toUnit: Area, fromUnit: Area = 'mm2'): number {
         return convert(value).from(fromUnit).to(toUnit)
     }
@@ -153,6 +158,11 @@ export class Formatter extends Component {
      * @param toUnit
      * @param fromUnit
      */
+    @Accept([
+        Validator.Number(),
+        Validator.String().valid('mcg', 'mg', 'g', 'kg', 'oz', 'lb', 'mt', 't').required(),
+        Validator.String().valid('mcg', 'mg', 'g', 'kg', 'oz', 'lb', 'mt', 't').optional()
+    ])
     public asMass(value: number, toUnit: Mass, fromUnit: Mass = 'g'): number {
         return convert(value).from(fromUnit).to(toUnit)
     }
@@ -163,6 +173,11 @@ export class Formatter extends Component {
      * @param toUnit
      * @param fromUnit
      */
+    @Accept([
+        Validator.Number(),
+        Validator.String().valid('mm3', 'cm3', 'ml', 'l', 'kl', 'm3', 'km3', 'tsp', 'Tbs', 'in3', 'fl-oz', 'cup', 'pnt', 'qt', 'gal', 'ft3', 'yd3').required(),
+        Validator.String().valid('mm3', 'cm3', 'ml', 'l', 'kl', 'm3', 'km3', 'tsp', 'Tbs', 'in3', 'fl-oz', 'cup', 'pnt', 'qt', 'gal', 'ft3', 'yd3').optional()
+    ])
     public asVolume(value: number, toUnit: Volume, fromUnit: Volume = 'mm3'): number {
         return convert(value).from(fromUnit).to(toUnit)
     }
@@ -173,6 +188,11 @@ export class Formatter extends Component {
      * @param toUnit
      * @param fromUnit
      */
+    @Accept([
+        Validator.Number(),
+        Validator.String().valid('mm3/s', 'cm3/s', 'ml/s', 'cl/s', 'dl/s', 'l/s', 'l/min', 'l/h', 'kl/s', 'kl/min', 'kl/h', 'm3/s', 'm3/min', 'm3/h', 'km3/s', 'tsp/s', 'Tbs/s', 'in3/s', 'in3/min', 'in3/h', 'fl-oz/s', 'fl-oz/min', 'fl-oz/h', 'cup/s', 'pnt/s', 'pnt/min', 'pnt/h', 'qt/s', 'gal/s', 'gal/min', 'gal/h', 'ft3/s', 'ft3/min', 'ft3/h', 'yd3/s', 'yd3/min', 'yd3/h').required(),
+        Validator.String().valid('mm3/s', 'cm3/s', 'ml/s', 'cl/s', 'dl/s', 'l/s', 'l/min', 'l/h', 'kl/s', 'kl/min', 'kl/h', 'm3/s', 'm3/min', 'm3/h', 'km3/s', 'tsp/s', 'Tbs/s', 'in3/s', 'in3/min', 'in3/h', 'fl-oz/s', 'fl-oz/min', 'fl-oz/h', 'cup/s', 'pnt/s', 'pnt/min', 'pnt/h', 'qt/s', 'gal/s', 'gal/min', 'gal/h', 'ft3/s', 'ft3/min', 'ft3/h', 'yd3/s', 'yd3/min', 'yd3/h').optional()
+    ])
     public asVolumeFlowRate(value: number, toUnit: VolumeFlowRate, fromUnit: VolumeFlowRate = 'mm3/s'): number {
         return convert(value).from(fromUnit).to(toUnit)
     }
@@ -183,6 +203,11 @@ export class Formatter extends Component {
      * @param toUnit
      * @param fromUnit
      */
+    @Accept([
+        Validator.Number(),
+        Validator.String().valid('C', 'F', 'K', 'R').required(),
+        Validator.String().valid('C', 'F', 'K', 'R').optional()
+    ])
     public asTemperature(value: number, toUnit: Temperature, fromUnit: Temperature = 'C'): number {
         return convert(value).from(fromUnit).to(toUnit)
     }
@@ -193,6 +218,11 @@ export class Formatter extends Component {
      * @param toUnit
      * @param fromUnit
      */
+    @Accept([
+        Validator.Number(),
+        Validator.String().valid('Hz', 'mHz', 'kHz', 'MHz', 'GHz', 'THz', 'rpm', 'deg/s', 'rad/s').required(),
+        Validator.String().valid('Hz', 'mHz', 'kHz', 'MHz', 'GHz', 'THz', 'rpm', 'deg/s', 'rad/s').optional()
+    ])
     public asFrequency(value: number, toUnit: Frequency, fromUnit: Frequency = 'Hz'): number {
         return convert(value).from(fromUnit).to(toUnit)
     }
@@ -203,6 +233,11 @@ export class Formatter extends Component {
      * @param toUnit
      * @param fromUnit
      */
+    @Accept([
+        Validator.Number(),
+        Validator.String().valid('m/s', 'km/h', 'm/h', 'knot', 'ft/s').required(),
+        Validator.String().valid('m/s', 'km/h', 'm/h', 'knot', 'ft/s').optional()
+    ])
     public asSpeed(value: number, toUnit: Speed, fromUnit: Speed = 'm/s'): number {
         return convert(value).from(fromUnit).to(toUnit)
     }
@@ -213,6 +248,11 @@ export class Formatter extends Component {
      * @param toUnit
      * @param fromUnit
      */
+    @Accept([
+        Validator.Number(),
+        Validator.String().valid('s/m', 'min/km', 's/ft', 'min/mi').required(),
+        Validator.String().valid('s/m', 'min/km', 's/ft', 'min/mi').optional()
+    ])
     public asPace(value: number, toUnit: Pace, fromUnit: Pace = 's/m'): number {
         return convert(value).from(fromUnit).to(toUnit)
     }
@@ -223,6 +263,11 @@ export class Formatter extends Component {
      * @param toUnit
      * @param fromUnit
      */
+    @Accept([
+        Validator.Number(),
+        Validator.String().valid('Pa', 'hPa', 'kPa', 'MPa', 'bar', 'torr', 'psi', 'ksi').required(),
+        Validator.String().valid('Pa', 'hPa', 'kPa', 'MPa', 'bar', 'torr', 'psi', 'ksi').optional()
+    ])
     public asPressure(value: number, toUnit: Pressure, fromUnit: Pressure = 'Pa'): number {
         return convert(value).from(fromUnit).to(toUnit)
     }
@@ -233,6 +278,11 @@ export class Formatter extends Component {
      * @param toUnit
      * @param fromUnit
      */
+    @Accept([
+        Validator.Number(),
+        Validator.String().valid('b', 'Kb', 'Mb', 'Gb', 'Tb', 'B', 'KB', 'MB', 'GB', 'TB').required(),
+        Validator.String().valid('b', 'Kb', 'Mb', 'Gb', 'Tb', 'B', 'KB', 'MB', 'GB', 'TB').optional()
+    ])
     public asDigital(value: number, toUnit: Digital, fromUnit: Digital = 'B'): number {
         return convert(value).from(fromUnit).to(toUnit)
     }
@@ -243,6 +293,11 @@ export class Formatter extends Component {
      * @param toUnit
      * @param fromUnit
      */
+    @Accept([
+        Validator.Number(),
+        Validator.String().valid('ppm', 'ppb', 'ppt', 'ppq').required(),
+        Validator.String().valid('ppm', 'ppb', 'ppt', 'ppq').optional()
+    ])
     public asPartsPer(value: number, toUnit: PartsPer, fromUnit: PartsPer = 'ppm'): number {
         return convert(value).from(fromUnit).to(toUnit)
     }
@@ -253,6 +308,11 @@ export class Formatter extends Component {
      * @param toUnit
      * @param fromUnit
      */
+    @Accept([
+        Validator.Number(),
+        Validator.String().valid('V', 'mV', 'kV').required(),
+        Validator.String().valid('V', 'mV', 'kV').optional()
+    ])
     public asVoltage(value: number, toUnit: Voltage, fromUnit: Voltage = 'V'): number {
         return convert(value).from(fromUnit).to(toUnit)
     }
@@ -263,6 +323,11 @@ export class Formatter extends Component {
      * @param toUnit
      * @param fromUnit
      */
+    @Accept([
+        Validator.Number(),
+        Validator.String().valid('A', 'mA', 'kA').required(),
+        Validator.String().valid('A', 'mA', 'kA').optional()
+    ])
     public asCurrent(value: number, toUnit: Current, fromUnit: Current = 'A'): number {
         return convert(value).from(fromUnit).to(toUnit)
     }
@@ -273,6 +338,11 @@ export class Formatter extends Component {
      * @param toUnit
      * @param fromUnit
      */
+    @Accept([
+        Validator.Number(),
+        Validator.String().valid('W', 'mW', 'kW', 'MW', 'GW').required(),
+        Validator.String().valid('W', 'mW', 'kW', 'MW', 'GW').optional()
+    ])
     public asPower(value: number, toUnit: Power, fromUnit: Power = 'W'): number {
         return convert(value).from(fromUnit).to(toUnit)
     }
@@ -283,6 +353,11 @@ export class Formatter extends Component {
      * @param toUnit
      * @param fromUnit
      */
+    @Accept([
+        Validator.Number(),
+        Validator.String().valid('VA', 'mVA', 'kVA', 'MVA', 'GVA').required(),
+        Validator.String().valid('VA', 'mVA', 'kVA', 'MVA', 'GVA').optional()
+    ])
     public asApparentPower(value: number, toUnit: ApparentPower, fromUnit: ApparentPower = 'VA'): number {
         return convert(value).from(fromUnit).to(toUnit)
     }
@@ -293,6 +368,11 @@ export class Formatter extends Component {
      * @param toUnit
      * @param fromUnit
      */
+    @Accept([
+        Validator.Number(),
+        Validator.String().valid('VAR', 'mVAR', 'kVAR', 'MVAR', 'GVAR').required(),
+        Validator.String().valid('VAR', 'mVAR', 'kVAR', 'MVAR', 'GVAR').optional()
+    ])
     public asReactivePower(value: number, toUnit: ReactivePower, fromUnit: ReactivePower = 'VAR'): number {
         return convert(value).from(fromUnit).to(toUnit)
     }
@@ -303,6 +383,11 @@ export class Formatter extends Component {
      * @param toUnit
      * @param fromUnit
      */
+    @Accept([
+        Validator.Number(),
+        Validator.String().valid('Wh', 'mWh', 'kWh', 'MWh', 'GWh', 'J', 'kJ').required(),
+        Validator.String().valid('Wh', 'mWh', 'kWh', 'MWh', 'GWh', 'J', 'kJ').optional()
+    ])
     public asEnergy(value: number, toUnit: Energy, fromUnit: Energy = 'Wh'): number {
         return convert(value).from(fromUnit).to(toUnit)
     }
@@ -313,6 +398,11 @@ export class Formatter extends Component {
      * @param toUnit
      * @param fromUnit
      */
+    @Accept([
+        Validator.Number(),
+        Validator.String().valid('VARh', 'mVARh', 'kVARh', 'MVARh', 'GVARH').required(),
+        Validator.String().valid('VARh', 'mVARh', 'kVARh', 'MVARh', 'GVARH').optional()
+    ])
     public asReactiveEnergy(value: number, toUnit: ReactiveEnergy, fromUnit: ReactiveEnergy = 'VARh'): number {
         return convert(value).from(fromUnit).to(toUnit)
     }
@@ -323,6 +413,11 @@ export class Formatter extends Component {
      * @param toUnit
      * @param fromUnit
      */
+    @Accept([
+        Validator.Number(),
+        Validator.String().valid('deg', 'rad', 'grad', 'arcmin', 'arcsec').required(),
+        Validator.String().valid('deg', 'rad', 'grad', 'arcmin', 'arcsec').optional()
+    ])
     public asAngle(value: number, toUnit: Angle, fromUnit: Angle = 'deg'): number {
         return convert(value).from(fromUnit).to(toUnit)
     }
