@@ -9,6 +9,7 @@ import {Accept, Expect, IndexSignature} from '../decorators/ValidationDecorators
 import {Validator} from '../Validator.js'
 import {RandomString} from '../Utilities.js'
 import {TestModel} from './models/TestModel.js'
+import {Formatter} from '../components/Formatter.js'
 
 (async () => {
 
@@ -46,6 +47,8 @@ import {TestModel} from './models/TestModel.js'
             'testInterval',
             // MDSTest1,
             async (app: Application) => {
+                const formatter = await app.get<Formatter>('formatter')
+                console.log(formatter.asPercent(1))
                 console.log('app.mode():', app.mode())
                 await app.set('mmm', {class: MDSTest1, tester: 'this is tester'})
                 await app.set('testModel', {class: TestModel, greet: 'hello model'})

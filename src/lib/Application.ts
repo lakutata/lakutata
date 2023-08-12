@@ -1,8 +1,23 @@
 import {ApplicationOptions} from '../options/ApplicationOptions.js'
 import {Container} from './base/Container.js'
 import {Module} from './base/Module.js'
+import {IConstructor} from '../interfaces/IConstructor.js'
+import {LoadComponentOptions} from '../options/LoadComponentOptions.js'
+import {Formatter} from '../components/Formatter.js'
 
 export class Application extends Module {
+
+    /**
+     * 应用程序预设组件
+     * @protected
+     */
+    protected async components(): Promise<Record<string, IConstructor<any> | LoadComponentOptions<any>>> {
+        return {
+            formatter: {
+                class: Formatter
+            }
+        }
+    }
 
     /**
      * 执行应用程序

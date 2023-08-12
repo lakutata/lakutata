@@ -24,15 +24,15 @@
       "import": "./build/Exceptions.js",
       "types": "./build/Exceptions.d.ts"
     },
+    "./component": {
+      "require": "./build/Components.cjs",
+      "import": "./build/Components.js",
+      "types": "./build/Components.d.ts"
+    },
     "./utility": {
       "require": "./build/Utilities.cjs",
       "import": "./build/Utilities.js",
       "types": "./build/Utilities.d.ts"
-    },
-    "./formatter": {
-      "require": "./build/Formatter.cjs",
-      "import": "./build/Formatter.js",
-      "types": "./build/Formatter.d.ts"
     },
     "./hash": {
       "require": "./build/Hash.cjs",
@@ -77,6 +77,7 @@
     "test": "ts-node src/tests/Test.spec.ts"
   },
   "devDependencies": {
+    "@types/convert-units": "^2.3.6",
     "@types/crypto-js": "^4.1.1",
     "@types/node": "^18.17.0",
     "@types/object-hash": "^3.0.2",
@@ -86,6 +87,7 @@
     "async-constructor": "^0.4.17",
     "browserify-cipher": "^1.0.1",
     "camel-case": "^4.1.2",
+    "convert-units": "^2.3.4",
     "crypto-api-v1": "^1.0.0",
     "crypto-js": "^4.1.1",
     "eslint": "^8.45.0",
