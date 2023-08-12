@@ -82,6 +82,14 @@ export type Angle = 'deg' | 'rad' | 'grad' | 'arcmin' | 'arcsec'; // Angle
 export class Formatter extends Component {
 
     /**
+     * 将输入对象转换为纯对象
+     * @param value
+     */
+    public asPureObject(value: object): object {
+        return Object.setPrototypeOf(value, null)
+    }
+
+    /**
      * 通过移除小数部分将值格式化为整数
      * @param value
      */
