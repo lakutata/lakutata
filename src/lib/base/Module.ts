@@ -132,6 +132,48 @@ export class Module<TModule extends Module = any, TComponent extends Component =
     }
 
     /**
+     * 合并配置项的配置
+     * @protected
+     */
+    protected async mergeEntries<T extends Record<string, any>, U extends BaseObject, V = T | U>(oldEntries: Record<string, V> = {}, newEntries: Record<string, V> = {}): Promise<Record<string, V>> {
+        const mergePromises: Promise<void>[] = []
+        Object.keys(newEntries).forEach(key => {
+            mergePromises.push(new Promise(async (resolve, reject) => {
+                try {
+                    const oldConfigItem = oldEntries[key]
+                    if (oldConfigItem) {
+                        const newConfigItem = newEntries[key]
+                        let newConfigObject: Record<string, any> = {}
+                        if (await Validator.isValidAsync(newConfigItem, Validator.Class(BaseObject))) {
+                            //构造函数
+                            newConfigObject.class = newConfigItem
+                        } else {
+                            //配置对象
+                            newConfigObject = As<Record<string, any>>(newConfigItem)
+                        }
+                        let oldConfigObject: Record<string, any> = {}
+                        if (await Validator.isValidAsync(oldConfigItem, Validator.Class(BaseObject))) {
+                            //构造函数
+                            oldConfigObject.class = oldConfigItem
+                        } else {
+                            //配置对象
+                            oldConfigObject = As<Record<string, any>>(oldConfigItem)
+                        }
+                        oldEntries[key] = As<V>(Object.assign({}, oldConfigObject, newConfigObject))
+                    } else {
+                        oldEntries[key] = newEntries[key]
+                    }
+                    return resolve()
+                } catch (e) {
+                    return reject(e)
+                }
+            }))
+        })
+        await Promise.all(mergePromises)
+        return oldEntries
+    }
+
+    /**
      * 执行启动引导
      * @protected
      */
@@ -140,7 +182,8 @@ export class Module<TModule extends Module = any, TComponent extends Component =
         if (configureOptions) {
             Object.keys(configureOptions).forEach((propertyKey: string) => Object.defineProperty(this.__$$options, propertyKey, {value: configureOptions[propertyKey]}))
         }
-        const entries: Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<TModule>> = Object.assign(await this.entries(), this.__$$options.entries ? this.__$$options.entries : {})
+        // const entries: Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<TModule>> = Object.assign(await this.entries(), this.__$$options.entries ? this.__$$options.entries : {})
+        const entries: Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<TModule>> = As<Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<TModule>>>(await this.mergeEntries(await this.entries(), this.__$$options.entries))
         const autoload: (string | IConstructor<any>)[] = UniqueArray([...(await this.autoload()), ...(this.__$$options.autoload ? this.__$$options.autoload : [])])
         autoload.forEach((autoloadItem: string | IConstructor<any>) => {
             if (typeof autoloadItem === 'string') {
@@ -149,8 +192,10 @@ export class Module<TModule extends Module = any, TComponent extends Component =
                 entries[Container.stringifyConstructor(autoloadItem)] = {class: autoloadItem}
             }
         })
-        const components: Record<string, IConstructor<TComponent> | LoadComponentOptions<TComponent>> = Object.assign(await this.components(), this.__$$options.components ? this.__$$options.components : {})
-        const modules: Record<string, IConstructor<TModule> | LoadModuleOptions<TModule>> = Object.assign(await this.modules(), this.__$$options.modules ? this.__$$options.modules : {})
+        // const components: Record<string, IConstructor<TComponent> | LoadComponentOptions<TComponent>> = Object.assign(await this.components(), this.__$$options.components ? this.__$$options.components : {})
+        const components: Record<string, IConstructor<TComponent> | LoadComponentOptions<TComponent>> = As<Record<string, IConstructor<TComponent> | LoadComponentOptions<TComponent>>>(await this.mergeEntries(await this.components(), this.__$$options.components))
+        // const modules: Record<string, IConstructor<TModule> | LoadModuleOptions<TModule>> = Object.assign(await this.modules(), this.__$$options.modules ? this.__$$options.modules : {})
+        const modules: Record<string, IConstructor<TModule> | LoadModuleOptions<TModule>> = As<Record<string, IConstructor<TModule> | LoadModuleOptions<TModule>>>(await this.mergeEntries(await this.modules(), this.__$$options.modules))
         const moduleCommonConfig: Record<string, any> = {
             __$$parentContainer: this.__$$container
         }

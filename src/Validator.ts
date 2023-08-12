@@ -184,6 +184,36 @@ export class BaseValidator {
     }
 
     /**
+     * 根据Schema判断数据是否正确（同步方法）
+     * @param data
+     * @param schema
+     * @param options
+     */
+    public isValid<T = any>(data: T, schema: Schema, options?: ValidationOptions): boolean {
+        try {
+            this.validate(data, schema, options)
+            return true
+        } catch (e) {
+            return false
+        }
+    }
+
+    /**
+     * 根据Schema判断数据是否正确（异步方法）
+     * @param data
+     * @param schema
+     * @param options
+     */
+    public async isValidAsync<T = any>(data: T, schema: Schema, options?: ValidationOptions): Promise<boolean> {
+        try {
+            await this.validateAsync(data, schema, options)
+            return true
+        } catch (e) {
+            return false
+        }
+    }
+
+    /**
      * 根据Schema验证数据（同步方法）
      * @param data
      * @param schema
