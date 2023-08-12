@@ -51,9 +51,8 @@ import {TestModel} from './models/TestModel.js'
                 const subScope = app.createScope()
                 const testModel = (await subScope.get<TestModel>('testModel'))
                 testModel.on('property-changed', console.log)
-                console.log(testModel.eventNames())
-                console.log(testModel.greet);
-                (await subScope.get<TestModel>('testModel')).aa = '666666'
+                console.log(testModel.greet)
+                testModel.aa = '666666'
                 await subScope.destroy()
             }
         ]

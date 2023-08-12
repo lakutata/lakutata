@@ -2,13 +2,13 @@ import {Model} from '../../lib/base/Model.js'
 import {Configurable, Singleton} from '../../decorators/DependencyInjectionDecorators.js'
 
 
-@Singleton()
+// @Singleton()
 export class TestModel extends Model {
 
     @Configurable()
     public greet: string
 
-    public aa: string
+    public aa: string = '6666667'
 
     public bb: string
 

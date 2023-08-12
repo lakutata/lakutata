@@ -14,6 +14,18 @@ import {Readable as ReadableStream, ReadableOptions, Stream} from 'stream'
 import {PathLike} from 'fs'
 
 /**
+ * 判断两个传入的值是否相等
+ * @param val1
+ * @param val2
+ * @constructor
+ */
+export function IsEqual(val1: any, val2: any): boolean {
+    const compareSet: Set<any> = new Set()
+    compareSet.add(val1).add(val2)
+    return compareSet.size === 2
+}
+
+/**
  * 判断输入的内容是否为路径
  * @param inp
  * @constructor
