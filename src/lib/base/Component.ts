@@ -3,6 +3,9 @@ import {EventEmitter} from 'events'
 import {InjectionProperties} from '../../types/InjectionProperties.js'
 import {Lifetime} from '../../decorators/DependencyInjectionDecorators.js'
 
+/**
+ * 组件基类
+ */
 @Lifetime('SINGLETON', false)
 export class Component extends BaseObject implements EventEmitter {
 
@@ -12,6 +15,7 @@ export class Component extends BaseObject implements EventEmitter {
      */
     constructor(properties: InjectionProperties = {}) {
         super(properties)
+        this.setInternalProperty('type', 'Component')
         this.setInternalProperty('eventEmitter', new EventEmitter())
     }
 

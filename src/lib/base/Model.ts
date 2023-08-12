@@ -4,6 +4,9 @@ import {Lifetime} from '../../decorators/DependencyInjectionDecorators.js'
 import {MODEL_PROPERTY_MAP} from '../../constants/MetadataKey.js'
 import {As, IsEqual} from '../../Utilities.js'
 
+/**
+ * 业务模型基类
+ */
 @Lifetime('TRANSIENT', false)
 export class Model extends Component {
 
@@ -13,6 +16,7 @@ export class Model extends Component {
      */
     constructor(properties: InjectionProperties = {}) {
         super(properties)
+        this.setInternalProperty('type', 'Model')
     }
 
     protected async __init(): Promise<void> {

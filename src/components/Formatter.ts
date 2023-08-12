@@ -3,6 +3,7 @@ import {Component} from '../lib/base/Component.js'
 import convert from 'convert-units'
 import {Accept} from '../decorators/ValidationDecorators.js'
 import {Validator} from '../Validator.js'
+import {Singleton} from '../decorators/DependencyInjectionDecorators.js'
 
 export type Distance = 'mm' | 'cm' | 'm' | 'km' | 'in' | 'ft-us' | 'ft' | 'yd' | 'mi'; // Distance
 export type Area = 'mm2' | 'cm2' | 'm2' | 'ha' | 'km2' | 'in2' | 'ft2' | 'ac' | 'mi2'; // Area
@@ -79,6 +80,7 @@ export type Energy = 'Wh' | 'mWh' | 'kWh' | 'MWh' | 'GWh' | 'J' | 'kJ'; // Energ
 export type ReactiveEnergy = 'VARh' | 'mVARh' | 'kVARh' | 'MVARh' | 'GVARH'; // Reactive Energy
 export type Angle = 'deg' | 'rad' | 'grad' | 'arcmin' | 'arcsec'; // Angle
 
+@Singleton()
 export class Formatter extends Component {
 
     /**

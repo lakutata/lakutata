@@ -13,7 +13,11 @@ import {LoadEntryCommonOptions} from '../../options/LoadEntryCommonOptions.js'
 import {LoadEntryClassOptions} from '../../options/LoadEntryClassOptions.js'
 import {LoadModuleOptions} from '../../options/LoadModuleOptions.js'
 import {LoadComponentOptions} from '../../options/LoadComponentOptions.js'
+import {InjectionProperties} from '../../types/InjectionProperties.js'
 
+/**
+ * 模块基类
+ */
 @Lifetime('SINGLETON', true)
 export class Module<TModule extends Module = any, TComponent extends Component = any, TBaseObject extends BaseObject = any> extends Component {
 
@@ -24,6 +28,15 @@ export class Module<TModule extends Module = any, TComponent extends Component =
     protected readonly __$$parentContainer: Container
 
     protected readonly __$$container: Container
+
+    /**
+     * Constructor
+     * @param properties
+     */
+    constructor(properties: InjectionProperties = {}) {
+        super(properties)
+        this.setInternalProperty('type', 'Module')
+    }
 
     /**
      * 模块初始化函数

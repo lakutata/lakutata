@@ -37,6 +37,9 @@ import {SHA256} from '../../Hash.js'
 
 const internalPropertyNameRegExp: RegExp = /__\$\$\$[a-zA-Z0-9~!@#$%^&*()_+\[\]\{\},./\\<>?|\-\*]+\$\$\$__/
 
+/**
+ * 基础对象基类
+ */
 @(() => {
     return <TFunction extends IConstructor<any>>(target: TFunction): TFunction => {
         const nonceStr: string = RandomString(16)
@@ -159,6 +162,7 @@ export class BaseObject extends AsyncConstructor {
             await this.init()
             Reflect.defineMetadata(OBJECT_INIT_MARK, true, this)
         })
+        this.setInternalProperty('type', 'BaseObject')
     }
 
     /**
