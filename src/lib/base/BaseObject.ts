@@ -38,6 +38,18 @@ import {SHA256} from '../../Hash.js'
 const internalPropertyNameRegExp: RegExp = /__\$\$\$[a-zA-Z0-9~!@#$%^&*()_+\[\]\{\},./\\<>?|\-\*]+\$\$\$__/
 
 /**
+ * 快速生成对象ID
+ * @param e
+ * @constructor
+ */
+function ObjectId(e?: number) {
+    return e
+        ? ((e ^ 16 * Math.random()) >> (e / 4)).toString(16)
+        : ([1e7] as any + -1e3 + -4e3 + -8e3 + -1e11)
+            .replace(/[018]/g, ObjectId)
+}
+
+/**
  * 基础对象基类
  */
 @(() => {
@@ -163,6 +175,7 @@ export class BaseObject extends AsyncConstructor {
             Reflect.defineMetadata(OBJECT_INIT_MARK, true, this)
         })
         this.setInternalProperty('type', 'BaseObject')
+        this.setInternalProperty('uniqueObjectId', ObjectId())
     }
 
     /**

@@ -7,7 +7,7 @@ import {As, MergeArray, UniqueArray} from '../../Utilities.js'
 import {AsyncFunction} from '../../types/AsyncFunction.js'
 import {IConstructor} from '../../interfaces/IConstructor.js'
 import {BaseObject} from './BaseObject.js'
-import {Return} from '../../decorators/ValidationDecorators.js'
+import {Accept, Return} from '../../decorators/ValidationDecorators.js'
 import {Validator} from '../../Validator.js'
 import {LoadEntryCommonOptions} from '../../options/LoadEntryCommonOptions.js'
 import {LoadEntryClassOptions} from '../../options/LoadEntryClassOptions.js'
@@ -15,6 +15,8 @@ import {LoadModuleOptions} from '../../options/LoadModuleOptions.js'
 import {LoadComponentOptions} from '../../options/LoadComponentOptions.js'
 import {InjectionProperties} from '../../types/InjectionProperties.js'
 import {Controller} from './Controller.js'
+import {IPatRun} from '../../interfaces/IPatRun.js'
+import {Patrun} from 'patrun'
 
 /**
  * 模块基类
@@ -27,6 +29,8 @@ export class Module<TModule extends Module = any, TComponent extends Component =
 
     @Configurable()
     protected readonly __$$parentContainer: Container
+
+    protected readonly __$$patternManager: IPatRun
 
     protected readonly __$$container: Container
 
@@ -45,6 +49,7 @@ export class Module<TModule extends Module = any, TComponent extends Component =
      */
     protected async __init(): Promise<void> {
         this.setProperty('__$$options', this.getProperty('__$$options', {}))
+        this.setProperty('__$$patternManager', Patrun())
         this.setProperty('__$$container', new Container(this, this.__$$parentContainer))
         this.setProperty('__$$options', await ModuleOptions.validateAsync(this.__$$options))
         await this.__bootstrap()
@@ -277,6 +282,7 @@ export class Module<TModule extends Module = any, TComponent extends Component =
      * @protected
      */
     protected async __destroy(): Promise<void> {
+        this.__$$patternManager.list().forEach(matched => this.__$$patternManager.remove(matched.match))//清空patternManager
         await this.__$$container.destroy()//在应用程序加载模块的时候需要初始化模块的IoC容器
         return super.__destroy()
     }
@@ -357,5 +363,13 @@ export class Module<TModule extends Module = any, TComponent extends Component =
                 return 'development'
             }
         }
+    }
+
+    /**
+     * 执行模块的控制器调用
+     */
+    @Accept(Validator.Object().pattern(Validator.String(), Validator.Any()).required(), {stripUnknown: false})
+    public async invoke<T = any>(subject: Record<string, any>): Promise<T> {
+        return await this.__$$patternManager.find(subject)(subject)
     }
 }

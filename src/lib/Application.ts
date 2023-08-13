@@ -4,8 +4,12 @@ import {Module} from './base/Module.js'
 import {IConstructor} from '../interfaces/IConstructor.js'
 import {LoadComponentOptions} from '../options/LoadComponentOptions.js'
 import {Formatter} from '../components/Formatter.js'
+import {Configurable} from '../decorators/DependencyInjectionDecorators.js'
 
 export class Application extends Module {
+
+    @Configurable()
+    protected test111 = false
 
     /**
      * 应用程序预设组件
@@ -35,7 +39,8 @@ export class Application extends Module {
             [name]: {
                 class: Application,
                 __$$options: options,
-                __$$parentContainer: rootContainer
+                __$$parentContainer: rootContainer,
+                test111:true
             }
         })
         return await rootContainer.get<Application>(name)

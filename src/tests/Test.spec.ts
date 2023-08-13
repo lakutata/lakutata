@@ -63,6 +63,7 @@ import {Test1Controller} from './controllers/Test1Controller.js'
                 console.log(testModel.greet)
                 testModel.aa = '666666'
                 await subScope.destroy()
+                console.log(await app.invoke({a:1,b:2}))
             }
         ]
     })

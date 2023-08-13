@@ -13,6 +13,7 @@ import {As, IsGlobString, isPromise, RandomString} from '../../Utilities.js'
 import fastGlob from 'fast-glob'
 import {IConstructor} from '../../interfaces/IConstructor.js'
 import {
+    CONTROLLER_ACTION_MAP,
     CONTROLLER_CONSTRUCTOR_MARK,
     DI_CONTAINER_INJECT_IS_MODULE_GETTER,
     DI_CONTAINER_INJECT_IS_MODULE_GETTER_KEY,
@@ -26,6 +27,13 @@ import {InvalidGlobStringException} from '../../exceptions/InvalidGlobStringExce
 import objectHash from 'object-hash'
 import {Module} from './Module.js'
 import {Application} from '../Application.js'
+import {
+    DynamicRegisterControllerNotAllowException
+} from '../../exceptions/DynamicRegisterControllerNotAllowException.js'
+import {ControllerActionMapItem} from '../../types/ControllerActionMapItem.js'
+import {DuplicateControllerActionPatternException} from '../../exceptions/DuplicateControllerActionPatternException.js'
+import {IPatRun} from '../../interfaces/IPatRun.js'
+import {Controller} from './Controller.js'
 
 export class Container<T extends Module = Module> {
 
@@ -36,6 +44,8 @@ export class Container<T extends Module = Module> {
     protected readonly __$$dic: IDependencyInjectionContainer
 
     protected readonly __$$additionalPropertyMap: Map<string, any> = new Map()
+
+    protected readonly __$controllerActionMap: Map<string, ControllerActionMapItem> = new Map()
 
     constructor(module?: T, parent?: Container) {
         this.__$$module = module
@@ -94,7 +104,27 @@ export class Container<T extends Module = Module> {
      * @protected
      */
     protected registerControllerToModule(constructor: IConstructor<any>): void {
-        //todo 提取控制器的元数据并向模块中写入
+        if (this.__$$module && Reflect.hasOwnMetadata(CONTROLLER_ACTION_MAP, constructor)) {
+            const items = As<Map<string, ControllerActionMapItem>>(Reflect.getOwnMetadata(CONTROLLER_ACTION_MAP, constructor)).values()
+            for (const item of items) {
+                let isNewPattern: boolean = true
+                if (this.__$controllerActionMap.has(item.patternHash)) {
+                    //在同个控制器类的同个方法上可以允许相同的pattern，否则则报错
+                    const isSameController: boolean = this.__$controllerActionMap.get(item.patternHash)?.class === item.class
+                    const isSameMethod: boolean = this.__$controllerActionMap.get(item.patternHash)?.method === item.method
+                    if (!isSameController || !isSameMethod) throw new DuplicateControllerActionPatternException('')
+                    isNewPattern = false
+                }
+                if (isNewPattern) {
+                    this.__$controllerActionMap.set(item.patternHash, item)
+                    //在模块对象上的patternManager进行注册
+                    As<IPatRun>(this.__$$module.getProperty('__$$patternManager'))?.add(item.pattern, async (subject: Record<string, any>): Promise<any> => {
+                        const controller: Controller = await this.createScope(this.__$$module).get(item.class)
+                        return await controller[item.method](subject)
+                    })
+                }
+            }
+        }
     }
 
     /**
@@ -234,6 +264,10 @@ export class Container<T extends Module = Module> {
             name = Container.stringifyConstructor(inp)
             loadOptions[name] = {class: inp, ...config}
         }
+        if (loadOptions.class && this.isControllerConstructor(As<IConstructor<T>>(loadOptions.class)))
+            throw new DynamicRegisterControllerNotAllowException('Dynamic registration of controllers is not allowed during runtime. Attempting to dynamically register controller class "{className}"', {
+                className: As<IConstructor<T>>(loadOptions.class).name
+            })
         await this.load(loadOptions)
         return name
     }
@@ -267,5 +301,7 @@ export class Container<T extends Module = Module> {
      */
     public async destroy(): Promise<void> {
         await this.__$$dic.dispose()
+        this.__$controllerActionMap.clear()
+        this.__$$additionalPropertyMap.clear()
     }
 }
