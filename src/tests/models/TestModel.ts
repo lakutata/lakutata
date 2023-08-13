@@ -1,8 +1,9 @@
 import {Model} from '../../lib/base/Model.js'
-import {Configurable, Singleton} from '../../decorators/DependencyInjectionDecorators.js'
+import {Configurable, Scoped, Singleton} from '../../decorators/DependencyInjectionDecorators.js'
 
 
 // @Singleton()
+@Scoped()
 export class TestModel extends Model {
 
     @Configurable()
@@ -15,5 +16,9 @@ export class TestModel extends Model {
     protected async init(): Promise<void> {
         await super.init()
         console.log('hi!', this.greet, this.className)
+    }
+
+    protected async destroy(): Promise<void> {
+        console.log('TestModel destroy!!!!!!!!!!!!!!!!!!!!!!!!')
     }
 }

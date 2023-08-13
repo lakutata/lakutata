@@ -42,7 +42,7 @@ import {Test1Controller} from './controllers/Test1Controller.js'
             tm: {class: TestModule1, greet: 'oh!'},
             tm1: TestModule1
         },
-        controllers:[
+        controllers: [
             // '/Users/alex/WebstormProjects/core/src/tests/controllers/**/*',
             Test1Controller
         ],
@@ -60,10 +60,10 @@ import {Test1Controller} from './controllers/Test1Controller.js'
                 const subScope = app.createScope()
                 const testModel = (await subScope.get<TestModel>('testModel'))
                 testModel.on('property-changed', console.log)
-                console.log(testModel.greet)
+                console.log('testModel.greet:', testModel.greet)
                 testModel.aa = '666666'
                 await subScope.destroy()
-                console.log(await app.invoke({a:1,b:2}))
+                console.log(await app.invoke({a: 1, b: 2}))
             }
         ]
     })

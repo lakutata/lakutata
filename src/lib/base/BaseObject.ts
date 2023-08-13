@@ -260,8 +260,8 @@ export class BaseObject extends AsyncConstructor {
      */
     public hasMethod(name: string): boolean {
         const propertyExists: boolean = this.hasProperty(name)
-        if (!propertyExists) return false
-        return typeof this.getProperty(name) === 'function'
+        if (propertyExists) return false//方法不存在于属性列表中
+        return typeof this[name] === 'function'
     }
 
     /**

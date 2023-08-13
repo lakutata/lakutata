@@ -15,7 +15,7 @@ import {CONTROLLER_CONSTRUCTOR_MARK} from '../../constants/MetadataKey.js'
         return target
     }
 })()
-@Lifetime('TRANSIENT', true)
+@Lifetime('SCOPED', true)
 export class Controller extends Component {
 
     @InjectApp()

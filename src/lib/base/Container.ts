@@ -119,8 +119,12 @@ export class Container<T extends Module = Module> {
                     this.__$controllerActionMap.set(item.patternHash, item)
                     //在模块对象上的patternManager进行注册
                     As<IPatRun>(this.__$$module.getProperty('__$$patternManager'))?.add(item.pattern, async (subject: Record<string, any>): Promise<any> => {
-                        const controller: Controller = await this.createScope(this.__$$module).get(item.class)
-                        return await controller[item.method](subject)
+                        const controllerRuntimeScope: Container = this.createScope(this.__$$module)
+                        const controller: Controller = await controllerRuntimeScope.get(item.class)
+                        const result: any = await controller[item.method](subject)
+                        // setImmediate(() => controllerRuntimeScope.destroy())
+                        await controllerRuntimeScope.destroy()
+                        return result
                     })
                 }
             }
