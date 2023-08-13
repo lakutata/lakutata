@@ -61,7 +61,7 @@ import {Test1Controller} from './controllers/Test1Controller.js'
                 const testModel = (await subScope.get<TestModel>('testModel'))
                 testModel.on('property-changed', console.log)
                 console.log('testModel.greet:', testModel.greet)
-                testModel.aa = '666666'
+                testModel.aa = '6666668888888'
                 await subScope.destroy()
                 console.log(await app.invoke({a: 1, b: 2}))
             }
