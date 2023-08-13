@@ -16,9 +16,4 @@ export class Test1Controller extends Controller {
     protected async destroy(): Promise<void> {
         console.log(this.className, 'destroy!!!!!!')
     }
-
-    protected async __destroy(): Promise<void> {
-        console.log('%#$%^#$%^#$%^#$%^#$%^#$%^')
-        return super.__destroy()
-    }
 }

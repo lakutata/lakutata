@@ -112,7 +112,10 @@ export class Container<T extends Module = Module> {
                     //在同个控制器类的同个方法上可以允许相同的pattern，否则则报错
                     const isSameController: boolean = this.__$controllerActionMap.get(item.patternHash)?.class === item.class
                     const isSameMethod: boolean = this.__$controllerActionMap.get(item.patternHash)?.method === item.method
-                    if (!isSameController || !isSameMethod) throw new DuplicateControllerActionPatternException('')
+                    if (!isSameController || !isSameMethod) throw new DuplicateControllerActionPatternException('The pattern of controller action "{a}" conflicts with "{b}"', {
+                        a: `${this.__$controllerActionMap.get(item.patternHash)!.class.name}.${this.__$controllerActionMap.get(item.patternHash)!.method.toString()}`,
+                        b: `${item.class.name}.${item.method.toString()}`
+                    })
                     isNewPattern = false
                 }
                 if (isNewPattern) {
@@ -122,8 +125,7 @@ export class Container<T extends Module = Module> {
                         const controllerRuntimeScope: Container = this.createScope(this.__$$module)
                         const controller: Controller = await controllerRuntimeScope.get(item.class)
                         const result: any = await controller[item.method](subject)
-                        // setImmediate(() => controllerRuntimeScope.destroy())
-                        await controllerRuntimeScope.destroy()
+                        setImmediate(() => controllerRuntimeScope.destroy())
                         return result
                     })
                 }
