@@ -7,7 +7,7 @@ import {As, IsEqual} from '../../Utilities.js'
 /**
  * 业务模型基类
  */
-@Lifetime('TRANSIENT', false)
+@Lifetime('SCOPED', false)
 export class Model extends Component {
 
     /**
