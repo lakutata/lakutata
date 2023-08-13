@@ -10,6 +10,7 @@ import {Validator} from '../Validator.js'
 import {RandomString} from '../Utilities.js'
 import {TestModel} from './models/TestModel.js'
 import {Formatter} from '../components/Formatter.js'
+import {Test1Controller} from './controllers/Test1Controller.js'
 
 (async () => {
 
@@ -41,7 +42,10 @@ import {Formatter} from '../components/Formatter.js'
             tm: {class: TestModule1, greet: 'oh!'},
             tm1: TestModule1
         },
-        controllers:[],
+        controllers:[
+            // '/Users/alex/WebstormProjects/core/src/tests/controllers/**/*',
+            Test1Controller
+        ],
         bootstrap: [
             'tm',
             'tm1',

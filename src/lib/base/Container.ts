@@ -13,6 +13,7 @@ import {As, IsGlobString, isPromise, RandomString} from '../../Utilities.js'
 import fastGlob from 'fast-glob'
 import {IConstructor} from '../../interfaces/IConstructor.js'
 import {
+    CONTROLLER_CONSTRUCTOR_MARK,
     DI_CONTAINER_INJECT_IS_MODULE_GETTER,
     DI_CONTAINER_INJECT_IS_MODULE_GETTER_KEY,
     DI_CONTAINER_SPECIAL_INJECT_APP_GETTER,
@@ -79,6 +80,24 @@ export class Container<T extends Module = Module> {
     }
 
     /**
+     * 判断是否Controller类
+     * @param constructor
+     * @protected
+     */
+    protected isControllerConstructor(constructor: IConstructor<any>): boolean {
+        return Reflect.hasMetadata(CONTROLLER_CONSTRUCTOR_MARK, constructor)
+    }
+
+    /**
+     * 将Controller注册至模块
+     * @param constructor
+     * @protected
+     */
+    protected registerControllerToModule(constructor: IConstructor<any>): void {
+        //todo 提取控制器的元数据并向模块中写入
+    }
+
+    /**
      * 根据Glob注册
      * @param glob
      * @param options
@@ -121,6 +140,7 @@ export class Container<T extends Module = Module> {
      * @protected
      */
     protected assignConfigToInjectConstructorMetadata<T extends BaseObject>(name: string, constructor: IConstructor<T>, config?: Record<string, any>): void {
+        if (this.isControllerConstructor(constructor) && this.__$$module) this.registerControllerToModule(constructor)
         if (!config) return
         Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT, config, constructor, name)
     }
