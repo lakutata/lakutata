@@ -4,7 +4,9 @@ import {Module} from './base/Module.js'
 import {IConstructor} from '../interfaces/IConstructor.js'
 import {LoadComponentOptions} from '../options/LoadComponentOptions.js'
 import {Formatter} from '../components/Formatter.js'
+import {Singleton} from '../decorators/DependencyInjectionDecorators.js'
 
+@Singleton(true)
 export class Application extends Module {
 
     /**
