@@ -21,7 +21,7 @@ import {
     DI_CONTAINER_SPECIAL_INJECT_APP_GETTER_KEY,
     DI_CONTAINER_SPECIAL_INJECT_MODULE_GETTER,
     DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT,
-    DI_TARGET_CONSTRUCTOR_FINGERPRINT
+    DI_TARGET_CONSTRUCTOR_FINGERPRINT, DI_TARGET_INSTANCE_CONFIGURABLE_OBJECT
 } from '../../constants/MetadataKey.js'
 import {InvalidGlobStringException} from '../../exceptions/InvalidGlobStringException.js'
 import objectHash from 'object-hash'
@@ -31,7 +31,9 @@ import {
     DynamicRegisterControllerNotAllowException
 } from '../../exceptions/controller/DynamicRegisterControllerNotAllowException.js'
 import {ControllerActionMapItem} from '../../types/ControllerActionMapItem.js'
-import {DuplicateControllerActionPatternException} from '../../exceptions/controller/DuplicateControllerActionPatternException.js'
+import {
+    DuplicateControllerActionPatternException
+} from '../../exceptions/controller/DuplicateControllerActionPatternException.js'
 import {IPatRun} from '../../interfaces/IPatRun.js'
 import {Controller} from './Controller.js'
 
@@ -121,9 +123,9 @@ export class Container<T extends Module = Module> {
                 if (isNewPattern) {
                     this.__$controllerActionMap.set(item.patternHash, item)
                     //在模块对象上的patternManager进行注册
-                    As<IPatRun>(this.__$$module.getProperty('__$$patternManager'))?.add(item.pattern, async (subject: Record<string, any>): Promise<any> => {
+                    As<IPatRun>(this.__$$module.getProperty('__$$patternManager'))?.add(item.pattern, async (subject: Record<string, any>, params: Record<string, any> = {}): Promise<any> => {
                         const controllerRuntimeScope: Container = this.createScope(this.__$$module)
-                        const controller: Controller = await controllerRuntimeScope.get(item.class)
+                        const controller: Controller = await controllerRuntimeScope.get(item.class, params)
                         const result: any = await controller[item.method](subject)
                         setImmediate(() => controllerRuntimeScope.destroy())
                         return result
@@ -232,17 +234,21 @@ export class Container<T extends Module = Module> {
 
     /**
      * 通过名称获取容器内的注册项目
-     * @param name
+     * @param name 注册项目的名称
+     * @param params 获取时传入的配置参数对象，必须为在注册项目内使用了@Configurable()修饰器进行修饰的字段
      */
-    public async get<T extends BaseObject>(name: string): Promise<T>
+    public async get<T extends BaseObject>(name: string, params?: Record<string, any>): Promise<T>
     /**
      * 通过构造函数获取容器内的注册项目
-     * @param constructor
+     * @param constructor 注册项目的构造函数
+     * @param params 获取时传入的配置参数对象，必须为在注册项目内使用了@Configurable()修饰器进行修饰的字段
      */
-    public async get<T extends BaseObject>(constructor: IConstructor<T>): Promise<T>
-    public async get<T extends BaseObject>(inp: string | IConstructor<T>): Promise<T> {
+    public async get<T extends BaseObject>(constructor: IConstructor<T>, params?: Record<string, any>): Promise<T>
+    public async get<T extends BaseObject>(inp: string | IConstructor<T>, params?: Record<string, any>): Promise<T> {
         const name: string = typeof inp === 'string' ? inp : Container.stringifyConstructor(inp)
         const resolved: T | Promise<T> = this.__$$dic.resolve(name)
+        //在取得实例时进行实例上的元数据注入，将附加的可配置项注入至对象中，在该阶段，对象根据可配置对象进行自身的配置过程尚未开始
+        if (typeof resolved === 'object' || typeof resolved === 'function') Reflect.defineMetadata(DI_TARGET_INSTANCE_CONFIGURABLE_OBJECT, params ? params : {}, resolved)
         return isPromise(resolved) ? await resolved : resolved
     }
 

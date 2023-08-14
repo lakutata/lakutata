@@ -63,7 +63,7 @@ import {Test1Controller} from './controllers/Test1Controller.js'
                 console.log('testModel.greet:', testModel.greet)
                 testModel.aa = '6666668888888'
                 await subScope.destroy()
-                console.log(await app.invoke({a: 1, b: 2}))
+                console.log(await app.invoke({a: 1, b: 2}, {testBoolean: true}))
             }
         ]
     })

@@ -25,7 +25,10 @@ import {
     DI_CONTAINER_SPECIAL_INJECT_MODULE_GETTER,
     DI_CONTAINER_SPECIAL_INJECT_APP_GETTER,
     DI_CONTAINER_INJECT_IS_MODULE_GETTER_KEY,
-    DI_CONTAINER_SPECIAL_INJECT_APP_GETTER_KEY, DI_TARGET_CONSTRUCTOR_LIFETIME, DI_TARGET_CONSTRUCTOR_LIFETIME_LOCK
+    DI_CONTAINER_SPECIAL_INJECT_APP_GETTER_KEY,
+    DI_TARGET_CONSTRUCTOR_LIFETIME,
+    DI_TARGET_CONSTRUCTOR_LIFETIME_LOCK,
+    DI_TARGET_INSTANCE_CONFIGURABLE_OBJECT
 } from '../../constants/MetadataKey.js'
 import {MethodNotFoundException} from '../../exceptions/MethodNotFoundException.js'
 import {ConfigurableOptions, Lifetime} from '../../decorators/DependencyInjectionDecorators.js'
@@ -127,7 +130,9 @@ export class BaseObject extends AsyncConstructor {
                 ConfigureObjectProperties(this, properties ? properties : {})
             }
             //对Configurable所修饰的对象进行数据注入
-            const config: Record<string, any> | undefined = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT, this.constructor, Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME, this))
+            const constructorConfigurableObject: Record<string, any> | undefined = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT, this.constructor, Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME, this))
+            const instanceConfigurableObject: Record<string, any> | undefined = Reflect.getOwnMetadata(DI_TARGET_INSTANCE_CONFIGURABLE_OBJECT, this)
+            const config: Record<string, any> = Object.assign({}, constructorConfigurableObject ? constructorConfigurableObject : {}, instanceConfigurableObject ? instanceConfigurableObject : {})
             if (config) {
                 const configurableOptionsMap: Map<string, ConfigurableOptions> = As<Map<string, ConfigurableOptions> | undefined>(Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OPTIONS, this)) ? As<Map<string, ConfigurableOptions>>(Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OPTIONS, this.constructor)) : new Map()
                 let configurableItems: Set<string> | undefined = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, this.constructor)

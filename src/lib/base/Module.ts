@@ -17,7 +17,9 @@ import {InjectionProperties} from '../../types/InjectionProperties.js'
 import {Controller} from './Controller.js'
 import {IPatRun} from '../../interfaces/IPatRun.js'
 import {Patrun} from 'patrun'
-import {NoMatchedControllerActionPatternException} from '../../exceptions/controller/NoMatchedControllerActionPatternException.js'
+import {
+    NoMatchedControllerActionPatternException
+} from '../../exceptions/controller/NoMatchedControllerActionPatternException.js'
 
 /**
  * 模块基类
@@ -368,11 +370,16 @@ export class Module<TModule extends Module = any, TComponent extends Component =
 
     /**
      * 执行模块的控制器调用
+     * @param subject 调用的数据对象
+     * @param params 注入至控制器的附加参数
      */
-    @Accept(Validator.Object().pattern(Validator.String(), Validator.Any()).required(), {stripUnknown: false})
-    public async invoke<T = any>(subject: Record<string, any>): Promise<T> {
-        const func: ((subject: Record<string, any>) => Promise<any>) | undefined = this.__$$patternManager.find(subject)
-        if (func) return await func(subject)
+    @Accept([
+        Validator.Object().pattern(Validator.String(), Validator.Any()).required(),
+        Validator.Object().pattern(Validator.String(), Validator.Any()).optional().default({})
+    ], {stripUnknown: false})
+    public async invoke<T = any>(subject: Record<string, any>, params: Record<string, any> = {}): Promise<T> {
+        const func: ((subject: Record<string, any>, params: Record<string, any>) => Promise<any>) | undefined = this.__$$patternManager.find(subject)
+        if (func) return await func(subject, params)
         throw new NoMatchedControllerActionPatternException('The pattern of the controller action does not match the subject passed in the invocation')
     }
 }

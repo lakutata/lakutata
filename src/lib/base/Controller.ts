@@ -32,4 +32,12 @@ export class Controller extends Component {
         super(properties)
         this.setInternalProperty('type', 'Controller')
     }
+
+    /**
+     * 控制器动作执行前调用方法
+     * @protected
+     */
+    protected async beforeAction(): Promise<boolean> {
+        return true
+    }
 }
