@@ -32,12 +32,4 @@ export class Controller extends Component {
         super(properties)
         this.setInternalProperty('type', 'Controller')
     }
-
-    protected async __init(): Promise<void> {
-        return super.__init()
-    }
-
-    protected async __destroy(): Promise<void> {
-        return super.__destroy()
-    }
 }
