@@ -3,5 +3,5 @@ export interface IPatRun {
     remove: (pattern: Record<string, any>) => void
     find: (subject: Record<string, any>) => any
     list: (partialPattern?: Record<string, any>) => { match: Record<string, any>, data: any }[]
-    toJSON: () => any
+    toJSON: () => string
 }

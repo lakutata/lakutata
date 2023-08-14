@@ -13,6 +13,11 @@ export class Test1Controller extends Controller {
         return 'this is a equal 2'
     }
 
+    @Action({a: 1, b: 1})
+    public async test2() {
+        return 'this is a equal 1, b equal 1'
+    }
+
     protected async destroy(): Promise<void> {
         console.log(this.className, 'destroy!!!!!!')
     }

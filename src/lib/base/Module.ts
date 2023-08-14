@@ -17,6 +17,7 @@ import {InjectionProperties} from '../../types/InjectionProperties.js'
 import {Controller} from './Controller.js'
 import {IPatRun} from '../../interfaces/IPatRun.js'
 import {Patrun} from 'patrun'
+import {NoMatchedControllerActionPatternException} from '../../exceptions/controller/NoMatchedControllerActionPatternException.js'
 
 /**
  * 模块基类
@@ -370,6 +371,8 @@ export class Module<TModule extends Module = any, TComponent extends Component =
      */
     @Accept(Validator.Object().pattern(Validator.String(), Validator.Any()).required(), {stripUnknown: false})
     public async invoke<T = any>(subject: Record<string, any>): Promise<T> {
-        return await this.__$$patternManager.find(subject)(subject)
+        const func: ((subject: Record<string, any>) => Promise<any>) | undefined = this.__$$patternManager.find(subject)
+        if (func) return await func(subject)
+        throw new NoMatchedControllerActionPatternException('The pattern of the controller action does not match the subject passed in the invocation')
     }
 }

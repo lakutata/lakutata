@@ -29,9 +29,9 @@ import {Module} from './Module.js'
 import {Application} from '../Application.js'
 import {
     DynamicRegisterControllerNotAllowException
-} from '../../exceptions/DynamicRegisterControllerNotAllowException.js'
+} from '../../exceptions/controller/DynamicRegisterControllerNotAllowException.js'
 import {ControllerActionMapItem} from '../../types/ControllerActionMapItem.js'
-import {DuplicateControllerActionPatternException} from '../../exceptions/DuplicateControllerActionPatternException.js'
+import {DuplicateControllerActionPatternException} from '../../exceptions/controller/DuplicateControllerActionPatternException.js'
 import {IPatRun} from '../../interfaces/IPatRun.js'
 import {Controller} from './Controller.js'
 
