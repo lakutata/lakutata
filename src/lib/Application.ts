@@ -5,6 +5,9 @@ import {IConstructor} from '../interfaces/IConstructor.js'
 import {LoadComponentOptions} from '../options/LoadComponentOptions.js'
 import {Formatter} from '../components/Formatter.js'
 import {Singleton} from '../decorators/DependencyInjectionDecorators.js'
+import {Logger} from '../Logger.js'
+import {pino} from 'pino'
+import {AsyncFunction} from '../types/AsyncFunction.js'
 
 @Singleton(true)
 export class Application extends Module {
@@ -17,8 +20,28 @@ export class Application extends Module {
         return {
             formatter: {
                 class: Formatter
+            },
+            logger: {
+                class: Logger,
+                provider: pino({
+                    transport: {
+                        target: 'pino-pretty',
+                        options: {
+                            colorize: true
+                        }
+                    },
+                    level: process.env.NODE_ENV === 'development' ? 'trace' : 'info'
+                })
             }
         }
+    }
+
+    /**
+     * 应用程序预设启动引导
+     * @protected
+     */
+    protected bootstrap<U extends Module>(): (string | IConstructor<any> | AsyncFunction<U, void>)[] {
+        return ['logger']
     }
 
     /**

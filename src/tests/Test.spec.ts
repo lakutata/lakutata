@@ -12,6 +12,8 @@ import {TestModel} from './models/TestModel.js'
 import {Formatter} from '../components/Formatter.js'
 import {Test1Controller} from './controllers/Test1Controller.js'
 import {Time} from '../Time.js'
+import {pino} from 'pino'
+import {Logger} from '../Logger.js'
 
 (async () => {
 
@@ -21,12 +23,13 @@ import {Time} from '../Time.js'
         name: 'test',
         timezone: 'Asia/Shanghai',
         // timezone: 'Africa/Accra',
-        mode: 'production',
+        // mode: 'production',
+        // mode: 'development',
         entries: {
             testObject: {class: TestObject, username: 'tester'},
             testInterval: {
                 class: TestInterval,
-                interval: 1000,
+                interval: 10000,
                 mode: 'SEQ'
             }
             // '/Users/alex/WebstormProjects/core/src/tests/mds/**/*': {
@@ -66,6 +69,8 @@ import {Time} from '../Time.js'
                 testModel.aa = '6666668888888'
                 await subScope.destroy()
                 console.log(await app.invoke({a: 1, b: 2}, {testBoolean: true}))
+                const logger = await app.get<Logger>('logger')
+                logger.trace('more on this: %s', process.env.NODE_ENV)
             }
         ]
     })
@@ -74,8 +79,12 @@ import {Time} from '../Time.js'
     console.log(new Time('1968-01-01').add(1, 'day'))
     let time = new Time('1968-01-01')
     const time2 = new Time('1968-01-01')
-    console.log(time2.timezone(), time2,time2.toISOString(),time2.toString(),time2.toTimeString(),time2.toDateString(),time2.toUTCString())
+    console.log(time2.timezone(), time2, time2.toISOString(), time2.toString(), time2.toTimeString(), time2.toDateString(), time2.toUTCString())
     time = time.timezone('Africa/Accra')
-    console.log(time.timezone(),time,time.toISOString(),time.toString(),time.toTimeString(),time.toDateString(),time.toUTCString())
+    console.log(time.timezone(), time, time.toISOString(), time.toString(), time.toTimeString(), time.toDateString(), time.toUTCString())
+
+
+    Logger.trace('more on this: %s', process.env.NODE_ENV)
+    // test.error()
     // app.exit()
 })()
