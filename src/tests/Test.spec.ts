@@ -11,6 +11,7 @@ import {RandomString} from '../Utilities.js'
 import {TestModel} from './models/TestModel.js'
 import {Formatter} from '../components/Formatter.js'
 import {Test1Controller} from './controllers/Test1Controller.js'
+import {Time} from '../Time.js'
 
 (async () => {
 
@@ -68,5 +69,8 @@ import {Test1Controller} from './controllers/Test1Controller.js'
         ]
     })
     console.timeEnd('app')
+
+    console.log(new Time('1968-01-01').add(1,'day'))
+
     // app.exit()
 })()
