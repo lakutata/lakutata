@@ -373,15 +373,15 @@ export class Module<TModule extends Module = any, TComponent extends Component =
     /**
      * 执行模块的控制器调用
      * @param subject 调用的数据对象
-     * @param params 注入至控制器的附加参数
+     * @param configurableParams 注入至控制器的附加可配置项参数
      */
     @Accept([
         Validator.Object().pattern(Validator.String(), Validator.Any()).required(),
         Validator.Object().pattern(Validator.String(), Validator.Any()).optional().default({})
     ], {stripUnknown: false})
-    public async invoke<T = any>(subject: Record<string, any>, params: Record<string, any> = {}): Promise<T> {
+    public async invoke<T = any>(subject: Record<string, any>, configurableParams: Record<string, any> = {}): Promise<T> {
         const func: ((subject: Record<string, any>, params: Record<string, any>) => Promise<any>) | undefined = this.__$$patternManager.find(subject)
-        if (func) return await func(subject, params)
+        if (func) return await func(subject, configurableParams)
         throw new NoMatchedControllerActionPatternException('The pattern of the controller action does not match the subject passed in the invocation')
     }
 }

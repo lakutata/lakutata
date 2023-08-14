@@ -123,9 +123,9 @@ export class Container<T extends Module = Module> {
                 if (isNewPattern) {
                     this.__$controllerActionMap.set(item.patternHash, item)
                     //在模块对象上的patternManager进行注册
-                    As<IPatRun>(this.__$$module.getProperty('__$$patternManager'))?.add(item.pattern, async (subject: Record<string, any>, params: Record<string, any> = {}): Promise<any> => {
+                    As<IPatRun>(this.__$$module.getProperty('__$$patternManager'))?.add(item.pattern, async (subject: Record<string, any>, configurableParams: Record<string, any> = {}): Promise<any> => {
                         const controllerRuntimeScope: Container = this.createScope(this.__$$module)
-                        const controller: Controller = await controllerRuntimeScope.get(item.class, params)
+                        const controller: Controller = await controllerRuntimeScope.get(item.class, configurableParams)
                         const result: any = await controller[item.method](subject)
                         setImmediate(() => controllerRuntimeScope.destroy())
                         return result
