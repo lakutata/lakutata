@@ -324,6 +324,32 @@ export class Time extends Date {
     }
 
     /**
+     * 返回时间对象的字符串
+     */
+    public toString(): string {
+        return this.__$$instance.toString()
+    }
+
+    public toTimeString(): string {
+        return this.__$$instance.toString()
+    }
+
+    public toUTCString(): string {
+        return this.__$$instance.toISOString(true)
+    }
+
+    public toDateString(): string {
+        return this.__$$instance.format('ddd MMM DD YYYY')
+    }
+
+    /**
+     * 返回时间对象的ISO格式字符串
+     */
+    public toISOString(): string {
+        return this.__$$instance.toISOString()
+    }
+
+    /**
      * 检查一个时间是否在另一个时间之前
      * @param inp
      * @param granularity
