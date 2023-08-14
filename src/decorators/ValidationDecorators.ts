@@ -66,7 +66,7 @@ export function Accept(inp: Schema | Schema[] | IConstructor<DTO> | IConstructor
         const schema: ArraySchema = Validator.Array().ordered(...argumentSchemas)
         const argumentSchemaLength: number = Array.isArray(argumentSchemas) ? argumentSchemas.length : 1
         if (isAsyncFunction(originalMethod)) {
-            descriptor.value = async function (...args: any[]) {
+            descriptor.value = async function (...args: any[]): Promise<any> {
                 const argumentCount: number = args.length - argumentSchemaLength
                 try {
                     args = await Validator.validateAsync(args, schema.concat(Validator.Array().ordered(...new Array(argumentCount >= 0 ? argumentCount : 0).fill(Validator.Any()))), options)
@@ -79,7 +79,7 @@ export function Accept(inp: Schema | Schema[] | IConstructor<DTO> | IConstructor
                 return originalMethod.apply(this, args)
             }
         } else {
-            descriptor.value = function (...args: any[]) {
+            descriptor.value = function (...args: any[]): any {
                 const argumentCount: number = args.length - argumentSchemaLength
                 try {
                     args = Validator.validate(args, schema.concat(Validator.Array().ordered(...new Array(argumentCount >= 0 ? argumentCount : 0).fill(Validator.Any()))), options)

@@ -35,9 +35,20 @@ export class Controller extends Component {
 
     /**
      * 控制器动作执行前调用方法
-     * @protected
+     * @param subject
+     * @param actionName
      */
-    protected async beforeAction(): Promise<boolean> {
+    public async beforeAction(subject: Record<string, any>, actionName: string | symbol | number): Promise<boolean> {
         return true
+    }
+
+    /**
+     * 控制器动作执行后调用方法
+     * @param subject
+     * @param actionName
+     * @param actionResult
+     */
+    public async afterAction(subject: Record<string, any>, actionName: string | symbol | number, actionResult: any): Promise<any> {
+        return actionResult
     }
 }
