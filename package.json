@@ -29,6 +29,11 @@
       "import": "./build/Components.js",
       "types": "./build/Components.d.ts"
     },
+    "./time": {
+      "require": "./build/Time.cjs",
+      "import": "./build/Time.js",
+      "types": "./build/Time.d.ts"
+    },
     "./utility": {
       "require": "./build/Utilities.cjs",
       "import": "./build/Utilities.js",
