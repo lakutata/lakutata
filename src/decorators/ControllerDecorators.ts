@@ -13,9 +13,10 @@ type TActionName<T, U> = TExcludes<keyof T, U>
 
 /**
  * 控制器动作方法声明
+ * @param pattern
  * @constructor
  */
-export function Action<T extends Controller>(pattern: Record<string, any>): (target: T, propertyKey: TActionName<T, keyof Controller>, descriptor: TypedPropertyDescriptor<TActionFunction>) => TypedPropertyDescriptor<TActionFunction> {
+export function Action<T extends Controller>(pattern: Record<string, any>): (target: T, propertyKey: TActionName<T, keyof Controller | 'init' | '__init' | 'destroy' | '__destroy'>, descriptor: TypedPropertyDescriptor<TActionFunction>) => TypedPropertyDescriptor<TActionFunction> {
     return function <T extends Controller>(target: T, propertyKey: keyof T, descriptor: TypedPropertyDescriptor<TActionFunction>): TypedPropertyDescriptor<TActionFunction> {
         if (!pattern || !Object.keys(pattern).length) throw new Error('The pattern of the action cannot be empty')
         const controllerConstructor: IConstructor<T> = As<IConstructor<T>>(target.constructor)
