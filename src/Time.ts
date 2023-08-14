@@ -15,11 +15,14 @@ export class Time extends Date {
     }
 
     constructor(inp?: TimeInput) {
-        const __$$instance: MomentTimezone.Moment = inp ? (inp instanceof Time ? inp.__$$instance : process.env.TZ ? MomentTimezone(inp).tz(process.env.TZ) : MomentTimezone(inp)) : MomentTimezone()
+        const __$$instance: MomentTimezone.Moment = inp ? (inp instanceof Time ? MomentTimezone(inp.__$$instance) : process.env.TZ ? MomentTimezone(inp).tz(process.env.TZ) : MomentTimezone(inp)) : MomentTimezone()
         super(__$$instance.valueOf())
         this.__$$instance = __$$instance
     }
 
+    /**
+     * 获取所有时区名称数组
+     */
     public static timezones(): string[] {
         return MomentTimezone.tz.names()
     }
@@ -54,6 +57,27 @@ export class Time extends Date {
     protected updateTimestamp(time: number): this {
         this.setTime(time)
         return this
+    }
+
+    /**
+     * 获取时区偏移量
+     */
+    public getTimezoneOffset(): number {
+        return this.__$$instance.utcOffset()
+    }
+
+    /**
+     * 获取或设置时区
+     */
+    public timezone(): string | undefined
+    public timezone(tz: string): this
+    public timezone(tz?: string): string | undefined | this {
+        if (tz) {
+            this.__$$instance = this.__$$instance.tz(tz)
+            return this
+        } else {
+            return this.__$$instance.tz()
+        }
     }
 
     /**

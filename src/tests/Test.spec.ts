@@ -20,6 +20,7 @@ import {Time} from '../Time.js'
         id: 'test',
         name: 'test',
         timezone: 'Asia/Shanghai',
+        // timezone: 'Africa/Accra',
         mode: 'production',
         entries: {
             testObject: {class: TestObject, username: 'tester'},
@@ -70,7 +71,11 @@ import {Time} from '../Time.js'
     })
     console.timeEnd('app')
 
-    console.log(new Time('1968-01-01').add(1,'day'))
-
+    console.log(new Time('1968-01-01').add(1, 'day'))
+    let time = new Time('1968-01-01')
+    const time2 = new Time('1968-01-01')
+    console.log(time2.timezone(), time2)
+    time = time.timezone('Africa/Accra')
+    console.log(time.timezone())
     // app.exit()
 })()
