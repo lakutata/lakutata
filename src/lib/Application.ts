@@ -41,7 +41,7 @@ export class Application extends Module {
      * 应用程序预设启动引导
      * @protected
      */
-    protected bootstrap<U extends Module>(): (string | IConstructor<any> | AsyncFunction<U, void>)[] {
+    protected async bootstrap<U extends Module>(): Promise<(string | IConstructor<any> | AsyncFunction<U, void>)[]> {
         return ['log']
     }
 

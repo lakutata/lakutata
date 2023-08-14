@@ -167,7 +167,7 @@ export class Module<TModule extends Module = any, TComponent extends Component =
             Validator.AsyncFunction()
         )
     ))
-    protected bootstrap<U extends Module>(): (string | IConstructor<TModule> | AsyncFunction<U, void>)[] {
+    protected async bootstrap<U extends Module>(): Promise<(string | IConstructor<TModule> | AsyncFunction<U, void>)[]> {
         return []
     }
 
@@ -273,7 +273,7 @@ export class Module<TModule extends Module = any, TComponent extends Component =
             }
         })
         await this.__$$container.load(entries)
-        for (const item of MergeArray(this.bootstrap(), this.__$$options.bootstrap ? this.__$$options.bootstrap : [])) {
+        for (const item of MergeArray(await this.bootstrap(), this.__$$options.bootstrap ? this.__$$options.bootstrap : [])) {
             if (typeof item === 'string') await this.__$$container.get(item)
             if (typeof item === 'function') isAsyncFunction(item) ? await As<AsyncFunction<ThisType<this>, void>>(item)(this) : await this.__$$container.get(As<IConstructor<BaseObject>>(item))
         }
