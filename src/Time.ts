@@ -47,39 +47,49 @@ export class Time extends Date {
     }
 
     /**
+     * 更新当前实例内部时间戳并返回当前实例
+     * @param time
+     * @protected
+     */
+    protected updateTimestamp(time: number): this {
+        this.setTime(time)
+        return this
+    }
+
+    /**
      * 获取或设置毫秒数
      */
     public milliseconds(): number
-    public milliseconds(value: number): Time
-    public milliseconds(value?: number): number | Time {
-        return value !== undefined ? new Time(this.__$$instance.milliseconds(value).valueOf()) : this.__$$instance.milliseconds()
+    public milliseconds(value: number): this
+    public milliseconds(value?: number): number | this {
+        return value !== undefined ? this.updateTimestamp(this.__$$instance.milliseconds(value).valueOf()) : this.__$$instance.milliseconds()
     }
 
     /**
      * 获取或设置秒数
      */
     public seconds(): number
-    public seconds(value: number): Time
-    public seconds(value?: number): number | Time {
-        return value !== undefined ? new Time(this.__$$instance.seconds(value).valueOf()) : this.__$$instance.seconds()
+    public seconds(value: number): this
+    public seconds(value?: number): number | this {
+        return value !== undefined ? this.updateTimestamp(this.__$$instance.seconds(value).valueOf()) : this.__$$instance.seconds()
     }
 
     /**
      * 获取或设置分钟
      */
     public minutes(): number
-    public minutes(value: number): Time
-    public minutes(value?: number): number | Time {
-        return value !== undefined ? new Time(this.__$$instance.minutes(value).valueOf()) : this.__$$instance.minutes()
+    public minutes(value: number): this
+    public minutes(value?: number): number | this {
+        return value !== undefined ? this.updateTimestamp(this.__$$instance.minutes(value).valueOf()) : this.__$$instance.minutes()
     }
 
     /**
      * 获取或设置小时
      */
     public hours(): number
-    public hours(value: number): Time
-    public hours(value?: number): number | Time {
-        return value !== undefined ? new Time(this.__$$instance.hours(value).valueOf()) : this.__$$instance.hours()
+    public hours(value: number): this
+    public hours(value?: number): number | this {
+        return value !== undefined ? this.updateTimestamp(this.__$$instance.hours(value).valueOf()) : this.__$$instance.hours()
     }
 
     /**
@@ -87,27 +97,27 @@ export class Time extends Date {
      * 接受从 1 到 31 的数字。 如果超出范围，它将冒泡到几个月
      */
     public date(): number
-    public date(value: number): Time
-    public date(value?: number): number | Time {
-        return value !== undefined ? new Time(this.__$$instance.date(value).valueOf()) : this.__$$instance.date()
+    public date(value: number): this
+    public date(value?: number): number | this {
+        return value !== undefined ? this.updateTimestamp(this.__$$instance.date(value).valueOf()) : this.__$$instance.date()
     }
 
     /**
      * 设置获取或设置星期几
      */
     public weekday(): number
-    public weekday(value: number): Time
-    public weekday(value?: number): number | Time {
-        return value !== undefined ? new Time(this.__$$instance.weekday(value).valueOf()) : this.__$$instance.weekday()
+    public weekday(value: number): this
+    public weekday(value?: number): number | this {
+        return value !== undefined ? this.updateTimestamp(this.__$$instance.weekday(value).valueOf()) : this.__$$instance.weekday()
     }
 
     /**
      * 获取或设置 ISO 星期，1 为星期一，7 为星期日
      */
     public isoWeekday(): number
-    public isoWeekday(value: number): Time
-    public isoWeekday(value?: number): number | Time {
-        return value !== undefined ? new Time(this.__$$instance.isoWeekday(value).valueOf()) : this.__$$instance.isoWeekday()
+    public isoWeekday(value: number): this
+    public isoWeekday(value?: number): number | this {
+        return value !== undefined ? this.updateTimestamp(this.__$$instance.isoWeekday(value).valueOf()) : this.__$$instance.isoWeekday()
     }
 
     /**
@@ -115,27 +125,27 @@ export class Time extends Date {
      * 接受从 1 到 366 的数字。 如果超出范围，它将冒泡到年份
      */
     public dayOfYear(): number
-    public dayOfYear(value: number): Time
-    public dayOfYear(value?: number): number | Time {
-        return value !== undefined ? new Time(this.__$$instance.dayOfYear(value).valueOf()) : this.__$$instance.dayOfYear()
+    public dayOfYear(value: number): this
+    public dayOfYear(value?: number): number | this {
+        return value !== undefined ? this.updateTimestamp(this.__$$instance.dayOfYear(value).valueOf()) : this.__$$instance.dayOfYear()
     }
 
     /**
      * 获取或设置一年中的第几周
      */
     public weeks(): number
-    public weeks(value: number): Time
-    public weeks(value?: number): number | Time {
-        return value !== undefined ? new Time(this.__$$instance.weeks(value).valueOf()) : this.__$$instance.weeks()
+    public weeks(value: number): this
+    public weeks(value?: number): number | this {
+        return value !== undefined ? this.updateTimestamp(this.__$$instance.weeks(value).valueOf()) : this.__$$instance.weeks()
     }
 
     /**
      * 获取或设置一年中的ISO周
      */
     public isoWeeks(): number
-    public isoWeeks(value: number): Time
-    public isoWeeks(value?: number): number | Time {
-        return value !== undefined ? new Time(this.__$$instance.isoWeeks(value).valueOf()) : this.__$$instance.isoWeeks()
+    public isoWeeks(value: number): this
+    public isoWeeks(value?: number): number | this {
+        return value !== undefined ? this.updateTimestamp(this.__$$instance.isoWeeks(value).valueOf()) : this.__$$instance.isoWeeks()
     }
 
     /**
@@ -143,18 +153,18 @@ export class Time extends Date {
      * 接受从 0 到 11 的数字。 如果超出范围，它将冒泡到年份
      */
     public month(): number
-    public month(value: number): Time
-    public month(value?: number): number | Time {
-        return value !== undefined ? new Time(this.__$$instance.month(value).valueOf()) : this.__$$instance.month()
+    public month(value: number): this
+    public month(value?: number): number | this {
+        return value !== undefined ? this.updateTimestamp(this.__$$instance.month(value).valueOf()) : this.__$$instance.month()
     }
 
     /**
      * 获取或设置月份（1 到 4）
      */
     public quarters(): number
-    public quarters(value: number): Time
-    public quarters(value?: number): number | Time {
-        return value !== undefined ? new Time(this.__$$instance.quarters(value).valueOf()) : this.__$$instance.quarters()
+    public quarters(value: number): this
+    public quarters(value?: number): number | this {
+        return value !== undefined ? this.updateTimestamp(this.__$$instance.quarters(value).valueOf()) : this.__$$instance.quarters()
     }
 
     /**
@@ -162,18 +172,18 @@ export class Time extends Date {
      * 接受从 -270,000 到 270,000 的数字
      */
     public year(): number
-    public year(value: number): Time
-    public year(value?: number): number | Time {
-        return value !== undefined ? new Time(this.__$$instance.year(value).valueOf()) : this.__$$instance.year()
+    public year(value: number): this
+    public year(value?: number): number | this {
+        return value !== undefined ? this.updateTimestamp(this.__$$instance.year(value).valueOf()) : this.__$$instance.year()
     }
 
     /**
      * 获取或设置ISO周年
      */
     public isoWeekYear(): number
-    public isoWeekYear(value: number): Time
-    public isoWeekYear(value?: number): number | Time {
-        return value !== undefined ? new Time(this.__$$instance.isoWeekYear(value).valueOf()) : this.__$$instance.isoWeekYear()
+    public isoWeekYear(value: number): this
+    public isoWeekYear(value?: number): number | this {
+        return value !== undefined ? this.updateTimestamp(this.__$$instance.isoWeekYear(value).valueOf()) : this.__$$instance.isoWeekYear()
     }
 
     /**
@@ -203,8 +213,8 @@ export class Time extends Date {
      * @param unit
      * @param value
      */
-    public set(unit: UnitOfTime.All, value: number): Time {
-        return new Time(this.__$$instance.set(unit, value).valueOf())
+    public set(unit: UnitOfTime.All, value: number): this {
+        return this.updateTimestamp(this.__$$instance.set(unit, value).valueOf())
     }
 
     /**
@@ -212,8 +222,8 @@ export class Time extends Date {
      * @param amount
      * @param unit
      */
-    public add(amount: number, unit: UnitOfTime.DurationConstructor): Time {
-        return new Time(this.__$$instance.add(amount, unit).valueOf())
+    public add(amount: number, unit: UnitOfTime.DurationConstructor): this {
+        return this.updateTimestamp(this.__$$instance.add(amount, unit).valueOf())
     }
 
     /**
@@ -221,24 +231,24 @@ export class Time extends Date {
      * @param amount
      * @param unit
      */
-    public subtract(amount: number, unit: UnitOfTime.DurationConstructor): Time {
-        return new Time(this.__$$instance.subtract(amount, unit).valueOf())
+    public subtract(amount: number, unit: UnitOfTime.DurationConstructor): this {
+        return this.updateTimestamp(this.__$$instance.subtract(amount, unit).valueOf())
     }
 
     /**
      * 设置为一个时间单位的开始
      * @param unit
      */
-    public startOf(unit: UnitOfTime.StartOf): Time {
-        return new Time(this.__$$instance.startOf(unit).valueOf())
+    public startOf(unit: UnitOfTime.StartOf): this {
+        return this.updateTimestamp(this.__$$instance.startOf(unit).valueOf())
     }
 
     /**
      * 设置为时间单位的末尾
      * @param unit
      */
-    public endOf(unit: UnitOfTime.StartOf): Time {
-        return new Time(this.__$$instance.endOf(unit).valueOf())
+    public endOf(unit: UnitOfTime.StartOf): this {
+        return this.updateTimestamp(this.__$$instance.endOf(unit).valueOf())
     }
 
     /**
@@ -352,4 +362,10 @@ export class Time extends Date {
         return this.__$$instance.isLeapYear()
     }
 
+    /**
+     * 克隆一个时间实例
+     */
+    public clone(): Time {
+        return new Time(this.__$$instance.clone().valueOf())
+    }
 }
