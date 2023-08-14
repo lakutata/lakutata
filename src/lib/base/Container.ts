@@ -235,20 +235,20 @@ export class Container<T extends Module = Module> {
     /**
      * 通过名称获取容器内的注册项目
      * @param name 注册项目的名称
-     * @param params 获取时传入的配置参数对象，必须为在注册项目内使用了@Configurable()修饰器进行修饰的字段
+     * @param configurableParams 获取时传入的配置参数对象，必须为在注册项目内使用了@Configurable()修饰器进行修饰的字段
      */
-    public async get<T extends BaseObject>(name: string, params?: Record<string, any>): Promise<T>
+    public async get<T extends BaseObject>(name: string, configurableParams?: Record<string, any>): Promise<T>
     /**
      * 通过构造函数获取容器内的注册项目
      * @param constructor 注册项目的构造函数
-     * @param params 获取时传入的配置参数对象，必须为在注册项目内使用了@Configurable()修饰器进行修饰的字段
+     * @param configurableParams 获取时传入的配置参数对象，必须为在注册项目内使用了@Configurable()修饰器进行修饰的字段
      */
-    public async get<T extends BaseObject>(constructor: IConstructor<T>, params?: Record<string, any>): Promise<T>
-    public async get<T extends BaseObject>(inp: string | IConstructor<T>, params?: Record<string, any>): Promise<T> {
+    public async get<T extends BaseObject>(constructor: IConstructor<T>, configurableParams?: Record<string, any>): Promise<T>
+    public async get<T extends BaseObject>(inp: string | IConstructor<T>, configurableParams?: Record<string, any>): Promise<T> {
         const name: string = typeof inp === 'string' ? inp : Container.stringifyConstructor(inp)
         const resolved: T | Promise<T> = this.__$$dic.resolve(name)
         //在取得实例时进行实例上的元数据注入，将附加的可配置项注入至对象中，在该阶段，对象根据可配置对象进行自身的配置过程尚未开始
-        if (typeof resolved === 'object' || typeof resolved === 'function') Reflect.defineMetadata(DI_TARGET_INSTANCE_CONFIGURABLE_OBJECT, params ? params : {}, resolved)
+        if (typeof resolved === 'object' || typeof resolved === 'function') Reflect.defineMetadata(DI_TARGET_INSTANCE_CONFIGURABLE_OBJECT, configurableParams ? configurableParams : {}, resolved)
         return isPromise(resolved) ? await resolved : resolved
     }
 

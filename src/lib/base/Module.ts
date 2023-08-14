@@ -300,16 +300,18 @@ export class Module<TModule extends Module = any, TComponent extends Component =
 
     /**
      * 按照注入名称获取对象
-     * @param name
+     * @param name 注册项目的名称
+     * @param configurableParams 获取时传入的配置参数对象，必须为在注册项目内使用了@Configurable()修饰器进行修饰的字段
      */
-    public async get<T extends BaseObject>(name: string): Promise<T>
+    public async get<T extends BaseObject>(name: string, configurableParams?: Record<string, any>): Promise<T>
     /**
      * 按照注入的构造函数获取对象（用于Glob加载的方式）
-     * @param constructor
+     * @param constructor 注册项目的构造函数
+     * @param configurableParams 获取时传入的配置参数对象，必须为在注册项目内使用了@Configurable()修饰器进行修饰的字段
      */
-    public async get<T extends BaseObject>(constructor: IConstructor<T>): Promise<T>
-    public async get<T extends BaseObject>(inp: string | IConstructor<T>): Promise<T> {
-        return await this.__$$container.get(As<any>(inp))
+    public async get<T extends BaseObject>(constructor: IConstructor<T>, configurableParams?: Record<string, any>): Promise<T>
+    public async get<T extends BaseObject>(inp: string | IConstructor<T>, configurableParams?: Record<string, any>): Promise<T> {
+        return await this.__$$container.get(As<any>(inp), configurableParams ? configurableParams : {})
     }
 
     /**
