@@ -3,11 +3,12 @@ import {Container} from './base/Container.js'
 import {Module} from './base/Module.js'
 import {IConstructor} from '../interfaces/IConstructor.js'
 import {LoadComponentOptions} from '../options/LoadComponentOptions.js'
-import {Formatter} from '../components/Formatter.js'
+import {Formatter} from './components/Formatter.js'
 import {Singleton} from '../decorators/DependencyInjectionDecorators.js'
-import {Logger} from '../Logger.js'
+import {Logger} from './components/Logger.js'
 import {pino} from 'pino'
 import {AsyncFunction} from '../types/AsyncFunction.js'
+import 'pino-pretty'
 
 @Singleton(true)
 export class Application extends Module {

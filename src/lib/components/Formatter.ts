@@ -1,9 +1,9 @@
 import 'reflect-metadata'
-import {Component} from '../lib/base/Component.js'
+import {Component} from '../base/Component.js'
 import convert from 'convert-units'
-import {Accept} from '../decorators/ValidationDecorators.js'
-import {Validator} from '../Validator.js'
-import {Singleton} from '../decorators/DependencyInjectionDecorators.js'
+import {Accept} from '../../decorators/ValidationDecorators.js'
+import {Validator} from '../../Validator.js'
+import {Singleton} from '../../decorators/DependencyInjectionDecorators.js'
 
 export type Distance = 'mm' | 'cm' | 'm' | 'km' | 'in' | 'ft-us' | 'ft' | 'yd' | 'mi'; // Distance
 export type Area = 'mm2' | 'cm2' | 'm2' | 'ha' | 'km2' | 'in2' | 'ft2' | 'ac' | 'mi2'; // Area

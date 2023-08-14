@@ -9,11 +9,11 @@ import {Accept, Expect, IndexSignature} from '../decorators/ValidationDecorators
 import {Validator} from '../Validator.js'
 import {RandomString} from '../Utilities.js'
 import {TestModel} from './models/TestModel.js'
-import {Formatter} from '../components/Formatter.js'
+import {Formatter} from '../lib/components/Formatter.js'
 import {Test1Controller} from './controllers/Test1Controller.js'
 import {Time} from '../Time.js'
 import {pino} from 'pino'
-import {Logger} from '../Logger.js'
+import {Logger} from '../lib/components/Logger.js'
 
 (async () => {
 
@@ -24,7 +24,7 @@ import {Logger} from '../Logger.js'
         timezone: 'Asia/Shanghai',
         // timezone: 'Africa/Accra',
         // mode: 'production',
-        // mode: 'development',
+        mode: 'development',
         entries: {
             testObject: {class: TestObject, username: 'tester'},
             testInterval: {

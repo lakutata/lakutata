@@ -1,10 +1,11 @@
 import 'reflect-metadata'
 import {pino} from 'pino'
-import {ILogger} from './interfaces/ILogger.js'
-import {Component} from './lib/base/Component.js'
-import {Configurable, Singleton} from './decorators/DependencyInjectionDecorators.js'
-import {Validator} from './Validator.js'
-import {InjectionProperties} from './types/InjectionProperties.js'
+import 'pino-pretty'
+import {ILogger} from '../../interfaces/ILogger.js'
+import {Component} from '../base/Component.js'
+import {Configurable, Singleton} from '../../decorators/DependencyInjectionDecorators.js'
+import {Validator} from '../../Validator.js'
+import {InjectionProperties} from '../../types/InjectionProperties.js'
 
 @Singleton(true)
 export class Logger extends Component implements ILogger {
@@ -31,7 +32,7 @@ export class Logger extends Component implements ILogger {
         transport: {
             target: 'pino-pretty',
             options: {
-                colorize: false
+                colorize: true
             }
         },
         level: 'trace'
