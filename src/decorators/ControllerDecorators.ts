@@ -26,7 +26,6 @@ export function Action<T extends Controller>(pattern: Record<string, any>): (tar
         if (!Reflect.hasOwnMetadata(CONTROLLER_PATTERN_MANAGER, controllerConstructor)) Reflect.defineMetadata(CONTROLLER_PATTERN_MANAGER, Patrun(), controllerConstructor)
         pattern = SortObject(pattern, {deep: true, order: 'asc'})
         const patternHash: string = SHA1(JSON.stringify(pattern))
-        // const actionId: string = `${controllerConstructor.name}/${propertyKey.toString()}/${patternHash}`
         if (!As<Map<string, ControllerActionMapItem>>(Reflect.getOwnMetadata(CONTROLLER_ACTION_MAP, controllerConstructor)).has(patternHash)) {
             As<Map<string, ControllerActionMapItem>>(Reflect.getOwnMetadata(CONTROLLER_ACTION_MAP, controllerConstructor)).set(patternHash, {
                 pattern: pattern,
