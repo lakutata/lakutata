@@ -1,11 +1,11 @@
 import {ArraySchema, Schema, SchemaMap, ValidationError, ValidationOptions, Validator} from '../Validator.js'
 import {DTO} from '../lib/base/DTO.js'
 import {isAsyncFunction} from 'util/types'
-import {InvalidMethodAcceptException} from '../exceptions/InvalidMethodAcceptException.js'
+import {InvalidMethodAcceptException} from '../exceptions/validation/InvalidMethodAcceptException.js'
 import {IConstructor} from '../interfaces/IConstructor.js'
 import {DTO_CLASS, DTO_INDEX_SIGNATURE_SCHEMAS, DTO_SCHEMAS} from '../constants/MetadataKey.js'
 import {defaultValidationOptions} from '../constants/DefaultValue.js'
-import {InvalidMethodReturnException} from '../exceptions/InvalidMethodReturnException.js'
+import {InvalidMethodReturnException} from '../exceptions/validation/InvalidMethodReturnException.js'
 import {As} from '../Utilities.js'
 
 type TFunction = (...args: any[]) => any | Promise<any>

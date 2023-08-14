@@ -35,7 +35,7 @@ import {ConfigurableOptions, Lifetime} from '../../decorators/DependencyInjectio
 import {Schema, Validator} from '../../Validator.js'
 import {defaultValidationOptions} from '../../constants/DefaultValue.js'
 import {InvalidConfigurableValueException} from '../../exceptions/InvalidConfigurableValueException.js'
-import {InvalidValueException} from '../../exceptions/InvalidValueException.js'
+import {InvalidValueException} from '../../exceptions/validation/InvalidValueException.js'
 import {SHA256} from '../../Hash.js'
 
 const internalPropertyNameRegExp: RegExp = /__\$\$\$[a-zA-Z0-9~!@#$%^&*()_+\[\]\{\},./\\<>?|\-\*]+\$\$\$__/
