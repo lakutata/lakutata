@@ -1,6 +1,7 @@
 import {Controller} from '../../lib/base/Controller.js'
 import {Action} from '../../decorators/ControllerDecorators.js'
 import {Configurable} from '../../decorators/DependencyInjectionDecorators.js'
+import {Test2Controller} from './Test2Controller.js'
 
 export class Test1Controller extends Controller {
 
@@ -16,7 +17,7 @@ export class Test1Controller extends Controller {
     @Action({a: 2})
     public async test1(inp) {
         console.log('this is test1 method, the inp is:', inp)
-        return 'this is a equal 2'
+        return this.forward(Test2Controller, Object.assign(inp, {test2: true}))
     }
 
     @Action({a: 1, b: 1})

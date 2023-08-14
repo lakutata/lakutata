@@ -241,7 +241,6 @@ export class Module<TModule extends Module = any, TComponent extends Component =
         const entries: Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<TModule>> = As<Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<TModule>>>(await this.mergeEntries(await this.entries(), this.__$$options.entries))
         const autoload: (string | IConstructor<any>)[] = UniqueArray([...(await this.autoload()), ...(this.__$$options.autoload ? this.__$$options.autoload : [])])
         const controllers: (string | IConstructor<Controller>)[] = UniqueArray([...(await this.controllers()), ...(this.__$$options.controllers ? this.__$$options.controllers : [])])
-        //todo 对controller对象进行解析
         this.autoloadToEntries([...autoload, ...controllers], entries)//将自动加载项和控制器加载项一同进行加载
         const components: Record<string, IConstructor<TComponent> | LoadComponentOptions<TComponent>> = As<Record<string, IConstructor<TComponent> | LoadComponentOptions<TComponent>>>(await this.mergeEntries(await this.components(), this.__$$options.components))
         const modules: Record<string, IConstructor<TModule> | LoadModuleOptions<TModule>> = As<Record<string, IConstructor<TModule> | LoadModuleOptions<TModule>>>(await this.mergeEntries(await this.modules(), this.__$$options.modules))

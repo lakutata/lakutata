@@ -124,8 +124,9 @@ export class Container<T extends Module = Module> {
                     this.__$controllerActionMap.set(item.patternHash, item)
                     //在模块对象上的patternManager进行注册
                     As<IPatRun>(this.__$$module.getProperty('__$$patternManager'))?.add(item.pattern, async (subject: Record<string, any>, configurableParams: Record<string, any> = {}): Promise<any> => {
-                        const controllerRuntimeScope: Container = this.createScope(this.__$$module)
+                        const controllerRuntimeScope: Container = this.createScope()
                         const controller: Controller = await controllerRuntimeScope.get(item.class, configurableParams)
+                        controller.setInternalProperty('runtimeContainer', controllerRuntimeScope)
                         const result: any = await controller[item.method](subject)
                         setImmediate(() => controllerRuntimeScope.destroy())
                         return result
@@ -276,7 +277,7 @@ export class Container<T extends Module = Module> {
             name = Container.stringifyConstructor(inp)
             loadOptions[name] = {class: inp, ...config}
         }
-        if (loadOptions.class && this.isControllerConstructor(As<IConstructor<T>>(loadOptions.class)))
+        if (!!this.__$$module && loadOptions.class && this.isControllerConstructor(As<IConstructor<T>>(loadOptions.class)))
             throw new DynamicRegisterControllerNotAllowException('Dynamic registration of controllers is not allowed during runtime. Attempting to dynamically register controller class "{className}"', {
                 className: As<IConstructor<T>>(loadOptions.class).name
             })
