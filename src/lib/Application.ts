@@ -22,7 +22,7 @@ export class Application extends Module {
             formatter: {
                 class: Formatter
             },
-            logger: {
+            log: {
                 class: Logger,
                 provider: pino({
                     transport: {
@@ -42,7 +42,7 @@ export class Application extends Module {
      * @protected
      */
     protected bootstrap<U extends Module>(): (string | IConstructor<any> | AsyncFunction<U, void>)[] {
-        return ['logger']
+        return ['log']
     }
 
     /**

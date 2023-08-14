@@ -69,7 +69,7 @@ import {Logger} from '../lib/components/Logger.js'
                 testModel.aa = '6666668888888'
                 await subScope.destroy()
                 console.log(await app.invoke({a: 1, b: 2}, {testBoolean: true}))
-                const logger = await app.get<Logger>('logger')
+                const logger = await app.get<Logger>('log')
                 logger.trace('more on this: %s', process.env.NODE_ENV)
             }
         ]
