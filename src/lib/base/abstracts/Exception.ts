@@ -1,3 +1,4 @@
+import 'reflect-metadata'
 import pupa from 'pupa'
 import {camelCase} from 'camel-case'
 import {As} from '../../../Utilities.js'

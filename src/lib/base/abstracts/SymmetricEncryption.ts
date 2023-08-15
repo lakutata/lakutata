@@ -1,3 +1,4 @@
+import 'reflect-metadata'
 import {Cipher, createCipheriv, createDecipheriv, Decipher, getCiphers, randomBytes, getCipherInfo} from 'crypto'
 import {
     InvalidSymmetricCipherKeyLengthException

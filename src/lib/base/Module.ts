@@ -1,3 +1,4 @@
+import 'reflect-metadata'
 import {Component} from './Component.js'
 import {Container} from './Container.js'
 import {ModuleOptions} from '../../options/ModuleOptions.js'

@@ -1,4 +1,4 @@
-import {AsyncConstructor} from 'async-constructor'
+import 'reflect-metadata'
 import {IConstructor} from '../../interfaces/IConstructor.js'
 import {
     As,
@@ -37,6 +37,7 @@ import {defaultValidationOptions} from '../../constants/DefaultValue.js'
 import {InvalidConfigurableValueException} from '../../exceptions/InvalidConfigurableValueException.js'
 import {InvalidValueException} from '../../exceptions/validation/InvalidValueException.js'
 import {SHA256} from '../../Hash.js'
+import {AsyncConstructor} from './async-constructor/AsyncConstructor.js'
 
 const internalPropertyNameRegExp: RegExp = new RegExp('__\\$\\$\\$[a-zA-Z0-9~!@#$%^&*()_+\\[\\]\\{\\},./\\\\<>?|\\-\\*]+\\$\\$\\$__')
 

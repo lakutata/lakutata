@@ -1,10 +1,11 @@
+import 'reflect-metadata'
 import {DTO_CLASS, DTO_INDEX_SIGNATURE_SCHEMAS, DTO_SCHEMAS} from '../../constants/MetadataKey.js'
 import {ObjectSchema, Schema, ValidationOptions, Validator} from '../../Validator.js'
 import {IConstructor} from '../../interfaces/IConstructor.js'
 import {defaultValidationOptions} from '../../constants/DefaultValue.js'
 import {InvalidDTOValueException} from '../../exceptions/InvalidDTOValueException.js'
 import {As, ConfigureObjectProperties, ParentConstructor} from '../../Utilities.js'
-import {appendAsyncConstructor} from 'async-constructor'
+import {AppendAsyncConstructor} from './async-constructor/Append.js'
 
 /**
  * DTO基础类
@@ -28,7 +29,7 @@ export class DTO {
         validateOptions = Object.assign({}, defaultValidationOptions, validateOptions)
         const schema: ObjectSchema = As<IConstructor<DTO>>(this.constructor).schema()
         if (async) {
-            appendAsyncConstructor(this, async () => {
+            AppendAsyncConstructor(this, async () => {
                 try {
                     ConfigureObjectProperties(this, await schema.validateAsync(properties, validateOptions))
                 } catch (e) {
@@ -48,8 +49,8 @@ export class DTO {
      */
     protected static patternSchemas<T extends DTO>(this: IConstructor<T>): Schema[] {
         const parentConstructor: IConstructor<T> | null = ParentConstructor(this)
-        let parentIndexSignatureSchemas: Schema[] = (parentConstructor && parentConstructor.patternSchemas) ? parentConstructor.patternSchemas() : []
-        let selfIndexSignatureSchemas: Schema[] = Reflect.hasOwnMetadata(DTO_INDEX_SIGNATURE_SCHEMAS, this) ? Reflect.getOwnMetadata(DTO_INDEX_SIGNATURE_SCHEMAS, this) : []
+        const parentIndexSignatureSchemas: Schema[] = (parentConstructor && parentConstructor.patternSchemas) ? parentConstructor.patternSchemas() : []
+        const selfIndexSignatureSchemas: Schema[] = Reflect.hasOwnMetadata(DTO_INDEX_SIGNATURE_SCHEMAS, this) ? Reflect.getOwnMetadata(DTO_INDEX_SIGNATURE_SCHEMAS, this) : []
         return (parentIndexSignatureSchemas ? parentIndexSignatureSchemas : []).concat(selfIndexSignatureSchemas)
     }
 
