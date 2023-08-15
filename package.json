@@ -1,7 +1,7 @@
 {
   "name": "lakutata",
   "version": "2.0.6",
-  "description": "Lakutata Framework Core",
+  "description": "An IoC-based universal application framework.",
   "type": "module",
   "exports": {
     ".": {
@@ -85,17 +85,17 @@
     "@types/convert-units": "^2.3.6",
     "@types/crypto-js": "^4.1.1",
     "@types/node": "^18.17.0",
-    "@types/object-hash": "^3.0.2",
+    "@types/object-hash": "^3.0.3",
     "@types/randomstring": "^1.1.8",
-    "@typescript-eslint/eslint-plugin": "^6.2.0",
-    "@typescript-eslint/parser": "^6.2.0",
+    "@typescript-eslint/eslint-plugin": "^6.4.0",
+    "@typescript-eslint/parser": "^6.4.0",
     "async-constructor": "^0.4.17",
     "browserify-cipher": "^1.0.1",
     "camel-case": "^4.1.2",
     "convert-units": "^2.3.4",
     "crypto-api-v1": "^1.0.0",
     "crypto-js": "^4.1.1",
-    "eslint": "^8.45.0",
+    "eslint": "^8.47.0",
     "fast-glob": "^3.3.1",
     "is-glob": "^4.0.3",
     "joi": "^17.9.2",
@@ -114,8 +114,8 @@
     "terser": "^5.19.2",
     "ts-node": "^10.9.1",
     "tslib": "^2.6.1",
-    "tsup": "^7.1.0",
-    "typescript": "^5.0.0"
+    "tsup": "^7.2.0",
+    "typescript": "^5.1.6"
   },
   "engines": {
     "node": ">=18"
@@ -140,6 +140,8 @@
     "framework",
     "typescript",
     "esm",
-    "cjs"
+    "cjs",
+    "ioc",
+    "di"
   ]
 }

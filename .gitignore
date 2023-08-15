@@ -764,3 +764,6 @@ build/**/*
 !assets/**/*
 !src
 !src/**/*
+!package-lock.json
+!tsconfig.json
+!.eslintrc.json
