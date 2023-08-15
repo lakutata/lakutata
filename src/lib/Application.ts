@@ -1,3 +1,5 @@
+import 'reflect-metadata'
+import 'pino-pretty'
 import {ApplicationOptions} from '../options/ApplicationOptions.js'
 import {Container} from './base/Container.js'
 import {Module} from './base/Module.js'
@@ -8,7 +10,6 @@ import {Singleton} from '../decorators/DependencyInjectionDecorators.js'
 import {Logger} from './components/Logger.js'
 import {pino} from 'pino'
 import {AsyncFunction} from '../types/AsyncFunction.js'
-import 'pino-pretty'
 import {As} from '../Utilities.js'
 
 @Singleton(true)

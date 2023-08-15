@@ -1,6 +1,6 @@
 import 'reflect-metadata'
-import {pino} from 'pino'
 import 'pino-pretty'
+import {pino} from 'pino'
 import {ILogger} from '../../interfaces/ILogger.js'
 import {Component} from '../base/Component.js'
 import {Configurable, Singleton} from '../../decorators/DependencyInjectionDecorators.js'
