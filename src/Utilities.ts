@@ -32,7 +32,7 @@ export function IsEqual(val1: any, val2: any): boolean {
  */
 export function IsPath(inp: string | PathLike): boolean {
     try {
-        const pathRegex: RegExp = /^(\/|\.\.?\/|([A-Za-z]:)?\\)([^\\\/:*?"<>|\r\n]+[\\\/])*[^\\\/:*?"<>|\r\n]*$/
+        const pathRegex: RegExp = new RegExp('^(\\/|\\.\\.?\\/|([A-Za-z]:)?\\\\)([^\\\\\\/:*?"<>|\\r\\n]+[\\\\\\/])*[^\\\\\\/:*?"<>|\\r\\n]*$')
         return pathRegex.test(As<string>(inp))
     } catch (e) {
         return false

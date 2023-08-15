@@ -25,7 +25,8 @@
     "strictPropertyInitialization": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "allowArbitraryExtensions": true
   },
   "exclude": [
     "node_modules",

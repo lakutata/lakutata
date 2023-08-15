@@ -84,9 +84,11 @@
   "devDependencies": {
     "@types/convert-units": "^2.3.6",
     "@types/crypto-js": "^4.1.1",
+    "@types/is-glob": "^4.0.2",
     "@types/node": "^18.17.0",
     "@types/object-hash": "^3.0.3",
     "@types/randomstring": "^1.1.8",
+    "@types/sort-array": "^4.1.0",
     "@typescript-eslint/eslint-plugin": "^6.4.0",
     "@typescript-eslint/parser": "^6.4.0",
     "async-constructor": "^0.4.17",

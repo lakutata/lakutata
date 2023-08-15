@@ -38,7 +38,7 @@ import {InvalidConfigurableValueException} from '../../exceptions/InvalidConfigu
 import {InvalidValueException} from '../../exceptions/validation/InvalidValueException.js'
 import {SHA256} from '../../Hash.js'
 
-const internalPropertyNameRegExp: RegExp = /__\$\$\$[a-zA-Z0-9~!@#$%^&*()_+\[\]\{\},./\\<>?|\-\*]+\$\$\$__/
+const internalPropertyNameRegExp: RegExp = new RegExp('__\\$\\$\\$[a-zA-Z0-9~!@#$%^&*()_+\\[\\]\\{\\},./\\\\<>?|\\-\\*]+\\$\\$\\$__')
 
 /**
  * 快速生成对象ID
