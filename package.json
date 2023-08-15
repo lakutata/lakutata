@@ -65,6 +65,7 @@
     "release:patch": "release-it patch --git.tagExclude='*[-]*'",
     "release:patch:beta": "release-it patch --preRelease=beta",
     "release:patch:alpha": "release-it patch --preRelease=alpha",
+    "release:preRelease": "release-it --preRelease=alpha",
     "test": "ts-node src/tests/Test.spec.ts"
   },
   "release-it": {
