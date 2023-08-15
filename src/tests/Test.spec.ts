@@ -1,13 +1,10 @@
 import 'reflect-metadata'
-import {Application, BaseObject, DTO} from '../Core.js'
+import {Application} from '../Core.js'
 import {MDSTest1} from './mds/MDSTest1.js'
 import {TestComponent} from './components/TestComponent.js'
 import {TestObject} from './objects/TestObject.js'
 import {TestInterval} from './intervals/TestInterval.js'
 import {TestModule1} from './modules/TestModule1/TestModule1.js'
-import {Accept, Expect, IndexSignature} from '../decorators/ValidationDecorators.js'
-import {Validator} from '../Validator.js'
-import {RandomString} from '../Utilities.js'
 import {TestModel} from './models/TestModel.js'
 import {Formatter} from '../lib/components/Formatter.js'
 import {Test1Controller} from './controllers/Test1Controller.js'
@@ -17,7 +14,7 @@ import {Logger} from '../lib/components/Logger.js'
 (async () => {
 
     console.time('app')
-    const app = await Application.run({
+    await Application.run({
         id: 'test',
         name: 'test',
         timezone: 'Asia/Shanghai',
