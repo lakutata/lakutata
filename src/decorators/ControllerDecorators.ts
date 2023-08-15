@@ -1,3 +1,4 @@
+import 'reflect-metadata'
 import {Controller} from '../lib/base/Controller.js'
 import {CONTROLLER_ACTION_MAP, CONTROLLER_PATTERN_MANAGER} from '../constants/MetadataKey.js'
 import {IConstructor} from '../interfaces/IConstructor.js'

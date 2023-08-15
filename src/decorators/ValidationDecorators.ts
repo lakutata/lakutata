@@ -1,3 +1,4 @@
+import 'reflect-metadata'
 import {ArraySchema, Schema, SchemaMap, ValidationError, ValidationOptions, Validator} from '../Validator.js'
 import {DTO} from '../lib/base/DTO.js'
 import {isAsyncFunction} from 'util/types'

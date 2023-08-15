@@ -1,3 +1,5 @@
+import 'reflect-metadata'
+
 export const DTO_CLASS: Symbol = Symbol('LAKUTATA.DTO.CLASS')
 export const DTO_SCHEMAS: Symbol = Symbol('LAKUTATA.DTO.SCHEMAS')
 export const DTO_INDEX_SIGNATURE_SCHEMAS: Symbol = Symbol('LAKUTATA.DTO.INDEX.SIGNATURE.SCHEMAS')

@@ -1,3 +1,4 @@
+import 'reflect-metadata'
 import {BaseObject} from '../lib/base/BaseObject.js'
 import {IConstructor} from '../interfaces/IConstructor.js'
 import {As} from '../Utilities.js'
