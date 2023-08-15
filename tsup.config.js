@@ -25,7 +25,7 @@ export default defineConfig((options) => {
         keepNames: true,
         noExternal: [/.*/],
         external: [],
-        minify: true,
+        minify: 'terser',
         terserOptions: {
             mangle: false,
             compress: true

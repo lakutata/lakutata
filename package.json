@@ -75,8 +75,7 @@
     },
     "github": {
       "release": true,
-      "tokenRef": "GITHUB_TOKEN",
-      "web": true
+      "tokenRef": "GITHUB_TOKEN"
     }
   },
   "devDependencies": {
