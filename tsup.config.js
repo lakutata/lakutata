@@ -10,7 +10,7 @@ export default defineConfig((options) => {
         legacyOutput: false,
         skipNodeModulesBundle: false,
         platform: 'node',
-        sourcemap: 'inline',
+        sourcemap: false,
         clean: true,
         splitting: true,
         dts: {
@@ -21,12 +21,11 @@ export default defineConfig((options) => {
             'cjs'
         ],
         shims: true,
-        treeshake: true,
         outDir: './build',
         keepNames: true,
         noExternal: [/.*/],
         external: [],
-        minify: false,
+        minify: true,
         terserOptions: {
             mangle: false,
             compress: true
