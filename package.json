@@ -50,35 +50,13 @@
       "types": "./build/Crypto.d.ts"
     }
   },
-  "tsup": {
-    "target": "es2020",
-    "entry": [
-      "src/**/*"
-    ],
-    "clean": true,
-    "splitting": true,
-    "dts": {
-      "resolve": true
-    },
-    "format": [
-      "esm",
-      "cjs"
-    ],
-    "shims": true,
-    "outDir": "./build",
-    "keepNames": true,
-    "external": "pkgJson",
-    "minify": "terser",
-    "terserOptions": {
-      "compress": true
-    }
-  },
   "scripts": {
     "clean": "shx rm -rf ./build",
-    "build": "tsup",
+    "build": "tsup-node --config tsup.config.js",
     "rebuild": "npm run clean && npm run build",
     "prepare": "npm run compile",
-    "compile": "npm run rebuild && shx rm -rf ./build/tests/*",
+    "compile:bak": "npm run rebuild && shx rm -rf ./build/tests/*",
+    "compile": "npm run rebuild",
     "test": "ts-node src/tests/Test.spec.ts"
   },
   "devDependencies": {
@@ -91,13 +69,13 @@
     "@types/sort-array": "^4.1.0",
     "@typescript-eslint/eslint-plugin": "^6.4.0",
     "@typescript-eslint/parser": "^6.4.0",
-    "async-constructor": "^0.4.17",
     "browserify-cipher": "^1.0.1",
     "camel-case": "^4.1.2",
     "convert-units": "^2.3.4",
     "crypto-api-v1": "^1.0.0",
     "crypto-js": "^4.1.1",
     "eslint": "^8.47.0",
+    "extra-promise": "^6.0.8",
     "fast-glob": "^3.3.1",
     "is-glob": "^4.0.3",
     "joi": "^17.9.2",
