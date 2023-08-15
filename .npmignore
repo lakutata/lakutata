@@ -1,5 +1,7 @@
 !build
 !build/**/*
+build/tests
+build/tests/**/*
 assets
 assets/**/*
 src
