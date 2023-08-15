@@ -1,3 +1,4 @@
+import 'reflect-metadata'
 import {AlgorithmInitializer, SymmetricEncryption} from '../../base/abstracts/SymmetricEncryption.js'
 import {createCipheriv, createDecipheriv} from 'browserify-cipher'
 
