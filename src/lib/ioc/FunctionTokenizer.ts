@@ -1,5 +1,3 @@
-import 'reflect-metadata'
-
 /**
  * 标记类型
  */

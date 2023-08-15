@@ -1,4 +1,3 @@
-import 'reflect-metadata'
 import 'pino-pretty'
 import {ApplicationOptions} from '../options/ApplicationOptions.js'
 import {Container} from './base/Container.js'

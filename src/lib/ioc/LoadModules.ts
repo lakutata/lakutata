@@ -1,4 +1,3 @@
-import 'reflect-metadata'
 import {pathToFileURL} from 'url'
 import {ModuleDescriptor, GlobWithOptions, listModules} from './ListModules.js'
 import {Lifetime} from './Lifetime.js'

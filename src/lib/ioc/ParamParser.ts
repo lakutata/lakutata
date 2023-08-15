@@ -1,4 +1,3 @@
-import 'reflect-metadata'
 import {createTokenizer, Token, TokenizerFlags} from './FunctionTokenizer.js'
 
 /**

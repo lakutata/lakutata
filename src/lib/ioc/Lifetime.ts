@@ -1,5 +1,3 @@
-import 'reflect-metadata'
-
 /**
  * 生命周期类型
  */
