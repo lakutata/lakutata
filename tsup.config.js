@@ -2,7 +2,7 @@ import {defineConfig} from 'tsup'
 
 export default defineConfig((options) => {
     return {
-        target: 'node16',
+        // target: 'node16',
         entry: [
             'src/**/*'
         ],

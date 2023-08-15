@@ -74,7 +74,9 @@
       "commitMessage": "chore: release v${version}"
     },
     "github": {
-      "release": true
+      "release": true,
+      "tokenRef": "GITHUB_TOKEN",
+      "web": true
     }
   },
   "devDependencies": {
