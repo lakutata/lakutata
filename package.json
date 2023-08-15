@@ -1,6 +1,6 @@
 {
   "name": "lakutata",
-  "version": "2.0.6",
+  "version": "0.0.1",
   "description": "An IoC-based universal application framework.",
   "type": "module",
   "exports": {
@@ -55,9 +55,26 @@
     "build": "tsup-node --config tsup.config.js",
     "rebuild": "npm run clean && npm run build",
     "prepare": "npm run compile",
-    "compile:bak": "npm run rebuild && shx rm -rf ./build/tests/*",
-    "compile": "npm run rebuild",
+    "compile": "npm run rebuild && shx rm -rf ./build/tests/*",
+    "release:major": "release-it major --git.tagExclude='*[-]*'",
+    "release:major:beta": "release-it major --preRelease=beta",
+    "release:major:alpha": "release-it major --preRelease=alpha",
+    "release:minor": "release-it minor --git.tagExclude='*[-]*'",
+    "release:minor:beta": "release-it minor --preRelease=beta",
+    "release:minor:alpha": "release-it minor --preRelease=alpha",
+    "release:patch": "release-it patch --git.tagExclude='*[-]*'",
+    "release:patch:beta": "release-it patch --preRelease=beta",
+    "release:patch:alpha": "release-it patch --preRelease=alpha",
     "test": "ts-node src/tests/Test.spec.ts"
+  },
+  "release-it": {
+    "git": {
+      "requireCleanWorkingDir": false,
+      "commitMessage": "chore: release v${version}"
+    },
+    "github": {
+      "release": true
+    }
   },
   "devDependencies": {
     "@types/convert-units": "^2.3.6",
@@ -87,6 +104,7 @@
     "pupa": "^3.1.0",
     "randomstring": "^1.3.0",
     "reflect-metadata": "^0.1.13",
+    "release-it": "^16.1.5",
     "shx": "^0.3.4",
     "sm-crypto-v2": "^1.7.0",
     "sort-array": "^4.1.5",
@@ -108,11 +126,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/lakutata/core.git"
+    "url": "https://github.com/lakutata/lakutata.git"
   },
   "homepage": "https://lakutata.com",
   "bugs": {
-    "url": "https://github.com/lakutata/core/issues",
+    "url": "https://github.com/lakutata/lakutata/issues",
     "email": "myq1991@gmail.com"
   },
   "keywords": [
