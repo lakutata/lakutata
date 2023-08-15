@@ -1,4 +1,3 @@
-import 'reflect-metadata'
 import {Component} from './Component.js'
 import {InjectionProperties} from '../../types/InjectionProperties.js'
 import {Inject, InjectApp, InjectModule, Lifetime} from '../../decorators/DependencyInjectionDecorators.js'

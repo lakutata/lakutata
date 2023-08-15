@@ -1,4 +1,3 @@
-import 'reflect-metadata'
 import {DTO_CLASS, DTO_INDEX_SIGNATURE_SCHEMAS, DTO_SCHEMAS} from '../../constants/MetadataKey.js'
 import {ObjectSchema, Schema, ValidationOptions, Validator} from '../../Validator.js'
 import {IConstructor} from '../../interfaces/IConstructor.js'

@@ -1,4 +1,3 @@
-import 'reflect-metadata'
 import {IConstructor} from '../../../interfaces/IConstructor.js'
 import {
     NoAsymmetricEncryptPublicKeyException

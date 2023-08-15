@@ -1,4 +1,3 @@
-import 'reflect-metadata'
 import {AppendAsyncConstructor} from './Append.js'
 
 export class AsyncConstructor {

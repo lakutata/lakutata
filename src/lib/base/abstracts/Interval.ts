@@ -1,4 +1,3 @@
-import 'reflect-metadata'
 import {BaseObject} from '../BaseObject.js'
 import {IsObjectInitialized} from '../../../Utilities.js'
 import {clearInterval} from 'timers'

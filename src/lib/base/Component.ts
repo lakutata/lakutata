@@ -1,4 +1,3 @@
-import 'reflect-metadata'
 import {BaseObject} from './BaseObject.js'
 import {EventEmitter} from 'events'
 import {InjectionProperties} from '../../types/InjectionProperties.js'

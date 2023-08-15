@@ -1,4 +1,3 @@
-import 'reflect-metadata'
 import {isPromiseLike} from 'extra-promise'
 
 export function AppendAsyncConstructor<T, U extends any[]>(target: T, asyncConstructor: (...args: U) => PromiseLike<void>, args?: U): void {
