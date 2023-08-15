@@ -1,3 +1,4 @@
+import 'reflect-metadata'
 import {Lifetime, LifetimeType} from './Lifetime.js'
 import {InjectionMode, InjectionModeType} from './InjectionMode.js'
 import {isFunction, uniq} from './Utils.js'

@@ -1,3 +1,4 @@
+import 'reflect-metadata'
 import {createTokenizer, Token} from './FunctionTokenizer.js'
 import {Constructor} from './Resolvers.js'
 

@@ -1,3 +1,4 @@
+import 'reflect-metadata'
 import * as glob from 'fast-glob'
 import * as path from 'path'
 import {flatten} from './Utils.js'

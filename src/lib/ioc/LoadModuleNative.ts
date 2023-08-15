@@ -1,3 +1,5 @@
+import 'reflect-metadata'
+
 /**
  * 导入模块(ES6)
  * @param path

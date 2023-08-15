@@ -1,3 +1,5 @@
+import 'reflect-metadata'
+
 /**
  * 注入模式类型
  */

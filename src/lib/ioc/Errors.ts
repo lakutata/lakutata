@@ -1,3 +1,4 @@
+import 'reflect-metadata'
 import {ResolutionStack} from './DependencyInjectionContainer.js'
 import {DependencyInjectionException} from '../../exceptions/DependencyInjectionException.js'
 import {EOL} from 'os'

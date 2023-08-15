@@ -1,3 +1,4 @@
+import 'reflect-metadata'
 import * as util from 'util'
 import {GlobWithOptions, listModules} from './ListModules.js'
 import {
