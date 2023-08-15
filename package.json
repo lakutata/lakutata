@@ -69,7 +69,7 @@
   },
   "release-it": {
     "git": {
-      "requireCleanWorkingDir": false,
+      "requireCleanWorkingDir": true,
       "commitMessage": "chore: release v${version}"
     },
     "github": {
