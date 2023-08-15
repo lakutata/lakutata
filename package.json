@@ -71,6 +71,7 @@
   "release-it": {
     "git": {
       "requireCleanWorkingDir": true,
+      "requireBranch": "main",
       "commitMessage": "chore: release v${version}"
     },
     "github": {
