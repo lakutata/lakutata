@@ -760,5 +760,7 @@ Temporary Items
 
 build
 build/**/*
+!assets
+!assets/**/*
 !src
 !src/**/*
