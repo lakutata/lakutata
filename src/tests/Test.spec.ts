@@ -12,7 +12,6 @@ import {TestModel} from './models/TestModel.js'
 import {Formatter} from '../lib/components/Formatter.js'
 import {Test1Controller} from './controllers/Test1Controller.js'
 import {Time} from '../Time.js'
-import {pino} from 'pino'
 import {Logger} from '../lib/components/Logger.js'
 
 (async () => {

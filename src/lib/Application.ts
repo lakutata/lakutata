@@ -9,6 +9,7 @@ import {Logger} from './components/Logger.js'
 import {pino} from 'pino'
 import {AsyncFunction} from '../types/AsyncFunction.js'
 import 'pino-pretty'
+import {As} from '../Utilities.js'
 
 @Singleton(true)
 export class Application extends Module {
@@ -65,6 +66,27 @@ export class Application extends Module {
             }
         })
         return await rootContainer.get<Application>(name)
+    }
+
+    /**
+     * 应用程序ID
+     */
+    public get appId(): string {
+        return As<string>(process.env.appId)
+    }
+
+    /**
+     * 应用程序名称
+     */
+    public get appName(): string {
+        return As<string>(process.env.appName)
+    }
+
+    /**
+     * 应用程序时区
+     */
+    public get timezone(): string {
+        return As<string>(process.env.TZ)
     }
 
     /**
