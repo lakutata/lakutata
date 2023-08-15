@@ -1,4 +1,3 @@
-import 'reflect-metadata'
 import {SymmetricEncryption} from '../../base/abstracts/SymmetricEncryption.js'
 
 export class ARIA256 extends SymmetricEncryption {

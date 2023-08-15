@@ -1,4 +1,3 @@
-import 'reflect-metadata'
 import {SymmetricEncryption} from '../../base/abstracts/SymmetricEncryption.js'
 
 export class CAMELLIA256 extends SymmetricEncryption {

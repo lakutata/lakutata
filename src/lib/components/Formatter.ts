@@ -1,4 +1,3 @@
-import 'reflect-metadata'
 import {Component} from '../base/Component.js'
 import convert from 'convert-units'
 import {Accept} from '../../decorators/ValidationDecorators.js'

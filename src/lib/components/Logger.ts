@@ -1,4 +1,3 @@
-import 'reflect-metadata'
 import 'pino-pretty'
 import {pino} from 'pino'
 import {ILogger} from '../../interfaces/ILogger.js'
