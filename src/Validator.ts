@@ -786,7 +786,7 @@ export interface IsSchemaOptions {
 export interface ReferenceOptions extends HierarchySeparatorOptions {
     /**
      * a function with the signature `function(value)` where `value` is the resolved reference value and the return value is the adjusted value to use.
-     * Note that the adjust feature will not perform any type validation on the adjusted value and it must match the value expected by the rule it is used in.
+     * Note that the adjust feature will not perform any type validation on the adjusted value, and it must match the value expected by the rule it is used in.
      * Cannot be used with `map`.
      *
      * @example `(value) => value + 5`
@@ -1188,7 +1188,7 @@ export interface AnySchema<TSchema = any> extends SchemaInternals {
 
     /**
      * Assign target alteration options to a schema that are applied when `any.tailor()` is called.
-     * @param targets - an object where each key is a target name, and each value is a function that takes an schema and returns an schema.
+     * @param targets - an object where each key is a target name, and each value is a function that takes a schema and returns a schema.
      */
     alter(targets: Record<string, (schema: this) => Schema>): this;
 
@@ -1278,7 +1278,7 @@ export interface AnySchema<TSchema = any> extends SchemaInternals {
      *   a `function(errors)`, taking an array of errors as argument, where it must either:
      *    return a `string` - substitutes the error message with this text
      *    return a single ` object` or an `Array` of it, where:
-     *     `type` - optional parameter providing the type of the error (eg. `number.min`).
+     *     `type` - optional parameter providing the type of the error (e.g. `number.min`).
      *     `message` - optional parameter if `template` is provided, containing the text of the error.
      *     `template` - optional parameter if `message` is provided, containing a template string, using the same format as usual joi language errors.
      *     `context` - optional parameter, to provide context to your error if you are using the `template`.
@@ -1399,7 +1399,7 @@ export interface AnySchema<TSchema = any> extends SchemaInternals {
 
     /**
      * Requires the validated value to match of the provided `any.allow()` values.
-     * It has not effect when called together with `any.valid()` since it already sets the requirements.
+     * It has not effects when called together with `any.valid()` since it already sets the requirements.
      * When used with `any.allow()` it converts it to an `any.valid()`.
      */
     only(): this;
@@ -1430,7 +1430,7 @@ export interface AnySchema<TSchema = any> extends SchemaInternals {
     presence(mode: PresenceMode): this;
 
     /**
-     * Outputs the original untouched value instead of the casted value.
+     * Outputs the original untouched value instead of the cast value.
      */
     raw(enabled?: boolean): this;
 
@@ -1459,7 +1459,7 @@ export interface AnySchema<TSchema = any> extends SchemaInternals {
     shared(ref: Schema): this;
 
     /**
-     * Sets the options.convert options to false which prevent type casting for the current key and any child keys.
+     * Sets the options.convert() options to false which prevent type casting for the current key and any child keys.
      */
     strict(isStrict?: boolean): this;
 
@@ -1480,7 +1480,7 @@ export interface AnySchema<TSchema = any> extends SchemaInternals {
     tailor(targets: string | string[]): Schema;
 
     /**
-     * Annotates the key with an unit name.
+     * Annotates the key with a unit name.
      */
     unit(name: string): this;
 
@@ -1575,7 +1575,7 @@ export interface State {
 export interface BooleanSchema<TSchema = boolean> extends AnySchema<TSchema> {
     /**
      * Allows for additional values to be considered valid booleans by converting them to false during validation.
-     * String comparisons are by default case insensitive,
+     * String comparisons are by default case-insensitive,
      * see `boolean.sensitive()` to change this behavior.
      * @param values - strings, numbers or arrays of them
      */
@@ -1583,13 +1583,13 @@ export interface BooleanSchema<TSchema = boolean> extends AnySchema<TSchema> {
 
     /**
      * Allows the values provided to truthy and falsy as well as the "true" and "false" default conversion
-     * (when not in `strict()` mode) to be matched in a case insensitive manner.
+     * (when not in `strict()` mode) to be matched in a case-insensitive manner.
      */
     sensitive(enabled?: boolean): this;
 
     /**
      * Allows for additional values to be considered valid booleans by converting them to true during validation.
-     * String comparisons are by default case insensitive, see `boolean.sensitive()` to change this behavior.
+     * String comparisons are by default case-insensitive, see `boolean.sensitive()` to change this behavior.
      * @param values - strings, numbers or arrays of them
      */
     truthy(...values: Array<string | number | null>): this;
@@ -1714,7 +1714,7 @@ export interface StringSchema<TSchema = string> extends AnySchema<TSchema> {
     hostname(): this;
 
     /**
-     * Allows the value to match any whitelist of blacklist item in a case insensitive comparison.
+     * Allows the value to match any whitelist of blacklist item in a case-insensitive comparison.
      */
     insensitive(): this;
 
@@ -1866,7 +1866,7 @@ export interface ArraySchema<TSchema = any[]> extends AnySchema<TSchema> {
      * Errors will contain the number of items that didn't match.
      * Any unmatched item having a label will be mentioned explicitly.
      *
-     * @param type - a joi schema object to validate each array item against.
+     * @param types
      */
     items(...types: SchemaLikeWithoutArray[]): this;
 
@@ -1887,10 +1887,10 @@ export interface ArraySchema<TSchema = any[]> extends AnySchema<TSchema> {
 
     /**
      * Lists the types in sequence order for the array values where:
-     * @param type - a joi schema object to validate against each array item in sequence order. type can be multiple values passed as individual arguments.
      * If a given type is .required() then there must be a matching item with the same index position in the array.
      * Errors will contain the number of items that didn't match.
      * Any unmatched item having a label will be mentioned explicitly.
+     * @param types
      */
     ordered(...types: SchemaLikeWithoutArray[]): this;
 
@@ -2001,6 +2001,7 @@ export interface ObjectSchema<TSchema = any> extends AnySchema<TSchema> {
      *
      * @param pattern - a pattern that can be either a regular expression or a joi schema that will be tested against the unknown key names
      * @param schema - the schema object matching keys must validate against
+     * @param options
      */
     pattern(pattern: RegExp | SchemaLike, schema: SchemaLike, options?: ObjectPatternOptions): this;
 
@@ -2072,7 +2073,7 @@ export interface BinarySchema<TSchema = Buffer> extends AnySchema<TSchema> {
 export interface DateSchema<TSchema = Date> extends AnySchema<TSchema> {
     /**
      * Specifies that the value must be greater than date.
-     * Notes: 'now' can be passed in lieu of date so as to always compare relatively to the current date,
+     * Notes: 'now' can be passed in lieu of date to always compare relatively to the current date,
      * allowing to explicitly ensure a date is either in the past or in the future.
      * It can also be a reference to another field.
      */
@@ -2085,7 +2086,7 @@ export interface DateSchema<TSchema = Date> extends AnySchema<TSchema> {
 
     /**
      * Specifies that the value must be less than date.
-     * Notes: 'now' can be passed in lieu of date so as to always compare relatively to the current date,
+     * Notes: 'now' can be passed in lieu of date to always compare relatively to the current date,
      * allowing to explicitly ensure a date is either in the past or in the future.
      * It can also be a reference to another field.
      */
@@ -2093,7 +2094,7 @@ export interface DateSchema<TSchema = Date> extends AnySchema<TSchema> {
 
     /**
      * Specifies the oldest date allowed.
-     * Notes: 'now' can be passed in lieu of date so as to always compare relatively to the current date,
+     * Notes: 'now' can be passed in lieu of date to always compare relatively to the current date,
      * allowing to explicitly ensure a date is either in the past or in the future.
      * It can also be a reference to another field.
      */
@@ -2101,7 +2102,7 @@ export interface DateSchema<TSchema = Date> extends AnySchema<TSchema> {
 
     /**
      * Specifies the latest date allowed.
-     * Notes: 'now' can be passed in lieu of date so as to always compare relatively to the current date,
+     * Notes: 'now' can be passed in lieu of date to always compare relatively to the current date,
      * allowing to explicitly ensure a date is either in the past or in the future.
      * It can also be a reference to another field.
      */
