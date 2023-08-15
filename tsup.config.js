@@ -20,7 +20,7 @@ export default defineConfig((options) => {
             'esm',
             'cjs'
         ],
-        shims: true,
+        shims: false,
         outDir: './build',
         keepNames: true,
         noExternal: [/.*/],
