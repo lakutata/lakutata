@@ -287,3 +287,4 @@ build/**/*
 !.eslintrc.json
 !tsup.config.ts
 package-lock.json
+.env

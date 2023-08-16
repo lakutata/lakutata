@@ -1,7 +1,6 @@
 import {defineConfig} from 'tsup'
 
 export default defineConfig((options) => {
-    console.log(options)
     return {
         entry: [
             'src/Lakutata.ts'
@@ -24,7 +23,7 @@ export default defineConfig((options) => {
         outDir: './build',
         keepNames: true,
         noExternal: [/./],
-        external: [/@types/, 'tslib'],
+        external: [/@types/, 'tslib', 'dotenv-cli'],
         // minify: 'terser',
         minify: false,
         terserOptions: {

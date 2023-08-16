@@ -10,3 +10,4 @@ package-lock.json
 tsconfig.json
 .eslintrc.json
 tsup.config.ts
+.env
