@@ -1,21 +1,24 @@
 {
   "name": "lakutata",
-  "version": "0.0.4-alpha.34",
+  "version": "0.0.4-alpha.35",
   "description": "An IoC-based universal application framework.",
   "type": "module",
+  "main": "./build/Lakutata.cjs",
+  "types": "./build/Lakutata.d.ts",
   "exports": {
     ".": {
-      "require": "./build/Lakutata.js",
-      "import": "./build/Lakutata.mjs",
+      "require": "./build/Lakutata.cjs",
+      "import": "./build/Lakutata.js",
       "types": "./build/Lakutata.d.ts"
-    }
+    },
+    "./package.json": "./package.json"
   },
-  "main": "./build/Lakutata.js",
-  "module": "./build/Lakutata.mjs",
-  "types": "./build/Lakutata.d.ts",
+  "files": [
+    "build"
+  ],
   "scripts": {
     "clean": "shx rm -rf ./build",
-    "build": "tsup-node --config tsup.config.ts && shx rm -rf ./build/*.d.cts && shx mv ./build/Lakutata.js ./build/Lakutata.mjs && shx mv ./build/Lakutata.cjs ./build/Lakutata.js",
+    "build": "tsup-node --config tsup.config.ts && shx rm -rf ./build/*.d.cts",
     "rebuild": "npm run clean && npm run build",
     "prepare": "npm run compile",
     "compile": "npm run rebuild",
