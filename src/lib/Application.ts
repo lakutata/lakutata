@@ -24,7 +24,7 @@ export class Application extends Module {
             },
             log: {
                 class: Logger,
-                provider: DefaultLoggerProvider()
+                provider: DefaultLoggerProvider(process.env.NODE_ENV === 'development' ? 'trace' : 'info')
             }
         }
     }
