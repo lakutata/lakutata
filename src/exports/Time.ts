@@ -1,8 +1,8 @@
 import 'reflect-metadata'
 import MomentTimezone from 'moment-timezone'
-import {UnitOfTime} from './types/UnitOfTime.js'
-import {TimeInput} from './types/TimeInput.js'
-import {TimeObject} from './types/TimeObject.js'
+import {UnitOfTime} from '../types/UnitOfTime.js'
+import {TimeInput} from '../types/TimeInput.js'
+import {TimeObject} from '../types/TimeObject.js'
 
 export class Time extends Date {
 
