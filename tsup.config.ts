@@ -5,7 +5,7 @@ export default defineConfig(() => {
         entry: [
             'src/Lakutata.ts'
         ],
-        cjsInterop: true,
+        // cjsInterop: true,
         legacyOutput: false,
         skipNodeModulesBundle: true,
         platform: 'node',

@@ -1,6 +1,6 @@
 {
   "name": "lakutata",
-  "version": "0.0.4-alpha.32",
+  "version": "0.0.4-alpha.33",
   "description": "An IoC-based universal application framework.",
   "type": "module",
   "exports": {
@@ -11,6 +11,7 @@
     }
   },
   "main": "./build/Lakutata.cjs",
+  "module": "./build/Lakutata.js",
   "types": "./build/Lakutata.d.ts",
   "scripts": {
     "clean": "shx rm -rf ./build",
