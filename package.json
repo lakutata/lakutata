@@ -40,7 +40,6 @@
     "tslib": "^2.6.1"
   },
   "devDependencies": {
-    "@types/bunyan": "^1.8.8",
     "@types/convert-units": "^2.3.6",
     "@types/crypto-js": "^4.1.1",
     "@types/is-glob": "^4.0.2",
@@ -51,7 +50,6 @@
     "@typescript-eslint/eslint-plugin": "^6.4.0",
     "@typescript-eslint/parser": "^6.4.0",
     "browserify-cipher": "^1.0.1",
-    "bunyan": "^1.8.15",
     "camel-case": "^4.1.2",
     "convert-units": "^2.3.4",
     "crypto-api-v1": "^1.0.0",
