@@ -28,7 +28,7 @@ export default defineConfig((options) => {
         // bundle:false,
         // noExternal: [/.*/, 'pino-pretty'],
         noExternal: [
-            /@/,
+            /./,
             'browserify-cipher',
             'camel-case',
             'convert-units',
