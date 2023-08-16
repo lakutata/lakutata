@@ -1,6 +1,6 @@
 {
   "name": "lakutata",
-  "version": "0.0.4-alpha.12",
+  "version": "0.0.4-alpha.14",
   "description": "An IoC-based universal application framework.",
   "type": "module",
   "exports": {
@@ -32,7 +32,6 @@
     },
     "github": {
       "release": true,
-      "tokenRef": "GITHUB_TOKEN",
       "autoGenerate": true
     }
   },
