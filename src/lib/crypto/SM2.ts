@@ -4,7 +4,7 @@ import {
     AsymmetricEncryptionPublic
 } from '../base/abstracts/AsymmetricEncryption.js'
 import {sm2} from 'sm-crypto-v2'
-import {As} from '../../Utilities.js'
+import {As} from '../../exports/Utilities.js'
 import {PathLike} from 'fs'
 import {IConstructor} from '../../interfaces/IConstructor.js'
 

@@ -9,7 +9,7 @@ import {Singleton} from '../decorators/DependencyInjectionDecorators.js'
 import {Logger} from './components/Logger.js'
 import {pino} from 'pino'
 import {AsyncFunction} from '../types/AsyncFunction.js'
-import {As} from '../Utilities.js'
+import {As} from '../exports/Utilities.js'
 
 @Singleton(true)
 export class Application extends Module {

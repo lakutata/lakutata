@@ -13,7 +13,7 @@ import {
     sign,
     verify
 } from 'crypto'
-import {As} from '../../Utilities.js'
+import {As} from '../../exports/Utilities.js'
 import {PathLike} from 'fs'
 
 export interface RSAKeyPairOptions {

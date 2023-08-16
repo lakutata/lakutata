@@ -1,9 +1,9 @@
 import {DTO_CLASS, DTO_INDEX_SIGNATURE_SCHEMAS, DTO_SCHEMAS} from '../../constants/MetadataKey.js'
-import {ObjectSchema, Schema, ValidationOptions, Validator} from '../../Validator.js'
+import {ObjectSchema, Schema, ValidationOptions, Validator} from '../../exports/Validator.js'
 import {IConstructor} from '../../interfaces/IConstructor.js'
 import {defaultValidationOptions} from '../../constants/DefaultValue.js'
 import {InvalidDTOValueException} from '../../exceptions/InvalidDTOValueException.js'
-import {As, ConfigureObjectProperties, ParentConstructor} from '../../Utilities.js'
+import {As, ConfigureObjectProperties, ParentConstructor} from '../../exports/Utilities.js'
 import {AppendAsyncConstructor} from './async-constructor/Append.js'
 
 /**

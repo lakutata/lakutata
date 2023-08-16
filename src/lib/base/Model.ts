@@ -2,7 +2,7 @@ import {Component} from './Component.js'
 import {InjectionProperties} from '../../types/InjectionProperties.js'
 import {Inject, Lifetime} from '../../decorators/DependencyInjectionDecorators.js'
 import {MODEL_PROPERTY_MAP} from '../../constants/MetadataKey.js'
-import {As, IsEqual} from '../../Utilities.js'
+import {As, IsEqual} from '../../exports/Utilities.js'
 import {Logger} from '../components/Logger.js'
 
 /**

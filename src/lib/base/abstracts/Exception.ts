@@ -1,6 +1,6 @@
 import pupa from 'pupa'
 import {camelCase} from 'camel-case'
-import {As} from '../../../Utilities.js'
+import {As} from '../../../exports/Utilities.js'
 
 /**
  * 异常抽象类

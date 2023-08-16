@@ -1,7 +1,7 @@
 import {Component} from '../base/Component.js'
 import convert from 'convert-units'
 import {Accept} from '../../decorators/ValidationDecorators.js'
-import {Validator} from '../../Validator.js'
+import {Validator} from '../../exports/Validator.js'
 import {Singleton} from '../../decorators/DependencyInjectionDecorators.js'
 
 export type Distance = 'mm' | 'cm' | 'm' | 'km' | 'in' | 'ft-us' | 'ft' | 'yd' | 'mi'; // Distance

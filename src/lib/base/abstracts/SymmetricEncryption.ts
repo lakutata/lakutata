@@ -6,7 +6,7 @@ import {
     InvalidSymmetricCipherIVLengthException
 } from '../../../exceptions/crypto/symmetric/InvalidSymmetricCipherIVLengthException.js'
 import {IConstructor} from '../../../interfaces/IConstructor.js'
-import {ConvertToStream} from '../../../Utilities.js'
+import {ConvertToStream} from '../../../exports/Utilities.js'
 import {NotSupportCipherException} from '../../../exceptions/crypto/symmetric/NotSupportCipherException.js'
 import {SymmetricDecryptException} from '../../../exceptions/crypto/symmetric/SymmetricDecryptException.js'
 import {SymmetricEncryptException} from '../../../exceptions/crypto/symmetric/SymmetricEncryptException.js'
