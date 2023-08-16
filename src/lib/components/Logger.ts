@@ -3,6 +3,7 @@ import {Component} from '../base/Component.js'
 import {Configurable, Singleton} from '../../decorators/DependencyInjectionDecorators.js'
 import {Validator} from '../../exports/Validator.js'
 import {InjectionProperties} from '../../types/InjectionProperties.js'
+import {DefaultLoggerProvider} from '../DefaultLoggerProvider.js'
 
 @Singleton(true)
 export class Logger extends Component implements ILogger {
@@ -25,7 +26,7 @@ export class Logger extends Component implements ILogger {
             stripUnknown: false
         }
     })
-    protected readonly provider: ILogger = console
+    protected readonly provider: ILogger = DefaultLoggerProvider()
 
     protected static METADATA_KEY: symbol = Symbol('LOGGER.METADATA.KEY')
 

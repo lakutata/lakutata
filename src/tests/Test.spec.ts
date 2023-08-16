@@ -81,5 +81,6 @@ import {Logger} from '../lib/components/Logger.js'
 
 
     Logger.trace('more on this: %s', process.env.NODE_ENV)
+    Logger.info('this is a logger test')
     // app.exit()
 })()

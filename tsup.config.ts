@@ -1,6 +1,6 @@
 import {defineConfig} from 'tsup'
 
-export default defineConfig((options) => {
+export default defineConfig(() => {
     return {
         entry: [
             'src/Lakutata.ts'

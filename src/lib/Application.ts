@@ -8,6 +8,7 @@ import {Singleton} from '../decorators/DependencyInjectionDecorators.js'
 import {Logger} from './components/Logger.js'
 import {AsyncFunction} from '../types/AsyncFunction.js'
 import {As} from '../exports/Utilities.js'
+import {DefaultLoggerProvider} from './DefaultLoggerProvider.js'
 
 @Singleton(true)
 export class Application extends Module {
@@ -23,7 +24,7 @@ export class Application extends Module {
             },
             log: {
                 class: Logger,
-                provider: console
+                provider: DefaultLoggerProvider()
             }
         }
     }
