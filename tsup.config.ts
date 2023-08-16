@@ -31,7 +31,7 @@ export default defineConfig(() => {
             compress: true
         },
         banner: {
-            js: 'const require = await import(\'module\').then($=>$.createRequire(import.meta.url))'
+            js: 'var require = await import(\'module\').then($=>$.createRequire(import.meta.url))'
         }
     }
 })
