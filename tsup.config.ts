@@ -3,9 +3,7 @@ import {defineConfig} from 'tsup'
 export default defineConfig((options) => {
     console.log(options)
     return {
-        // target: 'node16',
         entry: [
-            // 'src/**/*'
             'src/Lakutata.ts'
         ],
         cjsInterop: true,
@@ -27,34 +25,16 @@ export default defineConfig((options) => {
         keepNames: true,
         // bundle:false,
         // noExternal: [/.*/, 'pino-pretty'],
-        noExternal: [
-            /./,
-            'browserify-cipher',
-            'camel-case',
-            'convert-units',
-            'crypto-api-v1',
-            'crypto-js',
-            'eslint',
-            'extra-promise',
-            'fast-glob',
-            'is-glob',
-            'joi',
-            'moment-timezone',
-            'object-hash',
-            'patrun',
-            'pino',
-            'pino-pretty',
-            'pupa',
-            'randomstring',
-            'sm-crypto-v2',
-            'sort-array',
-            'sort-keys'],
-        external: [/@types/],
+        noExternal: [/./],
+        external: [/@types/, 'tslib'],
         // minify: 'terser',
         minify: false,
         terserOptions: {
             mangle: false,
             compress: true
+        },
+        banner: {
+            js: 'const require = await import(\'module\').then($=>$.createRequire(import.meta.url))'
         }
         //     banner: {
         //         js: `
