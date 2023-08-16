@@ -1,6 +1,6 @@
 {
   "name": "lakutata",
-  "version": "0.0.4-alpha.24",
+  "version": "0.0.4-alpha.25",
   "description": "An IoC-based universal application framework.",
   "type": "module",
   "exports": {
@@ -11,13 +11,13 @@
     }
   },
   "main": "./build/Lakutata.cjs",
-  "types": "./build/Lakutata.d.cts",
+  "types": "./build/Lakutata.d.ts",
   "scripts": {
     "clean": "shx rm -rf ./build",
-    "build": "tsup-node --config tsup.config.ts",
+    "build": "tsup-node --config tsup.config.ts && shx rm -rf ./build/*.d.cts",
     "rebuild": "npm run clean && npm run build",
     "prepare": "npm run compile",
-    "compile": "npm run rebuild && shx rm -rf ./build/tests/*",
+    "compile": "npm run rebuild",
     "prepublishOnly": "node .prepublish.js",
     "postpublish": "node .postpublish.js",
     "release": "dotenv -- release-it --git.tagExclude='*[-]*'",
