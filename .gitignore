@@ -285,5 +285,5 @@ build/**/*
 !src/**/*
 !tsconfig.json
 !.eslintrc.json
-!tsup.config.js
+!tsup.config.ts
 package-lock.json

@@ -5,54 +5,16 @@
   "type": "module",
   "exports": {
     ".": {
-      "require": "./build/Core.cjs",
-      "import": "./build/Core.js",
-      "types": "./build/Core.d.ts"
-    },
-    "./validator": {
-      "require": "./build/Validator.cjs",
-      "import": "./build/Validator.js",
-      "types": "./build/Validator.d.ts"
-    },
-    "./decorator": {
-      "require": "./build/Decorators.cjs",
-      "import": "./build/Decorators.js",
-      "types": "./build/Decorators.d.ts"
-    },
-    "./exception": {
-      "require": "./build/Exceptions.cjs",
-      "import": "./build/Exceptions.js",
-      "types": "./build/Exceptions.d.ts"
-    },
-    "./component": {
-      "require": "./build/Components.cjs",
-      "import": "./build/Components.js",
-      "types": "./build/Components.d.ts"
-    },
-    "./time": {
-      "require": "./build/Time.cjs",
-      "import": "./build/Time.js",
-      "types": "./build/Time.d.ts"
-    },
-    "./utility": {
-      "require": "./build/Utilities.cjs",
-      "import": "./build/Utilities.js",
-      "types": "./build/Utilities.d.ts"
-    },
-    "./hash": {
-      "require": "./build/Hash.cjs",
-      "import": "./build/Hash.js",
-      "types": "./build/Hash.d.ts"
-    },
-    "./crypto": {
-      "require": "./build/Crypto.cjs",
-      "import": "./build/Crypto.js",
-      "types": "./build/Crypto.d.ts"
+      "require": "./build/Lakutata.cjs",
+      "import": "./build/Lakutata.js",
+      "types": "./build/Lakutata.d.ts"
     }
   },
+  "main": "./build/Lakutata.cjs",
+  "types": "./build/Lakutata.d.cts",
   "scripts": {
     "clean": "shx rm -rf ./build",
-    "build": "tsup-node --config tsup.config.js",
+    "build": "tsup-node --config tsup.config.ts",
     "rebuild": "npm run clean && npm run build",
     "prepare": "npm run compile",
     "compile": "npm run rebuild && shx rm -rf ./build/tests/*",
@@ -89,6 +51,7 @@
     "@types/sort-array": "^4.1.0",
     "@typescript-eslint/eslint-plugin": "^6.4.0",
     "@typescript-eslint/parser": "^6.4.0",
+    "@vercel/ncc": "^0.36.1",
     "browserify-cipher": "^1.0.1",
     "camel-case": "^4.1.2",
     "convert-units": "^2.3.4",
@@ -116,6 +79,7 @@
     "ts-node": "^10.9.1",
     "tslib": "^2.6.1",
     "tsup": "^7.2.0",
+    "tsup-fix-cjs-exports": "^1.0.3",
     "typescript": "^5.1.6"
   },
   "engines": {
