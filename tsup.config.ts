@@ -23,7 +23,7 @@ export default defineConfig(() => {
         outDir: './build',
         keepNames: true,
         noExternal: [/./],
-        external: [/@types/, 'tslib', 'dotenv-cli'],
+        external: [/@types/, 'tslib'],
         minify: 'terser',
         terserOptions: {
             keep_classnames: true,
