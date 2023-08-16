@@ -1,6 +1,6 @@
 {
   "name": "lakutata",
-  "version": "0.0.4-alpha.18",
+  "version": "0.0.4-alpha.19",
   "description": "An IoC-based universal application framework.",
   "type": "module",
   "exports": {
@@ -39,10 +39,10 @@
         "node test.js"
       ],
       "before:npm:publish": [
-        "node test.js"
+        "node test1.js"
       ],
       "after:npm:publish": [
-        "node test.js"
+        "node test2.js"
       ]
     }
   },

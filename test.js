@@ -1,3 +1,3 @@
 import * as fs from 'fs'
 
-fs.writeFileSync(`./${Date.now()}.log`,'1111')
+fs.writeFileSync(`./${Date.now()}.log`,'0000')
