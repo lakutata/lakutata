@@ -33,17 +33,6 @@
     "github": {
       "release": true,
       "autoGenerate": true
-    },
-    "hooks": {
-      "before:init": [
-        "node test.js"
-      ],
-      "before:npm:publish": [
-        "node test1.js"
-      ],
-      "after:npm:publish": [
-        "node test2.js"
-      ]
     }
   },
   "dependencies": {
