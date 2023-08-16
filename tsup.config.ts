@@ -1,5 +1,4 @@
 import {defineConfig} from 'tsup'
-import fixCjsExports from 'tsup-fix-cjs-exports'
 
 export default defineConfig((options) => {
     console.log(options)
@@ -11,13 +10,11 @@ export default defineConfig((options) => {
         ],
         cjsInterop: true,
         legacyOutput: false,
-        skipNodeModulesBundle: false,
+        skipNodeModulesBundle: true,
         platform: 'node',
         sourcemap: false,
         clean: true,
         splitting: true,
-        // @ts-ignore
-        plugins: [fixCjsExports()],
         dts: {
             resolve: true
         },
@@ -29,8 +26,28 @@ export default defineConfig((options) => {
         outDir: './build',
         keepNames: true,
         // bundle:false,
-        noExternal: [/.*/, 'pino-pretty'],
-        // external: [],
+        // noExternal: [/.*/, 'pino-pretty'],
+        noExternal: ['browserify-cipher',
+            'camel-case',
+            'convert-units',
+            'crypto-api-v1',
+            'crypto-js',
+            'eslint',
+            'extra-promise',
+            'fast-glob',
+            'is-glob',
+            'joi',
+            'moment-timezone',
+            'object-hash',
+            'patrun',
+            'pino',
+            'pino-pretty',
+            'pupa',
+            'randomstring',
+            'sm-crypto-v2',
+            'sort-array',
+            'sort-keys'],
+        // external: ['@types/node'],
         // minify: 'terser',
         minify: false,
         terserOptions: {
@@ -49,3 +66,4 @@ export default defineConfig((options) => {
         //     }
     }
 })
+

@@ -1,6 +1,6 @@
 {
   "name": "lakutata",
-  "version": "0.0.3-alpha.10",
+  "version": "0.0.3-alpha.9",
   "description": "An IoC-based universal application framework.",
   "type": "module",
   "exports": {
@@ -51,7 +51,6 @@
     "@types/sort-array": "^4.1.0",
     "@typescript-eslint/eslint-plugin": "^6.4.0",
     "@typescript-eslint/parser": "^6.4.0",
-    "@vercel/ncc": "^0.36.1",
     "browserify-cipher": "^1.0.1",
     "camel-case": "^4.1.2",
     "convert-units": "^2.3.4",
@@ -79,7 +78,6 @@
     "ts-node": "^10.9.1",
     "tslib": "^2.6.1",
     "tsup": "^7.2.0",
-    "tsup-fix-cjs-exports": "^1.0.3",
     "typescript": "^5.1.6"
   },
   "engines": {
