@@ -25,8 +25,8 @@ export default defineConfig(() => {
         noExternal: [/./],
         external: [/@types/, 'tslib', 'dotenv-cli'],
         minify: 'terser',
-        // minify: false,
         terserOptions: {
+            keep_classnames: true,
             mangle: false,
             compress: true
         },
