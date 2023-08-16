@@ -29,7 +29,7 @@ export default defineConfig((options) => {
         outDir: './build',
         keepNames: true,
         // bundle:false,
-        noExternal: [/.*/],
+        noExternal: [/.*/, 'pino-pretty'],
         // external: [],
         // minify: 'terser',
         minify: false,
