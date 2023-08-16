@@ -1,6 +1,6 @@
 {
   "name": "lakutata",
-  "version": "0.0.4-alpha.2",
+  "version": "0.0.4-alpha.4",
   "description": "An IoC-based universal application framework.",
   "type": "module",
   "exports": {
@@ -20,14 +20,13 @@
     "compile": "npm run rebuild && shx rm -rf ./build/tests/*",
     "release": "dotenv release-it -- --git.tagExclude='*[-]*'",
     "release:preRelease:beta": "dotenv release-it -- --preRelease=beta",
-    "release:preRelease:alpha": "dotenv release-it -- --preRelease=alpha",
+    "release:preRelease:alpha": "dotenv -- release-it --preRelease=alpha",
     "test": "ts-node src/tests/Test.spec.ts"
   },
   "release-it": {
     "git": {
       "requireCleanWorkingDir": false,
       "requireBranch": "main",
-      "requireUpstream": false,
       "commitMessage": "chore: release v${version}",
       "pushRepo": "https://github.com/lakutata/lakutata.git"
     },
