@@ -23,8 +23,6 @@ export default defineConfig((options) => {
         shims: false,
         outDir: './build',
         keepNames: true,
-        // bundle:false,
-        // noExternal: [/.*/, 'pino-pretty'],
         noExternal: [/./],
         external: [/@types/, 'tslib'],
         // minify: 'terser',
@@ -36,16 +34,6 @@ export default defineConfig((options) => {
         banner: {
             js: 'const require = await import(\'module\').then($=>$.createRequire(import.meta.url))'
         }
-        //     banner: {
-        //         js: `
-        // import path from 'path';
-        // import { fileURLToPath } from 'url';
-        // import { createRequire as topLevelCreateRequire } from 'module';
-        // const require = topLevelCreateRequire(import.meta.url);
-        // const __filename = fileURLToPath(import.meta.url);
-        // const __dirname = path.dirname(__filename);
-        // `
-        //     }
     }
 })
 
