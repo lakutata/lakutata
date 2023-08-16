@@ -1,6 +1,6 @@
 {
   "name": "lakutata",
-  "version": "0.0.3",
+  "version": "0.0.4-alpha.0",
   "description": "An IoC-based universal application framework.",
   "type": "module",
   "exports": {
@@ -27,7 +27,7 @@
     "release:patch": "dotenv release-it patch --git.tagExclude='*[-]*'",
     "release:patch:beta": "dotenv release-it patch --preRelease=beta",
     "release:patch:alpha": "dotenv release-it patch --preRelease=alpha",
-    "release:preRelease": "dotenv  release-it --preRelease=alpha",
+    "release:preRelease": "dotenv release-it -- --preRelease=alpha",
     "test": "ts-node src/tests/Test.spec.ts"
   },
   "release-it": {
