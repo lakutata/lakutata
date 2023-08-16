@@ -1,10 +1,4 @@
 export interface ILogger {
-    fatal<T extends object>(obj: T, msg?: string, ...args: any[]): void
-
-    fatal(obj: unknown, msg?: string, ...args: any[]): void
-
-    fatal(msg: string, ...args: any[]): void
-
     error<T extends object>(obj: T, msg?: string, ...args: any[]): void
 
     error(obj: unknown, msg?: string, ...args: any[]): void

@@ -1,4 +1,3 @@
-import 'pino-pretty'
 import {ApplicationOptions} from '../options/ApplicationOptions.js'
 import {Container} from './base/Container.js'
 import {Module} from './base/Module.js'
@@ -7,7 +6,6 @@ import {LoadComponentOptions} from '../options/LoadComponentOptions.js'
 import {Formatter} from './components/Formatter.js'
 import {Singleton} from '../decorators/DependencyInjectionDecorators.js'
 import {Logger} from './components/Logger.js'
-import {pino} from 'pino'
 import {AsyncFunction} from '../types/AsyncFunction.js'
 import {As} from '../exports/Utilities.js'
 
@@ -25,15 +23,7 @@ export class Application extends Module {
             },
             log: {
                 class: Logger,
-                provider: pino({
-                    transport: {
-                        target: 'pino-pretty',
-                        options: {
-                            colorize: true
-                        }
-                    },
-                    level: process.env.NODE_ENV === 'development' ? 'trace' : 'info'
-                })
+                provider: console
             }
         }
     }

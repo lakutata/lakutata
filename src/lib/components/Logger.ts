@@ -1,5 +1,3 @@
-import 'pino-pretty'
-import {pino} from 'pino'
 import {ILogger} from '../../interfaces/ILogger.js'
 import {Component} from '../base/Component.js'
 import {Configurable, Singleton} from '../../decorators/DependencyInjectionDecorators.js'
@@ -27,15 +25,7 @@ export class Logger extends Component implements ILogger {
             stripUnknown: false
         }
     })
-    protected readonly provider: ILogger = pino({
-        transport: {
-            target: 'pino-pretty',
-            options: {
-                colorize: true
-            }
-        },
-        level: 'trace'
-    })
+    protected readonly provider: ILogger = console
 
     protected static METADATA_KEY: symbol = Symbol('LOGGER.METADATA.KEY')
 
@@ -51,13 +41,6 @@ export class Logger extends Component implements ILogger {
     protected static getInstance(): Logger {
         if (Reflect.hasOwnMetadata(this.METADATA_KEY, this)) return Reflect.getOwnMetadata(this.METADATA_KEY, this)
         return new this()
-    }
-
-    public static fatal<T extends object>(obj: T, msg?: string, ...args: any[]): void
-    public static fatal(obj: unknown, msg?: string, ...args: any[]): void
-    public static fatal(msg: string, ...args: any[]): void
-    public static fatal(obj: any, ...msg: (any)[]): void {
-        return this.getInstance().fatal(obj, ...msg)
     }
 
     public static error<T extends object>(obj: T, msg?: string, ...args: any[]): void
@@ -93,13 +76,6 @@ export class Logger extends Component implements ILogger {
     public static trace(msg: string, ...args: any[]): void
     public static trace(obj: any, ...msg: (any)[]): void {
         return this.getInstance().trace(obj, ...msg)
-    }
-
-    public fatal<T extends object>(obj: T, msg?: string, ...args: any[]): void
-    public fatal(obj: unknown, msg?: string, ...args: any[]): void
-    public fatal(msg: string, ...args: any[]): void
-    public fatal(obj: any, ...msg: (any)[]): void {
-        return this.provider.fatal(obj, ...msg)
     }
 
     public error<T extends object>(obj: T, msg?: string, ...args: any[]): void
