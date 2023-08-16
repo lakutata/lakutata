@@ -12,3 +12,5 @@ tsconfig.json
 tsup.config.ts
 .env
 .idea
+.prepublish.js
+.postpublish.js

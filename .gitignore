@@ -286,5 +286,7 @@ build/**/*
 !tsconfig.json
 !.eslintrc.json
 !tsup.config.ts
+!.prepublish.js
+!.postpublish.js
 package-lock.json
 .env

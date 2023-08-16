@@ -1,6 +1,6 @@
 {
   "name": "lakutata",
-  "version": "0.0.4-alpha.21",
+  "version": "0.0.4-alpha.23",
   "description": "An IoC-based universal application framework.",
   "type": "module",
   "exports": {
@@ -18,8 +18,8 @@
     "rebuild": "npm run clean && npm run build",
     "prepare": "npm run compile",
     "compile": "npm run rebuild && shx rm -rf ./build/tests/*",
-    "prepublishOnly": "node prepublishOnly.js",
-    "postpublish": "node postpublish.js",
+    "prepublishOnly": "node .prepublish.js",
+    "postpublish": "node .postpublish.js",
     "release": "dotenv -- release-it --git.tagExclude='*[-]*'",
     "release:preRelease:beta": "dotenv -- release-it --preRelease=beta",
     "release:preRelease:alpha": "dotenv -- release-it --preRelease=alpha",
