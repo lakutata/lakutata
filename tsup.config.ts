@@ -27,7 +27,9 @@ export default defineConfig((options) => {
         keepNames: true,
         // bundle:false,
         // noExternal: [/.*/, 'pino-pretty'],
-        noExternal: ['browserify-cipher',
+        noExternal: [
+            /\@hapi/,
+            'browserify-cipher',
             'camel-case',
             'convert-units',
             'crypto-api-v1',

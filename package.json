@@ -1,6 +1,6 @@
 {
   "name": "lakutata",
-  "version": "0.0.3-alpha.11",
+  "version": "0.0.3-alpha.12",
   "description": "An IoC-based universal application framework.",
   "type": "module",
   "exports": {
@@ -32,7 +32,7 @@
   },
   "release-it": {
     "git": {
-      "requireCleanWorkingDir": true,
+      "requireCleanWorkingDir": false,
       "requireBranch": "main",
       "commitMessage": "chore: release v${version}"
     },
