@@ -28,7 +28,7 @@ export default defineConfig((options) => {
         // bundle:false,
         // noExternal: [/.*/, 'pino-pretty'],
         noExternal: [
-            /\@hapi/,
+            /@/,
             'browserify-cipher',
             'camel-case',
             'convert-units',
@@ -49,7 +49,7 @@ export default defineConfig((options) => {
             'sm-crypto-v2',
             'sort-array',
             'sort-keys'],
-        // external: ['@types/node'],
+        external: [/@types/],
         // minify: 'terser',
         minify: false,
         terserOptions: {
