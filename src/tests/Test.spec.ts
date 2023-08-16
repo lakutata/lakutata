@@ -1,5 +1,5 @@
 import 'reflect-metadata'
-import {Application} from '../Core.js'
+import {Application} from '../exports/Core.js'
 import {MDSTest1} from './mds/MDSTest1.js'
 import {TestComponent} from './components/TestComponent.js'
 import {TestObject} from './objects/TestObject.js'
@@ -8,7 +8,7 @@ import {TestModule1} from './modules/TestModule1/TestModule1.js'
 import {TestModel} from './models/TestModel.js'
 import {Formatter} from '../lib/components/Formatter.js'
 import {Test1Controller} from './controllers/Test1Controller.js'
-import {Time} from '../Time.js'
+import {Time} from '../exports/Time.js'
 import {Logger} from '../lib/components/Logger.js'
 
 (async () => {

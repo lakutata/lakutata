@@ -1,7 +1,7 @@
 import {DTO} from '../lib/base/DTO.js'
 import {IConstructor} from '../interfaces/IConstructor.js'
 import {Expect, IndexSignature} from '../decorators/ValidationDecorators.js'
-import {Validator} from '../Validator.js'
+import {Validator} from '../exports/Validator.js'
 import {Component} from '../lib/base/Component.js'
 
 @IndexSignature(Validator.Any())

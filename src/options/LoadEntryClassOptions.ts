@@ -1,7 +1,7 @@
 import {Expect, IndexSignature} from '../decorators/ValidationDecorators.js'
 import {LoadEntryCommonOptions} from './LoadEntryCommonOptions.js'
 import {BaseObject} from '../lib/base/BaseObject.js'
-import {Validator} from '../Validator.js'
+import {Validator} from '../exports/Validator.js'
 import {IConstructor} from '../interfaces/IConstructor.js'
 
 @IndexSignature(Validator.Any())

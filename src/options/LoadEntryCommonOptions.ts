@@ -1,6 +1,6 @@
 import {DTO} from '../lib/base/DTO.js'
 import {IndexSignature} from '../decorators/ValidationDecorators.js'
-import {Validator} from '../Validator.js'
+import {Validator} from '../exports/Validator.js'
 
 @IndexSignature(Validator.Any())
 export class LoadEntryCommonOptions extends DTO {

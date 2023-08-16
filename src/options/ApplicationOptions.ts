@@ -2,7 +2,7 @@ import {Expect} from '../decorators/ValidationDecorators.js'
 import {BaseObject} from '../lib/base/BaseObject.js'
 import {Application} from '../lib/Application.js'
 import {ModuleOptions} from './ModuleOptions.js'
-import {Validator} from '../Validator.js'
+import {Validator} from '../exports/Validator.js'
 
 export class ApplicationOptions<T extends BaseObject = BaseObject> extends ModuleOptions<Application, T> {
 

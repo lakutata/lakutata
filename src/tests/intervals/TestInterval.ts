@@ -1,4 +1,4 @@
-import {Application, Interval} from '../../Core.js'
+import {Application, Interval} from '../../exports/Core.js'
 import {TestComponent} from '../components/TestComponent.js'
 import {Inject} from '../../decorators/DependencyInjectionDecorators.js'
 import {TestObject} from '../objects/TestObject.js'
