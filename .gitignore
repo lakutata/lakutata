@@ -290,3 +290,4 @@ build/**/*
 !.postpublish.js
 package-lock.json
 .env
+.package.json.bak

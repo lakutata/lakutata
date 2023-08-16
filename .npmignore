@@ -14,3 +14,4 @@ tsup.config.ts
 .idea
 .prepublish.js
 .postpublish.js
+.package.json.bak
