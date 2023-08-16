@@ -11,3 +11,4 @@ tsconfig.json
 .eslintrc.json
 tsup.config.ts
 .env
+.idea
