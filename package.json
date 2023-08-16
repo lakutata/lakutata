@@ -1,6 +1,6 @@
 {
   "name": "lakutata",
-  "version": "0.0.4-alpha.0",
+  "version": "0.0.4-alpha.1",
   "description": "An IoC-based universal application framework.",
   "type": "module",
   "exports": {
@@ -18,23 +18,17 @@
     "rebuild": "npm run clean && npm run build",
     "prepare": "npm run compile",
     "compile": "npm run rebuild && shx rm -rf ./build/tests/*",
-    "release:major": "dotenv release-it major --git.tagExclude='*[-]*'",
-    "release:major:beta": "dotenv release-it major --preRelease=beta",
-    "release:major:alpha": "dotenv release-it major --preRelease=alpha",
-    "release:minor": "dotenv release-it minor --git.tagExclude='*[-]*'",
-    "release:minor:beta": "dotenv release-it minor --preRelease=beta",
-    "release:minor:alpha": "dotenv release-it minor --preRelease=alpha",
-    "release:patch": "dotenv release-it patch --git.tagExclude='*[-]*'",
-    "release:patch:beta": "dotenv release-it patch --preRelease=beta",
-    "release:patch:alpha": "dotenv release-it patch --preRelease=alpha",
-    "release:preRelease": "dotenv release-it -- --preRelease=alpha",
+    "release": "dotenv release-it -- --git.tagExclude='*[-]*'",
+    "release:preRelease:beta": "dotenv release-it -- --preRelease=beta",
+    "release:preRelease:alpha": "dotenv release-it -- --preRelease=alpha",
     "test": "ts-node src/tests/Test.spec.ts"
   },
   "release-it": {
     "git": {
       "requireCleanWorkingDir": false,
       "requireBranch": "main",
-      "commitMessage": "chore: release v${version}"
+      "commitMessage": "chore: release v${version}",
+      "pushRepo": "https://github.com/lakutata/lakutata.git"
     },
     "github": {
       "release": true,
