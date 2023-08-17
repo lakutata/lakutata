@@ -34,6 +34,7 @@ export class Application extends Module {
      * @protected
      */
     protected async bootstrap<U extends Module>(): Promise<(string | IConstructor<any> | AsyncFunction<U, void>)[]> {
+        console.log('import.meta.url:',import.meta.url)
         return ['log']
     }
 
