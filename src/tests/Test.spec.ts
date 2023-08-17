@@ -10,8 +10,15 @@ import {Formatter} from '../lib/components/Formatter.js'
 import {Test1Controller} from './controllers/Test1Controller.js'
 import {Time} from '../exports/Time.js'
 import {Logger} from '../lib/components/Logger.js'
+import {fork} from 'child_process'
+import {Worker} from 'worker_threads'
 
 (async () => {
+    // @ts-ignore
+    // console.log('import',import.meta.resolve('fs'))
+
+    // fork('./src/tests/TestProc.js')
+    // new Worker('./src/tests/TestProc.js')
 
     console.time('app')
     await Application.run({

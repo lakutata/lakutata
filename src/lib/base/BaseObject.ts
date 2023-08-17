@@ -323,23 +323,23 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
-     * Return class's name
-     */
-    public static className(): string {
-        return this.name
-    }
-
-    /**
      * Return class's lifetime mode
      */
-    public static get __LIFETIME(): 'SINGLETON' | 'TRANSIENT' | 'SCOPED' {
+    protected static get __LIFETIME(): 'SINGLETON' | 'TRANSIENT' | 'SCOPED' {
         return Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_LIFETIME, this)
     }
 
     /**
      * Return class's lifetime mode is locked
      */
-    public static get __LIFETIME_LOCKED(): boolean {
+    protected static get __LIFETIME_LOCKED(): boolean {
         return !!Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_LIFETIME_LOCK, this)
+    }
+
+    /**
+     * Return class's name
+     */
+    public static className(): string {
+        return this.name
     }
 }
