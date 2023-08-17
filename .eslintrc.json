@@ -31,6 +31,7 @@
     "prefer-rest-params": "off",
     "no-duplicate-imports": "error",
     "no-extra-semi": "off",
+    "no-cond-assign": "off",
     "@typescript-eslint/ban-ts-comment": "off",
     "@typescript-eslint/ban-types": "off",
     "@typescript-eslint/no-explicit-any": "off",

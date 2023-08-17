@@ -130,7 +130,7 @@ export function Inject<T extends BaseObject>(inp?: string | IConstructor<T>): (t
  * 特殊类型数据注入
  * @param target
  * @param propertyKey
- * @param injectKey
+ * @param specialInjectKey
  */
 function specialInject<T extends BaseObject>(target: T, propertyKey: string, specialInjectKey: Symbol): void {
     const targetConstructor: IConstructor<T> = As<IConstructor<T>>(target.constructor)
