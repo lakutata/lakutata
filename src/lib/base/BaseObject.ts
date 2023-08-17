@@ -342,5 +342,5 @@ export class BaseObject extends AsyncConstructor {
     public static get className(): string {
         return this.name
     }
-
+    
 }

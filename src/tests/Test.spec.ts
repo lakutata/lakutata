@@ -20,6 +20,8 @@ import {Worker} from 'worker_threads'
     // fork('./src/tests/TestProc.js')
     // new Worker('./src/tests/TestProc.js')
 
+    console.log('##################@@@@@@@@@@@@Application.className:', Application.className)
+
     console.time('app')
     await Application.run({
         id: 'test',
