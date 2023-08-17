@@ -1,8 +1,7 @@
 import {Component} from './Component.js'
 import {InjectionProperties} from '../../types/InjectionProperties.js'
-import {Inject, InjectApp, InjectModule, Lifetime} from '../../decorators/DependencyInjectionDecorators.js'
+import {InjectApp, Lifetime} from '../../decorators/DependencyInjectionDecorators.js'
 import {Application} from '../Application.js'
-import {Module} from './Module.js'
 import {IConstructor} from '../../interfaces/IConstructor.js'
 import {CONTROLLER_CONSTRUCTOR_MARK, CONTROLLER_PATTERN_MANAGER} from '../../constants/MetadataKey.js'
 import {Container} from './Container.js'
@@ -10,7 +9,6 @@ import {IPatRun} from '../../interfaces/IPatRun.js'
 import {
     NoMatchedControllerActionPatternException
 } from '../../exceptions/controller/NoMatchedControllerActionPatternException.js'
-import {Logger} from '../components/Logger.js'
 
 /**
  * 控制器基类
@@ -26,12 +24,6 @@ export class Controller extends Component {
 
     @InjectApp()
     protected readonly app: Application
-
-    @InjectModule()
-    protected readonly module: Module
-
-    @Inject('log')
-    protected readonly log: Logger
 
     /**
      * Constructor

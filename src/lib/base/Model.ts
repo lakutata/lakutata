@@ -1,18 +1,14 @@
 import {Component} from './Component.js'
 import {InjectionProperties} from '../../types/InjectionProperties.js'
-import {Inject, Lifetime} from '../../decorators/DependencyInjectionDecorators.js'
+import {Lifetime} from '../../decorators/DependencyInjectionDecorators.js'
 import {MODEL_PROPERTY_MAP} from '../../constants/MetadataKey.js'
 import {As, IsEqual} from '../../exports/Utilities.js'
-import {Logger} from '../components/Logger.js'
 
 /**
  * 业务模型基类
  */
 @Lifetime('SCOPED', false)
 export class Model extends Component {
-
-    @Inject('log')
-    protected readonly log: Logger
 
     /**
      * Constructor

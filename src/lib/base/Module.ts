@@ -56,6 +56,7 @@ export class Module<TModule extends Module = any, TComponent extends Component =
         this.setProperty('__$$container', new Container(this, this.__$$parentContainer))
         this.setProperty('__$$options', await ModuleOptions.validateAsync(this.__$$options))
         await this.__bootstrap()
+        this.setProperty('log', await this.__$$container.get('log'))
     }
 
     /**

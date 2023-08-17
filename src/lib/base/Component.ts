@@ -1,13 +1,28 @@
 import {BaseObject} from './BaseObject.js'
 import {EventEmitter} from 'events'
 import {InjectionProperties} from '../../types/InjectionProperties.js'
-import {Lifetime} from '../../decorators/DependencyInjectionDecorators.js'
+import {InjectModule, Lifetime} from '../../decorators/DependencyInjectionDecorators.js'
+import {Logger} from '../components/Logger.js'
+import {Module} from './Module.js'
 
 /**
  * 组件基类
  */
 @Lifetime('SINGLETON', false)
 export class Component extends BaseObject implements EventEmitter {
+
+    /**
+     * 组件所在的模块对象
+     * @protected
+     */
+    @InjectModule()
+    protected readonly module: Module
+
+    /**
+     * 定义log组件，若容器内有log组件则对其进行注入
+     * @protected
+     */
+    protected readonly log: Logger
 
     /**
      * Constructor
@@ -17,6 +32,14 @@ export class Component extends BaseObject implements EventEmitter {
         super(properties)
         this.setInternalProperty('type', 'Component')
         this.setInternalProperty('eventEmitter', new EventEmitter())
+    }
+
+    /**
+     * Internal init function
+     * @protected
+     */
+    protected async __init(): Promise<void> {
+        this.setProperty('log', await this.module.get('log'))
     }
 
     /**

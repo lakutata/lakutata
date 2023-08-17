@@ -9,14 +9,11 @@ export class SubTestComponent extends Component {
     @InjectApp()
     protected readonly app: Application
 
-    @InjectModule()
-    protected readonly module: TestModule1
-
     @Inject()
     protected readonly tt11: TestComponent
 
     protected async init(): Promise<void> {
-        console.log('this is ', this.className)
+        console.log('ohohoh!this is ', this.className)
         console.log(this.tt11.sayHello(this.className))
     }
 
