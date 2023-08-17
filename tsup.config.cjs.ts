@@ -20,7 +20,6 @@ export default defineConfig(() => {
         keepNames: true,
         noExternal: [/./],
         external: [/@types/, 'tslib'],
-        // minify: false,
         minify: 'terser',
         terserOptions: {
             keep_classnames: true,
