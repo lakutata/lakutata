@@ -5,7 +5,6 @@ export default defineConfig(() => {
         entry: [
             'src/Lakutata.ts'
         ],
-        // cjsInterop: true,
         legacyOutput: false,
         skipNodeModulesBundle: true,
         platform: 'node',
@@ -21,8 +20,8 @@ export default defineConfig(() => {
         keepNames: true,
         noExternal: [/./],
         external: [/@types/, 'tslib'],
-        minify: false,
-        // minify: 'terser',
+        // minify: false,
+        minify: 'terser',
         terserOptions: {
             keep_classnames: true,
             mangle: false,
