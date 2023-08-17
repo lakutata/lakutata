@@ -4,6 +4,9 @@ import {UnitOfTime} from '../types/UnitOfTime.js'
 import {TimeInput} from '../types/TimeInput.js'
 import {TimeObject} from '../types/TimeObject.js'
 
+/**
+ * 时间类，继承于Date
+ */
 export class Time extends Date {
 
     protected set __$$instance(instance: MomentTimezone.Moment) {
@@ -14,8 +17,18 @@ export class Time extends Date {
         return Reflect.getOwnMetadata('__$$instance', this)
     }
 
+    /**
+     * Constructor
+     * @param inp
+     */
     constructor(inp?: TimeInput) {
-        const __$$instance: MomentTimezone.Moment = inp ? (inp instanceof Time ? MomentTimezone(inp.__$$instance) : process.env.TZ ? MomentTimezone(inp).tz(process.env.TZ) : MomentTimezone(inp)) : MomentTimezone()
+        const __$$instance: MomentTimezone.Moment = inp
+            ? (inp instanceof Time
+                ? MomentTimezone(inp.__$$instance)
+                : process.env.TZ
+                    ? MomentTimezone(inp).tz(process.env.TZ)
+                    : MomentTimezone(inp))
+            : MomentTimezone()
         super(__$$instance.valueOf())
         this.__$$instance = __$$instance
     }
