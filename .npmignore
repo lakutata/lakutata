@@ -9,7 +9,8 @@ src/**/*
 package-lock.json
 tsconfig.json
 .eslintrc.json
-tsup.config.ts
+tsup.config.cjs.ts
+tsup.config.esm.ts
 .env
 .idea
 .prepublish.js

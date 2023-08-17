@@ -285,7 +285,8 @@ build/**/*
 !src/**/*
 !tsconfig.json
 !.eslintrc.json
-!tsup.config.ts
+!tsup.config.cjs.ts
+!tsup.config.esm.ts
 !.prepublish.js
 !.postpublish.js
 package-lock.json

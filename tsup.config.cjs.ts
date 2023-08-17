@@ -15,12 +15,9 @@ export default defineConfig(() => {
         dts: {
             resolve: true
         },
-        format: [
-            'esm',
-            'cjs'
-        ],
+        format: 'cjs',
         shims: false,
-        outDir: './build',
+        outDir: './build/cjs',
         keepNames: true,
         noExternal: [/./],
         external: [/@types/, 'tslib'],
@@ -30,9 +27,6 @@ export default defineConfig(() => {
             keep_classnames: true,
             mangle: false,
             compress: true
-        },
-        // banner: {
-        //     js: 'const require = await import(\'module\').then($=>$.createRequire(import.meta.url))'
-        // }
+        }
     }
 })
