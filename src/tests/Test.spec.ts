@@ -19,8 +19,6 @@ import {Worker} from 'worker_threads'
     // fork('./src/tests/TestProc.js')
     // new Worker('./src/tests/TestProc.js')
 
-    console.log(typeof import.meta)
-
     console.log('##################@@@@@@@@@@@@Application.className:', Application.className)
 
     console.time('app')
