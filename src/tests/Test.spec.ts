@@ -16,10 +16,10 @@ import {Worker} from 'worker_threads'
 (async () => {
     // @ts-ignore
     // console.log('import',import.meta.resolve('fs'))
-    const r = await import('module').then($ => $.createRequire(import.meta.url))
-    console.log(Object.keys(r._cache))
     // fork('./src/tests/TestProc.js')
     // new Worker('./src/tests/TestProc.js')
+
+    console.log(typeof import.meta)
 
     console.log('##################@@@@@@@@@@@@Application.className:', Application.className)
 

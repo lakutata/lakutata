@@ -42,8 +42,7 @@ export class Application extends Module {
      * @param options
      */
     public static async run(options: ApplicationOptions): Promise<Application> {
-        // @ts-ignore
-        console.log(await import('module').then($ => $.createRequire(import.meta.url)))
+        console.log(typeof import.meta)
         options = await ApplicationOptions.validateAsync(options)
         process.env.appId = options.id
         process.env.appName = options.name
