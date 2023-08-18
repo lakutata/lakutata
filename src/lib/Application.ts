@@ -42,7 +42,7 @@ export class Application extends Module {
      * @param options
      */
     public static async run(options: ApplicationOptions): Promise<Application> {
-        console.log(typeof import.meta)
+        console.log(process.env.RUNTIME)
         options = await ApplicationOptions.validateAsync(options)
         process.env.appId = options.id
         process.env.appName = options.name
