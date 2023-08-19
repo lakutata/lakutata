@@ -32,6 +32,7 @@
     "no-duplicate-imports": "error",
     "no-extra-semi": "off",
     "no-cond-assign": "off",
+    "no-constant-condition": "off",
     "@typescript-eslint/no-namespace": "off",
     "@typescript-eslint/ban-ts-comment": "off",
     "@typescript-eslint/ban-types": "off",

@@ -14,6 +14,12 @@ import {DefaultLoggerProvider} from './DefaultLoggerProvider.js'
 export class Application extends Module {
 
     /**
+     * 程序运行时的主入口文件所在目录路径
+     * @protected
+     */
+    protected readonly entrypointDirectory: string = process.env.ENTRYPOINT_DIR
+
+    /**
      * 应用程序预设组件
      * @protected
      */

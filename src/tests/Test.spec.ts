@@ -1,21 +1,16 @@
 import 'reflect-metadata'
-import {Application} from '../exports/Core.js'
-import {MDSTest1} from './mds/MDSTest1.js'
-import {TestComponent} from './components/TestComponent.js'
-import {TestObject} from './objects/TestObject.js'
-import {TestInterval} from './intervals/TestInterval.js'
-import {TestModule1} from './modules/TestModule1/TestModule1.js'
-import {TestModel} from './models/TestModel.js'
-import {Formatter} from '../lib/components/Formatter.js'
-import {Test1Controller} from './controllers/Test1Controller.js'
-import {Time} from '../exports/Time.js'
-import {Logger} from '../lib/components/Logger.js'
 import {fork} from 'child_process'
 import {Worker} from 'worker_threads'
+import { Application, Formatter, Logger, Time } from '../Lakutata.js'
+import {TestObject} from './objects/TestObject.js'
+import {TestInterval} from './intervals/TestInterval.js'
+import {MDSTest1} from './mds/MDSTest1.js'
+import {TestComponent} from './components/TestComponent.js'
+import {TestModule1} from './modules/TestModule1/TestModule1.js'
+import {Test1Controller} from './controllers/Test1Controller.js'
+import {TestModel} from './models/TestModel.js'
 
 (async () => {
-    // @ts-ignore
-    // console.log('import',import.meta.resolve('fs'))
     // fork('./src/tests/TestProc.js')
     // new Worker('./src/tests/TestProc.js')
 
