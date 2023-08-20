@@ -33,12 +33,6 @@ process.env.ENTRYPOINT_DIR = (() => {
     return appRootDir
 })()
 
-if (process.env.RUNTIME === 'ESM') {
-    // @ts-ignore
-    // import('module').then($ => $.createRequire(new URL('file:///abcd.file'))).then()
-    import('../test.js')
-}
-
 //获取程序执行入口文件所在目录失败则报错
 if (!process.env.ENTRYPOINT_DIR) throw new Error('Failed to retrieve the directory of the program\'s execution entry file.')
 Alias.init()
