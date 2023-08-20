@@ -35,7 +35,7 @@ process.env.ENTRYPOINT_DIR = (() => {
 
 if (process.env.RUNTIME === 'ESM') {
     // @ts-ignore
-    await import('module').then($ => $.createRequire(import.meta.url))
+    import('module').then($ => $.createRequire(import.meta.url)).then()
 }
 
 //获取程序执行入口文件所在目录失败则报错
