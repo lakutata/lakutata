@@ -1,2 +1,4 @@
-console.log('ggggggg')
+import fs from 'fs'
+
+console.log(fs)
 

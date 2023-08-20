@@ -2,6 +2,7 @@ import 'reflect-metadata'
 import path from 'path'
 import {Alias} from './lib/Alias.js'
 
+declare const require: NodeRequire
 
 declare global {
     namespace NodeJS {
@@ -16,7 +17,6 @@ declare global {
 process.env.RUNTIME = (typeof __dirname !== 'string' || typeof __filename !== 'string') ? 'ESM' : 'CJS'
 
 //判断当前应用程序的执行根目录位置
-declare const require: NodeRequire
 process.env.ENTRYPOINT_DIR = (() => {
     let appRootDir: string = ''
     if (typeof require !== 'undefined' && process.env.RUNTIME === 'CJS') {
@@ -32,6 +32,11 @@ process.env.ENTRYPOINT_DIR = (() => {
     if (!appRootDir) appRootDir = argv[0] ? path.dirname(argv[0]) : ''
     return appRootDir
 })()
+
+if (process.env.RUNTIME === 'ESM') {
+    // @ts-ignore
+    await import('module').then($ => $.createRequire(import.meta.url))
+}
 
 //获取程序执行入口文件所在目录失败则报错
 if (!process.env.ENTRYPOINT_DIR) throw new Error('Failed to retrieve the directory of the program\'s execution entry file.')

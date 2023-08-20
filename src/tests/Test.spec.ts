@@ -1,6 +1,4 @@
 import 'reflect-metadata'
-import {fork} from 'child_process'
-import {Worker} from 'worker_threads'
 import {Application, Formatter, Logger, Time} from '../Lakutata.js'
 import {TestObject} from './objects/TestObject.js'
 import {TestInterval} from './intervals/TestInterval.js'
@@ -10,11 +8,10 @@ import {TestModule1} from './modules/TestModule1/TestModule1.js'
 import {Test1Controller} from './controllers/Test1Controller.js'
 import {TestModel} from './models/TestModel.js'
 import path from 'path'
+import fs from 'fs'
+import ts from 'typescript'
+import {Worker} from 'worker_threads'
 
-// @ts-ignore
-// path.resolve=function(a,b){
-//     return 'this is a test'
-// };
 
 (async () => {
     // fork('./src/tests/TestProc.js')
@@ -70,6 +67,17 @@ import path from 'path'
             MDSTest1,
             async (app: Application) => {
                 // fork(path.resolve('@app', 'TestProc.js'))
+                // new Worker(path.resolve('@app', 'TestProc.js'))
+
+                // console.log('============transpileModule==========')
+                // let tstring=ts.transpileModule(fs.readFileSync(path.resolve('@app', 'TestProc.ts'),{encoding:'utf-8'}),{
+                //     compilerOptions:{module:ts.ModuleKind.Node16}
+                // }).outputText
+                // tstring=`const require = await import('module').then(m=>m.createRequire(import.meta.url));${tstring}`
+                // console.log(tstring)
+                // new Worker(new URL(`data:text/javascript,${encodeURIComponent(tstring)}`),{})
+                // console.log('============transpileModule==========')
+
                 const formatter = await app.get<Formatter>('formatter')
                 console.log(formatter.asPercent(1))
                 console.log('app.mode():', app.mode())
