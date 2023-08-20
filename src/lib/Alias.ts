@@ -5,7 +5,7 @@ import {InvalidAliasNameException} from '../exceptions/alias/InvalidAliasNameExc
 
 export class Alias {
 
-    protected aliasNameRegExp: RegExp = /^@.*/
+    protected aliasNameRegExp: RegExp = /^@[a-zA-Z0-9]+$/
 
     protected readonly aliasMap: Map<string, string> = new Map()
 
@@ -91,14 +91,5 @@ export class Alias {
             isContainsAlias = _isContainsAlias
         }
         return path.normalize(containAliasPath)
-    }
-
-    /**
-     * 获取别名列表
-     */
-    public list(): { [aliasName: string]: string } {
-        const list: { [aliasName: string]: string } = {}
-        this.aliasMap.forEach((path: string, aliasName: string) => list[aliasName] = path)
-        return list
     }
 }
