@@ -1,5 +1,7 @@
 import 'reflect-metadata'
 import path from 'path'
+import {Alias} from './lib/Alias.js'
+
 
 declare global {
     namespace NodeJS {
@@ -33,6 +35,7 @@ process.env.ENTRYPOINT_DIR = (() => {
 
 //获取程序执行入口文件所在目录失败则报错
 if (!process.env.ENTRYPOINT_DIR) throw new Error('Failed to retrieve the directory of the program\'s execution entry file.')
+Alias.init()
 
 //导出库内容
 export * from './exports/Core.js'

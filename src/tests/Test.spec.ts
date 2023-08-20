@@ -1,7 +1,7 @@
 import 'reflect-metadata'
 import {fork} from 'child_process'
 import {Worker} from 'worker_threads'
-import { Application, Formatter, Logger, Time } from '../Lakutata.js'
+import {Application, Formatter, Logger, Time} from '../Lakutata.js'
 import {TestObject} from './objects/TestObject.js'
 import {TestInterval} from './intervals/TestInterval.js'
 import {MDSTest1} from './mds/MDSTest1.js'
@@ -9,10 +9,20 @@ import {TestComponent} from './components/TestComponent.js'
 import {TestModule1} from './modules/TestModule1/TestModule1.js'
 import {Test1Controller} from './controllers/Test1Controller.js'
 import {TestModel} from './models/TestModel.js'
+import path from 'path'
+
+// @ts-ignore
+// path.resolve=function(a,b){
+//     return 'this is a test'
+// };
 
 (async () => {
     // fork('./src/tests/TestProc.js')
     // new Worker('./src/tests/TestProc.js')
+
+    // fork('@test')
+    // new Worker('@test')
+
 
     console.log('##################@@@@@@@@@@@@Application.className:', Application.className)
 
@@ -50,12 +60,16 @@ import {TestModel} from './models/TestModel.js'
             // '/Users/alex/WebstormProjects/core/src/tests/controllers/**/*',
             Test1Controller
         ],
+        alias: {
+            '@test': '@app/hh/jj'
+        },
         bootstrap: [
             'tm',
             'tm1',
             'testInterval',
             MDSTest1,
             async (app: Application) => {
+                // fork(path.resolve('@app', 'TestProc.js'))
                 const formatter = await app.get<Formatter>('formatter')
                 console.log(formatter.asPercent(1))
                 console.log('app.mode():', app.mode())

@@ -29,4 +29,10 @@ export class ApplicationOptions<T extends BaseObject = BaseObject> extends Modul
      */
     @Expect(Validator.String().valid('development', 'production').optional().default('development'))
     public declare readonly mode?: 'development' | 'production'
+
+    /**
+     * 路径别名
+     */
+    @Expect(Validator.Object().pattern(Validator.String(), Validator.String()).optional().default({}))
+    public declare readonly alias?: Record<string, string>
 }
