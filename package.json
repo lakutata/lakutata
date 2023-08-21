@@ -17,7 +17,9 @@
     "prepublishOnly": "node .prepublish.js",
     "postpublish": "node .postpublish.js",
     "release": "dotenv -- release-it --git.tagExclude='*[-]*'",
-    "release:pre-release": "dotenv -- release-it --preRelease=beta --no-github.release --no-git.tag",
+    "release:beta-release": "dotenv -- release-it --preRelease=beta",
+    "release:alpha-release": "dotenv -- release-it --preRelease=alpha --no-github.release",
+    "release:proto-release": "dotenv -- release-it --preRelease=proto --no-github.release --no-git.tag",
     "test": "ts-node src/tests/Test.spec.ts"
   },
   "release-it": {
