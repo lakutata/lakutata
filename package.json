@@ -1,6 +1,6 @@
 {
   "name": "lakutata",
-  "version": "0.1.1-beta.0",
+  "version": "0.1.1-proto.0",
   "description": "An IoC-based universal application framework.",
   "main": "./build/Lakutata.js",
   "types": "./build/Lakutata.d.ts",
@@ -54,9 +54,11 @@
     "dotenv-cli": "^7.2.1",
     "eslint": "^8.47.0",
     "fast-glob": "^3.3.1",
+    "fs-monkey": "^1.0.4",
     "is-glob": "^4.0.3",
     "is-plain-obj": "^4.1.0",
     "joi": "^17.9.2",
+    "memfs": "^4.2.1",
     "moment-timezone": "^0.5.43",
     "object-hash": "^3.0.0",
     "patrun": "^7.2.5",
@@ -71,7 +73,8 @@
     "terser": "^5.19.2",
     "ts-node": "^10.9.1",
     "tsup": "^7.2.0",
-    "typescript": "^5.1.6"
+    "typescript": "^5.1.6",
+    "unionfs": "^4.5.1"
   },
   "engines": {
     "node": ">=18"

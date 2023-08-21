@@ -9,9 +9,9 @@ import {Test1Controller} from './controllers/Test1Controller'
 import {TestModel} from './models/TestModel'
 import path from 'path'
 import fs from 'fs'
-import ts from 'typescript'
 import {Worker} from 'worker_threads'
-
+import {fork} from 'child_process'
+import {transpileModule} from 'typescript'
 
 (async () => {
     // fork('./src/tests/TestProc.js')
@@ -22,6 +22,12 @@ import {Worker} from 'worker_threads'
 
 
     console.log('##################@@@@@@@@@@@@Application.className:', Application.className)
+
+    const compiled = transpileModule(fs.readFileSync(path.resolve(__dirname, './TestProc.ts'), {encoding: 'utf-8'}), {}).outputText
+
+    // new Worker(path.resolve(__dirname, './TestProc.ts'))
+
+    // fork(path.resolve(__dirname, './TestProc.ts'))
 
     console.time('app')
     await Application.run({
