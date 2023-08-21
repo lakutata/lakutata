@@ -1,6 +1,6 @@
 {
   "name": "lakutata",
-  "version": "0.1.0",
+  "version": "0.1.1-beta.0",
   "description": "An IoC-based universal application framework.",
   "main": "./build/Lakutata.js",
   "types": "./build/Lakutata.d.ts",
@@ -17,7 +17,7 @@
     "prepublishOnly": "node .prepublish.js",
     "postpublish": "node .postpublish.js",
     "release": "dotenv -- release-it --git.tagExclude='*[-]*'",
-    "release:pre-release": "dotenv -- release-it --preRelease=beta",
+    "release:pre-release": "dotenv -- release-it --preRelease=beta --no-github.release --no-git.tag",
     "test": "ts-node src/tests/Test.spec.ts"
   },
   "release-it": {
