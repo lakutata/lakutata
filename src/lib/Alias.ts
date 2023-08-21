@@ -1,7 +1,7 @@
 import path from 'path'
-import {AliasNotFoundException} from '../exceptions/alias/AliasNotFoundException.js'
-import {AliasExistsException} from '../exceptions/alias/AliasExistsException.js'
-import {InvalidAliasNameException} from '../exceptions/alias/InvalidAliasNameException.js'
+import {AliasNotFoundException} from '../exceptions/alias/AliasNotFoundException'
+import {AliasExistsException} from '../exceptions/alias/AliasExistsException'
+import {InvalidAliasNameException} from '../exceptions/alias/InvalidAliasNameException'
 
 export class Alias {
 

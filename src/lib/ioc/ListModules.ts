@@ -1,8 +1,8 @@
 import * as glob from 'fast-glob'
 import * as path from 'path'
-import {flatten} from './Utils.js'
-import {BuildResolverOptions, ResolverOptions} from './Resolvers.js'
-import {LifetimeType} from './Lifetime.js'
+import {flatten} from './Utils'
+import {BuildResolverOptions, ResolverOptions} from './Resolvers'
+import {LifetimeType} from './Lifetime'
 
 /**
  * 调用listModules()时的选项

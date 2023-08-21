@@ -1,9 +1,9 @@
-import {ILogger} from '../../interfaces/ILogger.js'
-import {Component} from '../base/Component.js'
-import {Configurable, Singleton} from '../../decorators/DependencyInjectionDecorators.js'
-import {Validator} from '../../exports/Validator.js'
-import {InjectionProperties} from '../../types/InjectionProperties.js'
-import {DefaultLoggerProvider} from '../DefaultLoggerProvider.js'
+import {ILogger} from '../../interfaces/ILogger'
+import {Component} from '../base/Component'
+import {Configurable, Singleton} from '../../decorators/DependencyInjectionDecorators'
+import {Validator} from '../../exports/Validator'
+import {InjectionProperties} from '../../types/InjectionProperties'
+import {DefaultLoggerProvider} from '../DefaultLoggerProvider'
 
 @Singleton(true)
 export class Logger extends Component implements ILogger {

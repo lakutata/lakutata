@@ -1,8 +1,8 @@
-import {Component} from './Component.js'
-import {InjectionProperties} from '../../types/InjectionProperties.js'
-import {Lifetime} from '../../decorators/DependencyInjectionDecorators.js'
-import {MODEL_PROPERTY_MAP} from '../../constants/MetadataKey.js'
-import {As, IsEqual} from '../../exports/Utilities.js'
+import {Component} from './Component'
+import {InjectionProperties} from '../../types/InjectionProperties'
+import {Lifetime} from '../../decorators/DependencyInjectionDecorators'
+import {MODEL_PROPERTY_MAP} from '../../constants/MetadataKey'
+import {As, IsEqual} from '../../exports/Utilities'
 
 /**
  * 业务模型基类

@@ -1,4 +1,4 @@
-import {IConstructor} from '../../interfaces/IConstructor.js'
+import {IConstructor} from '../../interfaces/IConstructor'
 import {
     As,
     ConfigureObjectProperties,
@@ -6,7 +6,7 @@ import {
     ParentConstructor,
     RandomString,
     ThrowIntoBlackHole
-} from '../../exports/Utilities.js'
+} from '../../exports/Utilities'
 import {
     DI_CONTAINER_CREATOR_CONSTRUCTOR,
     DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OPTIONS,
@@ -28,15 +28,15 @@ import {
     DI_TARGET_CONSTRUCTOR_LIFETIME,
     DI_TARGET_CONSTRUCTOR_LIFETIME_LOCK,
     DI_TARGET_INSTANCE_CONFIGURABLE_OBJECT
-} from '../../constants/MetadataKey.js'
-import {MethodNotFoundException} from '../../exceptions/MethodNotFoundException.js'
-import {ConfigurableOptions, Lifetime} from '../../decorators/DependencyInjectionDecorators.js'
-import {Schema, Validator} from '../../exports/Validator.js'
-import {defaultValidationOptions} from '../../constants/DefaultValue.js'
-import {InvalidConfigurableValueException} from '../../exceptions/InvalidConfigurableValueException.js'
-import {InvalidValueException} from '../../exceptions/validation/InvalidValueException.js'
-import {SHA256} from '../../exports/Hash.js'
-import {AsyncConstructor} from './async-constructor/AsyncConstructor.js'
+} from '../../constants/MetadataKey'
+import {MethodNotFoundException} from '../../exceptions/MethodNotFoundException'
+import {ConfigurableOptions, Lifetime} from '../../decorators/DependencyInjectionDecorators'
+import {Schema, Validator} from '../../exports/Validator'
+import {defaultValidationOptions} from '../../constants/DefaultValue'
+import {InvalidConfigurableValueException} from '../../exceptions/InvalidConfigurableValueException'
+import {InvalidValueException} from '../../exceptions/validation/InvalidValueException'
+import {SHA256} from '../../exports/Hash'
+import {AsyncConstructor} from './async-constructor/AsyncConstructor'
 
 const internalPropertyNameRegExp: RegExp = new RegExp('__\\$\\$\\$[a-zA-Z0-9~!@#$%^&*()_+\\[\\]\\{\\},./\\\\<>?|\\-\\*]+\\$\\$\\$__')
 
@@ -342,5 +342,5 @@ export class BaseObject extends AsyncConstructor {
     public static get className(): string {
         return this.name
     }
-    
+
 }

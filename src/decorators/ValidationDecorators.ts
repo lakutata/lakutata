@@ -1,13 +1,13 @@
 import 'reflect-metadata'
-import {ArraySchema, Schema, SchemaMap, ValidationError, ValidationOptions, Validator} from '../exports/Validator.js'
-import {DTO} from '../lib/base/DTO.js'
+import {ArraySchema, Schema, SchemaMap, ValidationError, ValidationOptions, Validator} from '../exports/Validator'
+import {DTO} from '../lib/base/DTO'
 import {isAsyncFunction} from 'util/types'
-import {InvalidMethodAcceptException} from '../exceptions/validation/InvalidMethodAcceptException.js'
-import {IConstructor} from '../interfaces/IConstructor.js'
-import {DTO_CLASS, DTO_INDEX_SIGNATURE_SCHEMAS, DTO_SCHEMAS} from '../constants/MetadataKey.js'
-import {defaultValidationOptions} from '../constants/DefaultValue.js'
-import {InvalidMethodReturnException} from '../exceptions/validation/InvalidMethodReturnException.js'
-import {As} from '../exports/Utilities.js'
+import {InvalidMethodAcceptException} from '../exceptions/validation/InvalidMethodAcceptException'
+import {IConstructor} from '../interfaces/IConstructor'
+import {DTO_CLASS, DTO_INDEX_SIGNATURE_SCHEMAS, DTO_SCHEMAS} from '../constants/MetadataKey'
+import {defaultValidationOptions} from '../constants/DefaultValue'
+import {InvalidMethodReturnException} from '../exceptions/validation/InvalidMethodReturnException'
+import {As} from '../exports/Utilities'
 
 type TFunction = (...args: any[]) => any | Promise<any>
 

@@ -6,7 +6,7 @@
     ],
     "declaration": true,
     "moduleDetection": "auto",
-    "module": "ES2022",
+    "module": "CommonJS",
     "rootDir": "src",
     "moduleResolution": "Node16",
     "types": [
@@ -31,8 +31,5 @@
   "exclude": [
     "node_modules",
     "build"
-  ],
-  "ts-node": {
-    "esm": true
-  }
+  ]
 }

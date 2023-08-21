@@ -16,7 +16,7 @@ export default defineConfig(() => {
         },
         format: 'cjs',
         shims: false,
-        outDir: './build/cjs',
+        outDir: './build',
         keepNames: true,
         noExternal: [/./],
         external: [/@types/, 'tslib'],

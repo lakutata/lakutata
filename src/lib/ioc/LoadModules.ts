@@ -1,14 +1,14 @@
 import {pathToFileURL} from 'url'
-import {ModuleDescriptor, GlobWithOptions, listModules} from './ListModules.js'
-import {Lifetime} from './Lifetime.js'
+import {ModuleDescriptor, GlobWithOptions, listModules} from './ListModules'
+import {Lifetime} from './Lifetime'
 import {
     RESOLVER,
     asClass,
     asFunction,
     BuildResolverOptions, BuildResolver
-} from './Resolvers.js'
-import {IDependencyInjectionContainer} from './DependencyInjectionContainer.js'
-import {isClass, isFunction} from './Utils.js'
+} from './Resolvers'
+import {IDependencyInjectionContainer} from './DependencyInjectionContainer'
+import {isClass, isFunction} from './Utils'
 import {camelCase} from 'camel-case'
 
 /**

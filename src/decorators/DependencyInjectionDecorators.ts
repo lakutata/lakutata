@@ -1,7 +1,7 @@
 import 'reflect-metadata'
-import {BaseObject} from '../lib/base/BaseObject.js'
-import {IConstructor} from '../interfaces/IConstructor.js'
-import {As} from '../exports/Utilities.js'
+import {BaseObject} from '../lib/base/BaseObject'
+import {IConstructor} from '../interfaces/IConstructor'
+import {As} from '../exports/Utilities'
 import {
     DI_CONTAINER_SPECIAL_INJECT_APP_GETTER,
     DI_CONTAINER_SPECIAL_INJECT_MODULE_GETTER,
@@ -11,10 +11,10 @@ import {
     DI_TARGET_CONSTRUCTOR_LIFETIME,
     DI_TARGET_CONSTRUCTOR_LIFETIME_LOCK,
     DI_TARGET_CONSTRUCTOR_SPECIAL_INJECTS
-} from '../constants/MetadataKey.js'
-import {Container} from '../lib/base/Container.js'
-import {Schema, ValidationOptions} from '../exports/Validator.js'
-import {DTO} from '../lib/base/DTO.js'
+} from '../constants/MetadataKey'
+import {Container} from '../lib/base/Container'
+import {Schema, ValidationOptions} from '../exports/Validator'
+import {DTO} from '../lib/base/DTO'
 
 type InjectMappingObject = {
     injectKey: string

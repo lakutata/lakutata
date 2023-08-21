@@ -1,5 +1,5 @@
 import 'reflect-metadata'
-import {ValidationOptions} from '../exports/Validator.js'
+import {ValidationOptions} from '../exports/Validator'
 
 /**
  * 数据验证默认选项

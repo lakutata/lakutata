@@ -1,5 +1,5 @@
-import {createTokenizer, Token} from './FunctionTokenizer.js'
-import {Constructor} from './Resolvers.js'
+import {createTokenizer, Token} from './FunctionTokenizer'
+import {Constructor} from './Resolvers'
 
 /**
  * 一个快速的展开工具，用于展开一个二维数组

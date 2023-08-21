@@ -1,15 +1,15 @@
 import {Cipher, createCipheriv, createDecipheriv, Decipher, getCiphers, randomBytes, getCipherInfo} from 'crypto'
 import {
     InvalidSymmetricCipherKeyLengthException
-} from '../../../exceptions/crypto/symmetric/InvalidSymmetricCipherKeyLengthException.js'
+} from '../../../exceptions/crypto/symmetric/InvalidSymmetricCipherKeyLengthException'
 import {
     InvalidSymmetricCipherIVLengthException
-} from '../../../exceptions/crypto/symmetric/InvalidSymmetricCipherIVLengthException.js'
-import {IConstructor} from '../../../interfaces/IConstructor.js'
-import {ConvertToStream} from '../../../exports/Utilities.js'
-import {NotSupportCipherException} from '../../../exceptions/crypto/symmetric/NotSupportCipherException.js'
-import {SymmetricDecryptException} from '../../../exceptions/crypto/symmetric/SymmetricDecryptException.js'
-import {SymmetricEncryptException} from '../../../exceptions/crypto/symmetric/SymmetricEncryptException.js'
+} from '../../../exceptions/crypto/symmetric/InvalidSymmetricCipherIVLengthException'
+import {IConstructor} from '../../../interfaces/IConstructor'
+import {ConvertToStream} from '../../../exports/Utilities'
+import {NotSupportCipherException} from '../../../exceptions/crypto/symmetric/NotSupportCipherException'
+import {SymmetricDecryptException} from '../../../exceptions/crypto/symmetric/SymmetricDecryptException'
+import {SymmetricEncryptException} from '../../../exceptions/crypto/symmetric/SymmetricEncryptException'
 
 const SUPPORT_CIPHERS: string[] = getCiphers().map((value: string) => value.toUpperCase())
 

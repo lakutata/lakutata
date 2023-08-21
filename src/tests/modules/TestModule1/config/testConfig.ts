@@ -1,6 +1,6 @@
-import {ModuleOptions} from '../../../../options/ModuleOptions.js'
-import {TestComponent} from '../../../components/TestComponent.js'
-import {SubTestComponent} from '../../../components/SubTestComponent.js'
+import {ModuleOptions} from '../../../../options/ModuleOptions'
+import {TestComponent} from '../../../components/TestComponent'
+import {SubTestComponent} from '../../../components/SubTestComponent'
 
 const options: ModuleOptions<any> = {
     entries: {

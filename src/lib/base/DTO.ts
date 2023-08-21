@@ -1,10 +1,10 @@
-import {DTO_CLASS, DTO_INDEX_SIGNATURE_SCHEMAS, DTO_SCHEMAS} from '../../constants/MetadataKey.js'
-import {ObjectSchema, Schema, ValidationOptions, Validator} from '../../exports/Validator.js'
-import {IConstructor} from '../../interfaces/IConstructor.js'
-import {defaultValidationOptions} from '../../constants/DefaultValue.js'
-import {InvalidDTOValueException} from '../../exceptions/InvalidDTOValueException.js'
-import {As, ConfigureObjectProperties, ParentConstructor} from '../../exports/Utilities.js'
-import {AppendAsyncConstructor} from './async-constructor/Append.js'
+import {DTO_CLASS, DTO_INDEX_SIGNATURE_SCHEMAS, DTO_SCHEMAS} from '../../constants/MetadataKey'
+import {ObjectSchema, Schema, ValidationOptions, Validator} from '../../exports/Validator'
+import {IConstructor} from '../../interfaces/IConstructor'
+import {defaultValidationOptions} from '../../constants/DefaultValue'
+import {InvalidDTOValueException} from '../../exceptions/InvalidDTOValueException'
+import {As, ConfigureObjectProperties, ParentConstructor} from '../../exports/Utilities'
+import {AppendAsyncConstructor} from './async-constructor/Append'
 
 /**
  * DTO基础类

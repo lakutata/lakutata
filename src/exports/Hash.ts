@@ -1,11 +1,9 @@
 import 'reflect-metadata'
 import CryptoJs from 'crypto-js'
-import {ConvertToStream} from './Utilities.js'
-import {NotSupportHashException} from '../exceptions/NotSupportHashException.js'
+import {ConvertToStream} from './Utilities'
+import {NotSupportHashException} from '../exceptions/NotSupportHashException'
 import {Readable as ReadableStream} from 'stream'
-import Sm3 from 'crypto-api-v1/src/hasher/sm3.mjs'
-import {toHex as SM3ToHex} from 'crypto-api-v1/src/encoder/hex.mjs'
-import SM3Hmac from 'crypto-api-v1/src/mac/hmac.mjs'
+import {Sm3, SM3ToHex, SM3Hmac} from '../lib/SM3'
 import {createHash, createHmac, getHashes, Hash, Hmac} from 'crypto'
 
 /**

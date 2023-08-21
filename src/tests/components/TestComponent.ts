@@ -1,5 +1,5 @@
-import {Application, ApplicationOptions, Component} from '../../exports/Core.js'
-import {Configurable, Inject} from '../../decorators/DependencyInjectionDecorators.js'
+import {Application, ApplicationOptions, Component} from '../../exports/Core'
+import {Configurable, Inject} from '../../decorators/DependencyInjectionDecorators'
 
 export class TestComponent extends Component {
 

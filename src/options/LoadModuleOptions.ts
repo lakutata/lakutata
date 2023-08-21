@@ -1,8 +1,8 @@
-import {Module} from '../lib/base/Module.js'
-import {DTO} from '../lib/base/DTO.js'
-import {IConstructor} from '../interfaces/IConstructor.js'
-import {Expect, IndexSignature} from '../decorators/ValidationDecorators.js'
-import {Validator} from '../exports/Validator.js'
+import {Module} from '../lib/base/Module'
+import {DTO} from '../lib/base/DTO'
+import {IConstructor} from '../interfaces/IConstructor'
+import {Expect, IndexSignature} from '../decorators/ValidationDecorators'
+import {Validator} from '../exports/Validator'
 
 @IndexSignature(Validator.Any())
 export class LoadModuleOptions<T extends Module, U = IConstructor<T>> extends DTO {

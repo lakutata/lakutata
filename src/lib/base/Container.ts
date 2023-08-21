@@ -2,16 +2,16 @@ import {
     createContainer,
     IDependencyInjectionContainer,
     NameAndRegistrationPair
-} from '../ioc/DependencyInjectionContainer.js'
-import {asClass} from '../ioc/Resolvers.js'
-import {LoadEntryCommonOptions} from '../../options/LoadEntryCommonOptions.js'
-import {LoadEntryClassOptions} from '../../options/LoadEntryClassOptions.js'
-import {Accept} from '../../decorators/ValidationDecorators.js'
-import {Validator} from '../../exports/Validator.js'
-import {BaseObject} from './BaseObject.js'
-import {As, IsGlobString, isPromise, RandomString} from '../../exports/Utilities.js'
+} from '../ioc/DependencyInjectionContainer'
+import {asClass} from '../ioc/Resolvers'
+import {LoadEntryCommonOptions} from '../../options/LoadEntryCommonOptions'
+import {LoadEntryClassOptions} from '../../options/LoadEntryClassOptions'
+import {Accept} from '../../decorators/ValidationDecorators'
+import {Validator} from '../../exports/Validator'
+import {BaseObject} from './BaseObject'
+import {As, IsGlobString, IsPromise, RandomString} from '../../exports/Utilities'
 import fastGlob from 'fast-glob'
-import {IConstructor} from '../../interfaces/IConstructor.js'
+import {IConstructor} from '../../interfaces/IConstructor'
 import {
     CONTROLLER_ACTION_MAP,
     CONTROLLER_CONSTRUCTOR_MARK,
@@ -22,20 +22,20 @@ import {
     DI_CONTAINER_SPECIAL_INJECT_MODULE_GETTER,
     DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT,
     DI_TARGET_CONSTRUCTOR_FINGERPRINT, DI_TARGET_INSTANCE_CONFIGURABLE_OBJECT
-} from '../../constants/MetadataKey.js'
-import {InvalidGlobStringException} from '../../exceptions/InvalidGlobStringException.js'
+} from '../../constants/MetadataKey'
+import {InvalidGlobStringException} from '../../exceptions/InvalidGlobStringException'
 import objectHash from 'object-hash'
-import {Module} from './Module.js'
-import {Application} from '../Application.js'
+import {Module} from './Module'
+import {Application} from '../Application'
 import {
     DynamicRegisterControllerNotAllowException
-} from '../../exceptions/controller/DynamicRegisterControllerNotAllowException.js'
-import {ControllerActionMapItem} from '../../types/ControllerActionMapItem.js'
+} from '../../exceptions/controller/DynamicRegisterControllerNotAllowException'
+import {ControllerActionMapItem} from '../../types/ControllerActionMapItem'
 import {
     DuplicateControllerActionPatternException
-} from '../../exceptions/controller/DuplicateControllerActionPatternException.js'
-import {IPatRun} from '../../interfaces/IPatRun.js'
-import {Controller} from './Controller.js'
+} from '../../exceptions/controller/DuplicateControllerActionPatternException'
+import {IPatRun} from '../../interfaces/IPatRun'
+import {Controller} from './Controller'
 
 export class Container<T extends Module = Module> {
 
@@ -250,7 +250,7 @@ export class Container<T extends Module = Module> {
         const resolved: T | Promise<T> = this.__$$dic.resolve(name)
         //在取得实例时进行实例上的元数据注入，将附加的可配置项注入至对象中，在该阶段，对象根据可配置对象进行自身的配置过程尚未开始
         if (typeof resolved === 'object' || typeof resolved === 'function') Reflect.defineMetadata(DI_TARGET_INSTANCE_CONFIGURABLE_OBJECT, configurableParams ? configurableParams : {}, resolved)
-        return isPromise(resolved) ? await resolved : resolved
+        return IsPromise(resolved) ? await resolved : resolved
     }
 
     /**

@@ -1,14 +1,14 @@
-import {Component} from './Component.js'
-import {InjectionProperties} from '../../types/InjectionProperties.js'
-import {InjectApp, Lifetime} from '../../decorators/DependencyInjectionDecorators.js'
-import {Application} from '../Application.js'
-import {IConstructor} from '../../interfaces/IConstructor.js'
-import {CONTROLLER_CONSTRUCTOR_MARK, CONTROLLER_PATTERN_MANAGER} from '../../constants/MetadataKey.js'
-import {Container} from './Container.js'
-import {IPatRun} from '../../interfaces/IPatRun.js'
+import {Component} from './Component'
+import {InjectionProperties} from '../../types/InjectionProperties'
+import {InjectApp, Lifetime} from '../../decorators/DependencyInjectionDecorators'
+import {Application} from '../Application'
+import {IConstructor} from '../../interfaces/IConstructor'
+import {CONTROLLER_CONSTRUCTOR_MARK, CONTROLLER_PATTERN_MANAGER} from '../../constants/MetadataKey'
+import {Container} from './Container'
+import {IPatRun} from '../../interfaces/IPatRun'
 import {
     NoMatchedControllerActionPatternException
-} from '../../exceptions/controller/NoMatchedControllerActionPatternException.js'
+} from '../../exceptions/controller/NoMatchedControllerActionPatternException'
 
 /**
  * 控制器基类

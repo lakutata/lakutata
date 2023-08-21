@@ -1,10 +1,10 @@
 import * as util from 'util'
-import {GlobWithOptions, listModules} from './ListModules.js'
+import {GlobWithOptions, listModules} from './ListModules'
 import {
     LoadModulesOptions,
     loadModules as realLoadModules,
     LoadModulesResult
-} from './LoadModules.js'
+} from './LoadModules'
 import {
     Resolver,
     Constructor,
@@ -12,16 +12,16 @@ import {
     asFunction,
     DisposableResolver,
     BuildResolverOptions, BuildResolver
-} from './Resolvers.js'
-import {last, nameValueToObject, isClass} from './Utils.js'
-import {InjectionMode, InjectionModeType} from './InjectionMode.js'
-import {Lifetime} from './Lifetime.js'
-import {DependencyInjectionResolutionError, DependencyInjectionTypeError} from './Errors.js'
-import {importModule} from './LoadModuleNative.js'
+} from './Resolvers'
+import {last, nameValueToObject, isClass} from './Utils'
+import {InjectionMode, InjectionModeType} from './InjectionMode'
+import {Lifetime} from './Lifetime'
+import {DependencyInjectionResolutionError, DependencyInjectionTypeError} from './Errors'
+import {importModule} from './LoadModuleNative'
 import {
     DI_CONTAINER_CREATOR_CONSTRUCTOR,
     DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME
-} from '../../constants/MetadataKey.js'
+} from '../../constants/MetadataKey'
 
 /**
  * 从createContainer返回的容器具有一些方法和属性。

@@ -1,12 +1,12 @@
 import 'reflect-metadata'
-import {Controller} from '../lib/base/Controller.js'
-import {CONTROLLER_ACTION_MAP, CONTROLLER_PATTERN_MANAGER} from '../constants/MetadataKey.js'
-import {IConstructor} from '../interfaces/IConstructor.js'
-import {As, SortObject} from '../exports/Utilities.js'
-import {SHA1} from '../exports/Hash.js'
-import {ControllerActionMapItem} from '../types/ControllerActionMapItem.js'
+import {Controller} from '../lib/base/Controller'
+import {CONTROLLER_ACTION_MAP, CONTROLLER_PATTERN_MANAGER} from '../constants/MetadataKey'
+import {IConstructor} from '../interfaces/IConstructor'
+import {As, SortObject} from '../exports/Utilities'
+import {SHA1} from '../exports/Hash'
+import {ControllerActionMapItem} from '../types/ControllerActionMapItem'
 import {Patrun} from 'patrun'
-import {IPatRun} from '../interfaces/IPatRun.js'
+import {IPatRun} from '../interfaces/IPatRun'
 
 type TActionFunction = (inp?: any) => Promise<any>
 

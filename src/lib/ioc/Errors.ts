@@ -1,5 +1,5 @@
-import {ResolutionStack} from './DependencyInjectionContainer.js'
-import {DependencyInjectionException} from '../../exceptions/DependencyInjectionException.js'
+import {ResolutionStack} from './DependencyInjectionContainer'
+import {DependencyInjectionException} from '../../exceptions/DependencyInjectionException'
 
 /**
  * 可扩展错误类

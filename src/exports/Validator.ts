@@ -1,8 +1,8 @@
 import 'reflect-metadata'
 import Joi from 'joi'
-import {As, IsGlobString} from './Utilities.js'
-import {InvalidValueException} from '../exceptions/validation/InvalidValueException.js'
-import {defaultValidationOptions} from '../constants/DefaultValue.js'
+import {As, IsGlobString} from './Utilities'
+import {InvalidValueException} from '../exceptions/validation/InvalidValueException'
+import {defaultValidationOptions} from '../constants/DefaultValue'
 import {isAsyncFunction} from 'util/types'
 
 export class BaseValidator {

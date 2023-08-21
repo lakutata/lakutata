@@ -1,4 +1,4 @@
-import {createTokenizer, Token, TokenizerFlags} from './FunctionTokenizer.js'
+import {createTokenizer, Token, TokenizerFlags} from './FunctionTokenizer'
 
 /**
  * 一个函数的参数

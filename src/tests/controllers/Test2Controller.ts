@@ -1,5 +1,5 @@
-import {Controller} from '../../lib/base/Controller.js'
-import {Action} from '../../decorators/ControllerDecorators.js'
+import {Controller} from '../../lib/base/Controller'
+import {Action} from '../../decorators/ControllerDecorators'
 
 export class Test2Controller extends Controller {
 

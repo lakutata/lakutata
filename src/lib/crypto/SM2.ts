@@ -2,11 +2,11 @@ import {
     AsymmetricEncryption,
     AsymmetricEncryptionKeyPair, AsymmetricEncryptionPrivate,
     AsymmetricEncryptionPublic
-} from '../base/abstracts/AsymmetricEncryption.js'
+} from '../base/abstracts/AsymmetricEncryption'
 import {sm2} from 'sm-crypto-v2'
-import {As} from '../../exports/Utilities.js'
+import {As} from '../../exports/Utilities'
 import {PathLike} from 'fs'
-import {IConstructor} from '../../interfaces/IConstructor.js'
+import {IConstructor} from '../../interfaces/IConstructor'
 
 async function initRNGPool(constructor: IConstructor<SM2>): Promise<void> {
     const metadataKey: string = '__$$RNGPoolInitialized'

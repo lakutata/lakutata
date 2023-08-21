@@ -1,5 +1,5 @@
-import {Model} from '../../lib/base/Model.js'
-import {Configurable, Scoped, Singleton} from '../../decorators/DependencyInjectionDecorators.js'
+import {Model} from '../../lib/base/Model'
+import {Configurable, Scoped, Singleton} from '../../decorators/DependencyInjectionDecorators'
 
 
 // @Singleton()

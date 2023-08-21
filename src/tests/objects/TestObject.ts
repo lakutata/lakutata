@@ -1,5 +1,5 @@
-import {BaseObject} from '../../exports/Core.js'
-import {Configurable} from '../../decorators/DependencyInjectionDecorators.js'
+import {BaseObject} from '../../exports/Core'
+import {Configurable} from '../../decorators/DependencyInjectionDecorators'
 
 export class TestObject extends BaseObject {
 

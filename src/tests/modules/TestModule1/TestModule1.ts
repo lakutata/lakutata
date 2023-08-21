@@ -1,13 +1,13 @@
-import {Module} from '../../../lib/base/Module.js'
-import {Application} from '../../../lib/Application.js'
-import {Configurable, Inject, Lifetime} from '../../../decorators/DependencyInjectionDecorators.js'
-import {LoadEntryCommonOptions} from '../../../options/LoadEntryCommonOptions.js'
-import {LoadEntryClassOptions} from '../../../options/LoadEntryClassOptions.js'
-import {TestComponent} from '../../components/TestComponent.js'
-import {IConstructor} from '../../../interfaces/IConstructor.js'
-import {AsyncFunction} from '../../../types/AsyncFunction.js'
-import {ModuleOptions} from '../../../options/ModuleOptions.js'
-import {functionConfig, objectConfig} from './config/testConfig.js'
+import {Module} from '../../../lib/base/Module'
+import {Application} from '../../../lib/Application'
+import {Configurable, Inject, Lifetime} from '../../../decorators/DependencyInjectionDecorators'
+import {LoadEntryCommonOptions} from '../../../options/LoadEntryCommonOptions'
+import {LoadEntryClassOptions} from '../../../options/LoadEntryClassOptions'
+import {TestComponent} from '../../components/TestComponent'
+import {IConstructor} from '../../../interfaces/IConstructor'
+import {AsyncFunction} from '../../../types/AsyncFunction'
+import {ModuleOptions} from '../../../options/ModuleOptions'
+import {functionConfig, objectConfig} from './config/testConfig'
 
 @Lifetime('SINGLETON')
 export class TestModule1 extends Module {

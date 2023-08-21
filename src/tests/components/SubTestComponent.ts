@@ -1,8 +1,8 @@
-import {Component} from '../../lib/base/Component.js'
-import {Application} from '../../lib/Application.js'
-import {Inject, InjectApp, InjectModule} from '../../decorators/DependencyInjectionDecorators.js'
-import {TestModule1} from '../modules/TestModule1/TestModule1.js'
-import {TestComponent} from './TestComponent.js'
+import {Component} from '../../lib/base/Component'
+import {Application} from '../../lib/Application'
+import {Inject, InjectApp, InjectModule} from '../../decorators/DependencyInjectionDecorators'
+import {TestModule1} from '../modules/TestModule1/TestModule1'
+import {TestComponent} from './TestComponent'
 
 export class SubTestComponent extends Component {
 

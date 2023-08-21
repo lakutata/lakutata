@@ -1,8 +1,8 @@
-import {BaseObject} from '../BaseObject.js'
-import {IsObjectInitialized} from '../../../exports/Utilities.js'
+import {BaseObject} from '../BaseObject'
+import {IsObjectInitialized} from '../../../exports/Utilities'
 import {clearInterval} from 'timers'
-import {Configurable} from '../../../decorators/DependencyInjectionDecorators.js'
-import {Validator} from '../../../exports/Validator.js'
+import {Configurable} from '../../../decorators/DependencyInjectionDecorators'
+import {Validator} from '../../../exports/Validator'
 
 /**
  * 定时器抽象类

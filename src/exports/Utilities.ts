@@ -1,17 +1,17 @@
 import 'reflect-metadata'
 import sortArray from 'sort-array'
-import {ISortArrayOptions} from '../interfaces/ISortArrayOptions.js'
-import sortKeys from 'sort-keys'
-import {ISortObjectOptions} from '../interfaces/ISortObjectOptions.js'
+import {ISortArrayOptions} from '../interfaces/ISortArrayOptions'
+import {ISortObjectOptions} from '../interfaces/ISortObjectOptions'
 import isGlob from 'is-glob'
 import * as randomString from 'randomstring'
-import {IConstructor} from '../interfaces/IConstructor.js'
-import {BaseObject} from '../lib/base/BaseObject.js'
-import {OBJECT_INIT_MARK} from '../constants/MetadataKey.js'
+import {IConstructor} from '../interfaces/IConstructor'
+import {BaseObject} from '../lib/base/BaseObject'
+import {OBJECT_INIT_MARK} from '../constants/MetadataKey'
 import {setTimeout} from 'timers/promises'
 import {isPromise as isBuiltinPromises} from 'util/types'
 import {Readable as ReadableStream, ReadableOptions, Stream} from 'stream'
 import {PathLike} from 'fs'
+import SortKeys from '../lib/SortKeys'
 
 /**
  * 判断两个传入的值是否相等
@@ -78,8 +78,21 @@ export function ConvertToStream(inp: any, options?: ReadableOptions): ReadableSt
  * 判断一个目标对象是否为Promise
  * @param obj
  */
-export function isPromise(target: any): boolean {
+export function IsPromise(target: any): boolean {
     return isBuiltinPromises(target) ? true : !!target && (typeof target === 'object' || typeof target === 'function') && typeof target.then === 'function'
+}
+
+/**
+ * 判断一个目标对象是否为PromiseLike
+ * @param target
+ * @constructor
+ */
+export function IsPromiseLike(target: any): boolean {
+    if (IsPromise(target)) return true
+    const {
+        then
+    } = target || false
+    return (then instanceof Function)
 }
 
 /**
@@ -207,7 +220,7 @@ export function SortArray<T = any>(arr: T[], ...options: ISortArrayOptions<T>[])
  * @constructor
  */
 export function SortObject<T extends Record<string, any>>(object: T, options?: ISortObjectOptions): T {
-    return sortKeys(object, {
+    return SortKeys(object, {
         deep: options?.deep, compare: (a: string, b: string): number => {
             switch (options?.order) {
                 case 'asc':

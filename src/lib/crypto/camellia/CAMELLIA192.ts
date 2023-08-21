@@ -1,4 +1,4 @@
-import {SymmetricEncryption} from '../../base/abstracts/SymmetricEncryption.js'
+import {SymmetricEncryption} from '../../base/abstracts/SymmetricEncryption'
 
 export class CAMELLIA192 extends SymmetricEncryption {
 

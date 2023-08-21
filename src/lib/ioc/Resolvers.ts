@@ -1,10 +1,10 @@
-import {Lifetime, LifetimeType} from './Lifetime.js'
-import {InjectionMode, InjectionModeType} from './InjectionMode.js'
-import {isFunction, uniq} from './Utils.js'
-import {parseParameterList, Parameter} from './ParamParser.js'
-import {DependencyInjectionTypeError} from './Errors.js'
-import {IDependencyInjectionContainer, FunctionReturning, ResolveOptions} from './DependencyInjectionContainer.js'
-import {DI_CONTAINER_INJECT_PROPERTIES} from '../../constants/MetadataKey.js'
+import {Lifetime, LifetimeType} from './Lifetime'
+import {InjectionMode, InjectionModeType} from './InjectionMode'
+import {isFunction, uniq} from './Utils'
+import {parseParameterList, Parameter} from './ParamParser'
+import {DependencyInjectionTypeError} from './Errors'
+import {IDependencyInjectionContainer, FunctionReturning, ResolveOptions} from './DependencyInjectionContainer'
+import {DI_CONTAINER_INJECT_PROPERTIES} from '../../constants/MetadataKey'
 
 /**
  * RESOLVER符号可以由通过loadModules加载的模块使用，用于配置它们的生命周期、注入模式等。

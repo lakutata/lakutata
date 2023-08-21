@@ -1,4 +1,4 @@
-import {AlgorithmInitializer, SymmetricEncryption} from '../../base/abstracts/SymmetricEncryption.js'
+import {AlgorithmInitializer, SymmetricEncryption} from '../../base/abstracts/SymmetricEncryption'
 import {createCipheriv, createDecipheriv} from 'browserify-cipher'
 
 export class TripleDES extends SymmetricEncryption {

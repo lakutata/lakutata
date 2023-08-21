@@ -1,8 +1,8 @@
-import {Application, Interval} from '../../exports/Core.js'
-import {TestComponent} from '../components/TestComponent.js'
-import {Inject} from '../../decorators/DependencyInjectionDecorators.js'
-import {TestObject} from '../objects/TestObject.js'
-import {DI_CONTAINER_INJECT_IS_MODULE_GETTER} from '../../constants/MetadataKey.js'
+import {Application, Interval} from '../../exports/Core'
+import {TestComponent} from '../components/TestComponent'
+import {Inject} from '../../decorators/DependencyInjectionDecorators'
+import {TestObject} from '../objects/TestObject'
+import {DI_CONTAINER_INJECT_IS_MODULE_GETTER} from '../../constants/MetadataKey'
 
 export class TestInterval extends Interval {
 

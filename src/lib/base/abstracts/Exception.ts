@@ -1,6 +1,7 @@
-import pupa from 'pupa'
 import {camelCase} from 'camel-case'
-import {As} from '../../../exports/Utilities.js'
+import {As} from '../../../exports/Utilities'
+import Templating from '../../Templating'
+
 
 /**
  * 异常抽象类
@@ -23,7 +24,7 @@ export abstract class Exception extends Error {
             const data: unknown[] | Record<string, any> = b
             //Error template
             try {
-                this.message = pupa(template, data, {ignoreMissing: true})
+                this.message = Templating(template, data, {ignoreMissing: true})
             } catch (e) {
                 this.message = 'Unknown (broken exception template or data)'
             }

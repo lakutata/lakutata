@@ -2,7 +2,7 @@ import {
     AsymmetricEncryption,
     AsymmetricEncryptionKeyPair, AsymmetricEncryptionPrivate,
     AsymmetricEncryptionPublic
-} from '../base/abstracts/AsymmetricEncryption.js'
+} from '../base/abstracts/AsymmetricEncryption'
 import {
     createPrivateKey,
     createPublicKey,
@@ -13,7 +13,7 @@ import {
     sign,
     verify
 } from 'crypto'
-import {As} from '../../exports/Utilities.js'
+import {As} from '../../exports/Utilities'
 import {PathLike} from 'fs'
 
 export interface RSAKeyPairOptions {

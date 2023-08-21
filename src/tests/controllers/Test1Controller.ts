@@ -1,7 +1,7 @@
-import {Controller} from '../../lib/base/Controller.js'
-import {Action} from '../../decorators/ControllerDecorators.js'
-import {Configurable} from '../../decorators/DependencyInjectionDecorators.js'
-import {Test2Controller} from './Test2Controller.js'
+import {Controller} from '../../lib/base/Controller'
+import {Action} from '../../decorators/ControllerDecorators'
+import {Configurable} from '../../decorators/DependencyInjectionDecorators'
+import {Test2Controller} from './Test2Controller'
 
 export class Test1Controller extends Controller {
 

@@ -1,8 +1,8 @@
 import 'reflect-metadata'
 import MomentTimezone from 'moment-timezone'
-import {UnitOfTime} from '../types/UnitOfTime.js'
-import {TimeInput} from '../types/TimeInput.js'
-import {TimeObject} from '../types/TimeObject.js'
+import {UnitOfTime} from '../types/UnitOfTime'
+import {TimeInput} from '../types/TimeInput'
+import {TimeObject} from '../types/TimeObject'
 
 /**
  * 时间类，继承于Date

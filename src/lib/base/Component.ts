@@ -1,9 +1,9 @@
-import {BaseObject} from './BaseObject.js'
+import {BaseObject} from './BaseObject'
 import {EventEmitter} from 'events'
-import {InjectionProperties} from '../../types/InjectionProperties.js'
-import {InjectModule, Lifetime} from '../../decorators/DependencyInjectionDecorators.js'
-import {Logger} from '../components/Logger.js'
-import {Module} from './Module.js'
+import {InjectionProperties} from '../../types/InjectionProperties'
+import {InjectModule, Lifetime} from '../../decorators/DependencyInjectionDecorators'
+import {Logger} from '../components/Logger'
+import {Module} from './Module'
 
 /**
  * 组件基类
