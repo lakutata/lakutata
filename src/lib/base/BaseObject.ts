@@ -4,7 +4,7 @@ import {
     ConfigureObjectProperties,
     MergeSet,
     ParentConstructor,
-    RandomString,
+    RandomString, SetToArray,
     ThrowIntoBlackHole
 } from '../../exports/Utilities'
 import {
@@ -135,7 +135,7 @@ export class BaseObject extends AsyncConstructor {
             const config: Record<string, any> = Object.assign({}, constructorConfigurableObject ? constructorConfigurableObject : {}, instanceConfigurableObject ? instanceConfigurableObject : {})
             if (config) {
                 const configurableOptionsMap: Map<string, ConfigurableOptions> = As<Map<string, ConfigurableOptions> | undefined>(Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OPTIONS, this)) ? As<Map<string, ConfigurableOptions>>(Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OPTIONS, this.constructor)) : new Map()
-                let configurableItems: Set<string> | undefined = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, this.constructor)
+                let configurableItems: Set<string> | undefined = Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, this.constructor)
                 let constructor: typeof this.constructor | null = this.constructor
                 while (constructor = ParentConstructor(constructor)) {
                     const parentConfigurableItems: Set<string> | undefined = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, constructor)
@@ -222,6 +222,15 @@ export class BaseObject extends AsyncConstructor {
      */
     protected async destroy(): Promise<void> {
         //To be override in child class
+    }
+
+    /**
+     * Configurable propertyKeys
+     * @protected
+     */
+    protected async __getConfigurableProperties(): Promise<string[]> {
+        if (!Reflect.hasMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, this.constructor)) return []
+        return SetToArray(As<Set<string>>(Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, this.constructor)))
     }
 
     /**

@@ -35,7 +35,6 @@
     }
   },
   "dependencies": {
-    "tslib": "^2.6.1"
   },
   "devDependencies": {
     "@types/convert-units": "^2.3.6",
@@ -98,6 +97,7 @@
     "lakutata",
     "framework",
     "typescript",
+    "alias",
     "cjs",
     "ioc",
     "di"

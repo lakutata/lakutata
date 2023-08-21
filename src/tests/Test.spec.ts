@@ -12,6 +12,8 @@ import fs from 'fs'
 import {Worker} from 'worker_threads'
 import {fork} from 'child_process'
 import {transpileModule} from 'typescript'
+import Module from 'module'
+import {TestProcess} from './processes/TestProcess'
 
 (async () => {
     // fork('./src/tests/TestProc.js')
@@ -30,7 +32,7 @@ import {transpileModule} from 'typescript'
     // fork(path.resolve(__dirname, './TestProc.ts'))
 
     console.time('app')
-    await Application.run({
+    const app = await Application.run({
         id: 'test',
         name: 'test',
         timezone: 'Asia/Shanghai',
@@ -38,6 +40,7 @@ import {transpileModule} from 'typescript'
         // mode: 'production',
         mode: 'development',
         entries: {
+            testProc: {class: TestProcess},
             testObject: {class: TestObject, username: 'tester'},
             testInterval: {
                 class: TestInterval,
@@ -67,12 +70,13 @@ import {transpileModule} from 'typescript'
             '@test': '@app/hh/jj'
         },
         bootstrap: [
+            'testProc',
             'tm',
             'tm1',
             'testInterval',
             MDSTest1,
             async (app: Application) => {
-                // fork(path.resolve('@app', 'TestProc.js'))
+                // fork(path.resolve('@app', 'TestProc'))
                 // new Worker(path.resolve('@app', 'TestProc.js'))
 
                 // console.log('============transpileModule==========')
@@ -110,6 +114,9 @@ import {transpileModule} from 'typescript'
     time = time.timezone('Africa/Accra')
     console.log(time.timezone(), time, time.toISOString(), time.toString(), time.toTimeString(), time.toDateString(), time.toUTCString())
 
+
+    // @ts-ignore
+    // console.log(Module._cache)
 
     Logger.trace('more on this: %s', process.env.NODE_ENV)
     Logger.info('this is a logger test')
