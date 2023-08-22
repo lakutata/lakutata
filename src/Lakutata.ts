@@ -8,13 +8,15 @@ declare const require: NodeRequire
 declare global {
     namespace NodeJS {
         interface ProcessEnv {
+            appId: string
+            appName: string
             ENTRYPOINT_DIR: string
         }
     }
 }
 
 //判断当前应用程序的执行根目录位置
-process.env.ENTRYPOINT_DIR = (() => {
+process.env.ENTRYPOINT_DIR = process.env.ENTRYPOINT_DIR ? process.env.ENTRYPOINT_DIR : (() => {
     let appRootDir: string = ''
     if (typeof require !== 'undefined') {
         appRootDir = require.main?.filename ? path.dirname(require.main.filename) : ''

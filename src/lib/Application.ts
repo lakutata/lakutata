@@ -54,6 +54,7 @@ export class Application extends Module {
         process.env.appName = options.name
         process.env.TZ = options.timezone
         process.env.NODE_ENV = options.mode ? options.mode : 'development'
+        process.title = process.env.appId
         const alias: Alias = Alias.getAliasInstance()
         alias.set('@app', process.env.ENTRYPOINT_DIR)//预设别名：应用程序入口文件所在目录路径
         alias.set('@runtime', process.cwd())//预设别名：应用程序的工作目录路径

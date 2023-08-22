@@ -40,7 +40,7 @@ import {TestProcess} from './processes/TestProcess'
         // mode: 'production',
         mode: 'development',
         entries: {
-            testProc: {class: TestProcess},
+            testProc: {class: TestProcess,concurrent:666},
             testObject: {class: TestObject, username: 'tester'},
             testInterval: {
                 class: TestInterval,
