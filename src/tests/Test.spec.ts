@@ -40,7 +40,7 @@ import {TestProcess} from './processes/TestProcess'
         // mode: 'production',
         mode: 'development',
         entries: {
-            testProc: {class: TestProcess,concurrent:666},
+            testProc: {class: TestProcess, concurrent: 666},
             testObject: {class: TestObject, username: 'tester'},
             testInterval: {
                 class: TestInterval,
@@ -102,6 +102,8 @@ import {TestProcess} from './processes/TestProcess'
                 console.log(await app.invoke({a: 1, b: 2}, {testBoolean: true}))
                 const logger = await app.get<Logger>('log')
                 logger.trace('more on this: %s', process.env.NODE_ENV)
+                const testProc = await app.get<TestProcess>('testProc')
+                console.log('testProc.sayHi():', await testProc.sayHi(),testProc.concurrent)
             }
         ]
     })

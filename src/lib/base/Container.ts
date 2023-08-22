@@ -126,7 +126,7 @@ export class Container<T extends Module = Module> {
                     As<IPatRun>(this.__$$module.getProperty('__$$patternManager'))?.add(item.pattern, async (subject: Record<string, any>, configurableParams: Record<string, any> = {}): Promise<any> => {
                         const controllerRuntimeScope: Container = this.createScope()
                         const controller: Controller = await controllerRuntimeScope.get(item.class, configurableParams)
-                        controller.setInternalProperty('runtimeContainer', controllerRuntimeScope)
+                        controller['setInternalProperty']('runtimeContainer', controllerRuntimeScope)
                         const result: any = await controller[item.method](subject)
                         setImmediate(() => controllerRuntimeScope.destroy())
                         return result

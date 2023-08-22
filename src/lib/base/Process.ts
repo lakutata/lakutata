@@ -6,7 +6,8 @@ import path from 'path'
 import Module from 'module'
 import {ModuleNotFoundException} from '../../exceptions/ModuleNotFoundException'
 import {IProcessWorkerEventPacket} from '../../interfaces/IProcessWorkerEventPacket'
-import * as v8 from 'v8'
+import v8 from 'v8'
+import {isAsyncFunction} from 'util/types'
 
 process.on('message', console.log)
 
@@ -25,6 +26,8 @@ export class Process extends Component {
      */
     protected readonly isWorker: boolean = !!process.env.isWorkerProcess
 
+    protected declare worker: ChildProcess
+
     @Configurable()
     public readonly concurrent: number = 1
 
@@ -35,6 +38,22 @@ export class Process extends Component {
     constructor(properties: InjectionProperties = {}) {
         super(properties)
         this.setInternalProperty('type', 'Process')
+        if (this.isPrimary) {
+            const publicMethods: string[] = Object.getOwnPropertyNames(this.constructor.prototype)
+                .filter((name: string) => typeof this.constructor.prototype[name] === 'function' && name !== 'constructor')
+            publicMethods.forEach((publicMethod: string) => {
+                const originMethod: Function = this[publicMethod]
+                const isAsyncMethod: boolean = isAsyncFunction(originMethod)
+                Object.defineProperty(this, publicMethod, {
+                    get(): any {
+                        return () => {
+                            return 'gg'
+                        }
+                    }
+                })
+            })
+        }
+        return this
     }
 
     /**
@@ -67,7 +86,7 @@ export class Process extends Component {
         const configurableProperties: string[] = await this.__getConfigurableProperties()
         const configs: Record<string, any> = {}
         configurableProperties.forEach((propertyKey: string) => configs[propertyKey] = this[propertyKey])
-        const worker: ChildProcess = fork(path.resolve(__dirname, '../ProcessContainer'), [
+        this.worker = fork(path.resolve(__dirname, '../ProcessContainer'), [
             moduleId,
             this.className,
             v8.serialize(configs).toString('base64'),

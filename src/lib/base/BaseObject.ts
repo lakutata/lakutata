@@ -234,6 +234,27 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
+     * Set internal property
+     * @param propertyKey
+     * @param value
+     * @protected
+     */
+    protected setInternalProperty(propertyKey: string, value: any): void {
+        this.setProperty(this.propertyNameToInternalPropertyName(propertyKey), value)
+    }
+
+    /**
+     * Get internal property
+     * @param propertyKey
+     * @param defaultValue
+     * @protected
+     */
+    protected getInternalProperty<T = any>(propertyKey: string, defaultValue?: T): T {
+        if (this.hasInternalProperty(propertyKey)) return As<T>(this[this.propertyNameToInternalPropertyName(propertyKey)])
+        return As<T>(defaultValue)
+    }
+
+    /**
      * Set object property
      * @param propertyKey
      * @param value
@@ -294,25 +315,6 @@ export class BaseObject extends AsyncConstructor {
         } else {
             return (...args: any[]): void => ThrowIntoBlackHole(...args)
         }
-    }
-
-    /**
-     * Set internal property
-     * @param propertyKey
-     * @param value
-     */
-    public setInternalProperty(propertyKey: string, value: any): void {
-        this.setProperty(this.propertyNameToInternalPropertyName(propertyKey), value)
-    }
-
-    /**
-     * Get internal property
-     * @param propertyKey
-     * @param defaultValue
-     */
-    public getInternalProperty<T = any>(propertyKey: string, defaultValue?: T): T {
-        if (this.hasInternalProperty(propertyKey)) return As<T>(this[this.propertyNameToInternalPropertyName(propertyKey)])
-        return As<T>(defaultValue)
     }
 
     /**

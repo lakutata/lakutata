@@ -1,7 +1,7 @@
 import '../Lakutata'
 import {IConstructor} from '../interfaces/IConstructor'
 import {Process} from './base/Process'
-import * as v8 from 'v8'
+import v8 from 'v8'
 import {Application} from './Application'
 
 const reversed: string[] = process.argv.reverse()
