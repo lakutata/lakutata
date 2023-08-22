@@ -5,14 +5,20 @@ import {fork, ChildProcess} from 'child_process'
 import path from 'path'
 import Module from 'module'
 import {ModuleNotFoundException} from '../../exceptions/ModuleNotFoundException'
-import {IProcessWorkerEventPacket} from '../../interfaces/IProcessWorkerEventPacket'
 import v8 from 'v8'
 import {isAsyncFunction} from 'util/types'
-
-process.on('message', console.log)
+import {createServer, IncomingMessage, Server, ServerResponse} from 'http'
+import syncFetch from 'sync-fetch'
+import {GetPort} from '../../exports/Utilities'
+import {format as URLFormat, parse as URLParse, UrlObject} from 'url'
+import {parse as QueryParse, ParsedUrlQuery} from 'querystring'
 
 @Scoped(true)
 export class Process extends Component {
+
+    protected declare __$$worker: ChildProcess
+
+    protected declare __$$CServer: Server
 
     /**
      * 判断当前是否在主进程
@@ -25,8 +31,6 @@ export class Process extends Component {
      * @protected
      */
     protected readonly isWorker: boolean = !!process.env.isWorkerProcess
-
-    protected declare worker: ChildProcess
 
     @Configurable()
     public readonly concurrent: number = 1
@@ -46,9 +50,24 @@ export class Process extends Component {
                 const isAsyncMethod: boolean = isAsyncFunction(originMethod)
                 Object.defineProperty(this, publicMethod, {
                     get(): any {
+                        const workerUrlObject: UrlObject = {
+                            protocol: 'http',
+                            hostname: 'localhost',
+                            port: Reflect.getOwnMetadata(this.__$$worker, this.__$$worker)
+                        }
                         return isAsyncMethod ? async (...args: any[]) => {
+                            workerUrlObject.query = {
+                                method: publicMethod,
+                                args: v8.serialize(args).toString('base64')
+                            }
+                            //todo 使用异步请求
                         } : (...args: any[]) => {
-                            return 'gg'
+                            workerUrlObject.query = {
+                                method: publicMethod,
+                                args: v8.serialize(args).toString('base64')
+                            }
+                            const rawResponse: string = syncFetch(URLFormat(workerUrlObject)).text()
+                            return v8.deserialize(Buffer.from(rawResponse, 'base64'))
                         }
                     }
                 })
@@ -87,14 +106,24 @@ export class Process extends Component {
         const configurableProperties: string[] = await this.__getConfigurableProperties()
         const configs: Record<string, any> = {}
         configurableProperties.forEach((propertyKey: string) => configs[propertyKey] = this[propertyKey])
-        this.worker = fork(path.resolve(__dirname, '../ProcessContainer'), [
-            moduleId,
-            this.className,
-            v8.serialize(configs).toString('base64'),
-            this.__generateWorkerId().toString()
-        ], {
-            env: Object.assign({}, process.env, {isWorkerProcess: true}),
-            serialization: 'advanced'
+        const workerCommunicationPort: number = await GetPort()
+        await new Promise((resolve, reject) => {
+            this.__$$worker = fork(path.resolve(__dirname, '../ProcessContainer'), [
+                moduleId,
+                this.className,
+                v8.serialize(configs).toString('base64'),
+                this.__generateWorkerId().toString(),
+                workerCommunicationPort.toString()
+            ], {
+                env: Object.assign({}, process.env, {isWorkerProcess: true}),
+                serialization: 'advanced'
+            }).on('message', (args: any[]) => {
+                this.once('ready', resolve)
+                const eventName: string = args[0]
+                const eventArgs: any[] = args.slice(1)
+                this.emit(eventName, ...eventArgs)
+            }).on('error', reject)
+            Reflect.defineMetadata(this.__$$worker, workerCommunicationPort, this.__$$worker)
         })
     }
 
@@ -106,13 +135,22 @@ export class Process extends Component {
         if (this.isPrimary) {
             await this.__setupWorker()
         } else {
-            //子进程该做的事情
-            console.log(this.concurrent)
+            await new Promise<void>((resolve, reject) => {
+                try {
+                    const workerCommunicationPortStr: string = process.argv[0]
+                    this.__$$CServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+                        const parsedQuery: ParsedUrlQuery = QueryParse(URLParse(req.url!).query!)
+                        const method: string = <string>(parsedQuery.method)
+                        const args: any[] = v8.deserialize(Buffer.from(<string>(parsedQuery.args), 'base64'))
+                        const returnValue: any = await this[method](...args)
+                        res.write(v8.serialize(returnValue).toString('base64'))
+                        res.end()
+                    }).listen(parseInt(workerCommunicationPortStr), 'localhost', resolve)
+                } catch (e) {
+                    return reject(e)
+                }
+            })
         }
-    }
-
-    protected __emitWorkerEvent(worker: ChildProcess, eventPacket: IProcessWorkerEventPacket) {
-
     }
 
     protected async __destroy(): Promise<void> {

@@ -12,6 +12,19 @@ import {isPromise as isBuiltinPromises} from 'util/types'
 import {Readable as ReadableStream, ReadableOptions, Stream} from 'stream'
 import {PathLike} from 'fs'
 import SortKeys from '../lib/SortKeys'
+import pickFreePort from '../lib/PickFreePort'
+
+/**
+ * 选择一个没有被使用的网络端口
+ * @param options
+ * @constructor
+ */
+export async function GetPort(options?: {
+    port?: number | number[];
+    exclude?: Iterable<number>;
+}): Promise<number> {
+    return await pickFreePort(options)
+}
 
 /**
  * 判断两个传入的值是否相等
