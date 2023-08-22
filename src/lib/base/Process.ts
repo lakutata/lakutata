@@ -46,7 +46,8 @@ export class Process extends Component {
                 const isAsyncMethod: boolean = isAsyncFunction(originMethod)
                 Object.defineProperty(this, publicMethod, {
                     get(): any {
-                        return () => {
+                        return isAsyncMethod ? async (...args: any[]) => {
+                        } : (...args: any[]) => {
                             return 'gg'
                         }
                     }

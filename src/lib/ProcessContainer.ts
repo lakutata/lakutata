@@ -22,4 +22,6 @@ Application.run({
         }
     },
     bootstrap: ['proc']
+}).catch(e => {
+    //todo
 })
