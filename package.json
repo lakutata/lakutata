@@ -58,6 +58,7 @@
     "joi": "^17.9.2",
     "memfs": "^4.2.1",
     "moment-timezone": "^0.5.43",
+    "node-fetch": "^2.6.13",
     "object-hash": "^3.0.0",
     "patrun": "^7.2.5",
     "pino": "^8.15.0",

@@ -9,6 +9,7 @@ import v8 from 'v8'
 import {isAsyncFunction} from 'util/types'
 import {createServer, IncomingMessage, Server, ServerResponse} from 'http'
 import syncFetch from 'sync-fetch'
+import asyncFetch from 'node-fetch'
 import {GetPort} from '../../exports/Utilities'
 import {format as URLFormat, parse as URLParse, UrlObject} from 'url'
 import {parse as QueryParse, ParsedUrlQuery} from 'querystring'
@@ -55,13 +56,14 @@ export class Process extends Component {
                             hostname: 'localhost',
                             port: Reflect.getOwnMetadata(this.__$$worker, this.__$$worker)
                         }
-                        return isAsyncMethod ? async (...args: any[]) => {
+                        return isAsyncMethod ? async (...args: any[]): Promise<any> => {
                             workerUrlObject.query = {
                                 method: publicMethod,
                                 args: v8.serialize(args).toString('base64')
                             }
-                            //todo 使用异步请求
-                        } : (...args: any[]) => {
+                            const rawResponse: string = await (await asyncFetch(URLFormat(workerUrlObject))).text()
+                            return v8.deserialize(Buffer.from(rawResponse, 'base64'))
+                        } : (...args: any[]): any => {
                             workerUrlObject.query = {
                                 method: publicMethod,
                                 args: v8.serialize(args).toString('base64')
