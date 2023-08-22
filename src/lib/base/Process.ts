@@ -34,7 +34,7 @@ export class Process extends Component {
         AppendAsyncConstructor(this, async (): Promise<void> => {
             if (!this.isWorker()) {
                 const publicMethods: string[] = Object.getOwnPropertyNames(this.constructor.prototype).filter((name: string) => typeof this.constructor.prototype[name] === 'function' && name !== 'constructor')
-                publicMethods.forEach((publicMethod: string) => {
+                publicMethods.forEach((publicMethod: string): void => {
                     const originMethod: Function = this[publicMethod]
                     const isAsyncMethod: boolean = isAsyncFunction(originMethod)
                     Object.defineProperty(this, publicMethod, {
@@ -67,8 +67,16 @@ export class Process extends Component {
                         && !(typeof this[propertyName] === 'function')
                         && !(this[propertyName] instanceof BaseObject)
                 })
-                properties.forEach((property: string) => {
-                    console.log(property, Object.getOwnPropertyDescriptor(this, property))
+                properties.forEach((propertyKey: string): void => {
+                    const originDescriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(this, propertyKey)
+                    Object.defineProperty(this, propertyKey, {
+                        get(): any {
+                            //todo
+                        },
+                        set(v: any) {
+                            //todo
+                        }
+                    })
                 })
             }
         })
