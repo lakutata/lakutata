@@ -33,12 +33,12 @@ Application.run({
         }
     },
     entries: {
-        proc: {
+        [ProcessClassConstructor.name]: {
             class: ProcessClassConstructor,
             ...configurableProperties
         }
     },
-    bootstrap: ['proc']
+    bootstrap: [ProcessClassConstructor.name]
 })
     .then(() => process.send!(['ready']))
     .catch(e => process.send!(['error', e]))
