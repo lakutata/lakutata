@@ -1,7 +1,6 @@
 import 'reflect-metadata'
 import path from 'path'
 import {Alias} from './lib/Alias'
-import Module from 'module'
 
 declare const require: NodeRequire
 
@@ -35,26 +34,6 @@ process.env.ENTRYPOINT_DIR = process.env.ENTRYPOINT_DIR ? process.env.ENTRYPOINT
 //获取程序执行入口文件所在目录失败则报错
 if (!process.env.ENTRYPOINT_DIR) throw new Error('Failed to retrieve the directory of the program\'s execution entry file.')
 Alias.init()
-
-// // @ts-ignore
-// const oldResolveFilename = Module._resolveFilename
-// // @ts-ignore
-// Module._resolveFilename = function (request, parentModule, isMain, options) {
-//     const fromPath = parentModule.filename
-//     // console.log(fromPath, request, path.resolve(path.dirname(fromPath),request))
-//     // console.log(path.resolve(path.dirname(fromPath),request),path.isAbsolute(request))
-//     // console.log(request, parentModule)
-//     return oldResolveFilename.call(this, request, parentModule, isMain, options)
-// }
-//
-// // @ts-ignore
-// const oldLoad = Module._load
-//
-// // @ts-ignore
-// Module._load = function (...args: any[]) {
-//     console.log(this.toString())
-//     return oldLoad.call(this, ...args)
-// }
 
 //导出库内容
 export * from './exports/Core'
