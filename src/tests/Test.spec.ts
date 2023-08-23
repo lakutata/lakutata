@@ -103,7 +103,8 @@ import {TestProcess} from './processes/TestProcess'
                 const logger = await app.get<Logger>('log')
                 logger.trace('more on this: %s', process.env.NODE_ENV)
                 const testProc = await app.get<TestProcess>('testProc')
-                console.log('testProc.sayHi():', await testProc.sayHi(),testProc.nothing())
+                testProc.testProp = '666666'
+                console.log('testProc.sayHi():', await testProc.sayHi(), testProc.testProp)
             }
         ]
     })

@@ -1,7 +1,7 @@
 import {Component} from './Component'
 import {InjectionProperties} from '../../types/InjectionProperties'
 import {Configurable, Scoped} from '../../decorators/DependencyInjectionDecorators'
-import {fork, ChildProcess} from 'child_process'
+import {ChildProcess, fork} from 'child_process'
 import path from 'path'
 import Module from 'module'
 import {ModuleNotFoundException} from '../../exceptions/ModuleNotFoundException'
@@ -11,8 +11,8 @@ import {createServer, IncomingMessage, Server, ServerResponse} from 'http'
 import syncFetch from 'sync-fetch'
 import asyncFetch from 'node-fetch'
 import {As, GetPort} from '../../exports/Utilities'
-import {format as URLFormat, parse as URLParse, UrlObject} from 'url'
-import {parse as QueryParse, ParsedUrlQuery} from 'querystring'
+import {format as URLFormat, parse as URLParse, UrlObject, UrlWithParsedQuery} from 'url'
+import {ParsedUrlQuery} from 'querystring'
 import {AppendAsyncConstructor} from './async-constructor/Append'
 import {BaseObject} from './BaseObject'
 
@@ -21,8 +21,6 @@ export class Process extends Component {
 
     @Configurable()
     public readonly concurrent: number
-
-    protected testProp: string
 
     /**
      * Constructor
@@ -38,10 +36,11 @@ export class Process extends Component {
                     const originMethod: Function = this[publicMethod]
                     const isAsyncMethod: boolean = isAsyncFunction(originMethod)
                     Object.defineProperty(this, publicMethod, {
-                        get(): any {
+                        get: (): any => {
                             const workerUrlObject: UrlObject = {
                                 protocol: 'http',
                                 hostname: 'localhost',
+                                pathname: '/call',
                                 port: this.getInternalProperty('workerCommunicationPort')
                             }
                             return isAsyncMethod ? async (...args: any[]): Promise<any> => {
@@ -69,12 +68,39 @@ export class Process extends Component {
                 })
                 properties.forEach((propertyKey: string): void => {
                     const originDescriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(this, propertyKey)
+                    this.setInternalProperty(`__${propertyKey}`, originDescriptor?.value)
                     Object.defineProperty(this, propertyKey, {
-                        get(): any {
-                            //todo
+                        get: (): any => {
+                            const getWorkerPropertyValueUrlObject: UrlObject = {
+                                protocol: 'http',
+                                hostname: 'localhost',
+                                pathname: '/prop',
+                                port: this.getInternalProperty('workerCommunicationPort'),
+                                query: {
+                                    key: propertyKey,
+                                    type: 'get'
+                                }
+                            }
+                            //从worker处取值
+                            const propertyValue: any = v8.deserialize(Buffer.from(syncFetch(URLFormat(getWorkerPropertyValueUrlObject)).text(), 'base64'))
+                            this.setInternalProperty(`__${propertyKey}`, propertyValue)
+                            return this.getInternalProperty(`__${propertyKey}`, undefined)
                         },
-                        set(v: any) {
-                            //todo
+                        set: (value: any): void => {
+                            const setWorkerPropertyValueUrlObject: UrlObject = {
+                                protocol: 'http',
+                                hostname: 'localhost',
+                                pathname: '/prop',
+                                port: this.getInternalProperty('workerCommunicationPort'),
+                                query: {
+                                    key: propertyKey,
+                                    type: 'set',
+                                    value: v8.serialize(value).toString('base64')
+                                }
+                            }
+                            this.setInternalProperty(`__${propertyKey}`, value)
+                            //同步至worker
+                            syncFetch(URLFormat(setWorkerPropertyValueUrlObject))
                         }
                     })
                 })
@@ -151,11 +177,32 @@ export class Process extends Component {
             try {
                 const workerCommunicationPortStr: string = process.argv[0]
                 this.setInternalProperty('CServer', createServer(async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
-                    const parsedQuery: ParsedUrlQuery = QueryParse(URLParse(req.url!).query!)
-                    const method: string = <string>(parsedQuery.method)
-                    const args: any[] = v8.deserialize(Buffer.from(<string>(parsedQuery.args), 'base64'))
-                    const returnValue: any = await this[method](...args)
-                    res.write(v8.serialize(returnValue).toString('base64'))
+                    const parsedURL: UrlWithParsedQuery = URLParse(req.url!, true)
+                    const parsedQuery: ParsedUrlQuery = parsedURL.query
+                    switch (parsedURL.pathname) {
+                        case '/call': {
+                            const method: string = <string>(parsedQuery.method)
+                            const args: any[] = v8.deserialize(Buffer.from(<string>(parsedQuery.args), 'base64'))
+                            const returnValue: any = await this[method](...args)
+                            res.write(v8.serialize(returnValue).toString('base64'))
+                        }
+                            break
+                        case '/prop': {
+                            const propertyKey: string = <string>(parsedQuery.key)
+                            if (parsedQuery.type === 'set') {
+                                this[propertyKey] = v8.deserialize(Buffer.from(<string>(parsedQuery.value), 'base64'))
+                                res.write(v8.serialize(undefined).toString('base64'))
+                            } else if (parsedQuery.type === 'get') {
+                                res.write(v8.serialize(this[propertyKey]).toString('base64'))
+                            } else {
+                                res.write(v8.serialize(undefined).toString('base64'))
+                            }
+                        }
+                            break
+                        default: {
+                            res.write(v8.serialize(undefined).toString('base64'))
+                        }
+                    }
                     res.end()
                 }).listen(parseInt(workerCommunicationPortStr), 'localhost', resolve))
             } catch (e) {
