@@ -10,7 +10,7 @@ import {isAsyncFunction} from 'util/types'
 import {createServer, IncomingMessage, Server, ServerResponse} from 'http'
 import syncFetch from 'sync-fetch'
 import asyncFetch from 'node-fetch'
-import {As, GetPort} from '../../exports/Utilities'
+import {GetPort, RandomString} from '../../exports/Utilities'
 import {format as URLFormat, parse as URLParse, UrlObject, UrlWithParsedQuery} from 'url'
 import {ParsedUrlQuery} from 'querystring'
 import {AppendAsyncConstructor} from './async-constructor/Append'
@@ -150,6 +150,7 @@ export class Process extends Component {
         const configs: Record<string, any> = {}
         configurableProperties.forEach((propertyKey: string) => configs[propertyKey] = this[propertyKey])
         const workerCommunicationPort: number = await GetPort()
+        const loggerEvent: string = `__$$${RandomString(16)}_`
         await new Promise((resolve, reject) => {
             this.once('ready', resolve)
             const worker: ChildProcess = fork(path.resolve(__dirname, '../ProcessContainer'), [
@@ -157,14 +158,22 @@ export class Process extends Component {
                 this.className,
                 v8.serialize(configs).toString('base64'),
                 this.__generateWorkerId().toString(),
+                loggerEvent,
                 workerCommunicationPort.toString()
             ], {
                 env: Object.assign({}, process.env, {isWorkerProcess: true}),
                 serialization: 'advanced'
-            }).on('message', (args: any[]) => {
+            }).on('message', (args: any[]): void => {
                 const eventName: string = args[0]
                 const eventArgs: any[] = args.slice(1)
-                this.getInternalProperty<EventEmitter>('eventEmitter').emit(eventName, ...eventArgs)
+                //处理日志事件
+                if (eventName === loggerEvent) {
+                    const loggerMethod: string = eventArgs[0]
+                    const loggerArgs: any[] = eventArgs.slice(1)
+                    this.log[loggerMethod](...loggerArgs)
+                } else {
+                    this.getInternalProperty<EventEmitter>('eventEmitter').emit(eventName, ...eventArgs)
+                }
             }).on('error', reject)
             this.emit = (eventName: string | symbol, ...args: any[]): boolean => worker.send([eventName, ...args])
             this.setInternalProperty('worker', worker)
@@ -214,6 +223,7 @@ export class Process extends Component {
                     const eventEmitterSendResult: boolean = this.getInternalProperty<EventEmitter>('eventEmitter').emit(eventName, ...args)
                     return processSendResult && eventEmitterSendResult
                 }
+                //处理父进程传入的事件
                 process.on('message', (args: any[]): void => {
                     const eventName: string = args[0]
                     const eventArgs: any[] = args.slice(1)
@@ -239,8 +249,11 @@ export class Process extends Component {
      * @protected
      */
     protected async __destroy(): Promise<void> {
-        if (this.hasInternalProperty('CServer')) await new Promise<void>(resolve => As<Server>(this.getInternalProperty('CServer')).close(() => resolve()))
-        if (this.hasInternalProperty('worker')) As<ChildProcess>(this.getInternalProperty('worker')).kill()
+        if (this.hasInternalProperty('CServer')) await new Promise<void>(resolve => this.getInternalProperty<Server>('CServer').close(() => resolve()))
+        if (this.hasInternalProperty('worker')) {
+            this.getInternalProperty<ChildProcess>('worker').removeAllListeners()
+            this.getInternalProperty<ChildProcess>('worker').kill()
+        }
         return super.__destroy()
     }
 }

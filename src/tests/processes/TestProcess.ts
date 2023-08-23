@@ -17,6 +17,7 @@ export class TestProcess extends Process {
         this.on('test', console.log)
         setInterval(() => {
             // this.emit('test', {text: 'hello', ts: Time.now(), isWorker: this.isWorker()})
+            this.log.info('this is child process log from %s',this.className)
         }, 1000)
     }
 }
