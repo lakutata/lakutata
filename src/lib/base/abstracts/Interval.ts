@@ -5,6 +5,14 @@ import {Configurable} from '../../../decorators/DependencyInjectionDecorators'
 import {Validator} from '../../../exports/Validator'
 
 /**
+ * 执行模式枚举
+ */
+export enum IntervalMode {
+    SEQ = 'SEQ',
+    TIME = 'TIME'
+}
+
+/**
  * 定时器抽象类
  */
 export abstract class Interval extends BaseObject {
@@ -31,8 +39,8 @@ export abstract class Interval extends BaseObject {
      * SEQ 当一次执行结束后等待指定时间间隔后才会进行下一次执行
      * TIME 在指定的时间间隔后不管当前执行是否结束均进行下一次执行
      */
-    @Configurable({accept: Validator.String().valid('SEQ', 'TIME')})
-    public mode: 'SEQ' | 'TIME' = 'SEQ'
+    @Configurable({accept: Validator.String().valid(IntervalMode.SEQ, IntervalMode.TIME)})
+    public mode: IntervalMode = IntervalMode.SEQ
 
     /**
      * 执行时间间隔
@@ -71,7 +79,7 @@ export abstract class Interval extends BaseObject {
      * @protected
      */
     protected async runExecutor(): Promise<void> {
-        if (this.mode === 'SEQ' && !!this._$executing) return
+        if (this.mode === IntervalMode.SEQ && !!this._$executing) return
         this._$executing += 1
         await this.executor()
         this._$executing -= 1

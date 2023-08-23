@@ -36,7 +36,7 @@ export {Module} from '../lib/base/Module'
 export {Process} from '../lib/base/Process'
 export {Container} from '../lib/base/Container'
 export {Exception} from '../lib/base/abstracts/Exception'
-export {Interval} from '../lib/base/abstracts/Interval'
+export * from '../lib/base/abstracts/Interval'
 export {SymmetricEncryption} from '../lib/base/abstracts/SymmetricEncryption'
 export {AsymmetricEncryption} from '../lib/base/abstracts/AsymmetricEncryption'
 
