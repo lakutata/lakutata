@@ -1,6 +1,10 @@
 import 'reflect-metadata'
 
-export {InvalidMethodAcceptException} from '../exceptions/validation/InvalidMethodAcceptException'
+export {AliasExistsException} from '../exceptions/alias/AliasExistsException'
+export {AliasNotFoundException} from '../exceptions/alias/AliasNotFoundException'
+export {InvalidAliasNameException} from '../exceptions/alias/InvalidAliasNameException'
+
+
 export {
     DuplicateControllerActionPatternException
 } from '../exceptions/controller/DuplicateControllerActionPatternException'
@@ -10,6 +14,7 @@ export {
 export {
     NoMatchedControllerActionPatternException
 } from '../exceptions/controller/NoMatchedControllerActionPatternException'
+
 export {AsymmetricDecryptException} from '../exceptions/crypto/asymmetric/AsymmetricDecryptException'
 export {AsymmetricEncryptException} from '../exceptions/crypto/asymmetric/AsymmetricEncryptException'
 export {AsymmetricSignException} from '../exceptions/crypto/asymmetric/AsymmetricSignException'
@@ -29,6 +34,7 @@ export {
 export {
     NoAsymmetricEncryptPublicKeyException
 } from '../exceptions/crypto/asymmetric/NoAsymmetricEncryptPublicKeyException'
+
 export {
     InvalidSymmetricCipherIVLengthException
 } from '../exceptions/crypto/symmetric/InvalidSymmetricCipherIVLengthException'
@@ -38,29 +44,15 @@ export {
 export {NotSupportCipherException} from '../exceptions/crypto/symmetric/NotSupportCipherException'
 export {SymmetricDecryptException} from '../exceptions/crypto/symmetric/SymmetricDecryptException'
 export {SymmetricEncryptException} from '../exceptions/crypto/symmetric/SymmetricEncryptException'
+
+export {InvalidMethodAcceptException} from '../exceptions/validation/InvalidMethodAcceptException'
 export {InvalidMethodReturnException} from '../exceptions/validation/InvalidMethodReturnException'
 export {InvalidValueException} from '../exceptions/validation/InvalidValueException'
+
 export {DependencyInjectionException} from '../exceptions/DependencyInjectionException'
 export {InvalidConfigurableValueException} from '../exceptions/InvalidConfigurableValueException'
 export {InvalidDTOValueException} from '../exceptions/InvalidDTOValueException'
 export {InvalidGlobStringException} from '../exceptions/InvalidGlobStringException'
 export {MethodNotFoundException} from '../exceptions/MethodNotFoundException'
+export {ModuleNotFoundException} from '../exceptions/ModuleNotFoundException'
 export {NotSupportHashException} from '../exceptions/NotSupportHashException'
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
