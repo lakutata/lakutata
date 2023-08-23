@@ -1,6 +1,6 @@
 import {Component} from './Component'
 import {InjectionProperties} from '../../types/InjectionProperties'
-import {Configurable, Scoped} from '../../decorators/DependencyInjectionDecorators'
+import {Scoped} from '../../decorators/DependencyInjectionDecorators'
 import {ChildProcess, fork} from 'child_process'
 import path from 'path'
 import Module from 'module'
