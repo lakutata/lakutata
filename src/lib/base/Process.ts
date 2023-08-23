@@ -195,7 +195,7 @@ export class Process extends Component {
                         }
                     }
                 })
-                .on('exit', (code, signal) => {
+                .on('exit', () => {
                     if (this.getInternalProperty('daemonizeWorker', false)) {
                         //子进程退出，重启子进程
                         this.__setupWorkerProcess()
