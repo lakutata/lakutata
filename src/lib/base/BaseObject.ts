@@ -176,7 +176,7 @@ export class BaseObject extends AsyncConstructor {
             }
             delete this['then']//确保在子类中不会获取到“then”的属性
             await this.__init()
-            await this.init()
+            if (!this.getInternalProperty('preventDefaultInit')) await this.init()
             Reflect.defineMetadata(OBJECT_INIT_MARK, true, this)
         })
         this.setInternalProperty('type', 'BaseObject')

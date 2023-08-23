@@ -103,6 +103,11 @@ import {TestProcess} from './processes/TestProcess'
                 const logger = await app.get<Logger>('log')
                 logger.trace('more on this: %s', process.env.NODE_ENV)
                 const testProc = await app.get<TestProcess>('testProc')
+                testProc.on('test', (...args) => {
+                    console.log('test event:', ...args)
+                })
+                testProc.emit('test', 'a', 'b', 1, 2, 3, 4, 5, 6)
+                console.log('testProc.emitted')
                 testProc.testProp = '666666'
                 console.log('testProc.sayHi():', await testProc.sayHi(), testProc.testProp)
             }

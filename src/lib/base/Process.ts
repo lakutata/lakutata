@@ -15,6 +15,7 @@ import {format as URLFormat, parse as URLParse, UrlObject, UrlWithParsedQuery} f
 import {ParsedUrlQuery} from 'querystring'
 import {AppendAsyncConstructor} from './async-constructor/Append'
 import {BaseObject} from './BaseObject'
+import {EventEmitter} from 'events'
 
 @Scoped(true)
 export class Process extends Component {
@@ -143,13 +144,15 @@ export class Process extends Component {
      * @protected
      */
     protected async __setupWorkerProcess(): Promise<void> {
+        this.setInternalProperty('preventDefaultInit', true)//在主进程内不执行init()初始化方法
         const moduleId: string = this.__resolveSelfModuleId()
         const configurableProperties: string[] = await this.__getConfigurableProperties()
         const configs: Record<string, any> = {}
         configurableProperties.forEach((propertyKey: string) => configs[propertyKey] = this[propertyKey])
         const workerCommunicationPort: number = await GetPort()
         await new Promise((resolve, reject) => {
-            this.setInternalProperty('worker', fork(path.resolve(__dirname, '../ProcessContainer'), [
+            this.once('ready', resolve)
+            const worker: ChildProcess = fork(path.resolve(__dirname, '../ProcessContainer'), [
                 moduleId,
                 this.className,
                 v8.serialize(configs).toString('base64'),
@@ -159,11 +162,12 @@ export class Process extends Component {
                 env: Object.assign({}, process.env, {isWorkerProcess: true}),
                 serialization: 'advanced'
             }).on('message', (args: any[]) => {
-                this.once('ready', resolve)
                 const eventName: string = args[0]
                 const eventArgs: any[] = args.slice(1)
-                this.emit(eventName, ...eventArgs)
-            }).on('error', reject))
+                this.getInternalProperty<EventEmitter>('eventEmitter').emit(eventName, ...eventArgs)
+            }).on('error', reject)
+            this.emit = (eventName: string | symbol, ...args: any[]): boolean => worker.send([eventName, ...args])
+            this.setInternalProperty('worker', worker)
             this.setInternalProperty('workerCommunicationPort', workerCommunicationPort)
         })
     }
@@ -205,11 +209,29 @@ export class Process extends Component {
                     }
                     res.end()
                 }).listen(parseInt(workerCommunicationPortStr), 'localhost', resolve))
+                this.emit = (eventName: string | symbol, ...args: any[]): boolean => {
+                    const processSendResult: boolean = process.send!([eventName, ...args])
+                    const eventEmitterSendResult: boolean = this.getInternalProperty<EventEmitter>('eventEmitter').emit(eventName, ...args)
+                    return processSendResult && eventEmitterSendResult
+                }
+                process.on('message', (args: any[]): void => {
+                    const eventName: string = args[0]
+                    const eventArgs: any[] = args.slice(1)
+                    this.emit(eventName, ...eventArgs)
+                })
             } catch (e) {
                 return reject(e)
             }
         })
     }
+
+    // public emit(eventName: string | symbol, ...args: any[]): boolean {
+    //     if (this.isWorker()) {
+    //         return process.send!([eventName, ...args]) || super.emit(eventName, ...args)
+    //     } else {
+    //         return (<ChildProcess>(this.getInternalProperty('worker'))).send([eventName, ...args])
+    //     }
+    // }
 
     /**
      * 内部初始化函数
