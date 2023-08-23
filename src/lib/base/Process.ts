@@ -21,9 +21,6 @@ import {ChildProcessUnavailableException} from '../../exceptions/ChildProcessUna
 @Scoped(true)
 export class Process extends Component {
 
-    @Configurable()
-    public readonly concurrent: number
-
     /**
      * Constructor
      * @param properties

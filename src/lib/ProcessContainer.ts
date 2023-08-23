@@ -14,9 +14,11 @@ const className: string = reversed[4]
 const moduleFilename: string = reversed[5]
 const configurableProperties: Record<string, any> = v8.deserialize(Buffer.from(base64Configs, 'base64'))
 const ProcessClassConstructor: IConstructor<Process> = require(moduleFilename)[className]
-process.on('uncaughtException', error => process.send!(['__$psError', error]))
+process
+    .on('uncaughtException', (error: Error) => process.send!(['__$psError', error]))
+    .on('disconnect', () => process.exit())
 const subProcessLoggerProviderProxy: ILogger = new Proxy(<ILogger>{}, {
-    get: (target: ILogger, p: string, receiver: any): any => {
+    get: (t: ILogger, p: string, r: any): any => {
         return (...args: any[]): void => {
             process.send!([loggerEvent, p, ...args])
         }
