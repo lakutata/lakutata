@@ -10,7 +10,7 @@ import {isAsyncFunction} from 'util/types'
 import {createServer, IncomingMessage, Server, ServerResponse} from 'http'
 import syncFetch from 'sync-fetch'
 import asyncFetch from 'node-fetch'
-import {GetPort, RandomString, ThrowIntoBlackHole} from '../../exports/Utilities'
+import {DevNull, GetPort, RandomString} from '../../exports/Utilities'
 import {format as URLFormat, parse as URLParse, UrlObject, UrlWithParsedQuery} from 'url'
 import {ParsedUrlQuery} from 'querystring'
 import {AppendAsyncConstructor} from './async-constructor/Append'
@@ -114,7 +114,7 @@ export class Process extends Component {
                                 //同步至worker
                                 syncFetch(URLFormat(setWorkerPropertyValueUrlObject))
                             } catch (e) {
-                                ThrowIntoBlackHole(e)
+                                DevNull(e)
                             }
                         }
                     })

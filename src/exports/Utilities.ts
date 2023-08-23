@@ -121,6 +121,14 @@ export async function Delay(ms: number = 1000): Promise<void> {
  * 传递进来的参数不会有任何作用
  * @constructor
  */
+export function DevNull(...args: any[]): void {
+    return ThrowIntoBlackHole(...args)
+}
+
+/**
+ * 传递进来的参数不会有任何作用
+ * @constructor
+ */
 export function ThrowIntoBlackHole(...args: any[]): void {
     /**
      * 仅接受参数，但不对参数做任何处理
