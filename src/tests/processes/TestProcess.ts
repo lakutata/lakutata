@@ -17,6 +17,11 @@ export class TestProcess extends Process {
         this.on('test', console.log)
         setTimeout(() => {
             //nothing
+            // //测试OOM的情况
+            // const arr: any[] = []
+            // while (true) {
+            //     arr.push(Buffer.alloc(1024 * 1024)) // 每次推送 1MB 的缓冲区
+            // }
         }, 3000)
         setInterval(() => {
             // this.emit('test', {text: 'hello', ts: Time.now(), isWorker: this.isWorker()})

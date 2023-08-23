@@ -161,6 +161,7 @@ export class Process extends Component {
      * @protected
      */
     protected async __setupWorkerProcess(): Promise<void> {
+        this.getInternalProperty<ChildProcess | undefined>('worker')?.kill('SIGKILL')//避免上一个进程未关闭，发送强制关闭信号
         this.setInternalProperty('preventDefaultInit', true)//在主进程内不执行init()初始化方法
         const moduleId: string = this.__resolveSelfModuleId()
         const configurableProperties: string[] = await this.__getConfigurableProperties()
