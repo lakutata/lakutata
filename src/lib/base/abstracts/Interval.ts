@@ -35,6 +35,16 @@ export abstract class Interval extends BaseObject {
     protected _$paused: boolean = false
 
     /**
+     * Constructor
+     * @param properties
+     */
+    constructor(properties: Record<string, any> = {}) {
+        super(properties)
+        this.setInternalProperty('type', 'Interval')
+        return this
+    }
+
+    /**
      * 执行模式
      * SEQ 当一次执行结束后等待指定时间间隔后才会进行下一次执行
      * TIME 在指定的时间间隔后不管当前执行是否结束均进行下一次执行

@@ -44,7 +44,7 @@ import {TestProcess} from './processes/TestProcess'
             testObject: {class: TestObject, username: 'tester'},
             testInterval: {
                 class: TestInterval,
-                interval: 10000,
+                interval: 100,
                 mode: 'SEQ'
             }
             // '/Users/alex/WebstormProjects/core/src/tests/mds/**/*': {
@@ -73,7 +73,7 @@ import {TestProcess} from './processes/TestProcess'
             'testProc',
             'tm',
             'tm1',
-            'testInterval',
+            // 'testInterval',
             MDSTest1,
             async (app: Application) => {
                 // fork(path.resolve('@app', 'TestProc'))
@@ -94,11 +94,14 @@ import {TestProcess} from './processes/TestProcess'
                 await app.set('mmm', {class: MDSTest1, tester: 'this is tester'})
                 await app.set('testModel', {class: TestModel, greet: 'hello model'})
                 const subScope = app.createScope()
+                await subScope.get('testInterval')
                 const testModel = (await subScope.get<TestModel>('testModel'))
                 testModel.on('property-changed', console.log)
                 console.log('testModel.greet:', testModel.greet)
                 testModel.aa = '6666668888888'
-                await subScope.destroy()
+                setTimeout(async () => {
+                    await subScope.destroy()
+                }, 5000)
                 console.log(await app.invoke({a: 1, b: 2}, {testBoolean: true}))
                 const logger = await app.get<Logger>('log')
                 logger.trace('more on this: %s', process.env.NODE_ENV)

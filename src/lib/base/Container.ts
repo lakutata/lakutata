@@ -49,11 +49,32 @@ export class Container<T extends Module = Module> {
 
     protected readonly __$controllerActionMap: Map<string, ControllerActionMapItem> = new Map()
 
+    protected __$transientWeakRefs: WeakRef<any>[] = []
+
     constructor(module?: T, parent?: Container) {
         this.__$$module = module
         this.__$$parent = parent
         this.__$$dic = createContainer({injectionMode: 'PROXY'}, this.__$$parent?.__$$dic)
+        Object.defineProperty(this.__$$dic, 'newTransient', {
+            set: (resolvedWeakRef: WeakRef<any>): void => {
+                this.__$transientWeakRefs.push(resolvedWeakRef)
+                this.updateTransientWeakRefs()
+            }
+        })
         if (this.__$$module) this.registerModule(this.__$$module)
+    }
+
+    /**
+     * 更新瞬态对象的弱引用列表
+     * @protected
+     */
+    protected updateTransientWeakRefs(): void {
+        const __$transientWeakRefs: WeakRef<any>[] = []
+        for (const ref of this.__$transientWeakRefs) {
+            const transient = ref.deref()
+            if (transient !== undefined) __$transientWeakRefs.push(new WeakRef(transient))
+        }
+        this.__$transientWeakRefs = __$transientWeakRefs
     }
 
     /**
@@ -64,6 +85,7 @@ export class Container<T extends Module = Module> {
         const parentAdditionalProperties: Record<string, any> | undefined = this.__$$parent?.additionalPropertiesInjector()
         const additionalProperties: Record<string, any> = parentAdditionalProperties ? parentAdditionalProperties : {}
         this.__$$additionalPropertyMap.forEach((value, key) => additionalProperties[key] = value)
+        this.updateTransientWeakRefs()
         return additionalProperties
     }
 
@@ -75,6 +97,7 @@ export class Container<T extends Module = Module> {
     protected async disposer<T extends BaseObject>(instance: T): Promise<void> {
         await instance.getMethod('__destroy', false)()
         await instance.getMethod('destroy', false)()
+        this.updateTransientWeakRefs()
     }
 
     /**
@@ -97,6 +120,7 @@ export class Container<T extends Module = Module> {
      * @protected
      */
     protected isControllerConstructor(constructor: IConstructor<any>): boolean {
+        this.updateTransientWeakRefs()
         return Reflect.hasMetadata(CONTROLLER_CONSTRUCTOR_MARK, constructor)
     }
 
@@ -134,6 +158,7 @@ export class Container<T extends Module = Module> {
                 }
             }
         }
+        this.updateTransientWeakRefs()
     }
 
     /**
@@ -168,6 +193,7 @@ export class Container<T extends Module = Module> {
                 injector: () => this.additionalPropertiesInjector()
             })
         })
+        this.updateTransientWeakRefs()
         return pairs
     }
 
@@ -182,6 +208,7 @@ export class Container<T extends Module = Module> {
         if (this.isControllerConstructor(constructor) && this.__$$module) this.registerControllerToModule(constructor)
         if (!config) return
         Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT, config, constructor, name)
+        this.updateTransientWeakRefs()
     }
 
     /**
@@ -200,6 +227,7 @@ export class Container<T extends Module = Module> {
             Reflect.defineMetadata(DI_CONTAINER_SPECIAL_INJECT_APP_GETTER, true, _$$moduleGetter)
             this.__$$additionalPropertyMap.set(Reflect.getMetadata(DI_CONTAINER_SPECIAL_INJECT_APP_GETTER_KEY, BaseObject), _$$moduleGetter)
         }
+        this.updateTransientWeakRefs()
     }
 
     /**
@@ -231,6 +259,7 @@ export class Container<T extends Module = Module> {
             }))
         }
         (await Promise.all(loadPairPromises)).forEach((pair: NameAndRegistrationPair<any>) => this.__$$dic.register(pair))
+        this.updateTransientWeakRefs()
     }
 
     /**
@@ -250,6 +279,7 @@ export class Container<T extends Module = Module> {
         const resolved: T | Promise<T> = this.__$$dic.resolve(name)
         //在取得实例时进行实例上的元数据注入，将附加的可配置项注入至对象中，在该阶段，对象根据可配置对象进行自身的配置过程尚未开始
         if (typeof resolved === 'object' || typeof resolved === 'function') Reflect.defineMetadata(DI_TARGET_INSTANCE_CONFIGURABLE_OBJECT, configurableParams ? configurableParams : {}, resolved)
+        this.updateTransientWeakRefs()
         return IsPromise(resolved) ? await resolved : resolved
     }
 
@@ -282,6 +312,7 @@ export class Container<T extends Module = Module> {
                 className: As<IConstructor<T>>(loadOptions.class).name
             })
         await this.load(loadOptions)
+        this.updateTransientWeakRefs()
         return name
     }
 
@@ -298,6 +329,7 @@ export class Container<T extends Module = Module> {
      */
     public async createObject<T extends BaseObject>(constructor: IConstructor<T>, config?: Record<string, any>): Promise<T>
     public async createObject<T extends BaseObject>(inp: string | IConstructor<T>, b?: LoadEntryClassOptions<T> | Record<string, any>): Promise<T> {
+        this.updateTransientWeakRefs()
         return await this.get<T>(await this.set(As<any>(inp), b))
     }
 
@@ -306,6 +338,7 @@ export class Container<T extends Module = Module> {
      * @param module
      */
     public createScope(module?: Module): Container {
+        this.updateTransientWeakRefs()
         return new Container(module ? module : this.__$$module, this)
     }
 
@@ -316,5 +349,10 @@ export class Container<T extends Module = Module> {
         await this.__$$dic.dispose()
         this.__$controllerActionMap.clear()
         this.__$$additionalPropertyMap.clear()
+        for (const ref of this.__$transientWeakRefs) {
+            const transient = ref.deref()
+            if (transient?.__destroy) await transient.__destroy()
+            if (transient?.destroy) await transient.destroy()
+        }
     }
 }

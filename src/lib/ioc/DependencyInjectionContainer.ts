@@ -1,19 +1,16 @@
 import * as util from 'util'
 import {GlobWithOptions, listModules} from './ListModules'
+import {loadModules as realLoadModules, LoadModulesOptions, LoadModulesResult} from './LoadModules'
 import {
-    LoadModulesOptions,
-    loadModules as realLoadModules,
-    LoadModulesResult
-} from './LoadModules'
-import {
-    Resolver,
-    Constructor,
     asClass,
     asFunction,
+    BuildResolver,
+    BuildResolverOptions,
+    Constructor,
     DisposableResolver,
-    BuildResolverOptions, BuildResolver
+    Resolver
 } from './Resolvers'
-import {last, nameValueToObject, isClass} from './Utils'
+import {isClass, last, nameValueToObject} from './Utils'
 import {InjectionMode, InjectionModeType} from './InjectionMode'
 import {Lifetime} from './Lifetime'
 import {DependencyInjectionResolutionError, DependencyInjectionTypeError} from './Errors'
@@ -380,7 +377,7 @@ export function createContainer<T extends object = any, U extends object = any>(
      * @param name
      * @param resolveOpts
      */
-    function resolve(name: string | symbol, resolveOpts?: ResolveOptions): any {
+    function resolve(this: any, name: string | symbol, resolveOpts?: ResolveOptions): any {
         resolveOpts = resolveOpts || {}
         try {
             // Grab the registration by name.
@@ -471,6 +468,8 @@ export function createContainer<T extends object = any, U extends object = any>(
              */
             if ((typeof resolved === 'object' || typeof resolved === 'function') && !Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME, resolved))
                 Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME, name, resolved)
+            //判断是否为瞬态模式的注册项目调用，若为瞬态模式的注册项目调用，则应找个地方记录下来，以便在容器销毁时对残留的瞬态对象实例销毁
+            if (resolved.constructor.__LIFETIME === Lifetime.TRANSIENT) this['newTransient'] = new WeakRef(resolved)
             return resolved
         } catch (err) {
             // 当遇到错误时，需要重置堆栈
