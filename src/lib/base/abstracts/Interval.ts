@@ -35,6 +35,12 @@ export abstract class Interval extends BaseObject {
     protected _$paused: boolean = false
 
     /**
+     * 周期调用器执行报错信息
+     * @protected
+     */
+    protected _$lastError: Error | null = null
+
+    /**
      * Constructor
      * @param properties
      */
@@ -65,6 +71,12 @@ export abstract class Interval extends BaseObject {
     public interval: number = 1
 
     /**
+     * 是否仅记录错误，不将错误扔出
+     */
+    @Configurable()
+    public readonly silentError: boolean = true
+
+    /**
      * 定义任务
      * @protected
      */
@@ -91,8 +103,14 @@ export abstract class Interval extends BaseObject {
     protected async runExecutor(): Promise<void> {
         if (this.mode === IntervalMode.SEQ && !!this._$executing) return
         this._$executing += 1
-        await this.executor()
-        this._$executing -= 1
+        try {
+            await this.executor()
+        } catch (e) {
+            this._$lastError = <Error>e
+            if (!this.silentError) throw e
+        } finally {
+            this._$executing -= 1
+        }
     }
 
     /**
@@ -129,10 +147,17 @@ export abstract class Interval extends BaseObject {
     }
 
     /**
-     * 销毁函数
+     * 获取调用器最新的错误信息
+     */
+    public getLastError(): Error | null {
+        return this._$lastError
+    }
+
+    /**
+     * 内部销毁函数
      * @protected
      */
-    protected async destroy(): Promise<void> {
+    protected async __destroy(): Promise<void> {
         if (this._$interval) clearInterval(this._$interval)
         this._$interval = null
     }

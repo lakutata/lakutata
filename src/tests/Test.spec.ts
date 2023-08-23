@@ -14,6 +14,7 @@ import {fork} from 'child_process'
 import {transpileModule} from 'typescript'
 import Module from 'module'
 import {TestProcess} from './processes/TestProcess'
+import {TestCron} from './intervals/TestCron'
 
 (async () => {
     // fork('./src/tests/TestProc.js')
@@ -46,6 +47,10 @@ import {TestProcess} from './processes/TestProcess'
                 class: TestInterval,
                 interval: 100,
                 mode: 'SEQ'
+            },
+            testCron: {
+                class: TestCron,
+                expression: '1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,47,49,51,53,55,57,59 * * * * ? '
             }
             // '/Users/alex/WebstormProjects/core/src/tests/mds/**/*': {
             //  tester: 'this is tester'
@@ -95,6 +100,7 @@ import {TestProcess} from './processes/TestProcess'
                 await app.set('testModel', {class: TestModel, greet: 'hello model'})
                 const subScope = app.createScope()
                 await subScope.get('testInterval')
+                await subScope.get('testCron')
                 const testModel = (await subScope.get<TestModel>('testModel'))
                 testModel.on('property-changed', console.log)
                 console.log('testModel.greet:', testModel.greet)

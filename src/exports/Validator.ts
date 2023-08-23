@@ -4,6 +4,7 @@ import {As, IsGlobString} from './Utilities'
 import {InvalidValueException} from '../exceptions/validation/InvalidValueException'
 import {defaultValidationOptions} from '../constants/DefaultValue'
 import {isAsyncFunction} from 'util/types'
+import {isValidCron} from 'cron-validator'
 
 export class BaseValidator {
 
@@ -123,6 +124,27 @@ export class BaseValidator {
             if (typeof value === 'string' && IsGlobString(value)) return value
             return helpers.error('any.invalid')
 
+        }, 'Glob Validation')
+    }
+
+    /**
+     * Cron表达式验证器
+     * @constructor
+     */
+    public Cron<TSchema = string>(options?: {
+        alias?: boolean
+        seconds?: boolean
+        allowBlankDay?: boolean
+        allowSevenAsSunday?: boolean
+    }): StringSchema<TSchema> {
+        return Joi.string<TSchema>().custom((value: TSchema, helpers: CustomHelpers) => {
+            options = options ? options : {}
+            options.alias = options.alias !== undefined ? options.alias : false
+            options.seconds = options.seconds !== undefined ? options.seconds : true
+            options.allowBlankDay = options.allowBlankDay !== undefined ? options.allowBlankDay : true
+            options.allowSevenAsSunday = options.allowSevenAsSunday !== undefined ? options.allowSevenAsSunday : true
+            if (typeof value === 'string' && isValidCron(value, options)) return value
+            return helpers.error('any.invalid')
         }, 'Glob Validation')
     }
 
