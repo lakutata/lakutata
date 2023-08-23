@@ -225,14 +225,6 @@ export class Process extends Component {
         })
     }
 
-    // public emit(eventName: string | symbol, ...args: any[]): boolean {
-    //     if (this.isWorker()) {
-    //         return process.send!([eventName, ...args]) || super.emit(eventName, ...args)
-    //     } else {
-    //         return (<ChildProcess>(this.getInternalProperty('worker'))).send([eventName, ...args])
-    //     }
-    // }
-
     /**
      * 内部初始化函数
      * @protected
