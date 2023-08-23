@@ -11,8 +11,8 @@ import {setTimeout} from 'timers/promises'
 import {isPromise as isBuiltinPromises} from 'util/types'
 import {Readable as ReadableStream, ReadableOptions, Stream} from 'stream'
 import {PathLike} from 'fs'
-import SortKeys from '../lib/SortKeys'
-import pickFreePort from '../lib/PickFreePort'
+import SortKeys from '../lib/deps/SortKeys'
+import pickFreePort from '../lib/deps/PickFreePort'
 
 /**
  * 选择一个没有被使用的网络端口

@@ -3,7 +3,7 @@ import CryptoJs from 'crypto-js'
 import {ConvertToStream} from './Utilities'
 import {NotSupportHashException} from '../exceptions/NotSupportHashException'
 import {Readable as ReadableStream} from 'stream'
-import {Sm3, SM3ToHex, SM3Hmac} from '../lib/SM3'
+import {Sm3, SM3ToHex, SM3Hmac} from '../lib/deps/SM3'
 import {createHash, createHmac, getHashes, Hash, Hmac} from 'crypto'
 
 /**
