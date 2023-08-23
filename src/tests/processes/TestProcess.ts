@@ -15,6 +15,9 @@ export class TestProcess extends Process {
 
     protected async init(): Promise<void> {
         this.on('test', console.log)
+        setTimeout(() => {
+            process.exit()
+        }, 3000)
         setInterval(() => {
             // this.emit('test', {text: 'hello', ts: Time.now(), isWorker: this.isWorker()})
             this.log.info('this is child process log from %s', this.className)

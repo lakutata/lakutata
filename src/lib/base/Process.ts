@@ -10,12 +10,13 @@ import {isAsyncFunction} from 'util/types'
 import {createServer, IncomingMessage, Server, ServerResponse} from 'http'
 import syncFetch from 'sync-fetch'
 import asyncFetch from 'node-fetch'
-import {GetPort, RandomString} from '../../exports/Utilities'
+import {GetPort, RandomString, ThrowIntoBlackHole} from '../../exports/Utilities'
 import {format as URLFormat, parse as URLParse, UrlObject, UrlWithParsedQuery} from 'url'
 import {ParsedUrlQuery} from 'querystring'
 import {AppendAsyncConstructor} from './async-constructor/Append'
 import {BaseObject} from './BaseObject'
 import {EventEmitter} from 'events'
+import {ChildProcessUnavailableException} from '../../exceptions/ChildProcessUnavailableException'
 
 @Scoped(true)
 export class Process extends Component {
@@ -45,19 +46,27 @@ export class Process extends Component {
                                 port: this.getInternalProperty('workerCommunicationPort')
                             }
                             return isAsyncMethod ? async (...args: any[]): Promise<any> => {
-                                workerUrlObject.query = {
-                                    method: publicMethod,
-                                    args: v8.serialize(args).toString('base64')
+                                try {
+                                    workerUrlObject.query = {
+                                        method: publicMethod,
+                                        args: v8.serialize(args).toString('base64')
+                                    }
+                                    const rawResponse: string = await (await asyncFetch(URLFormat(workerUrlObject))).text()
+                                    return v8.deserialize(Buffer.from(rawResponse, 'base64'))
+                                } catch (e) {
+                                    throw new ChildProcessUnavailableException('Child process is currently unavailable')
                                 }
-                                const rawResponse: string = await (await asyncFetch(URLFormat(workerUrlObject))).text()
-                                return v8.deserialize(Buffer.from(rawResponse, 'base64'))
                             } : (...args: any[]): any => {
-                                workerUrlObject.query = {
-                                    method: publicMethod,
-                                    args: v8.serialize(args).toString('base64')
+                                try {
+                                    workerUrlObject.query = {
+                                        method: publicMethod,
+                                        args: v8.serialize(args).toString('base64')
+                                    }
+                                    const rawResponse: string = syncFetch(URLFormat(workerUrlObject)).text()
+                                    return v8.deserialize(Buffer.from(rawResponse, 'base64'))
+                                } catch (e) {
+                                    throw new ChildProcessUnavailableException('Child process is currently unavailable')
                                 }
-                                const rawResponse: string = syncFetch(URLFormat(workerUrlObject)).text()
-                                return v8.deserialize(Buffer.from(rawResponse, 'base64'))
                             }
                         }
                     })
@@ -72,36 +81,44 @@ export class Process extends Component {
                     this.setInternalProperty(`__${propertyKey}`, originDescriptor?.value)
                     Object.defineProperty(this, propertyKey, {
                         get: (): any => {
-                            const getWorkerPropertyValueUrlObject: UrlObject = {
-                                protocol: 'http',
-                                hostname: 'localhost',
-                                pathname: '/prop',
-                                port: this.getInternalProperty('workerCommunicationPort'),
-                                query: {
-                                    key: propertyKey,
-                                    type: 'get'
+                            try {
+                                const getWorkerPropertyValueUrlObject: UrlObject = {
+                                    protocol: 'http',
+                                    hostname: 'localhost',
+                                    pathname: '/prop',
+                                    port: this.getInternalProperty('workerCommunicationPort'),
+                                    query: {
+                                        key: propertyKey,
+                                        type: 'get'
+                                    }
                                 }
+                                //从worker处取值
+                                const propertyValue: any = v8.deserialize(Buffer.from(syncFetch(URLFormat(getWorkerPropertyValueUrlObject)).text(), 'base64'))
+                                this.setInternalProperty(`__${propertyKey}`, propertyValue)
+                                return this.getInternalProperty(`__${propertyKey}`, undefined)
+                            } catch (e) {
+                                return undefined
                             }
-                            //从worker处取值
-                            const propertyValue: any = v8.deserialize(Buffer.from(syncFetch(URLFormat(getWorkerPropertyValueUrlObject)).text(), 'base64'))
-                            this.setInternalProperty(`__${propertyKey}`, propertyValue)
-                            return this.getInternalProperty(`__${propertyKey}`, undefined)
                         },
                         set: (value: any): void => {
-                            const setWorkerPropertyValueUrlObject: UrlObject = {
-                                protocol: 'http',
-                                hostname: 'localhost',
-                                pathname: '/prop',
-                                port: this.getInternalProperty('workerCommunicationPort'),
-                                query: {
-                                    key: propertyKey,
-                                    type: 'set',
-                                    value: v8.serialize(value).toString('base64')
+                            try {
+                                const setWorkerPropertyValueUrlObject: UrlObject = {
+                                    protocol: 'http',
+                                    hostname: 'localhost',
+                                    pathname: '/prop',
+                                    port: this.getInternalProperty('workerCommunicationPort'),
+                                    query: {
+                                        key: propertyKey,
+                                        type: 'set',
+                                        value: v8.serialize(value).toString('base64')
+                                    }
                                 }
+                                this.setInternalProperty(`__${propertyKey}`, value)
+                                //同步至worker
+                                syncFetch(URLFormat(setWorkerPropertyValueUrlObject))
+                            } catch (e) {
+                                ThrowIntoBlackHole(e)
                             }
-                            this.setInternalProperty(`__${propertyKey}`, value)
-                            //同步至worker
-                            syncFetch(URLFormat(setWorkerPropertyValueUrlObject))
                         }
                     })
                 })
@@ -149,7 +166,6 @@ export class Process extends Component {
         const configurableProperties: string[] = await this.__getConfigurableProperties()
         const configs: Record<string, any> = {}
         configurableProperties.forEach((propertyKey: string) => configs[propertyKey] = this[propertyKey])
-        const workerCommunicationPort: number = await GetPort()
         const loggerEvent: string = `__$$${RandomString(16)}_`
         await new Promise((resolve, reject) => {
             this.once('ready', resolve)
@@ -159,25 +175,37 @@ export class Process extends Component {
                 v8.serialize(configs).toString('base64'),
                 this.__generateWorkerId().toString(),
                 loggerEvent,
-                workerCommunicationPort.toString()
+                this.getInternalProperty<number>('workerCommunicationPort').toString()
             ], {
                 env: Object.assign({}, process.env, {isWorkerProcess: true}),
                 serialization: 'advanced'
-            }).on('message', (args: any[]): void => {
-                const eventName: string = args[0]
-                const eventArgs: any[] = args.slice(1)
-                //处理日志事件
-                if (eventName === loggerEvent) {
-                    const loggerMethod: string = eventArgs[0]
-                    const loggerArgs: any[] = eventArgs.slice(1)
-                    this.log[loggerMethod](...loggerArgs)
-                } else {
-                    this.getInternalProperty<EventEmitter>('eventEmitter').emit(eventName, ...eventArgs)
-                }
-            }).on('error', reject)
+            })
+                .on('message', (args: any[]): void => {
+                    const eventName: string = args[0]
+                    const eventArgs: any[] = args.slice(1)
+                    //处理日志事件
+                    if (eventName === loggerEvent) {
+                        const loggerMethod: string = eventArgs[0]
+                        const loggerArgs: any[] = eventArgs.slice(1)
+                        this.log[loggerMethod](...loggerArgs)
+                    } else {
+                        if (eventName === '__$psError') {
+                            //子进程发生崩溃错误，重启子进程
+                            this.__setupWorkerProcess()
+                        } else {
+                            this.getInternalProperty<EventEmitter>('eventEmitter').emit(eventName, ...eventArgs)
+                        }
+                    }
+                })
+                .on('exit', (code, signal) => {
+                    if (this.getInternalProperty('daemonizeWorker', false)) {
+                        //子进程退出，重启子进程
+                        this.__setupWorkerProcess()
+                    }
+                })
+                .on('error', reject)
             this.emit = (eventName: string | symbol, ...args: any[]): boolean => worker.send([eventName, ...args])
             this.setInternalProperty('worker', worker)
-            this.setInternalProperty('workerCommunicationPort', workerCommunicationPort)
         })
     }
 
@@ -241,7 +269,13 @@ export class Process extends Component {
      */
     protected async __init(): Promise<void> {
         await super.__init()
-        this.isWorker() ? await this.__initWorkerProcess() : await this.__setupWorkerProcess()
+        this.setInternalProperty('daemonizeWorker', true)
+        if (!this.isWorker()) {
+            this.setInternalProperty('workerCommunicationPort', await GetPort())
+            await this.__setupWorkerProcess()
+        } else {
+            await this.__initWorkerProcess()
+        }
     }
 
     /**
@@ -249,6 +283,7 @@ export class Process extends Component {
      * @protected
      */
     protected async __destroy(): Promise<void> {
+        this.setInternalProperty('daemonizeWorker', false)//取消子进程守护
         if (this.hasInternalProperty('CServer')) await new Promise<void>(resolve => this.getInternalProperty<Server>('CServer').close(() => resolve()))
         if (this.hasInternalProperty('worker')) {
             this.getInternalProperty<ChildProcess>('worker').removeAllListeners()
