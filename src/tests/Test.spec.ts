@@ -1,5 +1,5 @@
 import 'reflect-metadata'
-import {Application, Formatter, Logger, Time} from '../Lakutata'
+import {Application, Formatter, HttpRequest, Logger, Time} from '../Lakutata'
 import {TestObject} from './objects/TestObject'
 import {TestInterval} from './intervals/TestInterval'
 import {MDSTest1} from './mds/MDSTest1'
@@ -15,6 +15,7 @@ import {transpileModule} from 'typescript'
 import Module from 'module'
 import {TestProcess} from './processes/TestProcess'
 import {TestCron} from './intervals/TestCron'
+import * as zlib from 'zlib'
 
 (async () => {
     // fork('./src/tests/TestProc.js')
@@ -45,7 +46,7 @@ import {TestCron} from './intervals/TestCron'
             testObject: {class: TestObject, username: 'tester'},
             testInterval: {
                 class: TestInterval,
-                interval: 100,
+                interval: 1000,
                 mode: 'SEQ'
             },
             testCron: {
@@ -75,7 +76,7 @@ import {TestCron} from './intervals/TestCron'
             '@test': '@app/hh/jj'
         },
         bootstrap: [
-            'testProc',
+            // 'testProc',
             'tm',
             'tm1',
             // 'testInterval',
@@ -105,13 +106,10 @@ import {TestCron} from './intervals/TestCron'
                 testModel.on('property-changed', console.log)
                 console.log('testModel.greet:', testModel.greet)
                 testModel.aa = '6666668888888'
-                setTimeout(async () => {
-                    await subScope.destroy()
-                }, 5000)
                 console.log(await app.invoke({a: 1, b: 2}, {testBoolean: true}))
                 const logger = await app.get<Logger>('log')
                 logger.trace('more on this: %s', process.env.NODE_ENV)
-                const testProc = await app.get<TestProcess>('testProc')
+                const testProc = await subScope.get<TestProcess>('testProc')
                 testProc.on('test', (...args) => {
                     console.log('test event:', ...args)
                 })
@@ -119,6 +117,19 @@ import {TestCron} from './intervals/TestCron'
                 console.log('testProc.emitted')
                 testProc.testProp = '666666'
                 console.log('testProc.sayHi():', await testProc.sayHi(), testProc.testProp)
+                setTimeout(async () => {
+                    await subScope.destroy()
+                    try {
+                        const r = HttpRequest.get('http://jellyfin.cloud.thinkraz.com')
+                        // const result=await r.stream()
+                        console.log(await r.stream())
+                        setTimeout(() => {
+                            r.abort()
+                        }, 10000)
+                    } catch (e) {
+                        console.log(e)
+                    }
+                }, 3000)
             }
         ]
     })
@@ -137,5 +148,7 @@ import {TestCron} from './intervals/TestCron'
 
     Logger.trace('more on this: %s', process.env.NODE_ENV)
     Logger.info('this is a logger test')
+
+
     // app.exit()
 })()
