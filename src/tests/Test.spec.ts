@@ -17,6 +17,7 @@ import {TestProcess} from './processes/TestProcess'
 import {TestCron} from './intervals/TestCron'
 import * as zlib from 'zlib'
 import v8 from 'v8'
+import {TestThreadTask} from './threads/TestThreadTask'
 
 (async () => {
     // fork('./src/tests/TestProc.js')
@@ -53,7 +54,8 @@ import v8 from 'v8'
             testCron: {
                 class: TestCron,
                 expression: '1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,47,49,51,53,55,57,59 * * * * ? '
-            }
+            },
+            testThreadWork: {class: TestThreadTask}
             // '/Users/alex/WebstormProjects/core/src/tests/mds/**/*': {
             //  tester: 'this is tester'
             // }
@@ -78,6 +80,7 @@ import v8 from 'v8'
         },
         bootstrap: [
             // 'testProc',
+            'testThreadWork',
             'tm',
             'tm1',
             // 'testInterval',
@@ -149,7 +152,6 @@ import v8 from 'v8'
 
     Logger.trace('more on this: %s', process.env.NODE_ENV)
     Logger.info('this is a logger test')
-
 
     // app.exit()
 })()
