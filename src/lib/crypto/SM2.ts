@@ -68,7 +68,9 @@ export class SM2 extends AsymmetricEncryption {
     }
 
     protected async generateKeyPair(options?: SM2KeyPairOptions): Promise<AsymmetricEncryptionKeyPair> {
-        let {publicKey, privateKey} = sm2.generateKeyPairHex()
+        const keyPair = sm2.generateKeyPairHex()
+        let publicKey = keyPair.publicKey
+        const privateKey = keyPair.privateKey
         if (options?.compressPublicKey) publicKey = sm2.compressPublicKeyHex(publicKey)
         return {
             publicKey: publicKey,

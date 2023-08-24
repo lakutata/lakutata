@@ -67,7 +67,7 @@ export function createTokenizer(source: string) {
         type = 'EOF'
         while (true) {
             if (pos >= end) return (type = 'EOF')
-            let ch: string = source.charAt(pos)
+            const ch: string = source.charAt(pos)
             // Whitespace is irrelevant
             if (isWhiteSpace(ch)) {
                 pos++
@@ -165,7 +165,7 @@ export function createTokenizer(source: string) {
      */
     function skipUntil(callback: (ch: string) => boolean, dumb: boolean = false): void {
         while (pos < source.length) {
-            let ch: string = source.charAt(pos)
+            const ch: string = source.charAt(pos)
             if (callback(ch)) return
             if (!dumb) {
                 if (isWhiteSpace(ch)) {

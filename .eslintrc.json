@@ -33,6 +33,8 @@
     "no-extra-semi": "off",
     "no-cond-assign": "off",
     "no-constant-condition": "off",
+    "no-case-declarations": "off",
+    "no-async-promise-executor": "off",
     "@typescript-eslint/no-var-requires": "off",
     "@typescript-eslint/no-namespace": "off",
     "@typescript-eslint/ban-ts-comment": "off",

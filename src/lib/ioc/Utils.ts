@@ -24,7 +24,7 @@ export function nameValueToObject(
     name: string | symbol | object,
     value?: any
 ): Record<string | symbol, any> {
-    let obj: string | symbol | object = name
+    const obj: string | symbol | object = name
     if (typeof obj === 'string' || typeof obj === 'symbol') return {[name as any]: value}
     return obj
 }

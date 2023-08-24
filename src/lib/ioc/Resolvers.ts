@@ -143,7 +143,7 @@ export function asFunction<T>(
     }
     opts = makeOptions(defaults, opts, (fn as any)[RESOLVER])
     const resolve = generateResolve(fn)
-    let result = {
+    const result = {
         resolve,
         ...opts
     }

@@ -1,5 +1,13 @@
 import 'reflect-metadata'
-import {ArraySchema, Schema, SchemaMap, ValidationError, ValidationOptions, Validator} from '../exports/Validator'
+import {
+    ArraySchema,
+    Schema,
+    SchemaMap,
+    ValidationError,
+    ValidationOptions,
+    ValidationResult,
+    Validator
+} from '../exports/Validator'
 import {DTO} from '../lib/base/DTO'
 import {isAsyncFunction} from 'util/types'
 import {InvalidMethodAcceptException} from '../exceptions/validation/InvalidMethodAcceptException'
@@ -134,7 +142,9 @@ export function Return(inp: Schema | IConstructor<DTO>, options?: ValidationOpti
         } else {
             descriptor.value = function (...args: any[]) {
                 const syncResult = originalMethod.apply(this, args)
-                let {error, value} = schema.validate(syncResult, options)
+                const validateResult: ValidationResult = schema.validate(syncResult, options)
+                let error = validateResult.error
+                const value = validateResult.value
                 if (!error && syncResult === undefined) error = new Error('is undefined') as ValidationError
                 if (error) {
                     throw new InvalidMethodReturnException('Method [{propertyKey}] return value {reason}', {
