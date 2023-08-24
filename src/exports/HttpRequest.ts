@@ -9,7 +9,7 @@ import {Agent as HttpsAgent} from 'https'
 import {HttpRequestAbortException} from '../exceptions/request/HttpRequestAbortException'
 import {HttpRequestException} from '../exceptions/request/HttpRequestException'
 import {Validator} from './Validator'
-import ReadableStream = NodeJS.ReadableStream
+import {Readable} from 'stream'
 
 /**
  * Http请求方法
@@ -237,7 +237,7 @@ export class HttpRequest {
         return validate ? await Validator.validateAsync(this._$data, Validator.Binary(), {stripUnknown: false}) : this._$data
     }
 
-    public async stream(): Promise<ReadableStream> {
+    public async stream(): Promise<Readable> {
         await this.__request('stream')
         return this._$data
     }
