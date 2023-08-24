@@ -5,6 +5,8 @@ import {InvalidValueException} from '../exceptions/validation/InvalidValueExcept
 import {defaultValidationOptions} from '../constants/DefaultValue'
 import {isAsyncFunction} from 'util/types'
 import {isValidCron} from 'cron-validator'
+import {IsHtml} from '../lib/deps/IsHtml'
+import {isXML} from '../lib/deps/IsXML'
 
 export class BaseValidator {
 
@@ -145,7 +147,18 @@ export class BaseValidator {
             options.allowSevenAsSunday = options.allowSevenAsSunday !== undefined ? options.allowSevenAsSunday : true
             if (typeof value === 'string' && isValidCron(value, options)) return value
             return helpers.error('any.invalid')
-        }, 'Glob Validation')
+        }, 'Cron Validation')
+    }
+
+    /**
+     * Http请求中Document类型数据验证器
+     * @constructor
+     */
+    public HttpDocument<TSchema = string>(): StringSchema<TSchema> {
+        return Joi.string<TSchema>().custom((value: TSchema, helpers: CustomHelpers) => {
+            if (typeof value === 'string' && (IsHtml(value) || isXML(value))) return value
+            return helpers.error('any.invalid')
+        }, 'HttpDocument Validation')
     }
 
     /**
@@ -257,7 +270,7 @@ export class BaseValidator {
     public async validateAsync<T = any>(data: T, schema: Schema, options?: ValidationOptions): Promise<T> {
         options = options ? Object.assign({}, defaultValidationOptions, options) : defaultValidationOptions
         try {
-            return schema.validateAsync(data, options)
+            return await schema.validateAsync(data, options)
         } catch (e) {
             throw new InvalidValueException((e as Error).message)
         }
