@@ -45,10 +45,14 @@ export {NotSupportCipherException} from '../exceptions/crypto/symmetric/NotSuppo
 export {SymmetricDecryptException} from '../exceptions/crypto/symmetric/SymmetricDecryptException'
 export {SymmetricEncryptException} from '../exceptions/crypto/symmetric/SymmetricEncryptException'
 
+export {HttpRequestAbortException} from '../exceptions/request/HttpRequestAbortException'
+export {HttpRequestException} from '../exceptions/request/HttpRequestException'
+
 export {InvalidMethodAcceptException} from '../exceptions/validation/InvalidMethodAcceptException'
 export {InvalidMethodReturnException} from '../exceptions/validation/InvalidMethodReturnException'
 export {InvalidValueException} from '../exceptions/validation/InvalidValueException'
 
+export {ChildProcessUnavailableException} from '../exceptions/ChildProcessUnavailableException'
 export {DependencyInjectionException} from '../exceptions/DependencyInjectionException'
 export {InvalidConfigurableValueException} from '../exceptions/InvalidConfigurableValueException'
 export {InvalidDTOValueException} from '../exceptions/InvalidDTOValueException'

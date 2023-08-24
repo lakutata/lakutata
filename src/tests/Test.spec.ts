@@ -16,6 +16,7 @@ import Module from 'module'
 import {TestProcess} from './processes/TestProcess'
 import {TestCron} from './intervals/TestCron'
 import * as zlib from 'zlib'
+import v8 from 'v8'
 
 (async () => {
     // fork('./src/tests/TestProc.js')
@@ -119,16 +120,16 @@ import * as zlib from 'zlib'
                 console.log('testProc.sayHi():', await testProc.sayHi(), testProc.testProp)
                 setTimeout(async () => {
                     await subScope.destroy()
-                    try {
-                        const r = HttpRequest.get('http://jellyfin.cloud.thinkraz.com')
-                        // const result=await r.stream()
-                        console.log(await r.text())
-                        setTimeout(() => {
-                            r.abort()
-                        }, 10000)
-                    } catch (e) {
-                        console.log(e)
-                    }
+                    // try {
+                    //     const r = HttpRequest.get('http://jellyfin.cloud.thinkraz.com')
+                    //     // const result=await r.stream()
+                    //     console.log(await r.text())
+                    //     setTimeout(() => {
+                    //         r.abort()
+                    //     }, 10000)
+                    // } catch (e) {
+                    //     console.log(e)
+                    // }
                 }, 3000)
             }
         ]
