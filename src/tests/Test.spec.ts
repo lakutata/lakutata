@@ -122,7 +122,7 @@ import * as zlib from 'zlib'
                     try {
                         const r = HttpRequest.get('http://jellyfin.cloud.thinkraz.com')
                         // const result=await r.stream()
-                        console.log(await r.stream())
+                        console.log(await r.text())
                         setTimeout(() => {
                             r.abort()
                         }, 10000)
