@@ -17,6 +17,7 @@ export {ISortObjectOptions} from '../interfaces/ISortObjectOptions'
 export {ISortArrayOptions} from '../interfaces/ISortArrayOptions'
 export {IPatRun} from '../interfaces/IPatRun'
 export {ILogger} from '../interfaces/ILogger'
+export {IUser} from '../interfaces/IUser'
 
 //类型
 export {AsyncFunction} from '../types/AsyncFunction'
