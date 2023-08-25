@@ -80,7 +80,7 @@ import {TestThreadTask} from './threads/TestThreadTask'
         },
         bootstrap: [
             // 'testProc',
-            'testThreadWork',
+            // 'testThreadWork',
             'tm',
             'tm1',
             // 'testInterval',
@@ -121,6 +121,8 @@ import {TestThreadTask} from './threads/TestThreadTask'
                 console.log('testProc.emitted')
                 testProc.testProp = '666666'
                 console.log('testProc.sayHi():', await testProc.sayHi(), testProc.testProp)
+                const testThread=await subScope.get<TestThreadTask>('testThreadWork')
+                console.log(await testThread.run())
                 setTimeout(async () => {
                     await subScope.destroy()
                     // try {

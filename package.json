@@ -66,6 +66,7 @@
     "patrun": "^7.2.5",
     "pino": "^8.15.0",
     "pino-pretty": "^10.2.0",
+    "piscina": "^4.1.0",
     "randomstring": "^1.3.0",
     "reflect-metadata": "^0.1.13",
     "release-it": "^16.1.5",

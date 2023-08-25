@@ -1,11 +1,30 @@
 import {BaseObject} from '../BaseObject'
 import {InjectionProperties} from '../../../types/InjectionProperties'
-import {isMainThread, Worker} from 'worker_threads'
+import {isMainThread} from 'worker_threads'
 import path from 'path'
 import Module from 'module'
 import {ModuleNotFoundException} from '../../../exceptions/ModuleNotFoundException'
+import Piscina from 'piscina'
+import {Configurable, Scoped} from '../../../decorators/DependencyInjectionDecorators'
+import os from 'node:os'
 
+// @ts-ignore
+@Scoped(true)
 export abstract class ThreadTask extends BaseObject {
+
+    /**
+     * 最小线程数
+     * @protected
+     */
+    @Configurable()
+    protected readonly minThreads: number = 1
+
+    /**
+     * 最大线程数
+     * @protected
+     */
+    @Configurable()
+    protected readonly maxThreads: number = os.cpus().length
 
     constructor(properties: InjectionProperties = {}) {
         super(properties)
@@ -31,34 +50,56 @@ export abstract class ThreadTask extends BaseObject {
         const configurableProperties: string[] = await this.__getConfigurableProperties()
         const configs: Record<string, any> = {}
         configurableProperties.forEach((propertyKey: string) => configs[propertyKey] = this[propertyKey])
-        new Worker(path.resolve(__dirname, '../../ThreadContainer'), {
+        const threadPool: Piscina = new Piscina({
+            minThreads: this.minThreads,
+            maxThreads: this.maxThreads,
+            filename: require.resolve(path.resolve(__dirname, '../../ThreadContainer')),
+            useAtomics: true,
             workerData: {
                 className: this.className,
                 moduleId: moduleId,
                 configurableProperties: configurableProperties
             }
         })
+        this.setInternalProperty('threadPool', threadPool)
     }
 
+    /**
+     * 内部初始化函数
+     * @protected
+     */
     protected async __init(): Promise<void> {
         if (isMainThread) {
             await this.__setupWorkerThread()
-        } else {
-            //todo
-            console.log('NMBMBNMBNMBNMBNMBNMBNMBNMBNMBNMNBMBNMBNMBNMBNMBNMBNMBNMBNMBNMBNMBNMBNM')
         }
     }
 
     /**
-     * 对外暴露执行方法(需要传参)
+     * 内部销毁函数
+     * @protected
      */
-    public async run(): Promise<any> {
-        //todo
+    protected async __destroy(): Promise<void> {
+        if (isMainThread) {
+            await this.getInternalProperty<Piscina | undefined>('threadPool')?.destroy()
+        }
+    }
+
+    /**
+     * 对外暴露执行方法
+     * @param inp
+     */
+    public async run(inp?: Record<string, any>): Promise<any> {
+        if (isMainThread) {
+            return await this.getInternalProperty<Piscina>('threadPool').run(inp)
+        } else {
+            return await this.executor(inp)
+        }
     }
 
     /**
      * 线程任务执行器
+     * @param inp
      * @protected
      */
-    protected abstract executor(workData: Record<string, any>): Promise<any>
+    protected abstract executor(inp?: Record<string, any>): Promise<any>
 }
