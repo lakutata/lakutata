@@ -4,7 +4,7 @@ import {
     Application,
     Logger,
     ILogger
-} from '../Lakutata'
+} from '../../Lakutata'
 import v8 from 'v8'
 
 const reversed: string[] = process.argv.reverse()

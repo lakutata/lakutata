@@ -1,5 +1,5 @@
 if (require.resolve('ts-node')) require('ts-node').register()
-const {Application, Logger} = require('../Lakutata')
+const {Application, Logger} = require('../../Lakutata')
 const {workerData, parentPort} = require('worker_threads')
 
 const configurableProperties = workerData.configurableProperties
