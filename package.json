@@ -108,6 +108,7 @@
     "di",
     "process",
     "thread",
-    "worker"
+    "worker",
+    "daemon"
   ]
 }

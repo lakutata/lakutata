@@ -62,14 +62,11 @@ export class Application extends Module {
         Object.keys(aliases).forEach((aliasName: string) => alias.set(aliasName, aliases[aliasName]))
         const rootContainer: Container = new Container()
         const name: string = Container.stringifyConstructor(Application)
-        await rootContainer.load({
-            [name]: {
-                class: Application,
-                __$$options: options,
-                __$$parentContainer: rootContainer
-            }
+        return await rootContainer.createObject(name, {
+            class: Application,
+            __$$options: options,
+            __$$parentContainer: rootContainer
         })
-        return await rootContainer.get<Application>(name)
     }
 
     /**

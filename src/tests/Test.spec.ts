@@ -36,7 +36,7 @@ import {TestThreadTask} from './threads/TestThreadTask'
     // fork(path.resolve(__dirname, './TestProc.ts'))
 
     console.time('app')
-    const app = await Application.run({
+    await Application.run({
         id: 'test',
         name: 'test',
         timezone: 'Asia/Shanghai',
