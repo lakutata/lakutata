@@ -37,6 +37,7 @@ import {InvalidConfigurableValueException} from '../../exceptions/InvalidConfigu
 import {InvalidValueException} from '../../exceptions/validation/InvalidValueException'
 import {SHA256} from '../../exports/Hash'
 import {AsyncConstructor} from './async-constructor/AsyncConstructor'
+import {InjectionProperties} from '../../types/InjectionProperties'
 
 const internalPropertyNameRegExp: RegExp = new RegExp('__\\$\\$\\$[a-zA-Z0-9~!@#$%^&*()_+\\[\\]\\{\\},./\\\\<>?|\\-\\*]+\\$\\$\\$__')
 
@@ -77,7 +78,7 @@ export class BaseObject extends AsyncConstructor {
      * Constructor
      * @param properties
      */
-    constructor(properties: Record<string, any> = {}) {
+    constructor(properties: InjectionProperties = {}) {
         super(async (): Promise<void> => {
             if (Reflect.getMetadata(DI_CONTAINER_CREATOR_CONSTRUCTOR, properties.constructor) || Reflect.getOwnMetadata(DI_CONTAINER_INJECT_PROPERTIES, properties)) {
                 //对Inject修饰器所修饰的属性进行数据注入
