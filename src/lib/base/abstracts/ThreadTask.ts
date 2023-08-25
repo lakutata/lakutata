@@ -1,6 +1,6 @@
 import {BaseObject} from '../BaseObject'
 import {InjectionProperties} from '../../../types/InjectionProperties'
-import {isMainThread} from 'worker_threads'
+import {isMainThread, ResourceLimits} from 'worker_threads'
 import path from 'path'
 import Module from 'module'
 import {ModuleNotFoundException} from '../../../exceptions/ModuleNotFoundException'
@@ -25,6 +25,13 @@ export abstract class ThreadTask extends BaseObject {
      */
     @Configurable()
     protected readonly maxThreads: number = 1
+
+    /**
+     * 线程资源限制
+     * @protected
+     */
+    @Configurable()
+    protected readonly resourceLimits?: ResourceLimits = undefined
 
     /**
      * 构造函数
@@ -61,6 +68,7 @@ export abstract class ThreadTask extends BaseObject {
             maxQueue: 'auto',
             filename: require.resolve(path.resolve(__dirname, '../../ThreadContainer')),
             useAtomics: true,
+            resourceLimits: this.resourceLimits ? this.resourceLimits : undefined,
             workerData: {
                 className: this.className,
                 moduleId: moduleId,
