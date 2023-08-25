@@ -54,6 +54,7 @@ export {InvalidValueException} from '../exceptions/validation/InvalidValueExcept
 
 export {ChildProcessUnavailableException} from '../exceptions/ChildProcessUnavailableException'
 export {DependencyInjectionException} from '../exceptions/DependencyInjectionException'
+export {IllegalMethodCallException} from '../exceptions/IllegalMethodCallException'
 export {InvalidConfigurableValueException} from '../exceptions/InvalidConfigurableValueException'
 export {InvalidDTOValueException} from '../exceptions/InvalidDTOValueException'
 export {InvalidGlobStringException} from '../exceptions/InvalidGlobStringException'

@@ -6,6 +6,8 @@ import Module from 'module'
 import {ModuleNotFoundException} from '../../../exceptions/ModuleNotFoundException'
 import Piscina from 'piscina'
 import {Configurable, Scoped} from '../../../decorators/DependencyInjectionDecorators'
+import {IllegalMethodCallException} from '../../../exceptions/IllegalMethodCallException'
+import {Transform, TransformCallback} from 'stream'
 
 @Scoped(true)
 export abstract class ThreadTask extends BaseObject {
@@ -56,6 +58,7 @@ export abstract class ThreadTask extends BaseObject {
         const threadPool: Piscina = new Piscina({
             minThreads: this.minThreads,
             maxThreads: this.maxThreads,
+            maxQueue: 'auto',
             filename: require.resolve(path.resolve(__dirname, '../../ThreadContainer')),
             useAtomics: true,
             workerData: {
@@ -91,7 +94,7 @@ export abstract class ThreadTask extends BaseObject {
      * 对外暴露执行方法
      * @param inp
      */
-    public async run(inp?: Record<string, any>): Promise<any> {
+    public async run(inp?: any): Promise<any> {
         if (isMainThread) {
             return await this.getInternalProperty<Piscina>('threadPool').run(inp)
         } else {
@@ -100,9 +103,31 @@ export abstract class ThreadTask extends BaseObject {
     }
 
     /**
+     * 流数据处理方法
+     */
+    public createStreamHandler(): Transform {
+        if (!isMainThread) throw new IllegalMethodCallException('Stream handler can only be used in the main thread.')
+        const threadPool: Piscina = this.getInternalProperty<Piscina>('threadPool')
+        const transform: Transform = new Transform({
+            transform(chunk: any, encoding: BufferEncoding, callback: TransformCallback): void {
+                threadPool.run(chunk).then(handledChunk => callback(null, handledChunk)).catch(error => callback(error))
+                if (threadPool.queueSize === threadPool.options.maxQueue) this.pause()
+            }
+        })
+        const resumeTransform = (): void => {
+            if (transform.isPaused()) transform.resume()
+        }
+        threadPool.on('drain', resumeTransform)
+        transform.once('close', () => {
+            threadPool.removeListener('drain', resumeTransform)
+        })
+        return transform
+    }
+
+    /**
      * 线程任务执行器
      * @param inp
      * @protected
      */
-    protected abstract executor(inp?: Record<string, any>): Promise<any>
+    protected abstract executor(inp?: any): Promise<any>
 }
