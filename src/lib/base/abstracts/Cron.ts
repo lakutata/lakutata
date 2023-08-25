@@ -1,6 +1,6 @@
 import {BaseObject} from '../BaseObject'
 import {Job, scheduleJob, cancelJob} from 'node-schedule'
-import {Configurable} from '../../../decorators/DependencyInjectionDecorators'
+import {Configurable, Scoped} from '../../../decorators/DependencyInjectionDecorators'
 import {Time} from '../../../exports/Time'
 import {Accept} from '../../../decorators/ValidationDecorators'
 import {Validator} from '../../../exports/Validator'
@@ -8,6 +8,7 @@ import {Validator} from '../../../exports/Validator'
 /**
  * 周期任务抽象类
  */
+@Scoped(true)
 export abstract class Cron extends BaseObject {
 
     /**

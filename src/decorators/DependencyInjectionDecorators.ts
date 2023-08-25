@@ -28,13 +28,15 @@ export type ConfigurableOptions = {
     acceptOptions?: ValidationOptions
 }
 
+type TBaseObject = (typeof BaseObject) | (abstract new (...args: any[]) => BaseObject)
+
 /**
  * 设定对象的生命周期模式
  * @param constructor
  * @param lifetime
  * @param lock
  */
-function setObjectLifetime<T extends typeof BaseObject>(constructor: T, lifetime: 'SINGLETON' | 'TRANSIENT' | 'SCOPED', lock: boolean = false): T {
+function setObjectLifetime<T extends TBaseObject>(constructor: T, lifetime: 'SINGLETON' | 'TRANSIENT' | 'SCOPED', lock: boolean = false): T {
     if (Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_LIFETIME_LOCK, constructor)) return constructor
     Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_LIFETIME, lifetime, constructor)
     if (lock) Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_LIFETIME_LOCK, true, constructor)
@@ -50,8 +52,8 @@ function setObjectLifetime<T extends typeof BaseObject>(constructor: T, lifetime
  * @param lock
  * @constructor
  */
-export function Lifetime<T extends typeof BaseObject>(lifetime: 'SINGLETON' | 'TRANSIENT' | 'SCOPED', lock: boolean = false): (constructor: T) => T {
-    return function <T extends typeof BaseObject>(constructor: T): T {
+export function Lifetime<T extends TBaseObject>(lifetime: 'SINGLETON' | 'TRANSIENT' | 'SCOPED', lock: boolean = false): (constructor: T) => T {
+    return function <T extends TBaseObject>(constructor: T): T {
         return setObjectLifetime(constructor, lifetime, lock)
     }
 }
@@ -61,8 +63,8 @@ export function Lifetime<T extends typeof BaseObject>(lifetime: 'SINGLETON' | 'T
  * @param lock
  * @constructor
  */
-export function Singleton<T extends typeof BaseObject>(lock: boolean = false): (constructor: T) => T {
-    return function <T extends typeof BaseObject>(constructor: T): T {
+export function Singleton<T extends TBaseObject>(lock: boolean = false): (constructor: T) => T {
+    return function <T extends TBaseObject>(constructor: T): T {
         return setObjectLifetime(constructor, 'SINGLETON', lock)
     }
 }
@@ -72,8 +74,8 @@ export function Singleton<T extends typeof BaseObject>(lock: boolean = false): (
  * @param lock
  * @constructor
  */
-export function Transient<T extends typeof BaseObject>(lock: boolean = false): (constructor: T) => T {
-    return function <T extends typeof BaseObject>(constructor: T): T {
+export function Transient<T extends TBaseObject>(lock: boolean = false): (constructor: T) => T {
+    return function <T extends TBaseObject>(constructor: T): T {
         return setObjectLifetime(constructor, 'TRANSIENT', lock)
     }
 }
@@ -83,12 +85,11 @@ export function Transient<T extends typeof BaseObject>(lock: boolean = false): (
  * @param lock
  * @constructor
  */
-export function Scoped<T extends typeof BaseObject>(lock: boolean = false): (constructor: T) => T {
-    return function <T extends typeof BaseObject>(constructor: T): T {
+export function Scoped<T extends TBaseObject>(lock: boolean = false): (constructor: T) => T {
+    return function <T extends TBaseObject>(constructor: T): T {
         return setObjectLifetime(constructor, 'SCOPED', lock)
     }
 }
-
 
 /**
  * 使用所修饰的属性名作为注入项的名称

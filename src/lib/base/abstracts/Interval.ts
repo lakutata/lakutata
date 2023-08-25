@@ -1,7 +1,7 @@
 import {BaseObject} from '../BaseObject'
 import {IsObjectInitialized} from '../../../exports/Utilities'
 import {clearInterval} from 'timers'
-import {Configurable} from '../../../decorators/DependencyInjectionDecorators'
+import {Configurable, Scoped} from '../../../decorators/DependencyInjectionDecorators'
 import {Validator} from '../../../exports/Validator'
 
 /**
@@ -15,6 +15,7 @@ export enum IntervalMode {
 /**
  * 定时器抽象类
  */
+@Scoped(true)
 export abstract class Interval extends BaseObject {
     /**
      * 周期调用器

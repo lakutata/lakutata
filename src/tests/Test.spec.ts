@@ -56,7 +56,7 @@ import {TestThreadTask} from './threads/TestThreadTask'
                 expression: '1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,47,49,51,53,55,57,59 * * * * ? '
             },
             testThreadWork: {
-                class: TestThreadTask,
+                class: TestThreadTask
                 // minThreads: 1,
                 // maxThreads: 1
             }
@@ -126,6 +126,7 @@ import {TestThreadTask} from './threads/TestThreadTask'
                 testProc.testProp = '666666'
                 console.log('testProc.sayHi():', await testProc.sayHi(), testProc.testProp)
                 const testThread = await subScope.get<TestThreadTask>('testThreadWork')
+                const testThread1 = await subScope.get<TestThreadTask>('testThreadWork')
                 console.log(await testThread.run())
                 setTimeout(async () => {
                     await subScope.destroy()

@@ -6,10 +6,9 @@ import Module from 'module'
 import {ModuleNotFoundException} from '../../../exceptions/ModuleNotFoundException'
 import Piscina from 'piscina'
 import {Configurable, Scoped} from '../../../decorators/DependencyInjectionDecorators'
-import {MethodNotImplementedException} from '../../../exceptions/MethodNotImplementedException'
 
 @Scoped(true)
-export class ThreadTask extends BaseObject {
+export abstract class ThreadTask extends BaseObject {
 
     /**
      * 最小线程数
@@ -105,10 +104,5 @@ export class ThreadTask extends BaseObject {
      * @param inp
      * @protected
      */
-    protected async executor(inp?: Record<string, any>): Promise<any> {
-        throw new MethodNotImplementedException('The \'{methodName}\' method must be overridden and implemented in the subclass \'{className}\'.', {
-            methodName: 'executor',
-            className: this.className
-        })
-    }
+    protected abstract executor(inp?: Record<string, any>): Promise<any>
 }
