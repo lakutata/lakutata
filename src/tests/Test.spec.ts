@@ -114,7 +114,7 @@ import {TestThreadTask} from './threads/TestThreadTask'
                 testModel.on('property-changed', console.log)
                 console.log('testModel.greet:', testModel.greet)
                 testModel.aa = '6666668888888'
-                console.log(await app.invoke({a: 1, b: 2}, {testBoolean: true}))
+                console.log(await app.dispatch({a: 1, b: 2}, {testBoolean: true}))
                 const logger = await app.get<Logger>('log')
                 logger.trace('more on this: %s', process.env.NODE_ENV)
                 const testProc = await subScope.get<TestProcess>('testProc')
