@@ -40,4 +40,5 @@ export * from '../lib/base/abstracts/Interval'
 export {Cron} from '../lib/base/abstracts/Cron'
 export {SymmetricEncryption} from '../lib/base/abstracts/SymmetricEncryption'
 export {AsymmetricEncryption} from '../lib/base/abstracts/AsymmetricEncryption'
+export {ThreadTask} from '../lib/base/abstracts/ThreadTask'
 
