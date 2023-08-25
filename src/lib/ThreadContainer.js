@@ -1,8 +1,6 @@
 if (require.resolve('ts-node')) require('ts-node').register()
-require('../Lakutata')
+const {Application, Logger} = require('../Lakutata')
 const {workerData} = require('worker_threads')
-const {Application} = require('./Application')
-const {Logger} = require('./components/Logger')
 
 const configurableProperties = workerData.configurableProperties
 const moduleFilename = workerData.moduleId
@@ -34,6 +32,7 @@ async function getApp() {
     }
     return app
 }
+
 module.exports = async (inp) => {
     return await (await (await getApp()).get(ThreadTaskClassConstructor.name)).run(inp)
 }

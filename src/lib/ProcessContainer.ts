@@ -1,10 +1,11 @@
-import '../Lakutata'
-import {IConstructor} from '../interfaces/IConstructor'
-import {Process} from './base/Process'
+import {
+    IConstructor,
+    Process,
+    Application,
+    Logger,
+    ILogger
+} from '../Lakutata'
 import v8 from 'v8'
-import {Application} from './Application'
-import {Logger} from './components/Logger'
-import {ILogger} from '../interfaces/ILogger'
 
 const reversed: string[] = process.argv.reverse()
 const loggerEvent: string = reversed[1]

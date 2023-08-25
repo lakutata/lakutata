@@ -105,6 +105,9 @@
     "alias",
     "cjs",
     "ioc",
-    "di"
+    "di",
+    "process",
+    "thread",
+    "worker"
   ]
 }

@@ -6,11 +6,10 @@ import Module from 'module'
 import {ModuleNotFoundException} from '../../../exceptions/ModuleNotFoundException'
 import Piscina from 'piscina'
 import {Configurable, Scoped} from '../../../decorators/DependencyInjectionDecorators'
-import os from 'node:os'
+import {MethodNotImplementedException} from '../../../exceptions/MethodNotImplementedException'
 
-// @ts-ignore
 @Scoped(true)
-export abstract class ThreadTask extends BaseObject {
+export class ThreadTask extends BaseObject {
 
     /**
      * 最小线程数
@@ -24,10 +23,15 @@ export abstract class ThreadTask extends BaseObject {
      * @protected
      */
     @Configurable()
-    protected readonly maxThreads: number = os.cpus().length
+    protected readonly maxThreads: number = 1
 
+    /**
+     * 构造函数
+     * @param properties
+     */
     constructor(properties: InjectionProperties = {}) {
         super(properties)
+        this.setInternalProperty('type', 'ThreadTask')
     }
 
     /**
@@ -101,5 +105,10 @@ export abstract class ThreadTask extends BaseObject {
      * @param inp
      * @protected
      */
-    protected abstract executor(inp?: Record<string, any>): Promise<any>
+    protected async executor(inp?: Record<string, any>): Promise<any> {
+        throw new MethodNotImplementedException('The \'{methodName}\' method must be overridden and implemented in the subclass \'{className}\'.', {
+            methodName: 'executor',
+            className: this.className
+        })
+    }
 }

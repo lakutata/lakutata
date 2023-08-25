@@ -145,6 +145,7 @@ export class BaseObject extends AsyncConstructor {
                     })
                 }
                 const configurableInitValueMap: Map<string, any> = new Map()
+                configurableItems?.forEach((configurablePropertyKey: string) => configurableInitValueMap.set(configurablePropertyKey, this[configurablePropertyKey]))
                 configurableOptionsMap.forEach((options: ConfigurableOptions, propertyKey: string): void => {
                     configurableInitValueMap.set(propertyKey, this[propertyKey])
                     Object.defineProperty(this, propertyKey, {

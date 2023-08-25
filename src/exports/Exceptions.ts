@@ -58,5 +58,6 @@ export {InvalidConfigurableValueException} from '../exceptions/InvalidConfigurab
 export {InvalidDTOValueException} from '../exceptions/InvalidDTOValueException'
 export {InvalidGlobStringException} from '../exceptions/InvalidGlobStringException'
 export {MethodNotFoundException} from '../exceptions/MethodNotFoundException'
+export {MethodNotImplementedException} from '../exceptions/MethodNotImplementedException'
 export {ModuleNotFoundException} from '../exceptions/ModuleNotFoundException'
 export {NotSupportHashException} from '../exceptions/NotSupportHashException'
