@@ -5,12 +5,17 @@ import path from 'path'
 import Module from 'module'
 import {ModuleNotFoundException} from '../../../exceptions/ModuleNotFoundException'
 import Piscina from 'piscina'
-import {Configurable, Scoped} from '../../../decorators/DependencyInjectionDecorators'
+import {Configurable, Inject, Scoped} from '../../../decorators/DependencyInjectionDecorators'
 import {IllegalMethodCallException} from '../../../exceptions/IllegalMethodCallException'
 import {Transform, TransformCallback} from 'stream'
+import {RandomString} from '../../../exports/Utilities'
+import {Logger} from '../../components/Logger'
 
 @Scoped(true)
 export abstract class ThreadTask extends BaseObject {
+
+    @Inject('log')
+    protected readonly log: Logger
 
     /**
      * 最小线程数
@@ -62,6 +67,7 @@ export abstract class ThreadTask extends BaseObject {
         const configurableProperties: string[] = await this.__getConfigurableProperties()
         const configs: Record<string, any> = {}
         configurableProperties.forEach((propertyKey: string) => configs[propertyKey] = this[propertyKey])
+        const loggerEvent = `__$$${RandomString(16)}_`
         const threadPool: Piscina = new Piscina({
             minThreads: this.minThreads,
             maxThreads: this.maxThreads,
@@ -72,7 +78,18 @@ export abstract class ThreadTask extends BaseObject {
             workerData: {
                 className: this.className,
                 moduleId: moduleId,
-                configurableProperties: configurableProperties
+                configurableProperties: configurableProperties,
+                loggerEvent: loggerEvent
+            }
+        })
+        threadPool.on('message', (args: any[]): void => {
+            const eventName: string = args[0]
+            const eventArgs: any[] = args.slice(1)
+            //处理日志事件
+            if (eventName === loggerEvent) {
+                const loggerMethod: string = eventArgs[0]
+                const loggerArgs: any[] = eventArgs.slice(1)
+                this.log[loggerMethod](...loggerArgs)
             }
         })
         this.setInternalProperty('threadPool', threadPool)
