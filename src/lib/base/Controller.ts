@@ -94,4 +94,13 @@ export class Controller extends Component {
     public async afterAction(subject: Record<string, any>, actionName: string, actionResult: any): Promise<any> {
         return actionResult
     }
+
+    /**
+     * 内部销毁函数
+     * @protected
+     */
+    protected async __destroy(): Promise<void> {
+        this.context.clear()
+        return super.__destroy()
+    }
 }
