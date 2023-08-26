@@ -20,6 +20,7 @@ import {Patrun} from 'patrun'
 import {
     NoMatchedControllerActionPatternException
 } from '../../exceptions/controller/NoMatchedControllerActionPatternException'
+import {DispatchToControllerConfigurableParams} from '../../types/DispatchToControllerConfigurableParams'
 
 /**
  * 模块基类
@@ -379,7 +380,7 @@ export class Module<TModule extends Module = any, TComponent extends Component =
         Validator.Object().pattern(Validator.String(), Validator.Any()).required(),
         Validator.Object().pattern(Validator.String(), Validator.Any()).optional().default({})
     ], {stripUnknown: false})
-    public async dispatchToController<T = any>(subject: Record<string, any>, configurableParams: Record<string, any> = {}): Promise<T> {
+    public async dispatchToController<T = any>(subject: Record<string, any>, configurableParams: DispatchToControllerConfigurableParams = {}): Promise<T> {
         const func: ((subject: Record<string, any>, params: Record<string, any>) => Promise<any>) | undefined = this.__$$patternManager.find(subject)
         if (func) return await func(subject, configurableParams)
         throw new NoMatchedControllerActionPatternException('The pattern of the controller action does not match the subject passed in the invocation')

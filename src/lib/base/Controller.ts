@@ -9,6 +9,7 @@ import {IPatRun} from '../../interfaces/IPatRun'
 import {
     NoMatchedControllerActionPatternException
 } from '../../exceptions/controller/NoMatchedControllerActionPatternException'
+import {IUser} from '../../interfaces/IUser'
 
 /**
  * 控制器基类
@@ -31,6 +32,21 @@ export class Controller extends Component {
      */
     @Configurable()
     protected readonly runtimeContainer: Container
+
+    /**
+     * 控制器上下文
+     * 该属性在forward的时候会一同传递至子控制器中
+     * @protected
+     */
+    @Configurable()
+    protected readonly context: Map<string, any> = new Map()
+
+    /**
+     * 控制器访问用户对象
+     * @protected
+     */
+    @Configurable()
+    protected readonly user?: IUser
 
     /**
      * Constructor
