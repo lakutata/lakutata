@@ -39,10 +39,10 @@ export function Action<T extends Controller>(pattern: Record<string, any>): (tar
         }
         const originalMethod: TActionFunction = descriptor.value as any
         descriptor.value = async function (this: Controller, inp: any, ...args: any[]): Promise<any> {
-            const allowAction: boolean = await this.beforeAction(inp, propertyKey)
+            const allowAction: boolean = await this.beforeAction(inp, <string>propertyKey)
             if (!allowAction) return
             const actionResult: any = await originalMethod.apply(this, As<any>([inp, ...args]))
-            return await this.afterAction(inp, propertyKey, actionResult)
+            return await this.afterAction(inp, <string>propertyKey, actionResult)
         }
         return descriptor
     }

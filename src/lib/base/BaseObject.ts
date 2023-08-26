@@ -5,7 +5,7 @@ import {
     MergeSet,
     ParentConstructor,
     RandomString, SetToArray,
-    ThrowIntoBlackHole
+    ThrowIntoBlackHole, UniqueArray
 } from '../../exports/Utilities'
 import {
     DI_CONTAINER_CREATOR_CONSTRUCTOR,
@@ -231,8 +231,15 @@ export class BaseObject extends AsyncConstructor {
      * @protected
      */
     protected async __getConfigurableProperties(): Promise<string[]> {
-        if (!Reflect.hasMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, this.constructor)) return []
-        return SetToArray(As<Set<string>>(Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, this.constructor)))
+        const propertyNames: string[] = []
+        let constructor: IConstructor<any> | null = <IConstructor<any>>(this.constructor)
+        while (constructor) {
+            if (Reflect.hasMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, constructor)) {
+                SetToArray(As<Set<string>>(Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, constructor))).forEach((p: string) => propertyNames.push(p))
+            }
+            constructor = ParentConstructor(constructor)
+        }
+        return UniqueArray(propertyNames)
     }
 
     /**

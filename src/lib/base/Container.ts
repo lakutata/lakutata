@@ -49,11 +49,14 @@ export class Container<T extends Module = Module> {
 
     protected readonly __$controllerActionMap: Map<string, ControllerActionMapItem> = new Map()
 
+    protected readonly __$subContainerSet: Set<Container> = new Set()
+
     protected __$transientWeakRefs: WeakRef<any>[] = []
 
     constructor(module?: T, parent?: Container) {
         this.__$$module = module
         this.__$$parent = parent
+        if (this.__$$parent) this.__$$parent.__$subContainerSet.add(this)
         this.__$$dic = createContainer({injectionMode: 'PROXY'}, this.__$$parent?.__$$dic)
         Object.defineProperty(this.__$$dic, 'newTransient', {
             set: (resolvedWeakRef: WeakRef<any>): void => {
@@ -149,8 +152,7 @@ export class Container<T extends Module = Module> {
                     //在模块对象上的patternManager进行注册
                     As<IPatRun>(this.__$$module.getProperty('__$$patternManager'))?.add(item.pattern, async (subject: Record<string, any>, configurableParams: Record<string, any> = {}): Promise<any> => {
                         const controllerRuntimeScope: Container = this.createScope()
-                        const controller: Controller = await controllerRuntimeScope.get(item.class, configurableParams)
-                        controller['setInternalProperty']('runtimeContainer', controllerRuntimeScope)
+                        const controller: Controller = await controllerRuntimeScope.get(item.class, Object.assign(configurableParams, {runtimeContainer: controllerRuntimeScope}))
                         const result: any = await controller[item.method](subject)
                         setImmediate(() => controllerRuntimeScope.destroy())
                         return result
@@ -346,6 +348,12 @@ export class Container<T extends Module = Module> {
      * 销毁当前容器
      */
     public async destroy(): Promise<void> {
+        if (this.__$$parent) this.__$$parent.__$subContainerSet.delete(this)
+        const cleanSubContainerPromises: Promise<void>[] = []
+        this.__$subContainerSet.forEach((subContainer: Container) =>
+            cleanSubContainerPromises.push(new Promise((resolve, reject) =>
+                subContainer.destroy().then(resolve).catch(reject))))
+        await Promise.all(cleanSubContainerPromises)
         await this.__$$dic.dispose()
         this.__$controllerActionMap.clear()
         this.__$$additionalPropertyMap.clear()

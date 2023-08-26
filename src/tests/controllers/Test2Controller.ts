@@ -8,13 +8,18 @@ export class Test2Controller extends Controller {
         return `oh! this is test hello from ${this.className}`
     }
 
-    async beforeAction(subject: Record<string, any>, actionName: string | symbol | number): Promise<boolean> {
+    async beforeAction(subject: Record<string, any>, actionName: string): Promise<boolean> {
         console.log(actionName, subject)
         return true
     }
 
-    async afterAction(subject: Record<string, any>, actionName: string | symbol | number, actionResult: any): Promise<any> {
+    async afterAction(subject: Record<string, any>, actionName: string, actionResult: any): Promise<any> {
         console.log(subject, actionName, actionResult)
         return super.afterAction(subject, actionName, actionResult)
     }
+
+    protected async destroy(): Promise<void> {
+        console.log(this.className, 'destroy!!!!!!')
+    }
+
 }

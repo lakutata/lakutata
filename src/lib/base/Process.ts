@@ -167,7 +167,7 @@ export class Process extends Component {
         const loggerEvent: string = `__$$${RandomString(16)}_`
         await new Promise((resolve, reject) => {
             this.once('ready', resolve)
-            const worker: ChildProcess = fork(path.resolve(__dirname, '../ProcessContainer'), [
+            const worker: ChildProcess = fork(path.resolve(__dirname, '../worker/ProcessContainer'), [
                 moduleId,
                 this.className,
                 v8.serialize(configs).toString('base64'),

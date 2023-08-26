@@ -1,6 +1,6 @@
 import {Component} from './Component'
 import {InjectionProperties} from '../../types/InjectionProperties'
-import {InjectApp, Lifetime} from '../../decorators/DependencyInjectionDecorators'
+import {Configurable, InjectApp, Lifetime} from '../../decorators/DependencyInjectionDecorators'
 import {Application} from '../Application'
 import {IConstructor} from '../../interfaces/IConstructor'
 import {CONTROLLER_CONSTRUCTOR_MARK, CONTROLLER_PATTERN_MANAGER} from '../../constants/MetadataKey'
@@ -26,6 +26,13 @@ export class Controller extends Component {
     protected readonly app: Application
 
     /**
+     * 控制器的运行时容器
+     * @protected
+     */
+    @Configurable()
+    protected readonly runtimeContainer: Container
+
+    /**
      * Constructor
      * @param properties
      */
@@ -45,8 +52,11 @@ export class Controller extends Component {
         if (!controllerPatternManager) throw new NoMatchedControllerActionPatternException('The pattern of the controller action does not match the subject passed in the invocation')
         const actionName: string | number | symbol = controllerPatternManager.find(subject)
         if (!actionName) throw new NoMatchedControllerActionPatternException('The pattern of the controller action does not match the subject passed in the invocation')
-        const runtimeContainer: Container = this.getInternalProperty('runtimeContainer')
-        const instance: T = await runtimeContainer.createObject(controllerConstructor, configurableParams)
+        const currentControllerConfigurablePropertyNames: string[] = await this.__getConfigurableProperties()
+        const currentControllerConfigurableProperties: Record<string, any> = {}
+        currentControllerConfigurablePropertyNames.forEach((p: string) => currentControllerConfigurableProperties[p] = this[p])
+        const subControllerRuntimeContainer: Container = this.runtimeContainer.createScope()
+        const instance: T = await subControllerRuntimeContainer.createObject(controllerConstructor, Object.assign(configurableParams, Object.assign(currentControllerConfigurableProperties, configurableParams)))
         return await instance[actionName](subject)
     }
 
@@ -55,7 +65,7 @@ export class Controller extends Component {
      * @param subject
      * @param actionName
      */
-    public async beforeAction(subject: Record<string, any>, actionName: string | symbol | number): Promise<boolean> {
+    public async beforeAction(subject: Record<string, any>, actionName: string): Promise<boolean> {
         return true
     }
 
@@ -65,7 +75,7 @@ export class Controller extends Component {
      * @param actionName
      * @param actionResult
      */
-    public async afterAction(subject: Record<string, any>, actionName: string | symbol | number, actionResult: any): Promise<any> {
+    public async afterAction(subject: Record<string, any>, actionName: string, actionResult: any): Promise<any> {
         return actionResult
     }
 }
