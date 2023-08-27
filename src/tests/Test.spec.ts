@@ -115,6 +115,7 @@ import {TestThreadTask} from './threads/TestThreadTask'
                 console.log('testModel.greet:', testModel.greet)
                 testModel.aa = '6666668888888'
                 console.log(await app.dispatchToController({a: 1, b: 2}, {testBoolean: true}))
+                // console.log(await app.dispatchToController({test2:true}, {testBoolean: true}))
                 const logger = await app.get<Logger>('log')
                 logger.trace('more on this: %s', process.env.NODE_ENV)
                 const testProc = await subScope.get<TestProcess>('testProc')

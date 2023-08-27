@@ -34,8 +34,6 @@ export class Module<TModule extends Module = any, TComponent extends Component =
     @Configurable()
     protected readonly __$$parentContainer: Container
 
-    protected readonly __$$patternManager: IPatRun
-
     protected readonly __$$container: Container
 
     /**
@@ -53,7 +51,6 @@ export class Module<TModule extends Module = any, TComponent extends Component =
      */
     protected async __init(): Promise<void> {
         this.setProperty('__$$options', this.getProperty('__$$options', {}))
-        this.setProperty('__$$patternManager', Patrun())
         this.setProperty('__$$container', new Container(this, this.__$$parentContainer))
         this.setProperty('__$$options', await ModuleOptions.validateAsync(this.__$$options))
         await this.__bootstrap()
@@ -286,7 +283,6 @@ export class Module<TModule extends Module = any, TComponent extends Component =
      * @protected
      */
     protected async __destroy(): Promise<void> {
-        this.__$$patternManager.list().forEach(matched => this.__$$patternManager.remove(matched.match))//清空patternManager
         await this.__$$container.destroy()//在应用程序加载模块的时候需要初始化模块的IoC容器
         return super.__destroy()
     }
@@ -381,7 +377,7 @@ export class Module<TModule extends Module = any, TComponent extends Component =
         Validator.Object().pattern(Validator.String(), Validator.Any()).optional().default({})
     ], {stripUnknown: false})
     public async dispatchToController<T = any>(subject: Record<string, any>, configurableParams: DispatchToControllerConfigurableParams = {}): Promise<T> {
-        const func: ((subject: Record<string, any>, params: Record<string, any>) => Promise<any>) | undefined = this.__$$patternManager.find(subject)
+        const func: ((subject: Record<string, any>, params: Record<string, any>) => Promise<any>) | undefined = this.__$$container.controllerPatternManager.find(subject)
         if (func) return await func(subject, configurableParams)
         throw new NoMatchedControllerActionPatternException('The pattern of the controller action does not match the subject passed in the invocation')
     }

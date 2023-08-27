@@ -36,6 +36,7 @@ import {
 } from '../../exceptions/controller/DuplicateControllerActionPatternException'
 import {IPatRun} from '../../interfaces/IPatRun'
 import {Controller} from './Controller'
+import {Patrun} from 'patrun'
 
 export class Container<T extends Module = Module> {
 
@@ -51,7 +52,13 @@ export class Container<T extends Module = Module> {
 
     protected readonly __$subContainerSet: Set<Container> = new Set()
 
+    protected readonly __$$patternManager: IPatRun = Patrun()
+
     protected __$transientWeakRefs: WeakRef<any>[] = []
+
+    public get controllerPatternManager(): IPatRun {
+        return this.__$$patternManager
+    }
 
     constructor(module?: T, parent?: Container) {
         this.__$$module = module
@@ -128,12 +135,12 @@ export class Container<T extends Module = Module> {
     }
 
     /**
-     * 将Controller注册至模块
+     * 注册Controller
      * @param constructor
      * @protected
      */
-    protected registerControllerToModule(constructor: IConstructor<any>): void {
-        if (this.__$$module && Reflect.hasOwnMetadata(CONTROLLER_ACTION_MAP, constructor)) {
+    protected registerController(constructor: IConstructor<any>): void {
+        if (Reflect.hasOwnMetadata(CONTROLLER_ACTION_MAP, constructor)) {
             const items = As<Map<string, ControllerActionMapItem>>(Reflect.getOwnMetadata(CONTROLLER_ACTION_MAP, constructor)).values()
             for (const item of items) {
                 let isNewPattern: boolean = true
@@ -150,7 +157,7 @@ export class Container<T extends Module = Module> {
                 if (isNewPattern) {
                     this.__$controllerActionMap.set(item.patternHash, item)
                     //在模块对象上的patternManager进行注册
-                    As<IPatRun>(this.__$$module.getProperty('__$$patternManager'))?.add(item.pattern, async (subject: Record<string, any>, configurableParams: Record<string, any> = {}): Promise<any> => {
+                    this.__$$patternManager.add(item.pattern, async (subject: Record<string, any>, configurableParams: Record<string, any> = {}): Promise<any> => {
                         const controllerRuntimeScope: Container = this.createScope()
                         const controller: Controller = await controllerRuntimeScope.get(item.class, Object.assign(configurableParams, {runtimeContainer: controllerRuntimeScope}))
                         const result: any = await controller[item.method](subject)
@@ -207,7 +214,7 @@ export class Container<T extends Module = Module> {
      * @protected
      */
     protected assignConfigToInjectConstructorMetadata<T extends BaseObject>(name: string, constructor: IConstructor<T>, config?: Record<string, any>): void {
-        if (this.isControllerConstructor(constructor) && this.__$$module) this.registerControllerToModule(constructor)
+        if (this.isControllerConstructor(constructor)) this.registerController(constructor)
         if (!config) return
         Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT, config, constructor, name)
         this.updateTransientWeakRefs()
@@ -348,6 +355,7 @@ export class Container<T extends Module = Module> {
      * 销毁当前容器
      */
     public async destroy(): Promise<void> {
+        this.__$$patternManager.list().forEach(matched => this.__$$patternManager.remove(matched.match))//清空patternManager
         if (this.__$$parent) this.__$$parent.__$subContainerSet.delete(this)
         const cleanSubContainerPromises: Promise<void>[] = []
         this.__$subContainerSet.forEach((subContainer: Container) =>

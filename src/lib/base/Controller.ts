@@ -66,14 +66,14 @@ export class Controller extends Component {
     public async forward<T extends Controller>(controllerConstructor: IConstructor<T>, subject: Record<string, any>, configurableParams: Record<string, any> = {}): Promise<any> {
         const controllerPatternManager: IPatRun | undefined = Reflect.getOwnMetadata(CONTROLLER_PATTERN_MANAGER, controllerConstructor)
         if (!controllerPatternManager) throw new NoMatchedControllerActionPatternException('The pattern of the controller action does not match the subject passed in the invocation')
-        const actionName: string | number | symbol = controllerPatternManager.find(subject)
-        if (!actionName) throw new NoMatchedControllerActionPatternException('The pattern of the controller action does not match the subject passed in the invocation')
+        const subControllerRuntimeContainer: Container = this.runtimeContainer.createScope()
         const currentControllerConfigurablePropertyNames: string[] = await this.__getConfigurableProperties()
         const currentControllerConfigurableProperties: Record<string, any> = {}
         currentControllerConfigurablePropertyNames.forEach((p: string) => currentControllerConfigurableProperties[p] = this[p])
-        const subControllerRuntimeContainer: Container = this.runtimeContainer.createScope()
-        const instance: T = await subControllerRuntimeContainer.createObject(controllerConstructor, Object.assign(configurableParams, Object.assign(currentControllerConfigurableProperties, configurableParams)))
-        return await instance[actionName](subject)
+        await subControllerRuntimeContainer.set(controllerConstructor)
+        const func: ((subject: Record<string, any>, params: Record<string, any>) => Promise<any>) | undefined = subControllerRuntimeContainer.controllerPatternManager.find(subject)
+        if (!func) throw new NoMatchedControllerActionPatternException('The pattern of the controller action does not match the subject passed in the invocation')
+        return await func(subject, Object.assign(configurableParams, Object.assign(currentControllerConfigurableProperties, configurableParams)))
     }
 
     /**
