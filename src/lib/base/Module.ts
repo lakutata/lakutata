@@ -15,8 +15,6 @@ import {LoadModuleOptions} from '../../options/LoadModuleOptions'
 import {LoadComponentOptions} from '../../options/LoadComponentOptions'
 import {InjectionProperties} from '../../types/InjectionProperties'
 import {Controller} from './Controller'
-import {IPatRun} from '../../interfaces/IPatRun'
-import {Patrun} from 'patrun'
 import {
     NoMatchedControllerActionPatternException
 } from '../../exceptions/controller/NoMatchedControllerActionPatternException'
