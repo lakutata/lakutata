@@ -62,8 +62,9 @@ export class Controller extends Component {
      * @param controllerConstructor
      * @param subject
      * @param configurableParams
+     * @protected
      */
-    public async forward<T extends Controller>(controllerConstructor: IConstructor<T>, subject: Record<string, any>, configurableParams: Record<string, any> = {}): Promise<any> {
+    protected async forward<T extends Controller>(controllerConstructor: IConstructor<T>, subject: Record<string, any>, configurableParams: Record<string, any> = {}): Promise<any> {
         const controllerPatternManager: IPatRun | undefined = Reflect.getOwnMetadata(CONTROLLER_PATTERN_MANAGER, controllerConstructor)
         if (!controllerPatternManager) throw new NoMatchedControllerActionPatternException('The pattern of the controller action does not match the subject passed in the invocation')
         const subControllerRuntimeContainer: Container = this.runtimeContainer.createScope()
@@ -80,8 +81,9 @@ export class Controller extends Component {
      * 控制器动作执行前调用方法
      * @param subject
      * @param actionName
+     * @protected
      */
-    public async beforeAction(subject: Record<string, any>, actionName: string): Promise<boolean> {
+    protected async beforeAction(subject: Record<string, any>, actionName: string): Promise<boolean> {
         return true
     }
 
@@ -90,8 +92,9 @@ export class Controller extends Component {
      * @param subject
      * @param actionName
      * @param actionResult
+     * @protected
      */
-    public async afterAction(subject: Record<string, any>, actionName: string, actionResult: any): Promise<any> {
+    protected async afterAction(subject: Record<string, any>, actionName: string, actionResult: any): Promise<any> {
         return actionResult
     }
 

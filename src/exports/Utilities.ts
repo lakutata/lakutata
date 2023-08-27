@@ -15,6 +15,15 @@ import SortKeys from '../lib/deps/SortKeys'
 import pickFreePort from '../lib/deps/PickFreePort'
 
 /**
+ * 对象转换为Map
+ * @param obj
+ * @constructor
+ */
+export function ObjectToMap<K extends (string | number | symbol), V>(obj: Record<K, V>): Map<K, V> {
+    return As<Map<K, V>>(new Map(Object.entries(obj)))
+}
+
+/**
  * 选择一个没有被使用的网络端口
  * @param options
  * @constructor
