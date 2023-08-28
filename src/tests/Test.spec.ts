@@ -132,8 +132,15 @@ import {AccessControl} from '../lib/access-control/AccessControl'
                 console.log('testModel.greet:', testModel.greet)
                 testModel.aa = '6666668888888'
                 const access=await app.get<AccessControl>('access',{user:{id: '20160329', username: 'testUser'}})
-                await access.createUserPermission('测试动作2','read')
-                await access.createUserPermission('测试动作1','read')
+                await access.createRolePermission('user','测试动作2','read')
+                await access.createRolePermission('tester','测试动作1','read')
+                await access.assignRoleToUser('user')
+                await access.assignRoleToUser('tester')
+                console.log('await access.listUserRoles():',await access.listUserRoles())
+                // await access.createUserPermission('测试动作2','read')
+                // await access.createUserPermission('测试动作1','read')
+                console.log('await access.listUserPermission():',await access.listUserPermission())
+                // await access.clearUserInfo()
                 console.log(await app.dispatchToController({a: '2', b: '2'}, {
                     testBoolean: true,
                     user: {id: '20160329', username: 'testUser'}
