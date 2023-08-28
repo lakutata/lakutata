@@ -35,6 +35,7 @@
     "no-constant-condition": "off",
     "no-case-declarations": "off",
     "no-async-promise-executor": "off",
+    "no-useless-catch": "off",
     "@typescript-eslint/no-var-requires": "off",
     "@typescript-eslint/no-namespace": "off",
     "@typescript-eslint/ban-ts-comment": "off",
