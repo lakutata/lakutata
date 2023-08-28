@@ -34,9 +34,10 @@ import {AccessControl} from '../lib/access-control/AccessControl'
     // console.log(await enforcer.getPolicy())
     console.log(await enforcer.getRolesForUser('myq'))
     console.log(await enforcer.getAllRoles())
+    console.log(await enforcer.getAllActions())
     // await enforcer.savePolicy()
 
-    console.log('isAllow:', await enforcer.enforce('myq', 'default1', 'data3', 'get'))
+    console.log('isAllow:', await enforcer.enforce('myq', 'default', 'data1', 'get'))
 
 
     console.log('##################@@@@@@@@@@@@Application.className:', Application.className)
@@ -130,6 +131,9 @@ import {AccessControl} from '../lib/access-control/AccessControl'
                 testModel.on('property-changed', console.log)
                 console.log('testModel.greet:', testModel.greet)
                 testModel.aa = '6666668888888'
+                const access=await app.get<AccessControl>('access',{user:{id: '20160329', username: 'testUser'}})
+                await access.createUserPermission('测试动作2','read')
+                await access.createUserPermission('测试动作1','read')
                 console.log(await app.dispatchToController({a: '2', b: '2'}, {
                     testBoolean: true,
                     user: {id: '20160329', username: 'testUser'}

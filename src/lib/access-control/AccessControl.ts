@@ -1,5 +1,5 @@
 import {IUser} from '../../interfaces/IUser'
-import {Configurable, Scoped} from '../../decorators/DependencyInjectionDecorators'
+import {Configurable, Transient} from '../../decorators/DependencyInjectionDecorators'
 import {Adapter, Enforcer, newEnforcer} from 'casbin'
 import {DomainRBAC} from './models/DomainRBAC'
 import {AuthStoreOptions} from '../../types/AuthStoreOptions'
@@ -8,8 +8,26 @@ import {stat, writeFile} from 'fs/promises'
 import {Component} from '../base/Component'
 import {FileAdapter} from 'casbin-file-adapter'
 import {NoAuthUserException} from '../../exceptions/auth/NoAuthUserException'
+import {defaultDomain} from '../../constants/DefaultValue'
 
-@Scoped(true)
+/**
+ * 使用该修饰器强制验证组件内所加载的用户必须存在
+ * @constructor
+ */
+function AuthUserRequired(): MethodDecorator {
+    return function <T>(target: Object, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<T>): TypedPropertyDescriptor<T> {
+        const originMethod: any = descriptor.value
+        if (originMethod) {
+            descriptor.value = (function (this: AccessControl, ...args: any[]): any {
+                if (!this.user) throw new NoAuthUserException('Auth user is required.')
+                return originMethod.apply(this, [...args])
+            }) as any
+        }
+        return descriptor
+    }
+}
+
+@Transient(true)
 export class AccessControl extends Component {
 
     /**
@@ -38,7 +56,6 @@ export class AccessControl extends Component {
     protected async __init(): Promise<void> {
         await super.__init()
         if (this.store) {
-            if (!this.user) throw new NoAuthUserException('Auth user is required.')
             let policy: Adapter
             if (this.store.type === 'file') {
                 try {
@@ -77,8 +94,21 @@ export class AccessControl extends Component {
      * @param dom
      * @param act
      */
+    @AuthUserRequired()
     public async validate(obj: string, dom: string, act: string): Promise<boolean> {
         return await this.enforcer.enforce(this.user.id, dom, obj, act)
     }
 
+    /**
+     * 创建用户权限
+     */
+    @AuthUserRequired()
+    public async createUserPermission(obj: string, act: string, dom: string = defaultDomain): Promise<boolean> {
+        const isSuccess: boolean = await this.enforcer.addPolicy(this.user.id, dom, obj, act)
+        await this.enforcer.savePolicy()
+        return isSuccess
+    }
+
+    public async createRole() {
+    }
 }

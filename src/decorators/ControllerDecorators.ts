@@ -47,7 +47,7 @@ function registerActionToControllerActionMap<T extends Controller>(pattern: Acti
  */
 function registerActionToAuthMap<T extends Controller>(authOptions: ActionAuthOptions, controllerConstructor: IConstructor<T>, propertyKey: keyof T): void {
     if (!Reflect.hasOwnMetadata(CONTROLLER_AUTH_MAP, controllerConstructor)) Reflect.defineMetadata(CONTROLLER_AUTH_MAP, new Map<string, ControllerAuthMapItem>(), controllerConstructor)
-    const obj: string = authOptions.act ? authOptions.act : `${controllerConstructor.name}.${propertyKey.toString()}`
+    const obj: string = authOptions.name ? authOptions.name : `${controllerConstructor.name}.${propertyKey.toString()}`
     const act: string = authOptions.act
     As<Map<string, ControllerAuthMapItem>>(Reflect.getOwnMetadata(CONTROLLER_AUTH_MAP, controllerConstructor)).set(propertyKey.toString(), {
         obj: obj,
