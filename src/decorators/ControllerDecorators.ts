@@ -47,11 +47,11 @@ function registerActionToControllerActionMap<T extends Controller>(pattern: Acti
  */
 function registerActionToAuthMap<T extends Controller>(authOptions: ActionAuthOptions, controllerConstructor: IConstructor<T>, propertyKey: keyof T): void {
     if (!Reflect.hasOwnMetadata(CONTROLLER_AUTH_MAP, controllerConstructor)) Reflect.defineMetadata(CONTROLLER_AUTH_MAP, new Map<string, ControllerAuthMapItem>(), controllerConstructor)
-    const obj: string = authOptions.name ? authOptions.name : `${controllerConstructor.name}.${propertyKey.toString()}`
-    const act: string = authOptions.act
+    const action: string = authOptions.name ? authOptions.name : `${controllerConstructor.name}.${propertyKey.toString()}`
+    const operation: string = authOptions.operation
     As<Map<string, ControllerAuthMapItem>>(Reflect.getOwnMetadata(CONTROLLER_AUTH_MAP, controllerConstructor)).set(propertyKey.toString(), {
-        obj: obj,
-        act: act,
+        action: action,
+        operation: operation,
         domain: authOptions.domain ? authOptions.domain : defaultDomain
     })
 }
@@ -74,8 +74,7 @@ export function Action<T extends Controller>(pattern: ActionPattern, authOptions
             if (this.access?.configured && authOptions) {
                 const authRule: ControllerAuthMapItem | undefined = As<Map<string, ControllerAuthMapItem> | undefined>(Reflect.getOwnMetadata(CONTROLLER_AUTH_MAP, this.constructor))?.get(propertyKey.toString())
                 if (authRule) {
-                    const allowAccess: boolean = await this.access.validate(authRule.obj, typeof authRule.domain === 'string' ? authRule.domain : authRule.domain(inp), authRule.act)
-                    console.log('allowAccess:',allowAccess)
+                    const allowAccess: boolean = await this.access.validate(authRule.action, typeof authRule.domain === 'string' ? authRule.domain : authRule.domain(inp), authRule.operation)
                     if (!allowAccess) throw new AccessDenyException('No permission to access this action.')
                 }
             }

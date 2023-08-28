@@ -90,25 +90,36 @@ export class AccessControl extends Component {
 
     /**
      * 执行鉴权
-     * @param obj
-     * @param dom
-     * @param act
+     * @param action
+     * @param domain
+     * @param operation
      */
     @AuthUserRequired()
-    public async validate(obj: string, dom: string, act: string): Promise<boolean> {
-        return await this.enforcer.enforce(this.user.id, dom, obj, act)
+    public async validate(action: string, domain: string, operation: string): Promise<boolean> {
+        return await this.enforcer.enforce(this.user.id, domain, action, operation)
     }
 
     /**
      * 创建用户权限
+     * @param action
+     * @param operation
+     * @param domain
      */
     @AuthUserRequired()
-    public async createUserPermission(obj: string, act: string, dom: string = defaultDomain): Promise<boolean> {
-        const isSuccess: boolean = await this.enforcer.addPolicy(this.user.id, dom, obj, act)
-        await this.enforcer.savePolicy()
-        return isSuccess
+    public async createUserPermission(action: string, operation: string, domain: string = defaultDomain): Promise<boolean> {
+        const isSuccess: boolean = await this.enforcer.addPolicy(this.user.id, domain, action, operation)
+        return (await this.enforcer.savePolicy()) && isSuccess
     }
 
-    public async createRole() {
+    /**
+     * 创建角色权限
+     * @param role
+     * @param action
+     * @param operation
+     * @param domain
+     */
+    public async createRolePermission(role: string, action: string, operation: string, domain: string = defaultDomain): Promise<boolean> {
+        const isSuccess: boolean = await this.enforcer.addPolicy(role, domain, action, operation)
+        return (await this.enforcer.savePolicy()) && isSuccess
     }
 }

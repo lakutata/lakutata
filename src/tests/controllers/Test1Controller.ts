@@ -17,13 +17,13 @@ export class Test1Controller extends Controller {
     }
 
     // @AccessControl.CheckPermission()
-    @Action({a: 2}, {name: '测试动作1', act: 'read'})
+    @Action({a: 2}, {name: '测试动作1', operation: 'read'})
     public async test1(inp) {
         console.log('this is test1 method, the inp is:', inp)
         return this.forward(Test2Controller, Object.assign(inp, {test2: true}))
     }
 
-    @Action({a: 1, b: 3}, {name: '测试动作2', act: 'read'})
+    @Action({a: 1, b: 3}, {name: '测试动作2', operation: 'read'})
     public async test2() {
         return 'this is a equal 1, b equal 1'
     }

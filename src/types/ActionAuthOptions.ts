@@ -2,6 +2,6 @@ import {ActionPattern} from './ActionPattern'
 
 export type ActionAuthOptions = {
     name?: string
-    act: string
+    operation: string
     domain?: string | ((inp: ActionPattern) => string)
 }

@@ -1,7 +1,7 @@
 import {ActionPattern} from './ActionPattern'
 
 export type ControllerAuthMapItem = {
-    obj: string
-    act: string
+    action: string
+    operation: string
     domain: string | ((inp: ActionPattern) => string)
 }
