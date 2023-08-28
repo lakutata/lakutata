@@ -84,7 +84,7 @@ export class AccessControl extends Component {
      * @protected
      */
     protected async __destroy(): Promise<void> {
-        //todo
+        this.setProperty('enforcer', null)//强制置为NULL
         return await super.__destroy()
     }
 
