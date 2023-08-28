@@ -2,25 +2,28 @@ import {Controller} from '../../lib/base/Controller'
 import {Action} from '../../decorators/ControllerDecorators'
 import {Configurable} from '../../decorators/DependencyInjectionDecorators'
 import {Test2Controller} from './Test2Controller'
+import {AccessControl} from '../../lib/access-control/AccessControl'
 
 export class Test1Controller extends Controller {
 
     @Configurable()
     public testBoolean: boolean
 
-    @Action({a: 1})
+    @Action({a: '*', b: '*'})
     public async test(inp) {
+        console.log('FDFDFDFDFDFDFDF')
         return await this.test1(inp)
         // return this
     }
 
-    @Action({a: 2})
+    // @AccessControl.CheckPermission()
+    @Action({a: 2}, {name: '测试动作1', act: 'read'})
     public async test1(inp) {
         console.log('this is test1 method, the inp is:', inp)
         return this.forward(Test2Controller, Object.assign(inp, {test2: true}))
     }
 
-    @Action({a: 1, b: 1})
+    @Action({a: 1, b: 3}, {name: '测试动作2', act: 'read'})
     public async test2() {
         return 'this is a equal 1, b equal 1'
     }

@@ -18,13 +18,24 @@ import {TestCron} from './intervals/TestCron'
 import * as zlib from 'zlib'
 import v8 from 'v8'
 import {TestThreadTask} from './threads/TestThreadTask'
+import {newEnforcer} from 'casbin'
+import {RBAC} from '../lib/access-control/models/RBAC'
 
 (async () => {
-    // fork('./src/tests/TestProc.js')
-    // new Worker('./src/tests/TestProc.js')
 
-    // fork('@test')
-    // new Worker('@test')
+    const rbac = new RBAC()
+    const enforcer = await newEnforcer(rbac)
+
+    await enforcer.addPolicy('myq', 'data1', 'get')
+    await enforcer.addPolicy('myq', 'data2', 'post')
+    await enforcer.addPolicy('user', 'data3', 'get')
+    await enforcer.addRoleForUser('myq', 'user')
+    // console.log(await enforcer.getPolicy())
+    console.log(await enforcer.getRolesForUser('myq'))
+    console.log(await enforcer.getAllRoles())
+    // await enforcer.savePolicy()
+
+    console.log('isAllow:', await enforcer.enforce('myq', 'data3', 'get'))
 
 
     console.log('##################@@@@@@@@@@@@Application.className:', Application.className)
@@ -114,7 +125,7 @@ import {TestThreadTask} from './threads/TestThreadTask'
                 testModel.on('property-changed', console.log)
                 console.log('testModel.greet:', testModel.greet)
                 testModel.aa = '6666668888888'
-                console.log(await app.dispatchToController({a: 1, b: 2}, {testBoolean: true}))
+                console.log(await app.dispatchToController({a: '2', b: '2'}, {testBoolean: true}))
                 // console.log(await app.dispatchToController({test2:true}, {testBoolean: true}))
                 const logger = await app.get<Logger>('log')
                 logger.trace('more on this: %s', process.env.NODE_ENV)
