@@ -206,4 +206,32 @@ export class AccessControl extends Component {
             domain: rawPermission[1]
         }))
     }
+
+    /**
+     * 将父角色分配给子角色
+     * @param childRole
+     * @param parentRole
+     * @param domain
+     */
+    public async assignRoleToRole(childRole: string, parentRole: string, domain: string = defaultDomain): Promise<boolean> {
+        return (await this.enforcer.addRoleForUser(childRole, parentRole, domain)) && (await this.enforcer.savePolicy())
+    }
+
+    /**
+     * 从子角色中移除父角色
+     * @param childRole
+     * @param parentRole
+     * @param domain
+     */
+    public async removeRoleFromRole(childRole: string, parentRole: string, domain: string = defaultDomain): Promise<boolean> {
+        return (await this.enforcer.deleteRoleForUser(childRole, parentRole, domain)) && (await this.enforcer.savePolicy())
+    }
+
+    /**
+     * 清除角色所有权限信息
+     * @param role
+     */
+    public async clearRoleInfo(role: string): Promise<boolean> {
+        return (await this.enforcer.deleteRole(role)) && (await this.enforcer.savePolicy())
+    }
 }
