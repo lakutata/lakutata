@@ -10,6 +10,7 @@ import {AsyncFunction} from '../types/AsyncFunction'
 import {As} from '../exports/Utilities'
 import {DefaultLoggerProvider} from './DefaultLoggerProvider'
 import {Alias} from './Alias'
+import {AccessControl} from './access-control/AccessControl'
 
 @Singleton(true)
 export class Application extends Module {
@@ -32,6 +33,9 @@ export class Application extends Module {
             log: {
                 class: Logger,
                 provider: DefaultLoggerProvider(process.env.NODE_ENV === 'development' ? 'trace' : 'info')
+            },
+            access: {
+                class: AccessControl
             }
         }
     }

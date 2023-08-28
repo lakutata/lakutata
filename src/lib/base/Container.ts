@@ -21,7 +21,8 @@ import {
     DI_CONTAINER_SPECIAL_INJECT_APP_GETTER_KEY,
     DI_CONTAINER_SPECIAL_INJECT_MODULE_GETTER,
     DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT,
-    DI_TARGET_CONSTRUCTOR_FINGERPRINT, DI_TARGET_INSTANCE_CONFIGURABLE_OBJECT
+    DI_TARGET_CONSTRUCTOR_FINGERPRINT,
+    DI_TARGET_INSTANCE_CONFIGURABLE_OBJECT
 } from '../../constants/MetadataKey'
 import {InvalidGlobStringException} from '../../exceptions/InvalidGlobStringException'
 import objectHash from 'object-hash'
@@ -163,9 +164,13 @@ export class Container<T extends Module = Module> {
                     this.__$$patternManager.add(item.pattern, async (subject: Record<string, any>, configurableParams: Record<string, any> = {}): Promise<any> => {
                         const controllerRuntimeScope: Container = this.createScope()
                         const controller: Controller = await controllerRuntimeScope.get(item.class, Object.assign(configurableParams, {runtimeContainer: controllerRuntimeScope}))
-                        const result: any = await controller[item.method](subject)
-                        setImmediate(() => controllerRuntimeScope.destroy())
-                        return result
+                        try {
+                            return await controller[item.method](subject)
+                        } catch (e) {
+                            throw e
+                        } finally {
+                            setImmediate(() => controllerRuntimeScope.destroy())
+                        }
                     })
                 }
             }

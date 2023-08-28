@@ -3,13 +3,15 @@ import {InjectionProperties} from '../../types/InjectionProperties'
 import {Configurable, InjectApp, Lifetime} from '../../decorators/DependencyInjectionDecorators'
 import {Application} from '../Application'
 import {IConstructor} from '../../interfaces/IConstructor'
-import {CONTROLLER_CONSTRUCTOR_MARK, CONTROLLER_PATTERN_MANAGER} from '../../constants/MetadataKey'
+import {CONTROLLER_AUTH_MAP, CONTROLLER_CONSTRUCTOR_MARK, CONTROLLER_PATTERN_MANAGER} from '../../constants/MetadataKey'
 import {Container} from './Container'
 import {IPatRun} from '../../interfaces/IPatRun'
 import {
     NoMatchedControllerActionPatternException
 } from '../../exceptions/controller/NoMatchedControllerActionPatternException'
 import {IUser} from '../../interfaces/IUser'
+import {AccessControl} from '../access-control/AccessControl'
+import {AccessControlConfigureRequiredException} from '../../exceptions/auth/AccessControlConfigureRequiredException'
 
 /**
  * 控制器基类
@@ -48,6 +50,8 @@ export class Controller extends Component {
     @Configurable()
     protected readonly user?: IUser
 
+    protected access: AccessControl
+
     /**
      * Constructor
      * @param properties
@@ -55,6 +59,19 @@ export class Controller extends Component {
     constructor(properties: InjectionProperties = {}) {
         super(properties)
         this.setInternalProperty('type', 'Controller')
+    }
+
+    /**
+     * 内部初始化方法
+     * @protected
+     */
+    protected async __init(): Promise<void> {
+        await super.__init()
+        if (Reflect.hasOwnMetadata(CONTROLLER_AUTH_MAP, this.constructor)) {
+            //仅在有权限验证设置的控制器开启accessControl
+            this.access = await this.runtimeContainer.get<AccessControl>('access', {user: this.user})
+            if (!this.access.configured) throw new AccessControlConfigureRequiredException('Access control is not configured.')
+        }
     }
 
     /**
