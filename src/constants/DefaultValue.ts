@@ -11,3 +11,8 @@ export const defaultValidationOptions: ValidationOptions = {
     stripUnknown: true,
     debug: false
 }
+
+/**
+ * 默认鉴权域
+ */
+export const defaultDomain: string = 'default'
