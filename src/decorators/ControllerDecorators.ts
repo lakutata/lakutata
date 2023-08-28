@@ -10,6 +10,8 @@ import {IPatRun} from '../interfaces/IPatRun'
 import {ActionPattern} from '../types/ActionPattern'
 import {ActionAuthOptions} from '../types/ActionAuthOptions'
 import {ControllerAuthMapItem} from '../types/ControllerAuthMapItem'
+import {defaultDomain} from '../constants/DefaultValue'
+import {AccessDenyException} from '../exceptions/auth/AccessDenyException'
 
 type TActionFunction = (inp?: any) => Promise<any>
 
@@ -49,7 +51,8 @@ function registerActionToAuthMap<T extends Controller>(authOptions: ActionAuthOp
     const act: string = authOptions.act
     As<Map<string, ControllerAuthMapItem>>(Reflect.getOwnMetadata(CONTROLLER_AUTH_MAP, controllerConstructor)).set(propertyKey.toString(), {
         obj: obj,
-        act: act
+        act: act,
+        domain: authOptions.domain ? authOptions.domain : defaultDomain
     })
 }
 
@@ -67,6 +70,15 @@ export function Action<T extends Controller>(pattern: ActionPattern, authOptions
         if (authOptions) registerActionToAuthMap(authOptions, controllerConstructor, propertyKey)
         const originalMethod: TActionFunction = descriptor.value as any
         descriptor.value = async function (this: Controller, inp: any, ...args: any[]): Promise<any> {
+            //鉴权
+            if (this.access?.configured && authOptions) {
+                const authRule: ControllerAuthMapItem | undefined = As<Map<string, ControllerAuthMapItem> | undefined>(Reflect.getOwnMetadata(CONTROLLER_AUTH_MAP, this.constructor))?.get(propertyKey.toString())
+                if (authRule) {
+                    const allowAccess: boolean = await this.access.validate(authRule.obj, typeof authRule.domain === 'string' ? authRule.domain : authRule.domain(inp), authRule.act)
+                    console.log('allowAccess:',allowAccess)
+                    if (!allowAccess) throw new AccessDenyException('No permission to access this action.')
+                }
+            }
             const allowAction: boolean = await this.beforeAction(inp, <string>propertyKey)
             if (!allowAction) return
             const actionResult: any = await originalMethod.apply(this, As<any>([inp, ...args]))

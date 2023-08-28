@@ -19,23 +19,24 @@ import * as zlib from 'zlib'
 import v8 from 'v8'
 import {TestThreadTask} from './threads/TestThreadTask'
 import {newEnforcer} from 'casbin'
-import {RBAC} from '../lib/access-control/models/RBAC'
+import {DomainRBAC} from '../lib/access-control/models/DomainRBAC'
+import {AccessControl} from '../lib/access-control/AccessControl'
 
 (async () => {
 
-    const rbac = new RBAC()
-    const enforcer = await newEnforcer(rbac)
+    const domainRBAC = new DomainRBAC()
+    const enforcer = await newEnforcer(domainRBAC)
 
-    await enforcer.addPolicy('myq', 'data1', 'get')
-    await enforcer.addPolicy('myq', 'data2', 'post')
-    await enforcer.addPolicy('user', 'data3', 'get')
-    await enforcer.addRoleForUser('myq', 'user')
+    await enforcer.addPolicy('myq', 'default', 'data1', 'get')
+    await enforcer.addPolicy('myq', 'default', 'data2', 'post')
+    await enforcer.addPolicy('user', 'default1', 'data3', 'get')
+    await enforcer.addRoleForUser('myq', 'user', 'default1')
     // console.log(await enforcer.getPolicy())
     console.log(await enforcer.getRolesForUser('myq'))
     console.log(await enforcer.getAllRoles())
     // await enforcer.savePolicy()
 
-    console.log('isAllow:', await enforcer.enforce('myq', 'data3', 'get'))
+    console.log('isAllow:', await enforcer.enforce('myq', 'default1', 'data3', 'get'))
 
 
     console.log('##################@@@@@@@@@@@@Application.className:', Application.className)
@@ -80,6 +81,10 @@ import {RBAC} from '../lib/access-control/models/RBAC'
             MDSTest1
         ],
         components: {
+            access: {
+                class: AccessControl,
+                store: {type: 'file', filename: path.resolve(__dirname, 'test.csv')}
+            },
             testComponent: {class: TestComponent, greet: 'hello world'}
         },
         modules: {
@@ -125,7 +130,10 @@ import {RBAC} from '../lib/access-control/models/RBAC'
                 testModel.on('property-changed', console.log)
                 console.log('testModel.greet:', testModel.greet)
                 testModel.aa = '6666668888888'
-                console.log(await app.dispatchToController({a: '2', b: '2'}, {testBoolean: true}))
+                console.log(await app.dispatchToController({a: '2', b: '2'}, {
+                    testBoolean: true,
+                    user: {id: '20160329', username: 'testUser'}
+                }))
                 // console.log(await app.dispatchToController({test2:true}, {testBoolean: true}))
                 const logger = await app.get<Logger>('log')
                 logger.trace('more on this: %s', process.env.NODE_ENV)
