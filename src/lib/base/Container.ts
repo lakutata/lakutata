@@ -40,6 +40,8 @@ import {Patrun} from 'patrun'
 
 export class Container<T extends Module = Module> {
 
+    protected readonly __$id: string
+
     protected readonly __$$module?: Module
 
     protected readonly __$$parent?: Container
@@ -52,7 +54,7 @@ export class Container<T extends Module = Module> {
 
     protected readonly __$subContainerSet: Set<Container> = new Set()
 
-    protected readonly __$$patternManager: IPatRun = Patrun()
+    protected readonly __$$patternManager: IPatRun = Patrun({gex: true})
 
     protected __$transientWeakRefs: WeakRef<any>[] = []
 
@@ -61,6 +63,7 @@ export class Container<T extends Module = Module> {
     }
 
     constructor(module?: T, parent?: Container) {
+        this.__$id = RandomString(32)
         this.__$$module = module
         this.__$$parent = parent
         if (this.__$$parent) this.__$$parent.__$subContainerSet.add(this)
@@ -355,7 +358,7 @@ export class Container<T extends Module = Module> {
      * 销毁当前容器
      */
     public async destroy(): Promise<void> {
-        this.__$$patternManager.list().forEach(matched => this.__$$patternManager.remove(matched.match))//清空patternManager
+        this.__$controllerActionMap.forEach((item: ControllerActionMapItem) => this.__$$patternManager.remove(item.pattern))//清空patternManager
         if (this.__$$parent) this.__$$parent.__$subContainerSet.delete(this)
         const cleanSubContainerPromises: Promise<void>[] = []
         this.__$subContainerSet.forEach((subContainer: Container) =>

@@ -20,9 +20,12 @@ export {ILogger} from '../interfaces/ILogger'
 export {IUser} from '../interfaces/IUser'
 
 //类型
+export {ActionPattern} from '../types/ActionPattern'
+export {ActionAuthOptions} from '../types/ActionAuthOptions'
 export {AsyncFunction} from '../types/AsyncFunction'
 export {InjectionProperties} from '../types/InjectionProperties'
 export {ControllerActionMapItem} from '../types/ControllerActionMapItem'
+export {DispatchToControllerConfigurableParams} from '../types/DispatchToControllerConfigurableParams'
 export {TimeInput} from '../types/TimeInput'
 export {TimeObject} from '../types/TimeObject'
 export {UnitOfTime} from '../types/UnitOfTime'
