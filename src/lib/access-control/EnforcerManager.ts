@@ -6,10 +6,11 @@ import {FileAdapter} from 'casbin-file-adapter'
 import TypeORMAdapter from 'typeorm-adapter'
 import {Adapter, Enforcer, newEnforcer} from 'casbin'
 import {DomainRBAC} from './DomainRBAC'
-import {Entity} from 'typeorm'
+import {DataSource, Entity} from 'typeorm'
 import {NoSQLRule} from './NoSQLRule'
 import {SQLRule} from './SQLRule'
 import {IConstructor} from '../../interfaces/IConstructor'
+import {As} from '../../exports/Utilities'
 
 @Singleton(true)
 export class EnforcerManager extends BaseObject {
@@ -31,9 +32,11 @@ export class EnforcerManager extends BaseObject {
 
     protected readonly model: DomainRBAC = new DomainRBAC()
 
-    protected adapter: Adapter
+    protected _$adapter: Adapter
 
-    protected _enforcer: Enforcer
+    protected _$enforcer: Enforcer
+
+    protected _$datasource: DataSource
 
     /**
      * 创建实体的构造函数
@@ -59,18 +62,29 @@ export class EnforcerManager extends BaseObject {
             } catch (e) {
                 await writeFile(this.store.filename, '', {encoding: 'utf-8'})
             }
-            this.adapter = new FileAdapter(this.store.filename)
+            this._$adapter = new FileAdapter(this.store.filename)
         } else {
-            this.adapter = await TypeORMAdapter.newAdapter(this.store, {customCasbinRuleEntity: this.createEntityConstructor(this.tableName, this.store.type === 'mongodb')})
+            this._$adapter = await TypeORMAdapter.newAdapter(this.store, {customCasbinRuleEntity: this.createEntityConstructor(this.tableName, this.store.type === 'mongodb')})
+            this._$datasource = As<DataSource>(this._$adapter['typeorm'])
         }
-        this._enforcer = await newEnforcer(this.model, this.adapter)
-        await this._enforcer.loadPolicy()//加载所有规则
+        this._$enforcer = await newEnforcer(this.model, this._$adapter)
+        await this._$enforcer.loadPolicy()//加载所有规则
+    }
+
+    /**
+     * 销毁函数
+     * @protected
+     */
+    protected async destroy(): Promise<void> {
+        this.setProperty('_$enforcer', null)
+        this.setProperty('_$adapter', null)
+        if (this._$datasource) await this._$datasource.destroy()
     }
 
     /**
      * 获取Enforcer
      */
     public get enforcer(): Enforcer {
-        return this._enforcer
+        return this._$enforcer
     }
 }
