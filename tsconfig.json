@@ -8,7 +8,7 @@
     "moduleDetection": "auto",
     "module": "CommonJS",
     "rootDir": "src",
-    "moduleResolution": "Node16",
+    "moduleResolution": "node",
     "types": [
       "reflect-metadata",
       "node"
