@@ -88,13 +88,21 @@ import {AccessControl} from '../lib/access-control/AccessControl'
             // },
             access: {
                 class: AccessControl,
+                // store: {
+                //     type: 'mysql',
+                //     host: '192.168.0.145',
+                //     port: 3306,
+                //     username: 'root',
+                //     password: '20160329',
+                //     database: 'lakutata_test'
+                // }
                 store: {
-                    type: 'mysql',
-                    host: '192.168.0.145',
-                    port: 3306,
-                    username: 'root',
+                    type: 'mongodb',
+                    host: '192.168.0.146',
+                    port: 27017,
+                    username: 'thinkraz',
                     password: '20160329',
-                    database: 'lakutata_test'
+                    authMechanism: 'SCRAM-SHA-1'
                 }
             },
             testComponent: {class: TestComponent, greet: 'hello world'}

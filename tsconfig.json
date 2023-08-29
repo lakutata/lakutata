@@ -15,6 +15,7 @@
     ],
     "experimentalDecorators": true,
     "resolveJsonModule": true,
+    "emitDecoratorMetadata": true,
     "allowJs": true,
     "outDir": "build",
     "esModuleInterop": true,

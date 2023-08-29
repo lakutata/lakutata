@@ -35,6 +35,14 @@ export class AccessControl extends Component {
     @Configurable()
     protected readonly store: AuthStoreOptions
 
+    /**
+     * 权限存储的表名
+     * 仅在使用数据库作为权限存储的情况下有效
+     * @protected
+     */
+    @Configurable()
+    protected readonly tableName: string = 'permission_rules'
+
     @Configurable()
     protected readonly user: IUser
 
@@ -55,7 +63,8 @@ export class AccessControl extends Component {
         await super.__init()
         if (this.store) {
             if (!this.module.has(EnforcerManager)) await this.module.set(EnforcerManager, {
-                store: this.store
+                store: this.store,
+                tableName: this.tableName
             })
             const enforcerManager: EnforcerManager = await this.module.get(EnforcerManager)
             this.enforcer = enforcerManager.enforcer
