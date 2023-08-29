@@ -62,6 +62,7 @@
     "is-plain-obj": "^4.1.0",
     "joi": "^17.9.2",
     "moment-timezone": "^0.5.43",
+    "mysql": "^2.18.1",
     "node-fetch": "^2.6.13",
     "node-schedule": "^2.1.1",
     "object-hash": "^3.0.0",
@@ -80,7 +81,7 @@
     "ts-node": "^10.9.1",
     "tsup": "^7.2.0",
     "typeorm": "^0.3.17",
-    "typeorm-adapter": "^1.5.4",
+    "typeorm-adapter": "^1.5.5",
     "typescript": "^5.1.6",
     "unionfs": "^4.5.1"
   },

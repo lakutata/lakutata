@@ -326,6 +326,14 @@ export class Module<TModule extends Module = any, TComponent extends Component =
     }
 
     /**
+     * 查看是否拥有置顶的注入对象
+     * @param inp
+     */
+    public has<T extends BaseObject>(inp: string | IConstructor<T>): boolean {
+        return this.__$$container.has(As<any>(inp))
+    }
+
+    /**
      * 注入并创建指定字符串名称的对象
      * @param name
      * @param options

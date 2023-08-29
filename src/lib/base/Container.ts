@@ -334,6 +334,20 @@ export class Container<T extends Module = Module> {
     }
 
     /**
+     * 是否存在指定的注入对象
+     * @param name
+     */
+    public has<T extends BaseObject>(name: string): boolean
+    public has<T extends BaseObject>(constructor: IConstructor<T>): boolean
+    public has<T extends BaseObject>(inp: string | IConstructor<T>): boolean {
+        if (typeof inp === 'string') {
+            return this.__$$dic.hasRegistration(inp)
+        } else {
+            return this.__$$dic.hasRegistration(Container.stringifyConstructor(inp))
+        }
+    }
+
+    /**
      * 注入并创建指定字符串名称的对象
      * @param name
      * @param options

@@ -19,7 +19,7 @@ import * as zlib from 'zlib'
 import v8 from 'v8'
 import {TestThreadTask} from './threads/TestThreadTask'
 import {newEnforcer} from 'casbin'
-import {DomainRBAC} from '../lib/access-control/models/DomainRBAC'
+import {DomainRBAC} from '../lib/access-control/DomainRBAC'
 import {AccessControl} from '../lib/access-control/AccessControl'
 
 (async () => {
@@ -82,9 +82,20 @@ import {AccessControl} from '../lib/access-control/AccessControl'
             MDSTest1
         ],
         components: {
+            // access: {
+            //     class: AccessControl,
+            //     store: {type: 'file', filename: path.resolve(__dirname, 'test.csv')}
+            // },
             access: {
                 class: AccessControl,
-                store: {type: 'file', filename: path.resolve(__dirname, 'test.csv')}
+                store: {
+                    type: 'mysql',
+                    host: '192.168.0.145',
+                    port: 3306,
+                    username: 'root',
+                    password: '20160329',
+                    database: 'lakutata_test'
+                }
             },
             testComponent: {class: TestComponent, greet: 'hello world'}
         },
@@ -131,15 +142,15 @@ import {AccessControl} from '../lib/access-control/AccessControl'
                 testModel.on('property-changed', console.log)
                 console.log('testModel.greet:', testModel.greet)
                 testModel.aa = '6666668888888'
-                const access=await app.get<AccessControl>('access',{user:{id: '20160329', username: 'testUser'}})
-                await access.createRolePermission('user','测试动作2','read')
-                await access.createRolePermission('tester','测试动作1','read')
+                const access = await app.get<AccessControl>('access', {user: {id: '20160329', username: 'testUser'}})
+                await access.createRolePermission('user', '测试动作2', 'read')
+                await access.createRolePermission('tester', '测试动作1', 'read')
                 await access.assignRoleToUser('user')
                 await access.assignRoleToUser('tester')
-                console.log('await access.listUserRoles():',await access.listUserRoles())
+                console.log('await access.listUserRoles():', await access.listUserRoles())
                 // await access.createUserPermission('测试动作2','read')
                 // await access.createUserPermission('测试动作1','read')
-                console.log('await access.listUserPermission():',await access.listUserPermission())
+                console.log('await access.listUserPermission():', await access.listUserPermission())
                 // await access.clearUserInfo()
                 console.log(await app.dispatchToController({a: '2', b: '2'}, {
                     testBoolean: true,
