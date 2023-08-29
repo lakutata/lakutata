@@ -1,6 +1,10 @@
 import 'reflect-metadata'
 import {Controller} from '../lib/base/Controller'
-import {CONTROLLER_ACTION_MAP, CONTROLLER_AUTH_MAP, CONTROLLER_PATTERN_MANAGER} from '../constants/MetadataKey'
+import {
+    CONTROLLER_ACTION_MAP,
+    CONTROLLER_AUTH_MAP,
+    CONTROLLER_PATTERN_MANAGER
+} from '../constants/MetadataKey'
 import {IConstructor} from '../interfaces/IConstructor'
 import {As, SortObject} from '../exports/Utilities'
 import {SHA1} from '../exports/Hash'
@@ -9,9 +13,10 @@ import {Patrun} from 'patrun'
 import {IPatRun} from '../interfaces/IPatRun'
 import {ActionPattern} from '../types/ActionPattern'
 import {ActionAuthOptions} from '../types/ActionAuthOptions'
-import {ControllerAuthMapItem} from '../types/ControllerAuthMapItem'
+import {ControllerAuthConfigItem} from '../types/ControllerAuthConfigItem'
 import {defaultDomain} from '../constants/DefaultValue'
 import {AccessDenyException} from '../exceptions/auth/AccessDenyException'
+import {Application} from '../lib/Application'
 
 type TActionFunction = (inp?: any) => Promise<any>
 
@@ -46,10 +51,12 @@ function registerActionToControllerActionMap<T extends Controller>(pattern: Acti
  * 将Action添加至控制器的AuthMap中
  */
 function registerActionToAuthMap<T extends Controller>(authOptions: ActionAuthOptions, controllerConstructor: IConstructor<T>, propertyKey: keyof T): void {
-    if (!Reflect.hasOwnMetadata(CONTROLLER_AUTH_MAP, controllerConstructor)) Reflect.defineMetadata(CONTROLLER_AUTH_MAP, new Map<string, ControllerAuthMapItem>(), controllerConstructor)
+    if (!Reflect.hasOwnMetadata(CONTROLLER_AUTH_MAP, Application)) Reflect.defineMetadata(CONTROLLER_AUTH_MAP, new Map<IConstructor<T>, Map<string, ControllerAuthConfigItem>>(), Application)
     const action: string = authOptions.name ? authOptions.name : `${controllerConstructor.name}.${propertyKey.toString()}`
     const operation: string = authOptions.operation
-    As<Map<string, ControllerAuthMapItem>>(Reflect.getOwnMetadata(CONTROLLER_AUTH_MAP, controllerConstructor)).set(propertyKey.toString(), {
+    if (!As<Map<IConstructor<T>, Map<string, ControllerAuthConfigItem>>>(Reflect.getOwnMetadata(CONTROLLER_AUTH_MAP, Application)).has(controllerConstructor))
+        As<Map<IConstructor<T>, Map<string, ControllerAuthConfigItem>>>(Reflect.getOwnMetadata(CONTROLLER_AUTH_MAP, Application)).set(controllerConstructor, new Map())
+    As<Map<IConstructor<T>, Map<string, ControllerAuthConfigItem>>>(Reflect.getOwnMetadata(CONTROLLER_AUTH_MAP, Application)).get(controllerConstructor)?.set(propertyKey.toString(), {
         action: action,
         operation: operation,
         domain: authOptions.domain ? authOptions.domain : defaultDomain
@@ -72,7 +79,7 @@ export function Action<T extends Controller>(pattern: ActionPattern, authOptions
         descriptor.value = async function (this: Controller, inp: any, ...args: any[]): Promise<any> {
             //鉴权
             if (this.access?.configured && authOptions) {
-                const authRule: ControllerAuthMapItem | undefined = As<Map<string, ControllerAuthMapItem> | undefined>(Reflect.getOwnMetadata(CONTROLLER_AUTH_MAP, this.constructor))?.get(propertyKey.toString())
+                const authRule: ControllerAuthConfigItem | undefined = As<Map<IConstructor<T>, Map<string, ControllerAuthConfigItem>> | undefined>(Reflect.getOwnMetadata(CONTROLLER_AUTH_MAP, Application))?.get(this.constructor as IConstructor<T>)?.get(propertyKey.toString())
                 if (authRule) {
                     const allowAccess: boolean = await this.access.validate(authRule.action, typeof authRule.domain === 'string' ? authRule.domain : authRule.domain(inp), authRule.operation)
                     if (!allowAccess) throw new AccessDenyException('No permission to access this action.')

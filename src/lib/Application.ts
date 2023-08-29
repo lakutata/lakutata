@@ -96,9 +96,14 @@ export class Application extends Module {
 
     /**
      * 退出应用程序
+     * @param force
      */
-    public exit(): void {
-        this.__$$parentContainer.destroy().then(() => process.exit(0))
+    public exit(force: boolean = false): void {
+        if (!force) {
+            this.__$$parentContainer.destroy().then(() => process.exit(0))
+        } else {
+            process.exit(0)
+        }
     }
 
     /**

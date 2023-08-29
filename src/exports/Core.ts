@@ -13,7 +13,7 @@ export {ModuleOptions} from '../options/ModuleOptions'
 
 //接口
 export {IAuthFileStoreOptions} from '../interfaces/auth/IAuthFileStoreOptions'
-export {IPermission} from '../interfaces/auth/IPermission'
+export {IUserPermission} from '../interfaces/auth/IUserPermission'
 export {IConstructor} from '../interfaces/IConstructor'
 export {ISortObjectOptions} from '../interfaces/ISortObjectOptions'
 export {ISortArrayOptions} from '../interfaces/ISortArrayOptions'

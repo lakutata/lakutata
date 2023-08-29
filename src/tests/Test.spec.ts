@@ -88,22 +88,22 @@ import {AccessControl} from '../lib/access-control/AccessControl'
             // },
             access: {
                 class: AccessControl,
-                // store: {
-                //     type: 'mysql',
-                //     host: '192.168.0.145',
-                //     port: 3306,
-                //     username: 'root',
-                //     password: '20160329',
-                //     database: 'lakutata_test'
-                // }
                 store: {
-                    type: 'mongodb',
-                    host: '192.168.0.146',
-                    port: 27017,
-                    username: 'thinkraz',
+                    type: 'mysql',
+                    host: '192.168.0.145',
+                    port: 3306,
+                    username: 'root',
                     password: '20160329',
-                    authMechanism: 'SCRAM-SHA-1'
+                    database: 'lakutata_test'
                 }
+                // store: {
+                //     type: 'mongodb',
+                //     host: '192.168.0.146',
+                //     port: 27017,
+                //     username: 'thinkraz',
+                //     password: '20160329',
+                //     authMechanism: 'SCRAM-SHA-1'
+                // }
             },
             testComponent: {class: TestComponent, greet: 'hello world'}
         },
@@ -155,6 +155,7 @@ import {AccessControl} from '../lib/access-control/AccessControl'
                 await access.createRolePermission('tester', '测试动作1', 'read')
                 await access.assignRoleToUser('user')
                 await access.assignRoleToUser('tester')
+                console.log('access.listAllPermissions():', access.listAllPermissions(true))
                 console.log('await access.listUserRoles():', await access.listUserRoles())
                 // await access.createUserPermission('测试动作2','read')
                 // await access.createUserPermission('测试动作1','read')

@@ -1,12 +1,20 @@
 import {IUser} from '../../interfaces/IUser'
-import {Configurable, Transient} from '../../decorators/DependencyInjectionDecorators'
+import {Configurable, InjectApp, Transient} from '../../decorators/DependencyInjectionDecorators'
 import {Enforcer} from 'casbin'
 import {AuthStoreOptions} from '../../types/AuthStoreOptions'
 import {Component} from '../base/Component'
 import {NoAuthUserException} from '../../exceptions/auth/NoAuthUserException'
 import {defaultDomain} from '../../constants/DefaultValue'
-import {IPermission} from '../../interfaces/auth/IPermission'
+import {IUserPermission} from '../../interfaces/auth/IUserPermission'
 import {EnforcerManager} from './EnforcerManager'
+import {Application} from '../Application'
+import {AccessControlConfigureRequiredException} from '../../exceptions/auth/AccessControlConfigureRequiredException'
+import {As} from '../../exports/Utilities'
+import {IConstructor} from '../../interfaces/IConstructor'
+import {ControllerAuthConfigItem} from '../../types/ControllerAuthConfigItem'
+import {CONTROLLER_AUTH_MAP} from '../../constants/MetadataKey'
+import {Controller} from '../base/Controller'
+import {IPermission} from '../../interfaces/auth/IPermission'
 
 /**
  * 使用该修饰器强制验证组件内所加载的用户必须存在
@@ -27,6 +35,9 @@ function AuthUserRequired(): MethodDecorator {
 
 @Transient(true)
 export class AccessControl extends Component {
+
+    @InjectApp()
+    protected readonly app: Application
 
     /**
      * 权限存储选项
@@ -62,11 +73,11 @@ export class AccessControl extends Component {
     protected async __init(): Promise<void> {
         await super.__init()
         if (this.store) {
-            if (!this.module.has(EnforcerManager)) await this.module.set(EnforcerManager, {
+            if (!this.app.has(EnforcerManager)) await this.app.set(EnforcerManager, {
                 store: this.store,
                 tableName: this.tableName
             })
-            const enforcerManager: EnforcerManager = await this.module.get(EnforcerManager)
+            const enforcerManager: EnforcerManager = await this.app.get(EnforcerManager)
             this.enforcer = enforcerManager.enforcer
         }
     }
@@ -86,9 +97,34 @@ export class AccessControl extends Component {
      * @protected
      */
     protected async updatePolicy<T>(fn: () => Promise<T>): Promise<T> {
+        if (!this.configured) throw new AccessControlConfigureRequiredException('Access control is not configured.')
         const result: T = await fn()
         await this.enforcer.savePolicy()
         return result
+    }
+
+    /**
+     * 获取程序中所有的权限列表
+     */
+    public listAllPermissions(): Record<string, IPermission[]>
+    public listAllPermissions(flat: false): Record<string, IPermission[]>
+    public listAllPermissions(flat: true): IPermission[]
+    public listAllPermissions(flat: boolean = false): Record<string, IPermission[]> | IPermission[] {
+        const flatPermissions: IPermission[] = []
+        const hierarchyPermissions: Record<string, IPermission[]> = {}
+        const applicationControllerAuthMap: Map<IConstructor<Controller>, Map<string, ControllerAuthConfigItem>> | undefined = As<Map<IConstructor<Controller>, Map<string, ControllerAuthConfigItem>> | undefined>(Reflect.getOwnMetadata(CONTROLLER_AUTH_MAP, Application))
+        applicationControllerAuthMap?.forEach((controllerAuthMap: Map<string, ControllerAuthConfigItem>, controllerConstructor: IConstructor<Controller>) => {
+            hierarchyPermissions[controllerConstructor.name] = []
+            controllerAuthMap.forEach((item: ControllerAuthConfigItem): void => {
+                const permission: IPermission = {
+                    action: item.action,
+                    operation: item.operation
+                }
+                flatPermissions.push(permission)
+                hierarchyPermissions[controllerConstructor.name].push(permission)
+            })
+        })
+        return flat ? flatPermissions : hierarchyPermissions
     }
 
     /**
@@ -128,7 +164,7 @@ export class AccessControl extends Component {
      * 获取用户权限列表
      */
     @AuthUserRequired()
-    public async listUserPermission(): Promise<IPermission[]> {
+    public async listUserPermission(): Promise<IUserPermission[]> {
         const rawPermissions: string[][] = await this.enforcer.getPermissionsForUser(this.user.id)
         return rawPermissions.map((rawPermission: string[]) => ({
             action: rawPermission[2],
@@ -200,7 +236,7 @@ export class AccessControl extends Component {
      * 获取角色权限列表
      * @param role
      */
-    public async listRolePermission(role: string): Promise<IPermission[]> {
+    public async listRolePermission(role: string): Promise<IUserPermission[]> {
         const rawPermissions: string[][] = await this.enforcer.getPermissionsForUser(role)
         return rawPermissions.map((rawPermission: string[]) => ({
             action: rawPermission[2],

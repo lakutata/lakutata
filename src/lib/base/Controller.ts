@@ -12,6 +12,8 @@ import {
 import {IUser} from '../../interfaces/IUser'
 import {AccessControl} from '../access-control/AccessControl'
 import {AccessControlConfigureRequiredException} from '../../exceptions/auth/AccessControlConfigureRequiredException'
+import {As} from '../../exports/Utilities'
+import {ControllerAuthConfigItem} from '../../types/ControllerAuthConfigItem'
 
 /**
  * 控制器基类
@@ -67,7 +69,7 @@ export class Controller extends Component {
      */
     protected async __init(): Promise<void> {
         await super.__init()
-        if (Reflect.hasOwnMetadata(CONTROLLER_AUTH_MAP, this.constructor)) {
+        if (As<Map<IConstructor<any>, Map<string, ControllerAuthConfigItem>> | undefined>(Reflect.getOwnMetadata(CONTROLLER_AUTH_MAP, Application))?.has(this.constructor as IConstructor<any>)) {
             //仅在有权限验证设置的控制器开启accessControl
             this.access = await this.runtimeContainer.get<AccessControl>('access', {user: this.user})
             if (!this.access.configured) throw new AccessControlConfigureRequiredException('Access control is not configured.')
