@@ -4,6 +4,9 @@ export {AliasExistsException} from '../exceptions/alias/AliasExistsException'
 export {AliasNotFoundException} from '../exceptions/alias/AliasNotFoundException'
 export {InvalidAliasNameException} from '../exceptions/alias/InvalidAliasNameException'
 
+export {AccessControlConfigureRequiredException} from '../exceptions/auth/AccessControlConfigureRequiredException'
+export {AccessDenyException} from '../exceptions/auth/AccessDenyException'
+export {NoAuthUserException} from '../exceptions/auth/NoAuthUserException'
 
 export {
     DuplicateControllerActionPatternException

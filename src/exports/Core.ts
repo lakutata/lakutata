@@ -12,6 +12,8 @@ export {LoadComponentOptions} from '../options/LoadComponentOptions'
 export {ModuleOptions} from '../options/ModuleOptions'
 
 //接口
+export {IAuthFileStoreOptions} from '../interfaces/auth/IAuthFileStoreOptions'
+export {IPermission} from '../interfaces/auth/IPermission'
 export {IConstructor} from '../interfaces/IConstructor'
 export {ISortObjectOptions} from '../interfaces/ISortObjectOptions'
 export {ISortArrayOptions} from '../interfaces/ISortArrayOptions'
