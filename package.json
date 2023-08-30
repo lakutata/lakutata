@@ -1,6 +1,6 @@
 {
   "name": "lakutata",
-  "version": "0.1.2-proto.13",
+  "version": "0.1.2-proto.14",
   "description": "An IoC-based universal application framework.",
   "main": "./build/Lakutata.js",
   "types": "./build/Lakutata.d.ts",
@@ -10,7 +10,7 @@
       "require": "./build/Lakutata.js",
       "types": "./build/Lakutata.d.ts"
     },
-    "./ORM": {
+    "./orm": {
       "import": "./build/ORM.js",
       "require": "./build/ORM.js",
       "types": "./build/ORM.d.ts"
