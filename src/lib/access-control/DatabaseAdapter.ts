@@ -1,6 +1,12 @@
 import {FilteredAdapter, Helper, Model} from 'casbin'
-import {DataSource, DataSourceOptions, EntitySchema, QueryRunner, Repository} from 'typeorm'
-import {EntitySchemaColumnOptions} from 'typeorm/entity-schema/EntitySchemaColumnOptions'
+import {
+    DataSource,
+    DataSourceOptions,
+    EntitySchema,
+    QueryRunner,
+    Repository,
+    EntitySchemaColumnOptions
+} from '../../ORM'
 import {RuleEntity} from './RuleEntity'
 
 export class DatabaseAdapter implements FilteredAdapter {

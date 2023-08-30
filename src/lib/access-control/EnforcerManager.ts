@@ -5,9 +5,9 @@ import {stat, writeFile} from 'fs/promises'
 import {FileAdapter} from 'casbin-file-adapter'
 import {Adapter, Enforcer, newEnforcer} from 'casbin'
 import {DomainRBAC} from './DomainRBAC'
-import {DataSource} from 'typeorm'
 import {As} from '../../exports/Utilities'
 import {DatabaseAdapter} from './DatabaseAdapter'
+import { DataSource } from '../../ORM'
 
 @Singleton(true)
 export class EnforcerManager extends BaseObject {
@@ -48,7 +48,6 @@ export class EnforcerManager extends BaseObject {
             }
             this._$adapter = new FileAdapter(this.store.filename)
         } else {
-            // this._$adapter = await TypeORMAdapter.newAdapter(this.store, {customCasbinRuleEntity: entityConstructor})
             this._$adapter = await DatabaseAdapter.createAdapter(this.store, this.tableName)
             this._$datasource = As<DataSource>(this._$adapter['datasource'])
         }
