@@ -17,7 +17,7 @@ import {defaultDomain} from '../constants/DefaultValue'
 import {AccessDenyException} from '../exceptions/auth/AccessDenyException'
 import {Application} from '../lib/Application'
 import {Helper} from '../exports/Helper'
-import {Hash} from '../exports/Hash'
+import {SHA1} from '../Hash'
 
 type TActionFunction = (inp?: any) => Promise<any>
 
@@ -35,7 +35,7 @@ function registerActionToControllerActionMap<T extends Controller>(pattern: Acti
     if (!Reflect.hasOwnMetadata(CONTROLLER_ACTION_MAP, controllerConstructor)) Reflect.defineMetadata(CONTROLLER_ACTION_MAP, new Map<string, ControllerActionMapItem>(), controllerConstructor)
     if (!Reflect.hasOwnMetadata(CONTROLLER_PATTERN_MANAGER, controllerConstructor)) Reflect.defineMetadata(CONTROLLER_PATTERN_MANAGER, Patrun({gex: true}), controllerConstructor)
     pattern = Helper.SortObject(pattern, {deep: true, order: 'asc'})
-    const patternHash: string = Hash.SHA1(JSON.stringify(pattern))
+    const patternHash: string = SHA1(JSON.stringify(pattern))
     if (!As<Map<string, ControllerActionMapItem>>(Reflect.getOwnMetadata(CONTROLLER_ACTION_MAP, controllerConstructor)).has(patternHash)) {
         As<Map<string, ControllerActionMapItem>>(Reflect.getOwnMetadata(CONTROLLER_ACTION_MAP, controllerConstructor)).set(patternHash, {
             pattern: pattern,

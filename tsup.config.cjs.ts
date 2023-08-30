@@ -5,7 +5,8 @@ export default defineConfig(() => {
         entry: [
             'src/Lakutata.ts',
             'src/ORM.ts',
-            'src/Crypto.ts'
+            'src/Crypto.ts',
+            'src/Hash.ts'
         ],
         legacyOutput: false,
         skipNodeModulesBundle: true,
