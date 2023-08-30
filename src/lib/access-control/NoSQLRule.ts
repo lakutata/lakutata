@@ -1,6 +1,6 @@
-import {Column, ObjectIdColumn, ObjectId} from 'typeorm'
+import {BaseEntity, Column, ObjectIdColumn, ObjectId} from 'typeorm'
 
-export class NoSQLRule {
+export class NoSQLRule extends BaseEntity {
     @ObjectIdColumn()
     public id!: ObjectId
 

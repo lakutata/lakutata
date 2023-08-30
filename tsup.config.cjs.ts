@@ -1,5 +1,7 @@
 import {defineConfig} from 'tsup'
+import {esbuildDecorators} from '@anatine/esbuild-decorators'
 
+// @ts-ignore
 export default defineConfig(() => {
     return {
         entry: [
@@ -26,6 +28,7 @@ export default defineConfig(() => {
             keep_classnames: true,
             mangle: false,
             compress: true
-        }
+        },
+        esbuildPlugins: [esbuildDecorators()]
     }
 })
