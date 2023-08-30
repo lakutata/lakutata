@@ -88,7 +88,7 @@ import {AccessControl} from '../lib/access-control/AccessControl'
             // },
             access: {
                 class: AccessControl,
-                tableName: 'oh_access_control',
+                tableName: 'oh_access_control1',
                 store: {
                     type: 'mysql',
                     host: '192.168.0.145',

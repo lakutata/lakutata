@@ -45,10 +45,16 @@ export class EnforcerManager extends BaseObject {
      * @param isMongo
      * @protected
      */
-    protected createEntityConstructor(tableName: string, isMongo: boolean = false): IConstructor<NoSQLRule | SQLRule> {
-        const ruleEntityConstructor: IConstructor<NoSQLRule | SQLRule> = isMongo ? NoSQLRule : SQLRule
-        Reflect.decorate([Entity(tableName)], ruleEntityConstructor)
-        return ruleEntityConstructor
+    protected createEntityConstructor(tableName: string, isMongo: boolean = false): typeof NoSQLRule | typeof SQLRule {
+        const RuleEntityConstructor: typeof NoSQLRule | typeof SQLRule = isMongo ? NoSQLRule : SQLRule
+
+        class Ruler extends RuleEntityConstructor {
+        }
+
+        Object.defineProperty(Ruler, 'name', {value: tableName})
+        Entity({name: tableName})(Ruler)
+        // Reflect.decorate([Entity(tableName)], ruleEntityConstructor)
+        return <typeof NoSQLRule | typeof SQLRule>Ruler
     }
 
     /**
