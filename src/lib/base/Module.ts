@@ -3,7 +3,7 @@ import {Container} from './Container'
 import {ModuleOptions} from '../../options/ModuleOptions'
 import {Configurable, Lifetime} from '../../decorators/DependencyInjectionDecorators'
 import {isAsyncFunction} from 'util/types'
-import {As, MergeArray, UniqueArray} from '../../exports/Utilities'
+import {As} from '../../exports/Utilities'
 import {AsyncFunction} from '../../types/AsyncFunction'
 import {IConstructor} from '../../interfaces/IConstructor'
 import {BaseObject} from './BaseObject'
@@ -19,6 +19,7 @@ import {
     NoMatchedControllerActionPatternException
 } from '../../exceptions/controller/NoMatchedControllerActionPatternException'
 import {DispatchToControllerConfigurableParams} from '../../types/DispatchToControllerConfigurableParams'
+import {Helper} from '../../exports/Helper'
 
 /**
  * 模块基类
@@ -236,8 +237,8 @@ export class Module<TModule extends Module = any, TComponent extends Component =
             Object.keys(configureOptions).forEach((propertyKey: string) => Object.defineProperty(this.__$$options, propertyKey, {value: configureOptions[propertyKey]}))
         }
         const entries: Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<TModule>> = As<Record<string, LoadEntryCommonOptions | LoadEntryClassOptions<TModule>>>(await this.mergeEntries(await this.entries(), this.__$$options.entries))
-        const autoload: (string | IConstructor<any>)[] = UniqueArray([...(await this.autoload()), ...(this.__$$options.autoload ? this.__$$options.autoload : [])])
-        const controllers: (string | IConstructor<Controller>)[] = UniqueArray([...(await this.controllers()), ...(this.__$$options.controllers ? this.__$$options.controllers : [])])
+        const autoload: (string | IConstructor<any>)[] = Helper.UniqueArray([...(await this.autoload()), ...(this.__$$options.autoload ? this.__$$options.autoload : [])])
+        const controllers: (string | IConstructor<Controller>)[] = Helper.UniqueArray([...(await this.controllers()), ...(this.__$$options.controllers ? this.__$$options.controllers : [])])
         this.autoloadToEntries([...autoload, ...controllers], entries)//将自动加载项和控制器加载项一同进行加载
         const components: Record<string, IConstructor<TComponent> | LoadComponentOptions<TComponent>> = As<Record<string, IConstructor<TComponent> | LoadComponentOptions<TComponent>>>(await this.mergeEntries(await this.components(), this.__$$options.components))
         const modules: Record<string, IConstructor<TModule> | LoadModuleOptions<TModule>> = As<Record<string, IConstructor<TModule> | LoadModuleOptions<TModule>>>(await this.mergeEntries(await this.modules(), this.__$$options.modules))
@@ -270,7 +271,7 @@ export class Module<TModule extends Module = any, TComponent extends Component =
             }
         })
         await this.__$$container.load(entries)
-        for (const item of MergeArray(await this.bootstrap(), this.__$$options.bootstrap ? this.__$$options.bootstrap : [])) {
+        for (const item of Helper.MergeArray(await this.bootstrap(), this.__$$options.bootstrap ? this.__$$options.bootstrap : [])) {
             if (typeof item === 'string') await this.__$$container.get(item)
             if (typeof item === 'function') isAsyncFunction(item) ? await As<AsyncFunction<ThisType<this>, void>>(item)(this) : await this.__$$container.get(As<IConstructor<BaseObject>>(item))
         }

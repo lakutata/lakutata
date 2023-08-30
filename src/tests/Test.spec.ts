@@ -1,5 +1,5 @@
 import 'reflect-metadata'
-import {Application, ConvertToStream, Formatter, HttpRequest, Logger, Time} from '../Lakutata'
+import {Application, Formatter, Helper, HttpRequest, Logger, Time} from '../Lakutata'
 import {TestObject} from './objects/TestObject'
 import {TestInterval} from './intervals/TestInterval'
 import {MDSTest1} from './mds/MDSTest1'
@@ -180,7 +180,7 @@ import {AccessControl} from '../lib/access-control/AccessControl'
                 const testThread = await subScope.get<TestThreadTask>('testThreadWork')
                 const testThread1 = await subScope.get<TestThreadTask>('testThreadWork')
                 console.log(await testThread.run('hahahahahah'))
-                ConvertToStream('this is a test').pipe(testThread.createStreamHandler()).pipe(process.stdout)
+                Helper.ConvertToStream('this is a test').pipe(testThread.createStreamHandler()).pipe(process.stdout)
                 setTimeout(async () => {
                     await subScope.destroy()
                     // try {
