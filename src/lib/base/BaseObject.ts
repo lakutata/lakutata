@@ -32,10 +32,10 @@ import {Schema, Validator} from '../../exports/Validator'
 import {defaultValidationOptions} from '../../constants/DefaultValue'
 import {InvalidConfigurableValueException} from '../../exceptions/InvalidConfigurableValueException'
 import {InvalidValueException} from '../../exceptions/validation/InvalidValueException'
-import {SHA256} from '../../exports/Hash'
 import {AsyncConstructor} from './async-constructor/AsyncConstructor'
 import {InjectionProperties} from '../../types/InjectionProperties'
 import {Helper} from '../../exports/Helper'
+import {Hash} from '../../exports/Hash'
 
 const internalPropertyNameRegExp: RegExp = new RegExp('__\\$\\$\\$[a-zA-Z0-9~!@#$%^&*()_+\\[\\]\\{\\},./\\\\<>?|\\-\\*]+\\$\\$\\$__')
 
@@ -57,8 +57,8 @@ function ObjectId(e?: number) {
 @(() => {
     return <TFunction extends IConstructor<any>>(target: TFunction): TFunction => {
         const nonceStr: string = Helper.RandomString(16)
-        Reflect.defineMetadata(DI_CONTAINER_SPECIAL_INJECT_APP_GETTER_KEY, SHA256(`APP_GETTER_KEY_${nonceStr}`).toString(), target)
-        Reflect.defineMetadata(DI_CONTAINER_INJECT_IS_MODULE_GETTER_KEY, SHA256(`MODULE_GETTER_KEY_${nonceStr}`).toString(), target)
+        Reflect.defineMetadata(DI_CONTAINER_SPECIAL_INJECT_APP_GETTER_KEY, Hash.SHA256(`APP_GETTER_KEY_${nonceStr}`).toString(), target)
+        Reflect.defineMetadata(DI_CONTAINER_INJECT_IS_MODULE_GETTER_KEY, Hash.SHA256(`MODULE_GETTER_KEY_${nonceStr}`).toString(), target)
         return target
     }
 })()
