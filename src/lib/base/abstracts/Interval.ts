@@ -2,7 +2,7 @@ import {BaseObject} from '../BaseObject'
 import {clearInterval} from 'timers'
 import {Configurable, Scoped} from '../../../decorators/DependencyInjectionDecorators'
 import {Validator} from '../../../exports/Validator'
-import {Helper} from '../../../exports/Helper'
+import {IsObjectInitialized} from '../../../exports/Utilities'
 
 /**
  * 执行模式枚举
@@ -83,7 +83,7 @@ export abstract class Interval extends BaseObject {
      */
     protected defineJob(): void {
         this._$interval = setInterval(async (): Promise<void> => {
-            if (!Helper.IsObjectInitialized(this) || this._$paused) return
+            if (!IsObjectInitialized(this) || this._$paused) return
             await this.runExecutor()
         }, this.interval)
     }

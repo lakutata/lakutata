@@ -9,7 +9,7 @@ import {IConstructor} from '../../../interfaces/IConstructor'
 import {NotSupportCipherException} from '../../../exceptions/crypto/symmetric/NotSupportCipherException'
 import {SymmetricDecryptException} from '../../../exceptions/crypto/symmetric/SymmetricDecryptException'
 import {SymmetricEncryptException} from '../../../exceptions/crypto/symmetric/SymmetricEncryptException'
-import {Helper} from '../../../exports/Helper'
+import {ConvertToStream} from '../../../exports/Utilities'
 
 const SUPPORT_CIPHERS: string[] = getCiphers().map((value: string) => value.toUpperCase())
 
@@ -214,7 +214,7 @@ export abstract class SymmetricEncryption {
         try {
             return await new Promise((resolve, reject): void => {
                 let cache: Buffer = Buffer.from([])
-                Helper.ConvertToStream(message).pipe(this.Cipher)
+                ConvertToStream(message).pipe(this.Cipher)
                     .on('data', (chunk: Buffer) => cache = Buffer.concat([cache, chunk]))
                     .once('error', reject)
                     .once('end', () => resolve(cache.toString('hex')))
@@ -248,7 +248,7 @@ export abstract class SymmetricEncryption {
                 decipher.once('error', reject)
                 let chunkCache: string = ''
                 let decryptedMessage: string = ''
-                Helper.ConvertToStream(encryptedMessage)
+                ConvertToStream(encryptedMessage)
                     .on('data', (chunk: string) => {
                         chunkCache += chunk
                         if (chunkCache.length >= this.blockSize) {

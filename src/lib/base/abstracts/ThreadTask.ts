@@ -9,7 +9,7 @@ import {Configurable, Inject, Scoped} from '../../../decorators/DependencyInject
 import {IllegalMethodCallException} from '../../../exceptions/IllegalMethodCallException'
 import {Transform, TransformCallback} from 'stream'
 import {Logger} from '../../components/Logger'
-import {Helper} from '../../../exports/Helper'
+import {RandomString} from '../../../exports/Utilities'
 
 @Scoped(true)
 export abstract class ThreadTask extends BaseObject {
@@ -67,7 +67,7 @@ export abstract class ThreadTask extends BaseObject {
         const configurableProperties: string[] = await this.__getConfigurableProperties()
         const configs: Record<string, any> = {}
         configurableProperties.forEach((propertyKey: string) => configs[propertyKey] = this[propertyKey])
-        const loggerEvent = `__$$${Helper.RandomString(16)}_`
+        const loggerEvent = `__$$${RandomString(16)}_`
         const threadPool: Piscina = new Piscina({
             minThreads: this.minThreads,
             maxThreads: this.maxThreads,

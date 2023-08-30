@@ -11,7 +11,7 @@ import {
 import {
     InvalidAsymmetricEncryptPublicKeyException
 } from '../../../exceptions/crypto/asymmetric/InvalidAsymmetricEncryptPublicKeyException'
-import {As} from '../../../exports/Utilities'
+import {As, IsPath, NonceStr} from '../../../exports/Utilities'
 import {
     InvalidAsymmetricEncryptKeyPairException
 } from '../../../exceptions/crypto/asymmetric/InvalidAsymmetricEncryptKeyPairException'
@@ -21,7 +21,6 @@ import {AsymmetricEncryptException} from '../../../exceptions/crypto/asymmetric/
 import {AsymmetricDecryptException} from '../../../exceptions/crypto/asymmetric/AsymmetricDecryptException'
 import {AsymmetricSignException} from '../../../exceptions/crypto/asymmetric/AsymmetricSignException'
 import {AsymmetricVerifyException} from '../../../exceptions/crypto/asymmetric/AsymmetricVerifyException'
-import {Helper} from '../../../exports/Helper'
 
 /**
  * 公钥操作方法对象接口
@@ -87,7 +86,7 @@ export interface AsymmetricEncryptionKeyPair {
  */
 async function getKeyContent(inp: string | PathLike): Promise<string> {
     let keyString: string = As<string>(inp)
-    if (Helper.IsPath(inp)) {
+    if (IsPath(inp)) {
         try {
             const fileStat: Stats = await stat(inp)
             if (fileStat.isFile()) keyString = await readFile(inp, {encoding: 'utf-8'})
@@ -288,7 +287,7 @@ export abstract class AsymmetricEncryption {
     public static async loadKeyPair<T extends AsymmetricEncryption>(this: IConstructor<T>, keyPair: AsymmetricEncryptionKeyPair, options?: Record<string, any>): Promise<T> {
         const instance: T = new this(keyPair)
         instance.options = Object.assign(instance.options, options ? options : {})
-        const nonceStr: string = Helper.NonceStr()
+        const nonceStr: string = NonceStr()
         const signature: string = instance.sign(nonceStr)
         if (!instance.verify(nonceStr, signature)) throw new InvalidAsymmetricEncryptKeyPairException('Invalid key pair')
         return instance
