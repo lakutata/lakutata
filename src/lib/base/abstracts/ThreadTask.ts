@@ -8,8 +8,8 @@ import Piscina from 'piscina'
 import {Configurable, Inject, Scoped} from '../../../decorators/DependencyInjectionDecorators'
 import {IllegalMethodCallException} from '../../../exceptions/IllegalMethodCallException'
 import {Transform, TransformCallback} from 'stream'
-import {RandomString} from '../../../exports/Utilities'
 import {Logger} from '../../components/Logger'
+import {Helper} from '../../../exports/Helper'
 
 @Scoped(true)
 export abstract class ThreadTask extends BaseObject {
@@ -67,7 +67,7 @@ export abstract class ThreadTask extends BaseObject {
         const configurableProperties: string[] = await this.__getConfigurableProperties()
         const configs: Record<string, any> = {}
         configurableProperties.forEach((propertyKey: string) => configs[propertyKey] = this[propertyKey])
-        const loggerEvent = `__$$${RandomString(16)}_`
+        const loggerEvent = `__$$${Helper.RandomString(16)}_`
         const threadPool: Piscina = new Piscina({
             minThreads: this.minThreads,
             maxThreads: this.maxThreads,
