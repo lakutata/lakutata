@@ -1,12 +1,13 @@
 import 'reflect-metadata'
 import Joi from 'joi'
-import {As, IsGlobString} from './Utilities'
+import {As} from './Utilities'
 import {InvalidValueException} from '../exceptions/validation/InvalidValueException'
 import {defaultValidationOptions} from '../constants/DefaultValue'
 import {isAsyncFunction} from 'util/types'
 import {isValidCron} from 'cron-validator'
 import {IsHtml} from '../lib/deps/IsHtml'
 import {isXML} from '../lib/deps/IsXML'
+import {Helper} from './Helper'
 
 export class BaseValidator {
 
@@ -123,7 +124,7 @@ export class BaseValidator {
      */
     public Glob<TSchema = string>(): StringSchema<TSchema> {
         return Joi.string<TSchema>().custom((value: TSchema, helpers: CustomHelpers) => {
-            if (typeof value === 'string' && IsGlobString(value)) return value
+            if (typeof value === 'string' && Helper.IsGlobString(value)) return value
             return helpers.error('any.invalid')
 
         }, 'Glob Validation')

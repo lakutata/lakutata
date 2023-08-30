@@ -1,10 +1,10 @@
 import 'reflect-metadata'
 import CryptoJs from 'crypto-js'
-import {ConvertToStream} from './Utilities'
 import {NotSupportHashException} from '../exceptions/NotSupportHashException'
 import {Readable as ReadableStream} from 'stream'
 import {Sm3, SM3ToHex, SM3Hmac} from '../lib/deps/SM3'
 import {createHash, createHmac, getHashes, Hash, Hmac} from 'crypto'
+import {Helper} from './Helper'
 
 /**
  * 系统所支持的哈希算法
@@ -303,7 +303,7 @@ function asyncHash(algorithm: string, message: string): Promise<string> {
     return new Promise<string>((resolve, reject): void => {
         try {
             const hash: Hash | HashFallback = isBuiltinHashAlgorithm(algorithm) ? createHash(algorithm) : createHashFallback(algorithm)
-            ConvertToStream(message, {highWaterMark: HIGH_WATER_MARK})
+            Helper.ConvertToStream(message, {highWaterMark: HIGH_WATER_MARK})
                 .on('data', chunk => hash.update(chunk))
                 .once('error', reject)
                 .once('end', () => resolve(hash.digest().toString('hex')))
@@ -337,7 +337,7 @@ function asyncHmacHash(algorithm: string, message: string, key: string): Promise
     return new Promise<string>((resolve, reject): void => {
         try {
             const hmac: Hmac | HashFallback = isBuiltinHashAlgorithm(algorithm) ? createHmac(algorithm, key) : createHmacFallback(algorithm, key)
-            ConvertToStream(message, {highWaterMark: HIGH_WATER_MARK})
+            Helper.ConvertToStream(message, {highWaterMark: HIGH_WATER_MARK})
                 .on('data', chunk => hmac.update(chunk))
                 .once('error', reject)
                 .once('end', () => resolve(hmac.digest().toString('hex')))
