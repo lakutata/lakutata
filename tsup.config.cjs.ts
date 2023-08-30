@@ -19,7 +19,7 @@ export default defineConfig(() => {
         outDir: './build',
         keepNames: true,
         noExternal: [/./],
-        external: [/@types/, 'tslib', 'ts-node', 'typescript'],
+        external: [/@types/, 'tslib', 'ts-node', 'typescript', 'terser', 'shx', 'release-it'],
         // minify: false,
         minify: 'terser',
         terserOptions: {
