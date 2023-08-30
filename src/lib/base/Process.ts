@@ -10,14 +10,13 @@ import {isAsyncFunction} from 'util/types'
 import {createServer, IncomingMessage, Server, ServerResponse} from 'http'
 import syncFetch from 'sync-fetch'
 import asyncFetch from 'node-fetch'
-import {DevNull} from '../../exports/Utilities'
+import {DevNull, GetPort, RandomString} from '../../exports/Utilities'
 import {format as URLFormat, parse as URLParse, UrlObject, UrlWithParsedQuery} from 'url'
 import {ParsedUrlQuery} from 'querystring'
 import {AppendAsyncConstructor} from './async-constructor/Append'
 import {BaseObject} from './BaseObject'
 import {EventEmitter} from 'events'
 import {ChildProcessUnavailableException} from '../../exceptions/ChildProcessUnavailableException'
-import {Helper} from '../../exports/Helper'
 
 @Scoped(true)
 export class Process extends Component {
@@ -165,7 +164,7 @@ export class Process extends Component {
         const configurableProperties: string[] = await this.__getConfigurableProperties()
         const configs: Record<string, any> = {}
         configurableProperties.forEach((propertyKey: string) => configs[propertyKey] = this[propertyKey])
-        const loggerEvent: string = `__$$${Helper.RandomString(16)}_`
+        const loggerEvent: string = `__$$${RandomString(16)}_`
         await new Promise((resolve, reject) => {
             this.once('ready', resolve)
             const worker: ChildProcess = fork(path.resolve(__dirname, '../worker/ProcessContainer'), [
@@ -270,7 +269,7 @@ export class Process extends Component {
         await super.__init()
         this.setInternalProperty('daemonizeWorker', true)
         if (!this.isWorker()) {
-            this.setInternalProperty('workerCommunicationPort', await Helper.GetPort())
+            this.setInternalProperty('workerCommunicationPort', await GetPort())
             await this.__setupWorkerProcess()
         } else {
             await this.__initWorkerProcess()
