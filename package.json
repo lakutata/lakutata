@@ -62,8 +62,6 @@
     "is-plain-obj": "^4.1.0",
     "joi": "^17.9.2",
     "moment-timezone": "^0.5.43",
-    "mongodb": "^5.8.1",
-    "mysql": "^2.18.1",
     "node-fetch": "^2.6.13",
     "node-schedule": "^2.1.1",
     "object-hash": "^3.0.0",
