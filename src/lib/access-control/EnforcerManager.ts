@@ -44,7 +44,7 @@ export class EnforcerManager extends BaseObject {
      * @param isMongo
      * @protected
      */
-    protected createEntityConstructor(tableName: string, isMongo: boolean = false): typeof NoSQLRule | typeof SQLRule {
+    protected createEntityConstructor(tableName: string, isMongo: boolean = false): any {
         const RuleEntityConstructor: typeof NoSQLRule | typeof SQLRule = isMongo ? NoSQLRule : SQLRule
         Reflect.decorate([Entity(tableName)], RuleEntityConstructor)
         return RuleEntityConstructor
@@ -63,7 +63,8 @@ export class EnforcerManager extends BaseObject {
             }
             this._$adapter = new FileAdapter(this.store.filename)
         } else {
-            this._$adapter = await TypeORMAdapter.newAdapter(this.store, {customCasbinRuleEntity: this.createEntityConstructor(this.tableName, this.store.type === 'mongodb') as any})
+            const entityConstructor = this.createEntityConstructor(this.tableName, this.store.type === 'mongodb')
+            this._$adapter = await TypeORMAdapter.newAdapter(this.store, {customCasbinRuleEntity: entityConstructor})
             this._$datasource = As<DataSource>(this._$adapter['typeorm'])
         }
         this._$enforcer = await newEnforcer(this.model, this._$adapter)

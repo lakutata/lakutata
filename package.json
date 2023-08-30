@@ -35,7 +35,6 @@
     }
   },
   "devDependencies": {
-    "@anatine/esbuild-decorators": "^0.2.19",
     "@types/convert-units": "^2.3.6",
     "@types/crypto-js": "^4.1.1",
     "@types/is-glob": "^4.0.2",
