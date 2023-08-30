@@ -20,8 +20,8 @@ export default defineConfig(() => {
         keepNames: true,
         noExternal: [/./],
         external: [/@types/, 'tslib', 'ts-node', 'typescript', 'mysql', 'mongodb'],
-        // minify: false,
-        minify: 'terser',
+        minify: false,
+        // minify: 'terser',
         terserOptions: {
             keep_classnames: true,
             mangle: false,
