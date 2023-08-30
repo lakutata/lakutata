@@ -6,7 +6,7 @@ import {
     CONTROLLER_PATTERN_MANAGER
 } from '../constants/MetadataKey'
 import {IConstructor} from '../interfaces/IConstructor'
-import {As} from '../exports/Utilities'
+import {As, SortObject} from '../exports/Utilities'
 import {ControllerActionMapItem} from '../types/ControllerActionMapItem'
 import {Patrun} from 'patrun'
 import {IPatRun} from '../interfaces/IPatRun'
@@ -16,7 +16,6 @@ import {ControllerAuthConfigItem} from '../types/ControllerAuthConfigItem'
 import {defaultDomain} from '../constants/DefaultValue'
 import {AccessDenyException} from '../exceptions/auth/AccessDenyException'
 import {Application} from '../lib/Application'
-import {Helper} from '../exports/Helper'
 import {SHA1} from '../Hash'
 
 type TActionFunction = (inp?: any) => Promise<any>
@@ -34,7 +33,7 @@ type TActionName<T, U> = TExcludes<keyof T, U>
 function registerActionToControllerActionMap<T extends Controller>(pattern: ActionPattern, controllerConstructor: IConstructor<T>, propertyKey: keyof T): void {
     if (!Reflect.hasOwnMetadata(CONTROLLER_ACTION_MAP, controllerConstructor)) Reflect.defineMetadata(CONTROLLER_ACTION_MAP, new Map<string, ControllerActionMapItem>(), controllerConstructor)
     if (!Reflect.hasOwnMetadata(CONTROLLER_PATTERN_MANAGER, controllerConstructor)) Reflect.defineMetadata(CONTROLLER_PATTERN_MANAGER, Patrun({gex: true}), controllerConstructor)
-    pattern = Helper.SortObject(pattern, {deep: true, order: 'asc'})
+    pattern = SortObject(pattern, {deep: true, order: 'asc'})
     const patternHash: string = SHA1(JSON.stringify(pattern))
     if (!As<Map<string, ControllerActionMapItem>>(Reflect.getOwnMetadata(CONTROLLER_ACTION_MAP, controllerConstructor)).has(patternHash)) {
         As<Map<string, ControllerActionMapItem>>(Reflect.getOwnMetadata(CONTROLLER_ACTION_MAP, controllerConstructor)).set(patternHash, {
