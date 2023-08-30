@@ -3,13 +3,11 @@ import {Configurable, Singleton} from '../../decorators/DependencyInjectionDecor
 import {AuthStoreOptions} from '../../types/AuthStoreOptions'
 import {stat, writeFile} from 'fs/promises'
 import {FileAdapter} from 'casbin-file-adapter'
-import TypeORMAdapter from 'typeorm-adapter'
 import {Adapter, Enforcer, newEnforcer} from 'casbin'
 import {DomainRBAC} from './DomainRBAC'
-import {DataSource, Entity} from 'typeorm'
-import {NoSQLRule} from './NoSQLRule'
-import {SQLRule} from './SQLRule'
+import {DataSource} from 'typeorm'
 import {As} from '../../exports/Utilities'
+import {DatabaseAdapter} from './DatabaseAdapter'
 
 @Singleton(true)
 export class EnforcerManager extends BaseObject {
@@ -38,19 +36,6 @@ export class EnforcerManager extends BaseObject {
     protected _$datasource: DataSource
 
     /**
-     * 创建实体的构造函数
-     * 使用动态修饰将表名注入
-     * @param tableName
-     * @param isMongo
-     * @protected
-     */
-    protected createEntityConstructor(tableName: string, isMongo: boolean = false): any {
-        const RuleEntityConstructor: typeof NoSQLRule | typeof SQLRule = isMongo ? NoSQLRule : SQLRule
-        Reflect.decorate([Entity(tableName)], RuleEntityConstructor)
-        return RuleEntityConstructor
-    }
-
-    /**
      * 初始化函数
      * @protected
      */
@@ -63,9 +48,9 @@ export class EnforcerManager extends BaseObject {
             }
             this._$adapter = new FileAdapter(this.store.filename)
         } else {
-            const entityConstructor = this.createEntityConstructor(this.tableName, this.store.type === 'mongodb')
-            this._$adapter = await TypeORMAdapter.newAdapter(this.store, {customCasbinRuleEntity: entityConstructor})
-            this._$datasource = As<DataSource>(this._$adapter['typeorm'])
+            // this._$adapter = await TypeORMAdapter.newAdapter(this.store, {customCasbinRuleEntity: entityConstructor})
+            this._$adapter = await DatabaseAdapter.createAdapter(this.store, this.tableName)
+            this._$datasource = As<DataSource>(this._$adapter['datasource'])
         }
         this._$enforcer = await newEnforcer(this.model, this._$adapter)
         await this._$enforcer.loadPolicy()//加载所有规则
