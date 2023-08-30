@@ -1,4 +1,4 @@
-import {Helper} from '../../../exports/Helper'
+import {IsPromiseLike} from '../../../exports/Utilities'
 
 export function AppendAsyncConstructor<T, U extends any[]>(target: T, asyncConstructor: (...args: U) => PromiseLike<void>, args?: U): void {
     async function applyAsyncConstructor() {
@@ -8,7 +8,7 @@ export function AppendAsyncConstructor<T, U extends any[]>(target: T, asyncConst
         return target
     }
 
-    if (Helper.IsPromiseLike(target)) {
+    if (IsPromiseLike(target)) {
         setThenMethod(target, Promise.resolve(target).then(applyAsyncConstructor))
     } else {
         setThenMethod(target, applyAsyncConstructor())

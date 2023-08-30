@@ -3,9 +3,8 @@ import {ObjectSchema, Schema, ValidationOptions, Validator} from '../../exports/
 import {IConstructor} from '../../interfaces/IConstructor'
 import {defaultValidationOptions} from '../../constants/DefaultValue'
 import {InvalidDTOValueException} from '../../exceptions/InvalidDTOValueException'
-import {As, ConfigureObjectProperties} from '../../exports/Utilities'
+import {As, ConfigureObjectProperties, ParentConstructor} from '../../exports/Utilities'
 import {AppendAsyncConstructor} from './async-constructor/Append'
-import {Helper} from '../../exports/Helper'
 
 /**
  * DTO基础类
@@ -48,7 +47,7 @@ export class DTO {
      * @protected
      */
     protected static patternSchemas<T extends DTO>(this: IConstructor<T>): Schema[] {
-        const parentConstructor: IConstructor<T> | null = Helper.ParentConstructor(this)
+        const parentConstructor: IConstructor<T> | null = ParentConstructor(this)
         const parentIndexSignatureSchemas: Schema[] = (parentConstructor && parentConstructor.patternSchemas) ? parentConstructor.patternSchemas() : []
         const selfIndexSignatureSchemas: Schema[] = Reflect.hasOwnMetadata(DTO_INDEX_SIGNATURE_SCHEMAS, this) ? Reflect.getOwnMetadata(DTO_INDEX_SIGNATURE_SCHEMAS, this) : []
         return (parentIndexSignatureSchemas ? parentIndexSignatureSchemas : []).concat(selfIndexSignatureSchemas)
@@ -59,7 +58,7 @@ export class DTO {
      * @protected
      */
     protected static fieldSchema<T extends DTO>(this: IConstructor<T>): ObjectSchema<T> {
-        const parentConstructor: IConstructor<T> | null = Helper.ParentConstructor(this)
+        const parentConstructor: IConstructor<T> | null = ParentConstructor(this)
         const parentSchema: ObjectSchema<T> = (parentConstructor && parentConstructor.fieldSchema) ? parentConstructor.fieldSchema() : Validator.Object()
         return parentSchema.concat(Validator.Object(Reflect.hasOwnMetadata(DTO_SCHEMAS, this) ? Reflect.getOwnMetadata(DTO_SCHEMAS, this) : {}))
     }

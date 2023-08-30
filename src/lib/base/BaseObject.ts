@@ -1,8 +1,8 @@
 import {IConstructor} from '../../interfaces/IConstructor'
 import {
     As,
-    ConfigureObjectProperties,
-    ThrowIntoBlackHole
+    ConfigureObjectProperties, MergeSet, ParentConstructor, RandomString, SetToArray,
+    ThrowIntoBlackHole, UniqueArray
 } from '../../exports/Utilities'
 import {
     DI_CONTAINER_CREATOR_CONSTRUCTOR,
@@ -34,7 +34,6 @@ import {InvalidConfigurableValueException} from '../../exceptions/InvalidConfigu
 import {InvalidValueException} from '../../exceptions/validation/InvalidValueException'
 import {AsyncConstructor} from './async-constructor/AsyncConstructor'
 import {InjectionProperties} from '../../types/InjectionProperties'
-import {Helper} from '../../exports/Helper'
 import {SHA256} from '../../Hash'
 
 const internalPropertyNameRegExp: RegExp = new RegExp('__\\$\\$\\$[a-zA-Z0-9~!@#$%^&*()_+\\[\\]\\{\\},./\\\\<>?|\\-\\*]+\\$\\$\\$__')
@@ -56,7 +55,7 @@ function ObjectId(e?: number) {
  */
 @(() => {
     return <TFunction extends IConstructor<any>>(target: TFunction): TFunction => {
-        const nonceStr: string = Helper.RandomString(16)
+        const nonceStr: string = RandomString(16)
         Reflect.defineMetadata(DI_CONTAINER_SPECIAL_INJECT_APP_GETTER_KEY, SHA256(`APP_GETTER_KEY_${nonceStr}`).toString(), target)
         Reflect.defineMetadata(DI_CONTAINER_INJECT_IS_MODULE_GETTER_KEY, SHA256(`MODULE_GETTER_KEY_${nonceStr}`).toString(), target)
         return target
@@ -136,9 +135,9 @@ export class BaseObject extends AsyncConstructor {
                 const configurableOptionsMap: Map<string, ConfigurableOptions> = As<Map<string, ConfigurableOptions> | undefined>(Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OPTIONS, this)) ? As<Map<string, ConfigurableOptions>>(Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OPTIONS, this.constructor)) : new Map()
                 let configurableItems: Set<string> | undefined = Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, this.constructor)
                 let constructor: typeof this.constructor | null = this.constructor
-                while (constructor = Helper.ParentConstructor(constructor)) {
+                while (constructor = ParentConstructor(constructor)) {
                     const parentConfigurableItems: Set<string> | undefined = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, constructor)
-                    if (parentConfigurableItems) configurableItems = Helper.MergeSet(configurableItems ? configurableItems : new Set<string>(), parentConfigurableItems)
+                    if (parentConfigurableItems) configurableItems = MergeSet(configurableItems ? configurableItems : new Set<string>(), parentConfigurableItems)
                     As<Map<string, ConfigurableOptions> | undefined>(Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OPTIONS, constructor))?.forEach((options: ConfigurableOptions, propertyKey: string): void => {
                         if (!configurableOptionsMap.has(propertyKey)) configurableOptionsMap.set(propertyKey, options)
                     })
@@ -233,11 +232,11 @@ export class BaseObject extends AsyncConstructor {
         let constructor: IConstructor<any> | null = <IConstructor<any>>(this.constructor)
         while (constructor) {
             if (Reflect.hasMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, constructor)) {
-                Helper.SetToArray(As<Set<string>>(Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, constructor))).forEach((p: string) => propertyNames.push(p))
+                SetToArray(As<Set<string>>(Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, constructor))).forEach((p: string) => propertyNames.push(p))
             }
-            constructor = Helper.ParentConstructor(constructor)
+            constructor = ParentConstructor(constructor)
         }
-        return Helper.UniqueArray(propertyNames)
+        return UniqueArray(propertyNames)
     }
 
     /**

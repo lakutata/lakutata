@@ -9,7 +9,7 @@ import {LoadEntryClassOptions} from '../../options/LoadEntryClassOptions'
 import {Accept} from '../../decorators/ValidationDecorators'
 import {Validator} from '../../exports/Validator'
 import {BaseObject} from './BaseObject'
-import {As} from '../../exports/Utilities'
+import {As, IsGlobString, IsPromise, RandomString} from '../../exports/Utilities'
 import fastGlob from 'fast-glob'
 import {IConstructor} from '../../interfaces/IConstructor'
 import {
@@ -38,7 +38,6 @@ import {
 import {IPatRun} from '../../interfaces/IPatRun'
 import {Controller} from './Controller'
 import {Patrun} from 'patrun'
-import {Helper} from '../../exports/Helper'
 
 export class Container<T extends Module = Module> {
 
@@ -65,7 +64,7 @@ export class Container<T extends Module = Module> {
     }
 
     constructor(module?: T, parent?: Container) {
-        this.__$id = Helper.RandomString(32)
+        this.__$id = RandomString(32)
         this.__$$module = module
         this.__$$parent = parent
         if (this.__$$parent) this.__$$parent.__$subContainerSet.add(this)
@@ -124,7 +123,7 @@ export class Container<T extends Module = Module> {
             name: constructor.name,
             string: constructor.toString()
         }
-        if (!Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_FINGERPRINT, constructor)) Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_FINGERPRINT, Helper.RandomString(32), constructor)
+        if (!Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_FINGERPRINT, constructor)) Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_FINGERPRINT, RandomString(32), constructor)
         constructorRecord.fingerprint = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_FINGERPRINT, constructor)
         return `${objectHash(constructorRecord).toString()}_$$${constructor.name}`
     }
@@ -186,7 +185,7 @@ export class Container<T extends Module = Module> {
      * @protected
      */
     protected async getEntryConstructorsByGlob<T extends BaseObject>(glob: string, options: LoadEntryCommonOptions): Promise<NameAndRegistrationPair<any>> {
-        if (!Helper.IsGlobString(glob)) throw new InvalidGlobStringException('"{0}" is not valid glob string', [glob])
+        if (!IsGlobString(glob)) throw new InvalidGlobStringException('"{0}" is not valid glob string', [glob])
         const matchedFilenames: string[] = await fastGlob(glob)
         const inheritFromBaseObjectClasses: IConstructor<T>[] = []
         const loadEntryByGlobPromises: Promise<void>[] = []
@@ -298,7 +297,7 @@ export class Container<T extends Module = Module> {
         //在取得实例时进行实例上的元数据注入，将附加的可配置项注入至对象中，在该阶段，对象根据可配置对象进行自身的配置过程尚未开始
         if (typeof resolved === 'object' || typeof resolved === 'function') Reflect.defineMetadata(DI_TARGET_INSTANCE_CONFIGURABLE_OBJECT, configurableParams ? configurableParams : {}, resolved)
         this.updateTransientWeakRefs()
-        return Helper.IsPromise(resolved) ? await resolved : resolved
+        return IsPromise(resolved) ? await resolved : resolved
     }
 
     /**

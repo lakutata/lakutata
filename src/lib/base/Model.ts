@@ -2,8 +2,7 @@ import {Component} from './Component'
 import {InjectionProperties} from '../../types/InjectionProperties'
 import {Lifetime} from '../../decorators/DependencyInjectionDecorators'
 import {MODEL_PROPERTY_MAP} from '../../constants/MetadataKey'
-import {As} from '../../exports/Utilities'
-import {Helper} from '../../exports/Helper'
+import {As, IsEqual} from '../../exports/Utilities'
 
 /**
  * 业务模型基类
@@ -28,7 +27,7 @@ export class Model extends Component {
             Object.defineProperty(this, propertyKey, {
                 set: (newValue: any): void => {
                     const oldValue: any = As<Map<string, any>>(Reflect.getOwnMetadata(MODEL_PROPERTY_MAP, this))?.get(propertyKey)
-                    if (Helper.IsEqual(oldValue, newValue)) {
+                    if (IsEqual(oldValue, newValue)) {
                         As<Map<string, any>>(Reflect.getOwnMetadata(MODEL_PROPERTY_MAP, this))?.set(propertyKey, newValue)
                         this.emit('property-changed', propertyKey, newValue, oldValue)
                     }
