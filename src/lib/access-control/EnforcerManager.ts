@@ -9,7 +9,6 @@ import {DomainRBAC} from './DomainRBAC'
 import {DataSource, Entity} from 'typeorm'
 import {NoSQLRule} from './NoSQLRule'
 import {SQLRule} from './SQLRule'
-import {IConstructor} from '../../interfaces/IConstructor'
 import {As} from '../../exports/Utilities'
 
 @Singleton(true)
@@ -47,14 +46,8 @@ export class EnforcerManager extends BaseObject {
      */
     protected createEntityConstructor(tableName: string, isMongo: boolean = false): typeof NoSQLRule | typeof SQLRule {
         const RuleEntityConstructor: typeof NoSQLRule | typeof SQLRule = isMongo ? NoSQLRule : SQLRule
-
-        class Ruler extends RuleEntityConstructor {
-        }
-
-        Object.defineProperty(Ruler, 'name', {value: tableName})
-        Entity({name: tableName})(Ruler)
-        // Reflect.decorate([Entity(tableName)], ruleEntityConstructor)
-        return <typeof NoSQLRule | typeof SQLRule>Ruler
+        Reflect.decorate([Entity(tableName)], RuleEntityConstructor)
+        return RuleEntityConstructor
     }
 
     /**
@@ -70,7 +63,7 @@ export class EnforcerManager extends BaseObject {
             }
             this._$adapter = new FileAdapter(this.store.filename)
         } else {
-            this._$adapter = await TypeORMAdapter.newAdapter(this.store, {customCasbinRuleEntity: this.createEntityConstructor(this.tableName, this.store.type === 'mongodb')})
+            this._$adapter = await TypeORMAdapter.newAdapter(this.store, {customCasbinRuleEntity: this.createEntityConstructor(this.tableName, this.store.type === 'mongodb') as any})
             this._$datasource = As<DataSource>(this._$adapter['typeorm'])
         }
         this._$enforcer = await newEnforcer(this.model, this._$adapter)

@@ -1,6 +1,6 @@
-import {BaseEntity, Column, PrimaryGeneratedColumn} from 'typeorm'
+import {Column, PrimaryGeneratedColumn} from 'typeorm'
 
-export class SQLRule extends BaseEntity {
+export class SQLRule {
     @PrimaryGeneratedColumn()
     public id: number
 
