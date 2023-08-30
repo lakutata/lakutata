@@ -2,7 +2,7 @@ import {BaseObject} from '../BaseObject'
 import {clearInterval} from 'timers'
 import {Configurable, Scoped} from '../../../decorators/DependencyInjectionDecorators'
 import {Validator} from '../../../exports/Validator'
-import {IsObjectInitialized} from '../../../exports/Utilities'
+import {IsObjectInitialized} from '../../../Helper'
 
 /**
  * 执行模式枚举

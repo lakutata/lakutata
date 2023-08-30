@@ -9,7 +9,7 @@ import {IConstructor} from '../../../interfaces/IConstructor'
 import {NotSupportCipherException} from '../../../exceptions/crypto/symmetric/NotSupportCipherException'
 import {SymmetricDecryptException} from '../../../exceptions/crypto/symmetric/SymmetricDecryptException'
 import {SymmetricEncryptException} from '../../../exceptions/crypto/symmetric/SymmetricEncryptException'
-import {ConvertToStream} from '../../../exports/Utilities'
+import {ConvertToStream} from '../../../Helper'
 
 const SUPPORT_CIPHERS: string[] = getCiphers().map((value: string) => value.toUpperCase())
 

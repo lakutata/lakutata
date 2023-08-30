@@ -5,7 +5,7 @@ import {stat, writeFile} from 'fs/promises'
 import {FileAdapter} from 'casbin-file-adapter'
 import {Adapter, Enforcer, newEnforcer} from 'casbin'
 import {DomainRBAC} from './DomainRBAC'
-import {As} from '../../exports/Utilities'
+import {As} from '../../Helper'
 import {DatabaseAdapter} from './DatabaseAdapter'
 import { DataSource } from '../../ORM'
 

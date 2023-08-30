@@ -9,7 +9,7 @@ import {Configurable, Inject, Scoped} from '../../../decorators/DependencyInject
 import {IllegalMethodCallException} from '../../../exceptions/IllegalMethodCallException'
 import {Transform, TransformCallback} from 'stream'
 import {Logger} from '../../components/Logger'
-import {RandomString} from '../../../exports/Utilities'
+import {RandomString} from '../../../Helper'
 
 @Scoped(true)
 export abstract class ThreadTask extends BaseObject {

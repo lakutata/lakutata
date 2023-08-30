@@ -1,5 +1,5 @@
 import {camelCase} from 'camel-case'
-import {As} from '../../../exports/Utilities'
+import {As} from '../../../Helper'
 import Templating from '../../deps/Templating'
 
 

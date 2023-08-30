@@ -3,7 +3,7 @@ import {ObjectSchema, Schema, ValidationOptions, Validator} from '../../exports/
 import {IConstructor} from '../../interfaces/IConstructor'
 import {defaultValidationOptions} from '../../constants/DefaultValue'
 import {InvalidDTOValueException} from '../../exceptions/InvalidDTOValueException'
-import {As, ConfigureObjectProperties, ParentConstructor} from '../../exports/Utilities'
+import {As, ConfigureObjectProperties, ParentConstructor} from '../../Helper'
 import {AppendAsyncConstructor} from './async-constructor/Append'
 
 /**

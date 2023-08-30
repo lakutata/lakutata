@@ -3,7 +3,7 @@ import {
     As,
     ConfigureObjectProperties, MergeSet, ParentConstructor, RandomString, SetToArray,
     ThrowIntoBlackHole, UniqueArray
-} from '../../exports/Utilities'
+} from '../../Helper'
 import {
     DI_CONTAINER_CREATOR_CONSTRUCTOR,
     DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OPTIONS,

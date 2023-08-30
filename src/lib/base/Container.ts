@@ -9,7 +9,7 @@ import {LoadEntryClassOptions} from '../../options/LoadEntryClassOptions'
 import {Accept} from '../../decorators/ValidationDecorators'
 import {Validator} from '../../exports/Validator'
 import {BaseObject} from './BaseObject'
-import {As, IsGlobString, IsPromise, RandomString} from '../../exports/Utilities'
+import {As, IsGlobString, IsPromise, RandomString} from '../../Helper'
 import fastGlob from 'fast-glob'
 import {IConstructor} from '../../interfaces/IConstructor'
 import {

@@ -4,7 +4,7 @@ import {NotSupportHashException} from './exceptions/NotSupportHashException'
 import {Readable as ReadableStream} from 'stream'
 import {Sm3, SM3ToHex, SM3Hmac} from './lib/deps/SM3'
 import {createHash, createHmac, getHashes, Hash, Hmac} from 'crypto'
-import {ConvertToStream} from './exports/Utilities'
+import {ConvertToStream} from './Helper'
 
 /**
  * 系统所支持的哈希算法

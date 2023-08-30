@@ -1,6 +1,6 @@
 {
   "name": "lakutata",
-  "version": "0.1.2-proto.17",
+  "version": "0.1.2-proto.18",
   "description": "An IoC-based universal application framework.",
   "main": "./build/Lakutata.js",
   "types": "./build/Lakutata.d.ts",
@@ -24,6 +24,11 @@
       "import": "./build/Hash.js",
       "require": "./build/Hash.js",
       "types": "./build/Hash.d.ts"
+    },
+    "./helper": {
+      "import": "./build/Helper.js",
+      "require": "./build/Helper.js",
+      "types": "./build/Helper.d.ts"
     }
   },
   "files": [

@@ -15,7 +15,7 @@ import {IConstructor} from '../interfaces/IConstructor'
 import {DTO_CLASS, DTO_INDEX_SIGNATURE_SCHEMAS, DTO_SCHEMAS} from '../constants/MetadataKey'
 import {defaultValidationOptions} from '../constants/DefaultValue'
 import {InvalidMethodReturnException} from '../exceptions/validation/InvalidMethodReturnException'
-import {As} from '../exports/Utilities'
+import {As} from '../Helper'
 
 type TFunction = (...args: any[]) => any | Promise<any>
 

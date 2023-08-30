@@ -1,7 +1,7 @@
 import 'reflect-metadata'
 import {BaseObject} from '../lib/base/BaseObject'
 import {IConstructor} from '../interfaces/IConstructor'
-import {As} from '../exports/Utilities'
+import {As} from '../Helper'
 import {
     DI_CONTAINER_SPECIAL_INJECT_APP_GETTER,
     DI_CONTAINER_SPECIAL_INJECT_MODULE_GETTER,

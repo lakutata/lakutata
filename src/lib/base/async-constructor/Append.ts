@@ -1,4 +1,4 @@
-import {IsPromiseLike} from '../../../exports/Utilities'
+import {IsPromiseLike} from '../../../Helper'
 
 export function AppendAsyncConstructor<T, U extends any[]>(target: T, asyncConstructor: (...args: U) => PromiseLike<void>, args?: U): void {
     async function applyAsyncConstructor() {

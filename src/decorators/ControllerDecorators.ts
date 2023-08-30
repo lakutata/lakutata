@@ -6,7 +6,7 @@ import {
     CONTROLLER_PATTERN_MANAGER
 } from '../constants/MetadataKey'
 import {IConstructor} from '../interfaces/IConstructor'
-import {As, SortObject} from '../exports/Utilities'
+import {As, SortObject} from '../Helper'
 import {ControllerActionMapItem} from '../types/ControllerActionMapItem'
 import {Patrun} from 'patrun'
 import {IPatRun} from '../interfaces/IPatRun'

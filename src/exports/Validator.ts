@@ -1,6 +1,6 @@
 import 'reflect-metadata'
 import Joi from 'joi'
-import {As, IsGlobString} from './Utilities'
+import {As, IsGlobString} from '../Helper'
 import {InvalidValueException} from '../exceptions/validation/InvalidValueException'
 import {defaultValidationOptions} from '../constants/DefaultValue'
 import {isAsyncFunction} from 'util/types'

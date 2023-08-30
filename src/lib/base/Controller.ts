@@ -12,7 +12,7 @@ import {
 import {IUser} from '../../interfaces/IUser'
 import {AccessControl} from '../access-control/AccessControl'
 import {AccessControlConfigureRequiredException} from '../../exceptions/auth/AccessControlConfigureRequiredException'
-import {As} from '../../exports/Utilities'
+import {As} from '../../Helper'
 import {ControllerAuthConfigItem} from '../../types/ControllerAuthConfigItem'
 
 /**
