@@ -3,7 +3,8 @@ import {defineConfig} from 'tsup'
 export default defineConfig(() => {
     return {
         entry: [
-            'src/Lakutata.ts'
+            'src/Lakutata.ts',
+            'src/ORM.ts'
         ],
         legacyOutput: false,
         skipNodeModulesBundle: true,
