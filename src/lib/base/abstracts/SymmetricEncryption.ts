@@ -5,11 +5,11 @@ import {
 import {
     InvalidSymmetricCipherIVLengthException
 } from '../../../exceptions/crypto/symmetric/InvalidSymmetricCipherIVLengthException'
-import {IConstructor} from '../../../interfaces/IConstructor'
 import {NotSupportCipherException} from '../../../exceptions/crypto/symmetric/NotSupportCipherException'
 import {SymmetricDecryptException} from '../../../exceptions/crypto/symmetric/SymmetricDecryptException'
 import {SymmetricEncryptException} from '../../../exceptions/crypto/symmetric/SymmetricEncryptException'
 import {ConvertToStream} from '../../../Helper'
+import { IConstructor } from '../../../exports/Core'
 
 const SUPPORT_CIPHERS: string[] = getCiphers().map((value: string) => value.toUpperCase())
 

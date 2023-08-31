@@ -1,12 +1,13 @@
-import {
-    AsymmetricEncryption,
-    AsymmetricEncryptionKeyPair, AsymmetricEncryptionPrivate,
-    AsymmetricEncryptionPublic
-} from '../base/abstracts/AsymmetricEncryption'
 import {sm2} from 'sm-crypto-v2'
 import {As} from '../../Helper'
 import {PathLike} from 'fs'
 import {IConstructor} from '../../interfaces/IConstructor'
+import { AsymmetricEncryption } from '../../Lakutata'
+import {
+    AsymmetricEncryptionKeyPair,
+    AsymmetricEncryptionPrivate,
+    AsymmetricEncryptionPublic
+} from '../base/abstracts/AsymmetricEncryption'
 
 async function initRNGPool(constructor: IConstructor<SM2>): Promise<void> {
     const metadataKey: string = '__$$RNGPoolInitialized'

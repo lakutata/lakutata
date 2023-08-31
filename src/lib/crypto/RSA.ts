@@ -1,9 +1,4 @@
 import {
-    AsymmetricEncryption,
-    AsymmetricEncryptionKeyPair, AsymmetricEncryptionPrivate,
-    AsymmetricEncryptionPublic
-} from '../base/abstracts/AsymmetricEncryption'
-import {
     createPrivateKey,
     createPublicKey,
     generateKeyPair,
@@ -15,6 +10,12 @@ import {
 } from 'crypto'
 import {As} from '../../Helper'
 import {PathLike} from 'fs'
+import { AsymmetricEncryption } from '../../Lakutata'
+import {
+    AsymmetricEncryptionKeyPair,
+    AsymmetricEncryptionPrivate,
+    AsymmetricEncryptionPublic
+} from '../base/abstracts/AsymmetricEncryption'
 
 export interface RSAKeyPairOptions {
     /**
