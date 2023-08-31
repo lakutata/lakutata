@@ -10,8 +10,8 @@ import {
 } from 'crypto'
 import {As} from '../../Helper'
 import {PathLike} from 'fs'
-import { AsymmetricEncryption } from '../../Lakutata'
 import {
+    AsymmetricEncryption,
     AsymmetricEncryptionKeyPair,
     AsymmetricEncryptionPrivate,
     AsymmetricEncryptionPublic

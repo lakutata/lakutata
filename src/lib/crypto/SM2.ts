@@ -2,8 +2,8 @@ import {sm2} from 'sm-crypto-v2'
 import {As} from '../../Helper'
 import {PathLike} from 'fs'
 import {IConstructor} from '../../interfaces/IConstructor'
-import { AsymmetricEncryption } from '../../Lakutata'
 import {
+    AsymmetricEncryption,
     AsymmetricEncryptionKeyPair,
     AsymmetricEncryptionPrivate,
     AsymmetricEncryptionPublic
