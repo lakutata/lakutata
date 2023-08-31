@@ -1,8 +1,7 @@
-import 'reflect-metadata'
+import './ReflectMetadata'
 import sortArray from 'sort-array'
 import isGlob from 'is-glob'
 import * as randomString from 'randomstring'
-import {BaseObject} from './lib/base/BaseObject'
 import {OBJECT_INIT_MARK} from './constants/MetadataKey'
 import {setTimeout} from 'timers/promises'
 import {isPromise as isBuiltinPromises} from 'util/types'
@@ -10,7 +9,7 @@ import {Readable as ReadableStream, ReadableOptions, Stream} from 'stream'
 import {PathLike} from 'fs'
 import SortKeys from './lib/deps/SortKeys'
 import pickFreePort from './lib/deps/PickFreePort'
-import {IConstructor, ISortArrayOptions, ISortObjectOptions } from './Lakutata'
+import {IConstructor, ISortArrayOptions, ISortObjectOptions, BaseObject} from './Lakutata'
 
 /**
  * 对象转换为Map

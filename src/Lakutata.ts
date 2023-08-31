@@ -1,4 +1,4 @@
-import 'reflect-metadata'
+import './ReflectMetadata'
 import path from 'path'
 import {Alias} from './lib/Alias'
 

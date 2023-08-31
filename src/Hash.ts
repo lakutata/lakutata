@@ -1,4 +1,4 @@
-import 'reflect-metadata'
+import './ReflectMetadata'
 import CryptoJs from 'crypto-js'
 import {NotSupportHashException} from './exceptions/NotSupportHashException'
 import {Readable as ReadableStream} from 'stream'

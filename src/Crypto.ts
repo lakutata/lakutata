@@ -1,4 +1,4 @@
-import 'reflect-metadata'
+import './ReflectMetadata'
 
 //AES Algorithm series
 export {AES128} from './lib/crypto/aes/AES128'

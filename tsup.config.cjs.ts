@@ -3,6 +3,7 @@ import {defineConfig} from 'tsup'
 export default defineConfig(() => {
     return {
         entry: [
+            'src/ReflectMetadata.ts',
             'src/Lakutata.ts',
             'src/ORM.ts',
             'src/Crypto.ts',
