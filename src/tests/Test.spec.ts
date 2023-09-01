@@ -1,5 +1,5 @@
 import 'reflect-metadata'
-import {Application, Formatter, Helper, HttpRequest, Logger, Time} from '../Lakutata'
+import {Application, Formatter,  HttpRequest, Logger, Time} from '../Lakutata'
 import {TestObject} from './objects/TestObject'
 import {TestInterval} from './intervals/TestInterval'
 import {MDSTest1} from './mds/MDSTest1'
@@ -21,6 +21,7 @@ import {TestThreadTask} from './threads/TestThreadTask'
 import {newEnforcer} from 'casbin'
 import {DomainRBAC} from '../lib/access-control/DomainRBAC'
 import {AccessControl} from '../lib/access-control/AccessControl'
+import {ConvertToStream} from '../Helper'
 
 (async () => {
 
@@ -180,7 +181,7 @@ import {AccessControl} from '../lib/access-control/AccessControl'
                 const testThread = await subScope.get<TestThreadTask>('testThreadWork')
                 const testThread1 = await subScope.get<TestThreadTask>('testThreadWork')
                 console.log(await testThread.run('hahahahahah'))
-                Helper.ConvertToStream('this is a test').pipe(testThread.createStreamHandler()).pipe(process.stdout)
+                ConvertToStream('this is a test').pipe(testThread.createStreamHandler()).pipe(process.stdout)
                 setTimeout(async () => {
                     await subScope.destroy()
                     // try {
