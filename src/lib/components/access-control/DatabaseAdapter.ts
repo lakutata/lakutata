@@ -6,7 +6,7 @@ import {
     QueryRunner,
     Repository,
     EntitySchemaColumnOptions
-} from '../../ORM'
+} from '../../../ORM'
 import {RuleEntity} from './RuleEntity'
 
 export class DatabaseAdapter implements FilteredAdapter {

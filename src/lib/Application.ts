@@ -10,7 +10,7 @@ import {AsyncFunction} from '../types/AsyncFunction'
 import {As} from '../Helper'
 import {DefaultLoggerProvider} from './DefaultLoggerProvider'
 import {Alias} from './Alias'
-import {AccessControl} from './access-control/AccessControl'
+import {AccessControl} from './components/access-control/AccessControl'
 
 @Singleton(true)
 export class Application extends Module {

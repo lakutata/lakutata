@@ -10,7 +10,7 @@ import {
     NoMatchedControllerActionPatternException
 } from '../../exceptions/controller/NoMatchedControllerActionPatternException'
 import {IUser} from '../../interfaces/IUser'
-import {AccessControl} from '../access-control/AccessControl'
+import {AccessControl} from '../components/access-control/AccessControl'
 import {AccessControlConfigureRequiredException} from '../../exceptions/auth/AccessControlConfigureRequiredException'
 import {As} from '../../Helper'
 import {ControllerAuthConfigItem} from '../../types/ControllerAuthConfigItem'

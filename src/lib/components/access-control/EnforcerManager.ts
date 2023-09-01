@@ -1,13 +1,13 @@
-import {BaseObject} from '../base/BaseObject'
-import {Configurable, Singleton} from '../../decorators/DependencyInjectionDecorators'
-import {AuthStoreOptions} from '../../types/AuthStoreOptions'
+import {BaseObject} from '../../base/BaseObject'
+import {Configurable, Singleton} from '../../../decorators/DependencyInjectionDecorators'
+import {AuthStoreOptions} from '../../../types/AuthStoreOptions'
 import {stat, writeFile} from 'fs/promises'
 import {FileAdapter} from 'casbin-file-adapter'
 import {Adapter, Enforcer, newEnforcer} from 'casbin'
 import {DomainRBAC} from './DomainRBAC'
-import {As} from '../../Helper'
+import {As} from '../../../Helper'
 import {DatabaseAdapter} from './DatabaseAdapter'
-import { DataSource } from '../../ORM'
+import { DataSource } from '../../../ORM'
 
 @Singleton(true)
 export class EnforcerManager extends BaseObject {
