@@ -19,8 +19,8 @@ import * as zlib from 'zlib'
 import v8 from 'v8'
 import {TestThreadTask} from './threads/TestThreadTask'
 import {newEnforcer} from 'casbin'
-import {DomainRBAC} from '../lib/access-control/DomainRBAC'
-import {AccessControl} from '../lib/access-control/AccessControl'
+import {DomainRBAC} from '../lib/components/access-control/DomainRBAC'
+import {AccessControl} from '../lib/components/access-control/AccessControl'
 import {ConvertToStream} from '../Helper'
 
 (async () => {

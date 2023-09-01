@@ -2,7 +2,7 @@ import {Controller} from '../../lib/base/Controller'
 import {Action} from '../../decorators/ControllerDecorators'
 import {Configurable} from '../../decorators/DependencyInjectionDecorators'
 import {Test2Controller} from './Test2Controller'
-import {AccessControl} from '../../lib/access-control/AccessControl'
+import {AccessControl} from '../../lib/components/access-control/AccessControl'
 
 export class Test1Controller extends Controller {
 
