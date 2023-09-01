@@ -20,7 +20,7 @@ import {AsymmetricEncryptException} from '../../../exceptions/crypto/asymmetric/
 import {AsymmetricDecryptException} from '../../../exceptions/crypto/asymmetric/AsymmetricDecryptException'
 import {AsymmetricSignException} from '../../../exceptions/crypto/asymmetric/AsymmetricSignException'
 import {AsymmetricVerifyException} from '../../../exceptions/crypto/asymmetric/AsymmetricVerifyException'
-import {IConstructor} from '../../../interfaces/IConstructor'
+import { IConstructor } from '../../../Lakutata'
 
 /**
  * 公钥操作方法对象接口

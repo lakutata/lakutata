@@ -1,5 +1,9 @@
 import './ReflectMetadata'
 
+//Abstract Classes
+export {AsymmetricEncryption} from './lib/base/abstracts/AsymmetricEncryption'
+export {SymmetricEncryption} from './lib/base/abstracts/SymmetricEncryption'
+
 //AES Algorithm series
 export {AES128} from './lib/crypto/aes/AES128'
 export {AES192} from './lib/crypto/aes/AES192'
