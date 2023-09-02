@@ -138,6 +138,8 @@
     "thread",
     "worker",
     "daemon",
-    "rbac"
+    "rbac",
+    "casbin",
+    "typeorm"
   ]
 }

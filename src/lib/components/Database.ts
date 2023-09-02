@@ -17,7 +17,8 @@ import {
     Driver,
     NamingStrategyInterface,
     EntitySubscriberInterface,
-    EntityMetadata
+    EntityMetadata,
+    Migration
 } from '../../ORM'
 
 @Singleton()
@@ -95,12 +96,75 @@ export class Database extends Component {
     }
 
     /**
-     * 组件初始化函数
+     * 组件内部初始化函数
      * @protected
      */
-    protected async init(): Promise<void> {
+    protected async __init(): Promise<void> {
+        await super.__init()
         const datasource: DataSource = new DataSource(this.options)
         this.setInternalProperty('datasource', await datasource.initialize())
+    }
+
+    /**
+     * 组件内部销毁函数
+     * @protected
+     */
+    protected async __destroy(): Promise<void> {
+        await this.datasource.destroy()
+        await super.__destroy()
+    }
+
+    /**
+     * 为该连接中注册的所有实体创建数据库模式。只能在与数据库建立连接后使用
+     * @param dropBeforeSync 如果设置为true，则删除包含所有表和数据的数据库
+     */
+    public async synchronize(dropBeforeSync?: boolean): Promise<void> {
+        return await this.datasource.synchronize(dropBeforeSync)
+    }
+
+    /**
+     * 运行所有待处理的迁移。只能在与数据库建立连接后使用
+     * @param options
+     */
+    public async runMigrations(options?: {
+        transaction?: 'all' | 'none' | 'each'
+        fake?: boolean
+    }): Promise<Migration[]> {
+        return await this.datasource.runMigrations(options)
+    }
+
+    /**
+     * 还原上次执行的迁移。只能在与数据库建立连接后使用
+     * @param options
+     */
+    public async undoLastMigration(options?: {
+        transaction?: 'all' | 'none' | 'each'
+        fake?: boolean
+    }): Promise<void> {
+        return await this.datasource.undoLastMigration(options)
+    }
+
+    /**
+     * 列出所有迁移，并指示它们是否已运行。如果有待处理的迁移，则返回true
+     */
+    public async showMigrations(): Promise<boolean> {
+        return await this.datasource.showMigrations()
+    }
+
+    /**
+     * 检查给定实体类、目标名称或表名称是否存在实体元数据（Entity Metadata）
+     * @param target
+     */
+    public hasMetadata(target: EntityTarget<any>): boolean {
+        return this.datasource.hasMetadata(target)
+    }
+
+    /**
+     * 根据给定的实体类或模式名称获取实体元数据（Entity Metadata）
+     * @param target
+     */
+    public getMetadata(target: EntityTarget<any>): EntityMetadata {
+        return this.datasource.getMetadata(target)
     }
 
     /**
@@ -166,5 +230,22 @@ export class Database extends Component {
      */
     public createQueryRunner(mode?: ReplicationMode): QueryRunner {
         return this.datasource.createQueryRunner(mode)
+    }
+
+    /**
+     * 获取联接表（多对多关系表）的实体元数据（Entity Metadata）
+     * @param entityTarget
+     * @param relationPropertyPath
+     */
+    public getManyToManyMetadata(entityTarget: EntityTarget<any>, relationPropertyPath: string): EntityMetadata | undefined {
+        return this.datasource.getManyToManyMetadata(entityTarget, relationPropertyPath)
+    }
+
+    /**
+     * 使用EntityManagerFactory为当前连接创建一个实体管理器（EntityManager）
+     * @param queryRunner
+     */
+    public createEntityManager(queryRunner?: QueryRunner): EntityManager {
+        return this.datasource.createEntityManager(queryRunner)
     }
 }
