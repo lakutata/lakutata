@@ -8,8 +8,6 @@ import {TestModule1} from './modules/TestModule1/TestModule1'
 import {Test1Controller} from './controllers/Test1Controller'
 import {TestModel} from './models/TestModel'
 import path from 'path'
-import fs from 'fs'
-import {transpileModule} from 'typescript'
 import {TestProcess} from './processes/TestProcess'
 import {TestCron} from './intervals/TestCron'
 import {TestThreadTask} from './threads/TestThreadTask'
@@ -19,12 +17,6 @@ import {ConvertToStream} from '../Helper'
 (async () => {
 
     console.log('##################@@@@@@@@@@@@Application.className:', Application.className)
-
-    const compiled = transpileModule(fs.readFileSync(path.resolve(__dirname, './TestProc.ts'), {encoding: 'utf-8'}), {}).outputText
-
-    // new Worker(path.resolve(__dirname, './TestProc.ts'))
-
-    // fork(path.resolve(__dirname, './TestProc.ts'))
 
     console.time('app')
     await Application.run({
