@@ -11,9 +11,12 @@ import {As} from '../Helper'
 import {DefaultLoggerProvider} from './DefaultLoggerProvider'
 import {Alias} from './Alias'
 import {AccessControl} from './components/access-control/AccessControl'
+import {Time} from '../exports/Time'
 
 @Singleton(true)
 export class Application extends Module {
+
+    protected readonly startupAt: number = new Time().unix()
 
     /**
      * 别名管理器对象
@@ -92,6 +95,13 @@ export class Application extends Module {
      */
     public get timezone(): string {
         return As<string>(process.env.TZ)
+    }
+
+    /**
+     * 程序上线时长(秒)
+     */
+    public get uptime(): number {
+        return new Time().unix() - this.startupAt
     }
 
     /**

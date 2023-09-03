@@ -1,5 +1,5 @@
-import 'reflect-metadata'
-import {Application, Formatter,  HttpRequest, Logger, Time} from '../Lakutata'
+import '../ReflectMetadata'
+import {Application, Formatter, HttpRequest, Logger, Time} from '../Lakutata'
 import {TestObject} from './objects/TestObject'
 import {TestInterval} from './intervals/TestInterval'
 import {MDSTest1} from './mds/MDSTest1'
@@ -16,8 +16,6 @@ import {ConvertToStream} from '../Helper'
 
 (async () => {
 
-    console.log('##################@@@@@@@@@@@@Application.className:', Application.className)
-
     console.time('app')
     await Application.run({
         id: 'test',
@@ -27,7 +25,7 @@ import {ConvertToStream} from '../Helper'
         // mode: 'production',
         mode: 'development',
         entries: {
-            testProc: {class: TestProcess, concurrent: 666},
+            testProc: {class: TestProcess},
             testObject: {class: TestObject, username: 'tester'},
             testInterval: {
                 class: TestInterval,
@@ -152,7 +150,9 @@ import {ConvertToStream} from '../Helper'
                 console.log(await testThread.run('hahahahahah'))
                 ConvertToStream('this is a test').pipe(testThread.createStreamHandler()).pipe(process.stdout)
                 setTimeout(async () => {
-                    await subScope.destroy()
+                    console.log('app.uptime:',app.uptime)
+                    app.exit()
+                    // await subScope.destroy()
                     // try {
                     //     const r = HttpRequest.get('http://jellyfin.cloud.thinkraz.com')
                     //     // const result=await r.stream()
@@ -175,10 +175,6 @@ import {ConvertToStream} from '../Helper'
     console.log(time2.timezone(), time2, time2.toISOString(), time2.toString(), time2.toTimeString(), time2.toDateString(), time2.toUTCString())
     time = time.timezone('Africa/Accra')
     console.log(time.timezone(), time, time.toISOString(), time.toString(), time.toTimeString(), time.toDateString(), time.toUTCString())
-
-
-    // @ts-ignore
-    // console.log(Module._cache)
 
     Logger.trace('more on this: %s', process.env.NODE_ENV)
     Logger.info('this is a logger test')
