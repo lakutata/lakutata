@@ -51,7 +51,7 @@
   },
   "release-it": {
     "git": {
-      "requireCleanWorkingDir": false,
+      "requireCleanWorkingDir": true,
       "requireBranch": false,
       "commitMessage": "chore: release v${version}",
       "push": false

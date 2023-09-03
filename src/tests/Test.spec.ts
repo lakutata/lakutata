@@ -9,37 +9,14 @@ import {Test1Controller} from './controllers/Test1Controller'
 import {TestModel} from './models/TestModel'
 import path from 'path'
 import fs from 'fs'
-import {Worker} from 'worker_threads'
-import {fork} from 'child_process'
 import {transpileModule} from 'typescript'
-import Module from 'module'
 import {TestProcess} from './processes/TestProcess'
 import {TestCron} from './intervals/TestCron'
-import * as zlib from 'zlib'
-import v8 from 'v8'
 import {TestThreadTask} from './threads/TestThreadTask'
-import {newEnforcer} from 'casbin'
-import {DomainRBAC} from '../lib/components/access-control/DomainRBAC'
 import {AccessControl} from '../lib/components/access-control/AccessControl'
 import {ConvertToStream} from '../Helper'
 
 (async () => {
-
-    const domainRBAC = new DomainRBAC()
-    const enforcer = await newEnforcer(domainRBAC)
-
-    await enforcer.addPolicy('myq', 'default', 'data1', 'get')
-    await enforcer.addPolicy('myq', 'default', 'data2', 'post')
-    await enforcer.addPolicy('user', 'default1', 'data3', 'get')
-    await enforcer.addRoleForUser('myq', 'user', 'default1')
-    // console.log(await enforcer.getPolicy())
-    console.log(await enforcer.getRolesForUser('myq'))
-    console.log(await enforcer.getAllRoles())
-    console.log(await enforcer.getAllActions())
-    // await enforcer.savePolicy()
-
-    console.log('isAllow:', await enforcer.enforce('myq', 'default', 'data1', 'get'))
-
 
     console.log('##################@@@@@@@@@@@@Application.className:', Application.className)
 
