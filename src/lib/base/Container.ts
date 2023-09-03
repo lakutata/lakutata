@@ -9,7 +9,7 @@ import {LoadEntryClassOptions} from '../../options/LoadEntryClassOptions'
 import {Accept} from '../../decorators/ValidationDecorators'
 import {Validator} from '../../exports/Validator'
 import {BaseObject} from './BaseObject'
-import {As, IsGlobString, IsPromise, RandomString} from '../../Helper'
+import {As, DevNull, IsGlobString, IsPromise, RandomString} from '../../Helper'
 import fastGlob from 'fast-glob'
 import {IConstructor} from '../../interfaces/IConstructor'
 import {
@@ -109,8 +109,12 @@ export class Container<T extends Module = Module> {
      * @protected
      */
     protected async disposer<T extends BaseObject>(instance: T): Promise<void> {
-        await instance.getMethod('__destroy', false)()
-        await instance.getMethod('destroy', false)()
+        try {
+            await instance.getMethod('__destroy', false)()
+            await instance.getMethod('destroy', false)()
+        } catch (e) {
+            DevNull(e)
+        }
         this.updateTransientWeakRefs()
     }
 
@@ -389,8 +393,12 @@ export class Container<T extends Module = Module> {
         this.__$$additionalPropertyMap.clear()
         for (const ref of this.__$transientWeakRefs) {
             const transient = ref.deref()
-            if (transient?.__destroy) await transient.__destroy()
-            if (transient?.destroy) await transient.destroy()
+            try {
+                if (transient?.__destroy) await transient.__destroy()
+                if (transient?.destroy) await transient.destroy()
+            } catch (e) {
+                DevNull(e)
+            }
         }
     }
 }
