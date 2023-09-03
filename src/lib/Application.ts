@@ -16,8 +16,6 @@ import {Time} from '../exports/Time'
 @Singleton(true)
 export class Application extends Module {
 
-    protected readonly startupAt: number = new Time().unix()
-
     /**
      * 别名管理器对象
      * @protected
@@ -101,7 +99,16 @@ export class Application extends Module {
      * 程序上线时长(秒)
      */
     public get uptime(): number {
-        return new Time().unix() - this.startupAt
+        return new Time().unix() - this.getInternalProperty<number>('startupTimestamp')
+    }
+
+    /**
+     * 内部初始化函数
+     * @protected
+     */
+    protected async __init(): Promise<void> {
+        this.setInternalProperty('startupTimestamp', new Time().unix())
+        await super.__init()
     }
 
     /**
