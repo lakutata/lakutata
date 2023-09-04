@@ -28,6 +28,8 @@ to freely encapsulate and call third-party modules using Lakutata's dependency i
 
 ## Get Started
 
+To check out the guide, please click [here](docs/Guide.md).
+
 ```typescript
 import {AccessControl, Application, Container, Logger} from 'lakutata'
 import {MathObject} from './objects/MathObject'
