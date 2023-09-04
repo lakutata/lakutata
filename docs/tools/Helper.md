@@ -1,4 +1,4 @@
-# Framework Utility Functions
+# Framework Helper Functions
 
 ## How to Use
 
