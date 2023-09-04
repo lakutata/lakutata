@@ -1,183 +1,87 @@
-import '../ReflectMetadata'
-import {Application, Formatter, HttpRequest, Logger, Time} from '../Lakutata'
-import {TestObject} from './objects/TestObject'
-import {TestInterval} from './intervals/TestInterval'
-import {MDSTest1} from './mds/MDSTest1'
+import {AccessControl, Application, Container, Logger} from '../Lakutata'
+import {MathObject} from './objects/MathObject'
+import {UserModel} from './models/UserModel'
+import {FibonacciThreadTask} from './threads/FibonacciThreadTask'
+import os from 'node:os'
+import {SayHelloInterval} from './objects/SayHelloInterval'
+import {GreetCron} from './objects/GreetCron'
 import {TestComponent} from './components/TestComponent'
-import {TestModule1} from './modules/TestModule1/TestModule1'
-import {Test1Controller} from './controllers/Test1Controller'
-import {TestModel} from './models/TestModel'
-import path from 'path'
-import {TestProcess} from './processes/TestProcess'
-import {TestCron} from './intervals/TestCron'
-import {TestThreadTask} from './threads/TestThreadTask'
-import {AccessControl} from '../lib/components/access-control/AccessControl'
-import {ConvertToStream} from '../Helper'
+import {SubModule} from './modules/subModule/SubModule'
+import {SubProcess} from './processes/SubProcess'
 
-(async () => {
-
-    console.time('app')
+(async (): Promise<void> => {
     await Application.run({
-        id: 'test',
-        name: 'test',
+        id: 'example.lakutata.app',
+        name: 'LakutataExampleApplication',
         timezone: 'Asia/Shanghai',
-        // timezone: 'Africa/Accra',
-        // mode: 'production',
-        mode: 'development',
+        mode: 'production',
+        alias: {
+            '@data': '@app/data',
+            '@controllers': '@app/controllers',
+            '@models': '@app/models'
+        },
         entries: {
-            testProc: {class: TestProcess},
-            testObject: {class: TestObject, username: 'tester'},
-            testInterval: {
-                class: TestInterval,
+            sayHello: {
+                class: SayHelloInterval,
                 interval: 1000,
                 mode: 'SEQ'
             },
-            testCron: {
-                class: TestCron,
+            greet: {
+                class: GreetCron,
                 expression: '1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,47,49,51,53,55,57,59 * * * * ? '
             },
-            testThreadWork: {
-                class: TestThreadTask
-                // minThreads: 1,
-                // maxThreads: 1
+            math: {
+                class: MathObject,
+                baseNumber: 32
+            },
+            fibonacci: {
+                class: FibonacciThreadTask,
+                maxThreads: os.cpus().length
+            },
+            proc: {
+                class: SubProcess,
+                text: 'Default text'
             }
-            // '/Users/alex/WebstormProjects/core/src/tests/mds/**/*': {
-            //  tester: 'this is tester'
-            // }
         },
-        autoload: [
-            // '/Users/alex/WebstormProjects/core/src/tests/mds/**/*',
-            MDSTest1
-        ],
         components: {
             access: {
                 class: AccessControl,
-                store: {type: 'file', filename: path.resolve(__dirname, 'test.csv')}
+                store: {type: 'file', filename: '@data/auth.csv'}
             },
-            // access: {
-            //     class: AccessControl,
-            //     tableName: 'oh_access_control111',
-            //     // store: {
-            //     //     type: 'mysql',
-            //     //     host: '192.168.0.145',
-            //     //     port: 3306,
-            //     //     username: 'root',
-            //     //     password: '20160329',
-            //     //     database: 'lakutata_test'
-            //     // }
-            //     store: {
-            //         type: 'mongodb',
-            //         host: '192.168.0.146',
-            //         port: 27017,
-            //         username: 'thinkraz',
-            //         password: '20160329',
-            //         authMechanism: 'SCRAM-SHA-1'
-            //     }
-            // },
-            testComponent: {class: TestComponent, greet: 'hello world'}
+            test: {
+                class: TestComponent
+            }
         },
         modules: {
-            tm: {class: TestModule1, greet: 'oh!'},
-            tm1: TestModule1
+            sub: {
+                class: SubModule
+            }
         },
-        controllers: [
-            // '/Users/alex/WebstormProjects/core/src/tests/controllers/**/*',
-            Test1Controller
-        ],
-        alias: {
-            '@test': '@app/hh/jj'
-        },
+        autoload: ['@models/**/*'],
+        controllers: ['@controllers/**/*'],
         bootstrap: [
-            // 'testProc',
-            // 'testThreadWork',
-            'tm',
-            'tm1',
-            // 'testInterval',
-            MDSTest1,
-            async (app: Application) => {
-                // fork(path.resolve('@app', 'TestProc'))
-                // new Worker(path.resolve('@app', 'TestProc.js'))
-
-                // console.log('============transpileModule==========')
-                // let tstring=ts.transpileModule(fs.readFileSync(path.resolve('@app', 'TestProc.ts'),{encoding:'utf-8'}),{
-                //     compilerOptions:{module:ts.ModuleKind.Node16}
-                // }).outputText
-                // tstring=`const require = await import('module').then(m=>m.createRequire(import.meta.url));${tstring}`
-                // console.log(tstring)
-                // new Worker(new URL(`data:text/javascript,${encodeURIComponent(tstring)}`),{})
-                // console.log('============transpileModule==========')
-
-                const formatter = await app.get<Formatter>('formatter')
-                console.log(formatter.asPercent(1))
-                console.log('app.mode():', app.mode())
-                await app.set('mmm', {class: MDSTest1, tester: 'this is tester'})
-                await app.set('testModel', {class: TestModel, greet: 'hello model'})
-                const subScope = app.createScope()
-                await subScope.get('testInterval')
-                await subScope.get('testCron')
-                const testModel = (await subScope.get<TestModel>('testModel'))
-                testModel.on('property-changed', console.log)
-                console.log('testModel.greet:', testModel.greet)
-                testModel.aa = '6666668888888'
-                const access = await app.get<AccessControl>('access', {user: {id: '20160329', username: 'testUser'}})
-                await access.createRolePermission('user', '测试动作2', 'read')
-                await access.createRolePermission('tester', '测试动作1', 'read')
-                await access.assignRoleToUser('user')
-                await access.assignRoleToUser('tester')
-                console.log('access.listAllPermissions():', access.listAllPermissions(true))
-                console.log('await access.listUserRoles():', await access.listUserRoles())
-                // await access.createUserPermission('测试动作2','read')
-                // await access.createUserPermission('测试动作1','read')
-                console.log('await access.listUserPermission():', await access.listUserPermission())
-                // await access.clearUserInfo()
-                console.log(await app.dispatchToController({a: '2', b: '2'}, {
-                    testBoolean: true,
-                    user: {id: '20160329', username: 'testUser'}
-                }))
-                // console.log(await app.dispatchToController({test2:true}, {testBoolean: true}))
-                const logger = await app.get<Logger>('log')
-                logger.trace('more on this: %s', process.env.NODE_ENV)
-                const testProc = await subScope.get<TestProcess>('testProc')
-                testProc.on('test', (...args) => {
-                    console.log('test event:', ...args)
-                })
-                testProc.emit('test', 'a', 'b', 1, 2, 3, 4, 5, 6)
-                console.log('testProc.emitted')
-                testProc.testProp = '666666'
-                console.log('testProc.sayHi():', await testProc.sayHi(), testProc.testProp)
-                const testThread = await subScope.get<TestThreadTask>('testThreadWork')
-                const testThread1 = await subScope.get<TestThreadTask>('testThreadWork')
-                console.log(await testThread.run('hahahahahah'))
-                ConvertToStream('this is a test').pipe(testThread.createStreamHandler()).pipe(process.stdout)
-                setTimeout(async () => {
-                    console.log('app.uptime:',app.uptime)
-                    app.exit()
-                    // await subScope.destroy()
-                    // try {
-                    //     const r = HttpRequest.get('http://jellyfin.cloud.thinkraz.com')
-                    //     // const result=await r.stream()
-                    //     console.log(await r.text())
-                    //     setTimeout(() => {
-                    //         r.abort()
-                    //     }, 10000)
-                    // } catch (e) {
-                    //     console.log(e)
-                    // }
-                }, 3000)
+            'test',
+            'sub',
+            async (app: Application): Promise<void> => {
+                const logger: Logger = await app.get<Logger>('log')
+                const scope1: Container = app.createScope()
+                const scope2: Container = app.createScope()
+                await scope2.get('sayHello')
+                await scope2.get('greet')
+                const proc: SubProcess = await scope2.get<SubProcess>('proc')
+                proc.echoText()
+                proc.text = 'Oh! The text is changed'
+                proc.echoText()
+                const user: UserModel = await scope1.get(UserModel, {id: '89757', username: 'robot1'})
+                const accessControl: AccessControl = await app.get<AccessControl>('access', {user: user})
+                await accessControl.createUserPermission('add', 'execute')
+                logger.info('Math function "add" invoke result: %s', await app.dispatchToController({
+                    ctrl: 'math',
+                    act: 'add',
+                    a: 123
+                }, {user: user}))
+                await scope2.destroy()
             }
         ]
     })
-    console.timeEnd('app')
-
-    console.log(new Time('1968-01-01').add(1, 'day'))
-    let time = new Time('1968-01-01')
-    const time2 = new Time('1968-01-01')
-    console.log(time2.timezone(), time2, time2.toISOString(), time2.toString(), time2.toTimeString(), time2.toDateString(), time2.toUTCString())
-    time = time.timezone('Africa/Accra')
-    console.log(time.timezone(), time, time.toISOString(), time.toString(), time.toTimeString(), time.toDateString(), time.toUTCString())
-
-    Logger.trace('more on this: %s', process.env.NODE_ENV)
-    Logger.info('this is a logger test')
-
-    // app.exit()
 })()
