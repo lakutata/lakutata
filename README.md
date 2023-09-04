@@ -20,6 +20,9 @@ Lakutata is a generic development framework written in TypeScript and designed w
 
 In addition, Lakutata also supports the integration of third-party libraries into the application, allowing developers to freely encapsulate and call third-party modules using Lakutata's dependency injection.
 
+## Get Started
+
+[Click Here](src)
 
 ## License
 
