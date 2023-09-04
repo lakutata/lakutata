@@ -16,6 +16,16 @@ Since many operations in Node.js, such as network requests, file I/O, and databa
 the object initialization and destruction functions in BaseObject are also asynchronous methods. Therefore, Lakutata can
 be seen as providing an asynchronous object container in the overall framework.
 
+## How to Use
+
+#### [Logging program events](how/LoggingProgramEvents.md)
+
+#### [Creating child worker processes](how/CreatingChildWorkerProcesses.md)
+
+#### [Using child threads to handle tasks](how/UsingChildThreadsToHandleTasks.md)
+
+#### [Using permission management to control access](how/UsingPermissionManagementToControlAccess.md)
+
 ## Framework Base Class
 
 #### [BaseObject](base/BaseObject.md)
