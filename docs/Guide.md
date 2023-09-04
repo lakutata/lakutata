@@ -28,6 +28,8 @@ be seen as providing an asynchronous object container in the overall framework.
 
 #### [Module](base/Module.md)
 
+#### [Application](base/Application.md)
+
 #### [DTO](base/DTO.md)
 
 #### [Container](base/Container.md)
