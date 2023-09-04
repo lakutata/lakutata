@@ -1,28 +1,12 @@
-import {Application, ApplicationOptions, Component} from '../../exports/Core'
-import {Configurable, Inject} from '../../decorators/DependencyInjectionDecorators'
+import {Component, Scoped} from '../../Lakutata'
 
+@Scoped()
 export class TestComponent extends Component {
-
-    @Inject(Application)
-    protected readonly app: Application
-
-    @Configurable()
-    public readonly greet: string
-
+    /**
+     * 初始化函数
+     * @protected
+     */
     protected async init(): Promise<void> {
-        console.log(this.className, 'init', this.greet)
-        // if (this.greet === 'subModule') {
-        //     setTimeout(() => {
-        //         this.app.exit()
-        //     }, 5000)
-        // }
-    }
-
-    public sayHello(invoker: string): string {
-        return `${invoker} as me to say hello`
-    }
-
-    protected async destroy(): Promise<void> {
-        console.log('testComponent destroy')
+        this.log.info('I\'m %s in %s', this.className, this.module.className)
     }
 }
