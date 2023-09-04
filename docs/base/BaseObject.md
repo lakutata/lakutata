@@ -6,6 +6,8 @@ from this class, including the crucial object lifecycle management methods withi
 BaseObject provides an interface for retrieving the object lifecycle type (SINGLETON, TRANSIENT, SCOPED), allowing the
 framework's dependency injection to recognize the desired lifecycle mode for the injected class during startup.
 
+By default, the lifecycle mode of BaseObject is `Transient`.
+
 ## How to Use
 
 Although BaseObject serves as the most fundamental object class within the framework, you can still directly write
