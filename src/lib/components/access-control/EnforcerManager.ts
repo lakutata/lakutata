@@ -1,13 +1,14 @@
 import {BaseObject} from '../../base/BaseObject'
 import {Configurable, Singleton} from '../../../decorators/DependencyInjectionDecorators'
 import {AuthStoreOptions} from '../../../types/AuthStoreOptions'
-import {stat, writeFile} from 'fs/promises'
+import {stat, writeFile, mkdir} from 'fs/promises'
 import {FileAdapter} from 'casbin-file-adapter'
 import {Adapter, Enforcer, newEnforcer} from 'casbin'
 import {DomainRBAC} from './DomainRBAC'
 import {As} from '../../../Helper'
 import {DatabaseAdapter} from './DatabaseAdapter'
-import { DataSource } from '../../../ORM'
+import {DataSource} from '../../../ORM'
+import {dirname, resolve as resolvePath} from 'path'
 
 @Singleton(true)
 export class EnforcerManager extends BaseObject {
@@ -41,12 +42,14 @@ export class EnforcerManager extends BaseObject {
      */
     protected async init(): Promise<void> {
         if (this.store.type === 'file') {
+            const filename: string = resolvePath(this.store.filename)
             try {
-                await stat(this.store.filename)
+                await stat(filename)
             } catch (e) {
-                await writeFile(this.store.filename, '', {encoding: 'utf-8'})
+                await mkdir(dirname(filename), {recursive: true})
+                await writeFile(filename, '', {encoding: 'utf-8'})
             }
-            this._$adapter = new FileAdapter(this.store.filename)
+            this._$adapter = new FileAdapter(filename)
         } else {
             this._$adapter = await DatabaseAdapter.createAdapter(this.store, this.tableName)
             this._$datasource = As<DataSource>(this._$adapter['datasource'])

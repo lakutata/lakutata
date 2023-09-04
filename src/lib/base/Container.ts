@@ -209,7 +209,7 @@ export class Container<T extends Module = Module> {
                 return configs
             })())
             pairs[name] = asClass(inheritFromBaseObjectClass, {
-                lifetime: options.lifetime,
+                lifetime: As<IConstructor<T>>(inheritFromBaseObjectClass).__LIFETIME,
                 dispose: (instance: T) => this.disposer(instance),
                 injector: () => this.additionalPropertiesInjector()
             })
