@@ -20,6 +20,8 @@ be seen as providing an asynchronous object container in the overall framework.
 
 #### [Logging program events](how/LoggingProgramEvents.md)
 
+#### [The usage of framework decorators](how/TheUsageOfFrameworkDecorators.md)
+
 #### [Creating child worker processes](how/CreatingChildWorkerProcesses.md)
 
 #### [Using child threads to handle tasks](how/UsingChildThreadsToHandleTasks.md)
