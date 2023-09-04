@@ -14,4 +14,13 @@
 
 </div>
 
+## Description
 
+Lakutata is a generic development framework written in TypeScript and designed with IoC principles. Its main objective is to provide a universal, efficient, and stable development framework. The design goals of Lakutata are not limited to web application development; it aims to serve as a foundational framework for desktop applications, embedded systems applications, and web applications. The framework primarily adopts an OOP (Object-Oriented Programming) approach and encapsulates functionalities such as subprocesses, threads, permission management, and database ORM, enabling the framework to be used out of the box.
+
+In addition, Lakutata also supports the integration of third-party libraries into the application, allowing developers to freely encapsulate and call third-party modules using Lakutata's dependency injection.
+
+
+## License
+
+Lakutata is [MIT licensed](LICENSE).
