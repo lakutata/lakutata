@@ -18,6 +18,8 @@ be seen as providing an asynchronous object container in the overall framework.
 
 ## How to Use
 
+#### [Alias management in Lakutata](how/AliasManagementInLakutata.md)
+
 #### [Logging program events](how/LoggingProgramEvents.md)
 
 #### [The usage of framework decorators](how/TheUsageOfFrameworkDecorators.md)
