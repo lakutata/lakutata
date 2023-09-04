@@ -47,7 +47,7 @@
     "release:beta-release": "dotenv -- release-it --preRelease=beta",
     "release:alpha-release": "dotenv -- release-it --preRelease=alpha --no-github.release",
     "release:proto-release": "dotenv -- release-it --preRelease=proto --no-github.release --no-git.tag",
-    "test": "ts-node src/tests/Test.spec.ts"
+    "test": "ts-node src/tests/Example.spec.ts"
   },
   "release-it": {
     "git": {
