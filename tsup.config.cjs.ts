@@ -8,7 +8,8 @@ export default defineConfig(() => {
             'src/ORM.ts',
             'src/Crypto.ts',
             'src/Hash.ts',
-            'src/Helper.ts'
+            'src/Helper.ts',
+            'src/CLI.ts'
         ],
         legacyOutput: false,
         skipNodeModulesBundle: true,
