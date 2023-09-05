@@ -15,12 +15,12 @@ export class Logger extends Component implements ILogger {
      */
     @Configurable({
         accept: Validator.Object({
-            debug: Validator.Function().minArity(1),
-            error: Validator.Function().minArity(1),
-            fatal: Validator.Function().minArity(1),
-            info: Validator.Function().minArity(1),
-            trace: Validator.Function().minArity(1),
-            warn: Validator.Function().minArity(1)
+            debug: Validator.Function(),
+            error: Validator.Function(),
+            fatal: Validator.Function(),
+            info: Validator.Function(),
+            trace: Validator.Function(),
+            warn: Validator.Function()
         }),
         acceptOptions: {
             stripUnknown: false

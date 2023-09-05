@@ -132,7 +132,7 @@ export class BaseObject extends AsyncConstructor {
             const instanceConfigurableObject: Record<string, any> | undefined = Reflect.getOwnMetadata(DI_TARGET_INSTANCE_CONFIGURABLE_OBJECT, this)
             const config: Record<string, any> = Object.assign({}, constructorConfigurableObject ? constructorConfigurableObject : {}, instanceConfigurableObject ? instanceConfigurableObject : {})
             if (config) {
-                const configurableOptionsMap: Map<string, ConfigurableOptions> = As<Map<string, ConfigurableOptions> | undefined>(Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OPTIONS, this)) ? As<Map<string, ConfigurableOptions>>(Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OPTIONS, this.constructor)) : new Map()
+                const configurableOptionsMap: Map<string, ConfigurableOptions> = As<Map<string, ConfigurableOptions> | undefined>(Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OPTIONS, this.constructor)) ? As<Map<string, ConfigurableOptions>>(Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OPTIONS, this.constructor)) : new Map()
                 let configurableItems: Set<string> | undefined = Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_ITEMS, this.constructor)
                 let constructor: typeof this.constructor | null = this.constructor
                 while (constructor = ParentConstructor(constructor)) {

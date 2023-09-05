@@ -6,9 +6,10 @@ import path from 'path'
 import {ProjectType} from './cli/enums/ProjectType'
 import {Application, Logger} from './Lakutata'
 import {CommandLineController} from './cli/CommandLineController'
-import {InfoModel} from './cli/models/InfoModel'
-import {ProjectCreatorModel} from './cli/models/ProjectCreatorModel'
-import {UpgradeModel} from './cli/models/UpgradeModel'
+import {Info} from './cli/models/Info'
+import {ProjectCreator} from './cli/models/ProjectCreator'
+import {Upgrade} from './cli/models/Upgrade'
+import {As} from './Helper'
 
 /**
  * generate
@@ -22,13 +23,14 @@ type CLIParams = {
 }
 
 async function getCliParams(cli: Command): Promise<CLIParams> {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve, reject): void => {
         const create: Command = new Command('create')
             .description('create a Lakutata project')
             .addOption(new Option('-p, --path <path>', 'project creation path').default(process.cwd()))
             .addOption(new Option('-t, --type <type>', 'project type').choices(Object.values(ProjectType)))
             .addOption(new Option('-n, --name <name>', 'project name'))
             .action((options) => {
+                options.gggg = 1234
                 //todo 处理路径等信息
                 return resolve({
                     type: 'create',
@@ -58,6 +60,7 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
             .addCommand(upgrade)
             .addCommand(info)
             .parse()
+            .on('error', reject)
     })
 }
 
@@ -69,7 +72,7 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
             id: 'cli.lakutata.app',
             name: 'Lakutata CLI',
             controllers: [CommandLineController],
-            autoload: [ProjectCreatorModel, UpgradeModel, InfoModel],
+            autoload: [ProjectCreator, Upgrade, Info],
             bootstrap: [
                 async (app: Application): Promise<void> => {
                     await app.dispatchToController(params)
@@ -77,7 +80,7 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
             ]
         })
     } catch (e) {
-        Logger.error(e)
+        Logger.error(As<Error>(e).message)
         process.exit(1)
     }
 })()

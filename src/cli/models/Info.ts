@@ -1,6 +1,6 @@
 import {Model} from '../../Lakutata'
 
-export class InfoModel extends Model {
+export class Info extends Model {
     /**
      * 初始化函数
      * @protected
