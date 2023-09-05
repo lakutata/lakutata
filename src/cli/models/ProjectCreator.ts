@@ -3,11 +3,7 @@ import {CreateProjectDTO} from '../dtos/CreateProjectDTO'
 
 export class ProjectCreator extends Model {
 
-    @Configurable({
-        onSet: () => {
-            console.log('onset')
-        }, accept: CreateProjectDTO.schema(), acceptOptions: {stripUnknown: true}
-    })
+    @Configurable({accept: CreateProjectDTO, acceptOptions: {stripUnknown: true}})
     protected declare readonly options: CreateProjectDTO
 
     /**

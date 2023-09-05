@@ -30,7 +30,6 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
             .addOption(new Option('-t, --type <type>', 'project type').choices(Object.values(ProjectType)))
             .addOption(new Option('-n, --name <name>', 'project name'))
             .action((options) => {
-                options.gggg = 1234
                 //todo 处理路径等信息
                 return resolve({
                     type: 'create',
