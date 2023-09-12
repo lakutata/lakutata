@@ -2,8 +2,7 @@ import {
     IConstructor,
     Process,
     Application,
-    Logger,
-    ILogger
+    Logger
 } from '../../Lakutata'
 import v8 from 'v8'
 
@@ -18,13 +17,7 @@ const ProcessClassConstructor: IConstructor<Process> = require(moduleFilename)[c
 process
     .on('uncaughtException', (error: Error) => process.send!(['__$psError', error]))
     .on('disconnect', () => process.exit())
-const subProcessLoggerProviderProxy: ILogger = new Proxy(<ILogger>{}, {
-    get: (t: ILogger, p: string, r: any): any => {
-        return (...args: any[]): void => {
-            process.send!([loggerEvent, p, ...args])
-        }
-    }
-})
+
 Application.run({
     id: `${className}.${workerId}`,
     name: `${className}-${process.env.appName}`,
@@ -32,7 +25,13 @@ Application.run({
     components: {
         log: {
             class: Logger,
-            provider: subProcessLoggerProviderProxy
+            provider: {
+                error: (...args: any[]) => process.send!([loggerEvent, 'error', ...args]),
+                warn: (...args: any[]) => process.send!([loggerEvent, 'warn', ...args]),
+                info: (...args: any[]) => process.send!([loggerEvent, 'info', ...args]),
+                debug: (...args: any[]) => process.send!([loggerEvent, 'debug', ...args]),
+                trace: (...args: any[]) => process.send!([loggerEvent, 'trace', ...args])
+            }
         }
     },
     entries: {

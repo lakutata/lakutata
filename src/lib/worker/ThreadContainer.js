@@ -9,13 +9,6 @@ const loggerEvent = workerData.loggerEvent
 const ThreadTaskClassConstructor = require(moduleFilename)[className]
 
 let app = null
-const subThreadLoggerProviderProxy = new Proxy({}, {
-    get: (t, p, r) => {
-        return (...args) => {
-            parentPort.postMessage([loggerEvent, p, ...args])
-        }
-    }
-})
 
 async function getApp() {
     if (!app) {
@@ -26,7 +19,13 @@ async function getApp() {
             components: {
                 log: {
                     class: Logger,
-                    provider: subThreadLoggerProviderProxy
+                    provider: {
+                        error: (...args) => parentPort.postMessage([loggerEvent, 'error', ...args]),
+                        warn: (...args) => parentPort.postMessage([loggerEvent, 'warn', ...args]),
+                        info: (...args) => parentPort.postMessage([loggerEvent, 'info', ...args]),
+                        debug: (...args) => parentPort.postMessage([loggerEvent, 'debug', ...args]),
+                        trace: (...args) => parentPort.postMessage([loggerEvent, 'trace', ...args])
+                    }
                 }
             },
             entries: {

@@ -64,7 +64,11 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
 }
 
 (async (): Promise<void> => {
-    const {version} = JSON.parse(await readFile(path.resolve(__dirname, '../package.json'), {encoding: 'utf-8'}))
+    const {
+        version,
+        description,
+        license
+    } = JSON.parse(await readFile(path.resolve(__dirname, '../package.json'), {encoding: 'utf-8'}))
     const params: CLIParams = await getCliParams(new Command().description('Lakutata CLI').version(version, '-v, --version').helpOption('-h, --help'))
     try {
         await Application.run({
@@ -74,7 +78,13 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
             autoload: [ProjectCreator, Upgrade, Info],
             bootstrap: [
                 async (app: Application): Promise<void> => {
-                    await app.dispatchToController(params)
+                    await app.dispatchToController(params, {
+                        context: new Map([
+                            ['version', version],
+                            ['description', description],
+                            ['license', license]
+                        ])
+                    })
                 }
             ]
         })
