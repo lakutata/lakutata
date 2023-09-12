@@ -1,4 +1,4 @@
-import {Action, ActionPattern, Controller} from '../../Lakutata'
+import {Action, ActionPattern, Controller, Inject} from '../../Lakutata'
 import {Info} from '../models/Info'
 import {Upgrade} from '../models/Upgrade'
 import {ProjectCreator} from '../models/ProjectCreator'

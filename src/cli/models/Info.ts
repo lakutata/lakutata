@@ -1,6 +1,5 @@
 import {Configurable, Inject, Model, Time} from '../../Lakutata'
 import chalk from 'chalk'
-import {dirname} from 'path'
 import {PackageLevel} from '../components/PackageLevel'
 
 export class Info extends Model {
@@ -27,7 +26,6 @@ export class Info extends Model {
      * @protected
      */
     protected async init(): Promise<void> {
-        console.log(this.packageLevel,this.log)
         this.lines = [
             chalk.dim(chalk.bold(this.asciiLogo)),
             `${chalk.bold('Lakutata')} is ${chalk.blue(this.description)}`,

@@ -84,7 +84,7 @@ export class BaseObject extends AsyncConstructor {
                 injectMappingMap?.forEach((injectKey: string, propertyKey: string): void => {
                     if (!Reflect.getOwnPropertyDescriptor(properties, injectKey)) return properties[injectKey]
                     Object.keys(properties).forEach((injectPropertyKey: string): void => {
-                        if (injectPropertyKey === injectKey && this.hasProperty(propertyKey)) {
+                        if (injectPropertyKey === injectKey) {
                             resolveInjectPromises
                                 .push(new Promise((resolve, reject) =>
                                         (async (): Promise<any> => properties[injectPropertyKey])()
