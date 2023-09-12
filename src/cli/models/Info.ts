@@ -7,5 +7,9 @@ export class Info extends Model {
      */
     protected async init(): Promise<void> {
         console.log('ininininin')
+        //项目简介文本
+        //安装位置
+        //程序版本
+        //
     }
 }
