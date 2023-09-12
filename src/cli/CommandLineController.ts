@@ -22,7 +22,7 @@ export class CommandLineController extends Controller {
      * @param inp
      */
     @Action({type: 'info'})
-    public async info(inp: ActionPattern) {
+    public async info(inp: ActionPattern):Promise<void> {
         const info: Info = await this.app.get(Info, {
             version: this.context.get('version'),
             description: this.context.get('description'),
