@@ -1,7 +1,7 @@
-import {Action, ActionPattern, Controller} from '../Lakutata'
-import {Info} from './models/Info'
-import {Upgrade} from './models/Upgrade'
-import {ProjectCreator} from './models/ProjectCreator'
+import {Action, ActionPattern, Controller} from '../../Lakutata'
+import {Info} from '../models/Info'
+import {Upgrade} from '../models/Upgrade'
+import {ProjectCreator} from '../models/ProjectCreator'
 
 export class CommandLineController extends Controller {
 
@@ -11,10 +11,17 @@ export class CommandLineController extends Controller {
         console.log('create!!!')//todo
     }
 
+    /**
+     * 检查升级，若有升级则执行升级
+     * @param inp
+     */
     @Action({type: 'upgrade'})
-    public async upgrade(inp: ActionPattern) {
-        const upgrade: Upgrade = await this.app.get(Upgrade)
-        console.log('upgrade!!!')//todo
+    public async upgrade(inp: ActionPattern): Promise<void> {
+        const upgrade: Upgrade = await this.app.get(Upgrade, this.context)
+        upgrade.echoCurrentVersion()
+        const newVersion: string | void = await upgrade.checkUpdate()
+        if (!newVersion) return upgrade.echoNoUpdateAvailable()
+
     }
 
     /**

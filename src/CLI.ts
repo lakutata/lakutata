@@ -5,11 +5,12 @@ import {readFile} from 'fs/promises'
 import path from 'path'
 import {ProjectType} from './cli/enums/ProjectType'
 import {Application, Logger} from './Lakutata'
-import {CommandLineController} from './cli/CommandLineController'
+import {CommandLineController} from './cli/controllers/CommandLineController'
 import {Info} from './cli/models/Info'
 import {ProjectCreator} from './cli/models/ProjectCreator'
 import {Upgrade} from './cli/models/Upgrade'
 import {As} from './Helper'
+import {PackageLevel} from './cli/components/PackageLevel'
 
 /**
  * generate
@@ -76,6 +77,12 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
         await Application.run({
             id: 'cli.lakutata.app',
             name: 'Lakutata CLI',
+            components: {
+                packageLevel: {
+                    class: PackageLevel,
+                    currentDirectory: __dirname
+                }
+            },
             controllers: [CommandLineController],
             autoload: [ProjectCreator, Upgrade, Info],
             bootstrap: [
@@ -83,12 +90,14 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
                     await app.dispatchToController(params, {
                         context: {
                             asciiLogo: asciiLogo,
+                            name: packageJson.name,
                             version: packageJson.version,
                             description: packageJson.description,
                             license: packageJson.license
                         }
                     })
-                }
+                },
+                async (app: Application): Promise<void> => app.exit()
             ]
         })
     } catch (e) {

@@ -1,8 +1,12 @@
-import {Configurable, Model, Time} from '../../Lakutata'
+import {Configurable, Inject, Model, Time} from '../../Lakutata'
 import chalk from 'chalk'
 import {dirname} from 'path'
+import {PackageLevel} from '../components/PackageLevel'
 
 export class Info extends Model {
+
+    @Inject()
+    protected readonly packageLevel: PackageLevel
 
     @Configurable()
     protected readonly version: string
@@ -23,11 +27,13 @@ export class Info extends Model {
      * @protected
      */
     protected async init(): Promise<void> {
+        console.log(this.packageLevel,this.log)
         this.lines = [
             chalk.dim(chalk.bold(this.asciiLogo)),
             `${chalk.bold('Lakutata')} is ${chalk.blue(this.description)}`,
             `The current version is ${chalk.bold(this.version)}`,
-            `The installation directory path is ${chalk.underline(dirname(__dirname))}`,
+            // `The installation directory path is ${chalk.underline(dirname(__dirname))}`,
+            `The installation directory path is ${chalk.underline(this.packageLevel.getInstallPath())}`,
             `Lakutata is ${chalk.cyan(this.license)} licensed.`,
             `Copyright (c) ${new Time().format('YYYY')} ${chalk.bold('Lakutata')}. All rights reserved.`
         ]
