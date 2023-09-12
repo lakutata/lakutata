@@ -29,7 +29,7 @@ export class Info extends Model {
         const version: string | null = await this.packageLevel.getInstalledPackageVersion()
         this.version = version ? version : this.version
         this.lines = [
-            chalk.dim(chalk.bold(this.asciiLogo)),
+            chalk.yellow(this.asciiLogo),
             `${chalk.bold('Lakutata')} is ${chalk.blue(this.description)}`,
             `The current version is ${chalk.bold(this.version)}`,
             `The installation directory path is ${chalk.underline(this.packageLevel.getInstallPath())}`,
