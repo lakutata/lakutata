@@ -1,14 +1,11 @@
 import {Configurable, Inject, Model} from '../../Lakutata'
 import chalk from 'chalk'
-import {$} from 'execa'
+import {$, execa} from 'execa'
 import cliSpinners, {Spinner} from 'cli-spinners'
 import logUpdate from 'log-update'
 import latestVersion from 'latest-version'
 import {gt as isVersionGreaterThan, prerelease} from 'semver'
 import {PackageLevel} from '../components/PackageLevel'
-import path from 'path'
-import {readFile} from 'fs/promises'
-import {DevNull} from '../../Helper'
 
 export class Upgrade extends Model {
 
@@ -117,12 +114,34 @@ export class Upgrade extends Model {
         if (isVersionGreaterThan(onlineLatestVersion, this.version)) return onlineLatestVersion
     }
 
-    public async upgradeInstall() {
-        //todo
+    /**
+     * 执行升级安装
+     * @param upgradeVersion
+     */
+    public async upgradeInstall(upgradeVersion: string): Promise<void> {
+        this.startSpinner(cliSpinners.dots, 'Installing upgrade')
+        let upgradeCommand: string
+        let cwd: string | null = null
         if (this.packageLevel.getLevel() === 'GLOBAL') {
-            $`npm install -g ${this.name}`
+            upgradeCommand = `npm install -g ${this.name}@${upgradeVersion}`
         } else {
-            $`npm install ${this.name}`
+            cwd = this.packageLevel.getRoot()
+            upgradeCommand = `npm install ${this.name}@${upgradeVersion}`
+        }
+        try {
+            const upgradeCommandArgs: string[] = upgradeCommand.split(' ')
+            upgradeCommandArgs.shift()
+            if (cwd) {
+                await execa('npm', upgradeCommandArgs, {cwd: cwd})
+            } else {
+                await execa('npm', upgradeCommandArgs)
+            }
+            this.stopSpinner()
+            console.info(chalk.green(`Upgrade successful. Upgraded to version ${upgradeVersion}`))
+        } catch (e) {
+            this.stopSpinner()
+            console.error(chalk.red('Upgrade failed. Please try manual upgrade:'))
+            console.info(chalk.bgGreen(chalk.white(upgradeCommand)))
         }
     }
 }

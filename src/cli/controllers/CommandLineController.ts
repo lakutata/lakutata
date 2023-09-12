@@ -21,7 +21,7 @@ export class CommandLineController extends Controller {
         upgrade.echoCurrentVersion()
         const newVersion: string | void = await upgrade.checkUpdate()
         if (!newVersion) return upgrade.echoNoUpdateAvailable()
-
+        await upgrade.upgradeInstall(newVersion)
     }
 
     /**
