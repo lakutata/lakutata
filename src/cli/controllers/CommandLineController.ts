@@ -6,7 +6,13 @@ import {Create} from '../models/Create'
 export class CommandLineController extends Controller {
 
     @Action({type: 'create'})
-    public async create(inp: ActionPattern) {
+    public async initProject(inp: ActionPattern) {
+        const creator: Create = await this.app.get(Create, {options: inp.options})
+        console.log('init!!!')//todo
+    }
+
+    @Action({type: 'create'})
+    public async createProject(inp: ActionPattern) {
         const creator: Create = await this.app.get(Create, {options: inp.options})
         console.log('create!!!')//todo
     }

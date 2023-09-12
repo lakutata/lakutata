@@ -11,6 +11,7 @@ import {Create} from './cli/models/Create'
 import {Upgrade} from './cli/models/Upgrade'
 import {As} from './Helper'
 import {PackageLevel} from './cli/components/PackageLevel'
+import {Init} from './cli/models/Init'
 
 type CLIParams = {
     type: string
@@ -28,6 +29,17 @@ const asciiLogo: string = '' +
 
 async function getCliParams(cli: Command): Promise<CLIParams> {
     return new Promise((resolve, reject): void => {
+        const init: Command = new Command('init')
+            .description('initialize a Lakutata project in an existing folder')
+            .addOption(new Option('-t, --type <type>', 'project type').choices(Object.values(ProjectType)))
+            .addOption(new Option('-n, --name <name>', 'project name'))
+            .action((options) => {
+                //todo 处理路径等信息
+                return resolve({
+                    type: 'init',
+                    options: options
+                })
+            })
         const create: Command = new Command('create')
             .description('create a Lakutata project')
             .addOption(new Option('-p, --path <path>', 'project creation path').default(process.cwd()))
@@ -53,6 +65,7 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
                 options: options
             }))
         cli
+            .addCommand(init)
             .addCommand(create)
             .addCommand(upgrade)
             .addCommand(info)
@@ -77,7 +90,7 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
                 }
             },
             controllers: [CommandLineController],
-            autoload: [Create, Upgrade, Info],
+            autoload: [Init, Create, Upgrade, Info],
             bootstrap: [
                 async (app: Application): Promise<void> => {
                     await app.dispatchToController(params, {
