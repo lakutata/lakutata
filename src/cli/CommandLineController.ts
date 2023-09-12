@@ -22,12 +22,8 @@ export class CommandLineController extends Controller {
      * @param inp
      */
     @Action({type: 'info'})
-    public async info(inp: ActionPattern):Promise<void> {
-        const info: Info = await this.app.get(Info, {
-            version: this.context.get('version'),
-            description: this.context.get('description'),
-            license: this.context.get('license')
-        })
+    public async info(inp: ActionPattern): Promise<void> {
+        const info: Info = await this.app.get(Info, this.context)
         info.lines.forEach((line: String) => console.info(line))
     }
 }

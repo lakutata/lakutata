@@ -43,7 +43,7 @@ export class Controller extends Component {
      * @protected
      */
     @Configurable()
-    protected readonly context: Map<string, any> = new Map()
+    protected readonly context: Record<string, any> = {}
 
     /**
      * 控制器访问用户对象
@@ -122,7 +122,7 @@ export class Controller extends Component {
      * @protected
      */
     protected async __destroy(): Promise<void> {
-        this.context.clear()
+        this.setProperty('context', null)
         return super.__destroy()
     }
 }

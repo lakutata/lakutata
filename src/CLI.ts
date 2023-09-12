@@ -61,12 +61,8 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
 }
 
 (async (): Promise<void> => {
-    const {
-        version,
-        description,
-        license
-    } = JSON.parse(await readFile(path.resolve(__dirname, '../package.json'), {encoding: 'utf-8'}))
-    const params: CLIParams = await getCliParams(new Command().description('Lakutata CLI').version(version, '-v, --version').helpOption('-h, --help'))
+    const packageJson = JSON.parse(await readFile(path.resolve(__dirname, '../package.json'), {encoding: 'utf-8'}))
+    const params: CLIParams = await getCliParams(new Command().description('Lakutata CLI').version(packageJson.version, '-v, --version').helpOption('-h, --help'))
     try {
         await Application.run({
             id: 'cli.lakutata.app',
@@ -76,11 +72,11 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
             bootstrap: [
                 async (app: Application): Promise<void> => {
                     await app.dispatchToController(params, {
-                        context: new Map([
-                            ['version', version],
-                            ['description', description],
-                            ['license', license]
-                        ])
+                        context: {
+                            version: packageJson.version,
+                            description: packageJson.description,
+                            license: packageJson.license
+                        }
                     })
                 }
             ]
