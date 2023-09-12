@@ -22,6 +22,15 @@ type CLIParams = {
     options: Record<string, any>
 }
 
+const asciiLogo: string = '' +
+    ' _                               _             _            \n' +
+    '| |               _             | |           | |           \n' +
+    '| |        __ _  | | _   _   _  | |_    __ _  | |_    __ _  \n' +
+    '| |       / _` | | |/ / | | | | | __|  / _` | | __|  / _` | \n' +
+    '| |____  | (_| | |   <  | |_| | \\ |_  | (_| | \\ |_  | (_| | \n' +
+    '|______|  \\__,_| |_|\\_\\  \\__,_|  \\__|  \\__,_|  \\__|  \\__,_| \n' +
+    '                                                            '
+
 async function getCliParams(cli: Command): Promise<CLIParams> {
     return new Promise((resolve, reject): void => {
         const create: Command = new Command('create')
@@ -73,6 +82,7 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
                 async (app: Application): Promise<void> => {
                     await app.dispatchToController(params, {
                         context: {
+                            asciiLogo: asciiLogo,
                             version: packageJson.version,
                             description: packageJson.description,
                             license: packageJson.license

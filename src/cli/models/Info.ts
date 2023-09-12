@@ -13,14 +13,8 @@ export class Info extends Model {
     @Configurable()
     protected readonly license: string
 
-    protected readonly asciiLogo: string = '' +
-        ' _                               _             _            \n' +
-        '| |               _             | |           | |           \n' +
-        '| |        __ _  | | _   _   _  | |_    __ _  | |_    __ _  \n' +
-        '| |       / _` | | |/ / | | | | | __|  / _` | | __|  / _` | \n' +
-        '| |____  | (_| | |   <  | |_| | \\ |_  | (_| | \\ |_  | (_| | \n' +
-        '|______|  \\__,_| |_|\\_\\  \\__,_|  \\__|  \\__,_|  \\__|  \\__,_| \n' +
-        '                                                            '
+    @Configurable()
+    protected readonly asciiLogo: string
 
     public lines: string[] = []
 
