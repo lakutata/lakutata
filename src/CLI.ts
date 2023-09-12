@@ -12,12 +12,6 @@ import {Upgrade} from './cli/models/Upgrade'
 import {As} from './Helper'
 import {PackageLevel} from './cli/components/PackageLevel'
 
-/**
- * generate
- * upgrade
- * version
- */
-
 type CLIParams = {
     type: string
     options: Record<string, any>
