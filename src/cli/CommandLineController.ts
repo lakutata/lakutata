@@ -17,6 +17,10 @@ export class CommandLineController extends Controller {
         console.log('upgrade!!!')//todo
     }
 
+    /**
+     * 输出项目信息
+     * @param inp
+     */
     @Action({type: 'info'})
     public async info(inp: ActionPattern) {
         const info: Info = await this.app.get(Info, {
@@ -24,7 +28,6 @@ export class CommandLineController extends Controller {
             description: this.context.get('description'),
             license: this.context.get('license')
         })
-        info.lines.forEach(line => console.info(line))
-        // console.log('info!!!')//todo
+        info.lines.forEach((line: String) => console.info(line))
     }
 }
