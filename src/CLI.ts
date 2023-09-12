@@ -48,13 +48,10 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
             })
         const upgrade: Command = new Command('upgrade')
             .description('upgrade Lakutata framework')
-            .action((options) => {
-                //todo 处理其他信息
-                return resolve({
-                    type: 'upgrade',
-                    options: options
-                })
-            })
+            .action((options) => resolve({
+                type: 'upgrade',
+                options: options
+            }))
         const info: Command = new Command('info')
             .description('show Lakutata framework info')
             .action((options) => resolve({
