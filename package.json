@@ -69,6 +69,7 @@
   "devDependencies": {
     "@types/convert-units": "^2.3.6",
     "@types/crypto-js": "^4.1.1",
+    "@types/find-root": "^1.1.2",
     "@types/is-glob": "^4.0.2",
     "@types/node": "^18.17.0",
     "@types/node-schedule": "^2.1.0",
@@ -94,6 +95,7 @@
     "eslint": "^8.47.0",
     "execa": "^8.0.1",
     "fast-glob": "^3.3.1",
+    "find-root": "^1.1.0",
     "html-tags": "^3.3.1",
     "is-glob": "^4.0.3",
     "is-plain-obj": "^4.1.0",

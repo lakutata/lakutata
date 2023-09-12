@@ -80,7 +80,9 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
             components: {
                 packageLevel: {
                     class: PackageLevel,
-                    currentDirectory: __dirname
+                    name: packageJson.name,
+                    currentDirectory: __dirname,
+                    workingDirectory: process.cwd()
                 }
             },
             controllers: [CommandLineController],
