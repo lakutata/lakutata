@@ -55,7 +55,7 @@ export class PackageLevel extends Component {
                     if (dependenciesKeyRegExp.test(key.toUpperCase())) {
                         Object.keys(packageJson[key]).forEach((dependencyName: string) => {
                             if (dependencyName === this.name) {
-                                this.projectRoot = packageJsonPath
+                                this.projectRoot = projectRoot
                             }
                         })
                     }
@@ -115,5 +115,21 @@ export class PackageLevel extends Component {
      */
     public getInstallPath(): string {
         return this.installPath
+    }
+
+    /**
+     * 获取项目级的安装版本
+     */
+    public async getInstalledPackageVersion(): Promise<string | null> {
+        const projectRoot: string | null = this.getRoot()
+        if (projectRoot) {
+            try {
+                const version: string = JSON.parse(await readFile(path.resolve(projectRoot, './node_modules', `./${this.name}/package.json`), {encoding: 'utf-8'})).version
+                return version ? version : null
+            } catch (e) {
+                return null
+            }
+        }
+        return null
     }
 }

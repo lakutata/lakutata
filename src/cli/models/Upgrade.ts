@@ -4,8 +4,11 @@ import {$} from 'execa'
 import cliSpinners, {Spinner} from 'cli-spinners'
 import logUpdate from 'log-update'
 import latestVersion from 'latest-version'
-import {gt as isVersionGreaterThan} from 'semver'
+import {gt as isVersionGreaterThan, prerelease} from 'semver'
 import {PackageLevel} from '../components/PackageLevel'
+import path from 'path'
+import {readFile} from 'fs/promises'
+import {DevNull} from '../../Helper'
 
 export class Upgrade extends Model {
 
@@ -13,10 +16,10 @@ export class Upgrade extends Model {
     protected readonly packageLevel: PackageLevel
 
     @Configurable()
-    protected readonly version: string
+    protected readonly name: string
 
     @Configurable()
-    protected readonly name: string
+    protected version: string
 
     protected spinnerInterval: NodeJS.Timer | null = null
 
@@ -25,6 +28,8 @@ export class Upgrade extends Model {
      * @protected
      */
     protected async init(): Promise<void> {
+        const version: string | null = await this.packageLevel.getInstalledPackageVersion()
+        this.version = version ? version : this.version
         this.spinnerInterval = null
     }
 
@@ -99,7 +104,12 @@ export class Upgrade extends Model {
         let onlineLatestVersion: string
         try {
             if (!(await this.isNpmCommandAvailable())) return this.stopSpinner()
-            onlineLatestVersion = await latestVersion(this.name)
+            const prereleaseInfo: ReadonlyArray<string | number> | null = prerelease(this.version)
+            if (prereleaseInfo && prereleaseInfo[0]) {
+                onlineLatestVersion = await latestVersion(this.name, {version: prereleaseInfo[0].toString()})
+            } else {
+                onlineLatestVersion = await latestVersion(this.name)
+            }
             this.stopSpinner()
         } catch (e) {
             return
@@ -108,6 +118,11 @@ export class Upgrade extends Model {
     }
 
     public async upgradeInstall() {
-
+        //todo
+        if (this.packageLevel.getLevel() === 'GLOBAL') {
+            $`npm install -g ${this.name}`
+        } else {
+            $`npm install ${this.name}`
+        }
     }
 }

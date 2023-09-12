@@ -8,9 +8,6 @@ export class Info extends Model {
     protected readonly packageLevel: PackageLevel
 
     @Configurable()
-    protected readonly version: string
-
-    @Configurable()
     protected readonly description: string
 
     @Configurable()
@@ -19,6 +16,9 @@ export class Info extends Model {
     @Configurable()
     protected readonly asciiLogo: string
 
+    @Configurable()
+    protected version: string
+
     public lines: string[] = []
 
     /**
@@ -26,6 +26,8 @@ export class Info extends Model {
      * @protected
      */
     protected async init(): Promise<void> {
+        const version: string | null = await this.packageLevel.getInstalledPackageVersion()
+        this.version = version ? version : this.version
         this.lines = [
             chalk.dim(chalk.bold(this.asciiLogo)),
             `${chalk.bold('Lakutata')} is ${chalk.blue(this.description)}`,
