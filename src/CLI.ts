@@ -7,7 +7,7 @@ import {ProjectType} from './cli/enums/ProjectType'
 import {Application, Logger} from './Lakutata'
 import {CommandLineController} from './cli/controllers/CommandLineController'
 import {Info} from './cli/models/Info'
-import {ProjectCreator} from './cli/models/ProjectCreator'
+import {Create} from './cli/models/Create'
 import {Upgrade} from './cli/models/Upgrade'
 import {As} from './Helper'
 import {PackageLevel} from './cli/components/PackageLevel'
@@ -77,7 +77,7 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
                 }
             },
             controllers: [CommandLineController],
-            autoload: [ProjectCreator, Upgrade, Info],
+            autoload: [Create, Upgrade, Info],
             bootstrap: [
                 async (app: Application): Promise<void> => {
                     await app.dispatchToController(params, {

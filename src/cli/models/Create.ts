@@ -1,7 +1,7 @@
 import {Configurable, Model} from '../../Lakutata'
 import {CreateProjectDTO} from '../dtos/CreateProjectDTO'
 
-export class ProjectCreator extends Model {
+export class Create extends Model {
 
     @Configurable({accept: CreateProjectDTO, acceptOptions: {stripUnknown: true}})
     protected declare readonly options: CreateProjectDTO
