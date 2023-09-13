@@ -53,8 +53,8 @@ export class Application extends Module {
      * 执行应用程序
      * @param options
      */
-    public static async run(...options: ApplicationOptions[]): Promise<Application> {
-        const appOpts: ApplicationOptions = await ApplicationOptions.validateAsync(Object.assign({}, ...options))
+    public static async run(options: ApplicationOptions, ...partialOptions: Partial<ApplicationOptions>[]): Promise<Application> {
+        const appOpts: ApplicationOptions = await ApplicationOptions.validateAsync(Object.assign(options, ...partialOptions))
         process.env.appId = appOpts.id
         process.env.appName = appOpts.name
         process.env.TZ = appOpts.timezone
