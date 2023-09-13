@@ -1,8 +1,12 @@
 import {Model} from '../../lib/base/Model'
-import {Configurable} from '../../decorators/DependencyInjectionDecorators'
+import {Configurable, Inject} from '../../decorators/DependencyInjectionDecorators'
 import {InitProjectDTO} from '../dtos/InitProjectDTO'
+import {DeGitPuller} from '../components/DeGitPuller'
 
 export class Init extends Model {
+
+    @Inject('puller')
+    protected readonly puller: DeGitPuller
 
     // @Configurable({accept: InitProjectDTO, acceptOptions: {stripUnknown: true}})
     protected declare readonly options: InitProjectDTO

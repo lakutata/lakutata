@@ -1,7 +1,11 @@
-import {Configurable, Model} from '../../Lakutata'
+import {Configurable, Inject, Model} from '../../Lakutata'
 import {CreateProjectDTO} from '../dtos/CreateProjectDTO'
+import {DeGitPuller} from '../components/DeGitPuller'
 
 export class Create extends Model {
+
+    @Inject('puller')
+    protected readonly puller: DeGitPuller
 
     @Configurable({accept: CreateProjectDTO, acceptOptions: {stripUnknown: true}})
     protected declare readonly options: CreateProjectDTO
