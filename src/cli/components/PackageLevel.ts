@@ -44,7 +44,7 @@ export class PackageLevel extends Component {
      * @protected
      */
     protected async init(): Promise<void> {
-        this.installPath = dirname(this.currentDirectory)
+        this.installPath = this.currentDirectory
         const projectRoot: string | null = this.findProjectRoot(this.workingDirectory)
         if (projectRoot) {
             const packageJsonPath: string = path.resolve(projectRoot, './package.json')
