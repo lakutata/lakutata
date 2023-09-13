@@ -12,6 +12,24 @@ import pickFreePort from './lib/deps/PickFreePort'
 import {IConstructor, ISortArrayOptions, ISortObjectOptions, BaseObject} from './Lakutata'
 
 /**
+ * 以平稳、安全和可控的方式终止程序的执行
+ * @param exitCode
+ * @param functions
+ * @constructor
+ */
+export function GraceExit(exitCode: number, ...functions: (() => any)[]): void {
+    setImmediate(async (): Promise<void> => {
+        try {
+            for (const func of functions) await func()
+        } catch (e) {
+            DevNull(e)
+        } finally {
+            process.exit(exitCode)
+        }
+    })
+}
+
+/**
  * 对象转换为Map
  * @param obj
  * @constructor
