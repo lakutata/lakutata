@@ -75,6 +75,13 @@ export class Application extends Module {
     }
 
     /**
+     * 获得应用程序加载所使用的options
+     */
+    public get options(): ApplicationOptions {
+        return this.__$$options as ApplicationOptions
+    }
+
+    /**
      * 应用程序ID
      */
     public get appId(): string {

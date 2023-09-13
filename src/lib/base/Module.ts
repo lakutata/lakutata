@@ -294,6 +294,13 @@ export class Module<TModule extends Module = any, TComponent extends Component =
     }
 
     /**
+     * 获得模块加载所使用的options
+     */
+    public get options(): ModuleOptions<TModule> {
+        return this.__$$options
+    }
+
+    /**
      * 按照注入名称获取对象
      * @param name 注册项目的名称
      * @param configurableParams 获取时传入的配置参数对象，必须为在注册项目内使用了@Configurable()修饰器进行修饰的字段
