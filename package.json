@@ -2,40 +2,42 @@
   "name": "lakutata",
   "version": "0.1.4-proto.3",
   "description": "An IoC-based universal application framework.",
-  "main": "./build/Lakutata.js",
-  "types": "./build/Lakutata.d.ts",
+  "main": "./Lakutata.js",
+  "types": "./Lakutata.d.ts",
   "exports": {
     ".": {
-      "import": "./build/Lakutata.js",
-      "require": "./build/Lakutata.js",
-      "types": "./build/Lakutata.d.ts"
+      "import": "./Lakutata.js",
+      "require": "./Lakutata.js",
+      "types": "./Lakutata.d.ts"
     },
-    "./orm": {
-      "import": "./build/ORM.js",
-      "require": "./build/ORM.js",
-      "types": "./build/ORM.d.ts"
+    "./ORM": {
+      "import": "./ORM.js",
+      "require": "./ORM.js",
+      "types": "./ORM.d.ts"
     },
-    "./crypto": {
-      "import": "./build/Crypto.js",
-      "require": "./build/Crypto.js",
-      "types": "./build/Crypto.d.ts"
+    "./Crypto": {
+      "import": "./Crypto.js",
+      "require": "./Crypto.js",
+      "types": "./Crypto.d.ts"
     },
-    "./hash": {
-      "import": "./build/Hash.js",
-      "require": "./build/Hash.js",
-      "types": "./build/Hash.d.ts"
+    "./Hash": {
+      "import": "./Hash.js",
+      "require": "./Hash.js",
+      "types": "./Hash.d.ts"
     },
-    "./helper": {
-      "import": "./build/Helper.js",
-      "require": "./build/Helper.js",
-      "types": "./build/Helper.d.ts"
+    "./Helper": {
+      "import": "./Helper.js",
+      "require": "./Helper.js",
+      "types": "./Helper.d.ts"
+    },
+    "./ReflectMetadata": {
+      "import": "./ReflectMetadata.js",
+      "require": "./ReflectMetadata.js",
+      "types": "./ReflectMetadata.d.ts"
     }
   },
-  "files": [
-    "build"
-  ],
   "bin": {
-    "lakutata": "./build/CLI.js"
+    "lakutata": "./CLI.js"
   },
   "scripts": {
     "clean": "shx rm -rf ./build",
@@ -44,12 +46,11 @@
     "rebuild": "npm run clean && npm run build",
     "prepare": "npm run compile",
     "compile": "npm run rebuild",
-    "prepublishOnly": "node .prepublish.js",
-    "postpublish": "node .postpublish.js",
-    "release": "dotenv -- release-it --git.tagExclude='*[-]*'",
-    "release:beta-release": "dotenv -- release-it --preRelease=beta",
-    "release:alpha-release": "dotenv -- release-it --preRelease=alpha --no-github.release",
-    "release:proto-release": "dotenv -- release-it --preRelease=proto --no-github.release --no-git.tag",
+    "publish": "node .publish.js",
+    "release": "dotenv -- release-it --git.tagExclude='*[-]*' && npm run publish",
+    "release:beta-release": "dotenv -- release-it --preRelease=beta && npm run publish",
+    "release:alpha-release": "dotenv -- release-it --preRelease=alpha --no-github.release && npm run publish",
+    "release:proto-release": "dotenv -- release-it --preRelease=proto --no-github.release --no-git.tag && npm run publish",
     "test": "ts-node src/tests/Example.spec.ts",
     "cli:link": "npm run rebuild && npm link",
     "cli:unlink": "npm r lakutata -g"
@@ -144,7 +145,7 @@
   "homepage": "https://lakutata.com",
   "bugs": {
     "url": "https://github.com/lakutata/lakutata/issues",
-    "email": "myq1991@gmail.com"
+    "email": "admin@lakutata.com"
   },
   "keywords": [
     "lakutata",
