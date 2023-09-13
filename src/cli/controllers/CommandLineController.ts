@@ -2,12 +2,13 @@ import {Action, ActionPattern, Controller} from '../../Lakutata'
 import {Info} from '../models/Info'
 import {Upgrade} from '../models/Upgrade'
 import {Create} from '../models/Create'
+import {Init} from '../models/Init'
 
 export class CommandLineController extends Controller {
 
-    @Action({type: 'create'})
+    @Action({type: 'init'})
     public async initProject(inp: ActionPattern) {
-        const creator: Create = await this.app.get(Create, {options: inp.options})
+        const init: Init = await this.app.get(Init, {options: inp.options})
         console.log('init!!!')//todo
     }
 

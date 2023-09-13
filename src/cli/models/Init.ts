@@ -4,7 +4,7 @@ import {InitProjectDTO} from '../dtos/InitProjectDTO'
 
 export class Init extends Model {
 
-    @Configurable({accept: InitProjectDTO, acceptOptions: {stripUnknown: true}})
+    // @Configurable({accept: InitProjectDTO, acceptOptions: {stripUnknown: true}})
     protected declare readonly options: InitProjectDTO
 
     /**
