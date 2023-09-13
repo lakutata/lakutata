@@ -45,6 +45,7 @@
     "prepare": "npm run compile",
     "compile": "npm run rebuild",
     "prepublishOnly": "node .prepublish.js",
+    "publish": "echo 123456",
     "postpublish": "node .postpublish.js",
     "release": "dotenv -- release-it --git.tagExclude='*[-]*'",
     "release:beta-release": "dotenv -- release-it --preRelease=beta",
