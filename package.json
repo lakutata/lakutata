@@ -46,7 +46,7 @@
     "rebuild": "npm run clean && npm run build",
     "prepare": "npm run compile",
     "compile": "npm run rebuild",
-    "publish": "node .publish.js",
+    "publish": "npm run rebuild && node .publish.js",
     "release": "dotenv -- release-it --git.tagExclude='*[-]*' && npm run publish",
     "release:beta-release": "dotenv -- release-it --preRelease=beta && npm run publish",
     "release:alpha-release": "dotenv -- release-it --preRelease=alpha --no-github.release && npm run publish",
