@@ -12,6 +12,8 @@ import {Upgrade} from './cli/models/Upgrade'
 import {As} from './Helper'
 import {PackageLevel} from './cli/components/PackageLevel'
 import {Init} from './cli/models/Init'
+import {Spinner} from './cli/components/Spinner'
+import {dots} from 'cli-spinners'
 
 type CLIParams = {
     type: string
@@ -82,6 +84,10 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
             id: 'cli.lakutata.app',
             name: 'Lakutata CLI',
             components: {
+                spinner: {
+                    class: Spinner,
+                    style: dots
+                },
                 packageLevel: {
                     class: PackageLevel,
                     name: packageJson.name,
