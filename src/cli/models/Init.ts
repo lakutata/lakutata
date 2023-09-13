@@ -12,6 +12,6 @@ export class Init extends Model {
      * @protected
      */
     protected async init(): Promise<void> {
-        console.log(this.options)
+        console.info('init....')
     }
 }

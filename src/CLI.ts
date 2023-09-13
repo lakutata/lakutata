@@ -14,6 +14,7 @@ import {PackageLevel} from './cli/components/PackageLevel'
 import {Init} from './cli/models/Init'
 import {Spinner} from './cli/components/Spinner'
 import {dots} from 'cli-spinners'
+import {DeGitPuller} from './cli/components/DeGitPuller'
 
 type CLIParams = {
     type: string
@@ -93,6 +94,13 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
                     name: packageJson.name,
                     currentDirectory: __dirname,
                     workingDirectory: process.cwd()
+                },
+                puller: {
+                    class: DeGitPuller,
+                    cache: false,
+                    verbose: true,
+                    force: true,
+                    repo: 'lakutata/lakutata-template'
                 }
             },
             controllers: [CommandLineController],
