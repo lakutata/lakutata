@@ -35,6 +35,7 @@ import {InvalidValueException} from '../../exceptions/validation/InvalidValueExc
 import {AsyncConstructor} from './async-constructor/AsyncConstructor'
 import {InjectionProperties} from '../../types/InjectionProperties'
 import {SHA256} from '../../Hash'
+import {DTO} from './DTO'
 
 const internalPropertyNameRegExp: RegExp = new RegExp('__\\$\\$\\$[a-zA-Z0-9~!@#$%^&*()_+\\[\\]\\{\\},./\\\\<>?|\\-\\*]+\\$\\$\\$__')
 
@@ -153,7 +154,7 @@ export class BaseObject extends AsyncConstructor {
                         configurable: true,
                         set: (value: any): void => {
                             if (options.accept) {
-                                const schema: Schema = Reflect.hasMetadata(DTO_CLASS, options.accept) ? Validator.Object(Reflect.getMetadata(DTO_SCHEMAS, options.accept)) : As<Schema>(options.accept)
+                                const schema: Schema = Reflect.hasMetadata(DTO_CLASS, options.accept) ? As<IConstructor<DTO>>(options.accept).schema() : As<Schema>(options.accept)
                                 options.acceptOptions = options.acceptOptions ? Object.assign({}, defaultValidationOptions, options.acceptOptions) : defaultValidationOptions
                                 try {
                                     value = Validator.validate(value, schema, options.acceptOptions)
