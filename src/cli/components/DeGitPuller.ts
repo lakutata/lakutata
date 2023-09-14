@@ -38,7 +38,9 @@ export class DeGitPuller extends Component {
         }).clone(localTarget)
     }
 
-    public async createProject(){}
+    public async createProject(target: string) {
+    }
 
-    public async initProject(){}
+    public async initProject() {
+    }
 }

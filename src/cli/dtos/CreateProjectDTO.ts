@@ -6,6 +6,6 @@ export class CreateProjectDTO extends DTO {
     @Expect(Validator.String().required())
     public readonly path: string
 
-    @Expect(Validator.String().valid(...Object.values(ProjectType)).required())
+    @Expect(Validator.String().valid(...Object.values(ProjectType)).default(ProjectType.plain))
     public readonly type: string
 }

@@ -2,6 +2,7 @@ import {Configurable, Inject, Model} from '../../Lakutata'
 import {CreateProjectDTO} from '../dtos/CreateProjectDTO'
 import {DeGitPuller} from '../components/DeGitPuller'
 import path from 'path'
+import {ProjectType} from '../enums/ProjectType'
 
 export class Create extends Model {
 
@@ -15,7 +16,7 @@ export class Create extends Model {
      * 创建项目操作所在的工作目录
      * @protected
      */
-    protected workingDirectory: string
+    protected createWorkingDirectory: string
 
     /**
      * Lakutata模板的分支名
@@ -28,9 +29,8 @@ export class Create extends Model {
      * @protected
      */
     protected async init(): Promise<void> {
-        this.workingDirectory = path.isAbsolute(this.options.path) ? this.options.path : path.resolve(process.cwd(), this.options.path)
-        this.branch = this.options.type.toLowerCase()
-        console.log('this.workingDirectory:', this.workingDirectory)
-        console.log('this.branch:', this.branch)
+        this.createWorkingDirectory = path.isAbsolute(this.options.path) ? this.options.path : path.resolve(process.cwd(), this.options.path)
+        this.branch = this.options.type
+        this.branch = this.branch === ProjectType.plain ? 'main' : this.branch
     }
 }
