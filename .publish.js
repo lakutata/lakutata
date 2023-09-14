@@ -1,3 +1,6 @@
+import fsPromise from 'fs/promises'
+import path from 'path'
+
 (async () => {
     const fsPromise = require('fs/promises')
     const path = require('path')
@@ -33,6 +36,11 @@
     })
     //复制LICENSE至build文件夹
     await fsPromise.cp(path.resolve(__dirname, './LICENSE'), path.resolve(buildDirectory, './LICENSE'), {
+        recursive: true,
+        force: true
+    })
+    //复制README.md至build文件夹
+    await fsPromise.cp(path.resolve(__dirname, './README.md'), path.resolve(buildDirectory, './README.md'), {
         recursive: true,
         force: true
     })
