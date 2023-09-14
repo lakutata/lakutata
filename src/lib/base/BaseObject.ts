@@ -147,11 +147,11 @@ export class BaseObject extends AsyncConstructor {
                 configurableOptionsMap.forEach((options: ConfigurableOptions, propertyKey: string): void => {
                     configurableInitValueMap.set(propertyKey, this[propertyKey])
                     const originDescriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(this, propertyKey)
-                    const originSetter: ((val: any) => void) | undefined = originDescriptor?.set
-                    const originGetter: (() => any) | undefined = originDescriptor?.get
+                    const originSetter: ((val: any) => void) | undefined = originDescriptor?.set?.bind(this)
+                    const originGetter: (() => any) | undefined = originDescriptor?.get?.bind(this)
                     Object.defineProperty(this, propertyKey, {
                         configurable: true,
-                        set(value: any): void {
+                        set: (value: any): void => {
                             if (options.accept) {
                                 const schema: Schema = Reflect.hasMetadata(DTO_CLASS, options.accept) ? Validator.Object(Reflect.getMetadata(DTO_SCHEMAS, options.accept)) : As<Schema>(options.accept)
                                 options.acceptOptions = options.acceptOptions ? Object.assign({}, defaultValidationOptions, options.acceptOptions) : defaultValidationOptions
@@ -165,13 +165,13 @@ export class BaseObject extends AsyncConstructor {
                                     })
                                 }
                             }
-                            if (originSetter) originSetter.call(this, value)
+                            if (originSetter) originSetter(value)
                             Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTY, value, this, propertyKey)
                             if (options.onSet) options.onSet.call(this, value)
                         },
-                        get(): any {
+                        get: (): any => {
                             let value: any = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTY, this, propertyKey)
-                            if (originGetter) value = originGetter.call(this)
+                            if (originGetter) value = originGetter()
                             if (options.onGet) options.onGet.call(this, value)
                             return value
                         }

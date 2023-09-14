@@ -25,19 +25,19 @@ export class Model extends Component {
         this.propertyNames().forEach((propertyKey: string) => {
             As<Map<string, any>>(Reflect.getOwnMetadata(MODEL_PROPERTY_MAP, this))?.set(propertyKey, this[propertyKey])
             const originDescriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(this, propertyKey)
-            const originSetter: ((val: any) => void) | undefined = originDescriptor?.set
-            const originGetter: (() => any) | undefined = originDescriptor?.get
+            const originSetter: ((val: any) => void) | undefined = originDescriptor?.set?.bind(this)
+            const originGetter: (() => any) | undefined = originDescriptor?.get?.bind(this)
             Object.defineProperty(this, propertyKey, {
-                set(newValue: any): void {
-                    if (originSetter) originSetter.call(this, newValue)
+                set: (newValue: any): void => {
+                    if (originSetter) originSetter(newValue)
                     const oldValue: any = As<Map<string, any>>(Reflect.getOwnMetadata(MODEL_PROPERTY_MAP, this))?.get(propertyKey)
                     if (IsEqual(oldValue, newValue)) {
                         As<Map<string, any>>(Reflect.getOwnMetadata(MODEL_PROPERTY_MAP, this))?.set(propertyKey, newValue)
                         this.emit('property-changed', propertyKey, newValue, oldValue)
                     }
                 },
-                get(): any {
-                    if (originGetter) originGetter.call(this)
+                get: (): any => {
+                    if (originGetter) originGetter()
                     if (!As<Map<string, any>>(Reflect.getOwnMetadata(MODEL_PROPERTY_MAP, this))?.has(propertyKey)) return undefined
                     return As<Map<string, any>>(Reflect.getOwnMetadata(MODEL_PROPERTY_MAP, this))?.get(propertyKey)
                 }
