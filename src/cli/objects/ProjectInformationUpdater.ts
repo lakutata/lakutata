@@ -2,6 +2,7 @@ import {BaseObject, Configurable, Transient} from '../../Lakutata'
 import path from 'path'
 import {readFile, writeFile, rm} from 'fs/promises'
 import {Exists, TextTemplate} from '../../Helper'
+import {ProjectCompleteInformationOptions} from '../options/ProjectCompleteInformationOptions'
 
 /**
  * 项目信息更新器
@@ -41,16 +42,18 @@ export class ProjectInformationUpdater extends BaseObject {
     /**
      * 设置应用程序ID
      * @param id
+     * @protected
      */
-    public setId(id: string): void {
+    protected setId(id: string): void {
         this.applicationConfig = TextTemplate(this.applicationConfig, {id: id}, {ignoreMissing: true})
     }
 
     /**
      * 设置项目名称
      * @param name
+     * @protected
      */
-    public setName(name: string): void {
+    protected setName(name: string): void {
         this.packageJson.name = name
         this.applicationConfig = TextTemplate(this.applicationConfig, {name: name}, {ignoreMissing: true})
     }
@@ -58,32 +61,49 @@ export class ProjectInformationUpdater extends BaseObject {
     /**
      * 设置项目说明
      * @param description
+     * @protected
      */
-    public setDescription(description: string): void {
+    protected setDescription(description: string): void {
         this.packageJson.description = description
     }
 
     /**
      * 设置作者名称
      * @param author
+     * @protected
      */
-    public setAuthor(author: string): void {
+    protected setAuthor(author: string): void {
         this.packageJson.author = author
     }
 
     /**
      * 设置许可证名字
      * @param license
+     * @protected
      */
-    public setLicense(license: string): void {
+    protected setLicense(license: string): void {
         this.packageJson.license = license.toUpperCase()
     }
 
     /**
      * 将项目信息进行保存
+     * @protected
      */
-    public async save(): Promise<void> {
+    protected async save(): Promise<void> {
         await writeFile(this.packageJsonFilename, JSON.stringify(this.packageJson, null, 2), {flag: 'w+'})
         await writeFile(this.applicationConfigFilename, this.applicationConfig, {flag: 'w+'})
+    }
+
+    /**
+     * 执行更新项目信息
+     * @param options
+     */
+    public async updateProjectInfo(options: ProjectCompleteInformationOptions): Promise<void> {
+        this.setId(options.id)
+        this.setName(options.name)
+        this.setDescription(options.description)
+        this.setAuthor(options.author)
+        this.setLicense(options.license)
+        await this.save()
     }
 }

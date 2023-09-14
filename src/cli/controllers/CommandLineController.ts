@@ -17,8 +17,7 @@ export class CommandLineController extends Controller {
     @Action({type: 'init'})
     public async initProject(inp: ActionPattern): Promise<void> {
         const init: Init = await this.app.get(Init, {options: await this.completer.complete(inp.options)})
-        //todo 调起inquery，输入其他项目信息
-
+        await init.exec()
     }
 
     /**
@@ -29,7 +28,6 @@ export class CommandLineController extends Controller {
     public async createProject(inp: ActionPattern): Promise<void> {
         const creator: Create = await this.app.get(Create, {options: await this.completer.complete(inp.options)})
         await creator.exec()
-        console.log('create!!!')//todo
     }
 
     /**

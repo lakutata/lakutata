@@ -46,17 +46,12 @@ export class Create extends Model {
      * 执行创建
      */
     public async exec(): Promise<void> {
-        this.spinner.start('Creating the application')
         const targetPath: string = path.resolve(this.createWorkingDirectory, `./${this.options.name}`)
         if (await Exists(targetPath)) throw new Error('Target path already exists, unable to perform create operation.')
+        this.spinner.start('Creating the project')
         await this.puller.pull(this.branch, targetPath)
         const updater: ProjectInformationUpdater = await this.module.get<ProjectInformationUpdater>('updater', {workingDirectory: targetPath})
-        updater.setId(this.options.id)
-        updater.setName(this.options.name)
-        updater.setDescription(this.options.description)
-        updater.setAuthor(this.options.author)
-        updater.setLicense(this.options.license)
-        await updater.save()
+        await updater.updateProjectInfo(this.options)
         await execa('npm', ['install'], {cwd: targetPath})
         this.spinner.stop()
         console.info(chalk.green('The project has been successfully created.'))
