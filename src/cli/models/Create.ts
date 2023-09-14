@@ -6,6 +6,8 @@ import {Exists} from '../../Helper'
 import {ProjectCompleteInformationOptions} from '../options/ProjectCompleteInformationOptions'
 import {Spinner} from '../components/Spinner'
 import chalk from 'chalk'
+import {ProjectInformationUpdater} from '../objects/ProjectInformationUpdater'
+import {execa} from 'execa'
 
 export class Create extends Model {
 
@@ -48,6 +50,14 @@ export class Create extends Model {
         const targetPath: string = path.resolve(this.createWorkingDirectory, `./${this.options.name}`)
         if (await Exists(targetPath)) throw new Error('Target path already exists, unable to perform create operation.')
         await this.puller.pull(this.branch, targetPath)
+        const updater: ProjectInformationUpdater = await this.module.get<ProjectInformationUpdater>('updater', {workingDirectory: targetPath})
+        updater.setId(this.options.id)
+        updater.setName(this.options.name)
+        updater.setDescription(this.options.description)
+        updater.setAuthor(this.options.author)
+        updater.setLicense(this.options.license)
+        await updater.save()
+        await execa('npm', ['install'], {cwd: targetPath})
         this.spinner.stop()
         console.info(chalk.green('The project has been successfully created.'))
     }

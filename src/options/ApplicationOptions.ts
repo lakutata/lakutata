@@ -21,8 +21,8 @@ export class ApplicationOptions<T extends BaseObject = BaseObject> extends Modul
     /**
      * 应用程序时区
      */
-    @Expect(Validator.String().optional())
-    public declare readonly timezone?: string
+    @Expect(Validator.String().optional().default('auto'))
+    public declare readonly timezone?: string | 'auto'
 
     /**
      * 运行环境（开发环境/正式环境）

@@ -46,6 +46,7 @@ export class ProjectInformationCompleter extends BaseObject {
         if (!options.license) projectQuestions.push({
             name: 'license',
             type: 'input',
+            default: 'ISC',
             message: 'Please enter the application\'s license:'
         })
         if (projectQuestions.length) {

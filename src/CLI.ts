@@ -91,8 +91,12 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
             id: 'cli.lakutata.app',
             name: 'Lakutata CLI',
             entries: {
-                completer: ProjectInformationCompleter,
-                updater: ProjectInformationUpdater
+                completer: {
+                    class: ProjectInformationCompleter
+                },
+                updater: {
+                    class: ProjectInformationUpdater
+                }
             },
             components: {
                 spinner: {

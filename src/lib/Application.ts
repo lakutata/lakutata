@@ -57,7 +57,7 @@ export class Application extends Module {
         const appOpts: ApplicationOptions = await ApplicationOptions.validateAsync(Object.assign(options, ...partialOptions))
         process.env.appId = appOpts.id
         process.env.appName = appOpts.name
-        process.env.TZ = appOpts.timezone
+        process.env.TZ = appOpts.timezone === 'auto' ? Intl.DateTimeFormat().resolvedOptions().timeZone : appOpts.timezone
         process.env.NODE_ENV = appOpts.mode ? appOpts.mode : 'development'
         process.title = process.env.appId
         const alias: Alias = Alias.getAliasInstance()
