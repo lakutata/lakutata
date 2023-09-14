@@ -9,6 +9,7 @@ import {readdir} from 'fs/promises'
 import {ProjectInformationUpdater} from '../objects/ProjectInformationUpdater'
 import {execa} from 'execa'
 import chalk from 'chalk'
+import {OnlineLatestVersion} from '../objects/OnlineLatestVersion'
 
 export class Init extends Model {
 
@@ -18,8 +19,11 @@ export class Init extends Model {
     @Inject('puller')
     protected readonly puller: DeGitPuller
 
+    @Inject('onlineVersion')
+    protected readonly onlineVersion: OnlineLatestVersion
+
     @Configurable({accept: ProjectCompleteInformationOptions, acceptOptions: {stripUnknown: true}})
-    protected declare readonly options: ProjectCompleteInformationOptions
+    protected readonly options: ProjectCompleteInformationOptions
 
     /**
      * 创建项目操作所在的工作目录
@@ -54,6 +58,7 @@ export class Init extends Model {
         const updater: ProjectInformationUpdater = await this.module.get<ProjectInformationUpdater>('updater', {workingDirectory: this.initWorkingDirectory})
         await updater.updateProjectInfo(this.options)
         await execa('npm', ['install'], {cwd: this.initWorkingDirectory})
+        await execa('npm', ['install', `${this.onlineVersion.getName()}@${await this.onlineVersion.getVersion()}`], {cwd: this.initWorkingDirectory})
         this.spinner.stop()
         console.info(chalk.green('The project has been successfully initialized.'))
     }

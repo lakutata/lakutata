@@ -18,6 +18,7 @@ import {DeGitPuller} from './cli/components/DeGitPuller'
 import {ProjectInformationCompleter} from './cli/objects/ProjectInformationCompleter'
 import {ProjectInputInformationOptions} from './cli/options/ProjectInputInformationOptions'
 import {ProjectInformationUpdater} from './cli/objects/ProjectInformationUpdater'
+import {OnlineLatestVersion} from './cli/objects/OnlineLatestVersion'
 
 type CLIParams = {
     type: string
@@ -96,6 +97,11 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
                 },
                 updater: {
                     class: ProjectInformationUpdater
+                },
+                onlineVersion: {
+                    class: OnlineLatestVersion,
+                    name: packageJson.name,
+                    version: packageJson.version
                 }
             },
             components: {

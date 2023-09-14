@@ -1,10 +1,9 @@
 import {Configurable, Inject, Model} from '../../Lakutata'
 import chalk from 'chalk'
 import {$, execa} from 'execa'
-import latestVersion from 'latest-version'
-import {gt as isVersionGreaterThan, prerelease} from 'semver'
 import {PackageLevel} from '../components/PackageLevel'
 import {Spinner} from '../components/Spinner'
+import {OnlineLatestVersion} from '../objects/OnlineLatestVersion'
 
 export class Upgrade extends Model {
 
@@ -13,6 +12,9 @@ export class Upgrade extends Model {
 
     @Inject('packageLevel')
     protected readonly packageLevel: PackageLevel
+
+    @Inject('onlineVersion')
+    protected readonly onlineVersion: OnlineLatestVersion
 
     @Configurable()
     protected readonly name: string
@@ -64,17 +66,12 @@ export class Upgrade extends Model {
         let onlineLatestVersion: string
         try {
             if (!(await this.isNpmCommandAvailable())) return this.spinner.stop()
-            const prereleaseInfo: ReadonlyArray<string | number> | null = prerelease(this.version)
-            if (prereleaseInfo && prereleaseInfo[0]) {
-                onlineLatestVersion = await latestVersion(this.name, {version: prereleaseInfo[0].toString()})
-            } else {
-                onlineLatestVersion = await latestVersion(this.name)
-            }
+            onlineLatestVersion = await this.onlineVersion.getVersion()
             this.spinner.stop()
         } catch (e) {
             return
         }
-        if (isVersionGreaterThan(onlineLatestVersion, this.version)) return onlineLatestVersion
+        if (onlineLatestVersion !== this.version) return onlineLatestVersion
     }
 
     /**

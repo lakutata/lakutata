@@ -8,6 +8,7 @@ import {Spinner} from '../components/Spinner'
 import chalk from 'chalk'
 import {ProjectInformationUpdater} from '../objects/ProjectInformationUpdater'
 import {execa} from 'execa'
+import {OnlineLatestVersion} from '../objects/OnlineLatestVersion'
 
 export class Create extends Model {
 
@@ -16,6 +17,9 @@ export class Create extends Model {
 
     @Inject('puller')
     protected readonly puller: DeGitPuller
+
+    @Inject('onlineVersion')
+    protected readonly onlineVersion: OnlineLatestVersion
 
     @Configurable({accept: ProjectCompleteInformationOptions, acceptOptions: {stripUnknown: true}})
     protected readonly options: ProjectCompleteInformationOptions
@@ -53,6 +57,7 @@ export class Create extends Model {
         const updater: ProjectInformationUpdater = await this.module.get<ProjectInformationUpdater>('updater', {workingDirectory: targetPath})
         await updater.updateProjectInfo(this.options)
         await execa('npm', ['install'], {cwd: targetPath})
+        await execa('npm', ['install', `${this.onlineVersion.getName()}@${await this.onlineVersion.getVersion()}`], {cwd: targetPath})
         this.spinner.stop()
         console.info(chalk.green('The project has been successfully created.'))
     }
