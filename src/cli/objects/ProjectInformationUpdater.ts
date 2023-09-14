@@ -19,7 +19,7 @@ export class ProjectInformationUpdater extends BaseObject {
 
     protected readmeFilename: string
 
-    protected packageJson: Record<string, any>
+    protected packageJson: string
 
     protected applicationConfig: string
 
@@ -33,7 +33,7 @@ export class ProjectInformationUpdater extends BaseObject {
         this.applicationConfigFilename = path.resolve(this.workingDirectory, './src/config/Config.ts')
         if (!(await Exists(this.packageJsonFilename))) throw new Error('The package.json file could not be found.')
         if (!(await Exists(this.applicationConfigFilename))) throw new Error('The Config.ts file could not be found.')
-        this.packageJson = JSON.parse(await readFile(this.packageJsonFilename, {encoding: 'utf-8'}))
+        this.packageJson = await readFile(this.packageJsonFilename, {encoding: 'utf-8'})
         this.applicationConfig = await readFile(this.applicationConfigFilename, {encoding: 'utf-8'})
         //删除README.md
         if (await Exists(this.readmeFilename)) await rm(this.readmeFilename, {recursive: true, force: true})
@@ -54,7 +54,7 @@ export class ProjectInformationUpdater extends BaseObject {
      * @protected
      */
     protected setName(name: string): void {
-        this.packageJson.name = name
+        this.packageJson = TextTemplate(this.packageJson, {name: name}, {ignoreMissing: true})
         this.applicationConfig = TextTemplate(this.applicationConfig, {name: name}, {ignoreMissing: true})
     }
 
@@ -64,7 +64,7 @@ export class ProjectInformationUpdater extends BaseObject {
      * @protected
      */
     protected setDescription(description: string): void {
-        this.packageJson.description = description
+        this.packageJson = TextTemplate(this.packageJson, {description: description}, {ignoreMissing: true})
     }
 
     /**
@@ -73,7 +73,7 @@ export class ProjectInformationUpdater extends BaseObject {
      * @protected
      */
     protected setAuthor(author: string): void {
-        this.packageJson.author = author
+        this.packageJson = TextTemplate(this.packageJson, {author: author}, {ignoreMissing: true})
     }
 
     /**
@@ -82,7 +82,7 @@ export class ProjectInformationUpdater extends BaseObject {
      * @protected
      */
     protected setLicense(license: string): void {
-        this.packageJson.license = license.toUpperCase()
+        this.packageJson = TextTemplate(this.packageJson, {license: license}, {ignoreMissing: true})
     }
 
     /**
@@ -90,7 +90,7 @@ export class ProjectInformationUpdater extends BaseObject {
      * @protected
      */
     protected async save(): Promise<void> {
-        await writeFile(this.packageJsonFilename, JSON.stringify(this.packageJson, null, 2), {flag: 'w+'})
+        await writeFile(this.packageJsonFilename, this.packageJson, {flag: 'w+'})
         await writeFile(this.applicationConfigFilename, this.applicationConfig, {flag: 'w+'})
     }
 
