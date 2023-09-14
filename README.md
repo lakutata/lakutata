@@ -33,7 +33,9 @@ below.
 
 <div align="center">
 
-### [Docs](docs/Guide.md) | [Example](src/tests)
+### Click [Here](docs/Guide.md) to check out the guide.
+
+### Click [Here](src/tests) for full example.
 
 </div>
 
