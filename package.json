@@ -1,6 +1,6 @@
 {
   "name": "lakutata",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "An IoC-based universal application framework.",
   "main": "./Lakutata.js",
   "types": "./Lakutata.d.ts",
