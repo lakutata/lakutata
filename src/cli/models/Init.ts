@@ -1,17 +1,21 @@
 import {Model} from '../../lib/base/Model'
 import {Configurable, Inject} from '../../decorators/DependencyInjectionDecorators'
-import {InitProjectDTO} from '../dtos/InitProjectDTO'
 import {DeGitPuller} from '../components/DeGitPuller'
 import path from 'path'
 import {ProjectType} from '../enums/ProjectType'
+import {ProjectCompleteInformationOptions} from '../options/ProjectCompleteInformationOptions'
+import {Spinner} from '../components/Spinner'
 
 export class Init extends Model {
+
+    @Inject('spinner')
+    protected readonly spinner: Spinner
 
     @Inject('puller')
     protected readonly puller: DeGitPuller
 
-    @Configurable({accept: InitProjectDTO, acceptOptions: {stripUnknown: true}})
-    protected declare readonly options: InitProjectDTO
+    @Configurable({accept: ProjectCompleteInformationOptions, acceptOptions: {stripUnknown: true}})
+    protected declare readonly options: ProjectCompleteInformationOptions
 
     /**
      * 创建项目操作所在的工作目录

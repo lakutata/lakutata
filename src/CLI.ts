@@ -15,6 +15,8 @@ import {Init} from './cli/models/Init'
 import {Spinner} from './cli/components/Spinner'
 import {dots} from 'cli-spinners'
 import {DeGitPuller} from './cli/components/DeGitPuller'
+import {ProjectInformationCompleter} from './cli/components/ProjectInformationCompleter'
+import {ProjectInputInformationOptions} from './cli/options/ProjectInputInformationOptions'
 
 type CLIParams = {
     type: string
@@ -36,7 +38,12 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
             .description('initialize a Lakutata project in an existing folder')
             .addOption(new Option('-p, --path <path>', 'project init path').default(process.cwd()))
             .addOption(new Option('-t, --type <type>', 'project type').choices(Object.values(ProjectType)))
-            .action((options: { path: string; type: string }) => resolve({
+            .addOption(new Option('-n, --name <name>', 'the name of the project and application'))
+            .addOption(new Option('-i, --id <id>', 'the ID of the application'))
+            .addOption(new Option('-d, --description <description>', 'the description of the application'))
+            .addOption(new Option('-a, --author <author>', 'the author of the application'))
+            .addOption(new Option('-l, --license <license>', 'the license of the application'))
+            .action((options: ProjectInputInformationOptions) => resolve({
                 type: 'init',
                 options: options
             }))
@@ -44,7 +51,12 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
             .description('create a Lakutata project')
             .addOption(new Option('-p, --path <path>', 'project creation path').default(process.cwd()))
             .addOption(new Option('-t, --type <type>', 'project type').choices(Object.values(ProjectType)))
-            .action((options: { path: string; type: string }) => resolve({
+            .addOption(new Option('-n, --name <name>', 'the name of the project and application'))
+            .addOption(new Option('-i, --id <id>', 'the ID of the application'))
+            .addOption(new Option('-d, --description <description>', 'the description of the application'))
+            .addOption(new Option('-a, --author <author>', 'the author of the application'))
+            .addOption(new Option('-l, --license <license>', 'the license of the application'))
+            .action((options: ProjectInputInformationOptions) => resolve({
                 type: 'create',
                 options: options
             }))
@@ -94,7 +106,8 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
                     verbose: true,
                     force: true,
                     repo: 'lakutata/lakutata-template'
-                }
+                },
+                completer: ProjectInformationCompleter
             },
             controllers: [CommandLineController],
             autoload: [Init, Create, Upgrade, Info],

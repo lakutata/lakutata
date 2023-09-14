@@ -1,18 +1,22 @@
-import {Action, ActionPattern, Controller} from '../../Lakutata'
+import {Action, ActionPattern, Controller, Inject} from '../../Lakutata'
 import {Info} from '../models/Info'
 import {Upgrade} from '../models/Upgrade'
 import {Create} from '../models/Create'
 import {Init} from '../models/Init'
+import {ProjectInformationCompleter} from '../components/ProjectInformationCompleter'
 
 export class CommandLineController extends Controller {
+
+    @Inject('completer')
+    protected readonly completer: ProjectInformationCompleter
 
     /**
      * 在指定目录中初始化Lakutata项目(已有文件夹)
      * @param inp
      */
     @Action({type: 'init'})
-    public async initProject(inp: ActionPattern) {
-        const init: Init = await this.app.get(Init, {options: inp.options})
+    public async initProject(inp: ActionPattern): Promise<void> {
+        const init: Init = await this.app.get(Init, {options: await this.completer.complete(inp.options)})
         //todo 调起inquery，输入其他项目信息
 
     }
@@ -22,9 +26,9 @@ export class CommandLineController extends Controller {
      * @param inp
      */
     @Action({type: 'create'})
-    public async createProject(inp: ActionPattern) {
-        const creator: Create = await this.app.get(Create, {options: inp.options})
-        await creator.exec({name: 'testttt'})
+    public async createProject(inp: ActionPattern): Promise<void> {
+        const creator: Create = await this.app.get(Create, {options: await this.completer.complete(inp.options)})
+        await creator.exec()
         console.log('create!!!')//todo
     }
 

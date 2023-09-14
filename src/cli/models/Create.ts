@@ -1,17 +1,21 @@
 import {Configurable, Inject, Model} from '../../Lakutata'
-import {CreateProjectDTO} from '../dtos/CreateProjectDTO'
 import {DeGitPuller} from '../components/DeGitPuller'
 import path from 'path'
 import {ProjectType} from '../enums/ProjectType'
 import {Exists} from '../../Helper'
+import {ProjectCompleteInformationOptions} from '../options/ProjectCompleteInformationOptions'
+import {Spinner} from '../components/Spinner'
 
 export class Create extends Model {
+
+    @Inject('spinner')
+    protected readonly spinner: Spinner
 
     @Inject('puller')
     protected readonly puller: DeGitPuller
 
-    @Configurable({accept: CreateProjectDTO, acceptOptions: {stripUnknown: true}})
-    protected readonly options: CreateProjectDTO
+    @Configurable({accept: ProjectCompleteInformationOptions, acceptOptions: {stripUnknown: true}})
+    protected readonly options: ProjectCompleteInformationOptions
 
     /**
      * 创建项目操作所在的工作目录
@@ -37,11 +41,12 @@ export class Create extends Model {
 
     /**
      * 执行创建
-     * @param options
      */
-    public async exec(options: { name: string }): Promise<void> {
-        const targetPath: string = path.resolve(this.createWorkingDirectory, `./${options.name}`)
+    public async exec(): Promise<void> {
+        this.spinner.start('Creating the application')
+        const targetPath: string = path.resolve(this.createWorkingDirectory, `./${this.options.name}`)
         if (await Exists(targetPath)) throw new Error('Target path already exists, unable to perform create operation.')
-        await this.puller.pull(this.branch, targetPath)//todo 需要加项目名称
+        await this.puller.pull(this.branch, targetPath)
+        this.spinner.stop()
     }
 }
