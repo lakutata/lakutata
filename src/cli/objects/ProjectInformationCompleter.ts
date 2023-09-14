@@ -36,12 +36,14 @@ export class ProjectInformationCompleter extends BaseObject {
         if (!options.description) projectQuestions.push({
             name: 'description',
             type: 'input',
-            message: 'Please enter the application description:'
+            message: 'Please enter the application description:',
+            default: 'No description'
         })
         if (!options.author) projectQuestions.push({
             name: 'author',
             type: 'input',
-            message: 'Please enter the application author\'s name:'
+            message: 'Please enter the application author\'s name:',
+            default: 'Anonymous'
         })
         if (!options.license) projectQuestions.push({
             name: 'license',

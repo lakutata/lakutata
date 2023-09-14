@@ -82,7 +82,7 @@ export class ProjectInformationUpdater extends BaseObject {
      * @protected
      */
     protected setLicense(license: string): void {
-        this.packageJson = TextTemplate(this.packageJson, {license: license}, {ignoreMissing: true})
+        this.packageJson = TextTemplate(this.packageJson, {license: license.toUpperCase()}, {ignoreMissing: true})
     }
 
     /**
