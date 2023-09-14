@@ -2,7 +2,18 @@
 
 ## Installation
 
+First, install the Lakutata framework globally.
+
     npm i -g lakutata
+
+Next, use the built-in CLI (Command Line Interface) tool of Lakutata to execute the `create` or `init` command, and then
+follow the prompts to proceed with the installation.
+
+    lakutata create [options]
+
+or
+
+    lakutata init [options]
 
 ## Key Concepts
 
