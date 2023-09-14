@@ -14,6 +14,7 @@ export class CommandLineController extends Controller {
 
     @Action({type: 'create'})
     public async createProject(inp: ActionPattern) {
+        console.log(inp.options)
         const creator: Create = await this.app.get(Create, {options: inp.options})
         console.log('create!!!')//todo
     }

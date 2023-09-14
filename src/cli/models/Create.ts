@@ -8,13 +8,13 @@ export class Create extends Model {
     protected readonly puller: DeGitPuller
 
     @Configurable({accept: CreateProjectDTO, acceptOptions: {stripUnknown: true}})
-    protected readonly options: CreateProjectDTO
+    protected declare readonly options: CreateProjectDTO
 
     /**
      * 初始化函数
      * @protected
      */
     protected async init(): Promise<void> {
-        console.log(this.options)
+        console.log('this.options:',this.options)
     }
 }

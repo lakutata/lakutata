@@ -36,8 +36,7 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
             .description('initialize a Lakutata project in an existing folder')
             .addOption(new Option('-p, --path <path>', 'project init path').default(process.cwd()))
             .addOption(new Option('-t, --type <type>', 'project type').choices(Object.values(ProjectType)))
-            .addOption(new Option('-n, --name <name>', 'project name'))
-            .action((options) => {
+            .action((options: { path: string; type: string }) => {
                 //todo 处理路径等信息
                 return resolve({
                     type: 'init',
@@ -48,8 +47,7 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
             .description('create a Lakutata project')
             .addOption(new Option('-p, --path <path>', 'project creation path').default(process.cwd()))
             .addOption(new Option('-t, --type <type>', 'project type').choices(Object.values(ProjectType)))
-            .addOption(new Option('-n, --name <name>', 'project name'))
-            .action((options) => {
+            .action((options: { path: string; type: string }) => {
                 //todo 处理路径等信息
                 return resolve({
                     type: 'create',
@@ -122,6 +120,7 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
             ]
         })
     } catch (e) {
+        console.error(e)
         Logger.error(As<Error>(e).message)
         process.exit(1)
     }
