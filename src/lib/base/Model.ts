@@ -22,10 +22,13 @@ export class Model extends Component {
     protected async __init(): Promise<void> {
         await super.__init()
         Reflect.defineMetadata(MODEL_PROPERTY_MAP, new Map<string, any>(), this)
-        this.propertyNames().forEach(propertyKey => {
+        this.propertyNames().forEach((propertyKey: string) => {
             As<Map<string, any>>(Reflect.getOwnMetadata(MODEL_PROPERTY_MAP, this))?.set(propertyKey, this[propertyKey])
+            const originDescriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(this, propertyKey)
             Object.defineProperty(this, propertyKey, {
+                configurable: true,
                 set: (newValue: any): void => {
+                    if (originDescriptor && originDescriptor.set) originDescriptor.set(newValue)
                     const oldValue: any = As<Map<string, any>>(Reflect.getOwnMetadata(MODEL_PROPERTY_MAP, this))?.get(propertyKey)
                     if (IsEqual(oldValue, newValue)) {
                         As<Map<string, any>>(Reflect.getOwnMetadata(MODEL_PROPERTY_MAP, this))?.set(propertyKey, newValue)
@@ -33,6 +36,7 @@ export class Model extends Component {
                     }
                 },
                 get: (): any => {
+                    if (originDescriptor && originDescriptor.get) return originDescriptor.get()
                     if (!As<Map<string, any>>(Reflect.getOwnMetadata(MODEL_PROPERTY_MAP, this))?.has(propertyKey)) return undefined
                     return As<Map<string, any>>(Reflect.getOwnMetadata(MODEL_PROPERTY_MAP, this))?.get(propertyKey)
                 }

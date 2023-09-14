@@ -8,7 +8,7 @@ export class Create extends Model {
     protected readonly puller: DeGitPuller
 
     @Configurable({accept: CreateProjectDTO, acceptOptions: {stripUnknown: true}})
-    protected declare readonly options: CreateProjectDTO
+    protected readonly options: CreateProjectDTO
 
     /**
      * 初始化函数

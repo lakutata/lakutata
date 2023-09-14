@@ -146,7 +146,9 @@ export class BaseObject extends AsyncConstructor {
                 configurableItems?.forEach((configurablePropertyKey: string) => configurableInitValueMap.set(configurablePropertyKey, this[configurablePropertyKey]))
                 configurableOptionsMap.forEach((options: ConfigurableOptions, propertyKey: string): void => {
                     configurableInitValueMap.set(propertyKey, this[propertyKey])
+                    const originDescriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(this, propertyKey)
                     Object.defineProperty(this, propertyKey, {
+                        configurable: true,
                         set: (value: any): void => {
                             if (options.accept) {
                                 const schema: Schema = Reflect.hasMetadata(DTO_CLASS, options.accept) ? Validator.Object(Reflect.getMetadata(DTO_SCHEMAS, options.accept)) : As<Schema>(options.accept)
@@ -161,11 +163,13 @@ export class BaseObject extends AsyncConstructor {
                                     })
                                 }
                             }
+                            if (originDescriptor && originDescriptor.set) originDescriptor.set(value)
                             Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTY, value, this, propertyKey)
                             if (options.onSet) options.onSet.call(this, value)
                         },
                         get(): any {
-                            const value: any = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTY, this, propertyKey)
+                            let value: any = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTY, this, propertyKey)
+                            if (originDescriptor && originDescriptor.get) value = originDescriptor.get()
                             if (options.onGet) options.onGet.call(this, value)
                             return value
                         }

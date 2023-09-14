@@ -34,6 +34,7 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
     return new Promise((resolve, reject): void => {
         const init: Command = new Command('init')
             .description('initialize a Lakutata project in an existing folder')
+            .addOption(new Option('-p, --path <path>', 'project init path').default(process.cwd()))
             .addOption(new Option('-t, --type <type>', 'project type').choices(Object.values(ProjectType)))
             .addOption(new Option('-n, --name <name>', 'project name'))
             .action((options) => {

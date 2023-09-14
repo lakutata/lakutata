@@ -8,7 +8,7 @@ export class Init extends Model {
     @Inject('puller')
     protected readonly puller: DeGitPuller
 
-    // @Configurable({accept: InitProjectDTO, acceptOptions: {stripUnknown: true}})
+    @Configurable({accept: InitProjectDTO, acceptOptions: {stripUnknown: true}})
     protected declare readonly options: InitProjectDTO
 
     /**
