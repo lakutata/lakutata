@@ -3,7 +3,7 @@ import {Info} from '../models/Info'
 import {Upgrade} from '../models/Upgrade'
 import {Create} from '../models/Create'
 import {Init} from '../models/Init'
-import {ProjectInformationCompleter} from '../components/ProjectInformationCompleter'
+import {ProjectInformationCompleter} from '../objects/ProjectInformationCompleter'
 
 export class CommandLineController extends Controller {
 

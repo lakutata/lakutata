@@ -1,4 +1,4 @@
-import {Component, Transient} from '../../Lakutata'
+import {BaseObject, Transient} from '../../Lakutata'
 import {ProjectInputInformationOptions} from '../options/ProjectInputInformationOptions'
 import {ProjectType} from '../enums/ProjectType'
 import inquirer, {QuestionCollection} from 'inquirer'
@@ -6,10 +6,10 @@ import {ProjectCompleteInformationOptions} from '../options/ProjectCompleteInfor
 import {As} from '../../Helper'
 
 /**
- * 项目信息完善器组件
+ * 项目信息完善器
  */
 @Transient()
-export class ProjectInformationCompleter extends Component {
+export class ProjectInformationCompleter extends BaseObject {
     /**
      * 完善项目信息
      * @param options

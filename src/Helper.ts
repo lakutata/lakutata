@@ -11,6 +11,18 @@ import SortKeys from './lib/deps/SortKeys'
 import pickFreePort from './lib/deps/PickFreePort'
 import {IConstructor, ISortArrayOptions, ISortObjectOptions, BaseObject} from './Lakutata'
 import {access as fileSystemAccess} from 'fs/promises'
+import Templating, {TemplatingOptions} from './lib/deps/Templating'
+
+/**
+ * 根据传入的参数替换字符串模板内的内容
+ * @param template
+ * @param data
+ * @param options
+ * @constructor
+ */
+export function TextTemplate(template: string, data: object | any[], options: TemplatingOptions = {}): string {
+    return Templating(template, data, options)
+}
 
 /**
  * 判断文件或目录是否存在

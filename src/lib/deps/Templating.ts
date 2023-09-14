@@ -28,7 +28,7 @@ export class MissingValueError extends Error {
     }
 }
 
-interface TemplatingOptions {
+export interface TemplatingOptions {
     ignoreMissing?: boolean;
     transform?: ({value, key}: { value: any; key: string }) => any;
 }

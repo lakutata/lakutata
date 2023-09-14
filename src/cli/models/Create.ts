@@ -5,6 +5,7 @@ import {ProjectType} from '../enums/ProjectType'
 import {Exists} from '../../Helper'
 import {ProjectCompleteInformationOptions} from '../options/ProjectCompleteInformationOptions'
 import {Spinner} from '../components/Spinner'
+import chalk from 'chalk'
 
 export class Create extends Model {
 
@@ -48,5 +49,6 @@ export class Create extends Model {
         if (await Exists(targetPath)) throw new Error('Target path already exists, unable to perform create operation.')
         await this.puller.pull(this.branch, targetPath)
         this.spinner.stop()
+        console.info(chalk.green('The project has been successfully created.'))
     }
 }

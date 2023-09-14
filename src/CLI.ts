@@ -15,8 +15,9 @@ import {Init} from './cli/models/Init'
 import {Spinner} from './cli/components/Spinner'
 import {dots} from 'cli-spinners'
 import {DeGitPuller} from './cli/components/DeGitPuller'
-import {ProjectInformationCompleter} from './cli/components/ProjectInformationCompleter'
+import {ProjectInformationCompleter} from './cli/objects/ProjectInformationCompleter'
 import {ProjectInputInformationOptions} from './cli/options/ProjectInputInformationOptions'
+import {ProjectInformationUpdater} from './cli/objects/ProjectInformationUpdater'
 
 type CLIParams = {
     type: string
@@ -89,6 +90,10 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
         await Application.run({
             id: 'cli.lakutata.app',
             name: 'Lakutata CLI',
+            entries: {
+                completer: ProjectInformationCompleter,
+                updater: ProjectInformationUpdater
+            },
             components: {
                 spinner: {
                     class: Spinner,
@@ -106,8 +111,7 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
                     verbose: true,
                     force: true,
                     repo: 'lakutata/lakutata-template'
-                },
-                completer: ProjectInformationCompleter
+                }
             },
             controllers: [CommandLineController],
             autoload: [Init, Create, Upgrade, Info],
