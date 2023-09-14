@@ -6,15 +6,22 @@ import {Init} from '../models/Init'
 
 export class CommandLineController extends Controller {
 
+    /**
+     * 在指定目录中初始化Lakutata项目(已有文件夹)
+     * @param inp
+     */
     @Action({type: 'init'})
     public async initProject(inp: ActionPattern) {
         const init: Init = await this.app.get(Init, {options: inp.options})
         console.log('init!!!')//todo
     }
 
+    /**
+     * 在指定目录创建一个Lakutata项目(新文件夹)
+     * @param inp
+     */
     @Action({type: 'create'})
     public async createProject(inp: ActionPattern) {
-        console.log(inp.options)
         const creator: Create = await this.app.get(Create, {options: inp.options})
         console.log('create!!!')//todo
     }

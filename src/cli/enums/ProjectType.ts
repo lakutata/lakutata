@@ -2,13 +2,13 @@ export enum ProjectType {
     /**
      * 命令行程序项目
      */
-    CLI = 'CLI',
+    cli = 'cli',
     /**
      * 桌面程序项目
      */
-    DESKTOP = 'DESKTOP',
+    desktop = 'desktop',
     /**
      * 嵌入式程序项目
      */
-    EMBED = 'EMBED'
+    embed = 'embed'
 }
