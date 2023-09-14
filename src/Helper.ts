@@ -10,6 +10,22 @@ import {PathLike} from 'fs'
 import SortKeys from './lib/deps/SortKeys'
 import pickFreePort from './lib/deps/PickFreePort'
 import {IConstructor, ISortArrayOptions, ISortObjectOptions, BaseObject} from './Lakutata'
+import {access as fileSystemAccess} from 'fs/promises'
+
+/**
+ * 判断文件或目录是否存在
+ * @param path
+ * @constructor
+ */
+export async function Exists(path: string): Promise<boolean> {
+    try {
+        await fileSystemAccess(path)
+        return true
+    } catch (error: any) {
+        if (error.code !== 'ENOENT') throw error
+        return false
+    }
+}
 
 /**
  * 以平稳、安全和可控的方式终止程序的执行

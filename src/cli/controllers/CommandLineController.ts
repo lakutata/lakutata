@@ -13,7 +13,8 @@ export class CommandLineController extends Controller {
     @Action({type: 'init'})
     public async initProject(inp: ActionPattern) {
         const init: Init = await this.app.get(Init, {options: inp.options})
-        console.log('init!!!')//todo
+        //todo 调起inquery，输入其他项目信息
+
     }
 
     /**
@@ -23,6 +24,7 @@ export class CommandLineController extends Controller {
     @Action({type: 'create'})
     public async createProject(inp: ActionPattern) {
         const creator: Create = await this.app.get(Create, {options: inp.options})
+        await creator.exec({name: 'testttt'})
         console.log('create!!!')//todo
     }
 

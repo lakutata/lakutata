@@ -28,19 +28,12 @@ export class DeGitPuller extends Component {
      * 执行拉取
      * @param branch
      * @param localTarget
-     * @protected
      */
-    protected async pull(branch: string, localTarget: string): Promise<void> {
+    public async pull(branch: string, localTarget: string): Promise<void> {
         await degit(this.getGitSource(branch), {
             cache: this.cache,
             verbose: this.verbose,
             force: this.force
         }).clone(localTarget)
-    }
-
-    public async createProject(target: string) {
-    }
-
-    public async initProject() {
     }
 }
