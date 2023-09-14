@@ -35,7 +35,7 @@ export class CommandLineController extends Controller {
      * @param inp
      */
     @Action({type: 'upgrade'})
-    public async upgrade(inp: ActionPattern): Promise<void> {
+    public async upgrade(): Promise<void> {
         const upgrade: Upgrade = await this.app.get(Upgrade, this.context)
         upgrade.echoCurrentVersion()
         const newVersion: string | void = await upgrade.checkUpdate()
@@ -45,10 +45,9 @@ export class CommandLineController extends Controller {
 
     /**
      * 输出项目信息
-     * @param inp
      */
     @Action({type: 'info'})
-    public async info(inp: ActionPattern): Promise<void> {
+    public async info(): Promise<void> {
         const info: Info = await this.app.get(Info, this.context)
         info.lines.forEach((line: String) => console.info(line))
     }
