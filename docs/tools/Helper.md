@@ -6,6 +6,27 @@
 
 ## Function List
 
+### `TextTemplate`
+
+Determine if a file or directory exists
+
+- `template`: `string` - Template string
+- `data`: `object | any[]` - Data for replacing placeholders in the template
+- `options?`: `TemplatingOptions` - Template rendering options
+
+### `Exists`
+
+Determine if a file or directory exists
+
+- `path`: `string` - Target path
+
+### `GraceExit`
+
+Graceful exit application
+
+- `exitCode`: `number` - Exit code
+- `functions`: `(() => any)[]` - Functions to be executed before exiting
+
 ### `ObjectToMap`
 
 Convert object to Map
