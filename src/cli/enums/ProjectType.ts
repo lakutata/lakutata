@@ -8,11 +8,7 @@ export enum ProjectType {
      */
     cli = 'cli',
     /**
-     * 桌面程序项目
+     * API程序
      */
-    desktop = 'desktop',
-    /**
-     * 嵌入式程序项目
-     */
-    embed = 'embed'
+    api = 'api',
 }
