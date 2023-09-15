@@ -47,13 +47,14 @@ export async function Exists(path: string): Promise<boolean> {
  */
 export function GraceExit(exitCode: number, ...functions: (() => any)[]): void {
     setImmediate(async (): Promise<void> => {
-        try {
-            for (const func of functions) await func()
-        } catch (e) {
-            DevNull(e)
-        } finally {
-            process.exit(exitCode)
+        for (const func of functions) {
+            try {
+                await func()
+            } catch (e) {
+                DevNull(e)
+            }
         }
+        process.exit(exitCode)
     })
 }
 
