@@ -24,7 +24,9 @@ type TExcludes<T, U> = T extends U ? never : T
 
 type TActionName<T, U> = TExcludes<keyof T, U>
 
-export type ControllerActionDecorator<T extends Controller> = (target: T, propertyKey: TActionName<T, keyof Controller | 'init' | '__init' | 'destroy' | '__destroy'>, descriptor: TypedPropertyDescriptor<TActionFunction>) => TypedPropertyDescriptor<TActionFunction>
+export type ControllerTypedPropertyDescriptor = TypedPropertyDescriptor<TActionFunction>
+
+export type ControllerActionDecorator<T extends Controller> = (target: T, propertyKey: TActionName<T, keyof Controller | 'init' | '__init' | 'destroy' | '__destroy'>, descriptor: ControllerTypedPropertyDescriptor) => ControllerTypedPropertyDescriptor
 
 /**
  * 将Action添加至控制器的ActionMap中
@@ -72,7 +74,7 @@ function registerActionToAuthMap<T extends Controller>(authOptions: ActionAuthOp
  * @constructor
  */
 export function Action<T extends Controller>(pattern: ActionPattern, authOptions?: ActionAuthOptions): ControllerActionDecorator<T> {
-    return function <T extends Controller>(target: T, propertyKey: keyof T, descriptor: TypedPropertyDescriptor<TActionFunction>): TypedPropertyDescriptor<TActionFunction> {
+    return function <T extends Controller>(target: T, propertyKey: keyof T, descriptor: ControllerTypedPropertyDescriptor): ControllerTypedPropertyDescriptor {
         if (!pattern || !Object.keys(pattern).length) throw new Error('The pattern of the action cannot be empty')
         const controllerConstructor: IConstructor<T> = As<IConstructor<T>>(target.constructor)
         registerActionToControllerActionMap<T>(pattern, controllerConstructor, propertyKey)
