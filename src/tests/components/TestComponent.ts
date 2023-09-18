@@ -9,4 +9,5 @@ export class TestComponent extends Component {
     protected async init(): Promise<void> {
         this.log.info('I\'m %s in %s', this.className, this.module.className)
     }
+
 }
