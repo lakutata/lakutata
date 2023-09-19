@@ -1,3 +1,4 @@
+if (require.resolve('ts-node')&&__filename.endsWith('.js')) eval('require(\'ts-node\')')['register']()
 import {
     IConstructor,
     Process,
