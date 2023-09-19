@@ -1,3 +1,4 @@
+if (require.resolve('ts-node')) require('ts-node').register()
 import {
     IConstructor,
     Process,
