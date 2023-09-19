@@ -31,17 +31,5 @@ export default defineConfig(() => {
         external: ['tslib', 'ts-node', 'typescript', 'shx', 'release-it'],
         //此处不可使用minify，否则在框架层报错时会将整个框架源码在控制台输出
         minify: false
-        // plugins: [{
-        //     name: 'ModifyDistFiles',
-        //     renderChunk: (code, chunkInfo) => {
-        //         if (chunkInfo.path.endsWith('ProcessContainer.js')) {
-        //             code = `\nif (require.resolve('ts-node')) require('ts-node').register()\n${code}`
-        //         }
-        //         return {
-        //             code: code,
-        //             map: chunkInfo.map
-        //         }
-        //     }
-        // }]
     }
 })
