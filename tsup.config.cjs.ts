@@ -34,7 +34,7 @@ export default defineConfig(() => {
         plugins: [{
             name: 'ModifyDistFiles',
             renderChunk: (code, chunkInfo) => {
-                if (chunkInfo.path.endsWith('ProcessContainer.js') || chunkInfo.path.endsWith('ThreadContainer.js')) {
+                if (chunkInfo.path.endsWith('ProcessContainer.js')) {
                     code = `\nif (require.resolve('ts-node')) require('ts-node').register()\n${code}`
                 }
                 return {
