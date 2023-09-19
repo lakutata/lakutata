@@ -11,4 +11,8 @@ export enum ProjectType {
      * API程序
      */
     api = 'api',
+    /**
+     * Electron程序
+     */
+    electron = 'electron',
 }
