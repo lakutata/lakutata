@@ -72,7 +72,7 @@ export abstract class ThreadTask extends BaseObject {
             minThreads: this.minThreads,
             maxThreads: this.maxThreads,
             maxQueue: 'auto',
-            filename: require.resolve(path.resolve(__dirname, '../../worker/ThreadContainer')),
+            filename: require.resolve(path.resolve('@lakutata', './ThreadContainer')),
             useAtomics: true,
             resourceLimits: this.resourceLimits ? this.resourceLimits : undefined,
             workerData: {

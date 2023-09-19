@@ -9,7 +9,9 @@ export default defineConfig(() => {
             'src/Crypto.ts',
             'src/Hash.ts',
             'src/Helper.ts',
-            'src/CLI.ts'
+            'src/CLI.ts',
+            'src/ProcessContainer.ts',
+            'src/ThreadContainer.js'
         ],
         legacyOutput: false,
         skipNodeModulesBundle: true,

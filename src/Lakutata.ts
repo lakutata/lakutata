@@ -34,7 +34,7 @@ process.env.ENTRYPOINT_DIR = process.env.ENTRYPOINT_DIR ? process.env.ENTRYPOINT
 //获取程序执行入口文件所在目录失败则报错
 if (!process.env.ENTRYPOINT_DIR) throw new Error('Failed to retrieve the directory of the program\'s execution entry file.')
 Alias.init()
-
+Alias.getAliasInstance().set('@lakutata', __dirname)
 //导出库内容
 export * from './exports/Core'
 export * from './exports/Decorators'
