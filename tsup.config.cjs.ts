@@ -2,17 +2,18 @@ import {defineConfig} from 'tsup'
 
 export default defineConfig(() => {
     return {
-        entry: [
-            'src/ReflectMetadata.ts',
-            'src/Lakutata.ts',
-            'src/ORM.ts',
-            'src/Crypto.ts',
-            'src/Hash.ts',
-            'src/Helper.ts',
-            'src/CLI.ts',
-            'src/ProcessContainer.ts',
-            'src/ThreadContainer.js'
-        ],
+        entry: {
+            'ReflectMetadata': 'src/ReflectMetadata.ts',
+            'Lakutata': 'src/Lakutata.ts',
+            'ORM': 'src/ORM.ts',
+            'Crypto': 'src/Crypto.ts',
+            'Hash': 'src/Hash.ts',
+            'Helper': 'src/Helper.ts',
+            'CLI': 'src/CLI.ts',
+            'ProcessContainer': 'src/ProcessContainer.ts',
+            'ThreadContainer': 'src/ThreadContainer.js',
+            'worker': 'node_modules/piscina/dist/src/worker.js'
+        },
         legacyOutput: false,
         skipNodeModulesBundle: true,
         platform: 'node',
