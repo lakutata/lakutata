@@ -85,7 +85,7 @@ async function getCliParams(cli: Command): Promise<CLIParams> {
 }
 
 (async (): Promise<void> => {
-    const packageJson = JSON.parse(await readFile(path.resolve(__dirname, '../package.json'), {encoding: 'utf-8'}))
+    const packageJson = JSON.parse(await readFile(path.resolve(__dirname, './package.json'), {encoding: 'utf-8'}))
     const params: CLIParams = await getCliParams(new Command().description('Lakutata CLI').version(packageJson.version, '-v, --version').helpOption('-h, --help'))
     try {
         await Application.run({
