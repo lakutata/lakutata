@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-process.env.ENTRYPOINT_DIR = __dirname
+
 import {Command, Option} from 'commander'
 import {readFile} from 'fs/promises'
 import path from 'path'

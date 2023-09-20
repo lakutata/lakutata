@@ -1,6 +1,7 @@
 import './ReflectMetadata'
 import path from 'path'
 import {Alias} from './lib/Alias'
+import fs from 'fs'
 
 declare const require: NodeRequire
 
@@ -28,6 +29,19 @@ process.env.ENTRYPOINT_DIR = process.env.ENTRYPOINT_DIR ? process.env.ENTRYPOINT
         return isPath && isValidEntryPoint && isNotInNodeModules
     })
     if (!appRootDir) appRootDir = argv[0] ? path.dirname(argv[0]) : ''
+    if (!appRootDir) {
+        //判断是否在全局的安装目录内
+        const pkgJsonFilename: string = path.resolve(__dirname, './package.json')
+        if (fs.existsSync(pkgJsonFilename)) {
+            try {
+                if (JSON.parse(fs.readFileSync(pkgJsonFilename, {encoding: 'utf-8'})).name === 'lakutata') {
+                    appRootDir = __dirname
+                }
+            } catch (e) {
+                appRootDir = ''
+            }
+        }
+    }
     return appRootDir
 })()
 
