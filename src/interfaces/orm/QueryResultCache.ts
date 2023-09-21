@@ -1,5 +1,5 @@
-import {QueryRunner} from 'typeorm/query-runner/QueryRunner'
-import {QueryResultCacheOptions} from 'typeorm/cache/QueryResultCacheOptions'
+import {QueryRunner} from 'typeorm/browser/query-runner/QueryRunner'
+import {QueryResultCacheOptions} from 'typeorm/browser/cache/QueryResultCacheOptions'
 
 export interface QueryResultCache {
     /**

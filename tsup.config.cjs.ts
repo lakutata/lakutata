@@ -1,5 +1,6 @@
 import {defineConfig} from 'tsup'
 
+// @ts-ignore
 export default defineConfig(() => {
     return {
         entry: {
@@ -14,6 +15,7 @@ export default defineConfig(() => {
             'ThreadContainer': 'src/ThreadContainer.js',
             'worker': 'node_modules/piscina/dist/src/worker.js'
         },
+        bundle: true,
         legacyOutput: false,
         skipNodeModulesBundle: true,
         platform: 'node',
