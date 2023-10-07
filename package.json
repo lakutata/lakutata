@@ -51,7 +51,8 @@
     "release:beta-release": "dotenv -- release-it --preRelease=beta && npm run publish",
     "release:alpha-release": "dotenv -- release-it --preRelease=alpha --no-github.release && npm run publish",
     "release:proto-release": "dotenv -- release-it --preRelease=proto --no-github.release --no-git.tag && npm run publish",
-    "test": "ts-node src/tests/Example.spec.ts",
+    "test": "npm run rebuild && shx cp -r src/tests build/tests && ts-node build/tests/Example.spec.ts",
+    "test:bak": "ts-node src/tests/Example.spec.ts",
     "cli:link": "npm run rebuild && npm link",
     "cli:unlink": "npm r lakutata -g"
   },
