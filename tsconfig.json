@@ -6,9 +6,9 @@
     ],
     "declaration": true,
     "moduleDetection": "auto",
-    "module": "Node16",
+    "module": "CommonJS",
     "rootDir": "src",
-    "moduleResolution": "node16",
+    "moduleResolution": "node",
     "types": [
       "reflect-metadata",
       "node"
