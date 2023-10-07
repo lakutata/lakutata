@@ -1,6 +1,5 @@
 import {defineConfig} from 'tsup'
 
-// @ts-ignore
 export default defineConfig(() => {
     return {
         entry: {
