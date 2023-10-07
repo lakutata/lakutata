@@ -33,6 +33,7 @@ export default defineConfig(() => {
         external: ['tslib', 'ts-node', 'typescript', 'shx', 'release-it'],
         //此处不可使用minify，否则在框架层报错时会将整个框架源码在控制台输出
         minify: false,
-        silent: true
+        // silent: true
+        silent: false
     }
 })
