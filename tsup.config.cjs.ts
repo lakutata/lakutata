@@ -18,7 +18,7 @@ export default defineConfig(() => {
         legacyOutput: false,
         skipNodeModulesBundle: true,
         platform: 'node',
-        sourcemap: false,
+        sourcemap: true,//todo
         clean: true,
         splitting: true,
         dts: {
