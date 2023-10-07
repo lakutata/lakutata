@@ -13,6 +13,7 @@
       "reflect-metadata",
       "node"
     ],
+    "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "resolveJsonModule": true,
     "allowJs": true,
