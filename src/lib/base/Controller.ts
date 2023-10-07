@@ -1,5 +1,5 @@
 import {Component} from './Component'
-import {InjectionProperties} from '../../types/InjectionProperties'
+import {type InjectionProperties} from '../../types/InjectionProperties'
 import {Configurable, InjectApp, Lifetime} from '../../decorators/DependencyInjectionDecorators'
 import {Application} from '../Application'
 import {IConstructor} from '../../interfaces/IConstructor'
@@ -9,11 +9,11 @@ import {IPatRun} from '../../interfaces/IPatRun'
 import {
     NoMatchedControllerActionPatternException
 } from '../../exceptions/controller/NoMatchedControllerActionPatternException'
-import {IUser} from '../../interfaces/IUser'
+import {type IUser} from '../../interfaces/IUser'
 import {AccessControl} from '../components/access-control/AccessControl'
 import {AccessControlConfigureRequiredException} from '../../exceptions/auth/AccessControlConfigureRequiredException'
 import {As} from '../../Helper'
-import {ControllerAuthConfigItem} from '../../types/ControllerAuthConfigItem'
+import {type ControllerAuthConfigItem} from '../../types/ControllerAuthConfigItem'
 
 /**
  * 控制器基类

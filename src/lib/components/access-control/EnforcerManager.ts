@@ -1,6 +1,6 @@
 import {BaseObject} from '../../base/BaseObject'
 import {Configurable, Singleton} from '../../../decorators/DependencyInjectionDecorators'
-import {AuthStoreOptions} from '../../../types/AuthStoreOptions'
+import {type AuthStoreOptions} from '../../../types/AuthStoreOptions'
 import {stat, writeFile, mkdir} from 'fs/promises'
 import {FileAdapter} from 'casbin-file-adapter'
 import {Adapter, Enforcer, newEnforcer} from 'casbin'

@@ -1,6 +1,6 @@
 import {BaseObject} from './BaseObject'
 import {EventEmitter} from 'events'
-import {InjectionProperties} from '../../types/InjectionProperties'
+import {type InjectionProperties} from '../../types/InjectionProperties'
 import {InjectModule, Lifetime} from '../../decorators/DependencyInjectionDecorators'
 import {Logger} from '../components/Logger'
 import {Module} from './Module'

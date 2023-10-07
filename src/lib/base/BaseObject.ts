@@ -13,7 +13,6 @@ import {
     OBJECT_INIT_MARK,
     DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTY,
     DTO_CLASS,
-    DTO_SCHEMAS,
     DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME,
     DI_CONTAINER_INJECT_PROPERTIES,
     DI_CONTAINER_INJECT_IS_MODULE_GETTER,
@@ -33,7 +32,7 @@ import {defaultValidationOptions} from '../../constants/DefaultValue'
 import {InvalidConfigurableValueException} from '../../exceptions/InvalidConfigurableValueException'
 import {InvalidValueException} from '../../exceptions/validation/InvalidValueException'
 import {AsyncConstructor} from './async-constructor/AsyncConstructor'
-import {InjectionProperties} from '../../types/InjectionProperties'
+import {type InjectionProperties} from '../../types/InjectionProperties'
 import {SHA256} from '../../Hash'
 import {DTO} from './DTO'
 

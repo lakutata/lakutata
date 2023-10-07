@@ -1,8 +1,8 @@
-import {ILogger} from '../../interfaces/ILogger'
+import {type ILogger} from '../../interfaces/ILogger'
 import {Component} from '../base/Component'
 import {Configurable, Singleton} from '../../decorators/DependencyInjectionDecorators'
 import {Validator} from '../../exports/Validator'
-import {InjectionProperties} from '../../types/InjectionProperties'
+import {type InjectionProperties} from '../../types/InjectionProperties'
 import {DefaultLoggerProvider} from '../DefaultLoggerProvider'
 
 @Singleton(true)

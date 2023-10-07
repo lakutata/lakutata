@@ -3,4 +3,4 @@ import './ReflectMetadata'
 export * from 'typeorm'
 
 export type IsolationLevel = 'READ UNCOMMITTED' | 'READ COMMITTED' | 'REPEATABLE READ' | 'SERIALIZABLE';
-export {QueryResultCache} from './interfaces/orm/QueryResultCache'
+export type {QueryResultCache} from './interfaces/orm/QueryResultCache'

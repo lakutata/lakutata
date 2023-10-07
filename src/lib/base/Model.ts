@@ -1,5 +1,5 @@
 import {Component} from './Component'
-import {InjectionProperties} from '../../types/InjectionProperties'
+import {type InjectionProperties} from '../../types/InjectionProperties'
 import {Lifetime} from '../../decorators/DependencyInjectionDecorators'
 import {MODEL_PROPERTY_MAP} from '../../constants/MetadataKey'
 import {As, IsEqual} from '../../Helper'

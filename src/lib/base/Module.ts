@@ -4,8 +4,8 @@ import {ModuleOptions} from '../../options/ModuleOptions'
 import {Configurable, Lifetime} from '../../decorators/DependencyInjectionDecorators'
 import {isAsyncFunction} from 'util/types'
 import {As, MergeArray, UniqueArray} from '../../Helper'
-import {AsyncFunction} from '../../types/AsyncFunction'
-import {IConstructor} from '../../interfaces/IConstructor'
+import {type AsyncFunction} from '../../types/AsyncFunction'
+import {type IConstructor} from '../../interfaces/IConstructor'
 import {BaseObject} from './BaseObject'
 import {Accept, Return} from '../../decorators/ValidationDecorators'
 import {Validator} from '../../exports/Validator'
@@ -13,12 +13,12 @@ import {LoadEntryCommonOptions} from '../../options/LoadEntryCommonOptions'
 import {LoadEntryClassOptions} from '../../options/LoadEntryClassOptions'
 import {LoadModuleOptions} from '../../options/LoadModuleOptions'
 import {LoadComponentOptions} from '../../options/LoadComponentOptions'
-import {InjectionProperties} from '../../types/InjectionProperties'
+import {type InjectionProperties} from '../../types/InjectionProperties'
 import {Controller} from './Controller'
 import {
     NoMatchedControllerActionPatternException
 } from '../../exceptions/controller/NoMatchedControllerActionPatternException'
-import {DispatchToControllerConfigurableParams} from '../../types/DispatchToControllerConfigurableParams'
+import {type DispatchToControllerConfigurableParams} from '../../types/DispatchToControllerConfigurableParams'
 
 /**
  * 模块基类

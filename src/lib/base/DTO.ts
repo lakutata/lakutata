@@ -1,6 +1,6 @@
 import {DTO_CLASS, DTO_INDEX_SIGNATURE_SCHEMAS, DTO_SCHEMAS} from '../../constants/MetadataKey'
-import {ObjectSchema, Schema, ValidationOptions, Validator} from '../../exports/Validator'
-import {IConstructor} from '../../interfaces/IConstructor'
+import {type ObjectSchema, type Schema, type ValidationOptions, Validator} from '../../exports/Validator'
+import {type IConstructor} from '../../interfaces/IConstructor'
 import {defaultValidationOptions} from '../../constants/DefaultValue'
 import {InvalidDTOValueException} from '../../exceptions/InvalidDTOValueException'
 import {As, ConfigureObjectProperties, ParentConstructor} from '../../Helper'
