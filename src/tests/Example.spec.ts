@@ -9,7 +9,6 @@ import {TestComponent} from './components/TestComponent'
 import {SubModule} from './modules/subModule/SubModule'
 import {SubProcess} from './processes/SubProcess'
 
-
 (async (): Promise<void> => {
     await Application.run({
         id: 'example.lakutata.app',

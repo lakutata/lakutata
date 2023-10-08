@@ -12,6 +12,80 @@ import pickFreePort from './lib/deps/PickFreePort'
 import {IConstructor, ISortArrayOptions, ISortObjectOptions, BaseObject} from './Lakutata'
 import {access as fileSystemAccess} from 'fs/promises'
 import Templating, {TemplatingOptions} from './lib/deps/Templating'
+import {readIEEE754, writeIEEE754} from './lib/deps/IEEE754'
+
+/**
+ * 十六进制转无符号整型数
+ * @param hex
+ * @constructor
+ */
+export function HexToUnsigned(hex: string): number {
+    if (hex.startsWith('0x') || hex.startsWith('0X')) hex = parseInt(hex, 16).toString(16)
+    const unsignedNumber: bigint = BigInt(`0x${hex}`)
+    return parseInt(unsignedNumber.toString())
+}
+
+/**
+ * 无符号整型转十六进制
+ * @param unsignedNumber
+ * @param bits
+ * @constructor
+ */
+export function UnsignedToHex(unsignedNumber: number, bits: 8 | 16 | 32 | 64 | 128 = 32): string {
+    return BigInt(unsignedNumber).toString(16).toUpperCase().padStart(bits / 4, '0')
+}
+
+/**
+ * 十六进制转有符号整型
+ * @param hex
+ * @constructor
+ */
+export function HexToSigned(hex: string): number {
+    if (hex.startsWith('0x') || hex.startsWith('0X')) hex = parseInt(hex, 16).toString(16)
+    const bits: number = hex.length * 4
+    const signedNumber: bigint = BigInt.asIntN(bits, BigInt(`0x${hex}`))
+    return parseInt(signedNumber.toString())
+}
+
+/**
+ * 有符号整型转十六进制
+ * @param signedNumber
+ * @param bits
+ * @constructor
+ */
+export function SignedToHex(signedNumber: number, bits: 8 | 16 | 32 | 64 | 128 = 32): string {
+    const value: string = (BigInt(2) ** BigInt(bits) + BigInt(signedNumber)).toString(16).toUpperCase()
+    return signedNumber < 0 ? value : value.slice(1)
+}
+
+/**
+ * 十六进制转IEEE754标准小数
+ * @param hex
+ * @constructor
+ */
+export function HexToIEEE754(hex: string): number {
+    const buffer: Buffer = Buffer.from(hex, 'hex')
+    if (buffer.length === 8) {
+        //64bits, Double
+        return readIEEE754(Buffer.from(hex, 'hex'), 0, false, 52, 8)
+    } else {
+        //32bits, Float
+        return readIEEE754(Buffer.from(hex, 'hex'), 0, false, 23, 4)
+    }
+}
+
+/**
+ * IEEE754标准小数转十六进制
+ * @param ieee754Number
+ * @param bits
+ * @constructor
+ */
+export function IEEE754ToHex(ieee754Number: number, bits: 32 | 64 = 32): string {
+    const buffer: Buffer = Buffer.alloc(bits / 8)
+    writeIEEE754(buffer, ieee754Number, 0, false, buffer.length === 4 ? 23 : 52, buffer.length)
+    return buffer.toString('hex').toUpperCase()
+}
+
 
 /**
  * 根据传入的参数替换字符串模板内的内容
