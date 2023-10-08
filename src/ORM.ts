@@ -159,7 +159,6 @@ export {EntitySchemaEmbeddedColumnOptions} from './lib/deps/typeorm/entity-schem
 export {EntitySchemaOptions} from './lib/deps/typeorm/entity-schema/EntitySchemaOptions'
 export {InstanceChecker} from './lib/deps/typeorm/util/InstanceChecker'
 export {TreeRepositoryUtils} from './lib/deps/typeorm/util/TreeRepositoryUtils'
-
 export {type WhereExpressionBuilder} from './lib/deps/typeorm/query-builder/WhereExpressionBuilder'
 export {type MigrationInterface} from './lib/deps/typeorm/migration/MigrationInterface'
 export {type InsertEvent} from './lib/deps/typeorm/subscriber/event/InsertEvent'
