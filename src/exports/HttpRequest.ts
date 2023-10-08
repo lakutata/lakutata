@@ -10,6 +10,7 @@ import {HttpRequestAbortException} from '../exceptions/request/HttpRequestAbortE
 import {HttpRequestException} from '../exceptions/request/HttpRequestException'
 import {Validator} from './Validator'
 import {Readable} from 'stream'
+import {AbortController} from 'node-abort-controller'
 
 /**
  * Http请求方法
@@ -114,7 +115,7 @@ export class HttpRequest {
             }
         }, options ? options : {})
         this.abortController = new AbortController()
-        this.abortController.signal.onabort = (e: Event): void => {
+        this.abortController.signal.onabort = (): void => {
             if (!this._$error && !this._$done) this._$error = new HttpRequestAbortException('Canceled')
         }
         this.method = method

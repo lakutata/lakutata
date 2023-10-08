@@ -1,4 +1,5 @@
 import {AccessControl, Application, Container, Logger} from '../Lakutata'
+import {BaseEntity} from '../ORM'
 import {MathObject} from './objects/MathObject'
 import {UserModel} from './models/UserModel'
 import {FibonacciThreadTask} from './threads/FibonacciThreadTask'
@@ -9,7 +10,9 @@ import {TestComponent} from './components/TestComponent'
 import {SubModule} from './modules/subModule/SubModule'
 import {SubProcess} from './processes/SubProcess'
 
+
 (async (): Promise<void> => {
+    console.log('BaseEntity:',BaseEntity)
     await Application.run({
         id: 'example.lakutata.app',
         name: 'LakutataExampleApplication',
