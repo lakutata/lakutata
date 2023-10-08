@@ -130,7 +130,6 @@ export * from './driver/types/DatabaseType'
 export * from './driver/types/GeoJsonTypes'
 export * from './driver/types/ReplicationMode'
 export * from './driver/sqlserver/MssqlParameter'
-// export * from "./data-source";
 export { ConnectionOptionsReader } from './connection/ConnectionOptionsReader'
 export { DataSource } from './data-source/DataSource'
 export { Connection } from './connection/Connection'
