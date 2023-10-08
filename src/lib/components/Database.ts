@@ -20,6 +20,7 @@ import {
     EntityMetadata,
     Migration
 } from '../../ORM'
+import {As} from '../../Helper'
 
 @Singleton()
 export class Database extends Component {
@@ -92,7 +93,7 @@ export class Database extends Component {
      * 用于操作查询结果缓存
      */
     public get queryResultCache(): QueryResultCache | undefined {
-        return this.datasource.queryResultCache
+        return As<QueryResultCache | undefined>(this.datasource.queryResultCache)
     }
 
     /**

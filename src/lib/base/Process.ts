@@ -15,7 +15,7 @@ import {format as URLFormat, parse as URLParse, UrlObject, UrlWithParsedQuery} f
 import {type ParsedUrlQuery} from 'querystring'
 import {AppendAsyncConstructor} from './async-constructor/Append'
 import {BaseObject} from './BaseObject'
-import {EventEmitter} from 'events'
+import {EventEmitter} from 'eventemitter3'
 import {ChildProcessUnavailableException} from '../../exceptions/ChildProcessUnavailableException'
 
 @Scoped(true)
@@ -167,7 +167,7 @@ export class Process extends Component {
         const loggerEvent: string = `__$$${RandomString(16)}_`
         await new Promise((resolve, reject) => {
             this.once('ready', resolve)
-            const worker: ChildProcess = fork(path.resolve('@lakutata','./ProcessContainer'), [
+            const worker: ChildProcess = fork(path.resolve('@lakutata', './ProcessContainer'), [
                 moduleId,
                 this.className,
                 v8.serialize(configs).toString('base64'),

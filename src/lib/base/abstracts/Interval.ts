@@ -21,7 +21,7 @@ export abstract class Interval extends BaseObject {
      * 周期调用器
      * @protected
      */
-    protected _$interval: NodeJS.Timer | null
+    protected _$interval: any | null
 
     /**
      * 执行器运行指示器

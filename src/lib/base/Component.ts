@@ -1,9 +1,9 @@
 import {BaseObject} from './BaseObject'
-import {EventEmitter} from 'events'
 import {type InjectionProperties} from '../../types/InjectionProperties'
 import {InjectModule, Lifetime} from '../../decorators/DependencyInjectionDecorators'
 import {Logger} from '../components/Logger'
 import {Module} from './Module'
+import {EventEmitter} from 'eventemitter3'
 
 /**
  * 组件基类
@@ -86,27 +86,20 @@ export class Component extends BaseObject implements EventEmitter {
     }
 
     /**
-     * 返回当前最大监听器值
-     */
-    public getMaxListeners(): number {
-        return this.getInternalProperty<EventEmitter>('eventEmitter').getMaxListeners()
-    }
-
-    /**
      * 返回监听事件eventName的监听器数量
      * 如果提供了监听器参数，它将返回监听器在事件的监听器列表中出现的次数
      * @param eventName
      * @param listener
      */
-    public listenerCount(eventName: string | symbol, listener?: Function): number {
-        return this.getInternalProperty<EventEmitter>('eventEmitter').listenerCount(eventName, listener)
+    public listenerCount(eventName: string | symbol): number {
+        return this.getInternalProperty<EventEmitter>('eventEmitter').listenerCount(eventName)
     }
 
     /**
      * 返回事件eventName的监听器数组的副本
      * @param eventName
      */
-    public listeners(eventName: string | symbol): Function[] {
+    public listeners<T extends EventEmitter.EventNames<string | symbol>>(eventName: string | symbol): Array<EventEmitter.EventListener<string | symbol, T>> {
         return this.getInternalProperty<EventEmitter>('eventEmitter').listeners(eventName)
     }
 
@@ -143,36 +136,6 @@ export class Component extends BaseObject implements EventEmitter {
     }
 
     /**
-     * 将监听器函数添加到事件eventName的监听器数组的开头
-     * 不会检查监听器是否已经被添加，多次调用传递相同的eventName和listener组合将导致监听器被多次添加和调用
-     * @param eventName
-     * @param listener
-     */
-    public prependListener(eventName: string | symbol, listener: (...args: any[]) => void): this {
-        this.getInternalProperty<EventEmitter>('eventEmitter').prependListener(eventName, listener)
-        return this
-    }
-
-    /**
-     * 将一个一次性的监听器函数添加到事件eventName的监听器数组的开头
-     * 下次触发eventName时，此监听器将被移除，然后被调用
-     * @param eventName
-     * @param listener
-     */
-    public prependOnceListener(eventName: string | symbol, listener: (...args: any[]) => void): this {
-        this.getInternalProperty<EventEmitter>('eventEmitter').prependOnceListener(eventName, listener)
-        return this
-    }
-
-    /**
-     * 返回事件eventName的监听器数组的副本，包括任何包装器（例如通过.once()创建的包装器）
-     * @param eventName
-     */
-    public rawListeners(eventName: string | symbol): Function[] {
-        return this.getInternalProperty<EventEmitter>('eventEmitter').rawListeners(eventName)
-    }
-
-    /**
      * 移除所有监听器，或者移除指定事件eventName的监听器
      * @param event
      */
@@ -188,16 +151,6 @@ export class Component extends BaseObject implements EventEmitter {
      */
     public removeListener(eventName: string | symbol, listener: (...args: any[]) => void): this {
         this.getInternalProperty<EventEmitter>('eventEmitter').removeListener(eventName, listener)
-        return this
-    }
-
-    /**
-     * 默认情况下，如果为特定事件添加的监听器超过10个则将打印警告。这是一个有用的默认设置，有助于发现内存泄漏
-     * setMaxListeners()方法允许为特定的EventEmitter实例修改限制，该值可以设置为Infinity（或0）以表示无限数量的监听器
-     * @param n
-     */
-    public setMaxListeners(n: number): this {
-        this.getInternalProperty<EventEmitter>('eventEmitter').setMaxListeners(n)
         return this
     }
 }
