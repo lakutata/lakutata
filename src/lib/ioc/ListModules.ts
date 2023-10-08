@@ -10,7 +10,7 @@ import {LifetimeType} from './Lifetime'
  */
 export interface ListModulesOptions {
     cwd?: string
-    glob?: typeof glob.sync
+    glob?: any
 }
 
 /**
