@@ -37,7 +37,7 @@ export declare class Repository<Entity extends ObjectLiteral> {
     /**
      * Entity metadata of the entity current repository manages.
      */
-    get metadata(): import('..').EntityMetadata;
+    get metadata(): import('../metadata/EntityMetadata').EntityMetadata;
     constructor(target: EntityTarget<Entity>, manager: EntityManager, queryRunner?: QueryRunner);
     /**
      * Creates a new query builder that can be used to build a SQL query.

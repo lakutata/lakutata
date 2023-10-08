@@ -1,5 +1,9 @@
-import { DataSource, Driver, EntityMetadata, SelectQueryBuilder, TableIndex } from '../..'
 import { ViewOptions } from '../options/ViewOptions'
+import {DataSource} from '../../data-source/DataSource'
+import {SelectQueryBuilder} from '../../query-builder/SelectQueryBuilder'
+import {TableIndex} from '../table/TableIndex'
+import {EntityMetadata} from '../../metadata/EntityMetadata'
+import {Driver} from '../../driver/Driver'
 /**
  * View in the database represented in this class.
  */
