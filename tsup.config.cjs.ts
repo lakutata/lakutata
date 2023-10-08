@@ -14,8 +14,6 @@ export default defineConfig(() => {
             'ThreadContainer': 'src/ThreadContainer.js',
             'worker': 'node_modules/piscina/dist/src/worker.js'
         },
-        // cjsInterop: true,
-        // target: 'es2020',
         bundle: true,
         legacyOutput: false,
         skipNodeModulesBundle: true,
