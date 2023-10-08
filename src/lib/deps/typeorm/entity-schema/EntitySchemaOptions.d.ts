@@ -1,4 +1,3 @@
-import { DataSource, EntitySchemaEmbeddedColumnOptions, SelectQueryBuilder } from '..'
 import { EntitySchemaIndexOptions } from './EntitySchemaIndexOptions'
 import { EntitySchemaColumnOptions } from './EntitySchemaColumnOptions'
 import { EntitySchemaRelationOptions } from './EntitySchemaRelationOptions'
@@ -9,6 +8,9 @@ import { EntitySchemaCheckOptions } from './EntitySchemaCheckOptions'
 import { EntitySchemaExclusionOptions } from './EntitySchemaExclusionOptions'
 import { EntitySchemaInheritanceOptions } from './EntitySchemaInheritanceOptions'
 import { EntitySchemaRelationIdOptions } from './EntitySchemaRelationIdOptions'
+import {SelectQueryBuilder} from '../query-builder/SelectQueryBuilder'
+import {DataSource} from '../data-source/DataSource'
+import {EntitySchemaEmbeddedColumnOptions} from './EntitySchemaEmbeddedColumnOptions'
 /**
  * Interface for entity metadata mappings stored inside "schemas" instead of models decorated by decorators.
  */

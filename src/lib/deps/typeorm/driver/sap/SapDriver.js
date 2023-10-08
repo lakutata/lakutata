@@ -1,4 +1,4 @@
-import { TypeORMError } from '../..'
+import { TypeORMError } from '../../error'
 import { DriverPackageNotInstalledError } from '../../error/DriverPackageNotInstalledError'
 import { PlatformTools } from '../../platform/PlatformTools'
 import { RdbmsSchemaBuilder } from '../../schema-builder/RdbmsSchemaBuilder'

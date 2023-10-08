@@ -1,4 +1,3 @@
-import { QueryRunner, SelectQueryBuilder } from '..'
 import { ObjectLiteral } from '../common/ObjectLiteral'
 import { DataSource } from '../data-source/DataSource'
 import { OrderByCondition } from '../find-options/OrderByCondition'
@@ -18,6 +17,8 @@ import { TableType } from './types/TableTypes'
 import { TreeType } from './types/TreeTypes'
 import { UniqueMetadata } from './UniqueMetadata'
 import { ClosureTreeOptions } from './types/ClosureTreeOptions'
+import {SelectQueryBuilder} from '../query-builder/SelectQueryBuilder'
+import {QueryRunner} from '../query-runner/QueryRunner'
 /**
  * Contains all entity metadata.
  */
