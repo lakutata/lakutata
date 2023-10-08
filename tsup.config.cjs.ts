@@ -14,7 +14,7 @@ export default defineConfig(() => {
             'ThreadContainer': 'src/ThreadContainer.js',
             'worker': 'node_modules/piscina/dist/src/worker.js'
         },
-        cjsInterop: true,
+        // cjsInterop: true,
         target: 'es2020',
         bundle: true,
         legacyOutput: false,
@@ -34,7 +34,6 @@ export default defineConfig(() => {
         external: ['tslib', 'ts-node', 'typescript', 'shx', 'release-it'],
         //此处不可使用minify，否则在框架层报错时会将整个框架源码在控制台输出
         minify: false,
-        // silent: true
-        silent: false
+        silent: true
     }
 })
