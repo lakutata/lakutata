@@ -3,16 +3,13 @@ import typescript from '@rollup/plugin-typescript'
 import commonjs from '@rollup/plugin-commonjs'
 import swc from '@rollup/plugin-swc'
 import path from 'node:path'
-import {fileURLToPath} from 'node:url'
-import {createHash} from 'crypto'
 
-const normalizeString = (str) => Buffer.from(str).filter((value, index) => index ? true : value !== 0).toString()
+const normalizeString = (str) => Buffer.from(str).filter((v, i) => i ? true : v !== 0).toString()
 const currentWorkingDir = normalizeString(process.cwd())
 const thirdPartyPackageRootDirname = 'modules'
 
 export default {
     input: ['src/Lakutata.ts'],
-    // input: ['src/Lakutata.ts', 'src/tests/App.spec.ts'],
     output: {
         format: 'esm',
         dir: 'build',
@@ -32,13 +29,19 @@ export default {
                 relativeId = path.join(thirdPartyPackageRootDirname, basename)
             }
             return relativeId
-        }
+        },
+        entryFileNames: (chunkInfo) => {
+            const facadeModuleId = normalizeString(chunkInfo.facadeModuleId)
+            const relativeDir = path.relative(currentWorkingDir, path.dirname(facadeModuleId))
+            return path.join(relativeDir, `${chunkInfo.name}.js`)
+        },
+        chunkFileNames: '[name].js'
     },
     plugins: [
         resolve(),
         commonjs({ignoreDynamicRequires: false}),
         typescript({
-            outDir: 'build',
+            outDir: 'build/src',
             declaration: true,
             emitDecoratorMetadata: true,
             declarationMap: true

@@ -6,7 +6,7 @@
   "main": "build/src/tests/App.spec.js",
   "scripts": {
     "clean": "shx rm -rf ./build",
-    "build": "tsc",
+    "build": "rollup -c",
     "rebuild": "npm run clean && npm run build",
     "prepare": "npm run compile",
     "compile": "npm run rebuild",
