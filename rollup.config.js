@@ -35,7 +35,19 @@ export default {
             const relativeDir = path.relative(currentWorkingDir, path.dirname(facadeModuleId))
             return path.join(relativeDir, `${chunkInfo.name}.js`)
         },
-        chunkFileNames: '[name].js'
+        chunkFileNames: (chunkInfo) => {
+            const dirname = path.dirname(chunkInfo.name)
+            const extname = path.extname(chunkInfo.name)
+            const filename = path.basename(chunkInfo.name)
+            switch (extname) {
+                case '.ts':
+                    return path.join(dirname, `${path.basename(chunkInfo.name, extname)}.js`)
+                case '.js':
+                    return chunkInfo.name
+                default:
+                    return `${chunkInfo.name}.js`
+            }
+        }
     },
     plugins: [
         resolve(),
