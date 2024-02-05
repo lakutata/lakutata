@@ -6,9 +6,9 @@
     ],
     "declaration": true,
     "moduleDetection": "auto",
-    "module": "CommonJS",
+    "module": "Node16",
     "rootDir": "src",
-    "moduleResolution": "node",
+    "moduleResolution": "Node16",
     "types": [
       "reflect-metadata",
       "node"
@@ -17,7 +17,8 @@
     "experimentalDecorators": true,
     "resolveJsonModule": true,
     "allowJs": true,
-    "outDir": "build",
+    //编译时rollup使用的是配置文件中Typescript插件的输出目录覆盖此处
+    "outDir": "build/src",
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
@@ -26,7 +27,9 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "skipLibCheck": true,
-    "allowArbitraryExtensions": true
+    "allowArbitraryExtensions": true,
+    "isolatedModules": true,
+    "declarationMap": true
   },
   "exclude": [
     "node_modules",

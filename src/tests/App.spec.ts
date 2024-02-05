@@ -1,4 +1,4 @@
-import {__dirname, __filename} from './node.js'
+import {__dirname, __filename} from '../node.js'
 import {createRequire} from 'node:module'
 import * as path from 'path'
 import {MD5} from 'crypto-js'
