@@ -1,4 +1,4 @@
-import {__dirname, __filename} from './node.js'
+import {__dirname, __filename} from './lib/node.js'
 import {createRequire} from 'node:module'
 import * as path from 'path'
 import {MD5} from 'crypto-js'
@@ -8,6 +8,7 @@ import {MD5} from 'crypto-js'
     console.log(1)
     await new Promise<void>(resolve => setTimeout(() => resolve(), 1000))
     console.log(__filename(import.meta))
+    console.log(__dirname(import.meta))
     await new Promise<void>(resolve => setTimeout(() => resolve(), 1000))
     console.log(createRequire(__filename(import.meta)))
     if (true) {

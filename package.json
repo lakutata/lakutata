@@ -24,6 +24,7 @@
     "@typescript-eslint/parser": "^6.20.0",
     "crypto-js": "^4.2.0",
     "eslint": "^8.56.0",
+    "glob": "^10.3.10",
     "reflect-metadata": "^0.2.1",
     "rollup": "^4.9.6",
     "shx": "^0.3.4",

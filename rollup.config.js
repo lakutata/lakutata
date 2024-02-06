@@ -3,18 +3,19 @@ import typescript from '@rollup/plugin-typescript'
 import commonjs from '@rollup/plugin-commonjs'
 import swc from '@rollup/plugin-swc'
 import path from 'node:path'
+import {sync as globFiles} from 'glob'
 
 const normalizeString = (str) => Buffer.from(str).filter((v, i) => i ? true : v !== 0).toString()
 const currentWorkingDir = normalizeString(process.cwd())
 const thirdPartyPackageRootDirname = 'modules'
 
 export default {
-    input: ['src/Lakutata.ts'],
+    input: globFiles('src/**/*.ts'),
     output: {
         format: 'esm',
         dir: 'build',
-        // preserveModules: true,
-        sourcemap: true,
+        exports: 'named',
+        compact: false,//减小文件体积
         manualChunks: (id) => {
             const basename = path.basename(id)
             const dirname = normalizeString(path.dirname(id))
@@ -49,11 +50,14 @@ export default {
             }
         }
     },
+    treeshake: false,
     plugins: [
         resolve(),
-        commonjs({ignoreDynamicRequires: false}),
+        commonjs(),
         typescript({
             outDir: 'build/src',
+            esModuleInterop: true,
+            isolatedModules: true,
             declaration: true,
             emitDecoratorMetadata: true,
             declarationMap: true
