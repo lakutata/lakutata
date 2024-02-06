@@ -13,7 +13,7 @@ export default {
     input: globFiles('src/**/*.ts'),
     output: {
         format: 'esm',
-        dir: 'build',
+        dir: 'distro',
         exports: 'named',
         compact: false,//减小文件体积
         manualChunks: (id) => {
@@ -55,7 +55,7 @@ export default {
         resolve(),
         commonjs(),
         typescript({
-            outDir: 'build/src',
+            outDir: 'distro/src',
             esModuleInterop: true,
             isolatedModules: true,
             declaration: true,

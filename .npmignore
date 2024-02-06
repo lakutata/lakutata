@@ -1,7 +1,11 @@
-!build
-!build/**/*
-build/tests
-build/tests/**/*
+!distro
+!distro/**/*
+#distro/tests
+#distro/tests/**/*
+
+build
+build/**/*
+
 assets
 assets/**/*
 src

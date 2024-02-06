@@ -15,5 +15,7 @@ import {MD5} from 'crypto-js'
         // const {Test} = await import(path.resolve(__dirname(import.meta), '../Test.js'))
         // Test()
         console.log(MD5('hahaha').toString())
+        const xx = createRequire(__filename(import.meta))('../../../build/Release/lakutata.node')
+        console.log(xx.hello1())
     }
 })()

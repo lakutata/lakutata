@@ -13,12 +13,14 @@
       "reflect-metadata",
       "node"
     ],
+    //发出符合ECMAScript标准的类字段。当此配置项设置为true的时候，会将class中定义的的字段生成到js文件中，从而导致修饰器赋值失效
+    "useDefineForClassFields": false,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "resolveJsonModule": true,
     "allowJs": true,
     //编译时rollup使用的是配置文件中Typescript插件的输出目录覆盖此处
-    "outDir": "build/src",
+    "outDir": "distro/src",
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
