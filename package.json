@@ -30,6 +30,7 @@
     "node-addon-api": "^7.1.0",
     "reflect-metadata": "^0.2.1",
     "rollup": "^4.9.6",
+    "rollup-plugin-copy": "^3.5.0",
     "shx": "^0.3.4",
     "tslib": "^2.6.2",
     "typescript": "^5.3.3"
