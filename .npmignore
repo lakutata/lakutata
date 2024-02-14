@@ -1,5 +1,7 @@
 !distro
 !distro/**/*
+distro/build
+distro/build/**/*
 #distro/tests
 #distro/tests/**/*
 
