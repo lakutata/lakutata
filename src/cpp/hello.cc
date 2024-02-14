@@ -8,7 +8,7 @@ Napi::String Method(const Napi::CallbackInfo &info)
 
 Napi::Object Init(Napi::Env env, Napi::Object exports)
 {
-printf("this is a test\n");
+printf("this is a test from hello.cc file\n");
   exports.Set(Napi::String::New(env, "hello"),
               Napi::Function::New(env, Method)); // 设置函数名和函数指针
   return exports;
