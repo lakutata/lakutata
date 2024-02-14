@@ -1,5 +1,9 @@
 import {AsyncConstructor} from './async-constructor/AsyncConstructor.js'
 
 export class BaseObject extends AsyncConstructor {
-    //todo
+    constructor() {
+        super(async (): Promise<void> => {
+            //todo
+        })
+    }
 }

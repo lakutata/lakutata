@@ -2,8 +2,10 @@ import {__dirname, __filename} from '../lib/NodeCJS.js'
 import {createRequire} from 'node:module'
 import * as path from 'path'
 import {MD5} from 'crypto-js'
+import {BaseObject} from '../lib/base/BaseObject.js'
 
 (async () => {
+    console.log(new BaseObject())
     await new Promise<void>(resolve => setTimeout(() => resolve(), 1000))
     console.log(1)
     await new Promise<void>(resolve => setTimeout(() => resolve(), 1000))
