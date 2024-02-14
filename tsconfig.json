@@ -35,6 +35,8 @@
   },
   "exclude": [
     "node_modules",
-    "build"
+    "build",
+    "distro",
+    "rollup.config.js"
   ]
 }

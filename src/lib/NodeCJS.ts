@@ -1,5 +1,5 @@
-import {fileURLToPath} from 'node:url'
-import {dirname} from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { dirname } from 'node:path'
 
 /**
  * This is an ESM replacement for `__filename`.
