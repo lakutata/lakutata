@@ -295,3 +295,4 @@ package-lock.json
 .env
 .package.json.bak
 src/tests/**/*.csv
+/.vscode/
