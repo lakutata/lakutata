@@ -489,6 +489,8 @@ function generateResolve(fn: Function, dependencyParseTarget?: Function) {
             const cradle = this.injector
                 ? createInjectorProxy(container, this.injector)
                 : container.cradle
+            //Define inject properties metadata
+            //todo Reflect.defineMetadata(DI_CONTAINER_INJECT_PROPERTIES, true, cradle)
 
             // Return the target injected with the cradle
             return fn(cradle)

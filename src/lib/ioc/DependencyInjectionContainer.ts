@@ -613,6 +613,7 @@ function createContainerInternal<
             resolutionStack.pop()
             /**
              * 用于加载配置对象至注入项目内
+             * todo
              */
             // if ((typeof resolved === 'object' || typeof resolved === 'function') && !Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME, resolved))
             //     Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME, name, resolved)
