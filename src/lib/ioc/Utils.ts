@@ -104,12 +104,8 @@ export function isFunction(val: unknown): boolean {
 
 /**
  * Returns the unique items in the array.
- *
- * @param {Array<T>}
  * The array to remove dupes from.
- *
- * @return {Array<T>}
- * The deduped array.
+ * @param arr
  */
 export function uniq<T>(arr: Array<T>): Array<T> {
     return Array.from(new Set(arr))
