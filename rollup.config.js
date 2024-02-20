@@ -19,6 +19,9 @@ export default {
         dir: outputDirname,
         exports: 'named',
         compact: false,//减小文件体积
+        preserveEntrySignatures: 'allow-extension',
+        esModule: true,
+        // validate: true,
         manualChunks: (id) => {
             const basename = path.basename(id)
             const dirname = normalizeString(path.dirname(id))
@@ -43,27 +46,35 @@ export default {
             const dirname = path.dirname(chunkInfo.name)
             const extname = path.extname(chunkInfo.name)
             const filename = path.basename(chunkInfo.name)
+            // console.log(filename, extname)
             switch (extname) {
                 case '.ts':
                     return path.join(dirname, `${path.basename(chunkInfo.name, extname)}.js`)
                 case '.js':
                     return chunkInfo.name
+                case '.js_commonjs-proxy':
+                    return path.join(dirname, `${path.basename(chunkInfo.name, extname)}.proxy.js`)
+                case '.js_commonjs-exports':
+                    return path.join(dirname, `${path.basename(chunkInfo.name, extname)}.exports.js`)
+                case '.js_commonjs-module':
+                    return path.join(dirname, `${path.basename(chunkInfo.name, extname)}.module.js`)
                 default:
-                    return `${chunkInfo.name}.js`
+                    return !extname ? `${chunkInfo.name}.js` : path.join(dirname, `${path.basename(chunkInfo.name, extname)}.def.js`)
             }
         }
     },
     treeshake: false,
     plugins: [
         resolve(),
-        commonjs(),
+        commonjs({include: /node_modules/}),
         typescript({
             outDir: jsrcOutputDirname,
             esModuleInterop: true,
             isolatedModules: true,
             declaration: true,
             emitDecoratorMetadata: true,
-            declarationMap: true
+            declarationMap: true,
+            allowSyntheticDefaultImports: true
         }),
         swc(),
         copy({
