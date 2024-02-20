@@ -43,28 +43,6 @@ export default {
             const relativeDir = path.relative(currentWorkingDir, path.dirname(facadeModuleId))
             return path.join(relativeDir, `${chunkInfo.name}.js`)
         }
-        // chunkFileNames: (chunkInfo,b,c) => {
-        //     console.log(chunkInfo,b,c)
-        //     const dirname = path.dirname(chunkInfo.name)
-        //     const extname = path.extname(chunkInfo.name)
-        //     const filename = path.basename(chunkInfo.name)
-        //     return path.join('src/vendor',dirname, `${filename}.js`)
-        //     // console.log(filename, extname)
-        //     // switch (extname) {
-        //     //     case '.ts':
-        //     //         return path.join(dirname, `${path.basename(chunkInfo.name, extname)}.js`)
-        //     //     case '.js':
-        //     //         return chunkInfo.name
-        //     //     case '.js_commonjs-proxy':
-        //     //         return path.join(dirname, `${path.basename(chunkInfo.name, extname)}.proxy.js`)
-        //     //     case '.js_commonjs-exports':
-        //     //         return path.join(dirname, `${path.basename(chunkInfo.name, extname)}.exports.js`)
-        //     //     case '.js_commonjs-module':
-        //     //         return path.join(dirname, `${path.basename(chunkInfo.name, extname)}.module.js`)
-        //     //     default:
-        //     //         return !extname ? `${chunkInfo.name}.js` : path.join(dirname, `${path.basename(chunkInfo.name, extname)}.def.js`)
-        //     // }
-        // }
     },
     treeshake: false,
     plugins: [
