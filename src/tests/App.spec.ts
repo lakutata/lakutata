@@ -13,6 +13,6 @@ import {asFunction} from '../lib/ioc/Resolvers.js'
             return 'oh my god!'
         })
     })
-
-    ctn.cradle.testFn()
+    const testFn=ctn.resolve<Function>('testFn')
+    console.log(testFn)
 })()
