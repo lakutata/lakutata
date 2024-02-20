@@ -4,6 +4,7 @@ import commonjs from '@rollup/plugin-commonjs'
 import swc from '@rollup/plugin-swc'
 import esmShim from '@rollup/plugin-esm-shim'
 import copy from 'rollup-plugin-copy'
+import progress from 'rollup-plugin-progress'
 import path from 'node:path'
 import {sync as globFiles} from 'glob'
 
@@ -68,6 +69,7 @@ export default {
                 {src: 'src/cpp/**/*', dest: path.join(jsrcOutputDirname, 'cpp')},
                 {src: 'binding.gyp', dest: outputDirname}
             ]
-        })
+        }),
+        progress({clearLine: true})
     ]
 }
