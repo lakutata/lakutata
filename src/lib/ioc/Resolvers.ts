@@ -8,6 +8,7 @@ import {InjectionMode, InjectionModeType} from './InjectionMode.js'
 import {Lifetime, LifetimeType} from './Lifetime.js'
 import {Parameter, parseParameterList} from './ParamParser.js'
 import {isFunction, uniq} from './Utils.js'
+import {DI_CONTAINER_INJECT_PROPERTIES} from '../../constants/MetadataKey.js'
 
 // We parse the signature of any `Function`, so we want to allow `Function` types.
 /* eslint-disable @typescript-eslint/ban-types */
@@ -490,8 +491,7 @@ function generateResolve(fn: Function, dependencyParseTarget?: Function) {
                 ? createInjectorProxy(container, this.injector)
                 : container.cradle
             //Define inject properties metadata
-            //todo Reflect.defineMetadata(DI_CONTAINER_INJECT_PROPERTIES, true, cradle)
-
+            Reflect.defineMetadata(DI_CONTAINER_INJECT_PROPERTIES, true, cradle)
             // Return the target injected with the cradle
             return fn(cradle)
         }

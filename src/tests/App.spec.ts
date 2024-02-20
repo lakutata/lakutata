@@ -3,21 +3,16 @@ import {createRequire} from 'node:module'
 import * as path from 'path'
 import {MD5} from 'crypto-js'
 import {BaseObject} from '../lib/base/BaseObject.js'
+import {createContainer} from '../lib/ioc/DependencyInjectionContainer.js'
+import {asFunction} from '../lib/ioc/Resolvers.js'
 
 (async () => {
-    console.log(new BaseObject())
-    await new Promise<void>(resolve => setTimeout(() => resolve(), 1000))
-    console.log(1)
-    await new Promise<void>(resolve => setTimeout(() => resolve(), 1000))
-    console.log(__filename(import.meta))
-    console.log(__dirname(import.meta))
-    await new Promise<void>(resolve => setTimeout(() => resolve(), 1000))
-    console.log(createRequire(__filename(import.meta)))
-    if (true) {
-        // const {Test} = await import(path.resolve(__dirname(import.meta), '../Test.js'))
-        // Test()
-        console.log(MD5('hahaha').toString())
-        const xx = createRequire(__filename(import.meta))('../../build/Release/lakutata.node')
-        console.log(xx.hello())
-    }
+    const ctn = createContainer({injectionMode: 'CLASSIC', strict: true})
+    ctn.register({
+        testFn: asFunction(function () {
+            return 'oh my god!'
+        })
+    })
+
+    ctn.cradle.testFn()
 })()

@@ -81,30 +81,9 @@ export function loadModules<ESM extends boolean = false>(
  * Given an array of glob strings, will call `require`
  * on them, and call their default exported function with the
  * container as the first parameter.
- *
- * @param  {IDependencyInjectionContainer} dependencies.container
- * The container to install loaded modules in.
- *
- * @param  {Function} dependencies.listModules
- * The listModules function to use for listing modules.
- *
- * @param  {Function} dependencies.require
- * The require function - it's a dependency because it makes testing easier.
- *
- * @param  {String[]} globPatterns
- * The array of globs to use when loading modules.
- *
- * @param  {Object} opts
- * Passed to `listModules`, e.g. `{ cwd: '...' }`.
- *
- * @param  {(string, ModuleDescriptor) => string} opts.formatName
- * Used to format the name the module is registered with in the container.
- *
- * @param  {boolean} opts.esModules
- * Set to `true` to use Node's native ECMAScriptModules modules
- *
- * @return {Object}
- * Returns an object describing the result.
+ * @param dependencies
+ * @param globPatterns
+ * @param opts
  */
 export function loadModules<ESM extends boolean>(
     dependencies: LoadModulesDeps,
@@ -130,9 +109,9 @@ export function loadModules<ESM extends boolean>(
 /**
  * Loads the modules using native ES6 modules and the async import()
  * @param dependencies
- * @param {IDependencyInjectionContainer} container
- * @param {ModuleDescriptor[]} modules
- * @param {LoadModulesOptions} opts
+ * @param container
+ * @param modules
+ * @param opts
  */
 async function loadEsModules<ESM extends boolean>(
     dependencies: LoadModulesDeps,
@@ -140,14 +119,14 @@ async function loadEsModules<ESM extends boolean>(
     modules: ModuleDescriptor[],
     opts: LoadModulesOptions<ESM>
 ): Promise<LoadModulesResult> {
-    const importPromises = []
+    const importPromises: Promise<any>[] = []
     for (const m of modules) {
-        const fileUrl = pathToFileURL(m.path).toString()
+        const fileUrl: string = pathToFileURL(m.path).toString()
         importPromises.push(As(dependencies.require(fileUrl)))
     }
-    const imports = await Promise.all(importPromises)
-    const result = []
-    for (let i = 0; i < modules.length; i++) {
+    const imports: any[] = await Promise.all(importPromises)
+    const result: any[] = []
+    for (let i: number = 0; i < modules.length; i++) {
         result.push(As(parseLoadedModule(imports[i], modules[i])))
     }
     return registerModules(result, container, modules, opts)
@@ -214,11 +193,10 @@ function parseLoadedModule(
 
 /**
  * Registers the modules
- *
- * @param {ModuleDescriptorVal[][]} modulesToRegister
- * @param {IDependencyInjectionContainer} container
- * @param {ModuleDescriptor[]} modules
- * @param {LoadModulesOptions} opts
+ * @param modulesToRegister
+ * @param container
+ * @param modules
+ * @param opts
  */
 function registerModules<ESM extends boolean>(
     modulesToRegister: LoadedModuleDescriptor[][],
@@ -237,6 +215,7 @@ function registerModules<ESM extends boolean>(
 
 /**
  * Returns a new options object with defaults applied.
+ * @param opts
  */
 function optsWithDefaults<ESM extends boolean = false>(
     opts: Partial<LoadModulesOptions<ESM>> | undefined
@@ -253,16 +232,15 @@ function optsWithDefaults<ESM extends boolean = false>(
 
 /**
  * Given a module descriptor, reads it and registers it's value with the container.
- *
- * @param {IDependencyInjectionContainer} container
- * @param {LoadModulesOptions} opts
- * @param {ModuleDescriptor} moduleDescriptor
+ * @param container
+ * @param opts
+ * @param moduleDescriptor
  */
 function registerDescriptor<ESM extends boolean = false>(
     container: IDependencyInjectionContainer,
     opts: LoadModulesOptions<ESM>,
     moduleDescriptor: LoadedModuleDescriptor & { value: any }
-) {
+): void {
     const inlineConfig = moduleDescriptor.value[RESOLVER]
     let name = inlineConfig && inlineConfig.name
     if (!name) {

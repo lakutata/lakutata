@@ -23,6 +23,7 @@ import {
 } from './Resolvers.js'
 import {isClass, last, nameValueToObject} from './Utils.js'
 import {As} from '../base/func/As.js'
+import {DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME} from '../../constants/MetadataKey.js'
 
 /**
  * The container returned from createContainer has some methods and properties.
@@ -59,7 +60,7 @@ export interface IDependencyInjectionContainer<Cradle extends object = any> {
 
     /**
      * Binds `lib/loadModules` to this container, and provides
-     * real implementations of it's dependencies.
+     * real implementations of its dependencies.
      *
      * Additionally, any modules using the `dependsOn` API
      * will be resolved.
@@ -478,15 +479,8 @@ function createContainerInternal<
 
     /**
      * Resolves the registration with the given name.
-     *
-     * @param {string | symbol} name
-     * The name of the registration to resolve.
-     *
-     * @param {ResolveOptions} resolveOpts
-     * The resolve options.
-     *
-     * @return {any}
-     * Whatever was resolved.
+     * @param name
+     * @param resolveOpts
      */
     function resolve(name: string | symbol, resolveOpts?: ResolveOptions): any {
         resolveOpts = resolveOpts || {}
@@ -565,7 +559,7 @@ function createContainerInternal<
 
             // Do the thing
             let cached: CacheEntry | undefined
-            let resolved
+            let resolved: any
             switch (lifetime) {
                 case Lifetime.TRANSIENT:
                     // Transient lifetime means resolve every time.
@@ -613,12 +607,14 @@ function createContainerInternal<
             resolutionStack.pop()
             /**
              * 用于加载配置对象至注入项目内
-             * todo
              */
-            // if ((typeof resolved === 'object' || typeof resolved === 'function') && !Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME, resolved))
-            //     Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME, name, resolved)
+            if ((typeof resolved === 'object' || typeof resolved === 'function') && !Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME, resolved))
+                Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME, name, resolved)
             //判断是否为瞬态模式的注册项目调用，若为瞬态模式的注册项目调用，则应找个地方记录下来，以便在容器销毁时对残留的瞬态对象实例销毁
-            // if (resolved.constructor.__LIFETIME === Lifetime.TRANSIENT) this['newTransient'] = new WeakRef(resolved)
+            if (resolved.constructor.__LIFETIME === Lifetime.TRANSIENT) {
+                // @ts-ignore
+                this['newTransient'] = new WeakRef(resolved)
+            }
             return resolved
         } catch (err) {
             // When we get an error we need to reset the stack. Mutate the existing array rather than
@@ -630,12 +626,7 @@ function createContainerInternal<
 
     /**
      * Checks if the registration with the given name exists.
-     *
-     * @param {string | symbol} name
-     * The name of the registration to resolve.
-     *
-     * @return {boolean}
-     * Whether or not the registration exists.
+     * @param name
      */
     function hasRegistration(name: string | symbol): boolean {
         return !!getRegistration(name)
@@ -645,9 +636,8 @@ function createContainerInternal<
      * Given a registration, class or function, builds it up and returns it.
      * Does not cache it, this means that any lifetime configured in case of passing
      * a registration will not be used.
-     *
-     * @param {Resolver|Constructor|Function} targetOrResolver
-     * @param {ResolverOptions} opts
+     * @param targetOrResolver
+     * @param opts
      */
     function build<T>(
         targetOrResolver: Resolver<T> | ClassOrFunctionReturning<T>,
@@ -686,7 +676,7 @@ function createContainerInternal<
     ): ESM extends false ? IDependencyInjectionContainer : Promise<IDependencyInjectionContainer>
     /**
      * Binds `lib/loadModules` to this container, and provides
-     * real implementations of it's dependencies.
+     * real implementations of its dependencies.
      *
      * Additionally, any modules using the `dependsOn` API
      * will be resolved.
@@ -725,15 +715,16 @@ function createContainerInternal<
      * Disposes this container and it's children, calling the disposer
      * on all disposable registrations and clearing the cache.
      */
-    function dispose(): Promise<void> {
+    async function dispose(): Promise<void> {
         const entries = Array.from(container.cache.entries())
         container.cache.clear()
         return Promise.all(
-            entries.map(([, entry]) => {
+            entries.map(async ([, entry]): Promise<any> => {
                 const {resolver, value} = entry
                 const disposable = resolver as DisposableResolver<any>
                 if (disposable.dispose) {
-                    return Promise.resolve().then(() => disposable.dispose!(value))
+                    await Promise.resolve()
+                    return disposable.dispose!(value)
                 }
                 return Promise.resolve()
             })

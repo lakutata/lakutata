@@ -1,57 +1,37 @@
-import {createTokenizer} from './FunctionTokenizer.js'
+import {createTokenizer, Token} from './FunctionTokenizer.js'
 import {Constructor} from './Resolvers.js'
 
 /**
  * Quick flatten utility to flatten a 2-dimensional array.
- *
- * @param  {Array<Array<Item>>} array
- * The array to flatten.
- *
- * @return {Array<Item>}
- * The flattened array.
+ * @param array
  */
 export function flatten<T>(array: Array<Array<T>>): Array<T> {
     const result: Array<T> = []
-    array.forEach((arr) => {
-        arr.forEach((item) => {
+    array.forEach((arr: T[]): void => {
+        arr.forEach((item: T): void => {
             result.push(item)
         })
     })
-
     return result
 }
 
 /**
  * Creates a { name: value } object if the input isn't already in that format.
- *
- * @param  {string|object} name
- * Either a string or an object.
- *
- * @param  {*} value
- * The value, only used if name is not an object.
- *
- * @return {object}
+ * @param name
+ * @param value
  */
 export function nameValueToObject(
     name: string | symbol | object,
     value?: any
 ): Record<string | symbol, any> {
-    const obj = name
-    if (typeof obj === 'string' || typeof obj === 'symbol') {
-        return {[name as any]: value}
-    }
-
+    const obj: string | symbol | object = name
+    if (typeof obj === 'string' || typeof obj === 'symbol') return {[name as any]: value}
     return obj
 }
 
 /**
  * Returns the last item in the array.
- *
- * @param  {*[]} arr
- * The array.
- *
- * @return {*}
- * The last element.
+ * @param arr
  */
 export function last<T>(arr: Array<T>): T {
     return arr[arr.length - 1]
@@ -59,44 +39,26 @@ export function last<T>(arr: Array<T>): T {
 
 /**
  * Determines if the given function is a class.
- *
- * @param  {Function} fn
- * @return {boolean}
+ * @param fn
  */
-export function isClass(
-    // eslint-disable-next-line @typescript-eslint/ban-types
-    fn: Function | Constructor<any>
-): boolean {
-    /*tslint:disable-next-line*/
-    if (typeof fn !== 'function') {
-        return false
-    }
-
+export function isClass(fn: Function | Constructor<any>): boolean {
+    if (typeof fn !== 'function') return false
     // Should only need 2 tokens.
     const tokenizer = createTokenizer(fn.toString())
-    const first = tokenizer.next()
-    if (first.type === 'class') {
-        return true
-    }
-
-    const second = tokenizer.next()
+    const first: Token = tokenizer.next()
+    if (first.type === 'class') return true
+    const second: Token = tokenizer.next()
     if (first.type === 'function' && second.value) {
         if (second.value[0] === second.value[0].toUpperCase()) {
             return true
         }
     }
-
     return false
 }
 
 /**
  * Determines if the given value is a function.
- *
- * @param  {unknown} val
- * Any value to check if it's a function.
- *
- * @return {boolean}
- * true if the value is a function, false otherwise.
+ * @param val
  */
 export function isFunction(val: unknown): boolean {
     return typeof val === 'function'
