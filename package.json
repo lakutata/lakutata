@@ -5,7 +5,7 @@
   "type": "module",
   "main": "build/src/tests/App.spec.js",
   "scripts": {
-    "clean": "shx rm -rf ./build",
+    "clean": "shx rm -rf ./distro",
     "build:js": "rollup -c",
     "build:gyp": "node-gyp configure build",
     "rebuild": "npm run clean && npm run build:js",
@@ -15,6 +15,7 @@
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-esm-shim": "^0.1.5",
     "@rollup/plugin-node-resolve": "^15.2.3",
     "@rollup/plugin-swc": "^0.3.0",
     "@rollup/plugin-typescript": "^11.1.6",

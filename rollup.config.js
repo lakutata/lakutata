@@ -2,13 +2,15 @@ import resolve from '@rollup/plugin-node-resolve'
 import typescript from '@rollup/plugin-typescript'
 import commonjs from '@rollup/plugin-commonjs'
 import swc from '@rollup/plugin-swc'
+import esmShim from '@rollup/plugin-esm-shim'
 import copy from 'rollup-plugin-copy'
 import path from 'node:path'
 import {sync as globFiles} from 'glob'
 
 const normalizeString = (str) => Buffer.from(str).filter((v, i) => i ? true : v !== 0).toString()
 const currentWorkingDir = normalizeString(process.cwd())
-const thirdPartyPackageRootDirname = 'modules'
+// const thirdPartyPackageRootDirname = 'modules'
+const thirdPartyPackageRootDirname = 'vendor'
 const outputDirname = 'distro'
 const jsrcOutputDirname = path.join(outputDirname, 'src')
 
@@ -17,11 +19,11 @@ export default {
     output: {
         format: 'esm',
         dir: outputDirname,
-        exports: 'named',
+        // exports: 'named',
+        exports: 'auto',
         compact: false,//减小文件体积
-        preserveEntrySignatures: 'allow-extension',
-        esModule: true,
-        // validate: true,
+        interop: 'auto',
+        generatedCode: 'es2015',
         manualChunks: (id) => {
             const basename = path.basename(id)
             const dirname = normalizeString(path.dirname(id))
@@ -66,7 +68,7 @@ export default {
     treeshake: false,
     plugins: [
         resolve(),
-        commonjs({include: /node_modules/}),
+        esmShim(),
         typescript({
             outDir: jsrcOutputDirname,
             esModuleInterop: true,
@@ -74,8 +76,10 @@ export default {
             declaration: true,
             emitDecoratorMetadata: true,
             declarationMap: true,
-            allowSyntheticDefaultImports: true
+            allowSyntheticDefaultImports: true,
+            allowJs: true
         }),
+        commonjs({include: /node_modules/}),
         swc(),
         copy({
             targets: [
