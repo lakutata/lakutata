@@ -7,7 +7,7 @@ import {createContainer} from '../lib/ioc/DependencyInjectionContainer.js'
 import {asFunction} from '../lib/ioc/Resolvers.js'
 
 (async () => {
-    const ctn = createContainer({injectionMode: 'CLASSIC', strict: true})
+    const ctn = createContainer({injectionMode: 'PROXY', strict: true})
     ctn.register({
         testFn: asFunction(function () {
             return 'oh my god!'
