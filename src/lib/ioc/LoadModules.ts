@@ -62,7 +62,7 @@ export interface LoadModulesDeps {
 }
 
 const nameFormatters: Record<string, NameFormatter> = {
-    camelCase: (s) => CamelCase(s)
+    camelCase: (s: string) => CamelCase(s)
 }
 
 /**
@@ -91,14 +91,14 @@ export function loadModules<ESM extends boolean>(
     opts?: LoadModulesOptions<ESM>
 ): Promise<LoadModulesResult> | LoadModulesResult {
     opts ??= {}
-    const container = dependencies.container
+    const container: IDependencyInjectionContainer = dependencies.container
     opts = optsWithDefaults(opts)
-    const modules = dependencies.listModules(globPatterns, opts)
+    const modules: ModuleDescriptor[] = dependencies.listModules(globPatterns, opts)
 
     if (opts.esModules) {
         return loadEsModules(dependencies, container, modules, opts)
     } else {
-        const result = modules.map((m) => {
+        const result: LoadedModuleDescriptor[][] = modules.map((m: ModuleDescriptor) => {
             const loaded = dependencies.require(m.path)
             return parseLoadedModule(loaded, m)
         })
@@ -143,11 +143,7 @@ function parseLoadedModule(
     m: ModuleDescriptor
 ): Array<LoadedModuleDescriptor> {
     const items: Array<LoadedModuleDescriptor> = []
-    // Meh, it happens.
-    if (!loaded) {
-        return items
-    }
-
+    if (!loaded) return items
     if (isFunction(loaded)) {
         // for module.exports = ...
         items.push({
@@ -156,10 +152,8 @@ function parseLoadedModule(
             value: loaded,
             opts: m.opts
         })
-
         return items
     }
-
     if (loaded.default && isFunction(loaded.default)) {
         // ES6 default export
         items.push({
@@ -169,15 +163,10 @@ function parseLoadedModule(
             opts: m.opts
         })
     }
-
     // loop through non-default exports, but require the RESOLVER property set for
     // it to be a valid service module export.
     for (const key of Object.keys(loaded)) {
-        if (key === 'default') {
-            // default case handled separately due to its different name (file name)
-            continue
-        }
-
+        if (key === 'default') continue
         if (isFunction(loaded[key]) && RESOLVER in loaded[key]) {
             items.push({
                 name: key,
@@ -205,8 +194,8 @@ function registerModules<ESM extends boolean>(
     opts: LoadModulesOptions<ESM>
 ): LoadModulesResult {
     modulesToRegister
-        .reduce((acc, cur) => acc.concat(cur), [])
-        .filter((x) => x)
+        .reduce((acc: LoadedModuleDescriptor[], cur: LoadedModuleDescriptor[]) => acc.concat(cur), [])
+        .filter((x: LoadedModuleDescriptor) => x)
         .forEach(registerDescriptor.bind(null, container, opts))
     return {
         loadedModules: modules
@@ -221,7 +210,6 @@ function optsWithDefaults<ESM extends boolean = false>(
     opts: Partial<LoadModulesOptions<ESM>> | undefined
 ): LoadModulesOptions<ESM> {
     return {
-        // Does a somewhat-deep merge on the registration options.
         resolverOptions: {
             lifetime: Lifetime.TRANSIENT,
             ...(opts && opts.resolverOptions)
@@ -245,36 +233,29 @@ function registerDescriptor<ESM extends boolean = false>(
     let name = inlineConfig && inlineConfig.name
     if (!name) {
         name = moduleDescriptor.name
-        let formatter = opts.formatName
+        let formatter: NameFormatter | 'camelCase' | undefined = opts.formatName
         if (formatter) {
             if (typeof formatter === 'string') {
                 formatter = nameFormatters[formatter]
             }
-
             if (formatter) {
                 name = formatter(name, moduleDescriptor)
             }
         }
     }
-
     let moduleDescriptorOpts = moduleDescriptor.opts
-
     if (typeof moduleDescriptorOpts === 'string') {
         moduleDescriptorOpts = {lifetime: moduleDescriptorOpts}
     }
-
     const regOpts: BuildResolver<any> = {
         ...opts.resolverOptions,
         ...moduleDescriptorOpts,
         ...inlineConfig
     }
-
-    // eslint-disable-next-line @typescript-eslint/ban-types
     const reg: Function = regOpts.register
         ? regOpts.register
         : isClass(moduleDescriptor.value)
             ? asClass
             : asFunction
-
     container.register(name, reg(moduleDescriptor.value, regOpts))
 }
