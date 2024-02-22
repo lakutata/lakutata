@@ -55,4 +55,7 @@ import {Inject} from '../decorators/di/Inject.js'
         @Configurable()
         public xx4: any
     }
+
+    console.log(XX.className)
+    console.log(XX1.className)
 })()

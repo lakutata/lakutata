@@ -1,13 +1,14 @@
 import {AsyncConstructor} from './async-constructor/AsyncConstructor.js'
 import {Injectable} from '../../decorators/di/Injectable.js'
 import {Transient} from '../../decorators/di/Lifetime.js'
+import {ObjectConstructor} from './func/ObjectConstructor.js'
 
 @Transient()
 @Injectable()
 export class BaseObject extends AsyncConstructor {
     constructor() {
         super(async (): Promise<void> => {
-            //todo
+            //TODO 执行获取注入对象等一系列操作
         })
     }
 
@@ -22,7 +23,7 @@ export class BaseObject extends AsyncConstructor {
      * Get instance's class name
      */
     public get className(): string {
-        return this.constructor.name
+        return ObjectConstructor(this).name
     }
 
     /**
