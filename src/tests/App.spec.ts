@@ -7,19 +7,31 @@ import {createContainer} from '../lib/ioc/DependencyInjectionContainer.js'
 import {asClass, asFunction} from '../lib/ioc/Resolvers.js'
 import {Configurable} from '../decorators/di/Configurable.js'
 import {GetObjectConfigurablePropertiesByConstructor} from '../lib/base/internal/ObjectConfiguration.js'
+import {Inject} from '../decorators/di/Inject.js'
 
 (async () => {
     const ctn = createContainer({injectionMode: 'PROXY', strict: true})
-    ctn.register({
+    const sym = Symbol('ddd')
+    // ctn.register({
+    //     testFn: asFunction(function () {
+    //         return 'oh my god!'
+    //     }),
+    //     testObj: asClass(BaseObject),
+    //     ['ddd']: asClass(BaseObject)
+    // })
+    const gg = {
         testFn: asFunction(function () {
             return 'oh my god!'
         }),
         testObj: asClass(BaseObject)
-    })
+    }
+    gg[sym] = asClass(BaseObject)
+    ctn.register(gg)
     const testFn = ctn.resolve<Function>('testFn')
     const testObj = ctn.resolve('testObj')
+    const testObj1 = ctn.resolve(sym)
 
-    // console.log(testObj)
+    console.log('dddddd', testObj1)
 
 
     class XX extends BaseObject {
@@ -36,12 +48,11 @@ import {GetObjectConfigurablePropertiesByConstructor} from '../lib/base/internal
     }
 
     class XX2 extends XX {
+        @Inject()
+        // protected readonly aaa: XX1
+        protected readonly aaa: XX
+
         @Configurable()
         public xx4: any
     }
-
-    console.log(GetObjectConfigurablePropertiesByConstructor(XX))
-    console.log(GetObjectConfigurablePropertiesByConstructor(XX1))
-    console.log(GetObjectConfigurablePropertiesByConstructor(XX2))
-
 })()
