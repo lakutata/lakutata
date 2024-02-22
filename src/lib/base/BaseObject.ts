@@ -16,7 +16,18 @@ export class BaseObject extends AsyncConstructor {
     }
 }
 
+@Injectable()
 class XX extends BaseObject {
+    @Configurable()
+    public xxx: string
+
+    ggg() {
+    }
+
+    public static xxyx: string = '111'
+}
+
+class XX1 extends BaseObject {
     @Configurable()
     public xxx: string
 
