@@ -1,5 +1,5 @@
 import {ResolutionStack} from './DependencyInjectionContainer.js'
-import {DependencyInjectionException} from '../../exceptions/DependencyInjectionException.js'
+import {DependencyInjectionException} from '../../exceptions/di/DependencyInjectionException.js'
 import {As} from '../base/func/As.js'
 
 /**

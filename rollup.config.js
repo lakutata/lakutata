@@ -59,10 +59,7 @@ export default {
             allowSyntheticDefaultImports: true,
             allowJs: true
         }),
-        commonjs({
-            esmExternals: true,
-            requireReturnsDefault: 'auto'
-        }),
+        commonjs(),
         swc(),
         copy({
             targets: [

@@ -1,7 +1,9 @@
 import {AsyncConstructor} from './async-constructor/AsyncConstructor.js'
 import {Injectable} from '../../decorators/di/Injectable.js'
 import {Configurable} from '../../decorators/di/Configurable.js'
+import {Transient} from '../../decorators/di/Lifetime.js'
 
+@Transient()
 @Injectable()
 export class BaseObject extends AsyncConstructor {
     constructor() {
@@ -10,16 +12,18 @@ export class BaseObject extends AsyncConstructor {
         })
     }
 
-    ggg(){}
+    ggg() {
+    }
 }
 
-class XX extends BaseObject{
+class XX extends BaseObject {
     @Configurable()
-    public xxx:string
+    public xxx: string
 
-    ggg(){}
+    ggg() {
+    }
 
-    public static xxyx:string='111'
+    public static xxyx: string = '111'
 }
 
 // new XX()
