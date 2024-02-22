@@ -5,6 +5,12 @@ import {GetObjectConstructor} from '../func/GetObjectConstructor.js'
 import {ParentConstructor} from '../func/ParentConstructor.js'
 import {As} from '../func/As.js'
 
+/**
+ * Add object configurable property to Set
+ * @param target
+ * @param propertyKey
+ * @constructor
+ */
 export function SetObjectConfigurableProperty<ClassPrototype extends BaseObject>(target: ClassPrototype, propertyKey: string | symbol): void {
     let objectConfigurablePropertySet: Set<string | symbol>
     if (hasOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, GetObjectConstructor(target))) {
@@ -22,12 +28,22 @@ export function SetObjectConfigurableProperty<ClassPrototype extends BaseObject>
     getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, GetObjectConstructor(target)).add(propertyKey)
 }
 
+/**
+ * Get object configurable properties by its prototype
+ * @param target
+ * @constructor
+ */
 export function GetObjectConfigurablePropertiesByPrototype<ClassPrototype extends BaseObject>(target: ClassPrototype): Set<string | symbol> {
     const objectConfigurablePropertySet: Set<string | symbol> = getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, GetObjectConstructor(target))
     if (objectConfigurablePropertySet) return objectConfigurablePropertySet
     return new Set()
 }
 
+/**
+ * Get object configurable properties by its constructor
+ * @param target
+ * @constructor
+ */
 export function GetObjectConfigurablePropertiesByConstructor<ClassConstructor extends typeof BaseObject>(target: ClassConstructor): Set<string | symbol> {
     const objectConfigurablePropertySet: Set<string | symbol> = getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, target)
     if (objectConfigurablePropertySet) return objectConfigurablePropertySet
