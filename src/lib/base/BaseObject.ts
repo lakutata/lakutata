@@ -2,6 +2,9 @@ import {AsyncConstructor} from './async-constructor/AsyncConstructor.js'
 import {Injectable} from '../../decorators/di/Injectable.js'
 import {Configurable} from '../../decorators/di/Configurable.js'
 import {Transient} from '../../decorators/di/Lifetime.js'
+import {
+    GetObjectConfigurablePropertiesByConstructor, GetObjectConfigurablePropertiesByPrototype
+} from './internal/ObjectConfigure.js'
 
 @Transient()
 @Injectable()
@@ -27,14 +30,16 @@ class XX extends BaseObject {
     public static xxyx: string = '111'
 }
 
-class XX1 extends BaseObject {
+class XX1 extends XX {
     @Configurable()
-    public xxx: string
+    public xxx1: string
 
     ggg() {
     }
 
-    public static xxyx: string = '111'
+    public static xxyx1: string = '111'
 }
 
-// new XX()
+console.log(await new XX())
+console.log('XX', GetObjectConfigurablePropertiesByPrototype(XX.prototype))
+console.log('XX1', GetObjectConfigurablePropertiesByPrototype(XX1.prototype))
