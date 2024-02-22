@@ -7,6 +7,7 @@ import {TClassDecorator} from '../../types/TClassDecorator.js'
  */
 export function Injectable<ClassConstructor extends typeof BaseObject>(): TClassDecorator<ClassConstructor> {
     return (target: ClassConstructor): ClassConstructor => {
+        //TODO
         console.log('Injectable', target.name)
         return target
     }
