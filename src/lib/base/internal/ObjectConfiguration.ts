@@ -4,6 +4,7 @@ import {DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES} from '../../../constants/
 import {ObjectConstructor} from '../func/ObjectConstructor.js'
 import {ObjectParentConstructor} from '../func/ObjectParentConstructor.js'
 import {As} from '../func/As.js'
+import {ObjectParentConstructors} from '../func/ObjectParentConstructors.js'
 
 /**
  * Add object configurable property to Set
@@ -17,12 +18,10 @@ export function SetObjectConfigurableProperty<ClassPrototype extends BaseObject>
         objectConfigurablePropertySet = getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, ObjectConstructor(target))
     } else {
         objectConfigurablePropertySet = new Set()
-        let parentConstructor: Function | null = ObjectParentConstructor(ObjectConstructor(target))
-        while (parentConstructor) {
+        ObjectParentConstructors(ObjectConstructor(target)).forEach((parentConstructor: Function): void => {
             if (hasOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, parentConstructor))
                 As<Set<string | symbol>>(getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, parentConstructor)).forEach((value: string | symbol) => objectConfigurablePropertySet.add(value))
-            parentConstructor = ObjectParentConstructor(parentConstructor)
-        }
+        })
     }
     defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, objectConfigurablePropertySet, ObjectConstructor(target))
     getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, ObjectConstructor(target)).add(propertyKey)
