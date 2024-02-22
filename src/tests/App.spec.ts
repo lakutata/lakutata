@@ -9,6 +9,7 @@ import {Configurable} from '../decorators/di/Configurable.js'
 import {GetObjectConfigurablePropertiesByConstructor} from '../lib/base/internal/ObjectConfiguration.js'
 import {Inject} from '../decorators/di/Inject.js'
 import {GetObjectInjectItemsByConstructor} from '../lib/base/internal/ObjectInjection.js'
+import {ConstructorHash} from '../lib/base/func/ConstructorHash.js'
 
 (async () => {
     const ctn = createContainer({injectionMode: 'PROXY', strict: true})
@@ -64,5 +65,4 @@ import {GetObjectInjectItemsByConstructor} from '../lib/base/internal/ObjectInje
     console.log(GetObjectInjectItemsByConstructor(XX))
     console.log(GetObjectInjectItemsByConstructor(XX1))
     console.log(GetObjectInjectItemsByConstructor(XX2))
-    // console.log(XX1.className)
 })()
