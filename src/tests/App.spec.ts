@@ -55,7 +55,7 @@ import {GetObjectInjectItemsByConstructor} from '../lib/base/internal/ObjectInje
     class XX2 extends XX1 {
         @Inject()
         // protected readonly aaa: XX1
-        protected readonly aaa
+        protected readonly aaa: XX1
 
         @Configurable()
         public xx4: any
