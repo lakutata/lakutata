@@ -1,6 +1,6 @@
 import {TPropertyDecorator} from '../../types/TPropertyDecorator.js'
 import {BaseObject} from '../../lib/base/BaseObject.js'
-import {SetObjectConfigurableProperty} from '../../lib/base/internal/ObjectConfigure.js'
+import {SetObjectConfigurableProperty} from '../../lib/base/internal/ObjectConfiguration.js'
 
 /**
  * Property Decorator
