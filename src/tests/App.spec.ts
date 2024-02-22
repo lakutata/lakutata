@@ -8,6 +8,7 @@ import {asClass, asFunction} from '../lib/ioc/Resolvers.js'
 import {Configurable} from '../decorators/di/Configurable.js'
 import {GetObjectConfigurablePropertiesByConstructor} from '../lib/base/internal/ObjectConfiguration.js'
 import {Inject} from '../decorators/di/Inject.js'
+import {GetObjectInjectItemsByConstructor} from '../lib/base/internal/ObjectInjection.js'
 
 (async () => {
     const ctn = createContainer({injectionMode: 'PROXY', strict: true})
@@ -45,17 +46,23 @@ import {Inject} from '../decorators/di/Inject.js'
 
         @Configurable()
         public xx3: any
-    }
 
-    class XX2 extends XX {
         @Inject()
         // protected readonly aaa: XX1
         protected readonly aaa: XX
+    }
+
+    class XX2 extends XX1 {
+        @Inject()
+        // protected readonly aaa: XX1
+        protected readonly aaa
 
         @Configurable()
         public xx4: any
     }
 
-    console.log(XX.className)
-    console.log(XX1.className)
+    console.log(GetObjectInjectItemsByConstructor(XX))
+    console.log(GetObjectInjectItemsByConstructor(XX1))
+    console.log(GetObjectInjectItemsByConstructor(XX2))
+    // console.log(XX1.className)
 })()

@@ -2,9 +2,9 @@ import {BaseObject} from '../BaseObject.js'
 import {defineMetadata, getOwnMetadata, hasOwnMetadata} from 'reflect-metadata/no-conflict'
 import {DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES} from '../../../constants/metadata-keys/DIMetadataKey.js'
 import {ObjectConstructor} from '../func/ObjectConstructor.js'
-import {ObjectParentConstructor} from '../func/ObjectParentConstructor.js'
 import {As} from '../func/As.js'
 import {ObjectParentConstructors} from '../func/ObjectParentConstructors.js'
+import {ObjectPrototype} from '../func/ObjectPrototype.js'
 
 /**
  * Add object configurable property to Set
@@ -44,7 +44,5 @@ export function GetObjectConfigurablePropertiesByPrototype<ClassPrototype extend
  * @constructor
  */
 export function GetObjectConfigurablePropertiesByConstructor<ClassConstructor extends typeof BaseObject>(target: ClassConstructor): Set<string | symbol> {
-    const objectConfigurablePropertySet: Set<string | symbol> = getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, target)
-    if (objectConfigurablePropertySet) return objectConfigurablePropertySet
-    return new Set()
+    return GetObjectConfigurablePropertiesByPrototype(ObjectPrototype(target))
 }
