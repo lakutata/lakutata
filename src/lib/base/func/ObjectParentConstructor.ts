@@ -5,8 +5,9 @@ import {IConstructor} from '../../../interfaces/IConstructor.js'
  * @param target
  * @constructor
  */
-export function ParentConstructor<ClassConstructor extends Function>(target: ClassConstructor): Function | null
-export function ParentConstructor<ClassPrototype extends Object>(target: IConstructor<ClassPrototype>): Function | null {
+export function ObjectParentConstructor<ClassConstructor extends Function>(target: ClassConstructor): Function | null
+export function ObjectParentConstructor<ClassPrototype extends Object>(target: IConstructor<ClassPrototype>): Function | null
+export function ObjectParentConstructor(target: any): Function | null {
     const rootProto: unknown = Symbol.constructor.prototype.constructor.__proto__
     const constructor: Function = (!!target[Symbol.hasInstance] && target.prototype) ? target : target.constructor
     const proto: IConstructor<any> = constructor.prototype.constructor.__proto__
