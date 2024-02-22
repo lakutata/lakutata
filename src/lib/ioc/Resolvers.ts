@@ -8,7 +8,7 @@ import {InjectionMode, InjectionModeType} from './InjectionMode.js'
 import {Lifetime, LifetimeType} from './Lifetime.js'
 import {Parameter, parseParameterList} from './ParamParser.js'
 import {isFunction, uniq} from './Utils.js'
-import {DI_CONTAINER_INJECT_PROPERTIES} from '../../constants/MetadataKey.js'
+import {DI_CONTAINER_INJECT_PROPERTIES} from '../../constants/metadata-keys/DIMetadataKey.js'
 
 // We parse the signature of any `Function`, so we want to allow `Function` types.
 /* eslint-disable @typescript-eslint/ban-types */

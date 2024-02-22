@@ -23,7 +23,9 @@ import {
 } from './Resolvers.js'
 import {isClass, last, nameValueToObject} from './Utils.js'
 import {As} from '../base/func/As.js'
-import {DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME} from '../../constants/MetadataKey.js'
+import {
+    DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME
+} from '../../constants/metadata-keys/DIMetadataKey.js'
 
 /**
  * The container returned from createContainer has some methods and properties.
