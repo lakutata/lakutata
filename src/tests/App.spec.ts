@@ -44,9 +44,14 @@ import {DTO} from '../lib/core/DTO.js'
     }
 
     const ctn=new Container()
-    const xx2=await ctn.get(XX2)
+    // const xx2=await ctn.get(XX2)
     // console.log(xx2)
     // const xx2 = await new XX2()
     // console.log(xx2.propertyNames())
 
+    class Abc extends DTO{
+        aa
+    }
+
+    console.log(new Abc())
 })()
