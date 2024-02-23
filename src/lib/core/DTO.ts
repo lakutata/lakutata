@@ -2,7 +2,7 @@ import {DataValidator, DefaultValidationOptions} from '../base/internal/DataVali
 import {Schema, SchemaMap, ValidationOptions} from 'joi'
 import {AppendAsyncConstructor} from '../base/async-constructor/Append.js'
 import {
-    GetObjectPropertySchemasByPrototype, ObjectPropertySchemaMap
+    GetObjectPropertySchemasByPrototype, GetObjectValidateOptions, ObjectPropertySchemaMap
 } from '../base/internal/ObjectSchemaValidation.js'
 import {InvalidValueException} from '../../exceptions/dto/InvalidValueException.js'
 import {As} from '../base/func/As.js'
@@ -29,24 +29,6 @@ export class DTO extends DataValidator {
         this.#instantiated = true
     }
 
-    /**
-     * Sync validation
-     * @param props
-     * @private
-     */
-    #validateSync(props: Record<string, any>): Record<string, any> {
-        return DTO.validate(props, this.#objectSchema(), this.validateOptions())
-    }
-
-    /**
-     * Async validation
-     * @param props
-     * @private
-     */
-    async #validateAsync(props: Record<string, any>): Promise<Record<string, any>> {
-        return await DTO.validateAsync(props, this.#objectSchema(), this.validateOptions())
-    }
-
     constructor(props: Record<string, any> = {}, async: boolean = false) {
         super()
         //Create DTO proxy object
@@ -56,7 +38,7 @@ export class DTO extends DataValidator {
                     const objectPropertySchemaMap: ObjectPropertySchemaMap = GetObjectPropertySchemasByPrototype(this)
                     const propertySchema: Schema | undefined = objectPropertySchemaMap.get(prop)
                     if (propertySchema) value = DTO.validate(value, propertySchema, {
-                        ...this.validateOptions(),
+                        ...GetObjectValidateOptions(this),
                         noDefaults: true
                     })
                 }
@@ -67,7 +49,7 @@ export class DTO extends DataValidator {
                     const objectPropertySchemaMap: ObjectPropertySchemaMap = GetObjectPropertySchemasByPrototype(this)
                     const propertySchema: Schema | undefined = objectPropertySchemaMap.get(prop)
                     if (propertySchema) DTO.validate(undefined, propertySchema, {
-                        ...this.validateOptions(),
+                        ...GetObjectValidateOptions(this),
                         noDefaults: true
                     })
                 }
@@ -77,7 +59,7 @@ export class DTO extends DataValidator {
         if (async) {
             AppendAsyncConstructor(DTOInstanceProxy, async (): Promise<void> => {
                 try {
-                    const validProps: Record<string, any> = await DTO.validateAsync(props, this.#objectSchema(), this.validateOptions())
+                    const validProps: Record<string, any> = await DTO.validateAsync(props, this.#objectSchema(), GetObjectValidateOptions(this))
                     Object.keys(validProps).forEach((propertyKey: string) => this[propertyKey] = validProps[propertyKey])
                 } catch (e) {
                     throw new InvalidValueException((As<Error>(e).message))
@@ -86,7 +68,7 @@ export class DTO extends DataValidator {
             })
         } else {
             try {
-                const validProps: Record<string, any> = DTO.validate(props, this.#objectSchema(), this.validateOptions())
+                const validProps: Record<string, any> = DTO.validate(props, this.#objectSchema(), GetObjectValidateOptions(this))
                 Object.keys(validProps).forEach((propertyKey: string) => this[propertyKey] = validProps[propertyKey])
             } catch (e) {
                 throw new InvalidValueException((As<Error>(e).message))
@@ -94,13 +76,6 @@ export class DTO extends DataValidator {
             this.#instantiate()
             return DTOInstanceProxy
         }
-    }
-
-    /**
-     * Validate options for current DTO instance
-     */
-    public validateOptions(): ValidationOptions {
-        return DefaultValidationOptions
     }
 
     [prop: string | symbol]: any

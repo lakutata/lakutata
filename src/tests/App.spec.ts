@@ -13,6 +13,7 @@ import {Container} from '../lib/core/Container.js'
 import {Injectable} from '../decorators/di/Injectable.js'
 import {DTO} from '../lib/core/DTO.js'
 import {Expect} from '../decorators/dto/Expect.js'
+import {ValidateOptions} from '../decorators/dto/ValidateOptions.js'
 
 (async () => {
     // class XX extends BaseObject {
@@ -50,6 +51,7 @@ import {Expect} from '../decorators/dto/Expect.js'
     // const xx2 = await new XX2()
     // console.log(xx2.propertyNames())
 
+    @ValidateOptions({stripUnknown: false})
     class Abc extends DTO {
         @Expect(DTO.String().required())
         public aa: string
@@ -57,14 +59,15 @@ import {Expect} from '../decorators/dto/Expect.js'
         public haha: string
     }
 
+
     class Efg extends Abc {
         @Expect(DTO.Number())
-        public bb?: number=666
+        public bb?: number = 666
     }
 
     // const abc = new Abc()
     // console.log(abc)
-    const efg = await new Efg({aa: 'aaa'}, true)
+    const efg = await new Efg({aa: 'aaa', hahha: 123}, true)
     // console.log(abc)
     // @ts-ignore
     efg.aa = '1111'

@@ -1,9 +1,10 @@
 import {DTO} from '../../core/DTO.js'
-import {Schema} from 'joi'
+import {Schema, ValidationOptions} from 'joi'
 import {ObjectConstructor} from '../func/ObjectConstructor.js'
-import {DTO_PROPERTY_SCHEMAS} from '../../../constants/metadata-keys/DTOMetadataKey.js'
+import {DTO_PROPERTY_SCHEMAS, DTO_VALIDATE_OPTIONS} from '../../../constants/metadata-keys/DTOMetadataKey.js'
 import {ObjectParentConstructors} from '../func/ObjectParentConstructors.js'
 import {ObjectPrototype} from '../func/ObjectPrototype.js'
+import {DefaultValidationOptions} from './DataValidator.js'
 
 export type ObjectPropertySchemaMap = Map<string, Schema>
 
@@ -51,4 +52,32 @@ export function GetObjectPropertySchemasByPrototype<ClassPrototype extends DTO>(
  */
 export function GetObjectPropertySchemasByConstructor<ClassConstructor extends typeof DTO>(target: ClassConstructor): ObjectPropertySchemaMap {
     return GetObjectPropertySchemasByPrototype(ObjectPrototype(target))
+}
+
+/**
+ * Set object's validate options
+ * @param target
+ * @param options
+ * @constructor
+ */
+export function SetObjectValidateOptions<ClassConstructor extends typeof DTO>(target: ClassConstructor, options: ValidationOptions): ClassConstructor {
+    let _opts: ValidationOptions = DefaultValidationOptions
+    if (Reflect.hasOwnMetadata(DTO_VALIDATE_OPTIONS, target)) _opts = Reflect.getOwnMetadata(DTO_VALIDATE_OPTIONS, target)
+    _opts = Object.assign(_opts, options)
+    Reflect.defineMetadata(DTO_VALIDATE_OPTIONS, _opts, target)
+    return target
+}
+
+/**
+ * Get object's validate options
+ * @param target
+ * @constructor
+ */
+export function GetObjectValidateOptions<ClassPrototype extends DTO>(target: ClassPrototype): ValidationOptions {
+    let _opts: ValidationOptions
+    if (Reflect.hasOwnMetadata(DTO_VALIDATE_OPTIONS, ObjectConstructor(target)))
+        _opts = Reflect.getOwnMetadata(DTO_VALIDATE_OPTIONS, ObjectConstructor(target))
+    else
+        _opts = DefaultValidationOptions
+    return _opts
 }
