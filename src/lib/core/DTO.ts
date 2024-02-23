@@ -10,8 +10,6 @@ import {IsNativeFunction} from '../base/func/IsNativeFunction.js'
 
 export class DTO extends DataValidator {
 
-    #props: Record<string, any>
-
     #instantiated: boolean = false
 
 
