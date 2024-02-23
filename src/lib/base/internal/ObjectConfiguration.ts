@@ -1,5 +1,4 @@
 import {BaseObject} from '../BaseObject.js'
-import {defineMetadata, getOwnMetadata, hasOwnMetadata} from 'reflect-metadata/no-conflict'
 import {DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES} from '../../../constants/metadata-keys/DIMetadataKey.js'
 import {ObjectConstructor} from '../func/ObjectConstructor.js'
 import {As} from '../func/As.js'
@@ -14,17 +13,17 @@ import {ObjectPrototype} from '../func/ObjectPrototype.js'
  */
 export function SetObjectConfigurableProperty<ClassPrototype extends BaseObject>(target: ClassPrototype, propertyKey: string | symbol): void {
     let objectConfigurablePropertySet: Set<string | symbol>
-    if (hasOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, ObjectConstructor(target))) {
-        objectConfigurablePropertySet = getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, ObjectConstructor(target))
+    if (Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, ObjectConstructor(target))) {
+        objectConfigurablePropertySet = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, ObjectConstructor(target))
     } else {
         objectConfigurablePropertySet = new Set()
         ObjectParentConstructors(ObjectConstructor(target)).forEach((parentConstructor: Function): void => {
-            if (hasOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, parentConstructor))
-                As<Set<string | symbol>>(getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, parentConstructor)).forEach((value: string | symbol) => objectConfigurablePropertySet.add(value))
+            if (Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, parentConstructor))
+                As<Set<string | symbol>>(Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, parentConstructor)).forEach((value: string | symbol) => objectConfigurablePropertySet.add(value))
         })
     }
-    defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, objectConfigurablePropertySet, ObjectConstructor(target))
-    getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, ObjectConstructor(target)).add(propertyKey)
+    Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, objectConfigurablePropertySet, ObjectConstructor(target))
+    Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, ObjectConstructor(target)).add(propertyKey)
 }
 
 /**
@@ -33,7 +32,7 @@ export function SetObjectConfigurableProperty<ClassPrototype extends BaseObject>
  * @constructor
  */
 export function GetObjectConfigurablePropertiesByPrototype<ClassPrototype extends BaseObject>(target: ClassPrototype): Set<string | symbol> {
-    const objectConfigurablePropertySet: Set<string | symbol> = getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, ObjectConstructor(target))
+    const objectConfigurablePropertySet: Set<string | symbol> = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, ObjectConstructor(target))
     if (objectConfigurablePropertySet) return objectConfigurablePropertySet
     return new Set()
 }

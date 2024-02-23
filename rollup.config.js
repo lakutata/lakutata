@@ -1,7 +1,6 @@
 import resolve from '@rollup/plugin-node-resolve'
 import typescript from '@rollup/plugin-typescript'
 import commonjs from '@rollup/plugin-commonjs'
-import swc from '@rollup/plugin-swc'
 import esmShim from '@rollup/plugin-esm-shim'
 import copy from 'rollup-plugin-copy'
 import progress from 'rollup-plugin-progress'
@@ -10,7 +9,6 @@ import {sync as globFiles} from 'glob'
 
 const normalizeString = (str) => Buffer.from(str).filter((v, i) => i ? true : v !== 0).toString()
 const currentWorkingDir = normalizeString(process.cwd())
-// const thirdPartyPackageRootDirname = 'modules'
 const thirdPartyPackageRootDirname = 'vendor'
 const outputDirname = 'distro'
 const jsrcOutputDirname = path.join(outputDirname, 'src')
@@ -36,7 +34,7 @@ export default {
                     return dirname === 'node_modules'
                 })
                 let chunkName = dirnames[1]
-                return `vendor/${chunkName}`
+                return `${thirdPartyPackageRootDirname}/${chunkName}`
             }
         },
         entryFileNames: (chunkInfo) => {
@@ -60,7 +58,6 @@ export default {
             allowJs: true
         }),
         commonjs(),
-        swc(),
         copy({
             targets: [
                 {src: 'src/cpp/**/*', dest: path.join(jsrcOutputDirname, 'cpp')},

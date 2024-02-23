@@ -10,6 +10,8 @@ import {GetObjectConfigurablePropertiesByConstructor} from '../lib/base/internal
 import {Inject} from '../decorators/di/Inject.js'
 import {GetObjectInjectItemsByConstructor} from '../lib/base/internal/ObjectInjection.js'
 import {ConstructorHash} from '../lib/base/func/ConstructorHash.js'
+import {Container} from '../lib/base/Container.js'
+import {Injectable} from '../decorators/di/Injectable.js'
 
 (async () => {
     const ctn = createContainer({injectionMode: 'PROXY', strict: true})
@@ -56,13 +58,16 @@ import {ConstructorHash} from '../lib/base/func/ConstructorHash.js'
     class XX2 extends XX1 {
         @Inject()
         // protected readonly aaa: XX1
-        protected readonly aaa: XX1
+        protected readonly aaa: XX1 = {} as any
 
         @Configurable()
-        public xx4: any
+        public xx4: any = 1
+
+        @Configurable()
+        public xx5: any
     }
 
-    console.log(GetObjectInjectItemsByConstructor(XX))
-    console.log(GetObjectInjectItemsByConstructor(XX1))
-    console.log(GetObjectInjectItemsByConstructor(XX2))
+    const xx2 = await new XX2()
+    console.log(xx2.propertyNames())
+
 })()

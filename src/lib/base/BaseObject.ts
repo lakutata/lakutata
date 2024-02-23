@@ -2,10 +2,17 @@ import {AsyncConstructor} from './async-constructor/AsyncConstructor.js'
 import {Injectable} from '../../decorators/di/Injectable.js'
 import {Transient} from '../../decorators/di/Lifetime.js'
 import {ObjectConstructor} from './func/ObjectConstructor.js'
+import {MethodNotFoundException} from '../../exceptions/MethodNotFoundException.js'
+import {As} from './func/As.js'
+import {DevNull} from './func/DevNull.js'
+import {Container} from './Container.js'
 
 @Transient()
 @Injectable()
 export class BaseObject extends AsyncConstructor {
+
+    #ctn: Container = new Container()
+
     constructor() {
         super(async (): Promise<void> => {
             //TODO 执行获取注入对象等一系列操作
@@ -56,5 +63,64 @@ export class BaseObject extends AsyncConstructor {
      */
     protected async destroy(): Promise<void> {
         //To be override in child class
+    }
+
+    /**
+     * Set object property
+     * @param propertyKey
+     * @param value
+     */
+    public setProperty(propertyKey: string, value: any): void {
+        this[propertyKey] = value
+    }
+
+    /**
+     * Get object's property value
+     * @param propertyKey
+     * @param defaultValue
+     */
+    public getProperty<T = any>(propertyKey: string, defaultValue?: T): T {
+        if (this.hasProperty(propertyKey)) return As<T>(this[propertyKey])
+        return As<T>(defaultValue)
+    }
+
+    /**
+     * Is object has property
+     * @param propertyKey
+     */
+    public hasProperty(propertyKey: string): boolean {
+        return this.propertyNames().includes(propertyKey)
+    }
+
+    public propertyNames(): string[] {
+        return Object.getOwnPropertyNames(this)
+    }
+
+    /**
+     * Is object has method
+     * @param name
+     */
+    public hasMethod(name: string): boolean {
+        const propertyExists: boolean = this.hasProperty(name)
+        if (propertyExists) return false//Method doesn't exist
+        return typeof this[name] === 'function'
+    }
+
+    /**
+     * Get method from object
+     * @param name
+     * @param throwExceptionIfNotFound
+     */
+    public getMethod(name: string, throwExceptionIfNotFound: boolean = false): (...args: any[]) => any | Promise<any> {
+        if (this.hasMethod(name)) {
+            return (...args: any[]) => this[name](...args)
+        } else if (throwExceptionIfNotFound) {
+            throw new MethodNotFoundException('Method "{methodName}" not found in "{className}"', {
+                methodName: name,
+                className: this.constructor.name
+            })
+        } else {
+            return (...args: any[]): void => DevNull(...args)
+        }
     }
 }
