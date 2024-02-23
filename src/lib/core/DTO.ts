@@ -66,7 +66,12 @@ export class DTO extends DataValidator {
             },
             deleteProperty: (target, prop: string | symbol): boolean => {
                 if (this.#instantiated && typeof prop !== 'symbol' && !IsNativeFunction(target[prop])) {
-                    console.log('del', target, prop)//TODO
+                    const objectPropertySchemaMap: ObjectPropertySchemaMap = GetObjectPropertySchemasByPrototype(this)
+                    const propertySchema: Schema | undefined = objectPropertySchemaMap.get(prop)
+                    if (propertySchema) DTO.validate(undefined, propertySchema, {
+                        ...this.validateOptions(),
+                        noDefaults: true
+                    })
                 }
                 return Reflect.deleteProperty(target, prop)
             }

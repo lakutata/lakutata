@@ -58,8 +58,8 @@ import {Expect} from '../decorators/dto/Expect.js'
     }
 
     class Efg extends Abc {
-        @Expect(DTO.Number().optional().default(666))
-        public bb?: number
+        @Expect(DTO.Number())
+        public bb?: number=666
     }
 
     // const abc = new Abc()
