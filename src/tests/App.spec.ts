@@ -9,8 +9,9 @@ import {Configurable} from '../decorators/di/Configurable.js'
 import {GetObjectConfigurablePropertiesByConstructor} from '../lib/base/internal/ObjectConfiguration.js'
 import {Inject} from '../decorators/di/Inject.js'
 import {GetObjectInjectItemsByConstructor} from '../lib/base/internal/ObjectInjection.js'
-import {Container} from '../lib/base/Container.js'
+import {Container} from '../lib/core/Container.js'
 import {Injectable} from '../decorators/di/Injectable.js'
+import {DTO} from '../lib/core/DTO.js'
 
 (async () => {
     class XX extends BaseObject {
@@ -44,7 +45,7 @@ import {Injectable} from '../decorators/di/Injectable.js'
 
     const ctn=new Container()
     const xx2=await ctn.get(XX2)
-    console.log(xx2)
+    // console.log(xx2)
     // const xx2 = await new XX2()
     // console.log(xx2.propertyNames())
 

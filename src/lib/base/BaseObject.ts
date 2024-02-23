@@ -5,7 +5,7 @@ import {ObjectConstructor} from './func/ObjectConstructor.js'
 import {MethodNotFoundException} from '../../exceptions/MethodNotFoundException.js'
 import {As} from './func/As.js'
 import {DevNull} from './func/DevNull.js'
-import {Container} from './Container.js'
+import {Container} from '../core/Container.js'
 
 @Transient()
 @Injectable()

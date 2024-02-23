@@ -2,6 +2,7 @@ import resolve from '@rollup/plugin-node-resolve'
 import typescript from '@rollup/plugin-typescript'
 import commonjs from '@rollup/plugin-commonjs'
 import esmShim from '@rollup/plugin-esm-shim'
+import json from '@rollup/plugin-json'
 import copy from 'rollup-plugin-copy'
 import progress from 'rollup-plugin-progress'
 import path from 'node:path'
@@ -53,11 +54,12 @@ export default {
             isolatedModules: true,
             declaration: true,
             emitDecoratorMetadata: true,
-            declarationMap: true,
+            declarationMap: false,
             allowSyntheticDefaultImports: true,
             allowJs: true
         }),
         commonjs(),
+        json(),
         copy({
             targets: [
                 {src: 'src/cpp/**/*', dest: path.join(jsrcOutputDirname, 'cpp')},

@@ -1,9 +1,9 @@
 import {createContainer, IDependencyInjectionContainer} from '../ioc/DependencyInjectionContainer.js'
-import {DevNull} from './func/DevNull.js'
-import {BaseObject} from './BaseObject.js'
+import {DevNull} from '../base/func/DevNull.js'
+import {BaseObject} from '../base/BaseObject.js'
 import {IConstructor} from '../../interfaces/IConstructor.js'
-import {ConstructorSymbol} from './internal/ConstructorSymbol.js'
-import {IsPromise} from './func/IsPromise.js'
+import {ConstructorSymbol} from '../base/internal/ConstructorSymbol.js'
+import {IsPromise} from '../base/func/IsPromise.js'
 
 export class Container {
 
