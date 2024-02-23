@@ -83,7 +83,7 @@ export class DTO extends DataValidator {
                 throw new InvalidValueException((As<Error>(e).message))
             }
             this.#instantiate()
-            console.log('getOwnPropertyNames:', Object.getOwnPropertyNames(this))
+            console.log('getOwnPropertyNames:', Object.getOwnPropertyNames(this), this)
             return DTOInstanceProxy
         }
     }
