@@ -1,6 +1,9 @@
 import {createContainer, IDependencyInjectionContainer} from '../ioc/DependencyInjectionContainer.js'
 import {DevNull} from './func/DevNull.js'
 import {BaseObject} from './BaseObject.js'
+import {IConstructor} from '../../interfaces/IConstructor.js'
+import {ConstructorSymbol} from './internal/ConstructorSymbol.js'
+import {IsPromise} from './func/IsPromise.js'
 
 export class Container {
 
@@ -50,6 +53,33 @@ export class Container {
             DevNull(e)
         }
         this.updateTransientWeakRefs()
+    }
+
+    /**
+     * Get registered object via constructor
+     * @param constructor
+     * @param configurableRecords
+     */
+    public async get<T extends BaseObject>(constructor: IConstructor<T>, configurableRecords?: Record<string, any>): Promise<T>
+    /**
+     * Get registered object via string
+     * @param name
+     * @param configurableRecords
+     */
+    public async get<T extends BaseObject>(name: string, configurableRecords?: Record<string, any>): Promise<T>
+    /**
+     * Get registered object via symbol
+     * @param name
+     * @param configurableRecords
+     */
+    public async get<T extends BaseObject>(name: symbol, configurableRecords?: Record<string, any>): Promise<T>
+    public async get<T extends BaseObject>(inp: string | symbol | IConstructor<T>, configurableRecords: Record<string, any>): Promise<T> {
+        const registrationName: string | symbol = typeof inp === 'function' ? ConstructorSymbol(inp) : inp
+        const resolved: T | Promise<T> = this.#dic.resolve(registrationName)
+        //TODO 思考是否需要在未注册时允许动态注册并获取
+        //TODO 注入参数
+        this.updateTransientWeakRefs()
+        return IsPromise(resolved) ? await resolved : resolved
     }
 
     /**

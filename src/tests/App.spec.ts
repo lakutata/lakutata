@@ -9,35 +9,10 @@ import {Configurable} from '../decorators/di/Configurable.js'
 import {GetObjectConfigurablePropertiesByConstructor} from '../lib/base/internal/ObjectConfiguration.js'
 import {Inject} from '../decorators/di/Inject.js'
 import {GetObjectInjectItemsByConstructor} from '../lib/base/internal/ObjectInjection.js'
-import {ConstructorHash} from '../lib/base/func/ConstructorHash.js'
 import {Container} from '../lib/base/Container.js'
 import {Injectable} from '../decorators/di/Injectable.js'
 
 (async () => {
-    const ctn = createContainer({injectionMode: 'PROXY', strict: true})
-    const sym = Symbol('ddd')
-    // ctn.register({
-    //     testFn: asFunction(function () {
-    //         return 'oh my god!'
-    //     }),
-    //     testObj: asClass(BaseObject),
-    //     ['ddd']: asClass(BaseObject)
-    // })
-    const gg = {
-        testFn: asFunction(function () {
-            return 'oh my god!'
-        }),
-        testObj: asClass(BaseObject)
-    }
-    gg[sym] = asClass(BaseObject)
-    ctn.register(gg)
-    const testFn = ctn.resolve<Function>('testFn')
-    const testObj = ctn.resolve('testObj')
-    const testObj1 = ctn.resolve(sym)
-
-    console.log('dddddd', testObj1)
-
-
     class XX extends BaseObject {
         @Configurable()
         public xx1: any
@@ -67,7 +42,10 @@ import {Injectable} from '../decorators/di/Injectable.js'
         public xx5: any
     }
 
-    const xx2 = await new XX2()
-    console.log(xx2.propertyNames())
+    const ctn=new Container()
+    const xx2=await ctn.get(XX2)
+    console.log(xx2)
+    // const xx2 = await new XX2()
+    // console.log(xx2.propertyNames())
 
 })()
