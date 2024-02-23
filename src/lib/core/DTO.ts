@@ -6,6 +6,7 @@ import {
 } from '../base/internal/ObjectSchemaValidation.js'
 import {InvalidValueException} from '../../exceptions/dto/InvalidValueException.js'
 import {As} from '../base/func/As.js'
+import {IsNativeFunction} from '../base/func/IsNativeFunction.js'
 
 export class DTO extends DataValidator {
 
@@ -52,17 +53,22 @@ export class DTO extends DataValidator {
         super()
         //Create DTO proxy object
         const DTOInstanceProxy: this = new Proxy(this, {
-            get(target, p: string | symbol, receiver: any): any {
-                console.log('Get:', p)
-                return Reflect.get(target, p, receiver)
-            },
             set: (target, prop: string | symbol, value, receiver) => {
-                if (this.#instantiated) {
-                    // 在这里可以添加一些处理逻辑
-                    console.log(`设置属性: ${prop.toString()} = ${value}`, target)
-                    //TODO 触发验证
+                if (this.#instantiated && typeof prop !== 'symbol') {
+                    const objectPropertySchemaMap: ObjectPropertySchemaMap = GetObjectPropertySchemasByPrototype(this)
+                    const propertySchema: Schema | undefined = objectPropertySchemaMap.get(prop)
+                    if (propertySchema) value = DTO.validate(value, propertySchema, {
+                        ...this.validateOptions(),
+                        noDefaults: true
+                    })
                 }
                 return Reflect.set(target, prop, value, receiver)
+            },
+            deleteProperty: (target, prop: string | symbol): boolean => {
+                if (this.#instantiated && typeof prop !== 'symbol' && !IsNativeFunction(target[prop])) {
+                    console.log('del', target, prop)//TODO
+                }
+                return Reflect.deleteProperty(target, prop)
             }
         })
         if (async) {
@@ -83,7 +89,6 @@ export class DTO extends DataValidator {
                 throw new InvalidValueException((As<Error>(e).message))
             }
             this.#instantiate()
-            console.log('getOwnPropertyNames:', Object.getOwnPropertyNames(this), this)
             return DTOInstanceProxy
         }
     }

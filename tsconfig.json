@@ -13,9 +13,8 @@
       "reflect-metadata",
       "node"
     ],
-    //发出符合ECMAScript标准的类字段。当此配置项设置为true的时候，会将class中定义的的字段生成到js文件中，从而导致修饰器赋值失效
-    //在当前情况下设置为true未发现编译后生成的js文件的constructor中字段被强制赋值为undefined，则可保持该字段为true
-    "useDefineForClassFields": true,
+    //发出符合ECMAScript标准的类字段。当此配置项设置为true的时候，会将class中定义的的字段生成到js文件中，从而导致DTO中在构造函数中的验证赋值失效
+    "useDefineForClassFields": false,
     "preserveConstEnums": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,

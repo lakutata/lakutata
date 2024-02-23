@@ -58,15 +58,22 @@ import {Expect} from '../decorators/dto/Expect.js'
     }
 
     class Efg extends Abc {
-        @Expect(DTO.Number().default(666))
-        public bb: number
+        @Expect(DTO.Number().optional().default(666))
+        public bb?: number
     }
 
     // const abc = new Abc()
     // console.log(abc)
-    const efg = new Efg({aa:'aaa'})
+    const efg = await new Efg({aa: 'aaa'}, true)
     // console.log(abc)
+    // @ts-ignore
+    efg.aa = '1111'
+    // efg.bb = 777777
+    // efg.bb = undefined
+    delete efg.bb
     console.log(efg)
+    const efg2 = await new Efg({aa: 'aaa'}, true)
+    console.log(efg2)
 
     // console.log(DTO.validate({bb: 1},DTO.Object({
     //     aa: DTO.String().required()
