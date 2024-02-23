@@ -245,6 +245,8 @@ export class DataValidator {
         return Joi.attempt(value, schema, options) as any
     }
 
+    //TODO 下面的方法也许可以不在DataValidator中保留，而是全部移动至DTO中
+
     /**
      * 根据Schema判断数据是否正确（同步方法）
      * @param data
