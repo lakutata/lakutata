@@ -1,10 +1,10 @@
 import {DTO} from '../../core/DTO.js'
-import {Schema, ValidationOptions} from 'joi'
+import {Schema, SchemaMap, ValidationOptions} from 'joi'
 import {ObjectConstructor} from '../func/ObjectConstructor.js'
 import {DTO_PROPERTY_SCHEMAS, DTO_VALIDATE_OPTIONS} from '../../../constants/metadata-keys/DTOMetadataKey.js'
 import {ObjectParentConstructors} from '../func/ObjectParentConstructors.js'
 import {ObjectPrototype} from '../func/ObjectPrototype.js'
-import {DefaultValidationOptions} from './DataValidator.js'
+import {DataValidator, DefaultValidationOptions} from './DataValidator.js'
 
 export type ObjectPropertySchemaMap = Map<string, Schema>
 
@@ -52,6 +52,28 @@ export function GetObjectPropertySchemasByPrototype<ClassPrototype extends DTO>(
  */
 export function GetObjectPropertySchemasByConstructor<ClassConstructor extends typeof DTO>(target: ClassConstructor): ObjectPropertySchemaMap {
     return GetObjectPropertySchemasByPrototype(ObjectPrototype(target))
+}
+
+/**
+ * Get DTO object schema by its prototype
+ * @param target
+ * @constructor
+ */
+export function GetObjectSchemaByPrototype<ClassPrototype extends DTO>(target: ClassPrototype): Schema {
+    const schemaMap: SchemaMap = {}
+    GetObjectPropertySchemasByPrototype(target).forEach((propertySchema: Schema, propertyKey: string): void => {
+        schemaMap[propertyKey] = propertySchema
+    })
+    return DataValidator.Object(schemaMap)
+}
+
+/**
+ * Get DTO object schema by its constructor
+ * @param target
+ * @constructor
+ */
+export function GetObjectSchemaByConstructor<ClassConstructor extends typeof DTO>(target: ClassConstructor): Schema {
+    return GetObjectSchemaByPrototype(ObjectPrototype(target))
 }
 
 /**

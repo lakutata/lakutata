@@ -55,19 +55,24 @@ import {ValidateOptions} from '../decorators/dto/ValidateOptions.js'
     class Abc extends DTO {
         @Expect(DTO.String().required())
         public aa: string
-
-        public haha: string
     }
 
 
     class Efg extends Abc {
-        @Expect(DTO.Number())
-        public bb?: number = 666
+        @Expect(DTO.Number().default(667))
+        public bb?: number
+
+        @Expect(Abc.Schema)
+        public nnnnn: any
     }
 
     // const abc = new Abc()
     // console.log(abc)
-    const efg = await new Efg({aa: 'aaa', hahha: 123}, true)
+    const efg = await new Efg({
+        aa: 'aaa', hahha: 123, nnnnn: {
+            aa: 'pppp'
+        }
+    }, true)
     // console.log(abc)
     // @ts-ignore
     efg.aa = '1111'
