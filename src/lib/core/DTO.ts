@@ -86,4 +86,5 @@ export class DTO extends DataValidator {
     public static get Schema(): Schema {
         return GetObjectSchemaByConstructor(this)
     }
+    
 }
