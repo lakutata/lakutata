@@ -1,6 +1,7 @@
 import {Schema} from 'joi'
 import {DTO} from '../../lib/core/DTO.js'
 import {TMethodDecorator} from '../../types/TMethodDecorator.js'
+import {SetMethodReturnValueValidator} from '../../lib/base/internal/MethodValidation.js'
 
 /**
  * Property Decorator
@@ -8,7 +9,5 @@ import {TMethodDecorator} from '../../types/TMethodDecorator.js'
  * @constructor
  */
 export function Return<ClassPrototype, DTOConstructor extends typeof DTO>(def: DTOConstructor | Schema): TMethodDecorator<ClassPrototype> {
-    return (target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<ClassPrototype>) => {
-        //TODO
-    }
+    return (target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<ClassPrototype>) => SetMethodReturnValueValidator(target, propertyKey, descriptor, def)
 }
