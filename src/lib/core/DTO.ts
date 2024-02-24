@@ -33,11 +33,12 @@ export class DTO extends DataValidator {
         super()
         //Create DTO proxy object
         const DTOInstanceProxy: this = new Proxy(this, {
-            set: (target, prop: string | symbol, value, receiver) => {
+            set: (target, prop: string | symbol, value, receiver): boolean => {
                 if (this.#instantiated && typeof prop !== 'symbol') {
                     const objectPropertySchemaMap: ObjectPropertySchemaMap = GetObjectPropertySchemasByPrototype(this)
+                    const indexSignatureSchema: Schema = GetObjectIndexSignatureSchemaByPrototype(this)
                     const propertySchema: Schema | undefined = objectPropertySchemaMap.get(prop)
-                    if (propertySchema) value = DTO.validate(value, propertySchema, {
+                    value = DTO.validate(value, propertySchema ? propertySchema : indexSignatureSchema, {
                         ...GetObjectValidateOptions(this),
                         noDefaults: true
                     })

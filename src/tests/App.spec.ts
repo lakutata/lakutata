@@ -88,6 +88,8 @@ import {GetObjectIndexSignatureSchemaByConstructor} from '../lib/base/internal/O
     const efg2 = new Efg({aa: 'aaa'})
     console.log(efg2)
 
+    efg2.okk = 'true'
+    console.log(efg2)
     // console.log(DTO.validate({bb: 1},DTO.Object({
     //     aa: DTO.String().required()
     // })))
