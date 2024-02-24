@@ -4,6 +4,7 @@ import {TMethodDecorator} from '../../types/TMethodDecorator.js'
 
 /**
  * Property Decorator
+ * @param def
  * @constructor
  */
 export function Return<ClassPrototype, DTOConstructor extends typeof DTO>(def: DTOConstructor | Schema): TMethodDecorator<ClassPrototype> {
