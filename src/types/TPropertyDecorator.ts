@@ -1,1 +1,1 @@
-export type TPropertyDecorator<T> = (target: T, propertyKey: string | symbol) => void
+export type TPropertyDecorator<ClassPrototype> = (target: ClassPrototype, propertyKey: string | symbol) => void
