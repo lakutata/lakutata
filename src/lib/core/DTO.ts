@@ -2,6 +2,7 @@ import {DataValidator} from '../base/internal/DataValidator.js'
 import {ObjectSchema, Schema} from 'joi'
 import {AppendAsyncConstructor} from '../base/async-constructor/Append.js'
 import {
+    GetObjectIndexSignatureSchemaByPrototype,
     GetObjectPropertySchemasByPrototype,
     GetObjectSchemaByConstructor,
     GetObjectSchemaByPrototype,
@@ -17,7 +18,7 @@ export class DTO extends DataValidator {
     #instantiated: boolean = false
 
     get #objectSchema(): Schema {
-        return GetObjectSchemaByPrototype(this)
+        return GetObjectSchemaByPrototype(this).pattern(DTO.String(), GetObjectIndexSignatureSchemaByPrototype(this))
     }
 
     /**

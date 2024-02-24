@@ -14,6 +14,8 @@ import {Injectable} from '../decorators/di/Injectable.js'
 import {DTO} from '../lib/core/DTO.js'
 import {Expect} from '../decorators/dto/Expect.js'
 import {ValidateOptions} from '../decorators/dto/ValidateOptions.js'
+import {IndexSignature} from '../decorators/dto/IndexSignature.js'
+import {GetObjectIndexSignatureSchemaByConstructor} from '../lib/base/internal/ObjectSchemaValidation.js'
 
 (async () => {
     // class XX extends BaseObject {
@@ -51,12 +53,14 @@ import {ValidateOptions} from '../decorators/dto/ValidateOptions.js'
     // const xx2 = await new XX2()
     // console.log(xx2.propertyNames())
 
-    @ValidateOptions({stripUnknown: false})
+
+    @ValidateOptions({stripUnknown: true})
     class Abc extends DTO {
         @Expect(DTO.String().required())
         public aa: string
     }
 
+    @IndexSignature(DTO.Alternatives(DTO.String(), DTO.Number()))
     class Efg extends Abc {
         @Expect(DTO.Number().default(667))
         public bb?: number
@@ -69,7 +73,8 @@ import {ValidateOptions} from '../decorators/dto/ValidateOptions.js'
     // console.log(abc)
     const efg = new Efg({
         aa: 'aaa', hahha: 123, nnnnn: {
-            aa: 'pppp'
+            aa: 'pppp',
+            okokok: true
         }
     })
     // console.log(abc)
@@ -78,6 +83,7 @@ import {ValidateOptions} from '../decorators/dto/ValidateOptions.js'
     // efg.bb = 777777
     // efg.bb = undefined
     delete efg.bb
+
     console.log(efg)
     const efg2 = new Efg({aa: 'aaa'})
     console.log(efg2)

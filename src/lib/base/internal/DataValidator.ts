@@ -35,7 +35,7 @@ export const DefaultValidationOptions: ValidationOptions = {
     debug: false
 }
 
-export class DataValidator {
+export class DataValidator extends Object{
 
     /**
      * 任意类型验证

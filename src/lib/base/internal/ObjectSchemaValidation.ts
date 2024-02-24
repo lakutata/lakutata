@@ -1,12 +1,49 @@
 import {DTO} from '../../core/DTO.js'
 import {ObjectSchema, Schema, SchemaMap, ValidationOptions} from 'joi'
 import {ObjectConstructor} from '../func/ObjectConstructor.js'
-import {DTO_PROPERTY_SCHEMAS, DTO_VALIDATE_OPTIONS} from '../../../constants/metadata-keys/DTOMetadataKey.js'
+import {
+    DTO_INDEX_SIGNATURE_SCHEMA,
+    DTO_PROPERTY_SCHEMAS,
+    DTO_VALIDATE_OPTIONS
+} from '../../../constants/metadata-keys/DTOMetadataKey.js'
 import {ObjectParentConstructors} from '../func/ObjectParentConstructors.js'
 import {ObjectPrototype} from '../func/ObjectPrototype.js'
 import {DataValidator, DefaultValidationOptions} from './DataValidator.js'
 
 export type ObjectPropertySchemaMap = Map<string, Schema>
+
+/**
+ * Set object index signature schema
+ * @param target
+ * @param schema
+ * @constructor
+ */
+export function SetObjectIndexSignatureSchema<ClassConstructor extends typeof DTO>(target: ClassConstructor, schema: Schema): ClassConstructor {
+    Reflect.defineMetadata(DTO_INDEX_SIGNATURE_SCHEMA, schema, target)
+    return target
+}
+
+/**
+ * Get object's index signature schema by its prototype
+ * @param target
+ * @constructor
+ */
+export function GetObjectIndexSignatureSchemaByPrototype<ClassPrototype extends DTO>(target: ClassPrototype): Schema {
+    if (Reflect.hasOwnMetadata(DTO_INDEX_SIGNATURE_SCHEMA, ObjectConstructor(target))) return Reflect.getOwnMetadata(DTO_INDEX_SIGNATURE_SCHEMA, ObjectConstructor(target))
+    for (const parentConstructor of ObjectParentConstructors(ObjectConstructor(target))) {
+        if (Reflect.hasOwnMetadata(DTO_INDEX_SIGNATURE_SCHEMA, parentConstructor)) return Reflect.getOwnMetadata(DTO_INDEX_SIGNATURE_SCHEMA, parentConstructor)
+    }
+    return DataValidator.Any()
+}
+
+/**
+ * Get object's index signature schema by its constructor
+ * @param target
+ * @constructor
+ */
+export function GetObjectIndexSignatureSchemaByConstructor<ClassConstructor extends typeof DTO>(target: ClassConstructor): Schema {
+    return GetObjectIndexSignatureSchemaByPrototype(ObjectPrototype(target))
+}
 
 /**
  * Set data validation schema to object's property
