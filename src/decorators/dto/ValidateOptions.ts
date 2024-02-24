@@ -5,6 +5,7 @@ import {SetObjectValidateOptions} from '../../lib/base/internal/ObjectSchemaVali
 
 /**
  * Class Decorator
+ * @param options
  * @constructor
  */
 export function ValidateOptions<ClassConstructor extends typeof DTO>(options: ValidationOptions): TClassDecorator<ClassConstructor> {

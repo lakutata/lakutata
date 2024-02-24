@@ -4,6 +4,7 @@ import {SetObjectInjectItem} from '../../lib/base/internal/ObjectInjection.js'
 
 /**
  * Property Decorator
+ * @param name
  * @constructor
  */
 export function Inject<ClassPrototype extends BaseObject>(name?: string | symbol): TPropertyDecorator<ClassPrototype> {

@@ -5,6 +5,7 @@ import {SetObjectPropertySchema} from '../../lib/base/internal/ObjectSchemaValid
 
 /**
  * Property Decorator
+ * @param schema
  * @constructor
  */
 export function Expect<ClassPrototype extends DTO>(schema: Schema): TPropertyDecorator<ClassPrototype> {
