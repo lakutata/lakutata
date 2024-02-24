@@ -1,5 +1,5 @@
 import {DataValidator} from '../base/internal/DataValidator.js'
-import {Schema} from 'joi'
+import {ObjectSchema, Schema} from 'joi'
 import {AppendAsyncConstructor} from '../base/async-constructor/Append.js'
 import {
     GetObjectPropertySchemasByPrototype,
@@ -83,8 +83,8 @@ export class DTO extends DataValidator {
      * DTO schema
      * @constructor
      */
-    public static get Schema(): Schema {
+    public static get Schema(): ObjectSchema {
         return GetObjectSchemaByConstructor(this)
     }
-    
+
 }
