@@ -16,6 +16,7 @@ import {Expect} from '../decorators/dto/Expect.js'
 import {ValidateOptions} from '../decorators/dto/ValidateOptions.js'
 import {IndexSignature} from '../decorators/dto/IndexSignature.js'
 import {GetObjectIndexSignatureSchemaByConstructor} from '../lib/base/internal/ObjectSchemaValidation.js'
+import {Accept} from '../decorators/dto/Accept.js'
 
 (async () => {
     // class XX extends BaseObject {
@@ -93,4 +94,14 @@ import {GetObjectIndexSignatureSchemaByConstructor} from '../lib/base/internal/O
     // console.log(DTO.validate({bb: 1},DTO.Object({
     //     aa: DTO.String().required()
     // })))
+
+
+    class XXX {
+
+        @Accept(Abc, DTO.Number())
+        public func() {
+
+        }
+    }
+
 })()
