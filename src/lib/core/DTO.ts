@@ -1,5 +1,5 @@
-import {DataValidator, DefaultValidationOptions} from '../base/internal/DataValidator.js'
-import {Schema, SchemaMap, ValidationOptions} from 'joi'
+import {DataValidator} from '../base/internal/DataValidator.js'
+import {Schema} from 'joi'
 import {AppendAsyncConstructor} from '../base/async-constructor/Append.js'
 import {
     GetObjectPropertySchemasByPrototype,
