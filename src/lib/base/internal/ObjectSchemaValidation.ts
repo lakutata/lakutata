@@ -2,6 +2,7 @@ import {DTO} from '../../core/DTO.js'
 import {ObjectSchema, Schema, SchemaMap, ValidationOptions} from 'joi'
 import {ObjectConstructor} from '../func/ObjectConstructor.js'
 import {
+    DTO_CONSTRUCTOR,
     DTO_INDEX_SIGNATURE_SCHEMA,
     DTO_PROPERTY_SCHEMAS,
     DTO_VALIDATE_OPTIONS
@@ -11,6 +12,25 @@ import {ObjectPrototype} from '../func/ObjectPrototype.js'
 import {DataValidator, DefaultValidationOptions} from './DataValidator.js'
 
 export type ObjectPropertySchemaMap = Map<string, Schema>
+
+/**
+ * Define DTO
+ * @param target
+ * @constructor
+ */
+export function DefineObjectAsDTO<ClassConstructor extends typeof DTO>(target: ClassConstructor): ClassConstructor {
+    Reflect.defineMetadata(DTO_CONSTRUCTOR, true, target)
+    return target
+}
+
+/**
+ * Check the target constructor is DTO constructor or not
+ * @param target
+ * @constructor
+ */
+export function IsDTO<ClassConstructor extends typeof DTO>(target: ClassConstructor): boolean {
+    return !!Reflect.getMetadata(DTO_CONSTRUCTOR, target)
+}
 
 /**
  * Set object index signature schema

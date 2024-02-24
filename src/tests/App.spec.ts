@@ -15,7 +15,7 @@ import {DTO} from '../lib/core/DTO.js'
 import {Expect} from '../decorators/dto/Expect.js'
 import {ValidateOptions} from '../decorators/dto/ValidateOptions.js'
 import {IndexSignature} from '../decorators/dto/IndexSignature.js'
-import {GetObjectIndexSignatureSchemaByConstructor} from '../lib/base/internal/ObjectSchemaValidation.js'
+import {GetObjectIndexSignatureSchemaByConstructor, IsDTO} from '../lib/base/internal/ObjectSchemaValidation.js'
 import {Accept} from '../decorators/dto/Accept.js'
 
 (async () => {
@@ -95,11 +95,10 @@ import {Accept} from '../decorators/dto/Accept.js'
     //     aa: DTO.String().required()
     // })))
 
-
-    class XXX {
+    class XXX{
 
         @Accept(Abc, DTO.Number())
-        public func() {
+        public async func() {
 
         }
     }

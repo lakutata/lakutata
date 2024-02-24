@@ -2,6 +2,7 @@ import {DataValidator} from '../base/internal/DataValidator.js'
 import {ObjectSchema, Schema} from 'joi'
 import {AppendAsyncConstructor} from '../base/async-constructor/Append.js'
 import {
+    DefineObjectAsDTO,
     GetObjectIndexSignatureSchemaByPrototype,
     GetObjectPropertySchemasByPrototype,
     GetObjectSchemaByConstructor,
@@ -13,6 +14,7 @@ import {InvalidValueException} from '../../exceptions/dto/InvalidValueException.
 import {As} from '../base/func/As.js'
 import {IsNativeFunction} from '../base/func/IsNativeFunction.js'
 
+@(<ClassConstructor extends typeof DTO>(target: ClassConstructor) => DefineObjectAsDTO(target))
 export class DTO extends DataValidator {
 
     #instantiated: boolean = false
