@@ -1,7 +1,10 @@
 import {DTO} from '../../core/DTO.js'
-import {Schema} from 'joi'
+import {ArraySchema, Schema} from 'joi'
 import {IsDTO} from './ObjectSchemaValidation.js'
 import {As} from '../func/As.js'
+import {isAsyncFunction} from 'node:util/types'
+import {InvalidMethodAcceptException} from '../../../exceptions/dto/InvalidMethodAcceptException.js'
+import {InvalidMethodReturnException} from '../../../exceptions/dto/InvalidMethodReturnException.js'
 
 /**
  * For validate method accept arguments
@@ -14,8 +17,39 @@ import {As} from '../func/As.js'
 export function SetMethodAcceptArgumentsValidator<ClassPrototype, DTOConstructor extends typeof DTO>(target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<any>, defs: (DTOConstructor | Schema)[]): TypedPropertyDescriptor<any> {
     const argumentSchemas: Schema[] = []
     defs.forEach((def: DTOConstructor | Schema) => argumentSchemas.push(IsDTO(As<DTOConstructor>(def)) ? As<DTOConstructor>(def).schema : As<Schema>(def)))
-    console.log(argumentSchemas)
-    //TODO
+    descriptor.writable = false
+    const originalMethod: (...args: any[]) => any | Promise<any> = descriptor.value
+    const schema: ArraySchema = DTO.Array().ordered(...argumentSchemas)
+    const argumentSchemaLength: number = Array.isArray(argumentSchemas) ? argumentSchemas.length : 1
+    if (isAsyncFunction(originalMethod)) {
+        descriptor.value = async function (...args: any[]): Promise<any> {
+            const argumentCount: number = args.length - argumentSchemaLength
+            try {
+                //TODO 对每个参数分开验证，从而可以使用DTO中定义好的验证参数
+                args = await DTO.validateAsync(args, schema.concat(DTO.Array().ordered(...new Array(argumentCount >= 0 ? argumentCount : 0).fill(DTO.Any()))))
+            } catch (e) {
+                throw new InvalidMethodAcceptException('Method [{propertyKey}] accept argument {reason}', {
+                    propertyKey: propertyKey,
+                    reason: (e as Error).message
+                })
+            }
+            return originalMethod.apply(this, args)
+        }
+    } else {
+        descriptor.value = function (...args: any[]): any {
+            const argumentCount: number = args.length - argumentSchemaLength
+            try {
+                //TODO 对每个参数分开验证，从而可以使用DTO中定义好的验证参数
+                args = DTO.validate(args, schema.concat(DTO.Array().ordered(...new Array(argumentCount >= 0 ? argumentCount : 0).fill(DTO.Any()))))
+            } catch (e) {
+                throw new InvalidMethodAcceptException('Method [{propertyKey}] accept argument {reason}', {
+                    propertyKey: propertyKey,
+                    reason: (e as Error).message
+                })
+            }
+            return originalMethod.apply(this, args)
+        }
+    }
     return descriptor
 }
 
@@ -27,7 +61,40 @@ export function SetMethodAcceptArgumentsValidator<ClassPrototype, DTOConstructor
  * @param def
  * @constructor
  */
-export function SetMethodReturnValueValidator<ClassPrototype, DTOConstructor extends typeof DTO>(target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<ClassPrototype>, def: DTOConstructor | Schema): TypedPropertyDescriptor<ClassPrototype> {
-    //TODO
+export function SetMethodReturnValueValidator<ClassPrototype, DTOConstructor extends typeof DTO>(target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<any>, def: DTOConstructor | Schema): TypedPropertyDescriptor<any> {
+    const schema: Schema = IsDTO(As<DTOConstructor>(def)) ? As<DTOConstructor>(def).schema : As<Schema>(def)
+    descriptor.writable = false
+    const originalMethod: (...args: any[]) => any | Promise<any> = descriptor.value
+    if (isAsyncFunction(originalMethod)) {
+        descriptor.value = async function (...args: any[]): Promise<any> {
+            const asyncResult = await originalMethod.apply(this, args)
+            if (asyncResult === undefined) throw new InvalidMethodReturnException('Method [{propertyKey}] return undefined', {
+                propertyKey: propertyKey
+            })
+            try {
+                return await DTO.validateAsync(asyncResult, schema)
+            } catch (e) {
+                throw new InvalidMethodReturnException('Method [{propertyKey}] return value {reason}', {
+                    propertyKey: propertyKey,
+                    reason: (e as Error).message
+                })
+            }
+        }
+    } else {
+        descriptor.value = function (...args: any[]) {
+            const syncResult = originalMethod.apply(this, args)
+            if (syncResult === undefined) throw new InvalidMethodReturnException('Method [{propertyKey}] return undefined', {
+                propertyKey: propertyKey
+            })
+            try {
+                return DTO.validate(syncResult, schema)
+            } catch (e) {
+                throw new InvalidMethodReturnException('Method [{propertyKey}] return value {reason}', {
+                    propertyKey: propertyKey,
+                    reason: (e as Error).message
+                })
+            }
+        }
+    }
     return descriptor
 }

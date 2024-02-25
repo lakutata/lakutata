@@ -91,4 +91,19 @@ export class DTO extends DataValidator {
         return GetObjectSchemaByConstructor(this)
     }
 
+    /**
+     * Mark DTO as required
+     */
+    public static required() {
+        //TODO
+        return this
+    }
+
+    /**
+     * Mark DTO as optional
+     */
+    public static optional() {
+        //TODO
+        return this
+    }
 }

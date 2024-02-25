@@ -17,6 +17,7 @@ import {ValidateOptions} from '../decorators/dto/ValidateOptions.js'
 import {IndexSignature} from '../decorators/dto/IndexSignature.js'
 import {GetObjectIndexSignatureSchemaByConstructor, IsDTO} from '../lib/base/internal/ObjectSchemaValidation.js'
 import {Accept} from '../decorators/dto/Accept.js'
+import {Return} from '../decorators/dto/Return.js'
 
 (async () => {
     // class XX extends BaseObject {
@@ -95,12 +96,15 @@ import {Accept} from '../decorators/dto/Accept.js'
     //     aa: DTO.String().required()
     // })))
 
-    class XXX{
+    class XXX {
 
-        @Accept(Abc, DTO.Number())
-        public async func() {
-
+        @Accept(Abc.required(), DTO.Number())
+        @Return(Abc)
+        public async func(...args: any[]) {
+            console.log('oh!')
+            return {aa: 'aa'}
         }
     }
 
+    console.log(await new XXX().func({aa: 'aa'}, 1111))
 })()
