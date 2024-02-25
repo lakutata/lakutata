@@ -11,7 +11,7 @@ import {As} from '../func/As.js'
  * @param defs
  * @constructor
  */
-export function SetMethodAcceptArgumentsValidator<ClassPrototype, DTOConstructor extends typeof DTO>(target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<ClassPrototype>, defs: (DTOConstructor | Schema)[]): TypedPropertyDescriptor<ClassPrototype> {
+export function SetMethodAcceptArgumentsValidator<ClassPrototype, DTOConstructor extends typeof DTO>(target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<any>, defs: (DTOConstructor | Schema)[]): TypedPropertyDescriptor<any> {
     const argumentSchemas: Schema[] = []
     defs.forEach((def: DTOConstructor | Schema) => argumentSchemas.push(IsDTO(As<DTOConstructor>(def)) ? As<DTOConstructor>(def).schema : As<Schema>(def)))
     console.log(argumentSchemas)
