@@ -115,4 +115,5 @@ import {Return} from '../decorators/dto/Return.js'
     }
 
     console.log(await new XXX().func({aa: 'aa', opopop: true, cccccc: {lll: 111, kkk: true}}, '1111'))
+
 })()
