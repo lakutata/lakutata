@@ -105,7 +105,7 @@ import {Return} from '../decorators/dto/Return.js'
 
     class XXX {
 
-        @Accept(Abc.Schema(), DTO.Number())
+        @Accept(Abc.Schema(), DTO.Alternatives(DTO.Number(), DTO.String()).required())
         @Return(Abc)
         public async func(...args: any[]) {
             console.log('oh!')
@@ -114,5 +114,5 @@ import {Return} from '../decorators/dto/Return.js'
 
     }
 
-    console.log(await new XXX().func({aa: 'aa', opopop: true, cccccc: {lll: 111, kkk: true}}, 1111))
+    console.log(await new XXX().func({aa: 'aa', opopop: true, cccccc: {lll: 111, kkk: true}}, '1111'))
 })()

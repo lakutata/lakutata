@@ -35,14 +35,14 @@ export const DefaultValidationOptions: ValidationOptions = {
     debug: false
 }
 
-export class DataValidator extends Object{
+export class DataValidator extends Object {
 
     /**
      * 任意类型验证
      * @constructor
      */
     public static Any<TSchema = any>(): AnySchema<TSchema> {
-        return Joi.any<TSchema>()
+        return Joi.any<TSchema>().strict(true)
     }
 
     /**
@@ -50,7 +50,7 @@ export class DataValidator extends Object{
      * @constructor
      */
     public static String<TSchema = string>(): StringSchema<TSchema> {
-        return Joi.string<TSchema>()
+        return Joi.string<TSchema>().strict(true)
     }
 
     /**
@@ -58,7 +58,7 @@ export class DataValidator extends Object{
      * @constructor
      */
     public static Number<TSchema = number>(): NumberSchema<TSchema> {
-        return Joi.number<TSchema>()
+        return Joi.number<TSchema>().strict(true)
     }
 
     /**
@@ -66,7 +66,7 @@ export class DataValidator extends Object{
      * @constructor
      */
     public static Boolean<TSchema = boolean>(): BooleanSchema<TSchema> {
-        return Joi.boolean<TSchema>()
+        return Joi.boolean<TSchema>().strict(true)
     }
 
     /**
@@ -74,7 +74,7 @@ export class DataValidator extends Object{
      * @constructor
      */
     public static Date<TSchema = Date>(): DateSchema<TSchema> {
-        return Joi.date<TSchema>()
+        return Joi.date<TSchema>().strict(true)
     }
 
     /**
@@ -83,7 +83,7 @@ export class DataValidator extends Object{
      * @constructor
      */
     public static Object<TSchema = any, isStrict = false, T = TSchema>(schema?: SchemaMap<T, isStrict>): ObjectSchema<TSchema> {
-        return Joi.object<TSchema, isStrict, T>(schema as any)
+        return Joi.object<TSchema, isStrict, T>(schema as any).strict(true)
     }
 
     /**
@@ -92,7 +92,7 @@ export class DataValidator extends Object{
      * @constructor
      */
     public static Array<TSchema = any[]>(...types: SchemaLikeWithoutArray[]): ArraySchema<TSchema> {
-        return Joi.array<TSchema>().items(...types)
+        return Joi.array<TSchema>().items(...types).strict(true)
     }
 
     /**
@@ -100,7 +100,7 @@ export class DataValidator extends Object{
      * @constructor
      */
     public static Binary<TSchema = Buffer>(): BinarySchema<TSchema> {
-        return Joi.binary<TSchema>()
+        return Joi.binary<TSchema>().strict(true)
     }
 
     /**
@@ -108,7 +108,7 @@ export class DataValidator extends Object{
      * @constructor
      */
     public static Function<TSchema = Function>(): FunctionSchema<TSchema> {
-        return Joi.func<TSchema>()
+        return Joi.func<TSchema>().strict(true)
     }
 
     /**
@@ -116,7 +116,7 @@ export class DataValidator extends Object{
      * @constructor
      */
     public static AsyncFunction<TSchema = Function>(): FunctionSchema<TSchema> {
-        return Joi.func<TSchema>().custom((value: TSchema, helpers) => {
+        return this.Function<TSchema>().custom((value: TSchema, helpers) => {
             if (isAsyncFunction(value)) return value
             return helpers.error('asyncFunc.invalid')
         }, 'Async Function Validation').error((errors: ErrorReport[]) => {
@@ -137,7 +137,7 @@ export class DataValidator extends Object{
      */
     public static Class<TSchema = Function>(inheritsFrom?: TSchema | (() => TSchema)): FunctionSchema<TSchema> {
         if (!inheritsFrom) return Joi.func<TSchema>().class()
-        return Joi.func<TSchema>().class().custom((value: TSchema, helpers: CustomHelpers) => {
+        return this.Function<TSchema>().class().custom((value: TSchema, helpers: CustomHelpers) => {
             if (!As<() => TSchema>(inheritsFrom).prototype) inheritsFrom = As<() => TSchema>(inheritsFrom)()
             if (value instanceof As(inheritsFrom) || value['prototype'] instanceof As(inheritsFrom)) return value
             return helpers.error('any.invalid')
@@ -149,7 +149,7 @@ export class DataValidator extends Object{
      * @constructor
      */
     public static Glob<TSchema = string>(): StringSchema<TSchema> {
-        return Joi.string<TSchema>().custom((value: TSchema, helpers: CustomHelpers) => {
+        return this.String<TSchema>().custom((value: TSchema, helpers: CustomHelpers) => {
             if (typeof value === 'string' && IsGlobString(value)) return value
             return helpers.error('any.invalid')
 
@@ -166,7 +166,7 @@ export class DataValidator extends Object{
         allowBlankDay?: boolean
         allowSevenAsSunday?: boolean
     }): StringSchema<TSchema> {
-        return Joi.string<TSchema>().custom((value: TSchema, helpers: CustomHelpers) => {
+        return this.String<TSchema>().custom((value: TSchema, helpers: CustomHelpers) => {
             options = options ? options : {}
             options.alias = options.alias !== undefined ? options.alias : false
             options.seconds = options.seconds !== undefined ? options.seconds : true
@@ -182,7 +182,7 @@ export class DataValidator extends Object{
      * @constructor
      */
     public static HttpDocument<TSchema = string>(): StringSchema<TSchema> {
-        return Joi.string<TSchema>().custom((value: TSchema, helpers: CustomHelpers) => {
+        return this.String<TSchema>().custom((value: TSchema, helpers: CustomHelpers) => {
             if (typeof value === 'string' && (IsHtml(value) || IsXML(value))) return value
             return helpers.error('any.invalid')
         }, 'HttpDocument Validation')
@@ -193,7 +193,7 @@ export class DataValidator extends Object{
      * @constructor
      */
     public static Symbol<TSchema = Symbol>(): SymbolSchema<TSchema> {
-        return Joi.symbol<TSchema>()
+        return Joi.symbol<TSchema>().strict(true)
     }
 
     /**
@@ -203,7 +203,7 @@ export class DataValidator extends Object{
      */
     public static Alternatives<TSchema = any>(...types: SchemaLike[]): AlternativesSchema<TSchema> {
         //@ts-ignore
-        return Joi.alternatives<TSchema>(...types)
+        return Joi.alternatives<TSchema>(...types).strict(true)
     }
 
     /**
@@ -221,7 +221,7 @@ export class DataValidator extends Object{
      * @constructor
      */
     public static Forbidden(): Schema {
-        return Joi.forbidden()
+        return Joi.forbidden().strict(true)
     }
 
     /**
