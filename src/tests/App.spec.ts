@@ -1,4 +1,3 @@
-import {__dirname, __filename} from '../lib/NodeCJS.js'
 import {createRequire} from 'node:module'
 import * as path from 'path'
 import {MD5} from 'crypto-js'
@@ -20,6 +19,7 @@ import {Accept} from '../decorators/dto/Accept.js'
 import {Return} from '../decorators/dto/Return.js'
 
 (async () => {
+
     // class XX extends BaseObject {
     //     @Configurable()
     //     public xx1: any
@@ -94,26 +94,14 @@ import {Return} from '../decorators/dto/Return.js'
     // delete efg.bb
     //
     // console.log(efg)
-    // const efg2 = new Efg({aa: 'aaa'})
-    // console.log(efg2)
-    //
-    // efg2.okk = 'true'
-    // console.log(efg2)
-    // // console.log(DTO.validate({bb: 1},DTO.Object({
-    // //     aa: DTO.String().required()
-    // // })))
-
-    class XXX {
-
-        @Accept(Abc.Schema(), DTO.Alternatives(DTO.Number(), DTO.String()).required())
-        @Return(Abc)
-        public async func(...args: any[]) {
-            console.log('oh!')
-            return args[0]
-        }
-
-    }
-
-    console.log(await new XXX().func({aa: 'aa', opopop: true, cccccc: {lll: 111, kkk: true}}, '1111'))
+    const efg2 = new Efg({aa: 'aaa', cccccc: {lll: 1}})
+    console.log(efg2)
+    efg2.okk = 'true'
+    // efg2.okk = true
+    // efg2.okk = {}
+    console.log(efg2)
+    // console.log(DTO.validate({bb: 1},DTO.Object({
+    //     aa: DTO.String().required()
+    // })))
 
 })()

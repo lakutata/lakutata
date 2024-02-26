@@ -40,10 +40,20 @@ export class DTO extends DataValidator {
                     const objectPropertySchemaMap: ObjectPropertySchemaMap = GetObjectPropertySchemasByPrototype(this)
                     const indexSignatureSchema: Schema = GetObjectIndexSignatureSchemaByPrototype(this)
                     const propertySchema: Schema | undefined = objectPropertySchemaMap.get(prop)
-                    value = DTO.validate(value, propertySchema ? propertySchema : indexSignatureSchema, {
-                        ...GetObjectValidateOptions(this),
-                        noDefaults: true
-                    })
+                    let tmpObj: Record<string, any> = {}
+                    tmpObj[prop] = value
+                    if (propertySchema) {
+                        value = DTO.validate(value, propertySchema, {
+                            ...GetObjectValidateOptions(this),
+                            noDefaults: true
+                        })
+                    } else {
+                        tmpObj = DTO.validate(tmpObj, DTO.Object().pattern(DTO.String(), indexSignatureSchema), {
+                            ...GetObjectValidateOptions(this),
+                            noDefaults: true
+                        })
+                        value = tmpObj[prop]
+                    }
                 }
                 return Reflect.set(target, prop, value, receiver)
             },

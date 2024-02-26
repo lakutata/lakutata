@@ -31,8 +31,8 @@ export const DefaultValidationOptions: ValidationOptions = {
     abortEarly: true,
     cache: false,
     allowUnknown: true,
-    stripUnknown: true,
-    debug: false
+    stripUnknown: true
+    // debug: false
 }
 
 export class DataValidator extends Object {
