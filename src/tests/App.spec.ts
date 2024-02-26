@@ -56,10 +56,17 @@ import {Return} from '../decorators/dto/Return.js'
     // console.log(xx2.propertyNames())
 
 
-    @ValidateOptions({stripUnknown: true})
+    @ValidateOptions({stripUnknown: false})
     class Abc extends DTO {
         @Expect(DTO.String().required())
         public aa: string
+
+        @Expect(DTO.Object({
+            lll: DTO.Number().required()
+        }).required().options({stripUnknown: false}))
+        public cccccc: {
+            lll: number
+        }
     }
 
     @IndexSignature(DTO.Alternatives(DTO.String(), DTO.Number()))
@@ -67,44 +74,45 @@ import {Return} from '../decorators/dto/Return.js'
         @Expect(DTO.Number().default(667))
         public bb?: number
 
-        @Expect(Abc.schema)
+        @Expect(Abc.Schema())
         public nnnnn: any
     }
 
     // const abc = new Abc()
     // console.log(abc)
-    const efg = new Efg({
-        aa: 'aaa', hahha: 123, nnnnn: {
-            aa: 'pppp',
-            okokok: true
-        }
-    })
+    // const efg = new Efg({
+    //     aa: 'aaa', hahha: 123, nnnnn: {
+    //         aa: 'pppp',
+    //         okokok: true
+    //     }
+    // })
     // console.log(abc)
     // @ts-ignore
-    efg.aa = '1111'
-    // efg.bb = 777777
-    // efg.bb = undefined
-    delete efg.bb
-
-    console.log(efg)
-    const efg2 = new Efg({aa: 'aaa'})
-    console.log(efg2)
-
-    efg2.okk = 'true'
-    console.log(efg2)
-    // console.log(DTO.validate({bb: 1},DTO.Object({
-    //     aa: DTO.String().required()
-    // })))
+    // efg.aa = '1111'
+    // // efg.bb = 777777
+    // // efg.bb = undefined
+    // delete efg.bb
+    //
+    // console.log(efg)
+    // const efg2 = new Efg({aa: 'aaa'})
+    // console.log(efg2)
+    //
+    // efg2.okk = 'true'
+    // console.log(efg2)
+    // // console.log(DTO.validate({bb: 1},DTO.Object({
+    // //     aa: DTO.String().required()
+    // // })))
 
     class XXX {
 
-        @Accept(Abc.required(), DTO.Number())
+        @Accept(Abc.Schema(), DTO.Number())
         @Return(Abc)
         public async func(...args: any[]) {
             console.log('oh!')
-            return {aa: 'aa'}
+            return args[0]
         }
+
     }
 
-    console.log(await new XXX().func({aa: 'aa'}, 1111))
+    console.log(await new XXX().func({aa: 'aa', opopop: true, cccccc: {lll: 111, kkk: true}}, 1111))
 })()

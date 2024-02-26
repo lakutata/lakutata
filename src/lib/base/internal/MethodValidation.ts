@@ -5,6 +5,7 @@ import {As} from '../func/As.js'
 import {isAsyncFunction} from 'node:util/types'
 import {InvalidMethodAcceptException} from '../../../exceptions/dto/InvalidMethodAcceptException.js'
 import {InvalidMethodReturnException} from '../../../exceptions/dto/InvalidMethodReturnException.js'
+import {DefaultValidationOptions} from './DataValidator.js'
 
 /**
  * For validate method accept arguments
@@ -16,7 +17,7 @@ import {InvalidMethodReturnException} from '../../../exceptions/dto/InvalidMetho
  */
 export function SetMethodAcceptArgumentsValidator<ClassPrototype, DTOConstructor extends typeof DTO>(target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<any>, defs: (DTOConstructor | Schema)[]): TypedPropertyDescriptor<any> {
     const argumentSchemas: Schema[] = []
-    defs.forEach((def: DTOConstructor | Schema) => argumentSchemas.push(IsDTO(As<DTOConstructor>(def)) ? As<DTOConstructor>(def).schema : As<Schema>(def)))
+    defs.forEach((def: DTOConstructor | Schema) => argumentSchemas.push(IsDTO(As<DTOConstructor>(def)) ? As<DTOConstructor>(def).Schema() : As<Schema>(def)))
     descriptor.writable = false
     const originalMethod: (...args: any[]) => any | Promise<any> = descriptor.value
     const schema: ArraySchema = DTO.Array().ordered(...argumentSchemas)
@@ -25,8 +26,7 @@ export function SetMethodAcceptArgumentsValidator<ClassPrototype, DTOConstructor
         descriptor.value = async function (...args: any[]): Promise<any> {
             const argumentCount: number = args.length - argumentSchemaLength
             try {
-                //TODO 对每个参数分开验证，从而可以使用DTO中定义好的验证参数
-                args = await DTO.validateAsync(args, schema.concat(DTO.Array().ordered(...new Array(argumentCount >= 0 ? argumentCount : 0).fill(DTO.Any()))))
+                args = await DTO.validateAsync(args, schema.concat(DTO.Array().ordered(...new Array(argumentCount >= 0 ? argumentCount : 0).fill(DTO.Any()))), DefaultValidationOptions)
             } catch (e) {
                 throw new InvalidMethodAcceptException('Method [{propertyKey}] accept argument {reason}', {
                     propertyKey: propertyKey,
@@ -39,8 +39,7 @@ export function SetMethodAcceptArgumentsValidator<ClassPrototype, DTOConstructor
         descriptor.value = function (...args: any[]): any {
             const argumentCount: number = args.length - argumentSchemaLength
             try {
-                //TODO 对每个参数分开验证，从而可以使用DTO中定义好的验证参数
-                args = DTO.validate(args, schema.concat(DTO.Array().ordered(...new Array(argumentCount >= 0 ? argumentCount : 0).fill(DTO.Any()))))
+                args = DTO.validate(args, schema.concat(DTO.Array().ordered(...new Array(argumentCount >= 0 ? argumentCount : 0).fill(DTO.Any()))), DefaultValidationOptions)
             } catch (e) {
                 throw new InvalidMethodAcceptException('Method [{propertyKey}] accept argument {reason}', {
                     propertyKey: propertyKey,
@@ -62,7 +61,7 @@ export function SetMethodAcceptArgumentsValidator<ClassPrototype, DTOConstructor
  * @constructor
  */
 export function SetMethodReturnValueValidator<ClassPrototype, DTOConstructor extends typeof DTO>(target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<any>, def: DTOConstructor | Schema): TypedPropertyDescriptor<any> {
-    const schema: Schema = IsDTO(As<DTOConstructor>(def)) ? As<DTOConstructor>(def).schema : As<Schema>(def)
+    const schema: Schema = IsDTO(As<DTOConstructor>(def)) ? As<DTOConstructor>(def).Schema() : As<Schema>(def)
     descriptor.writable = false
     const originalMethod: (...args: any[]) => any | Promise<any> = descriptor.value
     if (isAsyncFunction(originalMethod)) {
@@ -72,7 +71,7 @@ export function SetMethodReturnValueValidator<ClassPrototype, DTOConstructor ext
                 propertyKey: propertyKey
             })
             try {
-                return await DTO.validateAsync(asyncResult, schema)
+                return await DTO.validateAsync(asyncResult, schema, DefaultValidationOptions)
             } catch (e) {
                 throw new InvalidMethodReturnException('Method [{propertyKey}] return value {reason}', {
                     propertyKey: propertyKey,
@@ -87,7 +86,7 @@ export function SetMethodReturnValueValidator<ClassPrototype, DTOConstructor ext
                 propertyKey: propertyKey
             })
             try {
-                return DTO.validate(syncResult, schema)
+                return DTO.validate(syncResult, schema, DefaultValidationOptions)
             } catch (e) {
                 throw new InvalidMethodReturnException('Method [{propertyKey}] return value {reason}', {
                     propertyKey: propertyKey,

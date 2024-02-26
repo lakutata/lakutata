@@ -10,6 +10,4 @@ import {SetMethodAcceptArgumentsValidator} from '../../lib/base/internal/MethodV
  */
 export function Accept<ClassPrototype, DTOConstructor extends typeof DTO>(...defs: (DTOConstructor | Schema)[]): TMethodDecorator<ClassPrototype> {
     return (target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<any>) => SetMethodAcceptArgumentsValidator(target, propertyKey, descriptor, defs)
-    // return (target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<ClassPrototype>) => {
-    // }
 }

@@ -1,4 +1,4 @@
-import {DataValidator} from '../base/internal/DataValidator.js'
+import {DataValidator, DefaultValidationOptions} from '../base/internal/DataValidator.js'
 import {ObjectSchema, Schema} from 'joi'
 import {AppendAsyncConstructor} from '../base/async-constructor/Append.js'
 import {
@@ -20,14 +20,14 @@ export class DTO extends DataValidator {
     #instantiated: boolean = false
 
     get #objectSchema(): Schema {
-        return GetObjectSchemaByPrototype(this).pattern(DTO.String(), GetObjectIndexSignatureSchemaByPrototype(this))
+        return GetObjectSchemaByPrototype(this).pattern(DTO.String(), GetObjectIndexSignatureSchemaByPrototype(this)).options(GetObjectValidateOptions(this))
     }
 
     /**
      * Instantiate
      * @private
      */
-    #instantiate(): void {
+    #instantiate: () => void = (): void => {
         this.#instantiated = true
     }
 
@@ -62,7 +62,7 @@ export class DTO extends DataValidator {
         if (async) {
             AppendAsyncConstructor(DTOInstanceProxy, async (): Promise<void> => {
                 try {
-                    const validProps: Record<string, any> = await DTO.validateAsync(props, this.#objectSchema, GetObjectValidateOptions(this))
+                    const validProps: Record<string, any> = await DTO.validateAsync(props, this.#objectSchema, DefaultValidationOptions)
                     Object.keys(validProps).forEach((propertyKey: string) => this[propertyKey] = validProps[propertyKey])
                 } catch (e) {
                     throw new InvalidValueException((As<Error>(e).message))
@@ -71,7 +71,7 @@ export class DTO extends DataValidator {
             })
         } else {
             try {
-                const validProps: Record<string, any> = DTO.validate(props, this.#objectSchema, GetObjectValidateOptions(this))
+                const validProps: Record<string, any> = DTO.validate(props, this.#objectSchema, DefaultValidationOptions)
                 Object.keys(validProps).forEach((propertyKey: string) => this[propertyKey] = validProps[propertyKey])
             } catch (e) {
                 throw new InvalidValueException((As<Error>(e).message))
@@ -87,23 +87,7 @@ export class DTO extends DataValidator {
      * DTO schema
      * @constructor
      */
-    public static get schema(): ObjectSchema {
+    public static Schema(): ObjectSchema {
         return GetObjectSchemaByConstructor(this)
-    }
-
-    /**
-     * Mark DTO as required
-     */
-    public static required() {
-        //TODO
-        return this
-    }
-
-    /**
-     * Mark DTO as optional
-     */
-    public static optional() {
-        //TODO
-        return this
     }
 }
