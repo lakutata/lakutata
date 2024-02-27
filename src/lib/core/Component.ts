@@ -113,6 +113,6 @@ export class Component extends BaseObject implements EventEmitter {
     }
 
     public hasListeners(event?: String | undefined): boolean {
-        return this.#eventEmitter.hasListeners()
+        return this.#eventEmitter.hasListeners(event)
     }
 }
