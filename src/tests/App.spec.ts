@@ -65,4 +65,11 @@ import {EventEmitter} from '../lib/EventEmitter.js'
 
     console.log(DTO.validate(xxx, LoadEntryOptions.Schema()))
 
+    const config=[
+        {
+            name:'xx2',
+            class:XX2
+        }
+    ]
+
 })()
