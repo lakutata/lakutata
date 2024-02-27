@@ -15,10 +15,6 @@ export class Component extends BaseObject implements EventEmitter {
 
     #eventEmitter: EventEmitter = new EventEmitter()
 
-    constructor() {
-        super()
-    }
-
     public emit(event: string | symbol | event[], ...values: any[]): boolean {
         return this.#eventEmitter.emit(event, ...values)
     }

@@ -10,6 +10,7 @@ import {
 const onOptions: OnOptions = {
     async: true,
     nextTick: false,
+    promisify: true,
     objectify: false
 }
 
