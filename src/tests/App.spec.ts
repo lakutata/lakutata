@@ -18,6 +18,7 @@ import {GetObjectIndexSignatureSchemaByConstructor, IsDTO} from '../lib/base/int
 import {Accept} from '../decorators/dto/Accept.js'
 import {Return} from '../decorators/dto/Return.js'
 import {LoadEntryOptions} from '../options/LoadEntryOptions.js'
+import EventEmitter from 'node:events'
 
 (async () => {
 

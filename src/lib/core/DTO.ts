@@ -40,6 +40,9 @@ function getObjectSchema<ClassPrototype extends DTO>(target: ClassPrototype): Sc
     return GetObjectSchemaByPrototype(target).pattern(DTO.String(), GetObjectIndexSignatureSchemaByPrototype(target)).options(GetObjectValidateOptions(target))
 }
 
+/**
+ * DTO base class
+ */
 @(<ClassConstructor extends typeof DTO>(target: ClassConstructor) => DefineObjectAsDTO(target))
 export class DTO extends DataValidator {
 
