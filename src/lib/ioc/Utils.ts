@@ -1,5 +1,7 @@
 import {createTokenizer, Token} from './FunctionTokenizer.js'
 import {Constructor} from './Resolvers.js'
+import {IsSymbol} from '../base/func/IsSymbol.js'
+import {As} from '../base/func/As.js'
 
 /**
  * Quick flatten utility to flatten a 2-dimensional array.
@@ -25,8 +27,8 @@ export function nameValueToObject(
     value?: any
 ): Record<string | symbol, any> {
     const obj: string | symbol | object = name
-    if (typeof obj === 'string' || typeof obj === 'symbol') return {[name as any]: value}
-    return obj
+    if (typeof obj === 'string' || IsSymbol(obj)) return {[name as any]: value}
+    return As(obj)
 }
 
 /**

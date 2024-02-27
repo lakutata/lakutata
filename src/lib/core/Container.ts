@@ -82,6 +82,30 @@ export class Container {
         return IsPromise(resolved) ? await resolved : resolved
     }
 
+    public async set() {
+        //TODO
+    }
+
+    /**
+     * Is object registered in container (By symbol)
+     * @param symbol
+     */
+    public has(symbol: symbol): boolean
+    /**
+     * Is object registered in container (By name)
+     * @param name
+     */
+    public has(name: string): boolean
+    /**
+     * Is object registered in container (By constructor)
+     * @param constructor
+     */
+    public has<ClassConstructor extends typeof BaseObject>(constructor: ClassConstructor): boolean
+    public has<ClassConstructor extends typeof BaseObject>(inp: symbol | string | ClassConstructor): boolean {
+        if (typeof inp === 'function') return this.#dic.hasRegistration(ConstructorSymbol(inp))
+        return this.#dic.hasRegistration(inp)
+    }
+
     /**
      * Create sub container scope
      */

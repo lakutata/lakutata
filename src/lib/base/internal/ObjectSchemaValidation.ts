@@ -10,6 +10,8 @@ import {
 import {ObjectParentConstructors} from '../func/ObjectParentConstructors.js'
 import {ObjectPrototype} from '../func/ObjectPrototype.js'
 import {DataValidator, DefaultValidationOptions} from './DataValidator.js'
+import {IsSymbol} from '../func/IsSymbol.js'
+import {As} from '../func/As.js'
 
 export type ObjectPropertySchemaMap = Map<string, Schema>
 
@@ -73,7 +75,8 @@ export function GetObjectIndexSignatureSchemaByConstructor<ClassConstructor exte
  * @constructor
  */
 export function SetObjectPropertySchema<ClassPrototype extends DTO>(target: ClassPrototype, propertyKey: string | symbol, schema: Schema): void {
-    if (typeof propertyKey === 'symbol') return
+    if (IsSymbol(propertyKey)) return
+    propertyKey = As<string>(propertyKey)
     let objectPropertySchemaMap: ObjectPropertySchemaMap
     if (Reflect.hasOwnMetadata(DTO_PROPERTY_SCHEMAS, ObjectConstructor(target))) {
         objectPropertySchemaMap = Reflect.getOwnMetadata(DTO_PROPERTY_SCHEMAS, ObjectConstructor(target))
@@ -85,7 +88,7 @@ export function SetObjectPropertySchema<ClassPrototype extends DTO>(target: Clas
                 parentObjectPropertySchemaMaps.unshift(Reflect.getOwnMetadata(DTO_PROPERTY_SCHEMAS, parentConstructor))
         })
         parentObjectPropertySchemaMaps.forEach((parentObjectInjectionMap: typeof objectPropertySchemaMap): void =>
-            parentObjectInjectionMap.forEach((value: Schema, key: typeof propertyKey) => objectPropertySchemaMap.set(key, value)))
+            parentObjectInjectionMap.forEach((value: Schema, key: typeof propertyKey) => objectPropertySchemaMap.set(As<string>(key), value)))
     }
     objectPropertySchemaMap.set(propertyKey, schema)
     Reflect.defineMetadata(DTO_PROPERTY_SCHEMAS, objectPropertySchemaMap, ObjectConstructor(target))

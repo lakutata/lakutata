@@ -1,6 +1,7 @@
 import {ResolutionStack} from './DependencyInjectionContainer.js'
 import {DependencyInjectionException} from '../../exceptions/di/DependencyInjectionException.js'
 import {As} from '../base/func/As.js'
+import {IsSymbol} from '../base/func/IsSymbol.js'
 
 /**
  * 可扩展错误类
@@ -97,9 +98,9 @@ export class DependencyInjectionResolutionError extends ExtendableError {
         resolutionStack: ResolutionStack,
         message?: string
     ) {
-        if (typeof name === 'symbol') name = (name as any).toString()
+        if (IsSymbol(name)) name = (name as any).toString()
         const purifiedName: string = (name as any).split('_$$').reverse()[0]
-        resolutionStack = resolutionStack.map((val) => typeof val === 'symbol' ? (val as any).toString() : val)
+        resolutionStack = resolutionStack.map((val) => IsSymbol(val) ? (val as any).toString() : val)
         resolutionStack.push(As(purifiedName))
         const resolutionPathString: string = resolutionStack.join(' -> ')
         let msg: string = `Could not resolve '${purifiedName}'.`
