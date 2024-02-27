@@ -17,8 +17,9 @@ import {IndexSignature} from '../decorators/dto/IndexSignature.js'
 import {GetObjectIndexSignatureSchemaByConstructor, IsDTO} from '../lib/base/internal/ObjectSchemaValidation.js'
 import {Accept} from '../decorators/dto/Accept.js'
 import {Return} from '../decorators/dto/Return.js'
-import {LoadEntryOptions} from '../options/LoadEntryOptions.js'
+import {LoadObjectOptions} from '../options/LoadObjectOptions.js'
 import {EventEmitter} from '../lib/EventEmitter.js'
+import {ContainerLoadOptions} from '../options/ContainerLoadOptions.js'
 
 (async () => {
 
@@ -54,22 +55,20 @@ import {EventEmitter} from '../lib/EventEmitter.js'
     const ctn = new Container()
     // const xx2=await ctn.get(XX2)
     // console.log(xx2)
-    const xx2 = await new XX2()
+    // const xx1 = new XX1()
+    // const xx2 = new XX2()
     // console.log(xx2.objectId())
-    console.log(xx2.propertyNames())
+    // console.log(xx2.propertyNames())
 
-
-    const xxx: LoadEntryOptions = {
-        class: XX2
-    }
-
-    console.log(DTO.validate(xxx, LoadEntryOptions.Schema()))
-
-    const config=[
-        {
-            name:'xx2',
-            class:XX2
+    const obj: ContainerLoadOptions = {
+        xx1: XX1,
+        xx2: {
+            class: XX2
         }
-    ]
+    }
+    obj[Symbol('test')] = XX1
 
+    await ctn.load(obj)
+    const xx2=await ctn.get<XX2>('xx2')
+    console.log(xx2)
 })()

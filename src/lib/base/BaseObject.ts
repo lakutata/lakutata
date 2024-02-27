@@ -14,7 +14,7 @@ export class BaseObject extends AsyncConstructor {
 
     #objectId: string = randomUUID()
 
-    #ctn: Container = new Container()
+    #ctn: Container
 
     constructor() {
         super(async (): Promise<void> => {

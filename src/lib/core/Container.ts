@@ -1,9 +1,17 @@
-import {createContainer, IDependencyInjectionContainer} from '../ioc/DependencyInjectionContainer.js'
+import {
+    createContainer,
+    IDependencyInjectionContainer,
+    NameAndRegistrationPair
+} from '../ioc/DependencyInjectionContainer.js'
 import {DevNull} from '../base/func/DevNull.js'
 import {BaseObject} from '../base/BaseObject.js'
 import {IConstructor} from '../../interfaces/IConstructor.js'
 import {ConstructorSymbol} from '../base/internal/ConstructorSymbol.js'
 import {IsPromise} from '../base/func/IsPromise.js'
+import {ContainerLoadOptions} from '../../options/ContainerLoadOptions.js'
+import {LoadObjectOptions} from '../../options/LoadObjectOptions.js'
+import {asClass, BuildResolver, DisposableResolver} from '../ioc/Resolvers.js'
+import {GetObjectLifetime} from '../base/internal/ObjectLifetime.js'
 
 export class Container {
 
@@ -55,8 +63,33 @@ export class Container {
         this.updateTransientWeakRefs()
     }
 
-    public async load<ClassConstructor extends typeof BaseObject>() {
+    /**
+     * Build name and registration pair from container load options
+     * @param key
+     * @param options
+     * @protected
+     */
+    protected buildNameAndRegistrationPairFromOptions<T extends BaseObject>(key: string | symbol, options: ContainerLoadOptions): NameAndRegistrationPair<T> {
+        const pair: NameAndRegistrationPair<T> = {}
+        const constructorOrOptions: typeof BaseObject | LoadObjectOptions = options[key]
+        const loadObjectOptions: LoadObjectOptions = typeof constructorOrOptions == 'function' ? {class: constructorOrOptions} : constructorOrOptions
+        pair[key] = asClass(loadObjectOptions.class, {
+            lifetime: GetObjectLifetime(loadObjectOptions.class),
+            dispose: (instance: BaseObject) => this.disposer(instance)
+            // injector:()=>//TODO 暂时先不使用，若遇到有东西无法注入时再尝试使用
+        })
+        return pair
+    }
 
+    /**
+     * Load objects
+     * @param options
+     */
+    public async load<T extends BaseObject>(options: ContainerLoadOptions): Promise<void> {
+        const symbolRegistrationPairs: NameAndRegistrationPair<T>[] = Object.getOwnPropertySymbols(options).map((key: symbol) => this.buildNameAndRegistrationPairFromOptions(key, options))
+        const stringRegistrationPairs: NameAndRegistrationPair<T>[] = Object.getOwnPropertyNames(options).map((key: string) => this.buildNameAndRegistrationPairFromOptions(key, options))
+        const pair: NameAndRegistrationPair<T> = Object.assign({}, ...symbolRegistrationPairs, ...stringRegistrationPairs)
+        this.#dic.register(pair)
     }
 
     /**
