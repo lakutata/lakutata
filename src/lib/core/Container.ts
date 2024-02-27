@@ -55,6 +55,10 @@ export class Container {
         this.updateTransientWeakRefs()
     }
 
+    public async load<ClassConstructor extends typeof BaseObject>() {
+
+    }
+
     /**
      * Get registered object via constructor
      * @param constructor
@@ -110,6 +114,7 @@ export class Container {
      * Create sub container scope
      */
     public createScope(): Container {
+        this.updateTransientWeakRefs()
         return new Container(this)
     }
 

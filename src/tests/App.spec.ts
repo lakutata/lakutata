@@ -17,91 +17,51 @@ import {IndexSignature} from '../decorators/dto/IndexSignature.js'
 import {GetObjectIndexSignatureSchemaByConstructor, IsDTO} from '../lib/base/internal/ObjectSchemaValidation.js'
 import {Accept} from '../decorators/dto/Accept.js'
 import {Return} from '../decorators/dto/Return.js'
+import {LoadEntryOptions} from '../options/LoadEntryOptions.js'
 
 (async () => {
 
-    // class XX extends BaseObject {
-    //     @Configurable()
-    //     public xx1: any
-    // }
-    //
-    // class XX1 extends XX {
-    //     @Configurable()
-    //     public xx2: any
-    //
-    //     @Configurable()
-    //     public xx3: any
-    //
-    //     @Inject()
-    //     // protected readonly aaa: XX1
-    //     protected readonly aaa: XX
-    // }
-    //
-    // class XX2 extends XX1 {
-    //     @Inject()
-    //     // protected readonly aaa: XX1
-    //     protected readonly aaa: XX1 = {} as any
-    //
-    //     @Configurable()
-    //     public xx4: any = 1
-    //
-    //     @Configurable()
-    //     public xx5: any
-    // }
-    //
-    // const ctn = new Container()
+    class XX extends BaseObject {
+        @Configurable()
+        public xx1: any
+    }
+
+    class XX1 extends XX {
+        @Configurable()
+        public xx2: any
+
+        @Configurable()
+        public xx3: any
+
+        @Inject()
+        // protected readonly aaa: XX1
+        protected readonly aaa: XX
+    }
+
+    class XX2 extends XX1 {
+        @Inject()
+        // protected readonly aaa: XX1
+        protected readonly aaa: XX1 = {} as any
+
+        @Configurable()
+        public xx4: any = 1
+
+        @Configurable()
+        public xx5: any
+    }
+
+    const ctn = new Container()
     // const xx2=await ctn.get(XX2)
     // console.log(xx2)
-    // const xx2 = await new XX2()
-    // console.log(xx2.propertyNames())
+    const xx2 = await new XX2()
+    // console.log(xx2.objectId())
+    console.log(xx2.propertyNames())
 
 
-    @ValidateOptions({stripUnknown: false})
-    class Abc extends DTO {
-        @Expect(DTO.String().required())
-        public aa: string
-
-        @Expect(DTO.Object({
-            lll: DTO.Number().required()
-        }).required().options({stripUnknown: false}))
-        public cccccc: {
-            lll: number
-        }
+    const xxx: LoadEntryOptions = {
+        class: XX2
     }
 
-    @IndexSignature(DTO.Alternatives(DTO.String(), DTO.Number()))
-    class Efg extends Abc {
-        @Expect(DTO.Number().default(667))
-        public bb?: number
-
-        @Expect(Abc.Schema())
-        public nnnnn: any
-    }
-
-    // const abc = new Abc()
-    // console.log(abc)
-    // const efg = new Efg({
-    //     aa: 'aaa', hahha: 123, nnnnn: {
-    //         aa: 'pppp',
-    //         okokok: true
-    //     }
-    // })
-    // console.log(abc)
-    // @ts-ignore
-    // efg.aa = '1111'
-    // // efg.bb = 777777
-    // // efg.bb = undefined
-    // delete efg.bb
-    //
-    // console.log(efg)
-    const efg2 = new Efg({aa: 'aaa', cccccc: {lll: 1}})
-    console.log(efg2)
-    efg2.okk = 'true'
-    // efg2.okk = true
-    // efg2.okk = {}
-    console.log(efg2)
-    // console.log(DTO.validate({bb: 1},DTO.Object({
-    //     aa: DTO.String().required()
-    // })))
+    console.log(DTO.validate(xxx, LoadEntryOptions.Schema()))
 
 })()

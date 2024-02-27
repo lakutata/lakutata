@@ -6,10 +6,13 @@ import {MethodNotFoundException} from '../../exceptions/MethodNotFoundException.
 import {As} from './func/As.js'
 import {DevNull} from './func/DevNull.js'
 import {Container} from '../core/Container.js'
+import {randomUUID} from 'node:crypto'
 
 @Transient()
 @Injectable()
 export class BaseObject extends AsyncConstructor {
+
+    #objectId: string = randomUUID()
 
     #ctn: Container = new Container()
 
@@ -63,6 +66,13 @@ export class BaseObject extends AsyncConstructor {
      */
     protected async destroy(): Promise<void> {
         //To be override in child class
+    }
+
+    /**
+     * Unique object id
+     */
+    public objectId(): string {
+        return this.#objectId
     }
 
     /**
