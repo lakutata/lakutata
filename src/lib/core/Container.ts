@@ -12,6 +12,8 @@ import {ContainerLoadOptions} from '../../options/ContainerLoadOptions.js'
 import {LoadObjectOptions} from '../../options/LoadObjectOptions.js'
 import {asClass, BuildResolver, DisposableResolver} from '../ioc/Resolvers.js'
 import {GetObjectLifetime} from '../base/internal/ObjectLifetime.js'
+import {GetConfigurableRecords, SetConfigurableRecords} from '../base/internal/ConfigurableRecordsInjection.js'
+import {As} from '../base/func/As.js'
 
 export class Container {
 
@@ -73,6 +75,9 @@ export class Container {
         const pair: NameAndRegistrationPair<T> = {}
         const constructorOrOptions: typeof BaseObject | LoadObjectOptions = options[key]
         const loadObjectOptions: LoadObjectOptions = typeof constructorOrOptions == 'function' ? {class: constructorOrOptions} : constructorOrOptions
+        const configurableRecords: Record<string, any> = {...loadObjectOptions, class: void (0)}
+        delete configurableRecords.class
+        SetConfigurableRecords(loadObjectOptions.class, key, configurableRecords)
         pair[key] = asClass(loadObjectOptions.class, {
             lifetime: GetObjectLifetime(loadObjectOptions.class),
             dispose: (instance: BaseObject) => this.disposer(instance)
@@ -90,6 +95,7 @@ export class Container {
         const stringRegistrationPairs: NameAndRegistrationPair<T>[] = Object.getOwnPropertyNames(options).map((key: string) => this.buildNameAndRegistrationPairFromOptions(key, options))
         const pair: NameAndRegistrationPair<T> = Object.assign({}, ...symbolRegistrationPairs, ...stringRegistrationPairs)
         this.#dic.register(pair)
+        this.updateTransientWeakRefs()
     }
 
     /**
@@ -115,6 +121,9 @@ export class Container {
         const resolved: T | Promise<T> = this.#dic.resolve(registrationName)
         //TODO 思考是否需要在未注册时允许动态注册并获取
         //TODO 注入参数
+        // GetConfigurableRecords(resolved.constructor)
+        const presetConfigurableRecords: Record<string, any> = GetConfigurableRecords(As<typeof BaseObject>(resolved.constructor), registrationName)
+        // console.log(resolved.constructor)
         this.updateTransientWeakRefs()
         return IsPromise(resolved) ? await resolved : resolved
     }

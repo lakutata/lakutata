@@ -29,8 +29,8 @@ import {ContainerLoadOptions} from '../options/ContainerLoadOptions.js'
     }
 
     class XX1 extends XX {
-        @Configurable()
-        public xx2: any
+        // @Configurable()
+        // public xx2: any
 
         @Configurable()
         public xx3: any
@@ -40,10 +40,10 @@ import {ContainerLoadOptions} from '../options/ContainerLoadOptions.js'
         protected readonly aaa: XX
     }
 
-    class XX2 extends XX1 {
-        @Inject()
-        // protected readonly aaa: XX1
-        protected readonly aaa: XX1 = {} as any
+    class XX2 extends BaseObject {
+        // @Inject()
+        // // protected readonly aaa: XX1
+        // protected readonly aaa: XX1 = {} as any
 
         @Configurable()
         public xx4: any = 1
@@ -63,12 +63,13 @@ import {ContainerLoadOptions} from '../options/ContainerLoadOptions.js'
     const obj: ContainerLoadOptions = {
         xx1: XX1,
         xx2: {
-            class: XX2
+            class: XX2,
+            xx4: 222
         }
     }
     obj[Symbol('test')] = XX1
 
     await ctn.load(obj)
-    const xx2=await ctn.get<XX2>('xx2')
+    const xx2 = await ctn.get<XX2>('xx2')
     console.log(xx2)
 })()

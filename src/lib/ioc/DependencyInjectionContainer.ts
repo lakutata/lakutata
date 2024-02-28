@@ -615,8 +615,9 @@ function createContainerInternal<
                 Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME, name, resolved)//todo 替换为现在的逻辑
             //判断是否为瞬态模式的注册项目调用，若为瞬态模式的注册项目调用，则应找个地方记录下来，以便在容器销毁时对残留的瞬态对象实例销毁
             if (GetObjectLifetime(resolved.constructor) === Lifetime.TRANSIENT) {
+                // Object.defineProperty(this,'',{})
                 // @ts-ignore
-                this['newTransient'] = new WeakRef(resolved)
+                // this['newTransient'] = new WeakRef(resolved)
             }
             return resolved
         } catch (err) {
