@@ -22,3 +22,24 @@ export function GetConfigurableRecords<ClassConstructor extends typeof BaseObjec
     if (configurableRecords) return configurableRecords
     return {}
 }
+
+/**
+ * Set configurable records to instance's metadata
+ * @param target
+ * @param configurableRecords
+ * @constructor
+ */
+export function SetConfigurableRecordsToInstance<ClassInstance extends BaseObject>(target: ClassInstance, configurableRecords: Record<string, any>): void {
+    Reflect.defineMetadata(target.objectId(), configurableRecords, target)
+}
+
+/**
+ * Get configurable records from instance's metadata
+ * @param target
+ * @constructor
+ */
+export function GetConfigurableRecordsFromInstance<ClassInstance extends BaseObject>(target: ClassInstance): Record<string, any> {
+    const configurableRecords: Record<string, any> = Reflect.getOwnMetadata(target.objectId(), target)
+    if (configurableRecords) return configurableRecords
+    return {}
+}

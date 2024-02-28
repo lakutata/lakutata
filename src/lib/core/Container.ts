@@ -12,8 +12,13 @@ import {ContainerLoadOptions} from '../../options/ContainerLoadOptions.js'
 import {LoadObjectOptions} from '../../options/LoadObjectOptions.js'
 import {asClass, asValue} from '../ioc/Resolvers.js'
 import {GetObjectLifetime} from '../base/internal/ObjectLifetime.js'
-import {GetConfigurableRecords, SetConfigurableRecords} from '../base/internal/ConfigurableRecordsInjection.js'
+import {
+    GetConfigurableRecords,
+    SetConfigurableRecords,
+    SetConfigurableRecordsToInstance
+} from '../base/internal/ConfigurableRecordsInjection.js'
 import {As} from '../base/func/As.js'
+import {DTO} from './DTO.js'
 
 export const containerSymbol: symbol = Symbol('LAKUTATA.DI.CONTAINER.SYMBOL')
 
@@ -119,13 +124,15 @@ export class Container {
      * @param configurableRecords
      */
     public async get<T extends BaseObject>(name: symbol, configurableRecords?: Record<string, any>): Promise<T>
-    public async get<T extends BaseObject>(inp: string | symbol | IConstructor<T>, configurableRecords: Record<string, any>): Promise<T> {
+    public async get<T extends BaseObject>(inp: string | symbol | IConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
         const registrationName: string | symbol = typeof inp === 'function' ? ConstructorSymbol(inp) : inp
         const resolved: T | Promise<T> = this.#dic.resolve(registrationName)
+        const presetConfigurableRecords: Record<string, any> = GetConfigurableRecords(As<typeof BaseObject>(resolved.constructor), registrationName)
+        const isValidSubBaseObject: boolean = DTO.isValid(resolved.constructor, DTO.Class(BaseObject))
+        if (isValidSubBaseObject) SetConfigurableRecordsToInstance(As<T>(resolved), Object.assign({}, presetConfigurableRecords, configurableRecords))
         //TODO 思考是否需要在未注册时允许动态注册并获取
         //TODO 注入参数
         // GetConfigurableRecords(resolved.constructor)
-        const presetConfigurableRecords: Record<string, any> = GetConfigurableRecords(As<typeof BaseObject>(resolved.constructor), registrationName)
         // console.log(resolved.constructor)
         this.updateTransientWeakRefs()
         return IsPromise(resolved) ? await resolved : resolved

@@ -8,6 +8,9 @@ import {DevNull} from './func/DevNull.js'
 import {Container, containerSymbol} from '../core/Container.js'
 import {randomUUID} from 'node:crypto'
 import {isProxy} from 'node:util/types'
+import {GetConfigurableRecordsFromInstance} from './internal/ConfigurableRecordsInjection.js'
+import {GetObjectConfigurablePropertiesByPrototype} from './internal/ObjectConfiguration.js'
+import {IsSymbol} from './func/IsSymbol.js'
 
 @Transient()
 @Injectable()
@@ -17,10 +20,22 @@ export class BaseObject extends AsyncConstructor {
 
     #objectId: string = randomUUID()
 
+    /**
+     * Load configurable records
+     * @private
+     */
+    #loadConfigurableRecords(): void {
+        const configurableRecords: Record<string, any> = GetConfigurableRecordsFromInstance(this)
+        GetObjectConfigurablePropertiesByPrototype(this).forEach((propertyKey: string | symbol): void => {
+            if (IsSymbol(propertyKey)) return
+            this[propertyKey] = configurableRecords[As<string>(propertyKey)]
+        })
+    }
+
     constructor(cradleProxy: Record<string | symbol, any>) {
         super(async (): Promise<void> => {
+            this.#loadConfigurableRecords()
             //TODO 执行获取注入对象等一系列操作
-            // await Promise.resolve(this)
 
             //Ensure property "then" not in subclass
             const thenablePropertyDescriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(this, 'then')
