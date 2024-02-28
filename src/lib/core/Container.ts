@@ -10,10 +10,12 @@ import {ConstructorSymbol} from '../base/internal/ConstructorSymbol.js'
 import {IsPromise} from '../base/func/IsPromise.js'
 import {ContainerLoadOptions} from '../../options/ContainerLoadOptions.js'
 import {LoadObjectOptions} from '../../options/LoadObjectOptions.js'
-import {asClass, BuildResolver, DisposableResolver} from '../ioc/Resolvers.js'
+import {asClass, asValue} from '../ioc/Resolvers.js'
 import {GetObjectLifetime} from '../base/internal/ObjectLifetime.js'
 import {GetConfigurableRecords, SetConfigurableRecords} from '../base/internal/ConfigurableRecordsInjection.js'
 import {As} from '../base/func/As.js'
+
+export const containerSymbol: symbol = Symbol('LAKUTATA.DI.CONTAINER.SYMBOL')
 
 export class Container {
 
@@ -35,6 +37,7 @@ export class Container {
                 this.updateTransientWeakRefs()
             }
         })
+        this.#dic.register(containerSymbol, asValue(this))
     }
 
     /**

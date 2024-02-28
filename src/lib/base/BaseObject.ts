@@ -5,7 +5,7 @@ import {ObjectConstructor} from './func/ObjectConstructor.js'
 import {MethodNotFoundException} from '../../exceptions/MethodNotFoundException.js'
 import {As} from './func/As.js'
 import {DevNull} from './func/DevNull.js'
-import {Container} from '../core/Container.js'
+import {Container, containerSymbol} from '../core/Container.js'
 import {randomUUID} from 'node:crypto'
 import {isProxy} from 'node:util/types'
 
@@ -13,9 +13,9 @@ import {isProxy} from 'node:util/types'
 @Injectable()
 export class BaseObject extends AsyncConstructor {
 
-    #objectId: string = randomUUID()
+    readonly #container: Container
 
-    #ctn: Container
+    #objectId: string = randomUUID()
 
     constructor(cradleProxy: Record<string | symbol, any>) {
         super(async (): Promise<void> => {
@@ -23,8 +23,10 @@ export class BaseObject extends AsyncConstructor {
             if (this.className === 'XX2') {
                 console.log(cradleProxy, isProxy(cradleProxy), Object.keys(cradleProxy))
                 console.log(cradleProxy.xx1)
+                console.log(this.#container)
             }
         })
+        this.#container = new Container(cradleProxy[containerSymbol])
     }
 
     /**
