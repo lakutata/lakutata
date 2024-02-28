@@ -50,15 +50,14 @@ import {ContainerLoadOptions} from '../options/ContainerLoadOptions.js'
 
         @Configurable()
         public xx5: any
+
+        protected async init(): Promise<void> {
+            console.log(this)
+        }
+
     }
 
     const ctn = new Container()
-    // const xx2=await ctn.get(XX2)
-    // console.log(xx2)
-    // const xx1 = new XX1()
-    // const xx2 = new XX2()
-    // console.log(xx2.objectId())
-    // console.log(xx2.propertyNames())
 
     const obj: ContainerLoadOptions = {
         xx1: XX1,

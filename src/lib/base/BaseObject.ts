@@ -20,11 +20,14 @@ export class BaseObject extends AsyncConstructor {
     constructor(cradleProxy: Record<string | symbol, any>) {
         super(async (): Promise<void> => {
             //TODO 执行获取注入对象等一系列操作
-            if (this.className === 'XX2') {
-                console.log(cradleProxy, isProxy(cradleProxy), Object.keys(cradleProxy))
-                console.log(cradleProxy.xx1)
-                console.log(this.#container)
-            }
+            // await Promise.resolve(this)
+
+            //Ensure property "then" not in subclass
+            const thenablePropertyDescriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(this, 'then')
+            if (thenablePropertyDescriptor) Object.defineProperty(this, 'then', {enumerable: false})
+            //Execute init functions
+            await this.__init()
+            await this.init()
         })
         this.#container = new Container(cradleProxy[containerSymbol])
     }
@@ -56,7 +59,7 @@ export class BaseObject extends AsyncConstructor {
      * @protected
      */
     protected async __destroy(): Promise<void> {
-        //To be override in child class
+        await this.#container.destroy()
     }
 
     /**

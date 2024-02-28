@@ -378,10 +378,8 @@ function wrapWithLocals<T extends object>(
 /**
  * Returns a new Proxy that checks the result from `injector`
  * for values before delegating to the actual container.
- *
- * @param  {Object} cradle
- * @param  {Function} injector
- * @return {Proxy}
+ * @param container cradle
+ * @param injector injector
  */
 function createInjectorProxy<T extends object>(
     container: IDependencyInjectionContainer<T>,
@@ -445,21 +443,8 @@ function createInjectorProxy<T extends object>(
 
 /**
  * Returns a resolve function used to construct the dependency graph
- *
- * @this {Registration}
- * The `this` context is a resolver.
- *
- * @param {Function} fn
- * The function to construct
- *
- * @param {Function} dependencyParseTarget
- * The function to parse for the dependencies of the construction target
- *
- * @param {boolean} isFunction
- * Is the resolution target an actual function or a mask for a constructor?
- *
- * @return {Function}
- * The function used for dependency resolution
+ * @param fn The function to construct
+ * @param dependencyParseTarget The function to parse for the dependencies of the construction target
  */
 function generateResolve(fn: Function, dependencyParseTarget?: Function) {
     // If the function used for dependency parsing is falsy, use the supplied function
@@ -490,8 +475,6 @@ function generateResolve(fn: Function, dependencyParseTarget?: Function) {
             const cradle = this.injector
                 ? createInjectorProxy(container, this.injector)
                 : container.cradle
-            //Define inject properties metadata
-            Reflect.defineMetadata(DI_CONTAINER_INJECT_PROPERTIES, true, cradle)
             // Return the target injected with the cradle
             return fn(cradle)
         }
