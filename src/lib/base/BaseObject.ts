@@ -11,6 +11,9 @@ import {isProxy} from 'node:util/types'
 import {GetConfigurableRecordsFromInstance} from './internal/ConfigurableRecordsInjection.js'
 import {GetObjectConfigurablePropertiesByPrototype} from './internal/ObjectConfiguration.js'
 import {IsSymbol} from './func/IsSymbol.js'
+import {GetObjectInjectItemsByPrototype, ObjectInjectionMap} from './internal/ObjectInjection.js'
+import {ConstructorSymbol} from './internal/ConstructorSymbol.js'
+import {IConstructor} from '../../interfaces/IConstructor.js'
 
 @Transient()
 @Injectable()
@@ -32,8 +35,40 @@ export class BaseObject extends AsyncConstructor {
         })
     }
 
+    /**
+     * Apply object injection
+     * @param cradleProxy
+     * @private
+     */
+    async #applyInjection(cradleProxy: Record<string | symbol, any>): Promise<void> {
+        const objectInjectionMap: ObjectInjectionMap = GetObjectInjectItemsByPrototype(this)
+        const promises: Promise<void>[] = []
+        objectInjectionMap.forEach((item, propertyKey: string | symbol): void => {
+            //Try name first, if name not found then try constructor
+            let registration: string | symbol | typeof BaseObject = item.name
+            if (this.#container.has(item.name)) {
+                registration = item.name
+            } else if (this.#container.has(item.constructor)) {
+                registration = item.constructor
+            }
+            promises.push(new Promise((resolve, reject) => {
+                this.#container.get(registration).then(injectObject => {
+                    this[propertyKey] = injectObject
+                    return resolve()
+                }).catch(reject)
+            }))
+
+            // console.log(this.#container.has(item.constructor))
+            // console.log(item, propertyKey,ConstructorSymbol(As<IConstructor<BaseObject>>(item.constructor)))
+
+            // console.log(cradleProxy[propertyKey])
+        })
+        await Promise.all(promises)
+    }
+
     constructor(cradleProxy: Record<string | symbol, any>) {
         super(async (): Promise<void> => {
+            await this.#applyInjection(cradleProxy)
             this.#loadConfigurableRecords()
             //TODO 执行获取注入对象等一系列操作
 

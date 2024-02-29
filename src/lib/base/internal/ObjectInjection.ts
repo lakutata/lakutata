@@ -6,7 +6,7 @@ import {ObjectPrototype} from '../func/ObjectPrototype.js'
 
 export type ObjectInjectionMap = Map<string | symbol, {
     name: string | symbol
-    constructor: Function
+    constructor: Function | any
 }>
 
 /**

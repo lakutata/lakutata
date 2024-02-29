@@ -124,13 +124,14 @@ export class Container {
      * @param configurableRecords
      */
     public async get<T extends BaseObject>(name: symbol, configurableRecords?: Record<string, any>): Promise<T>
+    public async get<T extends BaseObject>(name: string | symbol, configurableRecords?: Record<string, any>): Promise<T>
+    public async get<T extends BaseObject>(nameOrConstructor: string | symbol | IConstructor<T>, configurableRecords?: Record<string, any>): Promise<T>
     public async get<T extends BaseObject>(inp: string | symbol | IConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
         const registrationName: string | symbol = typeof inp === 'function' ? ConstructorSymbol(inp) : inp
         const resolved: T | Promise<T> = this.#dic.resolve(registrationName)
         const presetConfigurableRecords: Record<string, any> = GetConfigurableRecords(As<typeof BaseObject>(resolved.constructor), registrationName)
         const isValidSubBaseObject: boolean = DTO.isValid(resolved.constructor, DTO.Class(BaseObject))
         if (isValidSubBaseObject) SetConfigurableRecordsToInstance(As<T>(resolved), Object.assign({}, presetConfigurableRecords, configurableRecords))
-        //TODO 思考是否需要在未注册时允许动态注册并获取
         //TODO 注入参数
         // GetConfigurableRecords(resolved.constructor)
         // console.log(resolved.constructor)
@@ -152,6 +153,11 @@ export class Container {
      * @param name
      */
     public has(name: string): boolean
+    /**
+     * Is object registered in container (By name or symbol)
+     * @param nameOrSymbol
+     */
+    public has(nameOrSymbol: string | symbol): boolean
     /**
      * Is object registered in container (By constructor)
      * @param constructor

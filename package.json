@@ -11,7 +11,8 @@
     "rebuild": "npm run clean && npm run build:js",
     "prepare": "npm run compile",
     "compile": "npm run rebuild",
-    "test": "npm run rebuild && node distro/src/tests/App.spec.js"
+    "test:app": "npm run rebuild && node distro/src/tests/App.spec.js",
+    "test:unit": "npm run rebuild && mocha distro/src/tests/unit/*.spec.js"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^25.0.7",
@@ -35,6 +36,7 @@
     "html-tags": "^3.3.1",
     "is-glob": "^4.0.3",
     "joi": "^17.12.2",
+    "mocha": "^10.3.0",
     "node-addon-api": "^7.1.0",
     "reflect-metadata": "^0.2.1",
     "rollup": "^4.12.0",
