@@ -19,6 +19,7 @@ import {Return} from '../decorators/dto/Return.js'
 import {LoadObjectOptions} from '../options/LoadObjectOptions.js'
 import {EventEmitter} from '../lib/EventEmitter.js'
 import {Autoload} from '../decorators/di/Autoload.js'
+import {TestObj} from './objs/TestObj.js'
 
 (async () => {
 
@@ -56,6 +57,9 @@ import {Autoload} from '../decorators/di/Autoload.js'
         public xx5: any
 
         @Inject()
+        protected readonly testObj: TestObj
+
+        @Inject()
         protected readonly xx1: XX1
 
         @Inject()
@@ -69,7 +73,7 @@ import {Autoload} from '../decorators/di/Autoload.js'
 
     const ctn = new Container()
 
-    const obj: LoadObjectOptions[] = [
+    const obj: (LoadObjectOptions | typeof BaseObject | string)[] = [
         {
             id: 'xx1',
             class: XX1
@@ -85,7 +89,9 @@ import {Autoload} from '../decorators/di/Autoload.js'
         },
         {
             class: XX
-        }
+        },
+        XX,
+        '/Users/alex/WebstormProjects/lakutata/distro/src/tests/objs/**'
     ]
 
     obj[Symbol('test')] = XX1

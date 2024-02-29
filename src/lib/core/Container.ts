@@ -22,6 +22,9 @@ import {GetObjectIsAutoload} from '../base/internal/ObjectInjection.js'
 import {DI_CONTAINER_NEW_TRANSIENT_CALLBACK} from '../../constants/metadata-keys/DIMetadataKey.js'
 import {Accept} from '../../decorators/dto/Accept.js'
 import {IsEmptyObject} from '../base/func/IsEmptyObject.js'
+import {listModules, ModuleDescriptor} from '../ioc/ListModules.js'
+import {pathToFileURL} from 'url'
+import {isClass} from '../ioc/Utils.js'
 
 export const containerSymbol: symbol = Symbol('LAKUTATA.DI.CONTAINER.SYMBOL')
 
@@ -102,24 +105,63 @@ export class Container {
         return pair
     }
 
+    protected async buildNameAndRegistrationPairFromGlob<T extends typeof BaseObject>(glob: string): Promise<NameAndRegistrationPair<T>> {
+        const formatPairPromises: Promise<NameAndRegistrationPair<T>>[] = []
+        listModules('/Users/alex/WebstormProjects/lakutata/distro/src/tests/objs/**').forEach((moduleDescriptor: ModuleDescriptor) => {
+            formatPairPromises.push(new Promise<NameAndRegistrationPair<T>>(resolve => {
+                import(pathToFileURL(moduleDescriptor.path).toString()).then((importResult: Record<string, any>): void => {
+                    Object.keys(importResult).forEach((exportName: string) => {
+                        const exportObj: any = importResult[exportName]
+                        if (isClass(exportObj) && DTO.isValid(exportObj, DTO.Class(BaseObject))) {
+                            const objectConstructor: T = exportObj
+                            const pair: NameAndRegistrationPair<T> = {}
+                            pair[ConstructorSymbol(objectConstructor)] = asClass(objectConstructor, {
+                                lifetime: GetObjectLifetime(objectConstructor),
+                                dispose: (instance: BaseObject) => this.disposer(instance)
+                            })
+                            return resolve(pair)
+                        } else {
+                            return resolve({})
+                        }
+                    })
+                }).catch(() => resolve({}))
+            }))
+        })
+        const pairs: NameAndRegistrationPair<T>[] = await Promise.all(formatPairPromises)
+        let result: NameAndRegistrationPair<T> = {}
+        pairs.forEach((pair: NameAndRegistrationPair<T>): void => {
+            result = {...result, ...pair}
+        })
+        return result
+    }
+
     /**
      * Load objects
      * @param options
      */
-    @Accept(DTO.Array(DTO.Alternatives(LoadObjectOptions.Schema()), DTO.Glob()))
-    public async load<T extends BaseObject>(options: (LoadObjectOptions | string)[]): Promise<void> {
+    @Accept(DTO.Array(DTO.Alternatives(LoadObjectOptions.Schema()), DTO.Class(() => BaseObject), DTO.Glob()))
+    public async load<T extends typeof BaseObject>(options: (LoadObjectOptions | typeof BaseObject | string)[]): Promise<void> {
         let pair: NameAndRegistrationPair<T> = {}
-        options.forEach((value: string | LoadObjectOptions | IConstructor<BaseObject>) => {
+        const buildNameAndRegistrationPairFromGlobPromises: Promise<NameAndRegistrationPair<T>>[] = []
+        options.forEach((value: string | LoadObjectOptions | IConstructor<BaseObject>): void => {
             if (typeof value === 'string') {
                 //glob
-                const glob: string = value
-                //TODO
+                buildNameAndRegistrationPairFromGlobPromises.push(new Promise<NameAndRegistrationPair<T>>((resolve, reject) => this.buildNameAndRegistrationPairFromGlob<T>(value).then(resolve).catch(reject)))
+            } else if (isClass(As<any>(value))) {
+                const loadObjectOptions: LoadObjectOptions = {class: As<typeof BaseObject>(value)}
+                pair = {...pair, ...this.buildNameAndRegistrationPairFromOptions(loadObjectOptions)}
             } else {
                 //load options
                 const loadObjectOptions: LoadObjectOptions = As<LoadObjectOptions>(value)
                 pair = {...pair, ...this.buildNameAndRegistrationPairFromOptions(loadObjectOptions)}
             }
         })
+        if (buildNameAndRegistrationPairFromGlobPromises.length) {
+            const pairs: NameAndRegistrationPair<T>[] = await Promise.all(buildNameAndRegistrationPairFromGlobPromises)
+            pairs.forEach((_pair: NameAndRegistrationPair<T>): void => {
+                pair = {..._pair, ...pair}
+            })
+        }
         if (!IsEmptyObject(pair)) this.#dic.register(pair)
         this.updateTransientWeakRefs()
     }
