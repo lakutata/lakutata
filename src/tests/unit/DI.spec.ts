@@ -3,6 +3,9 @@ import {Container} from '../../lib/core/Container.js'
 import {BaseObject} from '../../lib/base/BaseObject.js'
 import assert from 'node:assert'
 import {Autoload} from '../../decorators/di/Autoload.js'
+import path from 'node:path'
+import {TestObj} from '../glob-modules/TestObj.js'
+import {fileURLToPath} from 'node:url'
 
 const instanceSet: Set<BaseObject> = new Set()
 
@@ -52,7 +55,12 @@ describe('DI Test', async function (): Promise<void> {
         const registration: AutoloadRegistrationTestClass = await container.get<AutoloadRegistrationTestClass>(AutoloadRegistrationTestClass)
         assert.equal(registration.foo(), 'autoload')
     })
-    await it('create sub container', async (): Promise<void> => {
+    await it('load module by glob', async (): Promise<void> => {
+        await container.load([`${path.resolve(__dirname, '../glob-modules')}/**`])
+        const registration: TestObj = await container.get(TestObj)
+        assert.equal(registration.foo(), 'bar')
+    })
+    await it('Sub-Container Test', async (): Promise<void> => {
         const subContainer: Container = container.createScope()
         assert.notEqual(subContainer, container)
         await it('get root container registration in sub container', async (): Promise<void> => {

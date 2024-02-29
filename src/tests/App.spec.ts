@@ -19,7 +19,7 @@ import {Return} from '../decorators/dto/Return.js'
 import {LoadObjectOptions} from '../options/LoadObjectOptions.js'
 import {EventEmitter} from '../lib/EventEmitter.js'
 import {Autoload} from '../decorators/di/Autoload.js'
-import {TestObj} from './objs/TestObj.js'
+import {TestObj} from './glob-modules/TestObj.js'
 
 (async () => {
 
@@ -90,8 +90,7 @@ import {TestObj} from './objs/TestObj.js'
         {
             class: XX
         },
-        XX,
-        '/Users/alex/WebstormProjects/lakutata/distro/src/tests/objs/**'
+        XX
     ]
 
     obj[Symbol('test')] = XX1

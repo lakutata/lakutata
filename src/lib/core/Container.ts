@@ -107,7 +107,7 @@ export class Container {
 
     protected async buildNameAndRegistrationPairFromGlob<T extends typeof BaseObject>(glob: string): Promise<NameAndRegistrationPair<T>> {
         const formatPairPromises: Promise<NameAndRegistrationPair<T>>[] = []
-        listModules('/Users/alex/WebstormProjects/lakutata/distro/src/tests/objs/**').forEach((moduleDescriptor: ModuleDescriptor) => {
+        listModules(glob).forEach((moduleDescriptor: ModuleDescriptor) => {
             formatPairPromises.push(new Promise<NameAndRegistrationPair<T>>(resolve => {
                 import(pathToFileURL(moduleDescriptor.path).toString()).then((importResult: Record<string, any>): void => {
                     Object.keys(importResult).forEach((exportName: string) => {
