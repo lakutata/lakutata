@@ -21,6 +21,7 @@ import {DTO} from './DTO.js'
 import {GetObjectIsAutoload} from '../base/internal/ObjectInjection.js'
 import {DI_CONTAINER_NEW_TRANSIENT_CALLBACK} from '../../constants/metadata-keys/DIMetadataKey.js'
 import {Accept} from '../../decorators/dto/Accept.js'
+import {IsEmptyObject} from '../base/func/IsEmptyObject.js'
 
 export const containerSymbol: symbol = Symbol('LAKUTATA.DI.CONTAINER.SYMBOL')
 
@@ -119,10 +120,7 @@ export class Container {
                 pair = {...pair, ...this.buildNameAndRegistrationPairFromOptions(loadObjectOptions)}
             }
         })
-        // const symbolRegistrationPairs: NameAndRegistrationPair<T>[] = Object.getOwnPropertySymbols(options).map((key: symbol) => this.buildNameAndRegistrationPairFromOptions(key, options))
-        // const stringRegistrationPairs: NameAndRegistrationPair<T>[] = Object.getOwnPropertyNames(options).map((key: string) => this.buildNameAndRegistrationPairFromOptions(key, options))
-        // const pair: NameAndRegistrationPair<T> = Object.assign({}, ...symbolRegistrationPairs, ...stringRegistrationPairs)
-        this.#dic.register(pair)
+        if (!IsEmptyObject(pair)) this.#dic.register(pair)
         this.updateTransientWeakRefs()
     }
 
