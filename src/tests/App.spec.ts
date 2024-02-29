@@ -9,7 +9,6 @@ import {GetObjectConfigurablePropertiesByConstructor} from '../lib/base/internal
 import {Inject} from '../decorators/di/Inject.js'
 import {GetObjectInjectItemsByConstructor} from '../lib/base/internal/ObjectInjection.js'
 import {Container} from '../lib/core/Container.js'
-import {Injectable} from '../decorators/di/Injectable.js'
 import {DTO} from '../lib/core/DTO.js'
 import {Expect} from '../decorators/dto/Expect.js'
 import {ValidateOptions} from '../decorators/dto/ValidateOptions.js'

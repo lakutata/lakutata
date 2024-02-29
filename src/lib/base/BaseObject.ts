@@ -1,5 +1,4 @@
 import {AsyncConstructor} from './async-constructor/AsyncConstructor.js'
-import {Injectable} from '../../decorators/di/Injectable.js'
 import {Transient} from '../../decorators/di/Lifetime.js'
 import {ObjectConstructor} from './func/ObjectConstructor.js'
 import {MethodNotFoundException} from '../../exceptions/MethodNotFoundException.js'
@@ -7,16 +6,12 @@ import {As} from './func/As.js'
 import {DevNull} from './func/DevNull.js'
 import {Container, containerSymbol} from '../core/Container.js'
 import {randomUUID} from 'node:crypto'
-import {isProxy} from 'node:util/types'
 import {GetConfigurableRecordsFromInstance} from './internal/ConfigurableRecordsInjection.js'
 import {GetObjectConfigurablePropertiesByPrototype} from './internal/ObjectConfiguration.js'
 import {IsSymbol} from './func/IsSymbol.js'
 import {GetObjectInjectItemsByPrototype, ObjectInjectionMap} from './internal/ObjectInjection.js'
-import {ConstructorSymbol} from './internal/ConstructorSymbol.js'
-import {IConstructor} from '../../interfaces/IConstructor.js'
 
 @Transient()
-@Injectable()
 export class BaseObject extends AsyncConstructor {
 
     readonly #container: Container
