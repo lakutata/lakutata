@@ -149,10 +149,6 @@ export class Container {
         return IsPromise(resolved) ? await resolved : resolved
     }
 
-    public async set() {
-        //TODO
-    }
-
     /**
      * Is object registered in container (By symbol)
      * @param symbol
