@@ -4,14 +4,22 @@ import {BaseObject} from '../../lib/base/BaseObject.js'
 import assert from 'node:assert'
 import {Autoload} from '../../decorators/di/Autoload.js'
 
+const instanceSet: Set<BaseObject> = new Set()
+
 class RegistrationTestClass extends BaseObject {
 
+    protected async init(): Promise<void> {
+    }
+
+    protected async __init(): Promise<void> {
+        instanceSet.add(this)
+    }
+
     protected async destroy(): Promise<void> {
-        console.log('destroy')
     }
 
     protected async __destroy(): Promise<void> {
-        console.log('__destroy')
+        instanceSet.delete(this)
     }
 
     public foo(): string {
@@ -47,6 +55,7 @@ describe('DI Test', async function (): Promise<void> {
 
     await it('destroy container', async (): Promise<void> => {
         await container.destroy()
+        assert.equal(instanceSet.size, 0)
     })
 
 })
