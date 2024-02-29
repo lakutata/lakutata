@@ -18,9 +18,7 @@ import {Accept} from '../decorators/dto/Accept.js'
 import {Return} from '../decorators/dto/Return.js'
 import {LoadObjectOptions} from '../options/LoadObjectOptions.js'
 import {EventEmitter} from '../lib/EventEmitter.js'
-import {ContainerLoadOptions} from '../options/ContainerLoadOptions.js'
 import {Autoload} from '../decorators/di/Autoload.js'
-import {ObjectDTO} from '../lib/core/ObjectDTO.js'
 
 (async () => {
 
@@ -71,39 +69,49 @@ import {ObjectDTO} from '../lib/core/ObjectDTO.js'
 
     const ctn = new Container()
 
-    const obj: ContainerLoadOptions = {
-        xx: XX,
-        xx1: XX1,
-        xx2: {
+    const obj: LoadObjectOptions[] = [
+        {
+            id: 'xx1',
+            class: XX1
+        },
+        {
+            id: 'xx2',
             class: XX2,
             xx4: 222
+        },
+        {
+            id: Symbol('test'),
+            class: XX1
+        },
+        {
+            class: XX
         }
-    }
+    ]
+
     obj[Symbol('test')] = XX1
 
     await ctn.load(obj)
     const xx2 = await ctn.get<XX2>('xx2')
-    // console.log(xx2)
-    // class Test extends Array{}
-
-    // new Array()[Symbol.iterator]
-
-    class TTTT {
-        [key: number]: any
-    }
-
-    const gg: TTTT = [1, 2, 3, 4, 5]
-
-    class VVV extends ObjectDTO {
-        mm:true
-    }
-
-    class VV1 extends DTO{
-        mm:'true'
-    }
-
-    // @ts-ignore
-    console.log(new VVV({mm:false}),new VV1({mm:true}))
+    // // console.log(xx2)
+    // // class Test extends Array{}
+    //
+    // // new Array()[Symbol.iterator]
+    //
+    // // @ts-ignore
+    // console.log(new VVV({mm: false}), new VV1({mm: true}))
 
     // console.log(DTO.validate(new Test(),DTO.Array()))
+
+
+    const config = {
+        components: [
+            {
+                id: 'abc',
+                class: XX1
+            },
+            {
+                class: XX2
+            }
+        ]
+    }
 })()

@@ -5,7 +5,11 @@ import {IndexSignature} from '../decorators/dto/IndexSignature.js'
 
 @IndexSignature(DTO.Any())
 export class LoadObjectOptions<ClassConstructor extends typeof BaseObject = typeof BaseObject> extends DTO {
-    @Expect(DTO.Class(BaseObject).required())
+
+    @Expect(DTO.Alternatives(DTO.String(), DTO.Symbol()).optional())
+    public id?: string | symbol
+
+    @Expect(DTO.Class(() => BaseObject).required())
     public class: ClassConstructor
 
     [key: string]: any

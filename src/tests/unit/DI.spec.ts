@@ -32,12 +32,12 @@ describe('DI Test', async function (): Promise<void> {
 
     await it('add named(symbol) registration', async (): Promise<void> => {
         const symbol: symbol = Symbol('test')
-        await container.load({[symbol]: RegistrationTestClass})
+        await container.load([{id: symbol, class: RegistrationTestClass}])
         const registration: RegistrationTestClass = await container.get<RegistrationTestClass>(symbol)
         assert.equal(registration.foo(), 'bar')
     })
     await it('add named(string) registration', async (): Promise<void> => {
-        await container.load({test: RegistrationTestClass})
+        await container.load([{id: 'test', class: RegistrationTestClass}])
         const registration: RegistrationTestClass = await container.get<RegistrationTestClass>('test')
         assert.equal(registration.foo(), 'bar')
     })
@@ -60,13 +60,14 @@ describe('DI Test', async function (): Promise<void> {
             assert.equal(registration.foo(), 'bar')
         })
         await it('add registration to sub container', async (): Promise<void> => {
-            await subContainer.load({
-                subTest: class extends RegistrationTestClass {
+            await subContainer.load([{
+                id: 'subTest',
+                class: class extends RegistrationTestClass {
                     public foo(): string {
                         return 'sub-bar'
                     }
                 }
-            })
+            }])
             const registration: RegistrationTestClass = await subContainer.get<RegistrationTestClass>('subTest')
             assert.equal(registration.foo(), 'sub-bar')
         })

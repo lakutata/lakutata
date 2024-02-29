@@ -8,7 +8,6 @@ import {BaseObject} from '../base/BaseObject.js'
 import {IConstructor} from '../../interfaces/IConstructor.js'
 import {ConstructorSymbol} from '../base/internal/ConstructorSymbol.js'
 import {IsPromise} from '../base/func/IsPromise.js'
-import {ContainerLoadOptions} from '../../options/ContainerLoadOptions.js'
 import {LoadObjectOptions} from '../../options/LoadObjectOptions.js'
 import {asClass, asValue} from '../ioc/Resolvers.js'
 import {GetObjectLifetime} from '../base/internal/ObjectLifetime.js'
@@ -21,6 +20,7 @@ import {As} from '../base/func/As.js'
 import {DTO} from './DTO.js'
 import {GetObjectIsAutoload} from '../base/internal/ObjectInjection.js'
 import {DI_CONTAINER_NEW_TRANSIENT_CALLBACK} from '../../constants/metadata-keys/DIMetadataKey.js'
+import {Accept} from '../../decorators/dto/Accept.js'
 
 export const containerSymbol: symbol = Symbol('LAKUTATA.DI.CONTAINER.SYMBOL')
 
@@ -83,19 +83,18 @@ export class Container {
 
     /**
      * Build name and registration pair from container load options
-     * @param key
      * @param options
      * @protected
      */
-    protected buildNameAndRegistrationPairFromOptions<T extends BaseObject>(key: string | symbol, options: ContainerLoadOptions): NameAndRegistrationPair<T> {
+    protected buildNameAndRegistrationPairFromOptions<T extends BaseObject>(options: LoadObjectOptions): NameAndRegistrationPair<T> {
         const pair: NameAndRegistrationPair<T> = {}
-        const constructorOrOptions: typeof BaseObject | LoadObjectOptions = options[key]
-        const loadObjectOptions: LoadObjectOptions = typeof constructorOrOptions == 'function' ? {class: constructorOrOptions} : constructorOrOptions
-        const configurableRecords: Record<string, any> = {...loadObjectOptions, class: void (0)}
+        const id: string | symbol = options.id ? options.id : ConstructorSymbol(options.class)
+        const configurableRecords: Record<string, any> = {...options, class: void (0)}
+        delete configurableRecords.id
         delete configurableRecords.class
-        SetConfigurableRecords(loadObjectOptions.class, key, configurableRecords)
-        pair[key] = asClass(loadObjectOptions.class, {
-            lifetime: GetObjectLifetime(loadObjectOptions.class),
+        SetConfigurableRecords(options.class, id, configurableRecords)
+        pair[id] = asClass(options.class, {
+            lifetime: GetObjectLifetime(options.class),
             dispose: (instance: BaseObject) => this.disposer(instance)
             // injector:()=>//TODO 暂时先不使用，若遇到有东西无法注入时再尝试使用
         })
@@ -106,10 +105,23 @@ export class Container {
      * Load objects
      * @param options
      */
-    public async load<T extends BaseObject>(options: ContainerLoadOptions): Promise<void> {
-        const symbolRegistrationPairs: NameAndRegistrationPair<T>[] = Object.getOwnPropertySymbols(options).map((key: symbol) => this.buildNameAndRegistrationPairFromOptions(key, options))
-        const stringRegistrationPairs: NameAndRegistrationPair<T>[] = Object.getOwnPropertyNames(options).map((key: string) => this.buildNameAndRegistrationPairFromOptions(key, options))
-        const pair: NameAndRegistrationPair<T> = Object.assign({}, ...symbolRegistrationPairs, ...stringRegistrationPairs)
+    @Accept(DTO.Array(DTO.Alternatives(LoadObjectOptions.Schema()), DTO.Glob()))
+    public async load<T extends BaseObject>(options: (LoadObjectOptions | string)[]): Promise<void> {
+        let pair: NameAndRegistrationPair<T> = {}
+        options.forEach((value: string | LoadObjectOptions | IConstructor<BaseObject>) => {
+            if (typeof value === 'string') {
+                //glob
+                const glob: string = value
+                //TODO
+            } else {
+                //load options
+                const loadObjectOptions: LoadObjectOptions = As<LoadObjectOptions>(value)
+                pair = {...pair, ...this.buildNameAndRegistrationPairFromOptions(loadObjectOptions)}
+            }
+        })
+        // const symbolRegistrationPairs: NameAndRegistrationPair<T>[] = Object.getOwnPropertySymbols(options).map((key: symbol) => this.buildNameAndRegistrationPairFromOptions(key, options))
+        // const stringRegistrationPairs: NameAndRegistrationPair<T>[] = Object.getOwnPropertyNames(options).map((key: string) => this.buildNameAndRegistrationPairFromOptions(key, options))
+        // const pair: NameAndRegistrationPair<T> = Object.assign({}, ...symbolRegistrationPairs, ...stringRegistrationPairs)
         this.#dic.register(pair)
         this.updateTransientWeakRefs()
     }
@@ -137,9 +149,10 @@ export class Container {
     public async get<T extends BaseObject>(inp: string | symbol | IConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
         const registrationName: string | symbol = typeof inp === 'function' ? ConstructorSymbol(inp) : inp
         if (!this.#dic.hasRegistration(registrationName) && typeof inp === 'function' && GetObjectIsAutoload(As<typeof BaseObject>(inp))) {
-            await this.load({
-                [registrationName]: As<typeof BaseObject>(inp)
-            })
+            await this.load([{
+                id: registrationName,
+                class: As<typeof BaseObject>(inp)
+            }])
         }
         const resolved: T | Promise<T> = this.#dic.resolve(registrationName)
         const presetConfigurableRecords: Record<string, any> = GetConfigurableRecords(As<typeof BaseObject>(resolved.constructor), registrationName)
