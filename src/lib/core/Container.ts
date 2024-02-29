@@ -105,6 +105,11 @@ export class Container {
         return pair
     }
 
+    /**
+     * Build name and registration pair from glob
+     * @param glob
+     * @protected
+     */
     protected async buildNameAndRegistrationPairFromGlob<T extends typeof BaseObject>(glob: string): Promise<NameAndRegistrationPair<T>> {
         const formatPairPromises: Promise<NameAndRegistrationPair<T>>[] = []
         listModules(glob).forEach((moduleDescriptor: ModuleDescriptor) => {
@@ -117,7 +122,8 @@ export class Container {
                             const pair: NameAndRegistrationPair<T> = {}
                             pair[ConstructorSymbol(objectConstructor)] = asClass(objectConstructor, {
                                 lifetime: GetObjectLifetime(objectConstructor),
-                                dispose: (instance: BaseObject) => this.disposer(instance)
+                                dispose: (instance: BaseObject) => this.disposer(instance),
+                                // injector:()=>//TODO 暂时先不使用，若遇到有东西无法注入时再尝试使用
                             })
                             return resolve(pair)
                         } else {
