@@ -20,6 +20,7 @@ import {
 import {As} from '../base/func/As.js'
 import {DTO} from './DTO.js'
 import {GetObjectIsAutoload} from '../base/internal/ObjectInjection.js'
+import {DI_CONTAINER_NEW_TRANSIENT_CALLBACK} from '../../constants/metadata-keys/DIMetadataKey.js'
 
 export const containerSymbol: symbol = Symbol('LAKUTATA.DI.CONTAINER.SYMBOL')
 
@@ -39,6 +40,12 @@ export class Container {
         if (this.parent) this.parent.#subContainerSet.add(this)
         Object.defineProperty(this.#dic, 'newTransient', {
             set: (resolvedWeakRef: WeakRef<any>): void => {
+                this.#transientWeakRefs.push(resolvedWeakRef)
+                this.updateTransientWeakRefs()
+            }
+        })
+        Object.defineProperty(this.#dic, DI_CONTAINER_NEW_TRANSIENT_CALLBACK, {
+            value: (resolvedWeakRef: WeakRef<any>): void => {
                 this.#transientWeakRefs.push(resolvedWeakRef)
                 this.updateTransientWeakRefs()
             }

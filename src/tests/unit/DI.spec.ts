@@ -5,6 +5,15 @@ import assert from 'node:assert'
 import {Autoload} from '../../decorators/di/Autoload.js'
 
 class RegistrationTestClass extends BaseObject {
+
+    protected async destroy(): Promise<void> {
+        console.log('destroy')
+    }
+
+    protected async __destroy(): Promise<void> {
+        console.log('__destroy')
+    }
+
     public foo(): string {
         return 'bar'
     }
@@ -35,4 +44,9 @@ describe('DI Test', async function (): Promise<void> {
         const registration: AutoloadRegistrationTestClass = await container.get<AutoloadRegistrationTestClass>(AutoloadRegistrationTestClass)
         assert.equal(registration.foo(), 'autoload')
     })
+
+    await it('destroy container', async (): Promise<void> => {
+        await container.destroy()
+    })
+
 })

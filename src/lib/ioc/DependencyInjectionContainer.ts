@@ -24,7 +24,7 @@ import {
 import {isClass, last, nameValueToObject} from './Utils.js'
 import {As} from '../base/func/As.js'
 import {
-    DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME
+    DI_CONTAINER_NEW_TRANSIENT_CALLBACK
 } from '../../constants/metadata-keys/DIMetadataKey.js'
 import {GetObjectLifetime} from '../base/internal/ObjectLifetime.js'
 
@@ -485,7 +485,7 @@ function createContainerInternal<
      * @param name
      * @param resolveOpts
      */
-    function resolve(name: string | symbol, resolveOpts?: ResolveOptions): any {
+    function resolve(this: any, name: string | symbol, resolveOpts?: ResolveOptions): any {
         resolveOpts = resolveOpts || {}
 
         try {
@@ -611,13 +611,10 @@ function createContainerInternal<
             /**
              * 用于加载配置对象至注入项目内
              */
-            if ((typeof resolved === 'object' || typeof resolved === 'function') && !Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME, resolved))
-                Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_OBJECT_NAME, name, resolved)//todo 替换为现在的逻辑
             //判断是否为瞬态模式的注册项目调用，若为瞬态模式的注册项目调用，则应找个地方记录下来，以便在容器销毁时对残留的瞬态对象实例销毁
             if (GetObjectLifetime(resolved.constructor) === Lifetime.TRANSIENT) {
-                // Object.defineProperty(this,'',{})
-                // @ts-ignore
-                // this['newTransient'] = new WeakRef(resolved)
+                const diContainer: IDependencyInjectionContainer = this
+                diContainer[DI_CONTAINER_NEW_TRANSIENT_CALLBACK](new WeakRef(resolved))
             }
             return resolved
         } catch (err) {
