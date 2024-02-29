@@ -112,7 +112,7 @@ export class Container {
      */
     protected async buildNameAndRegistrationPairFromGlob<T extends typeof BaseObject>(glob: string): Promise<NameAndRegistrationPair<T>> {
         const formatPairPromises: Promise<NameAndRegistrationPair<T>>[] = []
-        listModules(glob).forEach((moduleDescriptor: ModuleDescriptor) => {
+        listModules(glob).forEach((moduleDescriptor: ModuleDescriptor): void => {
             formatPairPromises.push(new Promise<NameAndRegistrationPair<T>>(resolve => {
                 import(pathToFileURL(moduleDescriptor.path).toString()).then((importResult: Record<string, any>): void => {
                     Object.keys(importResult).forEach((exportName: string) => {
@@ -122,7 +122,7 @@ export class Container {
                             const pair: NameAndRegistrationPair<T> = {}
                             pair[ConstructorSymbol(objectConstructor)] = asClass(objectConstructor, {
                                 lifetime: GetObjectLifetime(objectConstructor),
-                                dispose: (instance: BaseObject) => this.disposer(instance),
+                                dispose: (instance: BaseObject) => this.disposer(instance)
                                 // injector:()=>//TODO 暂时先不使用，若遇到有东西无法注入时再尝试使用
                             })
                             return resolve(pair)
