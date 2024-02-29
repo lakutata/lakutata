@@ -20,6 +20,7 @@ import {LoadObjectOptions} from '../options/LoadObjectOptions.js'
 import {EventEmitter} from '../lib/EventEmitter.js'
 import {ContainerLoadOptions} from '../options/ContainerLoadOptions.js'
 import {Autoload} from '../decorators/di/Autoload.js'
+import {ObjectDTO} from '../lib/core/ObjectDTO.js'
 
 (async () => {
 
@@ -60,7 +61,7 @@ import {Autoload} from '../decorators/di/Autoload.js'
         protected readonly xx1: XX1
 
         @Inject()
-        protected readonly bbbbb:BBBBB
+        protected readonly bbbbb: BBBBB
 
         protected async init(): Promise<void> {
             console.log(this)
@@ -83,4 +84,26 @@ import {Autoload} from '../decorators/di/Autoload.js'
     await ctn.load(obj)
     const xx2 = await ctn.get<XX2>('xx2')
     // console.log(xx2)
+    // class Test extends Array{}
+
+    // new Array()[Symbol.iterator]
+
+    class TTTT {
+        [key: number]: any
+    }
+
+    const gg: TTTT = [1, 2, 3, 4, 5]
+
+    class VVV extends ObjectDTO {
+        mm:true
+    }
+
+    class VV1 extends DTO{
+        mm:'true'
+    }
+
+    // @ts-ignore
+    console.log(new VVV({mm:false}),new VV1({mm:true}))
+
+    // console.log(DTO.validate(new Test(),DTO.Array()))
 })()
