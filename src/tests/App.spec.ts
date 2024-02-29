@@ -20,6 +20,7 @@ import {Return} from '../decorators/dto/Return.js'
 import {LoadObjectOptions} from '../options/LoadObjectOptions.js'
 import {EventEmitter} from '../lib/EventEmitter.js'
 import {ContainerLoadOptions} from '../options/ContainerLoadOptions.js'
+import {Autoload} from '../decorators/di/Autoload.js'
 
 (async () => {
 
@@ -40,6 +41,11 @@ import {ContainerLoadOptions} from '../options/ContainerLoadOptions.js'
         protected readonly xx: XX
     }
 
+    @Autoload()
+    class BBBBB extends BaseObject {
+        public abcd: number = 123456
+    }
+
     class XX2 extends XX1 {
         // @Inject()
         // // protected readonly aaa: XX1
@@ -54,6 +60,9 @@ import {ContainerLoadOptions} from '../options/ContainerLoadOptions.js'
         @Inject()
         protected readonly xx1: XX1
 
+        @Inject()
+        protected readonly bbbbb:BBBBB
+
         protected async init(): Promise<void> {
             console.log(this)
         }
@@ -63,7 +72,7 @@ import {ContainerLoadOptions} from '../options/ContainerLoadOptions.js'
     const ctn = new Container()
 
     const obj: ContainerLoadOptions = {
-        xx:XX,
+        xx: XX,
         xx1: XX1,
         xx2: {
             class: XX2,

@@ -1,6 +1,9 @@
 import {BaseObject} from '../BaseObject.js'
 import {ObjectConstructor} from '../func/ObjectConstructor.js'
-import {DI_TARGET_CONSTRUCTOR_INJECTS} from '../../../constants/metadata-keys/DIMetadataKey.js'
+import {
+    DI_TARGET_CONSTRUCTOR_AUTOLOAD,
+    DI_TARGET_CONSTRUCTOR_INJECTS
+} from '../../../constants/metadata-keys/DIMetadataKey.js'
 import {ObjectParentConstructors} from '../func/ObjectParentConstructors.js'
 import {ObjectPrototype} from '../func/ObjectPrototype.js'
 
@@ -56,4 +59,23 @@ export function GetObjectInjectItemsByPrototype<ClassPrototype extends BaseObjec
  */
 export function GetObjectInjectItemsByConstructor<ClassConstructor extends typeof BaseObject>(target: ClassConstructor): ObjectInjectionMap {
     return GetObjectInjectItemsByPrototype(ObjectPrototype(target))
+}
+
+/**
+ * Mark object as autoload
+ * @param target
+ * @constructor
+ */
+export function MarkObjectAsAutoload<ClassConstructor extends typeof BaseObject>(target: ClassConstructor): ClassConstructor {
+    if (!Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_AUTOLOAD, target)) Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_AUTOLOAD, true, target)
+    return target
+}
+
+/**
+ * Whether an object is autoload object or not
+ * @param target
+ * @constructor
+ */
+export function GetObjectIsAutoload<ClassConstructor extends typeof BaseObject>(target: ClassConstructor): boolean {
+    return !!Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_AUTOLOAD, target)
 }

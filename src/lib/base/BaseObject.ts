@@ -50,6 +50,9 @@ export class BaseObject extends AsyncConstructor {
                 registration = item.name
             } else if (this.#container.has(item.constructor)) {
                 registration = item.constructor
+            } else {
+                //For autoload objects
+                registration = item.constructor
             }
             promises.push(new Promise((resolve, reject) => {
                 this.#container.get(registration).then(injectObject => {

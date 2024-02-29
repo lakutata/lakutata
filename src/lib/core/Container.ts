@@ -19,6 +19,7 @@ import {
 } from '../base/internal/ConfigurableRecordsInjection.js'
 import {As} from '../base/func/As.js'
 import {DTO} from './DTO.js'
+import {GetObjectIsAutoload} from '../base/internal/ObjectInjection.js'
 
 export const containerSymbol: symbol = Symbol('LAKUTATA.DI.CONTAINER.SYMBOL')
 
@@ -128,13 +129,15 @@ export class Container {
     public async get<T extends BaseObject>(nameOrConstructor: string | symbol | IConstructor<T>, configurableRecords?: Record<string, any>): Promise<T>
     public async get<T extends BaseObject>(inp: string | symbol | IConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
         const registrationName: string | symbol = typeof inp === 'function' ? ConstructorSymbol(inp) : inp
+        if (!this.#dic.hasRegistration(registrationName) && typeof inp === 'function' && GetObjectIsAutoload(As<typeof BaseObject>(inp))) {
+            await this.load({
+                [registrationName]: As<typeof BaseObject>(inp)
+            })
+        }
         const resolved: T | Promise<T> = this.#dic.resolve(registrationName)
         const presetConfigurableRecords: Record<string, any> = GetConfigurableRecords(As<typeof BaseObject>(resolved.constructor), registrationName)
         const isValidSubBaseObject: boolean = DTO.isValid(resolved.constructor, DTO.Class(BaseObject))
         if (isValidSubBaseObject) SetConfigurableRecordsToInstance(As<T>(resolved), Object.assign({}, presetConfigurableRecords, configurableRecords))
-        //TODO 注入参数
-        // GetConfigurableRecords(resolved.constructor)
-        // console.log(resolved.constructor)
         this.updateTransientWeakRefs()
         return IsPromise(resolved) ? await resolved : resolved
     }
