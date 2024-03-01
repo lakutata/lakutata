@@ -55,7 +55,7 @@ describe('DI Test', async function (): Promise<void> {
         assert.equal(registration.foo(), 'autoload')
     })
     await it('load module by glob', async (): Promise<void> => {
-        await container.load([`${path.resolve(__dirname, '../glob-modules')}/**`])
+        await container.load([`${path.resolve(__dirname, '../glob-modules')}/**.js`])
         const registration: TestObj = await container.get(TestObj)
         assert.equal(registration.foo(), 'bar')
     })
@@ -69,7 +69,7 @@ describe('DI Test', async function (): Promise<void> {
         const registration: TmpObject = await container.build(TmpObject)
         assert.equal(registration.foo(), 'tmp')
     })
-    await it('Sub-Container Test', async (): Promise<void> => {
+    await describe('Sub-Container Test', async (): Promise<void> => {
         const subContainer: Container = container.createScope()
         assert.notEqual(subContainer, container)
         await it('get root container registration in sub container', async (): Promise<void> => {
