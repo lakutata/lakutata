@@ -3,6 +3,7 @@ import {BaseObject} from '../../lib/base/BaseObject.js'
 import assert from 'node:assert'
 import {Container} from '../../lib/core/Container.js'
 import {MethodNotFoundException} from '../../exceptions/MethodNotFoundException.js'
+import {IsPromiseLike} from '../../lib/base/func/IsPromiseLike.js'
 
 let initialized: boolean = false
 let destroyed: boolean = false
@@ -40,6 +41,9 @@ await describe('BaseObject Test', async function (): Promise<void> {
         {id: 'TORIRC', class: TestObjectRegisteredInRootContainer},
         {id: TORIRC_SYMBOL, class: TestObjectRegisteredInRootContainer}
     ])
+    await it('new BaseObject\'s constructor returns promise-like object', async (): Promise<void> => {
+        assert.equal(IsPromiseLike(new TestObject({})), true)
+    })
     await it('get class name by static getter className', async (): Promise<void> => {
         assert.equal(TestObject.className, TestObject.name)
     })

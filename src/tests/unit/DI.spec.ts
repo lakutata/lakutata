@@ -69,28 +69,26 @@ await describe('DI Test', async function (): Promise<void> {
         const registration: TmpObject = await container.build(TmpObject)
         assert.equal(registration.foo(), 'tmp')
     })
-    await describe('Sub-Container Test', async (): Promise<void> => {
-        const subContainer: Container = container.createScope()
-        assert.notEqual(subContainer, container)
-        await it('get root container registration in sub container', async (): Promise<void> => {
-            const registration: RegistrationTestClass = await subContainer.get<RegistrationTestClass>('test')
-            assert.equal(registration.foo(), 'bar')
-        })
-        await it('add registration to sub container', async (): Promise<void> => {
-            await subContainer.load([{
-                id: 'subTest',
-                class: class extends RegistrationTestClass {
-                    public foo(): string {
-                        return 'sub-bar'
-                    }
+    const subContainer: Container = container.createScope()
+    assert.notEqual(subContainer, container)
+    await it('get root container registration in sub container', async (): Promise<void> => {
+        const registration: RegistrationTestClass = await subContainer.get<RegistrationTestClass>('test')
+        assert.equal(registration.foo(), 'bar')
+    })
+    await it('add registration to sub container', async (): Promise<void> => {
+        await subContainer.load([{
+            id: 'subTest',
+            class: class extends RegistrationTestClass {
+                public foo(): string {
+                    return 'sub-bar'
                 }
-            }])
-            const registration: RegistrationTestClass = await subContainer.get<RegistrationTestClass>('subTest')
-            assert.equal(registration.foo(), 'sub-bar')
-        })
-        await it('root container should not allowed access registrations inside sub container', async (): Promise<void> => {
-            assert.equal(container.has('subTest'), false)
-        })
+            }
+        }])
+        const registration: RegistrationTestClass = await subContainer.get<RegistrationTestClass>('subTest')
+        assert.equal(registration.foo(), 'sub-bar')
+    })
+    await it('root container should not allowed access registrations inside sub container', async (): Promise<void> => {
+        assert.equal(container.has('subTest'), false)
     })
 
     await it('all registration instance should be destroyed after root container destroyed', async (): Promise<void> => {
