@@ -6,11 +6,11 @@ import {DTO} from '../lib/core/DTO.js'
 
 class TestModule extends Module {
     @Configurable(DTO.String())
-    public aaaa: number
+    public aaaa: string
 }
 
 (async () => {
     const ctn = new Container()
-    const instance: TestModule = await ctn.build(TestModule, {aaaa:12345})
+    const instance: TestModule = await ctn.build(TestModule, {aaaa:'gggggg'})
     console.log(instance)
 })()

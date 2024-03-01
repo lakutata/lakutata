@@ -15,6 +15,7 @@ import {GetObjectInjectItemsByPrototype, ObjectInjectionMap} from './internal/Ob
 import {IConstructor} from '../../interfaces/IConstructor.js'
 import {SetObjectContainerGetter} from './internal/ObjectContainer.js'
 import {DTO} from '../core/DTO.js'
+import {DefaultValidationOptions} from './internal/DataValidator.js'
 
 /**
  * Internal init function symbol
@@ -45,15 +46,14 @@ export class BaseObject extends AsyncConstructor {
         const setConfigurableValuePromises: Promise<void>[] = []
         GetObjectConfigurableProperties(this).forEach((schemaAndFn, propertyKey): void => {
             if (IsSymbol(propertyKey)) return
-            setConfigurableValuePromises.push(new Promise<void>((resolve, reject) => {
-                DTO.validateAsync(configurableRecords[As<string>(propertyKey)], schemaAndFn.schema).then(validatedValue => {
+            setConfigurableValuePromises.push(new Promise<void>((resolve, reject): void => {
+                DTO.validateAsync(configurableRecords[As<string>(propertyKey)], schemaAndFn.schema, DefaultValidationOptions, propertyKey).then(validatedValue => {
                     return Promise.resolve(schemaAndFn.fn(validatedValue)).then(propertyValue => {
                         this[propertyKey] = propertyValue
                         return resolve()
                     }).catch(reject)
                 }).catch(reject)
             }))
-            // this[propertyKey] = configurableRecords[As<string>(propertyKey)]
         })
         await Promise.all(setConfigurableValuePromises)
     }

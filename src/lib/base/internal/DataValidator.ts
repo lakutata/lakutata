@@ -17,7 +17,7 @@ import Joi, {
     SchemaLikeWithoutArray,
     SchemaMap,
     StringSchema, SymbolSchema,
-    ValidationOptions
+    ValidationOptions, ValidationResult
 } from 'joi'
 import {InvalidValueException} from '../../../exceptions/dto/InvalidValueException.js'
 import {isAsyncFunction} from 'node:util/types'
@@ -280,10 +280,22 @@ export class DataValidator {
      * @param data
      * @param schema
      * @param options
+     * @param propertyName
      */
-    public static validate<T = any>(data: T, schema: Schema, options?: ValidationOptions): T {
+    public static validate<T = any>(data: T, schema: Schema, options?: ValidationOptions, propertyName?: string | symbol): T {
         options = options ? Object.assign({}, DefaultValidationOptions, options) : DefaultValidationOptions
-        const {error, value} = schema.validate(data, options)
+        let error: Error | undefined
+        let value: T
+        if (propertyName) {
+            const result: ValidationResult = this.Object({[propertyName]: schema}).validate({[propertyName]: data}, options)
+            error = result.error
+            value = result.value[propertyName]
+        } else {
+            const result: ValidationResult = schema.validate(data, options)
+            error = result.error
+            value = result.value
+        }
+        // const {error, value} = schema.validate(data, options)
         if (error) throw new InvalidValueException(error.message)
         return value
     }
@@ -293,11 +305,17 @@ export class DataValidator {
      * @param data
      * @param schema
      * @param options
+     * @param propertyName
      */
-    public static async validateAsync<T = any>(data: T, schema: Schema, options?: ValidationOptions): Promise<T> {
+    public static async validateAsync<T = any>(data: T, schema: Schema, options?: ValidationOptions, propertyName?: string | symbol): Promise<T> {
         options = options ? Object.assign({}, DefaultValidationOptions, options) : DefaultValidationOptions
         try {
-            return await schema.validateAsync(data, options)
+            if (propertyName) {
+                const result = await this.Object({[propertyName]: schema}).validateAsync({[propertyName]: data}, options)
+                return result[propertyName]
+            } else {
+                return await schema.validateAsync(data, options)
+            }
         } catch (e) {
             throw new InvalidValueException((e as Error).message)
         }
