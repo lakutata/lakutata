@@ -7,11 +7,14 @@ import {DevNull} from './func/DevNull.js'
 import {Container, containerSymbol} from '../core/Container.js'
 import {randomUUID} from 'node:crypto'
 import {GetConfigurableRecordsFromInstance} from './internal/ConfigurableRecordsInjection.js'
-import {GetObjectConfigurablePropertiesByPrototype} from './internal/ObjectConfiguration.js'
+import {
+    GetObjectConfigurableProperties
+} from './internal/ObjectConfiguration.js'
 import {IsSymbol} from './func/IsSymbol.js'
 import {GetObjectInjectItemsByPrototype, ObjectInjectionMap} from './internal/ObjectInjection.js'
 import {IConstructor} from '../../interfaces/IConstructor.js'
 import {SetObjectContainerGetter} from './internal/ObjectContainer.js'
+import {DTO} from '../core/DTO.js'
 
 /**
  * Internal init function symbol
@@ -37,12 +40,22 @@ export class BaseObject extends AsyncConstructor {
      * Load configurable records
      * @private
      */
-    #loadConfigurableRecords(): void {
+    async #loadConfigurableRecords(): Promise<void> {
         const configurableRecords: Record<string, any> = GetConfigurableRecordsFromInstance(this)
-        GetObjectConfigurablePropertiesByPrototype(this).forEach((propertyKey: string | symbol): void => {
+        const setConfigurableValuePromises: Promise<void>[] = []
+        GetObjectConfigurableProperties(this).forEach((schemaAndFn, propertyKey): void => {
             if (IsSymbol(propertyKey)) return
-            this[propertyKey] = configurableRecords[As<string>(propertyKey)]
+            setConfigurableValuePromises.push(new Promise<void>((resolve, reject) => {
+                DTO.validateAsync(configurableRecords[As<string>(propertyKey)], schemaAndFn.schema).then(validatedValue => {
+                    return Promise.resolve(schemaAndFn.fn(validatedValue)).then(propertyValue => {
+                        this[propertyKey] = propertyValue
+                        return resolve()
+                    }).catch(reject)
+                }).catch(reject)
+            }))
+            // this[propertyKey] = configurableRecords[As<string>(propertyKey)]
         })
+        await Promise.all(setConfigurableValuePromises)
     }
 
     /**
@@ -82,7 +95,7 @@ export class BaseObject extends AsyncConstructor {
             //Apply object injection
             await this.#applyInjection()
             //Load and apply configurable records to current object's property
-            this.#loadConfigurableRecords()
+            await this.#loadConfigurableRecords()
 
             //Ensure property "then" not in subclass
             const thenablePropertyDescriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(this, 'then')

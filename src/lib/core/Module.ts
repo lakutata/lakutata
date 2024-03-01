@@ -6,7 +6,7 @@ import {Singleton} from '../../decorators/di/Lifetime.js'
  */
 @Singleton(true)
 export class Module extends Component {
-    constructor() {
-        super({})
+    constructor(cradleProxy: Record<string | symbol, any>) {
+        super(Object.create(null))
     }
 }

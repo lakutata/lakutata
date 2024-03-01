@@ -1,5 +1,6 @@
 import {Module} from './Module.js'
 import {Singleton} from '../../decorators/di/Lifetime.js'
+import {Container} from './Container.js'
 
 @Singleton(true)
 export class Application extends Module {
@@ -10,6 +11,8 @@ export class Application extends Module {
      */
     public static async run(options: any): Promise<void> {
         //TODO 实现该方法
+        const rootContainer: Container = new Container()
+
     }
 
     /**
@@ -38,5 +41,13 @@ export class Application extends Module {
      */
     public get uptime(): number {
         return 0//TODO
+    }
+
+    /**
+     * Exit application
+     * @param force
+     */
+    public exit(force?: boolean): void {
+        //TODO
     }
 }
