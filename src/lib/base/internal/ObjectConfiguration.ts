@@ -3,7 +3,6 @@ import {DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES} from '../../../constants/
 import {ObjectConstructor} from '../func/ObjectConstructor.js'
 import {As} from '../func/As.js'
 import {ObjectParentConstructors} from '../func/ObjectParentConstructors.js'
-import {ObjectPrototype} from '../func/ObjectPrototype.js'
 import {Schema} from 'joi'
 import {DTO} from '../../core/DTO.js'
 
@@ -21,13 +20,10 @@ export type ObjectConfigurablePropertyMap<DataType = any> = Map<string | symbol,
  * @constructor
  */
 export function SetObjectConfigurableProperty<ClassPrototype extends BaseObject, DataType>(target: ClassPrototype, propertyKey: string | symbol, schema: Schema<DataType> = DTO.Any(), fn?: (value: DataType) => DataType | Promise<DataType>): void {
-    // let objectConfigurablePropertySet: Set<string | symbol>
     let objectConfigurablePropertyMap: ObjectConfigurablePropertyMap<DataType>
     if (Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, ObjectConstructor(target))) {
-        // objectConfigurablePropertySet = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, ObjectConstructor(target))
         objectConfigurablePropertyMap = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, ObjectConstructor(target))
     } else {
-        // objectConfigurablePropertySet = new Set()
         objectConfigurablePropertyMap = new Map()
         ObjectParentConstructors(ObjectConstructor(target)).forEach((parentConstructor: Function): void => {
             if (Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, parentConstructor))
