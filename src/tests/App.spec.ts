@@ -20,6 +20,7 @@ import {LoadObjectOptions} from '../options/LoadObjectOptions.js'
 import {EventEmitter} from '../lib/EventEmitter.js'
 import {Autoload} from '../decorators/di/Autoload.js'
 import {TestObj} from './glob-modules/TestObj.js'
+import {GetObjectContainer} from '../lib/base/internal/ObjectContainer.js'
 
 (async () => {
 
@@ -68,6 +69,7 @@ import {TestObj} from './glob-modules/TestObj.js'
         protected async init(): Promise<void> {
             console.log(await this.instantiateObject(UNNN, {aaa: 2}))
             // console.log(await ctn.build(UNNN, {aaa: 1}))
+            console.log(await GetObjectContainer(this).build(UNNN, {aaa: 3}))
         }
     }
 
