@@ -1,4 +1,4 @@
-import {BaseObject} from '../../lib/base/BaseObject.js'
+import {BaseObject} from '../../../../lib/base/BaseObject.js'
 
 export class TestObj extends BaseObject {
     public foo(): string {

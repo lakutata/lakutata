@@ -4,7 +4,7 @@ import {BaseObject} from '../../lib/base/BaseObject.js'
 import assert from 'node:assert'
 import {Autoload} from '../../decorators/di/Autoload.js'
 import path from 'node:path'
-import {TestObj} from '../glob-modules/TestObj.js'
+import {TestObj} from './resources/glob-modules/TestObj.js'
 
 const instanceSet: Set<BaseObject> = new Set()
 
@@ -55,7 +55,7 @@ describe('DI Test', async function (): Promise<void> {
         assert.equal(registration.foo(), 'autoload')
     })
     await it('load module by glob', async (): Promise<void> => {
-        await container.load([`${path.resolve(__dirname, '../glob-modules')}/**.js`])
+        await container.load([`${path.resolve(__dirname, './resources/glob-modules')}/**.js`])
         const registration: TestObj = await container.get(TestObj)
         assert.equal(registration.foo(), 'bar')
     })

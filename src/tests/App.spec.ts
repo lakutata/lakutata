@@ -19,7 +19,7 @@ import {Return} from '../decorators/dto/Return.js'
 import {LoadObjectOptions} from '../options/LoadObjectOptions.js'
 import {EventEmitter} from '../lib/EventEmitter.js'
 import {Autoload} from '../decorators/di/Autoload.js'
-import {TestObj} from './glob-modules/TestObj.js'
+import {TestObj} from './unit/resources/glob-modules/TestObj.js'
 import {GetObjectContainer} from '../lib/base/internal/ObjectContainer.js'
 
 (async () => {
@@ -98,7 +98,7 @@ import {GetObjectContainer} from '../lib/base/internal/ObjectContainer.js'
             class: XX
         },
         XX,
-        `${path.resolve(__dirname, './glob-modules')}/**`
+        `${path.resolve(__dirname, './unit/resources/glob-modules')}/**`
     ]
 
     obj[Symbol('test')] = XX1
