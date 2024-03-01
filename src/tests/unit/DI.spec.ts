@@ -5,7 +5,6 @@ import assert from 'node:assert'
 import {Autoload} from '../../decorators/di/Autoload.js'
 import path from 'node:path'
 import {TestObj} from '../glob-modules/TestObj.js'
-import {fileURLToPath} from 'node:url'
 
 const instanceSet: Set<BaseObject> = new Set()
 
@@ -19,6 +18,7 @@ class RegistrationTestClass extends BaseObject {
     }
 
     protected async destroy(): Promise<void> {
+        console.log('destroy', this.constructor.name)
     }
 
     protected async __destroy(): Promise<void> {

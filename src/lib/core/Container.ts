@@ -249,6 +249,8 @@ export class Container {
         return this.#dic.hasRegistration(inp)
     }
 
+    protected readonly builtObjects: Set<BaseObject> = new Set()
+
     /**
      * Builds an instance of a base object class by injecting dependencies, but without registering it in the container
      * @param target
@@ -256,7 +258,9 @@ export class Container {
      */
     public async build<T extends BaseObject>(target: IConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
         const resolved: T | Promise<T> = this.#dic.build<T>(target, this.buildResolverOptions(target))
-        return await this.processResolved(resolved, ConstructorSymbol(target), configurableRecords)
+        const builtObject = await this.processResolved(resolved, ConstructorSymbol(target), configurableRecords)
+        this.builtObjects.add(builtObject)
+        return builtObject
     }
 
     /**
@@ -273,9 +277,20 @@ export class Container {
     public async destroy(): Promise<void> {
         if (this.parent) this.parent.#subContainerSet.delete(this)
         const destroySubContainerPromises: Promise<void>[] = []
+        const destroyBuiltObjectPromises: Promise<void>[] = []
         this.#subContainerSet.forEach((subContainer: Container) =>
             destroySubContainerPromises.push(new Promise((resolve, reject) =>
                 subContainer.destroy().then(resolve).catch(reject))))
+        this.builtObjects.forEach((builtObject: BaseObject) => {
+            destroyBuiltObjectPromises.push(new Promise<void>(resolve => {
+                Promise.all([
+                    new Promise<void>(resolve => Promise.resolve(builtObject.getMethod('__destroy', false)()).then(() => resolve()).catch(() => resolve())),
+                    new Promise<void>(resolve => Promise.resolve(builtObject.getMethod('destroy', false)()).then(() => resolve()).catch(() => resolve()))
+                ]).then(() => resolve()).catch(() => resolve())
+            }))
+        })
+        await Promise.all(destroyBuiltObjectPromises)
+        await Promise.all(destroySubContainerPromises)
         await this.#dic.dispose()
         for (const ref of this.#transientWeakRefs) {
             const transient = ref.deref()
