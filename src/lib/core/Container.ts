@@ -36,6 +36,8 @@ export class Container {
 
     #transientWeakRefs: WeakRef<any>[] = []
 
+    #builtObjects: Set<BaseObject> = new Set()
+
     protected readonly parent?: Container
 
     constructor(parent?: Container) {
@@ -210,9 +212,20 @@ export class Container {
      * @param configurableRecords
      */
     public async get<T extends BaseObject>(name: symbol, configurableRecords?: Record<string, any>): Promise<T>
+    /**
+     * Get registered object via string or symbol
+     * @param name
+     * @param configurableRecords
+     */
     public async get<T extends BaseObject>(name: string | symbol, configurableRecords?: Record<string, any>): Promise<T>
+    /**
+     * Get registered object via string or symbol or constructor
+     * @param nameOrConstructor
+     * @param configurableRecords
+     */
     public async get<T extends BaseObject>(nameOrConstructor: string | symbol | IConstructor<T>, configurableRecords?: Record<string, any>): Promise<T>
-    public async get<T extends BaseObject>(inp: string | symbol | IConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
+    public async get<T extends BaseObject>(inp: string | symbol | IConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T>
+    {
         const registrationName: string | symbol = typeof inp === 'function' ? ConstructorSymbol(inp) : inp
         if (!this.#dic.hasRegistration(registrationName) && typeof inp === 'function' && GetObjectIsAutoload(As<typeof BaseObject>(inp))) {
             await this.load([{
@@ -249,8 +262,6 @@ export class Container {
         return this.#dic.hasRegistration(inp)
     }
 
-    protected readonly builtObjects: Set<BaseObject> = new Set()
-
     /**
      * Builds an instance of a base object class by injecting dependencies, but without registering it in the container
      * @param target
@@ -259,7 +270,7 @@ export class Container {
     public async build<T extends BaseObject>(target: IConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
         const resolved: T | Promise<T> = this.#dic.build<T>(target, this.buildResolverOptions(target))
         const builtObject = await this.processResolved(resolved, ConstructorSymbol(target), configurableRecords)
-        this.builtObjects.add(builtObject)
+        this.#builtObjects.add(builtObject)
         return builtObject
     }
 
@@ -281,7 +292,7 @@ export class Container {
         this.#subContainerSet.forEach((subContainer: Container) =>
             destroySubContainerPromises.push(new Promise((resolve, reject) =>
                 subContainer.destroy().then(resolve).catch(reject))))
-        this.builtObjects.forEach((builtObject: BaseObject) => {
+        this.#builtObjects.forEach((builtObject: BaseObject) => {
             destroyBuiltObjectPromises.push(new Promise<void>(resolve => {
                 Promise.all([
                     new Promise<void>(resolve => Promise.resolve(builtObject.getMethod('__destroy', false)()).then(() => resolve()).catch(() => resolve())),

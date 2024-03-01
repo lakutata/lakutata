@@ -66,8 +66,8 @@ import {TestObj} from './glob-modules/TestObj.js'
         protected readonly bbbbb: BBBBB
 
         protected async init(): Promise<void> {
-            console.log(this)
-            console.log(await ctn.build(UNNN, {aaa: 1}))
+            console.log(await this.instantiateObject(UNNN, {aaa: 2}))
+            // console.log(await ctn.build(UNNN, {aaa: 1}))
         }
     }
 

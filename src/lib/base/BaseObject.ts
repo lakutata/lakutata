@@ -10,6 +10,7 @@ import {GetConfigurableRecordsFromInstance} from './internal/ConfigurableRecords
 import {GetObjectConfigurablePropertiesByPrototype} from './internal/ObjectConfiguration.js'
 import {IsSymbol} from './func/IsSymbol.js'
 import {GetObjectInjectItemsByPrototype, ObjectInjectionMap} from './internal/ObjectInjection.js'
+import {IConstructor} from '../../interfaces/IConstructor.js'
 
 @Transient()
 export class BaseObject extends AsyncConstructor {
@@ -32,12 +33,11 @@ export class BaseObject extends AsyncConstructor {
 
     /**
      * Apply object injection
-     * @param cradleProxy
      * @private
      */
-    async #applyInjection(cradleProxy: Record<string | symbol, any>): Promise<void> {
+    async #applyInjection(): Promise<void> {
         const objectInjectionMap: ObjectInjectionMap = GetObjectInjectItemsByPrototype(this)
-        const promises: Promise<void>[] = []
+        const injectionPromises: Promise<void>[] = []
         objectInjectionMap.forEach((item, propertyKey: string | symbol): void => {
             //Try name first, if name not found then try constructor
             let registration: string | symbol | typeof BaseObject = item.name
@@ -49,26 +49,26 @@ export class BaseObject extends AsyncConstructor {
                 //For autoload objects
                 registration = item.constructor
             }
-            promises.push(new Promise((resolve, reject) => {
+            injectionPromises.push(new Promise((resolve, reject) => {
                 this.#container.get(registration).then(injectObject => {
                     this[propertyKey] = injectObject
                     return resolve()
                 }).catch(reject)
             }))
-
-            // console.log(this.#container.has(item.constructor))
-            // console.log(item, propertyKey,ConstructorSymbol(As<IConstructor<BaseObject>>(item.constructor)))
-
-            // console.log(cradleProxy[propertyKey])
         })
-        await Promise.all(promises)
+        await Promise.all(injectionPromises)
     }
 
+    /**
+     * Constructor
+     * @param cradleProxy
+     */
     constructor(cradleProxy: Record<string | symbol, any>) {
         super(async (): Promise<void> => {
-            await this.#applyInjection(cradleProxy)
+            //Apply object injection
+            await this.#applyInjection()
+            //Load and apply configurable records to current object's property
             this.#loadConfigurableRecords()
-            //TODO 执行获取注入对象等一系列操作
 
             //Ensure property "then" not in subclass
             const thenablePropertyDescriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(this, 'then')
@@ -124,6 +124,52 @@ export class BaseObject extends AsyncConstructor {
      */
     protected async destroy(): Promise<void> {
         //To be override in child class
+    }
+
+    /**
+     * Get registered object via constructor
+     * @param constructor
+     * @param configurableRecords
+     */
+    protected async getObject<T extends BaseObject>(constructor: IConstructor<T>, configurableRecords?: Record<string, any>): Promise<T>
+    /**
+     * Get registered object via string
+     * @param name
+     * @param configurableRecords
+     */
+    protected async getObject<T extends BaseObject>(name: string, configurableRecords?: Record<string, any>): Promise<T>
+    /**
+     * Get registered object via symbol
+     * @param name
+     * @param configurableRecords
+     */
+    protected async getObject<T extends BaseObject>(name: symbol, configurableRecords?: Record<string, any>): Promise<T>
+    /**
+     * Get registered object via string or symbol
+     * @param name
+     * @param configurableRecords
+     * @protected
+     */
+    protected async getObject<T extends BaseObject>(name: string | symbol, configurableRecords?: Record<string, any>): Promise<T>
+    /**
+     * Get registered object via string or symbol or constructor
+     * @param nameOrConstructor
+     * @param configurableRecords
+     * @protected
+     */
+    protected async getObject<T extends BaseObject>(nameOrConstructor: string | symbol | IConstructor<T>, configurableRecords?: Record<string, any>): Promise<T>
+    protected async getObject<T extends BaseObject>(inp: string | symbol | IConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
+        return await this.#container.get(inp, configurableRecords)
+    }
+
+    /**
+     * Instantiate an instance of a base object class by injecting dependencies, but without registering it in the container
+     * @param constructor
+     * @param configurableRecords
+     * @protected
+     */
+    protected async instantiateObject<T extends BaseObject>(constructor: IConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
+        return this.#container.build(constructor, configurableRecords)
     }
 
     /**
