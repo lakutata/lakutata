@@ -5,12 +5,14 @@ import {Configurable} from '../decorators/di/Configurable.js'
 import {DTO} from '../lib/core/DTO.js'
 
 class TestModule extends Module {
-    @Configurable(DTO.String())
+    @Configurable(DTO.String(), value => {
+        return value + '123456'
+    })
     public aaaa: string
 }
 
 (async () => {
     const ctn = new Container()
-    const instance: TestModule = await ctn.build(TestModule, {aaaa:'gggggg'})
+    const instance: TestModule = await ctn.build(TestModule, {aaaa: 'gggggg'})
     console.log(instance)
 })()
