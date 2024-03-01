@@ -9,7 +9,7 @@ import {IConstructor} from '../../interfaces/IConstructor.js'
 import {ConstructorSymbol} from '../base/internal/ConstructorSymbol.js'
 import {IsPromise} from '../base/func/IsPromise.js'
 import {LoadObjectOptions} from '../../options/LoadObjectOptions.js'
-import {asClass, asValue} from '../ioc/Resolvers.js'
+import {asClass, asValue, BuildResolverOptions} from '../ioc/Resolvers.js'
 import {GetObjectLifetime} from '../base/internal/ObjectLifetime.js'
 import {
     GetConfigurableRecords,
@@ -86,6 +86,34 @@ export class Container {
     }
 
     /**
+     * Get build resolver options by class constructor
+     * @param target
+     * @protected
+     */
+    protected buildResolverOptions<T extends BaseObject>(target: IConstructor<T>): BuildResolverOptions<T> {
+        return {
+            lifetime: GetObjectLifetime(target),
+            dispose: (instance: BaseObject) => this.disposer(instance)
+            // injector:()=>//TODO 暂时先不使用，若遇到有东西无法注入时再尝试使用
+        }
+    }
+
+    /**
+     * Process resolved
+     * @param resolved
+     * @param registrationName
+     * @param configurableRecords
+     * @protected
+     */
+    protected async processResolved<T extends BaseObject>(resolved: T | Promise<T>, registrationName: string | symbol, configurableRecords: Record<string, any> = {}): Promise<T> {
+        const presetConfigurableRecords: Record<string, any> = GetConfigurableRecords(As<typeof BaseObject>(resolved.constructor), registrationName)
+        const isValidSubBaseObject: boolean = DTO.isValid(resolved.constructor, DTO.Class(BaseObject))
+        if (isValidSubBaseObject) SetConfigurableRecordsToInstance(As<T>(resolved), Object.assign({}, presetConfigurableRecords, configurableRecords))
+        this.updateTransientWeakRefs()
+        return IsPromise(resolved) ? await resolved : resolved
+    }
+
+    /**
      * Build name and registration pair from container load options
      * @param options
      * @protected
@@ -97,11 +125,7 @@ export class Container {
         delete configurableRecords.id
         delete configurableRecords.class
         SetConfigurableRecords(options.class, id, configurableRecords)
-        pair[id] = asClass(options.class, {
-            lifetime: GetObjectLifetime(options.class),
-            dispose: (instance: BaseObject) => this.disposer(instance)
-            // injector:()=>//TODO 暂时先不使用，若遇到有东西无法注入时再尝试使用
-        })
+        pair[id] = asClass(options.class, this.buildResolverOptions(options.class))
         return pair
     }
 
@@ -120,11 +144,7 @@ export class Container {
                         if (isClass(exportObj) && DTO.isValid(exportObj, DTO.Class(BaseObject))) {
                             const objectConstructor: T = exportObj
                             const pair: NameAndRegistrationPair<T> = {}
-                            pair[ConstructorSymbol(objectConstructor)] = asClass(objectConstructor, {
-                                lifetime: GetObjectLifetime(objectConstructor),
-                                dispose: (instance: BaseObject) => this.disposer(instance)
-                                // injector:()=>//TODO 暂时先不使用，若遇到有东西无法注入时再尝试使用
-                            })
+                            pair[ConstructorSymbol(objectConstructor)] = asClass(objectConstructor, this.buildResolverOptions(objectConstructor))
                             return resolve(pair)
                         } else {
                             return resolve({})
@@ -201,11 +221,7 @@ export class Container {
             }])
         }
         const resolved: T | Promise<T> = this.#dic.resolve(registrationName)
-        const presetConfigurableRecords: Record<string, any> = GetConfigurableRecords(As<typeof BaseObject>(resolved.constructor), registrationName)
-        const isValidSubBaseObject: boolean = DTO.isValid(resolved.constructor, DTO.Class(BaseObject))
-        if (isValidSubBaseObject) SetConfigurableRecordsToInstance(As<T>(resolved), Object.assign({}, presetConfigurableRecords, configurableRecords))
-        this.updateTransientWeakRefs()
-        return IsPromise(resolved) ? await resolved : resolved
+        return await this.processResolved(resolved, registrationName, configurableRecords)
     }
 
     /**
@@ -231,6 +247,16 @@ export class Container {
     public has<ClassConstructor extends typeof BaseObject>(inp: symbol | string | ClassConstructor): boolean {
         if (typeof inp === 'function') return this.#dic.hasRegistration(ConstructorSymbol(inp))
         return this.#dic.hasRegistration(inp)
+    }
+
+    /**
+     * Builds an instance of a base object class by injecting dependencies, but without registering it in the container
+     * @param target
+     * @param configurableRecords
+     */
+    public async build<T extends BaseObject>(target: IConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
+        const resolved: T | Promise<T> = this.#dic.build<T>(target, this.buildResolverOptions(target))
+        return await this.processResolved(resolved, ConstructorSymbol(target), configurableRecords)
     }
 
     /**

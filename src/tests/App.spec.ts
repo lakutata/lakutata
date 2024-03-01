@@ -67,8 +67,13 @@ import {TestObj} from './glob-modules/TestObj.js'
 
         protected async init(): Promise<void> {
             console.log(this)
+            console.log(await ctn.build(UNNN, {aaa: 1}))
         }
+    }
 
+    class UNNN extends BaseObject {
+        @Configurable()
+        aaa: number
     }
 
     const ctn = new Container()
@@ -90,7 +95,8 @@ import {TestObj} from './glob-modules/TestObj.js'
         {
             class: XX
         },
-        XX
+        XX,
+        `${path.resolve(__dirname, './glob-modules')}/**`
     ]
 
     obj[Symbol('test')] = XX1
