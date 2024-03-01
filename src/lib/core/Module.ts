@@ -6,5 +6,7 @@ import {Singleton} from '../../decorators/di/Lifetime.js'
  */
 @Singleton(true)
 export class Module extends Component {
-    //TODO
+    constructor() {
+        super({})
+    }
 }

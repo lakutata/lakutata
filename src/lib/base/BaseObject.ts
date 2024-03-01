@@ -13,6 +13,9 @@ import {GetObjectInjectItemsByPrototype, ObjectInjectionMap} from './internal/Ob
 import {IConstructor} from '../../interfaces/IConstructor.js'
 import {SetObjectContainerGetter} from './internal/ObjectContainer.js'
 
+export const __init: symbol = Symbol('__init')
+export const __destroy: symbol = Symbol('__destroy')
+
 @Transient()
 export class BaseObject extends AsyncConstructor {
 
@@ -75,7 +78,7 @@ export class BaseObject extends AsyncConstructor {
             const thenablePropertyDescriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(this, 'then')
             if (thenablePropertyDescriptor) Object.defineProperty(this, 'then', {enumerable: false})
             //Execute init functions
-            await this.__init()
+            await this[__init]()
             await this.init()
         })
         this.#container = new Container(cradleProxy[containerSymbol])
@@ -100,16 +103,17 @@ export class BaseObject extends AsyncConstructor {
      * Internal initialize function
      * @protected
      */
-    protected async __init(): Promise<void> {
-        //To be override in child class
+    protected async [__init](): Promise<void> {
+        await this.init()
     }
 
     /**
      * Internal destroy function
      * @protected
      */
-    protected async __destroy(): Promise<void> {
+    protected async [__destroy](): Promise<void> {
         await this.#container.destroy()
+        await this.destroy()
     }
 
     /**
@@ -204,10 +208,20 @@ export class BaseObject extends AsyncConstructor {
      * Is object has property
      * @param propertyKey
      */
-    public hasProperty(propertyKey: string): boolean {
-        return this.propertyNames().includes(propertyKey)
+    public hasProperty(propertyKey: string | symbol): boolean {
+        return typeof propertyKey === 'string' ? this.propertyNames().includes(propertyKey) : this.propertySymbols().includes(propertyKey)
     }
 
+    /**
+     * Get own property symbols
+     */
+    public propertySymbols(): symbol[] {
+        return Object.getOwnPropertySymbols(this)
+    }
+
+    /**
+     * Get own property names
+     */
     public propertyNames(): string[] {
         return Object.getOwnPropertyNames(this)
     }
@@ -216,7 +230,7 @@ export class BaseObject extends AsyncConstructor {
      * Is object has method
      * @param name
      */
-    public hasMethod(name: string): boolean {
+    public hasMethod(name: string | symbol): boolean {
         const propertyExists: boolean = this.hasProperty(name)
         if (propertyExists) return false//Method doesn't exist
         return typeof this[name] === 'function'
@@ -227,7 +241,7 @@ export class BaseObject extends AsyncConstructor {
      * @param name
      * @param throwExceptionIfNotFound
      */
-    public getMethod(name: string, throwExceptionIfNotFound: boolean = false): (...args: any[]) => any | Promise<any> {
+    public getMethod(name: string | symbol, throwExceptionIfNotFound: boolean = false): (...args: any[]) => any | Promise<any> {
         if (this.hasMethod(name)) {
             return (...args: any[]) => this[name](...args)
         } else if (throwExceptionIfNotFound) {

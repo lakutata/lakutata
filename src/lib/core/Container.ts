@@ -4,7 +4,7 @@ import {
     NameAndRegistrationPair
 } from '../ioc/DependencyInjectionContainer.js'
 import {DevNull} from '../base/func/DevNull.js'
-import {BaseObject} from '../base/BaseObject.js'
+import {__destroy, BaseObject} from '../base/BaseObject.js'
 import {IConstructor} from '../../interfaces/IConstructor.js'
 import {ConstructorSymbol} from '../base/internal/ConstructorSymbol.js'
 import {IsPromise} from '../base/func/IsPromise.js'
@@ -79,8 +79,7 @@ export class Container {
      */
     protected async disposer<T extends BaseObject>(instance: T): Promise<void> {
         try {
-            await instance.getMethod('__destroy', false)()
-            await instance.getMethod('destroy', false)()
+            await instance.getMethod(__destroy, false)()
         } catch (e) {
             DevNull(e)
         }
@@ -291,12 +290,9 @@ export class Container {
         this.#subContainerSet.forEach((subContainer: Container) =>
             destroySubContainerPromises.push(new Promise((resolve, reject) =>
                 subContainer.destroy().then(resolve).catch(reject))))
-        this.#builtObjects.forEach((builtObject: BaseObject) => {
+        this.#builtObjects.forEach((builtObject: BaseObject): void => {
             destroyBuiltObjectPromises.push(new Promise<void>(resolve => {
-                Promise.all([
-                    new Promise<void>(resolve => Promise.resolve(builtObject.getMethod('__destroy', false)()).then(() => resolve()).catch(() => resolve())),
-                    new Promise<void>(resolve => Promise.resolve(builtObject.getMethod('destroy', false)()).then(() => resolve()).catch(() => resolve()))
-                ]).then(() => resolve()).catch(() => resolve())
+                Promise.resolve(builtObject.getMethod(__destroy, false)()).then(() => resolve()).catch(() => resolve())
             }))
         })
         await Promise.all(destroyBuiltObjectPromises)
@@ -305,8 +301,7 @@ export class Container {
         for (const ref of this.#transientWeakRefs) {
             const transient = ref.deref()
             try {
-                if (transient?.__destroy) await transient.__destroy()
-                if (transient?.destroy) await transient.destroy()
+                if (transient[__destroy]) await transient[__destroy]()
             } catch (e) {
                 DevNull(e)
             }

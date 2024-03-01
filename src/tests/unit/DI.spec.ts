@@ -11,16 +11,10 @@ const instanceSet: Set<BaseObject> = new Set()
 class RegistrationTestClass extends BaseObject {
 
     protected async init(): Promise<void> {
-    }
-
-    protected async __init(): Promise<void> {
         instanceSet.add(this)
     }
 
     protected async destroy(): Promise<void> {
-    }
-
-    protected async __destroy(): Promise<void> {
         instanceSet.delete(this)
     }
 
