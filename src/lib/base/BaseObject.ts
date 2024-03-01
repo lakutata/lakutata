@@ -13,9 +13,19 @@ import {GetObjectInjectItemsByPrototype, ObjectInjectionMap} from './internal/Ob
 import {IConstructor} from '../../interfaces/IConstructor.js'
 import {SetObjectContainerGetter} from './internal/ObjectContainer.js'
 
+/**
+ * Internal init function symbol
+ */
 export const __init: symbol = Symbol('__init')
+
+/**
+ * Internal destroy function symbol
+ */
 export const __destroy: symbol = Symbol('__destroy')
 
+/**
+ * Lakutata object base class
+ */
 @Transient()
 export class BaseObject extends AsyncConstructor {
 
