@@ -11,7 +11,6 @@ import {GetObjectConfigurablePropertiesByPrototype} from './internal/ObjectConfi
 import {IsSymbol} from './func/IsSymbol.js'
 import {GetObjectInjectItemsByPrototype, ObjectInjectionMap} from './internal/ObjectInjection.js'
 import {IConstructor} from '../../interfaces/IConstructor.js'
-import {DI_TARGET_CONTAINER} from '../../constants/metadata-keys/DIMetadataKey.js'
 import {SetObjectContainerGetter} from './internal/ObjectContainer.js'
 
 @Transient()

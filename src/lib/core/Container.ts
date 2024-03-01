@@ -141,7 +141,7 @@ export class Container {
         listModules(glob).forEach((moduleDescriptor: ModuleDescriptor): void => {
             formatPairPromises.push(new Promise<NameAndRegistrationPair<T>>(resolve => {
                 import(pathToFileURL(moduleDescriptor.path).toString()).then((importResult: Record<string, any>): void => {
-                    Object.keys(importResult).forEach((exportName: string) => {
+                    Object.keys(importResult).forEach((exportName: string): void => {
                         const exportObj: any = importResult[exportName]
                         if (isClass(exportObj) && DTO.isValid(exportObj, DTO.Class(BaseObject))) {
                             const objectConstructor: T = exportObj
