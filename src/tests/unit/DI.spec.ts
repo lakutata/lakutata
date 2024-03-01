@@ -60,6 +60,16 @@ describe('DI Test', async function (): Promise<void> {
         const registration: TestObj = await container.get(TestObj)
         assert.equal(registration.foo(), 'bar')
     })
+    await it('builds an instance of a base object class by injecting dependencies, but without registering it in the container', async (): Promise<void> => {
+        class TmpObject extends BaseObject {
+            public foo(): string {
+                return 'tmp'
+            }
+        }
+
+        const registration: TmpObject = await container.build(TmpObject)
+        assert.equal(registration.foo(), 'tmp')
+    })
     await it('Sub-Container Test', async (): Promise<void> => {
         const subContainer: Container = container.createScope()
         assert.notEqual(subContainer, container)
