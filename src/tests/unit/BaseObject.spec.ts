@@ -33,7 +33,7 @@ class TestObject extends BaseObject {
 class TestObjectRegisteredInRootContainer extends BaseObject {
 }
 
-describe('BaseObject Test', async function (): Promise<void> {
+await describe('BaseObject Test', async function (): Promise<void> {
     const rootContainer: Container = new Container()
     await rootContainer.load([
         TestObjectRegisteredInRootContainer,

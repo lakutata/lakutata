@@ -12,7 +12,7 @@
     "prepare": "npm run compile",
     "compile": "npm run rebuild",
     "test:app": "npm run rebuild && node distro/src/tests/App.spec.js",
-    "test:unit": "npm run rebuild && mocha distro/src/tests/unit/*.spec.js"
+    "test:unit": "npm run rebuild && mocha distro/src/tests/UnitTest.spec.js"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^25.0.7",

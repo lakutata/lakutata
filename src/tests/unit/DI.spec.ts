@@ -29,7 +29,7 @@ class RegistrationTestClass extends BaseObject {
     }
 }
 
-describe('DI Test', async function (): Promise<void> {
+await describe('DI Test', async function (): Promise<void> {
     const container: Container = new Container()
 
     await it('add named(symbol) registration', async (): Promise<void> => {
