@@ -18,7 +18,6 @@ class RegistrationTestClass extends BaseObject {
     }
 
     protected async destroy(): Promise<void> {
-        console.log('destroy', this.constructor.name)
     }
 
     protected async __destroy(): Promise<void> {
