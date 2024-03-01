@@ -224,8 +224,7 @@ export class Container {
      * @param configurableRecords
      */
     public async get<T extends BaseObject>(nameOrConstructor: string | symbol | IConstructor<T>, configurableRecords?: Record<string, any>): Promise<T>
-    public async get<T extends BaseObject>(inp: string | symbol | IConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T>
-    {
+    public async get<T extends BaseObject>(inp: string | symbol | IConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
         const registrationName: string | symbol = typeof inp === 'function' ? ConstructorSymbol(inp) : inp
         if (!this.#dic.hasRegistration(registrationName) && typeof inp === 'function' && GetObjectIsAutoload(As<typeof BaseObject>(inp))) {
             await this.load([{
@@ -269,7 +268,7 @@ export class Container {
      */
     public async build<T extends BaseObject>(target: IConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
         const resolved: T | Promise<T> = this.#dic.build<T>(target, this.buildResolverOptions(target))
-        const builtObject = await this.processResolved(resolved, ConstructorSymbol(target), configurableRecords)
+        const builtObject: T = await this.processResolved(resolved, ConstructorSymbol(target), configurableRecords)
         this.#builtObjects.add(builtObject)
         return builtObject
     }
