@@ -25,6 +25,7 @@ import {IsEmptyObject} from '../base/func/IsEmptyObject.js'
 import {listModules, ModuleDescriptor} from '../ioc/ListModules.js'
 import {pathToFileURL} from 'url'
 import {isClass} from '../ioc/Utils.js'
+import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
 
 export const containerSymbol: symbol = Symbol('LAKUTATA.DI.CONTAINER.SYMBOL')
 
@@ -91,7 +92,7 @@ export class Container {
      * @param target
      * @protected
      */
-    protected buildResolverOptions<T extends BaseObject>(target: IConstructor<T>): BuildResolverOptions<T> {
+    protected buildResolverOptions<T extends BaseObject>(target: IBaseObjectConstructor<T>): BuildResolverOptions<T> {
         return {
             lifetime: GetObjectLifetime(target),
             dispose: (instance: BaseObject) => this.disposer(instance)
@@ -265,7 +266,7 @@ export class Container {
      * @param target
      * @param configurableRecords
      */
-    public async build<T extends BaseObject>(target: IConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
+    public async build<T extends BaseObject>(target: IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
         const resolved: T | Promise<T> = this.#dic.build<T>(target, this.buildResolverOptions(target))
         const builtObject: T = await this.processResolved(resolved, ConstructorSymbol(target), configurableRecords)
         this.#builtObjects.add(builtObject)
