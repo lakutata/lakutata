@@ -1,7 +1,7 @@
 import {DTO} from '../../lib/core/DTO.js'
 import {TPropertyDecorator} from '../../types/TPropertyDecorator.js'
-import {Schema} from 'joi'
 import {SetObjectPropertySchema} from '../../lib/base/internal/ObjectSchemaValidation.js'
+import {Schema} from '../../lib/validation/types/Schema.js'
 
 /**
  * Property Decorator

@@ -1,7 +1,7 @@
-import {Schema} from 'joi'
 import {DTO} from '../../lib/core/DTO.js'
 import {TMethodDecorator} from '../../types/TMethodDecorator.js'
 import {SetMethodReturnValueValidator} from '../../lib/base/internal/MethodValidation.js'
+import {Schema} from '../../lib/validation/types/Schema.js'
 
 /**
  * Property Decorator
