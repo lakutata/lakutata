@@ -3,8 +3,8 @@ import {DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES} from '../../../constants/
 import {ObjectConstructor} from '../func/ObjectConstructor.js'
 import {As} from '../func/As.js'
 import {ObjectParentConstructors} from '../func/ObjectParentConstructors.js'
-import {Schema} from 'joi'
 import {DTO} from '../../core/DTO.js'
+import {Schema} from '../../validation/types/Schema.js'
 
 export type ObjectConfigurablePropertyMap<DataType = any> = Map<string | symbol, {
     schema: Schema<DataType>

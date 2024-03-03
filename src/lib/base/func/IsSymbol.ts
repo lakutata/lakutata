@@ -1,4 +1,4 @@
-import {DataValidator, DefaultValidationOptions} from '../internal/DataValidator.js'
+import {DTO} from '../../core/DTO.js'
 
 /**
  * Whether input value is symbol
@@ -6,5 +6,5 @@ import {DataValidator, DefaultValidationOptions} from '../internal/DataValidator
  * @constructor
  */
 export function IsSymbol(inp: any): boolean {
-    return DataValidator.isValid(inp, DataValidator.Symbol().strict(true), DefaultValidationOptions)
+    return DTO.isValid(inp, DTO.Symbol().strict(true))
 }

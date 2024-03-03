@@ -1,5 +1,4 @@
-import {DataValidator, DefaultValidationOptions} from '../base/internal/DataValidator.js'
-import {ObjectSchema, Schema} from 'joi'
+import {DataValidator} from '../base/internal/DataValidator.js'
 import {AppendAsyncConstructor} from '../base/async-constructor/Append.js'
 import {
     DefineObjectAsDTO,
@@ -15,6 +14,10 @@ import {As} from '../base/func/As.js'
 import {IsNativeFunction} from '../base/func/IsNativeFunction.js'
 import {DTO_INSTANTIATED} from '../../constants/metadata-keys/DTOMetadataKey.js'
 import {IsSymbol} from '../base/func/IsSymbol.js'
+import {ValidationOptions} from '../validation/interfaces/ValidationOptions.js'
+import {VLD, VLDMethods} from '../validation/VLD.js'
+import {Schema} from '../validation/types/Schema.js'
+import {ObjectSchema} from '../validation/interfaces/ObjectSchema.js'
 
 /**
  * Mark DTO as instantiated
@@ -89,7 +92,7 @@ export class DTO extends DataValidator {
         if (async) {
             AppendAsyncConstructor(DTOInstanceProxy, async (): Promise<void> => {
                 try {
-                    const validProps: Record<string, any> = await DTO.validateAsync(props, getObjectSchema(this), DefaultValidationOptions)
+                    const validProps: Record<string, any> = await DTO.validateAsync(props, getObjectSchema(this))
                     Object.keys(validProps).forEach((propertyKey: string) => this[propertyKey] = validProps[propertyKey])
                 } catch (e) {
                     throw new InvalidValueException((As<Error>(e).message))
@@ -98,7 +101,7 @@ export class DTO extends DataValidator {
             })
         } else {
             try {
-                const validProps: Record<string, any> = DTO.validate(props, getObjectSchema(this), DefaultValidationOptions)
+                const validProps: Record<string, any> = DTO.validate(props, getObjectSchema(this))
                 Object.keys(validProps).forEach((propertyKey: string) => this[propertyKey] = validProps[propertyKey])
             } catch (e) {
                 throw new InvalidValueException((As<Error>(e).message))
@@ -116,5 +119,45 @@ export class DTO extends DataValidator {
      */
     public static Schema(): ObjectSchema {
         return GetObjectSchemaByConstructor(this)
+    }
+
+    /**
+     * Is data matched with given schema
+     * @param data
+     * @param schema
+     * @param options
+     */
+    public static isValid<T = any>(data: T, schema: Schema, options: ValidationOptions = {}): boolean {
+        return VLDMethods.isValid(data, schema, options)
+    }
+
+    /**
+     * Is data matched with given schema
+     * @param data
+     * @param schema
+     * @param options
+     */
+    public static async isValidAsync<T = any>(data: T, schema: Schema, options: ValidationOptions = {}): Promise<boolean> {
+        return await VLDMethods.isValidAsync(data, schema, options)
+    }
+
+    /**
+     * Validates a value using the schema and options.
+     * @param data
+     * @param schema
+     * @param options
+     */
+    public static validate<T = any>(data: T, schema: Schema, options: ValidationOptions = {}): T {
+        return VLDMethods.validate(data, schema, options)
+    }
+
+    /**
+     * Validates a value using the schema and options.
+     * @param data
+     * @param schema
+     * @param options
+     */
+    public static async validateAsync<T = any>(data: T, schema: Schema, options: ValidationOptions = {}): Promise<T> {
+        return await VLDMethods.validateAsync(data, schema, options)
     }
 }

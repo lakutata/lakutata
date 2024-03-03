@@ -1,5 +1,4 @@
 import {DTO} from '../../core/DTO.js'
-import {ObjectSchema, Schema, SchemaMap, ValidationOptions} from 'joi'
 import {ObjectConstructor} from '../func/ObjectConstructor.js'
 import {
     DTO_CONSTRUCTOR,
@@ -9,9 +8,14 @@ import {
 } from '../../../constants/metadata-keys/DTOMetadataKey.js'
 import {ObjectParentConstructors} from '../func/ObjectParentConstructors.js'
 import {ObjectPrototype} from '../func/ObjectPrototype.js'
-import {DataValidator, DefaultValidationOptions} from './DataValidator.js'
+import {DataValidator} from './DataValidator.js'
 import {IsSymbol} from '../func/IsSymbol.js'
 import {As} from '../func/As.js'
+import {Schema} from '../../validation/types/Schema.js'
+import {ObjectSchema} from '../../validation/interfaces/ObjectSchema.js'
+import {ValidationOptions} from '../../validation/interfaces/ValidationOptions.js'
+import {DefaultValidationOptions} from '../../validation/VLD.js'
+import {SchemaMap} from '../../validation/types/SchemaMap.js'
 
 export type ObjectPropertySchemaMap = Map<string, Schema>
 

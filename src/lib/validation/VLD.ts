@@ -339,4 +339,6 @@ class ValidateMethods {
     }
 }
 
-export const VLD: ValidateAPI & ValidateMethods = Object.assign({}, As<any>(Joi), new ValidateMethods())
+export const VLD: ValidateAPI = As<any>(Joi)
+
+export const VLDMethods: ValidateMethods = new ValidateMethods()

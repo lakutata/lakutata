@@ -1,7 +1,7 @@
 import {DTO} from '../../lib/core/DTO.js'
 import {TClassDecorator} from '../../types/TClassDecorator.js'
-import {ValidationOptions} from 'joi'
 import {SetObjectValidateOptions} from '../../lib/base/internal/ObjectSchemaValidation.js'
+import {ValidationOptions} from '../../lib/validation/interfaces/ValidationOptions.js'
 
 /**
  * Class Decorator
