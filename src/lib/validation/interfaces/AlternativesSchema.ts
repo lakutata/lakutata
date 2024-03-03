@@ -1,5 +1,9 @@
 import {AnySchema} from './AnySchema.js'
-import {Reference, Schema, SchemaLikeWithoutArray, WhenOptions, WhenSchemaOptions} from 'joi'
+import {Reference} from 'joi'
+import {WhenOptions} from './WhenOptions.js'
+import {WhenSchemaOptions} from './WhenSchemaOptions.js'
+import {SchemaLikeWithoutArray} from '../types/SchemaLikeWithoutArray.js'
+import {Schema} from '../types/Schema.js'
 
 export interface AlternativesSchema<TSchema = any> extends AnySchema<TSchema> {
     /**
