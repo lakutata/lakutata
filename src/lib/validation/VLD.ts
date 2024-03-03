@@ -4,11 +4,9 @@ import Joi, {
     CustomValidator,
     Extension, ExtensionFactory,
     Reference, ReferenceOptions,
-    SchemaLike,
-    SchemaMap,
     ValidationError,
     ValidationErrorItem,
-    ValidationOptions, WhenOptions, WhenSchemaOptions
+    Schema as OrigSchema, ValidationResult
 } from 'joi'
 import {AnySchema} from './interfaces/AnySchema.js'
 import {ArraySchema} from './interfaces/ArraySchema.js'
@@ -25,6 +23,17 @@ import {LinkSchema} from './interfaces/LinkSchema.js'
 import {Schema} from './types/Schema.js'
 import {SchemaFunction} from './types/SchemaFunction.js'
 import {As} from '../base/func/As.js'
+import {ValidationOptions} from './interfaces/ValidationOptions.js'
+import {InvalidValueException} from '../../exceptions/dto/InvalidValueException.js'
+import {SchemaMap} from './types/SchemaMap.js'
+import {SchemaLike} from './types/SchemaLike.js'
+
+export const DefaultValidationOptions: ValidationOptions = {
+    abortEarly: true,
+    cache: false,
+    allowUnknown: true,
+    stripUnknown: true
+}
 
 interface ValidateAPI {
 
@@ -110,9 +119,9 @@ interface ValidateAPI {
      *
      * @param ref - the reference to the linked schema node.
      * Cannot reference itself or its children as well as other links.
-     * Links can be expressed in relative terms like value references (`Joi.link('...')`),
-     * in absolute terms from the schema run-time root (`Joi.link('/a')`),
-     * or using schema ids implicitly using object keys or explicitly using `any.id()` (`Joi.link('#a.b.c')`).
+     * Links can be expressed in relative terms like value references (`VLD.link('...')`),
+     * in absolute terms from the schema run-time root (`VLD.link('/a')`),
+     * or using schema ids implicitly using object keys or explicitly using `any.id()` (`VLD.link('#a.b.c')`).
      */
     link<TSchema = any>(ref?: string): LinkSchema<TSchema>;
 
@@ -157,7 +166,7 @@ interface ValidateAPI {
     cache: CacheConfiguration;
 
     /**
-     * Converts literal schema definition to joi schema object (or returns the same back if already a joi schema object).
+     * Converts literal schema definition to schema object (or returns the same back if already a schema object).
      */
     compile(schema: SchemaLike, options?: CompileOptions): Schema;
 
@@ -177,7 +186,7 @@ interface ValidateAPI {
     custom(fn: CustomValidator, description?: string): Schema;
 
     /**
-     * Creates a new Joi instance that will apply defaults onto newly created schemas
+     * Creates a new instance that will apply defaults onto newly created schemas
      * through the use of the fn function that takes exactly one argument, the schema being created.
      *
      * @param fn - The function must always return a schema, even if untransformed.
@@ -190,7 +199,7 @@ interface ValidateAPI {
     expression(template: string, options?: ReferenceOptions): any;
 
     /**
-     * Creates a new Joi instance customized with the extension(s) you provide included.
+     * Creates a new instance customized with the extension(s) you provide included.
      */
     extend(...extensions: Array<Extension | ExtensionFactory>): any;
 
@@ -215,7 +224,7 @@ interface ValidateAPI {
     isRef(ref: any): ref is Reference;
 
     /**
-     * Checks whether or not the provided argument is a joi schema.
+     * Checks whether or not the provided argument is a schema.
      */
     isSchema(schema: any, options?: CompileOptions): schema is AnySchema;
 
@@ -230,7 +239,7 @@ interface ValidateAPI {
     ref(key: string, options?: ReferenceOptions): Reference;
 
     /**
-     * Returns an object where each key is a plain joi schema type.
+     * Returns an object where each key is a plain schema type.
      * Useful for creating type shortcuts using deconstruction.
      * Note that the types are already formed and do not need to be called as functions (e.g. `string`, not `string()`).
      */
@@ -253,24 +262,81 @@ interface ValidateAPI {
      * Generates a dynamic expression using a template string.
      */
     x(template: string, options?: ReferenceOptions): any;
-
-    isValid<T = any>(data: T, schema: Schema): boolean;
-
-    isValidAsync<T = any>(data: T, schema: Schema): Promise<boolean>;
-
-    /**
-     * Validates a value using the schema and options.
-     * @param data
-     * @param schema
-     */
-    validate<T = any>(data: T, schema: Schema): T;
-
-    /**
-     * Validates a value using the schema and options.
-     * @param data
-     * @param schema
-     */
-    validateAsync<T = any>(data: T, schema: Schema): Promise<T>;
 }
 
-export const VLD: ValidateAPI = As<any>(Joi)
+class ValidateMethods {
+    /**
+     * Is data matched with given schema
+     * @param data
+     * @param schema
+     * @param options
+     */
+    public isValid<T = any>(data: T, schema: Schema, options: ValidationOptions = {}): boolean {
+        try {
+            this.validate(data, schema, options)
+            return true
+        } catch (e) {
+            return false
+        }
+    }
+
+    /**
+     * Is data matched with given schema
+     * @param data
+     * @param schema
+     * @param options
+     */
+    public async isValidAsync<T = any>(data: T, schema: Schema, options: ValidationOptions = {}): Promise<boolean> {
+        try {
+            await this.validateAsync(data, schema, options)
+            return true
+        } catch (e) {
+            return false
+        }
+    }
+
+    /**
+     * Validates a value using the schema and options.
+     * @param data
+     * @param schema
+     * @param options
+     */
+    public validate<T = any>(data: T, schema: Schema, options: ValidationOptions = {}): T {
+        options = {...DefaultValidationOptions, ...options}
+        let error: Error | undefined
+        let value: T
+        if (options.targetName) {
+            const result: ValidationResult = Joi.object({[options.targetName]: schema}).validate({[options.targetName]: data}, options)
+            error = result.error
+            value = result.value[options.targetName]
+        } else {
+            const result: ValidationResult = As<OrigSchema>(schema).validate(data, options)
+            error = result.error
+            value = result.value
+        }
+        if (error) throw new InvalidValueException(error.message)
+        return value
+    }
+
+    /**
+     * Validates a value using the schema and options.
+     * @param data
+     * @param schema
+     * @param options
+     */
+    public async validateAsync<T = any>(data: T, schema: Schema, options: ValidationOptions = {}): Promise<T> {
+        options = {...DefaultValidationOptions, ...options}
+        try {
+            if (options.targetName) {
+                const result = await Joi.object({[options.targetName]: schema}).validateAsync({[options.targetName]: data}, options)
+                return result[options.targetName]
+            } else {
+                return await As<OrigSchema>(schema).validateAsync(data, options)
+            }
+        } catch (e) {
+            throw new InvalidValueException((e as Error).message)
+        }
+    }
+}
+
+export const VLD: ValidateAPI & ValidateMethods = Object.assign({}, As<any>(Joi), new ValidateMethods())

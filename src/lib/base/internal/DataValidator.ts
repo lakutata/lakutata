@@ -1,39 +1,29 @@
 import 'reflect-metadata'
-import Joi, {
-    AlternativesSchema,
-    AnySchema,
-    ArraySchema,
-    BinarySchema,
-    BooleanSchema, CustomHelpers,
-    DateSchema,
-    ErrorReport,
-    FunctionSchema,
-    NumberSchema,
-    ObjectSchema,
-    Reference,
-    ReferenceOptions,
-    Schema,
-    SchemaLike,
-    SchemaLikeWithoutArray,
-    SchemaMap,
-    StringSchema, SymbolSchema,
-    ValidationOptions, ValidationResult
-} from 'joi'
-import {InvalidValueException} from '../../../exceptions/dto/InvalidValueException.js'
 import {isAsyncFunction} from 'node:util/types'
 import {As} from '../func/As.js'
 import {IsHtml} from '../func/IsHtml.js'
 import {IsXML} from '../func/IsXML.js'
 import {isValidCron} from 'cron-validator'
 import {IsGlobString} from '../func/IsGlobString.js'
-
-export const DefaultValidationOptions: ValidationOptions = {
-    abortEarly: true,
-    cache: false,
-    allowUnknown: true,
-    stripUnknown: true
-    // debug: false
-}
+import {AnySchema} from '../../validation/interfaces/AnySchema.js'
+import {VLD} from '../../validation/VLD.js'
+import {StringSchema} from '../../validation/interfaces/StringSchema.js'
+import {NumberSchema} from '../../validation/interfaces/NumberSchema.js'
+import {BooleanSchema} from '../../validation/interfaces/BooleanSchema.js'
+import {DateSchema} from '../../validation/interfaces/DateSchema.js'
+import {SchemaLikeWithoutArray} from '../../validation/types/SchemaLikeWithoutArray.js'
+import {ArraySchema} from '../../validation/interfaces/ArraySchema.js'
+import {SchemaMap} from '../../validation/types/SchemaMap.js'
+import {ObjectSchema} from '../../validation/interfaces/ObjectSchema.js'
+import {Schema} from '../../validation/types/Schema.js'
+import {ValidationOptions} from '../../validation/interfaces/ValidationOptions.js'
+import {ErrorReport, Reference, ReferenceOptions} from 'joi'
+import {SchemaLike} from '../../validation/types/SchemaLike.js'
+import {AlternativesSchema} from '../../validation/interfaces/AlternativesSchema.js'
+import {SymbolSchema} from '../../validation/interfaces/SymbolSchema.js'
+import {CustomHelpers} from '../../validation/interfaces/CustomHelpers.js'
+import {FunctionSchema} from '../../validation/interfaces/FunctionSchema.js'
+import {BinarySchema} from '../../validation/interfaces/BinarySchema.js'
 
 export class DataValidator {
 
@@ -42,7 +32,7 @@ export class DataValidator {
      * @constructor
      */
     public static Any<TSchema = any>(): AnySchema<TSchema> {
-        return Joi.any<TSchema>().strict(true)
+        return VLD.any<TSchema>().strict(true)
     }
 
     /**
@@ -50,7 +40,7 @@ export class DataValidator {
      * @constructor
      */
     public static String<TSchema = string>(): StringSchema<TSchema> {
-        return Joi.string<TSchema>().strict(true)
+        return VLD.string<TSchema>().strict(true)
     }
 
     /**
@@ -58,7 +48,7 @@ export class DataValidator {
      * @constructor
      */
     public static Number<TSchema = number>(): NumberSchema<TSchema> {
-        return Joi.number<TSchema>().strict(true)
+        return VLD.number<TSchema>().strict(true)
     }
 
     /**
@@ -66,7 +56,7 @@ export class DataValidator {
      * @constructor
      */
     public static Boolean<TSchema = boolean>(): BooleanSchema<TSchema> {
-        return Joi.boolean<TSchema>().strict(true)
+        return VLD.boolean<TSchema>().strict(true)
     }
 
     /**
@@ -74,7 +64,7 @@ export class DataValidator {
      * @constructor
      */
     public static Date<TSchema = Date>(): DateSchema<TSchema> {
-        return Joi.date<TSchema>().strict(true)
+        return VLD.date<TSchema>().strict(true)
     }
 
     /**
@@ -83,7 +73,7 @@ export class DataValidator {
      * @constructor
      */
     public static Object<TSchema = any, isStrict = false, T = TSchema>(schema?: SchemaMap<T, isStrict>): ObjectSchema<TSchema> {
-        return Joi.object<TSchema, isStrict, T>(schema as any).strict(true)
+        return VLD.object<TSchema, isStrict, T>(schema as any).strict(true)
     }
 
     /**
@@ -92,7 +82,7 @@ export class DataValidator {
      * @constructor
      */
     public static Array<TSchema = any[]>(...types: SchemaLikeWithoutArray[]): ArraySchema<TSchema> {
-        return Joi.array<TSchema>().items(...types).strict(true)
+        return VLD.array<TSchema>().items(...types).strict(true)
     }
 
     /**
@@ -100,7 +90,7 @@ export class DataValidator {
      * @constructor
      */
     public static Binary<TSchema = Buffer>(): BinarySchema<TSchema> {
-        return Joi.binary<TSchema>().strict(true)
+        return VLD.binary<TSchema>().strict(true)
     }
 
     /**
@@ -108,7 +98,7 @@ export class DataValidator {
      * @constructor
      */
     public static Function<TSchema = Function>(): FunctionSchema<TSchema> {
-        return Joi.func<TSchema>().strict(true)
+        return VLD.func<TSchema>().strict(true)
     }
 
     /**
@@ -136,7 +126,7 @@ export class DataValidator {
      * @constructor
      */
     public static Class<TSchema = Function>(inheritsFrom?: TSchema | (() => TSchema)): FunctionSchema<TSchema> {
-        if (!inheritsFrom) return Joi.func<TSchema>().class()
+        if (!inheritsFrom) return VLD.func<TSchema>().class()
         return this.Function<TSchema>().class().custom((value: TSchema, helpers: CustomHelpers) => {
             if (!As<() => TSchema>(inheritsFrom).prototype) inheritsFrom = As<() => TSchema>(inheritsFrom)()
             if (value instanceof As(inheritsFrom) || value['prototype'] instanceof As(inheritsFrom)) return value
@@ -193,7 +183,7 @@ export class DataValidator {
      * @constructor
      */
     public static Symbol<TSchema = Symbol>(): SymbolSchema<TSchema> {
-        return Joi.symbol<TSchema>().strict(true)
+        return VLD.symbol<TSchema>().strict(true)
     }
 
     /**
@@ -203,7 +193,7 @@ export class DataValidator {
      */
     public static Alternatives<TSchema = any>(...types: SchemaLike[]): AlternativesSchema<TSchema> {
         //@ts-ignore
-        return Joi.alternatives<TSchema>(...types).strict(true)
+        return VLD.alternatives<TSchema>(...types).strict(true)
     }
 
     /**
@@ -213,15 +203,7 @@ export class DataValidator {
      * @constructor
      */
     public static Ref(key: string, options?: ReferenceOptions): Reference {
-        return Joi.ref(key, options)
-    }
-
-    /**
-     * 将一个键标记为禁止，该键将不允许除undefined以外的任何值。用于明确禁止键。
-     * @constructor
-     */
-    public static Forbidden(): Schema {
-        return Joi.forbidden().strict(true)
+        return VLD.ref(key, options)
     }
 
     /**
@@ -231,7 +213,7 @@ export class DataValidator {
      * @constructor
      */
     public static In(ref: string, options?: ReferenceOptions): Reference {
-        return Joi.in(ref, options)
+        return VLD.in(ref, options)
     }
 
     /**
@@ -242,82 +224,6 @@ export class DataValidator {
      * @constructor
      */
     public static Attempt<TSchema extends Schema>(value: any, schema: TSchema, options?: ValidationOptions): TSchema extends Schema<infer Value> ? Value : never {
-        return Joi.attempt(value, schema, options) as any
-    }
-
-    /**
-     * 根据Schema判断数据是否正确（同步方法）
-     * @param data
-     * @param schema
-     * @param options
-     */
-    public static isValid<T = any>(data: T, schema: Schema, options?: ValidationOptions): boolean {
-        try {
-            this.validate(data, schema, options)
-            return true
-        } catch (e) {
-            return false
-        }
-    }
-
-    /**
-     * 根据Schema判断数据是否正确（异步方法）
-     * @param data
-     * @param schema
-     * @param options
-     */
-    public static async isValidAsync<T = any>(data: T, schema: Schema, options?: ValidationOptions): Promise<boolean> {
-        try {
-            await this.validateAsync(data, schema, options)
-            return true
-        } catch (e) {
-            return false
-        }
-    }
-
-    /**
-     * 根据Schema验证数据（同步方法）
-     * @param data
-     * @param schema
-     * @param options
-     * @param propertyName
-     */
-    public static validate<T = any>(data: T, schema: Schema, options?: ValidationOptions, propertyName?: string | symbol): T {
-        options = options ? Object.assign({}, DefaultValidationOptions, options) : DefaultValidationOptions
-        let error: Error | undefined
-        let value: T
-        if (propertyName) {
-            const result: ValidationResult = this.Object({[propertyName]: schema}).validate({[propertyName]: data}, options)
-            error = result.error
-            value = result.value[propertyName]
-        } else {
-            const result: ValidationResult = schema.validate(data, options)
-            error = result.error
-            value = result.value
-        }
-        // const {error, value} = schema.validate(data, options)
-        if (error) throw new InvalidValueException(error.message)
-        return value
-    }
-
-    /**
-     * 根据Schema验证数据（异步方法）
-     * @param data
-     * @param schema
-     * @param options
-     * @param propertyName
-     */
-    public static async validateAsync<T = any>(data: T, schema: Schema, options?: ValidationOptions, propertyName?: string | symbol): Promise<T> {
-        options = options ? Object.assign({}, DefaultValidationOptions, options) : DefaultValidationOptions
-        try {
-            if (propertyName) {
-                const result = await this.Object({[propertyName]: schema}).validateAsync({[propertyName]: data}, options)
-                return result[propertyName]
-            } else {
-                return await schema.validateAsync(data, options)
-            }
-        } catch (e) {
-            throw new InvalidValueException((e as Error).message)
-        }
+        return VLD.attempt(value, schema, options) as any
     }
 }

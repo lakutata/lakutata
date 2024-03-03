@@ -17,5 +17,4 @@ class TestModule extends Module {
     const instance: TestModule = await ctn.build(TestModule, {aaaa: 'gggggg'})
     console.log(instance)
 
-    VLD.array().items(VLD.string())
 })()
