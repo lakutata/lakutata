@@ -2,23 +2,23 @@ import {
     BasicType,
     Cache,
     Context,
-    CustomHelpers,
-    CustomValidator,
     Description,
-    ExternalValidationFunction,
     LanguageMessages,
     PresenceMode,
     Reference,
     RuleOptions,
-    SchemaLike,
     ValidationErrorFunction,
-    ValidationOptions,
-    WhenOptions,
-    WhenSchemaOptions
+    ValidationOptions
 } from 'joi'
 import {Types} from '../types/Types.js'
 import {Schema} from '../types/Schema.js'
 import {SchemaFunction} from '../types/SchemaFunction.js'
+import {CustomHelpers} from './CustomHelpers.js'
+import {SchemaLike} from '../types/SchemaLike.js'
+import {WhenOptions} from './WhenOptions.js'
+import {WhenSchemaOptions} from './WhenSchemaOptions.js'
+import {CustomValidator} from '../types/CustomValidator.js'
+import {ExternalValidationFunction} from '../types/ExternalValidationFunction.js'
 
 export interface AnySchema<TSchema = any> {
     type?: Types | undefined;
