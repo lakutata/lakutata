@@ -328,7 +328,10 @@ class ValidateMethods {
         options = {...DefaultValidationOptions, ...options}
         try {
             if (options.targetName) {
-                const result = await Joi.object({[options.targetName]: schema}).validateAsync({[options.targetName]: data}, options)
+                const result: Record<symbol | string, T> = await Joi.object({[options.targetName]: schema}).validateAsync({[options.targetName]: data}, {
+                    ...options,
+                    artifacts: false
+                })
                 return result[options.targetName]
             } else {
                 return await As<OrigSchema>(schema).validateAsync(data, options)

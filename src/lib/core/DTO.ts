@@ -15,7 +15,7 @@ import {IsNativeFunction} from '../base/func/IsNativeFunction.js'
 import {DTO_INSTANTIATED} from '../../constants/metadata-keys/DTOMetadataKey.js'
 import {IsSymbol} from '../base/func/IsSymbol.js'
 import {ValidationOptions} from '../validation/interfaces/ValidationOptions.js'
-import {VLD, VLDMethods} from '../validation/VLD.js'
+import {VLDMethods} from '../validation/VLD.js'
 import {Schema} from '../validation/types/Schema.js'
 import {ObjectSchema} from '../validation/interfaces/ObjectSchema.js'
 
@@ -119,6 +119,28 @@ export class DTO extends DataValidator {
      */
     public static Schema(): ObjectSchema {
         return GetObjectSchemaByConstructor(this)
+    }
+
+    /**
+     * Marks DTO as required which will not allow undefined as value. All DTOs are optional by default.
+     */
+    public static required(): typeof DTO {
+        throw new Error('Not implemented yet')
+    }
+
+    /**
+     * Marks a DTO as optional which will allow undefined as values.
+     */
+    public static optional():typeof DTO{
+        throw new Error('Not implemented yet')
+    }
+
+    /**
+     * Overrides the validate() options for the current key and any sub-key.
+     * @param options
+     */
+    public static options(options: ValidationOptions): typeof DTO {
+        throw new Error('Not implemented yet')
     }
 
     /**

@@ -8,7 +8,7 @@ import {
     Reference,
     RuleOptions,
     ValidationErrorFunction,
-    ValidationOptions, ValidationResult, ValidationWarning
+    ValidationOptions
 } from 'joi'
 import {Types} from '../types/Types.js'
 import {Schema} from '../types/Schema.js'

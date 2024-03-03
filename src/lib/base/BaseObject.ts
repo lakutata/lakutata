@@ -12,9 +12,9 @@ import {
 } from './internal/ObjectConfiguration.js'
 import {IsSymbol} from './func/IsSymbol.js'
 import {GetObjectInjectItemsByPrototype, ObjectInjectionMap} from './internal/ObjectInjection.js'
-import {IConstructor} from '../../interfaces/IConstructor.js'
 import {SetObjectContainerGetter} from './internal/ObjectContainer.js'
 import {DTO} from '../core/DTO.js'
+import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
 
 /**
  * Internal init function symbol
@@ -46,7 +46,7 @@ export class BaseObject extends AsyncConstructor {
         GetObjectConfigurableProperties(this).forEach((schemaAndFn, propertyKey): void => {
             if (IsSymbol(propertyKey)) return
             setConfigurableValuePromises.push(new Promise<void>((resolve, reject): void => {
-                DTO.validateAsync(configurableRecords[As<string>(propertyKey)], schemaAndFn.schema, {targetName:propertyKey} ).then(validatedValue => {
+                DTO.validateAsync(configurableRecords[As<string>(propertyKey)], schemaAndFn.schema, {targetName: propertyKey}).then(validatedValue => {
                     return Promise.resolve(schemaAndFn.fn(validatedValue)).then(propertyValue => {
                         this[propertyKey] = propertyValue
                         return resolve()
@@ -159,7 +159,7 @@ export class BaseObject extends AsyncConstructor {
      * @param constructor
      * @param configurableRecords
      */
-    protected async getObject<T extends BaseObject>(constructor: IConstructor<T>, configurableRecords?: Record<string, any>): Promise<T>
+    protected async getObject<T extends BaseObject>(constructor: IBaseObjectConstructor<T>, configurableRecords?: Record<string, any>): Promise<T>
     /**
      * Get registered object via string
      * @param name
@@ -185,8 +185,8 @@ export class BaseObject extends AsyncConstructor {
      * @param configurableRecords
      * @protected
      */
-    protected async getObject<T extends BaseObject>(nameOrConstructor: string | symbol | IConstructor<T>, configurableRecords?: Record<string, any>): Promise<T>
-    protected async getObject<T extends BaseObject>(inp: string | symbol | IConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
+    protected async getObject<T extends BaseObject>(nameOrConstructor: string | symbol | IBaseObjectConstructor<T>, configurableRecords?: Record<string, any>): Promise<T>
+    protected async getObject<T extends BaseObject>(inp: string | symbol | IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
         return await this.#container.get(inp, configurableRecords)
     }
 
@@ -196,7 +196,7 @@ export class BaseObject extends AsyncConstructor {
      * @param configurableRecords
      * @protected
      */
-    protected async instantiateObject<T extends BaseObject>(constructor: IConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
+    protected async instantiateObject<T extends BaseObject>(constructor: IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
         return this.#container.build(constructor, configurableRecords)
     }
 
