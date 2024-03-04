@@ -39,5 +39,5 @@ class TestDTO2 extends DTO {
         }
     })
     console.log(res)
-
+    TestDTO2.validate()
 })()

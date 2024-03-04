@@ -160,6 +160,7 @@ export class DTO extends DataValidator {
      * @param options
      */
     public static validate<T = any>(data: T, schema: Schema, options: ValidationOptions = {}): T {
+        //TODO 使用isSchema检查是否为有效的schema，若不传入schema则使用当前DTO的schema进行验证
         return VLDMethods.validate(data, schema, options)
     }
 
