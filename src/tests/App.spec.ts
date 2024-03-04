@@ -7,6 +7,8 @@ import {ObjectSchema} from '../lib/validation/interfaces/ObjectSchema.js'
 import {VLD} from '../lib/validation/VLD.js'
 import {IConstructor} from '../interfaces/IConstructor.js'
 import {BaseObject} from '../lib/base/BaseObject.js'
+import {Expect} from '../decorators/dto/Expect.js'
+import {isProxy} from 'node:util/types'
 
 class TestModule extends Module {
     @Configurable(DTO.String(), value => {
@@ -17,42 +19,25 @@ class TestModule extends Module {
 
 class TestDTO extends DTO {
 
+    @Expect(DTO.String().default('haha'))
+    bbbbbb: string
+}
+
+class TestDTO2 extends DTO {
+    @Expect(TestDTO.required().options({stripUnknown:false}))
+    objjj: TestDTO
 }
 
 (async () => {
     const ctn = new Container()
     const instance: TestModule = await ctn.build(TestModule, {aaaa: 'gggggg'})
-    console.log(instance)
+    console.log(instance, isProxy(instance))
 
-    // @ts-ignore
-    const obj: ObjectSchema = {}
-
-    const XXX: TestDTO & ObjectSchema = Object.assign(TestDTO, obj)
-
-    // ObjectDTO
-    //
-    // StringDTO
-
-    class MM extends DTO {
-        [key: string | symbol]: never
-    }
-
-    // class CCCC extends MM{
-    //     xxx:string
-    // }
-
-    // class StringDTO extends String implements IConstructor<any>{
-    //     [prop: string]: any
-    //     static [key: string | symbol]:unknown
-    // }
-    //
-    // const xx:InstanceType<IConstructor>={}
-    //
-    // StringDTO.xx=function (){}
-    //
-    // const gg: StringDTO = 'ddd'
-
-    // TestDTO.required().optional()
-
+    const res=new TestDTO2({
+        objjj:{
+            bbbbb:123
+        }
+    })
+    console.log(res)
 
 })()

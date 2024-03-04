@@ -2,8 +2,8 @@ import {DataValidator} from '../base/internal/DataValidator.js'
 import {AppendAsyncConstructor} from '../base/async-constructor/Append.js'
 import {
     DefineObjectAsDTO,
-    GetObjectIndexSignatureSchemaByPrototype,
-    GetObjectPropertySchemasByPrototype,
+    GetObjectIndexSignatureSchema,
+    GetObjectPropertySchemas,
     GetObjectSchemaByConstructor,
     GetObjectSchemaByPrototype,
     GetObjectValidateOptions,
@@ -18,6 +18,7 @@ import {ValidationOptions} from '../validation/interfaces/ValidationOptions.js'
 import {VLDMethods} from '../validation/VLD.js'
 import {Schema} from '../validation/types/Schema.js'
 import {ObjectSchema} from '../validation/interfaces/ObjectSchema.js'
+import {ObjectConstructor} from '../base/func/ObjectConstructor.js'
 
 /**
  * Mark DTO as instantiated
@@ -40,7 +41,35 @@ function isInstantiated<ClassPrototype extends DTO>(target: ClassPrototype): boo
  * @param target
  */
 function getObjectSchema<ClassPrototype extends DTO>(target: ClassPrototype): Schema {
-    return GetObjectSchemaByPrototype(target).pattern(DTO.String(), GetObjectIndexSignatureSchemaByPrototype(target)).options(GetObjectValidateOptions(target))
+    return GetObjectSchemaByPrototype(target).pattern(DTO.String(), GetObjectIndexSignatureSchema(target)).options(GetObjectValidateOptions(target))
+}
+
+const CHAIN_INVOKE: symbol = Symbol('CHAIN_INVOKE')
+
+/**
+ * Set schema chain invoke to constructor
+ * @param target
+ * @param functionName
+ * @param args
+ */
+function setSchemaChainInvokeToConstructor<ClassConstructor extends typeof DTO>(target: ClassConstructor, functionName: string, ...args: any[]): ClassConstructor {
+    const chainInvokeMap: Map<string, any[]> = Reflect.hasOwnMetadata(CHAIN_INVOKE, target) ? Reflect.getOwnMetadata(CHAIN_INVOKE, target) : new Map()
+    chainInvokeMap.set(functionName, args)
+    Reflect.defineMetadata(CHAIN_INVOKE, chainInvokeMap, target)
+    return target
+}
+
+/**
+ * Apply chain invoke to schema
+ * @param target
+ * @param schema
+ */
+function applyChainInvokeToSchema<ClassPrototype extends DTO>(target: ClassPrototype, schema: Schema): Schema {
+    const chainInvokeMap: Map<string, any[]> = Reflect.hasOwnMetadata(CHAIN_INVOKE, ObjectConstructor(target)) ? Reflect.getOwnMetadata(CHAIN_INVOKE, ObjectConstructor(target)) : new Map()
+    chainInvokeMap.forEach((args: any[], functionName: string) => {
+        schema = schema[functionName](...args)
+    })
+    return schema
 }
 
 /**
@@ -56,8 +85,8 @@ export class DTO extends DataValidator {
             set: (target, prop: string | symbol, value, receiver): boolean => {
                 if (isInstantiated(this) && !IsSymbol(prop)) {
                     prop = As<string>(prop)
-                    const objectPropertySchemaMap: ObjectPropertySchemaMap = GetObjectPropertySchemasByPrototype(this)
-                    const indexSignatureSchema: Schema = GetObjectIndexSignatureSchemaByPrototype(this)
+                    const objectPropertySchemaMap: ObjectPropertySchemaMap = GetObjectPropertySchemas(this)
+                    const indexSignatureSchema: Schema = GetObjectIndexSignatureSchema(this)
                     const propertySchema: Schema | undefined = objectPropertySchemaMap.get(prop)
                     let tmpObj: Record<string, any> = {}
                     tmpObj[prop] = value
@@ -79,7 +108,7 @@ export class DTO extends DataValidator {
             deleteProperty: (target, prop: string | symbol): boolean => {
                 if (isInstantiated(this) && !IsSymbol(prop) && !IsNativeFunction(target[prop])) {
                     prop = As<string>(prop)
-                    const objectPropertySchemaMap: ObjectPropertySchemaMap = GetObjectPropertySchemasByPrototype(this)
+                    const objectPropertySchemaMap: ObjectPropertySchemaMap = GetObjectPropertySchemas(this)
                     const propertySchema: Schema | undefined = objectPropertySchemaMap.get(prop)
                     if (propertySchema) DTO.validate(undefined, propertySchema, {
                         ...GetObjectValidateOptions(this),
@@ -122,25 +151,25 @@ export class DTO extends DataValidator {
     }
 
     /**
-     * Marks DTO as required which will not allow undefined as value. All DTOs are optional by default.
+     * Marks DTO schema as required which will not allow undefined as value.
      */
-    public static required(): typeof DTO {
-        throw new Error('Not implemented yet')
+    public static required(): ObjectSchema {
+        return this.Schema().required()
     }
 
     /**
-     * Marks a DTO as optional which will allow undefined as values.
+     * Marks a DTO schema as optional which will allow undefined as values.
      */
-    public static optional():typeof DTO{
-        throw new Error('Not implemented yet')
+    public static optional(): ObjectSchema {
+        return this.Schema().optional()
     }
 
     /**
      * Overrides the validate() options for the current key and any sub-key.
      * @param options
      */
-    public static options(options: ValidationOptions): typeof DTO {
-        throw new Error('Not implemented yet')
+    public static options(options: ValidationOptions): ObjectSchema {
+        return this.Schema().options(options)
     }
 
     /**

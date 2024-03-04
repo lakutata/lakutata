@@ -54,21 +54,12 @@ export function SetObjectIndexSignatureSchema<ClassConstructor extends typeof DT
  * @param target
  * @constructor
  */
-export function GetObjectIndexSignatureSchemaByPrototype<ClassPrototype extends DTO>(target: ClassPrototype): Schema {
+export function GetObjectIndexSignatureSchema<ClassPrototype extends DTO>(target: ClassPrototype): Schema {
     if (Reflect.hasOwnMetadata(DTO_INDEX_SIGNATURE_SCHEMA, ObjectConstructor(target))) return Reflect.getOwnMetadata(DTO_INDEX_SIGNATURE_SCHEMA, ObjectConstructor(target))
     for (const parentConstructor of ObjectParentConstructors(ObjectConstructor(target))) {
         if (Reflect.hasOwnMetadata(DTO_INDEX_SIGNATURE_SCHEMA, parentConstructor)) return Reflect.getOwnMetadata(DTO_INDEX_SIGNATURE_SCHEMA, parentConstructor)
     }
     return DataValidator.Any()
-}
-
-/**
- * Get object's index signature schema by its constructor
- * @param target
- * @constructor
- */
-export function GetObjectIndexSignatureSchemaByConstructor<ClassConstructor extends typeof DTO>(target: ClassConstructor): Schema {
-    return GetObjectIndexSignatureSchemaByPrototype(ObjectPrototype(target))
 }
 
 /**
@@ -80,6 +71,8 @@ export function GetObjectIndexSignatureSchemaByConstructor<ClassConstructor exte
  */
 export function SetObjectPropertySchema<ClassPrototype extends DTO>(target: ClassPrototype, propertyKey: string | symbol, schema: Schema): void {
     if (IsSymbol(propertyKey)) return
+    //Only for DTO class
+    if (!IsDTO(As(ObjectConstructor(target)))) return
     propertyKey = As<string>(propertyKey)
     let objectPropertySchemaMap: ObjectPropertySchemaMap
     if (Reflect.hasOwnMetadata(DTO_PROPERTY_SCHEMAS, ObjectConstructor(target))) {
@@ -103,19 +96,17 @@ export function SetObjectPropertySchema<ClassPrototype extends DTO>(target: Clas
  * @param target
  * @constructor
  */
-export function GetObjectPropertySchemasByPrototype<ClassPrototype extends DTO>(target: ClassPrototype): ObjectPropertySchemaMap {
-    const objectPropertySchemaMap: ObjectPropertySchemaMap = Reflect.getOwnMetadata(DTO_PROPERTY_SCHEMAS, ObjectConstructor(target))
-    if (objectPropertySchemaMap) return objectPropertySchemaMap
-    return new Map()
-}
-
-/**
- * Get object's property schemas by its constructor
- * @param target
- * @constructor
- */
-export function GetObjectPropertySchemasByConstructor<ClassConstructor extends typeof DTO>(target: ClassConstructor): ObjectPropertySchemaMap {
-    return GetObjectPropertySchemasByPrototype(ObjectPrototype(target))
+export function GetObjectPropertySchemas<ClassPrototype extends DTO>(target: ClassPrototype): ObjectPropertySchemaMap {
+    const objectPropertySchemaMap: ObjectPropertySchemaMap = new Map()
+    const parentObjectPropertySchemaMaps: (typeof objectPropertySchemaMap)[] = []
+    ObjectParentConstructors(ObjectConstructor(target)).forEach((parentConstructor: Function): void => {
+        if (Reflect.hasOwnMetadata(DTO_PROPERTY_SCHEMAS, parentConstructor))
+            parentObjectPropertySchemaMaps.unshift(Reflect.getOwnMetadata(DTO_PROPERTY_SCHEMAS, parentConstructor))
+    })
+    parentObjectPropertySchemaMaps.forEach((parentObjectInjectionMap: typeof objectPropertySchemaMap): void =>
+        parentObjectInjectionMap.forEach((value: Schema, key: string) => objectPropertySchemaMap.set(As<string>(key), value)))
+    As<ObjectPropertySchemaMap | undefined>(Reflect.getOwnMetadata(DTO_PROPERTY_SCHEMAS, ObjectConstructor(target)))?.forEach((value: Schema, key: string) => objectPropertySchemaMap.set(As<string>(key), value))
+    return objectPropertySchemaMap
 }
 
 /**
@@ -125,7 +116,7 @@ export function GetObjectPropertySchemasByConstructor<ClassConstructor extends t
  */
 export function GetObjectSchemaByPrototype<ClassPrototype extends DTO>(target: ClassPrototype): ObjectSchema {
     const schemaMap: SchemaMap = {}
-    GetObjectPropertySchemasByPrototype(target).forEach((propertySchema: Schema, propertyKey: string): void => {
+    GetObjectPropertySchemas(target).forEach((propertySchema: Schema, propertyKey: string): void => {
         schemaMap[propertyKey] = propertySchema
     })
     return DataValidator.Object(schemaMap)

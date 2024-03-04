@@ -7,9 +7,7 @@ import {DevNull} from './func/DevNull.js'
 import {Container, containerSymbol} from '../core/Container.js'
 import {randomUUID} from 'node:crypto'
 import {GetConfigurableRecordsFromInstance} from './internal/ConfigurableRecordsInjection.js'
-import {
-    GetObjectConfigurableProperties
-} from './internal/ObjectConfiguration.js'
+import {GetObjectConfigurableProperties} from './internal/ObjectConfiguration.js'
 import {IsSymbol} from './func/IsSymbol.js'
 import {GetObjectInjectItemsByPrototype, ObjectInjectionMap} from './internal/ObjectInjection.js'
 import {SetObjectContainerGetter} from './internal/ObjectContainer.js'
@@ -95,7 +93,6 @@ export class BaseObject extends AsyncConstructor {
             await this.#applyInjection()
             //Load and apply configurable records to current object's property
             await this.#loadConfigurableRecords()
-
             //Ensure property "then" not in subclass
             const thenablePropertyDescriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(this, 'then')
             if (thenablePropertyDescriptor) Object.defineProperty(this, 'then', {enumerable: false})
@@ -254,7 +251,7 @@ export class BaseObject extends AsyncConstructor {
      */
     public hasMethod(name: string | symbol): boolean {
         const propertyExists: boolean = this.hasProperty(name)
-        if (propertyExists) return false//Method doesn't exist
+        if (propertyExists) return false //Method doesn't exist
         return typeof this[name] === 'function'
     }
 
