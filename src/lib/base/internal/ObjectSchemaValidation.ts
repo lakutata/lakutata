@@ -130,31 +130,3 @@ export function GetObjectSchemaByPrototype<ClassPrototype extends DTO>(target: C
 export function GetObjectSchemaByConstructor<ClassConstructor extends typeof DTO>(target: ClassConstructor): ObjectSchema {
     return GetObjectSchemaByPrototype(ObjectPrototype(target))
 }
-
-/**
- * Set object's validate options
- * @param target
- * @param options
- * @constructor
- */
-export function SetObjectValidateOptions<ClassConstructor extends typeof DTO>(target: ClassConstructor, options: ValidationOptions): ClassConstructor {
-    let _opts: ValidationOptions = DefaultValidationOptions
-    if (Reflect.hasOwnMetadata(DTO_VALIDATE_OPTIONS, target)) _opts = Reflect.getOwnMetadata(DTO_VALIDATE_OPTIONS, target)
-    _opts = Object.assign(_opts, options)
-    Reflect.defineMetadata(DTO_VALIDATE_OPTIONS, _opts, target)
-    return target
-}
-
-/**
- * Get object's validate options
- * @param target
- * @constructor
- */
-export function GetObjectValidateOptions<ClassPrototype extends DTO>(target: ClassPrototype): ValidationOptions {
-    let _opts: ValidationOptions
-    if (Reflect.hasOwnMetadata(DTO_VALIDATE_OPTIONS, ObjectConstructor(target)))
-        _opts = Reflect.getOwnMetadata(DTO_VALIDATE_OPTIONS, ObjectConstructor(target))
-    else
-        _opts = DefaultValidationOptions
-    return _opts
-}
