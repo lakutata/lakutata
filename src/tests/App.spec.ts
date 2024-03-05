@@ -12,7 +12,7 @@ class TestModule extends Module {
 }
 
 (async () => {
-    const ctn = new Container()
+    const ctn: Container = new Container()
     const instance: TestModule = await ctn.build(TestModule, {aaaa: 'gggggg'})
     console.log(instance, isProxy(instance))
 
