@@ -27,7 +27,7 @@ class TestDTO extends DTO {
         nnnn: DTO.Object({
             qqqqq: DTO.Object({
                 val: DTO.String(),
-                num: DTO.Number()
+                num: DTO.Number().required()
             })
         })
     }).default({
@@ -67,6 +67,8 @@ class TestDTO2 extends DTO {
     testString: any
 }
 
+// @ts-ignore
+// @ts-ignore
 (async () => {
     // const ctn = new Container()
     // const instance: TestModule = await ctn.build(TestModule, {aaaa: 'gggggg'})
@@ -87,9 +89,11 @@ class TestDTO2 extends DTO {
         testString: 'asdasd'
     })
     // @ts-ignore
-    res.objjj.sub.nnnn.qqqqq.num = 'bbbbbb'
+    res.objjj.sub.nnnn.qqqqq.num = 123456
     // @ts-ignore
-    // res.objjj.bbbbbb = 'ddddd'
+    delete res.objjj.sub.nnnn.qqqqq.num
+    // @ts-ignore
+    res.objjj.bbbbbb = 'ddddd'
 
     // delete res.testString
 

@@ -2,20 +2,16 @@ import {DataValidator} from '../base/internal/DataValidator.js'
 import {
     DefineObjectAsDTO, GetObjectIndexSignatureSchemaByConstructor,
     GetObjectIndexSignatureSchemaByPrototype,
-    GetObjectPropertySchemas,
     GetObjectSchemaByConstructor,
-    GetObjectSchemaByPrototype,
-    ObjectPropertySchemaMap
+    GetObjectSchemaByPrototype
 } from '../base/internal/ObjectSchemaValidation.js'
 import {InvalidValueException} from '../../exceptions/dto/InvalidValueException.js'
 import {As} from '../base/func/As.js'
-import {IsNativeFunction} from '../base/func/IsNativeFunction.js'
 import {IsSymbol} from '../base/func/IsSymbol.js'
 import {ValidationOptions} from '../validation/interfaces/ValidationOptions.js'
 import {VLDMethods} from '../validation/VLD.js'
 import {Schema} from '../validation/types/Schema.js'
 import {ObjectSchema} from '../validation/interfaces/ObjectSchema.js'
-import {CreateObjectProxy} from '../base/internal/CreateObjectProxy.js'
 
 /**
  * Get DTO's object schema
@@ -51,19 +47,28 @@ function dynamicProxyProperty(target: any, prop: string | symbol, receiver: any,
     return new Proxy(propertyValue, {
         set(target: any, p: string | symbol, value: any, receiver: any): boolean {
             const origValue: any = Reflect.get(target, p)
-            let isSuccess: boolean = false
             try {
-                isSuccess = Reflect.set(target, p, value, receiver)
+                const isSuccess: boolean = Reflect.set(target, p, value, receiver)
                 validateFn()
+                return isSuccess
             } catch (e) {
-                isSuccess = false
                 Reflect.set(target, p, origValue, receiver)
                 throw e
             }
-            return isSuccess
         },
         get(target: any, p: string | symbol, receiver: any): any {
             return dynamicProxyProperty(target, p, receiver, validateFn)
+        },
+        deleteProperty: (target: any, prop: string | symbol): boolean => {
+            const origValue: any = Reflect.get(target, prop)
+            try {
+                const isSuccess: boolean = Reflect.deleteProperty(target, prop)
+                validateFn()
+                return isSuccess
+            } catch (e) {
+                Reflect.set(target, prop, origValue, receiver)
+                throw e
+            }
         }
     })
 }
@@ -76,7 +81,6 @@ export class DTO extends DataValidator {
 
     constructor(props: Record<string, any> = {}) {
         super()
-
         //Create DTO proxy object
         const DTOInstanceProxy: this = new Proxy(this, {
             set: (target, prop: string | symbol, value, receiver): boolean => {
