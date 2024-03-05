@@ -72,7 +72,7 @@ export class DTO extends DataValidator {
                 }
                 return Reflect.set(target, prop, value, receiver)
             },
-            deleteProperty: (target, prop: string | symbol): boolean => {
+            deleteProperty: (target: any, prop: string | symbol): boolean => {
                 if (isInstantiated(this) && !IsSymbol(prop) && !IsNativeFunction(target[prop])) {
                     prop = As<string>(prop)
                     const objectPropertySchemaMap: ObjectPropertySchemaMap = GetObjectPropertySchemas(this)

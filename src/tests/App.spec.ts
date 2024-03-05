@@ -40,6 +40,8 @@ class TestDTO2 extends DTO {
             bbbbb: 123
         }
     })
+    // @ts-ignore
+    res.objjj.bbbbbb=123123
     console.log(res)
     console.log('===:',TestDTO2.validate({
         objjj: {
