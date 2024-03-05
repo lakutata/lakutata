@@ -9,6 +9,7 @@ import {IConstructor} from '../interfaces/IConstructor.js'
 import {BaseObject} from '../lib/base/BaseObject.js'
 import {Expect} from '../decorators/dto/Expect.js'
 import {isProxy} from 'node:util/types'
+import {IndexSignature} from '../decorators/dto/IndexSignature.js'
 
 class TestModule extends Module {
     @Configurable(DTO.String(), value => {
@@ -23,8 +24,9 @@ class TestDTO extends DTO {
     bbbbbb: string
 }
 
+// @IndexSignature(DTO.String())
 class TestDTO2 extends DTO {
-    @Expect(TestDTO.required().options({stripUnknown:false}))
+    @Expect(TestDTO.required().options({stripUnknown: false}))
     objjj: TestDTO
 }
 
@@ -33,11 +35,17 @@ class TestDTO2 extends DTO {
     const instance: TestModule = await ctn.build(TestModule, {aaaa: 'gggggg'})
     console.log(instance, isProxy(instance))
 
-    const res=new TestDTO2({
-        objjj:{
-            bbbbb:123
+    const res = new TestDTO2({
+        objjj: {
+            bbbbb: 123
         }
     })
     console.log(res)
-    TestDTO2.validate()
+    console.log('===:',TestDTO2.validate({
+        objjj: {
+            bbbbb: 123
+        },
+        pp: '12323'
+    }, {stripUnknown: true}))
+
 })()

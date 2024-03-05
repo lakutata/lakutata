@@ -1,8 +1,8 @@
 import {DataValidator} from '../base/internal/DataValidator.js'
 import {AppendAsyncConstructor} from '../base/async-constructor/Append.js'
 import {
-    DefineObjectAsDTO,
-    GetObjectIndexSignatureSchema,
+    DefineObjectAsDTO, GetObjectIndexSignatureSchemaByConstructor,
+    GetObjectIndexSignatureSchemaByPrototype,
     GetObjectPropertySchemas,
     GetObjectSchemaByConstructor,
     GetObjectSchemaByPrototype,
@@ -39,7 +39,10 @@ function isInstantiated<ClassPrototype extends DTO>(target: ClassPrototype): boo
  * @param target
  */
 function getObjectSchema<ClassPrototype extends DTO>(target: ClassPrototype): Schema {
-    return GetObjectSchemaByPrototype(target).pattern(DTO.String(), GetObjectIndexSignatureSchema(target))
+    const indexSignatureSchema: Schema | null = GetObjectIndexSignatureSchemaByPrototype(target)
+    const objectSchema: ObjectSchema<ClassPrototype> = GetObjectSchemaByPrototype(target)
+    return indexSignatureSchema ? objectSchema.pattern(DTO.String(), indexSignatureSchema) : objectSchema
+    // return GetObjectSchemaByPrototype(target).pattern(DTO.String(), GetObjectIndexSignatureSchemaByPrototype(target))
 }
 
 /**
@@ -56,14 +59,14 @@ export class DTO extends DataValidator {
                 if (isInstantiated(this) && !IsSymbol(prop)) {
                     prop = As<string>(prop)
                     const objectPropertySchemaMap: ObjectPropertySchemaMap = GetObjectPropertySchemas(this)
-                    const indexSignatureSchema: Schema = GetObjectIndexSignatureSchema(this)
+                    const indexSignatureSchema: Schema | null = GetObjectIndexSignatureSchemaByPrototype(this)
                     const propertySchema: Schema | undefined = objectPropertySchemaMap.get(prop)
                     let tmpObj: Record<string, any> = {}
                     tmpObj[prop] = value
                     if (propertySchema) {
                         value = DTO.validate(value, propertySchema, {noDefaults: true})
                     } else {
-                        tmpObj = DTO.validate(tmpObj, DTO.Object().pattern(DTO.String(), indexSignatureSchema), {noDefaults: true})
+                        tmpObj = DTO.validate(tmpObj, DTO.Object().pattern(DTO.String(), indexSignatureSchema ? indexSignatureSchema : DTO.Any()), {noDefaults: true})
                         value = tmpObj[prop]
                     }
                 }
@@ -104,11 +107,31 @@ export class DTO extends DataValidator {
     [prop: string | symbol]: any
 
     /**
+     * Prepare schema and validate options
+     * @param schemaOrOptions
+     * @param options
+     * @protected
+     */
+    protected static prepareValidation(schemaOrOptions?: Schema | ValidationOptions, options?: ValidationOptions): {
+        schema: Schema
+        options: ValidationOptions
+    } {
+        const schema: Schema = schemaOrOptions ? VLDMethods.isSchema(schemaOrOptions) ? As<Schema>(schemaOrOptions) : this.Schema() : this.Schema()
+        const validateOptions: ValidationOptions = options ? options : schemaOrOptions ? VLDMethods.isSchema(schemaOrOptions) ? {} : As<ValidationOptions>(schemaOrOptions) : {}
+        return {
+            schema: schema,
+            options: validateOptions
+        }
+    }
+
+    /**
      * DTO schema
      * @constructor
      */
     public static Schema(): ObjectSchema {
-        return GetObjectSchemaByConstructor(this)
+        const objectSchema: ObjectSchema = GetObjectSchemaByConstructor(this)
+        const indexSignatureSchema: Schema | null = GetObjectIndexSignatureSchemaByConstructor(this)
+        return indexSignatureSchema ? objectSchema.pattern(DTO.String(), indexSignatureSchema) : objectSchema
     }
 
     /**
@@ -136,41 +159,116 @@ export class DTO extends DataValidator {
     /**
      * Is data matched with given schema
      * @param data
-     * @param schema
+     */
+    public static isValid<T = any>(data: T): boolean
+    /**
+     * Is data matched with given schema
+     * @param data
      * @param options
      */
-    public static isValid<T = any>(data: T, schema: Schema, options: ValidationOptions = {}): boolean {
-        return VLDMethods.isValid(data, schema, options)
-    }
-
+    public static isValid<T = any>(data: T, options: ValidationOptions): boolean
+    /**
+     * Is data matched with given schema
+     * @param data
+     * @param schema
+     */
+    public static isValid<T = any>(data: T, schema: Schema): boolean
     /**
      * Is data matched with given schema
      * @param data
      * @param schema
      * @param options
      */
-    public static async isValidAsync<T = any>(data: T, schema: Schema, options: ValidationOptions = {}): Promise<boolean> {
+    public static isValid<T = any>(data: T, schema: Schema, options: ValidationOptions): boolean
+    public static isValid<T = any>(data: T, schemaOrOptions?: Schema | ValidationOptions, validateOptions?: ValidationOptions): boolean {
+        const {schema, options} = this.prepareValidation(schemaOrOptions, validateOptions)
+        return VLDMethods.isValid(data, schema, options)
+    }
+
+    /**
+     *
+     * @param data
+     */
+    public static async isValidAsync<T = any>(data: T): Promise<boolean>
+    /**
+     * Is data matched with given schema
+     * @param data
+     * @param options
+     */
+    public static async isValidAsync<T = any>(data: T, options: ValidationOptions): Promise<boolean>
+    /**
+     * Is data matched with given schema
+     * @param data
+     * @param schema
+     */
+    public static async isValidAsync<T = any>(data: T, schema: Schema): Promise<boolean>
+    /**
+     * Is data matched with given schema
+     * @param data
+     * @param schema
+     * @param options
+     */
+    public static async isValidAsync<T = any>(data: T, schema: Schema, options: ValidationOptions): Promise<boolean>
+    public static async isValidAsync<T = any>(data: T, schemaOrOptions?: Schema | ValidationOptions, validateOptions?: ValidationOptions): Promise<boolean> {
+        const {schema, options} = this.prepareValidation(schemaOrOptions, validateOptions)
         return await VLDMethods.isValidAsync(data, schema, options)
     }
 
     /**
      * Validates a value using the schema and options.
      * @param data
-     * @param schema
+     */
+    public static validate<T = any>(data: T): T
+    /**
+     * Validates a value using the schema and options.
+     * @param data
      * @param options
      */
-    public static validate<T = any>(data: T, schema: Schema, options: ValidationOptions = {}): T {
-        //TODO 使用isSchema检查是否为有效的schema，若不传入schema则使用当前DTO的schema进行验证
-        return VLDMethods.validate(data, schema, options)
-    }
-
+    public static validate<T = any>(data: T, options: ValidationOptions): T
+    /**
+     * Validates a value using the schema and options.
+     * @param data
+     * @param schema
+     */
+    public static validate<T = any>(data: T, schema: Schema): T
     /**
      * Validates a value using the schema and options.
      * @param data
      * @param schema
      * @param options
      */
-    public static async validateAsync<T = any>(data: T, schema: Schema, options: ValidationOptions = {}): Promise<T> {
+    public static validate<T = any>(data: T, schema: Schema, options: ValidationOptions): T
+    public static validate<T = any>(data: T, schemaOrOptions?: Schema | ValidationOptions, validateOptions?: ValidationOptions): T {
+        const {schema, options} = this.prepareValidation(schemaOrOptions, validateOptions)
+        return VLDMethods.validate(data, schema, options)
+    }
+
+    /**
+     * Validates a value using the schema and options.
+     * @param data
+     */
+    public static async validateAsync<T = any>(data: T): Promise<T>
+    /**
+     * Validates a value using the schema and options.
+     * @param data
+     * @param options
+     */
+    public static async validateAsync<T = any>(data: T, options: ValidationOptions): Promise<T>
+    /**
+     * Validates a value using the schema and options.
+     * @param data
+     * @param schema
+     */
+    public static async validateAsync<T = any>(data: T, schema: Schema): Promise<T>
+    /**
+     * Validates a value using the schema and options.
+     * @param data
+     * @param schema
+     * @param options
+     */
+    public static async validateAsync<T = any>(data: T, schema: Schema, options: ValidationOptions): Promise<T>
+    public static async validateAsync<T = any>(data: T, schemaOrOptions?: Schema | ValidationOptions, validateOptions?: ValidationOptions): Promise<T> {
+        const {schema, options} = this.prepareValidation(schemaOrOptions, validateOptions)
         return await VLDMethods.validateAsync(data, schema, options)
     }
 }

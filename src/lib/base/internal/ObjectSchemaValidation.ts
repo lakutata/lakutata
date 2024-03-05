@@ -54,12 +54,21 @@ export function SetObjectIndexSignatureSchema<ClassConstructor extends typeof DT
  * @param target
  * @constructor
  */
-export function GetObjectIndexSignatureSchema<ClassPrototype extends DTO>(target: ClassPrototype): Schema {
+export function GetObjectIndexSignatureSchemaByPrototype<ClassPrototype extends DTO>(target: ClassPrototype): Schema | null {
     if (Reflect.hasOwnMetadata(DTO_INDEX_SIGNATURE_SCHEMA, ObjectConstructor(target))) return Reflect.getOwnMetadata(DTO_INDEX_SIGNATURE_SCHEMA, ObjectConstructor(target))
     for (const parentConstructor of ObjectParentConstructors(ObjectConstructor(target))) {
         if (Reflect.hasOwnMetadata(DTO_INDEX_SIGNATURE_SCHEMA, parentConstructor)) return Reflect.getOwnMetadata(DTO_INDEX_SIGNATURE_SCHEMA, parentConstructor)
     }
-    return DataValidator.Any()
+    return null
+}
+
+/**
+ * Get object's index signature schema by its constructor
+ * @param target
+ * @constructor
+ */
+export function GetObjectIndexSignatureSchemaByConstructor<ClassConstructor extends typeof DTO>(target: ClassConstructor): Schema | null {
+    return GetObjectIndexSignatureSchemaByPrototype(ObjectPrototype(target))
 }
 
 /**

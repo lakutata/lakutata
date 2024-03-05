@@ -6,7 +6,7 @@ import Joi, {
     Reference, ReferenceOptions,
     ValidationError,
     ValidationErrorItem,
-    Schema as OrigSchema, ValidationResult
+    Schema as OrigSchema, ValidationResult, isSchema
 } from 'joi'
 import {AnySchema} from './interfaces/AnySchema.js'
 import {ArraySchema} from './interfaces/ArraySchema.js'
@@ -265,6 +265,15 @@ interface ValidateAPI {
 }
 
 class ValidateMethods {
+
+    /**
+     * Whether input is schema or not
+     * @param schema
+     */
+    public isSchema(schema: any): boolean {
+        return isSchema(schema)
+    }
+
     /**
      * Is data matched with given schema
      * @param data
