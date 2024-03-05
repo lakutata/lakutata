@@ -12,5 +12,4 @@ export class LoadObjectOptions<ClassConstructor extends typeof BaseObject = type
     @Expect(DTO.Class(() => BaseObject).required())
     public class: ClassConstructor
 
-    [key: string]: any
 }
