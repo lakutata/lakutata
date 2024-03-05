@@ -1,5 +1,4 @@
 import {DataValidator} from '../base/internal/DataValidator.js'
-import {AppendAsyncConstructor} from '../base/async-constructor/Append.js'
 import {
     DefineObjectAsDTO, GetObjectIndexSignatureSchemaByConstructor,
     GetObjectIndexSignatureSchemaByPrototype,
@@ -11,28 +10,12 @@ import {
 import {InvalidValueException} from '../../exceptions/dto/InvalidValueException.js'
 import {As} from '../base/func/As.js'
 import {IsNativeFunction} from '../base/func/IsNativeFunction.js'
-import {DTO_INSTANTIATED} from '../../constants/metadata-keys/DTOMetadataKey.js'
 import {IsSymbol} from '../base/func/IsSymbol.js'
 import {ValidationOptions} from '../validation/interfaces/ValidationOptions.js'
 import {VLDMethods} from '../validation/VLD.js'
 import {Schema} from '../validation/types/Schema.js'
 import {ObjectSchema} from '../validation/interfaces/ObjectSchema.js'
-
-/**
- * Mark DTO as instantiated
- * @param target
- */
-function markInstantiated<ClassPrototype extends DTO>(target: ClassPrototype): void {
-    return Reflect.defineMetadata(DTO_INSTANTIATED, true, target)
-}
-
-/**
- * Whether DTO is instantiated or not
- * @param target
- */
-function isInstantiated<ClassPrototype extends DTO>(target: ClassPrototype): boolean {
-    return !!Reflect.getOwnMetadata(DTO_INSTANTIATED, target)
-}
+import {CreateObjectProxy} from '../base/internal/CreateObjectProxy.js'
 
 /**
  * Get DTO's object schema
@@ -42,7 +25,47 @@ function getObjectSchema<ClassPrototype extends DTO>(target: ClassPrototype): Sc
     const indexSignatureSchema: Schema | null = GetObjectIndexSignatureSchemaByPrototype(target)
     const objectSchema: ObjectSchema<ClassPrototype> = GetObjectSchemaByPrototype(target)
     return indexSignatureSchema ? objectSchema.pattern(DTO.String(), indexSignatureSchema) : objectSchema
-    // return GetObjectSchemaByPrototype(target).pattern(DTO.String(), GetObjectIndexSignatureSchemaByPrototype(target))
+}
+
+/**
+ * Validate property value
+ * @param instance
+ * @param propertyKey
+ * @param value
+ */
+function validatePropertyValue<U extends DTO, T = any>(instance: U, propertyKey: string | symbol, value: T): T {
+    return DTO.validate({...instance, [propertyKey]: value}, getObjectSchema(instance), {noDefaults: true})[propertyKey]
+}
+
+/**
+ * Return dynamic property proxy object
+ * @param target
+ * @param prop
+ * @param receiver
+ * @param validateFn
+ */
+function dynamicProxyProperty(target: any, prop: string | symbol, receiver: any, validateFn: () => void) {
+    const propertyValue: any = Reflect.get(target, prop, receiver)
+    if (!propertyValue) return propertyValue
+    if (typeof propertyValue !== 'object') return propertyValue
+    return new Proxy(propertyValue, {
+        set(target: any, p: string | symbol, value: any, receiver: any): boolean {
+            const origValue: any = Reflect.get(target, p)
+            let isSuccess: boolean = false
+            try {
+                isSuccess = Reflect.set(target, p, value, receiver)
+                validateFn()
+            } catch (e) {
+                isSuccess = false
+                Reflect.set(target, p, origValue, receiver)
+                throw e
+            }
+            return isSuccess
+        },
+        get(target: any, p: string | symbol, receiver: any): any {
+            return dynamicProxyProperty(target, p, receiver, validateFn)
+        }
+    })
 }
 
 /**
@@ -51,57 +74,32 @@ function getObjectSchema<ClassPrototype extends DTO>(target: ClassPrototype): Sc
 @(<ClassConstructor extends typeof DTO>(target: ClassConstructor) => DefineObjectAsDTO(target))
 export class DTO extends DataValidator {
 
-    constructor(props: Record<string, any> = {}, async: boolean = false) {
+    constructor(props: Record<string, any> = {}) {
         super()
+
         //Create DTO proxy object
         const DTOInstanceProxy: this = new Proxy(this, {
             set: (target, prop: string | symbol, value, receiver): boolean => {
-                if (isInstantiated(this) && !IsSymbol(prop)) {
-                    prop = As<string>(prop)
-                    const objectPropertySchemaMap: ObjectPropertySchemaMap = GetObjectPropertySchemas(this)
-                    const indexSignatureSchema: Schema | null = GetObjectIndexSignatureSchemaByPrototype(this)
-                    const propertySchema: Schema | undefined = objectPropertySchemaMap.get(prop)
-                    let tmpObj: Record<string, any> = {}
-                    tmpObj[prop] = value
-                    if (propertySchema) {
-                        value = DTO.validate(value, propertySchema, {noDefaults: true})
-                    } else {
-                        tmpObj = DTO.validate(tmpObj, DTO.Object().pattern(DTO.String(), indexSignatureSchema ? indexSignatureSchema : DTO.Any()), {noDefaults: true})
-                        value = tmpObj[prop]
-                    }
-                }
+                if (!IsSymbol(prop)) value = validatePropertyValue(this, prop, value)
                 return Reflect.set(target, prop, value, receiver)
             },
+            get: (target: this, p: string | symbol, receiver: any): any => dynamicProxyProperty(target, p, receiver, (): void => {
+                const res = DTO.validate({...this}, getObjectSchema(this), {noDefaults: true})
+                console.log(JSON.stringify(res, null, 2))
+            }),
             deleteProperty: (target: any, prop: string | symbol): boolean => {
-                if (isInstantiated(this) && !IsSymbol(prop) && !IsNativeFunction(target[prop])) {
-                    prop = As<string>(prop)
-                    const objectPropertySchemaMap: ObjectPropertySchemaMap = GetObjectPropertySchemas(this)
-                    const propertySchema: Schema | undefined = objectPropertySchemaMap.get(prop)
-                    if (propertySchema) DTO.validate(undefined, propertySchema, {noDefaults: true})
-                }
+                if (!IsSymbol(prop)) validatePropertyValue(this, prop, void (0))
                 return Reflect.deleteProperty(target, prop)
             }
         })
-        if (async) {
-            AppendAsyncConstructor(DTOInstanceProxy, async (): Promise<void> => {
-                try {
-                    const validProps: Record<string, any> = await DTO.validateAsync(props, getObjectSchema(this))
-                    Object.keys(validProps).forEach((propertyKey: string) => this[propertyKey] = validProps[propertyKey])
-                } catch (e) {
-                    throw new InvalidValueException((As<Error>(e).message))
-                }
-                markInstantiated(this)
-            })
-        } else {
-            try {
-                const validProps: Record<string, any> = DTO.validate(props, getObjectSchema(this))
-                Object.keys(validProps).forEach((propertyKey: string) => this[propertyKey] = validProps[propertyKey])
-            } catch (e) {
-                throw new InvalidValueException((As<Error>(e).message))
-            }
-            markInstantiated(this)
-            return DTOInstanceProxy
+        try {
+            const validProps: Record<string, any> = DTO.validate(props, getObjectSchema(this))
+            Object.keys(validProps).forEach((propertyKey: string) => Reflect.set(this, propertyKey, validProps[propertyKey]))
+
+        } catch (e) {
+            throw new InvalidValueException((As<Error>(e).message))
         }
+        return DTOInstanceProxy
     }
 
     [prop: string | symbol]: any

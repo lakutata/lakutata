@@ -22,32 +22,87 @@ class TestDTO extends DTO {
 
     @Expect(DTO.String().default('haha'))
     bbbbbb: string
+
+    @Expect(DTO.Object({
+        nnnn: DTO.Object({
+            qqqqq: DTO.Object({
+                val: DTO.String(),
+                num: DTO.Number()
+            })
+        })
+    }).default({
+            nnnn: {
+                qqqqq: {
+                    val: 'vvvvv',
+                    num: 11111
+                }
+            }
+        })
+    //     .default({
+    //     nnnn: {
+    //         qqqqq: {
+    //             val: 'vvvvv',
+    //             num: 11111
+    //         }
+    //     }
+    // })
+    )
+    sub: {
+        nnnn: {
+            qqqqq: {
+                val: string
+                num: number
+            }
+        }
+    }
 }
 
 // @IndexSignature(DTO.String())
 class TestDTO2 extends DTO {
-    @Expect(TestDTO.required().options({stripUnknown: false}))
+    @Expect(TestDTO.required().options({stripUnknown: true}))
     objjj: TestDTO
+
+
+    @Expect(DTO.String().required())
+    testString: any
 }
 
 (async () => {
-    const ctn = new Container()
-    const instance: TestModule = await ctn.build(TestModule, {aaaa: 'gggggg'})
-    console.log(instance, isProxy(instance))
+    // const ctn = new Container()
+    // const instance: TestModule = await ctn.build(TestModule, {aaaa: 'gggggg'})
+    // console.log(instance, isProxy(instance))
 
     const res = new TestDTO2({
         objjj: {
             bbbbb: 123
-        }
+            // sub:{
+            //     nnnn: {
+            //         qqqqq: {
+            //             val: 'vvvvv',
+            //             num: 11111
+            //         }
+            //     }
+            // }
+        },
+        testString: 'asdasd'
     })
     // @ts-ignore
-    res.objjj.bbbbbb=123123
-    console.log(res)
-    console.log('===:',TestDTO2.validate({
-        objjj: {
-            bbbbb: 123
-        },
-        pp: '12323'
-    }, {stripUnknown: true}))
+    res.objjj.sub.nnnn.qqqqq.num = 'bbbbbb'
+    // @ts-ignore
+    // res.objjj.bbbbbb = 'ddddd'
+
+    // delete res.testString
+
+    // @ts-ignore
+    // res.testString = 123456
+
+    console.log('RES=========:',JSON.stringify(res, null, 2))
+    // console.log('===:', JSON.stringify(TestDTO2.validate({
+    //     // objjj: {
+    //     //     bbbbb: 123
+    //     // },
+    //     objjj:new TestDTO(),
+    //     pp: '12323'
+    // }, {stripUnknown: false})))
 
 })()
