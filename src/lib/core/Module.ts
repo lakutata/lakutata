@@ -4,6 +4,8 @@ import {__destroy, __init} from '../base/BaseObject.js'
 import {Container} from './Container.js'
 import {GetObjectContainer} from '../base/internal/ObjectContainer.js'
 
+const MODULE_INIT_END_SIGNAL: symbol = Symbol('MODULE_INIT_END')
+
 /**
  * Module base class
  */
@@ -25,9 +27,12 @@ export class Module extends Component {
      */
     protected async [__init](...hooks: (() => Promise<void>)[]): Promise<void> {
         //Use setImmediate here for init module instance first, then sub objects can use @Inject decorator get current module
-        setImmediate(async (): Promise<void> => super[__init](...hooks, async (): Promise<void> => {
-            await this.bootstrap()
-        }))
+        setImmediate(async (): Promise<void> => {
+            await super[__init](...hooks, async (): Promise<void> => {
+                await this.bootstrap()
+            })
+            this.emit(MODULE_INIT_END_SIGNAL)
+        })
     }
 
     /**
@@ -74,7 +79,9 @@ export class Module extends Component {
      * Reload self
      */
     public async reload(): Promise<void> {
-        await super.reload()
-        //TODO 还需要执行bootstrap
+        await new Promise<void>((resolve, reject): void => {
+            this.once(MODULE_INIT_END_SIGNAL, () => resolve())
+            super.reload().catch(reject)
+        })
     }
 }

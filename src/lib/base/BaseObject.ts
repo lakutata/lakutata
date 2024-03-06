@@ -114,7 +114,7 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
-     * Internal initialize function
+     * Internal initializer
      * @param hooks
      * @protected
      */
@@ -130,7 +130,7 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
-     * Internal destroy function
+     * Internal destroyer
      * @param hooks
      * @protected
      */

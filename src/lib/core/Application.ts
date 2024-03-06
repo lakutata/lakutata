@@ -53,6 +53,7 @@ export class Application extends Module {
      */
     protected async init(): Promise<void> {
         //TODO
+        console.log('ininininin')
     }
 
     /**
