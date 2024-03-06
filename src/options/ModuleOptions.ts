@@ -1,10 +1,38 @@
 import {DTO} from '../lib/core/DTO.js'
 import {BaseObject} from '../lib/base/BaseObject.js'
 import {Expect} from '../decorators/dto/Expect.js'
+import {Module} from '../lib/core/Module.js'
+import {LoadObjectOptions} from './LoadObjectOptions.js'
 
-type BootstrapOption<ObjectConstructor extends typeof BaseObject> = string | symbol | ObjectConstructor
+type BootstrapAsyncFunction<T = any, U = any> = (target: T) => Promise<U>
 
-export class ModuleOptions<ObjectConstructor extends typeof BaseObject> extends DTO {
+type BootstrapOption<ObjectConstructor extends typeof BaseObject, ModuleInstance extends Module> =
+    string
+    | symbol
+    | ObjectConstructor
+    | BootstrapAsyncFunction<ModuleInstance, void>
+
+type LoadObjectsOption =
+    LoadObjectOptions
+    | typeof BaseObject
+    | string
+
+export class ModuleOptions<ObjectConstructor extends typeof BaseObject = typeof BaseObject, ModuleInstance extends Module = Module> extends DTO {
+
+    /**
+     * Load objects option
+     */
+    @Expect(
+        DTO.Array(
+            DTO.Alternatives(
+                LoadObjectOptions.Schema(),
+                DTO.Class(BaseObject),
+                DTO.Glob())
+        )
+            .optional()
+            .default([])
+    )
+    public objects?: LoadObjectsOption[]
 
     /**
      * Bootstrap option
@@ -20,5 +48,5 @@ export class ModuleOptions<ObjectConstructor extends typeof BaseObject> extends 
             .optional()
             .default([])
     )
-    public bootstrap?: BootstrapOption<ObjectConstructor>[]
+    public bootstrap?: BootstrapOption<ObjectConstructor, ModuleInstance>[]
 }

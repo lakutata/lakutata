@@ -170,7 +170,7 @@ export class Container {
      * Load objects
      * @param options
      */
-    @Accept(DTO.Array(DTO.Alternatives(LoadObjectOptions.Schema()), DTO.Class(() => BaseObject), DTO.Glob()))
+    @Accept(DTO.Array(DTO.Alternatives(LoadObjectOptions.Schema(),DTO.Class(() => BaseObject), DTO.Glob())))
     public async load<T extends typeof BaseObject>(options: (LoadObjectOptions | typeof BaseObject | string)[]): Promise<void> {
         let pair: NameAndRegistrationPair<T> = {}
         const buildNameAndRegistrationPairFromGlobPromises: Promise<NameAndRegistrationPair<T>>[] = []
