@@ -135,7 +135,7 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
-     * Initialize function
+     * Initializer
      * @protected
      */
     protected async init(): Promise<void> {
@@ -143,7 +143,7 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
-     * Destroy function
+     * Destroyer
      * @protected
      */
     protected async destroy(): Promise<void> {

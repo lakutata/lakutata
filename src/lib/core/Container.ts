@@ -5,11 +5,9 @@ import {
 } from '../ioc/DependencyInjectionContainer.js'
 import {DevNull} from '../base/func/DevNull.js'
 import {__destroy, BaseObject} from '../base/BaseObject.js'
-import {IConstructor} from '../../interfaces/IConstructor.js'
 import {ConstructorSymbol} from '../base/internal/ConstructorSymbol.js'
-import {IsPromise} from '../base/func/IsPromise.js'
 import {LoadObjectOptions} from '../../options/LoadObjectOptions.js'
-import {asClass, asValue, BuildResolverOptions} from '../ioc/Resolvers.js'
+import {asClass, asFunction, asValue, BuildResolverOptions} from '../ioc/Resolvers.js'
 import {GetObjectLifetime} from '../base/internal/ObjectLifetime.js'
 import {
     GetConfigurableRecords,
@@ -26,6 +24,7 @@ import {listModules, ModuleDescriptor} from '../ioc/ListModules.js'
 import {pathToFileURL} from 'url'
 import {isClass} from '../ioc/Utils.js'
 import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
+import {isRef} from 'joi'
 
 export const containerSymbol: symbol = Symbol('LAKUTATA.DI.CONTAINER.SYMBOL')
 
@@ -112,7 +111,7 @@ export class Container {
         const isValidSubBaseObject: boolean = DTO.isValid(resolved.constructor, DTO.Class(BaseObject))
         if (isValidSubBaseObject) SetConfigurableRecordsToInstance(As<T>(resolved), Object.assign({}, presetConfigurableRecords, configurableRecords))
         this.updateTransientWeakRefs()
-        return IsPromise(resolved) ? await resolved : resolved
+        return Promise.resolve(resolved)
     }
 
     /**

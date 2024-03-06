@@ -246,4 +246,12 @@ export class Component extends BaseObject implements EventEmitter {
     public hasListeners(event?: String | undefined): boolean {
         return this.#eventEmitter.hasListeners(event)
     }
+
+    /**
+     * Reload self
+     */
+    public async reload(): Promise<void> {
+        await this[__destroy]()
+        await this[__init]()
+    }
 }

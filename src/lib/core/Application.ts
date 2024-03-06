@@ -1,6 +1,7 @@
 import {Module} from './Module.js'
 import {Singleton} from '../../decorators/di/Lifetime.js'
 import {Container} from './Container.js'
+import {Configurable} from '../../decorators/di/Configurable.js'
 
 @Singleton(true)
 export class Application extends Module {
@@ -12,11 +13,36 @@ export class Application extends Module {
     public static async run(options: any): Promise<void> {
         //TODO 实现该方法
         const rootContainer: Container = new Container()
-        await rootContainer.build(Application)
+        await rootContainer.load([{
+            class: Application
+        }])
+        await rootContainer.get(Application)
     }
 
+    @Configurable()
+    protected getter: any
+
+    /**
+     * Initializer
+     * @protected
+     */
     protected async init(): Promise<void> {
-        console.log('gg',this)
+            const app = await this.getObject(Application)
+            console.log(app)
+            app.test()
+    }
+
+
+    public test() {
+        console.log('dddddd')
+    }
+
+    /**
+     * Destroyer
+     * @protected
+     */
+    protected async destroy(): Promise<void> {
+        return super.destroy()
     }
 
     /**

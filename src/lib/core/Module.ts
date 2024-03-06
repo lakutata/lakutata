@@ -1,6 +1,8 @@
 import {Component} from './Component.js'
 import {Singleton} from '../../decorators/di/Lifetime.js'
 import {__destroy, __init} from '../base/BaseObject.js'
+import {Container} from './Container.js'
+import {GetObjectContainer} from '../base/internal/ObjectContainer.js'
 
 /**
  * Module base class
@@ -8,26 +10,38 @@ import {__destroy, __init} from '../base/BaseObject.js'
 @Singleton(true)
 export class Module extends Component {
 
-    constructor(cradleProxy: Record<string | symbol, any>) {
-        super(Object.create(null))
+    // constructor(cradleProxy: Record<string | symbol, any>) {
+    //     super(Object.create(null))
+    // }
+
+    /**
+     * Get container
+     * @protected
+     */
+    protected get container(): Container {
+        return GetObjectContainer(this)
     }
 
     /**
-     * Internal init handler
+     * Internal initializer
      * @protected
      */
     protected async [__init](): Promise<void> {
-        //TODO
-        await super[__init]()
+        //Use setImmediate here for init module instance first, then sub objects can use @Inject decorator get current module
+        setImmediate(async (): Promise<void> => super[__init]())
     }
 
     /**
-     * Internal destroy handler
+     * Internal destroyer
      * @protected
      */
     protected async [__destroy](): Promise<void> {
         //TODO
         await super[__destroy]()
+    }
+
+    protected async bootstrap() {
+        //TODO
     }
 
     /**
@@ -48,10 +62,10 @@ export class Module extends Component {
     }
 
     /**
-     * Reload module
+     * Reload self
      */
     public async reload(): Promise<void> {
-        await this[__destroy]()
-        await this[__init]()
+        await super.reload()
+        //TODO 还需要执行bootstrap
     }
 }
