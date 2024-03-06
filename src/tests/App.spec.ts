@@ -23,13 +23,21 @@ class TestModule extends Module {
 }
 
 (async () => {
-    // const ctn: Container = new Container()
+    const ctn: Container = new Container()
+    await ctn.load([{
+        // id: 'abcd',
+        class: TestModule,
+        aaaa: '0'
+    }])
+    const instance = await ctn.get(TestModule)
+    console.log(instance.$id)
+
     // const instance: TestModule = await ctn.build(TestModule, {aaaa: '0'})
     // await instance.reload()
     // console.log(instance, isProxy(instance))
     // await Application.run({})
-    console.log(new ModuleOptions({
-        bootstrap: ['abcd', TestModule, async () => {
-        }]
-    }))
+    // console.log(new ModuleOptions({
+    //     bootstrap: ['abcd', TestModule, async () => {
+    //     }]
+    // }))
 })()

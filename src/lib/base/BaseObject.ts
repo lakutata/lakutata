@@ -6,7 +6,7 @@ import {As} from './func/As.js'
 import {DevNull} from './func/DevNull.js'
 import {Container, containerSymbol} from '../core/Container.js'
 import {randomUUID} from 'node:crypto'
-import {GetConfigurableRecordsFromInstance} from './internal/ConfigurableRecordsInjection.js'
+import {GetConfigurableRecordsFromInstance, GetIdFromInstance} from './internal/ConfigurableRecordsInjection.js'
 import {GetObjectConfigurableProperties} from './internal/ObjectConfiguration.js'
 import {IsSymbol} from './func/IsSymbol.js'
 import {GetObjectInjectItemsByPrototype, ObjectInjectionMap} from './internal/ObjectInjection.js'
@@ -25,6 +25,11 @@ export const __init: symbol = Symbol('__init')
 export const __destroy: symbol = Symbol('__destroy')
 
 /**
+ * Anonymous ID symbol, the default id value if object's id not defined in runtime
+ */
+export const anonymousId: symbol = Symbol('anonymous')
+
+/**
  * Lakutata object base class
  */
 @Transient()
@@ -32,7 +37,9 @@ export class BaseObject extends AsyncConstructor {
 
     readonly #container: Container
 
-    #objectId: string = randomUUID()
+    #objectId: string | symbol
+
+    #uniqueId: string = randomUUID()
 
     /**
      * Load configurable records
@@ -84,11 +91,21 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
+     * Set object id
+     * @private
+     */
+    #setObjectId(): void {
+        const id: string | symbol | undefined = GetIdFromInstance(this)
+        this.#objectId = id ? id : anonymousId
+    }
+
+    /**
      * Constructor
      * @param cradleProxy
      */
     constructor(cradleProxy: Record<string | symbol, any>) {
         super(async (): Promise<void> => {
+            this.#setObjectId()
             //Ensure property "then" not in subclass
             const thenablePropertyDescriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(this, 'then')
             if (thenablePropertyDescriptor) Object.defineProperty(this, 'then', {enumerable: false})
@@ -206,9 +223,16 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
-     * Unique object id
+     * Unique object uuid
      */
-    public objectId(): string {
+    public get $uuid(): string {
+        return this.#uniqueId
+    }
+
+    /**
+     * Object instance id which defined in runtime
+     */
+    public get $id(): string | symbol {
         return this.#objectId
     }
 

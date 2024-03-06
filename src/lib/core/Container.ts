@@ -7,12 +7,12 @@ import {DevNull} from '../base/func/DevNull.js'
 import {__destroy, BaseObject} from '../base/BaseObject.js'
 import {ConstructorSymbol} from '../base/internal/ConstructorSymbol.js'
 import {LoadObjectOptions} from '../../options/LoadObjectOptions.js'
-import {asClass, asFunction, asValue, BuildResolverOptions} from '../ioc/Resolvers.js'
+import {asClass, asValue, BuildResolverOptions} from '../ioc/Resolvers.js'
 import {GetObjectLifetime} from '../base/internal/ObjectLifetime.js'
 import {
     GetConfigurableRecords,
     SetConfigurableRecords,
-    SetConfigurableRecordsToInstance
+    SetConfigurableRecordsToInstance, SetIdToInstance
 } from '../base/internal/ConfigurableRecordsInjection.js'
 import {As} from '../base/func/As.js'
 import {DTO} from './DTO.js'
@@ -24,7 +24,6 @@ import {listModules, ModuleDescriptor} from '../ioc/ListModules.js'
 import {pathToFileURL} from 'url'
 import {isClass} from '../ioc/Utils.js'
 import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
-import {isRef} from 'joi'
 
 export const containerSymbol: symbol = Symbol('LAKUTATA.DI.CONTAINER.SYMBOL')
 
@@ -109,7 +108,12 @@ export class Container {
     protected async processResolved<T extends BaseObject>(resolved: T | Promise<T>, registrationName: string | symbol, configurableRecords: Record<string, any> = {}): Promise<T> {
         const presetConfigurableRecords: Record<string, any> = GetConfigurableRecords(As<typeof BaseObject>(resolved.constructor), registrationName)
         const isValidSubBaseObject: boolean = DTO.isValid(resolved.constructor, DTO.Class(BaseObject))
-        if (isValidSubBaseObject) SetConfigurableRecordsToInstance(As<T>(resolved), Object.assign({}, presetConfigurableRecords, configurableRecords))
+        if (isValidSubBaseObject) {
+            //set id into object instance
+            SetIdToInstance(As<T>(resolved), registrationName)
+            //set configurable records into object instance
+            SetConfigurableRecordsToInstance(As<T>(resolved), Object.assign({}, presetConfigurableRecords, configurableRecords))
+        }
         this.updateTransientWeakRefs()
         return Promise.resolve(resolved)
     }

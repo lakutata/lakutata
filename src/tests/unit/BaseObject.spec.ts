@@ -57,7 +57,7 @@ await describe('BaseObject Test', async function (): Promise<void> {
     await it('two object should have different objectId', async (): Promise<void> => {
         const obj1: TestObject = await rootContainer.build(TestObject)
         const obj2: TestObject = await rootContainer.build(TestObject)
-        assert.notEqual(obj1.objectId(), obj2.objectId())
+        assert.notEqual(obj1.$uuid, obj2.$uuid)
     })
     await it('set instance\'s property should works', async (): Promise<void> => {
         assert.equal(instance.getProperty('testProp'), undefined)
