@@ -20,21 +20,26 @@ export class Component extends BaseObject implements EventEmitter {
     #eventEmitter: EventEmitter = new EventEmitter()
 
     /**
-     * Internal init handler
+     * Internal initializer
+     * @param hooks
      * @protected
      */
-    protected async [__init](): Promise<void> {
-        //TODO
-        return await super[__init]()
+    protected async [__init](...hooks: (() => Promise<void>)[]): Promise<void> {
+        await super[__init](async (): Promise<void> => {
+            //TODO
+        }, ...hooks)
     }
 
     /**
-     * Internal destroy handler
+     * Internal destroyer
+     * @param hooks
      * @protected
      */
-    protected async [__destroy](): Promise<void> {
-        this.#eventEmitter.removeAllListeners()
-        return await super[__destroy]()
+    protected async [__destroy](...hooks: (() => Promise<void>)[]): Promise<void> {
+        await super[__destroy](async (): Promise<void> => {
+            this.#eventEmitter.removeAllListeners()
+        }, ...hooks)
+
     }
 
     /**

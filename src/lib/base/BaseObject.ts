@@ -89,10 +89,6 @@ export class BaseObject extends AsyncConstructor {
      */
     constructor(cradleProxy: Record<string | symbol, any>) {
         super(async (): Promise<void> => {
-            //Apply object injection
-            await this.#applyInjection()
-            //Load and apply configurable records to current object's property
-            await this.#loadConfigurableRecords()
             //Ensure property "then" not in subclass
             const thenablePropertyDescriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(this, 'then')
             if (thenablePropertyDescriptor) Object.defineProperty(this, 'then', {enumerable: false})
@@ -119,18 +115,31 @@ export class BaseObject extends AsyncConstructor {
 
     /**
      * Internal initialize function
+     * @param hooks
      * @protected
      */
-    protected async [__init](): Promise<void> {
+    protected async [__init](...hooks: (() => Promise<void>)[]): Promise<void> {
+        //Apply object injection
+        await this.#applyInjection()
+        //Load and apply configurable records to current object's property
+        await this.#loadConfigurableRecords()
+        //Execute hooks
+        for (const hook of hooks) await hook()
+        //Execute normal initializer
         await this.init()
     }
 
     /**
      * Internal destroy function
+     * @param hooks
      * @protected
      */
-    protected async [__destroy](): Promise<void> {
+    protected async [__destroy](...hooks: (() => Promise<void>)[]): Promise<void> {
+        //Destroy internal container
         await this.#container.destroy()
+        //Execute hooks
+        for (const hook of hooks) await hook()
+        //Execute normal destroyer
         await this.destroy()
     }
 

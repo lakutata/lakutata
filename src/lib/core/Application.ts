@@ -2,6 +2,8 @@ import {Module} from './Module.js'
 import {Singleton} from '../../decorators/di/Lifetime.js'
 import {Container} from './Container.js'
 import {Configurable} from '../../decorators/di/Configurable.js'
+import {Inject} from '../../decorators/di/Inject.js'
+import {__destroy, __init} from '../base/BaseObject.js'
 
 @Singleton(true)
 export class Application extends Module {
@@ -14,7 +16,8 @@ export class Application extends Module {
         //TODO 实现该方法
         const rootContainer: Container = new Container()
         await rootContainer.load([{
-            class: Application
+            class: Application,
+            getter: 12345
         }])
         await rootContainer.get(Application)
     }
@@ -22,19 +25,34 @@ export class Application extends Module {
     @Configurable()
     protected getter: any
 
+    @Inject()
+    protected app: Application
+
+    /**
+     * Internal initializer
+     * @protected
+     */
+    protected async [__init](): Promise<void> {
+        return super[__init](async (): Promise<void> => {
+            console.log('aaaaaa')
+        })
+    }
+
+    /**
+     * Internal destroyer
+     * @protected
+     */
+    protected async [__destroy](): Promise<void> {
+        await super[__destroy]()
+        //TODO
+    }
+
     /**
      * Initializer
      * @protected
      */
     protected async init(): Promise<void> {
-            const app = await this.getObject(Application)
-            console.log(app)
-            app.test()
-    }
-
-
-    public test() {
-        console.log('dddddd')
+        //TODO
     }
 
     /**

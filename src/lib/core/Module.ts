@@ -10,10 +10,6 @@ import {GetObjectContainer} from '../base/internal/ObjectContainer.js'
 @Singleton(true)
 export class Module extends Component {
 
-    // constructor(cradleProxy: Record<string | symbol, any>) {
-    //     super(Object.create(null))
-    // }
-
     /**
      * Get container
      * @protected
@@ -24,24 +20,37 @@ export class Module extends Component {
 
     /**
      * Internal initializer
+     * @param hooks
      * @protected
      */
-    protected async [__init](): Promise<void> {
+    protected async [__init](...hooks: (() => Promise<void>)[]): Promise<void> {
         //Use setImmediate here for init module instance first, then sub objects can use @Inject decorator get current module
-        setImmediate(async (): Promise<void> => super[__init]())
+        setImmediate(async (): Promise<void> => super[__init](...hooks, async (): Promise<void> => {
+            await this.bootstrap()
+        }))
     }
 
     /**
      * Internal destroyer
+     * @param hooks
      * @protected
      */
-    protected async [__destroy](): Promise<void> {
-        //TODO
-        await super[__destroy]()
+    protected async [__destroy](...hooks: (() => Promise<void>)[]): Promise<void> {
+        return await super[__destroy](...hooks)
     }
 
-    protected async bootstrap() {
+    /**
+     * Initializer
+     * @protected
+     */
+    protected async init(): Promise<void> {
         //TODO
+        await this.bootstrap()
+    }
+
+    protected async bootstrap(): Promise<void> {
+        //TODO
+        console.log('bootstrap')
     }
 
     /**
