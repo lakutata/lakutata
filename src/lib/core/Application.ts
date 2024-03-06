@@ -12,7 +12,11 @@ export class Application extends Module {
     public static async run(options: any): Promise<void> {
         //TODO 实现该方法
         const rootContainer: Container = new Container()
+        await rootContainer.build(Application)
+    }
 
+    protected async init(): Promise<void> {
+        console.log('gg',this)
     }
 
     /**

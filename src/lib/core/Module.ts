@@ -31,6 +31,23 @@ export class Module extends Component {
     }
 
     /**
+     * Get current runtime env is production or development
+     */
+    public mode(): 'development' | 'production' {
+        if (!process.env.NODE_ENV) process.env.NODE_ENV = 'development'
+        switch (process.env.NODE_ENV.toLowerCase()) {
+            case 'production':
+                return 'production'
+            case 'development':
+                return 'development'
+            default: {
+                process.env.NODE_ENV = 'development'
+                return 'development'
+            }
+        }
+    }
+
+    /**
      * Reload module
      */
     public async reload(): Promise<void> {

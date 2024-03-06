@@ -98,7 +98,6 @@ export class BaseObject extends AsyncConstructor {
             if (thenablePropertyDescriptor) Object.defineProperty(this, 'then', {enumerable: false})
             //Execute init functions
             await this[__init]()
-            await this.init()
         })
         this.#container = new Container(cradleProxy[containerSymbol])
         SetObjectContainerGetter(this, this.#container)
