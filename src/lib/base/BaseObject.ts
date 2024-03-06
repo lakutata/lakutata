@@ -82,6 +82,7 @@ export class BaseObject extends AsyncConstructor {
             }
             injectionPromises.push(new Promise((resolve, reject) => {
                 this.#container.get(registration).then(injectObject => {
+                    // console.log(item.constructor === injectObject.constructor) //TODO 看看是否要在两者不匹配时报错
                     this[propertyKey] = injectObject
                     return resolve()
                 }).catch(reject)

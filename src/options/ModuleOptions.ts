@@ -19,6 +19,9 @@ type LoadObjectsOption =
 
 export class ModuleOptions<ObjectConstructor extends typeof BaseObject = typeof BaseObject, ModuleInstance extends Module = Module> extends DTO {
 
+    // public components: Record<string, any>
+    // public modules: Record<string, any>
+
     /**
      * Load objects option
      */

@@ -6,12 +6,21 @@ import {Application} from '../lib/core/Application.js'
 import path from 'node:path'
 import {ModuleOptions} from '../options/ModuleOptions.js'
 import {TestObj} from './unit/resources/glob-modules/TestObj.js'
+import {BaseObject} from '../lib/base/BaseObject.js'
+import {Inject} from '../decorators/di/Inject.js'
+
+class XXX extends BaseObject {
+
+}
 
 class TestModule extends Module {
     @Configurable(DTO.String(), value => {
         return value + '123456'
     })
     public aaaa: string
+
+    @Inject()
+    protected readonly xx: XXX
 
     public gg() {
 
@@ -37,16 +46,19 @@ class TestModule extends Module {
     // console.log(instance, isProxy(instance))
     // await Application.run({})
 
-    console.log(process.cwd())
     const opt: ModuleOptions = {
         objects: [
             TestModule,
             {
-                id: 'a',
+                id:'xx',
+                class:XXX
+            },
+            {
+                id: 'testModule',
                 class: TestModule
             },
             {
-                id: 'b',
+                id: 'testModule',
                 class: TestModule
             },
             `${process.cwd()}/distro/src/tests/unit/resources/glob-modules/*.js`
@@ -58,5 +70,5 @@ class TestModule extends Module {
     const ctn: Container = new Container()
     await ctn.load(options.objects ? options.objects : [])
     console.log(await ctn.get(TestObj))
-    console.log(await ctn.get('b'))
+    console.log(await ctn.get('testModule'))
 })()
