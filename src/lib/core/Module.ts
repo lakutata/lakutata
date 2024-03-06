@@ -29,10 +29,35 @@ export class Module extends Component {
         //Use setImmediate here for init module instance first, then sub objects can use @Inject decorator get current module
         setImmediate(async (): Promise<void> => {
             await super[__init](...hooks, async (): Promise<void> => {
-                await this.bootstrap()
+                await this.#bootstrap()
             })
             this.emit(MODULE_INIT_END_SIGNAL)
         })
+    }
+
+    /**
+     * Bootstrap
+     * @private
+     */
+    async #bootstrap(): Promise<void> {
+        //TODO
+    }
+
+    /**
+     * Register object (extends BaseObject)
+     * @protected
+     */
+    protected async registerObject() {
+        //TODO
+
+    }
+
+    /**
+     * Register module
+     * @protected
+     */
+    protected async registerModule() {
+        //TODO
     }
 
     /**
@@ -49,10 +74,6 @@ export class Module extends Component {
      * @protected
      */
     protected async init(): Promise<void> {
-    }
-
-    protected async bootstrap(): Promise<void> {
-        //TODO
     }
 
     /**
