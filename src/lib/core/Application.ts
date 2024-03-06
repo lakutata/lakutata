@@ -13,13 +13,11 @@ export class Application extends Module {
      * @param options
      */
     public static async run(options: any): Promise<void> {
-        //TODO 实现该方法
         const rootContainer: Container = new Container()
-        await rootContainer.load([{
-            class: Application,
-            getter: 12345
-        }])
-        await rootContainer.get(Application)
+        await rootContainer.set(Application, {
+            getter: 12345666
+        })
+        //TODO 加载参数
     }
 
     @Configurable()
@@ -34,7 +32,8 @@ export class Application extends Module {
      */
     protected async [__init](): Promise<void> {
         return super[__init](async (): Promise<void> => {
-            console.log('aaaaaa')
+            //TODO
+            console.log(this)
         })
     }
 
@@ -53,7 +52,6 @@ export class Application extends Module {
      */
     protected async init(): Promise<void> {
         //TODO
-        console.log('ininininin')
     }
 
     /**

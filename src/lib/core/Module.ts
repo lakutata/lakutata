@@ -49,13 +49,10 @@ export class Module extends Component {
      * @protected
      */
     protected async init(): Promise<void> {
-        //TODO
-        await this.bootstrap()
     }
 
     protected async bootstrap(): Promise<void> {
         //TODO
-        console.log('bootstrap')
     }
 
     /**

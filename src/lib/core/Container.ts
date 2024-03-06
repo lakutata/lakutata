@@ -261,6 +261,19 @@ export class Container {
     }
 
     /**
+     * Builds an instance of a base object class by injecting dependencies, and registering it in the container
+     * @param target
+     * @param configurableRecords
+     */
+    public async set<T extends BaseObject>(target: IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
+        await this.load([{
+            ...configurableRecords,
+            class: target
+        }])
+        return await this.get(target)
+    }
+
+    /**
      * Builds an instance of a base object class by injecting dependencies, but without registering it in the container
      * @param target
      * @param configurableRecords
