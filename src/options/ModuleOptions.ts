@@ -5,15 +5,15 @@ import {Module} from '../lib/core/Module.js'
 import {ModuleLoadObjectsOptions} from './ModuleLoadObjectsOptions.js'
 import {OverridableNamedObjectOptions} from './OverridableNamedObjectOptions.js'
 
-type BootstrapAsyncFunction<T = any, U = any> = (target: T) => Promise<U>
+export type BootstrapAsyncFunction<T = any, U = any> = (target: T) => Promise<U>
 
-type BootstrapOption<ObjectConstructor extends typeof BaseObject, ModuleInstance extends Module> =
+export type BootstrapOption<ObjectConstructor extends typeof BaseObject = typeof BaseObject, ModuleInstance extends Module = Module> =
     string
     | symbol
     | ObjectConstructor
     | BootstrapAsyncFunction<ModuleInstance, void>
 
-export class ModuleOptions<ObjectConstructor extends typeof BaseObject = typeof BaseObject, ModuleInstance extends Module = Module> extends DTO {
+export class ModuleOptions extends DTO {
 
     /**
      * Load components option
@@ -32,6 +32,8 @@ export class ModuleOptions<ObjectConstructor extends typeof BaseObject = typeof 
      */
     @Expect(OverridableNamedObjectOptions.optional())
     public modules?: OverridableNamedObjectOptions
+
+    //TODO 还需要加入controllers
 
     /**
      * Load objects option
@@ -60,5 +62,5 @@ export class ModuleOptions<ObjectConstructor extends typeof BaseObject = typeof 
             .optional()
             .default([])
     )
-    public bootstrap?: BootstrapOption<ObjectConstructor, ModuleInstance>[]
+    public bootstrap?: BootstrapOption[]
 }

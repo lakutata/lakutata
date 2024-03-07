@@ -1,8 +1,13 @@
 import {Component} from './Component.js'
 import {Singleton} from '../../decorators/di/Lifetime.js'
-import {__destroy, __init} from '../base/BaseObject.js'
+import {__destroy, __init, BaseObject} from '../base/BaseObject.js'
 import {Container} from './Container.js'
 import {GetObjectContainer} from '../base/internal/ObjectContainer.js'
+import {BootstrapAsyncFunction, ModuleOptions} from '../../options/ModuleOptions.js'
+import {ModuleConfigLoader} from '../base/internal/ModuleConfigLoader.js'
+import {isAsyncFunction} from 'node:util/types'
+import {As} from '../base/func/As.js'
+import {Configurable} from '../../decorators/di/Configurable.js'
 
 const MODULE_INIT_END_SIGNAL: symbol = Symbol('MODULE_INIT_END')
 
@@ -13,11 +18,41 @@ const MODULE_INIT_END_SIGNAL: symbol = Symbol('MODULE_INIT_END')
 export class Module extends Component {
 
     /**
+     * Module embed options
+     * @protected
+     */
+    @Configurable(ModuleOptions.optional().default({}).options({stripUnknown: false}), function (this: Module, options: ModuleOptions) {
+        console.log('oh', options, this.options,this.#bootstrap)
+        // this.configLoader = new ModuleConfigLoader(this.options)
+        return options
+    })
+    protected options: ModuleOptions = {
+        /**
+         * write options here
+         */
+        gggg:1
+    }
+
+    /**
      * Get container
      * @protected
      */
     protected get container(): Container {
         return GetObjectContainer(this)
+    }
+
+    /**
+     * Config loader
+     * @protected
+     */
+    protected configLoader: ModuleConfigLoader = new ModuleConfigLoader(this.options)
+
+    /**
+     * Constructor
+     * @param cradleProxy
+     */
+    constructor(cradleProxy: Record<string | symbol, any>) {
+        super(cradleProxy)
     }
 
     /**
@@ -40,7 +75,13 @@ export class Module extends Component {
      * @private
      */
     async #bootstrap(): Promise<void> {
-        //TODO
+        for (const bootstrapOption of this.configLoader.bootstrap) {
+            if (isAsyncFunction(bootstrapOption)) {
+                await As<BootstrapAsyncFunction<this, void>>(bootstrapOption)(this)
+            } else {
+                await this.getObject(As(bootstrapOption))
+            }
+        }
     }
 
     /**

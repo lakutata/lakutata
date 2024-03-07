@@ -15,7 +15,10 @@ export class Application extends Module {
     public static async run(options: any): Promise<void> {
         const rootContainer: Container = new Container()
         await rootContainer.set(Application, {
-            getter: 12345666
+            getter: 12345666,
+            options:{
+                dddd:111
+            }
         })
         //TODO 加载参数
     }
@@ -33,7 +36,7 @@ export class Application extends Module {
     protected async [__init](): Promise<void> {
         return super[__init](async (): Promise<void> => {
             //TODO
-            console.log(this)
+            // console.log(this)
         })
     }
 

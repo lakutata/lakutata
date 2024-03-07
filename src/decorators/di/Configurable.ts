@@ -10,6 +10,6 @@ import {Schema} from '../../lib/validation/types/Schema.js'
  * @param fn
  * @constructor
  */
-export function Configurable<ClassPrototype extends BaseObject, DataType>(schema: Schema<DataType> = DTO.Any(), fn?: (value: DataType) => DataType | Promise<DataType>): TPropertyDecorator<ClassPrototype> {
+export function Configurable<ClassPrototype extends BaseObject, DataType>(schema: Schema<DataType> = DTO.Any(), fn?: (this: ClassPrototype, value: DataType) => DataType | Promise<DataType>): TPropertyDecorator<ClassPrototype> {
     return (target: ClassPrototype, propertyKey: string | symbol) => SetObjectConfigurableProperty(target, propertyKey, schema, fn)
 }

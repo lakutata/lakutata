@@ -52,7 +52,7 @@ export class BaseObject extends AsyncConstructor {
             if (IsSymbol(propertyKey)) return
             setConfigurableValuePromises.push(new Promise<void>((resolve, reject): void => {
                 DTO.validateAsync(configurableRecords[As<string>(propertyKey)], schemaAndFn.schema, {targetName: propertyKey}).then(validatedValue => {
-                    return Promise.resolve(schemaAndFn.fn(validatedValue)).then(propertyValue => {
+                    return Promise.resolve(schemaAndFn.fn.bind(this)(validatedValue)).then(propertyValue => {
                         this[propertyKey] = propertyValue
                         return resolve()
                     }).catch(reject)

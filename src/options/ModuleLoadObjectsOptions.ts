@@ -4,7 +4,7 @@ import {LoadNamedObjectOptions} from './LoadNamedObjectOptions.js'
 import {LoadAnonymousObjectOptions} from './LoadAnonymousObjectOptions.js'
 import {BaseObject} from '../lib/base/BaseObject.js'
 
-type AnonymousObject =
+export type AnonymousObject =
     LoadAnonymousObjectOptions
     | typeof BaseObject
     | string

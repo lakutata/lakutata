@@ -39,11 +39,7 @@ class TestModule extends Module {
     })
     public aaaa: string
 
-    @Inject()
-    protected xx: XXX
-
     public gg() {
-        this.xx.oh()
     }
 
     protected hello() {
@@ -64,39 +60,6 @@ class TestModule extends Module {
     // const instance: TestModule = await ctn.build(TestModule, {aaaa: '0'})
     // await instance.reload()
     // console.log(instance, isProxy(instance))
-    // await Application.run({})
+    await Application.run({})
 
-    const opt: ModuleOptions = {
-        // objects: [
-        //     TestProvider,
-        //     TestModule,
-        //     {
-        //         [OBJECT_ID]: 'xx1',
-        //         class: XXX
-        //     },
-        //     {
-        //         id: 'testModule',
-        //         class: TestModule
-        //     },
-        //     {
-        //         id: 'testModule',
-        //         class: TestModule
-        //     },
-        //     `${process.cwd()}/distro/src/tests/unit/resources/glob-modules/*.js`
-        // ],
-        objects: {
-            named: {
-                tp: {class: TestProvider}
-            },
-            anonymous: [TestModule, `${process.cwd()}/distro/src/tests/unit/resources/glob-modules/*.js`]
-        },
-        bootstrap: ['abcd', TestModule, async (target): Promise<void> => {
-        }]
-    }
-    const options: ModuleOptions = new ModuleOptions(opt)
-    console.log(options)
-    // const ctn: Container = new Container()
-    // await ctn.load(options.objects ? options.objects : [])
-    // const tp=await ctn.get(TestProvider)
-    // tp.gg()
 })()
