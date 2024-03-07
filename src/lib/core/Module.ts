@@ -15,7 +15,7 @@ const MODULE_INIT_END_SIGNAL: symbol = Symbol('MODULE_INIT_END')
 /**
  * Module base class
  */
-@Scoped(true)
+@Singleton(true)
 export class Module extends Component {
 
     /**

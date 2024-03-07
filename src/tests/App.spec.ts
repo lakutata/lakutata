@@ -72,9 +72,9 @@ class TestModule extends Module {
         alias: {
             '@test1': '/home'
         },
-        providers: {
+        modules: {
             testModule: {
-                class: TestProvider,
+                class: TestModule,
                 aaaa: path.resolve('@test', './test.file')
             }
         }
