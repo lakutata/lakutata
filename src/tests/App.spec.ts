@@ -8,18 +8,24 @@ import {ModuleOptions} from '../options/ModuleOptions.js'
 import {TestObj} from './unit/resources/glob-modules/TestObj.js'
 import {BaseObject} from '../lib/base/BaseObject.js'
 import {Inject} from '../decorators/di/Inject.js'
+import {OBJECT_ID} from '../options/LoadObjectOptions.js'
 
 class XXX extends BaseObject {
     hahaha: string = 'hahahaah'
+
+    public oh() {
+        console.log('this.$id:', this.$id)
+    }
 }
 
 class TestProvider extends BaseObject {
 
     @Inject()
-    protected xx: XXX
+    protected xx1: XXX
 
     public gg() {
-        console.log(this.xx)
+        console.log(this.xx1)
+        this.xx1.oh()
     }
 
     protected hello() {
@@ -37,7 +43,7 @@ class TestModule extends Module {
     protected xx: XXX
 
     public gg() {
-        console.log(this.xx)
+        this.xx.oh()
     }
 
     protected hello() {
@@ -61,29 +67,36 @@ class TestModule extends Module {
     // await Application.run({})
 
     const opt: ModuleOptions = {
-        objects: [
-            TestProvider,
-            TestModule,
-            {
-                id: 'xx',
-                class: XXX
+        // objects: [
+        //     TestProvider,
+        //     TestModule,
+        //     {
+        //         [OBJECT_ID]: 'xx1',
+        //         class: XXX
+        //     },
+        //     {
+        //         id: 'testModule',
+        //         class: TestModule
+        //     },
+        //     {
+        //         id: 'testModule',
+        //         class: TestModule
+        //     },
+        //     `${process.cwd()}/distro/src/tests/unit/resources/glob-modules/*.js`
+        // ],
+        objects: {
+            named: {
+                tp: {class: TestProvider}
             },
-            {
-                id: 'testModule',
-                class: TestModule
-            },
-            {
-                id: 'testModule',
-                class: TestModule
-            },
-            `${process.cwd()}/distro/src/tests/unit/resources/glob-modules/*.js`
-        ],
+            anonymous: [TestModule, `${process.cwd()}/distro/src/tests/unit/resources/glob-modules/*.js`]
+        },
         bootstrap: ['abcd', TestModule, async (target): Promise<void> => {
         }]
     }
     const options: ModuleOptions = new ModuleOptions(opt)
-    const ctn: Container = new Container()
-    await ctn.load(options.objects ? options.objects : [])
-    const tp=await ctn.get(TestProvider)
-    tp.gg()
+    console.log(options)
+    // const ctn: Container = new Container()
+    // await ctn.load(options.objects ? options.objects : [])
+    // const tp=await ctn.get(TestProvider)
+    // tp.gg()
 })()

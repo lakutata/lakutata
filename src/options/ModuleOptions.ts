@@ -2,7 +2,8 @@ import {DTO} from '../lib/core/DTO.js'
 import {BaseObject} from '../lib/base/BaseObject.js'
 import {Expect} from '../decorators/dto/Expect.js'
 import {Module} from '../lib/core/Module.js'
-import {LoadObjectOptions} from './LoadObjectOptions.js'
+import {ModuleLoadObjectsOptions} from './ModuleLoadObjectsOptions.js'
+import {OverridableNamedObjectOptions} from './OverridableNamedObjectOptions.js'
 
 type BootstrapAsyncFunction<T = any, U = any> = (target: T) => Promise<U>
 
@@ -12,30 +13,38 @@ type BootstrapOption<ObjectConstructor extends typeof BaseObject, ModuleInstance
     | ObjectConstructor
     | BootstrapAsyncFunction<ModuleInstance, void>
 
-type LoadObjectsOption =
-    LoadObjectOptions
-    | typeof BaseObject
-    | string
-
 export class ModuleOptions<ObjectConstructor extends typeof BaseObject = typeof BaseObject, ModuleInstance extends Module = Module> extends DTO {
 
-    // public components: Record<string, any>
-    // public modules: Record<string, any>
+    /**
+     * Load components option
+     */
+    @Expect(OverridableNamedObjectOptions.optional())
+    public components?: OverridableNamedObjectOptions
+
+    /**
+     * Load providers option
+     */
+    @Expect(OverridableNamedObjectOptions.optional())
+    public providers?: OverridableNamedObjectOptions
+
+    /**
+     * Load modules option
+     */
+    @Expect(OverridableNamedObjectOptions.optional())
+    public modules?: OverridableNamedObjectOptions
 
     /**
      * Load objects option
      */
     @Expect(
-        DTO.Array(
-            DTO.Alternatives(
-                LoadObjectOptions.Schema(),
-                DTO.Class(BaseObject),
-                DTO.Glob())
-        )
+        ModuleLoadObjectsOptions
             .optional()
-            .default([])
+            .default({
+                named: {},
+                anonymous: []
+            })
     )
-    public objects?: LoadObjectsOption[]
+    public objects?: ModuleLoadObjectsOptions
 
     /**
      * Bootstrap option

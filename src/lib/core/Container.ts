@@ -6,7 +6,7 @@ import {
 import {DevNull} from '../base/func/DevNull.js'
 import {__destroy, BaseObject} from '../base/BaseObject.js'
 import {ConstructorSymbol} from '../base/internal/ConstructorSymbol.js'
-import {LoadObjectOptions} from '../../options/LoadObjectOptions.js'
+import {LoadObjectOptions, OBJECT_ID} from '../../options/LoadObjectOptions.js'
 import {asClass, asValue, BuildResolverOptions} from '../ioc/Resolvers.js'
 import {GetObjectLifetime} from '../base/internal/ObjectLifetime.js'
 import {
@@ -125,7 +125,7 @@ export class Container {
      */
     protected buildNameAndRegistrationPairFromOptions<T extends BaseObject>(options: LoadObjectOptions): NameAndRegistrationPair<T> {
         const pair: NameAndRegistrationPair<T> = {}
-        const id: string | symbol = options.id ? options.id : ConstructorSymbol(options.class)
+        const id: string | symbol = options[OBJECT_ID] ? options[OBJECT_ID] : ConstructorSymbol(options.class)
         const configurableRecords: Record<string, any> = {...options, class: void (0)}
         delete configurableRecords.id
         delete configurableRecords.class
@@ -170,7 +170,7 @@ export class Container {
      * Load objects
      * @param options
      */
-    @Accept(DTO.Array(DTO.Alternatives(LoadObjectOptions.Schema(),DTO.Class(() => BaseObject), DTO.Glob())))
+    @Accept(DTO.Array(DTO.Alternatives(LoadObjectOptions.Schema(), DTO.Class(() => BaseObject), DTO.Glob())))
     public async load<T extends typeof BaseObject>(options: (LoadObjectOptions | typeof BaseObject | string)[]): Promise<void> {
         let pair: NameAndRegistrationPair<T> = {}
         const buildNameAndRegistrationPairFromGlobPromises: Promise<NameAndRegistrationPair<T>>[] = []
