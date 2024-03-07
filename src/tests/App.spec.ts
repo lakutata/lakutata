@@ -60,6 +60,10 @@ class TestModule extends Module {
     // const instance: TestModule = await ctn.build(TestModule, {aaaa: '0'})
     // await instance.reload()
     // console.log(instance, isProxy(instance))
-    await Application.run({})
-
+    await Application.run({
+        bootstrap: [async () => {
+            console.log('oh!!!!!')
+        }]
+    })
+    // await Application.run({})
 })()

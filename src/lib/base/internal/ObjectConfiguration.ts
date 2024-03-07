@@ -43,7 +43,11 @@ export function SetObjectConfigurableProperty<ClassPrototype extends BaseObject,
  * @constructor
  */
 export function GetObjectConfigurableProperties<ClassPrototype extends BaseObject>(target: ClassPrototype): ObjectConfigurablePropertyMap {
-    const objectConfigurablePropertyMap: ObjectConfigurablePropertyMap = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, ObjectConstructor(target))
-    if (objectConfigurablePropertyMap) return objectConfigurablePropertyMap
-    return new Map()
+    const objectConfigurablePropertyMap: ObjectConfigurablePropertyMap = new Map()
+    ObjectParentConstructors(ObjectConstructor(target)).forEach((parentConstructor: Function): void => {
+        if (Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, parentConstructor))
+            As<ObjectConfigurablePropertyMap>(Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, parentConstructor)).forEach((value, key) => objectConfigurablePropertyMap.set(key, value))
+    })
+    As<ObjectConfigurablePropertyMap | undefined>(Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, ObjectConstructor(target)))?.forEach((value, key) => objectConfigurablePropertyMap.set(key, value))
+    return objectConfigurablePropertyMap
 }

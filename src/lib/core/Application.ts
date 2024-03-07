@@ -1,30 +1,26 @@
 import {Module} from './Module.js'
 import {Singleton} from '../../decorators/di/Lifetime.js'
 import {Container} from './Container.js'
-import {Configurable} from '../../decorators/di/Configurable.js'
-import {Inject} from '../../decorators/di/Inject.js'
 import {__destroy, __init} from '../base/BaseObject.js'
+import {ApplicationConfigLoader} from '../base/internal/ApplicationConfigLoader.js'
+import {ApplicationOptions} from '../../options/ApplicationOptions.js'
+import {Inject} from '../../decorators/di/Inject.js'
 
 @Singleton(true)
 export class Application extends Module {
+
+    protected ConfigLoader = ApplicationConfigLoader
 
     /**
      * Run application
      * @param options
      */
-    public static async run(options: any): Promise<void> {
+    public static async run(options: ApplicationOptions): Promise<void> {
         const rootContainer: Container = new Container()
         await rootContainer.set(Application, {
-            getter: 12345666,
-            options:{
-                dddd:111
-            }
+            options: options
         })
-        //TODO 加载参数
     }
-
-    @Configurable()
-    protected getter: any
 
     @Inject()
     protected app: Application
