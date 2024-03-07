@@ -9,6 +9,7 @@ import {TestObj} from './unit/resources/glob-modules/TestObj.js'
 import {BaseObject} from '../lib/base/BaseObject.js'
 import {Inject} from '../decorators/di/Inject.js'
 import {OBJECT_ID} from '../options/LoadObjectOptions.js'
+import {Delay} from '../lib/base/func/Delay.js'
 
 class XXX extends BaseObject {
     hahaha: string = 'hahahaah'
@@ -20,12 +21,17 @@ class XXX extends BaseObject {
 
 class TestProvider extends BaseObject {
 
-    @Inject()
-    protected xx1: XXX
+    @Configurable(DTO.String(), value => {
+        return value
+    })
+    public aaaa: string
+
+    // @Inject()
+    // protected xx1: XXX
 
     public gg() {
-        console.log(this.xx1)
-        this.xx1.oh()
+        // console.log(this.xx1)
+        // this.xx1.oh()
     }
 
     protected hello() {
@@ -35,7 +41,7 @@ class TestProvider extends BaseObject {
 
 class TestModule extends Module {
     @Configurable(DTO.String(), value => {
-        return value + '123456'
+        return value
     })
     public aaaa: string
 
@@ -60,10 +66,18 @@ class TestModule extends Module {
     // const instance: TestModule = await ctn.build(TestModule, {aaaa: '0'})
     // await instance.reload()
     // console.log(instance, isProxy(instance))
-    await Application.run({
-        bootstrap: [async () => {
-            console.log('oh!!!!!')
-        }]
+    const app=await Application.run({
+        id: 'test.app',
+        name: 'testApp',
+        alias: {
+            '@test1': '/home'
+        },
+        providers: {
+            testModule: {
+                class: TestProvider,
+                aaaa: path.resolve('@test', './test.file')
+            }
+        }
     })
-    // await Application.run({})
+    console.log(app)
 })()

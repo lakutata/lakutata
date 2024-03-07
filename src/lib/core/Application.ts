@@ -5,20 +5,37 @@ import {__destroy, __init} from '../base/BaseObject.js'
 import {ApplicationConfigLoader} from '../base/internal/ApplicationConfigLoader.js'
 import {ApplicationOptions} from '../../options/ApplicationOptions.js'
 import {Inject} from '../../decorators/di/Inject.js'
+import {ModuleOptions} from '../../options/ModuleOptions.js'
+import path from 'node:path'
+import {Alias} from '../Alias.js'
 
 @Singleton(true)
 export class Application extends Module {
 
+    /**
+     * Override config loader
+     * @protected
+     */
     protected ConfigLoader = ApplicationConfigLoader
+
+    /**
+     * Application embed options
+     * @protected
+     */
+    protected options: ModuleOptions = {
+        //TODO 自带组件的声明
+    }
 
     /**
      * Run application
      * @param options
      */
-    public static async run(options: ApplicationOptions): Promise<void> {
+    public static async run(options: ApplicationOptions): Promise<Application> {
+        Alias.init()
+        Alias.getAliasInstance().set('@test','/hhome')
         const rootContainer: Container = new Container()
-        await rootContainer.set(Application, {
-            options: options
+        return await rootContainer.set(Application, {
+            options: await ApplicationOptions.validateAsync(options)
         })
     }
 
@@ -33,6 +50,7 @@ export class Application extends Module {
         return super[__init](async (): Promise<void> => {
             //TODO
             // console.log(this)
+            // console.log(path.resolve('@test', './hahahaha'))
         })
     }
 
@@ -51,6 +69,7 @@ export class Application extends Module {
      */
     protected async init(): Promise<void> {
         //TODO
+        console.log(await this.getObject('testModule'))
     }
 
     /**

@@ -1,5 +1,5 @@
 import {Component} from './Component.js'
-import {Singleton} from '../../decorators/di/Lifetime.js'
+import {Scoped, Singleton} from '../../decorators/di/Lifetime.js'
 import {__destroy, __init, BaseObject} from '../base/BaseObject.js'
 import {Container} from './Container.js'
 import {GetObjectContainer} from '../base/internal/ObjectContainer.js'
@@ -15,7 +15,7 @@ const MODULE_INIT_END_SIGNAL: symbol = Symbol('MODULE_INIT_END')
 /**
  * Module base class
  */
-@Singleton(true)
+@Scoped(true)
 export class Module extends Component {
 
     /**
