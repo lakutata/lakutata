@@ -80,10 +80,9 @@ export class BaseObject extends AsyncConstructor {
                 //For autoload objects
                 registration = item.constructor
             }
-            injectionPromises.push(new Promise((resolve, reject) => {
+            injectionPromises.push(new Promise((resolve, reject): void => {
                 this.#container.get(registration).then(injectObject => {
-                    // console.log(item.constructor === injectObject.constructor) //TODO 看看是否要在两者不匹配时报错
-                    this[propertyKey] = injectObject
+                    Reflect.set(this, propertyKey, injectObject)
                     return resolve()
                 }).catch(reject)
             }))

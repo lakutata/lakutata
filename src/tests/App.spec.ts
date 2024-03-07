@@ -10,7 +10,21 @@ import {BaseObject} from '../lib/base/BaseObject.js'
 import {Inject} from '../decorators/di/Inject.js'
 
 class XXX extends BaseObject {
+    hahaha: string = 'hahahaah'
+}
 
+class TestProvider extends BaseObject {
+
+    @Inject()
+    protected xx: XXX
+
+    public gg() {
+        console.log(this.xx)
+    }
+
+    protected hello() {
+        return 'hello!!!!!!'
+    }
 }
 
 class TestModule extends Module {
@@ -20,10 +34,10 @@ class TestModule extends Module {
     public aaaa: string
 
     @Inject()
-    protected readonly xx: XXX
+    protected xx: XXX
 
     public gg() {
-
+        console.log(this.xx)
     }
 
     protected hello() {
@@ -48,10 +62,11 @@ class TestModule extends Module {
 
     const opt: ModuleOptions = {
         objects: [
+            TestProvider,
             TestModule,
             {
-                id:'xx',
-                class:XXX
+                id: 'xx',
+                class: XXX
             },
             {
                 id: 'testModule',
@@ -69,6 +84,6 @@ class TestModule extends Module {
     const options: ModuleOptions = new ModuleOptions(opt)
     const ctn: Container = new Container()
     await ctn.load(options.objects ? options.objects : [])
-    console.log(await ctn.get(TestObj))
-    console.log(await ctn.get('testModule'))
+    const tp=await ctn.get(TestProvider)
+    tp.gg()
 })()
