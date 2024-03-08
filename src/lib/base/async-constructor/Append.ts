@@ -1,4 +1,4 @@
-import {IsPromiseLike} from '../functions/IsPromiseLike.js'
+import {IsPromiseLike} from '../../functions/IsPromiseLike.js'
 
 export function AppendAsyncConstructor<T, U extends any[]>(target: T, asyncConstructor: (...args: U) => PromiseLike<void>, args?: U): void {
     async function applyAsyncConstructor(): Promise<T> {

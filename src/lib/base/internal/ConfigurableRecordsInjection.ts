@@ -1,8 +1,8 @@
 import {BaseObject} from '../BaseObject.js'
 import {DI_TARGET_ID} from '../../../constants/metadata-keys/DIMetadataKey.js'
 import {ConstructorSymbol} from './ConstructorSymbol.js'
-import {As} from '../functions/As.js'
 import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
+import {As} from '../../functions/As.js'
 
 /**
  * Set configurable records to target constructor with its registration name

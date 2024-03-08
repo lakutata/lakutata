@@ -1,10 +1,10 @@
 import {BaseObject} from '../BaseObject.js'
 import {DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES} from '../../../constants/metadata-keys/DIMetadataKey.js'
-import {ObjectConstructor} from '../functions/ObjectConstructor.js'
-import {As} from '../functions/As.js'
-import {ObjectParentConstructors} from '../functions/ObjectParentConstructors.js'
 import {DTO} from '../../core/DTO.js'
 import {Schema} from '../../validation/types/Schema.js'
+import {ObjectConstructor} from '../../functions/ObjectConstructor.js'
+import {ObjectParentConstructors} from '../../functions/ObjectParentConstructors.js'
+import {As} from '../../functions/As.js'
 
 export type ObjectConfigurablePropertyMap<DataType = any> = Map<string | symbol, {
     schema: Schema<DataType>

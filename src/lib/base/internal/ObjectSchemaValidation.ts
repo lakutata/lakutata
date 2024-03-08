@@ -1,21 +1,18 @@
 import {DTO} from '../../core/DTO.js'
-import {ObjectConstructor} from '../functions/ObjectConstructor.js'
 import {
     DTO_CONSTRUCTOR,
     DTO_INDEX_SIGNATURE_SCHEMA,
-    DTO_PROPERTY_SCHEMAS,
-    DTO_VALIDATE_OPTIONS
+    DTO_PROPERTY_SCHEMAS
 } from '../../../constants/metadata-keys/DTOMetadataKey.js'
-import {ObjectParentConstructors} from '../functions/ObjectParentConstructors.js'
-import {ObjectPrototype} from '../functions/ObjectPrototype.js'
 import {DataValidator} from './DataValidator.js'
-import {IsSymbol} from '../functions/IsSymbol.js'
-import {As} from '../functions/As.js'
 import {Schema} from '../../validation/types/Schema.js'
 import {ObjectSchema} from '../../validation/interfaces/ObjectSchema.js'
-import {ValidationOptions} from '../../validation/interfaces/ValidationOptions.js'
-import {DefaultValidationOptions} from '../../validation/VLD.js'
 import {SchemaMap} from '../../validation/types/SchemaMap.js'
+import {ObjectConstructor} from '../../functions/ObjectConstructor.js'
+import {ObjectParentConstructors} from '../../functions/ObjectParentConstructors.js'
+import {ObjectPrototype} from '../../functions/ObjectPrototype.js'
+import {IsSymbol} from '../../functions/IsSymbol.js'
+import {As} from '../../functions/As.js'
 
 export type ObjectPropertySchemaMap = Map<string, Schema>
 

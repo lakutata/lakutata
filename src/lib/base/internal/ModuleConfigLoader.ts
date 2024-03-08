@@ -6,10 +6,10 @@ import {AnonymousObject} from '../../../options/ModuleLoadObjectsOptions.js'
 import {LoadNamedObjectOptions} from '../../../options/LoadNamedObjectOptions.js'
 import {OverridableNamedObjectOptions} from '../../../options/OverridableNamedObjectOptions.js'
 import {OverridableObjectOptions} from '../../../options/OverridableObjectOptions.js'
-import {As} from '../functions/As.js'
 import {
     OverridableObjectTargetConfigNotFoundException
 } from '../../../exceptions/di/OverridableObjectTargetConfigNotFoundException.js'
+import {As} from '../../functions/As.js'
 
 export class ModuleConfigLoader<ModuleInstance extends Module = Module> {
 

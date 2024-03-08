@@ -1,11 +1,11 @@
 import {DTO} from '../../core/DTO.js'
 import {IsDTO} from './ObjectSchemaValidation.js'
-import {As} from '../functions/As.js'
 import {isAsyncFunction} from 'node:util/types'
 import {InvalidMethodAcceptException} from '../../../exceptions/dto/InvalidMethodAcceptException.js'
 import {InvalidMethodReturnException} from '../../../exceptions/dto/InvalidMethodReturnException.js'
 import {Schema} from '../../validation/types/Schema.js'
 import {ArraySchema} from '../../validation/interfaces/ArraySchema.js'
+import {As} from '../../functions/As.js'
 
 /**
  * For validate method accept arguments

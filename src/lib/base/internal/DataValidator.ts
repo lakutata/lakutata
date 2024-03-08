@@ -1,10 +1,6 @@
 import 'reflect-metadata'
 import {isAsyncFunction} from 'node:util/types'
-import {As} from '../functions/As.js'
-import {IsHtml} from '../functions/IsHtml.js'
-import {IsXML} from '../functions/IsXML.js'
 import {isValidCron} from 'cron-validator'
-import {IsGlobString} from '../functions/IsGlobString.js'
 import {AnySchema} from '../../validation/interfaces/AnySchema.js'
 import {VLD} from '../../validation/VLD.js'
 import {StringSchema} from '../../validation/interfaces/StringSchema.js'
@@ -24,6 +20,10 @@ import {SymbolSchema} from '../../validation/interfaces/SymbolSchema.js'
 import {CustomHelpers} from '../../validation/interfaces/CustomHelpers.js'
 import {FunctionSchema} from '../../validation/interfaces/FunctionSchema.js'
 import {BinarySchema} from '../../validation/interfaces/BinarySchema.js'
+import {As} from '../../functions/As.js'
+import {IsGlobString} from '../../functions/IsGlobString.js'
+import {IsHtml} from '../../functions/IsHtml.js'
+import {IsXML} from '../../functions/IsXML.js'
 
 export class DataValidator {
 

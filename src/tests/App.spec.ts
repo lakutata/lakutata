@@ -9,7 +9,7 @@ import {TestObj} from './unit/resources/glob-modules/TestObj.js'
 import {BaseObject} from '../lib/base/BaseObject.js'
 import {Inject} from '../decorators/di/Inject.js'
 import {OBJECT_ID} from '../options/LoadObjectOptions.js'
-import {Delay} from '../lib/base/functions/Delay.js'
+import {Delay} from '../lib/functions/Delay.js'
 
 class XXX extends BaseObject {
     hahaha: string = 'hahahaah'

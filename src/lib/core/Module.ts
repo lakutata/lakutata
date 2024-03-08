@@ -6,10 +6,10 @@ import {GetObjectContainer} from '../base/internal/ObjectContainer.js'
 import {BootstrapAsyncFunction, BootstrapOption, ModuleOptions} from '../../options/ModuleOptions.js'
 import {ModuleConfigLoader} from '../base/internal/ModuleConfigLoader.js'
 import {isAsyncFunction} from 'node:util/types'
-import {As} from '../base/functions/As.js'
 import {Configurable} from '../../decorators/di/Configurable.js'
 import {LoadObjectOptions} from '../../options/LoadObjectOptions.js'
 import {MODULE_INIT_DONE} from '../../constants/event-names/ModuleEventName.js'
+import {As} from '../functions/As.js'
 
 /**
  * Module base class

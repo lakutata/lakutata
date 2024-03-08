@@ -1,4 +1,4 @@
-import {DTO} from '../../core/DTO.js'
+import {DTO} from '../core/DTO.js'
 
 /**
  * Whether input value is symbol

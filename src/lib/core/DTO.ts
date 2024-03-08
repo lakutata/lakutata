@@ -6,12 +6,12 @@ import {
     GetObjectSchemaByPrototype
 } from '../base/internal/ObjectSchemaValidation.js'
 import {InvalidValueException} from '../../exceptions/dto/InvalidValueException.js'
-import {As} from '../base/functions/As.js'
-import {IsSymbol} from '../base/functions/IsSymbol.js'
 import {ValidationOptions} from '../validation/interfaces/ValidationOptions.js'
 import {VLDMethods} from '../validation/VLD.js'
 import {Schema} from '../validation/types/Schema.js'
 import {ObjectSchema} from '../validation/interfaces/ObjectSchema.js'
+import {IsSymbol} from '../functions/IsSymbol.js'
+import {As} from '../functions/As.js'
 
 /**
  * Get DTO's object schema

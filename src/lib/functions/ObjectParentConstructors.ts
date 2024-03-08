@@ -1,5 +1,5 @@
-import {IConstructor} from '../../../interfaces/IConstructor.js'
 import {ObjectParentConstructor} from './ObjectParentConstructor.js'
+import {IConstructor} from '../../interfaces/IConstructor.js'
 
 /**
  * Get class's parent constructors

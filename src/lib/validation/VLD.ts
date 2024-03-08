@@ -22,11 +22,11 @@ import {AlternativesSchema} from './interfaces/AlternativesSchema.js'
 import {LinkSchema} from './interfaces/LinkSchema.js'
 import {Schema} from './types/Schema.js'
 import {SchemaFunction} from './types/SchemaFunction.js'
-import {As} from '../base/functions/As.js'
 import {ValidationOptions} from './interfaces/ValidationOptions.js'
 import {InvalidValueException} from '../../exceptions/dto/InvalidValueException.js'
 import {SchemaMap} from './types/SchemaMap.js'
 import {SchemaLike} from './types/SchemaLike.js'
+import {As} from '../functions/As.js'
 
 export const DefaultValidationOptions: ValidationOptions = {
     abortEarly: true,

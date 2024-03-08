@@ -1,4 +1,4 @@
-import {As} from '../functions/As.js'
+import {As} from '../../functions/As.js'
 
 type BasicInfo = {
     appId: string

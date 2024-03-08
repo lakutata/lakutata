@@ -22,11 +22,11 @@ import {
     asFunction
 } from './Resolvers.js'
 import {isClass, last, nameValueToObject} from './Utils.js'
-import {As} from '../base/functions/As.js'
 import {
     DI_CONTAINER_NEW_TRANSIENT_CALLBACK
 } from '../../constants/metadata-keys/DIMetadataKey.js'
 import {GetObjectLifetime} from '../base/internal/ObjectLifetime.js'
+import {As} from '../functions/As.js'
 
 /**
  * The container returned from createContainer has some methods and properties.
