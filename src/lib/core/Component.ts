@@ -1,4 +1,4 @@
-import {__destroy, __init, BaseObject} from '../base/BaseObject.js'
+import {__destroy, __init} from '../base/BaseObject.js'
 import {Singleton} from '../../decorators/di/Lifetime.js'
 import {EventEmitter} from '../EventEmitter.js'
 import {
@@ -6,12 +6,13 @@ import {
     ListenerFn,
     EventAndListener
 } from 'eventemitter2'
+import {Provider} from './Provider.js'
 
 /**
  * Component base class
  */
 @Singleton()
-export class Component extends BaseObject implements EventEmitter {
+export class Component extends Provider implements EventEmitter {
 
     /**
      * Internal event emitter
@@ -39,7 +40,6 @@ export class Component extends BaseObject implements EventEmitter {
         await super[__destroy](async (): Promise<void> => {
             this.#eventEmitter.removeAllListeners()
         }, ...hooks)
-
     }
 
     /**
