@@ -49,65 +49,63 @@ export type TimeObject = {
 }
 
 /**
- * 时间类，继承于Date
+ * Time class
  */
 export class Time extends Date {
 
-    protected set __$$instance(instance: MomentTimezone.Moment) {
-        Reflect.defineMetadata('__$$instance', instance, this)
-    }
-
-    protected get __$$instance(): MomentTimezone.Moment {
-        return Reflect.getOwnMetadata('__$$instance', this)
-    }
+    /**
+     * Moment instance
+     * @private
+     */
+    #instance: MomentTimezone.Moment
 
     /**
      * Constructor
      * @param inp
      */
     constructor(inp?: TimeInput) {
-        const __$$instance: MomentTimezone.Moment = inp
+        const instance: MomentTimezone.Moment = inp
             ? (inp instanceof Time
-                ? MomentTimezone(inp.__$$instance)
+                ? MomentTimezone(inp.#instance)
                 : process.env.TZ
                     ? MomentTimezone(inp).tz(process.env.TZ)
                     : MomentTimezone(inp))
             : MomentTimezone()
-        super(__$$instance.valueOf())
-        this.__$$instance = __$$instance
+        super(instance.valueOf())
+        this.#instance = instance
     }
 
     /**
-     * 获取所有时区名称数组
+     * Get all timezone names
      */
     public static timezones(): string[] {
         return MomentTimezone.tz.names()
     }
 
     /**
-     * 返回给定实例的最大值（最遥远的未来）
+     * Returns the maximum value for a given instance (farthest into the future)
      * @param times
      */
     public static max(...times: Time[]): Time {
         if (!times.length) return new Time()
         const maxMap: Map<MomentTimezone.Moment, Time> = new Map()
-        times.forEach(time => maxMap.set(time.__$$instance, time))
+        times.forEach(time => maxMap.set(time.#instance, time))
         return maxMap.get(MomentTimezone.max(...maxMap.keys()))!
     }
 
     /**
-     * 返回给定实例的最小值（最遥远的过去）
+     * Returns the minimum value (most distant past) of the given instance
      * @param times
      */
     public static min(...times: Time[]): Time {
         if (!times.length) return new Time()
         const minMap: Map<MomentTimezone.Moment, Time> = new Map()
-        times.forEach(time => minMap.set(time.__$$instance, time))
+        times.forEach(time => minMap.set(time.#instance, time))
         return minMap.get(MomentTimezone.min(...minMap.keys()))!
     }
 
     /**
-     * 更新当前实例内部时间戳并返回当前实例
+     * Update the current instance internal timestamp and return the current instance
      * @param time
      * @protected
      */
@@ -117,362 +115,371 @@ export class Time extends Date {
     }
 
     /**
-     * 获取时区偏移量
+     * Get time zone offset
      */
     public getTimezoneOffset(): number {
-        return this.__$$instance.utcOffset()
+        return this.#instance.utcOffset()
     }
 
     /**
-     * 获取或设置时区
+     * Get or set time zone
      */
     public timezone(): string | undefined
     public timezone(tz: string): this
     public timezone(tz?: string): string | undefined | this {
         if (tz) {
-            this.__$$instance = this.__$$instance.tz(tz)
+            this.#instance = this.#instance.tz(tz)
             return this
         } else {
-            return this.__$$instance.tz()
+            return this.#instance.tz()
         }
     }
 
     /**
-     * 获取或设置毫秒数
+     * Get or set the number of milliseconds
      */
     public milliseconds(): number
     public milliseconds(value: number): this
     public milliseconds(value?: number): number | this {
-        return value !== undefined ? this.updateTimestamp(this.__$$instance.milliseconds(value).valueOf()) : this.__$$instance.milliseconds()
+        return value !== undefined ? this.updateTimestamp(this.#instance.milliseconds(value).valueOf()) : this.#instance.milliseconds()
     }
 
     /**
-     * 获取或设置秒数
+     * Get or set seconds
      */
     public seconds(): number
     public seconds(value: number): this
     public seconds(value?: number): number | this {
-        return value !== undefined ? this.updateTimestamp(this.__$$instance.seconds(value).valueOf()) : this.__$$instance.seconds()
+        return value !== undefined ? this.updateTimestamp(this.#instance.seconds(value).valueOf()) : this.#instance.seconds()
     }
 
     /**
-     * 获取或设置分钟
+     * Get or set minutes
      */
     public minutes(): number
     public minutes(value: number): this
     public minutes(value?: number): number | this {
-        return value !== undefined ? this.updateTimestamp(this.__$$instance.minutes(value).valueOf()) : this.__$$instance.minutes()
+        return value !== undefined ? this.updateTimestamp(this.#instance.minutes(value).valueOf()) : this.#instance.minutes()
     }
 
     /**
-     * 获取或设置小时
+     * Get or set the hour
      */
     public hours(): number
     public hours(value: number): this
     public hours(value?: number): number | this {
-        return value !== undefined ? this.updateTimestamp(this.__$$instance.hours(value).valueOf()) : this.__$$instance.hours()
+        return value !== undefined ? this.updateTimestamp(this.#instance.hours(value).valueOf()) : this.#instance.hours()
     }
 
     /**
-     * 获取或设置月中的第几天
-     * 接受从 1 到 31 的数字。 如果超出范围，它将冒泡到几个月
+     * Get or set the day of the month
+     * Accepts numbers from 1 to 31. If out of range it will bubble up to months
      */
     public date(): number
     public date(value: number): this
     public date(value?: number): number | this {
-        return value !== undefined ? this.updateTimestamp(this.__$$instance.date(value).valueOf()) : this.__$$instance.date()
+        return value !== undefined ? this.updateTimestamp(this.#instance.date(value).valueOf()) : this.#instance.date()
     }
 
     /**
-     * 设置获取或设置星期几
+     * Set to get or set the day of the week
      */
     public weekday(): number
     public weekday(value: number): this
     public weekday(value?: number): number | this {
-        return value !== undefined ? this.updateTimestamp(this.__$$instance.weekday(value).valueOf()) : this.__$$instance.weekday()
+        return value !== undefined ? this.updateTimestamp(this.#instance.weekday(value).valueOf()) : this.#instance.weekday()
     }
 
     /**
-     * 获取或设置 ISO 星期，1 为星期一，7 为星期日
+     * Get or set the ISO day of the week, 1 is Monday, 7 is Sunday
      */
     public isoWeekday(): number
     public isoWeekday(value: number): this
     public isoWeekday(value?: number): number | this {
-        return value !== undefined ? this.updateTimestamp(this.__$$instance.isoWeekday(value).valueOf()) : this.__$$instance.isoWeekday()
+        return value !== undefined ? this.updateTimestamp(this.#instance.isoWeekday(value).valueOf()) : this.#instance.isoWeekday()
     }
 
     /**
-     * 获取或设置一年中的第几天
-     * 接受从 1 到 366 的数字。 如果超出范围，它将冒泡到年份
+     * Get or set the day of the year
+     * Accepts numbers from 1 to 366. If out of range it will bubble up to the year
      */
     public dayOfYear(): number
     public dayOfYear(value: number): this
     public dayOfYear(value?: number): number | this {
-        return value !== undefined ? this.updateTimestamp(this.__$$instance.dayOfYear(value).valueOf()) : this.__$$instance.dayOfYear()
+        return value !== undefined ? this.updateTimestamp(this.#instance.dayOfYear(value).valueOf()) : this.#instance.dayOfYear()
     }
 
     /**
-     * 获取或设置一年中的第几周
+     * Gets or sets the week of the year
      */
     public weeks(): number
     public weeks(value: number): this
     public weeks(value?: number): number | this {
-        return value !== undefined ? this.updateTimestamp(this.__$$instance.weeks(value).valueOf()) : this.__$$instance.weeks()
+        return value !== undefined ? this.updateTimestamp(this.#instance.weeks(value).valueOf()) : this.#instance.weeks()
     }
 
     /**
-     * 获取或设置一年中的ISO周
+     * Gets or sets the ISO week of the year
      */
     public isoWeeks(): number
     public isoWeeks(value: number): this
     public isoWeeks(value?: number): number | this {
-        return value !== undefined ? this.updateTimestamp(this.__$$instance.isoWeeks(value).valueOf()) : this.__$$instance.isoWeeks()
+        return value !== undefined ? this.updateTimestamp(this.#instance.isoWeeks(value).valueOf()) : this.#instance.isoWeeks()
     }
 
     /**
-     * 获取或设置月份
-     * 接受从 0 到 11 的数字。 如果超出范围，它将冒泡到年份
+     * Get or set the month
+     * Accepts numbers from 0 to 11. If out of range it will bubble up to the year
      */
     public month(): number
     public month(value: number): this
     public month(value?: number): number | this {
-        return value !== undefined ? this.updateTimestamp(this.__$$instance.month(value).valueOf()) : this.__$$instance.month()
+        return value !== undefined ? this.updateTimestamp(this.#instance.month(value).valueOf()) : this.#instance.month()
     }
 
     /**
-     * 获取或设置月份（1 到 4）
+     * Gets or sets the quarter (1 to 4)
      */
     public quarters(): number
     public quarters(value: number): this
     public quarters(value?: number): number | this {
-        return value !== undefined ? this.updateTimestamp(this.__$$instance.quarters(value).valueOf()) : this.__$$instance.quarters()
+        return value !== undefined ? this.updateTimestamp(this.#instance.quarters(value).valueOf()) : this.#instance.quarters()
     }
 
     /**
-     * 获取或设置年份
-     * 接受从 -270,000 到 270,000 的数字
+     * Get or set the year
+     * Accepts numbers from -270,000 to 270,000
      */
     public year(): number
     public year(value: number): this
     public year(value?: number): number | this {
-        return value !== undefined ? this.updateTimestamp(this.__$$instance.year(value).valueOf()) : this.__$$instance.year()
+        return value !== undefined ? this.updateTimestamp(this.#instance.year(value).valueOf()) : this.#instance.year()
     }
 
     /**
-     * 获取或设置ISO周年
+     * Gets or sets the week of the year in ISO time
      */
     public isoWeekYear(): number
     public isoWeekYear(value: number): this
     public isoWeekYear(value?: number): number | this {
-        return value !== undefined ? this.updateTimestamp(this.__$$instance.isoWeekYear(value).valueOf()) : this.__$$instance.isoWeekYear()
+        return value !== undefined ? this.updateTimestamp(this.#instance.isoWeekYear(value).valueOf()) : this.#instance.isoWeekYear()
     }
 
     /**
-     * 根据当前实例所在年份的区域设置获取周数
+     * Gets the week number based on the locale of the current instance's year
      */
     public weeksInYear(): number {
-        return this.__$$instance.weeksInYear()
+        return this.#instance.weeksInYear()
     }
 
     /**
-     * 根据周数，获取当前实例所在年份的周数
+     * Get the week number of the year where the current instance is located based on the week number
      */
     public isoWeeksInYear(): number {
-        return this.__$$instance.weeksInYear()
+        return this.#instance.weeksInYear()
     }
 
     /**
-     * 通用获取器
+     * Universal getter (Depends on input unit)
      * @param unit
      */
     public get(unit: UnitOfTime.All): number {
-        return this.__$$instance.get(unit)
+        return this.#instance.get(unit)
     }
 
     /**
-     * 通用设置器
+     * Universal setter (Depends on input unit)
      * @param unit
      * @param value
      */
     public set(unit: UnitOfTime.All, value: number): this {
-        return this.updateTimestamp(this.__$$instance.set(unit, value).valueOf())
+        return this.updateTimestamp(this.#instance.set(unit, value).valueOf())
     }
 
     /**
-     * 增加时间
+     * Increase time
      * @param amount
      * @param unit
      */
     public add(amount: number, unit: UnitOfTime.DurationConstructor): this {
-        return this.updateTimestamp(this.__$$instance.add(amount, unit).valueOf())
+        return this.updateTimestamp(this.#instance.add(amount, unit).valueOf())
     }
 
     /**
-     * 减去时间
+     * Minus time
      * @param amount
      * @param unit
      */
     public subtract(amount: number, unit: UnitOfTime.DurationConstructor): this {
-        return this.updateTimestamp(this.__$$instance.subtract(amount, unit).valueOf())
+        return this.updateTimestamp(this.#instance.subtract(amount, unit).valueOf())
     }
 
     /**
-     * 设置为一个时间单位的开始
+     * Set to the start of a time unit
      * @param unit
      */
     public startOf(unit: UnitOfTime.StartOf): this {
-        return this.updateTimestamp(this.__$$instance.startOf(unit).valueOf())
+        return this.updateTimestamp(this.#instance.startOf(unit).valueOf())
     }
 
     /**
-     * 设置为时间单位的末尾
+     * Set to the end of the time unit
      * @param unit
      */
     public endOf(unit: UnitOfTime.StartOf): this {
-        return this.updateTimestamp(this.__$$instance.endOf(unit).valueOf())
+        return this.updateTimestamp(this.#instance.endOf(unit).valueOf())
     }
 
     /**
-     * 格式化输出时间字符串
+     * Format output time string
      */
     public format(): string
     public format(format: string): string
     public format(format?: string): string {
-        return this.__$$instance.format(format)
+        return this.#instance.format(format)
     }
 
     /**
-     * 获取时间差
+     * Get time difference
      * @param inp
      * @param unit
      * @param precise
      */
     public diff(inp: TimeInput, unit?: UnitOfTime.Diff, precise?: boolean): number {
-        return this.__$$instance.diff(new Time(inp).__$$instance, unit, precise)
+        return this.#instance.diff(new Time(inp).#instance, unit, precise)
     }
 
     /**
-     * 输出一个 Unix 时间戳（自 Unix 纪元以来的秒数）
+     * Outputs a Unix timestamp (number of seconds since the Unix epoch)
      */
     public unix(): number {
         this.valueOf()
-        return this.__$$instance.unix()
+        return this.#instance.unix()
     }
 
     /**
-     * 获取当月的天数
+     * Get the number of days in the current month
      */
     public daysInMonth(): number {
-        return this.__$$instance.daysInMonth()
+        return this.#instance.daysInMonth()
     }
 
     /**
-     * 这将返回一个数组，该数组反映了 new Date() 中的参数
+     * This will return an array that reflects the parameters in new Date()
      */
     public toArray(): [number, number, number, number, number, number, number] {
-        return this.__$$instance.toArray()
+        return this.#instance.toArray()
     }
 
     /**
-     * 返回一个包含年、月、月中某日、小时、分钟、秒、毫秒的对象
+     * Returns an object containing the year, month, day of the month, hour, minute, second, and millisecond
      */
     public toObject(): TimeObject {
-        return this.__$$instance.toObject()
+        return this.#instance.toObject()
     }
 
     /**
-     * 返回时间对象的字符串
+     * To string
      */
     public toString(): string {
-        return this.__$$instance.toString()
-    }
-
-    public toTimeString(): string {
-        return this.__$$instance.toString()
-    }
-
-    public toUTCString(): string {
-        return this.__$$instance.toISOString(true)
-    }
-
-    public toDateString(): string {
-        return this.__$$instance.format('ddd MMM DD YYYY')
+        return this.#instance.toString()
     }
 
     /**
-     * 返回时间对象的ISO格式字符串
+     * To time string
+     */
+    public toTimeString(): string {
+        return this.#instance.toString()
+    }
+
+    /**
+     * To UTC string
+     */
+    public toUTCString(): string {
+        return this.#instance.toISOString(true)
+    }
+
+    /**
+     * To date string
+     */
+    public toDateString(): string {
+        return this.#instance.format('ddd MMM DD YYYY')
+    }
+
+    /**
+     * Return ISO format time string
      */
     public toISOString(): string {
-        return this.__$$instance.toISOString()
+        return this.#instance.toISOString()
     }
 
     /**
-     * 检查一个时间是否在另一个时间之前
+     * Is current time before input time
      * @param inp
      * @param granularity
      */
     public isBefore(inp?: TimeInput, granularity?: UnitOfTime.StartOf): boolean {
-        return this.__$$instance.isBefore(new Time(inp).__$$instance, granularity)
+        return this.#instance.isBefore(new Time(inp).#instance, granularity)
     }
 
     /**
-     * 检查一个时间是否与另一个时间相同
+     * Is current time same with input time
      * @param inp
      * @param granularity
      */
     public isSame(inp?: TimeInput, granularity?: UnitOfTime.StartOf): boolean {
-        return this.__$$instance.isSame(new Time(inp).__$$instance, granularity)
+        return this.#instance.isSame(new Time(inp).#instance, granularity)
     }
 
     /**
-     * 检查一个时间是否在另一个时间之后
+     * Is current time after input time
      * @param inp
      * @param granularity
      */
     public isAfter(inp?: TimeInput, granularity?: UnitOfTime.StartOf): boolean {
-        return this.__$$instance.isAfter(new Time(inp).__$$instance, granularity)
+        return this.#instance.isAfter(new Time(inp).#instance, granularity)
     }
 
     /**
-     * 检查一个时间是否在另一个时间之前或与另一个时间相同
+     * Is current time same or before input time
      * @param inp
      * @param granularity
      */
     public isSameOrBefore(inp?: TimeInput, granularity?: UnitOfTime.StartOf): boolean {
-        return this.__$$instance.isSameOrBefore(new Time(inp).__$$instance, granularity)
+        return this.#instance.isSameOrBefore(new Time(inp).#instance, granularity)
     }
 
     /**
-     * 检查一个时间是否在另一个时间之后或与另一个时间相同
+     * Is current time same or after input time
      * @param inp
      * @param granularity
      */
     public isSameOrAfter(inp?: TimeInput, granularity?: UnitOfTime.StartOf): boolean {
-        return this.__$$instance.isSameOrAfter(new Time(inp).__$$instance, granularity)
+        return this.#instance.isSameOrAfter(new Time(inp).#instance, granularity)
     }
 
     /**
-     * 检查一个时间是否在其他两个时间之间
+     * Is current time between two input times
      * @param a
      * @param b
      * @param granularity
      * @param inclusivity
      */
     public isBetween(a: TimeInput, b: TimeInput, granularity?: UnitOfTime.StartOf, inclusivity?: '()' | '[)' | '(]' | '[]'): boolean {
-        return this.__$$instance.isBetween(new Time(a).__$$instance, new Time(b).__$$instance, granularity, inclusivity)
+        return this.#instance.isBetween(new Time(a).#instance, new Time(b).#instance, granularity, inclusivity)
     }
 
     /**
-     * 检查该实例的年份是否闰年
+     * Check current time instance is leap year
      */
     public isLeapYear(): boolean {
-        return this.__$$instance.isLeapYear()
+        return this.#instance.isLeapYear()
     }
 
     /**
-     * 克隆一个时间实例
+     * Clone a time instance
      */
     public clone(): Time {
-        return new Time(this.__$$instance.clone().valueOf())
+        return new Time(this.#instance.clone().valueOf())
     }
 }
