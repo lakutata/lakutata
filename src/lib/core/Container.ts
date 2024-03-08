@@ -24,6 +24,7 @@ import {listModules, ModuleDescriptor} from '../ioc/ListModules.js'
 import {pathToFileURL} from 'url'
 import {isClass} from '../ioc/Utils.js'
 import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
+import {LifetimeType} from '../ioc/Lifetime.js'
 
 export const containerSymbol: symbol = Symbol('LAKUTATA.DI.CONTAINER.SYMBOL')
 
@@ -91,8 +92,9 @@ export class Container {
      * @protected
      */
     protected buildResolverOptions<T extends BaseObject>(target: IBaseObjectConstructor<T>): BuildResolverOptions<T> {
+        const objectLifetime: LifetimeType = GetObjectLifetime(target)
         return {
-            lifetime: GetObjectLifetime(target),
+            lifetime: objectLifetime === 'SINGLETON' ? this.parent ? 'SCOPED' : objectLifetime : objectLifetime,
             dispose: (instance: BaseObject) => this.disposer(instance)
             // injector:()=>//TODO 暂时先不使用，若遇到有东西无法注入时再尝试使用
         }
