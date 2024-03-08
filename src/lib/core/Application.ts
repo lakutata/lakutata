@@ -1,7 +1,7 @@
 import {Module} from './Module.js'
 import {Singleton} from '../../decorators/di/Lifetime.js'
 import {Container} from './Container.js'
-import {__destroy, __init, BaseObject} from '../base/BaseObject.js'
+import {__destroy, __init} from '../base/BaseObject.js'
 import {ApplicationConfigLoader} from '../base/internal/ApplicationConfigLoader.js'
 import {ApplicationOptions} from '../../options/ApplicationOptions.js'
 import {Alias} from '../Alias.js'
@@ -57,8 +57,6 @@ export class Application extends Module {
     protected async [__init](): Promise<void> {
         return super[__init](async (): Promise<void> => {
             //TODO
-            // console.log(this)
-            // console.log(path.resolve('@test', './hahahaha'))
         })
     }
 
