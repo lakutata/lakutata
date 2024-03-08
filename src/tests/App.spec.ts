@@ -51,6 +51,10 @@ class TestModule extends Module {
     protected hello() {
         return 'hello!!!!!!'
     }
+
+    protected async destroy(): Promise<void> {
+        console.log('TestModule destroy')
+    }
 }
 
 (async () => {
@@ -79,6 +83,7 @@ class TestModule extends Module {
             }
         }
     })
-    console.log(app.alias.list())
+
+    await Delay(1000)
     app.exit(true)
 })()

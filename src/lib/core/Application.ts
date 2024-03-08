@@ -1,11 +1,12 @@
 import {Module} from './Module.js'
 import {Singleton} from '../../decorators/di/Lifetime.js'
 import {Container} from './Container.js'
-import {__destroy, __init} from '../base/BaseObject.js'
+import {__destroy, __init, BaseObject} from '../base/BaseObject.js'
 import {ApplicationConfigLoader} from '../base/internal/ApplicationConfigLoader.js'
 import {ApplicationOptions} from '../../options/ApplicationOptions.js'
 import {Alias} from '../Alias.js'
 import {MODULE_INIT_DONE} from '../../constants/event-names/ModuleEventName.js'
+import {GetBasicInfo} from '../base/internal/BasicInfo.js'
 
 const RCTNR: symbol = Symbol('ROOT_CONTAINER')
 
@@ -98,28 +99,28 @@ export class Application extends Module {
      * Get application's ID
      */
     public get appId(): string {
-        return ''//TODO
+        return GetBasicInfo().appId
     }
 
     /**
      * Get application's name
      */
     public get appName(): string {
-        return ''//TODO
+        return GetBasicInfo().appName
     }
 
     /**
      * Get application's timezone
      */
     public get timezone(): string {
-        return ''//TODO
+        return GetBasicInfo().timezone
     }
 
     /**
      * Get application's uptime
      */
     public get uptime(): number {
-        return 0//TODO
+        return Math.floor(process.uptime())
     }
 
     /**

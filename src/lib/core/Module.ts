@@ -97,36 +97,12 @@ export class Module extends Component {
     }
 
     /**
-     * Register object (extends BaseObject)
-     * @protected
-     */
-    protected async registerObject() {
-        //TODO
-
-    }
-
-    /**
-     * Register module
-     * @protected
-     */
-    protected async registerModule() {
-        //TODO
-    }
-
-    /**
      * Internal destroyer
      * @param hooks
      * @protected
      */
     protected async [__destroy](...hooks: (() => Promise<void>)[]): Promise<void> {
         return await super[__destroy](...hooks)
-    }
-
-    /**
-     * Initializer
-     * @protected
-     */
-    protected async init(): Promise<void> {
     }
 
     /**
