@@ -22,7 +22,7 @@ import {
     asFunction
 } from './Resolvers.js'
 import {isClass, last, nameValueToObject} from './Utils.js'
-import {As} from '../base/func/As.js'
+import {As} from '../base/functions/As.js'
 import {
     DI_CONTAINER_NEW_TRANSIENT_CALLBACK
 } from '../../constants/metadata-keys/DIMetadataKey.js'

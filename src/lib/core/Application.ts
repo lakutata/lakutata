@@ -4,9 +4,7 @@ import {Container} from './Container.js'
 import {__destroy, __init} from '../base/BaseObject.js'
 import {ApplicationConfigLoader} from '../base/internal/ApplicationConfigLoader.js'
 import {ApplicationOptions} from '../../options/ApplicationOptions.js'
-import {Inject} from '../../decorators/di/Inject.js'
 import {ModuleOptions} from '../../options/ModuleOptions.js'
-import path from 'node:path'
 import {Alias} from '../Alias.js'
 
 @Singleton(true)
@@ -32,15 +30,12 @@ export class Application extends Module {
      */
     public static async run(options: ApplicationOptions): Promise<Application> {
         Alias.init()
-        Alias.getAliasInstance().set('@test','/hhome')
         const rootContainer: Container = new Container()
+        Reflect.defineMetadata(Application, rootContainer, Application)
         return await rootContainer.set(Application, {
             options: await ApplicationOptions.validateAsync(options)
         })
     }
-
-    @Inject()
-    protected app: Application
 
     /**
      * Internal initializer
@@ -81,6 +76,13 @@ export class Application extends Module {
     }
 
     /**
+     * Alias manager
+     */
+    public get alias(): Alias {
+        return Alias.getAliasInstance()
+    }
+
+    /**
      * Get application's ID
      */
     public get appId(): string {
@@ -113,6 +115,9 @@ export class Application extends Module {
      * @param force
      */
     public exit(force?: boolean): void {
-        //TODO
+        const exit: () => void = () => process.exit(0)
+        if (force) return exit()
+        const rootContainer: Container = Reflect.getOwnMetadata(Application, Application)
+        rootContainer.destroy().then(exit).catch(exit)
     }
 }

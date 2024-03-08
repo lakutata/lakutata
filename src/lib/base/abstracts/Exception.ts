@@ -1,6 +1,6 @@
-import {As} from '../func/As.js'
-import {CamelCase} from '../func/CamelCase.js'
-import Templating from '../func/Templating.js'
+import {As} from '../functions/As.js'
+import {CamelCase} from '../functions/CamelCase.js'
+import Templating from '../functions/Templating.js'
 
 /**
  * 异常抽象类

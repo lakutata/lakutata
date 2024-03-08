@@ -6,8 +6,8 @@ import {
     GetObjectSchemaByPrototype
 } from '../base/internal/ObjectSchemaValidation.js'
 import {InvalidValueException} from '../../exceptions/dto/InvalidValueException.js'
-import {As} from '../base/func/As.js'
-import {IsSymbol} from '../base/func/IsSymbol.js'
+import {As} from '../base/functions/As.js'
+import {IsSymbol} from '../base/functions/IsSymbol.js'
 import {ValidationOptions} from '../validation/interfaces/ValidationOptions.js'
 import {VLDMethods} from '../validation/VLD.js'
 import {Schema} from '../validation/types/Schema.js'

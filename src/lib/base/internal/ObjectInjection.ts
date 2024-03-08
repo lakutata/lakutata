@@ -1,11 +1,11 @@
 import {BaseObject} from '../BaseObject.js'
-import {ObjectConstructor} from '../func/ObjectConstructor.js'
+import {ObjectConstructor} from '../functions/ObjectConstructor.js'
 import {
     DI_TARGET_CONSTRUCTOR_AUTOLOAD,
     DI_TARGET_CONSTRUCTOR_INJECTS
 } from '../../../constants/metadata-keys/DIMetadataKey.js'
-import {ObjectParentConstructors} from '../func/ObjectParentConstructors.js'
-import {ObjectPrototype} from '../func/ObjectPrototype.js'
+import {ObjectParentConstructors} from '../functions/ObjectParentConstructors.js'
+import {ObjectPrototype} from '../functions/ObjectPrototype.js'
 
 export type ObjectInjectionMap = Map<string | symbol, {
     name: string | symbol

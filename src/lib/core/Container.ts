@@ -3,7 +3,7 @@ import {
     IDependencyInjectionContainer,
     NameAndRegistrationPair
 } from '../ioc/DependencyInjectionContainer.js'
-import {DevNull} from '../base/func/DevNull.js'
+import {DevNull} from '../base/functions/DevNull.js'
 import {__destroy, BaseObject} from '../base/BaseObject.js'
 import {ConstructorSymbol} from '../base/internal/ConstructorSymbol.js'
 import {LoadObjectOptions, OBJECT_ID} from '../../options/LoadObjectOptions.js'
@@ -14,12 +14,12 @@ import {
     SetConfigurableRecords,
     SetConfigurableRecordsToInstance, SetIdToInstance
 } from '../base/internal/ConfigurableRecordsInjection.js'
-import {As} from '../base/func/As.js'
+import {As} from '../base/functions/As.js'
 import {DTO} from './DTO.js'
 import {GetObjectIsAutoload} from '../base/internal/ObjectInjection.js'
 import {DI_CONTAINER_NEW_TRANSIENT_CALLBACK} from '../../constants/metadata-keys/DIMetadataKey.js'
 import {Accept} from '../../decorators/dto/Accept.js'
-import {IsEmptyObject} from '../base/func/IsEmptyObject.js'
+import {IsEmptyObject} from '../base/functions/IsEmptyObject.js'
 import {listModules, ModuleDescriptor} from '../ioc/ListModules.js'
 import {pathToFileURL} from 'url'
 import {isClass} from '../ioc/Utils.js'

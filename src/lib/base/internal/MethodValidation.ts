@@ -1,6 +1,6 @@
 import {DTO} from '../../core/DTO.js'
 import {IsDTO} from './ObjectSchemaValidation.js'
-import {As} from '../func/As.js'
+import {As} from '../functions/As.js'
 import {isAsyncFunction} from 'node:util/types'
 import {InvalidMethodAcceptException} from '../../../exceptions/dto/InvalidMethodAcceptException.js'
 import {InvalidMethodReturnException} from '../../../exceptions/dto/InvalidMethodReturnException.js'

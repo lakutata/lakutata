@@ -1,8 +1,8 @@
 import {BaseObject} from '../BaseObject.js'
 import {DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES} from '../../../constants/metadata-keys/DIMetadataKey.js'
-import {ObjectConstructor} from '../func/ObjectConstructor.js'
-import {As} from '../func/As.js'
-import {ObjectParentConstructors} from '../func/ObjectParentConstructors.js'
+import {ObjectConstructor} from '../functions/ObjectConstructor.js'
+import {As} from '../functions/As.js'
+import {ObjectParentConstructors} from '../functions/ObjectParentConstructors.js'
 import {DTO} from '../../core/DTO.js'
 import {Schema} from '../../validation/types/Schema.js'
 

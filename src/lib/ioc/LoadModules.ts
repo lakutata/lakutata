@@ -10,8 +10,8 @@ import {
     asFunction
 } from './Resolvers.js'
 import {isClass, isFunction} from './Utils.js'
-import {CamelCase} from '../base/func/CamelCase.js'
-import {As} from '../base/func/As.js'
+import {CamelCase} from '../base/functions/CamelCase.js'
+import {As} from '../base/functions/As.js'
 
 /**
  * Metadata of the module as well as the loaded module itself.

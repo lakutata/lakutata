@@ -9,7 +9,7 @@ import {TestObj} from './unit/resources/glob-modules/TestObj.js'
 import {BaseObject} from '../lib/base/BaseObject.js'
 import {Inject} from '../decorators/di/Inject.js'
 import {OBJECT_ID} from '../options/LoadObjectOptions.js'
-import {Delay} from '../lib/base/func/Delay.js'
+import {Delay} from '../lib/base/functions/Delay.js'
 
 class XXX extends BaseObject {
     hahaha: string = 'hahahaah'
@@ -66,7 +66,7 @@ class TestModule extends Module {
     // const instance: TestModule = await ctn.build(TestModule, {aaaa: '0'})
     // await instance.reload()
     // console.log(instance, isProxy(instance))
-    const app=await Application.run({
+    const app = await Application.run({
         id: 'test.app',
         name: 'testApp',
         alias: {
@@ -80,4 +80,5 @@ class TestModule extends Module {
         }
     })
     console.log(app)
+    app.exit(true)
 })()
