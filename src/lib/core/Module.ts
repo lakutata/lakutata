@@ -1,5 +1,5 @@
 import {Component} from './Component.js'
-import {Scoped, Singleton} from '../../decorators/di/Lifetime.js'
+import {Singleton} from '../../decorators/di/Lifetime.js'
 import {__destroy, __init, BaseObject} from '../base/BaseObject.js'
 import {Container} from './Container.js'
 import {GetObjectContainer} from '../base/internal/ObjectContainer.js'
