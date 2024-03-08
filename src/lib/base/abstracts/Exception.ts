@@ -1,14 +1,15 @@
 import {As} from '../functions/As.js'
 import {CamelCase} from '../functions/CamelCase.js'
 import Templating from '../functions/Templating.js'
+import {GetBasicInfo} from '../internal/BasicInfo.js'
 
 /**
  * 异常抽象类
  */
 export abstract class Exception extends Error {
     public abstract errno: number | string
-    public readonly appId: string = process.env.appId ? process.env.appId : 'Unknown'
-    public readonly appName: string = process.env.appName ? process.env.appName : 'Unknown'
+    public readonly appId: string = (() => GetBasicInfo().appId)()
+    public readonly appName: string = (() => GetBasicInfo().appName)()
     public readonly errMsg: string
     public readonly err: string
 

@@ -3,6 +3,7 @@ import {LoadObjectOptions} from '../../../options/LoadObjectOptions.js'
 import {BaseObject} from '../BaseObject.js'
 import {ApplicationOptions} from '../../../options/ApplicationOptions.js'
 import {Alias} from '../../Alias.js'
+import {SetBasicInfo} from './BasicInfo.js'
 
 export class ApplicationConfigLoader extends ModuleConfigLoader {
 
@@ -13,11 +14,12 @@ export class ApplicationConfigLoader extends ModuleConfigLoader {
             Object.keys(aliases).forEach((aliasName: string) => alias.set(aliasName, aliases[aliasName]))
         }
         if (ApplicationOptions.isValid(applicationOptions)) {
-            process.env.appId = applicationOptions.id
-            process.env.appName = applicationOptions.name
-            process.env.TZ = applicationOptions.timezone === 'auto' ? Intl.DateTimeFormat().resolvedOptions().timeZone : applicationOptions.timezone
-            process.env.NODE_ENV = applicationOptions.mode ? applicationOptions.mode : 'development'
-            process.title = process.env.appId
+            process.title = SetBasicInfo({
+                appId: applicationOptions.id,
+                appName: applicationOptions.name,
+                timezone: applicationOptions.timezone ? applicationOptions.timezone : 'auto',
+                mode: applicationOptions.mode ? applicationOptions.mode : 'development'
+            }).appId
         }
         super(applicationOptions, presetLoadOptions)
     }
