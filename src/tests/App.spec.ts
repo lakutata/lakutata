@@ -79,6 +79,6 @@ class TestModule extends Module {
             }
         }
     })
-    console.log(app)
+    console.log(app.alias.list())
     app.exit(true)
 })()

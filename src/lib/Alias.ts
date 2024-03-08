@@ -21,7 +21,7 @@ export class Alias {
     }
 
     /**
-     * 初始化别名管理器，需要在非常早期进行初始化
+     * Init alias manager, must init it before application instance init
      */
     public static init(): void {
         const instance: Alias = new this()
@@ -29,23 +29,23 @@ export class Alias {
     }
 
     /**
-     * 获取别名管理器实例
+     * Get alias manager instance
      */
     public static getAliasInstance(): Alias {
         return Reflect.getMetadata(this, this)
     }
 
     /**
-     * 注册别名
-     * @param aliasName 别名名称
-     * @param aliasPath 别名路径
+     * Register alias
+     * @param aliasName
+     * @param aliasPath
      */
     public set(aliasName: string, aliasPath: string): void
     /**
-     * 注册别名
-     * @param aliasName 别名名称
-     * @param aliasPath 别名路径
-     * @param override 若已存在是否覆写
+     * Register alias
+     * @param aliasName
+     * @param aliasPath
+     * @param override
      */
     public set(aliasName: string, aliasPath: string, override: boolean): void
     public set(aliasName: string, aliasPath: string, override: boolean = false): void {
@@ -55,8 +55,8 @@ export class Alias {
     }
 
     /**
-     * 解析别名
-     * @param aliasName 别名名称
+     * Resolve alias
+     * @param aliasName
      */
     public get(aliasName: string): string {
         if (!this.aliasNameRegExp.test(aliasName)) throw new InvalidAliasNameException('The alias should start with \'@\' and only contain characters a-z|A-Z|0-9. The current alias \'{aliasName}\' does not comply with this rule.', {aliasName})
@@ -66,7 +66,7 @@ export class Alias {
     }
 
     /**
-     * 查询别名是否存在
+     * Whether an alias exists
      * @param aliasName
      */
     public has(aliasName: string): boolean {
@@ -75,7 +75,7 @@ export class Alias {
     }
 
     /**
-     * 解析包含别名的字符串
+     * Resolve string and replace alias name to alias value inside the string
      * @param containAliasPath
      */
     public resolve(containAliasPath: string): string {
@@ -91,5 +91,14 @@ export class Alias {
             isContainsAlias = _isContainsAlias
         }
         return path.normalize(containAliasPath)
+    }
+
+    /**
+     * List aliases
+     */
+    public list(): Record<string, string> {
+        const aliasList: Record<string, string> = {}
+        this.aliasMap.forEach((aliasValue: string, aliasKey: string) => Reflect.set(aliasList, aliasKey, aliasValue))
+        return aliasList
     }
 }

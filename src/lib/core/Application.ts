@@ -4,8 +4,10 @@ import {Container} from './Container.js'
 import {__destroy, __init} from '../base/BaseObject.js'
 import {ApplicationConfigLoader} from '../base/internal/ApplicationConfigLoader.js'
 import {ApplicationOptions} from '../../options/ApplicationOptions.js'
-import {ModuleOptions} from '../../options/ModuleOptions.js'
 import {Alias} from '../Alias.js'
+import {MODULE_INIT_DONE} from '../../constants/event-names/ModuleEventName.js'
+
+const RCTNR: symbol = Symbol('ROOT_CONTAINER')
 
 @Singleton(true)
 export class Application extends Module {
@@ -20,8 +22,11 @@ export class Application extends Module {
      * Application embed options
      * @protected
      */
-    protected options: ModuleOptions = {
+    protected options: Partial<ApplicationOptions> = {
         //TODO 自带组件的声明
+        alias: {
+            '@runtime': process.cwd()
+        }
     }
 
     /**
@@ -31,9 +36,16 @@ export class Application extends Module {
     public static async run(options: ApplicationOptions): Promise<Application> {
         Alias.init()
         const rootContainer: Container = new Container()
-        Reflect.defineMetadata(Application, rootContainer, Application)
-        return await rootContainer.set(Application, {
-            options: await ApplicationOptions.validateAsync(options)
+        Reflect.defineMetadata(RCTNR, rootContainer, Application)
+        return new Promise((resolve, reject): void => {
+            ApplicationOptions
+                .validateAsync(options)
+                .then((applicationOptions: ApplicationOptions) => rootContainer
+                    .set(Application, {options: applicationOptions})
+                    .then((app: Application) => app.once(MODULE_INIT_DONE, () => resolve(app)))
+                    .catch(reject)
+                )
+                .catch(reject)
         })
     }
 
@@ -117,7 +129,7 @@ export class Application extends Module {
     public exit(force?: boolean): void {
         const exit: () => void = () => process.exit(0)
         if (force) return exit()
-        const rootContainer: Container = Reflect.getOwnMetadata(Application, Application)
+        const rootContainer: Container = Reflect.getOwnMetadata(RCTNR, Application)
         rootContainer.destroy().then(exit).catch(exit)
     }
 }

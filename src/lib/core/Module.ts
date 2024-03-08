@@ -9,8 +9,7 @@ import {isAsyncFunction} from 'node:util/types'
 import {As} from '../base/functions/As.js'
 import {Configurable} from '../../decorators/di/Configurable.js'
 import {LoadObjectOptions} from '../../options/LoadObjectOptions.js'
-
-const MODULE_INIT_END_SIGNAL: symbol = Symbol('MODULE_INIT_END')
+import {MODULE_INIT_DONE} from '../../constants/event-names/ModuleEventName.js'
 
 /**
  * Module base class
@@ -93,7 +92,7 @@ export class Module extends Component {
                         }
                     }
                 })
-            this.emit(MODULE_INIT_END_SIGNAL)
+            this.emit(MODULE_INIT_DONE)
         })
     }
 
@@ -152,7 +151,7 @@ export class Module extends Component {
      */
     public async reload(): Promise<void> {
         await new Promise<void>((resolve, reject): void => {
-            this.once(MODULE_INIT_END_SIGNAL, () => resolve())
+            this.once(MODULE_INIT_DONE, () => resolve())
             super.reload().catch(reject)
         })
     }
