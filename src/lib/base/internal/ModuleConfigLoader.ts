@@ -10,6 +10,9 @@ import {
     OverridableObjectTargetConfigNotFoundException
 } from '../../../exceptions/di/OverridableObjectTargetConfigNotFoundException.js'
 import {As} from '../../functions/As.js'
+import {ObjectType} from './ObjectType.js'
+import {InvalidObjectTypeException} from '../../../exceptions/InvalidObjectTypeException.js'
+import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
 
 export class ModuleConfigLoader<ModuleInstance extends Module = Module> {
 
@@ -33,29 +36,44 @@ export class ModuleConfigLoader<ModuleInstance extends Module = Module> {
             }))
         }
         //Process component objects
-        this.processOverridableNamedObjectOptions(moduleOptions.components)
+        this.processOverridableNamedObjectOptions(ObjectType.Component, moduleOptions.components)
         //Process provider objects
-        this.processOverridableNamedObjectOptions(moduleOptions.providers)
+        this.processOverridableNamedObjectOptions(ObjectType.Provider, moduleOptions.providers)
         //Process module objects
-        this.processOverridableNamedObjectOptions(moduleOptions.modules)
+        this.processOverridableNamedObjectOptions(ObjectType.Module, moduleOptions.modules)
+    }
+
+    /**
+     * Validate constructor's object type
+     * @param expectObjectType
+     * @param target
+     * @protected
+     */
+    protected validateObjectType<ClassConstructor extends IBaseObjectConstructor>(expectObjectType: ObjectType, target: ClassConstructor): ClassConstructor {
+        if (target.$objectType !== expectObjectType) throw new InvalidObjectTypeException('{0} configuration only accepts object declarations of {1} types', [expectObjectType, expectObjectType.toLowerCase()])
+        return target
     }
 
     /**
      * Process overridable named object options
+     * @param objectType
      * @param options
      * @protected
      */
-    protected processOverridableNamedObjectOptions(options?: OverridableNamedObjectOptions): void {
+    protected processOverridableNamedObjectOptions(objectType: ObjectType, options?: OverridableNamedObjectOptions): void {
         if (!options) return
-        Object.keys(options).forEach((id: string) => {
+        Object.keys(options).forEach((id: string): void => {
             const overridableObjectOptions: OverridableObjectOptions = options[id]
             overridableObjectOptions[OBJECT_ID] = id
-            if (overridableObjectOptions.class) return this.$loadOptions.push(As<LoadObjectOptions>(overridableObjectOptions))
+            if (overridableObjectOptions.class) {
+                overridableObjectOptions.class = this.validateObjectType(objectType, overridableObjectOptions.class)
+                return this.$loadOptions.push(As<LoadObjectOptions>(overridableObjectOptions)) ? void (0) : void (0)
+            }
             for (const loadOptions of this.$presetLoadOptions) {
                 if (typeof loadOptions === 'string') continue
                 if (loadOptions instanceof BaseObject) continue
                 if (overridableObjectOptions[OBJECT_ID] === loadOptions[OBJECT_ID]) {
-                    return this.$loadOptions.push(Object.assign({}, loadOptions, overridableObjectOptions))
+                    return this.$loadOptions.push(Object.assign({}, loadOptions, overridableObjectOptions)) ? void (0) : void (0)
                 }
             }
             throw new OverridableObjectTargetConfigNotFoundException('No applicable configuration target found')

@@ -1,6 +1,7 @@
 export enum ObjectType {
-    Object = 'OBJECT',
-    Provider = 'PROVIDER',
-    Component = 'COMPONENT',
-    Module = 'MODULE'
+    Object = 'Object',
+    Provider = 'Provider',
+    Controller = 'Controller',
+    Component = 'Component',
+    Module = 'Module'
 }

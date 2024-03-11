@@ -15,7 +15,7 @@ import {ObjectType} from '../base/internal/ObjectType.js'
 @Singleton()
 export class Component extends Provider implements EventEmitter {
 
-    protected accessor $objectType: ObjectType = ObjectType.Component
+    public static accessor $objectType: ObjectType = ObjectType.Component
 
     /**
      * Internal event emitter

@@ -36,7 +36,7 @@ export const anonymousId: symbol = Symbol('anonymous')
 @Transient()
 export class BaseObject extends AsyncConstructor {
 
-    protected accessor $objectType: ObjectType = ObjectType.Object
+    public static accessor $objectType: ObjectType = ObjectType.Object
 
     readonly #container: Container
 

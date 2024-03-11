@@ -19,7 +19,7 @@ import {ObjectType} from '../base/internal/ObjectType.js'
 @Singleton(true)
 export class Module extends Component {
 
-    protected accessor $objectType: ObjectType = ObjectType.Module
+    public static accessor $objectType: ObjectType = ObjectType.Module
 
     /**
      * Config loader constructor

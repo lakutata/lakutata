@@ -8,6 +8,6 @@ import {ObjectType} from '../base/internal/ObjectType.js'
 @Scoped()
 export class Provider extends BaseObject {
 
-    protected accessor $objectType: ObjectType = ObjectType.Provider
+    public static accessor $objectType: ObjectType = ObjectType.Provider
 
 }
