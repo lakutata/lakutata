@@ -17,7 +17,7 @@ export class ModuleConfigLoader<ModuleInstance extends Module = Module> {
 
     protected $loadOptions: (LoadObjectOptions | typeof BaseObject | string)[] = []
 
-    protected $bootstrap: BootstrapOption<typeof BaseObject, ModuleInstance>[] = []
+    protected $bootstrap: BootstrapOption[] = []
 
     constructor(moduleOptions: ModuleOptions, presetLoadOptions: (LoadObjectOptions | typeof BaseObject | string)[] = []) {
         this.$presetLoadOptions = presetLoadOptions
@@ -72,7 +72,7 @@ export class ModuleConfigLoader<ModuleInstance extends Module = Module> {
     /**
      * Load bootstrap for module
      */
-    public get bootstrap(): BootstrapOption<typeof BaseObject, ModuleInstance>[] {
+    public get bootstrap(): BootstrapOption[] {
         return this.$bootstrap
     }
 }

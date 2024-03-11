@@ -4,14 +4,17 @@ import {Expect} from '../decorators/dto/Expect.js'
 import {Module} from '../lib/core/Module.js'
 import {ModuleLoadObjectsOptions} from './ModuleLoadObjectsOptions.js'
 import {OverridableNamedObjectOptions} from './OverridableNamedObjectOptions.js'
+import {Component} from '../lib/core/Component.js'
+import {IBaseObjectConstructor} from '../interfaces/IBaseObjectConstructor.js'
+import {Provider} from '../lib/core/Provider.js'
 
 export type BootstrapAsyncFunction<T = any, U = any> = (target: T) => Promise<U>
 
-export type BootstrapOption<ObjectConstructor extends typeof BaseObject = typeof BaseObject, ModuleInstance extends Module = Module> =
+export type BootstrapOption =
     string
     | symbol
-    | ObjectConstructor
-    | BootstrapAsyncFunction<ModuleInstance, void>
+    | IBaseObjectConstructor
+    | BootstrapAsyncFunction<Module, void>
 
 export class ModuleOptions extends DTO {
 
@@ -19,19 +22,19 @@ export class ModuleOptions extends DTO {
      * Load components option
      */
     @Expect(OverridableNamedObjectOptions.optional())
-    public components?: OverridableNamedObjectOptions
+    public components?: OverridableNamedObjectOptions<IBaseObjectConstructor<Component>>
 
     /**
      * Load providers option
      */
     @Expect(OverridableNamedObjectOptions.optional())
-    public providers?: OverridableNamedObjectOptions
+    public providers?: OverridableNamedObjectOptions<IBaseObjectConstructor<Provider>>
 
     /**
      * Load modules option
      */
     @Expect(OverridableNamedObjectOptions.optional())
-    public modules?: OverridableNamedObjectOptions
+    public modules?: OverridableNamedObjectOptions<typeof Module>
 
     //TODO 还需要加入controllers
 

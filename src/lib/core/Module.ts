@@ -10,6 +10,7 @@ import {Configurable} from '../../decorators/di/Configurable.js'
 import {LoadObjectOptions} from '../../options/LoadObjectOptions.js'
 import {MODULE_INIT_DONE} from '../../constants/event-names/ModuleEventName.js'
 import {As} from '../functions/As.js'
+import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
 
 /**
  * Module base class
@@ -59,7 +60,7 @@ export class Module extends Component {
      * Bootstrap
      * @private
      */
-    #bootstrap: BootstrapOption<typeof BaseObject, this>[] = []
+    #bootstrap: BootstrapOption[] = []
 
     /**
      * Constructor
@@ -130,5 +131,41 @@ export class Module extends Component {
             this.once(MODULE_INIT_DONE, () => resolve())
             super.reload().catch(reject)
         })
+    }
+
+    /**
+     * Get registered object via constructor
+     * @param constructor
+     * @param configurableRecords
+     */
+    public async getObject<T extends BaseObject>(constructor: IBaseObjectConstructor<T>, configurableRecords?: Record<string, any>): Promise<T>
+    /**
+     * Get registered object via string
+     * @param name
+     * @param configurableRecords
+     */
+    public async getObject<T extends BaseObject>(name: string, configurableRecords?: Record<string, any>): Promise<T>
+    /**
+     * Get registered object via symbol
+     * @param name
+     * @param configurableRecords
+     */
+    public async getObject<T extends BaseObject>(name: symbol, configurableRecords?: Record<string, any>): Promise<T>
+    /**
+     * Get registered object via string or symbol
+     * @param name
+     * @param configurableRecords
+     * @protected
+     */
+    public async getObject<T extends BaseObject>(name: string | symbol, configurableRecords?: Record<string, any>): Promise<T>
+    /**
+     * Get registered object via string or symbol or constructor
+     * @param nameOrConstructor
+     * @param configurableRecords
+     * @protected
+     */
+    public async getObject<T extends BaseObject>(nameOrConstructor: string | symbol | IBaseObjectConstructor<T>, configurableRecords?: Record<string, any>): Promise<T>
+    public async getObject<T extends BaseObject>(inp: string | symbol | IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
+        return await super.getObject(inp, configurableRecords)
     }
 }
