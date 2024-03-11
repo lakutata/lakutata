@@ -1,12 +1,13 @@
 import {Module} from './Module.js'
 import {Singleton} from '../../decorators/di/Lifetime.js'
 import {Container} from './Container.js'
-import {__destroy, __init} from '../base/BaseObject.js'
+import {__destroy, __init, BaseObject} from '../base/BaseObject.js'
 import {ApplicationConfigLoader} from '../base/internal/ApplicationConfigLoader.js'
 import {ApplicationOptions} from '../../options/ApplicationOptions.js'
 import {Alias} from '../Alias.js'
 import {MODULE_INIT_DONE} from '../../constants/event-names/ModuleEventName.js'
 import {GetBasicInfo} from '../base/internal/BasicInfo.js'
+import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
 
 const RCTNR: symbol = Symbol('ROOT_CONTAINER')
 
@@ -65,6 +66,7 @@ export class Application extends Module {
      * @protected
      */
     protected async [__destroy](): Promise<void> {
+        console.log('des')
         await super[__destroy]()
         //TODO
     }
@@ -122,13 +124,49 @@ export class Application extends Module {
     }
 
     /**
+     * Get registered object via constructor
+     * @param constructor
+     * @param configurableRecords
+     */
+    public async getObject<T extends BaseObject>(constructor: IBaseObjectConstructor<T>, configurableRecords?: Record<string, any>): Promise<T>
+    /**
+     * Get registered object via string
+     * @param name
+     * @param configurableRecords
+     */
+    public async getObject<T extends BaseObject>(name: string, configurableRecords?: Record<string, any>): Promise<T>
+    /**
+     * Get registered object via symbol
+     * @param name
+     * @param configurableRecords
+     */
+    public async getObject<T extends BaseObject>(name: symbol, configurableRecords?: Record<string, any>): Promise<T>
+    /**
+     * Get registered object via string or symbol
+     * @param name
+     * @param configurableRecords
+     * @protected
+     */
+    public async getObject<T extends BaseObject>(name: string | symbol, configurableRecords?: Record<string, any>): Promise<T>
+    /**
+     * Get registered object via string or symbol or constructor
+     * @param nameOrConstructor
+     * @param configurableRecords
+     * @protected
+     */
+    public async getObject<T extends BaseObject>(nameOrConstructor: string | symbol | IBaseObjectConstructor<T>, configurableRecords?: Record<string, any>): Promise<T>
+    public async getObject<T extends BaseObject>(inp: string | symbol | IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
+        return await super.getObject(inp, configurableRecords)
+    }
+
+    /**
      * Exit application
      * @param force
      */
     public exit(force?: boolean): void {
         const exit: () => void = () => process.exit(0)
-        if (force) return exit()
         const rootContainer: Container = Reflect.getOwnMetadata(RCTNR, Application)
         rootContainer.destroy().then(exit).catch(exit)
+        if (force) return exit()
     }
 }

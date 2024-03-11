@@ -10,6 +10,9 @@ import {BaseObject} from '../lib/base/BaseObject.js'
 import {Inject} from '../decorators/di/Inject.js'
 import {OBJECT_ID} from '../options/LoadObjectOptions.js'
 import {Delay} from '../lib/functions/Delay.js'
+import {Time} from '../lib/Time.js'
+import {EventEmitter} from '../lib/EventEmitter.js'
+
 
 class XXX extends BaseObject {
     hahaha: string = 'hahahaah'
@@ -18,7 +21,6 @@ class XXX extends BaseObject {
         console.log('this.$id:', this.$id)
     }
 }
-
 class TestProvider extends BaseObject {
 
     @Configurable(DTO.String(), value => {
@@ -26,16 +28,30 @@ class TestProvider extends BaseObject {
     })
     public aaaa: string
 
+    protected num: number = 0
+
+    protected buf: number[]
+
     // @Inject()
     // protected xx1: XXX
 
+    protected async init(): Promise<void> {
+
+    }
+
     public gg() {
+        this.buf = new Array(20 * 1024 * 1024)
+        console.log('i am test provider', this.num += 1, Time.now())
         // console.log(this.xx1)
         // this.xx1.oh()
     }
 
     protected hello() {
         return 'hello!!!!!!'
+    }
+
+    protected async destroy(): Promise<void> {
+        console.log('TestProvider destroy')
     }
 }
 
@@ -53,7 +69,7 @@ class TestModule extends Module {
     }
 
     protected async destroy(): Promise<void> {
-        console.log('TestModule destroy')
+        console.log('TestModule destroy111')
     }
 }
 
@@ -76,6 +92,12 @@ class TestModule extends Module {
         alias: {
             '@test1': '/home'
         },
+        providers: {
+            testProvider: {
+                class: TestProvider,
+                aaaa: path.resolve('@test', './test.file')
+            }
+        },
         modules: {
             testModule: {
                 class: TestModule,
@@ -84,6 +106,18 @@ class TestModule extends Module {
         }
     })
 
-    await Delay(1000)
-    app.exit(true)
+    // await Delay(1000)
+    // console.log(await app.getObject('testModule'))
+    // app.exit()
+    const ctn = new Container()
+    while (true) {
+        await Delay(10)
+        // const test: TestProvider | null = await app.getObject<TestProvider>('testProvider')
+        const test: TestProvider = await ctn.build(TestProvider)
+        test.gg()
+        // test = null
+        // new TestProvider({}).gg()
+        // const tp=await ctn.build(TestProvider)
+        // tp.gg()
+    }
 })()

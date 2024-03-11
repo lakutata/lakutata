@@ -15,7 +15,6 @@ import {
 } from '../base/internal/ConfigurableRecordsInjection.js'
 import {DTO} from './DTO.js'
 import {GetObjectIsAutoload} from '../base/internal/ObjectInjection.js'
-import {DI_CONTAINER_NEW_TRANSIENT_CALLBACK} from '../../constants/metadata-keys/DIMetadataKey.js'
 import {Accept} from '../../decorators/dto/Accept.js'
 import {listModules, ModuleDescriptor} from '../ioc/ListModules.js'
 import {pathToFileURL} from 'url'
@@ -25,6 +24,7 @@ import {LifetimeType} from '../ioc/Lifetime.js'
 import {DevNull} from '../functions/DevNull.js'
 import {As} from '../functions/As.js'
 import {IsEmptyObject} from '../functions/IsEmptyObject.js'
+import {AppendObjectWeakRefs, ClearObjectWeakRefs, GetObjectWeakRefs} from '../base/internal/ObjectWeakRefs.js'
 
 export const containerSymbol: symbol = Symbol('LAKUTATA.DI.CONTAINER.SYMBOL')
 
@@ -34,9 +34,11 @@ export class Container {
 
     #subContainerSet: Set<Container> = new Set()
 
-    #transientWeakRefs: WeakRef<any>[] = []
+    // #transientWeakRefs: WeakRef<BaseObject>[] = []
 
-    #builtObjects: Set<BaseObject> = new Set()
+    // #builtObjectWeakRefs: WeakRef<BaseObject>[] = []
+
+    // #builtObjects: Set<BaseObject> = new Set()
 
     protected readonly parent?: Container
 
@@ -44,33 +46,33 @@ export class Container {
         this.parent = parent
         this.#dic = parent ? parent.#dic.createScope() : createContainer({injectionMode: 'PROXY', strict: true})
         if (this.parent) this.parent.#subContainerSet.add(this)
-        Object.defineProperty(this.#dic, 'newTransient', {
-            set: (resolvedWeakRef: WeakRef<any>): void => {
-                this.#transientWeakRefs.push(resolvedWeakRef)
-                this.updateTransientWeakRefs()
-            }
-        })
-        Object.defineProperty(this.#dic, DI_CONTAINER_NEW_TRANSIENT_CALLBACK, {
-            value: (resolvedWeakRef: WeakRef<any>): void => {
-                this.#transientWeakRefs.push(resolvedWeakRef)
-                this.updateTransientWeakRefs()
-            }
-        })
+        // Object.defineProperty(this.#dic, 'newTransient', {
+        //     set: (resolvedWeakRef: WeakRef<any>): void => {
+        //         this.#transientWeakRefs.push(resolvedWeakRef)
+        //         this.updateTransientWeakRefs()
+        //     }
+        // })
+        // Object.defineProperty(this.#dic, DI_CONTAINER_NEW_TRANSIENT_CALLBACK, {
+        //     value: (resolvedWeakRef: WeakRef<any>): void => {
+        //         this.#transientWeakRefs.push(resolvedWeakRef)
+        //         this.updateTransientWeakRefs()
+        //     }
+        // })
         this.#dic.register(containerSymbol, asValue(this))
     }
 
-    /**
-     * Update transient object weakRef list
-     * @protected
-     */
-    protected updateTransientWeakRefs(): void {
-        const __$transientWeakRefs: WeakRef<any>[] = []
-        for (const ref of this.#transientWeakRefs) {
-            const transient = ref.deref()
-            if (transient !== undefined) __$transientWeakRefs.push(new WeakRef(transient))
-        }
-        this.#transientWeakRefs = __$transientWeakRefs
-    }
+    // /**
+    //  * Update transient object weakRef list
+    //  * @protected
+    //  */
+    // protected updateTransientWeakRefs(): void {
+    //     const __$transientWeakRefs: WeakRef<any>[] = []
+    //     for (const ref of this.#transientWeakRefs) {
+    //         const transient = ref.deref()
+    //         if (transient !== undefined) __$transientWeakRefs.push(new WeakRef(transient))
+    //     }
+    //     this.#transientWeakRefs = __$transientWeakRefs
+    // }
 
     /**
      * Destroy objects inside container
@@ -83,7 +85,7 @@ export class Container {
         } catch (e) {
             DevNull(e)
         }
-        this.updateTransientWeakRefs()
+        // this.updateTransientWeakRefs()
     }
 
     /**
@@ -116,7 +118,7 @@ export class Container {
             //set configurable records into object instance
             SetConfigurableRecordsToInstance(As<T>(resolved), Object.assign({}, presetConfigurableRecords, configurableRecords))
         }
-        this.updateTransientWeakRefs()
+        // this.updateTransientWeakRefs()
         return Promise.resolve(resolved)
     }
 
@@ -196,7 +198,7 @@ export class Container {
             })
         }
         if (!IsEmptyObject(pair)) this.#dic.register(pair)
-        this.updateTransientWeakRefs()
+        // this.updateTransientWeakRefs()
     }
 
     /**
@@ -237,8 +239,7 @@ export class Container {
                 class: As<typeof BaseObject>(inp)
             }])
         }
-        const resolved: T | Promise<T> = this.#dic.resolve(registrationName)
-        return await this.processResolved(resolved, registrationName, configurableRecords)
+        return await this.processResolved(this.#dic.resolve(registrationName), registrationName, configurableRecords)
     }
 
     /**
@@ -285,9 +286,8 @@ export class Container {
      * @param configurableRecords
      */
     public async build<T extends BaseObject>(target: IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
-        const resolved: T | Promise<T> = this.#dic.build<T>(target, this.buildResolverOptions(target))
-        const builtObject: T = await this.processResolved(resolved, ConstructorSymbol(target), configurableRecords)
-        this.#builtObjects.add(builtObject)
+        const builtObject: T = await this.processResolved(this.#dic.build<T>(target, this.buildResolverOptions(target)), ConstructorSymbol(target), configurableRecords)
+        AppendObjectWeakRefs(this, builtObject)
         return builtObject
     }
 
@@ -295,7 +295,7 @@ export class Container {
      * Create sub container scope
      */
     public createScope(): Container {
-        this.updateTransientWeakRefs()
+        // this.updateTransientWeakRefs()
         return new Container(this)
     }
 
@@ -305,25 +305,20 @@ export class Container {
     public async destroy(): Promise<void> {
         if (this.parent) this.parent.#subContainerSet.delete(this)
         const destroySubContainerPromises: Promise<void>[] = []
-        const destroyBuiltObjectPromises: Promise<void>[] = []
         this.#subContainerSet.forEach((subContainer: Container) =>
             destroySubContainerPromises.push(new Promise((resolve, reject) =>
                 subContainer.destroy().then(resolve).catch(reject))))
-        this.#builtObjects.forEach((builtObject: BaseObject): void => {
-            destroyBuiltObjectPromises.push(new Promise<void>(resolve => {
-                Promise.resolve(builtObject.getMethod(__destroy, false)()).then(() => resolve()).catch(() => resolve())
-            }))
-        })
-        await Promise.all(destroyBuiltObjectPromises)
         await Promise.all(destroySubContainerPromises)
         await this.#dic.dispose()
-        for (const ref of this.#transientWeakRefs) {
+        for (const ref of GetObjectWeakRefs(this)) {
             const transient = ref.deref()
+            if (!transient) continue
             try {
                 if (transient[__destroy]) await transient[__destroy]()
             } catch (e) {
                 DevNull(e)
             }
         }
+        ClearObjectWeakRefs(this)
     }
 }

@@ -22,11 +22,9 @@ import {
     asFunction
 } from './Resolvers.js'
 import {isClass, last, nameValueToObject} from './Utils.js'
-import {
-    DI_CONTAINER_NEW_TRANSIENT_CALLBACK
-} from '../../constants/metadata-keys/DIMetadataKey.js'
 import {GetObjectLifetime} from '../base/internal/ObjectLifetime.js'
 import {As} from '../functions/As.js'
+import {AppendObjectWeakRefs} from '../base/internal/ObjectWeakRefs.js'
 
 /**
  * The container returned from createContainer has some methods and properties.
@@ -487,7 +485,6 @@ function createContainerInternal<
      */
     function resolve(this: any, name: string | symbol, resolveOpts?: ResolveOptions): any {
         resolveOpts = resolveOpts || {}
-
         try {
             // Grab the registration by name.
             const resolver = getRegistration(name)
@@ -612,10 +609,7 @@ function createContainerInternal<
              * 用于加载配置对象至注入项目内
              */
             //判断是否为瞬态模式的注册项目调用，若为瞬态模式的注册项目调用，则应找个地方记录下来，以便在容器销毁时对残留的瞬态对象实例销毁
-            if (GetObjectLifetime(resolved.constructor) === Lifetime.TRANSIENT) {
-                const diContainer: IDependencyInjectionContainer = this
-                diContainer[DI_CONTAINER_NEW_TRANSIENT_CALLBACK](new WeakRef(resolved))
-            }
+            if (GetObjectLifetime(resolved.constructor) === Lifetime.TRANSIENT) AppendObjectWeakRefs(this, resolved)
             return resolved
         } catch (err) {
             // When we get an error we need to reset the stack. Mutate the existing array rather than
@@ -648,8 +642,8 @@ function createContainerInternal<
             return (targetOrResolver as Resolver<T>).resolve(container)
         }
 
-        const funcName = 'build'
-        const paramName = 'targetOrResolver'
+        const funcName: string = 'build'
+        const paramName: string = 'targetOrResolver'
         DependencyInjectionTypeError.assert(
             targetOrResolver,
             funcName,
