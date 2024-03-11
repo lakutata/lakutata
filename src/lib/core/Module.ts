@@ -11,12 +11,15 @@ import {LoadObjectOptions} from '../../options/LoadObjectOptions.js'
 import {MODULE_INIT_DONE} from '../../constants/event-names/ModuleEventName.js'
 import {As} from '../functions/As.js'
 import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
+import {ObjectType} from '../base/internal/ObjectType.js'
 
 /**
  * Module base class
  */
 @Singleton(true)
 export class Module extends Component {
+
+    protected accessor $objectType: ObjectType = ObjectType.Module
 
     /**
      * Config loader constructor

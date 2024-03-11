@@ -7,12 +7,15 @@ import {
     EventAndListener
 } from 'eventemitter2'
 import {Provider} from './Provider.js'
+import {ObjectType} from '../base/internal/ObjectType.js'
 
 /**
  * Component base class
  */
 @Singleton()
 export class Component extends Provider implements EventEmitter {
+
+    protected accessor $objectType: ObjectType = ObjectType.Component
 
     /**
      * Internal event emitter

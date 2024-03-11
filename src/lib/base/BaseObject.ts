@@ -13,6 +13,7 @@ import {IsSymbol} from '../functions/IsSymbol.js'
 import {ObjectConstructor} from '../functions/ObjectConstructor.js'
 import {As} from '../functions/As.js'
 import {DevNull} from '../functions/DevNull.js'
+import {ObjectType} from './internal/ObjectType.js'
 
 /**
  * Internal init function symbol
@@ -34,6 +35,8 @@ export const anonymousId: symbol = Symbol('anonymous')
  */
 @Transient()
 export class BaseObject extends AsyncConstructor {
+
+    protected accessor $objectType: ObjectType = ObjectType.Object
 
     readonly #container: Container
 
