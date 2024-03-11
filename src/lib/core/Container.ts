@@ -34,45 +34,14 @@ export class Container {
 
     #subContainerSet: Set<Container> = new Set()
 
-    // #transientWeakRefs: WeakRef<BaseObject>[] = []
-
-    // #builtObjectWeakRefs: WeakRef<BaseObject>[] = []
-
-    // #builtObjects: Set<BaseObject> = new Set()
-
     protected readonly parent?: Container
 
     constructor(parent?: Container) {
         this.parent = parent
         this.#dic = parent ? parent.#dic.createScope() : createContainer({injectionMode: 'PROXY', strict: true})
         if (this.parent) this.parent.#subContainerSet.add(this)
-        // Object.defineProperty(this.#dic, 'newTransient', {
-        //     set: (resolvedWeakRef: WeakRef<any>): void => {
-        //         this.#transientWeakRefs.push(resolvedWeakRef)
-        //         this.updateTransientWeakRefs()
-        //     }
-        // })
-        // Object.defineProperty(this.#dic, DI_CONTAINER_NEW_TRANSIENT_CALLBACK, {
-        //     value: (resolvedWeakRef: WeakRef<any>): void => {
-        //         this.#transientWeakRefs.push(resolvedWeakRef)
-        //         this.updateTransientWeakRefs()
-        //     }
-        // })
         this.#dic.register(containerSymbol, asValue(this))
     }
-
-    // /**
-    //  * Update transient object weakRef list
-    //  * @protected
-    //  */
-    // protected updateTransientWeakRefs(): void {
-    //     const __$transientWeakRefs: WeakRef<any>[] = []
-    //     for (const ref of this.#transientWeakRefs) {
-    //         const transient = ref.deref()
-    //         if (transient !== undefined) __$transientWeakRefs.push(new WeakRef(transient))
-    //     }
-    //     this.#transientWeakRefs = __$transientWeakRefs
-    // }
 
     /**
      * Destroy objects inside container
@@ -85,7 +54,6 @@ export class Container {
         } catch (e) {
             DevNull(e)
         }
-        // this.updateTransientWeakRefs()
     }
 
     /**
@@ -118,7 +86,6 @@ export class Container {
             //set configurable records into object instance
             SetConfigurableRecordsToInstance(As<T>(resolved), Object.assign({}, presetConfigurableRecords, configurableRecords))
         }
-        // this.updateTransientWeakRefs()
         return Promise.resolve(resolved)
     }
 
@@ -198,7 +165,6 @@ export class Container {
             })
         }
         if (!IsEmptyObject(pair)) this.#dic.register(pair)
-        // this.updateTransientWeakRefs()
     }
 
     /**
@@ -295,7 +261,6 @@ export class Container {
      * Create sub container scope
      */
     public createScope(): Container {
-        // this.updateTransientWeakRefs()
         return new Container(this)
     }
 
@@ -310,15 +275,18 @@ export class Container {
                 subContainer.destroy().then(resolve).catch(reject))))
         await Promise.all(destroySubContainerPromises)
         await this.#dic.dispose()
-        for (const ref of GetObjectWeakRefs(this)) {
-            const transient = ref.deref()
-            if (!transient) continue
-            try {
-                if (transient[__destroy]) await transient[__destroy]()
-            } catch (e) {
-                DevNull(e)
+        const destroyTransientPromises: Promise<void>[] = []
+        GetObjectWeakRefs(this).forEach((ref: WeakRef<BaseObject>): void => {
+            let transient: BaseObject | undefined = ref.deref()
+            if (!transient) return
+            if (transient[__destroy]) {
+                destroyTransientPromises.push(new Promise(resolve => transient ? Promise.resolve(transient[__destroy]()).then(() => {
+                    transient = undefined
+                    return resolve()
+                }).catch(DevNull) : resolve()))
             }
-        }
+        })
+        await Promise.all(destroyTransientPromises)
         ClearObjectWeakRefs(this)
     }
 }
