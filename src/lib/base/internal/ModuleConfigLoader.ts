@@ -72,9 +72,7 @@ export class ModuleConfigLoader<ModuleInstance extends Module = Module> {
             for (const loadOptions of this.$presetLoadOptions) {
                 if (typeof loadOptions === 'string') continue
                 if (loadOptions instanceof BaseObject) continue
-                if (overridableObjectOptions[OBJECT_ID] === loadOptions[OBJECT_ID]) {
-                    return this.$loadOptions.push(Object.assign({}, loadOptions, overridableObjectOptions)) ? void (0) : void (0)
-                }
+                if (overridableObjectOptions[OBJECT_ID] === loadOptions[OBJECT_ID]) return this.$loadOptions.push(Object.assign({}, loadOptions, overridableObjectOptions)) ? void (0) : void (0)
             }
             throw new OverridableObjectTargetConfigNotFoundException('No applicable configuration target found')
         })
