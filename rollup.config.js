@@ -14,13 +14,20 @@ const thirdPartyPackageRootDirname = 'vendor'
 const outputDirname = 'distro'
 const jsrcOutputDirname = path.join(outputDirname, 'src')
 
+let vendorNumber = 0
+const vendorMap = new Map()
+const chunkNameGenerator = (chunkName) => {
+    if (!vendorMap.has(chunkName)) vendorMap.set(chunkName, ++vendorNumber)
+    return `${thirdPartyPackageRootDirname}/package${vendorMap.get(chunkName) || 0}`
+}
+
 export default {
     input: globFiles('src/**/*.ts'),
     output: {
         format: 'esm',
         dir: outputDirname,
         exports: 'auto',
-        compact: false,//减小文件体积
+        compact: true,//减小文件体积
         interop: 'auto',
         generatedCode: 'es2015',
         manualChunks: (id) => {
@@ -35,13 +42,17 @@ export default {
                     return dirname === 'node_modules'
                 })
                 let chunkName = dirnames[1]
-                return `${thirdPartyPackageRootDirname}/${chunkName}`
+                return chunkNameGenerator(chunkName)
             }
         },
         entryFileNames: (chunkInfo) => {
             const facadeModuleId = normalizeString(chunkInfo.facadeModuleId)
             const relativeDir = path.relative(currentWorkingDir, path.dirname(facadeModuleId))
             return path.join(relativeDir, `${chunkInfo.name}.js`)
+        },
+        chunkFileNames: (chunkInfo) => {
+            if (!chunkInfo.name.startsWith(thirdPartyPackageRootDirname)) chunkInfo.name = chunkNameGenerator(chunkInfo.name)
+            return `${chunkInfo.name}.js`
         }
     },
     treeshake: false,
