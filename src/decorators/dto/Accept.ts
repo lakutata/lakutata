@@ -8,6 +8,6 @@ import {Schema} from '../../lib/validation/types/Schema.js'
  * @param defs
  * @constructor
  */
-export function Accept<ClassPrototype, DTOConstructor extends typeof DTO>(...defs: (DTOConstructor | Schema)[]): TMethodDecorator<ClassPrototype> {
-    return (target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<any>) => SetMethodAcceptArgumentsValidator(target, propertyKey, descriptor, defs)
+export function Accept<ClassPrototype, DTOConstructor extends typeof DTO, Method>(...defs: (DTOConstructor | Schema)[]): TMethodDecorator<ClassPrototype, Method> {
+    return (target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<Method>) => SetMethodAcceptArgumentsValidator(target, propertyKey, descriptor, defs)
 }

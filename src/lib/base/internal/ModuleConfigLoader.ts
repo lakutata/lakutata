@@ -13,8 +13,9 @@ import {As} from '../../functions/As.js'
 import {ObjectType} from './ObjectType.js'
 import {InvalidObjectTypeException} from '../../../exceptions/InvalidObjectTypeException.js'
 import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
+import {Controller} from '../../core/Controller.js'
 
-export class ModuleConfigLoader<ModuleInstance extends Module = Module> {
+export class ModuleConfigLoader {
 
     protected $presetLoadOptions: (LoadObjectOptions | typeof BaseObject | string)[] = []
 
@@ -34,6 +35,13 @@ export class ModuleConfigLoader<ModuleInstance extends Module = Module> {
                 ...namedObjects[id],
                 [OBJECT_ID]: id
             }))
+        }
+        //Process controllers
+        if (moduleOptions.controllers) {
+            moduleOptions.controllers.forEach((controllerConstructor: IBaseObjectConstructor<Controller>) => {
+                //TODO 加载controller
+                this.loadOptions.push(controllerConstructor)
+            })
         }
         //Process component objects
         this.processOverridableNamedObjectOptions(ObjectType.Component, moduleOptions.components)

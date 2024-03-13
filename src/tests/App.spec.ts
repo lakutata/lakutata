@@ -2,6 +2,7 @@ import {Application} from '../lib/core/Application.js'
 import {TestComponent} from './components/TestComponent.js'
 import {TestModule} from './modules/TestModule.js'
 import {TestProvider} from './providers/TestProvider.js'
+import {TestController1} from './controllers/TestController1.js'
 
 (async (): Promise<void> => {
     await Application.run({
@@ -23,14 +24,21 @@ import {TestProvider} from './providers/TestProvider.js'
                 class: TestModule
             }
         },
+        controllers: [
+            TestController1
+        ],
         bootstrap: [
             'testModule',
             'testComponent',
+            // async (target): Promise<void> => {
+            //     const testComponent = await target.getObject<TestComponent>('testComponent')
+            //     const testModule = await target.getObject<TestModule>('testModule')
+            //     testComponent.on('testComponentEvent', (timeStr: string) => console.log('Receive testComponentEvent    ', timeStr))
+            //     testModule.on('testModuleEvent', (timeStr: string) => console.log('Receive testModuleEvent       ', timeStr))
+            // },
             async (target): Promise<void> => {
-                const testComponent = await target.getObject<TestComponent>('testComponent')
-                const testModule = await target.getObject<TestModule>('testModule')
-                testComponent.on('testComponentEvent', (timeStr: string) => console.log('Receive testComponentEvent    ', timeStr))
-                testModule.on('testModuleEvent', (timeStr: string) => console.log('Receive testModuleEvent       ', timeStr))
+                const testController1 = await target.getObject(TestController1)
+                await testController1.test('a',1)
             }
         ]
     })
