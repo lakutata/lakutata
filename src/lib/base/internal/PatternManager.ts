@@ -9,7 +9,7 @@ export class PatternManager implements IPatRun {
 
     #engine: IPatRun
 
-    private constructor(options: PatternManagerOptions = {globMatch: true}) {
+    constructor(options: PatternManagerOptions = {globMatch: true}) {
         this.#engine = Patrun({gex: !!options.globMatch})
     }
 

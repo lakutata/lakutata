@@ -3,8 +3,18 @@ import {TestComponent} from './components/TestComponent.js'
 import {TestModule} from './modules/TestModule.js'
 import {TestProvider} from './providers/TestProvider.js'
 import {TestController1} from './controllers/TestController1.js'
+import {PatternManager} from '../lib/base/internal/PatternManager.js'
 
 (async (): Promise<void> => {
+
+    const pm = new PatternManager()
+    pm.add({test: true, abc: 123}, function () {
+        console.log('hello world')
+    })
+
+    console.log(pm.find({test: true, abc: 123}))
+
+
     await Application.run({
         id: 'test.app',
         name: 'TestApp',
@@ -38,7 +48,7 @@ import {TestController1} from './controllers/TestController1.js'
             // },
             async (target): Promise<void> => {
                 const testController1 = await target.getObject(TestController1)
-                await testController1.test('a',1)
+                await testController1.test('a', 1)
             }
         ]
     })
