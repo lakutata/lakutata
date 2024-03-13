@@ -4,7 +4,7 @@ import {SetMethodAcceptArgumentsValidator} from '../../lib/base/internal/MethodV
 import {Schema} from '../../lib/validation/types/Schema.js'
 
 /**
- * Property Decorator
+ * Method Decorator
  * @param defs
  * @constructor
  */

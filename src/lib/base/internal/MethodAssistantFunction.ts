@@ -1,5 +1,12 @@
 import {isAsyncFunction} from 'node:util/types'
 import {InvalidAssistantFunctionTypeException} from '../../../exceptions/InvalidAssistantFunctionTypeException.js'
+import {As} from '../../functions/As.js'
+
+const ASST_BEFORE_FUNC_SET: symbol = Symbol('ASST.BEFORE.FUNC.SET')
+const ASST_AFTER_FUNC_SET: symbol = Symbol('ASST.AFTER.FUNC.SET')
+const ASST_MODIFIED: symbol = Symbol('ASST.MODIFIED')
+export type BeforeFunction<ClassPrototype extends Object, Method extends (...args: any[]) => unknown> = (this: ClassPrototype, ...args: Parameters<Method>) => Promise<Parameters<Method> | void> | Parameters<Method> | void
+export type AfterFunction<ClassPrototype extends Object, Method extends (...args: any[]) => unknown> = (this: ClassPrototype, result: Awaited<ReturnType<Method>>) => Promise<ReturnType<Method> | void> | ReturnType<Method> | void
 
 /**
  * Register a function which will run before target method
@@ -9,8 +16,8 @@ import {InvalidAssistantFunctionTypeException} from '../../../exceptions/Invalid
  * @param beforeFunction
  * @constructor
  */
-export function RegisterBeforeFunction<ClassPrototype extends Object, Method extends (...args: any[]) => unknown>(target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<Method>, beforeFunction: (this: ClassPrototype, ...args: Parameters<Method>) => Promise<Parameters<Method> | void> | Parameters<Method> | void): TypedPropertyDescriptor<Method> {
-    descriptor.value = generateModifyMethod(target, applicabilityCheck(descriptor.value, beforeFunction), {
+export function RegisterBeforeFunction<ClassPrototype extends Object, Method extends (...args: any[]) => unknown>(target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<Method>, beforeFunction: BeforeFunction<ClassPrototype, Method>): TypedPropertyDescriptor<Method> {
+    descriptor.value = registerAssistantFunctionToMethod(target, propertyKey, applicabilityCheck(descriptor.value, beforeFunction), {
         before: beforeFunction
     })
     return descriptor
@@ -24,35 +31,66 @@ export function RegisterBeforeFunction<ClassPrototype extends Object, Method ext
  * @param afterFunction
  * @constructor
  */
-export function RegisterAfterFunction<ClassPrototype extends Object, Method extends (...args: any[]) => unknown>(target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<Method>, afterFunction: (this: ClassPrototype, result: Awaited<ReturnType<Method>>) => Promise<ReturnType<Method> | void> | ReturnType<Method> | void): TypedPropertyDescriptor<Method> {
-    descriptor.value = generateModifyMethod(target, applicabilityCheck(descriptor.value, afterFunction), {
+export function RegisterAfterFunction<ClassPrototype extends Object, Method extends (...args: any[]) => unknown>(target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<Method>, afterFunction: AfterFunction<ClassPrototype, Method>): TypedPropertyDescriptor<Method> {
+    descriptor.value = registerAssistantFunctionToMethod(target, propertyKey, applicabilityCheck(descriptor.value, afterFunction), {
         after: afterFunction
     })
     return descriptor
 }
 
 /**
- * Generate modified method
+ * Register assistant function to method
  * @param target
+ * @param propertyKey
  * @param originalMethod
  * @param assistantFunction
  */
-function generateModifyMethod<ClassPrototype extends Object, Method extends (...args: any[]) => unknown>(target: ClassPrototype, originalMethod: (...args: any[]) => Promise<any> | any, assistantFunction: {
-    before?: (this: ClassPrototype, ...args: Parameters<Method>) => Promise<Parameters<Method> | void> | Parameters<Method> | void
-    after?: (this: ClassPrototype, result: Awaited<ReturnType<Method>>) => Promise<ReturnType<Method> | void> | ReturnType<Method> | void
+function registerAssistantFunctionToMethod<ClassPrototype extends Object, Method extends (...args: any[]) => unknown>(target: ClassPrototype, propertyKey: string | symbol, originalMethod: (...args: any[]) => Promise<any> | any, assistantFunction: {
+    before?: BeforeFunction<ClassPrototype, Method>
+    after?: AfterFunction<ClassPrototype, Method>
 }): Method {
+    const beforeFunctionSet: Set<BeforeFunction<ClassPrototype, Method>> = Reflect.getOwnMetadata(ASST_BEFORE_FUNC_SET, target, propertyKey) || new Set()
+    const afterFunctionSet: Set<AfterFunction<ClassPrototype, Method>> = Reflect.getOwnMetadata(ASST_AFTER_FUNC_SET, target, propertyKey) || new Set()
+    if (assistantFunction.before) {
+        beforeFunctionSet.add(assistantFunction.before)
+        Reflect.defineMetadata(ASST_BEFORE_FUNC_SET, beforeFunctionSet, target, propertyKey)
+    }
+    if (assistantFunction.after) {
+        afterFunctionSet.add(assistantFunction.after)
+        Reflect.defineMetadata(ASST_AFTER_FUNC_SET, afterFunctionSet, target, propertyKey)
+    }
+    if (Reflect.hasOwnMetadata(ASST_MODIFIED, target, propertyKey)) return As<Method>(originalMethod)
+    Reflect.defineMetadata(ASST_MODIFIED, true, target, propertyKey)
     let modifiedMethod: Method & any
     if (isAsyncFunction(originalMethod)) {
         modifiedMethod = async function (this: ClassPrototype, ...args: Parameters<Method>) {
-            if (assistantFunction.before) await assistantFunction.before?.call(target, ...args)
-            const result = await originalMethod(...args)
-            if (assistantFunction.after) await assistantFunction.after?.call(target, result)
+            const beforeFunctionSet: Set<BeforeFunction<ClassPrototype, Method>> = Reflect.getOwnMetadata(ASST_BEFORE_FUNC_SET, target, propertyKey) || new Set()
+            const afterFunctionSet: Set<AfterFunction<ClassPrototype, Method>> = Reflect.getOwnMetadata(ASST_AFTER_FUNC_SET, target, propertyKey) || new Set()
+            for (const beforeFunc of beforeFunctionSet) {
+                const beforeFuncResult: Parameters<Method> | void = await beforeFunc.call(this, ...args)
+                if (beforeFuncResult !== undefined) args = beforeFuncResult
+            }
+            let result = await originalMethod.call(this, ...args)
+            for (const afterFunc of afterFunctionSet) {
+                const afterFuncResult: ReturnType<Method> | void = await afterFunc.call(this, result)
+                if (afterFuncResult !== undefined) result = afterFuncResult
+            }
+            return result
         }
     } else {
         modifiedMethod = function (this: ClassPrototype, ...args: Parameters<Method>) {
-            if (assistantFunction.before) assistantFunction.before?.call(target, ...args)
-            const result = originalMethod(...args)
-            if (assistantFunction.after) assistantFunction.after?.call(target, result)
+            const beforeFunctionSet: Set<BeforeFunction<ClassPrototype, Method>> = Reflect.getOwnMetadata(ASST_BEFORE_FUNC_SET, target, propertyKey) || new Set()
+            const afterFunctionSet: Set<AfterFunction<ClassPrototype, Method>> = Reflect.getOwnMetadata(ASST_AFTER_FUNC_SET, target, propertyKey) || new Set()
+            for (const beforeFunc of beforeFunctionSet) {
+                const beforeFuncResult: Parameters<Method> | void = As<Parameters<Method> | void>(beforeFunc.call(this, ...args))
+                if (beforeFuncResult !== undefined) args = beforeFuncResult
+            }
+            let result = originalMethod.call(this, ...args)
+            for (const afterFunc of afterFunctionSet) {
+                const afterFuncResult: ReturnType<Method> | void = As<ReturnType<Method> | void>(afterFunc.call(this, result))
+                if (afterFuncResult !== undefined) result = afterFuncResult
+            }
+            return result
         }
     }
     return modifiedMethod

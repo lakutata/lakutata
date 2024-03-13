@@ -15,16 +15,16 @@ export class TestController1 extends Controller {
         console.log('TestController11111')
     }
 
+    @After((res) => {
+        console.log('after', res)
+    })
     @Before(function (a: string, b: number) {
         // console.log('this:',this)
         console.log('before', a, b)
         return ['hahaha', 6666]
     })
-    @After((res) => {
-        console.log('after', res)
-    })
     public async test(a: string, b: number) {
-        console.log('test func invoked')
+        console.log('test func invoked', a, b)
         return `ok ${a} ${b}`
     }
 }

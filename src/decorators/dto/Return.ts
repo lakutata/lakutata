@@ -4,7 +4,7 @@ import {SetMethodReturnValueValidator} from '../../lib/base/internal/MethodValid
 import {Schema} from '../../lib/validation/types/Schema.js'
 
 /**
- * Property Decorator
+ * Method Decorator
  * @param def
  * @constructor
  */
