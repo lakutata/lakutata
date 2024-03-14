@@ -13,7 +13,11 @@ export class HTTPContext extends BaseContext {
     @Expect(DTO.String().required())
     public readonly method: string
 
-    public readonly query: any
+    @Expect(DTO.Object().pattern(DTO.String(), DTO.String()).optional().default({}))
+    public readonly query: Record<string, string>
 
-    public readonly params: any
+    @Expect(DTO.Object().pattern(DTO.String(), DTO.String()).optional().default({}))
+    public readonly params: Record<string, string>
+
+    public readonly body: any
 }

@@ -11,19 +11,6 @@ import {HTTPContext} from '../lib/context/HTTPContext.js'
 
 (async (): Promise<void> => {
 
-    console.log(new HTTPContext({
-        route: '/test',
-        method: 'get'
-    }))
-    return
-    const pm = new PatternManager()
-    pm.add({test: true, abc: 123}, function () {
-        console.log('hello world')
-    })
-
-    console.log(pm.find({test: true, abc: 123}))
-
-
     await Application.run({
         id: 'test.app',
         name: 'TestApp',

@@ -1,6 +1,11 @@
 import {Provider} from './Provider.js'
 import {DefineObjectType, ObjectType} from '../base/internal/ObjectType.js'
 import {Scoped} from '../../decorators/di/Lifetime.js'
+import {CLIContext} from '../context/CLIContext.js'
+import {HTTPContext} from '../context/HTTPContext.js'
+import {ServiceContext} from '../context/ServiceContext.js'
+import {Configurable} from '../../decorators/di/Configurable.js'
+import {DTO} from './DTO.js'
 
 /**
  * For action decorator
@@ -14,5 +19,10 @@ export type ControllerProperty<ClassPrototype extends Controller> = Exclude<keyo
 @DefineObjectType(ObjectType.Controller)
 export class Controller extends Provider {
 
-    context: any
+    /**
+     * Context, possible be cli context, http context or service context
+     * @protected
+     */
+    @Configurable(DTO.Alternatives(CLIContext.Schema(), HTTPContext.Schema(), ServiceContext.Schema()).required())
+    protected readonly context: CLIContext | HTTPContext | ServiceContext
 }
