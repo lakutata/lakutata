@@ -7,9 +7,15 @@ import {PatternManager} from '../lib/base/internal/PatternManager.js'
 import {DTO} from '../lib/core/DTO.js'
 import {Stream} from 'node:stream'
 import path from 'node:path'
+import {HTTPContext} from '../lib/context/HTTPContext.js'
 
 (async (): Promise<void> => {
 
+    console.log(new HTTPContext({
+        route: '/test',
+        method: 'get'
+    }))
+    return
     const pm = new PatternManager()
     pm.add({test: true, abc: 123}, function () {
         console.log('hello world')

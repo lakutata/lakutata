@@ -24,9 +24,9 @@ export class TestController1 extends Controller {
     //     console.log('before', a, b)
     //     return ['hahaha', 6666]
     // })
-    @CLIAction()
-    @HTTPAction()
-    @ServiceAction({})
+    // @CLIAction()
+    // @HTTPAction()
+    // @ServiceAction({})
     public async test(a: string, b: number) {
         console.log('test func invoked', a, b)
         return `ok ${a} ${b}`

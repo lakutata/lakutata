@@ -88,8 +88,7 @@ export class DTO extends DataValidator {
                 return Reflect.set(target, prop, value, receiver)
             },
             get: (target: this, p: string | symbol, receiver: any): any => dynamicProxyProperty(target, p, receiver, (): void => {
-                const res = DTO.validate({...this}, getObjectSchema(this), {noDefaults: true})
-                console.log(JSON.stringify(res, null, 2))
+                DTO.validate({...this}, getObjectSchema(this), {noDefaults: true})
             }),
             deleteProperty: (target: any, prop: string | symbol): boolean => {
                 if (!IsSymbol(prop)) validatePropertyValue(this, prop, void (0))
