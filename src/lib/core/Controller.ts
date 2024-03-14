@@ -2,6 +2,9 @@ import {Provider} from './Provider.js'
 import {DefineObjectType, ObjectType} from '../base/internal/ObjectType.js'
 import {Scoped} from '../../decorators/di/Lifetime.js'
 
+/**
+ * For action decorator
+ */
 export type ControllerProperty<ClassPrototype extends Controller> = Exclude<keyof ClassPrototype, keyof Controller>
 
 /**
