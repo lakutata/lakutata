@@ -24,7 +24,6 @@ export class Application extends Module {
      * @protected
      */
     protected options: Partial<ApplicationOptions> = {
-        //TODO 自带组件的声明
         alias: {
             '@runtime': process.cwd()
         }
@@ -57,6 +56,7 @@ export class Application extends Module {
     protected async [__init](): Promise<void> {
         return super[__init](async (): Promise<void> => {
             //TODO
+            console.log(this.options)
         })
     }
 

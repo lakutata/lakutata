@@ -5,6 +5,7 @@ import {Before} from '../../decorators/asst/Before.js'
 import {Accept} from '../../decorators/dto/Accept.js'
 import {DTO} from '../../lib/core/DTO.js'
 import {After} from '../../decorators/asst/After.js'
+import {CLIAction} from '../../decorators/ctrl/CLIAction.js'
 
 export class TestController1 extends Controller {
 
@@ -23,6 +24,7 @@ export class TestController1 extends Controller {
         console.log('before', a, b)
         return ['hahaha', 6666]
     })
+    @CLIAction()
     public async test(a: string, b: number) {
         console.log('test func invoked', a, b)
         return `ok ${a} ${b}`

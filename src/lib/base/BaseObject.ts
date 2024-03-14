@@ -13,7 +13,7 @@ import {IsSymbol} from '../functions/IsSymbol.js'
 import {ObjectConstructor} from '../functions/ObjectConstructor.js'
 import {As} from '../functions/As.js'
 import {DevNull} from '../functions/DevNull.js'
-import {ObjectType} from './internal/ObjectType.js'
+import {DefineObjectType, ObjectType} from './internal/ObjectType.js'
 
 /**
  * Internal init function symbol
@@ -34,9 +34,8 @@ export const anonymousId: symbol = Symbol('anonymous')
  * Lakutata object base class
  */
 @Transient()
+@DefineObjectType(ObjectType.Object)
 export class BaseObject extends AsyncConstructor {
-
-    public static accessor $objectType: ObjectType = ObjectType.Object
 
     readonly #container: Container
 

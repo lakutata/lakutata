@@ -10,7 +10,7 @@ import {
     OverridableObjectTargetConfigNotFoundException
 } from '../../../exceptions/di/OverridableObjectTargetConfigNotFoundException.js'
 import {As} from '../../functions/As.js'
-import {ObjectType} from './ObjectType.js'
+import {GetObjectType, ObjectType} from './ObjectType.js'
 import {InvalidObjectTypeException} from '../../../exceptions/InvalidObjectTypeException.js'
 import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
 import {Controller} from '../../core/Controller.js'
@@ -58,7 +58,7 @@ export class ModuleConfigLoader {
      * @protected
      */
     protected validateObjectType<ClassConstructor extends IBaseObjectConstructor>(expectObjectType: ObjectType, target: ClassConstructor): ClassConstructor {
-        if (target.$objectType !== expectObjectType) throw new InvalidObjectTypeException('{0} configuration only accepts object declarations of {1} types', [expectObjectType, expectObjectType.toLowerCase()])
+        if (GetObjectType(target) !== expectObjectType) throw new InvalidObjectTypeException('{0} configuration only accepts object declarations of {1} types', [expectObjectType, expectObjectType.toLowerCase()])
         return target
     }
 

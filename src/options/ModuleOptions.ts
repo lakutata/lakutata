@@ -38,15 +38,6 @@ export class ModuleOptions extends DTO {
     public modules?: OverridableNamedObjectOptions<IBaseObjectConstructor<Module>>
 
     /**
-     * TODO 控制器应该是一样的，但是同一个action应该可以在cli、api或rpc中被复用
-     * @CliAction()
-     * @HttpAction()
-     * @TcpAction()
-     * @RpcAction()
-     * @IpcAction()
-     */
-
-    /**
      * Load controllers option
      */
     @Expect(DTO.Array(DTO.Class(Controller)).optional().default([]))
