@@ -1,4 +1,4 @@
-import {TPropertyDecorator} from '../../types/TPropertyDecorator.js'
+import {PropertyDecorator} from '../../types/PropertyDecorator.js'
 import {BaseObject} from '../../lib/base/BaseObject.js'
 import {SetObjectInjectItem} from '../../lib/base/internal/ObjectInjection.js'
 
@@ -7,6 +7,6 @@ import {SetObjectInjectItem} from '../../lib/base/internal/ObjectInjection.js'
  * @param name
  * @constructor
  */
-export function Inject<ClassPrototype extends BaseObject>(name?: string | symbol): TPropertyDecorator<ClassPrototype> {
+export function Inject<ClassPrototype extends BaseObject>(name?: string | symbol): PropertyDecorator<ClassPrototype> {
     return (target: ClassPrototype, propertyKey: string | symbol) => SetObjectInjectItem(target, propertyKey, name ? name : propertyKey)
 }

@@ -1,5 +1,5 @@
 import {BaseObject} from '../../lib/base/BaseObject.js'
-import {TClassDecorator} from '../../types/TClassDecorator.js'
+import {ClassDecorator} from '../../types/ClassDecorator.js'
 import {LifetimeType} from '../../lib/ioc/Lifetime.js'
 import {SetObjectLifetime} from '../../lib/base/internal/ObjectLifetime.js'
 
@@ -9,7 +9,7 @@ import {SetObjectLifetime} from '../../lib/base/internal/ObjectLifetime.js'
  * @param lock
  * @constructor
  */
-export function Lifetime<ClassConstructor extends typeof BaseObject>(lifetime: LifetimeType, lock: boolean = false): TClassDecorator<ClassConstructor> {
+export function Lifetime<ClassConstructor extends typeof BaseObject>(lifetime: LifetimeType, lock: boolean = false): ClassDecorator<ClassConstructor> {
     return (target: ClassConstructor) => SetObjectLifetime(target, lifetime, lock)
 }
 
@@ -18,7 +18,7 @@ export function Lifetime<ClassConstructor extends typeof BaseObject>(lifetime: L
  * @param lock
  * @constructor
  */
-export function Singleton<ClassConstructor extends typeof BaseObject>(lock: boolean = false): TClassDecorator<ClassConstructor> {
+export function Singleton<ClassConstructor extends typeof BaseObject>(lock: boolean = false): ClassDecorator<ClassConstructor> {
     return Lifetime('SINGLETON', lock)
 }
 
@@ -27,7 +27,7 @@ export function Singleton<ClassConstructor extends typeof BaseObject>(lock: bool
  * @param lock
  * @constructor
  */
-export function Transient<ClassConstructor extends typeof BaseObject>(lock: boolean = false): TClassDecorator<ClassConstructor> {
+export function Transient<ClassConstructor extends typeof BaseObject>(lock: boolean = false): ClassDecorator<ClassConstructor> {
     return Lifetime('TRANSIENT', lock)
 }
 
@@ -36,6 +36,6 @@ export function Transient<ClassConstructor extends typeof BaseObject>(lock: bool
  * @param lock
  * @constructor
  */
-export function Scoped<ClassConstructor extends typeof BaseObject>(lock: boolean = false): TClassDecorator<ClassConstructor> {
+export function Scoped<ClassConstructor extends typeof BaseObject>(lock: boolean = false): ClassDecorator<ClassConstructor> {
     return Lifetime('SCOPED', lock)
 }

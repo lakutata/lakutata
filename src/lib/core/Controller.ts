@@ -11,7 +11,4 @@ export class Controller extends Provider {
 
     context: any
 
-    protected async init(): Promise<void> {
-
-    }
 }

@@ -4,6 +4,9 @@ import {TestModule} from './modules/TestModule.js'
 import {TestProvider} from './providers/TestProvider.js'
 import {TestController1} from './controllers/TestController1.js'
 import {PatternManager} from '../lib/base/internal/PatternManager.js'
+import {DTO} from '../lib/core/DTO.js'
+import {Stream} from 'node:stream'
+import path from 'node:path'
 
 (async (): Promise<void> => {
 

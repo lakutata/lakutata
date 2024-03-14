@@ -2,10 +2,10 @@ import {Controller} from '../../lib/core/Controller.js'
 import {Application} from '../../lib/core/Application.js'
 import {Inject} from '../../decorators/di/Inject.js'
 import {Before} from '../../decorators/asst/Before.js'
-import {Accept} from '../../decorators/dto/Accept.js'
-import {DTO} from '../../lib/core/DTO.js'
 import {After} from '../../decorators/asst/After.js'
 import {CLIAction} from '../../decorators/ctrl/CLIAction.js'
+import {HTTPAction} from '../../decorators/ctrl/HTTPAction.js'
+import {ServiceAction} from '../../decorators/ctrl/ServiceAction.js'
 
 export class TestController1 extends Controller {
 
@@ -16,15 +16,17 @@ export class TestController1 extends Controller {
         console.log('TestController11111')
     }
 
-    @After((res) => {
-        console.log('after', res)
-    })
-    @Before(function (a: string, b: number) {
-        // console.log('this:',this)
-        console.log('before', a, b)
-        return ['hahaha', 6666]
-    })
+    // @After((res) => {
+    //     console.log('after', res)
+    // })
+    // @Before(function (a: string, b: number) {
+    //     // console.log('this:',this)
+    //     console.log('before', a, b)
+    //     return ['hahaha', 6666]
+    // })
     @CLIAction()
+    @HTTPAction()
+    @ServiceAction({})
     public async test(a: string, b: number) {
         console.log('test func invoked', a, b)
         return `ok ${a} ${b}`

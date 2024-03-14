@@ -1,5 +1,5 @@
 import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
-import {TClassDecorator} from '../../../types/TClassDecorator.js'
+import {ClassDecorator} from '../../../types/ClassDecorator.js'
 import {ObjectParentConstructors} from '../../functions/ObjectParentConstructors.js'
 import {DTO} from '../../core/DTO.js'
 import {BaseObject} from '../BaseObject.js'
@@ -26,7 +26,7 @@ export enum ObjectType {
  * @param type
  * @constructor
  */
-export function DefineObjectType<ClassConstructor extends IBaseObjectConstructor>(type: ObjectType): TClassDecorator<ClassConstructor> {
+export function DefineObjectType<ClassConstructor extends IBaseObjectConstructor>(type: ObjectType): ClassDecorator<ClassConstructor> {
     return (target: ClassConstructor) => SetObjectType(target, type)
 }
 
