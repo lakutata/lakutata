@@ -31,4 +31,9 @@ export class TestController1 extends Controller {
         console.log('test func invoked', a, b)
         return `ok ${a} ${b}`
     }
+
+    @ServiceAction({})
+    public bbbb() {
+
+    }
 }
