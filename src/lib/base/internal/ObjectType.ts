@@ -4,8 +4,14 @@ import {ObjectParentConstructors} from '../../functions/ObjectParentConstructors
 import {DTO} from '../../core/DTO.js'
 import {BaseObject} from '../BaseObject.js'
 
+/**
+ * Internal unique symbol
+ */
 const OBJECT_TYPE: symbol = Symbol('OBJECT.TYPE')
 
+/**
+ * Object Type
+ */
 export enum ObjectType {
     Unknown = 'Unknown',
     Object = 'Object',
