@@ -6,7 +6,7 @@ import {IndexSignature} from '../decorators/dto/IndexSignature.js'
 @IndexSignature(DTO.Any())
 export class OverridableObjectOptions<ClassConstructor extends typeof BaseObject = typeof BaseObject> extends DTO {
 
-    @Expect(DTO.Class(() => BaseObject).required())
+    @Expect(DTO.Class(() => BaseObject).optional())
     public class?: ClassConstructor
 
 }

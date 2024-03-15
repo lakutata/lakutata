@@ -1,5 +1,6 @@
 import {Controller, ControllerProperty} from '../../lib/core/Controller.js'
 import {MethodDecorator} from '../../types/MethodDecorator.js'
+import {RegisterHTTPAction} from '../../lib/base/internal/ControllerEntrypoint.js'
 
 /**
  * Method Decorator
@@ -19,6 +20,6 @@ export function HTTPAction<ClassPrototype extends Controller, Method>(r: string,
     return (target: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>, descriptor: TypedPropertyDescriptor<Method>) => {
         const route: string = r.toString()
         const methods: string[] = Array.isArray(m) ? m : [m]
-        //TODO
+        return RegisterHTTPAction(route, methods, target, propertyKey,descriptor)
     }
 }

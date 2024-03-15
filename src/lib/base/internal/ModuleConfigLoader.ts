@@ -14,17 +14,19 @@ import {GetObjectType, ObjectType} from './ObjectType.js'
 import {InvalidObjectTypeException} from '../../../exceptions/InvalidObjectTypeException.js'
 import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
 import {Controller} from '../../core/Controller.js'
+import {ArrayToSet} from '../../functions/ArrayToSet.js'
+import {SetToArray} from '../../functions/SetToArray.js'
 
 export class ModuleConfigLoader {
 
-    protected $presetLoadOptions: (LoadObjectOptions | typeof BaseObject | string)[] = []
+    protected $presetLoadOptionsSet: Set<LoadObjectOptions | typeof BaseObject | string> = new Set()
 
     protected $loadOptions: (LoadObjectOptions | typeof BaseObject | string)[] = []
 
     protected $bootstrap: BootstrapOption[] = []
 
     constructor(moduleOptions: ModuleOptions, presetLoadOptions: (LoadObjectOptions | typeof BaseObject | string)[] = []) {
-        this.$presetLoadOptions = presetLoadOptions
+        this.$presetLoadOptionsSet = ArrayToSet(presetLoadOptions)
         this.$bootstrap = moduleOptions.bootstrap ? moduleOptions.bootstrap : []
         //Process anonymous objects
         moduleOptions.objects?.anonymous?.forEach((anonymousObject: AnonymousObject) => this.$loadOptions.push(anonymousObject))
@@ -77,10 +79,13 @@ export class ModuleConfigLoader {
                 overridableObjectOptions.class = this.validateObjectType(objectType, overridableObjectOptions.class)
                 return this.$loadOptions.push(As<LoadObjectOptions>(overridableObjectOptions)) ? void (0) : void (0)
             }
-            for (const loadOptions of this.$presetLoadOptions) {
+            for (const loadOptions of this.$presetLoadOptionsSet) {
                 if (typeof loadOptions === 'string') continue
                 if (loadOptions instanceof BaseObject) continue
-                if (overridableObjectOptions[OBJECT_ID] === loadOptions[OBJECT_ID]) return this.$loadOptions.push(Object.assign({}, loadOptions, overridableObjectOptions)) ? void (0) : void (0)
+                if (overridableObjectOptions[OBJECT_ID] === loadOptions[OBJECT_ID]) {
+                    this.$loadOptions.push(Object.assign({}, loadOptions, overridableObjectOptions))
+                    return this.$presetLoadOptionsSet.delete(loadOptions) ? void (0) : void (0)
+                }
             }
             throw new OverridableObjectTargetConfigNotFoundException('No applicable configuration target found')
         })
@@ -90,7 +95,7 @@ export class ModuleConfigLoader {
      * Load options for container.load()
      */
     public get loadOptions(): (LoadObjectOptions | typeof BaseObject | string)[] {
-        return this.$loadOptions
+        return [...this.$loadOptions, ...SetToArray(this.$presetLoadOptionsSet)]
     }
 
     /**

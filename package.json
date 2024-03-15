@@ -32,6 +32,7 @@
     "eventemitter2": "^6.4.9",
     "fast-glob": "^3.3.2",
     "fast-xml-parser": "^4.3.4",
+    "fastify": "^4.26.2",
     "glob": "^10.3.10",
     "html-tags": "^3.3.1",
     "is-glob": "^4.0.3",

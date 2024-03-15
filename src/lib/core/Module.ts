@@ -80,7 +80,8 @@ export class Module extends Component {
     protected async [__init](...hooks: (() => Promise<void>)[]): Promise<void> {
         //Use setImmediate here for init module instance first, then sub objects can use @Inject decorator get current module
         setImmediate(async (): Promise<void> => {
-            await super[__init](...hooks,
+            await super[__init](
+                ...hooks,
                 async (): Promise<void> => {
                     //Load objects stage
                     await this.container.load(this.#objects)
@@ -94,7 +95,8 @@ export class Module extends Component {
                             await this.getObject(As(bootstrapOption))
                         }
                     }
-                })
+                }
+            )
             this.emit(MODULE_INIT_DONE)
         })
     }

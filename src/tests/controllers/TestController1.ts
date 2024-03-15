@@ -25,7 +25,7 @@ export class TestController1 extends Controller {
     //     return ['hahaha', 6666]
     // })
     // @CLIAction()
-    // @HTTPAction()
+    @HTTPAction('/','get')
     // @ServiceAction({})
     public async test(a: string, b: number) {
         console.log('test func invoked', a, b)

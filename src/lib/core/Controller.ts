@@ -1,6 +1,6 @@
 import {Provider} from './Provider.js'
 import {DefineObjectType, ObjectType} from '../base/internal/ObjectType.js'
-import {Scoped} from '../../decorators/di/Lifetime.js'
+import {Transient} from '../../decorators/di/Lifetime.js'
 import {CLIContext} from '../context/CLIContext.js'
 import {HTTPContext} from '../context/HTTPContext.js'
 import {ServiceContext} from '../context/ServiceContext.js'
@@ -15,7 +15,7 @@ export type ControllerProperty<ClassPrototype extends Controller> = Exclude<keyo
 /**
  * Controller base class
  */
-@Scoped(true)
+@Transient(true)
 @DefineObjectType(ObjectType.Controller)
 export class Controller extends Provider {
 

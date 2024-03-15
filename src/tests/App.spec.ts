@@ -8,6 +8,7 @@ import {DTO} from '../lib/core/DTO.js'
 import {Stream} from 'node:stream'
 import path from 'node:path'
 import {HTTPContext} from '../lib/context/HTTPContext.js'
+import Fastify from 'fastify'
 
 (async (): Promise<void> => {
 
@@ -18,6 +19,17 @@ import {HTTPContext} from '../lib/context/HTTPContext.js'
         components: {
             testComponent: {
                 class: TestComponent
+            },
+            entrypoint: {
+                http: (xxx: (context: HTTPContext) => unknown) => {
+                    const fastify = Fastify({
+                        logger: true
+                    })
+                    fastify.get('/', (request, reply) => {
+                        // xxx({})
+                        reply.send({hello: 'world'})
+                    }).listen({port: 3000, host: '0.0.0.0'})
+                }
             }
         },
         providers: {
@@ -42,10 +54,11 @@ import {HTTPContext} from '../lib/context/HTTPContext.js'
             //     testComponent.on('testComponentEvent', (timeStr: string) => console.log('Receive testComponentEvent    ', timeStr))
             //     testModule.on('testModuleEvent', (timeStr: string) => console.log('Receive testModuleEvent       ', timeStr))
             // },
-            async (target): Promise<void> => {
-                const testController1 = await target.getObject(TestController1)
-                await testController1.test('a', 1)
-            }
+            // async (target): Promise<void> => {
+            //     const testController1 = await target.getObject(TestController1)
+            //     await testController1.test('a', 1)
+            // },
+            'entrypoint'
         ]
     })
 })()

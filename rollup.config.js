@@ -19,6 +19,9 @@ const vendorMap = new Map()
 const chunkNameGenerator = (chunkName) => {
     if (!vendorMap.has(chunkName)) vendorMap.set(chunkName, ++vendorNumber)
     return `${thirdPartyPackageRootDirname}/package${vendorMap.get(chunkName) || 0}`
+    // return `${thirdPartyPackageRootDirname}/${chunkName}`
+    // console.log(chunkName)
+    // return `${thirdPartyPackageRootDirname}/package`
 }
 
 export default {
@@ -26,25 +29,26 @@ export default {
     output: {
         format: 'esm',
         dir: outputDirname,
-        exports: 'auto',
+        exports: 'named',
         compact: true,//减小文件体积
         interop: 'auto',
         generatedCode: 'es2015',
-        manualChunks: (id) => {
-            if (id.includes('node_modules')) {
-                const absPath = path.dirname(normalizeString(id))
-                let nodeModulesFound = false
-                const dirnames = absPath.split(path.sep).filter(value => {
-                    let dirname = value.trim()
-                    if (!dirname) return false
-                    if (nodeModulesFound) return true
-                    if (dirname === 'node_modules') nodeModulesFound = true
-                    return dirname === 'node_modules'
-                })
-                let chunkName = dirnames[1]
-                return chunkNameGenerator(chunkName)
-            }
-        },
+        // manualChunks: (id) => {
+        //     if (id.includes('node_modules')) {
+        //         const absPath = path.dirname(normalizeString(id))
+        //         let nodeModulesFound = false
+        //         const dirnames = absPath.split(path.sep).filter(value => {
+        //             let dirname = value.trim()
+        //             if (!dirname) return false
+        //             if (nodeModulesFound) return true
+        //             if (dirname === 'node_modules') nodeModulesFound = true
+        //             return dirname === 'node_modules'
+        //         })
+        //         let chunkName = (dirnames[1] ? dirnames[1] : 'chunk').toString()
+        //         chunkName = chunkName.startsWith('@') ? chunkName.replace('@', '') : chunkName
+        //         return chunkNameGenerator(chunkName)
+        //     }
+        // },
         entryFileNames: (chunkInfo) => {
             const facadeModuleId = normalizeString(chunkInfo.facadeModuleId)
             const relativeDir = path.relative(currentWorkingDir, path.dirname(facadeModuleId))
@@ -55,6 +59,7 @@ export default {
             return `${chunkInfo.name}.js`
         }
     },
+    makeAbsoluteExternalsRelative: true,
     treeshake: false,
     plugins: [
         resolve(),

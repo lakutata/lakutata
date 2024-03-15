@@ -7,6 +7,7 @@ import {ApplicationOptions} from '../../options/ApplicationOptions.js'
 import {Alias} from '../Alias.js'
 import {MODULE_INIT_DONE} from '../../constants/event-names/ModuleEventName.js'
 import {GetBasicInfo} from '../base/internal/BasicInfo.js'
+import {Entrypoint} from '../../components/Entrypoint.js'
 
 const RCTNR: symbol = Symbol('ROOT_CONTAINER')
 
@@ -24,6 +25,11 @@ export class Application extends Module {
      * @protected
      */
     protected options: Partial<ApplicationOptions> = {
+        components: {
+            entrypoint: {
+                class: Entrypoint
+            }
+        },
         alias: {
             '@runtime': process.cwd()
         }
@@ -56,7 +62,6 @@ export class Application extends Module {
     protected async [__init](): Promise<void> {
         return super[__init](async (): Promise<void> => {
             //TODO
-            console.log(this.options)
         })
     }
 
