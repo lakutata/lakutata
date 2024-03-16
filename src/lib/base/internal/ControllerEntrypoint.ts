@@ -3,14 +3,9 @@ import {ObjectConstructor} from '../../functions/ObjectConstructor.js'
 import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
 import {Module} from '../../core/Module.js'
 import {As} from '../../functions/As.js'
-import {HTTPContext} from '../../context/HTTPContext.js'
 import {ActionPattern} from '../../../types/ActionPattern.js'
 import {ObjectParentConstructors} from '../../functions/ObjectParentConstructors.js'
-import {BaseContext} from '../Context.js'
 import {ObjectHash} from '../../functions/ObjectHash.js'
-import {CLIContext} from '../../context/CLIContext.js'
-import {ServiceContext} from '../../context/ServiceContext.js'
-import {Container} from '../../core/Container.js'
 
 export enum ActionPatternManagerType {
     HTTP = '_$APMT_HTTP',
@@ -18,28 +13,31 @@ export enum ActionPatternManagerType {
     Service = '_$APMT_Service'
 }
 
-export type ActionPatternMap<Context extends BaseContext> = Map<ActionPattern, ActionHandler<Context>>
+export type ActionPatternMap = Map<ActionPattern, ActionDetails>
 
 export type TotalActionPatternMap = {
-    HTTP: ActionPatternMap<HTTPContext>
-    CLI: ActionPatternMap<CLIContext>
-    Service: ActionPatternMap<ServiceContext>
+    HTTP: ActionPatternMap
+    CLI: ActionPatternMap
+    Service: ActionPatternMap
 }
 
-export type ActionHandler<Context extends BaseContext> = (runtimeContainer: Container, context: Context) => Promise<any>
+export type ActionDetails<ClassPrototype extends Controller = Controller> = {
+    constructor: IBaseObjectConstructor<ClassPrototype>
+    method: string | number | symbol
+}
 
 type TotalInternalActionPatternMap = {
-    HTTP: InternalActionPatternMap<HTTPContext>
-    CLI: InternalActionPatternMap<CLIContext>
-    Service: InternalActionPatternMap<ServiceContext>
+    HTTP: InternalActionPatternMap
+    CLI: InternalActionPatternMap
+    Service: InternalActionPatternMap
 }
 
-type InternalActionPatternMapValue<Context extends BaseContext> = {
+type InternalActionPatternMapValue = {
     pattern: ActionPattern
-    handler: ActionHandler<Context>
+    details: ActionDetails
 }
 
-type InternalActionPatternMap<Context extends BaseContext> = Map<string, InternalActionPatternMapValue<Context>>
+type InternalActionPatternMap = Map<string, InternalActionPatternMapValue>
 
 const MODULE_CTRL_MAP: symbol = Symbol('MODULE.CTRL.MAP')
 
@@ -49,13 +47,13 @@ const MODULE_CTRL_MAP: symbol = Symbol('MODULE.CTRL.MAP')
  * @param target
  * @constructor
  */
-function GetInternalControllerActionPatternMap<Context extends BaseContext>(type: ActionPatternManagerType, target: IBaseObjectConstructor<Controller>): InternalActionPatternMap<Context> {
-    const internalActionPatternMap: InternalActionPatternMap<Context> = new Map()
+function GetInternalControllerActionPatternMap(type: ActionPatternManagerType, target: IBaseObjectConstructor<Controller>): InternalActionPatternMap {
+    const internalActionPatternMap: InternalActionPatternMap = new Map()
     ObjectParentConstructors(target).forEach(parentConstructor => {
-        const parentActionPatternMap: InternalActionPatternMap<Context> = Reflect.getOwnMetadata(`${type}_MAP`, parentConstructor) || new Map()
-        parentActionPatternMap.forEach((value: InternalActionPatternMapValue<Context>, hash: string) => internalActionPatternMap.set(hash, value))
+        const parentActionPatternMap: InternalActionPatternMap = Reflect.getOwnMetadata(`${type}_MAP`, parentConstructor) || new Map()
+        parentActionPatternMap.forEach((value: InternalActionPatternMapValue, hash: string) => internalActionPatternMap.set(hash, value))
     })
-    As<InternalActionPatternMap<Context>>(Reflect.getOwnMetadata(`${type}_MAP`, target) || new Map()).forEach((value: InternalActionPatternMapValue<Context>, hash: string) => internalActionPatternMap.set(hash, value))
+    As<InternalActionPatternMap>(Reflect.getOwnMetadata(`${type}_MAP`, target) || new Map()).forEach((value: InternalActionPatternMapValue, hash: string) => internalActionPatternMap.set(hash, value))
     return internalActionPatternMap
 }
 
@@ -64,14 +62,14 @@ function GetInternalControllerActionPatternMap<Context extends BaseContext>(type
  * @param type
  * @param target
  * @param actionPattern
- * @param handler
+ * @param details
  * @constructor
  */
-export function RegisterControllerActionPattern<Context extends BaseContext>(type: ActionPatternManagerType, target: IBaseObjectConstructor<Controller>, actionPattern: ActionPattern, handler: ActionHandler<Context>): void {
-    const internalActionPatternMap: InternalActionPatternMap<Context> = GetInternalControllerActionPatternMap(type, target)
+export function RegisterControllerActionPattern(type: ActionPatternManagerType, target: IBaseObjectConstructor<Controller>, actionPattern: ActionPattern, details: ActionDetails): void {
+    const internalActionPatternMap: InternalActionPatternMap = GetInternalControllerActionPatternMap(type, target)
     internalActionPatternMap.set(ObjectHash(actionPattern), {
         pattern: actionPattern,
-        handler: handler
+        details: details
     })
     Reflect.defineMetadata(`${type}_MAP`, internalActionPatternMap, target)
 }
@@ -88,9 +86,9 @@ export function BindControllerToModule(module: Module, controllerConstructor: IB
         HTTP: new Map(),
         Service: new Map()
     }
-    GetInternalControllerActionPatternMap(ActionPatternManagerType.CLI, controllerConstructor).forEach((value: InternalActionPatternMapValue<CLIContext>, hash: string) => totalInternalActionPatternMap.CLI.set(hash, value))
-    GetInternalControllerActionPatternMap(ActionPatternManagerType.HTTP, controllerConstructor).forEach((value: InternalActionPatternMapValue<HTTPContext>, hash: string) => totalInternalActionPatternMap.HTTP.set(hash, value))
-    GetInternalControllerActionPatternMap(ActionPatternManagerType.Service, controllerConstructor).forEach((value: InternalActionPatternMapValue<ServiceContext>, hash: string) => totalInternalActionPatternMap.Service.set(hash, value))
+    GetInternalControllerActionPatternMap(ActionPatternManagerType.CLI, controllerConstructor).forEach((value: InternalActionPatternMapValue, hash: string) => totalInternalActionPatternMap.CLI.set(hash, value))
+    GetInternalControllerActionPatternMap(ActionPatternManagerType.HTTP, controllerConstructor).forEach((value: InternalActionPatternMapValue, hash: string) => totalInternalActionPatternMap.HTTP.set(hash, value))
+    GetInternalControllerActionPatternMap(ActionPatternManagerType.Service, controllerConstructor).forEach((value: InternalActionPatternMapValue, hash: string) => totalInternalActionPatternMap.Service.set(hash, value))
     Reflect.defineMetadata(MODULE_CTRL_MAP, totalInternalActionPatternMap, module)
 }
 
@@ -110,9 +108,9 @@ export function GetModuleControllerActionMap(module: Module): TotalActionPattern
         HTTP: new Map(),
         Service: new Map()
     }
-    totalInternalActionPatternMap.CLI.forEach((value: InternalActionPatternMapValue<CLIContext>) => totalActionPatternMap.CLI.set(value.pattern, value.handler))
-    totalInternalActionPatternMap.HTTP.forEach((value: InternalActionPatternMapValue<HTTPContext>) => totalActionPatternMap.HTTP.set(value.pattern, value.handler))
-    totalInternalActionPatternMap.Service.forEach((value: InternalActionPatternMapValue<ServiceContext>) => totalActionPatternMap.Service.set(value.pattern, value.handler))
+    totalInternalActionPatternMap.CLI.forEach((value: InternalActionPatternMapValue) => totalActionPatternMap.CLI.set(value.pattern, value.details))
+    totalInternalActionPatternMap.HTTP.forEach((value: InternalActionPatternMapValue) => totalActionPatternMap.HTTP.set(value.pattern, value.details))
+    totalInternalActionPatternMap.Service.forEach((value: InternalActionPatternMapValue) => totalActionPatternMap.Service.set(value.pattern, value.details))
     return totalActionPatternMap
 }
 
@@ -134,12 +132,9 @@ export function RegisterHTTPAction<ClassPrototype extends Controller, Method>(ro
                 route: route,
                 method: method
             },
-            async (runtimeContainer: Container, context: HTTPContext) => {
-                const controller: ClassPrototype = await runtimeContainer.get(As<IBaseObjectConstructor<ClassPrototype>>(ObjectConstructor(controllerPrototype)), {
-                    context: context
-                })
-                // return As<Function>(controller[propertyKey])()//TODO 向方法传入参数
-                return 'fuck'
+            {
+                constructor: As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
+                method: propertyKey
             })
     })
 }

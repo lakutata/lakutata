@@ -6,7 +6,7 @@ import {ServiceContext} from '../lib/context/ServiceContext.js'
 import {ActionPattern} from '../types/ActionPattern.js'
 import {Module} from '../lib/core/Module.js'
 import {
-    ActionHandler,
+    ActionDetails,
     GetModuleControllerActionMap,
     TotalActionPatternMap
 } from '../lib/base/internal/ControllerEntrypoint.js'
@@ -39,11 +39,11 @@ export class Entrypoint extends Component {
     protected async init(): Promise<void> {
         const totalActionPatternMap: TotalActionPatternMap = GetModuleControllerActionMap(this.getModule())
         totalActionPatternMap.CLI
-            .forEach((handler: ActionHandler<CLIContext>, actionPattern: ActionPattern) => this.CLIActionPatternManager.add(actionPattern, handler))
+            .forEach((details: ActionDetails, actionPattern: ActionPattern) => this.CLIActionPatternManager.add(actionPattern, details))
         totalActionPatternMap.HTTP
-            .forEach((handler: ActionHandler<HTTPContext>, actionPattern: ActionPattern) => this.HTTPActionPatternManager.add(actionPattern, handler))
+            .forEach((details: ActionDetails, actionPattern: ActionPattern) => this.HTTPActionPatternManager.add(actionPattern, details))
         totalActionPatternMap.Service
-            .forEach((handler: ActionHandler<ServiceContext>, actionPattern: ActionPattern) => this.ServiceActionPatternManager.add(actionPattern, handler))
+            .forEach((details: ActionDetails, actionPattern: ActionPattern) => this.ServiceActionPatternManager.add(actionPattern, details))
         this.register(this.service, (entrypoint: ServiceEntrypoint) => this.registerServiceEntrypoint(entrypoint))
         this.register(this.cli, (entrypoint: CLIEntrypoint) => this.registerCLIEntrypoint(entrypoint))
         this.register(this.http, (entrypoint: HTTPEntrypoint) => this.registerHTTPEntrypoint(entrypoint))
@@ -79,8 +79,12 @@ export class Entrypoint extends Component {
                 route: context.route,
                 method: context.method
             }
-            const handler: ActionHandler<HTTPContext> = this.HTTPActionPatternManager.find(actionPattern)
-            return await handler(this.createScope(), context)
+
+            const details: ActionDetails = this.HTTPActionPatternManager.find(actionPattern)
+            console.log(details)
+            // console.log(await this.getObject(details.constructor))
+            return 'fffffff'
+            // return await handler(this.createScope(), context)
         })
     }
 
