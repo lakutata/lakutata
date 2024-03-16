@@ -82,12 +82,12 @@ export class Entrypoint extends Component {
                 route: context.route,
                 method: context.method
             }
-            const details: ActionDetails | null = this.HTTPActionPatternManager.find(actionPattern)//TODO 需要做找不到action的错误处理
+            const details: ActionDetails | null = this.HTTPActionPatternManager.find(actionPattern)
             if (!details) throw new ControllerActionNotFoundException('Route \'{route}\' not found', context)
             const controller: Controller = await this.createScope().get(details.constructor, {
                 context: context
             })
-            return await controller.getMethod(As(details.method))()
+            return await controller.getMethod(As(details.method))()//TODO 调用时需要传入参数
         })
     }
 
@@ -97,6 +97,13 @@ export class Entrypoint extends Component {
      * @protected
      */
     protected registerServiceEntrypoint(entrypoint: ServiceEntrypoint): void {
-        //TODO
+        return entrypoint(this.getModule(), async (context: ServiceContext) => {
+            const details: ActionDetails | null = this.HTTPActionPatternManager.find(context.input)
+            if (!details) throw new ControllerActionNotFoundException('Controller action not found')
+            const controller: Controller = await this.createScope().get(details.constructor, {
+                context: context
+            })
+            return await controller.getMethod(As(details.method))()//TODO 调用时需要传入参数
+        })
     }
 }

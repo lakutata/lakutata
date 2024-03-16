@@ -120,10 +120,9 @@ export function GetModuleControllerActionMap(module: Module): TotalActionPattern
  * @param methods
  * @param controllerPrototype
  * @param propertyKey
- * @param descriptor
  * @constructor
  */
-export function RegisterHTTPAction<ClassPrototype extends Controller, Method>(route: string, methods: string[], controllerPrototype: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>, descriptor: TypedPropertyDescriptor<Method>): void {
+export function RegisterHTTPAction<ClassPrototype extends Controller>(route: string, methods: string[], controllerPrototype: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>): void {
     methods.forEach((method: string) => {
         RegisterControllerActionPattern(
             ActionPatternManagerType.HTTP,
@@ -137,4 +136,26 @@ export function RegisterHTTPAction<ClassPrototype extends Controller, Method>(ro
                 method: propertyKey
             })
     })
+}
+
+export function RegisterCLIAction<ClassPrototype extends Controller>(controllerPrototype: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>): void {
+}
+
+/**
+ * Register service action
+ * @param pattern
+ * @param controllerPrototype
+ * @param propertyKey
+ * @constructor
+ */
+export function RegisterServiceAction<ClassPrototype extends Controller>(pattern: ActionPattern, controllerPrototype: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>): void {
+    RegisterControllerActionPattern(
+        ActionPatternManagerType.Service,
+        As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
+        pattern,
+        {
+            constructor: As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
+            method: propertyKey
+        }
+    )
 }
