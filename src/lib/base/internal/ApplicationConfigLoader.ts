@@ -4,10 +4,11 @@ import {BaseObject} from '../BaseObject.js'
 import {ApplicationOptions} from '../../../options/ApplicationOptions.js'
 import {Alias} from '../../Alias.js'
 import {SetBasicInfo} from './BasicInfo.js'
+import {Application} from '../../core/Application.js'
 
 export class ApplicationConfigLoader extends ModuleConfigLoader {
 
-    constructor(applicationOptions: ApplicationOptions, presetLoadOptions: (LoadObjectOptions | typeof BaseObject | string)[] = []) {
+    constructor(app: Application, applicationOptions: ApplicationOptions, presetLoadOptions: (LoadObjectOptions | typeof BaseObject | string)[] = []) {
         const alias: Alias = Alias.getAliasInstance()
         if (applicationOptions.alias) {
             const aliases: Record<string, string> = applicationOptions.alias ? applicationOptions.alias : {}
@@ -21,6 +22,6 @@ export class ApplicationConfigLoader extends ModuleConfigLoader {
                 mode: applicationOptions.mode ? applicationOptions.mode : 'development'
             }).appId
         }
-        super(applicationOptions, presetLoadOptions)
+        super(app, applicationOptions, presetLoadOptions)
     }
 }

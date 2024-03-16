@@ -31,9 +31,9 @@ export class Module extends Component {
      * @protected
      */
     @Configurable(ModuleOptions.optional().default({}).options({stripUnknown: false}), function (this: Module, options: ModuleOptions) {
-        const {bootstrap, loadOptions} = new this.ConfigLoader(this.options)
+        const {bootstrap, loadOptions} = new this.ConfigLoader(this, this.options)
         bootstrap.forEach(value => this.#bootstrap.push(value))
-        const result = new this.ConfigLoader(options, loadOptions)
+        const result = new this.ConfigLoader(this, options, loadOptions)
         result.bootstrap.forEach(value => this.#bootstrap.push(value))
         this.#objects = result.loadOptions
         return options

@@ -3,14 +3,25 @@ import {Configurable} from '../decorators/di/Configurable.js'
 import {CLIContext} from '../lib/context/CLIContext.js'
 import {HTTPContext} from '../lib/context/HTTPContext.js'
 import {ServiceContext} from '../lib/context/ServiceContext.js'
-import {Container} from '../lib/core/Container.js'
 import {ActionPattern} from '../types/ActionPattern.js'
+import {Module} from '../lib/core/Module.js'
+import {
+    ActionHandler,
+    GetModuleControllerActionMap,
+    TotalActionPatternMap
+} from '../lib/base/internal/ControllerEntrypoint.js'
+import {PatternManager} from '../lib/base/internal/PatternManager.js'
 
-export type CLIEntrypoint = (handler: (context: CLIContext) => Promise<unknown>) => void
-export type HTTPEntrypoint = (handler: (context: HTTPContext) => Promise<unknown>) => void
-export type ServiceEntrypoint = (handler: (context: ServiceContext) => Promise<unknown>) => void
+export type CLIEntrypoint = (module: Module, handler: (context: CLIContext) => Promise<unknown>) => void
+export type HTTPEntrypoint = (module: Module, handler: (context: HTTPContext) => Promise<unknown>) => void
+export type ServiceEntrypoint = (module: Module, handler: (context: ServiceContext) => Promise<unknown>) => void
 
 export class Entrypoint extends Component {
+    protected readonly CLIActionPatternManager: PatternManager = new PatternManager()
+
+    protected readonly HTTPActionPatternManager: PatternManager = new PatternManager()
+
+    protected readonly ServiceActionPatternManager: PatternManager = new PatternManager()
 
     @Configurable()
     public cli?: CLIEntrypoint | CLIEntrypoint[]
@@ -26,6 +37,13 @@ export class Entrypoint extends Component {
      * @protected
      */
     protected async init(): Promise<void> {
+        const totalActionPatternMap: TotalActionPatternMap = GetModuleControllerActionMap(this.getModule())
+        totalActionPatternMap.CLI
+            .forEach((handler: ActionHandler<CLIContext>, actionPattern: ActionPattern) => this.CLIActionPatternManager.add(actionPattern, handler))
+        totalActionPatternMap.HTTP
+            .forEach((handler: ActionHandler<HTTPContext>, actionPattern: ActionPattern) => this.HTTPActionPatternManager.add(actionPattern, handler))
+        totalActionPatternMap.Service
+            .forEach((handler: ActionHandler<ServiceContext>, actionPattern: ActionPattern) => this.ServiceActionPatternManager.add(actionPattern, handler))
         this.register(this.service, (entrypoint: ServiceEntrypoint) => this.registerServiceEntrypoint(entrypoint))
         this.register(this.cli, (entrypoint: CLIEntrypoint) => this.registerCLIEntrypoint(entrypoint))
         this.register(this.http, (entrypoint: HTTPEntrypoint) => this.registerHTTPEntrypoint(entrypoint))
@@ -56,18 +74,13 @@ export class Entrypoint extends Component {
      * @protected
      */
     protected registerHTTPEntrypoint(entrypoint: HTTPEntrypoint): void {
-        return entrypoint(async (context: HTTPContext) => {
+        return entrypoint(this.getModule(), async (context: HTTPContext) => {
             const actionPattern: ActionPattern = {
                 route: context.route,
                 method: context.method
             }
-            const runtimeScope: Container = this.createScope()
-
-            //TODO 需要将actions的信息传入
-
-            // runtimeScope.get()
-            console.log(context)
-            return {test: true}
+            const handler: ActionHandler<HTTPContext> = this.HTTPActionPatternManager.find(actionPattern)
+            return await handler(this.createScope(), context)
         })
     }
 

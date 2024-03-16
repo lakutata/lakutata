@@ -28,19 +28,22 @@ import {AppendObjectWeakRefs, ClearObjectWeakRefs, GetObjectWeakRefs} from '../b
 
 export const containerSymbol: symbol = Symbol('LAKUTATA.DI.CONTAINER.SYMBOL')
 
+export const ownerSymbol: symbol = Symbol('LAKUTATA.DI.OWNER.SYMBOL')
+
 export class Container {
 
     readonly #dic: IDependencyInjectionContainer
 
     #subContainerSet: Set<Container> = new Set()
 
-    protected readonly parent?: Container
+    public readonly parent?: Container
 
-    constructor(parent?: Container) {
+    constructor(parent?: Container, owner?: BaseObject) {
         this.parent = parent
         this.#dic = parent ? parent.#dic.createScope() : createContainer({injectionMode: 'PROXY', strict: true})
         if (this.parent) this.parent.#subContainerSet.add(this)
         this.#dic.register(containerSymbol, asValue(this))
+        if (owner) this.#dic.register(ownerSymbol, asValue(new WeakRef(owner)))
     }
 
     /**
@@ -66,7 +69,6 @@ export class Container {
         return {
             lifetime: objectLifetime === 'SINGLETON' ? this.parent ? 'SCOPED' : objectLifetime : objectLifetime,
             dispose: (instance: BaseObject) => this.disposer(instance)
-            // injector:()=>//TODO 暂时先不使用，若遇到有东西无法注入时再尝试使用
         }
     }
 
@@ -135,6 +137,14 @@ export class Container {
             result = {...result, ...pair}
         })
         return result
+    }
+
+    /**
+     * Get current container owner
+     */
+    public owner<Owner extends BaseObject = BaseObject>(): Owner | undefined {
+        const owner: WeakRef<Owner> | undefined = this.#dic.resolve(ownerSymbol, {allowUnregistered: true})
+        return owner ? owner.deref() : undefined
     }
 
     /**
@@ -261,7 +271,7 @@ export class Container {
      * Create sub container scope
      */
     public createScope(): Container {
-        return new Container(this)
+        return new Container(this)//TODO 可能需要传入owner
     }
 
     /**

@@ -11,9 +11,10 @@ import {HTTPContext} from '../lib/context/HTTPContext.js'
 import Fastify from 'fastify'
 import {As} from '../lib/functions/As.js'
 import {Url} from 'url'
+import {Delay} from '../lib/functions/Delay.js'
+import {Module} from '../lib/core/Module.js'
 
 (async (): Promise<void> => {
-
     await Application.run({
         id: 'test.app',
         name: 'TestApp',
@@ -23,16 +24,16 @@ import {Url} from 'url'
                 class: TestComponent
             },
             entrypoint: {
-                http: (handler: (context: HTTPContext) => Promise<unknown>) => {
+                http: (module: Module, handler: (context: HTTPContext) => Promise<unknown>) => {
                     const fastify = Fastify({
-                        logger: true
+                        logger: false
                     })
                     fastify.all('*', async (request, reply) => {
                         reply.raw.on('close', () => {
                             console.log('ffffffffff')
                         })
                         return handler(new HTTPContext({
-                            route: request.raw.url,
+                            route: request.raw.url!,
                             method: request.method,
                             data: {...As<Record<string, string>>(request.query ? request.query : {}), ...As<Record<string, string>>(request.body ? request.body : {})}
                         }))
@@ -68,6 +69,13 @@ import {Url} from 'url'
             //     await testController1.test('a', 1)
             // },
             'entrypoint'
+            // async (target): Promise<void> => {
+            //     while (true) {
+            //         await Delay(100)
+            //         const obj=await target.getObject<TestProvider>('testProvider')
+            //         console.log(JSON.stringify(obj.getModule()))
+            //     }
+            // }
         ]
     })
 })()

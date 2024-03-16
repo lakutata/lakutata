@@ -11,6 +11,8 @@ export enum ContextType {
     SERVICE = 'SERVICE'
 }
 
+export type ContextParams<T extends {} = {}> = T & Record<string, any>
+
 /**
  * Base context class
  */
@@ -18,4 +20,8 @@ export enum ContextType {
 export class BaseContext extends DTO {
     @Expect(DTO.String().valid(ContextType.CLI, ContextType.HTTP, ContextType.SERVICE))
     public readonly type: ContextType
+
+    constructor(params: ContextParams) {
+        super(params)
+    }
 }

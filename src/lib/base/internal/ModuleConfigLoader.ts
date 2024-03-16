@@ -16,16 +16,20 @@ import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor
 import {Controller} from '../../core/Controller.js'
 import {ArrayToSet} from '../../functions/ArrayToSet.js'
 import {SetToArray} from '../../functions/SetToArray.js'
+import {BindControllerToModule} from './ControllerEntrypoint.js'
 
 export class ModuleConfigLoader {
 
-    protected $presetLoadOptionsSet: Set<LoadObjectOptions | typeof BaseObject | string> = new Set()
+    protected readonly $module: Module
 
-    protected $loadOptions: (LoadObjectOptions | typeof BaseObject | string)[] = []
+    protected readonly $presetLoadOptionsSet: Set<LoadObjectOptions | typeof BaseObject | string> = new Set()
 
-    protected $bootstrap: BootstrapOption[] = []
+    protected readonly $loadOptions: (LoadObjectOptions | typeof BaseObject | string)[] = []
 
-    constructor(moduleOptions: ModuleOptions, presetLoadOptions: (LoadObjectOptions | typeof BaseObject | string)[] = []) {
+    protected readonly $bootstrap: BootstrapOption[] = []
+
+    constructor(module: Module, moduleOptions: ModuleOptions, presetLoadOptions: (LoadObjectOptions | typeof BaseObject | string)[] = []) {
+        this.$module = module
         this.$presetLoadOptionsSet = ArrayToSet(presetLoadOptions)
         this.$bootstrap = moduleOptions.bootstrap ? moduleOptions.bootstrap : []
         //Process anonymous objects
@@ -38,10 +42,13 @@ export class ModuleConfigLoader {
                 [OBJECT_ID]: id
             }))
         }
-        //Process controllers
+        /**
+         * Process controllers
+         * Bind controller action pattern map to module instance via metadata
+         */
         if (moduleOptions.controllers) {
             moduleOptions.controllers.forEach((controllerConstructor: IBaseObjectConstructor<Controller>) => {
-                //TODO 加载controller
+                BindControllerToModule(this.$module, controllerConstructor)
                 this.loadOptions.push(controllerConstructor)
             })
         }

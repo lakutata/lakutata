@@ -25,10 +25,10 @@ export class TestController1 extends Controller {
     //     return ['hahaha', 6666]
     // })
     // @CLIAction()
-    @HTTPAction('/', 'get')
+    @HTTPAction('/test', 'GET')
     // @ServiceAction({})
     public async test(inp, stream) {
-
+        return 'oh!'
     }
 
 }

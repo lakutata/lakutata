@@ -13,7 +13,8 @@ import {IsSymbol} from '../functions/IsSymbol.js'
 import {ObjectConstructor} from '../functions/ObjectConstructor.js'
 import {As} from '../functions/As.js'
 import {DevNull} from '../functions/DevNull.js'
-import {DefineObjectType, ObjectType} from './internal/ObjectType.js'
+import {DefineObjectType, GetObjectType, ObjectType} from './internal/ObjectType.js'
+import {Module} from '../core/Module.js'
 
 /**
  * Internal init function symbol
@@ -114,7 +115,7 @@ export class BaseObject extends AsyncConstructor {
             //Execute init functions
             await this[__init]()
         })
-        this.#container = new Container(cradleProxy[containerSymbol])
+        this.#container = new Container(cradleProxy[containerSymbol], this)
         SetObjectContainerGetter(this, this.#container)
     }
 
@@ -222,6 +223,26 @@ export class BaseObject extends AsyncConstructor {
      */
     protected async instantiateObject<T extends BaseObject>(constructor: IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
         return this.#container.build(constructor, configurableRecords)
+    }
+
+    /**
+     * Get current object's parent
+     * @protected
+     */
+    protected getParent(): BaseObject | undefined {
+        return this.#container.parent?.owner()
+    }
+
+    /**
+     * Get current object's parent module
+     * @protected
+     */
+    public getModule(): Module {
+        let parent = this.getParent()
+        while (parent && GetObjectType(As<IBaseObjectConstructor>(ObjectConstructor(parent))) !== ObjectType.Module) {
+            parent = this.getParent()
+        }
+        return As<Module>(parent)
     }
 
     /**
