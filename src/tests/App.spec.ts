@@ -30,7 +30,7 @@ import {Module} from '../lib/core/Module.js'
                     })
                     fastify.all('*', async (request, reply) => {
                         reply.raw.on('close', () => {
-                            console.log('ffffffffff')
+                            // console.log('ffffffffff')//TODO
                         })
                         return handler(new HTTPContext({
                             route: request.raw.url!,

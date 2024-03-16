@@ -46,12 +46,10 @@ export class ModuleConfigLoader {
          * Process controllers
          * Bind controller action pattern map to module instance via metadata
          */
-        if (moduleOptions.controllers) {
-            moduleOptions.controllers.forEach((controllerConstructor: IBaseObjectConstructor<Controller>) => {
-                BindControllerToModule(this.$module, controllerConstructor)
-                this.loadOptions.push(controllerConstructor)
-            })
-        }
+        moduleOptions.controllers?.forEach((controllerConstructor: IBaseObjectConstructor<Controller>) => {
+            BindControllerToModule(this.$module, controllerConstructor)
+            this.$loadOptions.push(controllerConstructor)
+        })
         //Process component objects
         this.processOverridableNamedObjectOptions(ObjectType.Component, moduleOptions.components)
         //Process provider objects

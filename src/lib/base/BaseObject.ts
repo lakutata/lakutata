@@ -237,8 +237,8 @@ export class BaseObject extends AsyncConstructor {
      * Get current object's parent module
      * @protected
      */
-    public getModule(): Module {
-        let parent = this.getParent()
+    public getModule(): Module {//TOOD 需要改为私有的
+        let parent: BaseObject | undefined = this.getParent()
         while (parent && GetObjectType(As<IBaseObjectConstructor>(ObjectConstructor(parent))) !== ObjectType.Module) {
             parent = this.getParent()
         }

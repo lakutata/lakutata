@@ -11,6 +11,9 @@ import {
     TotalActionPatternMap
 } from '../lib/base/internal/ControllerEntrypoint.js'
 import {PatternManager} from '../lib/base/internal/PatternManager.js'
+import {Controller} from '../lib/core/Controller.js'
+import {As} from '../lib/functions/As.js'
+import {ControllerActionNotFoundException} from '../exceptions/ControllerActionNotFoundException.js'
 
 export type CLIEntrypoint = (module: Module, handler: (context: CLIContext) => Promise<unknown>) => void
 export type HTTPEntrypoint = (module: Module, handler: (context: HTTPContext) => Promise<unknown>) => void
@@ -79,12 +82,12 @@ export class Entrypoint extends Component {
                 route: context.route,
                 method: context.method
             }
-
-            const details: ActionDetails = this.HTTPActionPatternManager.find(actionPattern)
-            console.log(details)
-            // console.log(await this.getObject(details.constructor))
-            return 'fffffff'
-            // return await handler(this.createScope(), context)
+            const details: ActionDetails | null = this.HTTPActionPatternManager.find(actionPattern)//TODO 需要做找不到action的错误处理
+            if (!details) throw new ControllerActionNotFoundException('Route \'{route}\' not found', context)
+            const controller: Controller = await this.createScope().get(details.constructor, {
+                context: context
+            })
+            return await controller.getMethod(As(details.method))()
         })
     }
 
