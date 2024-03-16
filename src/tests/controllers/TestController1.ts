@@ -25,15 +25,10 @@ export class TestController1 extends Controller {
     //     return ['hahaha', 6666]
     // })
     // @CLIAction()
-    @HTTPAction('/','get')
+    @HTTPAction('/', 'get')
     // @ServiceAction({})
-    public async test(a: string, b: number) {
-        console.log('test func invoked', a, b)
-        return `ok ${a} ${b}`
-    }
-
-    @ServiceAction({})
-    public bbbb() {
+    public async test(inp, stream) {
 
     }
+
 }

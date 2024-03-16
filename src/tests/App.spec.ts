@@ -9,6 +9,8 @@ import {Stream} from 'node:stream'
 import path from 'node:path'
 import {HTTPContext} from '../lib/context/HTTPContext.js'
 import Fastify from 'fastify'
+import {As} from '../lib/functions/As.js'
+import {Url} from 'url'
 
 (async (): Promise<void> => {
 
@@ -21,14 +23,21 @@ import Fastify from 'fastify'
                 class: TestComponent
             },
             entrypoint: {
-                http: (xxx: (context: HTTPContext) => unknown) => {
+                http: (handler: (context: HTTPContext) => Promise<unknown>) => {
                     const fastify = Fastify({
                         logger: true
                     })
-                    fastify.get('/', (request, reply) => {
-                        // xxx({})
-                        reply.send({hello: 'world'})
-                    }).listen({port: 3000, host: '0.0.0.0'})
+                    fastify.all('*', async (request, reply) => {
+                        reply.raw.on('close', () => {
+                            console.log('ffffffffff')
+                        })
+                        return handler(new HTTPContext({
+                            route: request.raw.url,
+                            method: request.method,
+                            data: {...As<Record<string, string>>(request.query ? request.query : {}), ...As<Record<string, string>>(request.body ? request.body : {})}
+                        }))
+                    })
+                    fastify.listen({port: 3000, host: '0.0.0.0'})
                 }
             }
         },

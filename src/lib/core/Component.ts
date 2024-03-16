@@ -8,6 +8,8 @@ import {
 } from 'eventemitter2'
 import {Provider} from './Provider.js'
 import {DefineObjectType, ObjectType} from '../base/internal/ObjectType.js'
+import {GetObjectContainer} from '../base/internal/ObjectContainer.js'
+import {Container} from './Container.js'
 
 /**
  * Component base class
@@ -42,6 +44,14 @@ export class Component extends Provider implements EventEmitter {
         await super[__destroy](async (): Promise<void> => {
             this.#eventEmitter.removeAllListeners()
         }, ...hooks)
+    }
+
+    /**
+     * Create sub scope container
+     * @protected
+     */
+    protected createScope(): Container {
+        return GetObjectContainer(this).createScope()
     }
 
     /**
