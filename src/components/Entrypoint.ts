@@ -19,7 +19,7 @@ export type CLIEntrypoint = (module: Module, handler: CLIEntrypointHandler) => v
 export type HTTPEntrypoint = (module: Module, routeMap: HTTPRouteMap, handler: HTTPEntrypointHandler) => void
 export type ServiceEntrypoint = (module: Module, handler: ServiceEntrypointHandler) => void
 
-export type HTTPRouteMap = Map<string, Set<string>>
+export type HTTPRouteMap<HTTPMethods = string> = Map<string, Set<HTTPMethods>>
 
 export type CLIEntrypointHandler<T = unknown> = (context: CLIContext) => Promise<T>
 export type HTTPEntrypointHandler<T = unknown> = (context: HTTPContext) => Promise<T>
@@ -106,6 +106,7 @@ export class Entrypoint extends Component {
     protected registerHTTPEntrypoint(entrypoint: HTTPEntrypoint): void {
         const routeMap: HTTPRouteMap = new Map()
         this.HTTPActionPatternMap.forEach((details: ActionDetails, actionPattern: ActionPattern) => {
+            //TODO 也许details可用用上，将action的说明放在里边
             const methodsSet: Set<string> = routeMap.get(actionPattern.route) || new Set()
             methodsSet.add(actionPattern.method)
             routeMap.set(actionPattern.route, methodsSet)

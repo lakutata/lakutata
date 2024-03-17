@@ -6,7 +6,7 @@ import {RegisterCLIAction} from '../../lib/base/internal/ControllerEntrypoint.js
  * Method Decorator
  * @constructor
  */
-export function CLIAction<ClassPrototype extends Controller, Method>(): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>> {
+export function CLIAction<ClassPrototype extends Controller, Method>(command: string): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>> {
     return (target: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>, descriptor: TypedPropertyDescriptor<Method>) => {
         //TODO 分解参数
         RegisterCLIAction(target, propertyKey)

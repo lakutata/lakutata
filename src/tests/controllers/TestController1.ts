@@ -6,6 +6,8 @@ import {After} from '../../decorators/asst/After.js'
 import {CLIAction} from '../../decorators/ctrl/CLIAction.js'
 import {HTTPAction} from '../../decorators/ctrl/HTTPAction.js'
 import {ServiceAction} from '../../decorators/ctrl/ServiceAction.js'
+import {DTO} from '../../lib/core/DTO.js'
+import type {ActionPattern} from '../../types/ActionPattern.js'
 
 export class TestController1 extends Controller {
 
@@ -32,12 +34,13 @@ export class TestController1 extends Controller {
     }
 
     @HTTPAction('/test1', ['GET', 'POST'])
-    public async test2() {
+    public async test2(inp) {
         return 'oh!!'
     }
 
     @HTTPAction('/test/:id', ['GET', 'POST'])
-    public async test3() {
+    @CLIAction('test3')
+    public async test3(inp: ActionPattern) {
         return 'oh!!!!!!!!!!'
     }
 

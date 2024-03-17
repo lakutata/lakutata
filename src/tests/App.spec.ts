@@ -19,7 +19,7 @@ import {
     HTTPEntrypointBuilder,
     HTTPEntrypointHandler, HTTPRouteMap, ServiceEntrypointBuilder
 } from '../components/Entrypoint.js'
-import {program} from 'commander'
+import {Command, program} from 'commander'
 
 (async (): Promise<void> => {
     await Application.run({
@@ -32,18 +32,17 @@ import {program} from 'commander'
             },
             entrypoint: {
                 http: HTTPEntrypointBuilder((module: Module, routeMap: HTTPRouteMap, handler: HTTPEntrypointHandler) => {
-                    console.log('routeMap:', routeMap)
                     const fastify = Fastify({
                         logger: false
                     })
-                    routeMap.forEach((methods: Set<string>, route: string) => {
+                    routeMap.forEach((methods: Set<any>, route: string) => {
                         methods.forEach(method => {
                             fastify.route({
                                 url: route,
-                                method: <any>method,
+                                method: method,
                                 handler: async (request, reply) => {
                                     return handler(new HTTPContext({
-                                        route: request.routerPath,
+                                        route: request.routeOptions.url!,
                                         method: request.method,
                                         data: {...As<Record<string, string>>(request.query ? request.query : {}), ...As<Record<string, string>>(request.body ? request.body : {})}
                                     }))
@@ -54,8 +53,11 @@ import {program} from 'commander'
                     fastify.listen({port: 3000, host: '0.0.0.0'})
                 }),
                 cli: CLIEntrypointBuilder((module: Module, handler: CLIEntrypointHandler) => {
-                    console.log('ddddddddddd')
-                    // console.log(program.option('--test111', 'this is a test').parse(process.argv))
+                    program
+                        .addCommand(new Command('test').option('--test111').argument('').action((args,options) => {
+                            console.log(args)
+                        }),{isDefault:false})
+                        .parse(process.argv)
                 }),
                 service: ServiceEntrypointBuilder((module, handler) => {
                     //TODO
