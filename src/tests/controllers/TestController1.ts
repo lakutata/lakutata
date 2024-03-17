@@ -31,4 +31,14 @@ export class TestController1 extends Controller {
         return 'oh!'
     }
 
+    @HTTPAction('/test1', ['GET', 'POST'])
+    public async test2() {
+        return 'oh!!'
+    }
+
+    @HTTPAction('/test/:id', ['GET', 'POST'])
+    public async test3() {
+        return 'oh!!!!!!!!!!'
+    }
+
 }

@@ -13,6 +13,13 @@ import {As} from '../lib/functions/As.js'
 import {Url} from 'url'
 import {Delay} from '../lib/functions/Delay.js'
 import {Module} from '../lib/core/Module.js'
+import {
+    CLIEntrypointBuilder,
+    CLIEntrypointHandler,
+    HTTPEntrypointBuilder,
+    HTTPEntrypointHandler, HTTPRouteMap, ServiceEntrypointBuilder
+} from '../components/Entrypoint.js'
+import {program} from 'commander'
 
 (async (): Promise<void> => {
     await Application.run({
@@ -24,22 +31,35 @@ import {Module} from '../lib/core/Module.js'
                 class: TestComponent
             },
             entrypoint: {
-                http: (module: Module, handler: (context: HTTPContext) => Promise<unknown>) => {
+                http: HTTPEntrypointBuilder((module: Module, routeMap: HTTPRouteMap, handler: HTTPEntrypointHandler) => {
+                    console.log('routeMap:', routeMap)
                     const fastify = Fastify({
                         logger: false
                     })
-                    fastify.all('*', async (request, reply) => {
-                        reply.raw.on('close', () => {
-                            // console.log('ffffffffff')//TODO
+                    routeMap.forEach((methods: Set<string>, route: string) => {
+                        methods.forEach(method => {
+                            fastify.route({
+                                url: route,
+                                method: <any>method,
+                                handler: async (request, reply) => {
+                                    return handler(new HTTPContext({
+                                        route: request.routerPath,
+                                        method: request.method,
+                                        data: {...As<Record<string, string>>(request.query ? request.query : {}), ...As<Record<string, string>>(request.body ? request.body : {})}
+                                    }))
+                                }
+                            })
                         })
-                        return handler(new HTTPContext({
-                            route: request.raw.url!,
-                            method: request.method,
-                            data: {...As<Record<string, string>>(request.query ? request.query : {}), ...As<Record<string, string>>(request.body ? request.body : {})}
-                        }))
                     })
                     fastify.listen({port: 3000, host: '0.0.0.0'})
-                }
+                }),
+                cli: CLIEntrypointBuilder((module: Module, handler: CLIEntrypointHandler) => {
+                    console.log('ddddddddddd')
+                    // console.log(program.option('--test111', 'this is a test').parse(process.argv))
+                }),
+                service: ServiceEntrypointBuilder((module, handler) => {
+                    //TODO
+                })
             }
         },
         providers: {

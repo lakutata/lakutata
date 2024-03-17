@@ -6,7 +6,7 @@ import {ServiceContext} from '../lib/context/ServiceContext.js'
 import {ActionPattern} from '../types/ActionPattern.js'
 import {Module} from '../lib/core/Module.js'
 import {
-    ActionDetails,
+    ActionDetails, ActionPatternMap,
     GetModuleControllerActionMap,
     TotalActionPatternMap
 } from '../lib/base/internal/ControllerEntrypoint.js'
@@ -15,11 +15,30 @@ import {Controller} from '../lib/core/Controller.js'
 import {As} from '../lib/functions/As.js'
 import {ControllerActionNotFoundException} from '../exceptions/ControllerActionNotFoundException.js'
 
-export type CLIEntrypoint = (module: Module, handler: (context: CLIContext) => Promise<unknown>) => void
-export type HTTPEntrypoint = (module: Module, handler: (context: HTTPContext) => Promise<unknown>) => void
-export type ServiceEntrypoint = (module: Module, handler: (context: ServiceContext) => Promise<unknown>) => void
+export type CLIEntrypoint = (module: Module, handler: CLIEntrypointHandler) => void
+export type HTTPEntrypoint = (module: Module, routeMap: HTTPRouteMap, handler: HTTPEntrypointHandler) => void
+export type ServiceEntrypoint = (module: Module, handler: ServiceEntrypointHandler) => void
+
+export type HTTPRouteMap = Map<string, Set<string>>
+
+export type CLIEntrypointHandler<T = unknown> = (context: CLIContext) => Promise<T>
+export type HTTPEntrypointHandler<T = unknown> = (context: HTTPContext) => Promise<T>
+export type ServiceEntrypointHandler<T = unknown> = (context: ServiceContext) => Promise<T>
+
+export const CLIEntrypointBuilder: (entrypoint: CLIEntrypoint) => CLIEntrypoint = (entrypoint: CLIEntrypoint) => entrypoint
+
+export const HTTPEntrypointBuilder: (entrypoint: HTTPEntrypoint) => HTTPEntrypoint = (entrypoint: HTTPEntrypoint) => entrypoint
+
+export const ServiceEntrypointBuilder: (entrypoint: ServiceEntrypoint) => ServiceEntrypoint = (entrypoint: ServiceEntrypoint) => entrypoint
 
 export class Entrypoint extends Component {
+
+    protected readonly CLIActionPatternMap: ActionPatternMap = new Map()
+
+    protected readonly HTTPActionPatternMap: ActionPatternMap = new Map()
+
+    protected readonly ServiceActionPatternMap: ActionPatternMap = new Map()
+
     protected readonly CLIActionPatternManager: PatternManager = new PatternManager()
 
     protected readonly HTTPActionPatternManager: PatternManager = new PatternManager()
@@ -40,13 +59,19 @@ export class Entrypoint extends Component {
      * @protected
      */
     protected async init(): Promise<void> {
-        const totalActionPatternMap: TotalActionPatternMap = GetModuleControllerActionMap(this.getModule())
-        totalActionPatternMap.CLI
-            .forEach((details: ActionDetails, actionPattern: ActionPattern) => this.CLIActionPatternManager.add(actionPattern, details))
-        totalActionPatternMap.HTTP
-            .forEach((details: ActionDetails, actionPattern: ActionPattern) => this.HTTPActionPatternManager.add(actionPattern, details))
-        totalActionPatternMap.Service
-            .forEach((details: ActionDetails, actionPattern: ActionPattern) => this.ServiceActionPatternManager.add(actionPattern, details))
+        const {CLI, HTTP, Service} = GetModuleControllerActionMap(this.getModule())
+        CLI.forEach((details: ActionDetails, actionPattern: ActionPattern) => {
+            this.CLIActionPatternMap.set(actionPattern, details)
+            this.CLIActionPatternManager.add(actionPattern, details)
+        })
+        HTTP.forEach((details: ActionDetails, actionPattern: ActionPattern) => {
+            this.HTTPActionPatternMap.set(actionPattern, details)
+            this.HTTPActionPatternManager.add(actionPattern, details)
+        })
+        Service.forEach((details: ActionDetails, actionPattern: ActionPattern) => {
+            this.ServiceActionPatternMap.set(actionPattern, details)
+            this.ServiceActionPatternManager.add(actionPattern, details)
+        })
         this.register(this.service, (entrypoint: ServiceEntrypoint) => this.registerServiceEntrypoint(entrypoint))
         this.register(this.cli, (entrypoint: CLIEntrypoint) => this.registerCLIEntrypoint(entrypoint))
         this.register(this.http, (entrypoint: HTTPEntrypoint) => this.registerHTTPEntrypoint(entrypoint))
@@ -68,7 +93,9 @@ export class Entrypoint extends Component {
      * @protected
      */
     protected registerCLIEntrypoint(entrypoint: CLIEntrypoint): void {
-        //TODO
+        return entrypoint(this.getModule(), async (context: CLIContext) => {
+            //TODO
+        })
     }
 
     /**
@@ -77,7 +104,13 @@ export class Entrypoint extends Component {
      * @protected
      */
     protected registerHTTPEntrypoint(entrypoint: HTTPEntrypoint): void {
-        return entrypoint(this.getModule(), async (context: HTTPContext) => {
+        const routeMap: HTTPRouteMap = new Map()
+        this.HTTPActionPatternMap.forEach((details: ActionDetails, actionPattern: ActionPattern) => {
+            const methodsSet: Set<string> = routeMap.get(actionPattern.route) || new Set()
+            methodsSet.add(actionPattern.method)
+            routeMap.set(actionPattern.route, methodsSet)
+        })
+        return entrypoint(this.getModule(), routeMap, async (context: HTTPContext) => {
             const actionPattern: ActionPattern = {
                 route: context.route,
                 method: context.method
