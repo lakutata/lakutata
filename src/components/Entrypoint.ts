@@ -7,18 +7,19 @@ import {ActionPattern} from '../types/ActionPattern.js'
 import {Module} from '../lib/core/Module.js'
 import {
     ActionDetails, ActionPatternMap,
-    GetModuleControllerActionMap,
-    TotalActionPatternMap
+    GetModuleControllerActionMap
 } from '../lib/base/internal/ControllerEntrypoint.js'
 import {PatternManager} from '../lib/base/internal/PatternManager.js'
 import {Controller} from '../lib/core/Controller.js'
 import {As} from '../lib/functions/As.js'
 import {ControllerActionNotFoundException} from '../exceptions/ControllerActionNotFoundException.js'
+import {JSONSchema} from '../types/JSONSchema.js'
 
-export type CLIEntrypoint = (module: Module, handler: CLIEntrypointHandler) => void
+export type CLIEntrypoint = (module: Module, cliMap: CLIMap, handler: CLIEntrypointHandler) => void
 export type HTTPEntrypoint = (module: Module, routeMap: HTTPRouteMap, handler: HTTPEntrypointHandler) => void
 export type ServiceEntrypoint = (module: Module, handler: ServiceEntrypointHandler) => void
 
+export type CLIMap = Map<string, JSONSchema>
 export type HTTPRouteMap<HTTPMethods = string> = Map<string, Set<HTTPMethods>>
 
 export type CLIEntrypointHandler<T = unknown> = (context: CLIContext) => Promise<T>
@@ -93,8 +94,21 @@ export class Entrypoint extends Component {
      * @protected
      */
     protected registerCLIEntrypoint(entrypoint: CLIEntrypoint): void {
-        return entrypoint(this.getModule(), async (context: CLIContext) => {
-            //TODO
+        const cliMap: CLIMap = new Map()
+        this.CLIActionPatternMap.forEach((details: ActionDetails, actionPattern: ActionPattern) => {
+            //TODO 也许details可以将action的说明放在里边
+            cliMap.set(actionPattern.command, details.extra)
+        })
+        return entrypoint(this.getModule(), cliMap, async (context: CLIContext) => {
+            const actionPattern: ActionPattern = {
+                command: context.command
+            }
+            const details: ActionDetails | null = this.CLIActionPatternManager.find(actionPattern)
+            if (!details) throw new ControllerActionNotFoundException('Command not found')
+            const controller: Controller = await this.createScope().get(details.constructor, {
+                context: context
+            })
+            return await controller.getMethod(As(details.method))()//TODO 调用时需要传入参数
         })
     }
 
@@ -106,7 +120,7 @@ export class Entrypoint extends Component {
     protected registerHTTPEntrypoint(entrypoint: HTTPEntrypoint): void {
         const routeMap: HTTPRouteMap = new Map()
         this.HTTPActionPatternMap.forEach((details: ActionDetails, actionPattern: ActionPattern) => {
-            //TODO 也许details可用用上，将action的说明放在里边
+            //TODO 也许details可以将action的说明放在里边
             const methodsSet: Set<string> = routeMap.get(actionPattern.route) || new Set()
             methodsSet.add(actionPattern.method)
             routeMap.set(actionPattern.route, methodsSet)
@@ -132,7 +146,7 @@ export class Entrypoint extends Component {
      */
     protected registerServiceEntrypoint(entrypoint: ServiceEntrypoint): void {
         return entrypoint(this.getModule(), async (context: ServiceContext) => {
-            const details: ActionDetails | null = this.HTTPActionPatternManager.find(context.input)
+            const details: ActionDetails | null = this.ServiceActionPatternManager.find(context.input)
             if (!details) throw new ControllerActionNotFoundException('Controller action not found')
             const controller: Controller = await this.createScope().get(details.constructor, {
                 context: context

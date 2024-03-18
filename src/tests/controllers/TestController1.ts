@@ -1,14 +1,12 @@
 import {Controller} from '../../lib/core/Controller.js'
 import {Application} from '../../lib/core/Application.js'
 import {Inject} from '../../decorators/di/Inject.js'
-import {Before} from '../../decorators/asst/Before.js'
-import {After} from '../../decorators/asst/After.js'
 import {CLIAction} from '../../decorators/ctrl/CLIAction.js'
 import {HTTPAction} from '../../decorators/ctrl/HTTPAction.js'
-import {ServiceAction} from '../../decorators/ctrl/ServiceAction.js'
 import {DTO} from '../../lib/core/DTO.js'
 import type {ActionPattern} from '../../types/ActionPattern.js'
 import {Expect} from '../../decorators/dto/Expect.js'
+import {ContextType} from '../../lib/base/Context.js'
 
 class TestDTO extends DTO {
     @Expect(DTO.String().optional())
@@ -50,6 +48,7 @@ export class TestController1 extends Controller {
     @HTTPAction('/test/:id', ['GET', 'POST'])
     @CLIAction('test3', TestDTO)
     public async test3(inp: ActionPattern<TestDTO>) {
+        if (this.context.type === ContextType.CLI) console.log('cli!')
         return 'oh!!!!!!!!!!'
     }
 

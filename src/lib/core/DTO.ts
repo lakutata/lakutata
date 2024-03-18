@@ -13,7 +13,7 @@ import {ObjectSchema} from '../validation/interfaces/ObjectSchema.js'
 import {IsSymbol} from '../functions/IsSymbol.js'
 import {As} from '../functions/As.js'
 import parseToJSONSchema from 'joi-to-json'
-import {Schema as JSONSchema} from 'jsonschema'
+import {JSONSchema} from '../../types/JSONSchema.js'
 
 /**
  * Get DTO's object schema

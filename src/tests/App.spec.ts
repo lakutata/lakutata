@@ -15,11 +15,12 @@ import {Delay} from '../lib/functions/Delay.js'
 import {Module} from '../lib/core/Module.js'
 import {
     CLIEntrypointBuilder,
-    CLIEntrypointHandler,
+    CLIEntrypointHandler, CLIMap,
     HTTPEntrypointBuilder,
     HTTPEntrypointHandler, HTTPRouteMap, ServiceEntrypointBuilder
 } from '../components/Entrypoint.js'
 import {Command, program} from 'commander'
+import {CLIContext} from '../lib/context/CLIContext.js'
 
 (async (): Promise<void> => {
     await Application.run({
@@ -52,17 +53,23 @@ import {Command, program} from 'commander'
                     })
                     fastify.listen({port: 3000, host: '0.0.0.0'})
                 }),
-                cli: CLIEntrypointBuilder((module: Module, handler: CLIEntrypointHandler) => {
-                    program
-                        // .addCommand(new Command('test'))
-                        // .addCommand(new Command('test').option('--test111').argument('').action((args, options) => {
-                        //     console.log(args)
-                        // }), {isDefault: false})
-                        .option('--test','this is a test')
-                        .action((args,l)=>{
-                            // console.log(args,l)
+                cli: CLIEntrypointBuilder((module: Module, cliMap: CLIMap, handler: CLIEntrypointHandler) => {
+                    cliMap.forEach((dtoJsonSchema, command: string) => {
+                        const cmd = new Command(command)
+                        for (const p in dtoJsonSchema.properties) {
+                            const attr = dtoJsonSchema.properties[p]
+                            cmd.option(`--${p} <${attr.type}>`, attr.description)
+                        }
+                        cmd.action((args) => {
+                            handler(new CLIContext({command: command, data: args}))
                         })
-                        .parse(process.argv)
+                        program.addCommand(cmd)
+                    })
+                    // program.parse(process.argv)
+                    program.parse()
+                    // program.commands.forEach(cmd => {
+                    //     console.log(cmd.opts())
+                    // })
                 }),
                 service: ServiceEntrypointBuilder((module, handler) => {
                     //TODO

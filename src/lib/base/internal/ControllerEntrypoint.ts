@@ -6,6 +6,7 @@ import {As} from '../../functions/As.js'
 import {ActionPattern} from '../../../types/ActionPattern.js'
 import {ObjectParentConstructors} from '../../functions/ObjectParentConstructors.js'
 import {ObjectHash} from '../../functions/ObjectHash.js'
+import {JSONSchema} from '../../../types/JSONSchema.js'
 
 export enum ActionPatternManagerType {
     HTTP = '_$APMT_HTTP',
@@ -24,6 +25,8 @@ export type TotalActionPatternMap = {
 export type ActionDetails<ClassPrototype extends Controller = Controller> = {
     constructor: IBaseObjectConstructor<ClassPrototype>
     method: string | number | symbol
+    description?: string
+    extra?: any
 }
 
 type TotalInternalActionPatternMap = {
@@ -138,8 +141,27 @@ export function RegisterHTTPAction<ClassPrototype extends Controller>(route: str
     })
 }
 
-export function RegisterCLIAction<ClassPrototype extends Controller>(command: string, controllerPrototype: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>): void {
-    //TODO
+/**
+ * Register cli action
+ * @param command
+ * @param dtoJsonSchema
+ * @param controllerPrototype
+ * @param propertyKey
+ * @constructor
+ */
+export function RegisterCLIAction<ClassPrototype extends Controller>(command: string, dtoJsonSchema: JSONSchema, controllerPrototype: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>): void {
+    RegisterControllerActionPattern(
+        ActionPatternManagerType.CLI,
+        As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
+        {
+            command: command
+        },
+        {
+            constructor: As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
+            method: propertyKey,
+            extra: dtoJsonSchema
+        }
+    )
 }
 
 /**
