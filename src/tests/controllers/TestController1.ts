@@ -8,9 +8,14 @@ import {HTTPAction} from '../../decorators/ctrl/HTTPAction.js'
 import {ServiceAction} from '../../decorators/ctrl/ServiceAction.js'
 import {DTO} from '../../lib/core/DTO.js'
 import type {ActionPattern} from '../../types/ActionPattern.js'
+import {Expect} from '../../decorators/dto/Expect.js'
 
 class TestDTO extends DTO {
+    @Expect(DTO.String().optional())
+    public aaa: string
 
+    @Expect(DTO.Number().required().description('hahahaha'))
+    public bbb: number
 }
 
 export class TestController1 extends Controller {
