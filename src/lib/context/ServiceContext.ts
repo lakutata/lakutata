@@ -3,7 +3,7 @@ import {Expect} from '../../decorators/dto/Expect.js'
 import {BaseContext, type ContextParams, ContextType} from '../base/Context.js'
 import {type ActionPattern} from '../../types/ActionPattern.js'
 
-export class ServiceContext<T extends Record<string, any> = {}> extends BaseContext {
+export class ServiceContext<T extends Record<string, any> = {}> extends BaseContext<T> {
 
     @Expect(DTO.String().valid(ContextType.SERVICE).default(ContextType.SERVICE))
     public readonly type: ContextType

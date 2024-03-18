@@ -79,6 +79,19 @@ export class Entrypoint extends Component {
     }
 
     /**
+     * Run controller's method and return its result
+     * @param details
+     * @param context
+     * @protected
+     */
+    protected async runControllerMethod(details: ActionDetails, context: CLIContext | HTTPContext | ServiceContext): Promise<any> {
+        const controller: Controller = await this.createScope().get(details.constructor, {
+            context: context
+        })
+        return await controller.getMethod(As(details.method))(context.data)
+    }
+
+    /**
      * Register
      * @param eps
      * @param registerFunc
@@ -105,10 +118,7 @@ export class Entrypoint extends Component {
             }
             const details: ActionDetails | null = this.CLIActionPatternManager.find(actionPattern)
             if (!details) throw new ControllerActionNotFoundException('Command not found')
-            const controller: Controller = await this.createScope().get(details.constructor, {
-                context: context
-            })
-            return await controller.getMethod(As(details.method))()//TODO 调用时需要传入参数
+            return await this.runControllerMethod(details, context)
         })
     }
 
@@ -132,10 +142,7 @@ export class Entrypoint extends Component {
             }
             const details: ActionDetails | null = this.HTTPActionPatternManager.find(actionPattern)
             if (!details) throw new ControllerActionNotFoundException('Route \'{route}\' not found', context)
-            const controller: Controller = await this.createScope().get(details.constructor, {
-                context: context
-            })
-            return await controller.getMethod(As(details.method))()//TODO 调用时需要传入参数
+            return await this.runControllerMethod(details, context)
         })
     }
 
@@ -148,10 +155,7 @@ export class Entrypoint extends Component {
         return entrypoint(this.getModule(), async (context: ServiceContext) => {
             const details: ActionDetails | null = this.ServiceActionPatternManager.find(context.input)
             if (!details) throw new ControllerActionNotFoundException('Controller action not found')
-            const controller: Controller = await this.createScope().get(details.constructor, {
-                context: context
-            })
-            return await controller.getMethod(As(details.method))()//TODO 调用时需要传入参数
+            return await this.runControllerMethod(details, context)
         })
     }
 }

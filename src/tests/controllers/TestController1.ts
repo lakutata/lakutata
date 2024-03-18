@@ -37,7 +37,7 @@ export class TestController1 extends Controller {
     // @CLIAction()
     @HTTPAction('/test', 'GET')
     // @ServiceAction({})
-    public async test(inp, stream) {
+    public async test(inp) {
         return 'oh!'
     }
 
@@ -51,6 +51,7 @@ export class TestController1 extends Controller {
     @ServiceAction({act: 'test3'})
     public async test3(inp: ActionPattern<TestDTO>) {
         if (this.context.type === ContextType.CLI) console.log('cli!')
+        console.log(inp)
         return 'oh!!!!!!!!!!'
     }
 

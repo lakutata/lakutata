@@ -82,6 +82,9 @@ import {createServer} from 'node:http'
                     const httpServer = createServer()
                     const server = new SocketIOServer()
                     server.on('connection', socket => {
+                        socket.on('disconnect', () => {
+                            //TODO
+                        })
                         const context = new ServiceContext({
                             input: {},
                             data: {}
