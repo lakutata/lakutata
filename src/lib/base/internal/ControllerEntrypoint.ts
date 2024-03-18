@@ -138,7 +138,8 @@ export function RegisterHTTPAction<ClassPrototype extends Controller>(route: str
     })
 }
 
-export function RegisterCLIAction<ClassPrototype extends Controller>(controllerPrototype: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>): void {
+export function RegisterCLIAction<ClassPrototype extends Controller>(command: string, controllerPrototype: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>): void {
+    //TODO
 }
 
 /**

@@ -54,9 +54,14 @@ import {Command, program} from 'commander'
                 }),
                 cli: CLIEntrypointBuilder((module: Module, handler: CLIEntrypointHandler) => {
                     program
-                        .addCommand(new Command('test').option('--test111').argument('').action((args,options) => {
-                            console.log(args)
-                        }),{isDefault:false})
+                        // .addCommand(new Command('test'))
+                        // .addCommand(new Command('test').option('--test111').argument('').action((args, options) => {
+                        //     console.log(args)
+                        // }), {isDefault: false})
+                        .option('--test','this is a test')
+                        .action((args,l)=>{
+                            // console.log(args,l)
+                        })
                         .parse(process.argv)
                 }),
                 service: ServiceEntrypointBuilder((module, handler) => {

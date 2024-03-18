@@ -9,6 +9,10 @@ import {ServiceAction} from '../../decorators/ctrl/ServiceAction.js'
 import {DTO} from '../../lib/core/DTO.js'
 import type {ActionPattern} from '../../types/ActionPattern.js'
 
+class TestDTO extends DTO {
+
+}
+
 export class TestController1 extends Controller {
 
     @Inject()
@@ -39,8 +43,8 @@ export class TestController1 extends Controller {
     }
 
     @HTTPAction('/test/:id', ['GET', 'POST'])
-    @CLIAction('test3')
-    public async test3(inp: ActionPattern) {
+    @CLIAction('test3', TestDTO)
+    public async test3(inp: ActionPattern<TestDTO>) {
         return 'oh!!!!!!!!!!'
     }
 

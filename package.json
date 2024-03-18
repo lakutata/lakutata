@@ -11,7 +11,7 @@
     "rebuild": "npm run clean && npm run build:js",
     "prepare": "npm run compile",
     "compile": "npm run rebuild",
-    "test:app": "npm run rebuild && node distro/src/tests/App.spec.js test1 --test111 1234",
+    "test:app": "npm run rebuild && node distro/src/tests/App.spec.js --test aaa",
     "test:unit": "npm run rebuild && mocha distro/src/tests/UnitTest.spec.js"
   },
   "devDependencies": {
