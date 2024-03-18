@@ -1,5 +1,5 @@
-import {AnySchema} from './AnySchema.js'
-import {Reference} from 'joi'
+import {type AnySchema} from './AnySchema.js'
+import {type Reference} from 'joi'
 
 export interface NumberSchema<TSchema = number> extends AnySchema<TSchema> {
     /**

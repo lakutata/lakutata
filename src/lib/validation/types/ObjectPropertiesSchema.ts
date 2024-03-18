@@ -1,13 +1,13 @@
-import {IsNonPrimitiveSubsetUnion, NullableType} from 'joi'
-import {AlternativesSchema} from '../interfaces/AlternativesSchema.js'
-import {StringSchema} from '../interfaces/StringSchema.js'
-import {NumberSchema} from '../interfaces/NumberSchema.js'
-import {BooleanSchema} from '../interfaces/BooleanSchema.js'
-import {DateSchema} from '../interfaces/DateSchema.js'
-import {BinarySchema} from '../interfaces/BinarySchema.js'
-import {ArraySchema} from '../interfaces/ArraySchema.js'
-import {StrictSchemaMap} from './StrictSchemaMap.js'
-import {ObjectSchema} from '../interfaces/ObjectSchema.js'
+import {type IsNonPrimitiveSubsetUnion, type NullableType} from 'joi'
+import {type AlternativesSchema} from '../interfaces/AlternativesSchema.js'
+import {type StringSchema} from '../interfaces/StringSchema.js'
+import {type NumberSchema} from '../interfaces/NumberSchema.js'
+import {type BooleanSchema} from '../interfaces/BooleanSchema.js'
+import {type DateSchema} from '../interfaces/DateSchema.js'
+import {type BinarySchema} from '../interfaces/BinarySchema.js'
+import {type ArraySchema} from '../interfaces/ArraySchema.js'
+import {type StrictSchemaMap} from './StrictSchemaMap.js'
+import {type ObjectSchema} from '../interfaces/ObjectSchema.js'
 
 export type ObjectPropertiesSchema<T = any> =
     true extends IsNonPrimitiveSubsetUnion<Exclude<T, undefined | null>>

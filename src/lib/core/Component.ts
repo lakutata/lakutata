@@ -2,14 +2,14 @@ import {__destroy, __init} from '../base/BaseObject.js'
 import {Singleton} from '../../decorators/di/Lifetime.js'
 import {EventEmitter} from '../EventEmitter.js'
 import {
-    event,
-    ListenerFn,
-    EventAndListener
+    type event,
+    type ListenerFn,
+    type EventAndListener
 } from 'eventemitter2'
 import {Provider} from './Provider.js'
 import {DefineObjectType, ObjectType} from '../base/internal/ObjectType.js'
 import {GetObjectContainer} from '../base/internal/ObjectContainer.js'
-import {Container} from './Container.js'
+import {type Container} from './Container.js'
 
 /**
  * Component base class

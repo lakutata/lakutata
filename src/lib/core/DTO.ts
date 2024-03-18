@@ -6,14 +6,14 @@ import {
     GetObjectSchemaByPrototype
 } from '../base/internal/ObjectSchemaValidation.js'
 import {InvalidValueException} from '../../exceptions/dto/InvalidValueException.js'
-import {ValidationOptions} from '../validation/interfaces/ValidationOptions.js'
+import {type ValidationOptions} from '../validation/interfaces/ValidationOptions.js'
 import {VLDMethods} from '../validation/VLD.js'
-import {Schema} from '../validation/types/Schema.js'
-import {ObjectSchema} from '../validation/interfaces/ObjectSchema.js'
+import {type Schema} from '../validation/types/Schema.js'
+import {type ObjectSchema} from '../validation/interfaces/ObjectSchema.js'
 import {IsSymbol} from '../functions/IsSymbol.js'
 import {As} from '../functions/As.js'
 import parseToJSONSchema from 'joi-to-json'
-import {JSONSchema} from '../../types/JSONSchema.js'
+import {type JSONSchema} from '../../types/JSONSchema.js'
 
 /**
  * Get DTO's object schema

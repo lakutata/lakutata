@@ -1,5 +1,5 @@
 /**
- * Whether a object is empty object or not
+ * Whether an object is empty object or not
  * @param obj
  * @constructor
  */

@@ -1,6 +1,6 @@
-import {SchemaLike} from '../types/SchemaLike.js'
-import {SwitchCases} from './SwitchCases.js'
-import {SwitchDefault} from './SwitchDefault.js'
+import {type SchemaLike} from '../types/SchemaLike.js'
+import {type SwitchCases} from './SwitchCases.js'
+import {type SwitchDefault} from './SwitchDefault.js'
 
 export interface WhenOptions {
     /**

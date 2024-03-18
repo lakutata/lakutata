@@ -4,20 +4,20 @@ import {
     DependencyInjectionResolutionError,
     DependencyInjectionTypeError
 } from './Errors.js'
-import {InjectionMode, InjectionModeType} from './InjectionMode.js'
-import {Lifetime, LifetimeType, isLifetimeLonger} from './Lifetime.js'
-import {GlobWithOptions, listModules} from './ListModules.js'
+import {InjectionMode, type InjectionModeType} from './InjectionMode.js'
+import {Lifetime, type LifetimeType, isLifetimeLonger} from './Lifetime.js'
+import {type GlobWithOptions, listModules} from './ListModules.js'
 import {importModule} from './LoadModuleNative.js'
 import {
-    LoadModulesOptions,
-    LoadModulesResult,
+    type LoadModulesOptions,
+    type LoadModulesResult,
     loadModules as realLoadModules
 } from './LoadModules.js'
 import {
-    BuildResolverOptions,
-    Constructor,
-    DisposableResolver,
-    Resolver,
+    type BuildResolverOptions,
+    type Constructor,
+    type DisposableResolver,
+    type Resolver,
     asClass,
     asFunction
 } from './Resolvers.js'

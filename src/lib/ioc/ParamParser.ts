@@ -1,4 +1,4 @@
-import {createTokenizer, Token, TokenizerFlags} from './FunctionTokenizer.js'
+import {createTokenizer, type Token, TokenizerFlags} from './FunctionTokenizer.js'
 
 /**
  * A parameter for a function.

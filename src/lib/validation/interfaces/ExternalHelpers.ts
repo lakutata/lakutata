@@ -1,5 +1,5 @@
-import {Context, ErrorReport, LanguageMessages, State, ValidationOptions} from 'joi'
-import {ExtensionBoundSchema} from '../types/ExtensionBoundSchema.js'
+import {type Context, type ErrorReport, type LanguageMessages, type State, type ValidationOptions} from 'joi'
+import {type ExtensionBoundSchema} from '../types/ExtensionBoundSchema.js'
 
 export interface ExternalHelpers<V = any> {
     schema: ExtensionBoundSchema;

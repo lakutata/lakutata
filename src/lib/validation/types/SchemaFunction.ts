@@ -1,3 +1,3 @@
-import {Schema} from './Schema.js'
+import {type Schema} from './Schema.js'
 
 export type SchemaFunction = (schema: Schema) => Schema

@@ -1,4 +1,4 @@
-import {ObjectPropertiesSchema} from './ObjectPropertiesSchema.js'
+import {type ObjectPropertiesSchema} from './ObjectPropertiesSchema.js'
 
 export type StrictSchemaMap<TSchema = any> = {
     [key in keyof TSchema]-?: ObjectPropertiesSchema<TSchema[key]>

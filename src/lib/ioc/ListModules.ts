@@ -1,8 +1,8 @@
 import * as glob from 'fast-glob'
 import * as path from 'path'
 import {flatten} from './Utils.js'
-import {BuildResolverOptions, ResolverOptions} from './Resolvers.js'
-import {LifetimeType} from './Lifetime.js'
+import {type BuildResolverOptions, type ResolverOptions} from './Resolvers.js'
+import {type LifetimeType} from './Lifetime.js'
 
 /**
  * The options when invoking listModules().

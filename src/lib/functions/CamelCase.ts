@@ -1,4 +1,4 @@
-import {NoCaseOptions, Split, ToLower, ToUpper} from './NoCase.js'
+import {type NoCaseOptions, Split, ToLower, ToUpper} from './NoCase.js'
 
 export type {NoCaseOptions}
 

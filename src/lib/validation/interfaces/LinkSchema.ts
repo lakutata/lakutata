@@ -1,5 +1,5 @@
-import {AnySchema} from './AnySchema.js'
-import {Schema} from '../types/Schema.js'
+import {type AnySchema} from './AnySchema.js'
+import {type Schema} from '../types/Schema.js'
 
 export interface LinkSchema<TSchema = any> extends AnySchema<TSchema> {
     /**

@@ -1,4 +1,4 @@
-import {AnySchema} from './AnySchema.js'
+import {type AnySchema} from './AnySchema.js'
 
 export interface BooleanSchema<TSchema = boolean> extends AnySchema<TSchema> {
     /**

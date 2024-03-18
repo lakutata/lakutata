@@ -1,24 +1,24 @@
 import {
-    BasicType,
-    Cache,
-    Context,
-    Description,
-    LanguageMessages,
-    PresenceMode,
-    Reference,
-    RuleOptions,
-    ValidationErrorFunction,
-    ValidationOptions
+    type BasicType,
+    type Cache,
+    type Context,
+    type Description,
+    type LanguageMessages,
+    type PresenceMode,
+    type Reference,
+    type RuleOptions,
+    type ValidationErrorFunction,
+    type ValidationOptions
 } from 'joi'
-import {Types} from '../types/Types.js'
-import {Schema} from '../types/Schema.js'
-import {SchemaFunction} from '../types/SchemaFunction.js'
-import {CustomHelpers} from './CustomHelpers.js'
-import {SchemaLike} from '../types/SchemaLike.js'
-import {WhenOptions} from './WhenOptions.js'
-import {WhenSchemaOptions} from './WhenSchemaOptions.js'
-import {CustomValidator} from '../types/CustomValidator.js'
-import {ExternalValidationFunction} from '../types/ExternalValidationFunction.js'
+import {type Types} from '../types/Types.js'
+import {type Schema} from '../types/Schema.js'
+import {type SchemaFunction} from '../types/SchemaFunction.js'
+import {type CustomHelpers} from './CustomHelpers.js'
+import {type SchemaLike} from '../types/SchemaLike.js'
+import {type WhenOptions} from './WhenOptions.js'
+import {type WhenSchemaOptions} from './WhenSchemaOptions.js'
+import {type CustomValidator} from '../types/CustomValidator.js'
+import {type ExternalValidationFunction} from '../types/ExternalValidationFunction.js'
 
 export interface AnySchema<TSchema = any> {
     type?: Types | undefined;

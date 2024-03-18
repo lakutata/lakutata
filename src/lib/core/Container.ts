@@ -1,12 +1,12 @@
 import {
     createContainer,
-    IDependencyInjectionContainer,
-    NameAndRegistrationPair
+    type IDependencyInjectionContainer,
+    type NameAndRegistrationPair
 } from '../ioc/DependencyInjectionContainer.js'
 import {__destroy, BaseObject} from '../base/BaseObject.js'
 import {ConstructorSymbol} from '../base/internal/ConstructorSymbol.js'
 import {LoadObjectOptions, OBJECT_ID} from '../../options/LoadObjectOptions.js'
-import {asClass, asValue, BuildResolverOptions} from '../ioc/Resolvers.js'
+import {asClass, asValue, type BuildResolverOptions} from '../ioc/Resolvers.js'
 import {GetObjectLifetime} from '../base/internal/ObjectLifetime.js'
 import {
     GetConfigurableRecords,
@@ -16,11 +16,11 @@ import {
 import {DTO} from './DTO.js'
 import {GetObjectIsAutoload} from '../base/internal/ObjectInjection.js'
 import {Accept} from '../../decorators/dto/Accept.js'
-import {listModules, ModuleDescriptor} from '../ioc/ListModules.js'
+import {listModules, type ModuleDescriptor} from '../ioc/ListModules.js'
 import {pathToFileURL} from 'url'
 import {isClass} from '../ioc/Utils.js'
-import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
-import {LifetimeType} from '../ioc/Lifetime.js'
+import {type IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
+import {type LifetimeType} from '../ioc/Lifetime.js'
 import {DevNull} from '../functions/DevNull.js'
 import {As} from '../functions/As.js'
 import {IsEmptyObject} from '../functions/IsEmptyObject.js'
