@@ -1,5 +1,5 @@
-import {BaseObject} from '../../lib/base/BaseObject.js'
-import {ClassDecorator} from '../../types/ClassDecorator.js'
+import {type BaseObject} from '../../lib/base/BaseObject.js'
+import {type ClassDecorator} from '../../types/ClassDecorator.js'
 import {MarkObjectAsAutoload} from '../../lib/base/internal/ObjectInjection.js'
 
 /**

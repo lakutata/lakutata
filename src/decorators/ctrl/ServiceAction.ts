@@ -1,6 +1,6 @@
-import {Controller, ControllerProperty} from '../../lib/core/Controller.js'
-import {MethodDecorator} from '../../types/MethodDecorator.js'
-import {ActionPattern} from '../../types/ActionPattern.js'
+import {type Controller, type ControllerProperty} from '../../lib/core/Controller.js'
+import {type MethodDecorator} from '../../types/MethodDecorator.js'
+import {type ActionPattern} from '../../types/ActionPattern.js'
 import {RegisterServiceAction} from '../../lib/base/internal/ControllerEntrypoint.js'
 
 /**

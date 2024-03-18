@@ -1,5 +1,5 @@
-import {PropertyDecorator} from '../../types/PropertyDecorator.js'
-import {BaseObject} from '../../lib/base/BaseObject.js'
+import {type PropertyDecorator} from '../../types/PropertyDecorator.js'
+import {type BaseObject} from '../../lib/base/BaseObject.js'
 import {SetObjectInjectItem} from '../../lib/base/internal/ObjectInjection.js'
 
 /**

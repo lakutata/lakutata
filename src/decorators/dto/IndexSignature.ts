@@ -1,7 +1,7 @@
-import {DTO} from '../../lib/core/DTO.js'
-import {ClassDecorator} from '../../types/ClassDecorator.js'
+import {type DTO} from '../../lib/core/DTO.js'
+import {type ClassDecorator} from '../../types/ClassDecorator.js'
 import {SetObjectIndexSignatureSchema} from '../../lib/base/internal/ObjectSchemaValidation.js'
-import {Schema} from '../../lib/validation/types/Schema.js'
+import {type Schema} from '../../lib/validation/types/Schema.js'
 
 /**
  * Class Decorator
