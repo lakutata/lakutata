@@ -52,6 +52,7 @@
     "rollup-plugin-copy": "^3.5.0",
     "rollup-plugin-progress": "^1.1.2",
     "shx": "^0.3.4",
+    "socket.io": "^4.7.5",
     "tslib": "^2.6.2",
     "typescript": "^5.3.3"
   },

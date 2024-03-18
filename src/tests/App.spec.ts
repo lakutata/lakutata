@@ -12,17 +12,19 @@ import Fastify from 'fastify'
 import {As} from '../lib/functions/As.js'
 import {Url} from 'url'
 import {Delay} from '../lib/functions/Delay.js'
-import {Module} from '../lib/core/Module.js'
+import {type Module} from '../lib/core/Module.js'
 import {
     CLIEntrypointBuilder,
-    CLIEntrypointHandler, CLIMap,
+    type CLIEntrypointHandler, type CLIMap,
     HTTPEntrypointBuilder,
-    HTTPEntrypointHandler, HTTPRouteMap, ServiceEntrypointBuilder
+    type HTTPEntrypointHandler, type HTTPRouteMap, ServiceEntrypointBuilder
 } from '../components/Entrypoint.js'
-import {Command, program} from 'commander'
+import {Command} from 'commander'
 import {CLIContext} from '../lib/context/CLIContext.js'
 import {createInterface} from 'node:readline'
 import {DevNull} from '../lib/functions/DevNull.js'
+import {Server} from 'socket.io'
+import {ServiceContext} from '../lib/context/ServiceContext.js'
 
 (async (): Promise<void> => {
     await Application.run({
@@ -69,13 +71,12 @@ import {DevNull} from '../lib/functions/DevNull.js'
                         })
                         CLIProgram.addCommand(cmd)
                     })
-                    CLIProgram.addCommand(new Command('exit').allowUnknownOption(true).action(()=>process.exit()))
+                    CLIProgram.addCommand(new Command('exit').allowUnknownOption(true).action(() => process.exit()))
                     createInterface({
                         input: process.stdin,
                         output: process.stdout
                     }).on('line', input => {
                         try {
-                            // CLIProgram.parse([].concat(input.split(' ')), {from: 'user'})//使用命令行传入的参数进行执行
                             CLIProgram.parse(input.split(' '), {from: 'user'})//使用命令行传入的参数进行执行
                         } catch (e: any) {
                             DevNull(e)
@@ -83,7 +84,14 @@ import {DevNull} from '../lib/functions/DevNull.js'
                     })
                 }),
                 service: ServiceEntrypointBuilder((module, handler) => {
-                    //TODO
+                    // const server = new Server()
+                    // server.on('connection', socket => {
+                    //     const context=new ServiceContext({
+                    //         input:{},
+                    //         data:{}
+                    //     })
+                    // })
+                    // server.listen(3001)
                 })
             }
         },

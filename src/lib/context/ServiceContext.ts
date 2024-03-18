@@ -1,7 +1,7 @@
 import {DTO} from '../core/DTO.js'
 import {Expect} from '../../decorators/dto/Expect.js'
-import * as ActionPatternJs from '../../types/ActionPattern.js'
-import {BaseContext, ContextParams, ContextType} from '../base/Context.js'
+import {BaseContext, type ContextParams, ContextType} from '../base/Context.js'
+import {type ActionPattern } from '../../types/ActionPattern.js'
 
 export class ServiceContext<T extends Record<string, any> = {}> extends BaseContext {
 
@@ -9,10 +9,10 @@ export class ServiceContext<T extends Record<string, any> = {}> extends BaseCont
     public readonly type: ContextType
 
     @Expect(DTO.Object().pattern(DTO.String(), DTO.Any()).required())
-    public input: ActionPatternJs.ActionPattern<T>
+    public input: ActionPattern<T>
 
     constructor(params: ContextParams<{
-        readonly input: string
+        readonly input: ActionPattern
         readonly data: Record<string, any>
     }>) {
         super(params)
