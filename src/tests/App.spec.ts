@@ -86,6 +86,11 @@ import {createServer} from 'node:http'
                             input: {},
                             data: {}
                         })
+                        socket.on('message', async (data, fn) => {
+                            context.input = data
+                            context.data = context.input
+                            return fn(await handler(context))
+                        })
                     })
                     server.attach(httpServer)
                     httpServer.listen(3001, '0.0.0.0')

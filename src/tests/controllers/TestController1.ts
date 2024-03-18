@@ -7,6 +7,7 @@ import {DTO} from '../../lib/core/DTO.js'
 import type {ActionPattern} from '../../types/ActionPattern.js'
 import {Expect} from '../../decorators/dto/Expect.js'
 import {ContextType} from '../../lib/base/Context.js'
+import {ServiceAction} from '../../decorators/ctrl/ServiceAction.js'
 
 class TestDTO extends DTO {
     @Expect(DTO.String().optional())
@@ -47,6 +48,7 @@ export class TestController1 extends Controller {
 
     @HTTPAction('/test/:id', ['GET', 'POST'])
     @CLIAction('test3', TestDTO)
+    @ServiceAction({act: 'test3'})
     public async test3(inp: ActionPattern<TestDTO>) {
         if (this.context.type === ContextType.CLI) console.log('cli!')
         return 'oh!!!!!!!!!!'
