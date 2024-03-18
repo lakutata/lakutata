@@ -21,6 +21,8 @@ import {
 } from '../components/Entrypoint.js'
 import {Command, program} from 'commander'
 import {CLIContext} from '../lib/context/CLIContext.js'
+import {createInterface} from 'node:readline'
+import {DevNull} from '../lib/functions/DevNull.js'
 
 (async (): Promise<void> => {
     await Application.run({
@@ -54,8 +56,10 @@ import {CLIContext} from '../lib/context/CLIContext.js'
                     fastify.listen({port: 3000, host: '0.0.0.0'})
                 }),
                 cli: CLIEntrypointBuilder((module: Module, cliMap: CLIMap, handler: CLIEntrypointHandler) => {
+                    const CLIProgram: Command = new Command()
+                        .exitOverride()
                     cliMap.forEach((dtoJsonSchema, command: string) => {
-                        const cmd = new Command(command)
+                        const cmd = new Command(command).exitOverride()
                         for (const p in dtoJsonSchema.properties) {
                             const attr = dtoJsonSchema.properties[p]
                             cmd.option(`--${p} <${attr.type}>`, attr.description)
@@ -63,13 +67,20 @@ import {CLIContext} from '../lib/context/CLIContext.js'
                         cmd.action((args) => {
                             handler(new CLIContext({command: command, data: args}))
                         })
-                        program.addCommand(cmd)
+                        CLIProgram.addCommand(cmd)
                     })
-                    // program.parse(process.argv)
-                    program.parse()
-                    // program.commands.forEach(cmd => {
-                    //     console.log(cmd.opts())
-                    // })
+                    CLIProgram.addCommand(new Command('exit').allowUnknownOption(true).action(()=>process.exit()))
+                    createInterface({
+                        input: process.stdin,
+                        output: process.stdout
+                    }).on('line', input => {
+                        try {
+                            // CLIProgram.parse([].concat(input.split(' ')), {from: 'user'})//使用命令行传入的参数进行执行
+                            CLIProgram.parse(input.split(' '), {from: 'user'})//使用命令行传入的参数进行执行
+                        } catch (e: any) {
+                            DevNull(e)
+                        }
+                    })
                 }),
                 service: ServiceEntrypointBuilder((module, handler) => {
                     //TODO
