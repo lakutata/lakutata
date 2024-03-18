@@ -1,4 +1,4 @@
-import {type BaseObject} from '../lib/base/BaseObject.js'
+import {BaseObject} from '../lib/base/BaseObject.js'
 
 type BaseObjectConstructor = typeof BaseObject
 

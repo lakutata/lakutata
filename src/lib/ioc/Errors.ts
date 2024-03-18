@@ -1,4 +1,4 @@
-import {type ResolutionStack} from './DependencyInjectionContainer.js'
+import {ResolutionStack} from './DependencyInjectionContainer.js'
 import {DependencyInjectionException} from '../../exceptions/di/DependencyInjectionException.js'
 import {ResolveConstructorNameBySymbol} from '../base/internal/ConstructorSymbol.js'
 import {As} from '../functions/As.js'

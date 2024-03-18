@@ -1,10 +1,10 @@
 import {ModuleConfigLoader} from './ModuleConfigLoader.js'
-import {type LoadObjectOptions} from '../../../options/LoadObjectOptions.js'
-import {type BaseObject} from '../BaseObject.js'
+import {LoadObjectOptions} from '../../../options/LoadObjectOptions.js'
+import {BaseObject} from '../BaseObject.js'
 import {ApplicationOptions} from '../../../options/ApplicationOptions.js'
 import {Alias} from '../../Alias.js'
 import {SetBasicInfo} from './BasicInfo.js'
-import {type Application} from '../../core/Application.js'
+import {Application} from '../../core/Application.js'
 
 export class ApplicationConfigLoader extends ModuleConfigLoader {
 

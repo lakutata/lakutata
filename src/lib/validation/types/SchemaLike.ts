@@ -1,3 +1,3 @@
-import {type SchemaLikeWithoutArray} from './SchemaLikeWithoutArray.js'
+import {SchemaLikeWithoutArray} from './SchemaLikeWithoutArray.js'
 
 export type SchemaLike = SchemaLikeWithoutArray | object

@@ -1,12 +1,12 @@
 import {DTO} from '../lib/core/DTO.js'
 import {BaseObject} from '../lib/base/BaseObject.js'
 import {Expect} from '../decorators/dto/Expect.js'
-import {type Module} from '../lib/core/Module.js'
+import {Module} from '../lib/core/Module.js'
 import {ModuleLoadObjectsOptions} from './ModuleLoadObjectsOptions.js'
 import {OverridableNamedObjectOptions} from './OverridableNamedObjectOptions.js'
-import {type Component} from '../lib/core/Component.js'
-import {type IBaseObjectConstructor} from '../interfaces/IBaseObjectConstructor.js'
-import {type Provider} from '../lib/core/Provider.js'
+import {Component} from '../lib/core/Component.js'
+import {IBaseObjectConstructor} from '../interfaces/IBaseObjectConstructor.js'
+import {Provider} from '../lib/core/Provider.js'
 import {Controller} from '../lib/core/Controller.js'
 
 export type BootstrapAsyncFunction<T = any, U = any> = (target: T) => Promise<U>

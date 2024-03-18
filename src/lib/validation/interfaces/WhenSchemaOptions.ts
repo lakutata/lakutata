@@ -1,4 +1,4 @@
-import {type SchemaLike} from '../types/SchemaLike.js'
+import {SchemaLike} from '../types/SchemaLike.js'
 
 export interface WhenSchemaOptions {
     /**

@@ -3,16 +3,10 @@ import {TestComponent} from './components/TestComponent.js'
 import {TestModule} from './modules/TestModule.js'
 import {TestProvider} from './providers/TestProvider.js'
 import {TestController1} from './controllers/TestController1.js'
-import {PatternManager} from '../lib/base/internal/PatternManager.js'
-import {DTO} from '../lib/core/DTO.js'
-import {Stream} from 'node:stream'
-import path from 'node:path'
 import {HTTPContext} from '../lib/context/HTTPContext.js'
 import Fastify from 'fastify'
 import {As} from '../lib/functions/As.js'
-import {Url} from 'url'
-import {Delay} from '../lib/functions/Delay.js'
-import {type Module} from '../lib/core/Module.js'
+import {Module} from '../lib/core/Module.js'
 import {
     CLIEntrypointBuilder,
     type CLIEntrypointHandler, type CLIMap,
@@ -23,8 +17,9 @@ import {Command} from 'commander'
 import {CLIContext} from '../lib/context/CLIContext.js'
 import {createInterface} from 'node:readline'
 import {DevNull} from '../lib/functions/DevNull.js'
-import {Server} from 'socket.io'
+import {Server as SocketIOServer} from 'socket.io'
 import {ServiceContext} from '../lib/context/ServiceContext.js'
+import {createServer} from 'node:http'
 
 (async (): Promise<void> => {
     await Application.run({
@@ -84,14 +79,16 @@ import {ServiceContext} from '../lib/context/ServiceContext.js'
                     })
                 }),
                 service: ServiceEntrypointBuilder((module, handler) => {
-                    // const server = new Server()
-                    // server.on('connection', socket => {
-                    //     const context=new ServiceContext({
-                    //         input:{},
-                    //         data:{}
-                    //     })
-                    // })
-                    // server.listen(3001)
+                    const httpServer = createServer()
+                    const server = new SocketIOServer()
+                    server.on('connection', socket => {
+                        const context = new ServiceContext({
+                            input: {},
+                            data: {}
+                        })
+                    })
+                    server.attach(httpServer)
+                    httpServer.listen(3001, '0.0.0.0')
                 })
             }
         },

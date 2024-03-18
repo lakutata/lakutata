@@ -6,18 +6,18 @@ import {
 } from './Errors.js'
 import {InjectionMode, type InjectionModeType} from './InjectionMode.js'
 import {Lifetime, type LifetimeType, isLifetimeLonger} from './Lifetime.js'
-import {type GlobWithOptions, listModules} from './ListModules.js'
+import {GlobWithOptions, listModules} from './ListModules.js'
 import {importModule} from './LoadModuleNative.js'
 import {
-    type LoadModulesOptions,
-    type LoadModulesResult,
+     LoadModulesOptions,
+     LoadModulesResult,
     loadModules as realLoadModules
 } from './LoadModules.js'
 import {
-    type BuildResolverOptions,
-    type Constructor,
-    type DisposableResolver,
-    type Resolver,
+     BuildResolverOptions,
+     Constructor,
+     DisposableResolver,
+     Resolver,
     asClass,
     asFunction
 } from './Resolvers.js'

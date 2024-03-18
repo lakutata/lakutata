@@ -1,7 +1,7 @@
-import {type DTO} from '../../lib/core/DTO.js'
-import {type MethodDecorator} from '../../types/MethodDecorator.js'
+import {DTO} from '../../lib/core/DTO.js'
+import {MethodDecorator} from '../../types/MethodDecorator.js'
 import {SetMethodAcceptArgumentsValidator} from '../../lib/base/internal/MethodValidation.js'
-import {type Schema} from '../../lib/validation/types/Schema.js'
+import {Schema} from '../../lib/validation/types/Schema.js'
 
 /**
  * Method Decorator

@@ -1,3 +1,3 @@
-import {type Schema} from './Schema.js'
+import {Schema} from './Schema.js'
 
 export type ExtensionBoundSchema = Schema

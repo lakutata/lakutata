@@ -1,5 +1,5 @@
 import {Patrun} from 'patrun'
-import {type IPatRun} from '../../../interfaces/IPatRun.js'
+import {IPatRun} from '../../../interfaces/IPatRun.js'
 
 export type PatternManagerOptions = {
     globMatch?: boolean

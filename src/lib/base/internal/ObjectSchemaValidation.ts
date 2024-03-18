@@ -1,13 +1,13 @@
-import {type DTO} from '../../core/DTO.js'
+import {DTO} from '../../core/DTO.js'
 import {
     DTO_CONSTRUCTOR,
     DTO_INDEX_SIGNATURE_SCHEMA,
     DTO_PROPERTY_SCHEMAS
 } from '../../../constants/metadata-keys/DTOMetadataKey.js'
 import {DataValidator} from './DataValidator.js'
-import {type Schema} from '../../validation/types/Schema.js'
-import {type ObjectSchema} from '../../validation/interfaces/ObjectSchema.js'
-import {type SchemaMap} from '../../validation/types/SchemaMap.js'
+import {Schema} from '../../validation/types/Schema.js'
+import {ObjectSchema} from '../../validation/interfaces/ObjectSchema.js'
+import {SchemaMap} from '../../validation/types/SchemaMap.js'
 import {ObjectConstructor} from '../../functions/ObjectConstructor.js'
 import {ObjectParentConstructors} from '../../functions/ObjectParentConstructors.js'
 import {ObjectPrototype} from '../../functions/ObjectPrototype.js'

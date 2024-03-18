@@ -1,19 +1,19 @@
 import {Component} from '../lib/core/Component.js'
 import {Configurable} from '../decorators/di/Configurable.js'
-import {type CLIContext} from '../lib/context/CLIContext.js'
-import {type HTTPContext} from '../lib/context/HTTPContext.js'
-import {type ServiceContext} from '../lib/context/ServiceContext.js'
-import {type ActionPattern} from '../types/ActionPattern.js'
-import {type Module} from '../lib/core/Module.js'
+import {CLIContext} from '../lib/context/CLIContext.js'
+import {HTTPContext} from '../lib/context/HTTPContext.js'
+import {ServiceContext} from '../lib/context/ServiceContext.js'
+import {ActionPattern} from '../types/ActionPattern.js'
+import {Module} from '../lib/core/Module.js'
 import {
     type ActionDetails, type ActionPatternMap,
     GetModuleControllerActionMap
 } from '../lib/base/internal/ControllerEntrypoint.js'
 import {PatternManager} from '../lib/base/internal/PatternManager.js'
-import {type Controller} from '../lib/core/Controller.js'
+import {Controller} from '../lib/core/Controller.js'
 import {As} from '../lib/functions/As.js'
 import {ControllerActionNotFoundException} from '../exceptions/ControllerActionNotFoundException.js'
-import {type JSONSchema} from '../types/JSONSchema.js'
+import {JSONSchema} from '../types/JSONSchema.js'
 
 export type CLIEntrypoint = (module: Module, cliMap: CLIMap, handler: CLIEntrypointHandler) => void
 export type HTTPEntrypoint = (module: Module, routeMap: HTTPRouteMap, handler: HTTPEntrypointHandler) => void

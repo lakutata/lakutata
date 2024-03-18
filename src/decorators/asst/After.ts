@@ -1,5 +1,5 @@
-import {type MethodDecorator} from '../../types/MethodDecorator.js'
-import {type AfterFunction, RegisterAfterFunction} from '../../lib/base/internal/MethodAssistantFunction.js'
+import {MethodDecorator} from '../../types/MethodDecorator.js'
+import {AfterFunction, RegisterAfterFunction} from '../../lib/base/internal/MethodAssistantFunction.js'
 
 /**
  * Method Decorator

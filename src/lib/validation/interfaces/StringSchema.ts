@@ -1,13 +1,15 @@
-import {type AnySchema} from './AnySchema.js'
+import {AnySchema} from './AnySchema.js'
 import {
-    type Base64Options,
-    type DataUriOptions,
-    type DomainOptions,
-    type EmailOptions,
-    type GuidOptions,
-    type HexOptions,
-    type IpOptions,
-    type Reference, type StringRegexOptions, type UriOptions
+    Base64Options,
+    DataUriOptions,
+    DomainOptions,
+    EmailOptions,
+    GuidOptions,
+    HexOptions,
+    IpOptions,
+    Reference,
+    StringRegexOptions,
+    UriOptions
 } from 'joi'
 
 export interface StringSchema<TSchema = string> extends AnySchema<TSchema> {

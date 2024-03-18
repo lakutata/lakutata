@@ -1,5 +1,5 @@
-import {type Container} from '../../core/Container.js'
-import {type BaseObject} from '../BaseObject.js'
+import {Container} from '../../core/Container.js'
+import {BaseObject} from '../BaseObject.js'
 import {DI_TARGET_CONTAINER} from '../../../constants/metadata-keys/DIMetadataKey.js'
 
 /**

@@ -1,5 +1,5 @@
 import {createTokenizer, type Token} from './FunctionTokenizer.js'
-import {type Constructor} from './Resolvers.js'
+import {Constructor} from './Resolvers.js'
 import {IsSymbol} from '../functions/IsSymbol.js'
 import {As} from '../functions/As.js'
 

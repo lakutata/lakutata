@@ -1,6 +1,6 @@
-import {type BaseObject} from '../../lib/base/BaseObject.js'
-import {type ClassDecorator} from '../../types/ClassDecorator.js'
-import {type LifetimeType} from '../../lib/ioc/Lifetime.js'
+import {BaseObject} from '../../lib/base/BaseObject.js'
+import {ClassDecorator} from '../../types/ClassDecorator.js'
+import {LifetimeType} from '../../lib/ioc/Lifetime.js'
 import {SetObjectLifetime} from '../../lib/base/internal/ObjectLifetime.js'
 
 /**

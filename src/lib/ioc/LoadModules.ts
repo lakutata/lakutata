@@ -1,10 +1,10 @@
 import {pathToFileURL} from 'url'
-import {type IDependencyInjectionContainer} from './DependencyInjectionContainer.js'
+import {IDependencyInjectionContainer} from './DependencyInjectionContainer.js'
 import {Lifetime} from './Lifetime.js'
-import {type GlobWithOptions, type ModuleDescriptor, type listModules} from './ListModules.js'
+import {GlobWithOptions, ModuleDescriptor, listModules} from './ListModules.js'
 import {
-    type BuildResolver,
-    type BuildResolverOptions,
+    BuildResolver,
+    BuildResolverOptions,
     RESOLVER,
     asClass,
     asFunction

@@ -1,4 +1,4 @@
-import {type BaseObject} from '../BaseObject.js'
+import {BaseObject} from '../BaseObject.js'
 import {
     DI_TARGET_CONSTRUCTOR_AUTOLOAD,
     DI_TARGET_CONSTRUCTOR_INJECTS

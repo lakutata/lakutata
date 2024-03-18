@@ -1,31 +1,31 @@
 import Joi, {
-    type CacheConfiguration,
-    type CompileOptions,
-    type CustomValidator,
-    type Extension, type ExtensionFactory,
-    type Reference, type ReferenceOptions,
-    type ValidationError,
-    type ValidationErrorItem,
-    type Schema as OrigSchema, type ValidationResult, isSchema
+    CacheConfiguration,
+    CompileOptions,
+    CustomValidator,
+    Extension, ExtensionFactory,
+    Reference, ReferenceOptions,
+    ValidationError,
+    ValidationErrorItem,
+    Schema as OrigSchema, ValidationResult, isSchema
 } from 'joi'
-import {type AnySchema} from './interfaces/AnySchema.js'
-import {type ArraySchema} from './interfaces/ArraySchema.js'
-import {type BooleanSchema} from './interfaces/BooleanSchema.js'
-import {type BinarySchema} from './interfaces/BinarySchema.js'
-import {type DateSchema} from './interfaces/DateSchema.js'
-import {type FunctionSchema} from './interfaces/FunctionSchema.js'
-import {type NumberSchema} from './interfaces/NumberSchema.js'
-import {type ObjectSchema} from './interfaces/ObjectSchema.js'
-import {type StringSchema} from './interfaces/StringSchema.js'
-import {type SymbolSchema} from './interfaces/SymbolSchema.js'
-import {type AlternativesSchema} from './interfaces/AlternativesSchema.js'
-import {type LinkSchema} from './interfaces/LinkSchema.js'
-import {type Schema} from './types/Schema.js'
-import {type SchemaFunction} from './types/SchemaFunction.js'
-import {type ValidationOptions} from './interfaces/ValidationOptions.js'
+import {AnySchema} from './interfaces/AnySchema.js'
+import {ArraySchema} from './interfaces/ArraySchema.js'
+import {BooleanSchema} from './interfaces/BooleanSchema.js'
+import {BinarySchema} from './interfaces/BinarySchema.js'
+import {DateSchema} from './interfaces/DateSchema.js'
+import {FunctionSchema} from './interfaces/FunctionSchema.js'
+import {NumberSchema} from './interfaces/NumberSchema.js'
+import {ObjectSchema} from './interfaces/ObjectSchema.js'
+import {StringSchema} from './interfaces/StringSchema.js'
+import {SymbolSchema} from './interfaces/SymbolSchema.js'
+import {AlternativesSchema} from './interfaces/AlternativesSchema.js'
+import {LinkSchema} from './interfaces/LinkSchema.js'
+import {Schema} from './types/Schema.js'
+import {SchemaFunction} from './types/SchemaFunction.js'
+import {ValidationOptions} from './interfaces/ValidationOptions.js'
 import {InvalidValueException} from '../../exceptions/dto/InvalidValueException.js'
-import {type SchemaMap} from './types/SchemaMap.js'
-import {type SchemaLike} from './types/SchemaLike.js'
+import {SchemaMap} from './types/SchemaMap.js'
+import {SchemaLike} from './types/SchemaLike.js'
 import {As} from '../functions/As.js'
 
 export const DefaultValidationOptions: ValidationOptions = {

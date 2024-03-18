@@ -1,12 +1,12 @@
-import {type Controller, type ControllerProperty} from '../../core/Controller.js'
+import {Controller, type ControllerProperty} from '../../core/Controller.js'
 import {ObjectConstructor} from '../../functions/ObjectConstructor.js'
-import {type IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
-import {type Module} from '../../core/Module.js'
+import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
+import {Module} from '../../core/Module.js'
 import {As} from '../../functions/As.js'
-import {type ActionPattern} from '../../../types/ActionPattern.js'
+import {ActionPattern} from '../../../types/ActionPattern.js'
 import {ObjectParentConstructors} from '../../functions/ObjectParentConstructors.js'
 import {ObjectHash} from '../../functions/ObjectHash.js'
-import {type JSONSchema} from '../../../types/JSONSchema.js'
+import {JSONSchema} from '../../../types/JSONSchema.js'
 
 export enum ActionPatternManagerType {
     HTTP = '_$APMT_HTTP',

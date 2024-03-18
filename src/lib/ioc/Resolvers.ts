@@ -1,12 +1,12 @@
 import {
-    type FunctionReturning,
-    type IDependencyInjectionContainer,
-    type ResolveOptions
+    FunctionReturning,
+    IDependencyInjectionContainer,
+    ResolveOptions
 } from './DependencyInjectionContainer.js'
 import {DependencyInjectionTypeError} from './Errors.js'
 import {InjectionMode, type InjectionModeType} from './InjectionMode.js'
 import {Lifetime, type LifetimeType} from './Lifetime.js'
-import {type Parameter, parseParameterList} from './ParamParser.js'
+import {Parameter, parseParameterList} from './ParamParser.js'
 import {isFunction, uniq} from './Utils.js'
 import {DI_CONTAINER_INJECT_PROPERTIES} from '../../constants/metadata-keys/DIMetadataKey.js'
 

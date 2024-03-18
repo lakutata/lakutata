@@ -9,7 +9,7 @@ import {
 import {Provider} from './Provider.js'
 import {DefineObjectType, ObjectType} from '../base/internal/ObjectType.js'
 import {GetObjectContainer} from '../base/internal/ObjectContainer.js'
-import {type Container} from './Container.js'
+import {Container} from './Container.js'
 
 /**
  * Component base class

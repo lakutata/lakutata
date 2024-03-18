@@ -1,3 +1,3 @@
-import {type Schema} from 'jsonschema'
+import {Schema} from 'jsonschema'
 
 export type JSONSchema = Schema

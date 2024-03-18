@@ -1,5 +1,5 @@
-import {type AnySchema} from './AnySchema.js'
-import {type Reference} from 'joi'
+import {AnySchema} from './AnySchema.js'
+import {Reference} from 'joi'
 
 export interface DateSchema<TSchema = Date> extends AnySchema<TSchema> {
     /**

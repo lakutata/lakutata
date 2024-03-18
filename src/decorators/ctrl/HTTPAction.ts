@@ -1,5 +1,5 @@
-import {type Controller, type ControllerProperty} from '../../lib/core/Controller.js'
-import {type MethodDecorator} from '../../types/MethodDecorator.js'
+import {Controller, type ControllerProperty} from '../../lib/core/Controller.js'
+import {MethodDecorator} from '../../types/MethodDecorator.js'
 import {RegisterHTTPAction} from '../../lib/base/internal/ControllerEntrypoint.js'
 
 /**

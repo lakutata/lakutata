@@ -1,12 +1,12 @@
-import {type AnySchema} from './AnySchema.js'
+import {AnySchema} from './AnySchema.js'
 import {
-    type ArraySortOptions,
-    type ArrayUniqueOptions,
-    type ComparatorFunction,
-    type Reference
+    ArraySortOptions,
+    ArrayUniqueOptions,
+    ComparatorFunction,
+    Reference
 } from 'joi'
-import {type SchemaLike} from '../types/SchemaLike.js'
-import {type SchemaLikeWithoutArray} from '../types/SchemaLikeWithoutArray.js'
+import {SchemaLike} from '../types/SchemaLike.js'
+import {SchemaLikeWithoutArray} from '../types/SchemaLikeWithoutArray.js'
 
 export interface ArraySchema<TSchema = any[]> extends AnySchema<TSchema> {
     /**

@@ -1,5 +1,5 @@
-import {type Reference} from 'joi'
-import {type SchemaLike} from '../types/SchemaLike.js'
+import {Reference} from 'joi'
+import {SchemaLike} from '../types/SchemaLike.js'
 
 export interface ObjectPatternOptions {
     fallthrough?: boolean;

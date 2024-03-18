@@ -1,7 +1,7 @@
-import {type Controller, type ControllerProperty} from '../../lib/core/Controller.js'
-import {type MethodDecorator} from '../../types/MethodDecorator.js'
+import {Controller, type ControllerProperty} from '../../lib/core/Controller.js'
+import {MethodDecorator} from '../../types/MethodDecorator.js'
 import {RegisterCLIAction} from '../../lib/base/internal/ControllerEntrypoint.js'
-import {type DTO} from '../../lib/core/DTO.js'
+import {DTO} from '../../lib/core/DTO.js'
 
 /**
  * Method Decorator
