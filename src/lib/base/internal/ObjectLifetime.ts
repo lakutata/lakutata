@@ -1,10 +1,10 @@
-import {BaseObject} from '../BaseObject.js'
+import {type BaseObject} from '../BaseObject.js'
 import {
     DI_TARGET_CONSTRUCTOR_LIFETIME,
     DI_TARGET_CONSTRUCTOR_LIFETIME_LOCK
 } from '../../../constants/metadata-keys/DIMetadataKey.js'
 import {LifetimeLockedException} from '../../../exceptions/di/LifetimeLockedException.js'
-import {LifetimeType} from '../../ioc/Lifetime.js'
+import {type LifetimeType} from '../../ioc/Lifetime.js'
 
 /**
  * Get Object's lifetime

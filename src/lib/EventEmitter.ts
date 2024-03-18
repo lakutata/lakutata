@@ -1,10 +1,10 @@
 import {
     EventEmitter2,
-    ConstructorOptions,
-    EventAndListener,
-    ListenerFn,
-    event,
-    OnOptions
+    type ConstructorOptions,
+    type EventAndListener,
+    type ListenerFn,
+    type event,
+    type OnOptions
 } from 'eventemitter2'
 
 const onOptions: OnOptions = {

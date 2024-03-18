@@ -3,8 +3,8 @@ import {IsDTO} from './ObjectSchemaValidation.js'
 import {isAsyncFunction} from 'node:util/types'
 import {InvalidMethodAcceptException} from '../../../exceptions/dto/InvalidMethodAcceptException.js'
 import {InvalidMethodReturnException} from '../../../exceptions/dto/InvalidMethodReturnException.js'
-import {Schema} from '../../validation/types/Schema.js'
-import {ArraySchema} from '../../validation/interfaces/ArraySchema.js'
+import {type Schema} from '../../validation/types/Schema.js'
+import {type ArraySchema} from '../../validation/interfaces/ArraySchema.js'
 import {As} from '../../functions/As.js'
 
 /**

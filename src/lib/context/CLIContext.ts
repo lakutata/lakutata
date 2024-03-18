@@ -1,4 +1,4 @@
-import {BaseContext, ContextParams, ContextType} from '../base/Context.js'
+import {BaseContext, type ContextParams, ContextType} from '../base/Context.js'
 import {Expect} from '../../decorators/dto/Expect.js'
 import {DTO} from '../core/DTO.js'
 

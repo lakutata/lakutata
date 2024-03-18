@@ -1,4 +1,4 @@
-import {BaseObject} from '../BaseObject.js'
+import {type BaseObject} from '../BaseObject.js'
 import {As} from '../../functions/As.js'
 
 const OWR_SYMBOL: symbol = Symbol('OWR')//Object Weak Ref

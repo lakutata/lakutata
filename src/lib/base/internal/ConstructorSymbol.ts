@@ -1,7 +1,7 @@
-import {BaseObject} from '../BaseObject.js'
+import {type BaseObject} from '../BaseObject.js'
 import {DI_TARGET_CONSTRUCTOR_SYMBOL} from '../../../constants/metadata-keys/DIMetadataKey.js'
 import {randomUUID} from 'node:crypto'
-import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
+import {type IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
 
 const symbolConstructorMap: Map<symbol, string> = new Map()
 

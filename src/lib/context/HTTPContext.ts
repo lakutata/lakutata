@@ -1,6 +1,6 @@
 import {DTO} from '../core/DTO.js'
 import {Expect} from '../../decorators/dto/Expect.js'
-import {BaseContext, ContextParams, ContextType} from '../base/Context.js'
+import {BaseContext, type ContextParams, ContextType} from '../base/Context.js'
 
 export class HTTPContext extends BaseContext {
 
