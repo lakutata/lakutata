@@ -8,6 +8,10 @@ import type {ActionPattern} from '../../types/ActionPattern.js'
 import {Expect} from '../../decorators/dto/Expect.js'
 import {ContextType} from '../../lib/base/Context.js'
 import {ServiceAction} from '../../decorators/ctrl/ServiceAction.js'
+import {Delay} from '../../lib/functions/Delay.js'
+import {HTTPContext} from '../../lib/context/HTTPContext.js'
+import {As} from '../../lib/functions/As.js'
+import {isProxy} from 'node:util/types'
 
 class TestDTO extends DTO {
     @Expect(DTO.String().optional())
@@ -56,7 +60,13 @@ export class TestController1 extends Controller {
     public async test3(inp: ActionPattern<TestDTO>) {
         if (this.context.type === ContextType.CLI) console.log('cli!')
         console.log(inp)
-        return 'oh!!!!!!!!!!'
+        if (this.context.type === ContextType.HTTP) {
+            console.log(isProxy(As<HTTPContext>(this.context).response))
+            As<HTTPContext>(this.context).response.write('hahahahah1')
+            As<HTTPContext>(this.context).response.end()
+        }
+        // await Delay(10000)
+        // return 'oh!!!!!!!!!!'
     }
 
 }

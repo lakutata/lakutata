@@ -135,6 +135,18 @@ export class DataValidator {
     }
 
     /**
+     * Is object instanceOf a constructor
+     * @param constructor
+     * @constructor
+     */
+    public static InstanceOf<TSchema = Function>(constructor: TSchema): AnySchema<TSchema> {
+        return this.Any<TSchema>().custom((value: TSchema, helpers: CustomHelpers) => {
+            if (value instanceof As(constructor) || value['prototype'] instanceof As(constructor)) return value
+            return helpers.error('any.invalid')
+        }, 'Class Instance Validation')
+    }
+
+    /**
      * 通配符匹配操作符字符串验证器
      * @constructor
      */

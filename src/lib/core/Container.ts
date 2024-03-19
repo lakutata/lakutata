@@ -86,7 +86,7 @@ export class Container {
             //set id into object instance
             SetIdToInstance(As<T>(resolved), registrationName)
             //set configurable records into object instance
-            SetConfigurableRecordsToInstance(As<T>(resolved), Object.assign({}, presetConfigurableRecords, configurableRecords))
+            SetConfigurableRecordsToInstance(As<T>(resolved), {...presetConfigurableRecords, ...configurableRecords})
         }
         return Promise.resolve(resolved)
     }

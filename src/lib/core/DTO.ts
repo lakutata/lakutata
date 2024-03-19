@@ -45,7 +45,7 @@ function validatePropertyValue<U extends DTO, T = any>(instance: U, propertyKey:
 function dynamicProxyProperty(target: any, prop: string | symbol, receiver: any, validateFn: () => void) {
     const propertyValue: any = Reflect.get(target, prop, receiver)
     if (!propertyValue) return propertyValue
-    if (typeof propertyValue !== 'object') return propertyValue
+    if (typeof propertyValue !== 'object') return typeof propertyValue === 'function' ? propertyValue.bind(target) : propertyValue
     return new Proxy(propertyValue, {
         set(target: any, p: string | symbol, value: any, receiver: any): boolean {
             const origValue: any = Reflect.get(target, p)

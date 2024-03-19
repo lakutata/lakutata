@@ -47,10 +47,11 @@ import * as repl from 'repl'
                                         console.log('close')
                                         ac.abort()
                                     })
-                                    // reply.raw //TODO serverResponse对象可以拿来做生命周期管理
-                                    return handler(new HTTPContext({
+                                    await handler(new HTTPContext({
                                         route: request.routeOptions.url!,
                                         method: request.method,
+                                        request: request.raw,
+                                        response: reply.raw,
                                         data: {...As<Record<string, string>>(request.query ? request.query : {}), ...As<Record<string, string>>(request.body ? request.body : {})}
                                     }), ac)
                                 }
