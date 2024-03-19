@@ -14,6 +14,8 @@ import {Controller} from '../lib/core/Controller.js'
 import {As} from '../lib/functions/As.js'
 import {ControllerActionNotFoundException} from '../exceptions/ControllerActionNotFoundException.js'
 import {JSONSchema} from '../types/JSONSchema.js'
+import {Container} from '../lib/core/Container.js'
+import {DestroyRuntimeContainerException} from '../exceptions/DestroyRuntimeContainerException.js'
 
 export type CLIEntrypoint = (module: Module, cliMap: CLIMap, handler: CLIEntrypointHandler) => void
 export type HTTPEntrypoint = (module: Module, routeMap: HTTPRouteMap, handler: HTTPEntrypointHandler) => void
@@ -85,10 +87,19 @@ export class Entrypoint extends Component {
      * @protected
      */
     protected async runControllerMethod(details: ActionDetails, context: CLIContext | HTTPContext | ServiceContext): Promise<any> {
-        const controller: Controller = await this.createScope().get(details.constructor, {
+        const runtimeContainer: Container = this.createScope()
+        const controller: Controller = await runtimeContainer.get(details.constructor, {
             context: context
         })
-        return await controller.getMethod(As(details.method))(context.data)
+        try {
+            return await controller.getMethod(As(details.method))(context.data)
+        } catch (e) {
+            throw e
+        } finally {
+            runtimeContainer.destroy().catch((error: Error) => {
+                throw new DestroyRuntimeContainerException(error.message)
+            })
+        }
     }
 
     /**

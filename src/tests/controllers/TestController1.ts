@@ -19,6 +19,10 @@ class TestDTO extends DTO {
 
 export class TestController1 extends Controller {
 
+    protected async destroy(): Promise<void> {
+        console.log(this.className, 'destroyed')
+    }
+
     @Inject()
     protected readonly app: Application//TODO 不一定要在controller里面预先声明app字段
 

@@ -20,6 +20,7 @@ import {DevNull} from '../lib/functions/DevNull.js'
 import {Server as SocketIOServer} from 'socket.io'
 import {ServiceContext} from '../lib/context/ServiceContext.js'
 import {createServer} from 'node:http'
+import * as repl from 'repl'
 
 (async (): Promise<void> => {
     await Application.run({
@@ -41,6 +42,10 @@ import {createServer} from 'node:http'
                                 url: route,
                                 method: method,
                                 handler: async (request, reply) => {
+                                    reply.raw.on('close', () => {
+                                        console.log('close')
+                                    })
+                                    // reply.raw //TODO serverResponse对象可以拿来做生命周期管理
                                     return handler(new HTTPContext({
                                         route: request.routeOptions.url!,
                                         method: request.method,
@@ -53,25 +58,25 @@ import {createServer} from 'node:http'
                     fastify.listen({port: 3000, host: '0.0.0.0'})
                 }),
                 cli: CLIEntrypointBuilder((module: Module, cliMap: CLIMap, handler: CLIEntrypointHandler) => {
-                    const CLIProgram: Command = new Command()
-                        .exitOverride()
-                    cliMap.forEach((dtoJsonSchema, command: string) => {
-                        const cmd = new Command(command).exitOverride()
-                        for (const p in dtoJsonSchema.properties) {
-                            const attr = dtoJsonSchema.properties[p]
-                            cmd.option(`--${p} <${attr.type}>`, attr.description)
-                        }
-                        cmd.action((args) => {
-                            handler(new CLIContext({command: command, data: args}))
-                        })
-                        CLIProgram.addCommand(cmd)
-                    })
-                    CLIProgram.addCommand(new Command('exit').allowUnknownOption(true).action(() => process.exit()))
                     createInterface({
                         input: process.stdin,
                         output: process.stdout
                     }).on('line', input => {
                         try {
+                            const CLIProgram: Command = new Command().exitOverride()
+                            cliMap.forEach((dtoJsonSchema, command: string) => {
+                                const cmd = new Command(command).exitOverride()
+                                for (const p in dtoJsonSchema.properties) {
+                                    const attr = dtoJsonSchema.properties[p]
+                                    cmd.option(`--${p} <${attr.type}>`, attr.description)
+                                }
+                                cmd.action((args) => {
+                                    //Handle cli
+                                    handler(new CLIContext({command: command, data: args}))
+                                })
+                                CLIProgram.addCommand(cmd)
+                            })
+                            CLIProgram.addCommand(new Command('exit').allowUnknownOption(true).action(() => process.exit()))
                             CLIProgram.parse(input.split(' '), {from: 'user'})//使用命令行传入的参数进行执行
                         } catch (e: any) {
                             DevNull(e)
