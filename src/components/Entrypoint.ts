@@ -24,9 +24,9 @@ export type ServiceEntrypoint = (module: Module, handler: ServiceEntrypointHandl
 export type CLIMap = Map<string, JSONSchema>
 export type HTTPRouteMap<HTTPMethods = string> = Map<string, Set<HTTPMethods>>
 
-export type CLIEntrypointHandler<T = unknown> = (context: CLIContext) => Promise<T>
-export type HTTPEntrypointHandler<T = unknown> = (context: HTTPContext) => Promise<T>
-export type ServiceEntrypointHandler<T = unknown> = (context: ServiceContext) => Promise<T>
+export type CLIEntrypointHandler<T = unknown> = (context: CLIContext, abortController?: AbortController) => Promise<T>
+export type HTTPEntrypointHandler<T = unknown> = (context: HTTPContext, abortController?: AbortController) => Promise<T>
+export type ServiceEntrypointHandler<T = unknown> = (context: ServiceContext, abortController?: AbortController) => Promise<T>
 
 export const CLIEntrypointBuilder: (entrypoint: CLIEntrypoint) => CLIEntrypoint = (entrypoint: CLIEntrypoint) => entrypoint
 
@@ -81,25 +81,66 @@ export class Entrypoint extends Component {
     }
 
     /**
-     * Run controller's method and return its result
+     * Run controller's method and return its result (without AbortController)
      * @param details
      * @param context
      * @protected
      */
-    protected async runControllerMethod(details: ActionDetails, context: CLIContext | HTTPContext | ServiceContext): Promise<any> {
+    protected async runControllerMethodWithoutAbortController(details: ActionDetails, context: CLIContext | HTTPContext | ServiceContext): Promise<unknown> {
         const runtimeContainer: Container = this.createScope()
-        const controller: Controller = await runtimeContainer.get(details.constructor, {
-            context: context
-        })
+        const controller: Controller = await runtimeContainer.get(details.constructor, {context: context})
         try {
             return await controller.getMethod(As(details.method))(context.data)
         } catch (e) {
             throw e
         } finally {
-            runtimeContainer.destroy().catch((error: Error) => {
-                throw new DestroyRuntimeContainerException(error.message)
-            })
+            runtimeContainer
+                .destroy()
+                .catch((error: Error) => {
+                    throw new DestroyRuntimeContainerException(error.message)
+                })
         }
+    }
+
+    /**
+     * Run controller's method and return its result (with AbortController)
+     * @param details
+     * @param context
+     * @param abortController
+     * @protected
+     */
+    protected async runControllerMethodWithAbortController(details: ActionDetails, context: CLIContext | HTTPContext | ServiceContext, abortController: AbortController): Promise<unknown> {
+        let isAborted: boolean = false
+        const abortHandler: () => void = () => {
+            isAborted = true
+            runtimeContainer
+                .destroy()
+                .catch((error: Error) => {
+                    throw new DestroyRuntimeContainerException(error.message)
+                })
+        }
+        abortController.signal.addEventListener('abort', abortHandler, {once: true})
+        const runtimeContainer: Container = this.createScope()
+        const controller: Controller = await runtimeContainer.get(details.constructor, {context: context})
+        try {
+            const runResult: any = await controller.getMethod(As(details.method))(context.data)
+            if (!isAborted) return runResult
+        } catch (e) {
+            if (!isAborted) abortController.signal.removeEventListener('abort', abortHandler)
+            throw e
+        }
+    }
+
+    /**
+     * Run controller's method and return its result
+     * @param details
+     * @param context
+     * @param abortController
+     * @protected
+     */
+    protected async runControllerMethod(details: ActionDetails, context: CLIContext | HTTPContext | ServiceContext, abortController?: AbortController): Promise<unknown> {
+        if (abortController) return await this.runControllerMethodWithAbortController(details, context, abortController)
+        return await this.runControllerMethodWithoutAbortController(details, context)
     }
 
     /**
@@ -123,13 +164,13 @@ export class Entrypoint extends Component {
             //TODO 也许details可以将action的说明放在里边
             cliMap.set(actionPattern.command, details.extra)
         })
-        return entrypoint(this.getModule(), cliMap, async (context: CLIContext) => {
+        return entrypoint(this.getModule(), cliMap, async (context: CLIContext, abortController?: AbortController) => {
             const actionPattern: ActionPattern = {
                 command: context.command
             }
             const details: ActionDetails | null = this.CLIActionPatternManager.find(actionPattern)
             if (!details) throw new ControllerActionNotFoundException('Command not found')
-            return await this.runControllerMethod(details, context)
+            return await this.runControllerMethod(details, context, abortController)
         })
     }
 
@@ -146,14 +187,14 @@ export class Entrypoint extends Component {
             methodsSet.add(actionPattern.method)
             routeMap.set(actionPattern.route, methodsSet)
         })
-        return entrypoint(this.getModule(), routeMap, async (context: HTTPContext) => {
+        return entrypoint(this.getModule(), routeMap, async (context: HTTPContext, abortController?: AbortController) => {
             const actionPattern: ActionPattern = {
                 route: context.route,
                 method: context.method
             }
             const details: ActionDetails | null = this.HTTPActionPatternManager.find(actionPattern)
             if (!details) throw new ControllerActionNotFoundException('Route \'{route}\' not found', context)
-            return await this.runControllerMethod(details, context)
+            return await this.runControllerMethod(details, context, abortController)
         })
     }
 
@@ -163,10 +204,10 @@ export class Entrypoint extends Component {
      * @protected
      */
     protected registerServiceEntrypoint(entrypoint: ServiceEntrypoint): void {
-        return entrypoint(this.getModule(), async (context: ServiceContext) => {
+        return entrypoint(this.getModule(), async (context: ServiceContext, abortController?: AbortController) => {
             const details: ActionDetails | null = this.ServiceActionPatternManager.find(context.input)
             if (!details) throw new ControllerActionNotFoundException('Controller action not found')
-            return await this.runControllerMethod(details, context)
+            return await this.runControllerMethod(details, context, abortController)
         })
     }
 }

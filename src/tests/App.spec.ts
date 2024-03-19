@@ -42,15 +42,17 @@ import * as repl from 'repl'
                                 url: route,
                                 method: method,
                                 handler: async (request, reply) => {
+                                    const ac = new AbortController()
                                     reply.raw.on('close', () => {
                                         console.log('close')
+                                        ac.abort()
                                     })
                                     // reply.raw //TODO serverResponse对象可以拿来做生命周期管理
                                     return handler(new HTTPContext({
                                         route: request.routeOptions.url!,
                                         method: request.method,
                                         data: {...As<Record<string, string>>(request.query ? request.query : {}), ...As<Record<string, string>>(request.body ? request.body : {})}
-                                    }))
+                                    }), ac)
                                 }
                             })
                         })
@@ -90,14 +92,11 @@ import * as repl from 'repl'
                         socket.on('disconnect', () => {
                             //TODO
                         })
-                        const context = new ServiceContext({
-                            input: {},
-                            data: {}
-                        })
                         socket.on('message', async (data, fn) => {
-                            context.input = data
-                            context.data = context.input
-                            return fn(await handler(context))
+                            return fn(await handler(new ServiceContext({
+                                input: data,
+                                data: data
+                            })))
                         })
                     })
                     server.attach(httpServer)
