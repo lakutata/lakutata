@@ -47,7 +47,7 @@ import * as repl from 'repl'
                                         console.log('close')
                                         ac.abort()
                                     })
-                                    await handler(new HTTPContext({
+                                    return await handler(new HTTPContext({
                                         route: request.routeOptions.url!,
                                         method: request.method,
                                         request: request.raw,

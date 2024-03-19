@@ -12,6 +12,7 @@ import {Delay} from '../../lib/functions/Delay.js'
 import {HTTPContext} from '../../lib/context/HTTPContext.js'
 import {As} from '../../lib/functions/As.js'
 import {isProxy} from 'node:util/types'
+import {Time} from '../../lib/Time.js'
 
 class TestDTO extends DTO {
     @Expect(DTO.String().optional())
@@ -62,11 +63,11 @@ export class TestController1 extends Controller {
         console.log(inp)
         if (this.context.type === ContextType.HTTP) {
             console.log(isProxy(As<HTTPContext>(this.context).response))
-            As<HTTPContext>(this.context).response.write('hahahahah1')
+            As<HTTPContext>(this.context).response.write(new Time().format())
             As<HTTPContext>(this.context).response.end()
+        } else {
+            return 'oh!!!!!!!!!!'
         }
-        // await Delay(10000)
-        // return 'oh!!!!!!!!!!'
     }
 
 }
