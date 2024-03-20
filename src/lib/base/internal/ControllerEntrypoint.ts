@@ -9,6 +9,7 @@ import {ObjectHash} from '../../functions/ObjectHash.js'
 import {JSONSchema} from '../../../types/JSONSchema.js'
 import {GetObjectNestingDepth} from '../../functions/GetObjectNestingDepth.js'
 import {InvalidActionPatternDepthException} from '../../../exceptions/InvalidActionPatternDepthException.js'
+import {DTO} from '../../core/DTO.js'
 
 export enum ActionPatternManagerType {
     HTTP = '_$APMT_HTTP',
@@ -137,9 +138,17 @@ export function GetModuleControllerActionMap(module: Module): TotalActionPattern
  * @param methods
  * @param controllerPrototype
  * @param propertyKey
+ * @param dtoConstructor
+ * @param description
  * @constructor
  */
-export function RegisterHTTPAction<ClassPrototype extends Controller>(route: string, methods: string[], controllerPrototype: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>): void {
+export function RegisterHTTPAction<ClassPrototype extends Controller, DTOConstructor extends typeof DTO = typeof DTO>(
+    route: string,
+    methods: string[],
+    controllerPrototype: ClassPrototype,
+    propertyKey: ControllerProperty<ClassPrototype>,
+    dtoConstructor: DTOConstructor,
+    description: string): void {
     methods.forEach((method: string) => {
         const actionPattern: ActionPattern = {
             route: route,
@@ -152,7 +161,9 @@ export function RegisterHTTPAction<ClassPrototype extends Controller>(route: str
             {
                 pattern: actionPattern,
                 constructor: As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
-                method: propertyKey
+                method: propertyKey,
+                description: description,
+                extra: dtoConstructor.toJsonSchema()
             })
     })
 }
@@ -160,12 +171,18 @@ export function RegisterHTTPAction<ClassPrototype extends Controller>(route: str
 /**
  * Register cli action
  * @param command
- * @param dtoJsonSchema
  * @param controllerPrototype
  * @param propertyKey
+ * @param dtoConstructor
+ * @param description
  * @constructor
  */
-export function RegisterCLIAction<ClassPrototype extends Controller>(command: string, dtoJsonSchema: JSONSchema, controllerPrototype: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>): void {
+export function RegisterCLIAction<ClassPrototype extends Controller, DTOConstructor extends typeof DTO = typeof DTO>(
+    command: string,
+    controllerPrototype: ClassPrototype,
+    propertyKey: ControllerProperty<ClassPrototype>,
+    dtoConstructor: DTOConstructor,
+    description: string): void {
     const actionPattern: ActionPattern = {
         command: command
     }
@@ -177,7 +194,8 @@ export function RegisterCLIAction<ClassPrototype extends Controller>(command: st
             pattern: actionPattern,
             constructor: As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
             method: propertyKey,
-            extra: dtoJsonSchema
+            description: description,
+            extra: dtoConstructor.toJsonSchema()
         }
     )
 }
@@ -187,9 +205,16 @@ export function RegisterCLIAction<ClassPrototype extends Controller>(command: st
  * @param pattern
  * @param controllerPrototype
  * @param propertyKey
+ * @param dtoConstructor
+ * @param description
  * @constructor
  */
-export function RegisterServiceAction<ClassPrototype extends Controller>(pattern: ActionPattern, controllerPrototype: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>): void {
+export function RegisterServiceAction<ClassPrototype extends Controller, DTOConstructor extends typeof DTO = typeof DTO>(
+    pattern: ActionPattern,
+    controllerPrototype: ClassPrototype,
+    propertyKey: ControllerProperty<ClassPrototype>,
+    dtoConstructor: DTOConstructor,
+    description: string): void {
     RegisterControllerActionPattern(
         ActionPatternManagerType.Service,
         As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
@@ -197,7 +222,9 @@ export function RegisterServiceAction<ClassPrototype extends Controller>(pattern
         {
             pattern: pattern,
             constructor: As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
-            method: propertyKey
+            method: propertyKey,
+            description: description,
+            extra: dtoConstructor.toJsonSchema()
         }
     )
 }
