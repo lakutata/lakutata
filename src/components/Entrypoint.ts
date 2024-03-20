@@ -88,14 +88,13 @@ export class Entrypoint extends Component {
      * Run controller's method and return its result (without AbortController)
      * @param details
      * @param context
-     * @param dataPropertyKey
      * @protected
      */
-    protected async runControllerMethodWithoutAbortController(details: ActionDetails, context: CLIContext | HTTPContext | ServiceContext, dataPropertyKey: string): Promise<unknown> {
+    protected async runControllerMethodWithoutAbortController(details: ActionDetails, context: CLIContext | HTTPContext | ServiceContext): Promise<unknown> {
         const runtimeContainer: Container = this.createScope()
         const controller: Controller = await runtimeContainer.get(details.constructor, {context: context})
         try {
-            return await controller.getMethod(As(details.method))(Reflect.get(context, dataPropertyKey))
+            return await controller.getMethod(As(details.method))(context.data)
         } catch (e) {
             throw e
         } finally {
@@ -111,11 +110,10 @@ export class Entrypoint extends Component {
      * Run controller's method and return its result (with AbortController)
      * @param details
      * @param context
-     * @param dataPropertyKey
      * @param abortController
      * @protected
      */
-    protected async runControllerMethodWithAbortController(details: ActionDetails, context: CLIContext | HTTPContext | ServiceContext, dataPropertyKey: string, abortController: AbortController): Promise<unknown> {
+    protected async runControllerMethodWithAbortController(details: ActionDetails, context: CLIContext | HTTPContext | ServiceContext, abortController: AbortController): Promise<unknown> {
         let isAborted: boolean = false
         const abortHandler: () => void = () => {
             isAborted = true
@@ -129,7 +127,7 @@ export class Entrypoint extends Component {
         const runtimeContainer: Container = this.createScope()
         const controller: Controller = await runtimeContainer.get(details.constructor, {context: context})
         try {
-            const runResult: any = await controller.getMethod(As(details.method))(Reflect.get(context, dataPropertyKey))
+            const runResult: any = await controller.getMethod(As(details.method))(context.data)
             if (!isAborted) return runResult
         } catch (e) {
             if (!isAborted) abortController.signal.removeEventListener('abort', abortHandler)
@@ -141,13 +139,12 @@ export class Entrypoint extends Component {
      * Run controller's method and return its result
      * @param details
      * @param context
-     * @param dataPropertyKey
      * @param abortController
      * @protected
      */
-    protected async runControllerMethod(details: ActionDetails, context: CLIContext | HTTPContext | ServiceContext, dataPropertyKey: string, abortController?: AbortController): Promise<unknown> {
-        if (abortController) return await this.runControllerMethodWithAbortController(details, context, dataPropertyKey, abortController)
-        return await this.runControllerMethodWithoutAbortController(details, context, dataPropertyKey)
+    protected async runControllerMethod(details: ActionDetails, context: CLIContext | HTTPContext | ServiceContext, abortController?: AbortController): Promise<unknown> {
+        if (abortController) return await this.runControllerMethodWithAbortController(details, context, abortController)
+        return await this.runControllerMethodWithoutAbortController(details, context)
     }
 
     /**
@@ -177,7 +174,7 @@ export class Entrypoint extends Component {
             }
             const details: ActionDetails | null = this.CLIActionPatternManager.find(actionPattern)
             if (!details) throw new ControllerActionNotFoundException('Command not found')
-            return await this.runControllerMethod(details, context, 'data', abortController)
+            return await this.runControllerMethod(details, context, abortController)
         })
     }
 
@@ -201,7 +198,7 @@ export class Entrypoint extends Component {
             }
             const details: ActionDetails | null = this.HTTPActionPatternManager.find(actionPattern)
             if (!details) throw new ControllerActionNotFoundException('Route \'{route}\' not found', context)
-            return await this.runControllerMethod(details, context, 'data', abortController)
+            return await this.runControllerMethod(details, context, abortController)
         })
     }
 
@@ -215,16 +212,16 @@ export class Entrypoint extends Component {
             const details: ActionDetails | null = this.ServiceActionPatternManager.find(context.input)
             if (!details) throw new ControllerActionNotFoundException('Controller action not found')
             const patternPaths: string[] = GetObjectPropertyPaths(details.pattern)
-            patternPaths.forEach((path: string) => unset(context.input, path))
+            patternPaths.forEach((path: string) => unset(context.data, path))
             const checkPatternPaths: string[] = UniqueArray(patternPaths
                 .map((path: string) => path.substring(0, path.lastIndexOf('.')))
                 .filter((path: string) => !!path))
             checkPatternPaths.forEach((path: string) => {
-                let target: ActionPattern = context.input
+                let target: ActionPattern = context.data
                 path.split('.').forEach((key: string) => target = target[key] ? target[key] : undefined)
-                if (target && !Object.keys(target).length) unset(context.input, path)
+                if (target && !Object.keys(target).length) unset(context.data, path)
             })
-            return await this.runControllerMethod(details, context, 'input', abortController)
+            return await this.runControllerMethod(details, context, abortController)
         })
     }
 }
