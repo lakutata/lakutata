@@ -168,10 +168,7 @@ export class Entrypoint extends Component {
      */
     protected registerCLIEntrypoint(entrypoint: CLIEntrypoint): void {
         const cliMap: CLIMap = new Map()
-        this.CLIActionPatternMap.forEach((details: ActionDetails, actionPattern: ActionPattern) => {
-            //TODO 也许details可以将action的说明放在里边
-            cliMap.set(actionPattern.command, details.jsonSchema)
-        })
+        this.CLIActionPatternMap.forEach((details: ActionDetails, actionPattern: ActionPattern) => cliMap.set(actionPattern.command, details.jsonSchema))
         return entrypoint(this.getModule(), cliMap, async (context: CLIContext, abortController?: AbortController) => {
             const actionPattern: ActionPattern = {
                 command: context.command
@@ -189,12 +186,11 @@ export class Entrypoint extends Component {
      */
     protected registerHTTPEntrypoint(entrypoint: HTTPEntrypoint): void {
         const routeMap: HTTPRouteMap = new Map()
-        this.HTTPActionPatternMap.forEach((details: ActionDetails, actionPattern: ActionPattern) => {
-            //TODO 也许details可以将action的说明放在里边
+        for(const actionPattern of this.HTTPActionPatternMap.keys()){
             const methodsSet: Set<string> = routeMap.get(actionPattern.route) || new Set()
             methodsSet.add(actionPattern.method)
             routeMap.set(actionPattern.route, methodsSet)
-        })
+        }
         return entrypoint(this.getModule(), routeMap, async (context: HTTPContext, abortController?: AbortController) => {
             const actionPattern: ActionPattern = {
                 route: context.route,
