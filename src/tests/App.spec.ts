@@ -21,6 +21,7 @@ import {Server as SocketIOServer} from 'socket.io'
 import {ServiceContext} from '../lib/context/ServiceContext.js'
 import {createServer} from 'node:http'
 import * as repl from 'repl'
+import {GetObjectNestingDepth} from '../lib/functions/GetObjectNestingDepth.js'
 
 (async (): Promise<void> => {
     await Application.run({
@@ -95,7 +96,6 @@ import * as repl from 'repl'
                         })
                         socket.on('message', async (data, fn) => {
                             return fn(await handler(new ServiceContext({
-                                input: data,
                                 data: data
                             })))
                         })

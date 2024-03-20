@@ -12,9 +12,9 @@ export class ServiceContext<T extends Record<string, any> = {}> extends BaseCont
     public input: ActionPattern<T>
 
     constructor(params: ContextParams<{
-        readonly input: ActionPattern
-        readonly data: Record<string, any>
+        readonly data: ActionPattern
     }>) {
+        params = {...params, input: {...params.data}}
         super(params)
     }
 }

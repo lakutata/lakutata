@@ -57,10 +57,16 @@ export class TestController1 extends Controller {
 
     @HTTPAction('/test/:id', ['GET', 'POST'])
     @CLIAction('test3', TestDTO)
-    @ServiceAction({act: 'test3'})
+    @ServiceAction({
+        act: 'test3',
+        bbc: {
+            abc: true,
+            ccc: 1
+        }
+    })
     public async test3(inp: ActionPattern<TestDTO>) {
         if (this.context.type === ContextType.CLI) console.log('cli!')
-        console.log(inp)
+        console.log(inp, this.context.type)
         if (this.context.type === ContextType.HTTP) {
             console.log(isProxy(As<HTTPContext>(this.context).response))
             As<HTTPContext>(this.context).response.write(new Time().format())

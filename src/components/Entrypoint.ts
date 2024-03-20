@@ -6,7 +6,8 @@ import {ServiceContext} from '../lib/context/ServiceContext.js'
 import {ActionPattern} from '../types/ActionPattern.js'
 import {Module} from '../lib/core/Module.js'
 import {
-    type ActionDetails, type ActionPatternMap,
+    ActionDetails,
+    ActionPatternMap,
     GetModuleControllerActionMap
 } from '../lib/base/internal/ControllerEntrypoint.js'
 import {PatternManager} from '../lib/base/internal/PatternManager.js'
@@ -16,6 +17,9 @@ import {ControllerActionNotFoundException} from '../exceptions/ControllerActionN
 import {JSONSchema} from '../types/JSONSchema.js'
 import {Container} from '../lib/core/Container.js'
 import {DestroyRuntimeContainerException} from '../exceptions/DestroyRuntimeContainerException.js'
+import {GetObjectPropertyPaths} from '../lib/functions/GetObjectPropertyPaths.js'
+import unset from 'unset-value'
+import {UniqueArray} from '../lib/functions/UniqueArray.js'
 
 export type CLIEntrypoint = (module: Module, cliMap: CLIMap, handler: CLIEntrypointHandler) => void
 export type HTTPEntrypoint = (module: Module, routeMap: HTTPRouteMap, handler: HTTPEntrypointHandler) => void
@@ -207,6 +211,13 @@ export class Entrypoint extends Component {
         return entrypoint(this.getModule(), async (context: ServiceContext, abortController?: AbortController) => {
             const details: ActionDetails | null = this.ServiceActionPatternManager.find(context.input)
             if (!details) throw new ControllerActionNotFoundException('Controller action not found')
+            const patternPaths: string[] = GetObjectPropertyPaths(details.pattern)
+            patternPaths.forEach((path: string) => unset(context.input, path))
+            const checkPatternPaths: string[] = UniqueArray(patternPaths
+                .map((path: string) => path.substring(0, path.lastIndexOf('.')))
+                .filter((path: string) => !!path))
+            console.log(checkPatternPaths)
+            console.log(context.input)
             return await this.runControllerMethod(details, context, abortController)
         })
     }

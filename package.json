@@ -54,7 +54,8 @@
     "shx": "^0.3.4",
     "socket.io": "^4.7.5",
     "tslib": "^2.6.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "unset-value": "^2.0.1"
   },
   "engines": {
     "node": ">=20"

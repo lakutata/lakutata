@@ -7,6 +7,8 @@ import {ActionPattern} from '../../../types/ActionPattern.js'
 import {ObjectParentConstructors} from '../../functions/ObjectParentConstructors.js'
 import {ObjectHash} from '../../functions/ObjectHash.js'
 import {JSONSchema} from '../../../types/JSONSchema.js'
+import {GetObjectNestingDepth} from '../../functions/GetObjectNestingDepth.js'
+import {InvalidActionPatternDepthException} from '../../../exceptions/InvalidActionPatternDepthException.js'
 
 export enum ActionPatternManagerType {
     HTTP = '_$APMT_HTTP',
@@ -23,6 +25,7 @@ export type TotalActionPatternMap = {
 }
 
 export type ActionDetails<ClassPrototype extends Controller = Controller> = {
+    pattern: ActionPattern
     constructor: IBaseObjectConstructor<ClassPrototype>
     method: string | number | symbol
     description?: string
@@ -43,6 +46,16 @@ type InternalActionPatternMapValue = {
 type InternalActionPatternMap = Map<string, InternalActionPatternMapValue>
 
 const MODULE_CTRL_MAP: symbol = Symbol('MODULE.CTRL.MAP')
+
+/**
+ * Validate action pattern definition
+ * @param actionPattern
+ */
+function ValidateActionPatternDefinition(actionPattern: ActionPattern): ActionPattern {
+    const depth: number = GetObjectNestingDepth(actionPattern)
+    if (depth > 2) throw new InvalidActionPatternDepthException('The maximum nesting depth of ActionPattern objects cannot be greater than 2 levels. The current nesting depth of the object is {0} levels', [depth])
+    return actionPattern
+}
 
 /**
  * Get controller's internal action pattern map
@@ -69,6 +82,7 @@ function GetInternalControllerActionPatternMap(type: ActionPatternManagerType, t
  * @constructor
  */
 export function RegisterControllerActionPattern(type: ActionPatternManagerType, target: IBaseObjectConstructor<Controller>, actionPattern: ActionPattern, details: ActionDetails): void {
+    actionPattern = ValidateActionPatternDefinition(actionPattern)
     const internalActionPatternMap: InternalActionPatternMap = GetInternalControllerActionPatternMap(type, target)
     internalActionPatternMap.set(ObjectHash(actionPattern), {
         pattern: actionPattern,
@@ -127,14 +141,16 @@ export function GetModuleControllerActionMap(module: Module): TotalActionPattern
  */
 export function RegisterHTTPAction<ClassPrototype extends Controller>(route: string, methods: string[], controllerPrototype: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>): void {
     methods.forEach((method: string) => {
+        const actionPattern: ActionPattern = {
+            route: route,
+            method: method
+        }
         RegisterControllerActionPattern(
             ActionPatternManagerType.HTTP,
             As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
+            actionPattern,
             {
-                route: route,
-                method: method
-            },
-            {
+                pattern: actionPattern,
                 constructor: As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
                 method: propertyKey
             })
@@ -150,13 +166,15 @@ export function RegisterHTTPAction<ClassPrototype extends Controller>(route: str
  * @constructor
  */
 export function RegisterCLIAction<ClassPrototype extends Controller>(command: string, dtoJsonSchema: JSONSchema, controllerPrototype: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>): void {
+    const actionPattern: ActionPattern = {
+        command: command
+    }
     RegisterControllerActionPattern(
         ActionPatternManagerType.CLI,
         As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
+        actionPattern,
         {
-            command: command
-        },
-        {
+            pattern: actionPattern,
             constructor: As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
             method: propertyKey,
             extra: dtoJsonSchema
@@ -177,6 +195,7 @@ export function RegisterServiceAction<ClassPrototype extends Controller>(pattern
         As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
         pattern,
         {
+            pattern: pattern,
             constructor: As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
             method: propertyKey
         }
