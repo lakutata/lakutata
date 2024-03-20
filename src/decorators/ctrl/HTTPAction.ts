@@ -15,27 +15,10 @@ export function HTTPAction<ClassPrototype extends Controller, Method, DTOConstru
  * Method Decorator
  * @param route
  * @param method
- * @param description
- * @constructor
- */
-export function HTTPAction<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(route: string, method: string, description: string): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
-/**
- * Method Decorator
- * @param route
- * @param method
  * @param dtoConstructor
  * @constructor
  */
 export function HTTPAction<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(route: string, method: string, dtoConstructor: DTOConstructor): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
-/**
- * Method Decorator
- * @param route
- * @param method
- * @param dtoConstructor
- * @param description
- * @constructor
- */
-export function HTTPAction<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(route: string, method: string, dtoConstructor: DTOConstructor, description: string): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
 /**
  * Method Decorator
  * @param route
@@ -47,37 +30,18 @@ export function HTTPAction<ClassPrototype extends Controller, Method, DTOConstru
  * Method Decorator
  * @param route
  * @param methods
- * @param description
- * @constructor
- */
-export function HTTPAction<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(route: string, methods: string[], description: string): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
-/**
- * Method Decorator
- * @param route
- * @param methods
  * @param dtoConstructor
  * @constructor
  */
 export function HTTPAction<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(route: string, methods: string[], dtoConstructor: DTOConstructor): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
-/**
- * Method Decorator
- * @param route
- * @param methods
- * @param dtoConstructor
- * @param description
- * @constructor
- */
-export function HTTPAction<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(route: string, methods: string[], dtoConstructor: DTOConstructor, description: string): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
-export function HTTPAction<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(r: string, m: string | string[], descriptionOrDTOConstructor?: string | DTOConstructor, description?: string): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>> {
+export function HTTPAction<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(r: string, m: string | string[], dtoConstructor?: DTOConstructor): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>> {
     return (target: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>, descriptor: TypedPropertyDescriptor<Method>) => {
         const route: string = r.toString()
         const methods: string[] = Array.isArray(m) ? m : [m]
-        if (!descriptionOrDTOConstructor) {
-            RegisterHTTPAction(route, methods, target, propertyKey, FlexibleDTO, '')
-        } else if (typeof descriptionOrDTOConstructor === 'string') {
-            RegisterHTTPAction(route, methods, target, propertyKey, FlexibleDTO, descriptionOrDTOConstructor)
+        if (!dtoConstructor) {
+            RegisterHTTPAction(route, methods, target, propertyKey, FlexibleDTO)
         } else {
-            RegisterHTTPAction(route, methods, target, propertyKey, descriptionOrDTOConstructor, description ? description : '')
+            RegisterHTTPAction(route, methods, target, propertyKey, dtoConstructor)
         }
         return descriptor
     }

@@ -29,7 +29,6 @@ export type ActionDetails<ClassPrototype extends Controller = Controller, DTOCon
     pattern: ActionPattern
     constructor: IBaseObjectConstructor<ClassPrototype>
     method: string | number | symbol
-    description: string
     dtoConstructor: DTOConstructor
     jsonSchema: JSONSchema
 }
@@ -148,8 +147,7 @@ export function RegisterHTTPAction<ClassPrototype extends Controller, DTOConstru
     methods: string[],
     controllerPrototype: ClassPrototype,
     propertyKey: ControllerProperty<ClassPrototype>,
-    dtoConstructor: DTOConstructor,
-    description: string): void {
+    dtoConstructor: DTOConstructor): void {
     methods.forEach((method: string) => {
         const actionPattern: ActionPattern = {
             route: route,
@@ -163,7 +161,6 @@ export function RegisterHTTPAction<ClassPrototype extends Controller, DTOConstru
                 pattern: actionPattern,
                 constructor: As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
                 method: propertyKey,
-                description: description,
                 dtoConstructor: dtoConstructor,
                 jsonSchema: dtoConstructor.toJsonSchema()
             })
@@ -183,8 +180,7 @@ export function RegisterCLIAction<ClassPrototype extends Controller, DTOConstruc
     command: string,
     controllerPrototype: ClassPrototype,
     propertyKey: ControllerProperty<ClassPrototype>,
-    dtoConstructor: DTOConstructor,
-    description: string): void {
+    dtoConstructor: DTOConstructor): void {
     const actionPattern: ActionPattern = {
         command: command
     }
@@ -196,7 +192,6 @@ export function RegisterCLIAction<ClassPrototype extends Controller, DTOConstruc
             pattern: actionPattern,
             constructor: As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
             method: propertyKey,
-            description: description,
             dtoConstructor: dtoConstructor,
             jsonSchema: dtoConstructor.toJsonSchema()
         }
@@ -216,8 +211,7 @@ export function RegisterServiceAction<ClassPrototype extends Controller, DTOCons
     pattern: ActionPattern,
     controllerPrototype: ClassPrototype,
     propertyKey: ControllerProperty<ClassPrototype>,
-    dtoConstructor: DTOConstructor,
-    description: string): void {
+    dtoConstructor: DTOConstructor): void {
     RegisterControllerActionPattern(
         ActionPatternManagerType.Service,
         As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
@@ -226,7 +220,6 @@ export function RegisterServiceAction<ClassPrototype extends Controller, DTOCons
             pattern: pattern,
             constructor: As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
             method: propertyKey,
-            description: description,
             dtoConstructor: dtoConstructor,
             jsonSchema: dtoConstructor.toJsonSchema()
         }

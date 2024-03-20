@@ -13,33 +13,16 @@ export function CLIAction<ClassPrototype extends Controller, Method, DTOConstruc
 /**
  * Method Decorator
  * @param command
- * @param description
- * @constructor
- */
-export function CLIAction<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(command: string, description?: string): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
-/**
- * Method Decorator
- * @param command
  * @param dtoConstructor
  * @constructor
  */
 export function CLIAction<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(command: string, dtoConstructor: DTOConstructor): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
-/**
- * Method Decorator
- * @param command
- * @param dtoConstructor
- * @param description
- * @constructor
- */
-export function CLIAction<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(command: string, dtoConstructor: DTOConstructor, description: string): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
-export function CLIAction<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(command: string, descriptionOrDTOConstructor?: string | DTOConstructor, description?: string): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>> {
+export function CLIAction<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(command: string, dtoConstructor?: DTOConstructor): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>> {
     return (target: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>, descriptor: TypedPropertyDescriptor<Method>) => {
-        if (!descriptionOrDTOConstructor) {
-            RegisterCLIAction(command, target, propertyKey, FlexibleDTO, '')
-        } else if (typeof descriptionOrDTOConstructor === 'string') {
-            RegisterCLIAction(command, target, propertyKey, FlexibleDTO, descriptionOrDTOConstructor)
+        if (!dtoConstructor) {
+            RegisterCLIAction(command, target, propertyKey, FlexibleDTO)
         } else {
-            RegisterCLIAction(command, target, propertyKey, descriptionOrDTOConstructor, description ? description : '')
+            RegisterCLIAction(command, target, propertyKey, dtoConstructor)
         }
         return descriptor
     }
