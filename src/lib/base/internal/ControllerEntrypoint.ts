@@ -25,12 +25,13 @@ export type TotalActionPatternMap = {
     Service: ActionPatternMap
 }
 
-export type ActionDetails<ClassPrototype extends Controller = Controller> = {
+export type ActionDetails<ClassPrototype extends Controller = Controller, DTOConstructor extends typeof DTO = typeof DTO> = {
     pattern: ActionPattern
     constructor: IBaseObjectConstructor<ClassPrototype>
     method: string | number | symbol
-    description?: string
-    extra?: any
+    description: string
+    dtoConstructor: DTOConstructor
+    jsonSchema: JSONSchema
 }
 
 type TotalInternalActionPatternMap = {
@@ -163,7 +164,8 @@ export function RegisterHTTPAction<ClassPrototype extends Controller, DTOConstru
                 constructor: As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
                 method: propertyKey,
                 description: description,
-                extra: dtoConstructor.toJsonSchema()
+                dtoConstructor: dtoConstructor,
+                jsonSchema: dtoConstructor.toJsonSchema()
             })
     })
 }
@@ -195,7 +197,8 @@ export function RegisterCLIAction<ClassPrototype extends Controller, DTOConstruc
             constructor: As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
             method: propertyKey,
             description: description,
-            extra: dtoConstructor.toJsonSchema()
+            dtoConstructor: dtoConstructor,
+            jsonSchema: dtoConstructor.toJsonSchema()
         }
     )
 }
@@ -224,7 +227,8 @@ export function RegisterServiceAction<ClassPrototype extends Controller, DTOCons
             constructor: As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
             method: propertyKey,
             description: description,
-            extra: dtoConstructor.toJsonSchema()
+            dtoConstructor: dtoConstructor,
+            jsonSchema: dtoConstructor.toJsonSchema()
         }
     )
 }

@@ -3,6 +3,7 @@ import {MethodDecorator} from '../../types/MethodDecorator.js'
 import {ActionPattern} from '../../types/ActionPattern.js'
 import {RegisterServiceAction} from '../../lib/base/internal/ControllerEntrypoint.js'
 import {DTO} from '../../lib/core/DTO.js'
+import {FlexibleDTO} from '../../lib/base/internal/FlexibleDTO.js'
 
 /**
  * Method Decorator
@@ -35,9 +36,9 @@ export function ServiceAction<ClassPrototype extends Controller, Method, DTOCons
 export function ServiceAction<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(pattern: ActionPattern, descriptionOrDTOConstructor?: string | DTOConstructor, description?: string): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>> {
     return (target: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>, descriptor: TypedPropertyDescriptor<Method>) => {
         if (!descriptionOrDTOConstructor) {
-            RegisterServiceAction(pattern, target, propertyKey, DTO, '')
+            RegisterServiceAction(pattern, target, propertyKey, FlexibleDTO, '')
         } else if (typeof descriptionOrDTOConstructor === 'string') {
-            RegisterServiceAction(pattern, target, propertyKey, DTO, descriptionOrDTOConstructor)
+            RegisterServiceAction(pattern, target, propertyKey, FlexibleDTO, descriptionOrDTOConstructor)
         } else {
             RegisterServiceAction(pattern, target, propertyKey, descriptionOrDTOConstructor, description ? description : '')
         }

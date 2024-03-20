@@ -2,6 +2,7 @@ import {Controller, type ControllerProperty} from '../../lib/core/Controller.js'
 import {MethodDecorator} from '../../types/MethodDecorator.js'
 import {RegisterHTTPAction} from '../../lib/base/internal/ControllerEntrypoint.js'
 import {DTO} from '../../lib/core/DTO.js'
+import {FlexibleDTO} from '../../lib/base/internal/FlexibleDTO.js'
 
 /**
  * Method Decorator
@@ -72,9 +73,9 @@ export function HTTPAction<ClassPrototype extends Controller, Method, DTOConstru
         const route: string = r.toString()
         const methods: string[] = Array.isArray(m) ? m : [m]
         if (!descriptionOrDTOConstructor) {
-            RegisterHTTPAction(route, methods, target, propertyKey, DTO, '')
+            RegisterHTTPAction(route, methods, target, propertyKey, FlexibleDTO, '')
         } else if (typeof descriptionOrDTOConstructor === 'string') {
-            RegisterHTTPAction(route, methods, target, propertyKey, DTO, descriptionOrDTOConstructor)
+            RegisterHTTPAction(route, methods, target, propertyKey, FlexibleDTO, descriptionOrDTOConstructor)
         } else {
             RegisterHTTPAction(route, methods, target, propertyKey, descriptionOrDTOConstructor, description ? description : '')
         }

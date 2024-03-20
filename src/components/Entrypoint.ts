@@ -20,6 +20,7 @@ import {DestroyRuntimeContainerException} from '../exceptions/DestroyRuntimeCont
 import {GetObjectPropertyPaths} from '../lib/functions/GetObjectPropertyPaths.js'
 import unset from 'unset-value'
 import {UniqueArray} from '../lib/functions/UniqueArray.js'
+import {DTO} from '../lib/core/DTO.js'
 
 export type CLIEntrypoint = (module: Module, cliMap: CLIMap, handler: CLIEntrypointHandler) => void
 export type HTTPEntrypoint = (module: Module, routeMap: HTTPRouteMap, handler: HTTPEntrypointHandler) => void
@@ -88,13 +89,14 @@ export class Entrypoint extends Component {
      * Run controller's method and return its result (without AbortController)
      * @param details
      * @param context
+     * @param dtoConstructor
      * @protected
      */
-    protected async runControllerMethodWithoutAbortController(details: ActionDetails, context: CLIContext | HTTPContext | ServiceContext): Promise<unknown> {
+    protected async runControllerMethodWithoutAbortController<DTOConstructor extends typeof DTO = typeof DTO>(details: ActionDetails, context: CLIContext | HTTPContext | ServiceContext, dtoConstructor: DTOConstructor): Promise<unknown> {
         const runtimeContainer: Container = this.createScope()
         const controller: Controller = await runtimeContainer.get(details.constructor, {context: context})
         try {
-            return await controller.getMethod(As(details.method))(context.data)
+            return await controller.getMethod(As(details.method))(await dtoConstructor.validateAsync(context.data))
         } catch (e) {
             throw e
         } finally {
@@ -110,10 +112,11 @@ export class Entrypoint extends Component {
      * Run controller's method and return its result (with AbortController)
      * @param details
      * @param context
+     * @param dtoConstructor
      * @param abortController
      * @protected
      */
-    protected async runControllerMethodWithAbortController(details: ActionDetails, context: CLIContext | HTTPContext | ServiceContext, abortController: AbortController): Promise<unknown> {
+    protected async runControllerMethodWithAbortController<DTOConstructor extends typeof DTO = typeof DTO>(details: ActionDetails, context: CLIContext | HTTPContext | ServiceContext, dtoConstructor: DTOConstructor, abortController: AbortController): Promise<unknown> {
         let isAborted: boolean = false
         const abortHandler: () => void = () => {
             isAborted = true
@@ -127,7 +130,7 @@ export class Entrypoint extends Component {
         const runtimeContainer: Container = this.createScope()
         const controller: Controller = await runtimeContainer.get(details.constructor, {context: context})
         try {
-            const runResult: any = await controller.getMethod(As(details.method))(context.data)
+            const runResult: any = await controller.getMethod(As(details.method))(await dtoConstructor.validateAsync(context.data))
             if (!isAborted) return runResult
         } catch (e) {
             if (!isAborted) abortController.signal.removeEventListener('abort', abortHandler)
@@ -139,12 +142,13 @@ export class Entrypoint extends Component {
      * Run controller's method and return its result
      * @param details
      * @param context
+     * @param dtoConstructor
      * @param abortController
      * @protected
      */
-    protected async runControllerMethod(details: ActionDetails, context: CLIContext | HTTPContext | ServiceContext, abortController?: AbortController): Promise<unknown> {
-        if (abortController) return await this.runControllerMethodWithAbortController(details, context, abortController)
-        return await this.runControllerMethodWithoutAbortController(details, context)
+    protected async runControllerMethod<DTOConstructor extends typeof DTO = typeof DTO>(details: ActionDetails, context: CLIContext | HTTPContext | ServiceContext, dtoConstructor: DTOConstructor, abortController?: AbortController): Promise<unknown> {
+        if (abortController) return await this.runControllerMethodWithAbortController<DTOConstructor>(details, context, dtoConstructor, abortController)
+        return await this.runControllerMethodWithoutAbortController<DTOConstructor>(details, context, dtoConstructor)
     }
 
     /**
@@ -166,7 +170,7 @@ export class Entrypoint extends Component {
         const cliMap: CLIMap = new Map()
         this.CLIActionPatternMap.forEach((details: ActionDetails, actionPattern: ActionPattern) => {
             //TODO 也许details可以将action的说明放在里边
-            cliMap.set(actionPattern.command, details.extra)
+            cliMap.set(actionPattern.command, details.jsonSchema)
         })
         return entrypoint(this.getModule(), cliMap, async (context: CLIContext, abortController?: AbortController) => {
             const actionPattern: ActionPattern = {
@@ -174,7 +178,7 @@ export class Entrypoint extends Component {
             }
             const details: ActionDetails | null = this.CLIActionPatternManager.find(actionPattern)
             if (!details) throw new ControllerActionNotFoundException('Command not found')
-            return await this.runControllerMethod(details, context, abortController)
+            return await this.runControllerMethod(details, context, details.dtoConstructor, abortController)
         })
     }
 
@@ -198,7 +202,7 @@ export class Entrypoint extends Component {
             }
             const details: ActionDetails | null = this.HTTPActionPatternManager.find(actionPattern)
             if (!details) throw new ControllerActionNotFoundException('Route \'{route}\' not found', context)
-            return await this.runControllerMethod(details, context, abortController)
+            return await this.runControllerMethod(details, context, details.dtoConstructor, abortController)
         })
     }
 
@@ -221,7 +225,7 @@ export class Entrypoint extends Component {
                 path.split('.').forEach((key: string) => target = target[key] ? target[key] : undefined)
                 if (target && !Object.keys(target).length) unset(context.data, path)
             })
-            return await this.runControllerMethod(details, context, abortController)
+            return await this.runControllerMethod(details, context, details.dtoConstructor, abortController)
         })
     }
 }

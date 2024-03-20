@@ -2,6 +2,7 @@ import {Controller, type ControllerProperty} from '../../lib/core/Controller.js'
 import {MethodDecorator} from '../../types/MethodDecorator.js'
 import {RegisterCLIAction} from '../../lib/base/internal/ControllerEntrypoint.js'
 import {DTO} from '../../lib/core/DTO.js'
+import {FlexibleDTO} from '../../lib/base/internal/FlexibleDTO.js'
 
 /**
  * Method Decorator
@@ -34,9 +35,9 @@ export function CLIAction<ClassPrototype extends Controller, Method, DTOConstruc
 export function CLIAction<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(command: string, descriptionOrDTOConstructor?: string | DTOConstructor, description?: string): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>> {
     return (target: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>, descriptor: TypedPropertyDescriptor<Method>) => {
         if (!descriptionOrDTOConstructor) {
-            RegisterCLIAction(command, target, propertyKey, DTO, '')
+            RegisterCLIAction(command, target, propertyKey, FlexibleDTO, '')
         } else if (typeof descriptionOrDTOConstructor === 'string') {
-            RegisterCLIAction(command, target, propertyKey, DTO, descriptionOrDTOConstructor)
+            RegisterCLIAction(command, target, propertyKey, FlexibleDTO, descriptionOrDTOConstructor)
         } else {
             RegisterCLIAction(command, target, propertyKey, descriptionOrDTOConstructor, description ? description : '')
         }
