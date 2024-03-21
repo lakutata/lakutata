@@ -9,7 +9,7 @@ import {As} from '../lib/functions/As.js'
 import {Module} from '../lib/core/Module.js'
 import {
     CLIEntrypointBuilder,
-    type CLIEntrypointHandler, type CLIMap,
+    type CLIEntrypointHandler, type CLIMap, EntrypointBuilder,
     HTTPEntrypointBuilder,
     type HTTPEntrypointHandler, type HTTPRouteMap, ServiceEntrypointBuilder
 } from '../components/Entrypoint.js'
@@ -32,8 +32,8 @@ import {GetObjectNestingDepth} from '../lib/functions/GetObjectNestingDepth.js'
             testComponent: {
                 class: TestComponent
             },
-            entrypoint: {
-                http: HTTPEntrypointBuilder((module: Module, routeMap: HTTPRouteMap, handler: HTTPEntrypointHandler) => {
+            entrypoint: EntrypointBuilder({
+                http: HTTPEntrypointBuilder((module, routeMap, handler) => {
                     const fastify = Fastify({
                         logger: false
                     })
@@ -61,7 +61,7 @@ import {GetObjectNestingDepth} from '../lib/functions/GetObjectNestingDepth.js'
                     })
                     fastify.listen({port: 3000, host: '0.0.0.0'})
                 }),
-                cli: CLIEntrypointBuilder((module: Module, cliMap: CLIMap, handler: CLIEntrypointHandler) => {
+                cli: CLIEntrypointBuilder((module, cliMap, handler) => {
                     createInterface({
                         input: process.stdin,
                         output: process.stdout
@@ -100,7 +100,7 @@ import {GetObjectNestingDepth} from '../lib/functions/GetObjectNestingDepth.js'
                     server.attach(httpServer)
                     httpServer.listen(3001, '0.0.0.0')
                 })
-            }
+            })
         },
         providers: {
             testProvider: {

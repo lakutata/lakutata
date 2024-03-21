@@ -33,11 +33,19 @@ export type CLIEntrypointHandler<T = unknown> = (context: CLIContext, abortContr
 export type HTTPEntrypointHandler<T = unknown> = (context: HTTPContext, abortController?: AbortController) => Promise<T>
 export type ServiceEntrypointHandler<T = unknown> = (context: ServiceContext, abortController?: AbortController) => Promise<T>
 
+export type EntrypointOptions = {
+    cli?: CLIEntrypoint | CLIEntrypoint[]
+    http?: HTTPEntrypoint | HTTPEntrypoint[]
+    service?: ServiceEntrypoint | ServiceEntrypoint[]
+}
+
 export const CLIEntrypointBuilder: (entrypoint: CLIEntrypoint) => CLIEntrypoint = (entrypoint: CLIEntrypoint) => entrypoint
 
 export const HTTPEntrypointBuilder: (entrypoint: HTTPEntrypoint) => HTTPEntrypoint = (entrypoint: HTTPEntrypoint) => entrypoint
 
 export const ServiceEntrypointBuilder: (entrypoint: ServiceEntrypoint) => ServiceEntrypoint = (entrypoint: ServiceEntrypoint) => entrypoint
+
+export const EntrypointBuilder: (options: EntrypointOptions) => EntrypointOptions = (options: EntrypointOptions) => options
 
 /**
  * Entrypoint Component
