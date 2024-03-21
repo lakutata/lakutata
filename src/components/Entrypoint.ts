@@ -39,6 +39,9 @@ export const HTTPEntrypointBuilder: (entrypoint: HTTPEntrypoint) => HTTPEntrypoi
 
 export const ServiceEntrypointBuilder: (entrypoint: ServiceEntrypoint) => ServiceEntrypoint = (entrypoint: ServiceEntrypoint) => entrypoint
 
+/**
+ * Entrypoint Component
+ */
 export class Entrypoint extends Component {
 
     protected readonly CLIActionPatternMap: ActionPatternMap = new Map()
@@ -186,7 +189,7 @@ export class Entrypoint extends Component {
      */
     protected registerHTTPEntrypoint(entrypoint: HTTPEntrypoint): void {
         const routeMap: HTTPRouteMap = new Map()
-        for(const actionPattern of this.HTTPActionPatternMap.keys()){
+        for (const actionPattern of this.HTTPActionPatternMap.keys()) {
             const methodsSet: Set<string> = routeMap.get(actionPattern.route) || new Set()
             methodsSet.add(actionPattern.method)
             routeMap.set(actionPattern.route, methodsSet)

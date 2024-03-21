@@ -91,9 +91,6 @@ import {GetObjectNestingDepth} from '../lib/functions/GetObjectNestingDepth.js'
                     const httpServer = createServer()
                     const server = new SocketIOServer()
                     server.on('connection', socket => {
-                        socket.on('disconnect', () => {
-                            //TODO
-                        })
                         socket.on('message', async (data, fn) => {
                             return fn(await handler(new ServiceContext({
                                 data: data

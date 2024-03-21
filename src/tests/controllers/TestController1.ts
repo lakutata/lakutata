@@ -72,6 +72,7 @@ export class TestController1 extends Controller {
             As<HTTPContext>(this.context).response.write(new Time().format())
             As<HTTPContext>(this.context).response.end()
         } else {
+            // await Delay(3000)
             return 'oh!!!!!!!!!!'
         }
     }
