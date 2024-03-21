@@ -1,13 +1,4 @@
-import Joi, {
-    CacheConfiguration,
-    CompileOptions,
-    CustomValidator,
-    Extension, ExtensionFactory,
-    Reference, ReferenceOptions,
-    ValidationError,
-    ValidationErrorItem,
-    Schema as OrigSchema, ValidationResult, isSchema
-} from 'joi'
+import Joi from 'joi'
 import {AnySchema} from './interfaces/AnySchema.js'
 import {ArraySchema} from './interfaces/ArraySchema.js'
 import {BooleanSchema} from './interfaces/BooleanSchema.js'
@@ -27,6 +18,9 @@ import {InvalidValueException} from '../../exceptions/dto/InvalidValueException.
 import {SchemaMap} from './types/SchemaMap.js'
 import {SchemaLike} from './types/SchemaLike.js'
 import {As} from '../functions/As.js'
+import {CustomValidator} from './types/CustomValidator.js'
+import {ReferenceOptions} from './interfaces/ReferenceOptions.js'
+import {Reference} from './interfaces/Reference.js'
 
 export const DefaultValidationOptions: ValidationOptions = {
     abortEarly: true,
@@ -38,7 +32,7 @@ export const DefaultValidationOptions: ValidationOptions = {
 
 interface ValidateAPI {
 
-    ValidationError: new (message: string, details: ValidationErrorItem[], original: any) => ValidationError;
+    ValidationError: new (message: string, details: Joi.ValidationErrorItem[], original: any) => Joi.ValidationError;
 
     /**
      * Generates a schema object that matches any data type.
@@ -164,12 +158,12 @@ interface ValidateAPI {
      */
     attempt<TSchema extends Schema>(value: any, schema: TSchema, message: string | Error, options?: ValidationOptions): TSchema extends Schema<infer Value> ? Value : never;
 
-    cache: CacheConfiguration;
+    cache: Joi.CacheConfiguration;
 
     /**
      * Converts literal schema definition to schema object (or returns the same back if already a schema object).
      */
-    compile(schema: SchemaLike, options?: CompileOptions): Schema;
+    compile(schema: SchemaLike, options?: Joi.CompileOptions): Schema;
 
     /**
      * Checks if the provided preferences are valid.
@@ -202,7 +196,7 @@ interface ValidateAPI {
     /**
      * Creates a new instance customized with the extension(s) you provide included.
      */
-    extend(...extensions: Array<Extension | ExtensionFactory>): any;
+    extend(...extensions: Array<Joi.Extension | Joi.ExtensionFactory>): any;
 
     /**
      * Creates a reference that when resolved, is used as an array of values to match against the rule.
@@ -212,7 +206,7 @@ interface ValidateAPI {
     /**
      * Checks whether or not the provided argument is an instance of ValidationError
      */
-    isError(error: any): error is ValidationError;
+    isError(error: any): error is Joi.ValidationError;
 
     /**
      * Checks whether or not the provided argument is an expression.
@@ -227,7 +221,7 @@ interface ValidateAPI {
     /**
      * Checks whether or not the provided argument is a schema.
      */
-    isSchema(schema: any, options?: CompileOptions): schema is AnySchema;
+    isSchema(schema: any, options?: Joi.CompileOptions): schema is AnySchema;
 
     /**
      * A special value used with `any.allow()`, `any.invalid()`, and `any.valid()` as the first value to reset any previously set values.
@@ -272,7 +266,7 @@ class ValidateMethods {
      * @param schema
      */
     public isSchema(schema: any): boolean {
-        return isSchema(schema)
+        return Joi.isSchema(schema)
     }
 
     /**
@@ -316,11 +310,11 @@ class ValidateMethods {
         let error: Error | undefined
         let value: T
         if (options.targetName) {
-            const result: ValidationResult = Joi.object({[options.targetName]: schema}).validate({[options.targetName]: data}, options)
+            const result: Joi.ValidationResult = Joi.object({[options.targetName]: schema}).validate({[options.targetName]: data}, options)
             error = result.error
             value = result.value[options.targetName]
         } else {
-            const result: ValidationResult = As<OrigSchema>(schema).validate(data, options)
+            const result: Joi.ValidationResult = As<Joi.Schema>(schema).validate(data, options)
             error = result.error
             value = result.value
         }
@@ -344,7 +338,7 @@ class ValidateMethods {
                 })
                 return result[options.targetName]
             } else {
-                return await As<OrigSchema>(schema).validateAsync(data, options)
+                return await As<Joi.Schema>(schema).validateAsync(data, options)
             }
         } catch (e) {
             throw new InvalidValueException((e as Error).message)

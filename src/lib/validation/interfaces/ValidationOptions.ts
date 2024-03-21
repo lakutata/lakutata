@@ -1,4 +1,5 @@
-import {BaseValidationOptions, type LanguageMessages} from 'joi'
+import {BaseValidationOptions} from './BaseValidationOptions.js'
+import {LanguageMessages} from '../types/LanguageMessages.js'
 
 export interface ValidationOptions extends BaseValidationOptions {
     /**

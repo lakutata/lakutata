@@ -1,8 +1,10 @@
 import {AnySchema} from './AnySchema.js'
-import {DependencyOptions, type Reference, type RenameOptions} from 'joi'
 import {SchemaMap} from '../types/SchemaMap.js'
 import {SchemaLike} from '../types/SchemaLike.js'
 import {ObjectPatternOptions} from './ObjectPatternOptions.js'
+import {DependencyOptions} from './DependencyOptions.js'
+import {Reference} from './Reference.js'
+import {RenameOptions} from './RenameOptions.js'
 
 export interface ObjectSchema<TSchema = any> extends AnySchema<TSchema> {
     /**

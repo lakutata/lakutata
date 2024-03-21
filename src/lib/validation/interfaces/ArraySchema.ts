@@ -1,12 +1,8 @@
 import {AnySchema} from './AnySchema.js'
-import {
-    ArraySortOptions,
-    ArrayUniqueOptions,
-    ComparatorFunction,
-    Reference
-} from 'joi'
+import Joi from 'joi'
 import {SchemaLike} from '../types/SchemaLike.js'
 import {SchemaLikeWithoutArray} from '../types/SchemaLikeWithoutArray.js'
+import {Reference} from './Reference.js'
 
 export interface ArraySchema<TSchema = any[]> extends AnySchema<TSchema> {
     /**
@@ -61,7 +57,7 @@ export interface ArraySchema<TSchema = any[]> extends AnySchema<TSchema> {
     /**
      * Sorts the array by given order.
      */
-    sort(options?: ArraySortOptions): this;
+    sort(options?: Joi.ArraySortOptions): this;
 
     /**
      * Allow this array to be sparse.
@@ -76,5 +72,5 @@ export interface ArraySchema<TSchema = any[]> extends AnySchema<TSchema> {
      * Be aware that a deep equality is performed on elements of the array having a type of object,
      * a performance penalty is to be expected for this kind of operation.
      */
-    unique(comparator?: string | ComparatorFunction, options?: ArrayUniqueOptions): this;
+    unique(comparator?: string | Joi.ComparatorFunction, options?: Joi.ArrayUniqueOptions): this;
 }

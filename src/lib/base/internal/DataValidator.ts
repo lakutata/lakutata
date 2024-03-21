@@ -13,7 +13,6 @@ import {SchemaMap} from '../../validation/types/SchemaMap.js'
 import {ObjectSchema} from '../../validation/interfaces/ObjectSchema.js'
 import {Schema} from '../../validation/types/Schema.js'
 import {ValidationOptions} from '../../validation/interfaces/ValidationOptions.js'
-import {ErrorReport, type Reference, type ReferenceOptions} from 'joi'
 import {SchemaLike} from '../../validation/types/SchemaLike.js'
 import {AlternativesSchema} from '../../validation/interfaces/AlternativesSchema.js'
 import {SymbolSchema} from '../../validation/interfaces/SymbolSchema.js'
@@ -24,6 +23,9 @@ import {As} from '../../functions/As.js'
 import {IsGlobString} from '../../functions/IsGlobString.js'
 import {IsHtml} from '../../functions/IsHtml.js'
 import {IsXML} from '../../functions/IsXML.js'
+import {ErrorReport} from '../../validation/interfaces/ErrorReport.js'
+import {ReferenceOptions} from '../../validation/interfaces/ReferenceOptions.js'
+import {Reference} from '../../validation/interfaces/Reference.js'
 
 export class DataValidator {
 

@@ -1,4 +1,3 @@
-import {IsNonPrimitiveSubsetUnion, type NullableType} from 'joi'
 import {AlternativesSchema} from '../interfaces/AlternativesSchema.js'
 import {StringSchema} from '../interfaces/StringSchema.js'
 import {NumberSchema} from '../interfaces/NumberSchema.js'
@@ -8,6 +7,8 @@ import {BinarySchema} from '../interfaces/BinarySchema.js'
 import {ArraySchema} from '../interfaces/ArraySchema.js'
 import {StrictSchemaMap} from './StrictSchemaMap.js'
 import {ObjectSchema} from '../interfaces/ObjectSchema.js'
+import {IsNonPrimitiveSubsetUnion} from './IsNonPrimitiveSubsetUnion.js'
+import {NullableType} from './NullableType.js'
 
 export type ObjectPropertiesSchema<T = any> =
     true extends IsNonPrimitiveSubsetUnion<Exclude<T, undefined | null>>
