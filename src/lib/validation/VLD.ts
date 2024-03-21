@@ -32,7 +32,8 @@ export const DefaultValidationOptions: ValidationOptions = {
     abortEarly: true,
     cache: false,
     allowUnknown: true,
-    stripUnknown: true
+    stripUnknown: true,
+    convert: true
 }
 
 interface ValidateAPI {
