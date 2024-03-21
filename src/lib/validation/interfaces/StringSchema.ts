@@ -1,16 +1,14 @@
 import {AnySchema} from './AnySchema.js'
-import {
-    Base64Options,
-    DataUriOptions,
-    DomainOptions,
-    EmailOptions,
-    GuidOptions,
-    HexOptions,
-    IpOptions,
-    Reference,
-    StringRegexOptions,
-    UriOptions
-} from 'joi'
+import {Base64Options} from './Base64Options.js'
+import {DataUriOptions} from './DataUriOptions.js'
+import {Reference} from './Reference.js'
+import {DomainOptions} from './DomainOptions.js'
+import {EmailOptions} from './EmailOptions.js'
+import {GuidOptions} from './GuidOptions.js'
+import {HexOptions} from './HexOptions.js'
+import {IpOptions} from './IpOptions.js'
+import {UriOptions} from './UriOptions.js'
+import {StringRegexOptions} from './StringRegexOptions.js'
 
 export interface StringSchema<TSchema = string> extends AnySchema<TSchema> {
     /**
