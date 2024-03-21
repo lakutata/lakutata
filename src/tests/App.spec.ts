@@ -58,32 +58,34 @@ import {createServer} from 'node:http'
                     })
                     fastify.listen({port: 3000, host: '0.0.0.0'})
                 }),
-                // cli: CLIEntrypointBuilder((module, cliMap, handler) => {
-                //     createInterface({
-                //         input: process.stdin,
-                //         output: process.stdout
-                //     }).on('line', input => {
-                //         try {
-                //             const CLIProgram: Command = new Command().exitOverride()
-                //             cliMap.forEach((dtoJsonSchema, command: string) => {
-                //                 const cmd = new Command(command).exitOverride()
-                //                 for (const p in dtoJsonSchema.properties) {
-                //                     const attr = dtoJsonSchema.properties[p]
-                //                     cmd.option(`--${p} <${attr.type}>`, attr.description)
-                //                 }
-                //                 cmd.action((args) => {
-                //                     //Handle cli
-                //                     handler(new CLIContext({command: command, data: args}))
-                //                 })
-                //                 CLIProgram.addCommand(cmd)
-                //             })
-                //             CLIProgram.addCommand(new Command('exit').allowUnknownOption(true).action(() => process.exit()))
-                //             CLIProgram.parse(input.split(' '), {from: 'user'})//使用命令行传入的参数进行执行
-                //         } catch (e: any) {
-                //             DevNull(e)
-                //         }
-                //     })
-                // }),
+                cli: CLIEntrypointBuilder((module, cliMap, handler) => {
+                    createInterface({
+                        input: process.stdin,
+                        output: process.stdout
+                    })
+                        .on('SIGINT', () => process.exit(2))
+                        .on('line', input => {
+                            try {
+                                const CLIProgram: Command = new Command().exitOverride()
+                                cliMap.forEach((dtoJsonSchema, command: string) => {
+                                    const cmd = new Command(command).exitOverride()
+                                    for (const p in dtoJsonSchema.properties) {
+                                        const attr = dtoJsonSchema.properties[p]
+                                        cmd.option(`--${p} <${attr.type}>`, attr.description)
+                                    }
+                                    cmd.action((args) => {
+                                        //Handle cli
+                                        handler(new CLIContext({command: command, data: args}))
+                                    })
+                                    CLIProgram.addCommand(cmd)
+                                })
+                                CLIProgram.addCommand(new Command('exit').allowUnknownOption(true).action(() => process.exit()))
+                                CLIProgram.parse(input.split(' '), {from: 'user'})//使用命令行传入的参数进行执行
+                            } catch (e: any) {
+                                DevNull(e)
+                            }
+                        })
+                }),
                 service: ServiceEntrypointBuilder((module, handler) => {
                     const httpServer = createServer()
                     const server = new SocketIOServer()
