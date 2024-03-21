@@ -93,7 +93,8 @@ export default [
                 compilerOptions: {
                     outDir: outputDirname
                 }
-            })
+            }),
+            progress({clearLine: true})
         ],
         external: [
             ...builtinModules
