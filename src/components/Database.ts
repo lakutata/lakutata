@@ -20,19 +20,24 @@ import {
     ReplicationMode,
     QueryResultCache
 } from '../lib/core/ORM.js'
+import {Singleton} from '../decorators/di/Lifetime.js'
 
+/**
+ * Database component
+ */
+@Singleton()
 export class Database extends Component {
 
     #datasource: DataSource
 
     /**
-     * 连接参数
+     * Connection options
      */
     @Configurable()
     protected readonly options: DataSourceOptions
 
     /**
-     * 数据源实例
+     * Datasource instance
      * @protected
      */
     protected get datasource(): DataSource {
@@ -40,21 +45,21 @@ export class Database extends Component {
     }
 
     /**
-     * 该连接使用的数据库驱动程序
+     * Connection driver
      */
     public get driver(): Driver {
         return this.datasource.driver
     }
 
     /**
-     * 该连接的实体管理器（EntityManager）
+     * EntityManager of this connection.
      */
     public get manager(): EntityManager {
         return this.datasource.manager
     }
 
     /**
-     * 设置该连接使用的命名策略（Naming Strategy）
+     * Set naming strategy used in the connection.
      * @param instance
      */
     public set namingStrategy(instance: NamingStrategyInterface) {
@@ -62,42 +67,43 @@ export class Database extends Component {
     }
 
     /**
-     * 获取该连接使用的命名策略（Naming Strategy）
+     * Get naming strategy used in the connection.
      */
     public get namingStrategy(): NamingStrategyInterface {
         return this.datasource.namingStrategy
     }
 
     /**
-     * 为该连接注册的实体订阅者实例（Entity Subscriber）
+     * Entity subscriber instances that are registered for this connection.
      */
     public get subscribers(): EntitySubscriberInterface<any>[] {
         return this.datasource.subscribers
     }
 
     /**
-     * 为该连接注册的所有实体元数据（Entity Metadata）
+     * All entity metadatas that are registered for this connection.
      */
     public get entityMetadatas(): EntityMetadata[] {
         return this.datasource.entityMetadatas
     }
 
     /**
-     * 为该连接注册的所有实体元数据。这是#.entityMetadatas属性的副本，用于更高效的搜索
+     * All entity metadatas that are registered for this connection.
+     * This is a copy of #.entityMetadatas property -> used for more performant searches.
      */
     public get entityMetadatasMap(): Map<EntityTarget<any>, EntityMetadata> {
         return this.datasource.entityMetadatasMap
     }
 
     /**
-     * 用于操作查询结果缓存
+     * Used to work with query result cache.
      */
     public get queryResultCache(): QueryResultCache | undefined {
         return this.datasource.queryResultCache
     }
 
     /**
-     * 组件内部初始化函数
+     * Initializer
      * @protected
      */
     protected async init(): Promise<void> {
@@ -105,7 +111,7 @@ export class Database extends Component {
     }
 
     /**
-     * 组件内部销毁函数
+     * Destroyer
      * @protected
      */
     protected async destroy(): Promise<void> {
@@ -113,15 +119,18 @@ export class Database extends Component {
     }
 
     /**
-     * 为该连接中注册的所有实体创建数据库模式。只能在与数据库建立连接后使用
-     * @param dropBeforeSync 如果设置为true，则删除包含所有表和数据的数据库
+     * Creates database schema for all entities registered in this connection.
+     * Can be used only after connection to the database is established.
+     *
+     * @param dropBeforeSync If set to true then it drops the database with all its tables and data
      */
     public async synchronize(dropBeforeSync?: boolean): Promise<void> {
         return await this.datasource.synchronize(dropBeforeSync)
     }
 
     /**
-     * 运行所有待处理的迁移。只能在与数据库建立连接后使用
+     * Runs all pending migrations.
+     * Can be used only after connection to the database is established.
      * @param options
      */
     public async runMigrations(options?: {
@@ -132,7 +141,8 @@ export class Database extends Component {
     }
 
     /**
-     * 还原上次执行的迁移。只能在与数据库建立连接后使用
+     * Reverts last executed migration.
+     * Can be used only after connection to the database is established.
      * @param options
      */
     public async undoLastMigration(options?: {
@@ -143,14 +153,15 @@ export class Database extends Component {
     }
 
     /**
-     * 列出所有迁移，并指示它们是否已运行。如果有待处理的迁移，则返回true
+     * Lists all migrations and whether they have been run.
+     * Returns true if there are pending migrations
      */
     public async showMigrations(): Promise<boolean> {
         return await this.datasource.showMigrations()
     }
 
     /**
-     * 检查给定实体类、目标名称或表名称是否存在实体元数据（Entity Metadata）
+     * Checks if entity metadata exist for the given entity class, target name or table name.
      * @param target
      */
     public hasMetadata(target: EntityTarget<any>): boolean {
@@ -158,7 +169,7 @@ export class Database extends Component {
     }
 
     /**
-     * 根据给定的实体类或模式名称获取实体元数据（Entity Metadata）
+     * Gets entity metadata for the given entity class or schema name.
      * @param target
      */
     public getMetadata(target: EntityTarget<any>): EntityMetadata {
@@ -166,7 +177,7 @@ export class Database extends Component {
     }
 
     /**
-     * 获取给定实体的代码仓库
+     * Gets repository for the given entity.
      * @param target
      */
     public getRepository<Entity extends ObjectLiteral>(target: EntityTarget<Entity>): Repository<Entity> {
@@ -174,7 +185,8 @@ export class Database extends Component {
     }
 
     /**
-     * 根据给定的实体类或名称获取树形代码仓库。只有树形实体才能拥有TreeRepository，例如被@Tree修饰的实体
+     * Gets tree repository for the given entity class or name.
+     * Only tree-type entities can have a TreeRepository, like ones decorated with @Tree decorator.
      * @param target
      */
     public getTreeRepository<Entity extends ObjectLiteral>(target: EntityTarget<Entity>): TreeRepository<Entity> {
@@ -182,7 +194,8 @@ export class Database extends Component {
     }
 
     /**
-     * 根据给定的实体类或名称获取针对MongoDB的特定代码仓库。只有在连接是针对MongoDB的情况下才有效
+     * Gets mongodb-specific repository for the given entity class or name.
+     * Works only if connection is mongodb-specific.
      * @param target
      */
     public getMongoRepository<Entity extends ObjectLiteral>(target: EntityTarget<Entity>): MongoRepository<Entity> {
@@ -190,7 +203,8 @@ export class Database extends Component {
     }
 
     /**
-     * 将给定的函数执行（以及其中进行的所有操作）封装到一个事务中。所有数据库操作必须使用提供的实体管理器执行
+     * Wraps given function execution (and all operations made there) into a transaction.
+     * All database operations must be executed using provided entity manager.
      * @param runInTransaction
      */
     public async transaction<T>(runInTransaction: (entityManager: EntityManager) => Promise<T>): Promise<T>
@@ -200,7 +214,7 @@ export class Database extends Component {
     }
 
     /**
-     * 执行原始的SQL查询并返回数据库的原始结果
+     * Executes raw SQL query and returns raw database results.
      * @param query
      * @param parameters
      * @param queryRunner
@@ -210,7 +224,7 @@ export class Database extends Component {
     }
 
     /**
-     * 创建一个新的查询构建器，用于构建SQL查询
+     * Creates a new query builder that can be used to build a SQL query.
      * @param entityClass
      * @param alias
      * @param queryRunner
@@ -222,8 +236,15 @@ export class Database extends Component {
     }
 
     /**
-     * 创建一个查询运行器，用于在单个数据库连接上执行查询。使用查询运行器，您可以控制查询使用单个数据库连接执行，并手动控制数据库事务
-     * Mode参数用于指示您是要连接到主数据库还是其中一个从数据库。如果执行写操作，必须使用主数据库；如果执行读操作，可以使用从数据库
+     * Creates a query runner used for perform queries on a single database connection.
+     * Using query runners you can control your queries to execute using single database connection and
+     * manually control your database transaction.
+     *
+     * Mode is used in replication mode and indicates whatever you want to connect
+     * to master database or any of slave databases.
+     * If you perform writes you must use master database,
+     * if you perform reads you can use slave databases.
+     *
      * @param mode
      */
     public createQueryRunner(mode?: ReplicationMode): QueryRunner {
@@ -231,7 +252,7 @@ export class Database extends Component {
     }
 
     /**
-     * 获取联接表（多对多关系表）的实体元数据（Entity Metadata）
+     * Gets entity metadata of the junction table (many-to-many table).
      * @param entityTarget
      * @param relationPropertyPath
      */
@@ -240,7 +261,7 @@ export class Database extends Component {
     }
 
     /**
-     * 使用EntityManagerFactory为当前连接创建一个实体管理器（EntityManager）
+     * Creates an Entity Manager for the current connection with the help of the EntityManagerFactory.
      * @param queryRunner
      */
     public createEntityManager(queryRunner?: QueryRunner): EntityManager {

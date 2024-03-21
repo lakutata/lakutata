@@ -21,6 +21,7 @@ import {GetObjectPropertyPaths} from '../lib/functions/GetObjectPropertyPaths.js
 import unset from 'unset-value'
 import {UniqueArray} from '../lib/functions/UniqueArray.js'
 import {DTO} from '../lib/core/DTO.js'
+import {Singleton} from '../decorators/di/Lifetime.js'
 
 export type CLIEntrypoint = (module: Module, cliMap: CLIMap, handler: CLIEntrypointHandler) => void
 export type HTTPEntrypoint = (module: Module, routeMap: HTTPRouteMap, handler: HTTPEntrypointHandler) => void
@@ -50,6 +51,7 @@ export const EntrypointBuilder: (options: EntrypointOptions) => EntrypointOption
 /**
  * Entrypoint Component
  */
+@Singleton()
 export class Entrypoint extends Component {
 
     protected readonly CLIActionPatternMap: ActionPatternMap = new Map()
