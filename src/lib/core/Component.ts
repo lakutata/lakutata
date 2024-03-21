@@ -30,9 +30,7 @@ export class Component extends Provider implements EventEmitter {
      * @protected
      */
     protected async [__init](...hooks: (() => Promise<void>)[]): Promise<void> {
-        await super[__init](async (): Promise<void> => {
-            //TODO
-        }, ...hooks)
+        await super[__init](...hooks)
     }
 
     /**

@@ -19,9 +19,6 @@ const vendorMap = new Map()
 const chunkNameGenerator = (chunkName) => {
     if (!vendorMap.has(chunkName)) vendorMap.set(chunkName, ++vendorNumber)
     return `${thirdPartyPackageRootDirname}/package${vendorMap.get(chunkName) || 0}`
-    // return `${thirdPartyPackageRootDirname}/${chunkName}`
-    // console.log(chunkName)
-    // return `${thirdPartyPackageRootDirname}/package`
 }
 
 export default {
