@@ -6,12 +6,11 @@ import {TestController1} from './controllers/TestController1.js'
 import {HTTPContext} from '../lib/context/HTTPContext.js'
 import Fastify from 'fastify'
 import {As} from '../lib/functions/As.js'
-import {Module} from '../lib/core/Module.js'
 import {
     CLIEntrypointBuilder,
-    type CLIEntrypointHandler, type CLIMap, EntrypointBuilder,
+    EntrypointBuilder,
     HTTPEntrypointBuilder,
-    type HTTPEntrypointHandler, type HTTPRouteMap, ServiceEntrypointBuilder
+    ServiceEntrypointBuilder
 } from '../components/Entrypoint.js'
 import {Command} from 'commander'
 import {CLIContext} from '../lib/context/CLIContext.js'
@@ -20,8 +19,6 @@ import {DevNull} from '../lib/functions/DevNull.js'
 import {Server as SocketIOServer} from 'socket.io'
 import {ServiceContext} from '../lib/context/ServiceContext.js'
 import {createServer} from 'node:http'
-import * as repl from 'repl'
-import {GetObjectNestingDepth} from '../lib/functions/GetObjectNestingDepth.js'
 
 (async (): Promise<void> => {
     await Application.run({
@@ -129,13 +126,6 @@ import {GetObjectNestingDepth} from '../lib/functions/GetObjectNestingDepth.js'
             //     await testController1.test('a', 1)
             // },
             'entrypoint'
-            // async (target): Promise<void> => {
-            //     while (true) {
-            //         await Delay(100)
-            //         const obj=await target.getObject<TestProvider>('testProvider')
-            //         console.log(JSON.stringify(obj.getModule()))
-            //     }
-            // }
         ]
     })
 })()
