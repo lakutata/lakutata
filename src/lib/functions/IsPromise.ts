@@ -1,7 +1,7 @@
 import {isPromise as isBuiltinPromises} from 'util/types'
 
 /**
- * 判断一个目标对象是否为Promise
+ * Whether an object is Promise object or not
  * @param target
  */
 export function IsPromise(target: any): boolean {

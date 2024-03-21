@@ -1,7 +1,7 @@
 import {IsPromise} from './IsPromise.js'
 
 /**
- * 判断一个目标对象是否为PromiseLike
+ * Whether an object is PromiseLike object or not
  * @param target
  * @constructor
  */

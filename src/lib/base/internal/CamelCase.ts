@@ -1,7 +1,13 @@
-import {NoCaseOptions, Split, ToLower, ToUpper} from './NoCase.js'
+import {NoCaseOptions, Split, ToLower, ToUpper} from '../../functions/NoCase.js'
 
 export type {NoCaseOptions}
 
+/**
+ * Came case handler
+ * @param input
+ * @param options
+ * @constructor
+ */
 export function CamelCase(input: string, options?: NoCaseOptions): string {
     const lower = ToLower(options?.locale)
     const upper = ToUpper(options?.locale)
