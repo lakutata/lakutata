@@ -40,6 +40,7 @@ const nameExpr = /(.*)\..*/i
  * @param  {String} globPattern
  * The glob pattern.
  *
+ * @param opts
  * @param  {String} opts.cwd
  * Current working directory, used for resolving filepaths.
  * Defaults to `process.cwd()`.

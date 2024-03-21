@@ -1,6 +1,6 @@
 import {__destroy, __init} from '../base/BaseObject.js'
 import {Singleton} from '../../decorators/di/Lifetime.js'
-import {EventEmitter} from '../EventEmitter.js'
+import {EventEmitter} from '../base/EventEmitter.js'
 import {
     type event,
     type ListenerFn,

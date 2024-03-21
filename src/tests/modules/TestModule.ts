@@ -1,5 +1,5 @@
 import {Module} from '../../lib/core/Module.js'
-import {Time} from '../../lib/Time.js'
+import {Time} from '../../lib/core/Time.js'
 
 export class TestModule extends Module {
     protected async init(): Promise<void> {

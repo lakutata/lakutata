@@ -12,7 +12,7 @@ import {Delay} from '../../lib/functions/Delay.js'
 import {HTTPContext} from '../../lib/context/HTTPContext.js'
 import {As} from '../../lib/functions/As.js'
 import {isProxy} from 'node:util/types'
-import {Time} from '../../lib/Time.js'
+import {Time} from '../../lib/core/Time.js'
 
 class TestDTO extends DTO {
     @Expect(DTO.String().optional())

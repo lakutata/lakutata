@@ -1,5 +1,5 @@
 import {Component} from '../../lib/core/Component.js'
-import {Time} from '../../lib/Time.js'
+import {Time} from '../../lib/core/Time.js'
 import {Application} from '../../lib/core/Application.js'
 import {Inject} from '../../decorators/di/Inject.js'
 
