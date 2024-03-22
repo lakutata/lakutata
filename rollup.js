@@ -14,7 +14,6 @@ import {fileURLToPath} from 'node:url'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-
 const normalizeString = (str) => Buffer.from(str).filter((v, i) => i ? true : v !== 0).toString()
 const currentWorkingDir = normalizeString(process.cwd())
 const thirdPartyPackageRootDirname = 'vendor'
@@ -56,15 +55,70 @@ const processPackageJson = async (packageJsonFilename) => {
     await writeFile(packageJsonFilename, JSON.stringify(packageJsonObject, null, 2), {encoding: 'utf-8', flag: 'w'})
 }
 
+/**
+ * Process bundles
+ * @return {Promise<void>}
+ */
+async function processBundles() {
+    /**
+     * Write file promises
+     * @type {Promise[]}
+     */
+    const writeFilePromises = []
+
+    /**
+     * Generate output files
+     * @param bundle
+     * @param outputOptions
+     * @return {Promise}
+     */
+    async function generateOutputs(bundle, outputOptions) {
+        const {output} = await bundle.generate(outputOptions)
+        for (const chunkOrAsset of output) {
+            writeFilePromises.push(new Promise((writeFileResolve, writeFileReject) => {
+                const filename = path.resolve(__dirname, outputDirname, chunkOrAsset.fileName)
+                mkdir(path.dirname(filename), {recursive: true}).then(() => {
+                    if (chunkOrAsset.type === 'asset') {
+                        //asset
+                        return writeFile(filename, chunkOrAsset.source).then(writeFileResolve).catch(writeFileReject)
+                    } else {
+                        return writeFile(filename, chunkOrAsset.code, {encoding: 'utf-8'}).then(writeFileResolve).catch(writeFileReject)
+                    }
+                }).catch(writeFileReject)
+            }))
+        }
+    }
+
+    /**
+     * Generate bundles
+     */
+    await Promise.all([
+        new Promise((jsBundleResolve, jsBundleReject) => {
+            return rollup(jsBundleOptions).then(jsBundle => {
+                return generateOutputs(jsBundle, jsBundleOptions.output).then(jsBundleResolve).catch(jsBundleReject)
+            }).catch(jsBundleReject)
+        }),
+        new Promise((dtsBundleResolve, dtsBundleReject) => {
+            return rollup(dtsBundleOptions).then(dtsBundle => {
+                return generateOutputs(dtsBundle, dtsBundleOptions.output).then(dtsBundleResolve).catch(dtsBundleReject)
+            }).catch(dtsBundleReject)
+        })
+    ])
+    /**
+     * Write files
+     */
+    await Promise.all(writeFilePromises)
+}
+
 //===================================Configurations===================================
 /**
  * Log level
- * @type {string}
+ * @type {'warn' | 'info' | 'debug' | 'silent' | undefined}
  */
 const logLevel = 'silent'
 /**
  * Output format
- * @type {string}
+ * @type {'amd' | 'cjs' | 'es' | 'iife' | 'system' | 'umd' | 'commonjs' | 'esm' | 'module' | 'systemjs' | undefined}
  */
 const format = 'esm'
 /**
@@ -77,120 +131,89 @@ const copyTargets = [
     {src: 'LICENSE', dest: outputDirname},
     {src: 'package.json', dest: outputDirname}
 ]
+/**
+ * Javascript bundle options
+ * @type {RollupOptions}
+ */
+const jsBundleOptions = {
+    logLevel: logLevel,
+    input: globFiles('src/**/*.ts'),
+    output: {
+        format: format,
+        dir: outputDirname,
+        exports: 'named',
+        compact: true,//减小文件体积
+        interop: 'auto',
+        generatedCode: 'es2015',
+        entryFileNames: (chunkInfo) => {
+            const facadeModuleId = normalizeString(chunkInfo.facadeModuleId)
+            const relativeDir = path.relative(currentWorkingDir, path.dirname(facadeModuleId))
+            return path.join(relativeDir, `${chunkInfo.name}.js`)
+        },
+        chunkFileNames: (chunkInfo) => {
+            if (!chunkInfo.name.startsWith(thirdPartyPackageRootDirname)) chunkInfo.name = jsChunkNameGenerator(chunkInfo.name)
+            return `${chunkInfo.name}.js`
+        }
+    },
+    makeAbsoluteExternalsRelative: true,
+    treeshake: false,
+    plugins: [
+        progress({clearLine: true}),
+        resolve({
+            browser: false,
+            preferBuiltins: true
+        }),
+        typescript({
+            outDir: jsrcOutputDirname,
+            esModuleInterop: true,
+            isolatedModules: true,
+            declaration: false,
+            emitDecoratorMetadata: true,
+            declarationMap: false,
+            allowSyntheticDefaultImports: true,
+            allowJs: true
+        }),
+        commonjs(),
+        json()
+    ]
+}
+/**
+ * DTS bundle options
+ * @type {RollupOptions}
+ */
+const dtsBundleOptions = {
+    logLevel: logLevel,
+    input: globFiles('src/**/*.ts'),
+    output: {
+        format: format,
+        dir: outputDirname,
+        entryFileNames: (chunkInfo) => `${chunkInfo.name}.d.ts`,
+        chunkFileNames: (chunkInfo) => {
+            if (!chunkInfo.name.startsWith(thirdPartyPackageRootDirname)) chunkInfo.name = dtsChunkNameGenerator(chunkInfo.name, 'type.')
+            return `${chunkInfo.name}.d.ts`
+        }
+    },
+    plugins: [
+        progress({clearLine: true}),
+        dts({
+            respectExternal: true,
+            compilerOptions: {
+                outDir: outputDirname
+            }
+        }),
+        copy({targets: copyTargets})
+    ],
+    external: [
+        ...builtinModules
+    ]
+}
+
 //===================================Configurations===================================
 
 /**
- * Write file promises
- * @type {Promise[]}
+ * Process bundles
  */
-const writeFilePromises = []
-
-/**
- * Generate output files
- * @param bundle
- * @param outputOptions
- * @return {Promise}
- */
-async function generateOutputs(bundle, outputOptions) {
-    const {output} = await bundle.generate(outputOptions)
-    for (const chunkOrAsset of output) {
-        writeFilePromises.push(new Promise((writeFileResolve, writeFileReject) => {
-            const filename = path.resolve(__dirname, outputDirname, chunkOrAsset.fileName)
-            mkdir(path.dirname(filename), {recursive: true}).then(() => {
-                if (chunkOrAsset.type === 'asset') {
-                    //asset
-                    return writeFile(filename, chunkOrAsset.source).then(writeFileResolve).catch(writeFileReject)
-                } else {
-                    return writeFile(filename, chunkOrAsset.code, {encoding: 'utf-8'}).then(writeFileResolve).catch(writeFileReject)
-                }
-            }).catch(writeFileReject)
-        }))
-    }
-}
-
-/**
- * Generate bundles
- */
-await Promise.all([
-    new Promise((jsBundleResolve, jsBundleReject) => {
-        return rollup({
-            logLevel: logLevel,
-            input: globFiles('src/**/*.ts'),
-            makeAbsoluteExternalsRelative: true,
-            treeshake: false,
-            plugins: [
-                progress({clearLine: true}),
-                resolve({
-                    browser: false,
-                    preferBuiltins: true
-                }),
-                typescript({
-                    outDir: jsrcOutputDirname,
-                    esModuleInterop: true,
-                    isolatedModules: true,
-                    declaration: false,
-                    emitDecoratorMetadata: true,
-                    declarationMap: false,
-                    allowSyntheticDefaultImports: true,
-                    allowJs: true
-                }),
-                commonjs(),
-                json()
-            ]
-        }).then(jsBundle => {
-            return generateOutputs(jsBundle, {
-                format: format,
-                dir: outputDirname,
-                exports: 'named',
-                compact: true,//减小文件体积
-                interop: 'auto',
-                generatedCode: 'es2015',
-                entryFileNames: (chunkInfo) => {
-                    const facadeModuleId = normalizeString(chunkInfo.facadeModuleId)
-                    const relativeDir = path.relative(currentWorkingDir, path.dirname(facadeModuleId))
-                    return path.join(relativeDir, `${chunkInfo.name}.js`)
-                },
-                chunkFileNames: (chunkInfo) => {
-                    if (!chunkInfo.name.startsWith(thirdPartyPackageRootDirname)) chunkInfo.name = jsChunkNameGenerator(chunkInfo.name)
-                    return `${chunkInfo.name}.js`
-                }
-            }).then(jsBundleResolve).catch(jsBundleReject)
-        }).catch(jsBundleReject)
-    }),
-    new Promise((dtsBundleResolve, dtsBundleReject) => {
-        return rollup({
-            logLevel: logLevel,
-            input: globFiles('src/**/*.ts'),
-            plugins: [
-                progress({clearLine: true}),
-                dts({
-                    respectExternal: true,
-                    compilerOptions: {
-                        outDir: outputDirname
-                    }
-                }),
-                copy({targets: copyTargets})
-            ],
-            external: [
-                ...builtinModules
-            ]
-        }).then(dtsBundle => {
-            return generateOutputs(dtsBundle, {
-                format: format,
-                dir: outputDirname,
-                entryFileNames: (chunkInfo) => `${chunkInfo.name}.d.ts`,
-                chunkFileNames: (chunkInfo) => {
-                    if (!chunkInfo.name.startsWith(thirdPartyPackageRootDirname)) chunkInfo.name = dtsChunkNameGenerator(chunkInfo.name, 'type.')
-                    return `${chunkInfo.name}.d.ts`
-                }
-            }).then(dtsBundleResolve).catch(dtsBundleReject)
-        }).catch(dtsBundleReject)
-    })
-])
-/**
- * Write files
- */
-await Promise.all(writeFilePromises)
+await processBundles()
 /**
  * Process package.json
  */
