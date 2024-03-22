@@ -3,6 +3,7 @@ import resolve from '@rollup/plugin-node-resolve'
 import typescript from '@rollup/plugin-typescript'
 import commonjs from '@rollup/plugin-commonjs'
 import json from '@rollup/plugin-json'
+import terser from '@rollup/plugin-terser'
 import copy from 'rollup-plugin-copy'
 import progress from 'rollup-plugin-progress'
 import path from 'node:path'
@@ -11,6 +12,7 @@ import {dts} from 'rollup-plugin-dts'
 import {builtinModules} from 'node:module'
 import {mkdir, readFile, writeFile} from 'node:fs/promises'
 import {fileURLToPath} from 'node:url'
+import * as os from 'os'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -155,7 +157,7 @@ const jsBundleOptions = {
         format: format,
         dir: outputDirname,
         exports: 'named',
-        compact: true,//减小文件体积
+        compact: false,//减小文件体积
         interop: 'auto',
         generatedCode: 'es2015',
         entryFileNames: (chunkInfo) => {
@@ -187,7 +189,16 @@ const jsBundleOptions = {
             allowJs: true
         }),
         commonjs(),
-        json()
+        json(),
+        terser({
+            format: {
+                comments: false,
+                beautify: true
+            },
+            maxWorkers: os.cpus().length,
+            compress: false,
+            module: true
+        })
     ],
     external: [
         ...builtinModules
