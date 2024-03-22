@@ -3,10 +3,14 @@
   "version": "0.2.0",
   "description": "An IoC-based universal application framework.",
   "type": "module",
-  "main": "build/src/tests/App.spec.js",
+  "exports": [{
+    "import": "tt.js",
+    "types": "tt.d.ts"
+  }
+  ],
   "scripts": {
     "clean": "shx rm -rf ./distro",
-    "build:js": "rollup --silent -c",
+    "build:js": "node rollup.js",
     "build:gyp": "node-gyp configure build",
     "rebuild": "npm run clean && npm run build:js",
     "prepare": "npm run compile",
@@ -19,11 +23,11 @@
     "@rollup/plugin-json": "^6.1.0",
     "@rollup/plugin-node-resolve": "^15.2.3",
     "@rollup/plugin-typescript": "^11.1.6",
-    "@swc/core": "^1.4.2",
     "@types/crypto-js": "^4.2.2",
     "@types/is-glob": "^4.0.4",
     "@types/node": "^20.11.16",
     "@types/object-hash": "^3.0.6",
+    "@types/rollup-plugin-progress": "^1.1.5",
     "@typescript-eslint/eslint-plugin": "^6.20.0",
     "@typescript-eslint/parser": "^6.20.0",
     "commander": "^12.0.0",
