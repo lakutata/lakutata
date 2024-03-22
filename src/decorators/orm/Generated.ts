@@ -1,1 +1,1 @@
-export {Generated} from 'typeorm'
+export {Generated} from 'typeorm/decorator/Generated.js'

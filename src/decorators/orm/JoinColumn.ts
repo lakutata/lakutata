@@ -1,1 +1,1 @@
-export {JoinColumn} from 'typeorm'
+export {JoinColumn} from 'typeorm/decorator/relations/JoinColumn.js'

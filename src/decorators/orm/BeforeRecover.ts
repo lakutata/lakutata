@@ -1,1 +1,1 @@
-export {BeforeRecover} from 'typeorm'
+export {BeforeRecover} from 'typeorm/decorator/listeners/BeforeRecover.js'

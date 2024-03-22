@@ -1,1 +1,1 @@
-export {DeleteDateColumn} from 'typeorm'
+export {DeleteDateColumn} from 'typeorm/decorator/columns/DeleteDateColumn.js'

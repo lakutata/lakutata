@@ -1,1 +1,1 @@
-export {BeforeRemove} from 'typeorm'
+export {BeforeRemove} from 'typeorm/decorator/listeners/BeforeRemove.js'

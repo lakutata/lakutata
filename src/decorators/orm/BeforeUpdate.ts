@@ -1,1 +1,1 @@
-export {BeforeUpdate} from 'typeorm'
+export {BeforeUpdate} from 'typeorm/decorator/listeners/BeforeUpdate.js'

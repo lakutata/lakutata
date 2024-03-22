@@ -188,6 +188,9 @@ const jsBundleOptions = {
         }),
         commonjs(),
         json()
+    ],
+    external: [
+        ...builtinModules
     ]
 }
 /**
@@ -208,6 +211,7 @@ const dtsBundleOptions = {
     },
     plugins: [
         progress({clearLine: true}),
+        resolve(),
         dts({
             respectExternal: true,
             compilerOptions: {

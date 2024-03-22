@@ -1,1 +1,1 @@
-export {Exclusion} from 'typeorm'
+export {Exclusion} from 'typeorm/decorator/Exclusion.js'

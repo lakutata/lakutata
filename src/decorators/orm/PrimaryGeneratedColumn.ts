@@ -1,1 +1,1 @@
-export {PrimaryGeneratedColumn} from 'typeorm'
+export {PrimaryGeneratedColumn} from 'typeorm/decorator/columns/PrimaryGeneratedColumn.js'

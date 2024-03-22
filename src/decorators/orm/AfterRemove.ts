@@ -1,1 +1,1 @@
-export {AfterRemove} from 'typeorm'
+export {AfterRemove} from 'typeorm/decorator/listeners/AfterRemove.js'

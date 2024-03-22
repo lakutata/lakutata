@@ -1,1 +1,1 @@
-export {TreeLevelColumn} from 'typeorm'
+export {TreeLevelColumn} from 'typeorm/decorator/tree/TreeLevelColumn.js'

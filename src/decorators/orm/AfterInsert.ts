@@ -1,1 +1,1 @@
-export {AfterInsert} from 'typeorm'
+export {AfterInsert} from 'typeorm/decorator/listeners/AfterInsert.js'

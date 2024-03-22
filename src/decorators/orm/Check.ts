@@ -1,1 +1,1 @@
-export {Check} from 'typeorm'
+export {Check} from 'typeorm/decorator/Check.js'

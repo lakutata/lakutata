@@ -1,1 +1,1 @@
-export {VersionColumn} from 'typeorm'
+export {VersionColumn} from 'typeorm/decorator/columns/VersionColumn.js'

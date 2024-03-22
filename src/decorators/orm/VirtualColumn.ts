@@ -1,1 +1,1 @@
-export {VirtualColumn} from 'typeorm'
+export {VirtualColumn} from 'typeorm/decorator/columns/VirtualColumn.js'

@@ -1,1 +1,1 @@
-export {AfterSoftRemove} from 'typeorm'
+export {AfterSoftRemove} from 'typeorm/decorator/listeners/AfterSoftRemove.js'

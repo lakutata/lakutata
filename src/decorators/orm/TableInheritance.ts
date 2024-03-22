@@ -1,1 +1,1 @@
-export {TableInheritance} from 'typeorm'
+export {TableInheritance} from 'typeorm/decorator/entity/TableInheritance.js'
