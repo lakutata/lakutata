@@ -54,6 +54,18 @@ const processPackageJson = async (packageJsonFilename) => {
     Reflect.deleteProperty(packageJsonObject, 'scripts')
     await writeFile(packageJsonFilename, JSON.stringify(packageJsonObject, null, 2), {encoding: 'utf-8', flag: 'w'})
 }
+/**
+ * Process tsconfig.json
+ * @param tsconfigJsonFilename {string}
+ * @return {Promise<void>}
+ */
+const processTsConfigJson = async (tsconfigJsonFilename) => {
+    const tsconfigJsonObject = JSON.parse(await readFile(tsconfigJsonFilename, {encoding: 'utf-8'}))
+    Reflect.deleteProperty(tsconfigJsonObject.compilerOptions, 'rootDir')
+    Reflect.deleteProperty(tsconfigJsonObject.compilerOptions, 'outDir')
+    Reflect.deleteProperty(tsconfigJsonObject, 'exclude')
+    await writeFile(tsconfigJsonFilename, JSON.stringify(tsconfigJsonObject, null, 2), {encoding: 'utf-8', flag: 'w'})
+}
 
 /**
  * Process bundles
@@ -129,7 +141,8 @@ const copyTargets = [
     {src: 'src/cpp/**/*', dest: path.join(jsrcOutputDirname, 'cpp')},
     {src: 'binding.gyp', dest: outputDirname},
     {src: 'LICENSE', dest: outputDirname},
-    {src: 'package.json', dest: outputDirname}
+    {src: 'package.json', dest: outputDirname},
+    {src: 'tsconfig.json', dest: outputDirname}
 ]
 /**
  * Javascript bundle options
@@ -218,3 +231,7 @@ await processBundles()
  * Process package.json
  */
 await processPackageJson(path.resolve(absoluteOutputDirname, 'package.json'))
+/**
+ * Process tsconfig.json
+ */
+await processTsConfigJson(path.resolve(absoluteOutputDirname, 'tsconfig.json'))

@@ -1,0 +1,1 @@
+export {TableInheritance} from 'typeorm'

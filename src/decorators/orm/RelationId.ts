@@ -1,0 +1,1 @@
+export {RelationId} from 'typeorm'

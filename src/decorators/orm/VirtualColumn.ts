@@ -1,0 +1,1 @@
+export {VirtualColumn} from 'typeorm'

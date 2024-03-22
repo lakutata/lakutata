@@ -1,0 +1,1 @@
+export {OneToOne} from 'typeorm'

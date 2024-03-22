@@ -1,0 +1,1 @@
+export {ViewColumn} from 'typeorm'

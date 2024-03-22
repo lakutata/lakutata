@@ -1,0 +1,1 @@
+export {ChildEntity} from 'typeorm'

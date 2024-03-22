@@ -1,0 +1,1 @@
+export {ViewEntity} from 'typeorm'

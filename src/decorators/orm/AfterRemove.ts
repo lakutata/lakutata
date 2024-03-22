@@ -1,0 +1,1 @@
+export {AfterRemove} from 'typeorm'

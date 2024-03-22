@@ -1,0 +1,1 @@
+export {VersionColumn} from 'typeorm'

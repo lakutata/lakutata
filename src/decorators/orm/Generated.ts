@@ -1,0 +1,1 @@
+export {Generated} from 'typeorm'

@@ -1,0 +1,1 @@
+export {JoinColumn} from 'typeorm'

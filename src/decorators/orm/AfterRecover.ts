@@ -1,0 +1,1 @@
+export {AfterRecover} from 'typeorm'

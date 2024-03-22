@@ -1,0 +1,1 @@
+export {ManyToMany} from 'typeorm'

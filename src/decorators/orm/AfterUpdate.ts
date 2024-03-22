@@ -1,0 +1,1 @@
+export {AfterUpdate} from 'typeorm'

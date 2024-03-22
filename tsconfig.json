@@ -13,14 +13,13 @@
       "reflect-metadata",
       "node"
     ],
-    //发出符合ECMAScript标准的类字段。当此配置项设置为true的时候，会将class中定义的的字段生成到js文件中，从而导致DTO中在构造函数中的验证赋值失效
+    "jsx": "react",
     "useDefineForClassFields": false,
     "preserveConstEnums": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "resolveJsonModule": true,
     "allowJs": true,
-    //编译时rollup使用的是配置文件中Typescript插件的输出目录覆盖此处
     "outDir": "distro/src",
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
@@ -38,6 +37,6 @@
     "node_modules",
     "build",
     "distro",
-    "rollup.config.js"
+    "rollup.js"
   ]
 }

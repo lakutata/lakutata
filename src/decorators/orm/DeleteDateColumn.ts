@@ -1,0 +1,1 @@
+export {DeleteDateColumn} from 'typeorm'

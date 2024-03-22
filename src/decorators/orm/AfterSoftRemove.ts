@@ -1,0 +1,1 @@
+export {AfterSoftRemove} from 'typeorm'

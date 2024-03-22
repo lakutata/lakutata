@@ -1,0 +1,1 @@
+export {TreeParent} from 'typeorm'

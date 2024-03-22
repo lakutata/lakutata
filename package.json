@@ -3,11 +3,35 @@
   "version": "0.2.0",
   "description": "An IoC-based universal application framework.",
   "type": "module",
-  "exports": [{
-    "import": "tt.js",
-    "types": "tt.d.ts"
-  }
-  ],
+  "exports": {
+    ".": {
+      "import": "./src/Lakutata.js",
+      "types": "./src/Lakutata.d.ts"
+    },
+    "./orm": {
+      "import": "./src/lib/core/ORM.js",
+      "types": "./src/lib/core/ORM.d.ts"
+    },
+    "./decorator/asst": "./src/decorators/asst",
+    "./decorator/ctrl": "./src/decorators/ctrl",
+    "./decorator/di": "./src/decorators/di",
+    "./decorator/dto": "./src/decorators/dto",
+    "./decorator/orm": "./src/decorators/orm",
+    "./function": {
+      "import": "./src/lib/functions/*.js",
+      "types": "./src/lib/functions/*.d.ts"
+    },
+    "./interface": {
+      "import": "./src/interfaces/*.js",
+      "types": "./src/interfaces/*.d.ts"
+    },
+    "./type": {
+      "import": "./src/types/*.js",
+      "types": "./src/types/*.d.ts"
+    },
+    "./tsconfig": "./tsconfig.json",
+    "./package.json": "./package.json"
+  },
   "scripts": {
     "clean": "shx rm -rf ./distro",
     "build:js": "node rollup.js",
