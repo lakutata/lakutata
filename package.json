@@ -29,7 +29,7 @@
       "import": "./src/types/*.js",
       "types": "./src/types/*.d.ts"
     },
-    "./tsconfig": "./tsconfig.json",
+    "./tsconfig.json": "./tsconfig.json",
     "./package.json": "./package.json"
   },
   "scripts": {
