@@ -35,7 +35,6 @@
   "scripts": {
     "clean": "shx rm -rf ./distro",
     "build:js": "node rollup.js",
-    "build:gyp": "node-gyp configure build",
     "rebuild": "npm run clean && npm run build:js",
     "prepare": "npm run compile",
     "compile": "npm run rebuild",
@@ -98,7 +97,6 @@
     "mocha": "^10.3.0",
     "moment": "^2.30.1",
     "moment-timezone": "^0.5.45",
-    "node-addon-api": "^7.1.0",
     "object-hash": "^3.0.0",
     "patrun": "^7.2.5",
     "reflect-metadata": "^0.2.1",

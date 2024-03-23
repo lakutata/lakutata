@@ -21,6 +21,7 @@ import {ServiceContext} from '../lib/context/ServiceContext.js'
 import {createServer} from 'node:http'
 
 (async (): Promise<void> => {
+
     await Application.run({
         id: 'test.app',
         name: 'TestApp',
