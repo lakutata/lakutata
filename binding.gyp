@@ -1,26 +1,7 @@
 {
-""
   "targets": [
     {
-      "target_name": "lakutata",
-      'cflags!': [ '-fno-exceptions' ],
-	  'cflags_cc!': [ '-fno-exceptions' ],
-	  'xcode_settings': {
-		'GCC_ENABLE_CPP_EXCEPTIONS': 'YES',
-		'CLANG_CXX_LIBRARY': 'libc++',
-		'MACOSX_DEPLOYMENT_TARGET': '10.7',
-	  },
-	  'msvs_settings': {
-		'VCCLCompilerTool': { 'ExceptionHandling': 1 },
-	  },
-      "sources": [ "src/cpp/hello.cc" ],
-      "include_dirs": [
-        "<!@(node -p \"require('node-addon-api').include\")"
-      ],
-      'defines': [ 'NAPI_DISABLE_CPP_EXCEPTIONS' ],
-    },
-    {
-          "target_name": "lakutata1",
+          "target_name": "ffi",
           'cflags!': [ '-fno-exceptions' ],
     	  'cflags_cc!': [ '-fno-exceptions' ],
     	  'xcode_settings': {
@@ -31,9 +12,10 @@
     	  'msvs_settings': {
     		'VCCLCompilerTool': { 'ExceptionHandling': 1 },
     	  },
-          "sources": [ "src/cpp/hello1.cc" ],
+          "sources": [ "src/cpp/ffi/src/koffi/ffi.cc" ],
           "include_dirs": [
-            "<!@(node -p \"require('node-addon-api').include\")"
+            "<!@(node -p \"require('node-addon-api').include\")",
+            "src/cpp/ffi"
           ],
           'defines': [ 'NAPI_DISABLE_CPP_EXCEPTIONS' ],
         }
