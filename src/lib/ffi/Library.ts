@@ -12,6 +12,13 @@ export class Library {
     }
 
     /**
+     * Unload library
+     */
+    public destroy() {
+        this.#lib.unload()
+    }
+
+    /**
      * Declare function in the library
      * @param definition
      */
@@ -84,6 +91,5 @@ export class Library {
      */
     public thiscallFunc(name: string, result: TypeSpec, args: TypeSpec[]): LibFunction {
         return this.#lib.func('__thiscall', name, result, args)
-
     }
 }

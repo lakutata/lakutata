@@ -1,6 +1,7 @@
+export {Union} from '../lib/ffi/Union.js'
+export {TypeDef} from '../lib/ffi/TypeDef.js'
 export {CType} from '../lib/ffi/CType.js'
 export {Library} from '../lib/ffi/Library.js'
-
 /**
  * FFI Interfaces
  */

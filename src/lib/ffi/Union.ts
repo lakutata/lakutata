@@ -1,10 +1,10 @@
-import {ICType} from './interfaces/ICType.js'
-import {TypeSpecWithAlignment} from './types/TypeSpecWithAlignment.js'
-import * as koffi from 'koffi'
-import {CType} from './CType.js'
+import koffi from 'koffi'
+import {TypeSpec} from './types/TypeSpec.js'
 
-export function Union(name: string, def: Record<string, TypeSpecWithAlignment>): ICType
-export function Union(def: Record<string, TypeSpecWithAlignment>): ICType
-export function Union(a: any, b?: any): ICType {
-    return koffi.union(a, b)
+export class Union extends koffi.Union {
+    constructor(type: TypeSpec) {
+        super(type)
+    }
+
+    [s: string]: any
 }
