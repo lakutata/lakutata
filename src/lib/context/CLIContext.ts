@@ -1,7 +1,6 @@
 import {BaseContext, type ContextParams, ContextType} from '../base/Context.js'
 import {Expect} from '../../decorators/dto/Expect.js'
 import {DTO} from '../core/DTO.js'
-import type {ActionPattern} from '../../types/ActionPattern.js'
 
 export class CLIContext<T extends Record<string, any> = {}> extends BaseContext<T> {
     @Expect(DTO.String().valid(ContextType.CLI).default(ContextType.CLI))

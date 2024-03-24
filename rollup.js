@@ -15,6 +15,7 @@ import {mkdir, readFile, writeFile} from 'node:fs/promises'
 import {fileURLToPath} from 'node:url'
 import os from 'os'
 import {createRequire} from 'module'
+import {readFileSync} from 'node:fs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -450,12 +451,6 @@ const logLevel = 'silent'
  */
 const format = 'esm'
 /**
- * Max parallel file process limit
- * @type {number}
- * @default 20
- */
-const maxParallelFileOps = 30
-/**
  * Output format
  * @type {Array.<{src: string, dest: string}>}
  */
@@ -471,7 +466,6 @@ const copyTargets = [
  */
 const jsBundleOptions = {
     logLevel: logLevel,
-    maxParallelFileOps: maxParallelFileOps,
     input: globFiles('src/**/*.ts'),
     output: {
         format: format,
@@ -543,8 +537,20 @@ const jsBundleOptions = {
  */
 const dtsBundleOptions = {
     logLevel: logLevel,
-    maxParallelFileOps: maxParallelFileOps,
-    input: globFiles('src/**/*.ts'),
+    // input: globFiles('src/**/*.ts'),
+    input: (() => {
+        const sourcePackageJson = JSON.parse(readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'package.json'), {encoding: 'utf-8'}))
+        const exports = sourcePackageJson.exports
+        const inputs = []
+        Object.keys(exports).forEach(key => {
+            const entryJsFilename = exports[key].import
+            if (!entryJsFilename) return
+            if (entryJsFilename.endsWith('.js') && entryJsFilename.startsWith('./')) {
+                inputs.push(entryJsFilename.replace('.js', '.ts').substring(2))
+            }
+        })
+        return inputs.length ? inputs : globFiles('src/**/*.ts')
+    })(),
     output: {
         format: format,
         dir: outputDirname,
