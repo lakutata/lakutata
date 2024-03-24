@@ -33,7 +33,7 @@ export interface TemplatingOptions {
     transform?: ({value, key}: { value: any; key: string }) => any;
 }
 
-export default function Templating(template: string, data: object | any[], {
+export function Templating(template: string, data: object | any[], {
     ignoreMissing = false,
     transform = ({value}) => value
 }: TemplatingOptions = {}) {

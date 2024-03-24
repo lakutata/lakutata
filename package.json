@@ -12,22 +12,37 @@
       "import": "./src/lib/core/ORM.js",
       "types": "./src/lib/core/ORM.d.ts"
     },
-    "./decorator/asst": "./src/decorators/asst",
-    "./decorator/ctrl": "./src/decorators/ctrl",
-    "./decorator/di": "./src/decorators/di",
-    "./decorator/dto": "./src/decorators/dto",
-    "./decorator/orm": "./src/decorators/orm",
-    "./function": {
-      "import": "./src/lib/functions/*.js",
-      "types": "./src/lib/functions/*.d.ts"
+    "./helper": {
+      "import": "./src/lib/core/Helpers.js",
+      "types": "./src/lib/core/Helpers.d.ts"
     },
     "./interface": {
-      "import": "./src/interfaces/*.js",
-      "types": "./src/interfaces/*.d.ts"
+      "import": "./src/lib/core/Interfaces.js",
+      "types": "./src/lib/core/Interfaces.d.ts"
     },
     "./type": {
-      "import": "./src/types/*.js",
-      "types": "./src/types/*.d.ts"
+      "import": "./src/lib/core/Types.js",
+      "types": "./src/lib/core/Types.d.ts"
+    },
+    "./decorator/asst": {
+      "import": "./src/decorators/ASSTDecorators.js",
+      "types": "./src/decorators/ASSTDecorators.d.ts"
+    },
+    "./decorator/ctrl": {
+      "import": "./src/decorators/CTRLDecorators.js",
+      "types": "./src/decorators/CTRLDecorators.d.ts"
+    },
+    "./decorator/di": {
+      "import": "./src/decorators/DIDecorators.js",
+      "types": "./src/decorators/DIDecorators.d.ts"
+    },
+    "./decorator/dto": {
+      "import": "./src/decorators/DTODecorators.js",
+      "types": "./src/decorators/DTODecorators.d.ts"
+    },
+    "./decorator/orm": {
+      "import": "./src/decorators/ORMDecorators.js",
+      "types": "./src/decorators/ORMDecorators.d.ts"
     },
     "./tsconfig.json": "./tsconfig.json",
     "./package.json": "./package.json"

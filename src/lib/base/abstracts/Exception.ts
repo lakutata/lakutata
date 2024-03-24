@@ -1,5 +1,5 @@
 import {GetBasicInfo} from '../internal/BasicInfo.js'
-import Templating from '../../functions/Templating.js'
+import {Templating} from '../../functions/Templating.js'
 import {As} from '../../functions/As.js'
 import {CamelCase} from '../internal/CamelCase.js'
 
