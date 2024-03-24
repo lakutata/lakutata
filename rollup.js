@@ -4,6 +4,7 @@ import typescript from '@rollup/plugin-typescript'
 import commonjs from '@rollup/plugin-commonjs'
 import json from '@rollup/plugin-json'
 import terser from '@rollup/plugin-terser'
+import esmShim from '@rollup/plugin-esm-shim'
 import copy from 'rollup-plugin-copy'
 import progress from 'rollup-plugin-progress'
 import path from 'node:path'
@@ -136,12 +137,17 @@ const logLevel = 'silent'
  */
 const format = 'esm'
 /**
+ * Max parallel file process limit
+ * @type {number}
+ * @default 20
+ */
+const maxParallelFileOps = 30
+/**
  * Output format
  * @type {Array.<{src: string, dest: string}>}
  */
 const copyTargets = [
-    {src: 'src/cpp/**/*', dest: path.join(jsrcOutputDirname, 'cpp')},
-    {src: 'binding.gyp', dest: outputDirname},
+    // {src: 'node_modules/koffi/build', dest: path.resolve(outputDirname, 'src/lib/ffi/')},
     {src: 'LICENSE', dest: outputDirname},
     {src: 'package.json', dest: outputDirname},
     {src: 'tsconfig.json', dest: outputDirname}
@@ -152,6 +158,7 @@ const copyTargets = [
  */
 const jsBundleOptions = {
     logLevel: logLevel,
+    maxParallelFileOps: maxParallelFileOps,
     input: globFiles('src/**/*.ts'),
     output: {
         format: format,
@@ -167,7 +174,16 @@ const jsBundleOptions = {
         },
         chunkFileNames: (chunkInfo) => {
             if (!chunkInfo.name.startsWith(thirdPartyPackageRootDirname)) chunkInfo.name = jsChunkNameGenerator(chunkInfo.name)
-            return `${chunkInfo.name}.js`
+            const chunkName = `${chunkInfo.name}.js`
+            // chunkInfo.moduleIds.forEach(moduleId => {
+            //     if (moduleId.includes('koffi')) {
+            //
+            //     }
+            // })
+            return chunkName
+        },
+        assetFileNames: (assetInfo) => {
+            console.log(assetInfo)
         }
     },
     makeAbsoluteExternalsRelative: true,
@@ -198,10 +214,12 @@ const jsBundleOptions = {
             maxWorkers: os.cpus().length,
             compress: false,
             module: true
-        })
+        }),
+        esmShim()
     ],
     external: [
-        ...builtinModules
+        ...builtinModules,
+        /\.node$/
     ]
 }
 /**
@@ -210,6 +228,7 @@ const jsBundleOptions = {
  */
 const dtsBundleOptions = {
     logLevel: logLevel,
+    maxParallelFileOps: maxParallelFileOps,
     input: globFiles('src/**/*.ts'),
     output: {
         format: format,
@@ -232,7 +251,8 @@ const dtsBundleOptions = {
         copy({targets: copyTargets})
     ],
     external: [
-        ...builtinModules
+        ...builtinModules,
+        /\.node$/
     ]
 }
 

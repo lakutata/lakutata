@@ -63,6 +63,7 @@
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-esm-shim": "^0.1.5",
     "@rollup/plugin-json": "^6.1.0",
     "@rollup/plugin-node-resolve": "^15.2.3",
     "@rollup/plugin-terser": "^0.4.4",
@@ -93,6 +94,7 @@
     "joi": "^17.12.2",
     "joi-to-json": "^4.2.1",
     "jsonschema": "^1.4.1",
+    "koffi": "^2.8.0",
     "log-update": "^6.0.0",
     "mocha": "^10.3.0",
     "moment": "^2.30.1",

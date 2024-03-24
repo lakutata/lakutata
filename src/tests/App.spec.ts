@@ -19,8 +19,11 @@ import {DevNull} from '../lib/functions/DevNull.js'
 import {Server as SocketIOServer} from 'socket.io'
 import {ServiceContext} from '../lib/context/ServiceContext.js'
 import {createServer} from 'node:http'
+import {Library} from '../lib/ffi/Library.js'
 
 (async (): Promise<void> => {
+
+    console.log(new Library('/Users/alex/libfactorial.dylib'))
 
     await Application.run({
         id: 'test.app',
