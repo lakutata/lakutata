@@ -537,7 +537,6 @@ const jsBundleOptions = {
  */
 const dtsBundleOptions = {
     logLevel: logLevel,
-    // input: globFiles('src/**/*.ts'),
     input: (() => {
         const sourcePackageJson = JSON.parse(readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'package.json'), {encoding: 'utf-8'}))
         const exports = sourcePackageJson.exports
