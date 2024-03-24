@@ -19,7 +19,7 @@ import {
     SelectQueryBuilder,
     ReplicationMode,
     QueryResultCache
-} from '../lib/core/ORM.js'
+} from '../exports/ORM.js'
 import {Singleton} from '../decorators/di/Lifetime.js'
 
 /**
