@@ -1,5 +1,6 @@
 import 'reflect-metadata'
 
+
 /**
  * Core
  */
@@ -26,6 +27,27 @@ export {ModuleLoadObjectsOptions} from '../options/ModuleLoadObjectsOptions.js'
 export {ModuleOptions} from '../options/ModuleOptions.js'
 export {OverridableNamedObjectOptions} from '../options/OverridableNamedObjectOptions.js'
 export {OverridableObjectOptions} from '../options/OverridableObjectOptions.js'
+
+/**
+ * Exceptions
+ */
+export {AliasExistsException} from '../exceptions/alias/AliasExistsException.js'
+export {AliasNotFoundException} from '../exceptions/alias/AliasNotFoundException.js'
+export {InvalidAliasNameException} from '../exceptions/alias/InvalidAliasNameException.js'
+export {DependencyInjectionException} from '../exceptions/di/DependencyInjectionException.js'
+export {LifetimeLockedException} from '../exceptions/di/LifetimeLockedException.js'
+export {
+    OverridableObjectTargetConfigNotFoundException
+} from '../exceptions/di/OverridableObjectTargetConfigNotFoundException.js'
+export {InvalidMethodAcceptException} from '../exceptions/dto/InvalidMethodAcceptException.js'
+export {InvalidMethodReturnException} from '../exceptions/dto/InvalidMethodReturnException.js'
+export {InvalidValueException} from '../exceptions/dto/InvalidValueException.js'
+export {ControllerActionNotFoundException} from '../exceptions/ControllerActionNotFoundException.js'
+export {DestroyRuntimeContainerException} from '../exceptions/DestroyRuntimeContainerException.js'
+export {InvalidActionPatternDepthException} from '../exceptions/InvalidActionPatternDepthException.js'
+export {InvalidAssistantFunctionTypeException} from '../exceptions/InvalidAssistantFunctionTypeException.js'
+export {InvalidObjectTypeException} from '../exceptions/InvalidObjectTypeException.js'
+export {MethodNotFoundException} from '../exceptions/MethodNotFoundException.js'
 
 /**
  * Types

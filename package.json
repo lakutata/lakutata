@@ -12,6 +12,10 @@
       "import": "./src/exports/ORM.js",
       "types": "./src/exports/ORM.d.ts"
     },
+    "./com": {
+      "import": "./src/exports/COM.js",
+      "types": "./src/exports/COM.d.ts"
+    },
     "./helper": {
       "import": "./src/exports/Helpers.js",
       "types": "./src/exports/Helpers.d.ts"
