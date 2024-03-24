@@ -28,7 +28,7 @@ export class TestController1 extends Controller {
         console.log(this.className, 'destroyed')
     }
 
-    @Inject()
+    @Inject(Application)
     protected readonly app: Application//TODO 不一定要在controller里面预先声明app字段
 
     protected async init(): Promise<void> {
