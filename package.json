@@ -16,14 +16,6 @@
       "import": "./src/lib/core/Helpers.js",
       "types": "./src/lib/core/Helpers.d.ts"
     },
-    "./interface": {
-      "import": "./src/lib/core/Interfaces.js",
-      "types": "./src/lib/core/Interfaces.d.ts"
-    },
-    "./type": {
-      "import": "./src/lib/core/Types.js",
-      "types": "./src/lib/core/Types.d.ts"
-    },
     "./decorator/asst": {
       "import": "./src/decorators/ASSTDecorators.js",
       "types": "./src/decorators/ASSTDecorators.d.ts"

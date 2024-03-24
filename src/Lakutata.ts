@@ -27,3 +27,19 @@ export {ModuleOptions} from './options/ModuleOptions.js'
 export {OverridableNamedObjectOptions} from './options/OverridableNamedObjectOptions.js'
 export {OverridableObjectOptions} from './options/OverridableObjectOptions.js'
 
+/**
+ * Types
+ */
+export * from './types/ActionPattern.js'
+export * from './types/JSONSchema.js'
+export * from './types/ClassDecorator.js'
+export * from './types/MethodDecorator.js'
+export * from './types/ParameterDecorator.js'
+export * from './types/PropertyDecorator.js'
+
+/**
+ * Interfaces
+ */
+export * from './interfaces/IBaseObjectConstructor.js'
+export * from './interfaces/IConstructor.js'
+export * from './interfaces/IPatRun.js'

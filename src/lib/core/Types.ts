@@ -1,6 +1,0 @@
-export * from '../../types/ActionPattern.js'
-export * from '../../types/JSONSchema.js'
-export * from '../../types/ClassDecorator.js'
-export * from '../../types/MethodDecorator.js'
-export * from '../../types/ParameterDecorator.js'
-export * from '../../types/PropertyDecorator.js'
