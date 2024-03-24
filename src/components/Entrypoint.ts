@@ -23,6 +23,11 @@ import {UniqueArray} from '../lib/functions/UniqueArray.js'
 import {DTO} from '../lib/core/DTO.js'
 import {Singleton} from '../decorators/di/Lifetime.js'
 
+export {BaseContext} from '../lib/base/Context.js'
+export {CLIContext} from '../lib/context/CLIContext.js'
+export {HTTPContext} from '../lib/context/HTTPContext.js'
+export {ServiceContext} from '../lib/context/ServiceContext.js'
+
 export type CLIEntrypoint = (module: Module, cliMap: CLIMap, handler: CLIEntrypointHandler) => void
 export type HTTPEntrypoint = (module: Module, routeMap: HTTPRouteMap, handler: HTTPEntrypointHandler) => void
 export type ServiceEntrypoint = (module: Module, handler: ServiceEntrypointHandler) => void
@@ -47,6 +52,7 @@ export const HTTPEntrypointBuilder: (entrypoint: HTTPEntrypoint) => HTTPEntrypoi
 export const ServiceEntrypointBuilder: (entrypoint: ServiceEntrypoint) => ServiceEntrypoint = (entrypoint: ServiceEntrypoint) => entrypoint
 
 export const EntrypointBuilder: (options: EntrypointOptions) => EntrypointOptions = (options: EntrypointOptions) => options
+
 
 /**
  * Entrypoint Component
