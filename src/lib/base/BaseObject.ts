@@ -72,17 +72,8 @@ export class BaseObject extends AsyncConstructor {
     async #applyInjection(): Promise<void> {
         const objectInjectionMap: ObjectInjectionMap = GetObjectInjectItemsByPrototype(this)
         const injectionPromises: Promise<void>[] = []
-        objectInjectionMap.forEach((item, propertyKey: string | symbol): void => {
-            //Try name first, if name not found then try constructor
-            let registration: string | symbol | typeof BaseObject = item.name
-            if (this.#container.has(item.name)) {
-                registration = item.name
-            } else if (this.#container.has(item.constructor)) {
-                registration = item.constructor
-            } else {
-                //For autoload objects
-                registration = item.constructor
-            }
+        objectInjectionMap.forEach((name: string | symbol, propertyKey: string | symbol): void => {
+            const registration: string | symbol | typeof BaseObject = name
             injectionPromises.push(new Promise((resolve, reject): void => {
                 this.#container.get(registration).then(injectObject => {
                     Reflect.set(this, propertyKey, injectObject)

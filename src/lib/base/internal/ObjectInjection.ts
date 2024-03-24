@@ -5,12 +5,8 @@ import {
 } from '../../../constants/metadata-keys/DIMetadataKey.js'
 import {ObjectConstructor} from '../../functions/ObjectConstructor.js'
 import {ObjectParentConstructors} from '../../functions/ObjectParentConstructors.js'
-import {ObjectPrototype} from '../../functions/ObjectPrototype.js'
 
-export type ObjectInjectionMap = Map<string | symbol, {
-    name: string | symbol
-    constructor: Function | any
-}>
+export type ObjectInjectionMap = Map<string | symbol, string | symbol>
 
 /**
  * Set object inject item
@@ -33,11 +29,7 @@ export function SetObjectInjectItem<ClassPrototype extends BaseObject>(target: C
         parentObjectInjectionMaps.forEach((parentObjectInjectionMap: typeof objectInjectionMap): void =>
             parentObjectInjectionMap.forEach((value, key: typeof propertyKey) => objectInjectionMap.set(key, value)))
     }
-    const propertyDesignTypeConstructor: Function = Reflect.getMetadata('design:type', target, propertyKey)
-    objectInjectionMap.set(propertyKey, {
-        name: name,
-        constructor: propertyDesignTypeConstructor
-    })
+    objectInjectionMap.set(propertyKey, name)
     Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_INJECTS, objectInjectionMap, ObjectConstructor(target))
 }
 
@@ -50,15 +42,6 @@ export function GetObjectInjectItemsByPrototype<ClassPrototype extends BaseObjec
     const objectInjectionMap: ObjectInjectionMap = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_INJECTS, ObjectConstructor(target))
     if (objectInjectionMap) return objectInjectionMap
     return new Map()
-}
-
-/**
- * Get object inject items by its constructor
- * @param target
- * @constructor
- */
-export function GetObjectInjectItemsByConstructor<ClassConstructor extends typeof BaseObject>(target: ClassConstructor): ObjectInjectionMap {
-    return GetObjectInjectItemsByPrototype(ObjectPrototype(target))
 }
 
 /**

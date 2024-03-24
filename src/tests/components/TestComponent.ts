@@ -5,7 +5,7 @@ import {Inject} from '../../decorators/di/Inject.js'
 
 export class TestComponent extends Component {
 
-    @Inject()
+    @Inject(Application)
     protected readonly app: Application
 
     protected async init(): Promise<void> {

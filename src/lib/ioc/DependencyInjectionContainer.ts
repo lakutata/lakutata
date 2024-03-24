@@ -9,15 +9,15 @@ import {Lifetime, type LifetimeType, isLifetimeLonger} from './Lifetime.js'
 import {GlobWithOptions, listModules} from './ListModules.js'
 import {importModule} from './LoadModuleNative.js'
 import {
-     LoadModulesOptions,
-     LoadModulesResult,
+    LoadModulesOptions,
+    LoadModulesResult,
     loadModules as realLoadModules
 } from './LoadModules.js'
 import {
-     BuildResolverOptions,
-     Constructor,
-     DisposableResolver,
-     Resolver,
+    BuildResolverOptions,
+    Constructor,
+    DisposableResolver,
+    Resolver,
     asClass,
     asFunction
 } from './Resolvers.js'
@@ -530,7 +530,6 @@ function createContainerInternal<
                 if (resolveOpts.allowUnregistered) {
                     return undefined
                 }
-
                 throw new DependencyInjectionResolutionError(name, resolutionStack)
             }
 
