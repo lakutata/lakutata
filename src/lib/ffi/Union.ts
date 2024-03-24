@@ -1,6 +1,7 @@
 import {ICType} from './interfaces/ICType.js'
 import {TypeSpecWithAlignment} from './types/TypeSpecWithAlignment.js'
 import * as koffi from 'koffi'
+import {CType} from './CType.js'
 
 export function Union(name: string, def: Record<string, TypeSpecWithAlignment>): ICType
 export function Union(def: Record<string, TypeSpecWithAlignment>): ICType

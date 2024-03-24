@@ -20,6 +20,10 @@
       "import": "./src/exports/Helpers.js",
       "types": "./src/exports/Helpers.d.ts"
     },
+    "./ffi": {
+      "import": "./src/exports/FFI.js",
+      "types": "./src/exports/FFI.d.ts"
+    },
     "./decorator/asst": {
       "import": "./src/exports/ASSTDecorators.js",
       "types": "./src/exports/ASSTDecorators.d.ts"
