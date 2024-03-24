@@ -23,7 +23,7 @@ import {UniqueArray} from '../lib/functions/UniqueArray.js'
 import {DTO} from '../lib/core/DTO.js'
 import {Singleton} from '../decorators/di/Lifetime.js'
 
-export {BaseContext} from '../lib/base/Context.js'
+export {ContextType, BaseContext} from '../lib/base/Context.js'
 export {CLIContext} from '../lib/context/CLIContext.js'
 export {HTTPContext} from '../lib/context/HTTPContext.js'
 export {ServiceContext} from '../lib/context/ServiceContext.js'
