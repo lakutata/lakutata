@@ -477,7 +477,7 @@ const jsBundleOptions = {
         format: format,
         dir: outputDirname,
         exports: 'named',
-        compact: false,//减小文件体积
+        compact: false,
         interop: 'auto',
         generatedCode: 'es2015',
         entryFileNames: (chunkInfo) => {
@@ -487,13 +487,7 @@ const jsBundleOptions = {
         },
         chunkFileNames: (chunkInfo) => {
             if (!chunkInfo.name.startsWith(thirdPartyPackageRootDirname)) chunkInfo.name = jsChunkNameGenerator(chunkInfo.name)
-            const chunkName = `${chunkInfo.name}.js`
-            // chunkInfo.moduleIds.forEach(moduleId => {
-            //     if (moduleId.includes('koffi')) {
-            //
-            //     }
-            // })
-            return chunkName
+            return `${chunkInfo.name}.js`
         }
     },
     makeAbsoluteExternalsRelative: true,
