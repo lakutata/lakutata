@@ -1,7 +1,15 @@
+/**
+ * FFI classes & functions
+ */
+export {AlignOf} from '../lib/ffi/AlignOf.js'
+export {SizeOf} from '../lib/ffi/SizeOf.js'
+export {RegisterCallback} from '../lib/ffi/RegisterCallback.js'
+export {UnregisterCallback} from '../lib/ffi/UnregisterCallback.js'
 export {Union} from '../lib/ffi/Union.js'
 export {TypeDef} from '../lib/ffi/TypeDef.js'
-export {CType} from '../lib/ffi/CType.js'
 export {Library} from '../lib/ffi/Library.js'
+export {LibrarySymbol} from '../lib/ffi/LibrarySymbol.js'
+
 /**
  * FFI Interfaces
  */

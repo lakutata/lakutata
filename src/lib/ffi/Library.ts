@@ -26,6 +26,9 @@ export class Library {
         return this.#lib
     }
 
+    /**
+     * Library name (path)
+     */
     public get name(): string {
         return this.#libName
     }
