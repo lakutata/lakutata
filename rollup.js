@@ -471,8 +471,8 @@ const jsBundleOptions = {
     input: globFiles('src/**/*.ts')
         .filter(filename => isProductionBuild ? !filename.includes('src/tests') : true),
     output: {
-        // format: format,
-        format: 'cjs',
+        format: format,
+        // format: 'cjs',
         dir: outputDirname,
         exports: 'named',
         compact: false,
