@@ -17,6 +17,8 @@ import os from 'os'
 import {createRequire} from 'module'
 import {readFileSync} from 'node:fs'
 
+const isProductionBuild = process.env.BUILD_MODE === 'production'
+
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const require = createRequire(__filename)
@@ -466,7 +468,8 @@ const copyTargets = [
  */
 const jsBundleOptions = {
     logLevel: logLevel,
-    input: globFiles('src/**/*.ts'),
+    input: globFiles('src/**/*.ts')
+        .filter(filename => isProductionBuild ? !filename.includes('src/tests') : true),
     output: {
         format: format,
         dir: outputDirname,

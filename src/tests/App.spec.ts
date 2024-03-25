@@ -23,7 +23,7 @@ import {Library} from '../lib/ffi/Library.js'
 
 (async (): Promise<void> => {
 
-    console.log(new Library('/Users/alex/libfactorial.dylib'))
+    // console.log(new Library('/Users/alex/libfactorial.dylib'))
 
     await Application.run({
         id: 'test.app',
