@@ -1,4 +1,4 @@
-import koffi from 'koffi'
+import * as koffi from 'koffi'
 import {TypeSpec} from './types/TypeSpec.js'
 
 export class Union extends koffi.Union {

@@ -2,20 +2,49 @@ import {ILib} from './interfaces/ILib.js'
 import koffi from 'koffi'
 import {LibFunction} from './types/LibFunction.js'
 import {TypeSpec} from './types/TypeSpec.js'
+import {LibrarySymbol} from './LibrarySymbol.js'
+import {LibraryUnloadedException} from '../../exceptions/ffi/LibraryUnloadedException.js'
 
 export class Library {
 
-    #lib: ILib
+    readonly #libName: string
+
+    #lib: ILib | null
 
     constructor(lib: string) {
-        this.#lib = koffi.load(lib)
+        this.#libName = lib
+        this.#lib = koffi.load(this.#libName)
+        Reflect.defineMetadata(this, this.#lib, this)
+    }
+
+    /**
+     * Get lib instance or throw error
+     * @protected
+     */
+    protected get lib(): ILib {
+        if (!this.#lib) throw new LibraryUnloadedException('Library \'{0}\' has been unloaded', [this.#libName])
+        return this.#lib
+    }
+
+    public get name(): string {
+        return this.#libName
+    }
+
+    /**
+     * library symbol
+     * @param name
+     * @param type
+     */
+    public symbol(name: string, type: TypeSpec): LibrarySymbol {
+        return new LibrarySymbol(this, name, type)
     }
 
     /**
      * Unload library
      */
     public destroy() {
-        this.#lib.unload()
+        this.lib.unload()
+        this.#lib = null
     }
 
     /**
@@ -54,9 +83,9 @@ export class Library {
     public cdeclFunc(name: string, result: TypeSpec, args: TypeSpec[]): LibFunction
     public cdeclFunc(nameOrDefinition: string, result?: TypeSpec, args?: TypeSpec[]): LibFunction {
         if (result && args) {
-            return this.#lib.func(nameOrDefinition, result, args)
+            return this.lib.func(nameOrDefinition, result, args)
         } else {
-            return this.#lib.func(nameOrDefinition)
+            return this.lib.func(nameOrDefinition)
         }
     }
 
@@ -68,7 +97,7 @@ export class Library {
      * @param args
      */
     public sdtcallFunc(name: string, result: TypeSpec, args: TypeSpec[]): LibFunction {
-        return this.#lib.func('__stdcall', name, result, args)
+        return this.lib.func('__stdcall', name, result, args)
     }
 
     /**
@@ -79,7 +108,7 @@ export class Library {
      * @param args
      */
     public fastcallFunc(name: string, result: TypeSpec, args: TypeSpec[]): LibFunction {
-        return this.#lib.func('__fastcall', name, result, args)
+        return this.lib.func('__fastcall', name, result, args)
     }
 
     /**
@@ -90,6 +119,6 @@ export class Library {
      * @param args
      */
     public thiscallFunc(name: string, result: TypeSpec, args: TypeSpec[]): LibFunction {
-        return this.#lib.func('__thiscall', name, result, args)
+        return this.lib.func('__thiscall', name, result, args)
     }
 }
