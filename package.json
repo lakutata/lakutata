@@ -6,42 +6,52 @@
   "exports": {
     ".": {
       "import": "./src/exports/Lakutata.js",
+      "require": "./src/exports/Lakutata.js",
       "types": "./src/exports/Lakutata.d.ts"
     },
     "./orm": {
       "import": "./src/exports/ORM.js",
+      "require": "./src/exports/ORM.js",
       "types": "./src/exports/ORM.d.ts"
     },
     "./com": {
       "import": "./src/exports/COM.js",
+      "require": "./src/exports/COM.js",
       "types": "./src/exports/COM.d.ts"
     },
     "./helper": {
       "import": "./src/exports/Helpers.js",
+      "require": "./src/exports/Helpers.js",
       "types": "./src/exports/Helpers.d.ts"
     },
     "./ffi": {
       "import": "./src/exports/FFI.js",
+      "require": "./src/exports/FFI.js",
       "types": "./src/exports/FFI.d.ts"
     },
     "./decorator/asst": {
       "import": "./src/exports/ASSTDecorators.js",
+      "require": "./src/exports/ASSTDecorators.js",
       "types": "./src/exports/ASSTDecorators.d.ts"
     },
     "./decorator/ctrl": {
       "import": "./src/exports/CTRLDecorators.js",
+      "require": "./src/exports/CTRLDecorators.js",
       "types": "./src/exports/CTRLDecorators.d.ts"
     },
     "./decorator/di": {
       "import": "./src/exports/DIDecorators.js",
+      "require": "./src/exports/DIDecorators.js",
       "types": "./src/exports/DIDecorators.d.ts"
     },
     "./decorator/dto": {
       "import": "./src/exports/DTODecorators.js",
+      "require": "./src/exports/DTODecorators.js",
       "types": "./src/exports/DTODecorators.d.ts"
     },
     "./decorator/orm": {
       "import": "./src/exports/ORMDecorators.js",
+      "require": "./src/exports/ORMDecorators.js",
       "types": "./src/exports/ORMDecorators.d.ts"
     },
     "./tsconfig.json": "./tsconfig.json",
