@@ -23,6 +23,13 @@ import {
 import {Singleton} from '../decorators/di/Lifetime.js'
 
 /**
+ * Build database connection options
+ * @param options
+ * @constructor
+ */
+export const BuildDatabaseOptions: (options: DataSourceOptions) => DataSourceOptions = (options: DataSourceOptions) => options
+
+/**
  * Database component
  */
 @Singleton()

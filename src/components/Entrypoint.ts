@@ -45,13 +45,33 @@ export type EntrypointOptions = {
     service?: ServiceEntrypoint | ServiceEntrypoint[]
 }
 
-export const CLIEntrypointBuilder: (entrypoint: CLIEntrypoint) => CLIEntrypoint = (entrypoint: CLIEntrypoint) => entrypoint
+/**
+ * Build cli entrypoint
+ * @param entrypoint
+ * @constructor
+ */
+export const BuildCLIEntrypoint: (entrypoint: CLIEntrypoint) => CLIEntrypoint = (entrypoint: CLIEntrypoint) => entrypoint
 
-export const HTTPEntrypointBuilder: (entrypoint: HTTPEntrypoint) => HTTPEntrypoint = (entrypoint: HTTPEntrypoint) => entrypoint
+/**
+ * Build http entrypoint
+ * @param entrypoint
+ * @constructor
+ */
+export const BuildHTTPEntrypoint: (entrypoint: HTTPEntrypoint) => HTTPEntrypoint = (entrypoint: HTTPEntrypoint) => entrypoint
 
-export const ServiceEntrypointBuilder: (entrypoint: ServiceEntrypoint) => ServiceEntrypoint = (entrypoint: ServiceEntrypoint) => entrypoint
+/**
+ * Build service entrypoint
+ * @param entrypoint
+ * @constructor
+ */
+export const BuildServiceEntrypoint: (entrypoint: ServiceEntrypoint) => ServiceEntrypoint = (entrypoint: ServiceEntrypoint) => entrypoint
 
-export const EntrypointBuilder: (options: EntrypointOptions) => EntrypointOptions = (options: EntrypointOptions) => options
+/**
+ * Build entrypoints options for Entrypoint component
+ * @param options
+ * @constructor
+ */
+export const BuildEntrypoints: (options: EntrypointOptions) => EntrypointOptions = (options: EntrypointOptions) => options
 
 
 /**

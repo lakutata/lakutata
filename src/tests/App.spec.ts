@@ -6,12 +6,6 @@ import {TestController1} from './controllers/TestController1.js'
 import {HTTPContext} from '../lib/context/HTTPContext.js'
 import Fastify from 'fastify'
 import {As} from '../lib/functions/As.js'
-import {
-    CLIEntrypointBuilder,
-    EntrypointBuilder,
-    HTTPEntrypointBuilder,
-    ServiceEntrypointBuilder
-} from '../components/Entrypoint.js'
 import {Command} from 'commander'
 import {CLIContext} from '../lib/context/CLIContext.js'
 import {createInterface} from 'node:readline'
@@ -19,6 +13,12 @@ import {DevNull} from '../lib/functions/DevNull.js'
 import {Server as SocketIOServer} from 'socket.io'
 import {ServiceContext} from '../lib/context/ServiceContext.js'
 import {createServer} from 'node:http'
+import {
+    BuildCLIEntrypoint,
+    BuildEntrypoints,
+    BuildHTTPEntrypoint,
+    BuildServiceEntrypoint
+} from '../components/Entrypoint.js'
 
 (async (): Promise<void> => {
     await Application.run({
@@ -29,8 +29,8 @@ import {createServer} from 'node:http'
             testComponent: {
                 class: TestComponent
             },
-            entrypoint: EntrypointBuilder({
-                http: HTTPEntrypointBuilder((module, routeMap, handler) => {
+            entrypoint: BuildEntrypoints({
+                http: BuildHTTPEntrypoint((module, routeMap, handler) => {
                     const fastify = Fastify({
                         logger: false
                     })
@@ -58,7 +58,7 @@ import {createServer} from 'node:http'
                     })
                     fastify.listen({port: 3000, host: '0.0.0.0'})
                 }),
-                cli: CLIEntrypointBuilder((module, cliMap, handler) => {
+                cli: BuildCLIEntrypoint((module, cliMap, handler) => {
                     createInterface({
                         input: process.stdin,
                         output: process.stdout
@@ -86,7 +86,7 @@ import {createServer} from 'node:http'
                             }
                         })
                 }),
-                service: ServiceEntrypointBuilder((module, handler) => {
+                service: BuildServiceEntrypoint((module, handler) => {
                     const httpServer = createServer()
                     const server = new SocketIOServer()
                     server.on('connection', socket => {
