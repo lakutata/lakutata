@@ -20,16 +20,45 @@ export class Logger extends Component {
     @Configurable(DTO.Boolean().optional().default(true))
     protected readonly pretty: boolean
 
+    /**
+     * Log level
+     * @protected
+     */
     @Configurable(DTO.String().optional().default('trace'))
     protected readonly level: string
 
+    /**
+     * If set to true, will add color information to the formatted output message.
+     * @protected
+     */
+    @Configurable(DTO.Boolean().optional().default(true))
+    protected readonly colorize: boolean
+
+    /**
+     * Makes messaging synchronous.
+     * @protected
+     */
+    @Configurable(DTO.Boolean().optional().default(false))
+    protected readonly sync: boolean
+
+    /**
+     * Pino logger instance
+     * @private
+     */
     #instance: PinoLogger
 
+    /**
+     * Initializer
+     * @protected
+     */
     protected async init(): Promise<void> {
         this.#instance = pino({
             level: this.level,
             name: GetBasicInfo().appName || 'Unnamed'
-        }, As(PinoPretty)())
+        }, As(PinoPretty)({
+            colorize: this.colorize,
+            sync: this.sync
+        }))
     }
 
     /**

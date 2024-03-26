@@ -11,5 +11,6 @@ export class TestComponent extends Component {
     protected async init(): Promise<void> {
         setInterval(() => this.emit('testComponentEvent', new Time().format()), 1000)
         this.log.info('TestComponent initialized')
+        this.log.info('hahaha')
     }
 }
