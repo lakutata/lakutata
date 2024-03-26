@@ -401,19 +401,16 @@ const processPackageJson = async (packageJsonFilename, outputFormats = []) => {
         const exportFile = exportName === '.' ? `./${packageName}` : exportName
         packageJsonObjectExports[exportName] = {}
         outputFormats.forEach(format => {
+            packageJsonObjectExports[exportName].types = `${exportFile}.d.ts`
             switch (format) {
                 case 'cjs': {
-                    packageJsonObjectExports[exportName].require = {
-                        types: `${exportFile}.d.cts`,
-                        default: `${exportFile}.cjs`
-                    }
+                    packageJsonObjectExports[exportName].require = `${exportFile}.cjs`
+                    if (!packageJsonObjectExports.typesVersions) packageJsonObjectExports.typesVersions = {'*': {'*': []}}
+                    packageJsonObjectExports.typesVersions['*']['*'].push(`${exportFile}.d.ts`)
                 }
                     break
                 case 'esm': {
-                    packageJsonObjectExports[exportName].import = {
-                        types: `${exportFile}.d.mts`,
-                        default: `${exportFile}.mjs`
-                    }
+                    packageJsonObjectExports[exportName].import = `${exportFile}.mjs`
                 }
                     break
                 default:
@@ -443,10 +440,10 @@ const processTsConfigJson = async (tsconfigJsonFilename) => {
 /**
  * Process bundles
  * @param jsBundlesOptions {RollupOptions[]}
- * @param dtsBundlesOptions {RollupOptions[]}
+ * @param dtsBundleOptions {RollupOptions}
  * @return {Promise<void>}
  */
-async function processBundles(jsBundlesOptions, dtsBundlesOptions) {
+async function processBundles(jsBundlesOptions, dtsBundleOptions) {
     /**
      * Write file promises
      * @type {Promise[]}
@@ -491,16 +488,10 @@ async function processBundles(jsBundlesOptions, dtsBundlesOptions) {
             })
             return Promise.all(generateJsBundlePromises).then(jsBundlesResolve).catch(jsBundlesReject)
         }),
-        new Promise((dtsBundlesResolve, dtsBundlesReject) => {
-            const generateJsBundlePromises = []
-            dtsBundlesOptions.forEach(dtsBundleOptions => {
-                generateJsBundlePromises.push(new Promise((dtsBundleResolve, dtsBundleReject) => {
-                    return rollup(dtsBundleOptions).then(jsBundle => {
-                        return generateOutputs(jsBundle, dtsBundleOptions.output).then(dtsBundleResolve).catch(dtsBundleReject)
-                    }).catch(dtsBundleReject)
-                }))
-            })
-            return Promise.all(generateJsBundlePromises).then(dtsBundlesResolve).catch(dtsBundlesReject)
+        new Promise((dtsBundleResolve, dtsBundleReject) => {
+            return rollup(dtsBundleOptions).then(jsBundle => {
+                return generateOutputs(jsBundle, dtsBundleOptions.output).then(dtsBundleResolve).catch(dtsBundleReject)
+            }).catch(dtsBundleReject)
         })
     ])
     /**
@@ -604,12 +595,9 @@ const generateJsBundleOptions = (format) => {
 }
 /**
  * DTS bundle options
- * @param format {'cjs'|'esm'}
  * @return {RollupOptions}
  */
-const generateDTSBundleOptions = (format) => {
-    const isEsm = format === 'esm'
-    const outputExt = isEsm ? 'mts' : 'cts'
+const generateDTSBundleOptions = () => {
     return {
         logLevel: logLevel,
         input: (() => {
@@ -620,12 +608,12 @@ const generateDTSBundleOptions = (format) => {
                 }).filter(value => !!value)
         })(),
         output: {
-            format: format,
+            format: 'esm',
             dir: outputDirname,
-            entryFileNames: (chunkInfo) => `${getOutputFilename(path.basename(chunkInfo.name))}.d.${outputExt}`,
+            entryFileNames: (chunkInfo) => `${getOutputFilename(path.basename(chunkInfo.name))}.d.ts`,
             chunkFileNames: (chunkInfo) => {
-                if (!chunkInfo.name.startsWith(thirdPartyPackageRootDirname)) chunkInfo.name = dtsChunkNameGenerator(chunkInfo.name, 'type.')
-                return `${chunkInfo.name}.d.${outputExt}`
+                if (!chunkInfo.name.startsWith(thirdPartyPackageRootDirname)) chunkInfo.name = dtsChunkNameGenerator(chunkInfo.name)
+                return `${chunkInfo.name}.d.ts`
             }
         },
         plugins: [
@@ -656,10 +644,8 @@ await processBundles(
         generateJsBundleOptions('esm'),
         generateJsBundleOptions('cjs')
     ],
-    [
-        generateDTSBundleOptions('esm'),
-        generateDTSBundleOptions('cjs')
-    ])
+    generateDTSBundleOptions()
+)
 /**
  * Process package.json
  */
