@@ -1,5 +1,6 @@
 import {Configurable} from '../decorators/di/Configurable.js'
 import {Component} from '../lib/core/Component.js'
+import {Singleton} from '../decorators/di/Lifetime.js'
 import {
     DataSource,
     Driver,
@@ -14,13 +15,12 @@ import {
     ObjectLiteral,
     TreeRepository,
     MongoRepository,
-    IsolationLevel,
     QueryRunner,
     SelectQueryBuilder,
-    ReplicationMode,
-    QueryResultCache
-} from '../exports/ORM.js'
-import {Singleton} from '../decorators/di/Lifetime.js'
+    ReplicationMode
+} from 'typeorm'
+import {QueryResultCache} from 'typeorm/cache/QueryResultCache.js'
+import {IsolationLevel} from 'typeorm/driver/types/IsolationLevel.js'
 
 /**
  * Build database connection options
