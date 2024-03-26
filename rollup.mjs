@@ -640,10 +640,14 @@ const generateDTSBundleOptions = () => {
  * Process bundles
  */
 await processBundles(
-    [
-        generateJsBundleOptions('esm'),
-        generateJsBundleOptions('cjs')
-    ],
+    isProductionBuild
+        ? [
+            generateJsBundleOptions('esm'),
+            generateJsBundleOptions('cjs')
+        ]
+        : [
+            generateJsBundleOptions('esm')
+        ],
     generateDTSBundleOptions()
 )
 /**

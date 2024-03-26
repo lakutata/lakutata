@@ -11,7 +11,7 @@ const OFR_SYMBOL: symbol = Symbol('OFR')//Object Finalization Registry
  */
 export function GetObjectWeakRefs<ObjectInstance extends BaseObject>(target: any): Set<WeakRef<ObjectInstance>> {
     if (!Reflect.hasOwnMetadata(OFR_SYMBOL, target)) Reflect.defineMetadata(OFR_SYMBOL, new FinalizationRegistry<WeakRef<BaseObject>>((ref: WeakRef<BaseObject>): void => {
-        const objectWeakRefs: Set<WeakRef<BaseObject>> = Reflect.getOwnMetadata(OWR_SYMBOL, target)
+        const objectWeakRefs: Set<WeakRef<BaseObject>> = Reflect.getOwnMetadata(OWR_SYMBOL, target) || new Set()
         objectWeakRefs.delete(ref)
         Reflect.defineMetadata(OWR_SYMBOL, objectWeakRefs, target)
     }), target)

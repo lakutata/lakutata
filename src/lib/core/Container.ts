@@ -263,7 +263,7 @@ export class Container {
      */
     public async build<T extends BaseObject>(target: IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
         const builtObject: T = await this.processResolved(this.#dic.build<T>(target, this.buildResolverOptions(target)), ConstructorSymbol(target), configurableRecords)
-        AppendObjectWeakRefs(this, builtObject)
+        AppendObjectWeakRefs(this.#dic, builtObject)
         return builtObject
     }
 
@@ -271,7 +271,7 @@ export class Container {
      * Create sub container scope
      */
     public createScope(): Container {
-        return new Container(this)//TODO 可能需要传入owner
+        return new Container(this)
     }
 
     /**
@@ -286,7 +286,7 @@ export class Container {
         await Promise.all(destroySubContainerPromises)
         await this.#dic.dispose()
         const destroyTransientPromises: Promise<void>[] = []
-        GetObjectWeakRefs(this).forEach((ref: WeakRef<BaseObject>): void => {
+        GetObjectWeakRefs(this.#dic).forEach((ref: WeakRef<BaseObject>): void => {
             let transient: BaseObject | undefined = ref.deref()
             if (!transient) return
             if (transient[__destroy]) {
@@ -297,6 +297,6 @@ export class Container {
             }
         })
         await Promise.all(destroyTransientPromises)
-        ClearObjectWeakRefs(this)
+        ClearObjectWeakRefs(this.#dic)
     }
 }
