@@ -1,24 +1,22 @@
 import {Configurable} from '../decorators/di/Configurable.js'
 import {Component} from '../lib/core/Component.js'
 import {Singleton} from '../decorators/di/Lifetime.js'
-import {
-    DataSource,
-    Driver,
-    type DataSourceOptions,
-    EntityManager,
-    NamingStrategyInterface,
-    EntitySubscriberInterface,
-    EntityMetadata,
-    EntityTarget,
-    Migration,
-    Repository,
-    ObjectLiteral,
-    TreeRepository,
-    MongoRepository,
-    QueryRunner,
-    SelectQueryBuilder,
-    ReplicationMode
-} from 'typeorm'
+import {type DataSourceOptions} from 'typeorm/data-source/DataSourceOptions.js'
+import {DataSource} from 'typeorm/data-source/DataSource.js'
+import {Driver} from 'typeorm/driver/Driver.js'
+import {EntityManager} from 'typeorm/entity-manager/EntityManager.js'
+import {NamingStrategyInterface} from 'typeorm/naming-strategy/NamingStrategyInterface.js'
+import {EntitySubscriberInterface} from 'typeorm/subscriber/EntitySubscriberInterface.js'
+import {EntityMetadata} from 'typeorm/metadata/EntityMetadata.js'
+import {EntityTarget} from 'typeorm/common/EntityTarget.js'
+import {Migration} from 'typeorm/migration/Migration.js'
+import {ObjectLiteral} from 'typeorm/common/ObjectLiteral.js'
+import {TreeRepository} from 'typeorm/repository/TreeRepository.js'
+import {Repository} from 'typeorm/repository/Repository.js'
+import {MongoRepository} from 'typeorm/repository/MongoRepository.js'
+import {QueryRunner} from 'typeorm/query-runner/QueryRunner.js'
+import {SelectQueryBuilder} from 'typeorm/query-builder/SelectQueryBuilder.js'
+import {ReplicationMode} from 'typeorm/driver/types/ReplicationMode.js'
 import {QueryResultCache} from 'typeorm/cache/QueryResultCache.js'
 import {IsolationLevel} from 'typeorm/driver/types/IsolationLevel.js'
 
