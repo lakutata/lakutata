@@ -399,23 +399,17 @@ const processPackageJson = async (packageJsonFilename, outputFormats = []) => {
         const sourceFilename = packageJsonObjectExports[exportName]
         if (path.extname(sourceFilename) === '.json') return
         const exportFile = exportName === '.' ? `./${packageName}` : exportName
-        packageJsonObjectExports[exportName] = {}
+        packageJsonObjectExports[exportName] = {
+            types: `${exportFile}.d.ts`
+        }
         outputFormats.forEach(format => {
             switch (format) {
                 case 'cjs': {
-                    packageJsonObjectExports[exportName].require = {
-                        types: `${exportFile}.d.cts`,
-                        default: `${exportFile}.cjs`
-                    }
-                    // if (!packageJsonObject.typesVersions) packageJsonObject.typesVersions = {'*': {'*': []}}
-                    // packageJsonObject.typesVersions['*']['*'].push(`${exportFile}.d.cts`)
+                    packageJsonObjectExports[exportName].require = `${exportFile}.cjs`
                 }
                     break
                 case 'esm': {
-                    packageJsonObjectExports[exportName].import = {
-                        types: `${exportFile}.d.mts`,
-                        default: `${exportFile}.mjs`
-                    }
+                    packageJsonObjectExports[exportName].import = `${exportFile}.mjs`
                 }
                     break
                 default:
@@ -445,10 +439,10 @@ const processTsConfigJson = async (tsconfigJsonFilename) => {
 /**
  * Process bundles
  * @param jsBundlesOptions {RollupOptions[]}
- * @param dtsBundlesOptions {RollupOptions[]}
+ * @param dtsBundleOptions {RollupOptions}
  * @return {Promise<void>}
  */
-async function processBundles(jsBundlesOptions, dtsBundlesOptions) {
+async function processBundles(jsBundlesOptions, dtsBundleOptions) {
     /**
      * Write file promises
      * @type {Promise[]}
@@ -493,16 +487,10 @@ async function processBundles(jsBundlesOptions, dtsBundlesOptions) {
             })
             return Promise.all(generateJsBundlePromises).then(jsBundlesResolve).catch(jsBundlesReject)
         }),
-        new Promise((dtsBundlesResolve, dtsBundlesReject) => {
-            const generateDTSBundlePromises = []
-            dtsBundlesOptions.forEach(dtsBundleOptions => {
-                generateDTSBundlePromises.push(new Promise((dtsBundleResolve, dtsBundleReject) => {
-                    return rollup(dtsBundleOptions).then(dtsBundle => {
-                        return generateOutputs(dtsBundle, dtsBundleOptions.output).then(dtsBundleResolve).catch(dtsBundleReject)
-                    }).catch(dtsBundleReject)
-                }))
-            })
-            return Promise.all(generateDTSBundlePromises).then(dtsBundlesResolve).catch(dtsBundlesReject)
+        new Promise((dtsBundleResolve, dtsBundleReject) => {
+            return rollup(dtsBundleOptions).then(dtsBundle => {
+                return generateOutputs(dtsBundle, dtsBundleOptions.output).then(dtsBundleResolve).catch(dtsBundleReject)
+            }).catch(dtsBundleReject)
         })
     ])
     /**
@@ -606,12 +594,10 @@ const generateJsBundleOptions = (format) => {
 }
 /**
  * DTS bundle options
- * @param format {'cjs'|'esm'}
  * @return {RollupOptions}
  */
-const generateDTSBundleOptions = (format) => {
-    const isEsm = format === 'esm'
-    const outputExt = isEsm ? 'mts' : 'cts'
+const generateDTSBundleOptions = () => {
+    const outputExt = 'ts'
     return {
         logLevel: logLevel,
         input: (() => {
@@ -622,7 +608,7 @@ const generateDTSBundleOptions = (format) => {
                 }).filter(value => !!value)
         })(),
         output: {
-            format: isEsm ? 'esm' : 'cjs',
+            format: 'esm',
             dir: outputDirname,
             entryFileNames: (chunkInfo) => `${getOutputFilename(path.basename(chunkInfo.name))}.d.${outputExt}`,
             chunkFileNames: (chunkInfo) => {
@@ -658,10 +644,7 @@ await processBundles(
         generateJsBundleOptions('esm'),
         generateJsBundleOptions('cjs')
     ],
-    [
-        generateDTSBundleOptions('esm'),
-        generateDTSBundleOptions('cjs')
-    ]
+    generateDTSBundleOptions()
 )
 /**
  * Process package.json
