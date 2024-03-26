@@ -581,6 +581,7 @@ const generateJsBundleOptions = (format) => {
                     comments: false,
                     beautify: true
                 },
+                keep_classnames: true,
                 maxWorkers: os.cpus().length,
                 compress: false,
                 module: true
