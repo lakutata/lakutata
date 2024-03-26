@@ -406,7 +406,7 @@ const processPackageJson = async (packageJsonFilename, outputFormats = []) => {
                 case 'cjs': {
                     packageJsonObjectExports[exportName].require = `${exportFile}.cjs`
                     if (!packageJsonObjectExports.typesVersions) packageJsonObjectExports.typesVersions = {'*': {'*': []}}
-                    packageJsonObjectExports.typesVersions['*']['*'].push(`${exportFile}.d.ts`)
+                    packageJsonObject.typesVersions['*']['*'].push(`${exportFile}.d.ts`)
                 }
                     break
                 case 'esm': {
