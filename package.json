@@ -2,7 +2,6 @@
   "name": "lakutata",
   "version": "0.2.1-proto.18",
   "description": "An IoC-based universal application framework.",
-  "type": "module",
   "exports": {
     ".": {
       "import": "./src/exports/Lakutata.js",
