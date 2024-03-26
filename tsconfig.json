@@ -38,6 +38,6 @@
     "node_modules",
     "build",
     "distro",
-    "rollup.js"
+    "rollup.mjs"
   ]
 }

@@ -58,11 +58,11 @@
   },
   "scripts": {
     "clean": "shx rm -rf ./distro",
-    "build:js": "node rollup.js",
+    "build:js": "node rollup.mjs",
     "rebuild": "npm run clean && npm run build:js",
     "prepare": "npm run compile",
     "compile": "npm run rebuild",
-    "publish": "cross-env BUILD_MODE=production npm run compile --prod && node publish.js",
+    "publish": "cross-env BUILD_MODE=production npm run compile --prod && node publish.mjs",
     "release": "dotenv -- release-it --git.tagExclude='*[-]*' && npm run publish",
     "release:beta-release": "dotenv -- release-it --preRelease=beta && npm run publish",
     "release:alpha-release": "dotenv -- release-it --preRelease=alpha --no-github.release && npm run publish",
