@@ -38,6 +38,7 @@
     "node_modules",
     "build",
     "distro",
+    "publish.mjs",
     "rollup.mjs"
   ]
 }
