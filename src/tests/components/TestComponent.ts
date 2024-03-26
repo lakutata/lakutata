@@ -1,15 +1,15 @@
 import {Component} from '../../lib/core/Component.js'
 import {Time} from '../../lib/core/Time.js'
-import {Application} from '../../lib/core/Application.js'
 import {Inject} from '../../decorators/di/Inject.js'
+import type {Logger} from '../../components/Logger.js'
 
 export class TestComponent extends Component {
 
-    @Inject(Application)
-    protected readonly app: Application
+    @Inject()
+    protected readonly log: Logger
 
     protected async init(): Promise<void> {
         setInterval(() => this.emit('testComponentEvent', new Time().format()), 1000)
-        console.log('TestComponent initialized')
+        this.log.info('TestComponent initialized')
     }
 }

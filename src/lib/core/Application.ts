@@ -8,6 +8,7 @@ import {Alias} from './Alias.js'
 import {MODULE_INIT_DONE} from '../../constants/event-names/ModuleEventName.js'
 import {GetBasicInfo} from '../base/internal/BasicInfo.js'
 import {Entrypoint} from '../../components/Entrypoint.js'
+import {Logger} from '../../components/Logger.js'
 
 const RCTNR: symbol = Symbol('ROOT_CONTAINER')
 
@@ -26,6 +27,9 @@ export class Application extends Module {
      */
     protected options: Partial<ApplicationOptions> = {
         components: {
+            log: {
+                class: Logger
+            },
             entrypoint: {
                 class: Entrypoint
             }
@@ -61,7 +65,8 @@ export class Application extends Module {
      */
     protected async [__init](): Promise<void> {
         return super[__init](async (): Promise<void> => {
-            //TODO
+            //Mark Application as a special module via binding itself to its __init function
+            Reflect.defineMetadata(__init, this, this, __init)
         })
     }
 
