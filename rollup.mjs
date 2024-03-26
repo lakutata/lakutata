@@ -15,7 +15,7 @@ import {mkdir, readFile, writeFile} from 'node:fs/promises'
 import {fileURLToPath} from 'node:url'
 import os from 'os'
 import {createRequire} from 'module'
-import {readFileSync} from 'node:fs'
+import packageJson from './package.json' with {type: 'json'}
 
 const isProductionBuild = process.env.BUILD_MODE === 'production'
 
@@ -339,6 +339,30 @@ const thirdPartyPackageRootDirname = 'vendor'
 const outputDirname = 'distro'
 const absoluteOutputDirname = path.resolve(__dirname, outputDirname)
 const jsrcOutputDirname = path.join(outputDirname, 'src')
+const packageName = packageJson.name
+const packageJsonExports = {...packageJson.exports}
+
+const exportMap = new Map()
+/**
+ * Get output filename (without path)
+ * @param name
+ */
+const getOutputFilename = (name) => {
+    if (!exportMap.size) Object
+        .keys(packageJsonExports)
+        .map(exportName => {
+            const exportFilename = packageJsonExports[exportName]
+            return path.extname(exportFilename) !== '.json' ? {
+                exportName: exportName === '.' ? `./${packageName}` : exportName,
+                filename: path.basename(exportFilename, path.extname(exportFilename))
+            } : null
+        })
+        .filter(value => !!value)
+        .forEach(exportConfig => exportMap.set(exportConfig.filename, exportConfig.exportName))
+    const exportName = exportMap.get(name)
+    if (!exportName) return name
+    return exportName.toString().replace('./', '')
+}
 
 let jsVendorNumber = 0
 let dtsVendorNumber = 0
@@ -365,12 +389,42 @@ const dtsChunkNameGenerator = (chunkName) => {
 /**
  * Process package.json
  * @param packageJsonFilename {string}
+ * @param outputFormats {('cjs'|'esm')[]}
  * @return {Promise<void>}
  */
-const processPackageJson = async (packageJsonFilename) => {
-    const packageJsonObject = JSON.parse(await readFile(packageJsonFilename, {encoding: 'utf-8'}))
+const processPackageJson = async (packageJsonFilename, outputFormats = []) => {
+    const packageJsonObject = {...packageJson}
+    const packageJsonObjectExports = packageJsonObject.exports
+    Object.keys(packageJsonObjectExports).forEach(exportName => {
+        const sourceFilename = packageJsonObjectExports[exportName]
+        if (path.extname(sourceFilename) === '.json') return
+        const exportFile = exportName === '.' ? `./${packageName}` : exportName
+        packageJsonObjectExports[exportName] = {}
+        outputFormats.forEach(format => {
+            switch (format) {
+                case 'cjs': {
+                    packageJsonObjectExports[exportName].require = {
+                        types: `${exportFile}.d.cts`,
+                        default: `${exportFile}.cjs`
+                    }
+                }
+                    break
+                case 'esm': {
+                    packageJsonObjectExports[exportName].import = {
+                        types: `${exportFile}.d.mts`,
+                        default: `${exportFile}.mjs`
+                    }
+                }
+                    break
+                default:
+                    return
+            }
+        })
+    })
+    Reflect.deleteProperty(packageJsonObject, 'type')
     Reflect.deleteProperty(packageJsonObject, 'devDependencies')
     Reflect.deleteProperty(packageJsonObject, 'scripts')
+    Reflect.deleteProperty(packageJsonObject, 'release-it')
     await writeFile(packageJsonFilename, JSON.stringify(packageJsonObject, null, 2), {encoding: 'utf-8', flag: 'w'})
 }
 /**
@@ -388,9 +442,11 @@ const processTsConfigJson = async (tsconfigJsonFilename) => {
 
 /**
  * Process bundles
+ * @param jsBundlesOptions {RollupOptions[]}
+ * @param dtsBundlesOptions {RollupOptions[]}
  * @return {Promise<void>}
  */
-async function processBundles() {
+async function processBundles(jsBundlesOptions, dtsBundlesOptions) {
     /**
      * Write file promises
      * @type {Promise[]}
@@ -424,15 +480,27 @@ async function processBundles() {
      * Generate bundles
      */
     await Promise.all([
-        new Promise((jsBundleResolve, jsBundleReject) => {
-            return rollup(jsBundleOptions).then(jsBundle => {
-                return generateOutputs(jsBundle, jsBundleOptions.output).then(jsBundleResolve).catch(jsBundleReject)
-            }).catch(jsBundleReject)
+        new Promise((jsBundlesResolve, jsBundlesReject) => {
+            const generateJsBundlePromises = []
+            jsBundlesOptions.forEach(jsBundleOptions => {
+                generateJsBundlePromises.push(new Promise((jsBundleResolve, jsBundleReject) => {
+                    return rollup(jsBundleOptions).then(jsBundle => {
+                        return generateOutputs(jsBundle, jsBundleOptions.output).then(jsBundleResolve).catch(jsBundleReject)
+                    }).catch(jsBundleReject)
+                }))
+            })
+            return Promise.all(generateJsBundlePromises).then(jsBundlesResolve).catch(jsBundlesReject)
         }),
-        new Promise((dtsBundleResolve, dtsBundleReject) => {
-            return rollup(dtsBundleOptions).then(dtsBundle => {
-                return generateOutputs(dtsBundle, dtsBundleOptions.output).then(dtsBundleResolve).catch(dtsBundleReject)
-            }).catch(dtsBundleReject)
+        new Promise((dtsBundlesResolve, dtsBundlesReject) => {
+            const generateJsBundlePromises = []
+            dtsBundlesOptions.forEach(dtsBundleOptions => {
+                generateJsBundlePromises.push(new Promise((dtsBundleResolve, dtsBundleReject) => {
+                    return rollup(dtsBundleOptions).then(jsBundle => {
+                        return generateOutputs(jsBundle, dtsBundleOptions.output).then(dtsBundleResolve).catch(dtsBundleReject)
+                    }).catch(dtsBundleReject)
+                }))
+            })
+            return Promise.all(generateJsBundlePromises).then(dtsBundlesResolve).catch(dtsBundlesReject)
         })
     ])
     /**
@@ -449,135 +517,133 @@ async function processBundles() {
 const logLevel = 'silent'
 /**
  * Output format
- * @type {'amd' | 'cjs' | 'es' | 'iife' | 'system' | 'umd' | 'commonjs' | 'esm' | 'module' | 'systemjs' | undefined}
- */
-const format = 'esm'
-/**
- * Output format
  * @type {Array.<{src: string, dest: string}>}
  */
 const copyTargets = [
-    // {src: 'node_modules/koffi/build', dest: path.resolve(outputDirname, 'src/lib/ffi/')},
     {src: 'LICENSE', dest: outputDirname},
     {src: 'package.json', dest: outputDirname},
     {src: 'tsconfig.json', dest: outputDirname}
 ]
 /**
- * Javascript bundle options
- * @type {RollupOptions}
+ * Generate javascript bundle options
+ * @param format {'cjs'|'esm'}
+ * @return {RollupOptions}
  */
-const jsBundleOptions = {
-    logLevel: logLevel,
-    input: globFiles('src/**/*.ts')
-        .filter(filename => isProductionBuild ? !filename.includes('src/tests') : true),
-    output: {
-        // format: format,
-        format: 'cjs',
-        dir: outputDirname,
-        exports: 'named',
-        compact: false,
-        interop: 'auto',
-        generatedCode: 'es2015',
-        entryFileNames: (chunkInfo) => {
-            const facadeModuleId = normalizeString(chunkInfo.facadeModuleId)
-            const relativeDir = path.relative(currentWorkingDir, path.dirname(facadeModuleId))
-            return path.join(relativeDir, `${chunkInfo.name}.js`)
-        },
-        chunkFileNames: (chunkInfo) => {
-            if (!chunkInfo.name.startsWith(thirdPartyPackageRootDirname)) chunkInfo.name = jsChunkNameGenerator(chunkInfo.name)
-            return `${chunkInfo.name}.js`
-        }
-    },
-    makeAbsoluteExternalsRelative: true,
-    treeshake: false,
-    plugins: [
-        progress({clearLine: true}),
-        nativePlugin({
-            copyTo: path.resolve(outputDirname, thirdPartyPackageRootDirname),
-            map: (modulePath) => `${path.basename(path.dirname(modulePath))}_ffi.node`,
-            targetEsm: false
-        }),
-        typescript({
-            outDir: jsrcOutputDirname,
-            esModuleInterop: true,
-            isolatedModules: true,
-            declaration: false,
-            emitDecoratorMetadata: true,
-            declarationMap: false,
-            allowSyntheticDefaultImports: true,
-            allowJs: true
-        }),
-        resolve({
-            browser: false,
-            preferBuiltins: true
-        }),
-        commonjs({
-            ignore: (id) => {
-                if (id.includes('.node')) {
-                    return true
-                }
-                return false
-            }
-        }),
-        json(),
-        terser({
-            format: {
-                comments: false,
-                beautify: true
+const generateJsBundleOptions = (format) => {
+    const isEsm = format === 'esm'
+    const outputExt = isEsm ? 'mjs' : 'cjs'
+    return {
+        logLevel: logLevel,
+        input: globFiles('src/**/*.ts')
+            .filter(filename => isProductionBuild ? !filename.includes('src/tests') : true),
+        output: {
+            format: isEsm ? 'esm' : 'cjs',
+            dir: outputDirname,
+            exports: 'named',
+            compact: false,
+            interop: 'auto',
+            generatedCode: 'es2015',
+            entryFileNames: (chunkInfo) => {
+                const facadeModuleId = normalizeString(chunkInfo.facadeModuleId)
+                const relativeDir = path.relative(currentWorkingDir, path.dirname(facadeModuleId))
+                if (relativeDir === 'src/exports') return `${getOutputFilename(chunkInfo.name)}.${outputExt}`
+                return path.join(relativeDir, `${chunkInfo.name}.${outputExt}`)
             },
-            maxWorkers: os.cpus().length,
-            compress: false,
-            module: true
-        }),
-        esmShim()
-    ],
-    external: [
-        ...builtinModules
-    ]
+            chunkFileNames: (chunkInfo) => {
+                if (!chunkInfo.name.startsWith(thirdPartyPackageRootDirname)) chunkInfo.name = jsChunkNameGenerator(chunkInfo.name)
+                return `${chunkInfo.name}.${outputExt}`
+            }
+        },
+        makeAbsoluteExternalsRelative: true,
+        treeshake: false,
+        plugins: [
+            progress({clearLine: true}),
+            nativePlugin({
+                copyTo: path.resolve(outputDirname, thirdPartyPackageRootDirname),
+                map: (modulePath) => `${path.basename(path.dirname(modulePath))}_ffi.node`,
+                targetEsm: false
+            }),
+            typescript({
+                outDir: jsrcOutputDirname,
+                esModuleInterop: true,
+                isolatedModules: true,
+                declaration: false,
+                emitDecoratorMetadata: true,
+                declarationMap: false,
+                allowSyntheticDefaultImports: true,
+                allowJs: true
+            }),
+            resolve({
+                browser: false,
+                preferBuiltins: true
+            }),
+            commonjs({
+                ignore: (id) => {
+                    if (id.includes('.node')) {
+                        return true
+                    }
+                    return false
+                }
+            }),
+            json(),
+            terser({
+                format: {
+                    comments: false,
+                    beautify: true
+                },
+                maxWorkers: os.cpus().length,
+                compress: false,
+                module: true
+            }),
+            esmShim()
+        ],
+        external: [
+            ...builtinModules
+        ]
+    }
 }
 /**
  * DTS bundle options
- * @type {RollupOptions}
+ * @param format {'cjs'|'esm'}
+ * @return {RollupOptions}
  */
-const dtsBundleOptions = {
-    logLevel: logLevel,
-    input: (() => {
-        const sourcePackageJson = JSON.parse(readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'package.json'), {encoding: 'utf-8'}))
-        const exports = sourcePackageJson.exports
-        const inputs = []
-        Object.keys(exports).forEach(key => {
-            const entryJsFilename = exports[key].import
-            if (!entryJsFilename) return
-            if (entryJsFilename.endsWith('.js') && entryJsFilename.startsWith('./')) {
-                inputs.push(entryJsFilename.replace('.js', '.ts').substring(2))
+const generateDTSBundleOptions = (format) => {
+    const isEsm = format === 'esm'
+    const outputExt = isEsm ? 'mts' : 'cts'
+    return {
+        logLevel: logLevel,
+        input: (() => {
+            return Object.keys(packageJsonExports)
+                .map(exportName => {
+                    const inputFilename = packageJsonExports[exportName]
+                    return path.extname(inputFilename) !== '.json' ? inputFilename : null
+                }).filter(value => !!value)
+        })(),
+        output: {
+            format: format,
+            dir: outputDirname,
+            entryFileNames: (chunkInfo) => `${getOutputFilename(path.basename(chunkInfo.name))}.d.${outputExt}`,
+            chunkFileNames: (chunkInfo) => {
+                if (!chunkInfo.name.startsWith(thirdPartyPackageRootDirname)) chunkInfo.name = dtsChunkNameGenerator(chunkInfo.name, 'type.')
+                return `${chunkInfo.name}.d.${outputExt}`
             }
-        })
-        return inputs.length ? inputs : globFiles('src/**/*.ts')
-    })(),
-    output: {
-        format: format,
-        dir: outputDirname,
-        entryFileNames: (chunkInfo) => `${chunkInfo.name}.d.ts`,
-        chunkFileNames: (chunkInfo) => {
-            if (!chunkInfo.name.startsWith(thirdPartyPackageRootDirname)) chunkInfo.name = dtsChunkNameGenerator(chunkInfo.name, 'type.')
-            return `${chunkInfo.name}.d.ts`
-        }
-    },
-    plugins: [
-        progress({clearLine: true}),
-        resolve(),
-        dts({
-            respectExternal: true,
-            compilerOptions: {
-                outDir: outputDirname
-            }
-        }),
-        copy({targets: copyTargets})
-    ],
-    external: [
-        ...builtinModules,
-        /\.node$/
-    ]
+        },
+        plugins: [
+            progress({clearLine: true}),
+            resolve(),
+            dts({
+                respectExternal: true,
+                compilerOptions: {
+                    outDir: outputDirname
+                }
+            }),
+            copy({targets: copyTargets})
+        ],
+        external: [
+            ...builtinModules,
+            /\.node$/
+        ]
+    }
 }
 
 //===================================Configurations===================================
@@ -585,11 +651,19 @@ const dtsBundleOptions = {
 /**
  * Process bundles
  */
-await processBundles()
+await processBundles(
+    [
+        generateJsBundleOptions('esm'),
+        generateJsBundleOptions('cjs')
+    ],
+    [
+        generateDTSBundleOptions('esm'),
+        generateDTSBundleOptions('cjs')
+    ])
 /**
  * Process package.json
  */
-await processPackageJson(path.resolve(absoluteOutputDirname, 'package.json'))
+await processPackageJson(path.resolve(absoluteOutputDirname, 'package.json'), ['esm', 'cjs'])
 /**
  * Process tsconfig.json
  */

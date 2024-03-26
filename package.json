@@ -2,63 +2,24 @@
   "name": "lakutata",
   "version": "0.2.1-proto.21",
   "description": "An IoC-based universal application framework.",
+  "type": "module",
   "exports": {
-    ".": {
-      "import": "./src/exports/Lakutata.js",
-      "require": "./src/exports/Lakutata.js",
-      "types": "./src/exports/Lakutata.d.ts"
-    },
-    "./orm": {
-      "import": "./src/exports/ORM.js",
-      "require": "./src/exports/ORM.js",
-      "types": "./src/exports/ORM.d.ts"
-    },
-    "./com": {
-      "import": "./src/exports/COM.js",
-      "require": "./src/exports/COM.js",
-      "types": "./src/exports/COM.d.ts"
-    },
-    "./helper": {
-      "import": "./src/exports/Helpers.js",
-      "require": "./src/exports/Helpers.js",
-      "types": "./src/exports/Helpers.d.ts"
-    },
-    "./ffi": {
-      "import": "./src/exports/FFI.js",
-      "require": "./src/exports/FFI.js",
-      "types": "./src/exports/FFI.d.ts"
-    },
-    "./decorator/asst": {
-      "import": "./src/exports/ASSTDecorators.js",
-      "require": "./src/exports/ASSTDecorators.js",
-      "types": "./src/exports/ASSTDecorators.d.ts"
-    },
-    "./decorator/ctrl": {
-      "import": "./src/exports/CTRLDecorators.js",
-      "require": "./src/exports/CTRLDecorators.js",
-      "types": "./src/exports/CTRLDecorators.d.ts"
-    },
-    "./decorator/di": {
-      "import": "./src/exports/DIDecorators.js",
-      "require": "./src/exports/DIDecorators.js",
-      "types": "./src/exports/DIDecorators.d.ts"
-    },
-    "./decorator/dto": {
-      "import": "./src/exports/DTODecorators.js",
-      "require": "./src/exports/DTODecorators.js",
-      "types": "./src/exports/DTODecorators.d.ts"
-    },
-    "./decorator/orm": {
-      "import": "./src/exports/ORMDecorators.js",
-      "require": "./src/exports/ORMDecorators.js",
-      "types": "./src/exports/ORMDecorators.d.ts"
-    },
+    ".": "./src/exports/Lakutata.ts",
+    "./orm": "./src/exports/ORM.ts",
+    "./com": "./src/exports/COM.ts",
+    "./helper": "./src/exports/Helpers.ts",
+    "./ffi": "./src/exports/FFI.ts",
+    "./decorator/asst": "./src/exports/ASSTDecorators.ts",
+    "./decorator/ctrl": "./src/exports/CTRLDecorators.ts",
+    "./decorator/di": "./src/exports/DIDecorators.ts",
+    "./decorator/dto": "./src/exports/DTODecorators.ts",
+    "./decorator/orm": "./src/exports/ORMDecorators.ts",
     "./tsconfig.json": "./tsconfig.json",
     "./package.json": "./package.json"
   },
   "scripts": {
     "clean": "shx rm -rf ./distro",
-    "build:js": "node rollup.mjs",
+    "build:js": "node --no-warnings rollup.mjs",
     "rebuild": "npm run clean && npm run build:js",
     "prepare": "npm run compile",
     "compile": "npm run rebuild",
@@ -67,8 +28,8 @@
     "release:beta-release": "dotenv -- release-it --preRelease=beta && npm run publish",
     "release:alpha-release": "dotenv -- release-it --preRelease=alpha --no-github.release && npm run publish",
     "release:proto-release": "dotenv -- release-it --preRelease=proto --no-github.release --no-git.tag && npm run publish",
-    "test:app": "cross-env BUILD_MODE=develop npm run compile && node distro/src/tests/App.spec.js",
-    "test:unit": "cross-env BUILD_MODE=develop npm run compile && mocha distro/src/tests/UnitTest.spec.js"
+    "test:app": "cross-env BUILD_MODE=develop npm run compile && node distro/src/tests/App.spec.mjs",
+    "test:unit": "cross-env BUILD_MODE=develop npm run compile && mocha distro/src/tests/UnitTest.spec.mjs"
   },
   "release-it": {
     "npm": {
