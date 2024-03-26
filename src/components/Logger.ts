@@ -2,10 +2,11 @@ import {Component} from '../lib/core/Component.js'
 import {Singleton} from '../decorators/di/Lifetime.js'
 import {Configurable} from '../decorators/di/Configurable.js'
 import {DTO} from '../lib/core/DTO.js'
-import {pino, Logger as PinoLogger} from 'pino'
+import {pino, Logger as PinoLogger, DestinationStream} from 'pino'
 import {GetBasicInfo} from '../lib/base/internal/BasicInfo.js'
 import PinoPretty from 'pino-pretty'
 import {As} from '../lib/functions/As.js'
+import {Stream} from 'node:stream'
 
 /**
  * Logger component
@@ -42,6 +43,13 @@ export class Logger extends Component {
     protected readonly sync: boolean
 
     /**
+     * Stream to write to
+     * @protected
+     */
+    @Configurable(DTO.Array(DTO.InstanceOf(Stream)).optional().default(() => [process.stdout]))
+    protected readonly destinations: NodeJS.WritableStream[]
+
+    /**
      * Pino logger instance
      * @private
      */
@@ -53,12 +61,20 @@ export class Logger extends Component {
      */
     protected async init(): Promise<void> {
         this.#instance = pino({
-            level: this.level,
-            name: GetBasicInfo().appName || 'Unnamed'
-        }, As(PinoPretty)({
-            colorize: this.colorize,
-            sync: this.sync
-        }))
+                level: this.level,
+                name: GetBasicInfo().appName || 'Unnamed'
+            }, pino.multistream(
+                this.destinations
+                    .map((destination: NodeJS.WritableStream) => As<DestinationStream>(
+                            As(PinoPretty)({
+                                colorize: destination === process.stdout ? this.colorize : false,
+                                sync: this.sync,
+                                destination: destination
+                            })
+                        )
+                    )
+            )
+        )
     }
 
     /**
