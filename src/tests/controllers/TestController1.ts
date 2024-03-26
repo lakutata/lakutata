@@ -28,11 +28,12 @@ export class TestController1 extends Controller {
         console.log(this.className, 'destroyed')
     }
 
-    @Inject(Application)
-    protected readonly app: Application//TODO 不一定要在controller里面预先声明app字段
+    @Inject()
+    protected readonly app: Application
 
     protected async init(): Promise<void> {
         console.log('TestController11111')
+        console.log(this.app)
     }
 
     // @After((res) => {
@@ -55,7 +56,7 @@ export class TestController1 extends Controller {
         return 'oh!!'
     }
 
-    @HTTPAction('/test/:id', ['GET', 'POST'],TestDTO)
+    @HTTPAction('/test/:id', ['GET', 'POST'], TestDTO)
     @CLIAction('test3', TestDTO)
     @ServiceAction({
         act: 'test3',
@@ -63,7 +64,7 @@ export class TestController1 extends Controller {
             abc: true,
             ccc: 1
         }
-    },TestDTO)
+    }, TestDTO)
     public async test3(inp: ActionPattern<TestDTO>) {
         if (this.context.type === ContextType.CLI) console.log('cli!')
         console.log(inp, this.context.type)

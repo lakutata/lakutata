@@ -5,7 +5,11 @@ import {Container, containerSymbol} from '../core/Container.js'
 import {randomUUID} from 'node:crypto'
 import {GetConfigurableRecordsFromInstance, GetIdFromInstance} from './internal/ConfigurableRecordsInjection.js'
 import {GetObjectConfigurableProperties} from './internal/ObjectConfiguration.js'
-import {GetObjectInjectItemsByPrototype, type ObjectInjectionMap} from './internal/ObjectInjection.js'
+import {
+    GetObjectInjectItemsByPrototype,
+    InjectionTransformFunction,
+    type ObjectInjectionMap
+} from './internal/ObjectInjection.js'
 import {SetObjectContainerGetter} from './internal/ObjectContainer.js'
 import {DTO} from '../core/DTO.js'
 import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
@@ -15,6 +19,7 @@ import {As} from '../functions/As.js'
 import {DevNull} from '../functions/DevNull.js'
 import {DefineObjectType, GetObjectType, ObjectType} from './internal/ObjectType.js'
 import {Module} from '../core/Module.js'
+import {DependencyInjectionException} from '../../exceptions/di/DependencyInjectionException.js'
 
 /**
  * Internal init function symbol
@@ -72,13 +77,27 @@ export class BaseObject extends AsyncConstructor {
     async #applyInjection(): Promise<void> {
         const objectInjectionMap: ObjectInjectionMap = GetObjectInjectItemsByPrototype(this)
         const injectionPromises: Promise<void>[] = []
-        objectInjectionMap.forEach((name: string | symbol, propertyKey: string | symbol): void => {
-            const registration: string | symbol | typeof BaseObject = name
+        objectInjectionMap.forEach((info: {
+            name: string | symbol
+            transform: InjectionTransformFunction
+        }, propertyKey: string | symbol): void => {
+            const registration: string | symbol | typeof BaseObject = info.name
             injectionPromises.push(new Promise((resolve, reject): void => {
+                //Get injection value
                 this.#container.get(registration).then(injectObject => {
-                    Reflect.set(this, propertyKey, injectObject)
-                    return resolve()
-                }).catch(reject)
+                    //Apply transform function to injection value
+                    Promise.resolve(info.transform(injectObject)).then(transformedInjectObject => {
+                        //Set transformed injection value to property
+                        Reflect.set(this, propertyKey, transformedInjectObject)
+                        return resolve()
+                    }).catch(reject)
+                }).catch(injectionError =>
+                    reject(new DependencyInjectionException('Unable to inject value for property {0} of {1} because: {2}', [
+                        propertyKey,
+                        this.className,
+                        injectionError.message
+                    ]))
+                )
             }))
         })
         await Promise.all(injectionPromises)
