@@ -17,7 +17,7 @@ export class Provider extends BaseObject {
      * @protected
      */
     protected get app(): Application {
-        return Reflect.getOwnMetadata(APP_LINK, this)
+        return Reflect.getOwnMetadata('APP_LINK', this)
     }
 
     /**
@@ -28,7 +28,7 @@ export class Provider extends BaseObject {
     protected async [__init](...hooks: (() => Promise<void>)[]): Promise<void> {
         await super[__init](...hooks, async () => {
             //Inject app into current instance
-            Reflect.defineMetadata(APP_LINK, await this.getObject(Application), this)
+            Reflect.defineMetadata('APP_LINK', await this.getObject(Application), this)
         })
     }
     //
