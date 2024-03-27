@@ -36,7 +36,7 @@ export class TestController1 extends Controller {
 
     protected async init(): Promise<void> {
         this.log.info('TestController11111')
-        this.log.info(this.app)
+        // this.log.info(this.app)
     }
 
     // @After((res) => {
@@ -71,6 +71,11 @@ export class TestController1 extends Controller {
     public async test3(inp: ActionPattern<TestDTO>) {
         if (this.context.type === ContextType.CLI) console.log('cli!')
         console.log(inp, this.context.type)
+
+        // setTimeout(() => {
+        //     this.app.reload()
+        // }, 1000)
+
         if (this.context.type === ContextType.HTTP) {
             console.log(isProxy(As<HTTPContext>(this.context).response))
             As<HTTPContext>(this.context).response.write(new Time().format())

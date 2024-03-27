@@ -275,7 +275,7 @@ export class Container {
      * Create sub container scope
      */
     public createScope(): Container {
-        return new Container(this)
+        return new Container(this,this.owner())
     }
 
     /**
