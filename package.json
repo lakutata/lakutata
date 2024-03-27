@@ -6,9 +6,11 @@
   "exports": {
     ".": "./src/exports/Lakutata.ts",
     "./orm": "./src/exports/ORM.ts",
-    "./com": "./src/exports/COM.ts",
     "./helper": "./src/exports/Helpers.ts",
     "./ffi": "./src/exports/FFI.ts",
+    "./com/database": "./src/exports/DatabaseComponent.ts",
+    "./com/entrypoint": "./src/exports/EntrypointComponent.ts",
+    "./com/logger": "./src/exports/LoggerComponent.ts",
     "./decorator/asst": "./src/exports/ASSTDecorators.ts",
     "./decorator/ctrl": "./src/exports/CTRLDecorators.ts",
     "./decorator/di": "./src/exports/DIDecorators.ts",
