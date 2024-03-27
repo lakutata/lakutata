@@ -375,7 +375,8 @@ const dtsVendorMap = new Map()
  */
 const jsChunkNameGenerator = (chunkName) => {
     if (!jsVendorMap.has(chunkName)) jsVendorMap.set(chunkName, ++jsVendorNumber)
-    return `${thirdPartyPackageRootDirname}/Package.${jsVendorMap.get(chunkName) || 0}`
+    // return `${thirdPartyPackageRootDirname}/Package.${jsVendorMap.get(chunkName) || 0}`
+    return `${thirdPartyPackageRootDirname}/Package`
 }
 /**
  * Generate DTS chunk name
@@ -573,8 +574,7 @@ const generateJsBundleOptions = (format) => {
                         return true
                     }
                     return false
-                },
-                transformMixedEsModules: true
+                }
             }),
             json(),
             terser({

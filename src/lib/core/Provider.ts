@@ -3,7 +3,7 @@ import {Scoped} from '../../decorators/di/Lifetime.js'
 import {DefineObjectType, ObjectType} from '../base/internal/ObjectType.js'
 import {Application} from './Application.js'
 
-const APP_LINK: symbol = Symbol('APP.LINK')
+const APP_SYMBOL: symbol = Symbol('APP.LINK')
 
 /**
  * Provider base class
@@ -17,7 +17,7 @@ export class Provider extends BaseObject {
      * @protected
      */
     protected get app(): Application {
-        return Reflect.getOwnMetadata('APP_LINK', this)
+        return Reflect.getOwnMetadata(APP_SYMBOL, this)
     }
 
     /**
@@ -28,7 +28,7 @@ export class Provider extends BaseObject {
     protected async [__init](...hooks: (() => Promise<void>)[]): Promise<void> {
         await super[__init](...hooks, async () => {
             //Inject app into current instance
-            Reflect.defineMetadata('APP_LINK', await this.getObject(Application), this)
+            Reflect.defineMetadata(APP_SYMBOL, await this.getObject(Application), this)
         })
     }
     //
