@@ -12,6 +12,7 @@ import {As} from '../../lib/functions/As.js'
 import {isProxy} from 'node:util/types'
 import {Time} from '../../lib/core/Time.js'
 import {Logger} from '../../components/Logger.js'
+import {Application} from '../../lib/core/Application.js'
 
 class TestDTO extends DTO {
     @Expect(DTO.String().optional())
@@ -26,14 +27,16 @@ export class TestController1 extends Controller {
     @Inject()
     protected readonly log: Logger
 
+    @Inject(Application)
+    protected readonly app: Application
+
     protected async destroy(): Promise<void> {
         console.log(this.className, 'destroyed')
-        // this.log.info(this.app)//TODO 会导致程序崩溃
     }
 
     protected async init(): Promise<void> {
         this.log.info('TestController11111')
-
+        this.log.info(this.app)
     }
 
     // @After((res) => {

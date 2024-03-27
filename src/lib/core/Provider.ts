@@ -1,9 +1,6 @@
 import {__destroy, __init, BaseObject} from '../base/BaseObject.js'
 import {Scoped} from '../../decorators/di/Lifetime.js'
 import {DefineObjectType, ObjectType} from '../base/internal/ObjectType.js'
-import {Application} from './Application.js'
-
-// const APP_SYMBOL: symbol = Symbol('APP.LINK')
 
 /**
  * Provider base class
