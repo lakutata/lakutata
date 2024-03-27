@@ -573,7 +573,8 @@ const generateJsBundleOptions = (format) => {
                         return true
                     }
                     return false
-                }
+                },
+                transformMixedEsModules: true
             }),
             json(),
             terser({
