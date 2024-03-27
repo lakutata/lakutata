@@ -36,6 +36,8 @@ export const __destroy: symbol = Symbol('__destroy')
  */
 export const anonymousId: symbol = Symbol('anonymous')
 
+const OSP: symbol = Symbol('OBJECT.SYMBOL.PROPERTY')
+
 /**
  * Lakutata object base class
  */
@@ -267,6 +269,15 @@ export class BaseObject extends AsyncConstructor {
      */
     public get $id(): string | symbol {
         return this.#objectId
+    }
+
+    /**
+     * Object instance symbol
+     */
+    public get $symbol(): symbol {
+        if (Reflect.hasOwnMetadata(OSP, this)) return Reflect.getOwnMetadata(OSP, this)
+        Reflect.defineMetadata(OSP, Symbol(this.$uuid), this)
+        return this.$symbol
     }
 
     /**

@@ -28,11 +28,12 @@ export class TestController1 extends Controller {
 
     protected async destroy(): Promise<void> {
         console.log(this.className, 'destroyed')
+        // this.log.info(this.app)//TODO 会导致程序崩溃
     }
 
     protected async init(): Promise<void> {
         this.log.info('TestController11111')
-        this.log.info(this.app)//TODO 会导致程序崩溃
+
     }
 
     // @After((res) => {

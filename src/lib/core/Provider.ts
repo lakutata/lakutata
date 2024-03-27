@@ -1,9 +1,7 @@
-import {__init, BaseObject} from '../base/BaseObject.js'
+import {__destroy, __init, BaseObject} from '../base/BaseObject.js'
 import {Scoped} from '../../decorators/di/Lifetime.js'
 import {DefineObjectType, ObjectType} from '../base/internal/ObjectType.js'
 import {Application} from './Application.js'
-import {As} from '../functions/As.js'
-import {type Module} from './Module.js'
 
 const APP_LINK: symbol = Symbol('APP.LINK')
 
@@ -31,6 +29,17 @@ export class Provider extends BaseObject {
         await super[__init](...hooks, async () => {
             //Inject app into current instance
             Reflect.defineMetadata(APP_LINK, await this.getObject(Application), this)
+        })
+    }
+
+    /**
+     * Internal destroyer
+     * @param hooks
+     * @protected
+     */
+    protected async [__destroy](...hooks: (() => Promise<void>)[]): Promise<void> {
+        await super[__destroy](...hooks, async (): Promise<void> => {
+            // Reflect.deleteMetadata(APP_LINK, this)
         })
     }
 
