@@ -3,7 +3,7 @@ import {Scoped} from '../../decorators/di/Lifetime.js'
 import {DefineObjectType, ObjectType} from '../base/internal/ObjectType.js'
 import {Application} from './Application.js'
 
-const APP_SYMBOL: symbol = Symbol('APP.LINK')
+// const APP_SYMBOL: symbol = Symbol('APP.LINK')
 
 /**
  * Provider base class
@@ -12,25 +12,25 @@ const APP_SYMBOL: symbol = Symbol('APP.LINK')
 @DefineObjectType(ObjectType.Provider)
 export class Provider extends BaseObject {
 
-    /**
-     * Application getter
-     * @protected
-     */
-    protected get app(): Application {
-        return Reflect.getOwnMetadata(APP_SYMBOL, this)
-    }
-
-    /**
-     * Internal initializer
-     * @param hooks
-     * @protected
-     */
-    protected async [__init](...hooks: (() => Promise<void>)[]): Promise<void> {
-        await super[__init](...hooks, async () => {
-            //Inject app into current instance
-            Reflect.defineMetadata(APP_SYMBOL, await this.getObject(Application), this)
-        })
-    }
+    // /**
+    //  * Application getter
+    //  * @protected
+    //  */
+    // protected get app(): Application {
+    //     return Reflect.getOwnMetadata(APP_SYMBOL, this)
+    // }
+    //
+    // /**
+    //  * Internal initializer
+    //  * @param hooks
+    //  * @protected
+    //  */
+    // protected async [__init](...hooks: (() => Promise<void>)[]): Promise<void> {
+    //     await super[__init](...hooks, async () => {
+    //         //Inject app into current instance
+    //         Reflect.defineMetadata(APP_SYMBOL, await this.getObject(Application), this)
+    //     })
+    // }
     //
     // /**
     //  * Internal destroyer
