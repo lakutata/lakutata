@@ -40,7 +40,11 @@ export class Container {
 
     constructor(parent?: Container, owner?: BaseObject) {
         this.parent = parent
-        this.#dic = parent ? parent.#dic.createScope() : createContainer({injectionMode: 'PROXY', strict: true})
+        this.#dic = parent ? parent.#dic.createScope() : createContainer({
+            injectionMode: 'PROXY',
+            //strict must be false
+            strict: false
+        })
         if (this.parent) this.parent.#subContainerSet.add(this)
         this.#dic.register(containerSymbol, asValue(this))
         if (owner) this.#dic.register(ownerSymbol, asValue(new WeakRef(owner)))
@@ -67,7 +71,7 @@ export class Container {
     protected buildResolverOptions<T extends BaseObject>(target: IBaseObjectConstructor<T>): BuildResolverOptions<T> {
         const objectLifetime: LifetimeType = GetObjectLifetime(target)
         return {
-            lifetime: objectLifetime === 'SINGLETON' ? this.parent ? 'SCOPED' : objectLifetime : objectLifetime,
+            lifetime: objectLifetime,
             dispose: (instance: BaseObject) => this.disposer(instance)
         }
     }

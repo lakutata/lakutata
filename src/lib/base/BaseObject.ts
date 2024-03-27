@@ -231,7 +231,7 @@ export class BaseObject extends AsyncConstructor {
      * @param configurableRecords
      * @protected
      */
-    protected async instantiateObject<T extends BaseObject>(constructor: IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
+    protected async buildObject<T extends BaseObject>(constructor: IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
         return this.#container.build(constructor, configurableRecords)
     }
 

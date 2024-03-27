@@ -116,6 +116,7 @@ import {createWriteStream} from 'node:fs'
             TestController1
         ],
         bootstrap: [
+            'log',
             'testModule',
             'testComponent',
             // async (target): Promise<void> => {

@@ -1,9 +1,11 @@
 import {__init, BaseObject} from '../base/BaseObject.js'
 import {Scoped} from '../../decorators/di/Lifetime.js'
 import {DefineObjectType, ObjectType} from '../base/internal/ObjectType.js'
-import {type Application} from './Application.js'
+import {Application} from './Application.js'
 import {As} from '../functions/As.js'
 import {type Module} from './Module.js'
+
+const APP_LINK: symbol = Symbol('APP.LINK')
 
 /**
  * Provider base class
@@ -17,9 +19,19 @@ export class Provider extends BaseObject {
      * @protected
      */
     protected get app(): Application {
-        let module: Module = this.getModule()
-        while (Reflect.getOwnMetadata(__init, module, __init) !== module) module = module.getModule()
-        return As(module)
+        return Reflect.getOwnMetadata(APP_LINK, this)
+    }
+
+    /**
+     * Internal initializer
+     * @param hooks
+     * @protected
+     */
+    protected async [__init](...hooks: (() => Promise<void>)[]): Promise<void> {
+        await super[__init](...hooks, async () => {
+            //Inject app into current instance
+            Reflect.defineMetadata(APP_LINK, await this.getObject(Application), this)
+        })
     }
 
 }

@@ -1,5 +1,4 @@
 import {Controller} from '../../lib/core/Controller.js'
-import {Application} from '../../lib/core/Application.js'
 import {Inject} from '../../decorators/di/Inject.js'
 import {CLIAction} from '../../decorators/ctrl/CLIAction.js'
 import {HTTPAction} from '../../decorators/ctrl/HTTPAction.js'
@@ -8,11 +7,11 @@ import type {ActionPattern} from '../../types/ActionPattern.js'
 import {Expect} from '../../decorators/dto/Expect.js'
 import {ContextType} from '../../lib/base/Context.js'
 import {ServiceAction} from '../../decorators/ctrl/ServiceAction.js'
-import {Delay} from '../../lib/functions/Delay.js'
 import {HTTPContext} from '../../lib/context/HTTPContext.js'
 import {As} from '../../lib/functions/As.js'
 import {isProxy} from 'node:util/types'
 import {Time} from '../../lib/core/Time.js'
+import {Logger} from '../../components/Logger.js'
 
 class TestDTO extends DTO {
     @Expect(DTO.String().optional())
@@ -24,16 +23,16 @@ class TestDTO extends DTO {
 
 export class TestController1 extends Controller {
 
+    @Inject()
+    protected readonly log: Logger
+
     protected async destroy(): Promise<void> {
         console.log(this.className, 'destroyed')
     }
 
-    @Inject()
-    protected readonly app: Application
-
     protected async init(): Promise<void> {
-        console.log('TestController11111')
-        console.log(this.app)
+        this.log.info('TestController11111')
+        this.log.info(this.app)//TODO 会导致程序崩溃
     }
 
     // @After((res) => {

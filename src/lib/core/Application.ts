@@ -60,27 +60,6 @@ export class Application extends Module {
     }
 
     /**
-     * Internal initializer
-     * @protected
-     */
-    protected async [__init](): Promise<void> {
-        return super[__init](async (): Promise<void> => {
-            //Mark Application as a special module via binding itself to its __init function
-            Reflect.defineMetadata(__init, this, this, __init)
-        })
-    }
-
-    /**
-     * Internal destroyer
-     * @protected
-     */
-    protected async [__destroy](): Promise<void> {
-        console.log('des')
-        await super[__destroy]()
-        //TODO
-    }
-
-    /**
      * Initializer
      * @protected
      */
