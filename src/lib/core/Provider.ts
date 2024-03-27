@@ -31,16 +31,16 @@ export class Provider extends BaseObject {
             Reflect.defineMetadata(APP_LINK, await this.getObject(Application), this)
         })
     }
-
-    /**
-     * Internal destroyer
-     * @param hooks
-     * @protected
-     */
-    protected async [__destroy](...hooks: (() => Promise<void>)[]): Promise<void> {
-        await super[__destroy](...hooks, async (): Promise<void> => {
-            // Reflect.deleteMetadata(APP_LINK, this)
-        })
-    }
+    //
+    // /**
+    //  * Internal destroyer
+    //  * @param hooks
+    //  * @protected
+    //  */
+    // protected async [__destroy](...hooks: (() => Promise<void>)[]): Promise<void> {
+    //     await super[__destroy](...hooks, async (): Promise<void> => {
+    //         // Reflect.deleteMetadata(APP_LINK, this)
+    //     })
+    // }
 
 }
