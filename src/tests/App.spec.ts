@@ -133,10 +133,9 @@ import {
             //     testComponent.on('testComponentEvent', (timeStr: string) => console.log('Receive testComponentEvent    ', timeStr))
             //     testModule.on('testModuleEvent', (timeStr: string) => console.log('Receive testModuleEvent       ', timeStr))
             // },
-            // async (target): Promise<void> => {
-            //     const testController1 = await target.getObject(TestController1)
-            //     await testController1.test('a', 1)
-            // },
+            async (target): Promise<void> => {
+                console.log(target)
+            },
             'entrypoint'
         ]
     })

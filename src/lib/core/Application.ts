@@ -1,11 +1,9 @@
-import {Module} from './Module.js'
+import {Module, MODULE_INITIALIZED} from './Module.js'
 import {Singleton} from '../../decorators/di/Lifetime.js'
 import {Container} from './Container.js'
-import {__destroy, __init} from '../base/BaseObject.js'
 import {ApplicationConfigLoader} from '../base/internal/ApplicationConfigLoader.js'
 import {ApplicationOptions} from '../../options/ApplicationOptions.js'
 import {Alias} from './Alias.js'
-import {MODULE_INIT_DONE} from '../../constants/event-names/ModuleEventName.js'
 import {GetBasicInfo} from '../base/internal/BasicInfo.js'
 import {Entrypoint} from '../../components/Entrypoint.js'
 import {Logger} from '../../components/Logger.js'
@@ -52,7 +50,7 @@ export class Application extends Module {
                 .validateAsync(options)
                 .then((applicationOptions: ApplicationOptions) => rootContainer
                     .set(Application, {options: applicationOptions})
-                    .then((app: Application) => app.once(MODULE_INIT_DONE, () => resolve(app)))
+                    .then((app: Application) => app.once(MODULE_INITIALIZED, () => resolve(app)))
                     .catch(reject)
                 )
                 .catch(reject)

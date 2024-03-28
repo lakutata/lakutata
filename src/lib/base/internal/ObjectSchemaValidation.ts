@@ -3,7 +3,7 @@ import {
     DTO_CONSTRUCTOR,
     DTO_INDEX_SIGNATURE_SCHEMA,
     DTO_PROPERTY_SCHEMAS
-} from '../../../constants/metadata-keys/DTOMetadataKey.js'
+} from '../../../constants/DTOMetadataKey.js'
 import {DataValidator} from './DataValidator.js'
 import {Schema} from '../../validation/types/Schema.js'
 import {ObjectSchema} from '../../validation/interfaces/ObjectSchema.js'

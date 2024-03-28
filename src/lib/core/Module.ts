@@ -8,10 +8,11 @@ import {ModuleConfigLoader} from '../base/internal/ModuleConfigLoader.js'
 import {isAsyncFunction} from 'node:util/types'
 import {Configurable} from '../../decorators/di/Configurable.js'
 import {LoadObjectOptions} from '../../options/LoadObjectOptions.js'
-import {MODULE_INIT_DONE} from '../../constants/event-names/ModuleEventName.js'
 import {As} from '../functions/As.js'
 import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
 import {DefineObjectType, ObjectType} from '../base/internal/ObjectType.js'
+
+export const MODULE_INITIALIZED: symbol = Symbol('MODULE.INITIALIZED')
 
 /**
  * Module base class
@@ -97,7 +98,7 @@ export class Module extends Component {
                     }
                 }
             )
-            this.emit(MODULE_INIT_DONE)
+            this.emit(MODULE_INITIALIZED)
         })
     }
 
@@ -132,7 +133,7 @@ export class Module extends Component {
      */
     public async reload(): Promise<void> {
         await new Promise<void>((resolve, reject): void => {
-            this.once(MODULE_INIT_DONE, () => resolve())
+            this.once(MODULE_INITIALIZED, () => resolve())
             super.reload().catch(reject)
         })
     }

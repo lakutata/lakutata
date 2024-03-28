@@ -1,6 +1,6 @@
 import {Container} from '../../core/Container.js'
 import {BaseObject} from '../BaseObject.js'
-import {DI_TARGET_CONTAINER} from '../../../constants/metadata-keys/DIMetadataKey.js'
+import {DI_TARGET_CONTAINER} from '../../../constants/DIMetadataKey.js'
 
 /**
  * Set container getter

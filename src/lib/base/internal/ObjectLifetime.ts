@@ -2,7 +2,7 @@ import {BaseObject} from '../BaseObject.js'
 import {
     DI_TARGET_CONSTRUCTOR_LIFETIME,
     DI_TARGET_CONSTRUCTOR_LIFETIME_LOCK
-} from '../../../constants/metadata-keys/DIMetadataKey.js'
+} from '../../../constants/DIMetadataKey.js'
 import {LifetimeLockedException} from '../../../exceptions/di/LifetimeLockedException.js'
 import {LifetimeType} from '../../ioc/Lifetime.js'
 
