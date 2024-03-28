@@ -19,124 +19,131 @@ import {
     BuildHTTPEntrypoint,
     BuildServiceEntrypoint
 } from '../components/Entrypoint.js'
+import path from 'node:path'
 
 (async (): Promise<void> => {
-    await Application.env({TEST:'true'}).run({
-        id: 'test.app',
-        name: 'TestApp',
-        timezone: 'auto',
-        components: {
-            testComponent: {
-                class: TestComponent
-            },
-            entrypoint: BuildEntrypoints({
-                http: BuildHTTPEntrypoint((module, routeMap, handler, onDestroy) => {
-                    const fastify = Fastify({
-                        logger: false
-                    })
-                    routeMap.forEach((methods: Set<any>, route: string) => {
-                        methods.forEach(method => {
-                            fastify.route({
-                                url: route,
-                                method: method,
-                                handler: async (request, reply) => {
-                                    const ac = new AbortController()
-                                    reply.raw.on('close', () => {
-                                        console.log('close')
-                                        ac.abort()
-                                    })
-                                    return await handler(new HTTPContext({
-                                        route: request.routeOptions.url!,
-                                        method: request.method,
-                                        request: request.raw,
-                                        response: reply.raw,
-                                        data: {...As<Record<string, string>>(request.query ? request.query : {}), ...As<Record<string, string>>(request.body ? request.body : {})}
-                                    }), ac)
-                                }
+    await Application
+        .env({TEST: '123'})
+        .alias({'@test': '/home'})
+        .run(() => ({
+            id: 'test.app',
+            name: 'TestApp',
+            timezone: 'auto',
+            components: {
+                testComponent: {
+                    class: TestComponent
+                },
+                entrypoint: BuildEntrypoints({
+                    http: BuildHTTPEntrypoint((module, routeMap, handler, onDestroy) => {
+                        const fastify = Fastify({
+                            logger: false
+                        })
+                        routeMap.forEach((methods: Set<any>, route: string) => {
+                            methods.forEach(method => {
+                                fastify.route({
+                                    url: route,
+                                    method: method,
+                                    handler: async (request, reply) => {
+                                        const ac = new AbortController()
+                                        reply.raw.on('close', () => {
+                                            console.log('close')
+                                            ac.abort()
+                                        })
+                                        return await handler(new HTTPContext({
+                                            route: request.routeOptions.url!,
+                                            method: request.method,
+                                            request: request.raw,
+                                            response: reply.raw,
+                                            data: {...As<Record<string, string>>(request.query ? request.query : {}), ...As<Record<string, string>>(request.body ? request.body : {})}
+                                        }), ac)
+                                    }
+                                })
                             })
                         })
-                    })
-                    fastify.listen({port: 3000, host: '0.0.0.0'})
-                    onDestroy(async () => {
-                        await fastify.close()
-                    })
-                }),
-                cli: BuildCLIEntrypoint((module, cliMap, handler, onDestroy) => {
-                    const inf = createInterface({
-                        input: process.stdin,
-                        output: process.stdout
-                    })
-                        .on('SIGINT', () => process.exit(2))
-                        .on('line', input => {
-                            try {
-                                const CLIProgram: Command = new Command().exitOverride()
-                                cliMap.forEach((dtoJsonSchema, command: string) => {
-                                    const cmd = new Command(command).exitOverride()
-                                    for (const p in dtoJsonSchema.properties) {
-                                        const attr = dtoJsonSchema.properties[p]
-                                        cmd.option(`--${p} <${attr.type}>`, attr.description)
-                                    }
-                                    cmd.action((args) => {
-                                        //Handle cli
-                                        handler(new CLIContext({command: command, data: args}))
+                        fastify.listen({port: 3000, host: '0.0.0.0'})
+                        onDestroy(async () => {
+                            await fastify.close()
+                        })
+                    }),
+                    cli: BuildCLIEntrypoint((module, cliMap, handler, onDestroy) => {
+                        const inf = createInterface({
+                            input: process.stdin,
+                            output: process.stdout
+                        })
+                            .on('SIGINT', () => process.exit(2))
+                            .on('line', input => {
+                                try {
+                                    const CLIProgram: Command = new Command().exitOverride()
+                                    cliMap.forEach((dtoJsonSchema, command: string) => {
+                                        const cmd = new Command(command).exitOverride()
+                                        for (const p in dtoJsonSchema.properties) {
+                                            const attr = dtoJsonSchema.properties[p]
+                                            cmd.option(`--${p} <${attr.type}>`, attr.description)
+                                        }
+                                        cmd.action((args) => {
+                                            //Handle cli
+                                            handler(new CLIContext({command: command, data: args}))
+                                        })
+                                        CLIProgram.addCommand(cmd)
                                     })
-                                    CLIProgram.addCommand(cmd)
-                                })
-                                CLIProgram.addCommand(new Command('exit').allowUnknownOption(true).action(() => process.exit()))
-                                CLIProgram.parse(input.split(' '), {from: 'user'})//使用命令行传入的参数进行执行
-                            } catch (e: any) {
-                                DevNull(e)
-                            }
+                                    CLIProgram.addCommand(new Command('exit').allowUnknownOption(true).action(() => process.exit()))
+                                    CLIProgram.parse(input.split(' '), {from: 'user'})//使用命令行传入的参数进行执行
+                                } catch (e: any) {
+                                    DevNull(e)
+                                }
+                            })
+                        onDestroy(() => {
+                            inf.close()
                         })
-                    onDestroy(() => {
-                        inf.close()
-                    })
-                }),
-                service: BuildServiceEntrypoint((module, handler, onDestroy) => {
-                    const httpServer = createServer()
-                    const server = new SocketIOServer()
-                    server.on('connection', socket => {
-                        socket.on('message', async (data, fn) => {
-                            return fn(await handler(new ServiceContext({
-                                data: data
-                            })))
+                    }),
+                    service: BuildServiceEntrypoint((module, handler, onDestroy) => {
+                        const httpServer = createServer()
+                        const server = new SocketIOServer()
+                        server.on('connection', socket => {
+                            socket.on('message', async (data, fn) => {
+                                return fn(await handler(new ServiceContext({
+                                    data: data
+                                })))
+                            })
                         })
-                    })
-                    server.attach(httpServer)
-                    httpServer.listen(3001, '0.0.0.0')
-                    onDestroy(async () => {
-                        server.close()
+                        server.attach(httpServer)
+                        httpServer.listen(3001, '0.0.0.0')
+                        onDestroy(async () => {
+                            server.close()
+                        })
                     })
                 })
-            })
-        },
-        providers: {
-            testProvider: {
-                class: TestProvider
-            }
-        },
-        modules: {
-            testModule: {
-                class: TestModule
-            }
-        },
-        controllers: [
-            TestController1
-        ],
-        bootstrap: [
-            'log',
-            'testModule',
-            'testComponent',
-            // async (target): Promise<void> => {
-            //     const testComponent = await target.getObject<TestComponent>('testComponent')
-            //     const testModule = await target.getObject<TestModule>('testModule')
-            //     testComponent.on('testComponentEvent', (timeStr: string) => console.log('Receive testComponentEvent    ', timeStr))
-            //     testModule.on('testModuleEvent', (timeStr: string) => console.log('Receive testModuleEvent       ', timeStr))
-            // },
-            async (target): Promise<void> => {
-                console.log(target)
             },
-            'entrypoint'
-        ]
-    })
+            providers: {
+                testProvider: {
+                    class: TestProvider,
+                    path: path.resolve('@runtime', './hahahaha')
+                }
+            },
+            modules: {
+                testModule: {
+                    class: TestModule
+                }
+            },
+            controllers: [
+                TestController1
+            ],
+            bootstrap: [
+                'log',
+                'testModule',
+                'testComponent',
+                'testProvider',
+                // async (target): Promise<void> => {
+                //     const testComponent = await target.getObject<TestComponent>('testComponent')
+                //     const testModule = await target.getObject<TestModule>('testModule')
+                //     testComponent.on('testComponentEvent', (timeStr: string) => console.log('Receive testComponentEvent    ', timeStr))
+                //     testModule.on('testModuleEvent', (timeStr: string) => console.log('Receive testModuleEvent       ', timeStr))
+                // },
+                async (target): Promise<void> => {
+                    console.log('alias path test:', path.resolve('@test', './xxxxxx'))
+                    console.log('alias path test:', path.resolve('@runtime', './xxxxxx'))
+                },
+                'entrypoint'
+            ]
+        }))
 })()

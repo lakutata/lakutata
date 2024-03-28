@@ -77,14 +77,15 @@ export class TestController1 extends Controller {
         //     this.app.reload()
         // }, 1000)
 
-        if (this.context.type === ContextType.HTTP) {
-            console.log(isProxy(As<HTTPContext>(this.context).response))
-            As<HTTPContext>(this.context).response.write(new Time().format())
-            As<HTTPContext>(this.context).response.end()
-        } else {
-            // await Delay(3000)
-            return 'oh!!!!!!!!!!'
-        }
+        // if (this.context.type === ContextType.HTTP) {
+        //     console.log(isProxy(As<HTTPContext>(this.context).response))
+        //     As<HTTPContext>(this.context).response.write(new Time().format())
+        //     As<HTTPContext>(this.context).response.end()
+        // } else {
+        //     // await Delay(3000)
+        //     return 'oh!!!!!!!!!!'
+        // }
+        return 'oh!!!!!!!!!!' + this.getEnv('TEST', 'abcd')
     }
 
 }

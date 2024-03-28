@@ -33,13 +33,4 @@ export class ApplicationOptions extends ModuleOptions {
         .default('development'))
     public readonly mode?: 'development' | 'production'
 
-    /**
-     * Path alias
-     */
-    @Expect(DTO.Object()
-        .pattern(DTO.String(), DTO.String())
-        .optional()
-        .default({}))
-    public readonly alias?: Record<string, string>
-
 }

@@ -32,6 +32,7 @@ export class Alias {
      * Get alias manager instance
      */
     public static getAliasInstance(): Alias {
+        if (!Reflect.hasOwnMetadata(this, this)) this.init()
         return Reflect.getMetadata(this, this)
     }
 

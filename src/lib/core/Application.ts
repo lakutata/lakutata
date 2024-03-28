@@ -7,6 +7,8 @@ import {Alias} from './Alias.js'
 import {GetBasicInfo} from '../base/internal/BasicInfo.js'
 import {Entrypoint} from '../../components/Entrypoint.js'
 import {Logger} from '../../components/Logger.js'
+import {Accept} from '../../decorators/dto/Accept.js'
+import {DTO} from './DTO.js'
 
 const RCTNR: symbol = Symbol('ROOT_CONTAINER')
 
@@ -31,9 +33,6 @@ export class Application extends Module {
             entrypoint: {
                 class: Entrypoint
             }
-        },
-        alias: {
-            '@runtime': process.cwd()
         }
     }
 
@@ -41,19 +40,38 @@ export class Application extends Module {
      * Set environment variables
      * @param env
      */
+    @Accept(DTO.Object().pattern(DTO.String(), DTO.String()))
     public static env(env: Record<string, string>): typeof Application {
         Object.keys(env).forEach((key: string) => process.env[key] = env[key])
         return this
     }
 
     /**
-     * Run application
+     * Register path aliases
+     * @param alias
+     */
+    @Accept(DTO.Object().pattern(DTO.String(), DTO.String()))
+    public static alias(alias: Record<string, string>): typeof Application {
+        const aliasManager: Alias = Alias.getAliasInstance()
+        const aliases: Record<string, string> = alias ? alias : {}
+        Object.keys(aliases).forEach((aliasName: string) => aliasManager.set(aliasName, aliases[aliasName]))
+        return this
+    }
+
+    /**
+     * Run application with options object
      * @param options
      */
-    public static async run(options: ApplicationOptions): Promise<Application> {
-        Alias.init()
+    public static async run(options: ApplicationOptions): Promise<Application>
+    /**
+     * Run application with options getter
+     * @param optionsGetter
+     */
+    public static async run(optionsGetter: () => ApplicationOptions | Promise<ApplicationOptions>): Promise<Application>
+    public static async run(inp: ApplicationOptions | (() => ApplicationOptions | Promise<ApplicationOptions>)): Promise<Application> {
         //Alias registration must be done before application container create
-        ApplicationConfigLoader.registerAlias(options)
+        this.alias({'@runtime': process.cwd()})
+        const options: ApplicationOptions = typeof inp === 'object' ? inp : await inp()
         const rootContainer: Container = new Container()
         Reflect.defineMetadata(RCTNR, rootContainer, Application)
         return new Promise((resolve, reject): void => {
