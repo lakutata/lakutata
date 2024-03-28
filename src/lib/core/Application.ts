@@ -9,12 +9,23 @@ import {Entrypoint} from '../../components/Entrypoint.js'
 import {Logger} from '../../components/Logger.js'
 import {Accept} from '../../decorators/dto/Accept.js'
 import {DTO} from './DTO.js'
+import {mkdirSync} from 'fs'
 import path from 'node:path'
+import {existsSync} from 'node:fs'
 
 const RCTNR: symbol = Symbol('ROOT_CONTAINER')
 
 @Singleton(true)
 export class Application extends Module {
+
+    /**
+     * Alias declarations
+     * @protected
+     */
+    protected static readonly aliasDeclarations: {
+        alias: Record<string, string>
+        createIfNotExist: boolean
+    }[] = []
 
     /**
      * Override config loader
@@ -56,11 +67,9 @@ export class Application extends Module {
         DTO.Object().pattern(DTO.String(), DTO.String()).required(),
         DTO.Boolean().optional().default(false))
     public static alias(alias: Record<string, string>, createIfNotExist: boolean = false): typeof Application {
-        const aliasManager: Alias = Alias.getAliasInstance()
-        const aliases: Record<string, string> = alias ? alias : {}
-        Object.keys(aliases).forEach((aliasName: string) => {
-            aliasManager.set(aliasName, aliases[aliasName])
-            console.log('========',path.resolve(aliasName))
+        this.aliasDeclarations.push({
+            alias: alias ? alias : {},
+            createIfNotExist: createIfNotExist
         })
         return this
     }
@@ -77,7 +86,19 @@ export class Application extends Module {
     public static async run(optionsGetter: () => ApplicationOptions | Promise<ApplicationOptions>): Promise<Application>
     public static async run(inp: ApplicationOptions | (() => ApplicationOptions | Promise<ApplicationOptions>)): Promise<Application> {
         //Alias registration must be done before application container create
-        this.alias({'@runtime': process.cwd()})
+        const aliasManager: Alias = Alias.getAliasInstance()
+        aliasManager.set('@runtime', process.cwd())
+        this.aliasDeclarations.forEach(aliasDeclaration => {
+            const aliases: Record<string, string> = aliasDeclaration.alias
+            const createIfNotExist: boolean = aliasDeclaration.createIfNotExist
+            Object.keys(aliases).forEach((aliasName: string) => {
+                aliasManager.set(aliasName, aliases[aliasName])
+                if (createIfNotExist) {
+                    const realPath: string = path.resolve(aliasName)
+                    if (!existsSync(realPath)) mkdirSync(path.resolve(aliasName), {recursive: true})
+                }
+            })
+        })
         const options: ApplicationOptions = typeof inp === 'object' ? inp : await inp()
         const rootContainer: Container = new Container()
         Reflect.defineMetadata(RCTNR, rootContainer, Application)
