@@ -5,8 +5,17 @@ import {ApplicationOptions} from '../../../options/ApplicationOptions.js'
 import {SetBasicInfo} from './BasicInfo.js'
 import {Application} from '../../core/Application.js'
 
+/**
+ * Application configurations loader
+ */
 export class ApplicationConfigLoader extends ModuleConfigLoader {
 
+    /**
+     * Constructor
+     * @param app
+     * @param applicationOptions
+     * @param presetLoadOptions
+     */
     constructor(app: Application, applicationOptions: ApplicationOptions, presetLoadOptions: (LoadObjectOptions | typeof BaseObject | string)[] = []) {
         if (ApplicationOptions.isValid(applicationOptions)) {
             process.title = SetBasicInfo({

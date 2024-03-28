@@ -18,6 +18,9 @@ import {ArrayToSet} from '../../functions/ArrayToSet.js'
 import {SetToArray} from '../../functions/SetToArray.js'
 import {BindControllerToModule} from './ControllerEntrypoint.js'
 
+/**
+ * Module configurations loader
+ */
 export class ModuleConfigLoader {
 
     protected readonly $module: Module
@@ -28,6 +31,12 @@ export class ModuleConfigLoader {
 
     protected readonly $bootstrap: BootstrapOption[] = []
 
+    /**
+     * Constructor
+     * @param module
+     * @param moduleOptions
+     * @param presetLoadOptions
+     */
     constructor(module: Module, moduleOptions: ModuleOptions, presetLoadOptions: (LoadObjectOptions | typeof BaseObject | string)[] = []) {
         this.$module = module
         this.$presetLoadOptionsSet = ArrayToSet(presetLoadOptions)
