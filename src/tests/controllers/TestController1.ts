@@ -72,9 +72,10 @@ export class TestController1 extends Controller {
         if (this.context.type === ContextType.CLI) console.log('cli!')
         console.log(inp, this.context.type)
 
-        setTimeout(() => {
-            this.app.reload()
-        }, 1000)
+        // //Reload app
+        // setTimeout(() => {
+        //     this.app.reload()
+        // }, 1000)
 
         if (this.context.type === ContextType.HTTP) {
             console.log(isProxy(As<HTTPContext>(this.context).response))

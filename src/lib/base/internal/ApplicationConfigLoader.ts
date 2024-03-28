@@ -9,11 +9,6 @@ import {Application} from '../../core/Application.js'
 export class ApplicationConfigLoader extends ModuleConfigLoader {
 
     constructor(app: Application, applicationOptions: ApplicationOptions, presetLoadOptions: (LoadObjectOptions | typeof BaseObject | string)[] = []) {
-        const alias: Alias = Alias.getAliasInstance()
-        if (applicationOptions.alias) {
-            const aliases: Record<string, string> = applicationOptions.alias ? applicationOptions.alias : {}
-            Object.keys(aliases).forEach((aliasName: string) => alias.set(aliasName, aliases[aliasName]))
-        }
         if (ApplicationOptions.isValid(applicationOptions)) {
             process.title = SetBasicInfo({
                 appId: applicationOptions.id,
@@ -23,5 +18,17 @@ export class ApplicationConfigLoader extends ModuleConfigLoader {
             }).appId
         }
         super(app, applicationOptions, presetLoadOptions)
+    }
+
+    /**
+     * Register alias
+     * @param applicationOptions
+     */
+    public static registerAlias(applicationOptions: ApplicationOptions): void {
+        const alias: Alias = Alias.getAliasInstance()
+        if (applicationOptions.alias) {
+            const aliases: Record<string, string> = applicationOptions.alias ? applicationOptions.alias : {}
+            Object.keys(aliases).forEach((aliasName: string) => alias.set(aliasName, aliases[aliasName]))
+        }
     }
 }

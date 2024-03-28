@@ -43,6 +43,8 @@ export class Application extends Module {
      */
     public static async run(options: ApplicationOptions): Promise<Application> {
         Alias.init()
+        //Alias registration must be done before application container create
+        ApplicationConfigLoader.registerAlias(options)
         const rootContainer: Container = new Container()
         Reflect.defineMetadata(RCTNR, rootContainer, Application)
         return new Promise((resolve, reject): void => {
@@ -63,6 +65,7 @@ export class Application extends Module {
      */
     protected async init(): Promise<void> {
         //TODO
+
     }
 
     /**
