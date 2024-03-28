@@ -390,7 +390,6 @@ function createInjectorProxy<T extends object>(
         ...Reflect.ownKeys(container.cradle),
         ...Reflect.ownKeys(locals)
     ])
-    // TODO: Lots of duplication here from the container proxy.
     // Need to refactor.
     const proxy = new Proxy(
         {},
