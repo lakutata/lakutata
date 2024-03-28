@@ -131,7 +131,7 @@ export class Time extends Date {
             this.#instance = this.#instance.tz(tz)
             return this
         } else {
-            return this.#instance.tz()
+            return this.#instance.tz() || process.env.TZ
         }
     }
 
