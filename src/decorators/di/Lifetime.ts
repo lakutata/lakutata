@@ -18,6 +18,24 @@ export function Lifetime<ClassConstructor extends typeof BaseObject>(lifetime: L
  * @param lock
  * @constructor
  */
+export function ApplicationSingleton<ClassConstructor extends typeof BaseObject>(lock: boolean = false): ClassDecorator<ClassConstructor> {
+    return Lifetime('APPLICATION_SINGLETON', lock)
+}
+
+/**
+ * Class Decorator
+ * @param lock
+ * @constructor
+ */
+export function ModuleSingleton<ClassConstructor extends typeof BaseObject>(lock: boolean = false): ClassDecorator<ClassConstructor> {
+    return Lifetime('MODULE_SINGLETON', lock)
+}
+
+/**
+ * Class Decorator
+ * @param lock
+ * @constructor
+ */
 export function Singleton<ClassConstructor extends typeof BaseObject>(lock: boolean = false): ClassDecorator<ClassConstructor> {
     return Lifetime('SINGLETON', lock)
 }

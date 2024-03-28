@@ -19,7 +19,6 @@ import {
     BuildHTTPEntrypoint,
     BuildServiceEntrypoint
 } from '../components/Entrypoint.js'
-import {createWriteStream} from 'node:fs'
 
 (async (): Promise<void> => {
     await Application.run({

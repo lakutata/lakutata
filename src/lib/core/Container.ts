@@ -151,6 +151,8 @@ export class Container {
         return owner ? owner.deref() : undefined
     }
 
+    protected injectionNames: Set<string | symbol> = new Set()
+
     /**
      * Load objects
      * @param options
@@ -178,7 +180,11 @@ export class Container {
                 pair = {..._pair, ...pair}
             })
         }
-        if (!IsEmptyObject(pair)) this.#dic.register(pair)
+        if (!IsEmptyObject(pair)) {
+            Object.getOwnPropertyNames(pair).forEach(value => this.injectionNames.add(value))
+            Object.getOwnPropertySymbols(pair).forEach(value => this.injectionNames.add(value))
+            this.#dic.register(pair)
+        }
     }
 
     /**
@@ -219,7 +225,16 @@ export class Container {
                 class: As<typeof BaseObject>(inp)
             }])
         }
-        return await this.processResolved(this.#dic.resolve(registrationName), registrationName, configurableRecords)
+        return (
+            (
+                this.#dic.getRegistration(registrationName)?.lifetime === 'SINGLETON'
+                || this.#dic.getRegistration(registrationName)?.lifetime === 'MODULE_SINGLETON'
+            )
+            && !this.injectionNames.has(registrationName)
+            && this.parent
+        )
+            ? await this.parent.get(registrationName, configurableRecords)
+            : await this.processResolved(this.#dic.resolve(registrationName), registrationName, configurableRecords)
     }
 
     /**
@@ -275,7 +290,7 @@ export class Container {
      * Create sub container scope
      */
     public createScope(): Container {
-        return new Container(this,this.owner())
+        return new Container(this, this.owner())
     }
 
     /**

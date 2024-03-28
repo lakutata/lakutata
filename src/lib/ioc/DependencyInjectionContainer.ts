@@ -564,8 +564,8 @@ function createContainerInternal<
                     // Transient lifetime means resolve every time.
                     resolved = resolver.resolve(container)
                     break
-                case Lifetime.SINGLETON:
-                    // Singleton lifetime means cache at all times, regardless of scope.
+                case Lifetime.APPLICATION_SINGLETON:
+                    // Application-Singleton lifetime means cache at all times, regardless of scope.
                     cached = rootContainer.cache.get(name)
                     if (!cached) {
                         // if we are running in strict mode, perform singleton resolution using the root
@@ -577,6 +577,20 @@ function createContainerInternal<
                     } else {
                         resolved = cached.value
                     }
+                    break
+                case Lifetime.MODULE_SINGLETON:
+                case Lifetime.SINGLETON:
+                    //Outside container class will handle it, just implement as SCOPED in here
+                    cached = container.cache.get(name)
+                    if (cached !== undefined) {
+                        // We found one!
+                        resolved = cached.value
+                        break
+                    }
+
+                    // If we still have not found one, we need to resolve and cache it.
+                    resolved = resolver.resolve(container)
+                    container.cache.set(name, {resolver, value: resolved})
                     break
                 case Lifetime.SCOPED:
                     // Scoped lifetime means that the container

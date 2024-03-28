@@ -1,14 +1,26 @@
 /**
  * Lifetime type.
  */
-export type LifetimeType = 'SINGLETON' | 'TRANSIENT' | 'SCOPED'
+export type LifetimeType = 'APPLICATION_SINGLETON' | 'MODULE_SINGLETON' | 'SINGLETON' | 'TRANSIENT' | 'SCOPED'
 
 /**
  * Lifetime types.
  */
 export const Lifetime: Record<LifetimeType, LifetimeType> = {
     /**
-     * The registration will be resolved once and only once.
+     * The registration will be resolved once and only once in current application.
+     * @type {String}
+     */
+    APPLICATION_SINGLETON: 'APPLICATION_SINGLETON',
+
+    /**
+     * The registration will be resolved once and only once in current module.
+     * @type {String}
+     */
+    MODULE_SINGLETON: 'MODULE_SINGLETON',
+
+    /**
+     * Alias for MODULE_SINGLETON
      * @type {String}
      */
     SINGLETON: 'SINGLETON',
@@ -30,8 +42,12 @@ export const Lifetime: Record<LifetimeType, LifetimeType> = {
  * Returns true if and only if the first lifetime is strictly longer than the second.
  */
 export function isLifetimeLonger(a: LifetimeType, b: LifetimeType): boolean {
+    const alt: LifetimeType = a === 'SINGLETON' ? 'MODULE_SINGLETON' : a
+    const blt: LifetimeType = b === 'SINGLETON' ? 'MODULE_SINGLETON' : b
     return (
-        (a === Lifetime.SINGLETON && b !== Lifetime.SINGLETON) ||
-        (a === Lifetime.SCOPED && b === Lifetime.TRANSIENT)
+        (alt === Lifetime.APPLICATION_SINGLETON && blt !== Lifetime.APPLICATION_SINGLETON) ||
+        (alt === Lifetime.MODULE_SINGLETON && blt === Lifetime.SCOPED) ||
+        (alt === Lifetime.MODULE_SINGLETON && blt === Lifetime.TRANSIENT) ||
+        (alt === Lifetime.SCOPED && blt === Lifetime.TRANSIENT)
     )
 }
