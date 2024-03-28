@@ -70,7 +70,7 @@ export class Time extends Date {
                 : process.env.TZ
                     ? MomentTimezone(inp).tz(process.env.TZ)
                     : MomentTimezone(inp))
-            : MomentTimezone()
+            : MomentTimezone().tz(process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone)
         super(instance.valueOf())
         this.#instance = instance
     }
@@ -131,7 +131,7 @@ export class Time extends Date {
             this.#instance = this.#instance.tz(tz)
             return this
         } else {
-            return this.#instance.tz() || process.env.TZ
+            return this.#instance.tz()
         }
     }
 
