@@ -30,7 +30,7 @@ import {
                 class: TestComponent
             },
             entrypoint: BuildEntrypoints({
-                http: BuildHTTPEntrypoint((module, routeMap, handler) => {
+                http: BuildHTTPEntrypoint((module, routeMap, handler, onDestroy) => {
                     const fastify = Fastify({
                         logger: false
                     })
@@ -57,9 +57,12 @@ import {
                         })
                     })
                     fastify.listen({port: 3000, host: '0.0.0.0'})
+                    onDestroy(async () => {
+                        await fastify.close()
+                    })
                 }),
-                cli: BuildCLIEntrypoint((module, cliMap, handler) => {
-                    createInterface({
+                cli: BuildCLIEntrypoint((module, cliMap, handler, onDestroy) => {
+                    const inf = createInterface({
                         input: process.stdin,
                         output: process.stdout
                     })
@@ -85,8 +88,11 @@ import {
                                 DevNull(e)
                             }
                         })
+                    onDestroy(() => {
+                        inf.close()
+                    })
                 }),
-                service: BuildServiceEntrypoint((module, handler) => {
+                service: BuildServiceEntrypoint((module, handler, onDestroy) => {
                     const httpServer = createServer()
                     const server = new SocketIOServer()
                     server.on('connection', socket => {
@@ -98,6 +104,9 @@ import {
                     })
                     server.attach(httpServer)
                     httpServer.listen(3001, '0.0.0.0')
+                    onDestroy(async () => {
+                        server.close()
+                    })
                 })
             })
         },

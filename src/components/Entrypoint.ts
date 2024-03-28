@@ -28,9 +28,9 @@ export {CLIContext} from '../lib/context/CLIContext.js'
 export {HTTPContext} from '../lib/context/HTTPContext.js'
 export {ServiceContext} from '../lib/context/ServiceContext.js'
 
-export type CLIEntrypoint = (module: Module, cliMap: CLIMap, handler: CLIEntrypointHandler) => void
-export type HTTPEntrypoint = (module: Module, routeMap: HTTPRouteMap, handler: HTTPEntrypointHandler) => void
-export type ServiceEntrypoint = (module: Module, handler: ServiceEntrypointHandler) => void
+export type CLIEntrypoint = (module: Module, cliMap: CLIMap, handler: CLIEntrypointHandler, registerDestroy: RegisterEntrypointDestroyer) => void
+export type HTTPEntrypoint = (module: Module, routeMap: HTTPRouteMap, handler: HTTPEntrypointHandler, registerDestroy: RegisterEntrypointDestroyer) => void
+export type ServiceEntrypoint = (module: Module, handler: ServiceEntrypointHandler, registerDestroy: RegisterEntrypointDestroyer) => void
 
 export type CLIMap = Map<string, JSONSchema>
 export type HTTPRouteMap<HTTPMethods = string> = Map<string, Set<HTTPMethods>>
@@ -38,6 +38,9 @@ export type HTTPRouteMap<HTTPMethods = string> = Map<string, Set<HTTPMethods>>
 export type CLIEntrypointHandler<T = unknown> = (context: CLIContext, abortController?: AbortController) => Promise<T>
 export type HTTPEntrypointHandler<T = unknown> = (context: HTTPContext, abortController?: AbortController) => Promise<T>
 export type ServiceEntrypointHandler<T = unknown> = (context: ServiceContext, abortController?: AbortController) => Promise<T>
+
+export type EntrypointDestroyer = () => void | Promise<void>
+export type RegisterEntrypointDestroyer = (destroyer: EntrypointDestroyer) => void
 
 export type EntrypointOptions = {
     cli?: CLIEntrypoint | CLIEntrypoint[]
@@ -92,6 +95,8 @@ export class Entrypoint extends Component {
 
     protected readonly ServiceActionPatternManager: PatternManager = new PatternManager()
 
+    protected readonly entrypointDestroyers: EntrypointDestroyer[] = []
+
     @Configurable()
     public cli?: CLIEntrypoint | CLIEntrypoint[]
 
@@ -100,6 +105,7 @@ export class Entrypoint extends Component {
 
     @Configurable()
     public service?: ServiceEntrypoint | ServiceEntrypoint[]
+
 
     /**
      * Initializer
@@ -122,6 +128,14 @@ export class Entrypoint extends Component {
         this.register(this.service, (entrypoint: ServiceEntrypoint) => this.registerServiceEntrypoint(entrypoint))
         this.register(this.cli, (entrypoint: CLIEntrypoint) => this.registerCLIEntrypoint(entrypoint))
         this.register(this.http, (entrypoint: HTTPEntrypoint) => this.registerHTTPEntrypoint(entrypoint))
+    }
+
+    /**
+     * Destroyer
+     * @protected
+     */
+    protected async destroy(): Promise<void> {
+        await Promise.all(this.entrypointDestroyers.map((destroyer: EntrypointDestroyer) => new Promise((resolve, reject) => Promise.resolve(destroyer()).then(resolve).catch(reject))))
     }
 
     /**
@@ -215,7 +229,7 @@ export class Entrypoint extends Component {
             const details: ActionDetails | null = this.CLIActionPatternManager.find(actionPattern)
             if (!details) throw new ControllerActionNotFoundException('Command not found')
             return await this.runControllerMethod(details, context, details.dtoConstructor, abortController)
-        })
+        }, (destroyer: EntrypointDestroyer) => this.entrypointDestroyers.push(destroyer))
     }
 
     /**
@@ -238,7 +252,7 @@ export class Entrypoint extends Component {
             const details: ActionDetails | null = this.HTTPActionPatternManager.find(actionPattern)
             if (!details) throw new ControllerActionNotFoundException('Route \'{route}\' not found', context)
             return await this.runControllerMethod(details, context, details.dtoConstructor, abortController)
-        })
+        }, (destroyer: EntrypointDestroyer) => this.entrypointDestroyers.push(destroyer))
     }
 
     /**
@@ -261,6 +275,6 @@ export class Entrypoint extends Component {
                 if (target && !Object.keys(target).length) unset(context.data, path)
             })
             return await this.runControllerMethod(details, context, details.dtoConstructor, abortController)
-        })
+        }, (destroyer: EntrypointDestroyer) => this.entrypointDestroyers.push(destroyer))
     }
 }
