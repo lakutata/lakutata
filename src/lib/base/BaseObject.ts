@@ -51,6 +51,8 @@ export class BaseObject extends AsyncConstructor {
 
     #uniqueId: string = randomUUID()
 
+    #internalInitialized: boolean = false
+
     /**
      * Load configurable records
      * @private
@@ -151,10 +153,14 @@ export class BaseObject extends AsyncConstructor {
      * @protected
      */
     protected async [__init](...hooks: (() => Promise<void>)[]): Promise<void> {
-        //Apply object injection
-        await this.#applyInjection()
-        //Load and apply configurable records to current object's property
-        await this.#loadConfigurableRecords()
+        this.#container.registerContainerToItsParent()
+        if (!this.#internalInitialized) {
+            //Apply object injection
+            await this.#applyInjection()
+            //Load and apply configurable records to current object's property
+            await this.#loadConfigurableRecords()
+            this.#internalInitialized = true
+        }
         //Execute hooks
         for (const hook of hooks) await hook()
         //Execute normal initializer

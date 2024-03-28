@@ -294,10 +294,16 @@ export class Container {
     }
 
     /**
-     * Destroy current container
+     * Register current container to its parent subContainerSet
      */
-    public async destroy(): Promise<void> {
-        if (this.parent) this.parent.#subContainerSet.delete(this)
+    public registerContainerToItsParent(): void {
+        if (this.parent) this.parent.#subContainerSet.add(this)
+    }
+
+    /**
+     * Clear current container but not destroy it
+     */
+    public async clear(): Promise<void> {
         const destroySubContainerPromises: Promise<void>[] = []
         this.#subContainerSet.forEach((subContainer: Container) =>
             destroySubContainerPromises.push(new Promise((resolve, reject) =>
@@ -317,5 +323,13 @@ export class Container {
         })
         await Promise.all(destroyTransientPromises)
         ClearObjectWeakRefs(this.#dic)
+    }
+
+    /**
+     * Destroy current container
+     */
+    public async destroy(): Promise<void> {
+        if (this.parent) this.parent.#subContainerSet.delete(this)
+        await this.clear()
     }
 }
