@@ -24,7 +24,10 @@ import path from 'node:path'
 (async (): Promise<void> => {
     await Application
         .env({TEST: '123'})
-        .alias({'@test': '/home'})
+        .alias({
+            '@test': path.resolve(__dirname, './xxxxx'),
+            '@test2': '@test/kkkkkkkk'
+        }, true)
         .run(() => ({
             id: 'test.app',
             name: 'TestApp',
@@ -140,8 +143,8 @@ import path from 'node:path'
                 //     testModule.on('testModuleEvent', (timeStr: string) => console.log('Receive testModuleEvent       ', timeStr))
                 // },
                 async (target): Promise<void> => {
-                    console.log('alias path test:', path.resolve('@test', './xxxxxx'))
-                    console.log('alias path test:', path.resolve('@runtime', './xxxxxx'))
+                    // console.log('alias path test:', path.resolve('@test', './xxxxxx'))
+                    // console.log('alias path test:', path.resolve('@runtime', './xxxxxx'))
                 },
                 'entrypoint'
             ]

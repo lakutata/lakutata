@@ -81,12 +81,21 @@ export class Alias {
      */
     public resolve(containAliasPath: string): string {
         let isContainsAlias: boolean = true
+        const aliases: {
+            name: string
+            path: string
+        }[] = []
+        this.aliasMap.forEach((aliasPath: string, aliasName: string) => aliases.push({
+            name: aliasName,
+            path: aliasPath
+        }))
+        aliases.sort((a, b) => a.name.length < b.name.length ? 1 : -1)
         while (isContainsAlias) {
             let _isContainsAlias: boolean = false
-            this.aliasMap.forEach((aliasPath: string, aliasName: string) => {
-                if (containAliasPath.includes(aliasName)) {
+            aliases.forEach(({name, path}) => {
+                if (containAliasPath.includes(name)) {
                     _isContainsAlias = true
-                    containAliasPath = containAliasPath.replace(aliasName, aliasPath)
+                    containAliasPath = containAliasPath.replace(name, path)
                 }
             })
             isContainsAlias = _isContainsAlias

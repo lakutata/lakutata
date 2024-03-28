@@ -9,6 +9,7 @@ import {Entrypoint} from '../../components/Entrypoint.js'
 import {Logger} from '../../components/Logger.js'
 import {Accept} from '../../decorators/dto/Accept.js'
 import {DTO} from './DTO.js'
+import path from 'node:path'
 
 const RCTNR: symbol = Symbol('ROOT_CONTAINER')
 
@@ -40,7 +41,7 @@ export class Application extends Module {
      * Set environment variables
      * @param env
      */
-    @Accept(DTO.Object().pattern(DTO.String(), DTO.String()))
+    @Accept(DTO.Object().pattern(DTO.String(), DTO.String()).required())
     public static env(env: Record<string, string>): typeof Application {
         Object.keys(env).forEach((key: string) => process.env[key] = env[key])
         return this
@@ -49,12 +50,18 @@ export class Application extends Module {
     /**
      * Register path aliases
      * @param alias
+     * @param createIfNotExist
      */
-    @Accept(DTO.Object().pattern(DTO.String(), DTO.String()))
-    public static alias(alias: Record<string, string>): typeof Application {
+    @Accept(
+        DTO.Object().pattern(DTO.String(), DTO.String()).required(),
+        DTO.Boolean().optional().default(false))
+    public static alias(alias: Record<string, string>, createIfNotExist: boolean = false): typeof Application {
         const aliasManager: Alias = Alias.getAliasInstance()
         const aliases: Record<string, string> = alias ? alias : {}
-        Object.keys(aliases).forEach((aliasName: string) => aliasManager.set(aliasName, aliases[aliasName]))
+        Object.keys(aliases).forEach((aliasName: string) => {
+            aliasManager.set(aliasName, aliases[aliasName])
+            console.log('========',path.resolve(aliasName))
+        })
         return this
     }
 
