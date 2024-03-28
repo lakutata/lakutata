@@ -21,7 +21,7 @@ import {
 } from '../components/Entrypoint.js'
 
 (async (): Promise<void> => {
-    await Application.run({
+    await Application.env({TEST:'true'}).run({
         id: 'test.app',
         name: 'TestApp',
         timezone: 'auto',

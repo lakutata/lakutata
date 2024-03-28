@@ -38,6 +38,15 @@ export class Application extends Module {
     }
 
     /**
+     * Set environment variables
+     * @param env
+     */
+    public static env(env: Record<string, string>): typeof Application {
+        Object.keys(env).forEach((key: string) => process.env[key] = env[key])
+        return this
+    }
+
+    /**
      * Run application
      * @param options
      */
