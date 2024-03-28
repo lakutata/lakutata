@@ -28,9 +28,9 @@ export {CLIContext} from '../lib/context/CLIContext.js'
 export {HTTPContext} from '../lib/context/HTTPContext.js'
 export {ServiceContext} from '../lib/context/ServiceContext.js'
 
-export type CLIEntrypoint = (module: Module, cliMap: CLIMap, handler: CLIEntrypointHandler, registerDestroy: RegisterEntrypointDestroyer) => void
-export type HTTPEntrypoint = (module: Module, routeMap: HTTPRouteMap, handler: HTTPEntrypointHandler, registerDestroy: RegisterEntrypointDestroyer) => void
-export type ServiceEntrypoint = (module: Module, handler: ServiceEntrypointHandler, registerDestroy: RegisterEntrypointDestroyer) => void
+export type CLIEntrypoint = (module: Module, cliMap: CLIMap, handler: CLIEntrypointHandler, registerDestroy: EntrypointDestroyerRegistrar) => void
+export type HTTPEntrypoint = (module: Module, routeMap: HTTPRouteMap, handler: HTTPEntrypointHandler, registerDestroy: EntrypointDestroyerRegistrar) => void
+export type ServiceEntrypoint = (module: Module, handler: ServiceEntrypointHandler, registerDestroy: EntrypointDestroyerRegistrar) => void
 
 export type CLIMap = Map<string, JSONSchema>
 export type HTTPRouteMap<HTTPMethods = string> = Map<string, Set<HTTPMethods>>
@@ -40,7 +40,7 @@ export type HTTPEntrypointHandler<T = unknown> = (context: HTTPContext, abortCon
 export type ServiceEntrypointHandler<T = unknown> = (context: ServiceContext, abortController?: AbortController) => Promise<T>
 
 export type EntrypointDestroyer = () => void | Promise<void>
-export type RegisterEntrypointDestroyer = (destroyer: EntrypointDestroyer) => void
+export type EntrypointDestroyerRegistrar = (destroyer: EntrypointDestroyer) => void
 
 export type EntrypointOptions = {
     cli?: CLIEntrypoint | CLIEntrypoint[]
