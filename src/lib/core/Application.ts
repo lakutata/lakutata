@@ -15,11 +15,26 @@ import {existsSync} from 'node:fs'
 import {As} from '../functions/As.js'
 import {EventEmitter} from '../base/EventEmitter.js'
 
+/**
+ * OnLaunched event handler
+ */
 export type LaunchedHandler = (app: Application, logger: Logger) => void | Promise<void>
+/**
+ * OnDone event handler
+ */
 export type DoneHandler = (app: Application, logger: Logger) => void | Promise<void>
+/**
+ * OnUncaughtException event handler
+ */
 export type UncaughtExceptionHandler = (error: Error, logger: Logger) => number | undefined | void | Promise<number | undefined | void>
+/**
+ * OnFatalException event handler
+ */
 export type FatalExceptionHandler = (error: Error, logger: Logger) => number | undefined | void | Promise<number | undefined | void>
 
+/**
+ * Application states
+ */
 export enum ApplicationState {
     Launched = 'LAUNCHED',
     Done = 'DONE',
@@ -27,6 +42,9 @@ export enum ApplicationState {
     FatalException = 'FATAL_EXCEPTION'
 }
 
+/**
+ * Application module
+ */
 @Singleton(true)
 export class Application extends Module {
 
@@ -69,6 +87,14 @@ export class Application extends Module {
      * @protected
      */
     protected static launchTimeout: NodeJS.Timeout
+
+    /**
+     * Get logger
+     * @protected
+     */
+    protected static async getLogger(): Promise<Logger> {
+        return this.appInstance ? await this.appInstance.getObject('log') : await new Container().set(Logger)
+    }
 
     /**
      * Set environment variables
@@ -120,7 +146,7 @@ export class Application extends Module {
      */
     public static onUncaughtException(handler: UncaughtExceptionHandler): typeof Application {
         this.eventEmitter.on(ApplicationState.UncaughtException, async (error: Error) => {
-            const logger: Logger = this.appInstance ? await this.appInstance.getObject('log') : await new Container().set(Logger)
+            const logger: Logger = await this.getLogger()
             await handler(error, logger)
         })
         return this.launch()
@@ -132,7 +158,7 @@ export class Application extends Module {
      */
     public static onFatalException(handler: FatalExceptionHandler): typeof Application {
         this.eventEmitter.once(ApplicationState.FatalException, async (error: Error) => {
-            const logger: Logger = this.appInstance ? await this.appInstance.getObject('log') : await new Container().set(Logger)
+            const logger: Logger = await this.getLogger()
             let exitCode: number | undefined | void = await handler(error, logger)
             if (typeof exitCode !== 'number') exitCode = 1
             return process.exit(exitCode)
@@ -165,17 +191,32 @@ export class Application extends Module {
             process.on('uncaughtException', async (error: Error) => {
                 if (this.eventEmitter.listenerCount(ApplicationState.UncaughtException))
                     return this.eventEmitter.emit(ApplicationState.UncaughtException, error)
-                const logger: Logger | undefined = await this.appInstance?.getObject<Logger>('log')
-                const uncaughtExceptionError: Error = new Error('UncaughtException', {cause: error})
-                return logger ? logger.warn(uncaughtExceptionError) : console.warn(uncaughtExceptionError)
+                const logger: Logger = await this.getLogger()
+                return logger.warn(new Error('UncaughtException', {cause: error}))
             })
             try {
                 Reflect.set(this, 'appInstance', await this.launchApplication())
-            } catch (e) {
-                this.eventEmitter.emit(ApplicationState.FatalException, e)
+            } catch (e: any) {
+                this.processFatalException(e)
             }
         })
         return this
+    }
+
+    /**
+     * Process fatal exception
+     * @param error
+     * @protected
+     */
+    protected static processFatalException(error: Error): void {
+        if (!this.eventEmitter.listenerCount(ApplicationState.FatalException)) {
+            return process.nextTick(async () => {
+                const logger: Logger = await this.getLogger()
+                logger.error(new Error('FatalException', {cause: error}))
+            })
+
+        }
+        this.eventEmitter.emit(ApplicationState.FatalException, error)
     }
 
     /**
@@ -225,7 +266,7 @@ export class Application extends Module {
                         .set(Application, {options: applicationOptions})
                         .then((app: Application) => app
                             .once(MODULE_INITIALIZED, () => resolve(app))
-                            .once(MODULE_INITIALIZE_ERROR, (error: Error) => this.eventEmitter.emit(ApplicationState.FatalException, error))
+                            .once(MODULE_INITIALIZE_ERROR, (error: Error) => this.processFatalException(error))
                         )
                         .catch(reject)
                 })
