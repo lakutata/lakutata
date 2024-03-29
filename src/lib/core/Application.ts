@@ -16,19 +16,23 @@ import {As} from '../functions/As.js'
 import {EventEmitter} from '../base/EventEmitter.js'
 
 /**
- * OnLaunched event handler
+ * On application launched event handler
  */
 export type LaunchedHandler = (app: Application, logger: Logger) => void | Promise<void>
 /**
- * OnDone event handler
+ * On application done event handler
  */
 export type DoneHandler = (app: Application, logger: Logger) => void | Promise<void>
 /**
- * OnUncaughtException event handler
+ * On process warning event handler
  */
-export type UncaughtExceptionHandler = (error: Error, logger: Logger) => number | undefined | void | Promise<number | undefined | void>
+export type WarningHandler = (warning: Error, logger: Logger) => void | Promise<void>
 /**
- * OnFatalException event handler
+ * On process uncaught exception event handler
+ */
+export type UncaughtExceptionHandler = (error: Error, logger: Logger) => void | Promise<void>
+/**
+ * On application fatal exception event handler
  */
 export type FatalExceptionHandler = (error: Error, logger: Logger) => number | undefined | void | Promise<number | undefined | void>
 
@@ -38,6 +42,7 @@ export type FatalExceptionHandler = (error: Error, logger: Logger) => number | u
 export enum ApplicationState {
     Launched = 'LAUNCHED',
     Done = 'DONE',
+    Warning = 'WARNING',
     UncaughtException = 'UNCAUGHT_EXCEPTION',
     FatalException = 'FATAL_EXCEPTION'
 }
@@ -141,6 +146,18 @@ export class Application extends Module {
     }
 
     /**
+     * Warning occurred during application execution
+     * @param handler
+     */
+    public static onWarning(handler: WarningHandler): typeof Application {
+        this.eventEmitter.on(ApplicationState.Warning, async (warning: Error) => {
+            const logger: Logger = await this.getLogger()
+            await handler(warning, logger)
+        })
+        return this.launch()
+    }
+
+    /**
      * Uncaught exception occurred during application execution
      * @param handler
      */
@@ -188,12 +205,19 @@ export class Application extends Module {
     protected static launch(): typeof Application {
         if (this.launchTimeout) clearTimeout(this.launchTimeout)
         this.launchTimeout = setTimeout(async () => {
-            process.on('uncaughtException', async (error: Error) => {
-                if (this.eventEmitter.listenerCount(ApplicationState.UncaughtException))
-                    return this.eventEmitter.emit(ApplicationState.UncaughtException, error)
-                const logger: Logger = await this.getLogger()
-                return logger.warn(new Error('UncaughtException', {cause: error}))
-            })
+            process
+                .on('uncaughtException', async (error: Error) => {
+                    if (this.eventEmitter.listenerCount(ApplicationState.UncaughtException))
+                        return this.eventEmitter.emit(ApplicationState.UncaughtException, error)
+                    const logger: Logger = await this.getLogger()
+                    return logger.warn(new Error('UncaughtException', {cause: error}))
+                })
+                .on('warning', async (warning: Error) => {
+                    if (this.eventEmitter.listenerCount(ApplicationState.Warning))
+                        return this.eventEmitter.emit(ApplicationState.Warning, warning)
+                    const logger: Logger = await this.getLogger()
+                    return logger.warn(new Error('Warning', {cause: warning}))
+                })
             try {
                 Reflect.set(this, 'appInstance', await this.launchApplication())
             } catch (e: any) {
