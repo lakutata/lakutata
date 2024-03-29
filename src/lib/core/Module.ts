@@ -91,6 +91,7 @@ export class Module extends Component {
                         await this.container.load(this.#objects)
                     },
                     async (): Promise<void> => {
+                        Reflect.defineMetadata('#bootstrap', this.#bootstrap, this)
                         //Bootstrap stage
                         for (const bootstrapOption of this.#bootstrap) {
                             if (isAsyncFunction(bootstrapOption)) {
@@ -99,6 +100,7 @@ export class Module extends Component {
                                 await this.getObject(As(bootstrapOption))
                             }
                         }
+                        Reflect.deleteMetadata('#bootstrap', this)
                     }
                 )
                 this.emit(MODULE_INITIALIZED)

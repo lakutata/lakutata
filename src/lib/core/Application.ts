@@ -14,6 +14,7 @@ import path from 'node:path'
 import {existsSync} from 'node:fs'
 import {As} from '../functions/As.js'
 import {EventEmitter} from '../base/EventEmitter.js'
+import {BootstrapOption} from '../../options/ModuleOptions.js'
 
 /**
  * On application launched event handler
@@ -259,6 +260,7 @@ export class Application extends Module {
                     applicationOptions.bootstrap?.push(async (target: Module) => {
                         const launchedCallbackRemover = function (this: Application) {
                             this.options.bootstrap?.pop()
+                            As<BootstrapOption[]>(Reflect.getOwnMetadata('#bootstrap', this))?.pop()
                         }
                         launchedCallbackRemover.bind(As<Application>(target))()
                         this.eventEmitter.emit(ApplicationState.Launched, As<Application>(target))
