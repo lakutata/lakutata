@@ -51,6 +51,9 @@ export class TestController1 extends Controller {
     @HTTPAction('/test', 'GET')
     // @ServiceAction({})
     public async test(inp) {
+        setImmediate(()=>{
+            this.app.reload()
+        })
         return 'oh!'
     }
 

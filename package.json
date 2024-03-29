@@ -30,7 +30,7 @@
     "release:beta-release": "dotenv -- release-it --preRelease=beta && npm run publish",
     "release:alpha-release": "dotenv -- release-it --preRelease=alpha --no-github.release && npm run publish",
     "release:proto-release": "dotenv -- release-it --preRelease=proto --no-github.release --no-git.tag && npm run publish",
-    "test:app": "cross-env BUILD_MODE=develop npm run compile && node distro/src/tests/App.spec.mjs",
+    "test:app": "cross-env BUILD_MODE=develop npm run compile && node --trace-warnings distro/src/tests/App.spec.mjs",
     "test:unit": "cross-env BUILD_MODE=develop npm run compile && mocha distro/src/tests/UnitTest.spec.mjs"
   },
   "release-it": {
@@ -104,6 +104,7 @@
     "rollup-plugin-progress": "^1.1.2",
     "shx": "^0.3.4",
     "socket.io": "^4.7.5",
+    "sonic-boom": "^3.8.0",
     "sort-array": "^4.1.5",
     "tslib": "^2.6.2",
     "typeorm": "^0.3.20",

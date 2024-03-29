@@ -24,10 +24,6 @@ export type LaunchedHandler = (app: Application, logger: Logger) => void | Promi
  */
 export type DoneHandler = (app: Application, logger: Logger) => void | Promise<void>
 /**
- * On process warning event handler
- */
-export type WarningHandler = (warning: Error, logger: Logger) => void | Promise<void>
-/**
  * On process uncaught exception event handler
  */
 export type UncaughtExceptionHandler = (error: Error, logger: Logger) => void | Promise<void>
@@ -42,7 +38,6 @@ export type FatalExceptionHandler = (error: Error, logger: Logger) => number | u
 export enum ApplicationState {
     Launched = 'LAUNCHED',
     Done = 'DONE',
-    Warning = 'WARNING',
     UncaughtException = 'UNCAUGHT_EXCEPTION',
     FatalException = 'FATAL_EXCEPTION'
 }
@@ -146,18 +141,6 @@ export class Application extends Module {
     }
 
     /**
-     * Warning occurred during application execution
-     * @param handler
-     */
-    public static onWarning(handler: WarningHandler): typeof Application {
-        this.eventEmitter.on(ApplicationState.Warning, async (warning: Error) => {
-            const logger: Logger = await this.getLogger()
-            await handler(warning, logger)
-        })
-        return this.launch()
-    }
-
-    /**
      * Uncaught exception occurred during application execution
      * @param handler
      */
@@ -211,12 +194,6 @@ export class Application extends Module {
                         return this.eventEmitter.emit(ApplicationState.UncaughtException, error)
                     const logger: Logger = await this.getLogger()
                     return logger.warn(new Error('UncaughtException', {cause: error}))
-                })
-                .on('warning', async (warning: Error) => {
-                    if (this.eventEmitter.listenerCount(ApplicationState.Warning))
-                        return this.eventEmitter.emit(ApplicationState.Warning, warning)
-                    const logger: Logger = await this.getLogger()
-                    return logger.warn(new Error('Warning', {cause: warning}))
                 })
             try {
                 Reflect.set(this, 'appInstance', await this.launchApplication())

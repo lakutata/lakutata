@@ -21,6 +21,7 @@ import {
 } from '../components/Entrypoint.js'
 import path from 'node:path'
 import {Delay} from '../lib/functions/Delay.js'
+import {createWriteStream} from 'node:fs'
 // process.on('uncaughtExceptionMonitor', ()=>{
 //     console.log('uncaughtExceptionMonitor')
 // })
@@ -38,6 +39,12 @@ Application
         name: 'TestApp',
         timezone: 'auto',
         components: {
+            log:{
+                destinations:[
+                    process.stdout,
+                    createWriteStream(path.resolve(__dirname,'test.log'))
+                ]
+            },
             testComponent: {
                 class: TestComponent
             },
@@ -151,7 +158,7 @@ Application
                 // console.log('alias path test:', path.resolve('@runtime', './xxxxxx'))
                 // throw new Error('fuck')
                 setTimeout(() => {
-                    throw new Error('fuck')
+                    // throw new Error('fuck')
                     // As<Application>(target).exit()
                 }, 1000)
             },

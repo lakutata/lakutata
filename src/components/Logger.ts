@@ -2,11 +2,12 @@ import {Component} from '../lib/core/Component.js'
 import {Singleton} from '../decorators/di/Lifetime.js'
 import {Configurable} from '../decorators/di/Configurable.js'
 import {DTO} from '../lib/core/DTO.js'
-import {pino, Logger as PinoLogger, DestinationStream} from 'pino'
+import {pino, Logger as PinoLogger, DestinationStream, destination} from 'pino'
 import {GetBasicInfo} from '../lib/base/internal/BasicInfo.js'
 import PinoPretty from 'pino-pretty'
 import {As} from '../lib/functions/As.js'
 import {Stream} from 'node:stream'
+import {SonicBoom as UTF8OnlyStream} from 'sonic-boom'
 
 /**
  * Logger component
@@ -65,14 +66,16 @@ export class Logger extends Component {
                 name: GetBasicInfo().appName || 'Unnamed'
             }, pino.multistream(
                 this.destinations
-                    .map((destination: NodeJS.WritableStream) => As<DestinationStream>(
+                    .map((destinationWritableStream: NodeJS.WritableStream) => {
+                        const utf8OnlyStream: UTF8OnlyStream = destination(destinationWritableStream)
+                        return As<DestinationStream>(
                             As(PinoPretty)({
-                                colorize: destination === process.stdout ? this.colorize : false,
+                                colorize: destinationWritableStream === process.stdout ? this.colorize : false,
                                 sync: this.sync,
-                                destination: destination
+                                destination: utf8OnlyStream
                             })
                         )
-                    )
+                    })
             )
         )
     }
