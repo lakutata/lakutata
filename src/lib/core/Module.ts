@@ -11,8 +11,10 @@ import {LoadObjectOptions} from '../../options/LoadObjectOptions.js'
 import {As} from '../functions/As.js'
 import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
 import {DefineObjectType, ObjectType} from '../base/internal/ObjectType.js'
+import {NonceStr} from '../functions/NonceStr.js'
 
-export const MODULE_INITIALIZED: symbol = Symbol('MODULE.INITIALIZED')
+export const MODULE_INITIALIZED: string = `_$.MODULE.INITIALIZED_${NonceStr()}`
+export const MODULE_INITIALIZE_ERROR: string = `_$.MODULE.INITIALIZE_ERROR_${NonceStr()}`
 
 /**
  * Module base class
@@ -81,24 +83,28 @@ export class Module extends Component {
     protected async [__init](...hooks: (() => Promise<void>)[]): Promise<void> {
         //Use setImmediate here for init module instance first, then sub objects can use @Inject decorator get current module
         setImmediate(async (): Promise<void> => {
-            await super[__init](
-                ...hooks,
-                async (): Promise<void> => {
-                    //Load objects stage
-                    await this.container.load(this.#objects)
-                },
-                async (): Promise<void> => {
-                    //Bootstrap stage
-                    for (const bootstrapOption of this.#bootstrap) {
-                        if (isAsyncFunction(bootstrapOption)) {
-                            await As<BootstrapAsyncFunction<this, void>>(bootstrapOption)(this)
-                        } else {
-                            await this.getObject(As(bootstrapOption))
+            try {
+                await super[__init](
+                    ...hooks,
+                    async (): Promise<void> => {
+                        //Load objects stage
+                        await this.container.load(this.#objects)
+                    },
+                    async (): Promise<void> => {
+                        //Bootstrap stage
+                        for (const bootstrapOption of this.#bootstrap) {
+                            if (isAsyncFunction(bootstrapOption)) {
+                                await As<BootstrapAsyncFunction<this, void>>(bootstrapOption)(this)
+                            } else {
+                                await this.getObject(As(bootstrapOption))
+                            }
                         }
                     }
-                }
-            )
-            this.emit(MODULE_INITIALIZED)
+                )
+                this.emit(MODULE_INITIALIZED)
+            } catch (e) {
+                this.emit(MODULE_INITIALIZE_ERROR, e)
+            }
         })
     }
 

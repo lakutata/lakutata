@@ -1,4 +1,4 @@
-import {Module, MODULE_INITIALIZED} from './Module.js'
+import {Module, MODULE_INITIALIZE_ERROR, MODULE_INITIALIZED} from './Module.js'
 import {Singleton} from '../../decorators/di/Lifetime.js'
 import {Container} from './Container.js'
 import {ApplicationConfigLoader} from '../base/internal/ApplicationConfigLoader.js'
@@ -12,11 +12,41 @@ import {DTO} from './DTO.js'
 import {mkdirSync} from 'fs'
 import path from 'node:path'
 import {existsSync} from 'node:fs'
+import {As} from '../functions/As.js'
+import {EventEmitter} from '../base/EventEmitter.js'
 
-const RCTNR: symbol = Symbol('ROOT_CONTAINER')
+export type LaunchedHandler = (app: Application, log: Logger) => void | Promise<void>
+export type DoneHandler = (app: Application, log: Logger) => void | Promise<void>
+export type UncaughtExceptionHandler = (error: Error, log: Logger) => number | undefined | void | Promise<number | undefined | void>
+export type FatalExceptionHandler = (error: Error, log: Logger) => number | undefined | void | Promise<number | undefined | void>
+
+export enum ApplicationState {
+    Launched = 'LAUNCHED',
+    Done = 'DONE',
+    UncaughtException = 'UNCAUGHT_EXCEPTION',
+    FatalException = 'FATAL_EXCEPTION'
+}
 
 @Singleton(true)
 export class Application extends Module {
+
+    /**
+     * Event emitter
+     * @protected
+     */
+    protected static readonly eventEmitter: EventEmitter = new EventEmitter()
+
+    /**
+     * Application instance, if the application boot failed, the property will be undefined
+     * @protected
+     */
+    protected static readonly appInstance: Application | undefined
+
+    /**
+     * Environment variables map
+     * @protected
+     */
+    protected static readonly environmentVariableMap: Map<string, string> = new Map()
 
     /**
      * Alias declarations
@@ -26,6 +56,182 @@ export class Application extends Module {
         alias: Record<string, string>
         createIfNotExist: boolean
     }[] = []
+
+    /**
+     * Options or options getter function for application booting
+     * @protected
+     */
+    protected static readonly launchOptions: ApplicationOptions | (() => ApplicationOptions | Promise<ApplicationOptions>)
+
+    /**
+     * The timer for application booting.
+     * This property will be overwriting multiple times during static invoke-chain
+     * @protected
+     */
+    protected static launchTimeout: NodeJS.Timeout
+
+    /**
+     * Set environment variables
+     * @param env
+     */
+    @Accept(DTO.Object().pattern(DTO.String(), DTO.String()).required())
+    public static env(env: Record<string, string>): typeof Application {
+        Object.keys(env).forEach((key: string) => this.environmentVariableMap.set(key, env[key]))
+        return this.launch()
+    }
+
+    /**
+     * Register path aliases
+     * @param alias
+     * @param createIfNotExist
+     */
+    @Accept(
+        DTO.Object().pattern(DTO.String(), DTO.String()).required(),
+        DTO.Boolean().optional().default(false))
+    public static alias(alias: Record<string, string>, createIfNotExist: boolean = false): typeof Application {
+        this.aliasDeclarations.push({
+            alias: alias ? alias : {},
+            createIfNotExist: createIfNotExist
+        })
+        return this.launch()
+    }
+
+    /**
+     * Application has been launched
+     * @param handler
+     */
+    public static onLaunched(handler: LaunchedHandler): typeof Application {
+        this.eventEmitter.once(ApplicationState.Launched, async (app: Application) => handler(app, await app.getObject('log')))
+        return this.launch()
+    }
+
+    /**
+     * Application execution completed successfully
+     * @param handler
+     */
+    public static onDone(handler: DoneHandler): typeof Application {
+        this.eventEmitter.once(ApplicationState.Done, async (app: Application) => handler(app, await app.getObject('log')))
+        return this.launch()
+    }
+
+    /**
+     * Uncaught exception occurred during application execution
+     * @param handler
+     */
+    public static onUncaughtException(handler: UncaughtExceptionHandler): typeof Application {
+        this.eventEmitter.on(ApplicationState.UncaughtException, async (error: Error) => {
+            const log: Logger = this.appInstance ? await this.appInstance.getObject('log') : await new Container().set(Logger)
+            await handler(error, log)
+        })
+        return this.launch()
+    }
+
+    /**
+     * Fatal exception occurred during application execution
+     * @param handler
+     */
+    public static onFatalException(handler: FatalExceptionHandler): typeof Application {
+        this.eventEmitter.once(ApplicationState.FatalException, async (error: Error) => {
+            const log: Logger = this.appInstance ? await this.appInstance.getObject('log') : await new Container().set(Logger)
+            let exitCode: number | undefined | void = await handler(error, log)
+            if (typeof exitCode !== 'number') exitCode = 1
+            return process.exit(exitCode)
+        })
+        return this.launch()
+    }
+
+    /**
+     * Run application with options object
+     * @param options
+     */
+    public static run(options: ApplicationOptions): typeof Application
+    /**
+     * Run application with options getter
+     * @param optionsGetter
+     */
+    public static run(optionsGetter: () => ApplicationOptions | Promise<ApplicationOptions>): typeof Application
+    public static run(inp: ApplicationOptions | (() => ApplicationOptions | Promise<ApplicationOptions>)): typeof Application {
+        Reflect.set(this, 'launchOptions', inp)
+        return this.launch()
+    }
+
+    /**
+     * Launch application after invoke chain processed
+     * @protected
+     */
+    protected static launch(): typeof Application {
+        if (this.launchTimeout) clearTimeout(this.launchTimeout)
+        this.launchTimeout = setTimeout(async () => {
+            process.on('uncaughtException', async (error: Error) => {
+                if (this.eventEmitter.listenerCount(ApplicationState.UncaughtException))
+                    return this.eventEmitter.emit(ApplicationState.UncaughtException, error)
+                const log: Logger | undefined = await this.appInstance?.getObject<Logger>('log')
+                const uncaughtExceptionError: Error = new Error('UncaughtException', {cause: error})
+                return log ? log.warn(uncaughtExceptionError) : console.warn(uncaughtExceptionError)
+            })
+            try {
+                Reflect.set(this, 'appInstance', await this.launchApplication())
+            } catch (e) {
+                this.eventEmitter.emit(ApplicationState.FatalException, e)
+            }
+        })
+        return this
+    }
+
+    /**
+     * Internal launch application process
+     * @protected
+     */
+    protected static async launchApplication(): Promise<Application> {
+        this.eventEmitter.once('exit', async (app: Application) => {
+            try {
+                //Emit onDone event request
+                await this.eventEmitter.emitRequest(ApplicationState.Done, app)
+                await rootContainer.destroy()
+                process.exit(0)
+            } catch (e) {
+                process.exit(1)
+            }
+        })
+        this.environmentVariableMap.forEach((value, key) => process.env[key] = value)
+        //Alias registration must be done before application container create
+        const aliasManager: Alias = Alias.getAliasInstance()
+        aliasManager.set('@runtime', process.cwd())
+        this.aliasDeclarations.forEach(aliasDeclaration => {
+            const aliases: Record<string, string> = aliasDeclaration.alias
+            const createIfNotExist: boolean = aliasDeclaration.createIfNotExist
+            Object.keys(aliases).forEach((aliasName: string) => {
+                aliasManager.set(aliasName, aliases[aliasName])
+                if (createIfNotExist) {
+                    const realPath: string = path.resolve(aliasName)
+                    if (!existsSync(realPath)) mkdirSync(path.resolve(aliasName), {recursive: true})
+                }
+            })
+        })
+        const options: ApplicationOptions = typeof this.launchOptions === 'object' ? this.launchOptions : await this.launchOptions()
+        const rootContainer: Container = new Container()
+        return new Promise((resolve, reject): void => {
+            ApplicationOptions
+                .validateAsync(options)
+                .then((applicationOptions: ApplicationOptions) => {
+                    applicationOptions.bootstrap?.push(async (target: Module) => {
+                        const launchedCallbackRemover = function (this: Application) {
+                            this.options.bootstrap?.pop()
+                        }
+                        launchedCallbackRemover.bind(As<Application>(target))()
+                        this.eventEmitter.emit(ApplicationState.Launched, As<Application>(target))
+                    })
+                    rootContainer
+                        .set(Application, {options: applicationOptions})
+                        .then((app: Application) => app
+                            .once(MODULE_INITIALIZED, () => resolve(app))
+                            .once(MODULE_INITIALIZE_ERROR, (error: Error) => this.eventEmitter.emit(ApplicationState.FatalException, error))
+                        )
+                        .catch(reject)
+                })
+                .catch(reject)
+        })
+    }
 
     /**
      * Override config loader
@@ -45,90 +251,8 @@ export class Application extends Module {
             entrypoint: {
                 class: Entrypoint
             }
-        }
-    }
-
-    /**
-     * Set environment variables
-     * @param env
-     */
-    @Accept(DTO.Object().pattern(DTO.String(), DTO.String()).required())
-    public static env(env: Record<string, string>): typeof Application {
-        Object.keys(env).forEach((key: string) => process.env[key] = env[key])
-        return this
-    }
-
-    /**
-     * Register path aliases
-     * @param alias
-     * @param createIfNotExist
-     */
-    @Accept(
-        DTO.Object().pattern(DTO.String(), DTO.String()).required(),
-        DTO.Boolean().optional().default(false))
-    public static alias(alias: Record<string, string>, createIfNotExist: boolean = false): typeof Application {
-        this.aliasDeclarations.push({
-            alias: alias ? alias : {},
-            createIfNotExist: createIfNotExist
-        })
-        return this
-    }
-
-    /**
-     * Run application with options object
-     * @param options
-     */
-    public static async run(options: ApplicationOptions): Promise<Application>
-    /**
-     * Run application with options getter
-     * @param optionsGetter
-     */
-    public static async run(optionsGetter: () => ApplicationOptions | Promise<ApplicationOptions>): Promise<Application>
-    public static async run(inp: ApplicationOptions | (() => ApplicationOptions | Promise<ApplicationOptions>)): Promise<Application> {
-        //Alias registration must be done before application container create
-        const aliasManager: Alias = Alias.getAliasInstance()
-        aliasManager.set('@runtime', process.cwd())
-        this.aliasDeclarations.forEach(aliasDeclaration => {
-            const aliases: Record<string, string> = aliasDeclaration.alias
-            const createIfNotExist: boolean = aliasDeclaration.createIfNotExist
-            Object.keys(aliases).forEach((aliasName: string) => {
-                aliasManager.set(aliasName, aliases[aliasName])
-                if (createIfNotExist) {
-                    const realPath: string = path.resolve(aliasName)
-                    if (!existsSync(realPath)) mkdirSync(path.resolve(aliasName), {recursive: true})
-                }
-            })
-        })
-        const options: ApplicationOptions = typeof inp === 'object' ? inp : await inp()
-        const rootContainer: Container = new Container()
-        Reflect.defineMetadata(RCTNR, rootContainer, Application)
-        return new Promise((resolve, reject): void => {
-            ApplicationOptions
-                .validateAsync(options)
-                .then((applicationOptions: ApplicationOptions) => rootContainer
-                    .set(Application, {options: applicationOptions})
-                    .then((app: Application) => app.once(MODULE_INITIALIZED, () => resolve(app)))
-                    .catch(reject)
-                )
-                .catch(reject)
-        })
-    }
-
-    /**
-     * Initializer
-     * @protected
-     */
-    protected async init(): Promise<void> {
-        //TODO
-
-    }
-
-    /**
-     * Destroyer
-     * @protected
-     */
-    protected async destroy(): Promise<void> {
-        return super.destroy()
+        },
+        bootstrap: ['log']
     }
 
     /**
@@ -171,9 +295,7 @@ export class Application extends Module {
      * @param force
      */
     public exit(force?: boolean): void {
-        const exit: () => void = () => process.exit(0)
-        const rootContainer: Container = Reflect.getOwnMetadata(RCTNR, Application)
-        rootContainer.destroy().then(exit).catch(exit)
-        if (force) return exit()
+        if (force) return process.exit(2)
+        Application.eventEmitter.emit('exit', this)
     }
 }
