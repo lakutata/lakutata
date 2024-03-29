@@ -15,10 +15,10 @@ import {existsSync} from 'node:fs'
 import {As} from '../functions/As.js'
 import {EventEmitter} from '../base/EventEmitter.js'
 
-export type LaunchedHandler = (app: Application, log: Logger) => void | Promise<void>
-export type DoneHandler = (app: Application, log: Logger) => void | Promise<void>
-export type UncaughtExceptionHandler = (error: Error, log: Logger) => number | undefined | void | Promise<number | undefined | void>
-export type FatalExceptionHandler = (error: Error, log: Logger) => number | undefined | void | Promise<number | undefined | void>
+export type LaunchedHandler = (app: Application, logger: Logger) => void | Promise<void>
+export type DoneHandler = (app: Application, logger: Logger) => void | Promise<void>
+export type UncaughtExceptionHandler = (error: Error, logger: Logger) => number | undefined | void | Promise<number | undefined | void>
+export type FatalExceptionHandler = (error: Error, logger: Logger) => number | undefined | void | Promise<number | undefined | void>
 
 export enum ApplicationState {
     Launched = 'LAUNCHED',
@@ -120,8 +120,8 @@ export class Application extends Module {
      */
     public static onUncaughtException(handler: UncaughtExceptionHandler): typeof Application {
         this.eventEmitter.on(ApplicationState.UncaughtException, async (error: Error) => {
-            const log: Logger = this.appInstance ? await this.appInstance.getObject('log') : await new Container().set(Logger)
-            await handler(error, log)
+            const logger: Logger = this.appInstance ? await this.appInstance.getObject('log') : await new Container().set(Logger)
+            await handler(error, logger)
         })
         return this.launch()
     }
@@ -132,8 +132,8 @@ export class Application extends Module {
      */
     public static onFatalException(handler: FatalExceptionHandler): typeof Application {
         this.eventEmitter.once(ApplicationState.FatalException, async (error: Error) => {
-            const log: Logger = this.appInstance ? await this.appInstance.getObject('log') : await new Container().set(Logger)
-            let exitCode: number | undefined | void = await handler(error, log)
+            const logger: Logger = this.appInstance ? await this.appInstance.getObject('log') : await new Container().set(Logger)
+            let exitCode: number | undefined | void = await handler(error, logger)
             if (typeof exitCode !== 'number') exitCode = 1
             return process.exit(exitCode)
         })
@@ -165,9 +165,9 @@ export class Application extends Module {
             process.on('uncaughtException', async (error: Error) => {
                 if (this.eventEmitter.listenerCount(ApplicationState.UncaughtException))
                     return this.eventEmitter.emit(ApplicationState.UncaughtException, error)
-                const log: Logger | undefined = await this.appInstance?.getObject<Logger>('log')
+                const logger: Logger | undefined = await this.appInstance?.getObject<Logger>('log')
                 const uncaughtExceptionError: Error = new Error('UncaughtException', {cause: error})
-                return log ? log.warn(uncaughtExceptionError) : console.warn(uncaughtExceptionError)
+                return logger ? logger.warn(uncaughtExceptionError) : console.warn(uncaughtExceptionError)
             })
             try {
                 Reflect.set(this, 'appInstance', await this.launchApplication())
