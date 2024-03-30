@@ -422,7 +422,8 @@ const processPackageJson = async (packageJsonFilename, outputFormats = []) => {
     Reflect.deleteProperty(packageJsonObject, 'scripts')
     Reflect.deleteProperty(packageJsonObject, 'release-it')
     Reflect.set(packageJsonObject, 'scripts', {
-        postinstall: 'node ./scripts/buildAll.js'
+        install: 'node ./scripts/buildAll.js',
+        // postinstall: 'node ./scripts/buildAll.js',
     })
     await writeFile(packageJsonFilename, JSON.stringify(packageJsonObject, null, 2), {encoding: 'utf-8', flag: 'w'})
 }
