@@ -1,1 +1,1 @@
-console.log('build-all!build-all!build-all!build-all!build-all!build-all!build-all!build-all!build-all!build-all!build-all!build-all!')
+throw new Error('IMERROR')
