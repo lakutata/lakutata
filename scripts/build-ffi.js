@@ -1,3 +1,8 @@
+/**
+ * Build FFI binary for current platform
+ * @param vendorDir
+ * @return {Promise<unknown>}
+ */
 async function buildFfi(vendorDir) {
     const {fork} = require('node:child_process')
     const path = require('node:path')
