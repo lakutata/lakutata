@@ -1,9 +1,9 @@
-import koffi from 'koffi'
-import {ICType} from './interfaces/ICType.js'
+import * as koffi from './lib/index.js'
 import {TypeSpecWithAlignment} from './types/TypeSpecWithAlignment.js'
 import {TypeSpec} from './types/TypeSpec.js'
 import {ArrayHint} from './types/ArrayHint.js'
 import {As} from '../functions/As.js'
+import {TypeInfo} from './types/TypeInfo.js'
 
 export class TypeDef {
 
@@ -98,7 +98,7 @@ export class TypeDef {
      * @param name
      * @param def
      */
-    public static union(name: string, def: Record<string, TypeSpecWithAlignment>): ICType {
+    public static union(name: string, def: Record<string, TypeSpecWithAlignment>): TypeInfo {
         return koffi.union(name, def)
     }
 
@@ -108,7 +108,7 @@ export class TypeDef {
      * @param name
      * @param def
      */
-    public static struct(name: string, def: Record<string, TypeSpecWithAlignment>): ICType {
+    public static struct(name: string, def: Record<string, TypeSpecWithAlignment>): TypeInfo {
         return koffi.struct(name, def)
     }
 
@@ -119,7 +119,7 @@ export class TypeDef {
      * @param len
      * @param hint
      */
-    public static array(ref: TypeSpec, len: number, hint?: ArrayHint | null): ICType {
+    public static array(ref: TypeSpec, len: number, hint?: ArrayHint | null): TypeInfo {
         return koffi.array(ref, len, hint)
     }
 
@@ -128,15 +128,15 @@ export class TypeDef {
      * @see https://koffi.dev/pointers#data-pointers
      * @param ref
      */
-    public static pointer(ref: TypeSpec): ICType
+    public static pointer(ref: TypeSpec): TypeInfo
     /**
      * pointer type
      * @see https://koffi.dev/pointers#data-pointers
      * @param name
      * @param ref
      */
-    public static pointer(name: string, ref: TypeSpec): ICType
-    public static pointer(nameOrRef: string, ref?: TypeSpec): ICType {
+    public static pointer(name: string, ref: TypeSpec): TypeInfo
+    public static pointer(nameOrRef: string, ref?: TypeSpec): TypeInfo {
         return ref ? koffi.pointer(nameOrRef, ref) : koffi.pointer(nameOrRef)
     }
 
@@ -144,14 +144,14 @@ export class TypeDef {
      * opaque type
      * @see https://koffi.dev/input#opaque-types
      */
-    public static opaque(): ICType
+    public static opaque(): TypeInfo
     /**
      * opaque type
      * @see https://koffi.dev/input#opaque-types
      * @param name
      */
-    public static opaque(name: string): ICType
-    public static opaque(name?: string): ICType {
+    public static opaque(name: string): TypeInfo
+    public static opaque(name?: string): TypeInfo {
         return name ? koffi.opaque(name) : koffi.opaque()
     }
 
@@ -160,14 +160,14 @@ export class TypeDef {
      * @see https://koffi.dev/pointers#disposable-types
      * @param name
      */
-    public static disposable(name: string): ICType
+    public static disposable(name: string): TypeInfo
     /**
      * disposable type
      * @see https://koffi.dev/pointers#disposable-types
      * @param name
      * @param type
      */
-    public static disposable(name: string, type: TypeSpec): ICType
+    public static disposable(name: string, type: TypeSpec): TypeInfo
     /**
      * disposable type
      * @see https://koffi.dev/pointers#disposable-types
@@ -175,8 +175,8 @@ export class TypeDef {
      * @param type
      * @param freeFunction
      */
-    public static disposable(name: string, type: TypeSpec, freeFunction: Function): ICType
-    public static disposable(name: string, type?: TypeSpec, freeFunction?: Function): ICType {
+    public static disposable(name: string, type: TypeSpec, freeFunction: Function): TypeInfo
+    public static disposable(name: string, type?: TypeSpec, freeFunction?: Function): TypeInfo {
         return type !== undefined
             ? freeFunction !== undefined
                 ? koffi.disposable(name, type, freeFunction)
@@ -189,7 +189,7 @@ export class TypeDef {
      * @see https://koffi.dev/callbacks#callback-types
      * @param definition
      */
-    public static proto(definition: string): ICType
+    public static proto(definition: string): TypeInfo
     /**
      * callback type
      * @see https://koffi.dev/callbacks#callback-types
@@ -197,7 +197,7 @@ export class TypeDef {
      * @param result
      * @param args
      */
-    public static proto(name: string, result: TypeSpec, args: TypeSpec[]): ICType
+    public static proto(name: string, result: TypeSpec, args: TypeSpec[]): TypeInfo
     /**
      * callback type
      * @see https://koffi.dev/callbacks#callback-types
@@ -206,8 +206,8 @@ export class TypeDef {
      * @param result
      * @param args
      */
-    public static proto(convention: string, name: string, result: TypeSpec, args: TypeSpec[]): ICType
-    public static proto(conventionOrDefinition: string, nameOrResult?: string | TypeSpec, resultOrArgs?: TypeSpec | TypeSpec[], args?: TypeSpec[]): ICType {
+    public static proto(convention: string, name: string, result: TypeSpec, args: TypeSpec[]): TypeInfo
+    public static proto(conventionOrDefinition: string, nameOrResult?: string | TypeSpec, resultOrArgs?: TypeSpec | TypeSpec[], args?: TypeSpec[]): TypeInfo {
         switch (arguments.length) {
             case 3:
                 return koffi.proto(conventionOrDefinition, As<TypeSpec>(nameOrResult), As<TypeSpec[]>(resultOrArgs))

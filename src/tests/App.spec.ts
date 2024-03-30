@@ -22,6 +22,7 @@ import {
 import path from 'node:path'
 import {Delay} from '../lib/functions/Delay.js'
 import {createWriteStream} from 'node:fs'
+import {Library} from '../lib/ffi/Library.js'
 // process.on('uncaughtExceptionMonitor', ()=>{
 //     console.log('uncaughtExceptionMonitor')
 // })
@@ -39,10 +40,10 @@ Application
         name: 'TestApp',
         timezone: 'auto',
         components: {
-            log:{
-                destinations:[
+            log: {
+                destinations: [
                     process.stdout,
-                    createWriteStream(path.resolve(__dirname,'test.log'))
+                    createWriteStream(path.resolve(__dirname, 'test.log'))
                 ]
             },
             testComponent: {
@@ -171,6 +172,11 @@ Application
     }, true)
     .onLaunched((app, log) => {
         log.info('Application %s launched', app.appName)
+        // const lib = new Library('/Users/alex/libfactorial.dylib')
+        // const offset = lib.symbol('offset', 'int')
+        // offset.value = 8
+        // const func = lib.func('uint64_t factorial(int max)')
+        // console.log('ffi test:', func(3), offset.value)
     })
     .onDone(async (app, log) => {
         log.info('Application %s done', app.appName)

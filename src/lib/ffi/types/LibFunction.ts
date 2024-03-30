@@ -1,11 +1,7 @@
-import {ICType} from '../interfaces/ICType.js'
+import {PrototypeInfo} from './PrototypeInfo.js'
 
 export type LibFunction = {
-    (...args: any[]): any
-    async: (...args: any[]) => any
-    info: {
-        name: string,
-        arguments: ICType[],
-        result: ICType
-    }
+    (...args: any[]): any;
+    async: (...args: any[]) => any;
+    info: PrototypeInfo;
 }

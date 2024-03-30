@@ -21,6 +21,7 @@
   },
   "scripts": {
     "clean": "shx rm -rf ./distro",
+    "build:cpp": "cd ./distro && npm install",
     "build:js": "node --no-warnings rollup.mjs",
     "rebuild": "npm run clean && npm run build:js",
     "prepare": "npm run compile",
@@ -30,8 +31,8 @@
     "release:beta-release": "dotenv -- release-it --preRelease=beta && npm run publish",
     "release:alpha-release": "dotenv -- release-it --preRelease=alpha --no-github.release && npm run publish",
     "release:proto-release": "dotenv -- release-it --preRelease=proto --no-github.release --no-git.tag && npm run publish",
-    "test:app": "cross-env BUILD_MODE=develop npm run compile && node --trace-warnings distro/src/tests/App.spec.mjs",
-    "test:unit": "cross-env BUILD_MODE=develop npm run compile && mocha distro/src/tests/UnitTest.spec.mjs"
+    "test:app": "cross-env BUILD_MODE=develop npm run compile && npm run build:cpp && node --trace-warnings distro/src/tests/App.spec.mjs",
+    "test:unit": "cross-env BUILD_MODE=develop npm run compile && npm run build:cpp && mocha distro/src/tests/UnitTest.spec.mjs"
   },
   "release-it": {
     "npm": {
@@ -133,5 +134,8 @@
     "lakutata",
     "framework",
     "typescript"
-  ]
+  ],
+  "dependencies": {
+    "node-addon-api": "^8.0.0"
+  }
 }

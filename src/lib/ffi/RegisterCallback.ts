@@ -1,4 +1,4 @@
-import koffi from 'koffi'
+import * as koffi from './lib/index.js'
 import {IRegisteredCallback} from './interfaces/IRegisteredCallback.js'
 import {TypeSpec} from './types/TypeSpec.js'
 

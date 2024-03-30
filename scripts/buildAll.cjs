@@ -1,3 +1,5 @@
-const fs = require('fs')
-const path = require('node:path')
-fs.writeFileSync(path.resolve(__dirname, '../test.log'), 'hahahahahaha', {encoding: 'utf-8'})
+(async () => {
+    const path = require('node:path')
+    const vendorDir = path.resolve(__dirname, '../vendor')
+    await require('./build-ffi.js')(vendorDir)
+})()

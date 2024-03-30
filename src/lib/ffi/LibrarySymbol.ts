@@ -1,6 +1,6 @@
 import {TypeSpec} from './types/TypeSpec.js'
 import {ILib} from './interfaces/ILib.js'
-import koffi from 'koffi'
+import * as koffi from './lib/index.js'
 import {Library} from './Library.js'
 
 export class LibrarySymbol {

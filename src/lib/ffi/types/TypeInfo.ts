@@ -1,6 +1,6 @@
 import {PrimitiveKind} from './PrimitiveKind.js'
 import {ArrayHint} from './ArrayHint.js'
-import {ICType} from '../interfaces/ICType.js'
+import {PrototypeInfo} from './PrototypeInfo.js'
 
 export type TypeInfo = {
     name: string;
@@ -10,6 +10,7 @@ export type TypeInfo = {
     disposable: boolean;
     length?: number;
     hint?: ArrayHint;
-    ref?: ICType;
-    members?: Record<string, { name: string, type: ICType, offset: number }>
+    ref?: TypeInfo;
+    members?: Record<string, { name: string, type: TypeInfo, offset: number }>;
+    proto?: PrototypeInfo
 }

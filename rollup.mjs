@@ -517,7 +517,8 @@ const copyTargets = [
     {src: 'LICENSE', dest: outputDirname},
     {src: 'package.json', dest: outputDirname},
     {src: 'tsconfig.json', dest: outputDirname},
-    {src: 'scripts', dest: outputDirname}
+    {src: 'scripts', dest: outputDirname},
+    {src: 'cpp', dest: outputDirname}
 ]
 /**
  * Generate javascript bundle options
@@ -553,11 +554,11 @@ const generateJsBundleOptions = (format) => {
         treeshake: false,
         plugins: [
             progress({clearLine: true}),
-            nativePlugin({
-                copyTo: path.resolve(outputDirname, thirdPartyPackageRootDirname),
-                map: (modulePath) => `${path.basename(path.dirname(modulePath))}_ffi.node`,
-                targetEsm: false
-            }),
+            // nativePlugin({
+            //     copyTo: path.resolve(outputDirname, thirdPartyPackageRootDirname),
+            //     map: (modulePath) => `${path.basename(path.dirname(modulePath))}_ffi.node`,
+            //     targetEsm: false
+            // }),
             typescript({
                 outDir: jsrcOutputDirname,
                 esModuleInterop: true,
@@ -594,7 +595,8 @@ const generateJsBundleOptions = (format) => {
             esmShim()
         ],
         external: [
-            ...builtinModules
+            ...builtinModules,
+            /\.node$/
         ]
     }
 }
