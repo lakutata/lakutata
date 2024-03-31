@@ -172,11 +172,11 @@ Application
     }, true)
     .onLaunched((app, log) => {
         log.info('Application %s launched', app.appName)
-        const lib = new Library('/Users/alex/libfactorial.dylib')
-        const offset = lib.symbol('offset', 'int')
-        offset.value = 8
-        const func = lib.func('uint64_t factorial(int max)')
-        console.log('ffi test:', func(3), offset.value)
+        // const lib = new Library('/Users/alex/libfactorial.dylib')
+        // const offset = lib.symbol('offset', 'int')
+        // offset.value = 8
+        // const func = lib.func('uint64_t factorial(int max)')
+        // console.log('ffi test:', func(3), offset.value)
     })
     .onDone(async (app, log) => {
         log.info('Application %s done', app.appName)
