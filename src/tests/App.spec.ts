@@ -23,20 +23,13 @@ import path from 'node:path'
 import {Delay} from '../lib/functions/Delay.js'
 import {createWriteStream} from 'node:fs'
 import {Library} from '../lib/ffi/Library.js'
-// process.on('uncaughtExceptionMonitor', ()=>{
-//     console.log('uncaughtExceptionMonitor')
-// })
-// process.on('uncaughtException', () => {
-//     console.log('uncaughtException')
-// })
-// process.on('unhandledRejection',(e)=>{
-//     console.log('unhandledRejection')
-// })
+import {Docker} from '../components/Docker.js'
+import {pipeline} from 'stream/promises'
+
 Application
     .env({TEST: '123'})
     .run(() => ({
         id: 'test.app',
-        // name: 'TestApp',
         name: 'TestApp',
         timezone: 'auto',
         components: {
@@ -128,7 +121,11 @@ Application
                         server.close()
                     })
                 })
-            })
+            }),
+            docker: {
+                class: Docker,
+                socketPath: '/var/run/docker.sock'
+            }
         },
         providers: {
             testProvider: {
@@ -145,25 +142,10 @@ Application
             TestController1
         ],
         bootstrap: [
-            'testModule',
-            'testComponent',
-            'testProvider',
-            // async (target): Promise<void> => {
-            //     const testComponent = await target.getObject<TestComponent>('testComponent')
-            //     const testModule = await target.getObject<TestModule>('testModule')
-            //     testComponent.on('testComponentEvent', (timeStr: string) => console.log('Receive testComponentEvent    ', timeStr))
-            //     testModule.on('testModuleEvent', (timeStr: string) => console.log('Receive testModuleEvent       ', timeStr))
-            // },
-            async (target): Promise<void> => {
-                // console.log('alias path test:', path.resolve('@test', './xxxxxx'))
-                // console.log('alias path test:', path.resolve('@runtime', './xxxxxx'))
-                // throw new Error('fuck')
-                setTimeout(() => {
-                    // throw new Error('fuck')
-                    // As<Application>(target).exit()
-                }, 1000)
-            },
-            'entrypoint'
+            // 'testModule',
+            // 'testComponent',
+            // 'testProvider',
+            // 'entrypoint'
         ]
     }))
     .alias({
@@ -177,6 +159,25 @@ Application
         // offset.value = 8
         // const func = lib.func('uint64_t factorial(int max)')
         // console.log('ffi test:', func(3), offset.value)
+    })
+    .onLaunched(async (app, logger) => {
+        const docker = await app.getObject<Docker>('docker')
+        // const bis = await docker.buildImage({
+        //     context: '/Users/alex/Desktop/test',
+        //     src: ['Dockerfile']
+        // }, {
+        //     dockerfile: 'Dockerfile',
+        //     platform: 'linux/amd64'
+        // })
+        // createInterface({
+        //     input:bis
+        // }).on('line',line=>console.log(JSON.parse(line)))
+        await docker.exportImage('sha256:9848337e39059dba8e986d96ad433c53e95f2d387a551f7c3ebf90715fd55916', '/Users/alex/testImage2.tar')
+        console.log('export done')
+        await Delay(10000)
+        const res = await docker.importImage('/Users/alex/testImage2.tar')
+        res.pipe(process.stdout)
+        console.log('done')
     })
     .onDone(async (app, log) => {
         log.info('Application %s done', app.appName)
