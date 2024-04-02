@@ -26,7 +26,6 @@ import {Library} from '../lib/ffi/Library.js'
 import {
     BuildDockerHttpConnectionConfig,
     BuildDockerSocketConnectionConfig,
-    BuildDockerTcpConnectionConfig,
     Docker
 } from '../components/Docker.js'
 import {pipeline} from 'stream/promises'
@@ -131,13 +130,13 @@ Application
             docker: (() => {
                 switch (platform()) {
                     case 'win32':
-                        return BuildDockerTcpConnectionConfig({
-                            host: '127.0.0.1',
+                        return BuildDockerHttpConnectionConfig({
+                            host: 'localhost',
                             port: 2375
                         })
                     default:
                         return BuildDockerSocketConnectionConfig({
-                            socketPath: ''
+                            socketPath: '/var/run/docker.sock'
                         })
                 }
             })()

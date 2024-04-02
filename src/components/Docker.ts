@@ -49,14 +49,6 @@ export interface DockerSocketConnectionOptions extends Omit<DockerConnectionOpti
 /**
  * Docker http connection options
  */
-export interface DockerTcpConnectionOptions extends Omit<DockerConnectionOptions, 'socketPath' | 'sshAuthAgent'> {
-    host: string
-    port: number | string
-}
-
-/**
- * Docker http connection options
- */
 export interface DockerHttpConnectionOptions extends Omit<DockerConnectionOptions, 'socketPath' | 'sshAuthAgent'> {
     host: string
     port: number | string
@@ -97,16 +89,6 @@ export const BuildDockerSocketConnectionConfig: (options: DockerSocketConnection
     class: Docker
 })
 
-/**
- * Build docker tcp config
- * @param options
- * @constructor
- */
-export const BuildDockerTcpConnectionConfig: (options: DockerTcpConnectionOptions) => DockerConnectionOptions = (options: DockerTcpConnectionOptions) => ({
-    ...options,
-    protocol: As<any>('tcp'),
-    class: Docker
-})
 /**
  * Build docker http config
  * @param options
@@ -194,7 +176,7 @@ export class Docker extends Component implements DockerConnectionOptions {
     ).optional())
     public readonly key?: string | string[] | Buffer | Buffer[] | KeyObject[] | undefined
 
-    @Configurable(DTO.String().valid('https', 'http', 'ssh', 'tcp').optional())
+    @Configurable(DTO.String().valid('https', 'http', 'ssh').optional())
     public readonly protocol?: 'https' | 'http' | 'ssh' | undefined
 
     @Configurable(DTO.Number().optional())
