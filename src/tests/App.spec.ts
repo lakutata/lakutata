@@ -23,8 +23,14 @@ import path from 'node:path'
 import {Delay} from '../lib/functions/Delay.js'
 import {createWriteStream} from 'node:fs'
 import {Library} from '../lib/ffi/Library.js'
-import {Docker} from '../components/Docker.js'
+import {
+    BuildDockerHttpConnectionConfig,
+    BuildDockerSocketConnectionConfig,
+    BuildDockerTcpConnectionConfig,
+    Docker
+} from '../components/Docker.js'
 import {pipeline} from 'stream/promises'
+import {platform} from 'node:os'
 
 Application
     .env({TEST: '123'})
@@ -122,10 +128,19 @@ Application
                     })
                 })
             }),
-            docker: {
-                class: Docker,
-                socketPath: '/var/run/docker.sock'
-            }
+            docker: (() => {
+                switch (platform()) {
+                    case 'win32':
+                        return BuildDockerTcpConnectionConfig({
+                            host: '127.0.0.1',
+                            port: 2375
+                        })
+                    default:
+                        return BuildDockerSocketConnectionConfig({
+                            socketPath: ''
+                        })
+                }
+            })()
         },
         providers: {
             testProvider: {
@@ -162,6 +177,8 @@ Application
     })
     .onLaunched(async (app, logger) => {
         const docker = await app.getObject<Docker>('docker')
+        await docker.pull('ubuntu',{},{})
+        // console.log('done')
         // const bis = await docker.buildImage({
         //     context: '/Users/alex/Desktop/test',
         //     src: ['Dockerfile']
@@ -172,12 +189,12 @@ Application
         // createInterface({
         //     input:bis
         // }).on('line',line=>console.log(JSON.parse(line)))
-        await docker.exportImage('sha256:9848337e39059dba8e986d96ad433c53e95f2d387a551f7c3ebf90715fd55916', '/Users/alex/testImage2.tar')
-        console.log('export done')
-        await Delay(10000)
-        const res = await docker.importImage('/Users/alex/testImage2.tar')
-        res.pipe(process.stdout)
-        console.log('done')
+        // await docker.exportImage('sha256:9848337e39059dba8e986d96ad433c53e95f2d387a551f7c3ebf90715fd55916', '/Users/alex/testImage2.tar')
+        // console.log('export done')
+        // await Delay(10000)
+        // const res = await docker.importImage('/Users/alex/testImage2.tar')
+        // res.pipe(process.stdout)
+        // console.log('done')
     })
     .onDone(async (app, log) => {
         log.info('Application %s done', app.appName)
@@ -186,7 +203,7 @@ Application
         log.error('Application error: %s', error.message)
         return 100
     })
-    .onUncaughtException((error, log) => {
-        log.error('Application uncaught error: %s', error.message)
-    })
+// .onUncaughtException((error, log) => {
+//     log.error('Application uncaught error: %s', error.message)
+// })
 

@@ -49,8 +49,15 @@ export interface DockerSocketConnectionOptions extends Omit<DockerConnectionOpti
 /**
  * Docker http connection options
  */
+export interface DockerTcpConnectionOptions extends Omit<DockerConnectionOptions, 'socketPath' | 'sshAuthAgent'> {
+    host: string
+    port: number | string
+}
+
+/**
+ * Docker http connection options
+ */
 export interface DockerHttpConnectionOptions extends Omit<DockerConnectionOptions, 'socketPath' | 'sshAuthAgent'> {
-    protocol: 'http'
     host: string
     port: number | string
 }
@@ -59,7 +66,6 @@ export interface DockerHttpConnectionOptions extends Omit<DockerConnectionOption
  * Docker https connection options
  */
 export interface DockerHttpsConnectionOptions extends Omit<DockerConnectionOptions, 'socketPath' | 'sshAuthAgent'> {
-    protocol: 'https'
     host: string
     port: number | string
 }
@@ -68,7 +74,6 @@ export interface DockerHttpsConnectionOptions extends Omit<DockerConnectionOptio
  * Docker ssh connection options
  */
 export interface DockerSSHConnectionOptions extends Omit<DockerConnectionOptions, 'socketPath'> {
-    protocol: 'ssh'
     host: string
     port: number | string
 }
@@ -78,31 +83,60 @@ export interface DockerSSHConnectionOptions extends Omit<DockerConnectionOptions
  * @param options
  * @constructor
  */
-export const BuildDockerConnectionConfig: (options: DockerConnectionOptions) => DockerConnectionOptions = (options: DockerConnectionOptions) => options
+export const BuildDockerConnectionConfig: (options: DockerConnectionOptions) => DockerConnectionOptions = (options: DockerConnectionOptions) => ({
+    ...options,
+    class: Docker
+})
 /**
  * Build docker socket config
  * @param options
  * @constructor
  */
-export const BuildDockerSocketConnectionConfig: (options: DockerSocketConnectionOptions) => DockerConnectionOptions = (options: DockerSocketConnectionOptions) => options
+export const BuildDockerSocketConnectionConfig: (options: DockerSocketConnectionOptions) => DockerConnectionOptions = (options: DockerSocketConnectionOptions) => ({
+    ...options,
+    class: Docker
+})
+
+/**
+ * Build docker tcp config
+ * @param options
+ * @constructor
+ */
+export const BuildDockerTcpConnectionConfig: (options: DockerTcpConnectionOptions) => DockerConnectionOptions = (options: DockerTcpConnectionOptions) => ({
+    ...options,
+    protocol: As<any>('tcp'),
+    class: Docker
+})
 /**
  * Build docker http config
  * @param options
  * @constructor
  */
-export const BuildDockerHttpConnectionConfig: (options: DockerHttpConnectionOptions) => DockerConnectionOptions = (options: DockerHttpConnectionOptions) => options
+export const BuildDockerHttpConnectionConfig: (options: DockerHttpConnectionOptions) => DockerConnectionOptions = (options: DockerHttpConnectionOptions) => ({
+    ...options,
+    protocol: 'http',
+    class: Docker
+})
 /**
  * Build docker https config
  * @param options
  * @constructor
  */
-export const BuildDockerHttpsConnectionConfig: (options: DockerHttpsConnectionOptions) => DockerConnectionOptions = (options: DockerHttpsConnectionOptions) => options
+export const BuildDockerHttpsConnectionConfig: (options: DockerHttpsConnectionOptions) => DockerConnectionOptions = (options: DockerHttpsConnectionOptions) => ({
+    ...options,
+    protocol: 'https',
+    class: Docker
+})
 /**
  * Build docker ssh config
  * @param options
  * @constructor
  */
-export const BuildDockerSSHConnectionConfig: (options: DockerSSHConnectionOptions) => DockerConnectionOptions = (options: DockerSSHConnectionOptions) => options
+export const BuildDockerSSHConnectionConfig: (options: DockerSSHConnectionOptions) => DockerConnectionOptions = (options: DockerSSHConnectionOptions) => ({
+    ...options,
+    protocol: 'ssh',
+    class: Docker
+})
 
 /**
  * Docker connection exception
@@ -160,7 +194,7 @@ export class Docker extends Component implements DockerConnectionOptions {
     ).optional())
     public readonly key?: string | string[] | Buffer | Buffer[] | KeyObject[] | undefined
 
-    @Configurable(DTO.String().valid('https', 'http', 'ssh').optional())
+    @Configurable(DTO.String().valid('https', 'http', 'ssh', 'tcp').optional())
     public readonly protocol?: 'https' | 'http' | 'ssh' | undefined
 
     @Configurable(DTO.Number().optional())
