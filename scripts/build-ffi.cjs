@@ -1,5 +1,3 @@
-const path = require('node:path')
-
 /**
  * Build FFI binary for current platform
  * @param vendorDir
