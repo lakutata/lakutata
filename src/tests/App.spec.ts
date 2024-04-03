@@ -30,6 +30,7 @@ import {
 } from '../components/Docker.js'
 import {pipeline} from 'stream/promises'
 import {platform} from 'node:os'
+import {rm} from 'node:fs/promises'
 
 Application
     .env({TEST: '123'})
@@ -176,19 +177,28 @@ Application
     })
     .onLaunched(async (app, logger) => {
         const docker = await app.getObject<Docker>('docker')
-        await docker.pull('ubuntu',{},{})
+        // console.log(await docker.listImages())
+        // await docker.pull('ubuntu',{},{})
         // console.log('done')
-        // const bis = await docker.buildImage({
-        //     context: '/Users/alex/Desktop/test',
-        //     src: ['Dockerfile']
-        // }, {
-        //     dockerfile: 'Dockerfile',
-        //     platform: 'linux/amd64'
-        // })
-        // createInterface({
-        //     input:bis
-        // }).on('line',line=>console.log(JSON.parse(line)))
-        // await docker.exportImage('sha256:9848337e39059dba8e986d96ad433c53e95f2d387a551f7c3ebf90715fd55916', '/Users/alex/testImage2.tar')
+        //C:\Users\Administrator\Desktop\test
+        const image = await docker.buildImage({
+            // context: '/Users/alex/Desktop/test',
+            context: '/Users/Administrator/Desktop/test',
+            src: ['Dockerfile']
+        }, {
+            dockerfile: 'Dockerfile',
+            platform: 'linux/arm64'
+            // platform: 'linux/amd64'
+        }, output => console.log(output))
+        console.log('image.id:', image.id)
+        const exportFilename: string = '/Users/Administrator/Desktop/testImage.tar'
+        await rm(exportFilename, {force: true, recursive: true})
+        await docker.exportImage(image.id, exportFilename)
+        // await docker.exportImage('ubuntu:latest', exportFilename)
+        await image.remove()
+        // await Delay(20000)
+        const newImage = await docker.importImage(exportFilename)
+        console.log(newImage.id)
         // console.log('export done')
         // await Delay(10000)
         // const res = await docker.importImage('/Users/alex/testImage2.tar')

@@ -127,6 +127,20 @@ export class DockerConnectionException extends Exception {
     public errno: string | number = 'E_DOCKER_CONNECTION'
 }
 
+/**
+ * Docker build image exception
+ */
+export class DockerBuildImageException extends Exception {
+    public errno: string | number = 'E_DOCKER_BUILD_IMAGE'
+}
+
+/**
+ * Docker import image exception
+ */
+export class DockerImportImageException extends Exception {
+    public errno: string | number = 'E_DOCKER_IMPORT_IMAGE'
+}
+
 @Singleton()
 export class Docker extends Component implements DockerConnectionOptions {
 
@@ -225,10 +239,27 @@ export class Docker extends Component implements DockerConnectionOptions {
     /**
      * Load docker image
      * @param file
-     * @param options
      */
-    public async importImage(file: string | NodeJS.ReadableStream, options?: {}): Promise<NodeJS.ReadableStream> {
-        return await this.#instance.loadImage(file, options ? options : {})
+    public async importImage(file: string | NodeJS.ReadableStream): Promise<DockerImage> {
+        const readableStream: NodeJS.ReadableStream = await this.#instance.loadImage(file, {})
+        return new Promise<DockerImage>((resolve, reject) => {
+            let importImageException: DockerImportImageException | undefined = undefined
+            let name: string
+            createInterface({input: readableStream})
+                .on('line', (line: string) => {
+                    const outputObject: Record<string, any> = JSON.parse(line)
+                    if (outputObject.error) importImageException = new DockerImportImageException(outputObject.error)
+                    if (outputObject.stream) {
+                        const message = outputObject.stream.toString().trim()
+                        if (message.includes('Loaded image ID:')) name = message.replace('Loaded image ID:', '').trim()
+                        if (message.includes('Loaded image:')) name = message.replace('Loaded image:', '').trim()
+                    }
+                })
+                .once('close', () => {
+                    if (importImageException) return reject(importImageException)
+                    return this.getImage(name).then(resolve).catch(reject)
+                })
+        })
     }
 
     /**
@@ -236,29 +267,70 @@ export class Docker extends Component implements DockerConnectionOptions {
      * @param context
      * @param options
      */
-    //TODO 将context修改一下变得更易用
-    public async buildImage(context: Dockerode.ImageBuildContext, options?: Dockerode.ImageBuildOptions): Promise<NodeJS.ReadableStream> {
-        return await this.#instance.buildImage(context, options ? options : {})
+    public async buildImage(context: Dockerode.ImageBuildContext, options: Dockerode.ImageBuildOptions): Promise<DockerImage>
+    /**
+     * Build docker image
+     * @param context
+     * @param outputCallback
+     */
+    public async buildImage(context: Dockerode.ImageBuildContext, outputCallback: (output: Record<string, any>) => void): Promise<DockerImage>
+    /**
+     * Build docker image
+     * @param context
+     * @param options
+     * @param outputCallback
+     */
+    public async buildImage(context: Dockerode.ImageBuildContext, options: Dockerode.ImageBuildOptions, outputCallback: (output: Record<string, any>) => void): Promise<DockerImage>
+    public async buildImage(context: Dockerode.ImageBuildContext, optionsOrOutputCallback?: Dockerode.ImageBuildOptions | ((output: Record<string, any>) => void), outputCallback?: (output: Record<string, any>) => void): Promise<DockerImage> {
+        const options: Dockerode.ImageBuildOptions = optionsOrOutputCallback ? typeof optionsOrOutputCallback === 'function' ? {} : optionsOrOutputCallback : {}
+        const callback: ((output: Record<string, any>) => void) | undefined = outputCallback ? outputCallback : typeof optionsOrOutputCallback === 'function' ? optionsOrOutputCallback : undefined
+        const readableStream: NodeJS.ReadableStream = await this.#instance.buildImage(context, options ? options : {})
+        return new Promise((resolve, reject) => {
+            let imageId: string | undefined = undefined
+            let buildImageException: DockerBuildImageException | undefined = undefined
+            createInterface({input: readableStream})
+                .on('line', (line: string) => {
+                    const outputObject: Record<string, any> = JSON.parse(line)
+                    if (outputObject.error) {
+                        buildImageException = new DockerBuildImageException(outputObject.error)
+                    }
+                    if (outputObject.aux) {
+                        imageId = outputObject.aux.ID
+                    }
+                    if (callback) callback(outputObject)
+                })
+                .once('close', () => {
+                    if (buildImageException) return reject(buildImageException)
+                    if (!imageId) return reject(new DockerBuildImageException('Build image failed'))
+                    return this.getImage(imageId).then((image: DockerImage) => resolve(image)).catch(reject)
+                })
+        })
     }
 
     /**
      * Export docker image
-     * @param image
+     * @param repoTagOrId
      * @param writeStream
      */
-    public async exportImage(image: string, writeStream: NodeJS.WritableStream): Promise<void>
+    public async exportImage(repoTagOrId: string, writeStream: NodeJS.WritableStream): Promise<void>
     /**
      * Export docker image
-     * @param image
+     * @param repoTagOrId
      * @param filename
      */
-    public async exportImage(image: string, filename: string): Promise<void>
-    public async exportImage(image: string, filenameOrWriteStream: string | NodeJS.WritableStream): Promise<void> {
-        const readableStream: NodeJS.ReadableStream = await this.getImage(image).get()
+    public async exportImage(repoTagOrId: string, filename: string): Promise<void>
+    public async exportImage(repoTagOrId: string, filenameOrWriteStream: string | NodeJS.WritableStream): Promise<void> {
+        const dockerImage: DockerImage = await this.getImage(repoTagOrId)
+        const readableStream: NodeJS.ReadableStream = await dockerImage.get()
         const destStream: NodeJS.WritableStream = typeof filenameOrWriteStream === 'string'
             ? createWriteStream(filenameOrWriteStream)
             : filenameOrWriteStream
         await pipeline(readableStream, destStream)
+    }
+
+    public async removeImage(id: string) {
+        const images = await this.listImages({digests: true})
+        console.log(images)
     }
 
     /**
@@ -419,8 +491,12 @@ export class Docker extends Component implements DockerConnectionOptions {
      * Get docker image
      * @param name
      */
-    public getImage(name: string): DockerImage {
-        return this.#instance.getImage(name)
+    public async getImage(name: string): Promise<DockerImage> {
+        const image: DockerImage = this.#instance.getImage(name)
+        const imageHistories: Record<string, any>[] = await image.history()
+        const latest: Record<string, any> = imageHistories.sort((a, b) => a.Created > b.Created ? -1 : 1)[0]
+        image.id = latest.Id
+        return image
     }
 
     /**
