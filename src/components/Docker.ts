@@ -246,7 +246,8 @@ export class Docker extends Component {
      * @param options
      */
     public async createContainer(options: Dockerode.ContainerCreateOptions): Promise<DockerContainer> {
-        return await this.#instance.createContainer(options)
+        const rawContainer: Dockerode.Container = await this.#instance.createContainer(options)
+        return new DockerContainer(rawContainer)
     }
 
     /**
@@ -427,7 +428,7 @@ export class Docker extends Component {
     /**
      * Get docker info
      */
-    public async info(): Promise<any> {
+    public async info(): Promise<Record<string, any>> {
         return await this.#instance.info()
     }
 
@@ -484,7 +485,7 @@ export class Docker extends Component {
      * @param id
      */
     public getContainer(id: string): DockerContainer {
-        return this.#instance.getContainer(id)
+        return new DockerContainer(this.#instance.getContainer(id))
     }
 
     /**

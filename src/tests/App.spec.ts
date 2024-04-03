@@ -191,13 +191,29 @@ Application
             platform: 'linux/arm64'
             // platform: 'linux/amd64'
         }, output => console.log(output))
-        console.log('image.id:', image.id)
         const exportFilename: string = '/Users/Administrator/Desktop/testImage.tar'
         await rm(exportFilename, {force: true, recursive: true})
         await image.export(exportFilename)
         await image.remove()
         // await Delay(20000)
         const newImage = await docker.importImage(exportFilename)
+        // const dockerContainer = await docker.run(newImage.id, ['/bin/sh','node', '-e', '"setInterval(()=>{},1000)"'])
+        const dockerContainer = await docker.run(newImage.id, ['/bin/bash', '-c', 'node -e "setInterval(()=>{console.log(Date.now())},1000)"'])
+        // const logs = await dockerContainer.logs({stdout: true, stderr: true, follow: true})
+        await Delay(10000)
+        // const logs = await dockerContainer.logs({stdout: true, stderr: true, follow: false})
+        // console.log(logs.toString())
+        const exec = await dockerContainer.exec({
+            AttachStderr: true,
+            AttachStdin: true,
+            AttachStdout: true,
+            Cmd: ['/bin/bash'],
+            Tty: true
+        })
+        const du = await exec.start({hijack: true})
+        process.stdin.pipe(du)
+        du.pipe(process.stdout)
+        // console.log(await dockerContainer.stats({stream: false}))
         // console.log('export done')
         // await Delay(10000)
         // const res = await docker.importImage('/Users/alex/testImage2.tar')
