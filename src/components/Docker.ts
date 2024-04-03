@@ -504,7 +504,7 @@ export class Docker extends Component {
      * @param name
      */
     public getVolume(name: string): DockerVolume {
-        return this.#instance.getVolume(name)
+        return new DockerVolume(this.#instance.getVolume(name))
     }
 
     /**
@@ -512,6 +512,6 @@ export class Docker extends Component {
      * @param id
      */
     public getNetwork(id: string): DockerNetwork {
-        return this.#instance.getNetwork(id)
+        return new DockerNetwork(this.#instance.getNetwork(id))
     }
 }
