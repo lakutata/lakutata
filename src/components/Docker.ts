@@ -142,25 +142,25 @@ export class DockerImportImageException extends Exception {
 }
 
 @Singleton()
-export class Docker extends Component implements DockerConnectionOptions {
+export class Docker extends Component {
 
     @Configurable(DTO.String().optional())
-    public readonly socketPath?: string | undefined
+    protected readonly socketPath?: string | undefined
 
     @Configurable(DTO.String().optional())
-    public readonly host?: string | undefined
+    protected readonly host?: string | undefined
 
     @Configurable(DTO.Alternatives(
         DTO.Number().port(),
         DTO.String()
     ).optional())
-    public readonly port?: number | string | undefined
+    protected readonly port?: number | string | undefined
 
     @Configurable(DTO.String().optional())
-    public readonly username?: string | undefined
+    protected readonly username?: string | undefined
 
     @Configurable(DTO.Object().pattern(DTO.String(), DTO.String()).optional())
-    public readonly headers?: { [name: string]: string }
+    protected readonly headers?: { [name: string]: string }
 
     @Configurable(DTO.Alternatives(
         DTO.String(),
@@ -168,7 +168,7 @@ export class Docker extends Component implements DockerConnectionOptions {
         DTO.Binary(),
         DTO.Array(DTO.Binary())
     ).optional())
-    public readonly ca?: string | string[] | Buffer | Buffer[] | undefined
+    protected readonly ca?: string | string[] | Buffer | Buffer[] | undefined
 
     @Configurable(DTO.Alternatives(
         DTO.String(),
@@ -176,7 +176,7 @@ export class Docker extends Component implements DockerConnectionOptions {
         DTO.Binary(),
         DTO.Array(DTO.Binary())
     ).optional())
-    public readonly cert?: string | string[] | Buffer | Buffer[] | undefined
+    protected readonly cert?: string | string[] | Buffer | Buffer[] | undefined
 
     @Configurable(DTO.Alternatives(
         DTO.String(),
@@ -188,19 +188,19 @@ export class Docker extends Component implements DockerConnectionOptions {
             passphrase: DTO.String().optional()
         }))
     ).optional())
-    public readonly key?: string | string[] | Buffer | Buffer[] | KeyObject[] | undefined
+    protected readonly key?: string | string[] | Buffer | Buffer[] | KeyObject[] | undefined
 
     @Configurable(DTO.String().valid('https', 'http', 'ssh').optional())
-    public readonly protocol?: 'https' | 'http' | 'ssh' | undefined
+    protected readonly protocol?: 'https' | 'http' | 'ssh' | undefined
 
     @Configurable(DTO.Number().optional())
-    public readonly timeout?: number | undefined
+    protected readonly timeout?: number | undefined
 
     @Configurable(DTO.String().optional())
-    public readonly version?: string | undefined
+    protected readonly version?: string | undefined
 
     @Configurable(DTO.String().optional())
-    public readonly sshAuthAgent?: string | undefined
+    protected readonly sshAuthAgent?: string | undefined
 
     #dockerVersion: DockerVersion
 
@@ -213,7 +213,20 @@ export class Docker extends Component implements DockerConnectionOptions {
     protected async init(): Promise<void> {
         if (!this.socketPath && !this.host) throw new DockerConnectionException('Docker connection target not set')
         try {
-            this.#instance = new Dockerode(this)
+            this.#instance = new Dockerode({
+                socketPath: this.socketPath,
+                host: this.host,
+                port: this.port,
+                username: this.username,
+                headers: this.headers,
+                ca: this.ca,
+                cert: this.cert,
+                key: this.key,
+                protocol: this.protocol,
+                timeout: this.timeout,
+                version: this.version,
+                sshAuthAgent: this.sshAuthAgent
+            })
             this.#dockerVersion = await this.#instance.version()
         } catch (error: any) {
             throw new DockerConnectionException(error)
@@ -263,6 +276,16 @@ export class Docker extends Component implements DockerConnectionOptions {
     }
 
     /**
+     * Export docker image
+     * @param imageNameOrId
+     * @param filenameOrWriteStream
+     */
+    public async exportImage(imageNameOrId: string, filenameOrWriteStream: string | NodeJS.WritableStream): Promise<void> {
+        const image: DockerImage = await this.getImage(imageNameOrId)
+        return await image.export(filenameOrWriteStream)
+    }
+
+    /**
      * Build docker image
      * @param context
      * @param options
@@ -302,35 +325,12 @@ export class Docker extends Component implements DockerConnectionOptions {
                 .once('close', () => {
                     if (buildImageException) return reject(buildImageException)
                     if (!imageId) return reject(new DockerBuildImageException('Build image failed'))
-                    return this.getImage(imageId).then((image: DockerImage) => resolve(image)).catch(reject)
+                    this.#instance.getImage(imageId).inspect().then((imageInspectInfo: Dockerode.ImageInspectInfo) => {
+                        const imageNameOrId: string = As<string>(imageInspectInfo.RepoTags.length ? [...imageInspectInfo.RepoTags].reverse()[0] : imageId)
+                        return this.getImage(imageNameOrId).then((image: DockerImage) => resolve(image)).catch(reject)
+                    }).catch(reject)
                 })
         })
-    }
-
-    /**
-     * Export docker image
-     * @param repoTagOrId
-     * @param writeStream
-     */
-    public async exportImage(repoTagOrId: string, writeStream: NodeJS.WritableStream): Promise<void>
-    /**
-     * Export docker image
-     * @param repoTagOrId
-     * @param filename
-     */
-    public async exportImage(repoTagOrId: string, filename: string): Promise<void>
-    public async exportImage(repoTagOrId: string, filenameOrWriteStream: string | NodeJS.WritableStream): Promise<void> {
-        const dockerImage: DockerImage = await this.getImage(repoTagOrId)
-        const readableStream: NodeJS.ReadableStream = await dockerImage.get()
-        const destStream: NodeJS.WritableStream = typeof filenameOrWriteStream === 'string'
-            ? createWriteStream(filenameOrWriteStream)
-            : filenameOrWriteStream
-        await pipeline(readableStream, destStream)
-    }
-
-    public async removeImage(id: string) {
-        const images = await this.listImages({digests: true})
-        console.log(images)
     }
 
     /**
@@ -489,14 +489,13 @@ export class Docker extends Component implements DockerConnectionOptions {
 
     /**
      * Get docker image
-     * @param name
+     * @param nameOrId
      */
-    public async getImage(name: string): Promise<DockerImage> {
-        const image: DockerImage = this.#instance.getImage(name)
-        const imageHistories: Record<string, any>[] = await image.history()
-        const latest: Record<string, any> = imageHistories.sort((a, b) => a.Created > b.Created ? -1 : 1)[0]
-        image.id = latest.Id
-        return image
+    public async getImage(nameOrId: string): Promise<DockerImage> {
+        const image: Dockerode.Image = this.#instance.getImage(nameOrId)
+        const imageInspectInfo: Dockerode.ImageInspectInfo = await image.inspect()
+        image.id = imageInspectInfo.Id
+        return new DockerImage(image)
     }
 
     /**

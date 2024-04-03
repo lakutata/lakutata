@@ -186,6 +186,7 @@ Application
             context: '/Users/Administrator/Desktop/test',
             src: ['Dockerfile']
         }, {
+            t: 'abcddd:llllllll',
             dockerfile: 'Dockerfile',
             platform: 'linux/arm64'
             // platform: 'linux/amd64'
@@ -193,12 +194,10 @@ Application
         console.log('image.id:', image.id)
         const exportFilename: string = '/Users/Administrator/Desktop/testImage.tar'
         await rm(exportFilename, {force: true, recursive: true})
-        await docker.exportImage(image.id, exportFilename)
-        // await docker.exportImage('ubuntu:latest', exportFilename)
+        await image.export(exportFilename)
         await image.remove()
         // await Delay(20000)
         const newImage = await docker.importImage(exportFilename)
-        console.log(newImage.id)
         // console.log('export done')
         // await Delay(10000)
         // const res = await docker.importImage('/Users/alex/testImage2.tar')
