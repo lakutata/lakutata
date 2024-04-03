@@ -1,5 +1,6 @@
 import Dockerode from 'dockerode'
 import {As} from '../functions/As.js'
+import stream from 'stream'
 
 export class DockerContainer {
     #container: Dockerode.Container
@@ -185,5 +186,30 @@ export class DockerContainer {
      */
     public async attach(options: Dockerode.ContainerAttachOptions): Promise<NodeJS.ReadWriteStream> {
         return await this.#container.attach(options)
+    }
+
+    /**
+     * Start container tty
+     * @param options
+     */
+    public async tty(options: { Cmd: string[] }): Promise<{
+        duplex: stream.Duplex
+        resize: (size: { width: number; height: number }) => void
+    }> {
+        const exec = await this.exec({
+            AttachStderr: true,
+            AttachStdin: true,
+            AttachStdout: true,
+            Cmd: options.Cmd,
+            Tty: true
+        })
+        const duplex: stream.Duplex = await exec.start({hijack: true})
+        return {
+            duplex: duplex,
+            resize: (size: { width: number; height: number }) => exec.resize({
+                w: size.width,
+                h: size.height
+            })
+        }
     }
 }

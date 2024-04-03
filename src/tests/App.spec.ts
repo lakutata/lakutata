@@ -203,16 +203,11 @@ Application
         await Delay(10000)
         // const logs = await dockerContainer.logs({stdout: true, stderr: true, follow: false})
         // console.log(logs.toString())
-        const exec = await dockerContainer.exec({
-            AttachStderr: true,
-            AttachStdin: true,
-            AttachStdout: true,
-            Cmd: ['/bin/bash'],
-            Tty: true
-        })
-        const du = await exec.start({hijack: true})
-        process.stdin.pipe(du)
-        du.pipe(process.stdout)
+        const {duplex, resize} = await dockerContainer.tty({Cmd: ['/bin/bash']})
+        process.stdin.pipe(duplex)
+        duplex.pipe(process.stdout)
+        const [width, height] = process.stdout.getWindowSize()
+        resize({width: width, height: height})
         // console.log(await dockerContainer.stats({stream: false}))
         // console.log('export done')
         // await Delay(10000)
