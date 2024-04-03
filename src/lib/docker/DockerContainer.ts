@@ -1,6 +1,7 @@
 import Dockerode from 'dockerode'
 import {As} from '../functions/As.js'
 import stream from 'stream'
+import {DockerExec} from './DockerExec.js'
 
 export class DockerContainer {
     #container: Dockerode.Container
@@ -77,9 +78,8 @@ export class DockerContainer {
      * Run a command inside a running container.
      * @param options
      */
-    public async exec(options: Dockerode.ExecCreateOptions): Promise<Dockerode.Exec> {
-        const exec: Dockerode.Exec = await this.#container.exec(options)
-        return exec
+    public async exec(options: Dockerode.ExecCreateOptions): Promise<DockerExec> {
+        return new DockerExec(await this.#container.exec(options))
     }
 
     /**

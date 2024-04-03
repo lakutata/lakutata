@@ -1,4 +1,4 @@
-import Dockerode, {VolumeInspectInfo, VolumeRemoveOptions} from 'dockerode'
+import Dockerode from 'dockerode'
 
 export class DockerVolume {
     #volume: Dockerode.Volume
@@ -17,7 +17,7 @@ export class DockerVolume {
     /**
      * Inspect volume
      */
-    public async inspect(): Promise<VolumeInspectInfo> {
+    public async inspect(): Promise<Dockerode.VolumeInspectInfo> {
         return await this.#volume.inspect({})
     }
 
@@ -25,7 +25,7 @@ export class DockerVolume {
      * Remove volume
      * @param options
      */
-    public async remove(options?: VolumeRemoveOptions): Promise<void> {
+    public async remove(options?: Dockerode.VolumeRemoveOptions): Promise<void> {
         await this.#volume.remove(options ? options : {})
     }
 }
