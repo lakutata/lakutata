@@ -6,8 +6,11 @@ import {DockerExec} from './DockerExec.js'
 export class DockerContainer {
     #container: Dockerode.Container
 
-    constructor(container: Dockerode.Container) {
+    #name: string
+
+    constructor(container: Dockerode.Container, name: string) {
         this.#container = container
+        this.#name = name
     }
 
     /**
@@ -15,6 +18,13 @@ export class DockerContainer {
      */
     public get id(): string {
         return this.#container.id
+    }
+
+    /**
+     * Container name
+     */
+    public get name(): string {
+        return this.#name
     }
 
     /**
@@ -29,8 +39,10 @@ export class DockerContainer {
      * Rename container
      * @param options
      */
-    public async rename(options: {}): Promise<void> {
-        await this.#container.rename(options ? options : {})
+    public async rename(options: { name: string }): Promise<void> {
+        await this.#container.rename(options)
+        this.#name = options.name
+
     }
 
     /**
