@@ -381,8 +381,8 @@ export class Docker extends Component {
      * Create docker network
      * @param options
      */
-    public async createNetwork(options: Dockerode.NetworkCreateOptions): Promise<Dockerode.Network> {
-        return await this.#instance.createNetwork(options)
+    public async createNetwork(options: Dockerode.NetworkCreateOptions): Promise<DockerNetwork> {
+        return new DockerNetwork(await this.#instance.createNetwork(options))
     }
 
     /**
