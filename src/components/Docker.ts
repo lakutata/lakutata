@@ -11,8 +11,6 @@ import {DockerVolume} from '../lib/docker/DockerVolume.js'
 import {DockerNetwork} from '../lib/docker/DockerNetwork.js'
 import {createInterface} from 'node:readline'
 import {IncomingMessage} from 'node:http'
-import {createWriteStream} from 'node:fs'
-import {pipeline} from 'stream/promises'
 
 /**
  * Docker connection key object
