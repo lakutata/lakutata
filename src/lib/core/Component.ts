@@ -45,6 +45,14 @@ export class Component extends Provider implements EventEmitter {
     }
 
     /**
+     * Get container
+     * @protected
+     */
+    protected get container(): Container {
+        return GetObjectContainer(this)
+    }
+
+    /**
      * Create sub scope container
      * @protected
      */

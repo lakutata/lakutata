@@ -276,6 +276,18 @@ export class Container {
     }
 
     /**
+     * Register base object class in the container
+     * @param target
+     * @param configurableRecords
+     */
+    public async register<T extends BaseObject>(target: IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<void> {
+        await this.load([{
+            ...configurableRecords,
+            class: target
+        }])
+    }
+
+    /**
      * Builds an instance of a base object class by injecting dependencies, but without registering it in the container
      * @param target
      * @param configurableRecords
