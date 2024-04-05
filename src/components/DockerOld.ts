@@ -75,7 +75,7 @@ export interface DockerSSHConnectionOptions extends Omit<DockerConnectionOptions
  */
 export const BuildDockerConnectionConfig: (options: DockerConnectionOptions) => DockerConnectionOptions = (options: DockerConnectionOptions) => ({
     ...options,
-    class: Docker
+    class: DockerOld
 })
 /**
  * Build docker socket config
@@ -84,7 +84,7 @@ export const BuildDockerConnectionConfig: (options: DockerConnectionOptions) => 
  */
 export const BuildDockerSocketConnectionConfig: (options: DockerSocketConnectionOptions) => DockerConnectionOptions = (options: DockerSocketConnectionOptions) => ({
     ...options,
-    class: Docker
+    class: DockerOld
 })
 
 /**
@@ -95,7 +95,7 @@ export const BuildDockerSocketConnectionConfig: (options: DockerSocketConnection
 export const BuildDockerHttpConnectionConfig: (options: DockerHttpConnectionOptions) => DockerConnectionOptions = (options: DockerHttpConnectionOptions) => ({
     ...options,
     protocol: 'http',
-    class: Docker
+    class: DockerOld
 })
 /**
  * Build docker https config
@@ -105,7 +105,7 @@ export const BuildDockerHttpConnectionConfig: (options: DockerHttpConnectionOpti
 export const BuildDockerHttpsConnectionConfig: (options: DockerHttpsConnectionOptions) => DockerConnectionOptions = (options: DockerHttpsConnectionOptions) => ({
     ...options,
     protocol: 'https',
-    class: Docker
+    class: DockerOld
 })
 /**
  * Build docker ssh config
@@ -115,7 +115,7 @@ export const BuildDockerHttpsConnectionConfig: (options: DockerHttpsConnectionOp
 export const BuildDockerSSHConnectionConfig: (options: DockerSSHConnectionOptions) => DockerConnectionOptions = (options: DockerSSHConnectionOptions) => ({
     ...options,
     protocol: 'ssh',
-    class: Docker
+    class: DockerOld
 })
 
 /**
@@ -140,7 +140,7 @@ export class DockerImportImageException extends Exception {
 }
 
 @Singleton()
-export class Docker extends Component {
+export class DockerOld extends Component {
 
     @Configurable(DTO.String().optional())
     protected readonly socketPath?: string | undefined

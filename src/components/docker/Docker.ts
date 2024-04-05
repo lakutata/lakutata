@@ -3,9 +3,78 @@ import {Singleton} from '../../decorators/di/Lifetime.js'
 import {DockerImage} from './lib/DockerImage.js'
 import {DockerContainer} from './lib/DockerContainer.js'
 import {DockerNetwork} from './lib/DockerNetwork.js'
+import {platform} from 'os'
+import {Configurable} from '../../decorators/di/Configurable.js'
+import {DTO} from '../../lib/core/DTO.js'
+import {KeyObject} from '../DockerOld.js'
+import Dockerode from 'dockerode'
+import {DockerConnectionException} from './exceptions/DockerConnectionException.js'
+import {DockerImageNotFoundException} from './exceptions/DockerImageNotFoundException.js'
 
 @Singleton()
 export class Docker extends Component {
+
+    @Configurable(DTO.String().optional())
+    protected readonly socketPath?: string | undefined
+
+    @Configurable(DTO.String().optional())
+    protected readonly host?: string | undefined
+
+    @Configurable(DTO.Alternatives(
+        DTO.Number().port(),
+        DTO.String()
+    ).optional())
+    protected readonly port?: number | string | undefined
+
+    @Configurable(DTO.String().optional())
+    protected readonly username?: string | undefined
+
+    @Configurable(DTO.Object().pattern(DTO.String(), DTO.String()).optional())
+    protected readonly headers?: { [name: string]: string }
+
+    @Configurable(DTO.Alternatives(
+        DTO.String(),
+        DTO.Array(DTO.String()),
+        DTO.Binary(),
+        DTO.Array(DTO.Binary())
+    ).optional())
+    protected readonly ca?: string | string[] | Buffer | Buffer[] | undefined
+
+    @Configurable(DTO.Alternatives(
+        DTO.String(),
+        DTO.Array(DTO.String()),
+        DTO.Binary(),
+        DTO.Array(DTO.Binary())
+    ).optional())
+    protected readonly cert?: string | string[] | Buffer | Buffer[] | undefined
+
+    @Configurable(DTO.Alternatives(
+        DTO.String(),
+        DTO.Array(DTO.String()),
+        DTO.Binary(),
+        DTO.Array(DTO.Binary()),
+        DTO.Array(DTO.Object({
+            pem: DTO.Alternatives(DTO.String(), DTO.Binary()).required(),
+            passphrase: DTO.String().optional()
+        }))
+    ).optional())
+    protected readonly key?: string | string[] | Buffer | Buffer[] | KeyObject[] | undefined
+
+    @Configurable(DTO.String().valid('https', 'http', 'ssh').optional())
+    protected readonly protocol?: 'https' | 'http' | 'ssh' | undefined
+
+    @Configurable(DTO.Number().optional())
+    protected readonly timeout?: number | undefined
+
+    @Configurable(DTO.String().optional())
+    protected readonly version?: string | undefined
+
+    @Configurable(DTO.String().optional())
+    protected readonly sshAuthAgent?: string | undefined
+
+    #instance: Dockerode
+
+    #abortController = new AbortController()
 
     /**
      * Initializer
@@ -17,6 +86,44 @@ export class Docker extends Component {
             new Promise((resolve, reject) => this.container.register(DockerContainer).then(resolve).catch(reject)),
             new Promise((resolve, reject) => this.container.register(DockerNetwork).then(resolve).catch(reject))
         ])
+        if (!this.socketPath && !this.host) {
+            //Load default config
+            switch (platform()) {
+                case 'win32': {
+                    this.#instance = new Dockerode({
+                        host: 'localhost',
+                        port: 2375
+                    })
+                }
+                    break
+                default: {
+                    this.#instance = new Dockerode({
+                        socketPath: '/var/run/docker.sock'
+                    })
+                }
+            }
+        } else {
+            //Load passed config
+            this.#instance = new Dockerode({
+                socketPath: this.socketPath,
+                host: this.host,
+                port: this.port,
+                username: this.username,
+                headers: this.headers,
+                ca: this.ca,
+                cert: this.cert,
+                key: this.key,
+                protocol: this.protocol,
+                timeout: this.timeout,
+                version: this.version,
+                sshAuthAgent: this.sshAuthAgent
+            })
+        }
+        try {
+            await this.#instance.ping()
+        } catch (e: any) {
+            throw new DockerConnectionException(e.message ? e.message : 'Cannot connect to docker')
+        }
     }
 
     /**
@@ -24,17 +131,25 @@ export class Docker extends Component {
      * @protected
      */
     protected async destroy(): Promise<void> {
-        //TODO
+        this.#abortController.abort()
     }
+
+    /** Docker Common Operations **/
+
+    //TODO
 
     /** Docker Image Operations **/
 
     /**
      * List docker images
      */
-    public async listImages() {
-        //TODO
-        throw new Error('not implemented')
+    public async listImages(): Promise<DockerImage[]> {
+        const rawImages: Dockerode.ImageInfo[] = await this.#instance.listImages()
+        return await Promise.all(rawImages.map((rawImage: Dockerode.ImageInfo) => new Promise<DockerImage>((resolve, reject) => this.container.get(DockerImage, {
+            id: rawImage.Id,
+            $dockerode: this.#instance,
+            $abortController: this.#abortController
+        }).then(resolve).catch(reject))))
     }
 
     /**
@@ -64,9 +179,18 @@ export class Docker extends Component {
     /**
      * Get docker image
      */
-    public async getImage() {
-        //TODO
-        throw new Error('not implemented')
+    public async getImage(repoTagOrId: string): Promise<DockerImage> {
+        const images: DockerImage[] = await this.listImages()
+        const result: DockerImage[] = images
+            .filter((image: DockerImage) => {
+                if (image.id === repoTagOrId) return true
+                if (image.repoTags.includes(repoTagOrId)) return true
+                return false
+            })
+            .sort((image: DockerImage) => image.id === repoTagOrId ? -1 : 0)
+        const image: DockerImage | undefined = result[0]
+        if (!image) throw new DockerImageNotFoundException('Docker image {0} not found', [repoTagOrId])
+        return image
     }
 
     /**

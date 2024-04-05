@@ -36,6 +36,8 @@ export class Container {
 
     #subContainerSet: Set<Container> = new Set()
 
+    #destroyed: boolean = false
+
     public readonly parent?: Container
 
     constructor(parent?: Container, owner?: BaseObject) {
@@ -341,6 +343,8 @@ export class Container {
      * Destroy current container
      */
     public async destroy(): Promise<void> {
+        if (this.#destroyed) return
+        this.#destroyed = true
         if (this.parent) this.parent.#subContainerSet.delete(this)
         await this.clear()
     }

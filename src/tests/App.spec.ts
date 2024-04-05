@@ -23,14 +23,10 @@ import path from 'node:path'
 import {Delay} from '../lib/functions/Delay.js'
 import {createWriteStream} from 'node:fs'
 import {Library} from '../lib/ffi/Library.js'
-import {
-    BuildDockerHttpConnectionConfig,
-    BuildDockerSocketConnectionConfig,
-    Docker
-} from '../components/Docker.js'
 import {pipeline} from 'stream/promises'
 import {platform} from 'node:os'
 import {rm} from 'node:fs/promises'
+import {Docker} from '../components/docker/Docker.js'
 
 Application
     .env({TEST: '123'})
@@ -128,19 +124,9 @@ Application
                     })
                 })
             }),
-            docker: (() => {
-                switch (platform()) {
-                    case 'win32':
-                        return BuildDockerHttpConnectionConfig({
-                            host: 'localhost',
-                            port: 2375
-                        })
-                    default:
-                        return BuildDockerSocketConnectionConfig({
-                            socketPath: '/var/run/docker.sock'
-                        })
-                }
-            })()
+            docker: {
+                class: Docker
+            }
         },
         providers: {
             testProvider: {
@@ -177,45 +163,9 @@ Application
     })
     .onLaunched(async (app, logger) => {
         const docker = await app.getObject<Docker>('docker')
-        // console.log(await docker.listContainers())
-        // console.log(await docker.getContainer('9b85414edef4634a8584dd80b869a239260cb8d0e886cc3b22ea3278d4f8ca24'))
-        // // console.log(await docker.listImages())
-        // // await docker.pull('ubuntu',{},{})
-        // // console.log('done')
-        // //C:\Users\Administrator\Desktop\test
-        // const image = await docker.buildImage({
-        //     // context: '/Users/alex/Desktop/test',
-        //     context: '/Users/Administrator/Desktop/test',
-        //     src: ['Dockerfile']
-        // }, {
-        //     t: 'abcddd:llllllll',
-        //     dockerfile: 'Dockerfile',
-        //     platform: 'linux/arm64'
-        //     // platform: 'linux/amd64'
-        // }, output => console.log(output))
-        // const exportFilename: string = '/Users/Administrator/Desktop/testImage.tar'
-        // await rm(exportFilename, {force: true, recursive: true})
-        // await image.export(exportFilename)
-        // await image.remove()
-        // // await Delay(20000)
-        // const newImage = await docker.importImage(exportFilename)
-        // // const dockerContainer = await docker.run(newImage.id, ['/bin/sh','node', '-e', '"setInterval(()=>{},1000)"'])
-        // const dockerContainer = await docker.run(newImage.id, ['/bin/bash', '-c', 'node -e "setInterval(()=>{console.log(Date.now())},1000)"'],{name:'testContainer'})
-        // // const logs = await dockerContainer.logs({stdout: true, stderr: true, follow: true})
-        // await Delay(10000)
-        // // const logs = await dockerContainer.logs({stdout: true, stderr: true, follow: false})
-        // // console.log(logs.toString())
-        // const {duplex, resize} = await dockerContainer.tty({Cmd: ['/bin/bash']})
-        // process.stdin.pipe(duplex)
-        // duplex.pipe(process.stdout)
-        // const [width, height] = process.stdout.getWindowSize()
-        // resize({width: width, height: height})
-        // // console.log(await dockerContainer.stats({stream: false}))
-        // // console.log('export done')
-        // // await Delay(10000)
-        // // const res = await docker.importImage('/Users/alex/testImage2.tar')
-        // // res.pipe(process.stdout)
-        // // console.log('done')
+        // console.log(await docker.listImages())
+        const image = await docker.getImage('ubuntu:latest')
+        // await image.export({destination: '/Users/alex/Desktop/test.tar',repoTag:'ubuntu:latest'})
     })
     .onDone(async (app, log) => {
         log.info('Application %s done', app.appName)

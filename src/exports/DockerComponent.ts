@@ -1,3 +1,11 @@
 import 'reflect-metadata'
 
-export * from '../components/Docker.js'
+export * from '../components/docker/Docker.js'
+export * from '../components/docker/ConnectionOptionsBuilder.js'
+export * from '../components/docker/interfaces/IDockerConnectionOptions.js'
+export * from '../components/docker/interfaces/IDockerHttpConnectionOptions.js'
+export * from '../components/docker/interfaces/IDockerHttpsConnectionOptions.js'
+export * from '../components/docker/interfaces/IDockerSocketConnectionOptions.js'
+export * from '../components/docker/interfaces/IDockerSSHConnectionOptions.js'
+export * from '../components/docker/interfaces/IKeyObject.js'
+export * from '../components/docker/exceptions/DockerConnectionException.js'
