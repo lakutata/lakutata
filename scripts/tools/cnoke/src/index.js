@@ -19,10 +19,10 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 // OTHER DEALINGS IN THE SOFTWARE.
 
-const builder = require('./builder.js');
-const tools = require('./tools.js');
+const builder = require('./builder.js')
+const tools = require('./tools.js')
 
 module.exports = {
     ...builder,
     ...tools
-};
+}

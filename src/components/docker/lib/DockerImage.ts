@@ -16,6 +16,7 @@ import {ImagePushOptions} from '../options/ImagePushOptions.js'
 import {DockerImagePushException} from '../exceptions/DockerImagePushException.js'
 import {createInterface} from 'node:readline'
 import {IsAbortError} from '../../../lib/functions/IsAbortError.js'
+import {ParseRepositoryTag} from './ParseRepositoryTag.js'
 
 @Transient()
 export class DockerImage extends Provider {
@@ -111,7 +112,11 @@ export class DockerImage extends Provider {
         try {
             let rawImage: Dockerode.Image
             if (options.repoTag) {
-                if (!this.repoTags.includes(options.repoTag)) throw new DockerImageRepoTagNotFoundException('The current image does not contain the RepoTag of {0}', [options.repoTag])
+                if (!this.repoTags.includes(options.repoTag)) {
+                    if (!options.createRepoTagIfNotExists) throw new DockerImageRepoTagNotFoundException('The current image does not contain the RepoTag of {0}', [options.repoTag])
+                    const {repo, tag} = ParseRepositoryTag(options.repoTag)
+                    await this.tag({repo: repo, tag: tag})
+                }
                 rawImage = this.$dockerode.getImage(options.repoTag)
             } else {
                 rawImage = this.#image
@@ -163,7 +168,7 @@ export class DockerImage extends Provider {
      * Remove docker image
      * @param options
      */
-    @Accept(ImageRemoveOptions.optional())
+    @Accept(ImageRemoveOptions.optional().default({force: true}))
     public async remove(options?: ImageRemoveOptions): Promise<void> {
         try {
             await this.#image.remove({...options, abortSignal: this.$abortController.signal})

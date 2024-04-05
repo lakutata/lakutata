@@ -167,9 +167,11 @@ Application
             workdir: 'C:\\Users\\Administrator\\Desktop\\test',
             files: ['Dockerfile'],
             platform: 'linux/arm64',
-            repoTag: 'vvv:vvv',
+            repoTag: 'export:test',
             outputCallback: output => console.log(output)
         })
+        await img.export({destination: 'C:\\Users\\Administrator\\Desktop\\teste.tar', repoTag: 'export:test1'})
+        await img.remove()
         // console.log(await docker.listImages())
         // const image = await docker.getImage('testimg:testtag')
         // await image.tag({repo:'testimg',tag:'testtag111'})

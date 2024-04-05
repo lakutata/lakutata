@@ -15,7 +15,6 @@ import {createInterface} from 'node:readline'
 import {DockerImagePullException} from './exceptions/DockerImagePullException.js'
 import {IsAbortError} from '../../lib/functions/IsAbortError.js'
 import {ImageBuildOptions} from './options/ImageBuildOptions.js'
-import {As} from '../../lib/functions/As.js'
 import {DockerImageBuildException} from './exceptions/DockerImageBuildException.js'
 import {IKeyObject} from './interfaces/IKeyObject.js'
 

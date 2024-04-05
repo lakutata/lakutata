@@ -14,4 +14,11 @@ export class ImageExportOptions extends DTO {
      */
     @Expect(DTO.String().optional())
     public repoTag?: string
+
+    /**
+     * Create specific repoTag if not exist
+     * @default true
+     */
+    @Expect(DTO.Boolean().optional().default(true))
+    public createRepoTagIfNotExists?: boolean
 }
