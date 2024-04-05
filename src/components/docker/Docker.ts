@@ -215,6 +215,7 @@ export class Docker extends Component {
      * Get docker image
      * @param repoTagOrId
      */
+    @Accept(DTO.String().required())
     public async getImage(repoTagOrId: string): Promise<DockerImage> {
         const images: DockerImage[] = await this.listImages()
         const result: DockerImage[] = images
@@ -227,14 +228,6 @@ export class Docker extends Component {
         const image: DockerImage | undefined = result[0]
         if (!image) throw new DockerImageNotFoundException('Docker image {0} not found', [repoTagOrId])
         return image
-    }
-
-    /**
-     * Search docker images
-     */
-    public async searchImage() {
-        //TODO
-        throw new Error('not implemented')
     }
 
     /** Docker Container Operations **/
