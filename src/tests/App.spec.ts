@@ -170,8 +170,10 @@ Application
             repoTag: 'export:test',
             outputCallback: output => console.log(output)
         })
-        await img.export({destination: 'C:\\Users\\Administrator\\Desktop\\teste.tar', repoTag: 'export:test1'})
-        await img.remove()
+        // await img.export({destination: 'C:\\Users\\Administrator\\Desktop\\teste.tar', repoTag: 'export:test1'})
+        // await img.export({destination: 'C:\\Users\\Administrator\\Desktop\\teste.tar'})
+        // await img.remove()
+        // await docker.importImage({source: 'C:\\Users\\Administrator\\Desktop\\teste.tar'})
         // console.log(await docker.listImages())
         // const image = await docker.getImage('testimg:testtag')
         // await image.tag({repo:'testimg',tag:'testtag111'})

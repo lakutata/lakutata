@@ -18,6 +18,10 @@ import {ImageBuildOptions} from './options/ImageBuildOptions.js'
 import {DockerImageBuildException} from './exceptions/DockerImageBuildException.js'
 import {IKeyObject} from './interfaces/IKeyObject.js'
 import {ImageImportOptions} from './options/ImageImportOptions.js'
+import {DockerImageImportException} from './exceptions/DockerImageImportException.js'
+import {Extract, extract as tarExtract, Headers} from 'tar-stream'
+import {createReadStream} from 'node:fs'
+import {PassThrough} from 'node:stream'
 
 @Singleton()
 export class Docker extends Component {
@@ -249,9 +253,40 @@ export class Docker extends Component {
      * Import docker image from .tar file
      */
     @Accept(ImageImportOptions.required())
-    public async importImage(options: ImageImportOptions) {
-        //TODO
-        throw new Error('not implemented')
+    public async importImage(options: ImageImportOptions): Promise<DockerImage> {
+        const imageSourceReadableStream: NodeJS.ReadableStream = typeof options.source === 'string' ? createReadStream(options.source) : options.source
+        const tarExtractPassThrough: PassThrough = new PassThrough()
+        const loadImagePassThrough: PassThrough = new PassThrough()
+        imageSourceReadableStream.pipe(tarExtractPassThrough)
+        imageSourceReadableStream.pipe(loadImagePassThrough)
+        const tarExtractor: Extract = tarExtract()
+        let imageId: string
+        tarExtractor
+            .on('entry', (header: Headers, stream: PassThrough, next: Function) => {
+                if (header.name === 'manifest.json') {
+                    createInterface({input: stream})
+                        .on('line', manifestLine => {
+                            const manifestObject: Record<string, any> = JSON.parse(manifestLine)[0]
+                            imageId = manifestObject.Config.toString().replace('blobs/', '').replace('/', ':')
+                        })
+                }
+                stream.on('end', () => next())
+                stream.resume()
+            })
+        tarExtractPassThrough.pipe(tarExtractor)
+        const readableStream: NodeJS.ReadableStream = await this.#instance.loadImage(loadImagePassThrough, {quiet: options.quiet})
+        return new Promise<DockerImage>((resolve, reject) => {
+            let importImageException: DockerImageImportException | undefined = undefined
+            createInterface({input: readableStream})
+                .on('line', (line: string) => {
+                    const outputObject: Record<string, any> = JSON.parse(line)
+                    if (outputObject.error) importImageException = new DockerImageImportException(outputObject.error)
+                })
+                .once('close', () => {
+                    if (importImageException) return reject(importImageException)
+                    return this.getImage(imageId).then(resolve).catch(reject)
+                })
+        })
     }
 
     /**
