@@ -159,8 +159,7 @@ export class Docker extends Component {
         const rawImages: Dockerode.ImageInfo[] = await this.#instance.listImages()
         return await Promise.all(rawImages.map((rawImage: Dockerode.ImageInfo) => new Promise<DockerImage>((resolve, reject) => this.container.get(DockerImage, {
             id: rawImage.Id,
-            $dockerode: this.#instance,
-            $abortController: this.#abortController
+            $dockerode: this.#instance
         }).then(resolve).catch(reject))))
     }
 
@@ -312,17 +311,29 @@ export class Docker extends Component {
     /**
      * List docker containers
      */
-    public async listContainers() {
-        //TODO
-        throw new Error('not implemented')
+    public async listContainers(): Promise<DockerContainer[]> {
+        try {
+            const rawContainers: Dockerode.ContainerInfo[] = await this.#instance.listContainers({
+                all: true,
+                abortSignal: this.#abortController.signal
+            })
+            return await Promise.all(rawContainers.map((containerInfo: Dockerode.ContainerInfo) => new Promise<DockerContainer>((resolve, reject) => this.getContainer(containerInfo.Id).then(resolve).catch(reject))))
+        } catch (e) {
+            if (!IsAbortError(e)) throw e
+            return []
+        }
     }
 
     /**
      * Get docker container
+     * @param id
      */
-    public async getContainer() {
-        //TODO
-        throw new Error('not implemented')
+    @Accept(DTO.String().required())
+    public async getContainer(id: string): Promise<DockerContainer> {
+        return await this.getObject(DockerContainer, {
+            $dockerode: this.#instance,
+            id: id
+        })
     }
 
     /** Docker Network Operations **/

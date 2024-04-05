@@ -21,13 +21,12 @@ import {ParseRepositoryTag} from './ParseRepositoryTag.js'
 @Transient()
 export class DockerImage extends Provider {
 
+    readonly #abortController: AbortController = new AbortController()
+
     #image: Dockerode.Image
 
     @Configurable(DTO.InstanceOf(Dockerode))
     protected readonly $dockerode: Dockerode
-
-    @Configurable(DTO.InstanceOf(AbortController))
-    protected readonly $abortController: AbortController
 
     @Configurable(DTO.String())
     public id: string
@@ -53,6 +52,14 @@ export class DockerImage extends Provider {
     protected async init(): Promise<void> {
         this.#image = this.$dockerode.getImage(this.id)
         await this.syncImageInfo()
+    }
+
+    /**
+     * Destroyer
+     * @protected
+     */
+    protected async destroy(): Promise<void> {
+        this.#abortController.abort()
     }
 
     /**
@@ -96,7 +103,7 @@ export class DockerImage extends Provider {
     @Accept(ImageTagOptions.required())
     public async tag(options: ImageTagOptions): Promise<void> {
         try {
-            await this.#image.tag({...options, abortSignal: this.$abortController.signal})
+            await this.#image.tag({...options, abortSignal: this.#abortController.signal})
             await this.syncImageInfo()
         } catch (e) {
             if (!IsAbortError(e)) throw e
@@ -123,7 +130,7 @@ export class DockerImage extends Provider {
             }
             const readableStream: NodeJS.ReadableStream = await rawImage.get()
             const destStream: NodeJS.WritableStream = typeof options.destination === 'string'
-                ? createWriteStream(options.destination, {signal: this.$abortController.signal})
+                ? createWriteStream(options.destination, {signal: this.#abortController.signal})
                 : options.destination
             await pipeline(readableStream, destStream)
         } catch (e) {
@@ -171,7 +178,7 @@ export class DockerImage extends Provider {
     @Accept(ImageRemoveOptions.optional().default({force: true}))
     public async remove(options?: ImageRemoveOptions): Promise<void> {
         try {
-            await this.#image.remove({...options, abortSignal: this.$abortController.signal})
+            await this.#image.remove({...options, abortSignal: this.#abortController.signal})
         } catch (e) {
             if (!IsAbortError(e)) throw e
         }

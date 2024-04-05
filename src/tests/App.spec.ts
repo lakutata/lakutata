@@ -163,13 +163,16 @@ Application
     })
     .onLaunched(async (app, logger) => {
         const docker = await app.getObject<Docker>('docker')
-        const img = await docker.buildImage({
-            workdir: 'C:\\Users\\Administrator\\Desktop\\test',
-            files: ['Dockerfile'],
-            platform: 'linux/arm64',
-            repoTag: 'export:test',
-            outputCallback: output => console.log(output)
-        })
+        // const img = await docker.buildImage({
+        //     workdir: 'C:\\Users\\Administrator\\Desktop\\test',
+        //     files: ['Dockerfile'],
+        //     platform: 'linux/arm64',
+        //     repoTag: 'export:test',
+        //     outputCallback: output => console.log(output)
+        // })
+
+        console.log(await docker.listContainers())
+
         // await img.export({destination: 'C:\\Users\\Administrator\\Desktop\\teste.tar', repoTag: 'export:test1'})
         // await img.export({destination: 'C:\\Users\\Administrator\\Desktop\\teste.tar'})
         // await img.remove()
