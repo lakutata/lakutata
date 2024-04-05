@@ -11,6 +11,10 @@ import {ImageExportOptions} from '../options/ImageExportOptions.js'
 import {createWriteStream} from 'node:fs'
 import {pipeline} from 'stream/promises'
 import {DockerImageRepoTagNotFoundException} from '../exceptions/DockerImageRepoTagNotFoundException.js'
+import {ImageRemoveOptions} from '../options/ImageRemoveOptions.js'
+import {ImagePushOptions} from '../options/ImagePushOptions.js'
+import {DockerImagePushException} from '../exceptions/DockerImagePushException.js'
+import {createInterface} from 'node:readline'
 
 @Transient()
 export class DockerImage extends Provider {
@@ -81,6 +85,7 @@ export class DockerImage extends Provider {
                 : [],
             volumes: inspectInfo.Config.Volumes ? Object.keys(inspectInfo.Config.Volumes) : []
         }
+        console.log(inspectInfo.RepoTags)
     }
 
     /**
@@ -95,6 +100,7 @@ export class DockerImage extends Provider {
 
     /**
      * Export docker image
+     * @param options
      */
     @Accept(ImageExportOptions.required())
     public async export(options: ImageExportOptions): Promise<void> {
@@ -112,12 +118,49 @@ export class DockerImage extends Provider {
         await pipeline(readableStream, destStream)
     }
 
-    public async push() {
+    /**
+     * Push docker image to repository
+     * @param options
+     */
+    @Accept(ImagePushOptions.required())
+    public async push(options: ImagePushOptions) {
+        const tag: string = options.tag ? options.tag : 'latest'
+        const repoTag: string = `${options.repo}:${tag}`
+        await this.tag({repo: options.repo, tag: tag})
+        await this.syncImageInfo()
+        const readableStream: NodeJS.ReadableStream = await this.$dockerode.getImage(repoTag).push({
+            authconfig: options.auth ? {
+                username: options.auth.username,
+                password: options.auth.password,
+                serveraddress: options.auth.serverAddress,
+                email: options.auth.email
+            } : undefined
+        })
+        return new Promise<void>((resolve, reject) => {
+            let pushException: DockerImagePushException
+            createInterface({input: readableStream})
+                .on('line', (line: string) => {
+                    const outputObject: Record<string, any> = JSON.parse(line)
+                    if (outputObject.error) pushException = new DockerImagePushException(outputObject.error)
+                    if (options.outputCallback) options.outputCallback(outputObject)
+                })
+                .once('close', () => {
+                    if (pushException) return reject(pushException)
+                    return resolve()
+                })
+        })
     }
 
-    public async remove() {
+    /**
+     * Remove docker image
+     * @param options
+     */
+    @Accept(ImageRemoveOptions.optional())
+    public async remove(options?: ImageRemoveOptions): Promise<void> {
+        await this.#image.remove({...options, abortSignal: this.$abortController.signal})
     }
 
     public async run() {
+        //TODO
     }
 }

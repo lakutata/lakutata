@@ -164,7 +164,8 @@ Application
     .onLaunched(async (app, logger) => {
         const docker = await app.getObject<Docker>('docker')
         // console.log(await docker.listImages())
-        const image = await docker.getImage('ubuntu:latest')
+        const image = await docker.getImage('testimg:testtag')
+        // await image.tag({repo:'testimg',tag:'testtag111'})
         // await image.export({destination: '/Users/alex/Desktop/test.tar',repoTag:'ubuntu:latest'})
     })
     .onDone(async (app, log) => {
