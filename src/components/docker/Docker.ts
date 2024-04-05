@@ -6,7 +6,6 @@ import {DockerNetwork} from './lib/DockerNetwork.js'
 import {platform} from 'os'
 import {Configurable} from '../../decorators/di/Configurable.js'
 import {DTO} from '../../lib/core/DTO.js'
-import {KeyObject} from '../DockerOld.js'
 import Dockerode from 'dockerode'
 import {DockerConnectionException} from './exceptions/DockerConnectionException.js'
 import {DockerImageNotFoundException} from './exceptions/DockerImageNotFoundException.js'
@@ -15,6 +14,10 @@ import {Accept} from '../../decorators/dto/Accept.js'
 import {createInterface} from 'node:readline'
 import {DockerImagePullException} from './exceptions/DockerImagePullException.js'
 import {IsAbortError} from '../../lib/functions/IsAbortError.js'
+import {ImageBuildOptions} from './options/ImageBuildOptions.js'
+import {As} from '../../lib/functions/As.js'
+import {DockerImageBuildException} from './exceptions/DockerImageBuildException.js'
+import {IKeyObject} from './interfaces/IKeyObject.js'
 
 @Singleton()
 export class Docker extends Component {
@@ -63,7 +66,7 @@ export class Docker extends Component {
             passphrase: DTO.String().optional()
         }))
     ).optional())
-    protected readonly key?: string | string[] | Buffer | Buffer[] | KeyObject[] | undefined
+    protected readonly key?: string | string[] | Buffer | Buffer[] | IKeyObject[] | undefined
 
     @Configurable(DTO.String().valid('https', 'http', 'ssh').optional())
     protected readonly protocol?: 'https' | 'http' | 'ssh' | undefined
@@ -198,9 +201,48 @@ export class Docker extends Component {
     /**
      * Build docker image
      */
-    public async buildImage() {
-        //TODO
-        throw new Error('not implemented')
+    @Accept(ImageBuildOptions.required())
+    public async buildImage(options: ImageBuildOptions): Promise<DockerImage> {
+        const buildContext: Dockerode.ImageBuildContext = {
+            context: options.workdir,
+            src: options.files
+        }
+        const buildOptions: Dockerode.ImageBuildOptions = {
+            dockerfile: options.dockerfile,
+            t: options.repoTag,
+            remote: options.remote,
+            q: options.quite,
+            nocache: options.nocache,
+            rm: options.rm,
+            forcerm: options.forcerm,
+            platform: options.platform,
+            target: options.target,
+            shmsize: options.shmsize,
+            buildargs: options.buildargs,
+            abortSignal: this.#abortController.signal
+        }
+        try {
+            const readableStream: NodeJS.ReadableStream = await this.#instance.buildImage(buildContext, buildOptions)
+            return new Promise<DockerImage>((resolve, reject) => {
+                let imageId: string | undefined = undefined
+                let buildImageException: DockerImageBuildException | undefined = undefined
+                createInterface({input: readableStream})
+                    .on('line', (line: string) => {
+                        const outputObject: Record<string, any> = JSON.parse(line)
+                        if (outputObject.error) buildImageException = new DockerImageBuildException(outputObject.error)
+                        if (outputObject.aux) imageId = outputObject.aux.ID
+                        if (options.outputCallback) options.outputCallback(outputObject)
+                    })
+                    .once('close', () => {
+                        if (buildImageException) return reject(buildImageException)
+                        if (!imageId) return reject(new DockerImageBuildException('Build image failed'))
+                        return this.getImage(imageId).then(resolve).catch(reject)
+                    })
+            })
+        } catch (e) {
+            if (!IsAbortError(e)) throw e
+            return undefined as any
+        }
     }
 
     /**

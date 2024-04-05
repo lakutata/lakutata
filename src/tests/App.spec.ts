@@ -163,6 +163,13 @@ Application
     })
     .onLaunched(async (app, logger) => {
         const docker = await app.getObject<Docker>('docker')
+        const img = await docker.buildImage({
+            workdir: 'C:\\Users\\Administrator\\Desktop\\test',
+            files: ['Dockerfile'],
+            platform: 'linux/arm64',
+            repoTag: 'vvv:vvv',
+            outputCallback: output => console.log(output)
+        })
         // console.log(await docker.listImages())
         // const image = await docker.getImage('testimg:testtag')
         // await image.tag({repo:'testimg',tag:'testtag111'})
