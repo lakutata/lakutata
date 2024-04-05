@@ -79,7 +79,7 @@ export class Docker extends Component {
 
     #instance: Dockerode
 
-    #abortController = new AbortController()
+    #abortController: AbortController = new AbortController()
 
     /**
      * Initializer
