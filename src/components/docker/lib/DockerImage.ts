@@ -85,7 +85,6 @@ export class DockerImage extends Provider {
                 : [],
             volumes: inspectInfo.Config.Volumes ? Object.keys(inspectInfo.Config.Volumes) : []
         }
-        console.log(inspectInfo.RepoTags)
     }
 
     /**

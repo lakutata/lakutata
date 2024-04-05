@@ -8,7 +8,10 @@ export class DockerAuthOptions extends DTO {
     @Expect(DTO.String().required())
     public password: string
 
-    @Expect(DTO.String().uri().required())
+    /**
+     * The serverAddress is a domain/IP without a protocol
+     */
+    @Expect(DTO.String().required())
     public serverAddress: string
 
     @Expect(DTO.String().email().optional())

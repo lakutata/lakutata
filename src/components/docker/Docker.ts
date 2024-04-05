@@ -10,6 +10,10 @@ import {KeyObject} from '../DockerOld.js'
 import Dockerode from 'dockerode'
 import {DockerConnectionException} from './exceptions/DockerConnectionException.js'
 import {DockerImageNotFoundException} from './exceptions/DockerImageNotFoundException.js'
+import {ImagePullOptions} from './options/ImagePullOptions.js'
+import {Accept} from '../../decorators/dto/Accept.js'
+import {createInterface} from 'node:readline'
+import {DockerImagePullException} from './exceptions/DockerImagePullException.js'
 
 @Singleton()
 export class Docker extends Component {
@@ -155,9 +159,38 @@ export class Docker extends Component {
     /**
      * Pull docker image from repository
      */
-    public async pullImage() {
-        //TODO
-        throw new Error('not implemented')
+    @Accept(ImagePullOptions.required())
+    public async pullImage(options: ImagePullOptions): Promise<DockerImage> {
+        const auth: Dockerode.AuthConfig | undefined = options.auth ? {
+            username: options.auth.username,
+            password: options.auth.password,
+            serveraddress: options.auth.serverAddress,
+            email: options.auth.email
+        } : undefined
+        const tag: string = options.tag ? options.tag : 'latest'
+        const createImageOptions: Record<string, any> = {
+            fromImage: options.repo,
+            tag: tag,
+            platform: options.platform,
+            abortSignal: this.#abortController.signal
+        }
+        try {
+            const readableStream: NodeJS.ReadableStream = auth ? await this.#instance.createImage(auth, createImageOptions) : await this.#instance.createImage(createImageOptions)
+            await new Promise<void>((resolve, reject) => {
+                createInterface({
+                    input: readableStream
+                })
+                    .on('line', (line: string) => {
+                        const outputObject: Record<string, any> = JSON.parse(line)
+                        if (options.outputCallback) options.outputCallback(outputObject)
+                        if (outputObject.error) return reject(new Error(outputObject.error))
+                    })
+                    .once('close', () => resolve())
+            })
+            return await this.getImage(`${options.repo}:${tag}`)
+        } catch (e: any) {
+            throw new DockerImagePullException(e.message)
+        }
     }
 
     /**
@@ -178,6 +211,7 @@ export class Docker extends Component {
 
     /**
      * Get docker image
+     * @param repoTagOrId
      */
     public async getImage(repoTagOrId: string): Promise<DockerImage> {
         const images: DockerImage[] = await this.listImages()
