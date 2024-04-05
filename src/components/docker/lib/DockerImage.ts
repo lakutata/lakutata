@@ -15,6 +15,7 @@ import {ImageRemoveOptions} from '../options/ImageRemoveOptions.js'
 import {ImagePushOptions} from '../options/ImagePushOptions.js'
 import {DockerImagePushException} from '../exceptions/DockerImagePushException.js'
 import {createInterface} from 'node:readline'
+import {IsAbortError} from '../../../lib/functions/IsAbortError.js'
 
 @Transient()
 export class DockerImage extends Provider {
@@ -93,8 +94,12 @@ export class DockerImage extends Provider {
      */
     @Accept(ImageTagOptions.required())
     public async tag(options: ImageTagOptions): Promise<void> {
-        await this.#image.tag({...options, abortSignal: this.$abortController.signal})
-        await this.syncImageInfo()
+        try {
+            await this.#image.tag({...options, abortSignal: this.$abortController.signal})
+            await this.syncImageInfo()
+        } catch (e) {
+            if (!IsAbortError(e)) throw e
+        }
     }
 
     /**
@@ -103,18 +108,22 @@ export class DockerImage extends Provider {
      */
     @Accept(ImageExportOptions.required())
     public async export(options: ImageExportOptions): Promise<void> {
-        let rawImage: Dockerode.Image
-        if (options.repoTag) {
-            if (!this.repoTags.includes(options.repoTag)) throw new DockerImageRepoTagNotFoundException('The current image does not contain the RepoTag of {0}', [options.repoTag])
-            rawImage = this.$dockerode.getImage(options.repoTag)
-        } else {
-            rawImage = this.#image
+        try {
+            let rawImage: Dockerode.Image
+            if (options.repoTag) {
+                if (!this.repoTags.includes(options.repoTag)) throw new DockerImageRepoTagNotFoundException('The current image does not contain the RepoTag of {0}', [options.repoTag])
+                rawImage = this.$dockerode.getImage(options.repoTag)
+            } else {
+                rawImage = this.#image
+            }
+            const readableStream: NodeJS.ReadableStream = await rawImage.get()
+            const destStream: NodeJS.WritableStream = typeof options.destination === 'string'
+                ? createWriteStream(options.destination, {signal: this.$abortController.signal})
+                : options.destination
+            await pipeline(readableStream, destStream)
+        } catch (e) {
+            if (!IsAbortError(e)) throw e
         }
-        const readableStream: NodeJS.ReadableStream = await rawImage.get()
-        const destStream: NodeJS.WritableStream = typeof options.destination === 'string'
-            ? createWriteStream(options.destination, {signal: this.$abortController.signal})
-            : options.destination
-        await pipeline(readableStream, destStream)
     }
 
     /**
@@ -156,7 +165,11 @@ export class DockerImage extends Provider {
      */
     @Accept(ImageRemoveOptions.optional())
     public async remove(options?: ImageRemoveOptions): Promise<void> {
-        await this.#image.remove({...options, abortSignal: this.$abortController.signal})
+        try {
+            await this.#image.remove({...options, abortSignal: this.$abortController.signal})
+        } catch (e) {
+            if (!IsAbortError(e)) throw e
+        }
     }
 
     public async run() {

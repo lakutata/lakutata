@@ -14,6 +14,7 @@ import {ImagePullOptions} from './options/ImagePullOptions.js'
 import {Accept} from '../../decorators/dto/Accept.js'
 import {createInterface} from 'node:readline'
 import {DockerImagePullException} from './exceptions/DockerImagePullException.js'
+import {IsAbortError} from '../../lib/functions/IsAbortError.js'
 
 @Singleton()
 export class Docker extends Component {
@@ -189,7 +190,8 @@ export class Docker extends Component {
             })
             return await this.getImage(`${options.repo}:${tag}`)
         } catch (e: any) {
-            throw new DockerImagePullException(e.message)
+            if (!IsAbortError(e)) throw new DockerImagePullException(e.message)
+            return undefined as any
         }
     }
 

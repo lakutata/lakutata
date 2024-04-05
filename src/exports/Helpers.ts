@@ -36,4 +36,5 @@ export * from '../lib/functions/SortKeys.js'
 export * from '../lib/functions/SortObject.js'
 export * from '../lib/functions/RandomString.js'
 export * from '../lib/functions/NonceStr.js'
+export * from '../lib/functions/IsAbortError.js'
 
