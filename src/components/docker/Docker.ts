@@ -17,6 +17,7 @@ import {IsAbortError} from '../../lib/functions/IsAbortError.js'
 import {ImageBuildOptions} from './options/ImageBuildOptions.js'
 import {DockerImageBuildException} from './exceptions/DockerImageBuildException.js'
 import {IKeyObject} from './interfaces/IKeyObject.js'
+import {ImageImportOptions} from './options/ImageImportOptions.js'
 
 @Singleton()
 export class Docker extends Component {
@@ -247,7 +248,8 @@ export class Docker extends Component {
     /**
      * Import docker image from .tar file
      */
-    public async importImage() {
+    @Accept(ImageImportOptions.required())
+    public async importImage(options: ImageImportOptions) {
         //TODO
         throw new Error('not implemented')
     }
@@ -262,8 +264,7 @@ export class Docker extends Component {
         const result: DockerImage[] = images
             .filter((image: DockerImage) => {
                 if (image.id === repoTagOrId) return true
-                if (image.repoTags.includes(repoTagOrId)) return true
-                return false
+                return image.repoTags.includes(repoTagOrId)
             })
             .sort((image: DockerImage) => image.id === repoTagOrId ? -1 : 0)
         const image: DockerImage | undefined = result[0]
