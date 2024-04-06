@@ -22,6 +22,5 @@ export type NetworkInfo = {
     internal: boolean
     enableIPv6: boolean
     IPAMConfigs: NetworkIPAMConfig[],
-    containers: NetworkContainer[]
     createdAt: Time
 }

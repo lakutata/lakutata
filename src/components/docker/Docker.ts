@@ -23,9 +23,10 @@ import {Extract, extract as tarExtract, Headers} from 'tar-stream'
 import {createReadStream} from 'node:fs'
 import {PassThrough} from 'node:stream'
 import {NetworkCreateOptions} from './options/network/NetworkCreateOptions.js'
-import {NetworkContainer, NetworkInfo, NetworkIPAMConfig} from './types/NetworkInfo.js'
+import {NetworkInfo, NetworkIPAMConfig} from './types/NetworkInfo.js'
 import {As} from '../../lib/functions/As.js'
 import {Time} from '../../lib/core/Time.js'
+import {DockerNetworkNotFoundException} from './exceptions/DockerNetworkNotFoundException.js'
 
 @Singleton()
 export class Docker extends Component {
@@ -347,7 +348,7 @@ export class Docker extends Component {
      * @param options
      */
     @Accept(NetworkCreateOptions.required())
-    public async createNetwork(options: NetworkCreateOptions) {
+    public async createNetwork(options: NetworkCreateOptions): Promise<NetworkInfo> {
         const network: Dockerode.Network = await this.#instance.createNetwork({
             Name: options.name,
             Driver: options.driver,
@@ -364,21 +365,23 @@ export class Docker extends Component {
             },
             EnableIPv6: options.enableIPv6
         })
-        await network.inspect()
+        return await this.getNetwork(network.id)
     }
 
     /**
      * Remove docker network
+     * @param id
      */
-    public async removeNetwork() {
-        //TODO
-        throw new Error('not implemented')
+    @Accept(DTO.String().required())
+    public async removeNetwork(id: string): Promise<void> {
+        const network: NetworkInfo = await this.getNetwork(id)
+        await this.#instance.getNetwork(network.id).remove()
     }
 
     /**
      * List docker networks
      */
-    public async listNetworks() {
+    public async listNetworks(): Promise<NetworkInfo[]> {
         try {
             const rawNetworks: Dockerode.NetworkInspectInfo[] = await this.#instance.listNetworks({abortSignal: this.#abortController.signal})
             return rawNetworks.map((rawNetwork: Dockerode.NetworkInspectInfo): NetworkInfo => ({
@@ -387,20 +390,13 @@ export class Docker extends Component {
                 driver: As<'bridge' | 'ipvlan' | 'macvlan'>(rawNetwork.Driver),
                 internal: rawNetwork.Internal,
                 enableIPv6: rawNetwork.EnableIPv6,
-                IPAMConfigs: rawNetwork.IPAM?.Config ? rawNetwork.IPAM.Config.map((item: Record<string, string>): NetworkIPAMConfig => ({
-                    subnet: item.Subnet,
-                    range: item.IPRange,
-                    gateway: item.Gateway
-                })) : [],
-                //TODO 好像containers不起效
-                containers: rawNetwork.Containers ? Object.keys(rawNetwork.Containers).map((containerId: string): NetworkContainer => ({
-                    id: containerId,
-                    name: As(rawNetwork.Containers)[containerId].Name,
-                    endpointId: As(rawNetwork.Containers)[containerId].EndpointID,
-                    mac: As(rawNetwork.Containers)[containerId].MacAddress,
-                    ipv4: As(rawNetwork.Containers)[containerId].IPv4Address,
-                    ipv6: As(rawNetwork.Containers)[containerId].IPv6Address
-                })) : [],
+                IPAMConfigs: rawNetwork.IPAM?.Config
+                    ? rawNetwork.IPAM.Config.map((item: Record<string, string>): NetworkIPAMConfig => ({
+                        subnet: item.Subnet,
+                        range: item.IPRange,
+                        gateway: item.Gateway
+                    }))
+                    : [],
                 createdAt: new Time(rawNetwork.Created)
             }))
         } catch (e) {
@@ -411,9 +407,13 @@ export class Docker extends Component {
 
     /**
      * Get docker network info
+     * @param id
      */
-    public async getNetwork() {
-        //TODO
-        throw new Error('not implemented')
+    @Accept(DTO.String().required())
+    public async getNetwork(id: string): Promise<NetworkInfo> {
+        const networks: NetworkInfo[] = await this.listNetworks()
+        const network: NetworkInfo | undefined = networks.find((network: NetworkInfo): boolean => network.id === id)
+        if (!network) throw new DockerNetworkNotFoundException('Network {0} not found', [id])
+        return network
     }
 }
