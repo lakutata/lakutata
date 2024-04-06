@@ -9,19 +9,23 @@ import {DTO} from '../../lib/core/DTO.js'
 import Dockerode from 'dockerode'
 import {DockerConnectionException} from './exceptions/DockerConnectionException.js'
 import {DockerImageNotFoundException} from './exceptions/DockerImageNotFoundException.js'
-import {ImagePullOptions} from './options/ImagePullOptions.js'
+import {ImagePullOptions} from './options/image/ImagePullOptions.js'
 import {Accept} from '../../decorators/dto/Accept.js'
 import {createInterface} from 'node:readline'
 import {DockerImagePullException} from './exceptions/DockerImagePullException.js'
 import {IsAbortError} from '../../lib/functions/IsAbortError.js'
-import {ImageBuildOptions} from './options/ImageBuildOptions.js'
+import {ImageBuildOptions} from './options/image/ImageBuildOptions.js'
 import {DockerImageBuildException} from './exceptions/DockerImageBuildException.js'
 import {IKeyObject} from './interfaces/IKeyObject.js'
-import {ImageImportOptions} from './options/ImageImportOptions.js'
+import {ImageImportOptions} from './options/image/ImageImportOptions.js'
 import {DockerImageImportException} from './exceptions/DockerImageImportException.js'
 import {Extract, extract as tarExtract, Headers} from 'tar-stream'
 import {createReadStream} from 'node:fs'
 import {PassThrough} from 'node:stream'
+import {NetworkCreateOptions} from './options/network/NetworkCreateOptions.js'
+import {NetworkContainer, NetworkInfo, NetworkIPAMConfig} from './types/NetworkInfo.js'
+import {As} from '../../lib/functions/As.js'
+import {Time} from '../../lib/core/Time.js'
 
 @Singleton()
 export class Docker extends Component {
@@ -296,7 +300,7 @@ export class Docker extends Component {
     public async getImage(repoTagOrId: string): Promise<DockerImage> {
         const images: DockerImage[] = await this.listImages()
         const result: DockerImage[] = images
-            .filter((image: DockerImage) => {
+            .filter((image: DockerImage): boolean => {
                 if (image.id === repoTagOrId) return true
                 return image.repoTags.includes(repoTagOrId)
             })
@@ -340,10 +344,27 @@ export class Docker extends Component {
 
     /**
      * Create docker network
+     * @param options
      */
-    public async createNetwork() {
-        //TODO
-        throw new Error('not implemented')
+    @Accept(NetworkCreateOptions.required())
+    public async createNetwork(options: NetworkCreateOptions) {
+        const network: Dockerode.Network = await this.#instance.createNetwork({
+            Name: options.name,
+            Driver: options.driver,
+            Internal: options.internal,
+            Options: options.options,
+            IPAM: {
+                Driver: 'default',
+                Options: {},
+                Config: options.NetworkIPAMConfigs.map((config: NetworkIPAMConfig): Record<string, any> => ({
+                    Subnet: config.subnet,
+                    IPRange: config.range,
+                    Gateway: config.gateway
+                }))
+            },
+            EnableIPv6: options.enableIPv6
+        })
+        await network.inspect()
     }
 
     /**
@@ -358,8 +379,34 @@ export class Docker extends Component {
      * List docker networks
      */
     public async listNetworks() {
-        //TODO
-        throw new Error('not implemented')
+        try {
+            const rawNetworks: Dockerode.NetworkInspectInfo[] = await this.#instance.listNetworks({abortSignal: this.#abortController.signal})
+            return rawNetworks.map((rawNetwork: Dockerode.NetworkInspectInfo): NetworkInfo => ({
+                id: rawNetwork.Id,
+                name: rawNetwork.Name,
+                driver: As<'bridge' | 'ipvlan' | 'macvlan'>(rawNetwork.Driver),
+                internal: rawNetwork.Internal,
+                enableIPv6: rawNetwork.EnableIPv6,
+                IPAMConfigs: rawNetwork.IPAM?.Config ? rawNetwork.IPAM.Config.map((item: Record<string, string>): NetworkIPAMConfig => ({
+                    subnet: item.Subnet,
+                    range: item.IPRange,
+                    gateway: item.Gateway
+                })) : [],
+                //TODO 好像containers不起效
+                containers: rawNetwork.Containers ? Object.keys(rawNetwork.Containers).map((containerId: string): NetworkContainer => ({
+                    id: containerId,
+                    name: As(rawNetwork.Containers)[containerId].Name,
+                    endpointId: As(rawNetwork.Containers)[containerId].EndpointID,
+                    mac: As(rawNetwork.Containers)[containerId].MacAddress,
+                    ipv4: As(rawNetwork.Containers)[containerId].IPv4Address,
+                    ipv6: As(rawNetwork.Containers)[containerId].IPv6Address
+                })) : [],
+                createdAt: new Time(rawNetwork.Created)
+            }))
+        } catch (e) {
+            if (!IsAbortError(e)) throw e
+            return []
+        }
     }
 
     /**

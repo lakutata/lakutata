@@ -1,5 +1,5 @@
-import {DTO} from '../../../lib/core/DTO.js'
-import {Expect} from '../../../decorators/dto/Expect.js'
+import {DTO} from '../../../../lib/core/DTO.js'
+import {Expect} from '../../../../decorators/dto/Expect.js'
 
 export class DockerAuthOptions extends DTO {
     @Expect(DTO.String().required())

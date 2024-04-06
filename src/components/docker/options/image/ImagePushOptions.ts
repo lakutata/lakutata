@@ -1,7 +1,7 @@
-import {DTO} from '../../../lib/core/DTO.js'
-import {Expect} from '../../../decorators/dto/Expect.js'
-import {DockerAuthOptions} from './DockerAuthOptions.js'
-import {type DockerOutputCallback} from '../types/DockerOutputCallback.js'
+import {DTO} from '../../../../lib/core/DTO.js'
+import {Expect} from '../../../../decorators/dto/Expect.js'
+import {DockerAuthOptions} from '../auth/DockerAuthOptions.js'
+import {type DockerOutputCallback} from '../../types/DockerOutputCallback.js'
 
 export class ImagePushOptions extends DTO {
     @Expect(DTO.String().required())

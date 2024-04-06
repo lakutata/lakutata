@@ -171,7 +171,16 @@ Application
         //     outputCallback: output => console.log(output)
         // })
 
-        console.log(await docker.listContainers())
+        // await docker.createNetwork({
+        //     name: 'testNet',
+        //     driver: 'macvlan',
+        //     parent: 'eth0',
+        //     NetworkIPAMConfigs: [{
+        //         subnet: '192.168.0.0/16',
+        //         gateway: '192.168.0.1'
+        //     }]
+        // })
+        console.log(await docker.listNetworks())
 
         // await img.export({destination: 'C:\\Users\\Administrator\\Desktop\\teste.tar', repoTag: 'export:test1'})
         // await img.export({destination: 'C:\\Users\\Administrator\\Desktop\\teste.tar'})

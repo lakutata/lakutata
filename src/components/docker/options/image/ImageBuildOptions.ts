@@ -1,6 +1,6 @@
-import {DTO} from '../../../lib/core/DTO.js'
-import {Expect} from '../../../decorators/dto/Expect.js'
-import type {DockerOutputCallback} from '../types/DockerOutputCallback.js'
+import {DTO} from '../../../../lib/core/DTO.js'
+import {Expect} from '../../../../decorators/dto/Expect.js'
+import type {DockerOutputCallback} from '../../types/DockerOutputCallback.js'
 
 export class ImageBuildOptions extends DTO {
 
