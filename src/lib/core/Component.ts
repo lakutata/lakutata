@@ -16,7 +16,7 @@ import {Container} from './Container.js'
  */
 @Singleton()
 @DefineObjectType(ObjectType.Component)
-export class Component extends Provider implements EventEmitter {
+export class Component extends Provider {
 
     /**
      * Internal event emitter
