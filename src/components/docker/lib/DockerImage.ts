@@ -17,6 +17,8 @@ import {DockerImagePushException} from '../exceptions/DockerImagePushException.j
 import {createInterface} from 'node:readline'
 import {IsAbortError} from '../../../lib/functions/IsAbortError.js'
 import {ParseRepositoryTag} from './ParseRepositoryTag.js'
+import {As} from '../../../lib/functions/As.js'
+import {ImageExposePort} from '../types/ImageExposePort.js'
 
 @Transient()
 export class DockerImage extends Provider {
@@ -82,6 +84,29 @@ export class DockerImage extends Provider {
         }).forEach((envKeyValuePair: Record<string, string> | null) => {
             if (envKeyValuePair) environments = {...environments, ...envKeyValuePair}
         })
+        const exposePorts: ImageExposePort[] = []
+        const exposePortMap: Map<number, {
+            tcp: boolean
+            udp: boolean
+        }> = new Map()
+        if (inspectInfo.Config.ExposedPorts) {
+            Object.keys(inspectInfo.Config.ExposedPorts).forEach((portWithType: string): void => {
+                const portInfos: string[] = portWithType.split('/')
+                const port: number = parseInt(portInfos[0])
+                const type: 'tcp' | 'udp' = As<'tcp' | 'udp'>(portInfos[1].toLowerCase())
+                if (!exposePortMap.has(port)) exposePortMap.set(port, {tcp: false, udp: false})
+                const portType: {
+                    tcp: boolean
+                    udp: boolean
+                } = exposePortMap.get(port)!
+                portType[type] = true
+                exposePortMap.set(port, portType)
+            })
+            exposePortMap.forEach((portType: {
+                tcp: boolean;
+                udp: boolean
+            }, port: number) => exposePorts.push({port: port, ...portType}))
+        }
         this.config = {
             hostname: inspectInfo.Config.Hostname,
             user: inspectInfo.Config.User,
@@ -92,7 +117,8 @@ export class DockerImage extends Provider {
                     ? inspectInfo.Config.Entrypoint
                     : [inspectInfo.Config.Entrypoint]
                 : [],
-            volumes: inspectInfo.Config.Volumes ? Object.keys(inspectInfo.Config.Volumes) : []
+            volumes: inspectInfo.Config.Volumes ? Object.keys(inspectInfo.Config.Volumes) : [],
+            ports: exposePorts
         }
     }
 

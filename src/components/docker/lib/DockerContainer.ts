@@ -7,6 +7,9 @@ import {IsAbortError} from '../../../lib/functions/IsAbortError.js'
 import {Time} from '../../../lib/core/Time.js'
 import {ContainerState} from '../types/ContainerState.js'
 import {As} from '../../../lib/functions/As.js'
+import {type Docker} from '../Docker.js'
+import {DockerImage} from './DockerImage.js'
+import {ContainerNetwork} from '../types/ContainerNetwork.js'
 
 @Transient()
 export class DockerContainer extends Provider {
@@ -18,18 +21,23 @@ export class DockerContainer extends Provider {
     @Configurable(DTO.InstanceOf(Dockerode))
     protected readonly $dockerode: Dockerode
 
+    @Configurable(DTO.Function())
+    protected readonly getDocker: () => Docker
+
     @Configurable(DTO.String())
     public id: string
 
     public name: string
 
-    public image: string
+    public image: DockerImage
 
     public restartCount: number
 
     public state: ContainerState
 
-    // public
+    // public ports
+
+    public networks: ContainerNetwork[]
 
     public createdAt: Time
 
@@ -58,7 +66,7 @@ export class DockerContainer extends Provider {
         try {
             const inspectInfo: Dockerode.ContainerInspectInfo = await this.#container.inspect({abortSignal: this.#abortController.signal})
             this.name = inspectInfo.Name.substring(1)
-            this.image = inspectInfo.Image
+            this.image = await this.getDocker().getImage(inspectInfo.Image)
             this.restartCount = inspectInfo.RestartCount
             this.state = {
                 status: As<'created' | 'running' | 'paused' | 'restarting' | 'removing' | 'exited' | 'dead'>(inspectInfo.State.Status),
@@ -72,9 +80,22 @@ export class DockerContainer extends Provider {
                 startedAt: inspectInfo.State.StartedAt ? new Time(inspectInfo.State.StartedAt) : null,
                 finishedAt: inspectInfo.State.FinishedAt ? new Time(inspectInfo.State.FinishedAt) : null
             }
+            const networkSettings: Record<string, any> = inspectInfo.NetworkSettings ? inspectInfo.NetworkSettings.Networks ? inspectInfo.NetworkSettings.Networks : {} : {}
+            this.networks = Object.keys(networkSettings).map((networkSettingName: string): ContainerNetwork => ({
+                networkName: networkSettingName,
+                networkId: networkSettings[networkSettingName].NetworkID,
+                endpointId: networkSettings[networkSettingName].EndpointID,
+                mac: networkSettings[networkSettingName].MacAddress,
+                ip: networkSettings[networkSettingName].IPAddress,
+                gateway: networkSettings[networkSettingName].Gateway,
+                ipPrefixLen: networkSettings[networkSettingName].IPPrefixLen,
+                ipv6: networkSettings[networkSettingName].GlobalIPv6Address,
+                ipv6Gateway: networkSettings[networkSettingName].IPv6Gateway,
+                ipv6PrefixLen: networkSettings[networkSettingName].GlobalIPv6PrefixLen
+            }))
             this.createdAt = new Time(inspectInfo.Created)
             //TODO
-            console.log(inspectInfo)
+            // console.log(inspectInfo)
         } catch (e) {
             if (!IsAbortError(e)) throw e
         }

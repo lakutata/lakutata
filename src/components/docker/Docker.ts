@@ -2,7 +2,6 @@ import {Component} from '../../lib/core/Component.js'
 import {Singleton} from '../../decorators/di/Lifetime.js'
 import {DockerImage} from './lib/DockerImage.js'
 import {DockerContainer} from './lib/DockerContainer.js'
-import {DockerNetwork} from './lib/DockerNetwork.js'
 import {platform} from 'os'
 import {Configurable} from '../../decorators/di/Configurable.js'
 import {DTO} from '../../lib/core/DTO.js'
@@ -100,8 +99,7 @@ export class Docker extends Component {
     protected async init(): Promise<void> {
         await Promise.all([
             new Promise((resolve, reject) => this.container.register(DockerImage).then(resolve).catch(reject)),
-            new Promise((resolve, reject) => this.container.register(DockerContainer).then(resolve).catch(reject)),
-            new Promise((resolve, reject) => this.container.register(DockerNetwork).then(resolve).catch(reject))
+            new Promise((resolve, reject) => this.container.register(DockerContainer).then(resolve).catch(reject))
         ])
         if (!this.socketPath && !this.host) {
             //Load default config
@@ -337,6 +335,7 @@ export class Docker extends Component {
     public async getContainer(id: string): Promise<DockerContainer> {
         return await this.getObject(DockerContainer, {
             $dockerode: this.#instance,
+            getDocker: () => this,
             id: id
         })
     }

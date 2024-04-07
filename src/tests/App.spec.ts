@@ -164,24 +164,25 @@ Application
     .onLaunched(async (app, logger) => {
         const docker = await app.getObject<Docker>('docker')
         // const img = await docker.buildImage({
-        //     workdir: 'C:\\Users\\Administrator\\Desktop\\test',
+        //     // workdir: 'C:\\Users\\Administrator\\Desktop\\test',
+        //     workdir: '/Users/alex/Desktop/test',
         //     files: ['Dockerfile'],
         //     platform: 'linux/arm64',
         //     repoTag: 'export:test',
         //     outputCallback: output => console.log(output)
         // })
 
-        const wk=await docker.createNetwork({
-            name: 'testNet',
-            driver: 'macvlan',
-            parent: 'eth0',
-            NetworkIPAMConfigs: [{
-                subnet: '192.168.0.0/16',
-                gateway: '192.168.0.1'
-            }]
-        })
-        console.log(await docker.listNetworks())
-        await docker.removeNetwork(wk.id)
+        // const wk=await docker.createNetwork({
+        //     name: 'testNet',
+        //     driver: 'macvlan',
+        //     parent: 'eth0',
+        //     NetworkIPAMConfigs: [{
+        //         subnet: '192.168.0.0/16',
+        //         gateway: '192.168.0.1'
+        //     }]
+        // })
+        // console.log(await docker.listNetworks())
+        // await docker.removeNetwork(wk.id)
 
         // await img.export({destination: 'C:\\Users\\Administrator\\Desktop\\teste.tar', repoTag: 'export:test1'})
         // await img.export({destination: 'C:\\Users\\Administrator\\Desktop\\teste.tar'})
@@ -191,6 +192,12 @@ Application
         // const image = await docker.getImage('testimg:testtag')
         // await image.tag({repo:'testimg',tag:'testtag111'})
         // await image.export({destination: '/Users/alex/Desktop/test.tar',repoTag:'ubuntu:latest'})
+
+        // console.log(await docker.listContainers())
+        console.log(JSON.stringify(await docker.listContainers(),null,2))
+        // await docker.listContainers()
+        await docker.listImages()
+
     })
     .onDone(async (app, log) => {
         log.info('Application %s done', app.appName)
