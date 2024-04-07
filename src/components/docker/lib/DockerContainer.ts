@@ -12,6 +12,8 @@ import {DockerImage} from './DockerImage.js'
 import {ContainerNetwork} from '../types/ContainerNetwork.js'
 import {ContainerPort} from '../types/ContainerPort.js'
 import {ImageExposePort} from '../types/ImageExposePort.js'
+import {ContainerVolume} from '../types/ContainerVolume.js'
+import {ContainerDevice} from '../types/ContainerDevice.js'
 
 @Transient()
 export class DockerContainer extends Provider {
@@ -38,6 +40,10 @@ export class DockerContainer extends Provider {
     public state: ContainerState
 
     public ports: ContainerPort[]
+
+    public volumes: ContainerVolume[]
+
+    public devices: ContainerDevice[]
 
     public networks: ContainerNetwork[]
 
@@ -143,6 +149,22 @@ export class DockerContainer extends Provider {
                 })
             })
             this.ports = ports
+            this.volumes = inspectInfo.HostConfig.Binds ? inspectInfo.HostConfig.Binds.map((volumeBind: string): ContainerVolume => {
+                const bindRelation: string[] = volumeBind.split(':')
+                return {
+                    hostPath: bindRelation[0],
+                    containerPath: bindRelation[1]
+                }
+            }) : []
+            this.devices = inspectInfo.HostConfig.Devices ? As<{
+                PathOnHost: string
+                PathInContainer: string
+                CgroupPermissions: string
+            }[]>(inspectInfo.HostConfig.Devices).map(device => ({
+                hostPath: device.PathOnHost,
+                containerPath: device.PathInContainer,
+                cgroupPermissions: device.CgroupPermissions
+            })) : []
         } catch (e) {
             if (!IsAbortError(e)) throw e
         }
