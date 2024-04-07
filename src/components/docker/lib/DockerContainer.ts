@@ -19,6 +19,7 @@ import {ContainerStopOptions} from '../options/container/ContainerStopOptions.js
 import {ContainerRemoveOptions} from '../options/container/ContainerRemoveOptions.js'
 import {ContainerUpdateOptions} from '../options/container/ContainerUpdateOptions.js'
 import {ContainerRestartPolicy} from '../types/ContainerRestartPolicy.js'
+import {ContainerKillOptions} from '../options/container/ContainerKillOptions.js'
 
 @Transient()
 export class DockerContainer extends Provider {
@@ -296,8 +297,13 @@ export class DockerContainer extends Provider {
         throw new Error('not implemented')
     }
 
-    public async kill() {
-        //TODO
-        throw new Error('not implemented')
+    /**
+     * Kill container
+     * @param options
+     */
+    @Accept(ContainerKillOptions.optional())
+    public async kill(options?: ContainerKillOptions): Promise<void> {
+        await this.#container.kill(options ? options : {})
+        await this.syncContainerInfo()
     }
 }
