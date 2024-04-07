@@ -14,13 +14,19 @@ import {ContainerPort} from '../types/ContainerPort.js'
 import {ImageExposePort} from '../types/ImageExposePort.js'
 import {ContainerVolume} from '../types/ContainerVolume.js'
 import {ContainerDevice} from '../types/ContainerDevice.js'
+import {Accept} from '../../../decorators/dto/Accept.js'
+import {ContainerStopOptions} from '../options/container/ContainerStopOptions.js'
+import {ContainerRemoveOptions} from '../options/container/ContainerRemoveOptions.js'
+import {ContainerUpdateOptions} from '../options/container/ContainerUpdateOptions.js'
 
 @Transient()
 export class DockerContainer extends Provider {
 
     readonly #abortController: AbortController = new AbortController()
 
-    #container: Dockerode.Container
+    get #container(): Dockerode.Container {
+        return this.$dockerode.getContainer(this.id)
+    }
 
     @Configurable(DTO.InstanceOf(Dockerode))
     protected readonly $dockerode: Dockerode
@@ -54,7 +60,6 @@ export class DockerContainer extends Provider {
      * @protected
      */
     protected async init(): Promise<void> {
-        this.#container = this.$dockerode.getContainer(this.id)
         await this.syncContainerInfo()
     }
 
@@ -170,37 +175,99 @@ export class DockerContainer extends Provider {
         }
     }
 
-    public async start() {
-        //TODO
-        throw new Error('not implemented')
+    /**
+     * Start container
+     * @param options
+     */
+    public async start(): Promise<void> {
+        try {
+            await this.#container.start({abortSignal: this.#abortController.signal})
+            await this.syncContainerInfo()
+        } catch (e) {
+            if (!IsAbortError(e)) throw e
+        }
     }
 
-    public async stop() {
-        //TODO
-        throw new Error('not implemented')
+    /**
+     * Stop container
+     * @param options
+     */
+    @Accept(ContainerStopOptions.optional())
+    public async stop(options?: ContainerStopOptions): Promise<void> {
+        try {
+            options = options ? options : {}
+            const stopOptions: Dockerode.ContainerStopOptions = {
+                abortSignal: this.#abortController.signal,
+                signal: options.signal,
+                t: options.timeout
+            }
+            await this.#container.stop(stopOptions)
+            await this.syncContainerInfo()
+        } catch (e) {
+            if (!IsAbortError(e)) throw e
+        }
     }
 
-    public async pause() {
-        //TODO
-        throw new Error('not implemented')
+    /**
+     * Pause container
+     */
+    public async pause(): Promise<void> {
+        await this.#container.pause()
+        await this.syncContainerInfo()
     }
 
-    public async unpause() {
-        //TODO
-        throw new Error('not implemented')
+    /**
+     * Unpause container
+     */
+    public async unpause(): Promise<void> {
+        await this.#container.unpause()
+        await this.syncContainerInfo()
     }
 
-    public async restart() {
-        //TODO
-        throw new Error('not implemented')
+    /**
+     * Restart container
+     * @param options
+     */
+    @Accept(ContainerStopOptions.optional())
+    public async restart(options?: ContainerStopOptions): Promise<void> {
+        try {
+            options = options ? options : {}
+            const stopOptions: Dockerode.ContainerStopOptions = {
+                abortSignal: this.#abortController.signal,
+                signal: options.signal,
+                t: options.timeout
+            }
+            await this.#container.restart(stopOptions)
+            await this.syncContainerInfo()
+        } catch (e) {
+            if (!IsAbortError(e)) throw e
+        }
+    }
+
+    /**
+     * Remove container
+     * @param options
+     */
+    @Accept(ContainerRemoveOptions.optional())
+    public async remove(options?: ContainerRemoveOptions): Promise<void> {
+        options = options ? options : {}
+        const removeOptions: Dockerode.ContainerRemoveOptions = {
+            force: !!options.force
+        }
+        await this.#container.remove(removeOptions)
+    }
+
+    /**
+     * Update container
+     * @param options
+     */
+    @Accept(ContainerUpdateOptions.required())
+    public async update(options: ContainerUpdateOptions): Promise<void> {
+        //TODO 先删除再创建启动
+        // this.#container.update()
     }
 
     public async commit() {
-        //TODO
-        throw new Error('not implemented')
-    }
-
-    public async remove() {
         //TODO
         throw new Error('not implemented')
     }
@@ -226,11 +293,6 @@ export class DockerContainer extends Provider {
     }
 
     public async kill() {
-        //TODO
-        throw new Error('not implemented')
-    }
-
-    public async update() {
         //TODO
         throw new Error('not implemented')
     }
