@@ -10,6 +10,8 @@ import {As} from '../../../lib/functions/As.js'
 import {type Docker} from '../Docker.js'
 import {DockerImage} from './DockerImage.js'
 import {ContainerNetwork} from '../types/ContainerNetwork.js'
+import {ContainerPort} from '../types/ContainerPort.js'
+import {ImageExposePort} from '../types/ImageExposePort.js'
 
 @Transient()
 export class DockerContainer extends Provider {
@@ -35,7 +37,7 @@ export class DockerContainer extends Provider {
 
     public state: ContainerState
 
-    // public ports
+    public ports: ContainerPort[]
 
     public networks: ContainerNetwork[]
 
@@ -65,6 +67,7 @@ export class DockerContainer extends Provider {
     protected async syncContainerInfo(): Promise<void> {
         try {
             const inspectInfo: Dockerode.ContainerInspectInfo = await this.#container.inspect({abortSignal: this.#abortController.signal})
+            this.createdAt = new Time(inspectInfo.Created)
             this.name = inspectInfo.Name.substring(1)
             this.image = await this.getDocker().getImage(inspectInfo.Image)
             this.restartCount = inspectInfo.RestartCount
@@ -93,9 +96,53 @@ export class DockerContainer extends Provider {
                 ipv6Gateway: networkSettings[networkSettingName].IPv6Gateway,
                 ipv6PrefixLen: networkSettings[networkSettingName].GlobalIPv6PrefixLen
             }))
-            this.createdAt = new Time(inspectInfo.Created)
-            //TODO
-            // console.log(inspectInfo)
+            const containerIpAddresses: string[] = []
+            this.networks.forEach((network: ContainerNetwork): void => {
+                if (network.ip) containerIpAddresses.push(network.ip)
+                if (network.ipv6) containerIpAddresses.push(`[${network.ipv6}]`)
+            })
+            const ports: ContainerPort[] = []
+            const portMap: Map<string, number[]> = new Map()
+            this.image.config.ports?.forEach((exposePortInfo: ImageExposePort) => {
+                containerIpAddresses.forEach((containerIpAddress: string) => {
+                    const types: ('tcp' | 'udp')[] = []
+                    if (exposePortInfo.tcp) types.push('tcp')
+                    if (exposePortInfo.udp) types.push('udp')
+                    types.forEach(type => {
+                        const portMapKey: string = `${containerIpAddress}_${exposePortInfo.port}_${type}`
+                        if (!portMap.has(portMapKey)) portMap.set(portMapKey, [])
+                    })
+                })
+            })
+            if (inspectInfo.NetworkSettings.Ports) {
+                Object.keys(inspectInfo.NetworkSettings.Ports).forEach((portWithType: string) => {
+                    const portInfo: string[] = portWithType.split('/')
+                    const port: number = parseInt(portInfo[0])
+                    const type: 'tcp' | 'udp' = As<'tcp' | 'udp'>(portInfo[1].toLowerCase())
+                    inspectInfo.NetworkSettings.Ports[portWithType]?.forEach(hostBinding => {
+                        containerIpAddresses.forEach((containerIpAddress: string) => {
+                            const portMapKey: string = `${containerIpAddress}_${port}_${type}`
+                            if (!portMap.has(portMapKey)) portMap.set(portMapKey, [])
+                            const hostPorts: number[] = portMap.get(portMapKey)!
+                            hostPorts.push(parseInt(hostBinding.HostPort))
+                            portMap.set(portMapKey, hostPorts)
+                        })
+                    })
+                })
+            }
+            portMap.forEach((hostPorts: number[], portMapKey: string) => {
+                const infos: string[] = portMapKey.split('_')
+                const containerIpAddress: string = infos[0]
+                const port: number = parseInt(infos[1])
+                const type: 'tcp' | 'udp' = As<'tcp' | 'udp'>(infos[2])
+                ports.push({
+                    host: containerIpAddress,
+                    port: port,
+                    type: type,
+                    hostPorts: hostPorts
+                })
+            })
+            this.ports = ports
         } catch (e) {
             if (!IsAbortError(e)) throw e
         }

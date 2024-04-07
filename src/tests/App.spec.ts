@@ -196,7 +196,7 @@ Application
         // console.log(await docker.listContainers())
         console.log(JSON.stringify(await docker.listContainers(),null,2))
         // await docker.listContainers()
-        await docker.listImages()
+        // await docker.listImages()
 
     })
     .onDone(async (app, log) => {
