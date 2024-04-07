@@ -18,6 +18,7 @@ import {Accept} from '../../../decorators/dto/Accept.js'
 import {ContainerStopOptions} from '../options/container/ContainerStopOptions.js'
 import {ContainerRemoveOptions} from '../options/container/ContainerRemoveOptions.js'
 import {ContainerUpdateOptions} from '../options/container/ContainerUpdateOptions.js'
+import {ContainerRestartPolicy} from '../types/ContainerRestartPolicy.js'
 
 @Transient()
 export class DockerContainer extends Provider {
@@ -42,6 +43,8 @@ export class DockerContainer extends Provider {
     public image: DockerImage
 
     public restartCount: number
+
+    public restartPolicy: ContainerRestartPolicy
 
     public state: ContainerState
 
@@ -170,6 +173,7 @@ export class DockerContainer extends Provider {
                 containerPath: device.PathInContainer,
                 cgroupPermissions: device.CgroupPermissions
             })) : []
+            this.restartPolicy = inspectInfo.HostConfig.RestartPolicy?.Name ? As<ContainerRestartPolicy>(inspectInfo.HostConfig.RestartPolicy.Name) : ''
         } catch (e) {
             if (!IsAbortError(e)) throw e
         }
