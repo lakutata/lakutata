@@ -12,14 +12,15 @@ import {DockerImage} from './DockerImage.js'
 import {ContainerNetwork} from '../types/ContainerNetwork.js'
 import {ContainerPort} from '../types/ContainerPort.js'
 import {ImageExposePort} from '../types/ImageExposePort.js'
-import {ContainerVolume} from '../types/ContainerVolume.js'
+import {ContainerBind} from '../types/ContainerBind.js'
 import {ContainerDevice} from '../types/ContainerDevice.js'
 import {Accept} from '../../../decorators/dto/Accept.js'
 import {ContainerStopOptions} from '../options/container/ContainerStopOptions.js'
 import {ContainerRemoveOptions} from '../options/container/ContainerRemoveOptions.js'
-import {ContainerUpdateOptions} from '../options/container/ContainerUpdateOptions.js'
+import {ContainerSettingOptions} from '../options/container/ContainerSettingOptions.js'
 import {ContainerRestartPolicy} from '../types/ContainerRestartPolicy.js'
 import {ContainerKillOptions} from '../options/container/ContainerKillOptions.js'
+import {UniqueArray} from '../../../lib/functions/UniqueArray.js'
 
 @Transient()
 export class DockerContainer extends Provider {
@@ -45,13 +46,17 @@ export class DockerContainer extends Provider {
 
     public restartCount: number
 
+    public memoryLimit: number
+
+    public cpuSet: number[]
+
     public restartPolicy: ContainerRestartPolicy
 
     public state: ContainerState
 
     public ports: ContainerPort[]
 
-    public volumes: ContainerVolume[]
+    public binds: ContainerBind[]
 
     public devices: ContainerDevice[]
 
@@ -158,13 +163,17 @@ export class DockerContainer extends Provider {
                 })
             })
             this.ports = ports
-            this.volumes = inspectInfo.HostConfig.Binds ? inspectInfo.HostConfig.Binds.map((volumeBind: string): ContainerVolume => {
-                const bindRelation: string[] = volumeBind.split(':')
-                return {
-                    hostPath: bindRelation[0],
-                    containerPath: bindRelation[1]
+            const binds: ContainerBind[] = []
+            inspectInfo.Mounts.forEach((mount: any): void => {
+                if (mount.Type === 'bind') {
+                    binds.push({
+                        hostPath: mount.Source,
+                        containerPath: mount.Destination,
+                        rw: mount.RW
+                    })
                 }
-            }) : []
+            })
+            this.binds = binds
             this.devices = inspectInfo.HostConfig.Devices ? As<{
                 PathOnHost: string
                 PathInContainer: string
@@ -174,7 +183,26 @@ export class DockerContainer extends Provider {
                 containerPath: device.PathInContainer,
                 cgroupPermissions: device.CgroupPermissions
             })) : []
+            this.memoryLimit = inspectInfo.HostConfig.Memory ? inspectInfo.HostConfig.Memory : 0
             this.restartPolicy = inspectInfo.HostConfig.RestartPolicy?.Name ? As<ContainerRestartPolicy>(inspectInfo.HostConfig.RestartPolicy.Name) : ''
+            const cpuSetString: string = inspectInfo.HostConfig.CpusetCpus ? inspectInfo.HostConfig.CpusetCpus : ''
+            const cpuSetArray: string[] = cpuSetString.split(',')
+            const cpuIndexesArray: number[][] = cpuSetArray.map((cpuSetItem: string) => {
+                if (cpuSetItem.includes('-')) {
+                    const [min, max] = cpuSetItem.split('-')
+                    const cpuIndexes: number[] = []
+                    if (!min || !max) return cpuIndexes
+                    for (let i: number = parseInt(min); i <= parseInt(max); i++) cpuIndexes.push(i)
+                    return cpuIndexes
+                } else {
+                    return [parseInt(cpuSetItem)]
+                }
+            })
+            let cpuSet: number[] = []
+            cpuIndexesArray.forEach((cpuIndexes: number[]): void => {
+                cpuSet = [...cpuIndexes, ...cpuSet]
+            })
+            this.cpuSet = UniqueArray(cpuSet).sort((a: number, b: number) => a - b)
         } catch (e) {
             if (!IsAbortError(e)) throw e
         }
@@ -266,8 +294,8 @@ export class DockerContainer extends Provider {
      * Update container
      * @param options
      */
-    @Accept(ContainerUpdateOptions.required())
-    public async update(options: ContainerUpdateOptions): Promise<void> {
+    @Accept(ContainerSettingOptions.required())
+    public async update(options: ContainerSettingOptions): Promise<void> {
         //TODO 先删除再创建启动
         // this.#container.update()
     }
