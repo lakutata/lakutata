@@ -199,6 +199,8 @@ Application
         await container.update({
             name: 'testContainer1',
             hostname: 'fuckkkk',
+            memoryLimit: 256 * 1024 * 1024,
+            cpuSet: [0, 1],
             privileged: true,
             devices: [{
                 hostPath: '/dev/tty.usbserial-12440',
@@ -207,11 +209,46 @@ Application
             }],
             env: {
                 FUCK: 'OKKK'
-            }
-            // networks: [{
-            //     networkName: 'bridge',
-            //     ip: '172.18.0.66'
-            // }]
+            },
+            binds: [
+                {
+                    hostPath: '/Users/alex/Desktop',
+                    containerPath: '/data1',
+                    rw: true
+                },
+                {
+                    hostPath: '/Users/alex/Desktop',
+                    containerPath: '/data2',
+                    rw: false
+                }
+            ],
+            ports: [
+                {
+                    port: 8080,
+                    type: 'tcp',
+                    hostPorts: [8081, 8082, 8083]
+                },
+                {
+                    port: 8080,
+                    type: 'udp',
+                    hostPorts: [8081, 8082, 8083, 8084]
+                },
+                {
+                    port: 8081,
+                    type: 'tcp',
+                    hostPorts: []
+                }
+            ],
+            networks: [
+                {
+                    networkName: 'bridge',
+                    ip: '10.17.0.66'
+                },
+                {
+                    networkName: 'testBridge',
+                    ip: '10.18.0.66'
+                }
+            ]
         })
         console.log(container)
         // await docker.listContainers()

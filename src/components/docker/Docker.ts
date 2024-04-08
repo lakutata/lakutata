@@ -28,7 +28,6 @@ import {Time} from '../../lib/core/Time.js'
 import {DockerNetworkNotFoundException} from './exceptions/DockerNetworkNotFoundException.js'
 import {ContainerSettingOptions} from './options/container/ContainerSettingOptions.js'
 import {ContainerBind} from './types/ContainerBind.js'
-import {ContainerDevice} from './types/ContainerDevice.js'
 
 @Singleton()
 export class Docker extends Component {
@@ -94,6 +93,8 @@ export class Docker extends Component {
     #instance: Dockerode
 
     #abortController: AbortController = new AbortController()
+
+    readonly #internalNetworkNames: string[] = ['bridge', 'host', 'none']
 
     /**
      * Initializer
@@ -379,10 +380,14 @@ export class Docker extends Component {
         }))
         const networkConfigMapping: Record<string, Dockerode.EndpointSettings> = {}
         options.networks?.forEach(network => {
-            networkConfigMapping[network.networkName!] = {
-                IPAddress: network.ip,
-                GlobalIPv6Address: network.ipv6
-            }
+            networkConfigMapping[network.networkName!] = this.#internalNetworkNames.includes(network.networkName!)
+                ? {}
+                : {
+                    IPAMConfig: {
+                        IPv4Address: network.ip,
+                        IPv6Address: network.ipv6
+                    }
+                }
         })
         const containerEnvRecord: Record<string, string> = options.env ? options.env : {}
         const rawContainer: Dockerode.Container = await this.#instance.createContainer({
