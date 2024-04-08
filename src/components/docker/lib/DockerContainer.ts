@@ -42,15 +42,23 @@ export class DockerContainer extends Provider {
 
     public name: string
 
+    public hostname: string
+
     public image: DockerImage
 
     public restartCount: number
+
+    public privileged: boolean
+
+    public tty: boolean
 
     public memoryLimit: number
 
     public cpuSet: number[]
 
     public restartPolicy: ContainerRestartPolicy
+
+    public OOMKillDisable: boolean
 
     public state: ContainerState
 
@@ -89,6 +97,7 @@ export class DockerContainer extends Provider {
             const inspectInfo: Dockerode.ContainerInspectInfo = await this.#container.inspect({abortSignal: this.#abortController.signal})
             this.createdAt = new Time(inspectInfo.Created)
             this.name = inspectInfo.Name.substring(1)
+            this.hostname = inspectInfo.Config.Hostname
             this.image = await this.getDocker().getImage(inspectInfo.Image)
             this.restartCount = inspectInfo.RestartCount
             this.state = {
@@ -104,6 +113,8 @@ export class DockerContainer extends Provider {
                 finishedAt: inspectInfo.State.FinishedAt ? new Time(inspectInfo.State.FinishedAt) : null
             }
             const networkSettings: Record<string, any> = inspectInfo.NetworkSettings ? inspectInfo.NetworkSettings.Networks ? inspectInfo.NetworkSettings.Networks : {} : {}
+            this.tty = inspectInfo.Config.Tty
+            this.OOMKillDisable = !!inspectInfo.HostConfig.OomKillDisable
             this.networks = Object.keys(networkSettings).map((networkSettingName: string): ContainerNetwork => ({
                 networkName: networkSettingName,
                 networkId: networkSettings[networkSettingName].NetworkID,
@@ -184,6 +195,7 @@ export class DockerContainer extends Provider {
                 cgroupPermissions: device.CgroupPermissions
             })) : []
             this.memoryLimit = inspectInfo.HostConfig.Memory ? inspectInfo.HostConfig.Memory : 0
+            this.privileged = !!inspectInfo.HostConfig.Privileged
             this.restartPolicy = inspectInfo.HostConfig.RestartPolicy?.Name ? As<ContainerRestartPolicy>(inspectInfo.HostConfig.RestartPolicy.Name) : ''
             const cpuSetString: string = inspectInfo.HostConfig.CpusetCpus ? inspectInfo.HostConfig.CpusetCpus : ''
             const cpuSetArray: string[] = cpuSetString.split(',')
@@ -202,7 +214,7 @@ export class DockerContainer extends Provider {
             cpuIndexesArray.forEach((cpuIndexes: number[]): void => {
                 cpuSet = [...cpuIndexes, ...cpuSet]
             })
-            this.cpuSet = UniqueArray(cpuSet).sort((a: number, b: number) => a - b)
+            this.cpuSet = UniqueArray(cpuSet).sort((a: number, b: number) => a - b).filter(value => typeof value === 'number' && !isNaN(value))
         } catch (e) {
             if (!IsAbortError(e)) throw e
         }
@@ -285,7 +297,8 @@ export class DockerContainer extends Provider {
     public async remove(options?: ContainerRemoveOptions): Promise<void> {
         options = options ? options : {}
         const removeOptions: Dockerode.ContainerRemoveOptions = {
-            force: !!options.force
+            force: !!options.force,
+            v: true
         }
         await this.#container.remove(removeOptions)
     }
@@ -296,8 +309,32 @@ export class DockerContainer extends Provider {
      */
     @Accept(ContainerSettingOptions.required())
     public async update(options: ContainerSettingOptions): Promise<void> {
-        //TODO 先删除再创建启动
-        // this.#container.update()
+        const autoStart: boolean = this.state.running
+        await this.remove({force: true})
+        const createdContainer: DockerContainer = await this.getDocker().createContainer(
+            this.image.id,
+            this.image.platform,
+            {
+                name: this.name,
+                hostname: this.hostname,
+                privileged: this.privileged,
+                tty: this.tty,
+                memoryLimit: this.memoryLimit,
+                cpuSet: this.cpuSet,
+                restartPolicy: this.restartPolicy,
+                ports: this.ports,
+                binds: this.binds,
+                devices: this.devices,
+                // networks: this.networks,//TODO 好像有问题
+                OOMKillDisable: this.OOMKillDisable,
+                ...options
+            })
+        this.id = createdContainer.id
+        if (autoStart) {
+            await this.start()
+        } else {
+            await this.syncContainerInfo()
+        }
     }
 
     public async commit() {
@@ -305,7 +342,7 @@ export class DockerContainer extends Provider {
         throw new Error('not implemented')
     }
 
-    public async tty() {
+    public async createTTY() {
         //TODO
         throw new Error('not implemented')
     }

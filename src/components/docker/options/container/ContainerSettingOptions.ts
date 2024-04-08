@@ -8,8 +8,29 @@ import {ContainerNetwork} from '../../types/ContainerNetwork.js'
 
 export class ContainerSettingOptions extends DTO {
 
+    /**
+     * Container name
+     */
     @Expect(DTO.String().optional())
     public name?: string
+
+    /**
+     * Container hostname
+     */
+    @Expect(DTO.String().optional())
+    public hostname?: string
+
+    /**
+     * Gives the container full access to the host.
+     */
+    @Expect(DTO.Boolean().optional())
+    public privileged?: boolean
+
+    /**
+     * Attach standard streams to a TTY
+     */
+    @Expect(DTO.Boolean().optional())
+    public tty?: boolean
 
     /**
      * Memory limit in bytes.

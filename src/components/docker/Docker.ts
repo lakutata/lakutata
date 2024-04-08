@@ -5,7 +5,7 @@ import {DockerContainer} from './lib/DockerContainer.js'
 import {platform} from 'os'
 import {Configurable} from '../../decorators/di/Configurable.js'
 import {DTO} from '../../lib/core/DTO.js'
-import Dockerode from 'dockerode'
+import Dockerode, {EndpointSettings} from 'dockerode'
 import {DockerConnectionException} from './exceptions/DockerConnectionException.js'
 import {DockerImageNotFoundException} from './exceptions/DockerImageNotFoundException.js'
 import {ImagePullOptions} from './options/image/ImagePullOptions.js'
@@ -26,6 +26,9 @@ import {NetworkInfo, NetworkIPAMConfig} from './types/NetworkInfo.js'
 import {As} from '../../lib/functions/As.js'
 import {Time} from '../../lib/core/Time.js'
 import {DockerNetworkNotFoundException} from './exceptions/DockerNetworkNotFoundException.js'
+import {ContainerSettingOptions} from './options/container/ContainerSettingOptions.js'
+import {ContainerBind} from './types/ContainerBind.js'
+import {ContainerDevice} from './types/ContainerDevice.js'
 
 @Singleton()
 export class Docker extends Component {
@@ -338,6 +341,69 @@ export class Docker extends Component {
             getDocker: () => this,
             id: id
         })
+    }
+
+    /**
+     * Create container
+     * @param imageId
+     * @param platform
+     * @param options
+     */
+    @Accept(DTO.String().required(), DTO.String().required(), ContainerSettingOptions.required())
+    public async createContainer(imageId: string, platform: string, options: ContainerSettingOptions): Promise<DockerContainer> {
+        const portBindingMap: Map<string, { HostPort: string }[]> = new Map()
+        options.ports?.forEach(port => {
+            const portBindingMapKey: string = `${port.port}/${port.type}`
+            if (!portBindingMap.has(portBindingMapKey)) portBindingMap.set(portBindingMapKey, [])
+            const hostPorts = portBindingMap.get(portBindingMapKey)!
+            port.hostPorts.forEach((hostPort: number): void => {
+                hostPorts.push({HostPort: hostPort.toString()})
+            })
+            portBindingMap.set(portBindingMapKey, hostPorts)
+        })
+        const portBindings: Record<string, ({ HostPort: string }[]) | null> = {}
+        portBindingMap.forEach((hostPorts: { HostPort: string }[], portWithType: string) => {
+            portBindings[portWithType] = hostPorts.length ? hostPorts : null
+        })
+        const binds: string[] = []
+        options.binds?.forEach((bind: ContainerBind) => binds.push(`${bind.hostPath}:${bind.containerPath}:${bind.rw ? 'rw' : 'ro'}`))
+        const devices: {
+            PathOnHost: string
+            PathInContainer: string
+            CgroupPermissions: string
+        }[] = []
+        options.devices?.forEach((device: ContainerDevice) => devices.push({
+            PathOnHost: device.hostPath,
+            PathInContainer: device.containerPath,
+            CgroupPermissions: device.cgroupPermissions
+        }))
+        const networkConfigMapping: Record<string, Dockerode.EndpointSettings> = {}
+        options.networks?.forEach(network => {
+            networkConfigMapping[network.networkName!] = {
+                IPAddress: network.ip,
+                GlobalIPv6Address: network.ipv6
+            }
+        })
+        const rawContainer: Dockerode.Container = await this.#instance.createContainer({
+            Image: imageId,
+            name: options.name,
+            platform: platform,
+            Hostname: options.hostname,
+            Tty: options.tty,
+            HostConfig: {
+                Memory: options.memoryLimit,
+                CpusetCpus: options.cpuSet ? options.cpuSet.join(',') : undefined,
+                RestartPolicy: options.restartPolicy ? {Name: As<string>(options.restartPolicy)} : undefined,
+                OomKillDisable: options.OOMKillDisable,
+                PortBindings: portBindings,
+                Binds: binds,
+                Devices: devices
+            },
+            NetworkingConfig: {
+                EndpointsConfig: networkConfigMapping
+            }
+        })
+        return await this.getContainer(rawContainer.id)
     }
 
     /** Docker Network Operations **/

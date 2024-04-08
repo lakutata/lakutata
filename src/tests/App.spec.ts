@@ -194,7 +194,18 @@ Application
         // await image.export({destination: '/Users/alex/Desktop/test.tar',repoTag:'ubuntu:latest'})
 
         // console.log(await docker.listContainers())
-        console.log(JSON.stringify(await docker.listContainers(),null,2))
+        const containers = await docker.listContainers()
+        const container = containers[0]
+        await container.update({
+            name: 'testContainer1',
+            hostname: 'fuckkkk',
+            privileged: true
+            // networks: [{
+            //     networkName: 'bridge',
+            //     ip: '172.18.0.66'
+            // }]
+        })
+        console.log(container)
         // await docker.listContainers()
         // await docker.listImages()
 
