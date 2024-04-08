@@ -21,6 +21,7 @@ import {ContainerSettingOptions} from '../options/container/ContainerSettingOpti
 import {ContainerRestartPolicy} from '../types/ContainerRestartPolicy.js'
 import {ContainerKillOptions} from '../options/container/ContainerKillOptions.js'
 import {UniqueArray} from '../../../lib/functions/UniqueArray.js'
+import {ParseEnvToRecord} from './ParseEnvToRecord.js'
 
 @Transient()
 export class DockerContainer extends Provider {
@@ -51,6 +52,8 @@ export class DockerContainer extends Provider {
     public privileged: boolean
 
     public tty: boolean
+
+    public env: Record<string, string>
 
     public memoryLimit: number
 
@@ -215,6 +218,7 @@ export class DockerContainer extends Provider {
                 cpuSet = [...cpuIndexes, ...cpuSet]
             })
             this.cpuSet = UniqueArray(cpuSet).sort((a: number, b: number) => a - b).filter(value => typeof value === 'number' && !isNaN(value))
+            this.env = ParseEnvToRecord(inspectInfo.Config.Env)
         } catch (e) {
             if (!IsAbortError(e)) throw e
         }
@@ -311,6 +315,9 @@ export class DockerContainer extends Provider {
     public async update(options: ContainerSettingOptions): Promise<void> {
         const autoStart: boolean = this.state.running
         await this.remove({force: true})
+        Object.keys(options).forEach((key: string) => {
+            if (options[key] === undefined) delete options[key]
+        })
         const createdContainer: DockerContainer = await this.getDocker().createContainer(
             this.image.id,
             this.image.platform,
@@ -318,6 +325,7 @@ export class DockerContainer extends Provider {
                 name: this.name,
                 hostname: this.hostname,
                 privileged: this.privileged,
+                env: this.env,
                 tty: this.tty,
                 memoryLimit: this.memoryLimit,
                 cpuSet: this.cpuSet,

@@ -19,6 +19,7 @@ import {IsAbortError} from '../../../lib/functions/IsAbortError.js'
 import {ParseRepositoryTag} from './ParseRepositoryTag.js'
 import {As} from '../../../lib/functions/As.js'
 import {ImageExposePort} from '../types/ImageExposePort.js'
+import {ParseEnvToRecord} from './ParseEnvToRecord.js'
 
 @Transient()
 export class DockerImage extends Provider {
@@ -76,14 +77,6 @@ export class DockerImage extends Provider {
         this.os = inspectInfo.Os
         this.platform = `${this.os}/${this.arch}`
         this.size = inspectInfo.Size
-        let environments: Record<string, string> = {}
-        inspectInfo.Config.Env.map((envString: string): Record<string, string> | null => {
-            const splitPos: number = envString.indexOf('=')
-            if (splitPos === -1) return null
-            return {[envString.substring(0, splitPos)]: envString.substring(splitPos + 1)}
-        }).forEach((envKeyValuePair: Record<string, string> | null) => {
-            if (envKeyValuePair) environments = {...environments, ...envKeyValuePair}
-        })
         const exposePorts: ImageExposePort[] = []
         const exposePortMap: Map<number, {
             tcp: boolean
@@ -110,7 +103,7 @@ export class DockerImage extends Provider {
         this.config = {
             hostname: inspectInfo.Config.Hostname,
             user: inspectInfo.Config.User,
-            env: environments,
+            env: ParseEnvToRecord(inspectInfo.Config.Env),
             cmd: inspectInfo.Config.Cmd,
             entrypoint: inspectInfo.Config.Entrypoint
                 ? Array.isArray(inspectInfo.Config.Entrypoint)

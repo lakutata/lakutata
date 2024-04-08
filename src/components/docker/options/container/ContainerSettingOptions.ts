@@ -33,6 +33,12 @@ export class ContainerSettingOptions extends DTO {
     public tty?: boolean
 
     /**
+     * Container environment variables
+     */
+    @Expect(DTO.Object().optional())
+    public env?: Record<string, string>
+
+    /**
      * Memory limit in bytes.
      * @default 0 (No limit)
      */
@@ -79,7 +85,8 @@ export class ContainerSettingOptions extends DTO {
         containerPath: DTO.String().required(),
         cgroupPermissions: DTO.String().optional().default('rwm')
     })).optional())
-    public devices?: ContainerDevice[]
+    // public devices?: ContainerDevice[]
+    public devices?: (Pick<ContainerDevice, 'hostPath' | 'containerPath'> & Partial<Pick<ContainerDevice, 'cgroupPermissions'>>)[]
 
     /**
      * Container networks

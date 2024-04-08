@@ -199,7 +199,15 @@ Application
         await container.update({
             name: 'testContainer1',
             hostname: 'fuckkkk',
-            privileged: true
+            privileged: true,
+            devices: [{
+                hostPath: '/dev/tty.usbserial-12440',
+                containerPath: '/dev/tty.usbserial-12440',
+                cgroupPermissions: 'rmw'
+            }],
+            env: {
+                FUCK: 'OKKK'
+            }
             // networks: [{
             //     networkName: 'bridge',
             //     ip: '172.18.0.66'

@@ -372,10 +372,10 @@ export class Docker extends Component {
             PathInContainer: string
             CgroupPermissions: string
         }[] = []
-        options.devices?.forEach((device: ContainerDevice) => devices.push({
+        options.devices?.forEach(device => devices.push({
             PathOnHost: device.hostPath,
             PathInContainer: device.containerPath,
-            CgroupPermissions: device.cgroupPermissions
+            CgroupPermissions: device.cgroupPermissions!
         }))
         const networkConfigMapping: Record<string, Dockerode.EndpointSettings> = {}
         options.networks?.forEach(network => {
@@ -384,15 +384,18 @@ export class Docker extends Component {
                 GlobalIPv6Address: network.ipv6
             }
         })
+        const containerEnvRecord: Record<string, string> = options.env ? options.env : {}
         const rawContainer: Dockerode.Container = await this.#instance.createContainer({
             Image: imageId,
             name: options.name,
             platform: platform,
             Hostname: options.hostname,
             Tty: options.tty,
+            Env: Object.keys(containerEnvRecord).map(envKey => `${envKey}=${containerEnvRecord[envKey]}`),
             HostConfig: {
                 Memory: options.memoryLimit,
                 CpusetCpus: options.cpuSet ? options.cpuSet.join(',') : undefined,
+                Privileged: options.privileged,
                 RestartPolicy: options.restartPolicy ? {Name: As<string>(options.restartPolicy)} : undefined,
                 OomKillDisable: options.OOMKillDisable,
                 PortBindings: portBindings,
