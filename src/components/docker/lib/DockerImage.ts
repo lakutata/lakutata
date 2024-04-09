@@ -20,6 +20,9 @@ import {ParseRepositoryTag} from './ParseRepositoryTag.js'
 import {As} from '../../../lib/functions/As.js'
 import {ImageExposePort} from '../types/ImageExposePort.js'
 import {ParseEnvToRecord} from './ParseEnvToRecord.js'
+import type {Docker} from '../Docker.js'
+import {ContainerSettingOptions} from '../options/container/ContainerSettingOptions.js'
+import {type DockerContainer} from './DockerContainer.js'
 
 @Transient()
 export class DockerImage extends Provider {
@@ -30,6 +33,9 @@ export class DockerImage extends Provider {
 
     @Configurable(DTO.InstanceOf(Dockerode))
     protected readonly $dockerode: Dockerode
+
+    @Configurable(DTO.Function())
+    protected readonly getDocker: () => Docker
 
     @Configurable(DTO.String())
     public id: string
@@ -203,7 +209,14 @@ export class DockerImage extends Provider {
         }
     }
 
-    public async run() {
-        //TODO
+    /**
+     * Create container by current image then start it
+     * @param options
+     */
+    @Accept(ContainerSettingOptions.required())
+    public async run(options: ContainerSettingOptions): Promise<DockerContainer> {
+        const container: DockerContainer = await this.getDocker().createContainer(this.id, this.platform, options)
+        await container.start()
+        return container
     }
 }

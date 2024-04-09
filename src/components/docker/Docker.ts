@@ -166,7 +166,8 @@ export class Docker extends Component {
         const rawImages: Dockerode.ImageInfo[] = await this.#instance.listImages()
         return await Promise.all(rawImages.map((rawImage: Dockerode.ImageInfo) => new Promise<DockerImage>((resolve, reject) => this.container.get(DockerImage, {
             id: rawImage.Id,
-            $dockerode: this.#instance
+            $dockerode: this.#instance,
+            getDocker: () => this
         }).then(resolve).catch(reject))))
     }
 

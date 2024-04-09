@@ -27,6 +27,7 @@ import {pipeline} from 'stream/promises'
 import {platform} from 'node:os'
 import {rm} from 'node:fs/promises'
 import {Docker} from '../components/docker/Docker.js'
+import {Time} from '../lib/core/Time.js'
 
 Application
     .env({TEST: '123'})
@@ -163,44 +164,20 @@ Application
     })
     .onLaunched(async (app, logger) => {
         const docker = await app.getObject<Docker>('docker')
-        // const img = await docker.buildImage({
-        //     // workdir: 'C:\\Users\\Administrator\\Desktop\\test',
-        //     workdir: '/Users/alex/Desktop/test',
-        //     files: ['Dockerfile'],
-        //     platform: 'linux/arm64',
-        //     repoTag: 'export:test',
-        //     outputCallback: output => console.log(output)
-        // })
-
-        // const wk=await docker.createNetwork({
-        //     name: 'testNet',
-        //     driver: 'macvlan',
-        //     parent: 'eth0',
-        //     NetworkIPAMConfigs: [{
-        //         subnet: '192.168.0.0/16',
-        //         gateway: '192.168.0.1'
-        //     }]
-        // })
-        // console.log(await docker.listNetworks())
-        // await docker.removeNetwork(wk.id)
-
-        // await img.export({destination: 'C:\\Users\\Administrator\\Desktop\\teste.tar', repoTag: 'export:test1'})
-        // await img.export({destination: 'C:\\Users\\Administrator\\Desktop\\teste.tar'})
-        // await img.remove()
-        // await docker.importImage({source: 'C:\\Users\\Administrator\\Desktop\\teste.tar'})
-        // console.log(await docker.listImages())
-        // const image = await docker.getImage('testimg:testtag')
-        // await image.tag({repo:'testimg',tag:'testtag111'})
-        // await image.export({destination: '/Users/alex/Desktop/test.tar',repoTag:'ubuntu:latest'})
-
-        // console.log(await docker.listContainers())
-        const containers = await docker.listContainers()
-        const container = containers[0]
-        await container.update({
-            name: 'testContainer1',
+        const img = await docker.buildImage({
+            // workdir: 'C:\\Users\\Administrator\\Desktop\\test',
+            workdir: '/Users/alex/Desktop/test',
+            files: ['Dockerfile'],
+            platform: 'linux/arm64',
+            repoTag: `export:test_${Time.now()}`,
+            outputCallback: output => console.log(output)
+        })
+        await img.run({
+            name: `testContainer_${Time.now()}`,
             hostname: 'fuckkkk',
             memoryLimit: 256 * 1024 * 1024,
             cpuSet: [0, 1],
+            tty: true,
             privileged: true,
             devices: [{
                 hostPath: '/dev/tty.usbserial-12440',
@@ -226,12 +203,12 @@ Application
                 {
                     port: 8080,
                     type: 'tcp',
-                    hostPorts: [8081, 8082, 8083]
+                    hostPorts: []
                 },
                 {
                     port: 8080,
                     type: 'udp',
-                    hostPorts: [8081, 8082, 8083, 8084]
+                    hostPorts: []
                 },
                 {
                     port: 8081,
@@ -241,16 +218,93 @@ Application
             ],
             networks: [
                 {
-                    networkName: 'bridge',
-                    ip: '10.17.0.66'
+                    networkName: 'bridge'
                 },
                 {
                     networkName: 'testBridge',
-                    ip: '10.18.0.66'
                 }
             ]
         })
-        console.log(container)
+
+        // const wk=await docker.createNetwork({
+        //     name: 'testNet',
+        //     driver: 'macvlan',
+        //     parent: 'eth0',
+        //     NetworkIPAMConfigs: [{
+        //         subnet: '192.168.0.0/16',
+        //         gateway: '192.168.0.1'
+        //     }]
+        // })
+        // console.log(await docker.listNetworks())
+        // await docker.removeNetwork(wk.id)
+
+        // await img.export({destination: 'C:\\Users\\Administrator\\Desktop\\teste.tar', repoTag: 'export:test1'})
+        // await img.export({destination: 'C:\\Users\\Administrator\\Desktop\\teste.tar'})
+        // await img.remove()
+        // await docker.importImage({source: 'C:\\Users\\Administrator\\Desktop\\teste.tar'})
+        // console.log(await docker.listImages())
+        // const image = await docker.getImage('testimg:testtag')
+        // await image.tag({repo:'testimg',tag:'testtag111'})
+        // await image.export({destination: '/Users/alex/Desktop/test.tar',repoTag:'ubuntu:latest'})
+
+
+        // const containers = await docker.listContainers()
+        // const container = containers[0]
+        // await container.update({
+        //     name: 'testContainer1',
+        //     hostname: 'fuckkkk',
+        //     memoryLimit: 256 * 1024 * 1024,
+        //     cpuSet: [0, 1],
+        //     privileged: true,
+        //     devices: [{
+        //         hostPath: '/dev/tty.usbserial-12440',
+        //         containerPath: '/dev/tty.usbserial-12440',
+        //         cgroupPermissions: 'rmw'
+        //     }],
+        //     env: {
+        //         FUCK: 'OKKK'
+        //     },
+        //     binds: [
+        //         {
+        //             hostPath: '/Users/alex/Desktop',
+        //             containerPath: '/data1',
+        //             rw: true
+        //         },
+        //         {
+        //             hostPath: '/Users/alex/Desktop',
+        //             containerPath: '/data2',
+        //             rw: false
+        //         }
+        //     ],
+        //     ports: [
+        //         {
+        //             port: 8080,
+        //             type: 'tcp',
+        //             hostPorts: [8081, 8082, 8083]
+        //         },
+        //         {
+        //             port: 8080,
+        //             type: 'udp',
+        //             hostPorts: [8081, 8082, 8083, 8084]
+        //         },
+        //         {
+        //             port: 8081,
+        //             type: 'tcp',
+        //             hostPorts: []
+        //         }
+        //     ],
+        //     networks: [
+        //         {
+        //             networkName: 'bridge',
+        //             ip: '10.17.0.66'
+        //         },
+        //         {
+        //             networkName: 'testBridge',
+        //             ip: '10.18.0.66'
+        //         }
+        //     ]
+        // })
+        // console.log(container)
         // await docker.listContainers()
         // await docker.listImages()
 

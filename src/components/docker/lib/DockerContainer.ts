@@ -333,7 +333,7 @@ export class DockerContainer extends Provider {
                 ports: this.ports,
                 binds: this.binds,
                 devices: this.devices,
-                networks: this.networks,//TODO 好像有问题
+                networks: this.networks,
                 OOMKillDisable: this.OOMKillDisable,
                 ...options
             })
