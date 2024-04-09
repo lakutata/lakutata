@@ -8,7 +8,7 @@ import {Time} from '../../../lib/core/Time.js'
 import {ContainerState} from '../types/ContainerState.js'
 import {As} from '../../../lib/functions/As.js'
 import {type Docker} from '../Docker.js'
-import {DockerImage} from './DockerImage.js'
+import {type DockerImage} from './DockerImage.js'
 import {ContainerNetwork} from '../types/ContainerNetwork.js'
 import {ContainerPort} from '../types/ContainerPort.js'
 import {ImageExposePort} from '../types/ImageExposePort.js'
@@ -22,6 +22,9 @@ import {ContainerRestartPolicy} from '../types/ContainerRestartPolicy.js'
 import {ContainerKillOptions} from '../options/container/ContainerKillOptions.js'
 import {UniqueArray} from '../../../lib/functions/UniqueArray.js'
 import {ParseEnvToRecord} from './ParseEnvToRecord.js'
+import {ContainerCommitOptions} from '../options/container/ContainerCommitOptions.js'
+import {ParseRepositoryTag} from './ParseRepositoryTag.js'
+import {ContainerCapability} from '../types/ContainerCapability.js'
 
 @Transient()
 export class DockerContainer extends Provider {
@@ -62,6 +65,8 @@ export class DockerContainer extends Provider {
     public restartPolicy: ContainerRestartPolicy
 
     public OOMKillDisable: boolean
+
+    public capabilities: ContainerCapability[]
 
     public state: ContainerState
 
@@ -219,6 +224,7 @@ export class DockerContainer extends Provider {
             })
             this.cpuSet = UniqueArray(cpuSet).sort((a: number, b: number) => a - b).filter(value => typeof value === 'number' && !isNaN(value))
             this.env = ParseEnvToRecord(inspectInfo.Config.Env)
+            this.capabilities = inspectInfo.HostConfig.CapAdd ? inspectInfo.HostConfig.CapAdd : []
         } catch (e) {
             if (!IsAbortError(e)) throw e
         }
@@ -335,6 +341,7 @@ export class DockerContainer extends Provider {
                 devices: this.devices,
                 networks: this.networks,
                 OOMKillDisable: this.OOMKillDisable,
+                capabilities: this.capabilities,
                 ...options
             })
         this.id = createdContainer.id
@@ -345,9 +352,22 @@ export class DockerContainer extends Provider {
         }
     }
 
-    public async commit() {
-        //TODO
-        throw new Error('not implemented')
+    @Accept(ContainerCommitOptions.optional().default({}))
+    public async commit(options?: ContainerCommitOptions): Promise<DockerImage> {
+        options = options ? options : {}
+        let repo: string | undefined = undefined
+        let tag: string | undefined = undefined
+        if (options.repoTag) {
+            const parseResult = ParseRepositoryTag(options.repoTag)
+            repo = parseResult.repo
+            tag = parseResult.tag
+        }
+        const commitResult: { Id: string } = await this.#container.commit({
+            repo: repo,
+            tag: tag,
+            pause: options.pauseBeforeCommitting !== undefined ? options.pauseBeforeCommitting : true
+        })
+        return await this.getDocker().getImage(commitResult.Id)
     }
 
     public async createTTY() {

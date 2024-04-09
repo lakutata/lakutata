@@ -20,14 +20,10 @@ import {
     BuildServiceEntrypoint
 } from '../components/Entrypoint.js'
 import path from 'node:path'
-import {Delay} from '../lib/functions/Delay.js'
 import {createWriteStream} from 'node:fs'
-import {Library} from '../lib/ffi/Library.js'
-import {pipeline} from 'stream/promises'
-import {platform} from 'node:os'
-import {rm} from 'node:fs/promises'
 import {Docker} from '../components/docker/Docker.js'
 import {Time} from '../lib/core/Time.js'
+import {ContainerCapability} from '../components/docker/types/ContainerCapability.js'
 
 Application
     .env({TEST: '123'})
@@ -168,11 +164,12 @@ Application
             // workdir: 'C:\\Users\\Administrator\\Desktop\\test',
             workdir: '/Users/alex/Desktop/test',
             files: ['Dockerfile'],
-            platform: 'linux/arm64',
+            platform: 'linux/amd64',
             repoTag: `export:test_${Time.now()}`,
             outputCallback: output => console.log(output)
         })
         const container = await img.run({
+            capabilities:[ContainerCapability.AUDIT_CONTROL],
             name: `testContainer_${Time.now()}`,
             hostname: 'fuckkkk',
             memoryLimit: 256 * 1024 * 1024,
@@ -225,8 +222,8 @@ Application
                 }
             ]
         })
-
-        console.log(container)
+        // const commitImage = await container.commit()
+        // await commitImage.run({tty: true})
 
         // const wk=await docker.createNetwork({
         //     name: 'testNet',

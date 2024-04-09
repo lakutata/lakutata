@@ -5,6 +5,7 @@ import {type ContainerRestartPolicy} from '../../types/ContainerRestartPolicy.js
 import {ContainerPort} from '../../types/ContainerPort.js'
 import {ContainerBind} from '../../types/ContainerBind.js'
 import {ContainerNetwork} from '../../types/ContainerNetwork.js'
+import {ContainerCapability} from '../../types/ContainerCapability.js'
 
 export class ContainerSettingOptions extends DTO {
 
@@ -103,5 +104,9 @@ export class ContainerSettingOptions extends DTO {
     @Expect(DTO.Boolean().optional())
     public OOMKillDisable?: boolean
 
-
+    /**
+     * Kernel capabilities
+     */
+    @Expect(DTO.Array(DTO.String().valid(...Object.values(ContainerCapability))).optional().default([]))
+    public capabilities?: ContainerCapability[]
 }

@@ -406,7 +406,8 @@ export class Docker extends Component {
                 OomKillDisable: options.OOMKillDisable,
                 PortBindings: portBindings,
                 Binds: binds,
-                Devices: devices
+                Devices: devices,
+                CapAdd: options.capabilities
             },
             NetworkingConfig: {
                 EndpointsConfig: networkConfigMapping
