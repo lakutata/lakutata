@@ -90,7 +90,6 @@
     "joi": "^17.12.2",
     "joi-to-json": "^4.2.1",
     "jsonschema": "^1.4.1",
-    "koffi": "^2.8.0",
     "log-update": "^6.0.0",
     "magic-string": "^0.30.8",
     "mocha": "^10.3.0",
