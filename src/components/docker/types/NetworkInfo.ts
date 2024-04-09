@@ -6,19 +6,11 @@ export type NetworkIPAMConfig = {
     gateway: string
 }
 
-export type NetworkContainer = {
-    id: string
-    name: string
-    endpointId: string
-    mac: string
-    ipv4: string
-    ipv6: string
-}
-
 export type NetworkInfo = {
     id: string
     name: string
     driver: 'bridge' | 'ipvlan' | 'macvlan'
+    reserved: boolean
     internal: boolean
     enableIPv6: boolean
     IPAMConfigs: NetworkIPAMConfig[],

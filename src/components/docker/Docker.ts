@@ -461,6 +461,7 @@ export class Docker extends Component {
                 id: rawNetwork.Id,
                 name: rawNetwork.Name,
                 driver: As<'bridge' | 'ipvlan' | 'macvlan'>(rawNetwork.Driver),
+                reserved: ['bridge', 'host', 'none'].includes(rawNetwork.Name),
                 internal: rawNetwork.Internal,
                 enableIPv6: rawNetwork.EnableIPv6,
                 IPAMConfigs: rawNetwork.IPAM?.Config
