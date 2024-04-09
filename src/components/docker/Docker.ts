@@ -30,6 +30,7 @@ import {ContainerSettingOptions} from './options/container/ContainerSettingOptio
 import {ContainerBind} from './types/ContainerBind.js'
 import {DockerContainerTTY} from './lib/DockerContainerTTY.js'
 import {DockerPruneOptions} from './options/DockerPruneOptions.js'
+import {DockerAuthOptions} from './options/auth/DockerAuthOptions.js'
 
 @Singleton()
 export class Docker extends Component {
@@ -169,6 +170,34 @@ export class Docker extends Component {
         if (options.images) await this.#instance.pruneImages()
         if (options.networks) await this.#instance.pruneNetworks()
         if (options.volumes) await this.#instance.pruneVolumes()
+    }
+
+    /**
+     * Login to repository
+     * @param options
+     */
+    @Accept(DockerAuthOptions.required())
+    public async loginRepository(options: DockerAuthOptions): Promise<void> {
+        await this.#instance.checkAuth({
+            username: options.username,
+            password: options.password,
+            serveraddress: options.serverAddress,
+            email: options.email
+        })
+    }
+
+    /**
+     * Check repository auth
+     * @param options
+     */
+    @Accept(DockerAuthOptions.required())
+    public async checkRepositoryAuth(options: DockerAuthOptions): Promise<boolean> {
+        try {
+            await this.loginRepository(options)
+            return true
+        } catch (e) {
+            return false
+        }
     }
 
     /** Docker Image Operations **/

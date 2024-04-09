@@ -148,7 +148,7 @@ Application
         '@test': path.resolve(__dirname, './xxxxx'),
         '@test2': '@test/kkkkkkkk'
     }, true)
-    .onLaunched((app, log) => {
+    .onLaunched(async (app, log) => {
         log.info('Application %s launched', app.appName)
         // const lib = new Library('/Users/alex/libfactorial.dylib')
         // const offset = lib.symbol('offset', 'int')
