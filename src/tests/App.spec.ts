@@ -169,7 +169,7 @@ Application
             outputCallback: output => console.log(output)
         })
         const container = await img.run({
-            capabilities:[ContainerCapability.AUDIT_CONTROL],
+            capabilities: [ContainerCapability.AUDIT_CONTROL],
             name: `testContainer_${Time.now()}`,
             hostname: 'fuckkkk',
             memoryLimit: 256 * 1024 * 1024,
@@ -221,6 +221,16 @@ Application
                     networkName: 'testBridge'
                 }
             ]
+        })
+        // const tty = await container.createTTY()
+        const tty = await container.createTTY()
+        // await tty.resize({
+        //     cols: 15,
+        //     rows: 15
+        // })
+        tty.onData(data => process.stdout.write(data))
+        process.stdin.on('data', data => {
+            tty.write(data.toString())
         })
         // const commitImage = await container.commit()
         // await commitImage.run({tty: true})

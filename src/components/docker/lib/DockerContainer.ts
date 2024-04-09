@@ -25,6 +25,9 @@ import {ParseEnvToRecord} from './ParseEnvToRecord.js'
 import {ContainerCommitOptions} from '../options/container/ContainerCommitOptions.js'
 import {ParseRepositoryTag} from './ParseRepositoryTag.js'
 import {ContainerCapability} from '../types/ContainerCapability.js'
+import {DockerContainerTTY} from './DockerContainerTTY.js'
+import {ContainerCreateTTYOptions} from '../options/container/ContainerCreateTTYOptions.js'
+import stream from 'stream'
 
 @Transient()
 export class DockerContainer extends Provider {
@@ -370,9 +373,17 @@ export class DockerContainer extends Provider {
         return await this.getDocker().getImage(commitResult.Id)
     }
 
-    public async createTTY() {
-        //TODO
-        throw new Error('not implemented')
+    /**
+     * Create container TTY
+     * @param options
+     */
+    @Accept(ContainerCreateTTYOptions.optional())
+    public async createTTY(options?: ContainerCreateTTYOptions): Promise<DockerContainerTTY> {
+        return await this.getObject(DockerContainerTTY, {
+            container: this.#container,
+            cmd: options?.cmd ? options.cmd : 'bash',
+            initialConsoleSize: options?.consoleSize
+        })
     }
 
     public async logs() {

@@ -28,6 +28,7 @@ import {Time} from '../../lib/core/Time.js'
 import {DockerNetworkNotFoundException} from './exceptions/DockerNetworkNotFoundException.js'
 import {ContainerSettingOptions} from './options/container/ContainerSettingOptions.js'
 import {ContainerBind} from './types/ContainerBind.js'
+import {DockerContainerTTY} from './lib/DockerContainerTTY.js'
 
 @Singleton()
 export class Docker extends Component {
@@ -103,7 +104,8 @@ export class Docker extends Component {
     protected async init(): Promise<void> {
         await Promise.all([
             new Promise((resolve, reject) => this.container.register(DockerImage).then(resolve).catch(reject)),
-            new Promise((resolve, reject) => this.container.register(DockerContainer).then(resolve).catch(reject))
+            new Promise((resolve, reject) => this.container.register(DockerContainer).then(resolve).catch(reject)),
+            new Promise((resolve, reject) => this.container.register(DockerContainerTTY).then(resolve).catch(reject))
         ])
         if (!this.socketPath && !this.host) {
             //Load default config
