@@ -223,10 +223,12 @@ Application
                 }
             ]
         })
+        console.log(await container.exec({cmd: ['ls', '-la', '/']}))
         // const readable = await container.logs({follow: true, stdout: true, stderr: true})
-        await Delay(10000)
-        const readable = await container.logs({follow: false})
-        readable.pipe(process.stdout)
+        // await Delay(10000)
+        // const readable = await container.logs({follow: false})
+        // readable.pipe(process.stdout)
+        // console.log(await container.stats())
         // const tty = await container.createTTY()
         // const tty = await container.createTTY()
         // await tty.resize({

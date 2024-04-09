@@ -30,6 +30,9 @@ import {ContainerCreateTTYOptions} from '../options/container/ContainerCreateTTY
 import {ContainerLogsOptions} from '../options/container/ContainerLogsOptions.js'
 import {ConvertArrayLikeToStream} from '../../../lib/functions/ConvertArrayLikeToStream.js'
 import {Stream} from 'node:stream'
+import {ContainerStats} from '../types/ContainerStats.js'
+import {ContainerExecOptions} from '../options/container/ContainerExecOptions.js'
+import stream from 'stream'
 
 @Transient()
 export class DockerContainer extends Provider {
@@ -419,14 +422,37 @@ export class DockerContainer extends Provider {
         }
     }
 
-    public async stats() {
-        //TODO
-        throw new Error('not implemented')
+    /**
+     * Get container stats
+     */
+    public async stats(): Promise<ContainerStats> {
+        return await this.#container.stats({'one-shot': true, stream: false})
     }
 
-    public async exec() {
-        //TODO
-        throw new Error('not implemented')
+    /**
+     * Run command in container
+     * @param options
+     */
+    @Accept(ContainerExecOptions.required())
+    public async exec(options: ContainerExecOptions): Promise<string> {
+        const exec: Dockerode.Exec = await this.#container.exec({
+            Cmd: Array.isArray(options.cmd) ? options.cmd : [options.cmd],
+            AttachStdout: true,
+            AttachStderr: true
+        })
+        return new Promise((resolve, reject): void => {
+            exec.start({Detach: false}, (error: Error | null, duplex: stream.Duplex | undefined) => {
+                if (error) return reject(error)
+                let cache: Buffer = Buffer.from([])
+                if (!duplex) return resolve(cache.toString())
+                duplex
+                    .on('data', (buf: Buffer): void => {
+                        cache = Buffer.from(new Uint8Array([...new Uint8Array(cache), ...new Uint8Array(buf)]))
+                    })
+                    .once('close', () => resolve(cache.toString()))
+                    .once('error', (error: Error) => reject(error))
+            })
+        })
     }
 
     /**
