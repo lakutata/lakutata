@@ -223,7 +223,8 @@ Application
                 }
             ]
         })
-        console.log(await container.exec({cmd: ['ls', '-la', '/']}))
+        // await container.exportDirectory({path: '/data1/test', destination: '/Users/alex/test.tar'})
+        // console.log(await container.exec({cmd: ['ls', '-la', '/']}))
         // const readable = await container.logs({follow: true, stdout: true, stderr: true})
         // await Delay(10000)
         // const readable = await container.logs({follow: false})

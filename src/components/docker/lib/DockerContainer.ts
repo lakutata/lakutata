@@ -29,10 +29,13 @@ import {DockerContainerTTY} from './DockerContainerTTY.js'
 import {ContainerCreateTTYOptions} from '../options/container/ContainerCreateTTYOptions.js'
 import {ContainerLogsOptions} from '../options/container/ContainerLogsOptions.js'
 import {ConvertArrayLikeToStream} from '../../../lib/functions/ConvertArrayLikeToStream.js'
-import {Stream} from 'node:stream'
+import {Stream, Writable} from 'node:stream'
 import {ContainerStats} from '../types/ContainerStats.js'
 import {ContainerExecOptions} from '../options/container/ContainerExecOptions.js'
 import stream from 'stream'
+import {ContainerExportDirectoryOptions} from '../options/container/ContainerExportDirectoryOptions.js'
+import {pipeline} from 'stream/promises'
+import {createWriteStream} from 'node:fs'
 
 @Transient()
 export class DockerContainer extends Provider {
@@ -468,5 +471,18 @@ export class DockerContainer extends Provider {
         if (!options) return await this.kill({})
         await this.#container.kill(options ? options : {})
         await this.syncContainerInfo()
+    }
+
+    /**
+     * Get a tar archive of a resource in the filesystem of current container
+     * @param options
+     */
+    @Accept(ContainerExportDirectoryOptions.required())
+    public async exportDirectory(options: ContainerExportDirectoryOptions): Promise<void> {
+        const readableStream: NodeJS.ReadableStream = await this.#container.getArchive({
+            path: options.path
+        })
+        const writableStream: Writable = typeof options.destination === 'string' ? createWriteStream(options.destination) : options.destination
+        await pipeline(readableStream, writableStream)
     }
 }
