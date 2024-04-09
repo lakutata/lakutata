@@ -257,8 +257,8 @@ export class DockerContainer extends Provider {
      */
     @Accept(ContainerStopOptions.optional())
     public async stop(options?: ContainerStopOptions): Promise<void> {
+        if (!options) return await this.stop({})
         try {
-            options = options ? options : {}
             const stopOptions: Dockerode.ContainerStopOptions = {
                 abortSignal: this.#abortController.signal,
                 signal: options.signal,
@@ -293,8 +293,8 @@ export class DockerContainer extends Provider {
      */
     @Accept(ContainerStopOptions.optional())
     public async restart(options?: ContainerStopOptions): Promise<void> {
+        if (!options) return await this.restart({})
         try {
-            options = options ? options : {}
             const stopOptions: Dockerode.ContainerStopOptions = {
                 abortSignal: this.#abortController.signal,
                 signal: options.signal,
@@ -313,7 +313,7 @@ export class DockerContainer extends Provider {
      */
     @Accept(ContainerRemoveOptions.optional())
     public async remove(options?: ContainerRemoveOptions): Promise<void> {
-        options = options ? options : {}
+        if (!options) return await this.remove({})
         const removeOptions: Dockerode.ContainerRemoveOptions = {
             force: !!options.force,
             v: true
@@ -360,9 +360,13 @@ export class DockerContainer extends Provider {
         }
     }
 
+    /**
+     * Create a new image from a container
+     * @param options
+     */
     @Accept(ContainerCommitOptions.optional().default({}))
     public async commit(options?: ContainerCommitOptions): Promise<DockerImage> {
-        options = options ? options : {}
+        if (!options) return await this.commit({})
         let repo: string | undefined = undefined
         let tag: string | undefined = undefined
         if (options.repoTag) {
@@ -461,6 +465,7 @@ export class DockerContainer extends Provider {
      */
     @Accept(ContainerKillOptions.optional())
     public async kill(options?: ContainerKillOptions): Promise<void> {
+        if (!options) return await this.kill({})
         await this.#container.kill(options ? options : {})
         await this.syncContainerInfo()
     }
