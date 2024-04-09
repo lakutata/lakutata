@@ -64,6 +64,20 @@ export class DockerContainerTTY extends Provider {
     }
 
     /**
+     * Get tty writable stream
+     */
+    public get writable(): stream.Writable {
+        return this.#duplexStream
+    }
+
+    /**
+     * Get tty readable stream
+     */
+    public get readable(): stream.Readable {
+        return this.#duplexStream
+    }
+
+    /**
      * Resize tty console size
      * @param options
      */
@@ -87,7 +101,13 @@ export class DockerContainerTTY extends Provider {
      * Write data to duplex stream
      * @param data
      */
-    public write(data: string): void {
+    public write(data: string): void
+    /**
+     * Write data to duplex stream
+     * @param data
+     */
+    public write(data: Buffer): void
+    public write(data: string | Buffer): void {
         this.#duplexStream.write(data, (error: Error | null | undefined): void => {
             if (error) this.log.warn('Write data to duplex stream error: %s', error.message)
         })
