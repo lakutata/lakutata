@@ -85,7 +85,6 @@ export class ContainerSettingOptions extends DTO {
         containerPath: DTO.String().required(),
         cgroupPermissions: DTO.String().optional().default('rwm')
     })).optional())
-    // public devices?: ContainerDevice[]
     public devices?: (Pick<ContainerDevice, 'hostPath' | 'containerPath'> & Partial<Pick<ContainerDevice, 'cgroupPermissions'>>)[]
 
     /**
@@ -93,8 +92,8 @@ export class ContainerSettingOptions extends DTO {
      */
     @Expect(DTO.Array(DTO.Object({
         networkName: DTO.String().required(),
-        ip: DTO.String().ip({version: 'ipv4'}).optional(),
-        ipv6: DTO.String().ip({version: 'ipv6'}).optional()
+        ip: DTO.String().allow('').ip({version: 'ipv4'}).optional(),
+        ipv6: DTO.String().allow('').ip({version: 'ipv6'}).optional()
     })).optional())
     public networks?: Partial<Pick<ContainerNetwork, 'networkName' | 'ip' | 'ipv6'>>[]
 

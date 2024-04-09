@@ -384,8 +384,8 @@ export class Docker extends Component {
                 ? {}
                 : {
                     IPAMConfig: {
-                        IPv4Address: network.ip,
-                        IPv6Address: network.ipv6
+                        IPv4Address: network.ip ? network.ip : undefined,
+                        IPv6Address: network.ipv6 ? network.ipv6 : undefined
                     }
                 }
         })
