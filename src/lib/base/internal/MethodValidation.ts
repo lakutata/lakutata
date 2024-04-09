@@ -5,7 +5,7 @@ import {InvalidMethodAcceptException} from '../../../exceptions/dto/InvalidMetho
 import {InvalidMethodReturnException} from '../../../exceptions/dto/InvalidMethodReturnException.js'
 import {Schema} from '../../validation/types/Schema.js'
 import {ArraySchema} from '../../validation/interfaces/ArraySchema.js'
-import {As} from '../../functions/As.js'
+import {As} from '../../helpers/As.js'
 
 /**
  * For validate method accept arguments

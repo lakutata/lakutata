@@ -5,7 +5,7 @@ import {DTO} from '../lib/core/DTO.js'
 import {pino, Logger as PinoLogger, DestinationStream, destination} from 'pino'
 import {GetBasicInfo} from '../lib/base/internal/BasicInfo.js'
 import PinoPretty from 'pino-pretty'
-import {As} from '../lib/functions/As.js'
+import {As} from '../lib/helpers/As.js'
 import {Stream} from 'node:stream'
 import {SonicBoom as UTF8OnlyStream} from 'sonic-boom'
 

@@ -1,7 +1,7 @@
 import {createTokenizer, type Token} from './FunctionTokenizer.js'
 import {Constructor} from './Resolvers.js'
-import {IsSymbol} from '../functions/IsSymbol.js'
-import {As} from '../functions/As.js'
+import {IsSymbol} from '../helpers/IsSymbol.js'
+import {As} from '../helpers/As.js'
 
 /**
  * Quick flatten utility to flatten a 2-dimensional array.

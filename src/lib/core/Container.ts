@@ -21,9 +21,9 @@ import {pathToFileURL} from 'url'
 import {isClass} from '../ioc/Utils.js'
 import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
 import {LifetimeType} from '../ioc/Lifetime.js'
-import {DevNull} from '../functions/DevNull.js'
-import {As} from '../functions/As.js'
-import {IsEmptyObject} from '../functions/IsEmptyObject.js'
+import {DevNull} from '../helpers/DevNull.js'
+import {As} from '../helpers/As.js'
+import {IsEmptyObject} from '../helpers/IsEmptyObject.js'
 import {AppendObjectWeakRefs, ClearObjectWeakRefs, GetObjectWeakRefs} from '../base/internal/ObjectWeakRefs.js'
 
 export const containerSymbol: symbol = Symbol('LAKUTATA.DI.CONTAINER.SYMBOL')

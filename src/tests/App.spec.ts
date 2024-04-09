@@ -5,11 +5,11 @@ import {TestProvider} from './providers/TestProvider.js'
 import {TestController1} from './controllers/TestController1.js'
 import {HTTPContext} from '../lib/context/HTTPContext.js'
 import Fastify from 'fastify'
-import {As} from '../lib/functions/As.js'
+import {As} from '../lib/helpers/As.js'
 import {Command} from 'commander'
 import {CLIContext} from '../lib/context/CLIContext.js'
 import {createInterface} from 'node:readline'
-import {DevNull} from '../lib/functions/DevNull.js'
+import {DevNull} from '../lib/helpers/DevNull.js'
 import {Server as SocketIOServer} from 'socket.io'
 import {ServiceContext} from '../lib/context/ServiceContext.js'
 import {createServer} from 'node:http'
@@ -22,6 +22,7 @@ import {
 import path from 'node:path'
 import {createWriteStream} from 'node:fs'
 import {Docker} from '../components/docker/Docker.js'
+import {Glob} from '../lib/helpers/Glob.js'
 
 Application
     .env({TEST: '123'})

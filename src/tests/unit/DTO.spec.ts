@@ -4,7 +4,7 @@ import {DTO} from '../../lib/core/DTO.js'
 import {Expect} from '../../decorators/dto/Expect.js'
 import {Accept} from '../../decorators/dto/Accept.js'
 import {Return} from '../../decorators/dto/Return.js'
-import {DevNull} from '../../lib/functions/DevNull.js'
+import {DevNull} from '../../lib/helpers/DevNull.js'
 
 await describe('DTO Test', async function (): Promise<void> {
     await it('validate string', async (): Promise<void> => {

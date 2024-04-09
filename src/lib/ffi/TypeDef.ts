@@ -2,7 +2,7 @@ import * as koffi from './lib/index.js'
 import {TypeSpecWithAlignment} from './types/TypeSpecWithAlignment.js'
 import {TypeSpec} from './types/TypeSpec.js'
 import {ArrayHint} from './types/ArrayHint.js'
-import {As} from '../functions/As.js'
+import {As} from '../helpers/As.js'
 import {TypeInfo} from './types/TypeInfo.js'
 
 export class TypeDef {

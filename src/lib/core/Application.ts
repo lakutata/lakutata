@@ -12,7 +12,7 @@ import {DTO} from './DTO.js'
 import {mkdirSync} from 'fs'
 import path from 'node:path'
 import {existsSync} from 'node:fs'
-import {As} from '../functions/As.js'
+import {As} from '../helpers/As.js'
 import {EventEmitter} from '../base/EventEmitter.js'
 import {BootstrapOption} from '../../options/ModuleOptions.js'
 

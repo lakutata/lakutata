@@ -1,5 +1,5 @@
 import {BaseObject} from '../BaseObject.js'
-import {As} from '../../functions/As.js'
+import {As} from '../../helpers/As.js'
 
 const OWR_SYMBOL: symbol = Symbol('OWR')//Object Weak Ref
 const OFR_SYMBOL: symbol = Symbol('OFR')//Object Finalization Registry

@@ -1,4 +1,4 @@
-import {As} from '../../functions/As.js'
+import {As} from '../../helpers/As.js'
 import MomentTimezone from 'moment-timezone'
 import {ThrowWarning} from './ThrowWarning.js'
 

@@ -23,7 +23,7 @@ import {
 } from './Resolvers.js'
 import {isClass, last, nameValueToObject} from './Utils.js'
 import {GetObjectLifetime} from '../base/internal/ObjectLifetime.js'
-import {As} from '../functions/As.js'
+import {As} from '../helpers/As.js'
 import {AppendObjectWeakRefs} from '../base/internal/ObjectWeakRefs.js'
 
 /**

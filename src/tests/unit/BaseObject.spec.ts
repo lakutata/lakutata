@@ -3,7 +3,7 @@ import {BaseObject} from '../../lib/base/BaseObject.js'
 import assert from 'node:assert'
 import {Container} from '../../lib/core/Container.js'
 import {MethodNotFoundException} from '../../exceptions/MethodNotFoundException.js'
-import {IsPromiseLike} from '../../lib/functions/IsPromiseLike.js'
+import {IsPromiseLike} from '../../lib/helpers/IsPromiseLike.js'
 import {OBJECT_ID} from '../../options/LoadObjectOptions.js'
 
 let initialized: boolean = false

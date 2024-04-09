@@ -1,8 +1,8 @@
 import {ResolutionStack} from './DependencyInjectionContainer.js'
 import {DependencyInjectionException} from '../../exceptions/di/DependencyInjectionException.js'
 import {ResolveConstructorNameBySymbol} from '../base/internal/ConstructorSymbol.js'
-import {As} from '../functions/As.js'
-import {IsSymbol} from '../functions/IsSymbol.js'
+import {As} from '../helpers/As.js'
+import {IsSymbol} from '../helpers/IsSymbol.js'
 
 /**
  * 可扩展错误类

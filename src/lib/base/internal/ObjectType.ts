@@ -1,6 +1,6 @@
 import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
 import {ClassDecorator} from '../../../types/ClassDecorator.js'
-import {ObjectParentConstructors} from '../../functions/ObjectParentConstructors.js'
+import {ObjectParentConstructors} from '../../helpers/ObjectParentConstructors.js'
 import {DTO} from '../../core/DTO.js'
 import {BaseObject} from '../BaseObject.js'
 

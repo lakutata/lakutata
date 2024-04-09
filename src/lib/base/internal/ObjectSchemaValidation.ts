@@ -8,11 +8,11 @@ import {DataValidator} from './DataValidator.js'
 import {Schema} from '../../validation/types/Schema.js'
 import {ObjectSchema} from '../../validation/interfaces/ObjectSchema.js'
 import {SchemaMap} from '../../validation/types/SchemaMap.js'
-import {ObjectConstructor} from '../../functions/ObjectConstructor.js'
-import {ObjectParentConstructors} from '../../functions/ObjectParentConstructors.js'
-import {ObjectPrototype} from '../../functions/ObjectPrototype.js'
-import {IsSymbol} from '../../functions/IsSymbol.js'
-import {As} from '../../functions/As.js'
+import {ObjectConstructor} from '../../helpers/ObjectConstructor.js'
+import {ObjectParentConstructors} from '../../helpers/ObjectParentConstructors.js'
+import {ObjectPrototype} from '../../helpers/ObjectPrototype.js'
+import {IsSymbol} from '../../helpers/IsSymbol.js'
+import {As} from '../../helpers/As.js'
 
 export type ObjectPropertySchemaMap = Map<string, Schema>
 

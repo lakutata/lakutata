@@ -6,7 +6,7 @@ import stream from 'stream'
 import {Transient} from '../../../decorators/di/Lifetime.js'
 import {ContainerTTYConsoleSizeOptions} from '../options/container/ContainerTTYConsoleSizeOptions.js'
 import {Accept} from '../../../decorators/dto/Accept.js'
-import {As} from '../../../lib/functions/As.js'
+import {As} from '../../../lib/helpers/As.js'
 import {Logger} from '../../Logger.js'
 import {Inject} from '../../../decorators/di/Inject.js'
 

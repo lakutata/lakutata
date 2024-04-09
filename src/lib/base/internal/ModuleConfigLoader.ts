@@ -9,13 +9,13 @@ import {OverridableObjectOptions} from '../../../options/OverridableObjectOption
 import {
     OverridableObjectTargetConfigNotFoundException
 } from '../../../exceptions/di/OverridableObjectTargetConfigNotFoundException.js'
-import {As} from '../../functions/As.js'
+import {As} from '../../helpers/As.js'
 import {GetObjectType, ObjectType} from './ObjectType.js'
 import {InvalidObjectTypeException} from '../../../exceptions/InvalidObjectTypeException.js'
 import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
 import {Controller} from '../../core/Controller.js'
-import {ArrayToSet} from '../../functions/ArrayToSet.js'
-import {SetToArray} from '../../functions/SetToArray.js'
+import {ArrayToSet} from '../../helpers/ArrayToSet.js'
+import {SetToArray} from '../../helpers/SetToArray.js'
 import {BindControllerToModule} from './ControllerEntrypoint.js'
 
 /**
