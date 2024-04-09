@@ -15,7 +15,7 @@ import {DockerImagePullException} from './exceptions/DockerImagePullException.js
 import {IsAbortError} from '../../lib/functions/IsAbortError.js'
 import {ImageBuildOptions} from './options/image/ImageBuildOptions.js'
 import {DockerImageBuildException} from './exceptions/DockerImageBuildException.js'
-import {IKeyObject} from './interfaces/IKeyObject.js'
+import {IDockerKeyObject} from './interfaces/IDockerKeyObject.js'
 import {ImageImportOptions} from './options/image/ImageImportOptions.js'
 import {DockerImageImportException} from './exceptions/DockerImageImportException.js'
 import {Extract, extract as tarExtract, Headers} from 'tar-stream'
@@ -77,7 +77,7 @@ export class Docker extends Component {
             passphrase: DTO.String().optional()
         }))
     ).optional())
-    protected readonly key?: string | string[] | Buffer | Buffer[] | IKeyObject[] | undefined
+    protected readonly key?: string | string[] | Buffer | Buffer[] | IDockerKeyObject[] | undefined
 
     @Configurable(DTO.String().valid('https', 'http', 'ssh').optional())
     protected readonly protocol?: 'https' | 'http' | 'ssh' | undefined

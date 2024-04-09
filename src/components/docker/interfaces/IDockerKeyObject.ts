@@ -1,7 +1,7 @@
 /**
  * Docker connection key object
  */
-export interface IKeyObject {
+export interface IDockerKeyObject {
     pem: string | Buffer;
     passphrase?: string | undefined;
 }
