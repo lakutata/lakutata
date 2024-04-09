@@ -39,6 +39,7 @@ export * from '../components/docker/types/NetworkInfo.js'
 /**
  * Options
  */
+export * from '../components/docker/options/DockerPruneOptions.js'
 export * from '../components/docker/options/auth/DockerAuthOptions.js'
 export * from '../components/docker/options/container/ContainerCommitOptions.js'
 export * from '../components/docker/options/container/ContainerCreateTTYOptions.js'

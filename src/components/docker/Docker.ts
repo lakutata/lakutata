@@ -29,6 +29,7 @@ import {DockerNetworkNotFoundException} from './exceptions/DockerNetworkNotFound
 import {ContainerSettingOptions} from './options/container/ContainerSettingOptions.js'
 import {ContainerBind} from './types/ContainerBind.js'
 import {DockerContainerTTY} from './lib/DockerContainerTTY.js'
+import {DockerPruneOptions} from './options/DockerPruneOptions.js'
 
 @Singleton()
 export class Docker extends Component {
@@ -157,7 +158,18 @@ export class Docker extends Component {
 
     /** Docker Common Operations **/
 
-    //TODO
+    /**
+     * Prune unused resources
+     * @param options
+     */
+    @Accept(DockerPruneOptions.optional())
+    public async prune(options?: DockerPruneOptions): Promise<void> {
+        if (!options) return await this.prune({})
+        if (options.containers) await this.#instance.pruneContainers()
+        if (options.images) await this.#instance.pruneImages()
+        if (options.networks) await this.#instance.pruneNetworks()
+        if (options.volumes) await this.#instance.pruneVolumes()
+    }
 
     /** Docker Image Operations **/
 
