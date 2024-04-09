@@ -4,5 +4,5 @@
  * @constructor
  */
 export function* ConvertArrayLikeToIterable(inp: string | Buffer | NodeJS.TypedArray): Generator {
-    for (let i = 0; i < inp.length; i++) yield inp[i]
+    for (let i: number = 0; i < inp.length; i++) yield inp[i]
 }

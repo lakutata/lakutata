@@ -24,6 +24,7 @@ import {createWriteStream} from 'node:fs'
 import {Docker} from '../components/docker/Docker.js'
 import {Time} from '../lib/core/Time.js'
 import {ContainerCapability} from '../components/docker/types/ContainerCapability.js'
+import {Delay} from '../lib/functions/Delay.js'
 
 Application
     .env({TEST: '123'})
@@ -222,16 +223,20 @@ Application
                 }
             ]
         })
+        // const readable = await container.logs({follow: true, stdout: true, stderr: true})
+        await Delay(10000)
+        const readable = await container.logs({follow: false})
+        readable.pipe(process.stdout)
         // const tty = await container.createTTY()
-        const tty = await container.createTTY()
+        // const tty = await container.createTTY()
         // await tty.resize({
         //     cols: 15,
         //     rows: 15
         // })
-        tty.onData(data => process.stdout.write(data))
-        process.stdin.on('data', data => {
-            tty.write(data.toString())
-        })
+        // tty.onData(data => process.stdout.write(data))
+        // process.stdin.on('data', data => {
+        //     tty.write(data.toString())
+        // })
         // const commitImage = await container.commit()
         // await commitImage.run({tty: true})
 

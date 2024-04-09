@@ -27,7 +27,9 @@ import {ParseRepositoryTag} from './ParseRepositoryTag.js'
 import {ContainerCapability} from '../types/ContainerCapability.js'
 import {DockerContainerTTY} from './DockerContainerTTY.js'
 import {ContainerCreateTTYOptions} from '../options/container/ContainerCreateTTYOptions.js'
-import stream from 'stream'
+import {ContainerLogsOptions} from '../options/container/ContainerLogsOptions.js'
+import {ConvertArrayLikeToStream} from '../../../lib/functions/ConvertArrayLikeToStream.js'
+import {Stream} from 'node:stream'
 
 @Transient()
 export class DockerContainer extends Provider {
@@ -386,9 +388,35 @@ export class DockerContainer extends Provider {
         })
     }
 
-    public async logs() {
-        //TODO
-        throw new Error('not implemented')
+    /**
+     * Get container logs readable stream
+     * @param options
+     */
+    @Accept(ContainerLogsOptions.optional())
+    public async logs(options?: ContainerLogsOptions): Promise<NodeJS.ReadableStream> {
+        if (!options) return await this.logs({})
+        if (options.follow) {
+            return await this.#container.logs({
+                follow: true,
+                stdout: true,
+                stderr: true,
+                since: options.since,
+                until: options.until,
+                timestamps: options.timestamps,
+                tail: options.tail
+            })
+        } else {
+            const logBuffer: Buffer = await this.#container.logs({
+                follow: false,
+                stdout: true,
+                stderr: true,
+                since: options.since,
+                until: options.until,
+                timestamps: options.timestamps,
+                tail: options.tail
+            })
+            return Stream.Readable.from(logBuffer)
+        }
     }
 
     public async stats() {
