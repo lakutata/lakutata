@@ -172,7 +172,7 @@ Application
             repoTag: `export:test_${Time.now()}`,
             outputCallback: output => console.log(output)
         })
-        await img.run({
+        const container = await img.run({
             name: `testContainer_${Time.now()}`,
             hostname: 'fuckkkk',
             memoryLimit: 256 * 1024 * 1024,
@@ -221,10 +221,12 @@ Application
                     networkName: 'bridge'
                 },
                 {
-                    networkName: 'testBridge',
+                    networkName: 'testBridge'
                 }
             ]
         })
+
+        console.log(container)
 
         // const wk=await docker.createNetwork({
         //     name: 'testNet',

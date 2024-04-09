@@ -29,11 +29,11 @@ export class DockerContainer extends Provider {
     readonly #abortController: AbortController = new AbortController()
 
     get #container(): Dockerode.Container {
-        return this.$dockerode.getContainer(this.id)
+        return this.getDockerode().getContainer(this.id)
     }
 
-    @Configurable(DTO.InstanceOf(Dockerode))
-    protected readonly $dockerode: Dockerode
+    @Configurable(DTO.Function())
+    protected readonly getDockerode: () => Dockerode
 
     @Configurable(DTO.Function())
     protected readonly getDocker: () => Docker

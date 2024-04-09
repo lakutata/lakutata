@@ -29,10 +29,12 @@ export class DockerImage extends Provider {
 
     readonly #abortController: AbortController = new AbortController()
 
-    #image: Dockerode.Image
+    get #image(): Dockerode.Image {
+        return this.getDockerode().getImage(this.id)
+    }
 
-    @Configurable(DTO.InstanceOf(Dockerode))
-    protected readonly $dockerode: Dockerode
+    @Configurable(DTO.Function())
+    protected readonly getDockerode: () => Dockerode
 
     @Configurable(DTO.Function())
     protected readonly getDocker: () => Docker
@@ -59,7 +61,6 @@ export class DockerImage extends Provider {
      * @protected
      */
     protected async init(): Promise<void> {
-        this.#image = this.$dockerode.getImage(this.id)
         await this.syncImageInfo()
     }
 
@@ -149,7 +150,7 @@ export class DockerImage extends Provider {
                     const {repo, tag} = ParseRepositoryTag(options.repoTag)
                     await this.tag({repo: repo, tag: tag})
                 }
-                rawImage = this.$dockerode.getImage(options.repoTag)
+                rawImage = this.getDockerode().getImage(options.repoTag)
             } else {
                 rawImage = this.#image
             }
@@ -173,7 +174,7 @@ export class DockerImage extends Provider {
         const repoTag: string = `${options.repo}:${tag}`
         await this.tag({repo: options.repo, tag: tag})
         await this.syncImageInfo()
-        const readableStream: NodeJS.ReadableStream = await this.$dockerode.getImage(repoTag).push({
+        const readableStream: NodeJS.ReadableStream = await this.getDockerode().getImage(repoTag).push({
             authconfig: options.auth ? {
                 username: options.auth.username,
                 password: options.auth.password,
