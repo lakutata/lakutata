@@ -422,8 +422,17 @@ const processPackageJson = async (packageJsonFilename, outputFormats = []) => {
     Reflect.deleteProperty(packageJsonObject, 'scripts')
     Reflect.deleteProperty(packageJsonObject, 'release-it')
     Reflect.set(packageJsonObject, 'scripts', {
-        install: 'node ./scripts/build.cjs',
+        install: 'node ./scripts/build.cjs'
     })
+    const binObject = Reflect.get(packageJsonObject, 'bin')
+    if (binObject) {
+        const binKeys = Object.keys(binObject)
+        binKeys.forEach(binKey => {
+            const binScript = binObject[binKey].toString()
+            if (path.extname(binScript) === 'mjs') binObject[binKey] = binScript.replace('.mjs', '.cjs')
+        })
+        Reflect.set(packageJsonObject, 'bin', binObject)
+    }
     await writeFile(packageJsonFilename, JSON.stringify(packageJsonObject, null, 2), {encoding: 'utf-8', flag: 'w'})
 }
 /**
