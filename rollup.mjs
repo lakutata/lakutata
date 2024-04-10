@@ -333,6 +333,13 @@ function nativePlugin(options) {
     }
 }
 
+const removeShebang = () => ({
+    name: 'rollup-plugin-remove-shebang',
+    transform: (code, id) => {
+        return code.replace('#!/usr/bin/env node', '')
+    }
+})
+
 const normalizeString = (str) => Buffer.from(str).filter((v, i) => i ? true : v !== 0).toString()
 const currentWorkingDir = normalizeString(process.cwd())
 const thirdPartyPackageRootDirname = 'vendor'
@@ -424,15 +431,17 @@ const processPackageJson = async (packageJsonFilename, outputFormats = []) => {
     Reflect.set(packageJsonObject, 'scripts', {
         install: 'node ./scripts/build.cjs'
     })
-    // const binObject = Reflect.get(packageJsonObject, 'bin')
-    // if (binObject) {
-    //     const binKeys = Object.keys(binObject)
-    //     binKeys.forEach(binKey => {
-    //         const binScript = binObject[binKey].toString()
-    //         binObject[binKey] = binScript.replace('.mjs', '.cjs')
-    //     })
-    //     Reflect.set(packageJsonObject, 'bin', binObject)
-    // }
+    if (isProductionBuild) {
+        const binObject = Reflect.get(packageJsonObject, 'bin')
+        if (binObject) {
+            const binKeys = Object.keys(binObject)
+            binKeys.forEach(binKey => {
+                const binScript = binObject[binKey].toString()
+                binObject[binKey] = binScript.replace('.mjs', '.cjs')
+            })
+            Reflect.set(packageJsonObject, 'bin', binObject)
+        }
+    }
     await writeFile(packageJsonFilename, JSON.stringify(packageJsonObject, null, 2), {encoding: 'utf-8', flag: 'w'})
 }
 /**
@@ -567,6 +576,7 @@ const generateJsBundleOptions = (format) => {
             //     map: (modulePath) => `${path.basename(path.dirname(modulePath))}_ffi.node`,
             //     targetEsm: false
             // }),
+            isEsm ? removeShebang() : undefined,
             typescript({
                 outDir: jsrcOutputDirname,
                 esModuleInterop: true,
