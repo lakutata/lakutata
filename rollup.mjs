@@ -429,7 +429,7 @@ const processPackageJson = async (packageJsonFilename, outputFormats = []) => {
         const binKeys = Object.keys(binObject)
         binKeys.forEach(binKey => {
             const binScript = binObject[binKey].toString()
-            if (path.extname(binScript) === 'mjs') binObject[binKey] = binScript.replace('.mjs', '.cjs')
+            binObject[binKey] = binScript.replace('.mjs', '.cjs')
         })
         Reflect.set(packageJsonObject, 'bin', binObject)
     }
