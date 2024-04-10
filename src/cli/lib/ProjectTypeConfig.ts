@@ -1,6 +1,14 @@
 export const ProjectTypeConfig: Record<string, any> = {
-    plain: {},
-    cli: {},
-    api: {},
-    electron: {}
+    plain: {
+        //TODO
+    },
+    cli: {
+        //TODO
+    },
+    api: {
+        //TODO
+    },
+    electron: {
+        //TODO
+    }
 }

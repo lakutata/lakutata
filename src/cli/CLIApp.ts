@@ -10,8 +10,16 @@ import {Module} from '../lib/core/Module.js'
 import {Command} from 'commander'
 import {JSONSchema} from '../types/JSONSchema.js'
 import {CommandLineController} from './controllers/CommandLineController.js'
+import {Information} from './lib/providers/Information.js'
+import {ApplicationOptions} from '../options/ApplicationOptions.js'
+import {
+    name as packageName,
+    version as packageVersion,
+    description as packageDescription,
+    license as packageLicense
+} from '../../package.json'
 
-Application.run({
+Application.run(async (): Promise<ApplicationOptions> => ({
     id: 'cli.lakutata.app',
     name: 'Lakutata-CLI',
     components: {
@@ -34,16 +42,26 @@ Application.run({
                         command: command,
                         data: args
                     })))
-                    CLIProgram
-                        .addCommand(cmd)
-                        .parse()
+                    CLIProgram.addCommand(cmd)
                 })
+                CLIProgram.parse()
             })
         })
     },
+    providers: {
+        info: {
+            class: Information,
+            name: packageName,
+            version: packageVersion,
+            description: packageDescription,
+            license: packageLicense,
+            currentDirectory: __dirname,
+            workingDirectory: process.cwd()
+        }
+    },
     controllers: [CommandLineController],
     bootstrap: ['entrypoint']
-})
+}))
     .onUncaughtException((error: Error) => {
         console.error(`error: ${error.message}`)
         return process.exit(1)
