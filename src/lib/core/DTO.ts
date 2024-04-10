@@ -75,6 +75,8 @@ function dynamicProxyProperty(target: any, prop: string | symbol, receiver: any,
     })
 }
 
+const DTODescriptionSymbol: symbol = Symbol('DTO.DESCRIPTION')
+
 /**
  * DTO base class
  */
@@ -133,13 +135,24 @@ export class DTO extends DataValidator {
     }
 
     /**
+     * Set description
+     * @param desc
+     */
+    public static description(desc: string): typeof DTO {
+        Reflect.defineMetadata(DTODescriptionSymbol, desc, this)
+        return this
+    }
+
+    /**
      * DTO schema
      * @constructor
      */
     public static Schema(): ObjectSchema {
         const objectSchema: ObjectSchema = GetObjectSchemaByConstructor(this)
         const indexSignatureSchema: Schema | null = GetObjectIndexSignatureSchemaByConstructor(this)
-        return indexSignatureSchema ? objectSchema.pattern(DTO.String(), indexSignatureSchema) : objectSchema
+        const description: string | undefined = Reflect.getOwnMetadata(DTODescriptionSymbol, this)
+        const finalSchema: ObjectSchema = indexSignatureSchema ? objectSchema.pattern(DTO.String(), indexSignatureSchema) : objectSchema
+        return description === undefined ? finalSchema : finalSchema.description(description)
     }
 
     /**

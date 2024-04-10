@@ -20,6 +20,9 @@
     "./tsconfig.json": "./tsconfig.json",
     "./package.json": "./package.json"
   },
+  "bin": {
+    "lakutata": "./src/cli/CLIApp.mjs"
+  },
   "scripts": {
     "clean": "shx rm -rf ./distro",
     "build:cpp": "cd ./distro && npm install",
