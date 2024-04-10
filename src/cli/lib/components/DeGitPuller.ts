@@ -22,9 +22,8 @@ export class DeGitPuller extends Component {
     /**
      * get git source
      * @param branch
-     * @protected
      */
-    protected getGitSource(branch: string): string {
+    public getGitSource(branch: string): string {
         return `${this.repo}#${branch}`
     }
 

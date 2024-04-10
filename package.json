@@ -36,7 +36,7 @@
     "release:alpha-release": "dotenv -- release-it --preRelease=alpha --no-github.release && npm run publish",
     "release:proto-release": "dotenv -- release-it --preRelease=proto --no-github.release --no-git.tag && npm run publish",
     "test:app": "cross-env BUILD_MODE=develop npm run compile && npm run build:cpp && node --trace-warnings distro/src/tests/App.spec.mjs",
-    "test:cli": "cross-env BUILD_MODE=develop npm run compile && npm run build:cpp && node --trace-warnings distro/src/cli/CLIApp.mjs create --name test --id test.id --type plain",
+    "test:cli": "cross-env BUILD_MODE=develop npm run compile && npm run build:cpp && node --trace-warnings distro/src/cli/CLIApp.mjs create --name test --id test.id --type plain --initOnly false",
     "test:unit": "cross-env BUILD_MODE=develop npm run compile && npm run build:cpp && mocha distro/src/tests/UnitTest.spec.mjs"
   },
   "release-it": {
@@ -76,6 +76,7 @@
     "ansis": "^3.1.0",
     "chalk": "^5.3.0",
     "cli-spinners": "^2.9.2",
+    "cli-table3": "^0.6.4",
     "commander": "^12.0.0",
     "cron-validator": "^1.3.1",
     "cross-env": "^7.0.3",

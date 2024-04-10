@@ -1,14 +1,20 @@
-export const ProjectTypeConfig: Record<string, any> = {
+interface ProjectTypeBranch {
+    [type: string]: {
+        branch: string
+    }
+}
+
+export const ProjectTypeConfig: ProjectTypeBranch = {
     plain: {
-        //TODO
+        branch: 'main'
     },
     cli: {
-        //TODO
+        branch: 'cli'
     },
     api: {
-        //TODO
+        branch: 'api'
     },
     electron: {
-        //TODO
+        branch: 'electron'
     }
 }
