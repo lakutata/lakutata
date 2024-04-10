@@ -5,8 +5,12 @@ import {type ActionPattern} from '../../types/ActionPattern.js'
 import {LakutataInfoOptions} from '../options/LakutataInfoOptions.js'
 import {Information} from '../lib/providers/Information.js'
 import {Inject} from '../../decorators/di/Inject.js'
+import {Creator} from '../lib/providers/Creator.js'
 
 export class CommandLineController extends Controller {
+
+    @Inject('creator')
+    protected readonly projectCreator: Creator
 
     @Inject('info')
     protected readonly frameworkInfo: Information
@@ -17,7 +21,7 @@ export class CommandLineController extends Controller {
      */
     @CLIAction('create', CreateProjectOptions.description('create a Lakutata project'))
     public async create(inp: ActionPattern<CreateProjectOptions>): Promise<void> {
-        console.log('This is a test', inp)//TODO
+        await this.projectCreator.create(inp)
     }
 
     /**

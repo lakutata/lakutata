@@ -20,11 +20,26 @@ import {
     description as packageDescription,
     license as packageLicense
 } from '../../package.json'
+import {Creator} from './lib/providers/Creator.js'
+import {DeGitPuller} from './lib/components/DeGitPuller.js'
+import {Spinner} from './lib/components/Spinner.js'
+import {dots} from 'cli-spinners'
 
 Application.run(async (): Promise<ApplicationOptions> => ({
     id: 'cli.lakutata.app',
     name: 'Lakutata-CLI',
     components: {
+        puller: {
+            class: DeGitPuller,
+            cache: false,
+            verbose: true,
+            force: true,
+            repo: 'lakutata/lakutata-template'
+        },
+        spinner: {
+            class: Spinner,
+            style: dots
+        },
         entrypoint: BuildEntrypoints({
             cli: BuildCLIEntrypoint((module: Module, cliMap: CLIMap, handler: CLIEntrypointHandler, registerDestroy: EntrypointDestroyerRegistrar) => {
                 const CLIProgram: Command = new Command()
@@ -51,6 +66,9 @@ Application.run(async (): Promise<ApplicationOptions> => ({
         })
     },
     providers: {
+        creator: {
+            class: Creator
+        },
         info: {
             class: Information,
             name: packageName,

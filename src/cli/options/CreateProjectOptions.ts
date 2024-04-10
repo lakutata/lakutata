@@ -8,6 +8,7 @@ export class CreateProjectOptions extends DTO {
         DTO
             .String()
             .required()
+            .pattern(/^(\w+\.?)*\w+$/)
             .description('specify the name of the project and application')
     )
     public name: string
@@ -16,6 +17,7 @@ export class CreateProjectOptions extends DTO {
         DTO
             .String()
             .required()
+            .pattern(/^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/)//Match package json name regex
             .description('specify the ID of the application')
     )
     public id: string
