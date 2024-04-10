@@ -9,8 +9,20 @@ import {ProjectTypeConfig} from '../ProjectTypeConfig.js'
 import path from 'node:path'
 import CLITable from 'cli-table3'
 import ansis from 'ansis'
+import {Logger} from '../../../components/Logger.js'
+import {mkdir, readdir, stat} from 'node:fs/promises'
+import {Stats} from 'node:fs'
+import {Application} from '../../../lib/core/Application.js'
+import {IsExists} from '../../../lib/helpers/IsExists.js'
+import {charCheck, charCross} from '../SpecialChar.js'
 
 export class Creator extends Provider {
+
+    @Inject(Application)
+    protected readonly app: Application
+
+    @Inject('log')
+    protected readonly log: Logger
 
     @Inject('spinner')
     protected readonly spinner: Spinner
@@ -20,6 +32,50 @@ export class Creator extends Provider {
 
     @Inject('info')
     protected readonly frameworkInfo: Information
+
+    /**
+     * Check if the target path exists
+     * @param targetDirectory
+     * @param initOnly
+     * @protected
+     */
+    protected async checkTargetPathExistence(targetDirectory: string, initOnly: boolean): Promise<void> {
+        const exists: boolean = await IsExists(targetDirectory)
+        if (!exists && initOnly) {
+            this.log.error(`${charCross} The target path does not exist.`)
+            return this.app.exit(1)
+        }
+        await mkdir(targetDirectory, {recursive: true})
+        this.log.info(`${charCheck} The target path does not exist.`)
+    }
+
+    /**
+     * Check target path is a valid directory
+     * @param targetDirectory
+     * @protected
+     */
+    protected async checkTargetPathIsDirectory(targetDirectory: string): Promise<void> {
+        const targetInfo: Stats = await stat(targetDirectory)
+        if (!targetInfo.isDirectory()) {
+            this.log.error(`${charCross} The target path is not a valid directory.`)
+            return this.app.exit(1)
+        }
+        this.log.info(`${charCheck} The target path is a valid directory.`)
+    }
+
+    /**
+     * Check target directory is empty, if the target directory is not empty, throw error and exit
+     * @param targetDirectory
+     * @protected
+     */
+    protected async checkTargetDirectoryIsEmpty(targetDirectory: string): Promise<void> {
+        const files: string[] = await readdir(targetDirectory)
+        if (files.length) {
+            this.log.error(`${charCross} The target directory is not empty.`)
+            return this.app.exit(1)
+        }
+        this.log.info(`${charCheck} The target directory is empty.`)
+    }
 
     /**
      * Exec create
@@ -49,5 +105,22 @@ export class Creator extends Provider {
             [ansis.blue('Project Template Branch'), this.puller.getGitSource(branch)]
         )
         console.log(table.toString())
+        await new Promise<void>(resolve => {
+            let timeLeft: number = 15
+            const interval: NodeJS.Timeout = setInterval((): void => {
+                timeLeft -= 1
+                if (!timeLeft) {
+                    clearInterval(interval)
+                    this.spinner.stop()
+                    return resolve()
+                }
+            }, 1000)
+            this.spinner.start((): string => `Please confirm the project creation information; the creation process will commence in ${timeLeft} seconds.`)
+        })
+        await this.checkTargetPathExistence(targetPath, options.initOnly)
+        await this.checkTargetPathIsDirectory(targetPath)
+        await this.checkTargetDirectoryIsEmpty(targetPath)
+        this.log.info('Begin project creation')
+        //TODO
     }
 }

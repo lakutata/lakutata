@@ -226,12 +226,12 @@ export class Application extends Module {
      * @protected
      */
     protected static async launchApplication(): Promise<Application> {
-        this.eventEmitter.once('exit', async (app: Application) => {
+        this.eventEmitter.once('exit', async (app: Application, exitCode: number) => {
             try {
                 //Emit onDone event request
                 await this.eventEmitter.emitRequest(ApplicationState.Done, app)
                 await rootContainer.destroy()
-                process.exit(0)
+                process.exit(exitCode ? exitCode : 0)
             } catch (e) {
                 process.exit(1)
             }
@@ -336,10 +336,19 @@ export class Application extends Module {
 
     /**
      * Exit application
+     * @param exitCode
+     */
+    public exit(exitCode: number): void
+    /**
+     * Exit application
      * @param force
      */
-    public exit(force?: boolean): void {
-        if (force) return process.exit(2)
-        Application.eventEmitter.emit('exit', this)
+    public exit(force: true): void
+    public exit(forceOrExitCode?: boolean | number): void {
+        if (typeof forceOrExitCode === 'boolean' && forceOrExitCode) {
+            return process.exit(2)
+        } else {
+            Application.eventEmitter.emit('exit', this, forceOrExitCode ? forceOrExitCode : 0)
+        }
     }
 }

@@ -16,12 +16,12 @@ export class Spinner extends Component {
      * Start spinner
      * @param description
      */
-    public start(description?: string): void {
+    public start(description?: string | (() => string)): void {
         this.stop()
         let i: number = 0
         this.spinnerInterval = setInterval(() => {
             const {frames} = this.style
-            const text: string = description ? `${frames[i = ++i % frames.length]} ${description}` : frames[i = ++i % frames.length]
+            const text: string = description ? `${frames[i = ++i % frames.length]} ${typeof description === 'function' ? description() : description}` : frames[i = ++i % frames.length]
             logUpdate(text)
         }, dots.interval)
     }
