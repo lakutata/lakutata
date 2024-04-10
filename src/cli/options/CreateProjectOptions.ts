@@ -1,7 +1,33 @@
 import {DTO} from '../../lib/core/DTO.js'
 import {Expect} from '../../decorators/dto/Expect.js'
+import {ProjectTypeConfig} from '../lib/ProjectTypeConfig.js'
 
 export class CreateProjectOptions extends DTO {
+
+    @Expect(
+        DTO
+            .String()
+            .required()
+            .description('specify the name of the project and application')
+    )
+    public name: string
+
+    @Expect(
+        DTO
+            .String()
+            .required()
+            .description('specify the ID of the application')
+    )
+    public id: string
+
+    @Expect(
+        DTO
+            .String()
+            .required()
+            .valid(...Object.keys(ProjectTypeConfig))
+            .description(`select the type of the project (choices: ${Object.keys(ProjectTypeConfig).map((type: string): string => `"${type}"`).join(',')})`)
+    )
+    public type: string
 
     @Expect(
         DTO
@@ -21,29 +47,6 @@ export class CreateProjectOptions extends DTO {
             .description('initialize project only in specified directory without creating a new folder (default: false)')
     )
     public initOnly: boolean
-
-    @Expect(
-        DTO
-            .String()
-            .description('select the type of the project (choices: "plain", "cli", "api", "electron")')
-    )
-    public type: string
-
-    @Expect(
-        DTO
-            .String()
-            .required()
-            .description('specify the name of the project and application')
-    )
-    public name: string
-
-    @Expect(
-        DTO
-            .String()
-            .required()
-            .description('specify the ID of the application')
-    )
-    public id: string
 
     @Expect(
         DTO

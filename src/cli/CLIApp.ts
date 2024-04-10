@@ -10,7 +10,6 @@ import {Module} from '../lib/core/Module.js'
 import {Command} from 'commander'
 import {JSONSchema} from '../types/JSONSchema.js'
 import {CommandLineController} from './controllers/CommandLineController.js'
-import {Logger} from '../components/Logger.js'
 
 Application.run({
     id: 'cli.lakutata.app',
@@ -23,7 +22,13 @@ Application.run({
                     const cmd: Command = new Command(command).description(dtoJsonSchema.description!)
                     for (const property in dtoJsonSchema.properties) {
                         const attr: JSONSchema = dtoJsonSchema.properties[property]
-                        cmd.option(`--${property} <${attr.type}>`, attr.description)
+                        const optionsArgs: [string, string | undefined] = [`--${property} <${attr.type}>`, attr.description]
+                        if (Array.isArray(dtoJsonSchema.required) && dtoJsonSchema.required.includes(property)) {
+                            optionsArgs[1] = `(required) ${optionsArgs[1]}`
+                            cmd.requiredOption(...optionsArgs)
+                        } else {
+                            cmd.option(...optionsArgs)
+                        }
                     }
                     cmd.action(async (args): Promise<any> => await handler(new CLIContext({
                         command: command,
@@ -39,4 +44,7 @@ Application.run({
     controllers: [CommandLineController],
     bootstrap: ['entrypoint']
 })
-    .onUncaughtException((error: Error, logger: Logger) => logger.error(error.message))
+    .onUncaughtException((error: Error) => {
+        console.error(`error: ${error.message}`)
+        return process.exit(1)
+    })
