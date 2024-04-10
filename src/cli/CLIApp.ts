@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 import {Application} from '../lib/core/Application.js'
 import {
     BuildCLIEntrypoint,
