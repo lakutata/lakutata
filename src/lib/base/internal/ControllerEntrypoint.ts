@@ -139,7 +139,6 @@ export function GetModuleControllerActionMap(module: Module): TotalActionPattern
  * @param controllerPrototype
  * @param propertyKey
  * @param dtoConstructor
- * @param description
  * @constructor
  */
 export function RegisterHTTPAction<ClassPrototype extends Controller, DTOConstructor extends typeof DTO = typeof DTO>(
@@ -173,7 +172,6 @@ export function RegisterHTTPAction<ClassPrototype extends Controller, DTOConstru
  * @param controllerPrototype
  * @param propertyKey
  * @param dtoConstructor
- * @param description
  * @constructor
  */
 export function RegisterCLIAction<ClassPrototype extends Controller, DTOConstructor extends typeof DTO = typeof DTO>(
@@ -204,7 +202,6 @@ export function RegisterCLIAction<ClassPrototype extends Controller, DTOConstruc
  * @param controllerPrototype
  * @param propertyKey
  * @param dtoConstructor
- * @param description
  * @constructor
  */
 export function RegisterServiceAction<ClassPrototype extends Controller, DTOConstructor extends typeof DTO = typeof DTO>(
