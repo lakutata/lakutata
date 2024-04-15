@@ -10,7 +10,6 @@ export {Container} from '../lib/core/Container.js'
 export {BaseObject} from '../lib/base/BaseObject.js'
 export {Provider} from '../lib/core/Provider.js'
 export {Component} from '../lib/core/Component.js'
-export {Controller} from '../lib/core/Controller.js'
 export {Module} from '../lib/core/Module.js'
 export {Application} from '../lib/core/Application.js'
 

@@ -18,11 +18,10 @@ import {
     BuildEntrypoints,
     BuildHTTPEntrypoint,
     BuildServiceEntrypoint
-} from '../components/Entrypoint.js'
+} from '../components/entrypoint/Entrypoint.js'
 import path from 'node:path'
 import {createWriteStream} from 'node:fs'
 import {Docker} from '../components/docker/Docker.js'
-import {Glob} from '../lib/helpers/Glob.js'
 
 Application
     .env({TEST: '123'})
@@ -41,6 +40,9 @@ Application
                 class: TestComponent
             },
             entrypoint: BuildEntrypoints({
+                controllers: [
+                    TestController1
+                ],
                 http: BuildHTTPEntrypoint((module, routeMap, handler, onDestroy) => {
                     const fastify = Fastify({
                         logger: false
@@ -87,9 +89,9 @@ Application
                                         const attr = dtoJsonSchema.properties[p]
                                         cmd.option(`--${p} <${attr.type}>`, attr.description)
                                     }
-                                    cmd.action((args) => {
+                                    cmd.action(async (args) => {
                                         //Handle cli
-                                        handler(new CLIContext({command: command, data: args}))
+                                        await handler(new CLIContext({command: command, data: args}))
                                     })
                                     CLIProgram.addCommand(cmd)
                                 })
@@ -135,14 +137,11 @@ Application
                 class: TestModule
             }
         },
-        controllers: [
-            TestController1
-        ],
         bootstrap: [
             // 'testModule',
             // 'testComponent',
             // 'testProvider',
-            // 'entrypoint'
+            'entrypoint'
         ]
     }))
     .alias({

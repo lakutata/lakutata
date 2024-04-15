@@ -1,4 +1,4 @@
-import {Controller} from '../../lib/core/Controller.js'
+import {Controller} from '../../components/entrypoint/lib/Controller.js'
 import {Inject} from '../../decorators/di/Inject.js'
 import {CLIAction} from '../../decorators/ctrl/CLIAction.js'
 import {HTTPAction} from '../../decorators/ctrl/HTTPAction.js'

@@ -7,7 +7,6 @@ import {OverridableNamedObjectOptions} from './OverridableNamedObjectOptions.js'
 import {Component} from '../lib/core/Component.js'
 import {IBaseObjectConstructor} from '../interfaces/IBaseObjectConstructor.js'
 import {Provider} from '../lib/core/Provider.js'
-import {Controller} from '../lib/core/Controller.js'
 
 export type BootstrapAsyncFunction<T = any, U = any> = (target: T) => Promise<U>
 
@@ -36,12 +35,6 @@ export class ModuleOptions extends DTO {
      */
     @Expect(OverridableNamedObjectOptions.optional())
     public modules?: OverridableNamedObjectOptions<IBaseObjectConstructor<Module>>
-
-    /**
-     * Load controllers option
-     */
-    @Expect(DTO.Array(DTO.Class(Controller)).optional().default([]))
-    public controllers?: IBaseObjectConstructor<Controller>[]
 
     /**
      * Load objects option

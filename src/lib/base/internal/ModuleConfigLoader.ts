@@ -13,10 +13,8 @@ import {As} from '../../helpers/As.js'
 import {GetObjectType, ObjectType} from './ObjectType.js'
 import {InvalidObjectTypeException} from '../../../exceptions/InvalidObjectTypeException.js'
 import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
-import {Controller} from '../../core/Controller.js'
 import {ArrayToSet} from '../../helpers/ArrayToSet.js'
 import {SetToArray} from '../../helpers/SetToArray.js'
-import {BindControllerToModule} from './ControllerEntrypoint.js'
 
 /**
  * Module configurations loader
@@ -51,14 +49,6 @@ export class ModuleConfigLoader {
                 [OBJECT_ID]: id
             }))
         }
-        /**
-         * Process controllers
-         * Bind controller action pattern map to module instance via metadata
-         */
-        moduleOptions.controllers?.forEach((controllerConstructor: IBaseObjectConstructor<Controller>) => {
-            BindControllerToModule(this.$module, controllerConstructor)
-            this.$loadOptions.push(controllerConstructor)
-        })
         //Process component objects
         this.processOverridableNamedObjectOptions(ObjectType.Component, moduleOptions.components)
         //Process provider objects

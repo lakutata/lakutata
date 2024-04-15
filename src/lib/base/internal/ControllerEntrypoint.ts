@@ -1,7 +1,6 @@
-import {Controller, type ControllerProperty} from '../../core/Controller.js'
+import {Controller, type ControllerProperty} from '../../../components/entrypoint/lib/Controller.js'
 import {ObjectConstructor} from '../../helpers/ObjectConstructor.js'
 import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
-import {Module} from '../../core/Module.js'
 import {As} from '../../helpers/As.js'
 import {ActionPattern} from '../../../types/ActionPattern.js'
 import {ObjectParentConstructors} from '../../helpers/ObjectParentConstructors.js'
@@ -10,6 +9,7 @@ import {JSONSchema} from '../../../types/JSONSchema.js'
 import {GetObjectNestingDepth} from '../../helpers/GetObjectNestingDepth.js'
 import {InvalidActionPatternDepthException} from '../../../exceptions/InvalidActionPatternDepthException.js'
 import {DTO} from '../../core/DTO.js'
+import {Component} from '../../core/Component.js'
 
 export enum ActionPatternManagerType {
     HTTP = '_$APMT_HTTP',
@@ -46,7 +46,7 @@ type InternalActionPatternMapValue = {
 
 type InternalActionPatternMap = Map<string, InternalActionPatternMapValue>
 
-const MODULE_CTRL_MAP: symbol = Symbol('MODULE.CTRL.MAP')
+const COMPONENT_CTRL_MAP: symbol = Symbol('COMPONENT.CTRL.MAP')
 
 /**
  * Validate action pattern definition
@@ -93,13 +93,13 @@ export function RegisterControllerActionPattern(type: ActionPatternManagerType, 
 }
 
 /**
- * Bind controller to module
+ * Bind controller to component
  * @param module
  * @param controllerConstructor
  * @constructor
  */
-export function BindControllerToModule(module: Module, controllerConstructor: IBaseObjectConstructor<Controller>): void {
-    const totalInternalActionPatternMap: TotalInternalActionPatternMap = Reflect.getOwnMetadata(MODULE_CTRL_MAP, module) || {
+export function BindControllerToComponent(component: Component, controllerConstructor: IBaseObjectConstructor<Controller>): void {
+    const totalInternalActionPatternMap: TotalInternalActionPatternMap = Reflect.getOwnMetadata(COMPONENT_CTRL_MAP, component) || {
         CLI: new Map(),
         HTTP: new Map(),
         Service: new Map()
@@ -107,7 +107,7 @@ export function BindControllerToModule(module: Module, controllerConstructor: IB
     GetInternalControllerActionPatternMap(ActionPatternManagerType.CLI, controllerConstructor).forEach((value: InternalActionPatternMapValue, hash: string) => totalInternalActionPatternMap.CLI.set(hash, value))
     GetInternalControllerActionPatternMap(ActionPatternManagerType.HTTP, controllerConstructor).forEach((value: InternalActionPatternMapValue, hash: string) => totalInternalActionPatternMap.HTTP.set(hash, value))
     GetInternalControllerActionPatternMap(ActionPatternManagerType.Service, controllerConstructor).forEach((value: InternalActionPatternMapValue, hash: string) => totalInternalActionPatternMap.Service.set(hash, value))
-    Reflect.defineMetadata(MODULE_CTRL_MAP, totalInternalActionPatternMap, module)
+    Reflect.defineMetadata(COMPONENT_CTRL_MAP, totalInternalActionPatternMap, component)
 }
 
 /**
@@ -115,8 +115,8 @@ export function BindControllerToModule(module: Module, controllerConstructor: IB
  * @param module
  * @constructor
  */
-export function GetModuleControllerActionMap(module: Module): TotalActionPatternMap {
-    const totalInternalActionPatternMap: TotalInternalActionPatternMap = Reflect.getOwnMetadata(MODULE_CTRL_MAP, module) || {
+export function GetComponentControllerActionMap(component: Component): TotalActionPatternMap {
+    const totalInternalActionPatternMap: TotalInternalActionPatternMap = Reflect.getOwnMetadata(COMPONENT_CTRL_MAP, component) || {
         CLI: new Map(),
         HTTP: new Map(),
         Service: new Map()

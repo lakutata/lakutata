@@ -1,32 +1,32 @@
-import {Component} from '../lib/core/Component.js'
-import {Configurable} from '../decorators/di/Configurable.js'
-import {CLIContext} from '../lib/context/CLIContext.js'
-import {HTTPContext} from '../lib/context/HTTPContext.js'
-import {ServiceContext} from '../lib/context/ServiceContext.js'
-import {ActionPattern} from '../types/ActionPattern.js'
-import {Module} from '../lib/core/Module.js'
+import {Component} from '../../lib/core/Component.js'
+import {Configurable} from '../../decorators/di/Configurable.js'
+import {CLIContext} from '../../lib/context/CLIContext.js'
+import {HTTPContext} from '../../lib/context/HTTPContext.js'
+import {ServiceContext} from '../../lib/context/ServiceContext.js'
+import {ActionPattern} from '../../types/ActionPattern.js'
+import {Module} from '../../lib/core/Module.js'
 import {
     ActionDetails,
-    ActionPatternMap,
-    GetModuleControllerActionMap
-} from '../lib/base/internal/ControllerEntrypoint.js'
-import {PatternManager} from '../lib/base/internal/PatternManager.js'
-import {Controller} from '../lib/core/Controller.js'
-import {As} from '../lib/helpers/As.js'
-import {ControllerActionNotFoundException} from '../exceptions/ControllerActionNotFoundException.js'
-import {JSONSchema} from '../types/JSONSchema.js'
-import {Container} from '../lib/core/Container.js'
-import {DestroyRuntimeContainerException} from '../exceptions/DestroyRuntimeContainerException.js'
-import {GetObjectPropertyPaths} from '../lib/helpers/GetObjectPropertyPaths.js'
+    ActionPatternMap, BindControllerToComponent, GetComponentControllerActionMap
+} from '../../lib/base/internal/ControllerEntrypoint.js'
+import {PatternManager} from '../../lib/base/internal/PatternManager.js'
+import {Controller} from './lib/Controller.js'
+import {As} from '../../lib/helpers/As.js'
+import {ControllerActionNotFoundException} from '../../exceptions/ControllerActionNotFoundException.js'
+import {JSONSchema} from '../../types/JSONSchema.js'
+import {Container} from '../../lib/core/Container.js'
+import {DestroyRuntimeContainerException} from '../../exceptions/DestroyRuntimeContainerException.js'
+import {GetObjectPropertyPaths} from '../../lib/helpers/GetObjectPropertyPaths.js'
 import unset from 'unset-value'
-import {UniqueArray} from '../lib/helpers/UniqueArray.js'
-import {DTO} from '../lib/core/DTO.js'
-import {Singleton} from '../decorators/di/Lifetime.js'
+import {UniqueArray} from '../../lib/helpers/UniqueArray.js'
+import {DTO} from '../../lib/core/DTO.js'
+import {Singleton} from '../../decorators/di/Lifetime.js'
+import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
 
-export {ContextType, BaseContext} from '../lib/base/Context.js'
-export {CLIContext} from '../lib/context/CLIContext.js'
-export {HTTPContext} from '../lib/context/HTTPContext.js'
-export {ServiceContext} from '../lib/context/ServiceContext.js'
+export {ContextType, BaseContext} from '../../lib/base/Context.js'
+export {CLIContext} from '../../lib/context/CLIContext.js'
+export {HTTPContext} from '../../lib/context/HTTPContext.js'
+export {ServiceContext} from '../../lib/context/ServiceContext.js'
 
 export type CLIEntrypoint = (module: Module, cliMap: CLIMap, handler: CLIEntrypointHandler, registerDestroy: EntrypointDestroyerRegistrar) => void
 export type HTTPEntrypoint = (module: Module, routeMap: HTTPRouteMap, handler: HTTPEntrypointHandler, registerDestroy: EntrypointDestroyerRegistrar) => void
@@ -43,6 +43,7 @@ export type EntrypointDestroyer = () => void | Promise<void>
 export type EntrypointDestroyerRegistrar = (destroyer: EntrypointDestroyer) => void
 
 export type EntrypointOptions = {
+    controllers: IBaseObjectConstructor<Controller>[]
     cli?: CLIEntrypoint | CLIEntrypoint[]
     http?: HTTPEntrypoint | HTTPEntrypoint[]
     service?: ServiceEntrypoint | ServiceEntrypoint[]
@@ -97,14 +98,17 @@ export class Entrypoint extends Component {
 
     protected readonly entrypointDestroyers: EntrypointDestroyer[] = []
 
-    @Configurable()
-    public cli?: CLIEntrypoint | CLIEntrypoint[]
+    @Configurable(DTO.Array(DTO.Class(Controller)).optional().default([]))
+    protected readonly controllers: IBaseObjectConstructor<Controller>[]
 
     @Configurable()
-    public http?: HTTPEntrypoint | HTTPEntrypoint[]
+    protected readonly cli?: CLIEntrypoint | CLIEntrypoint[]
 
     @Configurable()
-    public service?: ServiceEntrypoint | ServiceEntrypoint[]
+    protected readonly http?: HTTPEntrypoint | HTTPEntrypoint[]
+
+    @Configurable()
+    protected readonly service?: ServiceEntrypoint | ServiceEntrypoint[]
 
 
     /**
@@ -112,7 +116,11 @@ export class Entrypoint extends Component {
      * @protected
      */
     protected async init(): Promise<void> {
-        const {CLI, HTTP, Service} = GetModuleControllerActionMap(this.getModule())
+        await Promise.all(this.controllers.map((controllerConstructor: IBaseObjectConstructor<Controller>): Promise<void> => {
+            BindControllerToComponent(this, controllerConstructor)
+            return new Promise<void>((resolve, reject) => this.container.register(controllerConstructor).then(resolve).catch(reject))
+        }))
+        const {CLI, HTTP, Service} = GetComponentControllerActionMap(this)
         CLI.forEach((details: ActionDetails, actionPattern: ActionPattern) => {
             this.CLIActionPatternMap.set(actionPattern, details)
             this.CLIActionPatternManager.add(actionPattern, details)

@@ -5,7 +5,7 @@ import {ApplicationConfigLoader} from '../base/internal/ApplicationConfigLoader.
 import {ApplicationOptions} from '../../options/ApplicationOptions.js'
 import {Alias} from './Alias.js'
 import {GetBasicInfo} from '../base/internal/BasicInfo.js'
-import {Entrypoint} from '../../components/Entrypoint.js'
+import {Entrypoint} from '../../components/entrypoint/Entrypoint.js'
 import {Logger} from '../../components/Logger.js'
 import {Accept} from '../../decorators/dto/Accept.js'
 import {DTO} from './DTO.js'
