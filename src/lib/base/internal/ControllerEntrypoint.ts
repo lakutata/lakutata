@@ -94,7 +94,7 @@ export function RegisterControllerActionPattern(type: ActionPatternManagerType, 
 
 /**
  * Bind controller to component
- * @param module
+ * @param component
  * @param controllerConstructor
  * @constructor
  */
@@ -112,8 +112,8 @@ export function BindControllerToComponent(component: Component, controllerConstr
 
 /**
  * Get module controller action map
- * @param module
  * @constructor
+ * @param component
  */
 export function GetComponentControllerActionMap(component: Component): TotalActionPatternMap {
     const totalInternalActionPatternMap: TotalInternalActionPatternMap = Reflect.getOwnMetadata(COMPONENT_CTRL_MAP, component) || {

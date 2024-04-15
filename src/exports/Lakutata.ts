@@ -40,7 +40,6 @@ export {
 export {InvalidMethodAcceptException} from '../exceptions/dto/InvalidMethodAcceptException.js'
 export {InvalidMethodReturnException} from '../exceptions/dto/InvalidMethodReturnException.js'
 export {InvalidValueException} from '../exceptions/dto/InvalidValueException.js'
-export {ControllerActionNotFoundException} from '../exceptions/ControllerActionNotFoundException.js'
 export {DestroyRuntimeContainerException} from '../exceptions/DestroyRuntimeContainerException.js'
 export {InvalidActionPatternDepthException} from '../exceptions/InvalidActionPatternDepthException.js'
 export {InvalidAssistantFunctionTypeException} from '../exceptions/InvalidAssistantFunctionTypeException.js'

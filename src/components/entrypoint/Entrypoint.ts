@@ -12,7 +12,7 @@ import {
 import {PatternManager} from '../../lib/base/internal/PatternManager.js'
 import {Controller} from './lib/Controller.js'
 import {As} from '../../lib/helpers/As.js'
-import {ControllerActionNotFoundException} from '../../exceptions/ControllerActionNotFoundException.js'
+import {ControllerActionNotFoundException} from './exceptions/ControllerActionNotFoundException.js'
 import {JSONSchema} from '../../types/JSONSchema.js'
 import {Container} from '../../lib/core/Container.js'
 import {DestroyRuntimeContainerException} from '../../exceptions/DestroyRuntimeContainerException.js'
