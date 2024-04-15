@@ -428,20 +428,6 @@ const processPackageJson = async (packageJsonFilename, outputFormats = []) => {
     Reflect.deleteProperty(packageJsonObject, 'devDependencies')
     Reflect.deleteProperty(packageJsonObject, 'scripts')
     Reflect.deleteProperty(packageJsonObject, 'release-it')
-    Reflect.set(packageJsonObject, 'scripts', {
-        install: 'node ./scripts/build.cjs'
-    })
-    if (isProductionBuild) {
-        const binObject = Reflect.get(packageJsonObject, 'bin')
-        if (binObject) {
-            const binKeys = Object.keys(binObject)
-            binKeys.forEach(binKey => {
-                const binScript = binObject[binKey].toString()
-                binObject[binKey] = binScript.replace('.mjs', '.cjs')
-            })
-            Reflect.set(packageJsonObject, 'bin', binObject)
-        }
-    }
     await writeFile(packageJsonFilename, JSON.stringify(packageJsonObject, null, 2), {encoding: 'utf-8', flag: 'w'})
 }
 /**
@@ -533,9 +519,7 @@ const logLevel = 'silent'
 const copyTargets = [
     {src: 'LICENSE', dest: outputDirname},
     {src: 'package.json', dest: outputDirname},
-    {src: 'tsconfig.json', dest: outputDirname},
-    {src: 'scripts', dest: outputDirname},
-    {src: 'cpp', dest: outputDirname}
+    {src: 'tsconfig.json', dest: outputDirname}
 ]
 /**
  * Generate javascript bundle options
