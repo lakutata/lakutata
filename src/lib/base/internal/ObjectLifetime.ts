@@ -35,7 +35,7 @@ export function SetObjectLifetime<ClassConstructor extends typeof BaseObject>(ta
     if (
         (GetObjectLifetimeLocked(target) && !lock)
         || (GetObjectLifetimeLocked(target) && GetObjectLifetime(target) !== lifetime)
-    ) throw new LifetimeLockedException('Object lifecycle settings cannot be applied because the parent object lifecycle of the current operation object is locked')
+    ) throw new LifetimeLockedException('[{0}] Object lifecycle settings cannot be applied because the parent object lifecycle of the current operation object is locked', [target.className])
     if (lock) Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_LIFETIME_LOCK, true, target)
     Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_LIFETIME, lifetime, target)
     return target
