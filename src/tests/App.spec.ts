@@ -22,6 +22,9 @@ import {
 import path from 'node:path'
 import {createWriteStream} from 'node:fs'
 import {Docker} from '../components/docker/Docker.js'
+import {MD5} from '../lib/helpers/MD5.js'
+import {SHA1} from '../lib/helpers/SHA1.js'
+import {SHA256} from '../lib/helpers/SHA256.js'
 
 Application
     .env({TEST: '123'})
@@ -150,6 +153,9 @@ Application
     }, true)
     .onLaunched(async (app, log) => {
         log.info('Application %s launched', app.appName)
+        console.log('MD5(\'test\').toString():',MD5('test').toString('base64'))
+        console.log('SHA1(\'test\').toString():',SHA1('test').toString('base64'))
+        console.log('SHA256(\'test\').toString():',SHA256('test').toString('base64'))
     })
     .onDone(async (app, log) => {
         log.info('Application %s done', app.appName)
