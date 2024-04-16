@@ -245,11 +245,6 @@ const generateJsBundleOptions = (format) => {
         treeshake: false,
         plugins: [
             progress({clearLine: true}),
-            // nativePlugin({
-            //     copyTo: path.resolve(outputDirname, thirdPartyPackageRootDirname),
-            //     map: (modulePath) => `${path.basename(path.dirname(modulePath))}_ffi.node`,
-            //     targetEsm: false
-            // }),
             isEsm ? removeShebang() : undefined,
             typescript({
                 outDir: jsrcOutputDirname,
