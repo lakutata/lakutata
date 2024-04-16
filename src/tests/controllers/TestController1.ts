@@ -70,7 +70,7 @@ export class TestController1 extends Controller {
             abc: true,
             ccc: 1
         }
-    }, TestDTO)
+    })
     public async test3(inp: ActionPattern<TestDTO>) {
         if (this.context.type === ContextType.CLI) console.log('cli!')
         console.log(inp, this.context.type)
