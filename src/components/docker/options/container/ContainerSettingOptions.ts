@@ -109,4 +109,26 @@ export class ContainerSettingOptions extends DTO {
      */
     @Expect(DTO.Array(DTO.String().valid(...Object.values(ContainerCapability))).optional().default([]))
     public capabilities?: ContainerCapability[]
+
+    /**
+     * Cgroup to use for the container.
+     */
+    @Expect(DTO.String().optional())
+    public cgroup?: string
+
+    /**
+     * Path to cgroups under which the container's cgroup is created.
+     * If the path is not absolute, the path is considered to be relative to the cgroups path of the init process.
+     * Cgroups are created if they do not already exist.
+     */
+    @Expect(DTO.String().optional())
+    public cgroupParent?: string
+
+    /**
+     * Set the PID (Process) Namespace mode for the container. It can be either:
+     * "container:<name|id>": joins another container's PID namespace
+     * "host": use the host's PID namespace inside the container
+     */
+    @Expect(DTO.String().optional())
+    public pidMode?: string
 }

@@ -88,6 +88,12 @@ export class DockerContainer extends Provider {
 
     public networks: ContainerNetwork[]
 
+    public cgroup: string | undefined
+
+    public cgroupParent: string | undefined
+
+    public pidMode: string | undefined
+
     public createdAt: Time
 
     /**
@@ -215,6 +221,9 @@ export class DockerContainer extends Provider {
             this.memoryLimit = inspectInfo.HostConfig.Memory ? inspectInfo.HostConfig.Memory : 0
             this.privileged = !!inspectInfo.HostConfig.Privileged
             this.restartPolicy = inspectInfo.HostConfig.RestartPolicy?.Name ? As<ContainerRestartPolicy>(inspectInfo.HostConfig.RestartPolicy.Name) : ''
+            this.cgroup = inspectInfo.HostConfig.Cgroup
+            this.cgroupParent = inspectInfo.HostConfig.CgroupParent
+            this.pidMode = inspectInfo.HostConfig.PidMode
             const cpuSetString: string = inspectInfo.HostConfig.CpusetCpus ? inspectInfo.HostConfig.CpusetCpus : ''
             const cpuSetArray: string[] = cpuSetString.split(',')
             const cpuIndexesArray: number[][] = cpuSetArray.map((cpuSetItem: string) => {
@@ -352,6 +361,9 @@ export class DockerContainer extends Provider {
                 networks: this.networks,
                 OOMKillDisable: this.OOMKillDisable,
                 capabilities: this.capabilities,
+                cgroup: this.cgroup,
+                cgroupParent: this.cgroupParent,
+                pidMode: this.pidMode,
                 ...options
             })
         this.id = createdContainer.id

@@ -451,7 +451,9 @@ export class Docker extends Component {
                 Binds: binds,
                 Devices: devices,
                 CapAdd: options.capabilities,
-                Init: true
+                Cgroup: options.cgroup,
+                CgroupParent: options.cgroupParent,
+                PidMode: options.pidMode
             },
             NetworkingConfig: {
                 EndpointsConfig: networkConfigMapping
