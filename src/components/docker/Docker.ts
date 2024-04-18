@@ -450,7 +450,8 @@ export class Docker extends Component {
                 PortBindings: portBindings,
                 Binds: binds,
                 Devices: devices,
-                CapAdd: options.capabilities
+                CapAdd: options.capabilities,
+                Init: true
             },
             NetworkingConfig: {
                 EndpointsConfig: networkConfigMapping
