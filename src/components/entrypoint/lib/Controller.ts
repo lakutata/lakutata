@@ -23,6 +23,10 @@ export class Controller extends Provider {
      * Context, possible be cli context, http context or service context
      * @protected
      */
-    @Configurable(DTO.Alternatives(CLIContext.Schema(), HTTPContext.Schema(), ServiceContext.Schema()).required())
+    @Configurable(DTO.Alternatives(
+        CLIContext.Schema().raw(true),
+        HTTPContext.Schema().raw(true),
+        ServiceContext.Schema().raw(true)
+    ).raw(true).required())
     protected readonly context: CLIContext | HTTPContext | ServiceContext
 }
