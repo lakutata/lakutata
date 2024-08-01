@@ -208,6 +208,7 @@ const logLevel = 'silent'
  */
 const copyTargets = [
     {src: 'LICENSE', dest: outputDirname},
+    {src: 'README.md', dest: outputDirname},
     {src: 'package.json', dest: outputDirname},
     {src: 'tsconfig.json', dest: outputDirname}
 ]
