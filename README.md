@@ -26,3 +26,11 @@ framework to be used out of the box.
 In addition, Lakutata also supports the integration of third-party libraries into the application, allowing developers
 to freely encapsulate and call third-party modules using Lakutata's dependency injection.
 
+## ✨ Getting started
+
+- 👉 To check out the **[guide](http://docs.lakutata.com)**, visit **[docs.lakutata.com](http://docs.lakutata.com)**. 
+- 👉 To see usage **[examples](http://examples.lakutata.com)**, visit **[examples.lakutata.com](http://examples.lakutata.com)**.
+
+## 🌎 License
+
+Lakutata is [MIT licensed](LICENSE).
