@@ -441,6 +441,8 @@ export class Docker extends Component {
             Hostname: options.hostname,
             Tty: options.tty,
             Env: Object.keys(containerEnvRecord).map(envKey => `${envKey}=${containerEnvRecord[envKey]}`),
+            Cmd: options.cmd,
+            Entrypoint: options.entrypoint,
             HostConfig: {
                 Memory: options.memoryLimit,
                 CpusetCpus: options.cpuSet ? options.cpuSet.join(',') : undefined,

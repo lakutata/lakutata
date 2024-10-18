@@ -131,4 +131,18 @@ export class ContainerSettingOptions extends DTO {
      */
     @Expect(DTO.String().optional())
     public pidMode?: string
+
+    /**
+     * Command to run specified as a string or an array of strings.
+     */
+    @Expect(DTO.Array(DTO.String()).optional())
+    public cmd?: string[]
+
+    /**
+     * The entry point for the container as a string or an array of strings.
+     * If the array consists of exactly one empty string ([""]) then the entry point is reset to system default
+     * (i.e., the entry point used by docker when there is no ENTRYPOINT instruction in the Dockerfile).
+     */
+    @Expect(DTO.Array(DTO.String()).optional())
+    public entrypoint?: string[]
 }
