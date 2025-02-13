@@ -273,7 +273,8 @@ export class Docker extends Component {
             target: options.target,
             shmsize: options.shmsize,
             buildargs: options.buildargs,
-            abortSignal: this.#abortController.signal
+            abortSignal: this.#abortController.signal,
+            version: '2'
         }
         try {
             const readableStream: NodeJS.ReadableStream = await this.#instance.buildImage(buildContext, buildOptions)
