@@ -31,6 +31,7 @@ import {ContainerBind} from './types/ContainerBind.js'
 import {DockerContainerTTY} from './lib/DockerContainerTTY.js'
 import {DockerPruneOptions} from './options/DockerPruneOptions.js'
 import {DockerAuthOptions} from './options/auth/DockerAuthOptions.js'
+import isBase64 from 'is-base64'
 
 @Singleton()
 export class Docker extends Component {
@@ -278,9 +279,6 @@ export class Docker extends Component {
         }
         try {
             const readableStream: NodeJS.ReadableStream = await this.#instance.buildImage(buildContext, buildOptions)
-            // this.#instance.modem.followProgress(readableStream,(err)=>{},(obj)=>{
-            //     console.log(obj)
-            // })
             return new Promise<DockerImage>((resolve, reject) => {
                 let imageId: string | undefined = undefined
                 let buildImageException: DockerImageBuildException | undefined = undefined
@@ -288,8 +286,11 @@ export class Docker extends Component {
                     .on('line', (line: string) => {
                         const outputObject: Record<string, any> = JSON.parse(line)
                         if (outputObject.error) buildImageException = new DockerImageBuildException(outputObject.error)
-                        if (outputObject.aux) imageId = outputObject.aux.ID
-                        console.log(outputObject)
+                        if (typeof outputObject.aux !== 'string') {
+                            if (outputObject.aux) imageId = outputObject.aux.ID
+                        } else if (isBase64(outputObject.aux) && !outputObject.stream) {
+                            outputObject.stream = Buffer.from(outputObject.aux, 'base64').toString()
+                        }
                         if (options.outputCallback) options.outputCallback(outputObject)
                     })
                     .once('close', () => {
