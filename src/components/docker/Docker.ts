@@ -263,7 +263,7 @@ export class Docker extends Component {
         }
         const buildOptions: Dockerode.ImageBuildOptions = {
             dockerfile: options.dockerfile,
-            t: options.repoTag ? options.repoTag : `UNNAMED_IMG_${Date.now().toString(16).toUpperCase()}${Math.floor(Math.random() * 255).toString(16).padStart(2, '0')}`,
+            t: options.repoTag ? options.repoTag : `unnamed_img_${Date.now().toString(16)}${Math.floor(Math.random() * 255).toString(16).padStart(2, '0')}`,
             remote: options.remote,
             q: options.quite,
             nocache: options.nocache,
