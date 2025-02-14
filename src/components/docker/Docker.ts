@@ -278,9 +278,9 @@ export class Docker extends Component {
         }
         try {
             const readableStream: NodeJS.ReadableStream = await this.#instance.buildImage(buildContext, buildOptions)
-            this.#instance.modem.followProgress(readableStream,(err)=>{},(obj)=>{
-                console.log(obj)
-            })
+            // this.#instance.modem.followProgress(readableStream,(err)=>{},(obj)=>{
+            //     console.log(obj)
+            // })
             return new Promise<DockerImage>((resolve, reject) => {
                 let imageId: string | undefined = undefined
                 let buildImageException: DockerImageBuildException | undefined = undefined
@@ -289,6 +289,7 @@ export class Docker extends Component {
                         const outputObject: Record<string, any> = JSON.parse(line)
                         if (outputObject.error) buildImageException = new DockerImageBuildException(outputObject.error)
                         if (outputObject.aux) imageId = outputObject.aux.ID
+                        console.log(outputObject)
                         if (options.outputCallback) options.outputCallback(outputObject)
                     })
                     .once('close', () => {
