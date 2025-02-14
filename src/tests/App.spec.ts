@@ -153,9 +153,11 @@ Application
     }, true)
     .onLaunched(async (app, log) => {
         log.info('Application %s launched', app.appName)
-        console.log('MD5(\'test\').toString():',MD5('test').toString('base64'))
-        console.log('SHA1(\'test\').toString():',SHA1('test').toString('base64'))
-        console.log('SHA256(\'test\').toString():',SHA256('test').toString('base64'))
+        console.log('MD5(\'test\').toString():', MD5('test').toString('base64'))
+        console.log('SHA1(\'test\').toString():', SHA1('test').toString('base64'))
+        console.log('SHA256(\'test\').toString():', SHA256('test').toString('base64'))
+        // const docker = await app.getObject<Docker>('docker')
+        // console.log(await docker.listImages())
     })
     .onDone(async (app, log) => {
         log.info('Application %s done', app.appName)

@@ -210,7 +210,8 @@ const copyTargets = [
     {src: 'LICENSE', dest: outputDirname},
     {src: 'README.md', dest: outputDirname},
     {src: 'package.json', dest: outputDirname},
-    {src: 'tsconfig.json', dest: outputDirname}
+    {src: 'tsconfig.json', dest: outputDirname},
+    {src: 'node_modules/dockerode/lib/proto/auth.proto', dest: path.resolve(outputDirname, thirdPartyPackageRootDirname, 'proto')}
 ]
 /**
  * Generate javascript bundle options

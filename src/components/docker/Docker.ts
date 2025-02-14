@@ -263,7 +263,7 @@ export class Docker extends Component {
         }
         const buildOptions: Dockerode.ImageBuildOptions = {
             dockerfile: options.dockerfile,
-            t: options.repoTag,
+            t: options.repoTag ? options.repoTag : `UNNAMED_IMG_${Date.now().toString(16).toUpperCase()}${Math.floor(Math.random() * 255).toString(16).padStart(2, '0')}`,
             remote: options.remote,
             q: options.quite,
             nocache: options.nocache,
@@ -278,6 +278,9 @@ export class Docker extends Component {
         }
         try {
             const readableStream: NodeJS.ReadableStream = await this.#instance.buildImage(buildContext, buildOptions)
+            this.#instance.modem.followProgress(readableStream,(err)=>{},(obj)=>{
+                console.log(obj)
+            })
             return new Promise<DockerImage>((resolve, reject) => {
                 let imageId: string | undefined = undefined
                 let buildImageException: DockerImageBuildException | undefined = undefined
