@@ -140,5 +140,9 @@
     "lakutata",
     "framework",
     "typescript"
-  ]
+  ],
+  "dependencies": {
+    "strip-ansi": "^7.1.0",
+    "strip-bom": "^5.0.0"
+  }
 }
