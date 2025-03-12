@@ -316,6 +316,7 @@ export class Docker extends Component {
                                 outputObject.stream = processedOutput
                                 if (options.outputCallback) options.outputCallback(outputObject)
                             })
+                            outputCache = ''
                         } catch (e) {
                             DevNull(e)
                         }
