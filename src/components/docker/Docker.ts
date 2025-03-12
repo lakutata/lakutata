@@ -305,7 +305,7 @@ export class Docker extends Component {
                             completedOutputCache.replace(/[\f\n\r\t\v]/g, '\n').split('\n').forEach((line: string): void => {
                                 const asciiLine: string = Buffer.from(line).toString('ascii')
                                 if (asciiLine.startsWith(Buffer.from([0x08, 0xef]).toString('ascii'))) return
-                                let processedOutput: string = line.replace(/[^\u4e00-\u9fa5^a-z^A-Z^0-9^\[^\]^\/^:^\s+^\-^\\^&^\.^@^|^"^^_\\n]/g, '').trim()
+                                let processedOutput: string = line.replace(/[^\u4e00-\u9fa5^a-z^A-Z^0-9^\[^\]^\/^:^\s+^\-^\\^&^\.^@^|^"^*^_\\n]/g, '').trim()
                                 if (!processedOutput || processedOutput.length < 2) return
                                 if (processedOutput.startsWith('Gsha256')) processedOutput = processedOutput.substring(72)
                                 if (processedOutput.startsWith('r')) processedOutput = processedOutput.substring(1)
