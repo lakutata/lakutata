@@ -34,6 +34,7 @@ import {DockerAuthOptions} from './options/auth/DockerAuthOptions.js'
 import isBase64 from 'is-base64'
 import stripAnsi from 'strip-ansi'
 import stripBom from 'strip-bom'
+import {DevNull} from '../../lib/helpers/DevNull.js'
 
 @Singleton()
 export class Docker extends Component {
@@ -286,32 +287,38 @@ export class Docker extends Component {
                 let buildImageException: DockerImageBuildException | undefined = undefined
                 let outputCache: string = ''
                 createInterface({input: readableStream})
-                    .on('line', (line: string) => {
-                        const outputObject: Record<string, any> = JSON.parse(line)
-                        if (outputObject.error) buildImageException = new DockerImageBuildException(outputObject.error)
-                        if (typeof outputObject.aux !== 'string') {
-                            if (outputObject.aux) imageId = outputObject.aux.ID
-                        } else if (isBase64(outputObject.aux) && !outputObject.stream) {
-                            outputObject.stream = Buffer.from(outputObject.aux, 'base64').toString()
+                    .on('line', (line: string): void => {
+                        try {
+                            const outputObject: Record<string, any> = JSON.parse(line)
+                            if (outputObject.error) buildImageException = new DockerImageBuildException(outputObject.error)
+                            if (typeof outputObject.aux !== 'string') {
+                                if (outputObject.aux) imageId = outputObject.aux.ID
+                            } else if (isBase64(outputObject.aux) && !outputObject.stream) {
+                                outputObject.stream = Buffer.from(outputObject.aux, 'base64').toString()
+                            }
+                            if (outputObject.stream) {
+                                outputCache = `${outputCache}${outputObject.stream}`
+                            } else if (isBase64(outputObject.aux)) {
+                                outputCache = `${outputCache}${Buffer.from(outputObject.aux, 'base64').toString('ascii')}`
+                            }
+                            const completedOutputCache: string = stripBom(stripAnsi(outputCache))
+                            completedOutputCache.replace(/[\f\n\r\t\v]/g, '\n').split('\n').forEach((line: string): void => {
+                                const asciiLine: string = Buffer.from(line).toString('ascii')
+                                if (asciiLine.startsWith(Buffer.from([0x08, 0xef]).toString('ascii'))) return
+                                let processedOutput: string = line.replace(/[^\u4e00-\u9fa5^a-z^A-Z^0-9^\[^\]^\/^:^\s+^\-^\\^&^\.^@^|^"^^_\\n]/g, '').trim()
+                                if (!processedOutput || processedOutput.length < 2) return
+                                if (processedOutput.startsWith('Gsha256')) processedOutput = processedOutput.substring(72)
+                                if (processedOutput.startsWith('r')) processedOutput = processedOutput.substring(1)
+                                if (processedOutput.startsWith('Uwriting')) processedOutput = processedOutput.substring(1)
+                                if (processedOutput.startsWith('Gsha256')) processedOutput = processedOutput.substring(72)
+                                if (processedOutput.substring(1, 2) === '[') processedOutput = processedOutput.substring(1)
+                                if (/[A-Z]/.test(processedOutput.substring(1, 2)) && !/[A-Z]/.test(processedOutput.substring(0, 1))) processedOutput = processedOutput.substring(1)
+                                outputObject.stream = processedOutput
+                                if (options.outputCallback) options.outputCallback(outputObject)
+                            })
+                        } catch (e) {
+                            DevNull(e)
                         }
-                        if (outputObject.stream) {
-                            outputCache = `${outputCache}${outputObject.stream}`
-                        } else if (isBase64(outputObject.aux)) {
-                            outputCache = `${outputCache}${Buffer.from(outputObject.aux, 'base64').toString('ascii')}`
-                        }
-                        const completedOutputCache: string = stripBom(stripAnsi(outputCache))
-                        completedOutputCache.replace(/[\f\n\r\t\v]/g, '\n').split('\n').forEach((line: string): void => {
-                            const asciiLine: string = Buffer.from(line).toString('ascii')
-                            if (asciiLine.startsWith(Buffer.from([0x08, 0xef]).toString('ascii'))) return
-                            let processedOutput: string = line.replace(/[^\u4e00-\u9fa5^a-z^A-Z^0-9^\[^\]^\/^:^\s+^\\n]/g, '').trim()
-                            if (!processedOutput || processedOutput.length < 2) return
-                            if (processedOutput.startsWith('Gsha256')) processedOutput = processedOutput.substring(72)
-                            if (processedOutput.startsWith('r')) processedOutput = processedOutput.substring(1)
-                            if (processedOutput.startsWith('Uwriting')) processedOutput = processedOutput.substring(1)
-                            if (processedOutput.startsWith('Gsha256')) processedOutput = processedOutput.substring(72)
-                            outputObject.stream = processedOutput
-                            if (options.outputCallback) options.outputCallback(outputObject)
-                        })
                     })
                     .once('close', () => {
                         if (buildImageException) return reject(buildImageException)
