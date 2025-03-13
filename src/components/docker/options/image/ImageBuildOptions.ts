@@ -1,6 +1,7 @@
 import {DTO} from '../../../../lib/core/DTO.js'
 import {Expect} from '../../../../decorators/dto/Expect.js'
 import type {DockerOutputCallback} from '../../types/DockerOutputCallback.js'
+import {DockerAuthOptions} from '../auth/DockerAuthOptions.js'
 
 export class ImageBuildOptions extends DTO {
 
@@ -88,6 +89,9 @@ export class ImageBuildOptions extends DTO {
      */
     @Expect(DTO.Object().pattern(DTO.String(), DTO.String()).optional())
     public buildargs?: { [key: string]: string }
+
+    @Expect(DockerAuthOptions.optional())
+    public auth?: DockerAuthOptions
 
     @Expect(DTO.Function().optional())
     public outputCallback?: DockerOutputCallback

@@ -35,6 +35,9 @@ import isBase64 from 'is-base64'
 import stripAnsi from 'strip-ansi'
 import stripBom from 'strip-bom'
 import {DevNull} from '../../lib/helpers/DevNull.js'
+import {DockerfileParser} from 'dockerfile-ast'
+import {readFile} from 'node:fs/promises'
+import path from 'node:path'
 
 @Singleton()
 export class Docker extends Component {
@@ -227,7 +230,8 @@ export class Docker extends Component {
             username: options.auth.username,
             password: options.auth.password,
             serveraddress: options.auth.serverAddress,
-            email: options.auth.email
+            identitytoken: options.auth.identityToken,
+            registrytoken: options.auth.registryToken
         } : undefined
         const tag: string = options.tag ? options.tag : 'latest'
         const createImageOptions: Record<string, any> = {
@@ -277,11 +281,35 @@ export class Docker extends Component {
             target: options.target,
             shmsize: options.shmsize,
             buildargs: options.buildargs,
+            authconfig: options.auth,
             abortSignal: this.#abortController.signal,
             version: '2'
         }
         try {
             const readableStream: NodeJS.ReadableStream = await this.#instance.buildImage(buildContext, buildOptions)
+            const dockerfileContent: string = await readFile(path.resolve(options.workdir, options.dockerfile ? options.dockerfile : 'Dockerfile'), {encoding: 'utf-8'})
+            const instructions = DockerfileParser.parse(dockerfileContent)
+            const fromRepoTags: string[] = As<string[]>(instructions.getFROMs().map(value => value.getArgumentsContent()).filter(value => !!value))
+            await Promise.all(fromRepoTags.map((fromRepoTag: string): Promise<DockerImage> => {
+                const [fromRepo, tag] = fromRepoTag.split(':')
+                const pullOptions: ImagePullOptions = {
+                    repo: fromRepo,
+                    tag: tag,
+                    outputCallback: (pullImgOutput: Record<string, any>): void => {
+                        if (!pullImgOutput.id) return
+                        const stream: string = `${pullImgOutput.status} ${pullImgOutput.progress ? pullImgOutput.progress : ''}`
+                        const buildImageOutputObject: Record<string, any> = {
+                            id: pullImgOutput.id,
+                            aux: Buffer.from(stream).toString('base64'),
+                            stream: stream
+                        }
+                        if (options.outputCallback) options.outputCallback(buildImageOutputObject)
+                    }
+                }
+                if (options.platform) pullOptions.platform = options.platform
+                if (options.auth) pullOptions.auth = options.auth
+                return this.pullImage(pullOptions)
+            }))
             return new Promise<DockerImage>((resolve, reject) => {
                 let imageId: string | undefined = undefined
                 let buildImageException: DockerImageBuildException | undefined = undefined

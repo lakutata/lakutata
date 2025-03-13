@@ -74,6 +74,7 @@
     "cross-env": "^7.0.3",
     "crypto-js": "^4.2.0",
     "degit": "^2.8.4",
+    "dockerfile-ast": "^0.7.0",
     "dockerode": "^4.0.4",
     "dotenv-cli": "^7.4.1",
     "dts-bundle-generator": "^9.5.1",
@@ -112,6 +113,8 @@
     "socket.io": "^4.7.5",
     "sonic-boom": "^3.8.0",
     "sort-array": "^4.1.5",
+    "strip-ansi": "^7.1.0",
+    "strip-bom": "^5.0.0",
     "tar-stream": "^3.1.7",
     "tslib": "^2.8.1",
     "typeorm": "^0.3.20",
@@ -140,9 +143,5 @@
     "lakutata",
     "framework",
     "typescript"
-  ],
-  "dependencies": {
-    "strip-ansi": "^7.1.0",
-    "strip-bom": "^5.0.0"
-  }
+  ]
 }
