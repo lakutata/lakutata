@@ -354,4 +354,12 @@ export class BaseObject extends AsyncConstructor {
             return (...args: any[]): void => DevNull(...args)
         }
     }
+
+    /**
+     * Dispose current object
+     * @description Call this function will invoke internal destroy method
+     */
+    public async dispose(): Promise<void> {
+        await this.destroy()
+    }
 }
