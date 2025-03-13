@@ -162,7 +162,7 @@ Application
             files: ['TestDockerfile'],
             workdir: path.resolve(__dirname, '../../../src/tests/'),
             platform: 'linux/arm64',
-            // outputCallback: output => console.log(output)
+            outputCallback: output => console.log(output)
         })
         await img.remove({force:true})
         console.log('Docker image build and remove success')
