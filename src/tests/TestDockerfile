@@ -1,4 +1,35 @@
-FROM ubuntu:latest
+FROM node:20-bullseye
 LABEL authors="alex"
+
+RUN sed -i "s@http://\(deb\|security\).debian.org@http://mirrors.tuna.tsinghua.edu.cn@g" /etc/apt/sources.list
+RUN apt-get update
+RUN apt-get install --no-install-recommends -y libopenjp2-tools  \
+    build-essential  \
+    rpm
+RUN apt-get install -y libdbus-1-dev  \
+    flex \
+    libglib2.0-dev  \
+    libpcap-dev  \
+    libpcap0.8  \
+    libgnutls28-dev  \
+    libbrotli-dev  \
+    libzstd-dev  \
+    liblz4-dev  \
+    libgcrypt-dev  \
+    cmake  \
+    ninja-build  \
+    make  \
+    pkg-config  \
+    libgcrypt-dev  \
+    libc-ares-dev  \
+    gettext  \
+    libpcap-dev  \
+    libspeexdsp-dev  \
+    libglu1-mesa  \
+    libudev-dev  \
+    libnghttp2-dev  \
+    libtool  \
+    tcpdump  \
+    ruby-full
 
 ENTRYPOINT ["top", "-b"]
