@@ -1,6 +1,6 @@
 FROM node:20-bullseye
 LABEL authors="alex"
-
+ENV LANG=C.UTF-8
 RUN sed -i "s@http://\(deb\|security\).debian.org@http://mirrors.tuna.tsinghua.edu.cn@g" /etc/apt/sources.list
 RUN apt-get update
 RUN apt-get install --no-install-recommends -y libopenjp2-tools  \
