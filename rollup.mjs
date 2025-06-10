@@ -202,24 +202,16 @@ async function processBundles(jsBundlesOptions, dtsBundleOptions) {
     /**
      * Generate bundles
      */
-    await Promise.all([
-        new Promise((jsBundlesResolve, jsBundlesReject) => {
-            const generateJsBundlePromises = []
-            jsBundlesOptions.forEach(jsBundleOptions => {
-                generateJsBundlePromises.push(new Promise((jsBundleResolve, jsBundleReject) => {
-                    return rollup(jsBundleOptions).then(jsBundle => {
-                        return generateOutputs(jsBundle, jsBundleOptions.output).then(jsBundleResolve).catch(jsBundleReject)
-                    }).catch(jsBundleReject)
-                }))
-            })
-            return Promise.all(generateJsBundlePromises).then(jsBundlesResolve).catch(jsBundlesReject)
-        }),
-        new Promise((dtsBundleResolve, dtsBundleReject) => {
-            return rollup(dtsBundleOptions).then(dtsBundle => {
-                return generateOutputs(dtsBundle, dtsBundleOptions.output).then(dtsBundleResolve).catch(dtsBundleReject)
-            }).catch(dtsBundleReject)
-        })
-    ])
+    const generateJsBundlePromises = []
+    jsBundlesOptions.forEach(jsBundleOptions => {
+        generateJsBundlePromises.push(new Promise((jsBundleResolve, jsBundleReject) => {
+            return rollup(jsBundleOptions).then(jsBundle => {
+                return generateOutputs(jsBundle, jsBundleOptions.output).then(jsBundleResolve).catch(jsBundleReject)
+            }).catch(jsBundleReject)
+        }))
+    })
+    await Promise.all(generateJsBundlePromises)
+    await generateOutputs(await rollup(dtsBundleOptions), dtsBundleOptions.output)
     /**
      * Write files
      */
