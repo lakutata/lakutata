@@ -91,7 +91,7 @@
     "is-base64": "^1.1.0",
     "is-glob": "^4.0.3",
     "joi": "^17.13.3",
-    "joi-to-json": "^4.3.1",
+    "joi-to-json": "^4.3.2",
     "jsonschema": "^1.4.1",
     "lodash": "^4.17.21",
     "log-update": "^6.0.0",

@@ -1,4 +1,4 @@
-import Joi from 'joi'
+import Joi, {Extension, Root} from 'joi'
 import {AnySchema} from './interfaces/AnySchema.js'
 import {ArraySchema} from './interfaces/ArraySchema.js'
 import {BooleanSchema} from './interfaces/BooleanSchema.js'
@@ -346,6 +346,238 @@ class ValidateMethods {
     }
 }
 
-export const VLD: ValidateAPI = As<any>(Joi)
+// export const VLD: ValidateAPI = As<any>(Joi)
+
+export const VLD: ValidateAPI = As<any>(
+    Joi.extend((joi: Root): Extension => ({
+        type: 'number',
+        base: joi.number().integer(),
+        messages: {
+            'number.int8': '{{#label}} must be a valid Int8 value (between -128 and 127)',
+            'number.uint8': '{{#label}} must be a valid UInt8 value (between 0 and 255)',
+            'number.int16': '{{#label}} must be a valid Int16 value (between -32768 and 32767)',
+            'number.uint16': '{{#label}} must be a valid UInt16 value (between 0 and 65535)',
+            'number.int32': '{{#label}} must be a valid Int32 value (between -2147483648 and 2147483647)',
+            'number.uint32': '{{#label}} must be a valid UInt32 value (between 0 and 4294967295)'
+        },
+        rules: {
+            int8: {
+                method(): any {
+                    return this.$_addRule({name: 'int8'})
+                },
+                validate(value: any, helpers: any): any {
+                    if (!Number.isInteger(value)) return helpers.error('number.integer')
+                    if (value < -128 || value > 127) return helpers.error('number.int8')
+                    return value
+                }
+            },
+            uint8: {
+                method(): any {
+                    return this.$_addRule({name: 'uint8'})
+                },
+                validate(value: any, helpers: any): any {
+                    if (!Number.isInteger(value)) return helpers.error('number.integer')
+                    if (value < 0 || value > 255) return helpers.error('number.uint8')
+                    return value
+                }
+            },
+            int16: {
+                method(): any {
+                    return this.$_addRule({name: 'int16'})
+                },
+                validate(value: any, helpers: any): any {
+                    if (!Number.isInteger(value)) return helpers.error('number.integer')
+                    if (value < -32768 || value > 32767) return helpers.error('number.int16')
+                    return value
+                }
+            },
+            uint16: {
+                method(): any {
+                    return this.$_addRule({name: 'uint16'})
+                },
+                validate(value: any, helpers: any): any {
+                    if (!Number.isInteger(value)) return helpers.error('number.integer')
+                    if (value < 0 || value > 65535) return helpers.error('number.uint16')
+                    return value
+                }
+            },
+            int32: {
+                method(): any {
+                    return this.$_addRule({name: 'int32'})
+                },
+                validate(value: any, helpers: any): any {
+                    if (!Number.isInteger(value)) return helpers.error('number.integer')
+                    if (value < -2147483648 || value > 2147483647) return helpers.error('number.int32')
+                    return value
+                }
+            },
+            uint32: {
+                method(): any {
+                    return this.$_addRule({name: 'uint32'})
+                },
+                validate(value: any, helpers: any): any {
+                    if (!Number.isInteger(value)) return helpers.error('number.integer')
+                    if (value < 0 || value > 4294967295) return helpers.error('number.uint32')
+                    return value
+                }
+            }
+        }
+    }))
+)
+
+// export const VLD: ValidateAPI = As<any>(
+//     Joi
+//         //INT8
+//         .extend((root: Root): Extension => ({
+//             type: 'number',
+//             base: root.number(),
+//             messages: {
+//                 'number.int8': '{{#label}} must be a valid 8-bit integer (between -128 and 127)'
+//             },
+//             rules: {
+//                 int8: {
+//                     method(): any {
+//                         return this
+//                             .$_addRule({name: 'int8'})
+//                             .$_addRule({name: 'min', args: {limit: -128}})
+//                             .$_addRule({name: 'max', args: {limit: 127}})
+//                     },
+//                     validate(value: any, helpers: any): any {
+//                         if (!Number.isInteger(value)) return helpers.error('number.integer')
+//                         const MIN_INT8 = -128
+//                         const MAX_INT8 = 127
+//                         if (value < MIN_INT8 || value > MAX_INT8) return helpers.error('number.int8')
+//                         return value
+//                     }
+//                 }
+//             }
+//         }))
+//         //UINT8
+//         .extend((root: Root): Extension => ({
+//             type: 'number',
+//             base: root.number(),
+//             messages: {
+//                 'number.uint8': '{{#label}} must be a valid 8-bit unsigned integer (between 0 and 255)'
+//             },
+//             rules: {
+//                 uint8: {
+//                     method(): any {
+//                         return this
+//                             .$_addRule({name: 'uint8'})
+//                             .$_addRule({name: 'min', args: {limit: 0}})
+//                             .$_addRule({name: 'max', args: {limit: 255}})
+//                     },
+//                     validate(value: any, helpers: any): any {
+//                         if (!Number.isInteger(value)) return helpers.error('number.integer')
+//                         const MIN_UINT8 = 0
+//                         const MAX_UINT8 = 255
+//                         if (value < MIN_UINT8 || value > MAX_UINT8) return helpers.error('number.uint8')
+//                         return value
+//                     }
+//                 }
+//             }
+//         }))
+//         //INT16
+//         .extend((root: Root): Extension => ({
+//             type: 'number',
+//             base: root.number(),
+//             messages: {
+//                 'number.int16': '{{#label}} must be a valid 16-bit integer (between -32768 and 32767)'
+//             },
+//             rules: {
+//                 int16: {
+//                     method(): any {
+//                         return this
+//                             .$_addRule({name: 'int16'})
+//                             .$_addRule({name: 'min', args: {limit: -32768}})
+//                             .$_addRule({name: 'max', args: {limit: 32767}})
+//                     },
+//                     validate(value: any, helpers: any): any {
+//                         if (!Number.isInteger(value)) return helpers.error('number.integer')
+//                         const MIN_INT16 = -32768
+//                         const MAX_INT16 = 32767
+//                         if (value < MIN_INT16 || value > MAX_INT16) return helpers.error('number.int16')
+//                         return value
+//                     }
+//                 }
+//             }
+//         }))
+//         //UINT16
+//         .extend((root: Root): Extension => ({
+//             type: 'number',
+//             base: root.number(),
+//             messages: {
+//                 'number.uint16': '{{#label}} must be a valid 16-bit unsigned integer (between 0 and 65535)'
+//             },
+//             rules: {
+//                 uint16: {
+//                     method(): any {
+//                         return this
+//                             .$_addRule({name: 'uint16'})
+//                             .$_addRule({name: 'min', args: {limit: 0}})
+//                             .$_addRule({name: 'max', args: {limit: 65535}})
+//                     },
+//                     validate(value: any, helpers: any): any {
+//                         if (!Number.isInteger(value)) return helpers.error('number.integer')
+//                         const MIN_UINT16 = 0
+//                         const MAX_UINT16 = 65535
+//                         if (value < MIN_UINT16 || value > MAX_UINT16) return helpers.error('number.uint16')
+//                         return value
+//                     }
+//                 }
+//             }
+//         }))
+//         //INT32
+//         .extend((root: Root): Extension => ({
+//             type: 'number',
+//             base: root.number(),
+//             messages: {
+//                 'number.int32': '{{#label}} must be a valid 32-bit integer (between -2147483648 and 2147483647)'
+//             },
+//             rules: {
+//                 int32: {
+//                     method(): any {
+//                         return this
+//                             .$_addRule({name: 'int32'})
+//                             .$_addRule({name: 'min', args: {limit: -2147483648}})
+//                             .$_addRule({name: 'max', args: {limit: 2147483647}})
+//                     },
+//                     validate(value: any, helpers: any): any {
+//                         console.log('!!!!!!!!!!!!!!int32')
+//                         if (!Number.isInteger(value)) return helpers.error('number.integer')
+//                         const MIN_INT32 = -2147483648
+//                         const MAX_INT32 = 2147483647
+//                         if (value < MIN_INT32 || value > MAX_INT32) return helpers.error('number.int32')
+//                         return value
+//                     }
+//                 }
+//             }
+//         }))
+//         //UINT32
+//         .extend((root: Root): Extension => ({
+//             type: 'number',
+//             base: root.number(),
+//             messages: {
+//                 'number.uint32': '{{#label}} must be a valid 32-bit unsigned integer (between 0 and 4294967295)'
+//             },
+//             rules: {
+//                 uint32: {
+//                     method(): any {
+//                         return this
+//                             .$_addRule({name: 'uint32'})
+//                             .$_addRule({name: 'min', args: {limit: 0}})
+//                             .$_addRule({name: 'max', args: {limit: 4294967295}})
+//                     },
+//                     validate(value: any, helpers: any): any {
+//                         if (!Number.isInteger(value)) return helpers.error('number.integer')
+//                         const MIN_UINT32 = 0
+//                         const MAX_UINT32 = 4294967295
+//                         if (value < MIN_UINT32 || value > MAX_UINT32) return helpers.error('number.uint32')
+//                         return value
+//                     }
+//                 }
+//             }
+//         }))
+// )
 
 export const VLDMethods: ValidateMethods = new ValidateMethods()
