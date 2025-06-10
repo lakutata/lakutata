@@ -44,6 +44,16 @@ export interface NumberSchema<TSchema = number> extends AnySchema<TSchema> {
     uint32(): this;
 
     /**
+     * Requires the number to be an 64-bit integer (no floating point).
+     */
+    int64(): this;
+
+    /**
+     * Requires the number to be an 64-bit unsigned integer (no floating point).
+     */
+    uint64(): this;
+
+    /**
      * Specifies that the value must be less than limit.
      * It can also be a reference to another field.
      */
