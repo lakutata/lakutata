@@ -22,6 +22,7 @@ import {UniqueArray} from '../../lib/helpers/UniqueArray.js'
 import {DTO} from '../../lib/core/DTO.js'
 import {Singleton} from '../../decorators/di/Lifetime.js'
 import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
+import CloneDeep from 'lodash/cloneDeep.js'
 
 export {ContextType, BaseContext} from '../../lib/base/Context.js'
 export {CLIContext} from '../../lib/context/CLIContext.js'
@@ -54,28 +55,28 @@ export type EntrypointOptions = {
  * @param entrypoint
  * @constructor
  */
-export const BuildCLIEntrypoint: (entrypoint: CLIEntrypoint) => CLIEntrypoint = (entrypoint: CLIEntrypoint) => entrypoint
+export const BuildCLIEntrypoint: (entrypoint: CLIEntrypoint) => CLIEntrypoint = (entrypoint: CLIEntrypoint): CLIEntrypoint => entrypoint
 
 /**
  * Build http entrypoint
  * @param entrypoint
  * @constructor
  */
-export const BuildHTTPEntrypoint: (entrypoint: HTTPEntrypoint) => HTTPEntrypoint = (entrypoint: HTTPEntrypoint) => entrypoint
+export const BuildHTTPEntrypoint: (entrypoint: HTTPEntrypoint) => HTTPEntrypoint = (entrypoint: HTTPEntrypoint): HTTPEntrypoint => entrypoint
 
 /**
  * Build service entrypoint
  * @param entrypoint
  * @constructor
  */
-export const BuildServiceEntrypoint: (entrypoint: ServiceEntrypoint) => ServiceEntrypoint = (entrypoint: ServiceEntrypoint) => entrypoint
+export const BuildServiceEntrypoint: (entrypoint: ServiceEntrypoint) => ServiceEntrypoint = (entrypoint: ServiceEntrypoint): ServiceEntrypoint => entrypoint
 
 /**
  * Build entrypoints options for Entrypoint component
  * @param options
  * @constructor
  */
-export const BuildEntrypoints: (options: EntrypointOptions) => EntrypointOptions = (options: EntrypointOptions) => options
+export const BuildEntrypoints: (options: EntrypointOptions) => EntrypointOptions = (options: EntrypointOptions): EntrypointOptions => options
 
 
 /**
@@ -121,21 +122,21 @@ export class Entrypoint extends Component {
             return new Promise<void>((resolve, reject) => this.container.register(controllerConstructor).then(resolve).catch(reject))
         }))
         const {CLI, HTTP, Service} = GetComponentControllerActionMap(this)
-        CLI.forEach((details: ActionDetails, actionPattern: ActionPattern) => {
+        CLI.forEach((details: ActionDetails, actionPattern: ActionPattern): void => {
             this.CLIActionPatternMap.set(actionPattern, details)
             this.CLIActionPatternManager.add(actionPattern, details)
         })
-        HTTP.forEach((details: ActionDetails, actionPattern: ActionPattern) => {
+        HTTP.forEach((details: ActionDetails, actionPattern: ActionPattern): void => {
             this.HTTPActionPatternMap.set(actionPattern, details)
             this.HTTPActionPatternManager.add(actionPattern, details)
         })
-        Service.forEach((details: ActionDetails, actionPattern: ActionPattern) => {
+        Service.forEach((details: ActionDetails, actionPattern: ActionPattern): void => {
             this.ServiceActionPatternMap.set(actionPattern, details)
             this.ServiceActionPatternManager.add(actionPattern, details)
         })
-        this.register(this.service, (entrypoint: ServiceEntrypoint) => this.registerServiceEntrypoint(entrypoint))
-        this.register(this.cli, (entrypoint: CLIEntrypoint) => this.registerCLIEntrypoint(entrypoint))
-        this.register(this.http, (entrypoint: HTTPEntrypoint) => this.registerHTTPEntrypoint(entrypoint))
+        this.register(this.service, (entrypoint: ServiceEntrypoint): void => this.registerServiceEntrypoint(entrypoint))
+        this.register(this.cli, (entrypoint: CLIEntrypoint): void => this.registerCLIEntrypoint(entrypoint))
+        this.register(this.http, (entrypoint: HTTPEntrypoint): void => this.registerHTTPEntrypoint(entrypoint))
     }
 
     /**
@@ -157,13 +158,13 @@ export class Entrypoint extends Component {
         const runtimeContainer: Container = this.createScope()
         const controller: Controller = await runtimeContainer.get(details.constructor, {context: context})
         try {
-            return await controller.getMethod(As(details.method))(await dtoConstructor.validateAsync(context.data))
+            return await controller.getMethod(As(details.method))(CloneDeep(await dtoConstructor.validateAsync(context.data)))
         } catch (e) {
             throw e
         } finally {
             runtimeContainer
                 .destroy()
-                .catch((error: Error) => {
+                .catch((error: Error): never => {
                     throw new DestroyRuntimeContainerException(error.message)
                 })
         }
@@ -179,11 +180,11 @@ export class Entrypoint extends Component {
      */
     protected async runControllerMethodWithAbortController<DTOConstructor extends typeof DTO = typeof DTO>(details: ActionDetails, context: CLIContext | HTTPContext | ServiceContext, dtoConstructor: DTOConstructor, abortController: AbortController): Promise<unknown> {
         let isAborted: boolean = false
-        const abortHandler: () => void = () => {
+        const abortHandler: () => void = (): void => {
             isAborted = true
             runtimeContainer
                 .destroy()
-                .catch((error: Error) => {
+                .catch((error: Error): never => {
                     throw new DestroyRuntimeContainerException(error.message)
                 })
         }
@@ -191,7 +192,7 @@ export class Entrypoint extends Component {
         const runtimeContainer: Container = this.createScope()
         const controller: Controller = await runtimeContainer.get(details.constructor, {context: context})
         try {
-            const runResult: any = await controller.getMethod(As(details.method))(await dtoConstructor.validateAsync(context.data))
+            const runResult: any = await controller.getMethod(As(details.method))(CloneDeep(await dtoConstructor.validateAsync(context.data)))
             if (!isAborted) return runResult
         } catch (e) {
             if (!isAborted) abortController.signal.removeEventListener('abort', abortHandler)
@@ -237,7 +238,7 @@ export class Entrypoint extends Component {
             const details: ActionDetails | null = this.CLIActionPatternManager.find(actionPattern)
             if (!details) throw new ControllerActionNotFoundException('Command not found')
             return await this.runControllerMethod(details, context, details.dtoConstructor, abortController)
-        }, (destroyer: EntrypointDestroyer) => this.entrypointDestroyers.push(destroyer))
+        }, (destroyer: EntrypointDestroyer):number => this.entrypointDestroyers.push(destroyer))
     }
 
     /**
@@ -260,7 +261,7 @@ export class Entrypoint extends Component {
             const details: ActionDetails | null = this.HTTPActionPatternManager.find(actionPattern)
             if (!details) throw new ControllerActionNotFoundException('Route \'{route}\' not found', context)
             return await this.runControllerMethod(details, context, details.dtoConstructor, abortController)
-        }, (destroyer: EntrypointDestroyer) => this.entrypointDestroyers.push(destroyer))
+        }, (destroyer: EntrypointDestroyer):number => this.entrypointDestroyers.push(destroyer))
     }
 
     /**
@@ -283,6 +284,6 @@ export class Entrypoint extends Component {
                 if (target && !Object.keys(target).length) unset(context.data, path)
             })
             return await this.runControllerMethod(details, context, details.dtoConstructor, abortController)
-        }, (destroyer: EntrypointDestroyer) => this.entrypointDestroyers.push(destroyer))
+        }, (destroyer: EntrypointDestroyer):number => this.entrypointDestroyers.push(destroyer))
     }
 }

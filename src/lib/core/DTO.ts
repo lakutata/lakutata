@@ -80,7 +80,7 @@ const DTODescriptionSymbol: symbol = Symbol('DTO.DESCRIPTION')
 /**
  * DTO base class
  */
-@(<ClassConstructor extends typeof DTO>(target: ClassConstructor) => DefineObjectAsDTO(target))
+@(<ClassConstructor extends typeof DTO>(target: ClassConstructor): ClassConstructor => DefineObjectAsDTO(target))
 export class DTO extends DataValidator {
 
     constructor(props: Record<string, any> = {}) {

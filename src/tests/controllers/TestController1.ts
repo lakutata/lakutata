@@ -63,6 +63,7 @@ export class TestController1 extends Controller {
     }
 
     @HTTPAction('/test/:id', ['GET', 'POST'], TestDTO)
+    // @HTTPAction('/test/:id', ['GET', 'POST'])
     @CLIAction('test3', TestDTO)
     @ServiceAction({
         act: 'test3',

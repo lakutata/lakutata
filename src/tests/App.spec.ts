@@ -156,16 +156,16 @@ Application
         console.log('MD5(\'test\').toString():', MD5('test').toString('base64'))
         console.log('SHA1(\'test\').toString():', SHA1('test').toString('base64'))
         console.log('SHA256(\'test\').toString():', SHA256('test').toString('base64'))
-        const docker = await app.getObject<Docker>('docker')
-        const img=await docker.buildImage({
-            dockerfile: 'TestDockerfile',
-            files: ['TestDockerfile'],
-            workdir: path.resolve(__dirname, '../../../src/tests/'),
-            platform: 'linux/arm64',
-            outputCallback: output => console.log(output)
-        })
-        await img.remove({force:true})
-        console.log('Docker image build and remove success')
+        // const docker = await app.getObject<Docker>('docker')
+        // const img=await docker.buildImage({
+        //     dockerfile: 'TestDockerfile',
+        //     files: ['TestDockerfile'],
+        //     workdir: path.resolve(__dirname, '../../../src/tests/'),
+        //     platform: 'linux/arm64',
+        //     outputCallback: output => console.log(output)
+        // })
+        // await img.remove({force:true})
+        // console.log('Docker image build and remove success')
         // console.log(await docker.listImages())
     })
     .onDone(async (app, log) => {
