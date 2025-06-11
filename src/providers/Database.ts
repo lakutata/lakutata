@@ -26,10 +26,10 @@ import {EntitySchema, type MixedList} from 'typeorm'
  * @param options
  * @constructor
  */
-export const BuildDatabaseOptions: (options: Omit<DataSourceOptions, 'entities'>) => {
+export const BuildDatabaseOptions: (options: DataSourceOptions) => {
     class: typeof Database,
-    options: Omit<DataSourceOptions, 'entities'>
-} = (options: Omit<DataSourceOptions, 'entities'>) => ({
+    options: DataSourceOptions
+} = (options: DataSourceOptions) => ({
     class: Database,
     options: options
 })
