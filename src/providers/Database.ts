@@ -20,6 +20,7 @@ import {QueryResultCache} from 'typeorm/cache/QueryResultCache.js'
 import {IsolationLevel} from 'typeorm/driver/types/IsolationLevel.js'
 import {Provider} from '../lib/core/Provider.js'
 import {EntitySchema, type MixedList} from 'typeorm'
+import {As} from '../lib/helpers/As.js'
 
 /**
  * Build database provider connection options
@@ -129,7 +130,7 @@ export class Database extends Provider {
         const entities: MixedList<Function | string | EntitySchema> = this.entities ? this.entities : []
         const options: DataSourceOptions = {
             ...this.options,
-            entities: entities
+            entities: [...As<any[]>(this.options.entities ? this.options.entities : []), ...As<any[]>(entities)]
         }
         this.#datasource = await (new DataSource(options)).initialize()
     }
