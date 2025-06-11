@@ -88,6 +88,40 @@ export * from 'typeorm/driver/types/ReplicationMode.js'
 export * from 'typeorm/driver/sqlserver/MssqlParameter.js'
 export {ConnectionOptionsReader} from 'typeorm/connection/ConnectionOptionsReader.js'
 export {type DataSourceOptions} from 'typeorm/data-source/DataSourceOptions.js'
+export {type MysqlConnectionOptions} from 'typeorm/driver/mysql/MysqlConnectionOptions.js'
+export {type MysqlConnectionCredentialsOptions} from 'typeorm/driver/mysql/MysqlConnectionCredentialsOptions.js'
+export {type PostgresConnectionOptions} from 'typeorm/driver/postgres/PostgresConnectionOptions.js'
+export {
+    type PostgresConnectionCredentialsOptions
+} from 'typeorm/driver/postgres/PostgresConnectionCredentialsOptions.js'
+export {type CockroachConnectionOptions} from 'typeorm/driver/cockroachdb/CockroachConnectionOptions.js'
+export {
+    type CockroachConnectionCredentialsOptions
+} from 'typeorm/driver/cockroachdb/CockroachConnectionCredentialsOptions.js'
+export {type SqliteConnectionOptions} from 'typeorm/driver/sqlite/SqliteConnectionOptions.js'
+export {type SqlServerConnectionOptions} from 'typeorm/driver/sqlserver/SqlServerConnectionOptions.js'
+export {
+    type SqlServerConnectionCredentialsOptions
+} from 'typeorm/driver/sqlserver/SqlServerConnectionCredentialsOptions.js'
+export {type SapConnectionOptions} from 'typeorm/driver/sap/SapConnectionOptions.js'
+export {type SapConnectionCredentialsOptions} from 'typeorm/driver/sap/SapConnectionCredentialsOptions.js'
+export {type OracleConnectionOptions} from 'typeorm/driver/oracle/OracleConnectionOptions.js'
+export {type OracleConnectionCredentialsOptions} from 'typeorm/driver/oracle/OracleConnectionCredentialsOptions.js'
+export {type CordovaConnectionOptions} from 'typeorm/driver/cordova/CordovaConnectionOptions.js'
+export {type NativescriptConnectionOptions} from 'typeorm/driver/nativescript/NativescriptConnectionOptions.js'
+export {type ReactNativeConnectionOptions} from 'typeorm/driver/react-native/ReactNativeConnectionOptions.js'
+export {type SqljsConnectionOptions} from 'typeorm/driver/sqljs/SqljsConnectionOptions.js'
+export {type MongoConnectionOptions} from 'typeorm/driver/mongodb/MongoConnectionOptions.js'
+export {type AuroraMysqlConnectionOptions} from 'typeorm/driver/aurora-mysql/AuroraMysqlConnectionOptions.js'
+export {
+    type AuroraMysqlConnectionCredentialsOptions
+} from 'typeorm/driver/aurora-mysql/AuroraMysqlConnectionCredentialsOptions.js'
+export {type AuroraPostgresConnectionOptions} from 'typeorm/driver/aurora-postgres/AuroraPostgresConnectionOptions.js'
+export {type ExpoConnectionOptions} from 'typeorm/driver/expo/ExpoConnectionOptions.js'
+export {type BetterSqlite3ConnectionOptions} from 'typeorm/driver/better-sqlite3/BetterSqlite3ConnectionOptions.js'
+export {type CapacitorConnectionOptions} from 'typeorm/driver/capacitor/CapacitorConnectionOptions.js'
+export {type SpannerConnectionOptions} from 'typeorm/driver/spanner/SpannerConnectionOptions.js'
+export {type SpannerConnectionCredentialsOptions} from 'typeorm/driver/spanner/SpannerConnectionCredentialsOptions.js'
 export {DataSource} from 'typeorm/data-source/DataSource.js'
 export {type QueryRunner} from 'typeorm/query-runner/QueryRunner.js'
 export {type Driver} from 'typeorm/driver/Driver.js'
