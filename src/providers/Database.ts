@@ -131,7 +131,7 @@ export class Database extends Provider {
             ...this.options,
             entities: entities
         }
-        this.#datasource = await (new DataSource(this.options)).initialize()
+        this.#datasource = await (new DataSource(options)).initialize()
     }
 
     /**
