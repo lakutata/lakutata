@@ -1,4 +1,4 @@
-import Joi, {Extension, Root} from 'joi'
+import Joi, {AddRuleOptions, Extension, Root} from 'joi'
 import {AnySchema} from './interfaces/AnySchema.js'
 import {ArraySchema} from './interfaces/ArraySchema.js'
 import {BooleanSchema} from './interfaces/BooleanSchema.js'
@@ -346,12 +346,10 @@ class ValidateMethods {
     }
 }
 
-// export const VLD: ValidateAPI = As<any>(Joi)
-
 export const VLD: ValidateAPI = As<any>(
     Joi.extend((joi: Root): Extension => ({
         type: 'number',
-        base: joi.number().integer(),
+        base: joi.number(),
         messages: {
             'number.int8': '{{#label}} must be a valid Int8 value (between -128 and 127)',
             'number.uint8': '{{#label}} must be a valid UInt8 value (between 0 and 255)',
@@ -365,7 +363,21 @@ export const VLD: ValidateAPI = As<any>(
         rules: {
             int8: {
                 method(): any {
-                    return this.$_addRule({name: 'int8'})
+                    return this
+                        .$_addRule('integer')
+                        .$_addRule(As<AddRuleOptions>({
+                            name: 'min',
+                            method: 'compare',
+                            args: {limit: -128},
+                            operator: '>='
+                        }))
+                        .$_addRule(As<AddRuleOptions>({
+                            name: 'max',
+                            method: 'compare',
+                            args: {limit: 127},
+                            operator: '<='
+                        }))
+                        .$_addRule({name: 'int8'})
                 },
                 validate(value: any, helpers: any): any {
                     if (!Number.isInteger(value)) return helpers.error('number.integer')
@@ -375,7 +387,21 @@ export const VLD: ValidateAPI = As<any>(
             },
             uint8: {
                 method(): any {
-                    return this.$_addRule({name: 'uint8'})
+                    return this
+                        .$_addRule('integer')
+                        .$_addRule(As<AddRuleOptions>({
+                            name: 'min',
+                            method: 'compare',
+                            args: {limit: 0},
+                            operator: '>='
+                        }))
+                        .$_addRule(As<AddRuleOptions>({
+                            name: 'max',
+                            method: 'compare',
+                            args: {limit: 255},
+                            operator: '<='
+                        }))
+                        .$_addRule({name: 'uint8'})
                 },
                 validate(value: any, helpers: any): any {
                     if (!Number.isInteger(value)) return helpers.error('number.integer')
@@ -385,7 +411,21 @@ export const VLD: ValidateAPI = As<any>(
             },
             int16: {
                 method(): any {
-                    return this.$_addRule({name: 'int16'})
+                    return this
+                        .$_addRule('integer')
+                        .$_addRule(As<AddRuleOptions>({
+                            name: 'min',
+                            method: 'compare',
+                            args: {limit: -32768},
+                            operator: '>='
+                        }))
+                        .$_addRule(As<AddRuleOptions>({
+                            name: 'max',
+                            method: 'compare',
+                            args: {limit: 32767},
+                            operator: '<='
+                        }))
+                        .$_addRule({name: 'int16'})
                 },
                 validate(value: any, helpers: any): any {
                     if (!Number.isInteger(value)) return helpers.error('number.integer')
@@ -395,7 +435,21 @@ export const VLD: ValidateAPI = As<any>(
             },
             uint16: {
                 method(): any {
-                    return this.$_addRule({name: 'uint16'})
+                    return this
+                        .$_addRule('integer')
+                        .$_addRule(As<AddRuleOptions>({
+                            name: 'min',
+                            method: 'compare',
+                            args: {limit: 0},
+                            operator: '>='
+                        }))
+                        .$_addRule(As<AddRuleOptions>({
+                            name: 'max',
+                            method: 'compare',
+                            args: {limit: 65535},
+                            operator: '<='
+                        }))
+                        .$_addRule({name: 'uint16'})
                 },
                 validate(value: any, helpers: any): any {
                     if (!Number.isInteger(value)) return helpers.error('number.integer')
@@ -405,7 +459,21 @@ export const VLD: ValidateAPI = As<any>(
             },
             int32: {
                 method(): any {
-                    return this.$_addRule({name: 'int32'})
+                    return this
+                        .$_addRule('integer')
+                        .$_addRule(As<AddRuleOptions>({
+                            name: 'min',
+                            method: 'compare',
+                            args: {limit: -2147483648},
+                            operator: '>='
+                        }))
+                        .$_addRule(As<AddRuleOptions>({
+                            name: 'max',
+                            method: 'compare',
+                            args: {limit: 2147483647},
+                            operator: '<='
+                        }))
+                        .$_addRule({name: 'int32'})
                 },
                 validate(value: any, helpers: any): any {
                     if (!Number.isInteger(value)) return helpers.error('number.integer')
@@ -415,7 +483,21 @@ export const VLD: ValidateAPI = As<any>(
             },
             uint32: {
                 method(): any {
-                    return this.$_addRule({name: 'uint32'})
+                    return this
+                        .$_addRule('integer')
+                        .$_addRule(As<AddRuleOptions>({
+                            name: 'min',
+                            method: 'compare',
+                            args: {limit: 0},
+                            operator: '>='
+                        }))
+                        .$_addRule(As<AddRuleOptions>({
+                            name: 'max',
+                            method: 'compare',
+                            args: {limit: 4294967295},
+                            operator: '<='
+                        }))
+                        .$_addRule({name: 'uint32'})
                 },
                 validate(value: any, helpers: any): any {
                     if (!Number.isInteger(value)) return helpers.error('number.integer')
@@ -425,7 +507,21 @@ export const VLD: ValidateAPI = As<any>(
             },
             int64: {
                 method(): any {
-                    return this.$_addRule({name: 'int64'})
+                    return this
+                        .$_addRule('integer')
+                        .$_addRule(As<AddRuleOptions>({
+                            name: 'min',
+                            method: 'compare',
+                            args: {limit: -9007199254740991},
+                            operator: '>='
+                        }))
+                        .$_addRule(As<AddRuleOptions>({
+                            name: 'max',
+                            method: 'compare',
+                            args: {limit: 9007199254740991},
+                            operator: '<='
+                        }))
+                        .$_addRule({name: 'int64'})
                 },
                 validate(value: any, helpers: any): any {
                     if (!Number.isInteger(value)) return helpers.error('number.integer')
@@ -439,7 +535,21 @@ export const VLD: ValidateAPI = As<any>(
             },
             uint64: {
                 method(): any {
-                    return this.$_addRule({name: 'uint64'})
+                    return this
+                        .$_addRule('integer')
+                        .$_addRule(As<AddRuleOptions>({
+                            name: 'min',
+                            method: 'compare',
+                            args: {limit: 0},
+                            operator: '>='
+                        }))
+                        .$_addRule(As<AddRuleOptions>({
+                            name: 'max',
+                            method: 'compare',
+                            args: {limit: 9007199254740991},
+                            operator: '<='
+                        }))
+                        .$_addRule({name: 'uint64'})
                 },
                 validate(value: any, helpers: any): any {
                     if (!Number.isInteger(value)) return helpers.error('number.integer')
