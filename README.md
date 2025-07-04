@@ -28,8 +28,8 @@ to freely encapsulate and call third-party modules using Lakutata's dependency i
 
 ## ✨ Getting started
 
-- 👉 To check out the **[guide](http://docs.lakutata.com)**, visit **[docs.lakutata.com](http://docs.lakutata.com)**. 
-- 👉 要查看 **[指南](http://docs.lakutata.com)**，请访问 **[docs.lakutata.com](http://docs.lakutata.com)**。
+- 👉 To check out the **[guide](https://github.com/lakutata/lakutata/blob/main/doc/en/Overview.md)**, visit **[https://github.com/lakutata/lakutata/blob/main/doc/en/Overview.md](https://github.com/lakutata/lakutata/blob/main/doc/en/Overview.md)**. 
+- 👉 要查看 **[指南](https://github.com/lakutata/lakutata/blob/main/doc/zh/Overview.md)**，请访问 **[https://github.com/lakutata/lakutata/blob/main/doc/zh/Overview.md](https://github.com/lakutata/lakutata/blob/main/doc/zh/Overview.md)**。
 
 ## 🌎 License
 
