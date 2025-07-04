@@ -29,7 +29,7 @@ to freely encapsulate and call third-party modules using Lakutata's dependency i
 ## ✨ Getting started
 
 - 👉 To check out the **[guide](http://docs.lakutata.com)**, visit **[docs.lakutata.com](http://docs.lakutata.com)**. 
-- 👉 To see usage **[examples](http://examples.lakutata.com)**, visit **[examples.lakutata.com](http://examples.lakutata.com)**.
+- 👉 要查看 **[指南](http://docs.lakutata.com)**，请访问 **[docs.lakutata.com](http://docs.lakutata.com)**。
 
 ## 🌎 License
 
