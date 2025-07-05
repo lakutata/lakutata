@@ -52,7 +52,16 @@ export function SetObjectInjectItem<ClassPrototype extends BaseObject>(target: C
  * @constructor
  */
 export function GetObjectInjectItemsByPrototype<ClassPrototype extends BaseObject>(target: ClassPrototype): ObjectInjectionMap {
-    const objectInjectionMap: ObjectInjectionMap = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_INJECTS, ObjectConstructor(target))
+    const objectInjectionMap: ObjectInjectionMap = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_INJECTS, ObjectConstructor(target)) || new Map()
+    ObjectParentConstructors(ObjectConstructor(target)).forEach((parentConstructor: Function): void => {
+        if (Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_INJECTS, parentConstructor)) {
+            const parentObjectInjectionMap: ObjectInjectionMap = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_INJECTS, parentConstructor)
+            parentObjectInjectionMap.forEach((value, key) => {
+                if (objectInjectionMap.has(key)) return
+                objectInjectionMap.set(key, value)
+            })
+        }
+    })
     if (objectInjectionMap) return objectInjectionMap
     return new Map()
 }

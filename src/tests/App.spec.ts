@@ -25,6 +25,8 @@ import {Docker} from '../components/docker/Docker.js'
 import {MD5} from '../lib/helpers/MD5.js'
 import {SHA1} from '../lib/helpers/SHA1.js'
 import {SHA256} from '../lib/helpers/SHA256.js'
+import {TestProvider2} from './providers/TestProvider2.js'
+import {TestProvider3} from './providers/TestProvider3.js'
 
 Application
     .env({TEST: '123'})
@@ -133,6 +135,13 @@ Application
             testProvider: {
                 class: TestProvider,
                 path: path.resolve('@test2', './hahahaha')
+            },
+            testProvider2: {
+                class: TestProvider2
+            },
+            testProvider3: {
+                class: TestProvider3,
+                path: path.resolve('@test2', './hahahaha')
             }
         },
         modules: {
@@ -152,10 +161,14 @@ Application
         '@test2': '@test/kkkkkkkk'
     }, true)
     .onLaunched(async (app, log) => {
-        log.info('Application %s launched', app.appName)
-        console.log('MD5(\'test\').toString():', MD5('test').toString('base64'))
-        console.log('SHA1(\'test\').toString():', SHA1('test').toString('base64'))
-        console.log('SHA256(\'test\').toString():', SHA256('test').toString('base64'))
+        // log.info('Application %s launched', app.appName)
+        // console.log('MD5(\'test\').toString():', MD5('test').toString('base64'))
+        // console.log('SHA1(\'test\').toString():', SHA1('test').toString('base64'))
+        // console.log('SHA256(\'test\').toString():', SHA256('test').toString('base64'))
+
+        const testProvider: TestProvider3 = await app.getObject('testProvider3')
+
+
         // const docker = await app.getObject<Docker>('docker')
         // const img=await docker.buildImage({
         //     dockerfile: 'TestDockerfile',
