@@ -414,6 +414,13 @@ export class Time extends Date {
     }
 
     /**
+     * Convert current time object to Date object
+     */
+    public toDate(): Date {
+        return this.#instance.toDate()
+    }
+
+    /**
      * Is current time before input time
      * @param inp
      * @param granularity
