@@ -13,6 +13,7 @@ import {isProxy} from 'node:util/types'
 import {Time} from '../../lib/core/Time.js'
 import {Logger} from '../../components/Logger.js'
 import {Application} from '../../lib/core/Application.js'
+import {GET} from '../../decorators/ctrl/http/GET.js'
 
 class TestDTO extends DTO {
     @Expect(DTO.String().optional())
@@ -48,7 +49,8 @@ export class TestController1 extends Controller {
     //     return ['hahaha', 6666]
     // })
     // @CLIAction()
-    @HTTPAction('/test', 'GET')
+    // @HTTPAction('/test', 'GET')
+    @GET('/test')
     // @ServiceAction({})
     public async test(inp) {
         setImmediate(()=>{
