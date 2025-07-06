@@ -14,6 +14,7 @@ import {Time} from '../../lib/core/Time.js'
 import {Logger} from '../../components/Logger.js'
 import {Application} from '../../lib/core/Application.js'
 import {GET} from '../../decorators/ctrl/http/GET.js'
+import {After} from '../../decorators/asst/After.js'
 
 class TestDTO extends DTO {
     @Expect(DTO.String().optional())
@@ -52,10 +53,13 @@ export class TestController1 extends Controller {
     // @HTTPAction('/test', 'GET')
     @GET('/test')
     // @ServiceAction({})
+    @After(async function (result) {
+        console.log(this.context, 'result:', result)
+    })
     public async test(inp) {
-        setImmediate(()=>{
-            this.app.reload()
-        })
+        // setImmediate(()=>{
+        //     this.app.reload()
+        // })
         return 'oh!'
     }
 
