@@ -34,9 +34,9 @@ export function Inject<ClassPrototype extends BaseObject>(transform: InjectionTr
  */
 export function Inject<ClassPrototype extends BaseObject>(name: InjectionName, transform: InjectionTransformFunction): PropertyDecorator<ClassPrototype>
 export function Inject<ClassPrototype extends BaseObject>(nameOrTransform?: InjectionName | InjectionTransformFunction, transform?: InjectionTransformFunction): PropertyDecorator<ClassPrototype> {
-    return (target: ClassPrototype, propertyKey: string | symbol) => {
+    return (target: ClassPrototype, propertyKey: string | symbol): void => {
         let injectionName: InjectionName = propertyKey
-        let injectionTransform: InjectionTransformFunction = (injection) => injection
+        let injectionTransform: InjectionTransformFunction = (injection: any): any => injection
         if (nameOrTransform || transform) {
             if (transform) {
                 injectionName = As<InjectionName>(nameOrTransform)

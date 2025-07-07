@@ -9,5 +9,5 @@ import {Schema} from '../../lib/validation/types/Schema.js'
  * @constructor
  */
 export function Expect<ClassPrototype extends DTO>(schema: Schema): PropertyDecorator<ClassPrototype> {
-    return (target: ClassPrototype, propertyKey: string | symbol) => SetObjectPropertySchema(target, propertyKey, schema)
+    return (target: ClassPrototype, propertyKey: string | symbol): void => SetObjectPropertySchema(target, propertyKey, schema)
 }

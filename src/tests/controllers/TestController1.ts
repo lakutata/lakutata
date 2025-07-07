@@ -60,7 +60,7 @@ export class TestController1 extends Controller {
         // setImmediate(()=>{
         //     this.app.reload()
         // })
-        return 'oh!'
+        return 1234
     }
 
     @HTTPAction('/test1', ['GET', 'POST'])

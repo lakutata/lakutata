@@ -9,5 +9,5 @@ import {Schema} from '../../lib/validation/types/Schema.js'
  * @constructor
  */
 export function Return<ClassPrototype, DTOConstructor extends typeof DTO, Method>(def: DTOConstructor | Schema): MethodDecorator<ClassPrototype, Method> {
-    return (target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<Method>) => SetMethodReturnValueValidator(target, propertyKey, descriptor, def)
+    return (target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<Method>): TypedPropertyDescriptor<any> => SetMethodReturnValueValidator(target, propertyKey, descriptor, def)
 }

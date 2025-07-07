@@ -10,7 +10,7 @@ import {SetObjectLifetime} from '../../lib/base/internal/ObjectLifetime.js'
  * @constructor
  */
 export function Lifetime<ClassConstructor extends typeof BaseObject>(lifetime: LifetimeType, lock: boolean = false): ClassDecorator<ClassConstructor> {
-    return (target: ClassConstructor) => SetObjectLifetime(target, lifetime, lock)
+    return (target: ClassConstructor): ClassConstructor => SetObjectLifetime(target, lifetime, lock)
 }
 
 /**
