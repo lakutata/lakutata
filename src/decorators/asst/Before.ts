@@ -7,5 +7,5 @@ import {BeforeFunction, RegisterBeforeFunction} from '../../lib/base/internal/Me
  * @constructor
  */
 export function Before<ClassPrototype extends Object, Method extends (...args: any[]) => unknown>(beforeFunc: BeforeFunction<ClassPrototype, Method>): MethodDecorator<ClassPrototype, Method> {
-    return (target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<Method>) => RegisterBeforeFunction<ClassPrototype, Method>(target, propertyKey, descriptor, beforeFunc)
+    return (target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<Method>): TypedPropertyDescriptor<Method> => RegisterBeforeFunction<ClassPrototype, Method>(target, propertyKey, descriptor, beforeFunc)
 }
