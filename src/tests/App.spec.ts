@@ -27,6 +27,7 @@ import {SHA1} from '../lib/helpers/SHA1.js'
 import {SHA256} from '../lib/helpers/SHA256.js'
 import {TestProvider2} from './providers/TestProvider2.js'
 import {TestProvider3} from './providers/TestProvider3.js'
+import {PasswordHash} from '../providers/PasswordHash.js'
 
 Application
     .env({TEST: '123'})
@@ -142,6 +143,10 @@ Application
             testProvider3: {
                 class: TestProvider3,
                 path: path.resolve('@test2', './hahahaha')
+            },
+            passwordHash: {
+                class: PasswordHash,
+                saltRounds: 3
             }
         },
         modules: {
@@ -167,7 +172,12 @@ Application
         // console.log('SHA256(\'test\').toString():', SHA256('test').toString('base64'))
 
         const testProvider: TestProvider3 = await app.getObject('testProvider3')
-
+        const ph: PasswordHash = await app.getObject('passwordHash')
+        const hashed: string = await ph.hash('test123')
+        const invalid: boolean = await ph.validate('test1234', hashed)
+        const valid: boolean = await ph.validate('test123', hashed)
+        console.log('Password invalid', invalid)
+        console.log('Password valid', valid)
 
         // const docker = await app.getObject<Docker>('docker')
         // const img=await docker.buildImage({
