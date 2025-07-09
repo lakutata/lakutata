@@ -4,5 +4,5 @@ import {MethodDecorator} from '../../../types/MethodDecorator.js'
 import {HTTPAction} from '../HTTPAction.js'
 
 export function OPTIONS<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(r: string, dtoConstructor?: DTOConstructor): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>> {
-    return dtoConstructor ? HTTPAction<ClassPrototype, Method, DTOConstructor>(r, 'OPTIONS', dtoConstructor) : HTTPAction<ClassPrototype, Method, DTOConstructor>(r, 'GET')
+    return dtoConstructor ? HTTPAction<ClassPrototype, Method, DTOConstructor>(r, 'options', dtoConstructor) : HTTPAction<ClassPrototype, Method, DTOConstructor>(r, 'options')
 }
