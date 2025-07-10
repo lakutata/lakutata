@@ -7,6 +7,13 @@ import {Configurable} from '../../decorators/di/Configurable.js'
 import {CacheStoreOptions} from './types/CacheStoreOptions.js'
 import {URLBuilder} from '../../lib/helpers/URLBuilder.js'
 import {As} from '../../lib/helpers/As.js'
+import {CreateFileCacheAdapter} from './adapters/CreateFileCacheAdapter.js'
+import {CreateRedisCacheAdapter} from './adapters/CreateRedisCacheAdapter.js'
+import {CreateMemcacheCacheAdapter} from './adapters/CreateMemcacheCacheAdapter.js'
+import {CreateMongoCacheAdapter} from './adapters/CreateMongoCacheAdapter.js'
+import {CreateSqliteCacheAdapter} from './adapters/CreateSqliteCacheAdapter.js'
+import {CreatePostgresCacheAdapter} from './adapters/CreatePostgresCacheAdapter.js'
+import {CreateMysqlCacheAdapter} from './adapters/CreateMysqlCacheAdapter.js'
 
 export const BuildCacherOptions: (options?: CacherOptions) => {
     class: typeof Cacher,
@@ -49,189 +56,27 @@ export class Cacher extends Component {
     protected async init(): Promise<void> {
         // let stores: Keyv[] | undefined = undefined
         const storeConfigs: CacheStoreOptions[] = this.options?.stores ? Array.isArray(this.options.stores) ? this.options.stores : [this.options.stores] : []
-        let stores: Keyv[] | undefined = await Promise.all(storeConfigs.map((storeOptions: CacheStoreOptions): Promise<Keyv> => {
+        const storeAdapters: (Keyv | undefined)[] = await Promise.all(storeConfigs.map((storeOptions: CacheStoreOptions): Promise<Keyv> | undefined => {
             switch (storeOptions.type) {
-                case 'file': {
-                    return new Promise((resolve, reject) => {
-                        try {
-                            return resolve(new Keyv({
-                                store: new KeyvFile({
-                                    filename: storeOptions.filename,
-                                    expiredCheckDelay: storeOptions.expiredCheckDelay,
-                                    writeDelay: storeOptions.writeDelay
-                                }),
-                                namespace: storeOptions.namespace
-                            }))
-                        } catch (e) {
-                            return reject(e)
-                        }
-                    })
-                }
-                case 'redis': {
-                    return new Promise(async (resolve, reject) => {
-                        try {
-                            require.resolve('redis')
-                        } catch (e) {
-                            return reject(new Error('Node-Redis package is required for this driver. Run "npm install redis".'))
-                        }
-                        try {
-                            const KeyvRedis = (await import('@keyv/redis')).default
-                            return resolve(new Keyv({
-                                store: new KeyvRedis({
-                                    username: storeOptions.username,
-                                    password: storeOptions.password,
-                                    database: storeOptions.database,
-                                    socket: {
-                                        host: storeOptions.host,
-                                        port: storeOptions.port,
-                                        tls: storeOptions.tls,
-                                        keepAlive: storeOptions.keepAlive,
-                                        reconnectStrategy: storeOptions.reconnect ? 10 : false
-                                    }
-                                }, {
-                                    namespace: storeOptions.namespace,
-                                    keyPrefixSeparator: storeOptions.keyPrefixSeparator,
-                                    clearBatchSize: storeOptions.clearBatchSize,
-                                    useUnlink: storeOptions.useUnlink,
-                                    noNamespaceAffectsAll: storeOptions.noNamespaceAffectsAll,
-                                    connectionTimeout: storeOptions.connectTimeout,
-                                    throwOnConnectError: storeOptions.throwOnConnectError
-                                }), namespace: storeOptions.namespace
-                            }))
-                        } catch (e) {
-                            return reject(e)
-                        }
-                    })
-                }
-                case 'memcache': {
-                    return new Promise(async (resolve, reject) => {
-                        try {
-                            require.resolve('memjs')
-                        } catch (e) {
-                            return reject(new Error('MemJS package is required for this driver. Run "npm install memjs".'))
-                        }
-                        try {
-                            const KeyvMemcache = (await import('@keyv/memcache')).KeyvMemcache
-                            const memcacheURLBuilder: URLBuilder = new URLBuilder()
-                            memcacheURLBuilder.host = storeOptions.host
-                            memcacheURLBuilder.port = storeOptions.port
-                            memcacheURLBuilder.username = storeOptions.username
-                            memcacheURLBuilder.password = storeOptions.password
-                            return resolve(new Keyv({
-                                store: new KeyvMemcache(memcacheURLBuilder.toString()),
-                                namespace: storeOptions.namespace
-                            }))
-                        } catch (e) {
-                            return reject(e)
-                        }
-                    })
-                }
-                case 'mongo': {
-                    return new Promise(async (resolve, reject) => {
-                        try {
-                            require.resolve('mongodb')
-                        } catch (e) {
-                            return reject(new Error('MongoDB package is required for this driver. Run "npm install mongodb".'))
-                        }
-                        try {
-                            const KeyvMongo = (await import('@keyv/mongo')).KeyvMongo
-                            const mongoURLBuilder: URLBuilder = new URLBuilder()
-                            mongoURLBuilder.protocol = 'mongodb'
-                            mongoURLBuilder.host = storeOptions.host
-                            mongoURLBuilder.port = storeOptions.port
-                            mongoURLBuilder.username = storeOptions.username
-                            mongoURLBuilder.password = storeOptions.password
-                            return resolve(new Keyv({
-                                store: new KeyvMongo(mongoURLBuilder.toString(), {
-                                    db: storeOptions.database,
-                                    namespace: storeOptions.namespace,
-                                    collection: storeOptions.collection
-                                }), namespace: storeOptions.namespace
-                            }))
-                        } catch (e) {
-                            return reject(e)
-                        }
-                    })
-                }
-                case 'sqlite': {
-                    return new Promise(async (resolve, reject) => {
-                        try {
-                            require.resolve('sqlite3')
-                        } catch (e) {
-                            return reject(new Error('SQLite3 package is required for this driver. Run "npm install sqlite3".'))
-                        }
-                        try {
-                            const KeyvSqlite = (await import('@keyv/sqlite')).KeyvSqlite
-                            const sqliteURLBuilder: URLBuilder = new URLBuilder()
-                            sqliteURLBuilder.protocol = 'sqlite'
-                            sqliteURLBuilder.pathname = storeOptions.database
-                            return resolve(new Keyv({
-                                store: new KeyvSqlite({
-                                    uri: sqliteURLBuilder.toString(),
-                                    table: storeOptions.table,
-                                    busyTimeout: storeOptions.busyTimeout
-                                }), namespace: storeOptions.namespace
-                            }))
-                        } catch (e) {
-                            return reject(e)
-                        }
-                    })
-                }
-                case 'postgres': {
-                    return new Promise(async (resolve, reject) => {
-                        try {
-                            require.resolve('pg')
-                        } catch (e) {
-                            return reject(new Error('Node-Postgres package is required for this driver. Run "npm install pg".'))
-                        }
-                        try {
-                            const KeyvPostgres = (await import('@keyv/postgres')).KeyvPostgres
-                            const postgresURLBuilder: URLBuilder = new URLBuilder()
-                            postgresURLBuilder.protocol = 'postgresql'
-                            postgresURLBuilder.host = storeOptions.host
-                            postgresURLBuilder.port = storeOptions.port
-                            postgresURLBuilder.username = storeOptions.username
-                            postgresURLBuilder.password = storeOptions.password
-                            postgresURLBuilder.pathname = storeOptions.database
-                            return resolve(new Keyv({
-                                store: new KeyvPostgres({
-                                    uri: postgresURLBuilder.toString(),
-                                    table: storeOptions.table,
-                                    schema: storeOptions.schema,
-                                    max: storeOptions.maxPoolSize
-                                }), namespace: storeOptions.namespace
-                            }))
-                        } catch (e) {
-                            return reject(e)
-                        }
-                    })
-                }
-                case 'mysql': {
-                    return new Promise(async (resolve, reject) => {
-                        try {
-                            require.resolve('mysql2')
-                        } catch (e) {
-                            return reject(new Error('MySQL2 package is required for this driver. Run "npm install mysql2".'))
-                        }
-                        try {
-                            const KeyvMysql = (await import('@keyv/mysql')).KeyvMysql
-                            return resolve(new Keyv({
-                                store: new KeyvMysql({
-                                    host: storeOptions.host,
-                                    port: storeOptions.port,
-                                    user: storeOptions.username,
-                                    password: storeOptions.password,
-                                    database: storeOptions.database,
-                                    table: storeOptions.table
-                                }), namespace: storeOptions.namespace
-                            }))
-                        } catch (e) {
-                            return reject(e)
-                        }
-                    })
-                }
+                case 'file':
+                    return CreateFileCacheAdapter(storeOptions)
+                case 'redis':
+                    return CreateRedisCacheAdapter(storeOptions)
+                case 'memcache':
+                    return CreateMemcacheCacheAdapter(storeOptions)
+                case 'mongo':
+                    return CreateMongoCacheAdapter(storeOptions)
+                case 'sqlite':
+                    return CreateSqliteCacheAdapter(storeOptions)
+                case 'postgres':
+                    return CreatePostgresCacheAdapter(storeOptions)
+                case 'mysql':
+                    return CreateMysqlCacheAdapter(storeOptions)
+                default:
+                    return undefined
             }
         }))
+        let stores: Keyv[] | undefined = storeAdapters.filter((storeAdapter: Keyv | undefined): storeAdapter is Keyv => !!storeAdapter)
         if (!stores.length) stores = undefined
 
         // for (const storeOptions of storeConfigs) {
