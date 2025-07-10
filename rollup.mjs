@@ -282,6 +282,10 @@ const generateJsBundleOptions = (format) => {
             resolve({
                 browser: false,
                 preferBuiltins: true
+                // preferBuiltins: (module) => {
+                //     console.log('module:', module)
+                //     return true
+                // }
             }),
             commonjs({
                 ignore: (id) => {
