@@ -52,7 +52,6 @@ export class Cacher extends Component {
     protected cache: Cache
 
     protected async init(): Promise<void> {
-        // let stores: Keyv[] | undefined = undefined
         const storeConfigs: CacheStoreOptions[] = this.options?.stores ? Array.isArray(this.options.stores) ? this.options.stores : [this.options.stores] : []
         const storeAdapters: (Keyv | undefined)[] = await Promise.all(storeConfigs.map((storeOptions: CacheStoreOptions): Promise<Keyv> | undefined => {
             switch (storeOptions.type) {
@@ -74,168 +73,10 @@ export class Cacher extends Component {
                     return undefined
             }
         }))
-        let stores: Keyv[] | undefined = storeAdapters.filter((storeAdapter: Keyv | undefined): storeAdapter is Keyv => !!storeAdapter)
-        if (!stores.length) stores = undefined
-
-        // for (const storeOptions of storeConfigs) {
-        //     switch (storeOptions.type) {
-        //         case 'file': {
-        //             if (!stores) stores = []
-        //             stores.push(new Keyv({
-        //                 store: new KeyvFile({
-        //                     filename: storeOptions.filename,
-        //                     expiredCheckDelay: storeOptions.expiredCheckDelay,
-        //                     writeDelay: storeOptions.writeDelay
-        //                 }),
-        //                 namespace: storeOptions.namespace
-        //             }))
-        //         }
-        //             break
-        //         case 'redis': {
-        //             try {
-        //                 require.resolve('redis')
-        //             } catch (e) {
-        //                 throw new Error('Node-Redis package is required for this driver. Run "npm install redis".')
-        //             }
-        //             if (!stores) stores = []
-        //             const KeyvRedis = (await import('@keyv/redis')).default
-        //             stores.push(new Keyv({
-        //                 store: new KeyvRedis({
-        //                     username: storeOptions.username,
-        //                     password: storeOptions.password,
-        //                     database: storeOptions.database,
-        //                     socket: {
-        //                         host: storeOptions.host,
-        //                         port: storeOptions.port,
-        //                         tls: storeOptions.tls,
-        //                         keepAlive: storeOptions.keepAlive,
-        //                         reconnectStrategy: storeOptions.reconnect ? 10 : false
-        //                     }
-        //                 }, {
-        //                     namespace: storeOptions.namespace,
-        //                     keyPrefixSeparator: storeOptions.keyPrefixSeparator,
-        //                     clearBatchSize: storeOptions.clearBatchSize,
-        //                     useUnlink: storeOptions.useUnlink,
-        //                     noNamespaceAffectsAll: storeOptions.noNamespaceAffectsAll,
-        //                     connectionTimeout: storeOptions.connectTimeout,
-        //                     throwOnConnectError: storeOptions.throwOnConnectError
-        //                 }), namespace: storeOptions.namespace
-        //             }))
-        //         }
-        //             break
-        //         case 'memcache': {
-        //             try {
-        //                 require.resolve('memjs')
-        //             } catch (e) {
-        //                 throw new Error('MemJS package is required for this driver. Run "npm install memjs".')
-        //             }
-        //             if (!stores) stores = []
-        //             const KeyvMemcache = (await import('@keyv/memcache')).KeyvMemcache
-        //             const memcacheURLBuilder: URLBuilder = new URLBuilder()
-        //             memcacheURLBuilder.host = storeOptions.host
-        //             memcacheURLBuilder.port = storeOptions.port
-        //             memcacheURLBuilder.username = storeOptions.username
-        //             memcacheURLBuilder.password = storeOptions.password
-        //             stores.push(new Keyv({
-        //                 store: new KeyvMemcache(memcacheURLBuilder.toString()),
-        //                 namespace: storeOptions.namespace
-        //             }))
-        //         }
-        //             break
-        //         case 'mongo': {
-        //             try {
-        //                 require.resolve('mongodb')
-        //             } catch (e) {
-        //                 throw new Error('MongoDB package is required for this driver. Run "npm install mongodb".')
-        //             }
-        //             if (!stores) stores = []
-        //             const KeyvMongo = (await import('@keyv/mongo')).KeyvMongo
-        //             const mongoURLBuilder: URLBuilder = new URLBuilder()
-        //             mongoURLBuilder.protocol = 'mongodb'
-        //             mongoURLBuilder.host = storeOptions.host
-        //             mongoURLBuilder.port = storeOptions.port
-        //             mongoURLBuilder.username = storeOptions.username
-        //             mongoURLBuilder.password = storeOptions.password
-        //             stores.push(new Keyv({
-        //                 store: new KeyvMongo(mongoURLBuilder.toString(), {
-        //                     db: storeOptions.database,
-        //                     namespace: storeOptions.namespace,
-        //                     collection: storeOptions.collection
-        //                 }), namespace: storeOptions.namespace
-        //             }))
-        //         }
-        //             break
-        //         case 'sqlite': {
-        //             try {
-        //                 require.resolve('sqlite3')
-        //             } catch (e) {
-        //                 throw new Error('SQLite3 package is required for this driver. Run "npm install sqlite3".')
-        //             }
-        //             if (!stores) stores = []
-        //             const KeyvSqlite = (await import('@keyv/sqlite')).KeyvSqlite
-        //             const sqliteURLBuilder: URLBuilder = new URLBuilder()
-        //             sqliteURLBuilder.protocol = 'sqlite'
-        //             sqliteURLBuilder.pathname = storeOptions.database
-        //             stores.push(new Keyv({
-        //                 store: new KeyvSqlite({
-        //                     uri: sqliteURLBuilder.toString(),
-        //                     table: storeOptions.table,
-        //                     busyTimeout: storeOptions.busyTimeout
-        //                 }), namespace: storeOptions.namespace
-        //             }))
-        //         }
-        //             break
-        //         case 'postgres': {
-        //             try {
-        //                 require.resolve('pg')
-        //             } catch (e) {
-        //                 throw new Error('Node-Postgres package is required for this driver. Run "npm install pg".')
-        //             }
-        //             if (!stores) stores = []
-        //             const KeyvPostgres = (await import('@keyv/postgres')).KeyvPostgres
-        //             const postgresURLBuilder: URLBuilder = new URLBuilder()
-        //             postgresURLBuilder.protocol = 'postgresql'
-        //             postgresURLBuilder.host = storeOptions.host
-        //             postgresURLBuilder.port = storeOptions.port
-        //             postgresURLBuilder.username = storeOptions.username
-        //             postgresURLBuilder.password = storeOptions.password
-        //             postgresURLBuilder.pathname = storeOptions.database
-        //             stores.push(new Keyv({
-        //                 store: new KeyvPostgres({
-        //                     uri: postgresURLBuilder.toString(),
-        //                     table: storeOptions.table,
-        //                     schema: storeOptions.schema,
-        //                     max: storeOptions.maxPoolSize
-        //                 }), namespace: storeOptions.namespace
-        //             }))
-        //         }
-        //             break
-        //         case 'mysql': {
-        //             try {
-        //                 require.resolve('mysql2')
-        //             } catch (e) {
-        //                 throw new Error('MySQL2 package is required for this driver. Run "npm install mysql2".')
-        //             }
-        //             if (!stores) stores = []
-        //             const KeyvMysql = (await import('@keyv/mysql')).KeyvMysql
-        //             stores.push(new Keyv({
-        //                 store: new KeyvMysql({
-        //                     host: storeOptions.host,
-        //                     port: storeOptions.port,
-        //                     user: storeOptions.username,
-        //                     password: storeOptions.password,
-        //                     database: storeOptions.database,
-        //                     table: storeOptions.table
-        //                 }), namespace: storeOptions.namespace
-        //             }))
-        //         }
-        //             break
-        //     }
-        // }
-
+        const stores: Keyv[] | undefined = storeAdapters.filter((storeAdapter: Keyv | undefined): storeAdapter is Keyv => !!storeAdapter)
         this.cache = createCache({
             ...this.options,
-            stores: stores
+            stores: stores.length ? stores : undefined
         })
         this.cache.on('set', (data) => this.emit('set', data))
         this.cache.on('del', (data) => this.emit('del', data))
