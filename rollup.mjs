@@ -305,6 +305,14 @@ const generateJsBundleOptions = (format) => {
             esmShim()
         ],
         external: [
+            'mysql2',
+            'pg',
+            'sqlite3',
+            'mongodb',
+            'memjs',
+            '@redis/client',
+            'cluster-key-slot',
+            'redis',
             ...builtinModules,
             /\.node$/
         ]
