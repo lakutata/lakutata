@@ -38,7 +38,6 @@ export abstract class Exception extends Error {
             }
         } else {
             //Empty message
-            // const message: string = CamelCase(this.name, {delimiter: ' '}).toLowerCase()
             const message: string = CamelCase(this.name).toLowerCase()
             this.message = `${message.charAt(0).toUpperCase()}${message.slice(1)}`
         }
