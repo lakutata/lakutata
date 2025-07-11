@@ -1,13 +1,10 @@
 import Keyv from 'keyv'
 import {PostgresCacheOptions} from '../options/PostgresCacheOptions.js'
 import {URLBuilder} from '../../../lib/helpers/URLBuilder.js'
+import {IsDriverPackageInstalled} from '../lib/IsDriverPackageInstalled.js'
 
 export async function CreatePostgresCacheAdapter(storeOptions: PostgresCacheOptions): Promise<Keyv> {
-    try {
-        require.resolve('pg')
-    } catch (e) {
-        throw new Error('Node-Postgres package is required for this driver. Run "npm install pg".')
-    }
+    IsDriverPackageInstalled('pg')
     const KeyvPostgres = (await import('@keyv/postgres')).KeyvPostgres
     const postgresURLBuilder: URLBuilder = new URLBuilder()
     postgresURLBuilder.protocol = 'postgresql'

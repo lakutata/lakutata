@@ -1,12 +1,9 @@
 import Keyv from 'keyv'
 import {MysqlCacheOptions} from '../options/MysqlCacheOptions.js'
+import {IsDriverPackageInstalled} from '../lib/IsDriverPackageInstalled.js'
 
 export async function CreateMysqlCacheAdapter(storeOptions: MysqlCacheOptions): Promise<Keyv> {
-    try {
-        require.resolve('mysql2')
-    } catch (e) {
-        throw new Error('MySQL2 package is required for this driver. Run "npm install mysql2".')
-    }
+    IsDriverPackageInstalled('mysql2')
     const KeyvMysql = (await import('@keyv/mysql')).KeyvMysql
     return new Keyv({
         store: new KeyvMysql({

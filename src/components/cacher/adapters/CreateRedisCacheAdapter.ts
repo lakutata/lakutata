@@ -1,12 +1,9 @@
 import Keyv from 'keyv'
 import {RedisCacheOptions} from '../options/RedisCacheOptions.js'
+import {IsDriverPackageInstalled} from '../lib/IsDriverPackageInstalled.js'
 
 export async function CreateRedisCacheAdapter(storeOptions: RedisCacheOptions): Promise<Keyv> {
-    try {
-        require.resolve('redis')
-    } catch (e) {
-        throw new Error('Node-Redis package is required for this driver. Run "npm install redis".')
-    }
+    IsDriverPackageInstalled('redis')
     const KeyvRedis = (await import('@keyv/redis')).default
     return new Keyv({
         store: new KeyvRedis({

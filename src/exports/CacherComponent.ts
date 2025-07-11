@@ -13,3 +13,5 @@ export * from '../components/cacher/options/SqliteCacheOptions.js'
 
 export * from '../components/cacher/types/CacheStoreOptions.js'
 
+export * from '../components/cacher/exceptions/CacheDriverNotFoundException.js'
+

@@ -1,13 +1,10 @@
 import Keyv from 'keyv'
 import {MongoCacheOptions} from '../options/MongoCacheOptions.js'
 import {URLBuilder} from '../../../lib/helpers/URLBuilder.js'
+import {IsDriverPackageInstalled} from '../lib/IsDriverPackageInstalled.js'
 
 export async function CreateMongoCacheAdapter(storeOptions: MongoCacheOptions): Promise<Keyv> {
-    try {
-        require.resolve('mongodb')
-    } catch (e) {
-        throw new Error('MongoDB package is required for this driver. Run "npm install mongodb".')
-    }
+    IsDriverPackageInstalled('mongodb')
     const KeyvMongo = (await import('@keyv/mongo')).KeyvMongo
     const mongoURLBuilder: URLBuilder = new URLBuilder()
     mongoURLBuilder.protocol = 'mongodb'
