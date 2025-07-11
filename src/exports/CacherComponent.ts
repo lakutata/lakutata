@@ -2,7 +2,8 @@ import 'reflect-metadata'
 
 export * from '../components/cacher/Cacher.js'
 
-export * from '../components/cacher/options/CacherOptions.js'
+export * from '../components/cacher/interfaces/CacherOptions.js'
+
 export * from '../components/cacher/options/FileCacheOptions.js'
 export * from '../components/cacher/options/MemcacheCacheOptions.js'
 export * from '../components/cacher/options/MongoCacheOptions.js'

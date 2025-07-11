@@ -1,6 +1,6 @@
 import {Cache, createCache} from 'cache-manager'
 import Keyv from 'keyv'
-import {CacherOptions} from './options/CacherOptions.js'
+import {CacherOptions} from './interfaces/CacherOptions.js'
 import {Component} from '../../lib/core/Component.js'
 import {Configurable} from '../../decorators/di/Configurable.js'
 import {CacheStoreOptions} from './types/CacheStoreOptions.js'
