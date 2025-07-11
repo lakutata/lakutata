@@ -83,22 +83,22 @@ export class Cacher extends Component {
             MysqlCacheOptions.Schema()
         ).optional()
     )
-    public stores?: CacheStoreOptions[] | CacheStoreOptions
+    protected readonly stores?: CacheStoreOptions[] | CacheStoreOptions
 
     @Configurable(DTO.Number().positive().integer().optional())
-    public ttl?: number
+    protected readonly ttl?: number
 
     @Configurable(DTO.Number().positive().integer().optional())
-    public refreshThreshold?: number
+    protected readonly refreshThreshold?: number
 
     @Configurable(DTO.Boolean().optional())
-    public refreshAllStores?: boolean
+    protected readonly refreshAllStores?: boolean
 
     @Configurable(DTO.Boolean().optional())
-    public nonBlocking?: boolean
+    protected readonly nonBlocking?: boolean
 
     @Configurable(DTO.String().optional())
-    public cacheId?: string
+    protected readonly cacheId?: string
 
     protected cache: Cache
 
@@ -131,7 +131,7 @@ export class Cacher extends Component {
             refreshThreshold: this.refreshThreshold,
             refreshAllStores: this.refreshAllStores,
             nonBlocking: this.nonBlocking,
-            cacheId: this.cacheId
+            cacheId: this.cacheId || this.$uuid
         })
         this.cache.on('set', (data) => this.emit('set', data))
         this.cache.on('del', (data) => this.emit('del', data))
