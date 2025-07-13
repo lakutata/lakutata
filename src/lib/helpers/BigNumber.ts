@@ -12,4 +12,8 @@ export class BigNumber extends BigNumberJs {
     constructor(n: BigNumberValue, base?: number) {
         super(n, base)
     }
+
+    public abs(): BigNumber {
+        return super.abs()
+    }
 }
