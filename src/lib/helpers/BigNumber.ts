@@ -1,8 +1,11 @@
-import BigNumber from 'bignumber.js'
-import * as util from 'node:util'
+import Bignumber from 'bignumber.js'
 
-// export class BigNumber {
-//
-// }
+function BigNumber() {
+
+}
+
+BigNumber.min = function (...n: any[]): BigNumber {
+    return new BigNumber()
+}
 
 export {BigNumber}
