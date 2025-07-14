@@ -1,3 +1,4 @@
-import BigNumber from 'bn.js'
+import BN from 'bn.js'
 
-export {BigNumber}
+export class BigNumber extends BN {
+}
