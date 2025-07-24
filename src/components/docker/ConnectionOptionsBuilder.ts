@@ -4,22 +4,24 @@ import {IDockerSocketConnectionOptions} from './interfaces/IDockerSocketConnecti
 import {IDockerHttpConnectionOptions} from './interfaces/IDockerHttpConnectionOptions.js'
 import {IDockerHttpsConnectionOptions} from './interfaces/IDockerHttpsConnectionOptions.js'
 import {IDockerSSHConnectionOptions} from './interfaces/IDockerSSHConnectionOptions.js'
+import {ComponentOptions, ComponentOptionsBuilder} from '../../types/ComponentOptions.js'
 
 /**
  * Build docker config
  * @param options
  * @constructor
  */
-export const BuildDockerConnectionConfig: (options: IDockerConnectionOptions) => IDockerConnectionOptions = (options: IDockerConnectionOptions) => ({
+export const BuildDockerConnectionOptions: ComponentOptionsBuilder<IDockerConnectionOptions> = (options: IDockerConnectionOptions): ComponentOptions<IDockerConnectionOptions> => ({
     ...options,
     class: Docker
 })
+
 /**
  * Build docker socket config
  * @param options
  * @constructor
  */
-export const BuildDockerSocketConnectionConfig: (options: IDockerSocketConnectionOptions) => IDockerConnectionOptions = (options: IDockerSocketConnectionOptions) => ({
+export const BuildDockerSocketConnectionOptions: ComponentOptionsBuilder<IDockerConnectionOptions> = (options: IDockerSocketConnectionOptions): ComponentOptions<IDockerSocketConnectionOptions> => ({
     ...options,
     class: Docker
 })
@@ -29,7 +31,7 @@ export const BuildDockerSocketConnectionConfig: (options: IDockerSocketConnectio
  * @param options
  * @constructor
  */
-export const BuildDockerHttpConnectionConfig: (options: IDockerHttpConnectionOptions) => IDockerConnectionOptions = (options: IDockerHttpConnectionOptions) => ({
+export const BuildDockerHttpConnectionOptions: ComponentOptionsBuilder<IDockerHttpConnectionOptions> = (options: IDockerHttpConnectionOptions): ComponentOptions<IDockerHttpConnectionOptions> => ({
     ...options,
     protocol: 'http',
     class: Docker
@@ -39,7 +41,7 @@ export const BuildDockerHttpConnectionConfig: (options: IDockerHttpConnectionOpt
  * @param options
  * @constructor
  */
-export const BuildDockerHttpsConnectionConfig: (options: IDockerHttpsConnectionOptions) => IDockerConnectionOptions = (options: IDockerHttpsConnectionOptions) => ({
+export const BuildDockerHttpsConnectionOptions: ComponentOptionsBuilder<IDockerHttpsConnectionOptions> = (options: IDockerHttpsConnectionOptions): ComponentOptions<IDockerHttpsConnectionOptions> => ({
     ...options,
     protocol: 'https',
     class: Docker
@@ -49,7 +51,7 @@ export const BuildDockerHttpsConnectionConfig: (options: IDockerHttpsConnectionO
  * @param options
  * @constructor
  */
-export const BuildDockerSSHConnectionConfig: (options: IDockerSSHConnectionOptions) => IDockerConnectionOptions = (options: IDockerSSHConnectionOptions) => ({
+export const BuildDockerSSHConnectionOptions: ComponentOptionsBuilder<IDockerSSHConnectionOptions> = (options: IDockerSSHConnectionOptions): ComponentOptions<IDockerSSHConnectionOptions> => ({
     ...options,
     protocol: 'ssh',
     class: Docker

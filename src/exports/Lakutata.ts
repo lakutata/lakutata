@@ -55,6 +55,10 @@ export * from '../types/ClassDecorator.js'
 export * from '../types/MethodDecorator.js'
 export * from '../types/ParameterDecorator.js'
 export * from '../types/PropertyDecorator.js'
+export * from '../types/ObjectOptions.js'
+export * from '../types/ProviderOptions.js'
+export * from '../types/ComponentOptions.js'
+export * from '../types/ModuleOptions.js'
 
 /**
  * Interfaces
@@ -62,7 +66,3 @@ export * from '../types/PropertyDecorator.js'
 export * from '../interfaces/IBaseObjectConstructor.js'
 export * from '../interfaces/IConstructor.js'
 export * from '../interfaces/IPatRun.js'
-export * from '../interfaces/IObjectOptions.js'
-export * from '../interfaces/IProviderOptions.js'
-export * from '../interfaces/IComponentOptions.js'
-export * from '../interfaces/IModuleOptions.js'

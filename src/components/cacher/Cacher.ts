@@ -20,16 +20,9 @@ import {MongoCacheOptions} from './options/MongoCacheOptions.js'
 import {SqliteCacheOptions} from './options/SqliteCacheOptions.js'
 import {PostgresCacheOptions} from './options/PostgresCacheOptions.js'
 import {MysqlCacheOptions} from './options/MysqlCacheOptions.js'
+import {ComponentOptions, ComponentOptionsBuilder} from '../../types/ComponentOptions.js'
 
-export const BuildCacherOptions: (options?: CacherOptions) => {
-    class: typeof Cacher,
-    stores?: CacheStoreOptions[] | CacheStoreOptions
-    ttl?: number
-    refreshThreshold?: number
-    refreshAllStores?: boolean
-    nonBlocking?: boolean
-    cacheId?: string
-} = (options?: CacherOptions) => ({
+export const BuildCacherOptions: ComponentOptionsBuilder<CacherOptions> = (options?: CacherOptions): ComponentOptions<CacherOptions> => ({
     class: Cacher,
     stores: options?.stores,
     ttl: options?.ttl,

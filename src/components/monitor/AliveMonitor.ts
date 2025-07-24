@@ -2,6 +2,14 @@ import {createServer, IncomingMessage, Server, ServerResponse} from 'node:http'
 import {Component} from '../../lib/core/Component.js'
 import {Configurable} from '../../decorators/di/Configurable.js'
 import {DTO} from '../../lib/core/DTO.js'
+import {ComponentOptions, ComponentOptionsBuilder} from '../../types/ComponentOptions.js'
+
+export const buildAliveMonitorOptions: ComponentOptionsBuilder<{ port: number }> = (options: {
+    port: number
+}): ComponentOptions<{ port: number }> => ({
+    class: AliveMonitor,
+    port: options.port
+})
 
 export class AliveMonitor extends Component {
     @Configurable(DTO.Number().port().required())
