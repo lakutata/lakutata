@@ -290,7 +290,7 @@ export class Container {
             class: target,
             [OBJECT_ID]: name
         }])
-        return await this.get(target)
+        return await this.get(name)
     }
 
     /**
