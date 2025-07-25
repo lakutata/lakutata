@@ -279,6 +279,21 @@ export class Container {
     }
 
     /**
+     * Builds a named instance of a base object class by injecting dependencies, and registering it in the container
+     * @param name
+     * @param target
+     * @param configurableRecords
+     */
+    public async setNamed<T extends BaseObject>(name: string | symbol, target: IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
+        await this.load([{
+            ...configurableRecords,
+            class: target,
+            [OBJECT_ID]: name
+        }])
+        return await this.get(target)
+    }
+
+    /**
      * Register base object class in the container
      * @param target
      * @param configurableRecords
@@ -287,6 +302,20 @@ export class Container {
         await this.load([{
             ...configurableRecords,
             class: target
+        }])
+    }
+
+    /**
+     * Register named base object class in the container
+     * @param name
+     * @param target
+     * @param configurableRecords
+     */
+    public async registerNamed<T extends BaseObject>(name: string | symbol, target: IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<void> {
+        await this.load([{
+            ...configurableRecords,
+            class: target,
+            [OBJECT_ID]: name
         }])
     }
 
