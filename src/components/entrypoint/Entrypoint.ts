@@ -29,6 +29,7 @@ import {DuplicateActionNameException} from './exceptions/DuplicateActionNameExce
 import {AccessControl} from './lib/AccessControl.js'
 import {ContextType} from '../../lib/base/Context.js'
 import {AccessControlRule} from './lib/AccessControlRule.js'
+import {InvalidActionGroupException} from './exceptions/InvalidActionGroupException.js'
 
 export {ContextType, BaseContext} from '../../lib/base/Context.js'
 export {CLIContext} from '../../lib/context/CLIContext.js'
@@ -50,10 +51,13 @@ export type EntrypointDestroyer = () => void | Promise<void>
 export type EntrypointDestroyerRegistrar = (destroyer: EntrypointDestroyer) => void
 
 export type EntrypointOptions = {
-    rules?: IBaseObjectConstructor<AccessControlRule>[]
     controllers: IBaseObjectConstructor<Controller>[]
+    rules?: IBaseObjectConstructor<AccessControlRule>[]
+    cliActionGroups?: Record<string, string>
     cli?: CLIEntrypoint | CLIEntrypoint[]
+    httpActionGroups?: Record<string, string>
     http?: HTTPEntrypoint | HTTPEntrypoint[]
+    serviceActionGroups?: Record<string, string>
     service?: ServiceEntrypoint | ServiceEntrypoint[]
 }
 
@@ -141,6 +145,15 @@ export class Entrypoint extends Component {
     @Configurable(DTO.Array(DTO.Class(AccessControlRule)).optional().default([]))
     protected readonly rules: IBaseObjectConstructor<AccessControlRule>[]
 
+    @Configurable(DTO.Object().pattern(DTO.String(), DTO.String()).optional().default({}))
+    protected readonly cliActionGroups: Record<string, string>
+
+    @Configurable(DTO.Object().pattern(DTO.String(), DTO.String()).optional().default({}))
+    protected readonly httpActionGroups: Record<string, string>
+
+    @Configurable(DTO.Object().pattern(DTO.String(), DTO.String()).optional().default({}))
+    protected readonly serviceActionGroups: Record<string, string>
+
     @Configurable()
     protected readonly cli?: CLIEntrypoint | CLIEntrypoint[]
 
@@ -205,6 +218,21 @@ export class Entrypoint extends Component {
         this.register(this.service, (entrypoint: ServiceEntrypoint): void => this.registerServiceEntrypoint(entrypoint))
         this.register(this.cli, (entrypoint: CLIEntrypoint): void => this.registerCLIEntrypoint(entrypoint))
         this.register(this.http, (entrypoint: HTTPEntrypoint): void => this.registerHTTPEntrypoint(entrypoint))
+        const invalidCliActionGroupIds: string[] = this.findInvalidActionGroupIds(this.cliActionInfoMap, 'cli')
+        if (invalidCliActionGroupIds.length) throw new InvalidActionGroupException('Found {type} action groups are not defined in cliActionGroups: {groupIds}', {
+            type: 'CLI',
+            groupIds: invalidCliActionGroupIds
+        })
+        const invalidHttpActionGroupIds: string[] = this.findInvalidActionGroupIds(this.httpActionInfoMap, 'http')
+        if (invalidHttpActionGroupIds.length) throw new InvalidActionGroupException('Found {type} action groups are not defined in httpActionGroups: {groupIds}', {
+            type: 'HTTP',
+            groupIds: invalidHttpActionGroupIds
+        })
+        const invalidServiceActionGroupIds: string[] = this.findInvalidActionGroupIds(this.serviceActionInfoMap, 'service')
+        if (invalidServiceActionGroupIds.length) throw new InvalidActionGroupException('Found {type} action groups are not defined in serviceActionGroups: {groupIds}', {
+            type: 'Service',
+            groupIds: invalidServiceActionGroupIds
+        })
         const duplicateCliActionNames: string[] = this.findDuplicateActionNames(this.cliActionInfoMap)
         if (duplicateCliActionNames.length) throw new DuplicateActionNameException('Duplicate {type} action names found: {names}', {
             type: 'CLI',
@@ -225,25 +253,70 @@ export class Entrypoint extends Component {
     /**
      * Http action info getter
      * @constructor
+     * @protected
      */
-    public get HTTP_ACTIONS(): HTTPActionInfo[] {
+    protected get HTTP_ACTIONS(): HTTPActionInfo[] {
         return [...this.httpActionInfoMap.values()]
     }
 
     /**
      * Service action info getter
      * @constructor
+     * @protected
      */
-    public get SERVICE_ACTIONS(): ServiceActionInfo[] {
+    protected get SERVICE_ACTIONS(): ServiceActionInfo[] {
         return [...this.serviceActionInfoMap.values()]
     }
 
     /**
      * Cli action info getter
      * @constructor
+     * @protected
      */
-    public get CLI_ACTIONS(): CLIActionInfo[] {
+    protected get CLI_ACTIONS(): CLIActionInfo[] {
         return [...this.cliActionInfoMap.values()]
+    }
+
+    /**
+     * Get HTTP action groups
+     */
+    public getHttpActionGroups(): Record<string, string> {
+        return this.httpActionGroups
+    }
+
+    /**
+     * Get Service action groups
+     */
+    public getServiceActionGroups(): Record<string, string> {
+        return this.serviceActionGroups
+    }
+
+    /**
+     * Get CLI action groups
+     */
+    public getCliActionGroups(): Record<string, string> {
+        return this.cliActionGroups
+    }
+
+    /**
+     * Get HTTP actions
+     */
+    public getHttpActions(): HTTPActionInfo[] {
+        return this.HTTP_ACTIONS
+    }
+
+    /**
+     * Get Service actions
+     */
+    public getServiceActions(): ServiceActionInfo[] {
+        return this.SERVICE_ACTIONS
+    }
+
+    /**
+     * Get CLI actions
+     */
+    public getCliActions(): CLIActionInfo[] {
+        return this.CLI_ACTIONS
     }
 
     /**
@@ -252,6 +325,34 @@ export class Entrypoint extends Component {
      */
     protected async destroy(): Promise<void> {
         await Promise.all(this.entrypointDestroyers.map((destroyer: EntrypointDestroyer) => new Promise((resolve, reject) => Promise.resolve(destroyer()).then(resolve).catch(reject))))
+    }
+
+    /**
+     * Find invalid action group ids
+     * @param actionInfoMap
+     * @param type
+     * @protected
+     */
+    protected findInvalidActionGroupIds(actionInfoMap: Map<string, BaseActionInfo>, type: 'cli' | 'http' | 'service'): string[] {
+        const actions: BaseActionInfo[] = [...actionInfoMap.values()]
+        const notfoundGroupIdSet: Set<string> = new Set()
+        actions.forEach((action: BaseActionInfo) => {
+            action.groups.forEach((groupId: string) => {
+                switch (type) {
+                    case 'cli':
+                        if (this.cliActionGroups[groupId] !== undefined) return
+                        break
+                    case 'http':
+                        if (this.httpActionGroups[groupId] !== undefined) return
+                        break
+                    case 'service':
+                        if (this.serviceActionGroups[groupId] !== undefined) return
+                        break
+                }
+                notfoundGroupIdSet.add(groupId)
+            })
+        })
+        return [...notfoundGroupIdSet]
     }
 
     /**

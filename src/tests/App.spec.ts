@@ -54,6 +54,11 @@ Application
                 controllers: [
                     TestController1
                 ],
+                httpActionGroups: {
+                    a: 'A',
+                    b: 'B',
+                    c: 'C'
+                },
                 http: BuildHTTPEntrypoint((module, routeMap, handler, onDestroy) => {
                     const fastify = Fastify({
                         logger: false

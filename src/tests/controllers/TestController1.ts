@@ -72,7 +72,7 @@ export class TestController1 extends Controller {
         acl: true,
         // acl: false,
         name: 'ddd',
-        group: ['a', 'b', 'c'],
+        groups: ['a', 'b', 'c'],
         description: '哈哈哈哈',
         // allow: async function (this: TestController1, inp: ActionPattern<TestDTO>) {
         //     return true
