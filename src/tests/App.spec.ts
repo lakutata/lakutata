@@ -28,6 +28,8 @@ import {SHA256} from '../lib/helpers/SHA256.js'
 import {TestProvider2} from './providers/TestProvider2.js'
 import {TestProvider3} from './providers/TestProvider3.js'
 import {PasswordHash} from '../providers/PasswordHash.js'
+import {AccessControl} from '../components/entrypoint/lib/AccessControl.js'
+import {TestRule} from './rules/TestRule.js'
 
 Application
     .env({TEST: '123'})
@@ -46,6 +48,9 @@ Application
                 class: TestComponent
             },
             entrypoint: BuildEntrypoints({
+                rules: [
+                    TestRule
+                ],
                 controllers: [
                     TestController1
                 ],
@@ -195,7 +200,8 @@ Application
         log.info('Application %s done', app.appName)
     })
     .onFatalException((error, log) => {
-        log.error('Application error: %s', error.message)
+        // log.error('Application error: %s', error.message)
+        console.error(error)
         return 100
     })
 // .onUncaughtException((error, log) => {

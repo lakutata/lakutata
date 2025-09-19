@@ -68,7 +68,23 @@ export class TestController1 extends Controller {
         return 'oh!!'
     }
 
-    @HTTPAction('/test/:id', ['GET', 'POST'], TestDTO)
+    @HTTPAction('/test/:id', ['GET', 'POST'], TestDTO, {
+        acl: true,
+        // acl: false,
+        name: 'ddd',
+        group: ['a', 'b', 'c'],
+        description: '哈哈哈哈',
+        // allow: async function (this: TestController1, inp: ActionPattern<TestDTO>) {
+        //     return true
+        // }
+        rule: async function (this: TestController1, context, input: ActionPattern) {
+            // console.log(context)
+            console.log('this from rule handler')
+            return true
+            // return false
+        }
+    })
+    // @HTTPAction('/test/:id', ['GET', 'POST'], TestDTO)
     // @HTTPAction('/test/:id', ['GET', 'POST'])
     @CLIAction('test3', TestDTO)
     @ServiceAction({
@@ -79,7 +95,9 @@ export class TestController1 extends Controller {
         }
     })
     public async test3(inp: ActionPattern<TestDTO>) {
+        TestController1.className
         if (this.context.type === ContextType.CLI) console.log('cli!')
+        // console.log('this.context:', this.context)
         console.log(inp, this.context.type)
 
         // //Reload app

@@ -137,7 +137,8 @@
     "typeorm": "0.3.24",
     "typescript": "^5.3.3",
     "unset-value": "^2.0.1",
-    "url-parse": "^1.5.10"
+    "url-parse": "^1.5.10",
+    "uuid": "^13.0.0"
   },
   "engines": {
     "node": ">=20"

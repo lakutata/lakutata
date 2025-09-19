@@ -10,6 +10,13 @@ import {GetObjectNestingDepth} from '../../helpers/GetObjectNestingDepth.js'
 import {InvalidActionPatternDepthException} from '../../../exceptions/InvalidActionPatternDepthException.js'
 import {DTO} from '../../core/DTO.js'
 import {Component} from '../../core/Component.js'
+import {NIL, v5 as uuidv5} from 'uuid'
+import {ActionOptions} from './ActionOptions.js'
+import {StringifyPattern} from './StringifyPattern.js'
+import {CLIContext} from '../../context/CLIContext.js'
+import {ServiceContext} from '../../context/ServiceContext.js'
+import {HTTPContext} from '../../context/HTTPContext.js'
+import type {AccessControlRuleHandler} from '../../../components/entrypoint/lib/AccessControlRule.js'
 
 export enum ActionPatternManagerType {
     HTTP = '_$APMT_HTTP',
@@ -25,12 +32,25 @@ export type TotalActionPatternMap = {
     Service: ActionPatternMap
 }
 
-export type ActionDetails<ClassPrototype extends Controller = Controller, DTOConstructor extends typeof DTO = typeof DTO> = {
-    pattern: ActionPattern
-    constructor: IBaseObjectConstructor<ClassPrototype>
-    method: string | number | symbol
-    dtoConstructor: DTOConstructor
-    jsonSchema: JSONSchema
+export type ActionDetails<ClassPrototype extends Controller = Controller, DTOConstructor extends typeof DTO = typeof DTO> =
+    {
+        pattern: ActionPattern
+        constructor: IBaseObjectConstructor<ClassPrototype>
+        method: string | number | symbol
+        dtoConstructor: DTOConstructor
+        jsonSchema: JSONSchema
+        getActionInfo: () => ActionInfo
+    }
+    & ActionInfo
+
+export type ActionInfo = {
+    id: string
+    acl: boolean
+    action: string
+    name: string
+    description: string
+    groups: string[]
+    rule?: AccessControlRuleHandler<any>
 }
 
 type TotalInternalActionPatternMap = {
@@ -47,6 +67,29 @@ type InternalActionPatternMapValue = {
 type InternalActionPatternMap = Map<string, InternalActionPatternMapValue>
 
 const COMPONENT_CTRL_MAP: symbol = Symbol('COMPONENT.CTRL.MAP')
+
+/**
+ * Get action info
+ * @param controllerPrototype
+ * @param propertyKey
+ * @param actionOptions
+ * @param extra
+ */
+function getActionInfo<ClassPrototype extends Controller>(controllerPrototype: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>, actionOptions: ActionOptions<any>, extra: string): ActionInfo {
+    const action: string = `${As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)).className}:${propertyKey}`
+    const id: string = uuidv5(`${action}:${extra}`, NIL)
+    const name: string = actionOptions.name ? actionOptions.name : action
+    const description: string = actionOptions.description ? actionOptions.description : ''
+    return {
+        id: id,
+        acl: !!actionOptions.acl,
+        action: action,
+        name: name,
+        description: description,
+        groups: actionOptions.groups ? actionOptions.groups : [],
+        rule: actionOptions.rule
+    }
+}
 
 /**
  * Validate action pattern definition
@@ -139,6 +182,7 @@ export function GetComponentControllerActionMap(component: Component): TotalActi
  * @param controllerPrototype
  * @param propertyKey
  * @param dtoConstructor
+ * @param actionOptions
  * @constructor
  */
 export function RegisterHTTPAction<ClassPrototype extends Controller, DTOConstructor extends typeof DTO = typeof DTO>(
@@ -146,22 +190,27 @@ export function RegisterHTTPAction<ClassPrototype extends Controller, DTOConstru
     methods: string[],
     controllerPrototype: ClassPrototype,
     propertyKey: ControllerProperty<ClassPrototype>,
-    dtoConstructor: DTOConstructor): void {
+    dtoConstructor: DTOConstructor,
+    actionOptions: ActionOptions<HTTPContext>
+): void {
     methods.forEach((method: string) => {
         const actionPattern: ActionPattern = {
             route: route,
             method: method
         }
+        const actionInfo: ActionInfo = getActionInfo(controllerPrototype, propertyKey, actionOptions, route)
         RegisterControllerActionPattern(
             ActionPatternManagerType.HTTP,
             As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
             actionPattern,
             {
+                ...actionInfo,
                 pattern: actionPattern,
                 constructor: As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
                 method: propertyKey,
                 dtoConstructor: dtoConstructor,
-                jsonSchema: dtoConstructor.toJsonSchema()
+                jsonSchema: dtoConstructor.toJsonSchema(),
+                getActionInfo: () => actionInfo
             })
     })
 }
@@ -172,26 +221,32 @@ export function RegisterHTTPAction<ClassPrototype extends Controller, DTOConstru
  * @param controllerPrototype
  * @param propertyKey
  * @param dtoConstructor
+ * @param actionOptions
  * @constructor
  */
 export function RegisterCLIAction<ClassPrototype extends Controller, DTOConstructor extends typeof DTO = typeof DTO>(
     command: string,
     controllerPrototype: ClassPrototype,
     propertyKey: ControllerProperty<ClassPrototype>,
-    dtoConstructor: DTOConstructor): void {
+    dtoConstructor: DTOConstructor,
+    actionOptions: ActionOptions<CLIContext>
+): void {
     const actionPattern: ActionPattern = {
         command: command
     }
+    const actionInfo: ActionInfo = getActionInfo(controllerPrototype, propertyKey, actionOptions, command)
     RegisterControllerActionPattern(
         ActionPatternManagerType.CLI,
         As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
         actionPattern,
         {
+            ...actionInfo,
             pattern: actionPattern,
             constructor: As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
             method: propertyKey,
             dtoConstructor: dtoConstructor,
-            jsonSchema: dtoConstructor.toJsonSchema()
+            jsonSchema: dtoConstructor.toJsonSchema(),
+            getActionInfo: () => actionInfo
         }
     )
 }
@@ -202,23 +257,30 @@ export function RegisterCLIAction<ClassPrototype extends Controller, DTOConstruc
  * @param controllerPrototype
  * @param propertyKey
  * @param dtoConstructor
+ * @param actionOptions
  * @constructor
  */
 export function RegisterServiceAction<ClassPrototype extends Controller, DTOConstructor extends typeof DTO = typeof DTO>(
     pattern: ActionPattern,
     controllerPrototype: ClassPrototype,
     propertyKey: ControllerProperty<ClassPrototype>,
-    dtoConstructor: DTOConstructor): void {
+    dtoConstructor: DTOConstructor,
+    actionOptions: ActionOptions<ServiceContext>
+): void {
+    const flattenPattern: string = StringifyPattern(pattern)
+    const actionInfo: ActionInfo = getActionInfo(controllerPrototype, propertyKey, actionOptions, flattenPattern)
     RegisterControllerActionPattern(
         ActionPatternManagerType.Service,
         As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
         pattern,
         {
+            ...actionInfo,
             pattern: pattern,
             constructor: As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
             method: propertyKey,
             dtoConstructor: dtoConstructor,
-            jsonSchema: dtoConstructor.toJsonSchema()
+            jsonSchema: dtoConstructor.toJsonSchema(),
+            getActionInfo: () => actionInfo
         }
     )
 }
