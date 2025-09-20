@@ -337,7 +337,7 @@ const generateDTSBundleOptions = () => {
         output: {
             format: 'esm',
             dir: outputDirname,
-            minifyInternalExports:false,
+            minifyInternalExports: false,
             entryFileNames: (chunkInfo) => `${getOutputFilename(path.basename(chunkInfo.name))}.d.${outputExt}`,
             chunkFileNames: (chunkInfo) => {
                 if (!chunkInfo.name.startsWith(thirdPartyPackageRootDirname)) chunkInfo.name = dtsChunkNameGenerator(chunkInfo.name)
