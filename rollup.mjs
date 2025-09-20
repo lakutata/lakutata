@@ -254,7 +254,6 @@ const generateJsBundleOptions = (format) => {
             compact: false,
             interop: 'auto',
             generatedCode: 'es2015',
-            minifyInternalExports: false,
             entryFileNames: (chunkInfo) => {
                 const facadeModuleId = normalizeString(chunkInfo.facadeModuleId)
                 const relativeDir = path.relative(currentWorkingDir, path.dirname(facadeModuleId))
@@ -338,7 +337,6 @@ const generateDTSBundleOptions = () => {
         output: {
             format: 'esm',
             dir: outputDirname,
-            minifyInternalExports: false,
             entryFileNames: (chunkInfo) => `${getOutputFilename(path.basename(chunkInfo.name))}.d.${outputExt}`,
             chunkFileNames: (chunkInfo) => {
                 if (!chunkInfo.name.startsWith(thirdPartyPackageRootDirname)) chunkInfo.name = dtsChunkNameGenerator(chunkInfo.name)
