@@ -12,6 +12,7 @@ export abstract class Exception extends Error {
     public readonly appName: string = (() => GetBasicInfo().appName)()
     public readonly errMsg: string
     public readonly err: string
+    public readonly statusCode: number = 500
 
     constructor(template: string, data: unknown[] | Record<string, any>)
     constructor(message: string)
