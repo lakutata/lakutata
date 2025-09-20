@@ -134,7 +134,7 @@
     "strip-bom": "^5.0.0",
     "tar-stream": "^3.1.7",
     "tslib": "^2.8.1",
-    "typeorm": "0.3.27",
+    "typeorm": "0.3.24",
     "typescript": "^5.3.3",
     "unset-value": "^2.0.1",
     "url-parse": "^1.5.10",
