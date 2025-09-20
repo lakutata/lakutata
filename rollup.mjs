@@ -82,7 +82,8 @@ const jsChunkNameGenerator = (chunkName) => {
  */
 const dtsChunkNameGenerator = (chunkName) => {
     if (!dtsVendorMap.has(chunkName)) dtsVendorMap.set(chunkName, ++dtsVendorNumber)
-    return `${thirdPartyPackageRootDirname}/TypeDef.${dtsVendorMap.get(chunkName) || 0}`
+    // return `${thirdPartyPackageRootDirname}/TypeDef.${dtsVendorMap.get(chunkName) || 0}`
+    return `${thirdPartyPackageRootDirname}/TypeDef.internal.${dtsVendorMap.get(chunkName) || 0}`
 }
 /**
  * Process package.json
@@ -192,6 +193,9 @@ async function processBundles(jsBundlesOptions, dtsBundleOptions) {
                         return writeFile(filename, chunkOrAsset.source).then(writeFileResolve).catch(writeFileReject)
                     } else {
                         chunkOrAsset.code = processDockerAuthProto(chunkOrAsset.code)
+                        if (filename.includes(thirdPartyPackageRootDirname)) {
+                            chunkOrAsset.code = `// @ts-nocheck\n// This file is for internal use only and should not be indexed by IDEs.\n${chunkOrAsset.code}`
+                        }
                         return writeFile(filename, chunkOrAsset.code, {encoding: 'utf-8'}).then(writeFileResolve).catch(writeFileReject)
                     }
                 }).catch(writeFileReject)
