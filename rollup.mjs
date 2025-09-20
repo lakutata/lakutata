@@ -193,9 +193,6 @@ async function processBundles(jsBundlesOptions, dtsBundleOptions) {
                         return writeFile(filename, chunkOrAsset.source).then(writeFileResolve).catch(writeFileReject)
                     } else {
                         chunkOrAsset.code = processDockerAuthProto(chunkOrAsset.code)
-                        if (filename.includes(thirdPartyPackageRootDirname)) {
-                            chunkOrAsset.code = `// @ts-nocheck\n// This file is for internal use only and should not be indexed by IDEs.\n${chunkOrAsset.code}`
-                        }
                         return writeFile(filename, chunkOrAsset.code, {encoding: 'utf-8'}).then(writeFileResolve).catch(writeFileReject)
                     }
                 }).catch(writeFileReject)
@@ -238,6 +235,68 @@ const copyTargets = [
     {src: 'package.json', dest: outputDirname},
     {src: 'tsconfig.json', dest: outputDirname}
 ]
+
+const prefixExportedNames = () => ({
+    name: 'prefix-exported-names',
+    renderChunk(code, chunk, options) {
+        if (chunk.fileName.includes(thirdPartyPackageRootDirname) && chunk.fileName.endsWith('.d.ts')) {
+            console.log(`Processing vendor d.ts file: ${chunk.fileName}`)
+            const header = '// @ts-nocheck\n// This file is for internal use only and should not be indexed by IDEs.\n'
+
+            const lines = code.split('\n')
+            const modifiedLines = lines.map(line => {
+                const exportMatch = line.match(/^(export\s*(?:type)?\s*{[^}]*})/)
+                if (exportMatch) {
+                    let exportContent = exportMatch[1]
+                    exportContent = exportContent.replace(/(\s+as\s+)(\w+)(?=\s*(?:,|\}))/g, (match, asPart, alias) => {
+                        return `${asPart}$$${alias}`
+                    })
+                    exportContent = exportContent.replace(/(\s)(\w+)(?=\s*(?:,|\}))/g, (match, space, name) => {
+                        if (name.startsWith('$$$') || match.includes(' as ')) return match
+                        return `${space}$$${name}`
+                    })
+                    return line.replace(exportMatch[1], exportContent)
+                }
+                return line
+            })
+
+            const modifiedCode = modifiedLines.join('\n')
+            return `${header}${modifiedCode}`
+        }
+        return code
+    }
+})
+
+const updateImportReferences = () => ({
+    name: 'update-import-references',
+    transform(code, id) {
+        if (id.includes(thirdPartyPackageRootDirname) || !code.includes('import')) {
+            return code
+        }
+
+        console.log(`Processing imports in file: ${id}`)
+        const lines = code.split('\n')
+        const modifiedLines = lines.map(line => {
+            const importMatch = line.match(/^(import\s*{[^}]*}\s*from\s*['"].*['"])/)
+            if (importMatch) {
+                const fromMatch = importMatch[1].match(/from\s*['"]([^'"]+)['"]/)
+                if (fromMatch && fromMatch[1].includes(thirdPartyPackageRootDirname)) {
+                    let importContent = importMatch[1]
+                    importContent = importContent.replace(/(\s)(\w+)(?=\s*(?:,|\}))/g, (match, space, name) => {
+                        if (name.startsWith('$$$')) return match
+                        return `${space}$$${name}`
+                    })
+                    return line.replace(importMatch[1], importContent)
+                }
+            }
+            return line
+        })
+
+        const modifiedCode = modifiedLines.join('\n')
+        return modifiedCode !== code ? modifiedCode : code
+    }
+})
+
 /**
  * Generate javascript bundle options
  * @param format {'cjs'|'esm'}
@@ -355,6 +414,8 @@ const generateDTSBundleOptions = () => {
                     outDir: outputDirname
                 }
             }),
+            prefixExportedNames(),
+            updateImportReferences(),
             copy({targets: copyTargets})
         ],
         external: [
