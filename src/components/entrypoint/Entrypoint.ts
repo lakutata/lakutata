@@ -83,6 +83,17 @@ export interface CLIActionInfo extends BaseActionInfo {
     readonly command: string
 }
 
+export interface ActionGroupInfo<T extends BaseActionInfo> {
+    readonly id: string
+    readonly name: string
+    actions: T[]
+}
+
+export interface EntrypointActions<T extends BaseActionInfo> {
+    readonly groups: ActionGroupInfo<T>[],
+    readonly actions: T[]
+}
+
 /**
  * Build cli entrypoint
  * @param entrypoint
@@ -278,53 +289,57 @@ export class Entrypoint extends Component {
     }
 
     /**
-     * Get HTTP action groups
-     */
-    public getHttpActionGroups(): Record<string, string> {
-        return this.httpActionGroups
-    }
-
-    /**
-     * Get Service action groups
-     */
-    public getServiceActionGroups(): Record<string, string> {
-        return this.serviceActionGroups
-    }
-
-    /**
-     * Get CLI action groups
-     */
-    public getCliActionGroups(): Record<string, string> {
-        return this.cliActionGroups
-    }
-
-    /**
-     * Get HTTP actions
-     */
-    public getHttpActions(): HTTPActionInfo[] {
-        return this.HTTP_ACTIONS
-    }
-
-    /**
-     * Get Service actions
-     */
-    public getServiceActions(): ServiceActionInfo[] {
-        return this.SERVICE_ACTIONS
-    }
-
-    /**
-     * Get CLI actions
-     */
-    public getCliActions(): CLIActionInfo[] {
-        return this.CLI_ACTIONS
-    }
-
-    /**
      * Destroyer
      * @protected
      */
     protected async destroy(): Promise<void> {
         await Promise.all(this.entrypointDestroyers.map((destroyer: EntrypointDestroyer) => new Promise((resolve, reject) => Promise.resolve(destroyer()).then(resolve).catch(reject))))
+    }
+
+    /**
+     * Get entrypoint actions
+     * @param type
+     * @protected
+     */
+    protected getEntrypointActions<T extends BaseActionInfo>(type: 'http' | 'cli' | 'service'): EntrypointActions<T> {
+        const groupMap: Map<string, ActionGroupInfo<T>> = new Map()
+        let actionGroups: Record<string, string>
+        let actions: T[]
+        switch (type) {
+            case 'http': {
+                actions = As<T[]>(this.HTTP_ACTIONS)
+                actionGroups = this.httpActionGroups
+            }
+                break
+            case 'cli': {
+                actions = As<T[]>(this.CLI_ACTIONS)
+                actionGroups = this.cliActionGroups
+            }
+                break
+            case 'service': {
+                actions = As<T[]>(this.SERVICE_ACTIONS)
+                actionGroups = this.serviceActionGroups
+            }
+                break
+            default: {
+                actions = []
+                actionGroups = {}
+            }
+        }
+        actions.forEach((action: T) => {
+            action.groups.forEach((groupId: string) => {
+                if (!groupMap.has(groupId)) groupMap.set(groupId, {
+                    id: groupId,
+                    name: actionGroups[groupId],
+                    actions: []
+                })
+                groupMap.get(groupId)?.actions.push(action)
+            })
+        })
+        return {
+            groups: [...groupMap.values()],
+            actions: actions
+        }
     }
 
     /**
@@ -535,5 +550,47 @@ export class Entrypoint extends Component {
             })
             return await this.runControllerMethod(details, context, details.dtoConstructor, abortController)
         }, (destroyer: EntrypointDestroyer): number => this.entrypointDestroyers.push(destroyer))
+    }
+
+    /**
+     * Get HTTP action groups
+     */
+    public getHttpActionGroups(): Record<string, string> {
+        return this.httpActionGroups
+    }
+
+    /**
+     * Get Service action groups
+     */
+    public getServiceActionGroups(): Record<string, string> {
+        return this.serviceActionGroups
+    }
+
+    /**
+     * Get CLI action groups
+     */
+    public getCliActionGroups(): Record<string, string> {
+        return this.cliActionGroups
+    }
+
+    /**
+     * Get entrypoint HTTP actions
+     */
+    public getHttpActions(): EntrypointActions<HTTPActionInfo> {
+        return this.getEntrypointActions('http')
+    }
+
+    /**
+     * Get entrypoint Service actions
+     */
+    public getServiceActions(): EntrypointActions<ServiceActionInfo> {
+        return this.getEntrypointActions('service')
+    }
+
+    /**
+     * Get entrypoint CLI actions
+     */
+    public getCliActions(): EntrypointActions<CLIActionInfo> {
+        return this.getEntrypointActions('cli')
     }
 }

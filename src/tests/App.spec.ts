@@ -17,7 +17,7 @@ import {
     BuildCLIEntrypoint,
     BuildEntrypoints,
     BuildHTTPEntrypoint,
-    BuildServiceEntrypoint
+    BuildServiceEntrypoint, Entrypoint
 } from '../components/entrypoint/Entrypoint.js'
 import path from 'node:path'
 import {createWriteStream} from 'node:fs'
@@ -176,6 +176,10 @@ Application
         '@test2': '@test/kkkkkkkk'
     }, true)
     .onLaunched(async (app, log) => {
+        const entrypoint = await app.getObject<Entrypoint>('entrypoint')
+        console.log('HttpActions', entrypoint.getHttpActions())
+        console.log('CliActions', entrypoint.getCliActions())
+        console.log('ServiceActions', entrypoint.getServiceActions())
         // log.info('Application %s launched', app.appName)
         // console.log('MD5(\'test\').toString():', MD5('test').toString('base64'))
         // console.log('SHA1(\'test\').toString():', SHA1('test').toString('base64'))
