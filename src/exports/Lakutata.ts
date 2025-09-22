@@ -13,6 +13,29 @@ export {Component} from '../lib/core/Component.js'
 export {Module} from '../lib/core/Module.js'
 export {Application} from '../lib/core/Application.js'
 
+/**
+ * Validation types
+ */
+export {type AnySchema} from '../lib/validation/interfaces/AnySchema.js'
+export {type ArraySchema} from '../lib/validation/interfaces/ArraySchema.js'
+export {type BooleanSchema} from '../lib/validation/interfaces/BooleanSchema.js'
+export {type BinarySchema} from '../lib/validation/interfaces/BinarySchema.js'
+export {type DateSchema} from '../lib/validation/interfaces/DateSchema.js'
+export {type FunctionSchema} from '../lib/validation/interfaces/FunctionSchema.js'
+export {type NumberSchema} from '../lib/validation/interfaces/NumberSchema.js'
+export {type ObjectSchema} from '../lib/validation/interfaces/ObjectSchema.js'
+export {type StringSchema} from '../lib/validation/interfaces/StringSchema.js'
+export {type SymbolSchema} from '../lib/validation/interfaces/SymbolSchema.js'
+export {type AlternativesSchema} from '../lib/validation/interfaces/AlternativesSchema.js'
+export {type LinkSchema} from '../lib/validation/interfaces/LinkSchema.js'
+export {type Schema} from '../lib/validation/types/Schema.js'
+export {type SchemaFunction} from '../lib/validation/types/SchemaFunction.js'
+export {type ValidationOptions} from '../lib/validation/interfaces/ValidationOptions.js'
+export {type SchemaLike} from '../lib/validation/types/SchemaLike.js'
+export {type CustomValidator} from '../lib/validation/types/CustomValidator.js'
+export {type ReferenceOptions} from '../lib/validation/interfaces/ReferenceOptions.js'
+export {type Reference} from '../lib/validation/interfaces/Reference.js'
+
 
 /**
  * Options
