@@ -65,6 +65,7 @@ export interface BaseActionInfo {
     readonly id: string
     readonly acl: boolean
     readonly name: string
+    readonly description: string
     readonly groups: string[]
     readonly controller: string
     readonly method: string
@@ -190,6 +191,7 @@ export class Entrypoint extends Component {
                 command: details.pattern.command,
                 acl: details.acl,
                 name: details.name,
+                description: details.description,
                 groups: details.groups,
                 controller: details.constructor.className,
                 method: details.method.toString(),
@@ -204,6 +206,7 @@ export class Entrypoint extends Component {
                 route: details.pattern.route,
                 acl: details.acl,
                 name: details.name,
+                description: details.description,
                 groups: details.groups,
                 controller: details.constructor.className,
                 method: details.method.toString(),
@@ -218,6 +221,7 @@ export class Entrypoint extends Component {
                 pattern: details.pattern,
                 acl: details.acl,
                 name: details.name,
+                description: details.description,
                 groups: details.groups,
                 controller: details.constructor.className,
                 method: details.method.toString(),
