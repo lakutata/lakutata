@@ -14,9 +14,6 @@ import {IsSymbol} from '../helpers/IsSymbol.js'
 import {As} from '../helpers/As.js'
 import parse from 'joi-to-json'
 import {JSONSchema} from '../../types/JSONSchema.js'
-import {LinkSchema} from '../validation/interfaces/LinkSchema.js'
-import {randomUUID} from 'node:crypto'
-import {UUID} from '../helpers/UUID.js'
 
 /**
  * Get DTO's object schema
