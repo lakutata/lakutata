@@ -26,6 +26,7 @@ import {IsXML} from '../../helpers/IsXML.js'
 import {ErrorReport} from '../../validation/interfaces/ErrorReport.js'
 import {ReferenceOptions} from '../../validation/interfaces/ReferenceOptions.js'
 import {Reference} from '../../validation/interfaces/Reference.js'
+import {LinkSchema} from '../../validation/interfaces/LinkSchema.js'
 
 export class DataValidator {
 
@@ -239,5 +240,16 @@ export class DataValidator {
      */
     public static Attempt<TSchema extends Schema>(value: any, schema: TSchema, options?: ValidationOptions): TSchema extends Schema<infer Value> ? Value : never {
         return VLD.attempt(value, schema, options) as any
+    }
+
+    /**
+     * 创建关联验证关系，用于递归验证
+     * 绝对路径链接：/
+     * 相对路径链接：...
+     * @param ref
+     * @constructor
+     */
+    public static Link<TSchema extends Schema>(ref: string): LinkSchema<TSchema> {
+        return VLD.link(ref)
     }
 }

@@ -30,6 +30,8 @@ import {TestProvider3} from './providers/TestProvider3.js'
 import {PasswordHash} from '../providers/PasswordHash.js'
 import {AccessControl} from '../components/entrypoint/lib/AccessControl.js'
 import {TestRule} from './rules/TestRule.js'
+import {DataObjectDTO} from './dto/DataObjectDTO.js'
+import {DTO} from '../lib/core/DTO.js'
 
 Application
     .env({TEST: '123'})
@@ -192,6 +194,52 @@ Application
         const valid: boolean = await ph.validate('test123', hashed)
         console.log('Password invalid', invalid)
         console.log('Password valid', valid)
+
+        console.log('=============DTO Test==============')
+
+        const testModel: any = {
+            type: 'object',
+            properties: {
+                Ia: {
+                    //定义类型(Int8、Int32、etc.)
+                    type: 'int32',
+                    unit: 'A',
+                    description: ''
+                },
+                Ua: {
+                    //定义类型(Int8、Int32、etc.)
+                    type: 'int64',
+                    unit: 'V',
+                    description: ''
+                },
+                Ta: {
+                    type: 'object',
+                    properties: {
+                        Ia: {
+                            //定义类型(Int8、Int32、etc.)
+                            type: 'int32',
+                            unit: 'A',
+                            description: ''
+                        },
+                        Ua: {
+                            //定义类型(Int8、Int32、etc.)
+                            type: 'int64',
+                            unit: 'V',
+                            description: ''
+                        }
+                    },
+                    additionalProperties: false,
+                    required: ['Ia', 'Ua']
+                }
+            },
+            additionalProperties: false,
+            required: ['Ia', 'Ua']
+        }
+
+        console.log('1:', DTO.validate(testModel, DataObjectDTO.Schema()))
+
+        console.log('2:', DataObjectDTO.validate(testModel))
+        console.log('3:', DataObjectDTO.validate(testModel))
 
         // const docker = await app.getObject<Docker>('docker')
         // const img=await docker.buildImage({
