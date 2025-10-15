@@ -27,6 +27,7 @@ import {ErrorReport} from '../../validation/interfaces/ErrorReport.js'
 import {ReferenceOptions} from '../../validation/interfaces/ReferenceOptions.js'
 import {Reference} from '../../validation/interfaces/Reference.js'
 import {LinkSchema} from '../../validation/interfaces/LinkSchema.js'
+import {BigIntSchema} from '../../validation/interfaces/BigIntSchema.js'
 
 export class DataValidator {
 
@@ -52,6 +53,14 @@ export class DataValidator {
      */
     public static Number<TSchema = number>(): NumberSchema<TSchema> {
         return VLD.number<TSchema>().strict(true)
+    }
+
+    /**
+     * 大数类型验证
+     * @constructor
+     */
+    public static BigInt<TSchema = bigint>(): BigIntSchema<TSchema> {
+        return VLD.bigint<TSchema>().strict(true)
     }
 
     /**
@@ -85,7 +94,7 @@ export class DataValidator {
      * @constructor
      */
     public static Array<TSchema = any[]>(...types: SchemaLikeWithoutArray[]): ArraySchema<TSchema> {
-        return VLD.array<TSchema>().items(...types).strict(true)
+        return VLD.array().items<TSchema>(...types as any).strict(true)
     }
 
     /**

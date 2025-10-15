@@ -3,6 +3,8 @@ import Joi from 'joi'
 import {SchemaLike} from '../types/SchemaLike.js'
 import {SchemaLikeWithoutArray} from '../types/SchemaLikeWithoutArray.js'
 import {Reference} from './Reference.js'
+import {NoNestedArrays} from '../types/NoNestedArrays.js'
+import {UnwrapSchemaLikeWithoutArray} from '../types/UnwrapSchemaLikeWithoutArray.js'
 
 export interface ArraySchema<TSchema = any[]> extends AnySchema<TSchema> {
     /**
@@ -12,6 +14,18 @@ export interface ArraySchema<TSchema = any[]> extends AnySchema<TSchema> {
      */
     has(schema: SchemaLike): this;
 
+    // /**
+    //  * List the types allowed for the array values.
+    //  * If a given type is .required() then there must be a matching item in the array.
+    //  * If a type is .forbidden() then it cannot appear in the array.
+    //  * Required items can be added multiple times to signify that multiple items must be found.
+    //  * Errors will contain the number of items that didn't match.
+    //  * Any unmatched item having a label will be mentioned explicitly.
+    //  *
+    //  * @param types - a joi schema object to validate each array item against.
+    //  */
+    // items<TSchema = any[]>(...types: SchemaLikeWithoutArray[]): this;
+
     /**
      * List the types allowed for the array values.
      * If a given type is .required() then there must be a matching item in the array.
@@ -20,9 +34,49 @@ export interface ArraySchema<TSchema = any[]> extends AnySchema<TSchema> {
      * Errors will contain the number of items that didn't match.
      * Any unmatched item having a label will be mentioned explicitly.
      *
-     * @param types - a joi schema object to validate each array item against.
+     * @param type - a joi schema object to validate each array item against.
      */
-    items(...types: SchemaLikeWithoutArray[]): this;
+    items<A>(a: SchemaLikeWithoutArray<A>): ArraySchema<A[]>;
+    items<A, B>(
+        a: SchemaLikeWithoutArray<A>,
+        b: SchemaLikeWithoutArray<B>
+    ): ArraySchema<(A | B)[]>;
+    items<A, B, C>(
+        a: SchemaLikeWithoutArray<A>,
+        b: SchemaLikeWithoutArray<B>,
+        c: SchemaLikeWithoutArray<C>
+    ): ArraySchema<(A | B | C)[]>;
+    items<A, B, C, D>(
+        a: SchemaLikeWithoutArray<A>,
+        b: SchemaLikeWithoutArray<B>,
+        c: SchemaLikeWithoutArray<C>,
+        d: SchemaLikeWithoutArray<D>
+    ): ArraySchema<(A | B | C | D)[]>;
+    items<A, B, C, D, E>(
+        a: SchemaLikeWithoutArray<A>,
+        b: SchemaLikeWithoutArray<B>,
+        c: SchemaLikeWithoutArray<C>,
+        d: SchemaLikeWithoutArray<D>,
+        e: SchemaLikeWithoutArray<E>
+    ): ArraySchema<(A | B | C | D | E)[]>;
+    items<A, B, C, D, E, F>(
+        a: SchemaLikeWithoutArray<A>,
+        b: SchemaLikeWithoutArray<B>,
+        c: SchemaLikeWithoutArray<C>,
+        d: SchemaLikeWithoutArray<D>,
+        e: SchemaLikeWithoutArray<E>,
+        f: SchemaLikeWithoutArray<F>
+    ): ArraySchema<(A | B | C | D | E | F)[]>;
+    items<
+        TItems,
+        TTItems extends SchemaLikeWithoutArray<TItems>[] = SchemaLikeWithoutArray<TItems>[]
+    >(
+        ...types: NoNestedArrays<TTItems>
+    ): ArraySchema<
+        {
+            [I in keyof TTItems]: UnwrapSchemaLikeWithoutArray<TTItems[I]>;
+        }[number][]
+    >;
 
     /**
      * Specifies the exact number of items in the array.

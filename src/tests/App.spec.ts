@@ -195,6 +195,10 @@ Application
         console.log('Password invalid', invalid)
         console.log('Password valid', valid)
 
+        console.log('DTO.isValid([123],DTO.Array(DTO.String()))', DTO.isValid([123], DTO.Array(DTO.String())))
+        console.log('DTO.isValid([\'123\'],DTO.Array(DTO.String()))', DTO.isValid(['123'], DTO.Array(DTO.String())))
+        console.log('DTO.isValid(BigInt(123456),DTO.BigInt().strict(false))', DTO.isValid(BigInt(123456), DTO.BigInt().strict(false)))
+        console.log('DTO.validate(\'12345\',DTO.BigInt().strict(false))', DTO.validate('12345', DTO.BigInt().strict(false)))
         console.log('=============DTO Test==============')
 
         const testModel: any = {

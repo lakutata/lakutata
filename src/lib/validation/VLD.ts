@@ -1,4 +1,5 @@
 import Joi, {AddRuleOptions, Extension, Root} from 'joi'
+import {extendJoi} from '@softstack/joi-bigint'
 import {AnySchema} from './interfaces/AnySchema.js'
 import {ArraySchema} from './interfaces/ArraySchema.js'
 import {BooleanSchema} from './interfaces/BooleanSchema.js'
@@ -21,6 +22,9 @@ import {As} from '../helpers/As.js'
 import {CustomValidator} from './types/CustomValidator.js'
 import {ReferenceOptions} from './interfaces/ReferenceOptions.js'
 import {Reference} from './interfaces/Reference.js'
+import {BigIntSchema} from './interfaces/BigIntSchema.js'
+
+const BigIntJoi = extendJoi(Joi)
 
 export const DefaultValidationOptions: ValidationOptions = {
     abortEarly: true,
@@ -78,6 +82,11 @@ interface ValidateAPI {
      * Generates a schema object that matches a number data type (as well as strings that can be converted to numbers).
      */
     number<TSchema = number>(): NumberSchema<TSchema>;
+
+    /**
+     * Generates a schema object that matches a bigint data type (as well as strings that can be converted to bigint).
+     */
+    bigint<TSchema = bigint>(): BigIntSchema<TSchema>
 
     /**
      * Generates a schema object that matches an object data type (as well as JSON strings that have been parsed into objects).
@@ -347,7 +356,7 @@ class ValidateMethods {
 }
 
 export const VLD: ValidateAPI = As<any>(
-    Joi.extend((joi: Root): Extension => ({
+    BigIntJoi.extend((joi: Root): Extension => ({
         type: 'number',
         base: joi.number(),
         messages: {
