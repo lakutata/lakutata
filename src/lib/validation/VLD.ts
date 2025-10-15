@@ -24,8 +24,6 @@ import {ReferenceOptions} from './interfaces/ReferenceOptions.js'
 import {Reference} from './interfaces/Reference.js'
 import {BigIntSchema} from './interfaces/BigIntSchema.js'
 
-const BigIntJoi = extendJoi(Joi)
-
 export const DefaultValidationOptions: ValidationOptions = {
     abortEarly: true,
     cache: false,
@@ -356,7 +354,7 @@ class ValidateMethods {
 }
 
 export const VLD: ValidateAPI = As<any>(
-    BigIntJoi.extend((joi: Root): Extension => ({
+    extendJoi(Joi).extend((joi: Root): Extension => ({
         type: 'number',
         base: joi.number(),
         messages: {

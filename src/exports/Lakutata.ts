@@ -32,9 +32,15 @@ export {type Schema} from '../lib/validation/types/Schema.js'
 export {type SchemaFunction} from '../lib/validation/types/SchemaFunction.js'
 export {type ValidationOptions} from '../lib/validation/interfaces/ValidationOptions.js'
 export {type SchemaLike} from '../lib/validation/types/SchemaLike.js'
+export {type NoNestedArrays} from '../lib/validation/types/NoNestedArrays.js'
+export {type Primitives} from '../lib/validation/types/Primitives.js'
+export {type SchemaLikeWithoutArray} from '../lib/validation/types/SchemaLikeWithoutArray.js'
+export {type UnwrapSchemaLikeWithoutArray} from '../lib/validation/types/UnwrapSchemaLikeWithoutArray.js'
+
 export {type CustomValidator} from '../lib/validation/types/CustomValidator.js'
 export {type ReferenceOptions} from '../lib/validation/interfaces/ReferenceOptions.js'
 export {type Reference} from '../lib/validation/interfaces/Reference.js'
+export {type BigIntSchema} from '../lib/validation/interfaces/BigIntSchema.js'
 
 
 /**
