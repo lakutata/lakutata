@@ -12,8 +12,8 @@ export interface PaginatorHandlerResult<T> {
  * @param handler
  * @constructor
  */
-export async function Paginator<T, Options extends PaginationSearchDTO>(options: Options, handler: (options: Options, limit: number, offset: number) => Promise<PaginatorHandlerResult<T>>): Promise<PaginationResultDTO<T>> {
-    const result: PaginatorHandlerResult<T> = await handler(options, options.limit!, options.offset!)
+export async function Paginator<T, Options extends PaginationSearchDTO>(options: Options, handler: (options: Options, limit: number, offset: number) => Promise<PaginatorHandlerResult<T[]>>): Promise<PaginationResultDTO<T[]>> {
+    const result: PaginatorHandlerResult<T[]> = await handler(options, options.limit!, options.offset!)
     return {
         items: result.items,
         meta: {

@@ -1,9 +1,9 @@
 import {DTO} from '../lib/core/DTO.js'
 import {Expect} from '../decorators/dto/Expect.js'
 
-export class PaginationResultDTO<T = any> extends DTO {
+export class PaginationResultDTO<T = any, U = T[]> extends DTO {
     @Expect(DTO.Array(DTO.Any()).required())
-    public items: T[]
+    public items: U
 
     @Expect(DTO.Object({
         count: DTO.Number().integer().positive().allow(0).required(),
