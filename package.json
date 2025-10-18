@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/exports/Lakutata.ts",
     "./orm": "./src/exports/ORM.ts",
+    "./dtos": "./src/exports/DTOs.ts",
     "./helper": "./src/exports/Helpers.ts",
     "./com/docker": "./src/exports/DockerComponent.ts",
     "./com/database": "./src/exports/DatabaseComponent.ts",
