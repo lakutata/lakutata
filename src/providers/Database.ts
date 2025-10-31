@@ -21,6 +21,7 @@ import {IsolationLevel} from 'typeorm/driver/types/IsolationLevel.js'
 import {Provider} from '../lib/core/Provider.js'
 import {EntitySchema, type MixedList} from 'typeorm'
 import {As} from '../lib/helpers/As.js'
+import {DatabaseSymbol} from '../lib/base/internal/DatabaseSymbol.js'
 
 /**
  * Build database provider connection options
@@ -40,6 +41,8 @@ export const BuildDatabaseOptions: (options: DataSourceOptions) => {
  */
 @Transient()
 export class Database extends Provider {
+
+    public static databaseSymbol: symbol = DatabaseSymbol
 
     #datasource: DataSource
 

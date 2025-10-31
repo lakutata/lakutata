@@ -32,6 +32,7 @@ import {AccessControl} from '../components/entrypoint/lib/AccessControl.js'
 import {TestRule} from './rules/TestRule.js'
 import {DataObjectDTO} from './dto/DataObjectDTO.js'
 import {DTO} from '../lib/core/DTO.js'
+import {BuildDatabaseOptions} from '../providers/Database.js'
 
 Application
     .env({TEST: '123'})
@@ -170,7 +171,9 @@ Application
             // 'testModule',
             // 'testComponent',
             // 'testProvider',
-            'entrypoint'
+            'entrypoint',
+            'dbp'
+            // 'gm'
         ]
     }))
     .alias({
@@ -256,6 +259,7 @@ Application
         // await img.remove({force:true})
         // console.log('Docker image build and remove success')
         // console.log(await docker.listImages())
+
     })
     .onDone(async (app, log) => {
         log.info('Application %s done', app.appName)

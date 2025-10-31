@@ -81,7 +81,7 @@
     "@types/url-parse": "^1.4.11",
     "@typescript-eslint/eslint-plugin": "^6.20.0",
     "@typescript-eslint/parser": "^6.20.0",
-    "ansis": "^3.1.0",
+    "ansis": "^3.17.0",
     "bcryptjs": "^3.0.2",
     "cache-manager": "^7.0.1",
     "chalk": "^5.3.0",

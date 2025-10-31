@@ -15,6 +15,9 @@ import {existsSync} from 'node:fs'
 import {As} from '../helpers/As.js'
 import {EventEmitter} from '../base/EventEmitter.js'
 import {BootstrapOption} from '../../options/ModuleOptions.js'
+import {DatabaseSymbol} from '../base/internal/DatabaseSymbol.js'
+import {DataSourceOptions} from 'typeorm/data-source/DataSourceOptions.js'
+import {GenerateMigration} from '../../providers/migration/GenerateMigration.js'
 
 /**
  * On application launched event handler
@@ -252,6 +255,46 @@ export class Application extends Module {
             })
         })
         const options: ApplicationOptions = typeof this.launchOptions === 'object' ? this.launchOptions : await this.launchOptions()
+        //Generate database migrations
+        for (const env in process.env) {
+            switch (env.toUpperCase()) {
+                case 'MIGRATION_GENERATE': {
+                    const migrationTargetDir: string = process.env[env]!
+                    const getDataSourceOptionsArray: (input: Record<string, any>) => DataSourceOptions[] = (input: Record<string, any>) => {
+                        const dataSourceOptionsArray: DataSourceOptions[] = []
+                        for (const name in input) {
+                            if (input[name] && input[name].class && input[name].class.databaseSymbol && input[name].class.databaseSymbol === DatabaseSymbol) {
+                                const dataSourceOptions: DataSourceOptions = input[name].options
+                                if (!dataSourceOptions) continue
+                                Reflect.set(dataSourceOptions, 'dataSourceName', name)
+                                dataSourceOptionsArray.push(dataSourceOptions)
+                            }
+                        }
+                        return dataSourceOptionsArray
+                    }
+                    const totalDataSourceOptionsArray: DataSourceOptions[] = [
+                        ...(options.components ? getDataSourceOptionsArray(options.components) : []),
+                        ...(options.providers ? getDataSourceOptionsArray(options.providers) : [])
+                    ]
+                    if (!totalDataSourceOptionsArray.length) process.exit(0)
+                    options.bootstrap = []
+                    totalDataSourceOptionsArray.forEach((dataSourceOptions: DataSourceOptions, index: number) => {
+                        const migrationProviderName: string = `GenerateMigration${index}${Date.now()}`
+                        if (!options.providers) options.providers = {}
+                        options.providers[migrationProviderName] = {
+                            class: GenerateMigration,
+                            path: migrationTargetDir,
+                            outputJs: false,
+                            exitProcess: index === totalDataSourceOptionsArray.length - 1,
+                            dataSourceName: Reflect.get(dataSourceOptions, 'dataSourceName'),
+                            dataSource: dataSourceOptions
+                        }
+                        options.bootstrap!.push(migrationProviderName)
+                    })
+                }
+                    break
+            }
+        }
         const rootContainer: Container = new Container()
         return new Promise((resolve, reject): void => {
             ApplicationOptions

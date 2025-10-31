@@ -19,6 +19,7 @@ import {SelectQueryBuilder} from 'typeorm/query-builder/SelectQueryBuilder.js'
 import {ReplicationMode} from 'typeorm/driver/types/ReplicationMode.js'
 import {QueryResultCache} from 'typeorm/cache/QueryResultCache.js'
 import {IsolationLevel} from 'typeorm/driver/types/IsolationLevel.js'
+import {DatabaseSymbol} from '../lib/base/internal/DatabaseSymbol.js'
 
 /**
  * Build database connection options
@@ -38,6 +39,8 @@ export const BuildDatabaseOptions: (options: DataSourceOptions) => {
  */
 @Singleton()
 export class Database extends Component {
+
+    public static databaseSymbol: symbol = DatabaseSymbol
 
     #datasource: DataSource
 
