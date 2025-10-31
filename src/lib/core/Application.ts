@@ -259,6 +259,10 @@ export class Application extends Module {
         for (const env in process.env) {
             switch (env.toUpperCase()) {
                 case 'MIGRATION_GENERATE': {
+                    this.eventEmitter.removeAllListeners(ApplicationState.Launched)
+                    this.eventEmitter.removeAllListeners(ApplicationState.Done)
+                    this.eventEmitter.removeAllListeners(ApplicationState.UncaughtException)
+                    this.eventEmitter.removeAllListeners(ApplicationState.FatalException)
                     const migrationTargetDir: string = process.env[env]!
                     const getDataSourceOptionsArray: (input: Record<string, any>) => DataSourceOptions[] = (input: Record<string, any>) => {
                         const dataSourceOptionsArray: DataSourceOptions[] = []
