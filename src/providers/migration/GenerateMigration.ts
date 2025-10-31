@@ -140,7 +140,7 @@ export class GenerateMigration extends Provider {
                         ansi.green`No changes in database schema were found`
                     )
                     if (this.exitProcess) {
-                        this.app.exit(0)
+                        return this.app.exit(0)
                     } else {
                         return
                     }
@@ -149,14 +149,14 @@ export class GenerateMigration extends Provider {
                         ansi.yellow`No changes in database schema were found`
                     )
                     if (this.exitProcess) {
-                        this.app.exit(1)
+                        return this.app.exit(1)
                     } else {
                         return
                     }
                 }
             } else if (!this.path) {
                 console.log(ansi.yellow`Please specify a migration path`)
-                this.app.exit(1)
+                return this.app.exit(1)
             }
 
             const fileContent: string = this.outputJs
@@ -181,7 +181,7 @@ export class GenerateMigration extends Provider {
                     )}`
                 )
                 if (this.exitProcess) {
-                    this.app.exit(0)
+                    return this.app.exit(0)
                 } else {
                     return
                 }
@@ -205,14 +205,14 @@ export class GenerateMigration extends Provider {
                     )} has been generated successfully.`
                 )
                 if (this.exitProcess) {
-                    this.app.exit(0)
+                    return this.app.exit(0)
                 } else {
                     return
                 }
             }
         } catch (err) {
             PlatformTools.logCmdErr('Error during migration generation:', err)
-            this.app.exit(1)
+            return this.app.exit(1)
         }
     }
 
