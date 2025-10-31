@@ -14,41 +14,6 @@ import {Transient} from '../../decorators/di/Lifetime.js'
 import {Application} from '../../lib/core/Application.js'
 import {Inject} from '../../decorators/di/Inject.js'
 
-export interface GenerateMigrationOptions {
-    /**
-     * Path of the migration file
-     */
-    path: string
-    /**
-     * Data source options
-     */
-    dataSource: DataSourceOptions
-    /**
-     * Pretty-print generated SQL
-     */
-    pretty: boolean
-    /**
-     * Generate a migration file on Javascript instead of Typescript
-     */
-    outputJs: boolean
-    /**
-     * Generate a migration file on ESM instead of CommonJS
-     */
-    esm: boolean
-    /**
-     * Prints out the contents of the migration instead of writing it to a file
-     */
-    dryRun: boolean
-    /**
-     * Verifies that the current database is up to date and that no migrations are needed. Otherwise exits with code 1.
-     */
-    check: boolean
-    /**
-     * Custom timestamp for the migration name
-     */
-    timestamp: number
-}
-
 @Transient()
 export class GenerateMigration extends Provider {
 
