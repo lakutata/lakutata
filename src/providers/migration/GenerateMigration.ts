@@ -11,6 +11,8 @@ import {PlatformTools} from 'typeorm/platform/PlatformTools.js'
 import {CommandUtils} from 'typeorm/commands/CommandUtils.js'
 import ansi from 'ansis'
 import {Transient} from '../../decorators/di/Lifetime.js'
+import {Application} from '../../lib/core/Application.js'
+import {Inject} from '../../decorators/di/Inject.js'
 
 export interface GenerateMigrationOptions {
     /**
@@ -49,6 +51,9 @@ export interface GenerateMigrationOptions {
 
 @Transient()
 export class GenerateMigration extends Provider {
+
+    @Inject(Application)
+    protected readonly app: Application
 
     @Configurable(DTO.String().required())
     protected readonly path: string
@@ -170,7 +175,7 @@ export class GenerateMigration extends Provider {
                         ansi.green`No changes in database schema were found`
                     )
                     if (this.exitProcess) {
-                        process.exit(0)
+                        this.app.exit(0)
                     } else {
                         return
                     }
@@ -179,14 +184,14 @@ export class GenerateMigration extends Provider {
                         ansi.yellow`No changes in database schema were found`
                     )
                     if (this.exitProcess) {
-                        process.exit(1)
+                        this.app.exit(1)
                     } else {
                         return
                     }
                 }
             } else if (!this.path) {
                 console.log(ansi.yellow`Please specify a migration path`)
-                process.exit(1)
+                this.app.exit(1)
             }
 
             const fileContent: string = this.outputJs
@@ -211,7 +216,7 @@ export class GenerateMigration extends Provider {
                     )}`
                 )
                 if (this.exitProcess) {
-                    process.exit(0)
+                    this.app.exit(0)
                 } else {
                     return
                 }
@@ -235,14 +240,14 @@ export class GenerateMigration extends Provider {
                     )} has been generated successfully.`
                 )
                 if (this.exitProcess) {
-                    process.exit(0)
+                    this.app.exit(0)
                 } else {
                     return
                 }
             }
         } catch (err) {
             PlatformTools.logCmdErr('Error during migration generation:', err)
-            process.exit(1)
+            this.app.exit(1)
         }
     }
 
