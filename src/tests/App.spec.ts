@@ -242,6 +242,7 @@ Application
         console.log('3:', DataObjectDTO.validate(testModel))
 
         // const docker = await app.getObject<Docker>('docker')
+        // console.log(await docker.listImages())
         // const img=await docker.buildImage({
         //     dockerfile: 'TestDockerfile',
         //     files: ['TestDockerfile'],

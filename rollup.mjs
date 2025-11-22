@@ -254,9 +254,7 @@ const generateJsBundleOptions = (format) => {
             compact: false,
             interop: 'auto',
             generatedCode: 'es2015',
-            manualChunks:(id)=>{
-                return id
-            },
+            manualChunks: (id) => id,
             entryFileNames: (chunkInfo) => {
                 const facadeModuleId = normalizeString(chunkInfo.facadeModuleId)
                 const relativeDir = path.relative(currentWorkingDir, path.dirname(facadeModuleId))
@@ -299,7 +297,8 @@ const generateJsBundleOptions = (format) => {
             terser({
                 format: {
                     comments: false,
-                    beautify: true
+                    beautify: true,
+                    preamble:`/* Build Date: ${new Date()} */`
                 },
                 keep_classnames: true,
                 maxWorkers: os.cpus().length,
