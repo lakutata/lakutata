@@ -286,12 +286,7 @@ const generateJsBundleOptions = (format) => {
                 preferBuiltins: true
             }),
             commonjs({
-                ignore: (id) => {
-                    if (id.includes('.node')) {
-                        return true
-                    }
-                    return false
-                }
+                ignore: (id) => id.includes('.node')
             }),
             json(),
             terser({
@@ -301,7 +296,6 @@ const generateJsBundleOptions = (format) => {
                     preamble: `/* Build Date: ${new Date()} */`
                 },
                 keep_classnames: true,
-                maxWorkers: os.cpus().length,
                 compress: false,
                 module: true
             }),
@@ -363,7 +357,7 @@ const generateDTSBundleOptions = () => {
             progress({clearLine: true}),
             resolve(),
             dts({
-                respectExternal: true,
+                respectExternal: isProductionBuild,//Only respect external when production build
                 compilerOptions: {
                     outDir: outputDirname
                 }
