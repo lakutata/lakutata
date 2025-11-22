@@ -1,6 +1,5 @@
 import {Application} from '../lib/core/Application.js'
 import {TestComponent} from './components/TestComponent.js'
-import {TestModule} from './modules/TestModule.js'
 import {TestProvider} from './providers/TestProvider.js'
 import {TestController1} from './controllers/TestController1.js'
 import {HTTPContext} from '../lib/context/HTTPContext.js'
@@ -162,17 +161,11 @@ Application
                 saltRounds: 3
             }
         },
-        modules: {
-            testModule: {
-                class: TestModule
-            }
-        },
         bootstrap: [
             // 'testModule',
             // 'testComponent',
             // 'testProvider',
-            'entrypoint',
-            'dbp'
+            'entrypoint'
             // 'gm'
         ]
     }))

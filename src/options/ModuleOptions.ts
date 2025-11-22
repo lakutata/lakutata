@@ -31,12 +31,6 @@ export class ModuleOptions extends DTO {
     public providers?: OverridableNamedObjectOptions<IBaseObjectConstructor<Provider>>
 
     /**
-     * Load modules option
-     */
-    @Expect(OverridableNamedObjectOptions.optional())
-    public modules?: OverridableNamedObjectOptions<IBaseObjectConstructor<Module>>
-
-    /**
      * Load objects option
      */
     @Expect(

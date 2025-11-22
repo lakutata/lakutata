@@ -17,9 +17,6 @@ import {Inject} from '../../decorators/di/Inject.js'
 @Transient()
 export class GenerateMigration extends Provider {
 
-    @Inject(Application)
-    protected readonly app: Application
-
     @Configurable(DTO.String().required())
     protected readonly path: string
 
@@ -58,6 +55,8 @@ export class GenerateMigration extends Provider {
         return this.timestamp + '-' + (this.dataSourceName ? this.dataSourceName : path.basename(this.path)) + this.extension
     }
 
+    #app: Application
+
     #dataSource: DataSource
 
     /**
@@ -65,6 +64,7 @@ export class GenerateMigration extends Provider {
      * @protected
      */
     protected async init(): Promise<void> {
+        this.#app = await this.getObject(Application)
         this.#dataSource = new DataSource(this.dataSource)
         this.#dataSource.setOptions({
             synchronize: false,
@@ -140,7 +140,7 @@ export class GenerateMigration extends Provider {
                         ansi.green`No changes in database schema were found`
                     )
                     if (this.exitProcess) {
-                        return this.app.exit(0)
+                        return this.#app.exit(0)
                     } else {
                         return
                     }
@@ -149,14 +149,14 @@ export class GenerateMigration extends Provider {
                         ansi.yellow`No changes in database schema were found`
                     )
                     if (this.exitProcess) {
-                        return this.app.exit(1)
+                        return this.#app.exit(1)
                     } else {
                         return
                     }
                 }
             } else if (!this.path) {
                 console.log(ansi.yellow`Please specify a migration path`)
-                return this.app.exit(1)
+                return this.#app.exit(1)
             }
 
             const fileContent: string = this.outputJs
@@ -181,7 +181,7 @@ export class GenerateMigration extends Provider {
                     )}`
                 )
                 if (this.exitProcess) {
-                    return this.app.exit(0)
+                    return this.#app.exit(0)
                 } else {
                     return
                 }
@@ -205,14 +205,14 @@ export class GenerateMigration extends Provider {
                     )} has been generated successfully.`
                 )
                 if (this.exitProcess) {
-                    return this.app.exit(0)
+                    return this.#app.exit(0)
                 } else {
                     return
                 }
             }
         } catch (err) {
             PlatformTools.logCmdErr('Error during migration generation:', err)
-            return this.app.exit(1)
+            return this.#app.exit(1)
         }
     }
 

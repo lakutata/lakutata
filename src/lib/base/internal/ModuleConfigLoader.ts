@@ -53,8 +53,6 @@ export class ModuleConfigLoader {
         this.processOverridableNamedObjectOptions(ObjectType.Component, moduleOptions.components)
         //Process provider objects
         this.processOverridableNamedObjectOptions(ObjectType.Provider, moduleOptions.providers)
-        //Process module objects
-        this.processOverridableNamedObjectOptions(ObjectType.Module, moduleOptions.modules)
     }
 
     /**

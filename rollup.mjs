@@ -314,6 +314,9 @@ const generateJsBundleOptions = (format) => {
             '@redis/client',
             'cluster-key-slot',
             'redis',
+            'fastify',
+            'socket.io',
+            'commander',
             ...builtinModules,
             /\.node$/
         ]

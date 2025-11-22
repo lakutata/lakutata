@@ -1,5 +1,4 @@
 import {Module, MODULE_INITIALIZE_ERROR, MODULE_INITIALIZED} from './Module.js'
-import {Singleton} from '../../decorators/di/Lifetime.js'
 import {Container} from './Container.js'
 import {ApplicationConfigLoader} from '../base/internal/ApplicationConfigLoader.js'
 import {ApplicationOptions} from '../../options/ApplicationOptions.js'
@@ -49,7 +48,6 @@ export enum ApplicationState {
 /**
  * Application module
  */
-@Singleton(true)
 export class Application extends Module {
 
     /**
