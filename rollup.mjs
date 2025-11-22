@@ -297,8 +297,9 @@ const generateJsBundleOptions = (format) => {
                 format: {
                     comments: false,
                     beautify: true
-                },
+                },ecma:2015,
                 keep_classnames: true,
+                keep_fnames:true,
                 maxWorkers: os.cpus().length,
                 compress: false,
                 module: true
