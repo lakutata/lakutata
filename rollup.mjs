@@ -298,7 +298,7 @@ const generateJsBundleOptions = (format) => {
                 format: {
                     comments: false,
                     beautify: true,
-                    preamble:`/* Build Date: ${new Date()} */`
+                    preamble: `/* Build Date: ${new Date()} */`
                 },
                 keep_classnames: true,
                 maxWorkers: os.cpus().length,
@@ -319,7 +319,16 @@ const generateJsBundleOptions = (format) => {
             'fastify',
             'socket.io',
             'commander',
+            'release-it',
+            'rollup',
+            'rollup-plugin-copy',
+            'rollup-plugin-dts',
+            'rollup-plugin-progress',
+            'shx',
+            'dts-bundle-generator',
+            'eslint',
             ...builtinModules,
+            /^@rollup\//,
             /\.node$/
         ]
     }
