@@ -254,6 +254,9 @@ const generateJsBundleOptions = (format) => {
             compact: false,
             interop: 'auto',
             generatedCode: 'es2015',
+            manualChunks:(id)=>{
+                return id
+            },
             entryFileNames: (chunkInfo) => {
                 const facadeModuleId = normalizeString(chunkInfo.facadeModuleId)
                 const relativeDir = path.relative(currentWorkingDir, path.dirname(facadeModuleId))
