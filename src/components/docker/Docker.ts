@@ -340,6 +340,9 @@ export class Docker extends Component {
                                     if (processedOutput.startsWith('r')) processedOutput = processedOutput.substring(1)
                                     if (processedOutput.startsWith('Uwriting')) processedOutput = processedOutput.substring(1)
                                     if (processedOutput.startsWith('Gsha256')) processedOutput = processedOutput.substring(72)
+                                    if (processedOutput.startsWith('qresolve')) processedOutput = processedOutput.substring(1)
+                                    if (processedOutput.startsWith('Zexporting')) processedOutput = processedOutput.substring(1)
+                                    if (processedOutput.startsWith('Xexporting')) processedOutput = processedOutput.substring(1)
                                     if (processedOutput.substring(1, 2) === '[') processedOutput = processedOutput.substring(1)
                                     if (/[A-Z]/.test(processedOutput.substring(1, 2)) && !/[A-Z]/.test(processedOutput.substring(0, 1))) processedOutput = processedOutput.substring(1)
                                     outputObject.stream = processedOutput

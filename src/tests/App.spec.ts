@@ -33,6 +33,8 @@ import {DataObjectDTO} from './dto/DataObjectDTO.js'
 import {DTO} from '../lib/core/DTO.js'
 import {BuildDatabaseOptions, Database} from '../components/Database.js'
 import {TestEntity} from './entities/TestEntity.js'
+import {glob} from 'glob'
+import {Glob} from '../lib/helpers/Glob.js'
 
 Application
     .env({TEST: '123'})
@@ -257,7 +259,7 @@ Application
         console.log('3:', DataObjectDTO.validate(testModel))
 
         const docker = await app.getObject<Docker>('docker')
-        console.log(await docker.listImages())
+        // console.log(await docker.listImages())
         // const img=await docker.buildImage({
         //     dockerfile: 'TestDockerfile',
         //     files: ['TestDockerfile'],
