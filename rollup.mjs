@@ -16,7 +16,8 @@ import {fileURLToPath} from 'node:url'
 import {createRequire} from 'module'
 import packageJson from './package.json' with {type: 'json'}
 import * as fs from 'node:fs'
-import urlParse from 'url-parse'
+import replace from '@rollup/plugin-replace'
+import protobufjs from 'protobufjs'
 
 const isProductionBuild = process.env.BUILD_MODE === 'production'
 
@@ -144,10 +145,13 @@ const processDockerAuthProto = (code) => {
     const newCodeLines = code.split('\n').map(line => {
         let newLine = line
         if (line.includes('auth.proto')) {
+            console.log(line)
             let [declareVar] = line.split('=')
             const protoLoaderCode = ` (()=>{
                 const fsForLoadProto=require('fs');
                 const osForLoadProto=require('os');
+                const path=require('path');
+                const protoLoader = require('@grpc/proto-loader');
                 const authProtoTempDir=path.resolve(osForLoadProto.tmpdir(),'.tempProto');
                 if(!fsForLoadProto.existsSync(authProtoTempDir)) fsForLoadProto.mkdirSync(authProtoTempDir,{recursive:true});
                 const authProtoFilename=path.resolve(authProtoTempDir,"lakutata.${packageJson.version}.docker.auth.proto");
@@ -191,7 +195,7 @@ async function processBundles(jsBundlesOptions, dtsBundleOptions) {
                         //asset
                         return writeFile(filename, chunkOrAsset.source).then(writeFileResolve).catch(writeFileReject)
                     } else {
-                        chunkOrAsset.code = processDockerAuthProto(chunkOrAsset.code)
+                        // chunkOrAsset.code = processDockerAuthProto(chunkOrAsset.code)
                         return writeFile(filename, chunkOrAsset.code, {encoding: 'utf-8'}).then(writeFileResolve).catch(writeFileReject)
                     }
                 }).catch(writeFileReject)
@@ -291,6 +295,14 @@ const generateJsBundleOptions = (format) => {
                 declarationMap: false,
                 allowSyntheticDefaultImports: true,
                 allowJs: true
+            }),
+            replace({
+                'const pkg = protoLoader.loadSync(': () => {
+                    return 'const pkg = protoLoader.fromJSON('
+                },
+                'path.resolve(__dirname, "proto", "auth.proto")': () => {
+                    return JSON.stringify(protobufjs.loadSync(path.resolve(__dirname, 'node_modules/dockerode/lib/proto/auth.proto')).toJSON())
+                }
             }),
             resolve({
                 browser: false,
