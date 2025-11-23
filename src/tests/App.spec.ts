@@ -31,7 +31,8 @@ import {AccessControl} from '../components/entrypoint/lib/AccessControl.js'
 import {TestRule} from './rules/TestRule.js'
 import {DataObjectDTO} from './dto/DataObjectDTO.js'
 import {DTO} from '../lib/core/DTO.js'
-import {BuildDatabaseOptions} from '../providers/Database.js'
+import {BuildDatabaseOptions, Database} from '../components/Database.js'
+import {TestEntity} from './entities/TestEntity.js'
 
 Application
     .env({TEST: '123'})
@@ -142,7 +143,13 @@ Application
             }),
             docker: {
                 class: Docker
-            }
+            },
+            db: BuildDatabaseOptions({
+                type: 'sqlite',
+                database: path.resolve('@test2', 'test.db'),
+                entities: [TestEntity],
+                synchronize: true
+            })
         },
         providers: {
             testProvider: {
@@ -162,6 +169,7 @@ Application
             }
         },
         bootstrap: [
+            'db',
             // 'testModule',
             // 'testComponent',
             // 'testProvider',
@@ -174,6 +182,12 @@ Application
         '@test2': '@test/kkkkkkkk'
     }, true)
     .onLaunched(async (app, log) => {
+        const db = await app.getObject<Database>('db')
+        const repo = db.getRepository(TestEntity)
+        const te = new TestEntity()
+        te.content = `now is ${new Date()}`
+        console.log(await repo.save(te))
+
         const entrypoint = await app.getObject<Entrypoint>('entrypoint')
         console.log('HttpActions', entrypoint.getHttpActions())
         console.log('CliActions', entrypoint.getCliActions())
