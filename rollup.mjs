@@ -15,7 +15,6 @@ import {mkdir, readFile, writeFile} from 'node:fs/promises'
 import {fileURLToPath} from 'node:url'
 import {createRequire} from 'module'
 import packageJson from './package.json' with {type: 'json'}
-import * as fs from 'node:fs'
 import replace from '@rollup/plugin-replace'
 import protobufjs from 'protobufjs'
 
@@ -136,37 +135,6 @@ const processTsConfigJson = async (tsconfigJsonFilename) => {
 }
 
 /**
- * Process Docker auth.proto file
- */
-const processDockerAuthProto = (code) => {
-    if (!code.includes('auth.proto')) return code
-    const protoContentBuffer = fs.readFileSync(path.resolve(__dirname, 'node_modules/dockerode/lib/proto/auth.proto'))
-    const protoContentBase64 = protoContentBuffer.toString('base64')
-    const newCodeLines = code.split('\n').map(line => {
-        let newLine = line
-        if (line.includes('auth.proto')) {
-            console.log(line)
-            let [declareVar] = line.split('=')
-            const protoLoaderCode = ` (()=>{
-                const fsForLoadProto=require('fs');
-                const osForLoadProto=require('os');
-                const path=require('path');
-                const protoLoader = require('@grpc/proto-loader');
-                const authProtoTempDir=path.resolve(osForLoadProto.tmpdir(),'.tempProto');
-                if(!fsForLoadProto.existsSync(authProtoTempDir)) fsForLoadProto.mkdirSync(authProtoTempDir,{recursive:true});
-                const authProtoFilename=path.resolve(authProtoTempDir,"lakutata.${packageJson.version}.docker.auth.proto");
-                if(!fsForLoadProto.existsSync(authProtoFilename)) fsForLoadProto.writeFileSync(authProtoFilename,Buffer.from("${protoContentBase64}","base64").toString("utf-8"));
-                return protoLoader.loadSync(authProtoFilename);
-            })();
-            `
-            newLine = [declareVar, protoLoaderCode].join('=')
-        }
-        return newLine
-    })
-    return newCodeLines.join('\n')
-}
-
-/**
  * Process bundles
  * @param jsBundlesOptions {RollupOptions[]}
  * @param dtsBundleOptions {RollupOptions}
@@ -195,7 +163,7 @@ async function processBundles(jsBundlesOptions, dtsBundleOptions) {
                         //asset
                         return writeFile(filename, chunkOrAsset.source).then(writeFileResolve).catch(writeFileReject)
                     } else {
-                        // chunkOrAsset.code = processDockerAuthProto(chunkOrAsset.code)
+                        //chunk
                         return writeFile(filename, chunkOrAsset.code, {encoding: 'utf-8'}).then(writeFileResolve).catch(writeFileReject)
                     }
                 }).catch(writeFileReject)
