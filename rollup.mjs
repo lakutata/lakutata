@@ -313,7 +313,7 @@ const generateJsBundleOptions = (format) => {
                     beautify: true,
                     preamble: `/* Build Date: ${new Date()} */`
                 },
-                mangle:false,
+                mangle: false,
                 keep_classnames: true,
                 compress: false,
                 module: true
@@ -340,6 +340,9 @@ const generateJsBundleOptions = (format) => {
             'shx',
             'dts-bundle-generator',
             'eslint',
+            'log-update',
+            'cli-spinners',
+            'chalk',
             ...builtinModules,
             /^@rollup\//,
             /\.node$/
