@@ -73,7 +73,7 @@ const dtsVendorMap = new Map()
  */
 const jsChunkNameGenerator = (chunkName) => {
     if (!jsVendorMap.has(chunkName)) jsVendorMap.set(chunkName, ++jsVendorNumber)
-    return `${thirdPartyPackageRootDirname}/Package.${jsVendorMap.get(chunkName) || 0}`
+    return `${thirdPartyPackageRootDirname}/Package.internal.${jsVendorMap.get(chunkName) || 0}`
 }
 /**
  * Generate DTS chunk name
@@ -82,7 +82,6 @@ const jsChunkNameGenerator = (chunkName) => {
  */
 const dtsChunkNameGenerator = (chunkName) => {
     if (!dtsVendorMap.has(chunkName)) dtsVendorMap.set(chunkName, ++dtsVendorNumber)
-    // return `${thirdPartyPackageRootDirname}/TypeDef.${dtsVendorMap.get(chunkName) || 0}`
     return `${thirdPartyPackageRootDirname}/TypeDef.internal.${dtsVendorMap.get(chunkName) || 0}`
 }
 /**
@@ -253,23 +252,19 @@ const generateJsBundleOptions = (format) => {
             exports: 'named',
             compact: false,
             interop: 'auto',
-            // generatedCode: 'es2015',
             generatedCode: {
                 preset: 'es2015',
                 arrowFunctions: true,
-                constBindings: true,
-                symbols: true
+                constBindings: true
             },
-            hoistTransitiveImports: true,
+            hoistTranspiledVariables: true,
             manualChunks: (id) => {
-                return id
-                // const chunkId = normalizeString(id.toString())
-                // let relativeId = path.relative(import.meta.dirname, chunkId)
-                // if (relativeId.startsWith('node_modules')) {
-                //     // return path.dirname(relativeId) + urlParse(relativeId).query
-                //     return path.dirname(relativeId)
-                // }
-                // return relativeId
+                let chunkId = normalizeString(id.toString())
+                chunkId = path.relative(import.meta.dirname, chunkId)
+                if (chunkId.startsWith('node_modules')) {
+                    chunkId = chunkId.split(path.sep)[1]
+                }
+                return chunkId
             },
             entryFileNames: (chunkInfo) => {
                 const facadeModuleId = normalizeString(chunkInfo.facadeModuleId)
@@ -283,7 +278,7 @@ const generateJsBundleOptions = (format) => {
             }
         },
         makeAbsoluteExternalsRelative: true,
-        treeshake: false,
+        treeshake: 'safest',
         plugins: [
             progress({clearLine: true}),
             isEsm ? removeShebang() : undefined,
@@ -313,7 +308,6 @@ const generateJsBundleOptions = (format) => {
                     beautify: true,
                     preamble: `/* Build Date: ${new Date()} */`
                 },
-                mangle: false,
                 keep_classnames: true,
                 compress: false,
                 module: true
@@ -368,7 +362,7 @@ const generateDTSBundleOptions = () => {
             format: 'esm',
             dir: outputDirname,
             minifyInternalExports: false,
-            manualChunks: (id) => id,
+            manualChunks: (id) => normalizeString(path.dirname(id)),
             entryFileNames: (chunkInfo) => `${getOutputFilename(path.basename(chunkInfo.name))}.d.${outputExt}`,
             chunkFileNames: (chunkInfo) => {
                 if (!chunkInfo.name.startsWith(thirdPartyPackageRootDirname)) chunkInfo.name = dtsChunkNameGenerator(chunkInfo.name)
