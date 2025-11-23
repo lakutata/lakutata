@@ -2,7 +2,7 @@ import {Component} from '../lib/core/Component.js'
 import {Singleton} from '../decorators/di/Lifetime.js'
 import {Configurable} from '../decorators/di/Configurable.js'
 import {DTO} from '../lib/core/DTO.js'
-import {pino, Logger as PinoLogger, DestinationStream, destination} from 'pino'
+import {pino, Logger as PinoLogger, DestinationStream, destination, multistream} from 'pino'
 import {GetBasicInfo} from '../lib/base/internal/BasicInfo.js'
 import PinoPretty from 'pino-pretty'
 import {As} from '../lib/helpers/As.js'
@@ -64,7 +64,7 @@ export class Logger extends Component {
         this.#instance = pino({
                 level: this.level,
                 name: GetBasicInfo().appName || 'Unnamed'
-            }, pino.multistream(
+            }, multistream(
                 this.destinations
                     .map((destinationWritableStream: NodeJS.WritableStream) => {
                         const utf8OnlyStream: UTF8OnlyStream = destination(destinationWritableStream)

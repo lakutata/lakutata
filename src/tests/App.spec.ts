@@ -182,6 +182,7 @@ Application
         '@test2': '@test/kkkkkkkk'
     }, true)
     .onLaunched(async (app, log) => {
+        log.info('onLaunched!!!')
         const db = await app.getObject<Database>('db')
         const repo = db.getRepository(TestEntity)
         const te = new TestEntity()

@@ -261,16 +261,16 @@ const generateJsBundleOptions = (format) => {
                 symbols: true
             },
             hoistTransitiveImports: true,
-            // manualChunks: (id) => {
-            //     // return id
-            //     const chunkId = normalizeString(id.toString())
-            //     let relativeId = path.relative(import.meta.dirname, chunkId)
-            //     if (relativeId.startsWith('node_modules')) {
-            //         // return path.dirname(relativeId) + urlParse(relativeId).query
-            //         return path.dirname(relativeId)
-            //     }
-            //     return relativeId
-            // },
+            manualChunks: (id) => {
+                return id
+                // const chunkId = normalizeString(id.toString())
+                // let relativeId = path.relative(import.meta.dirname, chunkId)
+                // if (relativeId.startsWith('node_modules')) {
+                //     // return path.dirname(relativeId) + urlParse(relativeId).query
+                //     return path.dirname(relativeId)
+                // }
+                // return relativeId
+            },
             entryFileNames: (chunkInfo) => {
                 const facadeModuleId = normalizeString(chunkInfo.facadeModuleId)
                 const relativeDir = path.relative(currentWorkingDir, path.dirname(facadeModuleId))
@@ -313,6 +313,7 @@ const generateJsBundleOptions = (format) => {
                     beautify: true,
                     preamble: `/* Build Date: ${new Date()} */`
                 },
+                mangle:false,
                 keep_classnames: true,
                 compress: false,
                 module: true
