@@ -12,7 +12,6 @@ import {CommandUtils} from 'typeorm/commands/CommandUtils.js'
 import ansi from 'ansis'
 import {Transient} from '../../decorators/di/Lifetime.js'
 import {Application} from '../../lib/core/Application.js'
-import {Inject} from '../../decorators/di/Inject.js'
 
 @Transient()
 export class GenerateMigration extends Provider {
