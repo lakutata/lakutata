@@ -337,7 +337,6 @@ export class Docker extends Component {
                                     let processedOutput: string = line.replace(/[^\u4e00-\u9fa5^a-z^A-Z^0-9^\[^\]^\/^:^\s+^\-^\\^&^\.^@^|^"^*^_\\n]/g, '').trim()
                                     if (!processedOutput || processedOutput.length < 2) return
                                     if (processedOutput.startsWith('Gsha256')) processedOutput = processedOutput.substring(72)
-                                    if (processedOutput.startsWith('r')) processedOutput = processedOutput.substring(1)
                                     if (processedOutput.startsWith('Uwriting')) processedOutput = processedOutput.substring(1)
                                     if (processedOutput.startsWith('Gsha256')) processedOutput = processedOutput.substring(72)
                                     if (processedOutput.startsWith('qresolve')) processedOutput = processedOutput.substring(1)
