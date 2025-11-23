@@ -13,10 +13,10 @@ import {dts} from 'rollup-plugin-dts'
 import {builtinModules} from 'node:module'
 import {mkdir, readFile, writeFile} from 'node:fs/promises'
 import {fileURLToPath} from 'node:url'
-import os from 'os'
 import {createRequire} from 'module'
 import packageJson from './package.json' with {type: 'json'}
 import * as fs from 'node:fs'
+import urlParse from 'url-parse'
 
 const isProductionBuild = process.env.BUILD_MODE === 'production'
 
@@ -253,8 +253,24 @@ const generateJsBundleOptions = (format) => {
             exports: 'named',
             compact: false,
             interop: 'auto',
-            generatedCode: 'es2015',
-            manualChunks: (id) => id,
+            // generatedCode: 'es2015',
+            generatedCode: {
+                preset: 'es2015',
+                arrowFunctions: true,
+                constBindings: true,
+                symbols: true
+            },
+            hoistTransitiveImports: true,
+            // manualChunks: (id) => {
+            //     // return id
+            //     const chunkId = normalizeString(id.toString())
+            //     let relativeId = path.relative(import.meta.dirname, chunkId)
+            //     if (relativeId.startsWith('node_modules')) {
+            //         // return path.dirname(relativeId) + urlParse(relativeId).query
+            //         return path.dirname(relativeId)
+            //     }
+            //     return relativeId
+            // },
             entryFileNames: (chunkInfo) => {
                 const facadeModuleId = normalizeString(chunkInfo.facadeModuleId)
                 const relativeDir = path.relative(currentWorkingDir, path.dirname(facadeModuleId))
@@ -286,7 +302,9 @@ const generateJsBundleOptions = (format) => {
                 preferBuiltins: true
             }),
             commonjs({
-                ignore: (id) => id.includes('.node')
+                ignore: (id) => id.includes('.node'),
+                transformMixedEsModules: true,
+                strictRequires: 'auto'
             }),
             json(),
             terser({
