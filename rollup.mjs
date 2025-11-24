@@ -22,7 +22,6 @@ const isProductionBuild = process.env.BUILD_MODE === 'production'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-const require = createRequire(__filename)
 
 const removeShebang = () => ({
     name: 'rollup-plugin-remove-shebang',
@@ -229,15 +228,7 @@ const generateJsBundleOptions = (format) => {
                 arrowFunctions: true,
                 constBindings: true
             },
-            hoistTranspiledVariables: true,
-            manualChunks: (id) => {
-                let chunkId = normalizeString(id.toString())
-                chunkId = path.relative(import.meta.dirname, chunkId)
-                if (chunkId.startsWith('node_modules')) {
-                    chunkId = chunkId.split(path.sep)[1]
-                }
-                return chunkId
-            },
+            hoistTranspiledVariables: false,
             entryFileNames: (chunkInfo) => {
                 const facadeModuleId = normalizeString(chunkInfo.facadeModuleId)
                 const relativeDir = path.relative(currentWorkingDir, path.dirname(facadeModuleId))
