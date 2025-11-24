@@ -13,7 +13,6 @@ import {dts} from 'rollup-plugin-dts'
 import {builtinModules} from 'node:module'
 import {mkdir, readFile, writeFile} from 'node:fs/promises'
 import {fileURLToPath} from 'node:url'
-import {createRequire} from 'module'
 import packageJson from './package.json' with {type: 'json'}
 import replace from '@rollup/plugin-replace'
 import protobufjs from 'protobufjs'
