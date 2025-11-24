@@ -300,8 +300,6 @@ const generateJsBundleOptions = (format) => {
             'sqlite3',
             'mongodb',
             'memjs',
-            '@redis/client',
-            'cluster-key-slot',
             'redis',
             'fastify',
             'socket.io',
