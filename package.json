@@ -58,7 +58,7 @@
     "@keyv/mongo": "3.0.5",
     "@keyv/mysql": "2.1.9",
     "@keyv/postgres": "2.2.2",
-    "@keyv/redis": "5.1.4",
+    "@keyv/redis": "4.6.0",
     "@keyv/sqlite": "4.0.6",
     "@rollup/plugin-commonjs": "25.0.8",
     "@rollup/plugin-esm-shim": "0.1.8",
