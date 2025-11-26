@@ -105,13 +105,30 @@ export class Time extends Date {
     }
 
     /**
-     * Update the current instance internal timestamp and return the current instance
+     * Update the current instance internal timestamp and return new Time instance
      * @param time
      * @protected
      */
-    protected updateTimestamp(time: number): this {
-        this.setTime(time)
-        return this
+    protected updateTimestampWithNewTime(time: number): Time {
+        const newInstance: Time = new Time(time)
+        const tz: string | undefined = this.tz()
+        if (tz) newInstance.tz(tz)
+        return newInstance
+    }
+
+    /**
+     * Internal get or set time zone
+     * @protected
+     */
+    protected tz(): string | undefined
+    protected tz(tz: string): this
+    protected tz(tz?: string): string | undefined | this {
+        if (tz) {
+            this.#instance = this.#instance.tz(tz)
+            return this
+        } else {
+            return this.#instance.tz()
+        }
     }
 
     /**
@@ -125,13 +142,12 @@ export class Time extends Date {
      * Get or set time zone
      */
     public timezone(): string | undefined
-    public timezone(tz: string): this
-    public timezone(tz?: string): string | undefined | this {
+    public timezone(tz: string): Time
+    public timezone(tz?: string): string | undefined | Time {
         if (tz) {
-            this.#instance = this.#instance.tz(tz)
-            return this
+            return new Time(this.getTime()).tz(tz)
         } else {
-            return this.#instance.tz()
+            return this.tz()
         }
     }
 
@@ -139,36 +155,36 @@ export class Time extends Date {
      * Get or set the number of milliseconds
      */
     public milliseconds(): number
-    public milliseconds(value: number): this
-    public milliseconds(value?: number): number | this {
-        return value !== undefined ? this.updateTimestamp(this.#instance.milliseconds(value).valueOf()) : this.#instance.milliseconds()
+    public milliseconds(value: number): Time
+    public milliseconds(value?: number): number | Time {
+        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.milliseconds(value).valueOf()) : this.#instance.milliseconds()
     }
 
     /**
      * Get or set seconds
      */
     public seconds(): number
-    public seconds(value: number): this
-    public seconds(value?: number): number | this {
-        return value !== undefined ? this.updateTimestamp(this.#instance.seconds(value).valueOf()) : this.#instance.seconds()
+    public seconds(value: number): Time
+    public seconds(value?: number): number | Time {
+        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.seconds(value).valueOf()) : this.#instance.seconds()
     }
 
     /**
      * Get or set minutes
      */
     public minutes(): number
-    public minutes(value: number): this
-    public minutes(value?: number): number | this {
-        return value !== undefined ? this.updateTimestamp(this.#instance.minutes(value).valueOf()) : this.#instance.minutes()
+    public minutes(value: number): Time
+    public minutes(value?: number): number | Time {
+        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.minutes(value).valueOf()) : this.#instance.minutes()
     }
 
     /**
      * Get or set the hour
      */
     public hours(): number
-    public hours(value: number): this
-    public hours(value?: number): number | this {
-        return value !== undefined ? this.updateTimestamp(this.#instance.hours(value).valueOf()) : this.#instance.hours()
+    public hours(value: number): Time
+    public hours(value?: number): number | Time {
+        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.hours(value).valueOf()) : this.#instance.hours()
     }
 
     /**
@@ -176,27 +192,27 @@ export class Time extends Date {
      * Accepts numbers from 1 to 31. If out of range it will bubble up to months
      */
     public date(): number
-    public date(value: number): this
-    public date(value?: number): number | this {
-        return value !== undefined ? this.updateTimestamp(this.#instance.date(value).valueOf()) : this.#instance.date()
+    public date(value: number): Time
+    public date(value?: number): number | Time {
+        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.date(value).valueOf()) : this.#instance.date()
     }
 
     /**
      * Set to get or set the day of the week
      */
     public weekday(): number
-    public weekday(value: number): this
-    public weekday(value?: number): number | this {
-        return value !== undefined ? this.updateTimestamp(this.#instance.weekday(value).valueOf()) : this.#instance.weekday()
+    public weekday(value: number): Time
+    public weekday(value?: number): number | Time {
+        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.weekday(value).valueOf()) : this.#instance.weekday()
     }
 
     /**
      * Get or set the ISO day of the week, 1 is Monday, 7 is Sunday
      */
     public isoWeekday(): number
-    public isoWeekday(value: number): this
-    public isoWeekday(value?: number): number | this {
-        return value !== undefined ? this.updateTimestamp(this.#instance.isoWeekday(value).valueOf()) : this.#instance.isoWeekday()
+    public isoWeekday(value: number): Time
+    public isoWeekday(value?: number): number | Time {
+        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.isoWeekday(value).valueOf()) : this.#instance.isoWeekday()
     }
 
     /**
@@ -204,27 +220,27 @@ export class Time extends Date {
      * Accepts numbers from 1 to 366. If out of range it will bubble up to the year
      */
     public dayOfYear(): number
-    public dayOfYear(value: number): this
-    public dayOfYear(value?: number): number | this {
-        return value !== undefined ? this.updateTimestamp(this.#instance.dayOfYear(value).valueOf()) : this.#instance.dayOfYear()
+    public dayOfYear(value: number): Time
+    public dayOfYear(value?: number): number | Time {
+        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.dayOfYear(value).valueOf()) : this.#instance.dayOfYear()
     }
 
     /**
      * Gets or sets the week of the year
      */
     public weeks(): number
-    public weeks(value: number): this
-    public weeks(value?: number): number | this {
-        return value !== undefined ? this.updateTimestamp(this.#instance.weeks(value).valueOf()) : this.#instance.weeks()
+    public weeks(value: number): Time
+    public weeks(value?: number): number | Time {
+        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.weeks(value).valueOf()) : this.#instance.weeks()
     }
 
     /**
      * Gets or sets the ISO week of the year
      */
     public isoWeeks(): number
-    public isoWeeks(value: number): this
-    public isoWeeks(value?: number): number | this {
-        return value !== undefined ? this.updateTimestamp(this.#instance.isoWeeks(value).valueOf()) : this.#instance.isoWeeks()
+    public isoWeeks(value: number): Time
+    public isoWeeks(value?: number): number | Time {
+        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.isoWeeks(value).valueOf()) : this.#instance.isoWeeks()
     }
 
     /**
@@ -232,18 +248,18 @@ export class Time extends Date {
      * Accepts numbers from 0 to 11. If out of range it will bubble up to the year
      */
     public month(): number
-    public month(value: number): this
-    public month(value?: number): number | this {
-        return value !== undefined ? this.updateTimestamp(this.#instance.month(value).valueOf()) : this.#instance.month()
+    public month(value: number): Time
+    public month(value?: number): number | Time {
+        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.month(value).valueOf()) : this.#instance.month()
     }
 
     /**
      * Gets or sets the quarter (1 to 4)
      */
     public quarters(): number
-    public quarters(value: number): this
-    public quarters(value?: number): number | this {
-        return value !== undefined ? this.updateTimestamp(this.#instance.quarters(value).valueOf()) : this.#instance.quarters()
+    public quarters(value: number): Time
+    public quarters(value?: number): number | Time {
+        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.quarters(value).valueOf()) : this.#instance.quarters()
     }
 
     /**
@@ -251,18 +267,18 @@ export class Time extends Date {
      * Accepts numbers from -270,000 to 270,000
      */
     public year(): number
-    public year(value: number): this
-    public year(value?: number): number | this {
-        return value !== undefined ? this.updateTimestamp(this.#instance.year(value).valueOf()) : this.#instance.year()
+    public year(value: number): Time
+    public year(value?: number): number | Time {
+        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.year(value).valueOf()) : this.#instance.year()
     }
 
     /**
      * Gets or sets the week of the year in ISO time
      */
     public isoWeekYear(): number
-    public isoWeekYear(value: number): this
-    public isoWeekYear(value?: number): number | this {
-        return value !== undefined ? this.updateTimestamp(this.#instance.isoWeekYear(value).valueOf()) : this.#instance.isoWeekYear()
+    public isoWeekYear(value: number): Time
+    public isoWeekYear(value?: number): number | Time {
+        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.isoWeekYear(value).valueOf()) : this.#instance.isoWeekYear()
     }
 
     /**
@@ -292,8 +308,8 @@ export class Time extends Date {
      * @param unit
      * @param value
      */
-    public set(unit: UnitOfTime.All, value: number): this {
-        return this.updateTimestamp(this.#instance.set(unit, value).valueOf())
+    public set(unit: UnitOfTime.All, value: number): Time {
+        return this.updateTimestampWithNewTime(this.#instance.set(unit, value).valueOf())
     }
 
     /**
@@ -301,8 +317,8 @@ export class Time extends Date {
      * @param amount
      * @param unit
      */
-    public add(amount: number, unit: UnitOfTime.DurationConstructor): this {
-        return this.updateTimestamp(this.#instance.add(amount, unit).valueOf())
+    public add(amount: number, unit: UnitOfTime.DurationConstructor): Time {
+        return this.updateTimestampWithNewTime(this.#instance.add(amount, unit).valueOf())
     }
 
     /**
@@ -310,24 +326,24 @@ export class Time extends Date {
      * @param amount
      * @param unit
      */
-    public subtract(amount: number, unit: UnitOfTime.DurationConstructor): this {
-        return this.updateTimestamp(this.#instance.subtract(amount, unit).valueOf())
+    public subtract(amount: number, unit: UnitOfTime.DurationConstructor): Time {
+        return this.updateTimestampWithNewTime(this.#instance.subtract(amount, unit).valueOf())
     }
 
     /**
      * Set to the start of a time unit
      * @param unit
      */
-    public startOf(unit: UnitOfTime.StartOf): this {
-        return this.updateTimestamp(this.#instance.startOf(unit).valueOf())
+    public startOf(unit: UnitOfTime.StartOf): Time {
+        return this.updateTimestampWithNewTime(this.#instance.startOf(unit).valueOf())
     }
 
     /**
      * Set to the end of the time unit
      * @param unit
      */
-    public endOf(unit: UnitOfTime.StartOf): this {
-        return this.updateTimestamp(this.#instance.endOf(unit).valueOf())
+    public endOf(unit: UnitOfTime.StartOf): Time {
+        return this.updateTimestampWithNewTime(this.#instance.endOf(unit).valueOf())
     }
 
     /**
