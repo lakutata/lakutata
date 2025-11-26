@@ -1,5 +1,6 @@
 import 'reflect-metadata'
 import MomentTimezone from 'moment-timezone'
+import {DTO} from './DTO.js'
 
 export namespace UnitOfTime {
     export type Base = (
@@ -64,6 +65,7 @@ export class Time extends Date {
      * @param inp
      */
     constructor(inp?: TimeInput) {
+        if (inp && typeof inp === 'string') inp = DTO.validate(inp, DTO.Date().strict(false))
         const instance: MomentTimezone.Moment = inp
             ? (inp instanceof Time
                 ? MomentTimezone(inp.#instance)
