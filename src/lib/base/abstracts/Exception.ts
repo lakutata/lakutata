@@ -2,6 +2,8 @@ import {GetBasicInfo} from '../internal/BasicInfo.js'
 import {Templating} from '../../helpers/Templating.js'
 import {As} from '../../helpers/As.js'
 import {CamelCase} from '../internal/CamelCase.js'
+import {DevNull} from '../../helpers/DevNull.js'
+import format from 'format'
 
 /**
  * 异常抽象类
@@ -14,21 +16,23 @@ export abstract class Exception extends Error {
     public readonly err: string
     public readonly statusCode: number = 500
 
-    constructor(template: string, data: unknown[] | Record<string, any>)
+    constructor(template: string, ...params: any[])
     constructor(message: string)
     constructor(error: Error)
     constructor()
-    constructor(a?: string | Error, b?: unknown[] | Record<string, any>) {
+    constructor(a?: string | Error, ...b: any[]) {
         super()
-        if (b) {
+        if (b.length) {
             const template: string = a as string
-            const data: unknown[] | Record<string, any> = b
-            //Error template
+            const templatingArgs: unknown[] | Record<string, any> = b.length > 1 ? b : b[0]
             try {
-                this.message = Templating(template, data, {ignoreMissing: true})
+                console.log('templatingArgs', templatingArgs)
+                this.message = Templating(template, templatingArgs, {ignoreMissing: true})
             } catch (e) {
-                this.message = 'Unknown (broken exception template or data)'
+                this.message = template
+                DevNull(e)
             }
+            this.message = format(this.message, ...b)
         } else if (a) {
             if (typeof (a) === 'string') {
                 //Error message
