@@ -159,7 +159,7 @@ export class Time extends Date {
     public milliseconds(): number
     public milliseconds(value: number): Time
     public milliseconds(value?: number): number | Time {
-        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.milliseconds(value).valueOf()) : this.#instance.milliseconds()
+        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.clone().milliseconds(value).valueOf()) : this.#instance.milliseconds()
     }
 
     /**
@@ -168,7 +168,7 @@ export class Time extends Date {
     public seconds(): number
     public seconds(value: number): Time
     public seconds(value?: number): number | Time {
-        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.seconds(value).valueOf()) : this.#instance.seconds()
+        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.clone().seconds(value).valueOf()) : this.#instance.seconds()
     }
 
     /**
@@ -177,7 +177,7 @@ export class Time extends Date {
     public minutes(): number
     public minutes(value: number): Time
     public minutes(value?: number): number | Time {
-        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.minutes(value).valueOf()) : this.#instance.minutes()
+        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.clone().minutes(value).valueOf()) : this.#instance.minutes()
     }
 
     /**
@@ -186,7 +186,7 @@ export class Time extends Date {
     public hours(): number
     public hours(value: number): Time
     public hours(value?: number): number | Time {
-        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.hours(value).valueOf()) : this.#instance.hours()
+        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.clone().hours(value).valueOf()) : this.#instance.hours()
     }
 
     /**
@@ -196,7 +196,7 @@ export class Time extends Date {
     public date(): number
     public date(value: number): Time
     public date(value?: number): number | Time {
-        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.date(value).valueOf()) : this.#instance.date()
+        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.clone().date(value).valueOf()) : this.#instance.date()
     }
 
     /**
@@ -205,7 +205,7 @@ export class Time extends Date {
     public weekday(): number
     public weekday(value: number): Time
     public weekday(value?: number): number | Time {
-        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.weekday(value).valueOf()) : this.#instance.weekday()
+        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.clone().weekday(value).valueOf()) : this.#instance.weekday()
     }
 
     /**
@@ -214,7 +214,7 @@ export class Time extends Date {
     public isoWeekday(): number
     public isoWeekday(value: number): Time
     public isoWeekday(value?: number): number | Time {
-        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.isoWeekday(value).valueOf()) : this.#instance.isoWeekday()
+        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.clone().isoWeekday(value).valueOf()) : this.#instance.isoWeekday()
     }
 
     /**
@@ -224,7 +224,7 @@ export class Time extends Date {
     public dayOfYear(): number
     public dayOfYear(value: number): Time
     public dayOfYear(value?: number): number | Time {
-        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.dayOfYear(value).valueOf()) : this.#instance.dayOfYear()
+        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.clone().dayOfYear(value).valueOf()) : this.#instance.dayOfYear()
     }
 
     /**
@@ -233,7 +233,7 @@ export class Time extends Date {
     public weeks(): number
     public weeks(value: number): Time
     public weeks(value?: number): number | Time {
-        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.weeks(value).valueOf()) : this.#instance.weeks()
+        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.clone().weeks(value).valueOf()) : this.#instance.weeks()
     }
 
     /**
@@ -242,7 +242,7 @@ export class Time extends Date {
     public isoWeeks(): number
     public isoWeeks(value: number): Time
     public isoWeeks(value?: number): number | Time {
-        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.isoWeeks(value).valueOf()) : this.#instance.isoWeeks()
+        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.clone().isoWeeks(value).valueOf()) : this.#instance.isoWeeks()
     }
 
     /**
@@ -252,7 +252,7 @@ export class Time extends Date {
     public month(): number
     public month(value: number): Time
     public month(value?: number): number | Time {
-        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.month(value).valueOf()) : this.#instance.month()
+        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.clone().month(value).valueOf()) : this.#instance.month()
     }
 
     /**
@@ -261,7 +261,7 @@ export class Time extends Date {
     public quarters(): number
     public quarters(value: number): Time
     public quarters(value?: number): number | Time {
-        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.quarters(value).valueOf()) : this.#instance.quarters()
+        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.clone().quarters(value).valueOf()) : this.#instance.quarters()
     }
 
     /**
@@ -271,7 +271,7 @@ export class Time extends Date {
     public year(): number
     public year(value: number): Time
     public year(value?: number): number | Time {
-        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.year(value).valueOf()) : this.#instance.year()
+        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.clone().year(value).valueOf()) : this.#instance.year()
     }
 
     /**
@@ -280,7 +280,7 @@ export class Time extends Date {
     public isoWeekYear(): number
     public isoWeekYear(value: number): Time
     public isoWeekYear(value?: number): number | Time {
-        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.isoWeekYear(value).valueOf()) : this.#instance.isoWeekYear()
+        return value !== undefined ? this.updateTimestampWithNewTime(this.#instance.clone().isoWeekYear(value).valueOf()) : this.#instance.isoWeekYear()
     }
 
     /**
@@ -311,7 +311,7 @@ export class Time extends Date {
      * @param value
      */
     public set(unit: UnitOfTime.All, value: number): Time {
-        return this.updateTimestampWithNewTime(this.#instance.set(unit, value).valueOf())
+        return this.updateTimestampWithNewTime(this.#instance.clone().set(unit, value).valueOf())
     }
 
     /**
@@ -320,7 +320,7 @@ export class Time extends Date {
      * @param unit
      */
     public add(amount: number, unit: UnitOfTime.DurationConstructor): Time {
-        return this.updateTimestampWithNewTime(this.#instance.add(amount, unit).valueOf())
+        return this.updateTimestampWithNewTime(this.#instance.clone().add(amount, unit).valueOf())
     }
 
     /**
@@ -329,7 +329,7 @@ export class Time extends Date {
      * @param unit
      */
     public subtract(amount: number, unit: UnitOfTime.DurationConstructor): Time {
-        return this.updateTimestampWithNewTime(this.#instance.subtract(amount, unit).valueOf())
+        return this.updateTimestampWithNewTime(this.#instance.clone().subtract(amount, unit).valueOf())
     }
 
     /**
@@ -337,7 +337,7 @@ export class Time extends Date {
      * @param unit
      */
     public startOf(unit: UnitOfTime.StartOf): Time {
-        return this.updateTimestampWithNewTime(this.#instance.startOf(unit).valueOf())
+        return this.updateTimestampWithNewTime(this.#instance.clone().startOf(unit).valueOf())
     }
 
     /**
@@ -345,7 +345,7 @@ export class Time extends Date {
      * @param unit
      */
     public endOf(unit: UnitOfTime.StartOf): Time {
-        return this.updateTimestampWithNewTime(this.#instance.endOf(unit).valueOf())
+        return this.updateTimestampWithNewTime(this.#instance.clone().endOf(unit).valueOf())
     }
 
     /**
