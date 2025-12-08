@@ -26,7 +26,6 @@ export abstract class Exception extends Error {
             const template: string = a as string
             const templatingArgs: unknown[] | Record<string, any> = b.length > 1 ? b : b[0]
             try {
-                console.log('templatingArgs', templatingArgs)
                 this.message = Templating(template, templatingArgs, {ignoreMissing: true})
             } catch (e) {
                 this.message = template
