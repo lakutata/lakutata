@@ -1,6 +1,6 @@
 {
   "name": "lakutata",
-  "version": "2.0.107",
+  "version": "2.0.108",
   "description": "An IoC-based universal application framework.",
   "type": "module",
   "exports": {
