@@ -22,3 +22,4 @@ tsup.config.esm.ts
 .prepublish.js
 .postpublish.js
 .package.json.bak
+.npmrc
