@@ -296,3 +296,4 @@ package-lock.json
 .package.json.bak
 src/tests/**/*.csv
 /.vscode/
+.npmrc
