@@ -29,7 +29,8 @@ const spinnerJob = async (description, job, successHandler, errorHandler) => {
 const distroDir = path.resolve(__dirname, 'distro')
 const distroPackageJson = JSON.parse(await readFile(path.resolve(distroDir, 'package.json'), {encoding: 'utf-8'}))
 process.exit(await spinnerJob('Publishing', async () => {
-    await execa('npm', ['publish'], {cwd: distroDir})
+    // await execa('npm', ['publish'], {cwd: distroDir})
+    await execa('npm', ['publish'], {cwd: distroDir, stdio: 'inherit'})
 }, () => {
     console.info(chalk.green(`Version ${distroPackageJson.version} has been successfully published`))
     return 0
