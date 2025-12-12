@@ -3,7 +3,7 @@ import logUpdate from 'log-update'
 import {execa} from 'execa'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {readFile} from 'node:fs/promises'
+import {cp, readFile} from 'node:fs/promises'
 import chalk from 'chalk'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -29,6 +29,7 @@ const spinnerJob = async (description, job, successHandler, errorHandler) => {
 const distroDir = path.resolve(__dirname, 'distro')
 const distroPackageJson = JSON.parse(await readFile(path.resolve(distroDir, 'package.json'), {encoding: 'utf-8'}))
 process.exit(await spinnerJob('Publishing', async () => {
+    await cp(path.resolve(__dirname, '.npmrc'), path.resolve(distroDir, '.npmrc'), {force: true, recursive: true})
     await execa('npm', ['publish'], {cwd: distroDir})
 }, () => {
     console.info(chalk.green(`Version ${distroPackageJson.version} has been successfully published`))
