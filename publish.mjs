@@ -29,6 +29,7 @@ const spinnerJob = async (description, job, successHandler, errorHandler) => {
 const distroDir = path.resolve(__dirname, 'distro')
 const distroPackageJson = JSON.parse(await readFile(path.resolve(distroDir, 'package.json'), {encoding: 'utf-8'}))
 process.exit(await spinnerJob('Publishing', async () => {
+    await cp(path.resolve(__dirname, '.npmignore'), path.resolve(distroDir, '.npmignore'), {force: true, recursive: true})
     await cp(path.resolve(__dirname, '.npmrc'), path.resolve(distroDir, '.npmrc'), {force: true, recursive: true})
     await execa('npm', ['publish'], {cwd: distroDir})
 }, () => {
