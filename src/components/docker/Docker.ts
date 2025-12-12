@@ -214,11 +214,14 @@ export class Docker extends Component {
      */
     public async listImages(): Promise<DockerImage[]> {
         const rawImages: Dockerode.ImageInfo[] = await this.#instance.listImages()
-        return await Promise.all(rawImages.map((rawImage: Dockerode.ImageInfo) => new Promise<DockerImage>((resolve, reject) => this.container.get(DockerImage, {
-            id: rawImage.Id,
-            getDockerode: () => this.#instance,
-            getDocker: () => this
-        }).then(resolve).catch(reject))))
+
+        return await Promise.all(rawImages.map((rawImage: Dockerode.ImageInfo)=>{
+            return this.container.get(DockerImage, {
+                id: rawImage.Id,
+                getDockerode: () => this.#instance,
+                getDocker: () => this
+            })
+        }))
     }
 
     /**

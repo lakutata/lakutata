@@ -3,7 +3,7 @@
  * @param rawEnv
  * @constructor
  */
-export function ParseEnvToRecord(rawEnv: string[]): Record<string, string> {
+export function ParseEnvToRecord(rawEnv: string[] = []): Record<string, string> {
     let environments: Record<string, string> = {}
     rawEnv.map((envString: string): Record<string, string> | null => {
         const splitPos: number = envString.indexOf('=')
