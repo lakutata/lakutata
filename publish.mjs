@@ -28,13 +28,25 @@ const spinnerJob = async (description, job, successHandler, errorHandler) => {
 }
 const distroDir = path.resolve(__dirname, 'distro')
 const distroPackageJson = JSON.parse(await readFile(path.resolve(distroDir, 'package.json'), {encoding: 'utf-8'}))
-process.exit(await spinnerJob('Publishing', async () => {
-    // await execa('npm', ['publish'], {cwd: distroDir})
-    await execa('npm', ['publish'], {cwd: distroDir, stdio: 'inherit'})
-}, () => {
-    console.info(chalk.green(`Version ${distroPackageJson.version} has been successfully published`))
-    return 0
-}, (e) => {
-    console.info(`${chalk.red('The publication encountered an error and failed to be published:')}\n${chalk.red(e.message)}`)
-    return 1
-}))
+
+process.exit(await (async () => {
+    try {
+        await execa('npm', ['publish'], {cwd: distroDir, stdio: 'inherit'})
+        console.info(chalk.green(`Version ${distroPackageJson.version} has been successfully published`))
+        return 0
+    } catch (e) {
+        console.info(`${chalk.red('The publication encountered an error and failed to be published:')}\n${chalk.red(e.message)}`)
+        return 1
+    }
+})())
+
+// process.exit(await spinnerJob('Publishing', async () => {
+//     // await execa('npm', ['publish'], {cwd: distroDir})
+//     await execa('npm', ['publish'], {cwd: distroDir, stdio: 'inherit'})
+// }, () => {
+//     console.info(chalk.green(`Version ${distroPackageJson.version} has been successfully published`))
+//     return 0
+// }, (e) => {
+//     console.info(`${chalk.red('The publication encountered an error and failed to be published:')}\n${chalk.red(e.message)}`)
+//     return 1
+// }))
