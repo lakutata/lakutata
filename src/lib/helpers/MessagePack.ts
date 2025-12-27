@@ -6,7 +6,7 @@ export class MessagePack {
      * @param value
      */
     public static encode(value: any): Uint8Array {
-        return encode(value, {useBigInt64: true})
+        return encode(value, {useBigInt64: true, ignoreUndefined: true})
     }
 
     /**

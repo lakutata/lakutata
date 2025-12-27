@@ -36,6 +36,8 @@ import {TestEntity} from './entities/TestEntity.js'
 import {glob} from 'glob'
 import {Glob} from '../lib/helpers/Glob.js'
 import {MessagePack} from '../lib/helpers/MessagePack.js'
+import {Expect} from '../decorators/dto/Expect.js'
+import {DateObjectDTO} from './dto/DateObjectDTO.js'
 
 Application
     .env({TEST: '123'})
@@ -263,11 +265,11 @@ Application
 
         const docker = await app.getObject<Docker>('docker')
 
-        console.log('MessagePack.encode({test:true}):', MessagePack.encode('ddddddd'))
-        console.log('MessagePack.stringify({test:true}):', MessagePack.encode(testObj), MessagePack.encode(testObj).length)
+        const obj = MessagePack.decode(MessagePack.encode([{
+            start: undefined
+        }]))
 
-        console.log(JSON.stringify(testObj), JSON.stringify(testObj).length)
-
+        console.log(await DateObjectDTO.validateAsync(obj[0]))
 
         // console.log(await docker.listImages())
         // const img=await docker.buildImage({
