@@ -35,6 +35,7 @@ import {BuildDatabaseOptions, Database} from '../components/Database.js'
 import {TestEntity} from './entities/TestEntity.js'
 import {glob} from 'glob'
 import {Glob} from '../lib/helpers/Glob.js'
+import {MessagePack} from '../lib/helpers/MessagePack.js'
 
 Application
     .env({TEST: '123'})
@@ -258,7 +259,16 @@ Application
         console.log('2:', DataObjectDTO.validate(testModel))
         console.log('3:', DataObjectDTO.validate(testModel))
 
+        const testObj = DataObjectDTO.validate(testModel)
+
         const docker = await app.getObject<Docker>('docker')
+
+        console.log('MessagePack.encode({test:true}):', MessagePack.encode('ddddddd'))
+        console.log('MessagePack.stringify({test:true}):', MessagePack.encode(testObj), MessagePack.encode(testObj).length)
+
+        console.log(JSON.stringify(testObj), JSON.stringify(testObj).length)
+
+
         // console.log(await docker.listImages())
         // const img=await docker.buildImage({
         //     dockerfile: 'TestDockerfile',

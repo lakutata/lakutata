@@ -60,6 +60,7 @@
     "@keyv/postgres": "2.2.2",
     "@keyv/redis": "4.6.0",
     "@keyv/sqlite": "4.0.6",
+    "@msgpack/msgpack": "^3.1.3",
     "@rollup/plugin-commonjs": "25.0.8",
     "@rollup/plugin-esm-shim": "0.1.8",
     "@rollup/plugin-json": "6.1.0",
