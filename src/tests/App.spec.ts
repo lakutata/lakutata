@@ -38,6 +38,7 @@ import {Glob} from '../lib/helpers/Glob.js'
 import {MessagePack} from '../lib/helpers/MessagePack.js'
 import {Expect} from '../decorators/dto/Expect.js'
 import {DateObjectDTO} from './dto/DateObjectDTO.js'
+import {TestProvider4} from './providers/TestProvider4.js'
 
 Application
     .env({TEST: '123'})
@@ -171,6 +172,9 @@ Application
             passwordHash: {
                 class: PasswordHash,
                 saltRounds: 3
+            },
+            tp4: {
+                class: TestProvider4
             }
         },
         bootstrap: [
@@ -265,11 +269,17 @@ Application
 
         const docker = await app.getObject<Docker>('docker')
 
-        const obj = MessagePack.decode(MessagePack.encode([{
+        const tp4=await app.getObject<TestProvider4>('tp4')
+
+        const [obj] = MessagePack.decode(MessagePack.encode([{
+            // start: new Date()
             start: undefined
         }]))
 
-        console.log(await DateObjectDTO.validateAsync(obj[0]))
+        console.log(obj)
+
+        await tp4.test4(obj)
+
 
         // console.log(await docker.listImages())
         // const img=await docker.buildImage({
