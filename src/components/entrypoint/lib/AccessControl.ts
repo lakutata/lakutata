@@ -99,7 +99,8 @@ export class AccessControl extends BaseObject {
         let allowed: boolean = !details.acl
         let exception: Error | Exception = new AccessDenyException()
         if (!allowed) {
-            await runtimeContainer.set(this, {
+            // await runtimeContainer.set(this, {
+            await runtimeContainer.build(this, {
                 rules: [...rules, details.rule].filter((rule: any): boolean => !!rule),
                 runtimeContainer: runtimeContainer,
                 actions: actions,
@@ -115,7 +116,8 @@ export class AccessControl extends BaseObject {
                 }
             })
         } else if (details.rule) {
-            await runtimeContainer.set(this, {
+            // await runtimeContainer.set(this, {
+            await runtimeContainer.build(this, {
                 rules: [details.rule],
                 runtimeContainer: runtimeContainer,
                 actions: actions,
