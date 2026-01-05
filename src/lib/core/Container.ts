@@ -271,11 +271,15 @@ export class Container {
      * @param configurableRecords
      */
     public async set<T extends BaseObject>(target: IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
-        await this.load([{
-            ...configurableRecords,
-            class: target
-        }])
-        return await this.get(target)
+        if (!this.has(target)) {
+            await this.load([{
+                ...configurableRecords,
+                class: target
+            }])
+        }
+        return await this.get(target, {
+            ...configurableRecords
+        })
     }
 
     /**
