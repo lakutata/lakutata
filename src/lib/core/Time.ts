@@ -67,7 +67,7 @@ export class Time extends Date {
     constructor(inp?: TimeInput) {
         if (inp && typeof inp === 'string') inp = DTO.validate(inp, DTO.Date().strict(false))
         const instance: MomentTimezone.Moment = inp
-            ? (inp instanceof Time
+            ? (inp instanceof Time && inp.#instance
                 ? MomentTimezone(inp.#instance)
                 : process.env.TZ
                     ? MomentTimezone(inp).tz(process.env.TZ)
