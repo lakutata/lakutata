@@ -176,7 +176,7 @@ export {type EntitySchemaIndexOptions} from 'typeorm/entity-schema/EntitySchemaI
 export {type EntitySchemaRelationOptions} from 'typeorm/entity-schema/EntitySchemaRelationOptions.js'
 export {type ColumnType} from 'typeorm/driver/types/ColumnTypes.js'
 
-export {getMetadataArgsStorage} from 'typeorm'
+export {getMetadataArgsStorage} from 'typeorm/globals.js'
 export {MetadataArgsStorage} from 'typeorm/metadata-args/MetadataArgsStorage.js'
 export {type CheckMetadataArgs} from 'typeorm/metadata-args/CheckMetadataArgs.js'
 export {type ColumnMetadataArgs} from 'typeorm/metadata-args/ColumnMetadataArgs.js'
