@@ -15,8 +15,7 @@ import {As} from '../helpers/As.js'
 import {EventEmitter} from '../base/EventEmitter.js'
 import {BootstrapOption} from '../../options/ModuleOptions.js'
 import {DatabaseSymbol} from '../base/internal/DatabaseSymbol.js'
-import {DataSourceOptions} from 'typeorm/data-source/DataSourceOptions.js'
-import {GenerateMigration} from '../../providers/migration/GenerateMigration.js'
+import type {DataSourceOptions} from 'typeorm/data-source/DataSourceOptions.js'
 
 /**
  * On application launched event handler
@@ -279,6 +278,7 @@ export class Application extends Module {
                         ...(options.providers ? getDataSourceOptionsArray(options.providers) : [])
                     ]
                     if (!totalDataSourceOptionsArray.length) process.exit(0)
+                    const {GenerateMigration} = await import('../../providers/migration/GenerateMigration.js')
                     options.bootstrap = []
                     totalDataSourceOptionsArray.forEach((dataSourceOptions: DataSourceOptions, index: number) => {
                         const migrationProviderName: string = `GenerateMigration${index}${Date.now()}`
