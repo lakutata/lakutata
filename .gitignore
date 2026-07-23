@@ -297,3 +297,4 @@ package-lock.json
 src/tests/**/*.csv
 /.vscode/
 .npmrc
+CLAUDE.md
