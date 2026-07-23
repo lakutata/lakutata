@@ -300,3 +300,4 @@ src/tests/**/*.csv
 /.vscode/
 .npmrc
 CLAUDE.md
+proposal/
