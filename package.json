@@ -9,7 +9,8 @@
     "build": "npm run compile -w packages/lakutata",
     "test:unit": "npm run test:unit -w packages/lakutata",
     "test:dispatch": "npm run test:dispatch -w packages/lakutata",
-    "test:types": "npm run build && tsc --noEmit -p consumer-fixture/tsconfig.json"
+    "test:types": "npm run build && tsc --noEmit -p consumer-fixture/tsconfig.json",
+    "test:api-surface": "npm run build && node consumer-fixture/api-snapshot.mjs"
   },
   "devDependencies": {
     "lerna": "^8.1.0"
