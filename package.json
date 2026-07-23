@@ -37,7 +37,8 @@
     "release:proto-release": "dotenv -- release-it --preRelease=proto --no-github.release --no-git.tag && npm run publish",
     "test:app": "cross-env BUILD_MODE=develop npm run compile && node --trace-warnings distro/src/tests/App.spec.mjs",
     "test:unit": "cross-env BUILD_MODE=develop npm run compile && node --test distro/src/tests/unit/*.spec.mjs",
-    "test:types": "cross-env BUILD_MODE=develop npm run compile && tsc --noEmit -p consumer-fixture/tsconfig.json"
+    "test:types": "cross-env BUILD_MODE=develop npm run compile && tsc --noEmit -p consumer-fixture/tsconfig.json",
+    "test:dispatch": "cross-env BUILD_MODE=develop npm run compile && node distro/src/tests/integration/Dispatch.contract.spec.mjs"
   },
   "release-it": {
     "npm": {
