@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "Node16",
+    "moduleResolution": "Node16",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "lakutata": ["../distro/lakutata.d.ts"],
+      "lakutata/*": ["../distro/*.d.ts"]
+    }
+  },
+  "include": ["consumer.types.ts"]
+}
