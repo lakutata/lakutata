@@ -10,8 +10,8 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "lakutata": ["../distro/lakutata.d.ts"],
-      "lakutata/*": ["../distro/*.d.ts"]
+      "lakutata": ["../packages/lakutata/distro/lakutata.d.ts"],
+      "lakutata/*": ["../packages/lakutata/distro/*.d.ts"]
     }
   },
   "include": ["consumer.types.ts"]

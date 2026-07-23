@@ -10,7 +10,7 @@ import progress from 'rollup-plugin-progress'
 import path from 'node:path'
 import {sync as globFiles} from 'glob'
 import {dts} from 'rollup-plugin-dts'
-import {builtinModules} from 'node:module'
+import {builtinModules, createRequire} from 'node:module'
 import {mkdir, readFile, writeFile} from 'node:fs/promises'
 import {fileURLToPath} from 'node:url'
 import packageJson from './package.json' with {type: 'json'}
@@ -259,7 +259,9 @@ const generateJsBundleOptions = (format) => {
                     return 'const pkg = protoLoader.fromJSON('
                 },
                 'path.resolve(__dirname, "proto", "auth.proto")': () => {
-                    return JSON.stringify(protobufjs.loadSync(path.resolve(__dirname, 'node_modules/dockerode/lib/proto/auth.proto')).toJSON())
+                    //Resolve dockerode via require.resolve so it is found regardless of npm workspace hoisting.
+                    const dockerodeLibDir = path.dirname(createRequire(import.meta.url).resolve('dockerode'))
+                    return JSON.stringify(protobufjs.loadSync(path.resolve(dockerodeLibDir, 'proto', 'auth.proto')).toJSON())
                 }
             }),
             resolve({
