@@ -291,6 +291,8 @@ build/**/*
 !tsup.config.esm.ts
 !.prepublish.js
 !.postpublish.js
+# Re-ignore OS junk files that the src negation above would otherwise re-include
+**/.DS_Store
 package-lock.json
 .env
 .package.json.bak
