@@ -95,3 +95,20 @@ export * from '../types/ModuleOptions.js'
 export * from '../interfaces/IBaseObjectConstructor.js'
 export * from '../interfaces/IConstructor.js'
 export * from '../interfaces/IPatRun.js'
+
+/**
+ * Comprehensive internal surface for sibling leaves (docker/database) and the
+ * umbrella. The umbrella's public barrels curate the consumer-facing subset;
+ * this root exposes everything so leaves can `import {...} from '@lakutata/core'`.
+ */
+export * from './Helpers.js'
+export * from './DIDecorators.js'
+export * from './DTODecorators.js'
+export * from './CTRLDecorators.js'
+export * from './ASSTDecorators.js'
+export * from './DTOs.js'
+export * from './CacherComponent.js'
+export * from './MonitorComponent.js'
+export * from './EntrypointComponent.js'
+export * from './LoggerComponent.js'
+export * from './PasswordHashProvider.js'
