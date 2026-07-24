@@ -1,6 +1,5 @@
 import 'reflect-metadata'
 import {isAsyncFunction} from 'node:util/types'
-import {isValidCron} from 'cron-validator'
 import {AnySchema} from '../../validation/interfaces/AnySchema.js'
 import {VLD} from '../../validation/VLD.js'
 import {StringSchema} from '../../validation/interfaces/StringSchema.js'
@@ -24,6 +23,35 @@ import {IsGlobString} from '../../helpers/IsGlobString.js'
 import {IsHtml} from '../../helpers/IsHtml.js'
 import {IsXML} from '../../helpers/IsXML.js'
 import {ErrorReport} from '../../validation/interfaces/ErrorReport.js'
+
+//Self-implemented (replaces the `cron-validator` package dependency).
+type CronOptions = { seconds?: boolean; allowBlankDay?: boolean; allowSevenAsSunday?: boolean; alias?: boolean }
+const _isValidField = (field: string, min: number, max: number, allowBlank: boolean): boolean => {
+    if (field === '*' || (allowBlank && field === '?')) return true
+    if (field.startsWith('@')) return true
+    const [base, stepStr] = field.split('/')
+    const step = stepStr ? parseInt(stepStr, 10) : 1
+    if (isNaN(step) || step < 1) return false
+    if (base === '*') return true
+    for (const part of base.split(',')) {
+        if (part.includes('-')) {
+            const [a, b] = part.split('-').map(Number)
+            if (isNaN(a) || isNaN(b) || a < min || b > max || a > b) return false
+        } else {
+            const n = parseInt(part, 10)
+            if (isNaN(n) || n < min || n > max) return false
+        }
+    }
+    return true
+}
+function isValidCron(cron: string, opts?: CronOptions): boolean {
+    const parts = cron.trim().split(/\s+/)
+    const hasSeconds = opts?.seconds ?? false
+    const maxSun = opts?.allowSevenAsSunday ? 7 : 6
+    const ranges = hasSeconds ? [[0,59],[0,59],[0,23],[1,31],[1,12],[0,maxSun]] : [[0,59],[0,23],[1,31],[1,12],[0,maxSun]]
+    if (parts.length !== ranges.length) return false
+    return parts.every((p, i) => _isValidField(p, ranges[i][0], ranges[i][1], !!opts?.allowBlankDay))
+}
 import {ReferenceOptions} from '../../validation/interfaces/ReferenceOptions.js'
 import {Reference} from '../../validation/interfaces/Reference.js'
 import {LinkSchema} from '../../validation/interfaces/LinkSchema.js'
