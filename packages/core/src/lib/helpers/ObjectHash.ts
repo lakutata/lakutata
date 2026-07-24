@@ -1,87 +1,50 @@
-import hash from 'object-hash'
+import {createHash} from 'node:crypto'
 
-type HashName =
-    | 'md4'
-    | 'md4WithRSAEncryption'
-    | 'md5'
-    | 'md5WithRSAEncryption'
-    | 'ripemd'
-    | 'ripemd160'
-    | 'ripemd160WithRSA'
-    | 'rmd160'
-    | 'rsa-md4'
-    | 'rsa-md5'
-    | 'rsa-ripemd160'
-    | 'rsa-sha1'
-    | 'rsa-sha1-2'
-    | 'rsa-sha224'
-    | 'rsa-sha256'
-    | 'rsa-sha3-224'
-    | 'rsa-sha3-256'
-    | 'rsa-sha3-384'
-    | 'rsa-sha3-512'
-    | 'rsa-sha384'
-    | 'rsa-sha512'
-    | 'sha1'
-    | 'sha1WithRSAEncryption'
-    | 'sha224'
-    | 'sha224WithRSAEncryption'
-    | 'sha256'
-    | 'sha256WithRSAEncryption'
-    | 'sha3-224'
-    | 'sha3-256'
-    | 'sha3-384'
-    | 'sha3-512'
-    | 'sha384'
-    | 'sha384WithRSAEncryption'
-    | 'sha512'
-    | 'sha512WithRSAEncryption';
+//Self-implemented on node:crypto (replaces the `object-hash` package dependency).
+//Produces a deterministic hash regardless of object key insertion order.
+
+type HashName = 'md5' | 'sha1' | 'sha224' | 'sha256' | 'sha384' | 'sha512' | 'ripemd160' | string
 
 export type ObjectHashOptions = {
-    /**
-     * @default 'hex'
-     */
     encoding?: 'hex' | 'binary' | 'base64' | undefined
-    /**
-     * @default 'sha1'
-     */
-    algorithm?: HashName | 'passthrough' | undefined;
+    algorithm?: HashName | 'passthrough' | undefined
+    excludeKeys?: ((key: string) => boolean) | undefined
+    excludeValues?: boolean | undefined
+    ignoreUnknown?: boolean | undefined
+    replacer?: ((value: any) => any) | undefined
+    respectFunctionNames?: boolean | undefined
+    respectFunctionProperties?: boolean | undefined
+    respectType?: boolean | undefined
+    unorderedArrays?: boolean | undefined
+    unorderedObjects?: boolean | undefined
+    unorderedSets?: boolean | undefined
+}
 
-    excludeKeys?: ((key: string) => boolean) | undefined;
-    /**
-     * @default false
-     */
-    excludeValues?: boolean | undefined;
-    /**
-     * @default false
-     */
-    ignoreUnknown?: boolean | undefined;
-
-    replacer?: ((value: any) => any) | undefined;
-    /**
-     * @default true
-     */
-    respectFunctionNames?: boolean | undefined;
-    /**
-     * @default true
-     */
-    respectFunctionProperties?: boolean | undefined;
-    /**
-     * @default true
-     */
-    respectType?: boolean | undefined;
-    /**
-     * @default false
-     */
-    unorderedArrays?: boolean | undefined;
-    /**
-     * @default true
-     */
-    unorderedObjects?: boolean | undefined;
-    /**
-     * @default true
-     */
-    unorderedSets?: boolean | undefined;
+const canonicalize = (value: any, opts?: ObjectHashOptions): string => {
+    if (value === null) return 'n'
+    if (value === undefined) return 'u'
+    const t = typeof value
+    if (t === 'string') return 's:' + value
+    if (t === 'number' || t === 'bigint') return 'n:' + String(value)
+    if (t === 'boolean') return 'b:' + value
+    if (t === 'function') return 'f:' + (value.name || 'anon')
+    if (t === 'symbol') return 'y:' + value.toString()
+    if (value instanceof Date) return 'd:' + value.getTime()
+    if (value instanceof Set) return 'S:[' + [...value].map(v => canonicalize(v, opts)).sort().join(',') + ']'
+    if (value instanceof Map) {
+        const entries = [...value.entries()].sort((a, b) => canonicalize(a[0], opts) < canonicalize(b[0], opts) ? -1 : 1)
+        return 'M:[' + entries.map(([k, v]) => canonicalize(k, opts) + '>' + canonicalize(v, opts)).join(',') + ']'
+    }
+    if (Array.isArray(value)) {
+        const items = opts?.unorderedArrays ? [...value].map(v => canonicalize(v, opts)).sort() : value.map(v => canonicalize(v, opts))
+        return '[' + items.join(',') + ']'
+    }
+    //Plain object: sort keys for deterministic output (unorderedObjects default true)
+    const keys = Object.keys(value)
+        .filter(k => !opts?.excludeKeys?.(k))
+        .sort()
+    const prefix = opts?.excludeValues ? '' : ':'
+    return '{' + keys.map(k => k + prefix + (opts?.excludeValues ? '' : canonicalize(value[k], opts))).join(',') + '}'
 }
 
 /**
@@ -91,5 +54,9 @@ export type ObjectHashOptions = {
  * @constructor
  */
 export function ObjectHash(value: any, options?: ObjectHashOptions): string {
-    return hash(value, options)
+    if (options?.algorithm === 'passthrough') return typeof value === 'string' ? value : canonicalize(value, options)
+    const algorithm: string = options?.algorithm || 'sha1'
+    const encoding: 'hex' | 'base64' | 'binary' = options?.encoding || 'hex'
+    const str: string = canonicalize(value, options)
+    return createHash(algorithm).update(str).digest(encoding as any)
 }

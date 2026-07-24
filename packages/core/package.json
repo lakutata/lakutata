@@ -93,7 +93,6 @@
     "keyv-file": "5.3.3",
     "lodash": "4.17.21",
     "moment-timezone": "0.6.0",
-    "object-hash": "3.0.0",
     "path-scurry": "^2.0.0",
     "patrun": "7.2.7",
     "pino": "10.1.0",
