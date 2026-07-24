@@ -122,5 +122,12 @@
   },
   "engines": {
     "node": ">=20"
-  }
+  },
+  "files": [
+    "dist",
+    "*.md",
+    "LICENSE",
+    "package.json",
+    "tsconfig.json"
+  ]
 }
