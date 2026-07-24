@@ -1,4 +1,6 @@
-import isGlob from 'is-glob'
+//Self-implemented (replaces the `is-glob` package dependency).
+
+const GLOB_RE = /(?:^|[^\\])[*?]|\[[^\]]+\]|\{[^}]+\]/
 
 /**
  * Whether a string is glob string or not
@@ -6,5 +8,5 @@ import isGlob from 'is-glob'
  * @constructor
  */
 export function IsGlobString(inp: string): boolean {
-    return isGlob(inp)
+    return GLOB_RE.test(inp)
 }
