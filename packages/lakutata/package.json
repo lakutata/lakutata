@@ -4,29 +4,100 @@
   "description": "An IoC-based universal application framework.",
   "type": "module",
   "exports": {
-    ".": "./src/exports/Lakutata.ts",
-    "./orm": "./src/exports/ORM.ts",
-    "./dtos": "./src/exports/DTOs.ts",
-    "./helper": "./src/exports/Helpers.ts",
-    "./com/docker": "./src/exports/DockerComponent.ts",
-    "./com/database": "./src/exports/DatabaseComponent.ts",
-    "./com/cacher": "./src/exports/CacherComponent.ts",
-    "./com/monitor": "./src/exports/MonitorComponent.ts",
-    "./com/entrypoint": "./src/exports/EntrypointComponent.ts",
-    "./com/logger": "./src/exports/LoggerComponent.ts",
-    "./provider/database": "./src/exports/DatabaseProvider.ts",
-    "./provider/passwordHash": "./src/exports/PasswordHashProvider.ts",
-    "./decorator/asst": "./src/exports/ASSTDecorators.ts",
-    "./decorator/ctrl": "./src/exports/CTRLDecorators.ts",
-    "./decorator/di": "./src/exports/DIDecorators.ts",
-    "./decorator/dto": "./src/exports/DTODecorators.ts",
-    "./decorator/orm": "./src/exports/ORMDecorators.ts",
+    ".": {
+      "types": "./dist/types/exports/Lakutata.d.ts",
+      "import": "./dist/esm/exports/Lakutata.js",
+      "require": "./dist/cjs/exports/Lakutata.js"
+    },
+    "./orm": {
+      "types": "./dist/types/exports/ORM.d.ts",
+      "import": "./dist/esm/exports/ORM.js",
+      "require": "./dist/cjs/exports/ORM.js"
+    },
+    "./dtos": {
+      "types": "./dist/types/exports/DTOs.d.ts",
+      "import": "./dist/esm/exports/DTOs.js",
+      "require": "./dist/cjs/exports/DTOs.js"
+    },
+    "./helper": {
+      "types": "./dist/types/exports/Helpers.d.ts",
+      "import": "./dist/esm/exports/Helpers.js",
+      "require": "./dist/cjs/exports/Helpers.js"
+    },
+    "./com/docker": {
+      "types": "./dist/types/exports/DockerComponent.d.ts",
+      "import": "./dist/esm/exports/DockerComponent.js",
+      "require": "./dist/cjs/exports/DockerComponent.js"
+    },
+    "./com/database": {
+      "types": "./dist/types/exports/DatabaseComponent.d.ts",
+      "import": "./dist/esm/exports/DatabaseComponent.js",
+      "require": "./dist/cjs/exports/DatabaseComponent.js"
+    },
+    "./com/cacher": {
+      "types": "./dist/types/exports/CacherComponent.d.ts",
+      "import": "./dist/esm/exports/CacherComponent.js",
+      "require": "./dist/cjs/exports/CacherComponent.js"
+    },
+    "./com/monitor": {
+      "types": "./dist/types/exports/MonitorComponent.d.ts",
+      "import": "./dist/esm/exports/MonitorComponent.js",
+      "require": "./dist/cjs/exports/MonitorComponent.js"
+    },
+    "./com/entrypoint": {
+      "types": "./dist/types/exports/EntrypointComponent.d.ts",
+      "import": "./dist/esm/exports/EntrypointComponent.js",
+      "require": "./dist/cjs/exports/EntrypointComponent.js"
+    },
+    "./com/logger": {
+      "types": "./dist/types/exports/LoggerComponent.d.ts",
+      "import": "./dist/esm/exports/LoggerComponent.js",
+      "require": "./dist/cjs/exports/LoggerComponent.js"
+    },
+    "./provider/database": {
+      "types": "./dist/types/exports/DatabaseProvider.d.ts",
+      "import": "./dist/esm/exports/DatabaseProvider.js",
+      "require": "./dist/cjs/exports/DatabaseProvider.js"
+    },
+    "./provider/passwordHash": {
+      "types": "./dist/types/exports/PasswordHashProvider.d.ts",
+      "import": "./dist/esm/exports/PasswordHashProvider.js",
+      "require": "./dist/cjs/exports/PasswordHashProvider.js"
+    },
+    "./decorator/asst": {
+      "types": "./dist/types/exports/ASSTDecorators.d.ts",
+      "import": "./dist/esm/exports/ASSTDecorators.js",
+      "require": "./dist/cjs/exports/ASSTDecorators.js"
+    },
+    "./decorator/ctrl": {
+      "types": "./dist/types/exports/CTRLDecorators.d.ts",
+      "import": "./dist/esm/exports/CTRLDecorators.js",
+      "require": "./dist/cjs/exports/CTRLDecorators.js"
+    },
+    "./decorator/di": {
+      "types": "./dist/types/exports/DIDecorators.d.ts",
+      "import": "./dist/esm/exports/DIDecorators.js",
+      "require": "./dist/cjs/exports/DIDecorators.js"
+    },
+    "./decorator/dto": {
+      "types": "./dist/types/exports/DTODecorators.d.ts",
+      "import": "./dist/esm/exports/DTODecorators.js",
+      "require": "./dist/cjs/exports/DTODecorators.js"
+    },
+    "./decorator/orm": {
+      "types": "./dist/types/exports/ORMDecorators.d.ts",
+      "import": "./dist/esm/exports/ORMDecorators.js",
+      "require": "./dist/cjs/exports/ORMDecorators.js"
+    },
     "./tsconfig.json": "./tsconfig.json",
     "./package.json": "./package.json"
   },
   "scripts": {
-    "clean": "shx rm -rf ./distro",
-    "build:js": "node --no-warnings --max-old-space-size=32768 rollup.mjs",
+    "clean": "shx rm -rf ./dist",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:cjs-pkg": "node -e \"require('node:fs').writeFileSync('dist/cjs/package.json',JSON.stringify({type:'commonjs'}))\"",
+    "build:js": "npm run build:cjs && npm run build:esm && npm run build:cjs-pkg",
     "rebuild": "npm run clean && npm run build:js",
     "compile": "npm run rebuild",
     "publish": "cross-env BUILD_MODE=production npm run compile --prod && node publish.mjs",
@@ -34,10 +105,9 @@
     "release:beta-release": "dotenv -- release-it --preRelease=beta && npm run publish",
     "release:alpha-release": "dotenv -- release-it --preRelease=alpha --no-github.release && npm run publish",
     "release:proto-release": "dotenv -- release-it --preRelease=proto --no-github.release --no-git.tag && npm run publish",
-    "test:app": "cross-env BUILD_MODE=develop npm run compile && node --trace-warnings distro/src/tests/App.spec.mjs",
-    "test:unit": "cross-env BUILD_MODE=develop npm run compile && node --test distro/src/tests/unit/*.spec.mjs",
-    "test:types": "cross-env BUILD_MODE=develop npm run compile && tsc --noEmit -p consumer-fixture/tsconfig.json",
-    "test:dispatch": "cross-env BUILD_MODE=develop npm run compile && node distro/src/tests/integration/Dispatch.contract.spec.mjs"
+    "test:app": "npm run compile && node --trace-warnings dist/esm/tests/App.spec.js",
+    "test:unit": "npm run compile && node --test dist/esm/tests/unit/*.spec.js",
+    "test:dispatch": "npm run compile && node dist/esm/tests/integration/Dispatch.contract.spec.js"
   },
   "release-it": {
     "npm": {
@@ -70,7 +140,6 @@
     "@rollup/plugin-terser": "0.4.4",
     "@rollup/plugin-typescript": "11.1.6",
     "@softstack/joi-bigint": "1.1.1",
-    "@types/crypto-js": "4.2.2",
     "@types/dockerode": "3.3.34",
     "@types/is-base64": "1.1.3",
     "@types/is-glob": "4.0.4",
@@ -91,14 +160,12 @@
     "commander": "12.0.0",
     "cron-validator": "1.4.0",
     "cross-env": "10.1.0",
-    "crypto-js": "4.2.0",
     "degit": "2.8.4",
     "dockerfile-ast": "0.7.1",
     "dockerode": "4.0.9",
     "dotenv-cli": "7.4.1",
     "dts-bundle-generator": "9.5.1",
     "eslint": "8.56.0",
-    "eventemitter2": "6.4.9",
     "execa": "9.6.0",
     "fast-glob": "3.3.3",
     "fast-xml-parser": "4.5.3",

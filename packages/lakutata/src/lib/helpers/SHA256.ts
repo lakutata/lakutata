@@ -1,7 +1,4 @@
-import {SHA256 as CryptoJsSHA256, enc} from 'crypto-js'
-import {createHash, getHashes} from 'node:crypto'
-
-const hasSHA256Hash: boolean = getHashes().includes('sha256')
+import {createHash} from 'node:crypto'
 
 /**
  * SHA256 Hash
@@ -9,6 +6,5 @@ const hasSHA256Hash: boolean = getHashes().includes('sha256')
  * @constructor
  */
 export function SHA256(message: string): Buffer {
-    if (hasSHA256Hash) return createHash('sha256').update(Buffer.from(message)).digest()
-    return Buffer.from(CryptoJsSHA256(message).toString(enc.Base64), 'base64')
+    return createHash('sha256').update(Buffer.from(message)).digest()
 }

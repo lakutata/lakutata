@@ -1,3 +1,4 @@
+import 'reflect-metadata'
 export * from '../components/monitor/CpuMonitor.js'
 export * from '../components/monitor/EventLoopMonitor.js'
 export * from '../components/monitor/HttpRequestMonitor.js'

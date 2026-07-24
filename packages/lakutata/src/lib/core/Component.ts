@@ -1,11 +1,6 @@
 import {__destroy, __init} from '../base/BaseObject.js'
 import {Singleton} from '../../decorators/di/Lifetime.js'
-import {EventEmitter} from '../base/EventEmitter.js'
-import {
-    type event,
-    type ListenerFn,
-    type EventAndListener
-} from 'eventemitter2'
+import {EventEmitter, type event, type ListenerFn, type EventAndListener} from '../base/EventEmitter.js'
 import {Provider} from './Provider.js'
 import {DefineObjectType, ObjectType} from '../base/internal/ObjectType.js'
 import {GetObjectContainer} from '../base/internal/ObjectContainer.js'
@@ -266,7 +261,7 @@ export class Component extends Provider {
      * Checks whether emitter has any listeners.
      * @param event
      */
-    public hasListeners(event?: String | undefined): boolean {
+    public hasListeners(event?: string | undefined): boolean {
         return this.#eventEmitter.hasListeners(event)
     }
 

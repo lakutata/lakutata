@@ -1,4 +1,4 @@
-import * as glob from 'fast-glob'
+import fg from 'fast-glob'
 import * as path from 'path'
 import {flatten} from './Utils.js'
 import {BuildResolverOptions, type ResolverOptions} from './Resolvers.js'
@@ -10,7 +10,7 @@ import {LifetimeType} from './Lifetime.js'
  */
 export interface ListModulesOptions {
     cwd?: string
-    glob?: typeof glob.sync
+    glob?: typeof fg.sync
 }
 
 /**
@@ -54,7 +54,7 @@ function _listModules(
     globPattern: string | GlobWithOptions,
     opts?: ListModulesOptions
 ): Array<ModuleDescriptor> {
-    opts = {cwd: process.cwd(), glob: glob.sync, ...opts}
+    opts = {cwd: process.cwd(), glob: fg.sync, ...opts}
     let patternOpts: ResolverOptions<any> | null = null
     if (Array.isArray(globPattern)) {
         patternOpts = globPattern[1] as ResolverOptions<any>

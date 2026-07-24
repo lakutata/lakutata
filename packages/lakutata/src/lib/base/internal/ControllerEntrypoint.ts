@@ -76,7 +76,7 @@ const COMPONENT_CTRL_MAP: symbol = Symbol('COMPONENT.CTRL.MAP')
  * @param extra
  */
 function getActionInfo<ClassPrototype extends Controller>(controllerPrototype: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>, actionOptions: ActionOptions<any>, extra: string): ActionInfo {
-    const action: string = `${As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)).className}:${propertyKey}`
+    const action: string = `${As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)).className}:${String(propertyKey)}`
     const id: string = uuidv5(`${action}:${extra}`, NIL)
     const name: string = actionOptions.name ? actionOptions.name : action
     const description: string = actionOptions.description ? actionOptions.description : ''

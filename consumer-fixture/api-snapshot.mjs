@@ -27,13 +27,31 @@ const subpaths = [
 ]
 
 const snapshotFile = new URL('./api-snapshot.runtime.json', import.meta.url)
-//Import the BUILT distro .mjs directly (the committed package.json exports point
-//at src/*.ts for dev tooling, so the bare 'lakutata' specifier resolves to
-//unrunnable source; the distro .mjs is the real published runtime surface).
-const distroEntry = sp => sp === 'lakutata' ? 'lakutata' : sp.replace(/^lakutata\//, '')
+//Import the BUILT dist/esm entry barrel directly (subpath -> barrel filename is
+//not 1:1, so enumerate it; the bare 'lakutata' specifier resolves to source .ts
+//which Node cannot run, and the old flat distro layout is gone under tsc-dual).
+const entryMap = {
+    'lakutata': 'Lakutata',
+    'lakutata/orm': 'ORM',
+    'lakutata/dtos': 'DTOs',
+    'lakutata/helper': 'Helpers',
+    'lakutata/com/docker': 'DockerComponent',
+    'lakutata/com/database': 'DatabaseComponent',
+    'lakutata/com/cacher': 'CacherComponent',
+    'lakutata/com/monitor': 'MonitorComponent',
+    'lakutata/com/entrypoint': 'EntrypointComponent',
+    'lakutata/com/logger': 'LoggerComponent',
+    'lakutata/provider/database': 'DatabaseProvider',
+    'lakutata/provider/passwordHash': 'PasswordHashProvider',
+    'lakutata/decorator/asst': 'ASSTDecorators',
+    'lakutata/decorator/ctrl': 'CTRLDecorators',
+    'lakutata/decorator/di': 'DIDecorators',
+    'lakutata/decorator/dto': 'DTODecorators',
+    'lakutata/decorator/orm': 'ORMDecorators'
+}
 const current = {}
 for (const sp of subpaths) {
-    const mod = await import(`../packages/lakutata/distro/${distroEntry(sp)}.mjs`)
+    const mod = await import(`../packages/lakutata/dist/esm/exports/${entryMap[sp]}.js`)
     current[sp] = Object.keys(mod).sort()
 }
 const currentJson = JSON.stringify(current, null, 2) + '\n'

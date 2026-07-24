@@ -7,12 +7,7 @@
     "emitDecoratorMetadata": true,
     "strict": true,
     "noEmit": true,
-    "skipLibCheck": true,
-    "baseUrl": ".",
-    "paths": {
-      "lakutata": ["../packages/lakutata/distro/lakutata.d.ts"],
-      "lakutata/*": ["../packages/lakutata/distro/*.d.ts"]
-    }
+    "skipLibCheck": true
   },
   "include": ["consumer.types.ts"]
 }

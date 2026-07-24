@@ -4,6 +4,7 @@ import {BaseObject} from '../../lib/base/BaseObject.js'
 import assert from 'node:assert'
 import {Autoload} from '../../decorators/di/Autoload.js'
 import path from 'node:path'
+import {fileURLToPath} from 'node:url'
 import {TestObj} from './resources/glob-modules/TestObj.js'
 import {OBJECT_ID} from '../../options/LoadObjectOptions.js'
 import {Transient} from '../../decorators/di/Lifetime.js'
@@ -53,7 +54,7 @@ await describe('DI Test', async function (): Promise<void> {
         assert.equal(registration.foo(), 'autoload')
     })
     await it('load module by glob', async (): Promise<void> => {
-        await container.load([`${path.resolve(__dirname, './resources/glob-modules')}/**.mjs`])
+        await container.load([`${path.resolve(path.dirname(fileURLToPath(import.meta.url)), './resources/glob-modules')}/**.js`])
         const registration: TestObj = await container.get(TestObj)
         assert.equal(registration.foo(), 'bar')
     })
