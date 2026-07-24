@@ -88,7 +88,6 @@
     "fast-glob": "3.3.3",
     "fast-xml-parser": "4.5.3",
     "format": "^0.2.2",
-    "html-tags": "5.1.0",
     "is-glob": "4.0.3",
     "joi": "18.0.2",
     "joi-to-json": "5.0.0",
