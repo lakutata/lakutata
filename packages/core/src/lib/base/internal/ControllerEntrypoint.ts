@@ -10,7 +10,7 @@ import {GetObjectNestingDepth} from '../../helpers/GetObjectNestingDepth.js'
 import {InvalidActionPatternDepthException} from '../../../exceptions/InvalidActionPatternDepthException.js'
 import {DTO} from '../../core/DTO.js'
 import {Component} from '../../core/Component.js'
-import {NIL, v5 as uuidv5} from 'uuid'
+import {UUID} from '../../helpers/UUID.js'
 import {ActionOptions} from './ActionOptions.js'
 import {StringifyPattern} from './StringifyPattern.js'
 import {CLIContext} from '../../context/CLIContext.js'
@@ -77,7 +77,7 @@ const COMPONENT_CTRL_MAP: symbol = Symbol('COMPONENT.CTRL.MAP')
  */
 function getActionInfo<ClassPrototype extends Controller>(controllerPrototype: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>, actionOptions: ActionOptions<any>, extra: string): ActionInfo {
     const action: string = `${As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)).className}:${String(propertyKey)}`
-    const id: string = uuidv5(`${action}:${extra}`, NIL)
+    const id: string = UUID.v5(`${action}:${extra}`, UUID.NIL)
     const name: string = actionOptions.name ? actionOptions.name : action
     const description: string = actionOptions.description ? actionOptions.description : ''
     return {

@@ -107,8 +107,7 @@
     "sonic-boom": "4.2.0",
     "sort-array": "5.1.1",
     "unset-value": "2.0.1",
-    "url-parse": "1.5.10",
-    "uuid": "13.0.0"
+    "url-parse": "1.5.10"
   },
   "devDependencies": {
     "@types/lodash": "4.17.17",
