@@ -1,5 +1,15 @@
-import randomString from 'randomstring'
-import {As} from './As.js'
+import {getRandomValues} from 'node:crypto'
+
+//Self-implemented on node:crypto (replaces the `randomstring` package dependency).
+
+const CHARSETS: Record<string, string> = {
+    alphanumeric: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789',
+    alphabetic: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
+    numeric: '0123456789',
+    hex: '0123456789abcdef',
+    binary: '01',
+    octal: '01234567'
+}
 
 /**
  * Generate a random string
@@ -20,42 +30,42 @@ export function RandomString(length: number): string
  */
 export function RandomString(length: number, charset: string): string
 /**
- * Generate a string of specified length containing only [0-9 a-z A-Z]
+ * Generate a random string of specified length containing only [0-9 a-z A-Z]
  * @param length
  * @param charset
  * @constructor
  */
 export function RandomString(length: number, charset: 'alphanumeric'): string
 /**
- * Generate a string of specified length containing only [a-z A-Z]
+ * Generate a random string of specified length containing only [a-z A-Z]
  * @param length
  * @param charset
  * @constructor
  */
 export function RandomString(length: number, charset: 'alphabetic'): string
 /**
- * Generate a string of specified length containing only [0-9]
+ * Generate a random string of specified length containing only [0-9]
  * @param length
  * @param charset
  * @constructor
  */
 export function RandomString(length: number, charset: 'numeric'): string
 /**
- * Generate a string of specified length containing only [0-9 a-f]
+ * Generate a random string of specified length containing only [0-9 a-f]
  * @param length
  * @param charset
  * @constructor
  */
 export function RandomString(length: number, charset: 'hex'): string
 /**
- * Generate a string of specified length containing only [01]
+ * Generate a random string of specified length containing only [01]
  * @param length
  * @param charset
  * @constructor
  */
 export function RandomString(length: number, charset: 'binary'): string
 /**
- * Generate a string of specified length containing only [0-7]
+ * Generate a random string of specified length containing only [0-7]
  * @param length
  * @param charset
  * @constructor
@@ -68,9 +78,13 @@ export function RandomString(length: number, charset: 'octal'): string
  * @constructor
  */
 export function RandomString(length: number, charset: ('alphanumeric' | 'alphabetic' | 'numeric' | 'hex' | 'binary' | 'octal' | string)[]): string
-export function RandomString(length?: number, charset?: string | string[]): string {
-    return randomString.generate({
-        length: length !== undefined ? length : 32,
-        charset: As<string>(charset !== undefined ? charset : 'alphanumeric')
-    })
+export function RandomString(length: number = 32, charset: string | string[] = 'alphanumeric'): string {
+    const chars: string = Array.isArray(charset)
+        ? charset.map((c: string): string => CHARSETS[c] ?? c).join('')
+        : (CHARSETS[charset] ?? charset)
+    const bytes: Uint8Array = new Uint8Array(length)
+    getRandomValues(bytes)
+    let result: string = ''
+    for (let i = 0; i < length; i++) result += chars[bytes[i] % chars.length]
+    return result
 }
