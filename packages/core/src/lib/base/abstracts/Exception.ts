@@ -3,7 +3,25 @@ import {Templating} from '../../helpers/Templating.js'
 import {As} from '../../helpers/As.js'
 import {CamelCase} from '../internal/CamelCase.js'
 import {DevNull} from '../../helpers/DevNull.js'
-import format from 'format'
+
+//Self-implemented (replaces the `format` package dependency).
+//Handles both {N} positional and %s/%d/%j/%o printf-style placeholders.
+function format(template: string, ...args: any[]): string {
+    let result: string = template.replace(/\{(\d+)\}/g, (_m, n) => {
+        const i: number = parseInt(n, 10)
+        return i < args.length ? String(args[i]) : ''
+    })
+    let idx: number = 0
+    result = result.replace(/%(s|d|j|o|%)/g, (match, spec) => {
+        if (spec === '%') return '%'
+        if (idx >= args.length) return match
+        const val: any = args[idx++]
+        if (spec === 's') return String(val)
+        if (spec === 'd') return String(Number(val))
+        return JSON.stringify(val)
+    })
+    return result
+}
 
 /**
  * 异常抽象类
