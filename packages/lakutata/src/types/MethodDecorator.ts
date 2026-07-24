@@ -1,1 +1,0 @@
-export type MethodDecorator<ClassPrototype, Method, Property = string | symbol> = (target: ClassPrototype, propertyKey: Property, descriptor: TypedPropertyDescriptor<Method>) => TypedPropertyDescriptor<Method> | void

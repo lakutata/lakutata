@@ -1,5 +1,5 @@
-import {Provider} from '../../lib/core/Provider.js'
-import {Accept} from '../../decorators/dto/Accept.js'
+import {Provider} from '@lakutata/core'
+import {Accept} from '@lakutata/core'
 import {DateObjectDTO} from '../dto/DateObjectDTO.js'
 
 export class TestProvider4 extends Provider{

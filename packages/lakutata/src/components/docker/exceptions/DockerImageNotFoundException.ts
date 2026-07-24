@@ -1,4 +1,4 @@
-import {Exception} from '../../../lib/base/abstracts/Exception.js'
+import {Exception} from '@lakutata/core'
 
 /**
  * Docker image not found exception

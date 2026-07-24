@@ -1,5 +1,5 @@
-import {DTO} from '../../../../lib/core/DTO.js'
-import {Expect} from '../../../../decorators/dto/Expect.js'
+import {DTO} from '@lakutata/core'
+import {Expect} from '@lakutata/core'
 import {DockerAuthOptions} from '../auth/DockerAuthOptions.js'
 import {type DockerOutputCallback} from '../../types/DockerOutputCallback.js'
 

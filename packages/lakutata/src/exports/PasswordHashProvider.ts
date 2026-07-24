@@ -1,3 +1,1 @@
-import 'reflect-metadata'
-
-export * from '../providers/PasswordHash.js'
+export * from '@lakutata/core/provider/passwordHash'

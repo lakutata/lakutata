@@ -234,5 +234,8 @@
     "lakutata",
     "framework",
     "typescript"
-  ]
+  ],
+  "dependencies": {
+    "@lakutata/core": "workspace:*"
+  }
 }

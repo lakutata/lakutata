@@ -4,7 +4,7 @@ import {IDockerSocketConnectionOptions} from './interfaces/IDockerSocketConnecti
 import {IDockerHttpConnectionOptions} from './interfaces/IDockerHttpConnectionOptions.js'
 import {IDockerHttpsConnectionOptions} from './interfaces/IDockerHttpsConnectionOptions.js'
 import {IDockerSSHConnectionOptions} from './interfaces/IDockerSSHConnectionOptions.js'
-import {ComponentOptions, ComponentOptionsBuilder} from '../../types/ComponentOptions.js'
+import {ComponentOptions, ComponentOptionsBuilder} from '@lakutata/core'
 
 /**
  * Build docker config

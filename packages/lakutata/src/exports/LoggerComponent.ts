@@ -1,3 +1,1 @@
-import 'reflect-metadata'
-
-export * from '../components/Logger.js'
+export * from '@lakutata/core/com/logger'

@@ -1,7 +1,7 @@
-import {Component} from '../../lib/core/Component.js'
-import {Time} from '../../lib/core/Time.js'
-import {Inject} from '../../decorators/di/Inject.js'
-import type {Logger} from '../../components/Logger.js'
+import {Component} from '@lakutata/core'
+import {Time} from '@lakutata/core'
+import {Inject} from '@lakutata/core'
+import type {Logger} from '@lakutata/core'
 
 export class TestComponent extends Component {
 

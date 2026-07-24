@@ -1,4 +1,4 @@
-import {Time} from '../../../lib/core/Time.js'
+import {Time} from '@lakutata/core'
 
 export type NetworkIPAMConfig = {
     subnet: string

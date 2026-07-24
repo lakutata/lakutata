@@ -3,6 +3,8 @@
   "version": "2.0.126",
   "description": "Core of the lakutata IoC framework (IoC/DI, BaseObject, DTO/validation, decorators, contexts, entrypoint, logger, cacher, monitor, passwordHash).",
   "type": "module",
+  "main": "./dist/cjs/exports/Core.js",
+  "types": "./dist/types/exports/Core.d.ts",
   "exports": {
     ".": {
       "types": "./dist/types/exports/Core.d.ts",

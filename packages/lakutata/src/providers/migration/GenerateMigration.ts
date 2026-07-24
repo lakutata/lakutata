@@ -1,6 +1,6 @@
-import {Provider} from '../../lib/core/Provider.js'
-import {Configurable} from '../../decorators/di/Configurable.js'
-import {DTO} from '../../lib/core/DTO.js'
+import {Provider} from '@lakutata/core'
+import {Configurable} from '@lakutata/core'
+import {DTO} from '@lakutata/core'
 import {type DataSourceOptions} from 'typeorm/data-source/DataSourceOptions.js'
 import path from 'path'
 import {DataSource} from 'typeorm/data-source/DataSource.js'
@@ -10,8 +10,8 @@ import {camelCase} from 'typeorm/util/StringUtils.js'
 import {PlatformTools} from 'typeorm/platform/PlatformTools.js'
 import {CommandUtils} from 'typeorm/commands/CommandUtils.js'
 import ansi from 'ansis'
-import {Transient} from '../../decorators/di/Lifetime.js'
-import {Application} from '../../lib/core/Application.js'
+import {Transient} from '@lakutata/core'
+import {Application} from '@lakutata/core'
 
 @Transient()
 export class GenerateMigration extends Provider {
