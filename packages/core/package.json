@@ -91,7 +91,6 @@
     "joi-to-json": "5.0.0",
     "keyv": "^5.0.0",
     "keyv-file": "5.3.3",
-    "lodash": "4.17.21",
     "moment-timezone": "0.6.0",
     "path-scurry": "^2.0.0",
     "patrun": "7.2.7",
@@ -102,7 +101,6 @@
     "sonic-boom": "4.2.0"
   },
   "devDependencies": {
-    "@types/lodash": "4.17.17",
     "@types/node": "20.11.16",
     "@types/object-hash": "3.0.6",
     "cross-env": "10.1.0",

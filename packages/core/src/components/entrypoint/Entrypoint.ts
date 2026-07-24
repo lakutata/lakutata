@@ -23,7 +23,6 @@ import {UniqueArray} from '../../lib/helpers/UniqueArray.js'
 import {DTO} from '../../lib/core/DTO.js'
 import {Singleton} from '../../decorators/di/Lifetime.js'
 import type {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
-import CloneDeep from 'lodash/cloneDeep.js'
 import {DuplicateActionNameException} from './exceptions/DuplicateActionNameException.js'
 import {AccessControl} from './lib/AccessControl.js'
 import {ContextType} from '../../lib/base/Context.js'
@@ -435,7 +434,7 @@ export class Entrypoint extends Component {
         const runtimeContainer: Container = this.createScope()
         const controller: Controller = await runtimeContainer.get(details.constructor, {context: context})
         try {
-            const input: Record<string, any> = CloneDeep(await dtoConstructor.validateAsync(context.data))
+            const input: Record<string, any> = structuredClone(await dtoConstructor.validateAsync(context.data))
             await this.runAccessControl(this.rules, runtimeContainer, context, input, details)
             return await controller.getMethod(As(details.method))(input)
         } catch (e) {
@@ -471,7 +470,7 @@ export class Entrypoint extends Component {
         const runtimeContainer: Container = this.createScope()
         const controller: Controller = await runtimeContainer.get(details.constructor, {context: context})
         try {
-            const input: Record<string, any> = CloneDeep(await dtoConstructor.validateAsync(context.data))
+            const input: Record<string, any> = structuredClone(await dtoConstructor.validateAsync(context.data))
             await this.runAccessControl(this.rules, runtimeContainer, context, input, details)
             const runResult: any = await controller.getMethod(As(details.method))(input)
             if (!isAborted) return runResult
