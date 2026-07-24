@@ -1,4 +1,6 @@
-import urlParse from 'url-parse'
+//Self-implemented URL builder (replaces the `url-parse` package dependency).
+//String-based: works with any protocol (postgresql://, memcache://, etc.) where
+//native URL would reject non-standard schemes.
 
 export interface URLAttributes {
     auth?: string
@@ -16,13 +18,18 @@ export interface URLAttributes {
     username?: string
 }
 
+const URL_RE = /^([^:]+):\/\/(?:([^:@/]*)(?::([^@/]*))?@)?([^:/?#]+)(?::(\d+))?(\/[^?#]*)?(?:\?([^#]*))?(#.*)?$/
+
 export class URLBuilder {
 
     public static parse(url: string): URLBuilder {
-        return new URLBuilder(JSON.parse(JSON.stringify(urlParse(url, true))))
+        const m = url.match(URL_RE)
+        if (!m) return new URLBuilder({href: url})
+        const [, protocol, username, password, hostname, port, pathname, queryStr, hash] = m
+        const query: Record<string, string> = {}
+        if (queryStr) for (const pair of queryStr.split('&')) { const [k, v] = pair.split('='); if (k) query[decodeURIComponent(k)] = decodeURIComponent(v || '') }
+        return new URLBuilder({protocol, username, password, hostname, port, pathname, query, hash})
     }
-
-    #urlObject: any
 
     public auth?: string
     public hash?: string
@@ -39,36 +46,24 @@ export class URLBuilder {
     public username?: string
 
     constructor(options: URLAttributes = {}) {
-        this.#urlObject = urlParse('')
-        this.auth = options.auth
-        this.hash = options.hash
-        this.host = options.host
-        this.hostname = options.hostname
-        this.href = options.href
-        this.origin = options.origin
-        this.password = options.password
-        this.pathname = options.pathname
-        this.port = options.port
-        this.protocol = options.protocol
-        this.query = options.query
-        this.slashes = options.slashes
-        this.username = options.username
+        Object.assign(this, options)
     }
 
     public toString(): string {
-        if (this.auth) this.#urlObject.set('auth', this.auth)
-        if (this.hash) this.#urlObject.set('hash', this.hash)
-        if (this.host) this.#urlObject.set('host', this.host)
-        if (this.hostname) this.#urlObject.set('hostname', this.hostname)
-        if (this.href) this.#urlObject.set('href', this.href)
-        if (this.origin !== undefined) this.#urlObject.set('origin', this.origin.toString())
-        if (this.password) this.#urlObject.set('password', this.password)
-        if (this.pathname) this.#urlObject.set('pathname', this.pathname)
-        if (this.port !== undefined) this.#urlObject.set('port', this.port)
-        if (this.protocol) this.#urlObject.set('protocol', this.protocol)
-        if (this.query) this.#urlObject.set('query', this.query)
-        if (this.slashes !== undefined) this.#urlObject.set('slashes', this.slashes)
-        if (this.username) this.#urlObject.set('username', this.username)
-        return this.#urlObject.toString()
+        if (this.href) return this.href
+        let str: string = this.protocol || 'http'
+        if (!str.endsWith(':')) str += ':'
+        str += '//'
+        const user = this.username || (this.auth ? this.auth.split(':')[0] : '')
+        const pass = this.password || (this.auth ? this.auth.split(':')[1] : '')
+        if (user) { str += user; if (pass) str += ':' + pass; str += '@' }
+        str += this.hostname || this.host || 'localhost'
+        if (this.port) str += ':' + this.port
+        if (this.pathname) { if (!this.pathname.startsWith('/')) str += '/'; str += this.pathname }
+        if (this.query && Object.keys(this.query).length) {
+            str += '?' + Object.entries(this.query).map(([k, v]): string => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&')
+        }
+        if (this.hash) { if (!this.hash.startsWith('#')) str += '#'; str += this.hash }
+        return str
     }
 }
