@@ -1,5 +1,4 @@
 import {As} from '../../helpers/As.js'
-import MomentTimezone from 'moment-timezone'
 import {ThrowWarning} from './ThrowWarning.js'
 
 type BasicInfo = {
@@ -16,7 +15,7 @@ type BasicInfo = {
  * @constructor
  */
 function ValidateTimezone(timezone: string): string {
-    const timezones: string[] = [...MomentTimezone.tz.names()]
+    const timezones: string[] = [...Intl.supportedValuesOf('timeZone')]
     const defaultTimezone: string = Intl.DateTimeFormat().resolvedOptions().timeZone
     if (!timezones.map((timezone: string) => timezone.toLowerCase()).includes(timezone.toLowerCase())) {
         ThrowWarning(`The passed time zone "${timezone}" is invalid, use the default time zone "${defaultTimezone}"`)
