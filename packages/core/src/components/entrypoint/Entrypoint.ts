@@ -19,7 +19,6 @@ import {JSONSchema} from '../../types/JSONSchema.js'
 import {Container} from '../../lib/core/Container.js'
 import {DestroyRuntimeContainerException} from '../../exceptions/DestroyRuntimeContainerException.js'
 import {GetObjectPropertyPaths} from '../../lib/helpers/GetObjectPropertyPaths.js'
-import unset from 'unset-value'
 import {UniqueArray} from '../../lib/helpers/UniqueArray.js'
 import {DTO} from '../../lib/core/DTO.js'
 import {Singleton} from '../../decorators/di/Lifetime.js'
@@ -30,6 +29,19 @@ import {AccessControl} from './lib/AccessControl.js'
 import {ContextType} from '../../lib/base/Context.js'
 import {AccessControlRule} from './lib/AccessControlRule.js'
 import {InvalidActionGroupException} from './exceptions/InvalidActionGroupException.js'
+
+//Self-implemented (replaces the `unset-value` package dependency).
+function unset(obj: Record<string, any>, path: string): boolean {
+    const keys: string[] = path.split('.')
+    let current: any = obj
+    for (let i = 0; i < keys.length - 1; i++) {
+        if (current[keys[i]] === undefined) return false
+        current = current[keys[i]]
+    }
+    const lastKey: string = keys[keys.length - 1]
+    if (current[lastKey] !== undefined) { delete current[lastKey]; return true }
+    return false
+}
 
 export {ContextType, BaseContext} from '../../lib/base/Context.js'
 export {CLIContext} from '../../lib/context/CLIContext.js'

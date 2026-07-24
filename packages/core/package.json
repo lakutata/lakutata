@@ -101,8 +101,7 @@
     "pino-pretty": "13.1.2",
     "reflect-metadata": "0.2.2",
     "simple-statistics": "7.8.8",
-    "sonic-boom": "4.2.0",
-    "unset-value": "2.0.1"
+    "sonic-boom": "4.2.0"
   },
   "devDependencies": {
     "@types/lodash": "4.17.17",
