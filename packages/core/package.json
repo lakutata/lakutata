@@ -1,0 +1,124 @@
+{
+  "name": "@lakutata/core",
+  "version": "2.0.126",
+  "description": "Core of the lakutata IoC framework (IoC/DI, BaseObject, DTO/validation, decorators, contexts, entrypoint, logger, cacher, monitor, passwordHash).",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/types/exports/Core.d.ts",
+      "import": "./dist/esm/exports/Core.js",
+      "require": "./dist/cjs/exports/Core.js"
+    },
+    "./dtos": {
+      "types": "./dist/types/exports/DTOs.d.ts",
+      "import": "./dist/esm/exports/DTOs.js",
+      "require": "./dist/cjs/exports/DTOs.js"
+    },
+    "./helper": {
+      "types": "./dist/types/exports/Helpers.d.ts",
+      "import": "./dist/esm/exports/Helpers.js",
+      "require": "./dist/cjs/exports/Helpers.js"
+    },
+    "./com/cacher": {
+      "types": "./dist/types/exports/CacherComponent.d.ts",
+      "import": "./dist/esm/exports/CacherComponent.js",
+      "require": "./dist/cjs/exports/CacherComponent.js"
+    },
+    "./com/monitor": {
+      "types": "./dist/types/exports/MonitorComponent.d.ts",
+      "import": "./dist/esm/exports/MonitorComponent.js",
+      "require": "./dist/cjs/exports/MonitorComponent.js"
+    },
+    "./com/entrypoint": {
+      "types": "./dist/types/exports/EntrypointComponent.d.ts",
+      "import": "./dist/esm/exports/EntrypointComponent.js",
+      "require": "./dist/cjs/exports/EntrypointComponent.js"
+    },
+    "./com/logger": {
+      "types": "./dist/types/exports/LoggerComponent.d.ts",
+      "import": "./dist/esm/exports/LoggerComponent.js",
+      "require": "./dist/cjs/exports/LoggerComponent.js"
+    },
+    "./provider/passwordHash": {
+      "types": "./dist/types/exports/PasswordHashProvider.d.ts",
+      "import": "./dist/esm/exports/PasswordHashProvider.js",
+      "require": "./dist/cjs/exports/PasswordHashProvider.js"
+    },
+    "./decorator/asst": {
+      "types": "./dist/types/exports/ASSTDecorators.d.ts",
+      "import": "./dist/esm/exports/ASSTDecorators.js",
+      "require": "./dist/cjs/exports/ASSTDecorators.js"
+    },
+    "./decorator/ctrl": {
+      "types": "./dist/types/exports/CTRLDecorators.d.ts",
+      "import": "./dist/esm/exports/CTRLDecorators.js",
+      "require": "./dist/cjs/exports/CTRLDecorators.js"
+    },
+    "./decorator/di": {
+      "types": "./dist/types/exports/DIDecorators.d.ts",
+      "import": "./dist/esm/exports/DIDecorators.js",
+      "require": "./dist/cjs/exports/DIDecorators.js"
+    },
+    "./decorator/dto": {
+      "types": "./dist/types/exports/DTODecorators.d.ts",
+      "import": "./dist/esm/exports/DTODecorators.js",
+      "require": "./dist/cjs/exports/DTODecorators.js"
+    },
+    "./tsconfig.json": "./tsconfig.json",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "clean": "shx rm -rf ./dist",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:cjs-pkg": "node -e \"require('node:fs').writeFileSync('dist/cjs/package.json',JSON.stringify({type:'commonjs'}))\"",
+    "build:js": "npm run build:cjs && npm run build:esm && npm run build:cjs-pkg",
+    "rebuild": "npm run clean && npm run build:js",
+    "compile": "npm run rebuild",
+    "test:unit": "npm run compile && node --test dist/esm/tests/unit/*.spec.js"
+  },
+  "dependencies": {
+    "@msgpack/msgpack": "^3.1.3",
+    "@softstack/joi-bigint": "1.1.1",
+    "bcryptjs": "3.0.3",
+    "cache-manager": "7.2.5",
+    "cron-validator": "1.4.0",
+    "fast-glob": "3.3.3",
+    "fast-xml-parser": "4.5.3",
+    "format": "^0.2.2",
+    "html-tags": "5.1.0",
+    "is-glob": "4.0.3",
+    "joi": "18.0.2",
+    "joi-to-json": "5.0.0",
+    "keyv": "^5.0.0",
+    "keyv-file": "5.3.3",
+    "lodash": "4.17.21",
+    "moment-timezone": "0.6.0",
+    "object-hash": "3.0.0",
+    "path-scurry": "^2.0.0",
+    "patrun": "7.2.7",
+    "pino": "10.1.0",
+    "pino-pretty": "13.1.2",
+    "randomstring": "1.3.1",
+    "reflect-metadata": "0.2.2",
+    "simple-statistics": "7.8.8",
+    "sonic-boom": "4.2.0",
+    "sort-array": "5.1.1",
+    "unset-value": "2.0.1",
+    "url-parse": "1.5.10",
+    "uuid": "13.0.0"
+  },
+  "devDependencies": {
+    "@types/lodash": "4.17.17",
+    "@types/node": "20.11.16",
+    "@types/object-hash": "3.0.6",
+    "cross-env": "10.1.0",
+    "shx": "0.3.4",
+    "tslib": "2.8.1",
+    "typeorm": "0.3.24",
+    "typescript": "5.3.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

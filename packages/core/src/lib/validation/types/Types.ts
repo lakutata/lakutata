@@ -1,0 +1,13 @@
+export type Types =
+    | 'any'
+    | 'alternatives'
+    | 'array'
+    | 'boolean'
+    | 'binary'
+    | 'date'
+    | 'function'
+    | 'link'
+    | 'number'
+    | 'object'
+    | 'string'
+    | 'symbol'
