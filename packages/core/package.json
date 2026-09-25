@@ -100,6 +100,12 @@
     "sonic-boom": "4.2.0"
   },
   "devDependencies": {
+    "@keyv/memcache": "2.0.2",
+    "@keyv/mongo": "3.0.5",
+    "@keyv/mysql": "2.1.9",
+    "@keyv/postgres": "2.2.2",
+    "@keyv/redis": "4.6.0",
+    "@keyv/sqlite": "4.0.6",
     "@types/node": "20.11.16",
     "@types/object-hash": "3.0.6",
     "cross-env": "10.1.0",
