@@ -15,7 +15,6 @@ import {As} from '../helpers/As.js'
 import {EventEmitter} from '../base/EventEmitter.js'
 import {BootstrapOption} from '../../options/ModuleOptions.js'
 import {DatabaseSymbol} from '../base/internal/DatabaseSymbol.js'
-import type {DataSourceOptions} from 'typeorm/data-source/DataSourceOptions.js'
 
 /**
  * On application launched event handler
@@ -261,41 +260,50 @@ export class Application extends Module {
                     this.eventEmitter.removeAllListeners(ApplicationState.UncaughtException)
                     this.eventEmitter.removeAllListeners(ApplicationState.FatalException)
                     const migrationTargetDir: string = process.env[env]!
-                    const getDataSourceOptionsArray: (input: Record<string, any>) => DataSourceOptions[] = (input: Record<string, any>) => {
-                        const dataSourceOptionsArray: DataSourceOptions[] = []
+                    //Database classes (provided by the orm package) are recognized by their databaseSymbol marker
+                    //and carry their own lazy migration generator, so core never references the orm package.
+                    interface MigrationTarget {
+                        dataSourceName: string
+                        dataSourceOptions: Record<string, any>
+                        migrationGenerator: () => Promise<any>
+                    }
+                    const getMigrationTargets: (input: Record<string, any>) => MigrationTarget[] = (input: Record<string, any>) => {
+                        const migrationTargets: MigrationTarget[] = []
                         for (const name in input) {
-                            if (input[name] && input[name].class && input[name].class.databaseSymbol && input[name].class.databaseSymbol === DatabaseSymbol) {
-                                const dataSourceOptions: DataSourceOptions = input[name].options
+                            const objectClass: any = input[name]?.class
+                            if (objectClass && objectClass.databaseSymbol && objectClass.databaseSymbol === DatabaseSymbol) {
+                                const dataSourceOptions: Record<string, any> = input[name].options
                                 if (!dataSourceOptions) continue
                                 Reflect.set(dataSourceOptions, 'dataSourceName', name)
-                                dataSourceOptionsArray.push(dataSourceOptions)
+                                migrationTargets.push({
+                                    dataSourceName: name,
+                                    dataSourceOptions: dataSourceOptions,
+                                    migrationGenerator: objectClass.migrationGenerator
+                                })
                             }
                         }
-                        return dataSourceOptionsArray
+                        return migrationTargets
                     }
-                    const totalDataSourceOptionsArray: DataSourceOptions[] = [
-                        ...(options.components ? getDataSourceOptionsArray(options.components) : []),
-                        ...(options.providers ? getDataSourceOptionsArray(options.providers) : [])
+                    const migrationTargets: MigrationTarget[] = [
+                        ...(options.components ? getMigrationTargets(options.components) : []),
+                        ...(options.providers ? getMigrationTargets(options.providers) : [])
                     ]
-                    if (!totalDataSourceOptionsArray.length) process.exit(0)
-                    //Migration generation is an orm-leaf concern (GenerateMigration lives with typeorm).
-                    //Use a non-literal specifier so tsc does not type-resolve this orm-only path in core.
-                    const generateMigrationSpecifier = '../../providers/migration/GenerateMigration.js'
-                    const {GenerateMigration} = await import(generateMigrationSpecifier)
+                    if (!migrationTargets.length) process.exit(0)
                     options.bootstrap = []
-                    totalDataSourceOptionsArray.forEach((dataSourceOptions: DataSourceOptions, index: number) => {
+                    for (let index: number = 0; index < migrationTargets.length; index++) {
+                        const migrationTarget: MigrationTarget = migrationTargets[index]
                         const migrationProviderName: string = `GenerateMigration${index}${Date.now()}`
                         if (!options.providers) options.providers = {}
                         options.providers[migrationProviderName] = {
-                            class: GenerateMigration,
+                            class: await migrationTarget.migrationGenerator(),
                             path: migrationTargetDir,
                             outputJs: false,
-                            exitProcess: index === totalDataSourceOptionsArray.length - 1,
-                            dataSourceName: Reflect.get(dataSourceOptions, 'dataSourceName'),
-                            dataSource: dataSourceOptions
+                            exitProcess: index === migrationTargets.length - 1,
+                            dataSourceName: migrationTarget.dataSourceName,
+                            dataSource: migrationTarget.dataSourceOptions
                         }
                         options.bootstrap!.push(migrationProviderName)
-                    })
+                    }
                 }
                     break
             }

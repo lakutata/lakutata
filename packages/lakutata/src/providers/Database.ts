@@ -44,6 +44,11 @@ export class Database extends Provider {
 
     public static databaseSymbol: symbol = DatabaseSymbol
 
+    /**
+     * Lazy loader of the migration generator provider, used by Application when MIGRATION_GENERATE is set
+     */
+    public static migrationGenerator = async (): Promise<typeof Provider> => (await import('./migration/GenerateMigration.js')).GenerateMigration
+
     #datasource: DataSource
 
     /**

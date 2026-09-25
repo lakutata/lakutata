@@ -1,5 +1,6 @@
 import {Configurable} from '@lakutata/core'
 import {Component} from '@lakutata/core'
+import {Provider} from '@lakutata/core'
 import {Singleton} from '@lakutata/core'
 import {type DataSourceOptions} from 'typeorm/data-source/DataSourceOptions.js'
 import {DataSource} from 'typeorm/data-source/DataSource.js'
@@ -41,6 +42,11 @@ export const BuildDatabaseOptions: (options: DataSourceOptions) => {
 export class Database extends Component {
 
     public static databaseSymbol: symbol = DatabaseSymbol
+
+    /**
+     * Lazy loader of the migration generator provider, used by Application when MIGRATION_GENERATE is set
+     */
+    public static migrationGenerator = async (): Promise<typeof Provider> => (await import('../providers/migration/GenerateMigration.js')).GenerateMigration
 
     #datasource: DataSource
 
