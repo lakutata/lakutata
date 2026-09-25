@@ -10,8 +10,8 @@ import {
     ActionPatternMap,
     BindControllerToComponent,
     GetComponentControllerActionMap
-} from '../../lib/base/internal/ControllerEntrypoint.js'
-import {PatternManager} from '../../lib/base/internal/PatternManager.js'
+} from './lib/ControllerEntrypoint.js'
+import {PatternManager} from './lib/PatternManager.js'
 import {Controller} from './lib/Controller.js'
 import {As} from '../../lib/helpers/As.js'
 import {ControllerActionNotFoundException} from './exceptions/ControllerActionNotFoundException.js'

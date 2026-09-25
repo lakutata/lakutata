@@ -1,9 +1,9 @@
-import {ModuleConfigLoader} from './ModuleConfigLoader.js'
-import {LoadObjectOptions} from '../../../options/LoadObjectOptions.js'
-import {BaseObject} from '../BaseObject.js'
-import {ApplicationOptions} from '../../../options/ApplicationOptions.js'
-import {SetBasicInfo} from './BasicInfo.js'
-import {Application} from '../../core/Application.js'
+import {ModuleConfigLoader} from '../base/internal/ModuleConfigLoader.js'
+import {LoadObjectOptions} from '../../options/LoadObjectOptions.js'
+import {BaseObject} from '../base/BaseObject.js'
+import {ApplicationOptions} from '../../options/ApplicationOptions.js'
+import {SetBasicInfo} from '../foundation/BasicInfo.js'
+import {Application} from './Application.js'
 
 /**
  * Application configurations loader

@@ -1,5 +1,5 @@
-import {PaginationSearchDTO} from '../../dto/PaginationSearchDTO.js'
-import {PaginationResultDTO} from '../../dto/PaginationResultDTO.js'
+import {PaginationSearchDTO} from './PaginationSearchDTO.js'
+import {PaginationResultDTO} from './PaginationResultDTO.js'
 
 export interface PaginatorHandlerResult<T> {
     total: number

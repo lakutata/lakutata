@@ -1,9 +1,9 @@
 import {Controller, type ControllerProperty} from '../../components/entrypoint/lib/Controller.js'
 import {MethodDecorator} from '../../types/MethodDecorator.js'
-import {RegisterCLIAction} from '../../lib/base/internal/ControllerEntrypoint.js'
+import {RegisterCLIAction} from '../../components/entrypoint/lib/ControllerEntrypoint.js'
 import {DTO} from '../../lib/core/DTO.js'
-import {ActionOptions} from '../../lib/base/internal/ActionOptions.js'
-import {GetActionDTOAndOptions} from '../../lib/base/internal/GetActionDTOAndOptions.js'
+import {ActionOptions} from '../../components/entrypoint/lib/ActionOptions.js'
+import {GetActionDTOAndOptions} from '../../components/entrypoint/lib/GetActionDTOAndOptions.js'
 import {CLIContext} from '../../lib/context/CLIContext.js'
 
 /**

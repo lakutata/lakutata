@@ -5,7 +5,7 @@ import {
     InjectionTransformFunction,
     SetObjectInjectItem
 } from '../../lib/base/internal/ObjectInjection.js'
-import {ConstructorSymbol} from '../../lib/base/internal/ConstructorSymbol.js'
+import {ConstructorSymbol} from '../../lib/ioc/ConstructorSymbol.js'
 import {isClass} from '../../lib/ioc/Utils.js'
 import {As} from '../../lib/helpers/As.js'
 

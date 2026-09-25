@@ -1,4 +1,4 @@
-import {readIEEE754} from '../base/internal/IEEE754.js'
+import {readIEEE754} from './internal/IEEE754.js'
 
 /**
  * Hex to IEEE754 number

@@ -1,4 +1,4 @@
-import {As} from '../../helpers/As.js'
+import {As} from '../helpers/As.js'
 import {ThrowWarning} from './ThrowWarning.js'
 
 type BasicInfo = {

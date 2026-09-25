@@ -1,7 +1,7 @@
-import {DTO} from '../../core/DTO.js'
+import {DTO} from '../../../lib/core/DTO.js'
 import {Expect} from '../../../decorators/dto/Expect.js'
-import type {AccessControlRuleHandler} from '../../../components/entrypoint/lib/AccessControlRule.js'
-import {BaseContext} from '../Context.js'
+import type {AccessControlRuleHandler} from './AccessControlRule.js'
+import {BaseContext} from '../../../lib/base/Context.js'
 
 export class ActionOptions<T extends BaseContext<Record<string, any>>> extends DTO {
     /**

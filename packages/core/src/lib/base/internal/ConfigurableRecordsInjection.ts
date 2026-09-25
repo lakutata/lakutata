@@ -1,6 +1,6 @@
 import {BaseObject} from '../BaseObject.js'
 import {DI_TARGET_ID} from '../../../constants/DIMetadataKey.js'
-import {ConstructorSymbol} from './ConstructorSymbol.js'
+import {ConstructorSymbol} from '../../ioc/ConstructorSymbol.js'
 import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
 import {As} from '../../helpers/As.js'
 

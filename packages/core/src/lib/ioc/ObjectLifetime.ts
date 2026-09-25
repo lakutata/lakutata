@@ -1,17 +1,17 @@
-import {BaseObject} from '../BaseObject.js'
+import {IConstructor} from '../../interfaces/IConstructor.js'
 import {
     DI_TARGET_CONSTRUCTOR_LIFETIME,
     DI_TARGET_CONSTRUCTOR_LIFETIME_LOCK
-} from '../../../constants/DIMetadataKey.js'
-import {LifetimeLockedException} from '../../../exceptions/di/LifetimeLockedException.js'
-import {LifetimeType} from '../../ioc/Lifetime.js'
+} from '../../constants/DIMetadataKey.js'
+import {LifetimeLockedException} from '../../exceptions/di/LifetimeLockedException.js'
+import {LifetimeType} from './Lifetime.js'
 
 /**
  * Get Object's lifetime
  * @param target
  * @constructor
  */
-export function GetObjectLifetime<ClassConstructor extends typeof BaseObject>(target: ClassConstructor): LifetimeType {
+export function GetObjectLifetime<ClassConstructor extends IConstructor>(target: ClassConstructor): LifetimeType {
     return Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_LIFETIME, target)
 }
 
@@ -20,7 +20,7 @@ export function GetObjectLifetime<ClassConstructor extends typeof BaseObject>(ta
  * @param target
  * @constructor
  */
-export function GetObjectLifetimeLocked<ClassConstructor extends typeof BaseObject>(target: ClassConstructor): boolean {
+export function GetObjectLifetimeLocked<ClassConstructor extends IConstructor>(target: ClassConstructor): boolean {
     return !!Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_LIFETIME_LOCK, target)
 }
 
@@ -31,7 +31,7 @@ export function GetObjectLifetimeLocked<ClassConstructor extends typeof BaseObje
  * @param lock
  * @constructor
  */
-export function SetObjectLifetime<ClassConstructor extends typeof BaseObject>(target: ClassConstructor, lifetime: LifetimeType, lock: boolean = false): ClassConstructor {
+export function SetObjectLifetime<ClassConstructor extends IConstructor>(target: ClassConstructor, lifetime: LifetimeType, lock: boolean = false): ClassConstructor {
     if (
         (GetObjectLifetimeLocked(target) && !lock)
         || (GetObjectLifetimeLocked(target) && GetObjectLifetime(target) !== lifetime)

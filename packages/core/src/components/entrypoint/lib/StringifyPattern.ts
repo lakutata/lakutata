@@ -1,5 +1,5 @@
 import {ActionPattern} from '../../../types/ActionPattern.js'
-import sortArray from 'sort-array'
+import {SortArray} from '../../../lib/helpers/SortArray.js'
 
 function PatternToArrayPair(pattern: ActionPattern | any): any {
     switch (typeof pattern) {
@@ -20,14 +20,14 @@ function PatternToArrayPair(pattern: ActionPattern | any): any {
         case 'object': {
             if (Array.isArray(pattern)) {
                 const arrayData: any[] = []
-                sortArray(pattern, {order: 'asc'}).forEach((item: any) => {
+                SortArray(pattern, {order: 'asc'}).forEach((item: any) => {
                     const newItem: any = PatternToArrayPair(item)
                     if (newItem === undefined) return
                     arrayData.push(newItem)
                 })
                 return arrayData
             } else {
-                const keys: string[] = sortArray(Object.keys(pattern), {order: 'asc'})
+                const keys: string[] = SortArray(Object.keys(pattern), {order: 'asc'})
                 const data: any[] = []
                 keys.forEach((key: string) => {
                     const item: any = PatternToArrayPair(pattern[key])

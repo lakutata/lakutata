@@ -2,7 +2,7 @@ import {Controller, type ControllerProperty} from '../../../components/entrypoin
 import {DTO} from '../../../lib/core/DTO.js'
 import {MethodDecorator} from '../../../types/MethodDecorator.js'
 import {HTTPAction} from '../HTTPAction.js'
-import {ActionOptions} from '../../../lib/base/internal/ActionOptions.js'
+import {ActionOptions} from '../../../components/entrypoint/lib/ActionOptions.js'
 import {HTTPContext} from '../../../lib/context/HTTPContext.js'
 
 export function OPTIONS<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(r: string): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>

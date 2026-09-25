@@ -32,7 +32,7 @@ import {
 import {BaseObject} from '../../lib/base/BaseObject.js'
 import {Inject} from '../../decorators/di/Inject.js'
 import {Expect} from '../../decorators/dto/Expect.js'
-import {ConstructorSymbol, ResolveConstructorNameBySymbol} from '../../lib/base/internal/ConstructorSymbol.js'
+import {ConstructorSymbol, ResolveConstructorNameBySymbol} from '../../lib/ioc/ConstructorSymbol.js'
 import {IsDTO} from '../../lib/base/internal/ObjectSchemaValidation.js'
 import {DTO} from '../../lib/core/DTO.js'
 import {Alias} from '../../lib/core/Alias.js'

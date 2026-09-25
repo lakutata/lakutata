@@ -1,11 +1,10 @@
-import {BaseObject} from '../BaseObject.js'
-import {DI_TARGET_CONSTRUCTOR_SYMBOL} from '../../../constants/DIMetadataKey.js'
+import {DI_TARGET_CONSTRUCTOR_SYMBOL} from '../../constants/DIMetadataKey.js'
 import {randomUUID} from 'node:crypto'
-import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
+import {IConstructor} from '../../interfaces/IConstructor.js'
 
 const symbolConstructorMap: Map<symbol, string> = new Map()
 
-export function ConstructorSymbol<T extends BaseObject>(constructor: IBaseObjectConstructor<T>): symbol {
+export function ConstructorSymbol<T>(constructor: IConstructor<T>): symbol {
     if (!Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_SYMBOL, constructor)) {
         const uuidSymbol: symbol = Symbol(randomUUID())
         symbolConstructorMap.set(uuidSymbol, constructor.name)

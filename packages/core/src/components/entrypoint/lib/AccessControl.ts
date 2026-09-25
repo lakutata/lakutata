@@ -9,10 +9,10 @@ import {
     ServiceContext
 } from '../Entrypoint.js'
 import {Configurable} from '../../../decorators/di/Configurable.js'
-import {Exception} from '../../../lib/base/abstracts/Exception.js'
+import {Exception} from '../../../lib/foundation/Exception.js'
 import {AccessDenyException} from '../exceptions/AccessDenyException.js'
 import {Container} from '../../../lib/core/Container.js'
-import {ActionDetails} from '../../../lib/base/internal/ControllerEntrypoint.js'
+import {ActionDetails} from './ControllerEntrypoint.js'
 import {AccessControlRule, AccessControlRuleHandler} from './AccessControlRule.js'
 import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
 import {DTO} from '../../../lib/core/DTO.js'

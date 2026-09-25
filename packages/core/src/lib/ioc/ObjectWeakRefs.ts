@@ -1,5 +1,4 @@
-import {BaseObject} from '../BaseObject.js'
-import {As} from '../../helpers/As.js'
+import {As} from '../helpers/As.js'
 
 const OWR_SYMBOL: symbol = Symbol('OWR')//Object Weak Ref
 const OFR_SYMBOL: symbol = Symbol('OFR')//Object Finalization Registry
@@ -9,9 +8,9 @@ const OFR_SYMBOL: symbol = Symbol('OFR')//Object Finalization Registry
  * @param target
  * @constructor
  */
-export function GetObjectWeakRefs<ObjectInstance extends BaseObject>(target: any): Set<WeakRef<ObjectInstance>> {
-    if (!Reflect.hasOwnMetadata(OFR_SYMBOL, target)) Reflect.defineMetadata(OFR_SYMBOL, new FinalizationRegistry<WeakRef<BaseObject>>((ref: WeakRef<BaseObject>): void => {
-        const objectWeakRefs: Set<WeakRef<BaseObject>> = Reflect.getOwnMetadata(OWR_SYMBOL, target) || new Set()
+export function GetObjectWeakRefs<ObjectInstance extends object>(target: any): Set<WeakRef<ObjectInstance>> {
+    if (!Reflect.hasOwnMetadata(OFR_SYMBOL, target)) Reflect.defineMetadata(OFR_SYMBOL, new FinalizationRegistry<WeakRef<object>>((ref: WeakRef<object>): void => {
+        const objectWeakRefs: Set<WeakRef<object>> = Reflect.getOwnMetadata(OWR_SYMBOL, target) || new Set()
         objectWeakRefs.delete(ref)
         Reflect.defineMetadata(OWR_SYMBOL, objectWeakRefs, target)
     }), target)
@@ -25,7 +24,7 @@ export function GetObjectWeakRefs<ObjectInstance extends BaseObject>(target: any
  * @param instance
  * @constructor
  */
-export function AppendObjectWeakRefs<ObjectInstance extends BaseObject>(target: any, instance: ObjectInstance): void {
+export function AppendObjectWeakRefs<ObjectInstance extends object>(target: any, instance: ObjectInstance): void {
     const refs: Set<WeakRef<ObjectInstance>> = GetObjectWeakRefs<ObjectInstance>(target)
     const ref: WeakRef<ObjectInstance> = new WeakRef(instance)
     As<FinalizationRegistry<WeakRef<ObjectInstance>>>(Reflect.getOwnMetadata(OFR_SYMBOL, target)).register(instance, ref)

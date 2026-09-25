@@ -1,8 +1,8 @@
-import {GetBasicInfo} from '../internal/BasicInfo.js'
-import {Templating} from '../../helpers/Templating.js'
-import {As} from '../../helpers/As.js'
-import {CamelCase} from '../internal/CamelCase.js'
-import {DevNull} from '../../helpers/DevNull.js'
+import {GetBasicInfo} from './BasicInfo.js'
+import {Templating} from '../helpers/Templating.js'
+import {As} from '../helpers/As.js'
+import {CamelCase} from '../helpers/internal/CamelCase.js'
+import {DevNull} from '../helpers/DevNull.js'
 
 //Self-implemented (replaces the `format` package dependency).
 //Handles both {N} positional and %s/%d/%j/%o printf-style placeholders.

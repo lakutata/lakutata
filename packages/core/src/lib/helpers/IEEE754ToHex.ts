@@ -1,4 +1,4 @@
-import {writeIEEE754} from '../base/internal/IEEE754.js'
+import {writeIEEE754} from './internal/IEEE754.js'
 
 /**
  * IEEE754 number to hex

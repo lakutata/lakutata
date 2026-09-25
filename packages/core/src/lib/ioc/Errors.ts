@@ -1,6 +1,6 @@
 import {ResolutionStack} from './DependencyInjectionContainer.js'
 import {DependencyInjectionException} from '../../exceptions/di/DependencyInjectionException.js'
-import {ResolveConstructorNameBySymbol} from '../base/internal/ConstructorSymbol.js'
+import {ResolveConstructorNameBySymbol} from './ConstructorSymbol.js'
 import {As} from '../helpers/As.js'
 import {IsSymbol} from '../helpers/IsSymbol.js'
 

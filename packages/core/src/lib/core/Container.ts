@@ -4,10 +4,10 @@ import {
     type NameAndRegistrationPair
 } from '../ioc/DependencyInjectionContainer.js'
 import {__destroy, BaseObject} from '../base/BaseObject.js'
-import {ConstructorSymbol} from '../base/internal/ConstructorSymbol.js'
+import {ConstructorSymbol} from '../ioc/ConstructorSymbol.js'
 import {LoadObjectOptions, OBJECT_ID} from '../../options/LoadObjectOptions.js'
 import {asClass, asValue, type BuildResolverOptions} from '../ioc/Resolvers.js'
-import {GetObjectLifetime} from '../base/internal/ObjectLifetime.js'
+import {GetObjectLifetime} from '../ioc/ObjectLifetime.js'
 import {
     GetConfigurableRecords,
     SetConfigurableRecords,
@@ -24,7 +24,7 @@ import {LifetimeType} from '../ioc/Lifetime.js'
 import {DevNull} from '../helpers/DevNull.js'
 import {As} from '../helpers/As.js'
 import {IsEmptyObject} from '../helpers/IsEmptyObject.js'
-import {AppendObjectWeakRefs, ClearObjectWeakRefs, GetObjectWeakRefs} from '../base/internal/ObjectWeakRefs.js'
+import {AppendObjectWeakRefs, ClearObjectWeakRefs, GetObjectWeakRefs} from '../ioc/ObjectWeakRefs.js'
 
 export const containerSymbol: symbol = Symbol('LAKUTATA.DI.CONTAINER.SYMBOL')
 
@@ -359,7 +359,7 @@ export class Container {
         await Promise.all(destroySubContainerPromises)
         await this.#dic.dispose()
         const destroyTransientPromises: Promise<void>[] = []
-        GetObjectWeakRefs(this.#dic).forEach((ref: WeakRef<BaseObject>): void => {
+        GetObjectWeakRefs<BaseObject>(this.#dic).forEach((ref: WeakRef<BaseObject>): void => {
             let transient: BaseObject | undefined = ref.deref()
             if (!transient) return
             if (transient[__destroy]) {

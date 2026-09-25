@@ -1,11 +1,11 @@
 import {Controller, type ControllerProperty} from '../../components/entrypoint/lib/Controller.js'
 import {MethodDecorator} from '../../types/MethodDecorator.js'
 import {ActionPattern} from '../../types/ActionPattern.js'
-import {RegisterServiceAction} from '../../lib/base/internal/ControllerEntrypoint.js'
+import {RegisterServiceAction} from '../../components/entrypoint/lib/ControllerEntrypoint.js'
 import {DTO} from '../../lib/core/DTO.js'
 import {FlexibleDTO} from '../../lib/base/internal/FlexibleDTO.js'
-import {GetActionDTOAndOptions} from '../../lib/base/internal/GetActionDTOAndOptions.js'
-import {ActionOptions} from '../../lib/base/internal/ActionOptions.js'
+import {GetActionDTOAndOptions} from '../../components/entrypoint/lib/GetActionDTOAndOptions.js'
+import {ActionOptions} from '../../components/entrypoint/lib/ActionOptions.js'
 import {ServiceContext} from '../../lib/context/ServiceContext.js'
 
 /**

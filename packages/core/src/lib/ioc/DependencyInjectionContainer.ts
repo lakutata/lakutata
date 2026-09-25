@@ -22,9 +22,9 @@ import {
     asFunction
 } from './Resolvers.js'
 import {isClass, last, nameValueToObject} from './Utils.js'
-import {GetObjectLifetime} from '../base/internal/ObjectLifetime.js'
+import {GetObjectLifetime} from './ObjectLifetime.js'
 import {As} from '../helpers/As.js'
-import {AppendObjectWeakRefs} from '../base/internal/ObjectWeakRefs.js'
+import {AppendObjectWeakRefs} from './ObjectWeakRefs.js'
 
 /**
  * The container returned from createContainer has some methods and properties.
