@@ -17,7 +17,7 @@ import Any, {type AnySchema, type AnyTerms} from './any.js'
 /**
  * The match modes of an alternatives schema
  */
-export type AlternativesMatchMode = 'any' | 'one' | 'all'
+export type AlternativesMatchMode = 'any' | 'one' | 'all' | 'none'
 
 /**
  * An item of the matches term: an alternative schema, a condition, or a switch statement
@@ -95,6 +95,14 @@ const Alternatives: AlternativesSchema = Any.extend<AlternativesSchema>({
 
     validate(value: unknown, helpers: ValidationHelpers<AlternativesSchema>): ValidationOutcome {
         const {schema, error, state, prefs} = helpers
+        //Match none (lakutata's own): the value must not match any alternative
+        if (schema._flags.match === 'none') {
+            for (let i: number = 0; i < schema.$_terms.matches.length; ++i) {
+                const item: AlternativesMatch = schema.$_terms.matches[i]
+                if ((item.schema as Base).$_match(value, state.nest(item.schema, `match.${i}`), prefs)) return {errors: error('alternatives.none')}
+            }
+            return {value}
+        }
         //Match all or one
         if (schema._flags.match) {
             const matched: unknown[] = []
@@ -198,7 +206,7 @@ const Alternatives: AlternativesSchema = Any.extend<AlternativesSchema>({
 
         match: {
             method(this: AlternativesSchema, mode: AlternativesMatchMode): AlternativesSchema {
-                assert(['any', 'one', 'all'].includes(mode), 'Invalid alternatives match mode', mode)
+                assert(['any', 'one', 'all', 'none'].includes(mode), 'Invalid alternatives match mode', mode)
                 if (mode !== 'any') {
                     for (const match of this.$_terms.matches) {
                         assert(match.schema, 'Cannot combine match mode', mode, 'with conditional rules')
@@ -285,6 +293,7 @@ const Alternatives: AlternativesSchema = Any.extend<AlternativesSchema>({
         'alternatives.all': '{{#label}} does not match all of the required types',
         'alternatives.any': '{{#label}} does not match any of the allowed types',
         'alternatives.match': '{{#label}} does not match any of the allowed types',
+        'alternatives.none': '{{#label}} matches a type which is not allowed',
         'alternatives.one': '{{#label}} matches more than one allowed type',
         'alternatives.types': '{{#label}} must be one of {{#types}}'
     }

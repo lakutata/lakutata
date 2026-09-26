@@ -95,6 +95,10 @@ library is ported from [hapijs/code](https://github.com/hapijs/code) 9.0.3 (4250
     32-bit floating point range) and `double()` (every finite number); `float()` and `double()` set `unsafe()`.
   - The length rules of `string()` (`min()`, `max()`, `length()` without an encoding) and `truncate()` count Unicode
     code points (upstream: UTF-16 code units), like JSON Schema: a surrogate pair is one character.
+  - Added (lakutata's own, for the constructs of JSON Schema): `object().unknown(schema)` (the unknown keys are
+    allowed and must match the schema; the flag holds the schema), `object().keyNames(schema)` (every key name must
+    match), `array().has(schema, {min, max})` (the number of matching items; without options `has()` is unchanged)
+    and `alternatives().match('none')` (the value must match none of the alternatives).
 - Performance changes (same behavior, covered by `src/tests/engine/schema/Caching.spec.ts`):
   - The validation settings (defaults merged with the validate() options) are reused for options which cannot change:
     frozen, with primitive values only. Upstream merges them on every validation.

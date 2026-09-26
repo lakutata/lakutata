@@ -55,9 +55,16 @@ export interface ArrayTerms {
 /**
  * The array schema
  */
+export interface HasOptions {
+    //The least number of matching items (default 1)
+    min?: number
+    //The largest number of matching items (default: no limit)
+    max?: number
+}
+
 export interface ArraySchema extends AnySchema {
     $_terms: SchemaTerms & AnyTerms & ArrayTerms
-    has(schema: unknown): this
+    has(schema: unknown, options?: HasOptions): this
     items(...schemas: unknown[]): this
     length(limit: unknown): this
     max(limit: unknown): this
@@ -119,16 +126,31 @@ const ArrayType: ArraySchema = Any.extend<ArraySchema>({
     rules: {
 
         has: {
-            method(this: ArraySchema, schema: unknown): ArraySchema {
+            method(this: ArraySchema, schema: unknown, options: HasOptions = {}): ArraySchema {
                 schema = this.$_compile(schema, {appendPath: true})
-                const obj: ArraySchema = this.$_addRule({name: 'has', args: {schema}})
+                Common.assertOptions(options, ['min', 'max'])
+                assert(options.min === undefined || Number.isSafeInteger(options.min) && options.min >= 0, 'min must be a non-negative integer')
+                assert(options.max === undefined || Number.isSafeInteger(options.max) && options.max >= 0, 'max must be a non-negative integer')
+                const obj: ArraySchema = this.$_addRule({name: 'has', args: {schema, options}})
                 obj.$_mutateRegister(schema)
                 return obj
             },
-            validate(input: unknown, {state, prefs, error}: ValidationHelpers<ArraySchema>, {schema}: Record<string, unknown>): unknown {
+            validate(input: unknown, {state, prefs, error}: ValidationHelpers<ArraySchema>, {schema, options}: Record<string, unknown>): unknown {
                 const value: ArrayValue = input as ArrayValue
                 const has: Base = schema as Base
                 const ancestors: unknown[] = [value, ...state.ancestors]
+                const {min = 1, max} = options as HasOptions
+                if (min !== 1 || max !== undefined) {
+                    //The number of matching items (lakutata's own)
+                    let count: number = 0
+                    for (let i: number = 0; i < value.length; ++i) {
+                        const localState: State = state.localize([...state.path, i], ancestors, has)
+                        if (has.$_match(value[i], localState, prefs)) ++count
+                    }
+                    if (count < min) return error('array.hasMin', {min, count})
+                    if (max !== undefined && count > max) return error('array.hasMax', {max, count})
+                    return value
+                }
                 for (let i: number = 0; i < value.length; ++i) {
                     const localState: State = state.localize([...state.path, i], ancestors, has)
                     if (has.$_match(value[i], localState, prefs)) return value
@@ -137,6 +159,7 @@ const ArrayType: ArraySchema = Any.extend<ArraySchema>({
                 if (patternLabel) return error('array.hasKnown', {patternLabel})
                 return error('array.hasUnknown', null)
             },
+            args: ['schema', 'options'],
             multi: true
         },
 
@@ -528,6 +551,8 @@ const ArrayType: ArraySchema = Any.extend<ArraySchema>({
         'array.base': '{{#label}} must be an array',
         'array.excludes': '{{#label}} contains an excluded value',
         'array.hasKnown': '{{#label}} does not contain at least one required match for type {:#patternLabel}',
+        'array.hasMax': '{{#label}} must contain at most {{#max}} required matches',
+        'array.hasMin': '{{#label}} must contain at least {{#min}} required matches',
         'array.hasUnknown': '{{#label}} does not contain at least one required match',
         'array.includes': '{{#label}} does not match any of the allowed types',
         'array.includesRequiredBoth': '{{#label}} does not contain {{#knownMisses}} and {{#unknownMisses}} other required value(s)',

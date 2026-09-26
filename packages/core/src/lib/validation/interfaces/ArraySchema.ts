@@ -13,8 +13,9 @@ export interface ArraySchema<TSchema = any[]> extends AnySchema<TSchema> {
      * Verifies that an assertion passes for at least one item in the array, where:
      * `schema` - the validation rules required to satisfy the assertion. If the `schema` includes references, they are resolved against
      * the array item being tested, not the value of the `ref` target.
+     * `options.min` and `options.max` limit the number of matching items (by default at least one, no maximum).
      */
-    has(schema: SchemaLike): this;
+    has(schema: SchemaLike, options?: { min?: number, max?: number }): this;
 
     // /**
     //  * List the types allowed for the array values.

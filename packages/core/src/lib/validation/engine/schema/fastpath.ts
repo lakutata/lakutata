@@ -336,6 +336,8 @@ function compilable(schema: Base): boolean {
     for (const flag of interpretedFlags) {
         if (flags[flag] !== undefined) return false
     }
+    //A schema for the unknown keys
+    if (typeof flags.unknown === 'object') return false
     const terms: Record<string, unknown> = schema.$_terms
     for (const term of interpretedTerms) {
         const value: unknown = terms[term]

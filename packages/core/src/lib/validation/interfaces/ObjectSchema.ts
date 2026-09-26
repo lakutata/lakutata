@@ -36,6 +36,11 @@ export interface ObjectSchema<TSchema = any> extends AnySchema<TSchema> {
     instance(constructor: Function, name?: string): this;
 
     /**
+     * Requires every key name of the object to match a schema.
+     */
+    keyNames(schema: SchemaLike): this;
+
+    /**
      * Sets or extends the allowed object keys.
      */
     keys(schema?: SchemaMap<TSchema>): this;
@@ -106,8 +111,9 @@ export interface ObjectSchema<TSchema = any> extends AnySchema<TSchema> {
 
     /**
      * Overrides the handling of unknown keys for the scope of the current object only (does not apply to children).
+     * With a schema, the unknown keys are allowed and their values must match it.
      */
-    unknown(allow?: boolean): this;
+    unknown(allow?: boolean | SchemaLike): this;
 
     /**
      * Requires the presence of other keys whenever the specified key is present.

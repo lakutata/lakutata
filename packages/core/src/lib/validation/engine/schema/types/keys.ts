@@ -139,6 +139,7 @@ export interface KeysSchema extends AnySchema {
     append(schema?: Record<string, unknown> | null): this
     assert(subject: unknown, schema: unknown, message?: string): this
     instance(constructor: Function, name?: string): this
+    keyNames(schema: unknown): this
     keys(schema?: Record<string, unknown> | null): this
     length(limit: unknown): this
     max(limit: unknown): this
@@ -151,7 +152,7 @@ export interface KeysSchema extends AnySchema {
     regex(): this
     rename(from: string | RegExp, to: string | Template, options?: RenameOptions): this
     schema(type?: string): this
-    unknown(allow?: boolean): this
+    unknown(allow?: boolean | unknown): this
     with(key: string, peers: string | string[], options?: DependencyOptions): this
     without(key: string, peers: string | string[], options?: DependencyOptions): this
     xor(...peers: DependencyPeer[]): this
@@ -204,7 +205,9 @@ const KeysType: KeysSchema = Any.extend<KeysSchema>({
             //null allows any keys
             !schema.$_terms.keys &&
             !schema.$_terms.patterns &&
-            !schema.$_terms.externals) {
+            !schema.$_terms.externals &&
+            //A schema for the unknown keys
+            typeof schema._flags.unknown !== 'object') {
             return
         }
         //Shallow clone value
@@ -219,7 +222,8 @@ const KeysType: KeysSchema = Any.extend<KeysSchema>({
         if (!schema.$_terms.keys &&
             //null allows any keys
             !schema.$_terms.patterns &&
-            !schema.$_terms.dependencies) {
+            !schema.$_terms.dependencies &&
+            typeof schema._flags.unknown !== 'object') {
             return {value, errors}
         }
         //Defined keys
@@ -321,6 +325,26 @@ const KeysType: KeysSchema = Any.extend<KeysSchema>({
                 return helpers.error('object.instance', {type: name, value})
             },
             args: ['constructor', 'name']
+        },
+
+        keyNames: {
+            method(this: KeysSchema, schema: unknown): KeysSchema {
+                //lakutata's own: every key name must match the schema
+                schema = this.$_compile(schema)
+                const obj: KeysSchema = this.$_addRule({name: 'keyNames', args: {schema}})
+                obj.$_mutateRegister(schema)
+                return obj
+            },
+            validate(value: unknown, {state, prefs, error}: ValidationHelpers<KeysSchema>, {schema}: Record<string, unknown>): unknown {
+                const names: Base = schema as Base
+                const ancestors: unknown[] = [value, ...state.ancestors]
+                for (const name of Object.keys(value as object)) {
+                    const localState: State = state.localize([...state.path, name], ancestors, names)
+                    if (!names.$_match(name, localState, prefs)) return error('object.keyNames', {name})
+                }
+                return value
+            },
+            args: ['schema']
         },
 
         keys: {
@@ -471,8 +495,13 @@ const KeysType: KeysSchema = Any.extend<KeysSchema>({
         },
 
         unknown: {
-            method(this: KeysSchema, allow?: boolean): KeysSchema {
-                return this.$_setFlag('unknown', allow !== false)
+            method(this: KeysSchema, allow?: boolean | unknown): KeysSchema {
+                if (allow === undefined || allow === null || typeof allow === 'boolean') return this.$_setFlag('unknown', allow !== false)
+                //lakutata's own: the unknown keys are allowed and must match the schema
+                const obj: KeysSchema = this.clone()
+                const schema: Base = obj.$_compile(allow)
+                obj.$_mutateRegister(schema)
+                return obj.$_setFlag('unknown', schema, {clone: false})
             }
         },
 
@@ -505,6 +534,7 @@ const KeysType: KeysSchema = Any.extend<KeysSchema>({
 
         isAsync(this: KeysSchema): boolean {
             if (this.$_terms.externals?.length) return true
+            if (typeof this._flags.unknown === 'object' && (this._flags.unknown as Base).isAsync()) return true
             if (this.$_terms.keys?.length) {
                 for (const key of this.$_terms.keys) {
                     if (key.schema.isAsync()) return true
@@ -551,6 +581,7 @@ const KeysType: KeysSchema = Any.extend<KeysSchema>({
         'object.assert': '{{#label}} is invalid because {if(#subject.key, `"` + #subject.key + `" failed to ` + (#message || "pass the assertion test"), #message || "the assertion failed")}',
         'object.base': '{{#label}} must be of type {{#type}}',
         'object.instance': '{{#label}} must be an instance of {{:#type}}',
+        'object.keyNames': '{{#label}} has a key name "{{#name}}" which is not allowed',
         'object.length': '{{#label}} must have {{#limit}} key{if(#limit == 1, "", "s")}',
         'object.max': '{{#label}} must have less than or equal to {{#limit}} key{if(#limit == 1, "", "s")}',
         'object.min': '{{#label}} must have at least {{#limit}} key{if(#limit == 1, "", "s")}',
@@ -892,6 +923,21 @@ function unknown(schema: KeysSchema, value: KeysValue, unprocessed: Set<string>,
                 }
             }
         }
+    }
+    //A schema for the unknown keys (lakutata's own)
+    const unknownSchema: unknown = schema._flags.unknown
+    if (typeof unknownSchema === 'object') {
+        const ancestors: unknown[] = [value, ...state.ancestors]
+        for (const key of unprocessed) {
+            const localState: State = state.localize([...state.path, key], ancestors, {schema: unknownSchema as Base, key})
+            const result: SchemaResult = (unknownSchema as Base).$_validate(value[key], localState, prefs)
+            if (result.errors) {
+                if (prefs.abortEarly) return {value, errors: result.errors}
+                errors.push(...result.errors)
+            }
+            value[key] = result.value
+        }
+        return
     }
     //If no keys or patterns specified, unknown keys allowed
     if (!unprocessed.size ||

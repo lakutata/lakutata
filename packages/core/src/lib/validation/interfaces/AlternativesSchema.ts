@@ -14,10 +14,11 @@ export interface AlternativesSchema<TSchema = any> extends AnySchema<TSchema> {
     conditional(ref: Schema, options: WhenSchemaOptions): this;
 
     /**
-     * Requires the validated value to match a specific set of the provided alternative.try() schemas.
+     * Requires the validated value to match a specific set of the provided alternative.try() schemas:
+     * `'any'` (the default), `'one'`, `'all'`, or `'none'` (the value must not match any of them).
      * Cannot be combined with `alternatives.conditional()`.
      */
-    match(mode: 'any' | 'all' | 'one'): this;
+    match(mode: 'any' | 'all' | 'one' | 'none'): this;
 
     /**
      * Adds an alternative schema type for attempting to match against the validated value.
