@@ -4,6 +4,7 @@ import {ApplicationConfigLoader} from './ApplicationConfigLoader.js'
 import {ApplicationOptions} from '../../options/ApplicationOptions.js'
 import {Alias} from '../core/Alias.js'
 import {GetBasicInfo} from '../foundation/BasicInfo.js'
+import {SetDestroyErrorReporter} from '../foundation/DestroyErrorReporter.js'
 import {Entrypoint} from '../../components/entrypoint/Entrypoint.js'
 import {Logger} from '../../components/Logger.js'
 import {Accept} from '../../decorators/dto/Accept.js'
@@ -319,6 +320,9 @@ export class Application extends Module {
                             As<BootstrapOption[]>(Reflect.getOwnMetadata('#bootstrap', this))?.pop()
                         }
                         launchedCallbackRemover.bind(As<Application>(target))()
+                        //Errors raised by cascaded destruction are reported through the application logger
+                        const logger: Logger = await target.getObject('log')
+                        SetDestroyErrorReporter((error: Error): void => logger.warn(error, 'An error occurred while destroying an object'))
                         this.eventEmitter.emit(ApplicationState.Launched, As<Application>(target))
                     })
                     rootContainer

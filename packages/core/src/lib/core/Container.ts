@@ -21,7 +21,7 @@ import {pathToFileURL} from 'url'
 import {isClass} from '../ioc/Utils.js'
 import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
 import {LifetimeType} from '../ioc/Lifetime.js'
-import {DevNull} from '../helpers/DevNull.js'
+import {ReportDestroyError} from '../foundation/DestroyErrorReporter.js'
 import {As} from '../helpers/As.js'
 import {IsEmptyObject} from '../helpers/IsEmptyObject.js'
 import {AppendObjectWeakRefs, ClearObjectWeakRefs, GetObjectWeakRefs} from '../ioc/ObjectWeakRefs.js'
@@ -61,7 +61,8 @@ export class Container {
         try {
             await instance.getMethod(__destroy, false)()
         } catch (e) {
-            DevNull(e)
+            //Cascaded destruction never throws, errors are reported instead
+            ReportDestroyError(e)
         }
     }
 
@@ -352,24 +353,19 @@ export class Container {
      * Clear current container but not destroy it
      */
     public async clear(): Promise<void> {
-        const destroySubContainerPromises: Promise<void>[] = []
-        this.#subContainerSet.forEach((subContainer: Container) =>
-            destroySubContainerPromises.push(new Promise((resolve, reject) =>
-                subContainer.destroy().then(resolve).catch(reject))))
-        await Promise.all(destroySubContainerPromises)
-        await this.#dic.dispose()
-        const destroyTransientPromises: Promise<void>[] = []
+        //Every step always runs to the end, a failing object never stops the teardown of the others
+        await Promise.all(Array.from(this.#subContainerSet).map((subContainer: Container): Promise<void> => subContainer.destroy()))
+        try {
+            await this.#dic.dispose()
+        } catch (e) {
+            ReportDestroyError(e)
+        }
+        const transients: BaseObject[] = []
         GetObjectWeakRefs<BaseObject>(this.#dic).forEach((ref: WeakRef<BaseObject>): void => {
-            let transient: BaseObject | undefined = ref.deref()
-            if (!transient) return
-            if (transient[__destroy]) {
-                destroyTransientPromises.push(new Promise(resolve => transient ? Promise.resolve(transient[__destroy]()).then(() => {
-                    transient = undefined
-                    return resolve()
-                }).catch(DevNull) : resolve()))
-            }
+            const transient: BaseObject | undefined = ref.deref()
+            if (transient) transients.push(transient)
         })
-        await Promise.all(destroyTransientPromises)
+        await Promise.all(transients.map((transient: BaseObject): Promise<void> => this.disposer(transient)))
         ClearObjectWeakRefs(this.#dic)
     }
 
