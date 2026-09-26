@@ -13,7 +13,7 @@ import {ObjectSchema} from '../validation/interfaces/ObjectSchema.js'
 import {IsSymbol} from '../helpers/IsSymbol.js'
 import {As} from '../helpers/As.js'
 import {ObjectConstructor} from '../helpers/ObjectConstructor.js'
-import parse from '../validation/engine/joi-to-json/index.js'
+import parse from '../validation/engine/json-schema/index.js'
 import {JSONSchema} from '../../types/JSONSchema.js'
 
 /**

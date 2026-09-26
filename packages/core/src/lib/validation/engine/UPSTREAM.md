@@ -11,10 +11,10 @@ dependencies of lakutata. License texts: `THIRD_PARTY_NOTICES.md` in the package
 | `topo/` | [hapijs/topo](https://github.com/hapijs/topo) | 6.0.2 | 3c4ee008ec9f719b0992ba06feb35c24b57787d7 | Sorter |
 | `tlds/` | [hapijs/tlds](https://github.com/hapijs/tlds) | 1.1.4 | 2c9410a8cb6dcb5a0c1d329a4359074b10151582 | tlds (IANA list, version 2025102200) |
 | `address/` | [hapijs/address](https://github.com/hapijs/address) | 5.1.1 | f23e252d821644b4422220a2482d6f832aaf49ed | domain, email, ip, uri, decode, errors |
-| `joi/` | [hapijs/joi](https://github.com/hapijs/joi) | 18.0.2 | 481e270e6c4ff8728d6fda248fd83f6ff70f7ed9 | the whole library (lib/, lib/types/) |
-| `joi-bigint/` | [softstackhq/joi-bigint](https://github.com/softstackhq/joi-bigint) | 1.1.1 | a3db89f8baf264f44b2c09f8baa2c37d00cca942 | the bigint extension (src/index.ts, src/types.ts) |
-| `joi-to-json/` | [kenspirit/joi-to-json](https://github.com/kenspirit/joi-to-json) | 5.0.0 | c2bfe68698397e9f2391b2e145bb38ae76d1b97a | the whole library (index.js, lib/parsers/) |
-| `joi-to-json/combinations.ts` | [jgallen23/combinations](https://github.com/jgallen23/combinations) (npm package) | 1.0.0 | (npm tarball) | index.js |
+| `schema/` | [hapijs/joi](https://github.com/hapijs/joi) | 18.0.2 | 481e270e6c4ff8728d6fda248fd83f6ff70f7ed9 | the whole library (lib/, lib/types/) |
+| `schema/extensions/bigint.ts` | [softstackhq/joi-bigint](https://github.com/softstackhq/joi-bigint) | 1.1.1 | a3db89f8baf264f44b2c09f8baa2c37d00cca942 | the bigint extension (src/index.ts, src/types.ts) |
+| `json-schema/` | [kenspirit/joi-to-json](https://github.com/kenspirit/joi-to-json) | 5.0.0 | c2bfe68698397e9f2391b2e145bb38ae76d1b97a | the whole library (index.js, lib/parsers/) |
+| `json-schema/combinations.ts` | [jgallen23/combinations](https://github.com/jgallen23/combinations) (npm package) | 1.0.0 | (npm tarball) | index.js |
 
 Tests are ported from the upstream suites into `src/tests/engine` and run on `node:test` (the jest suites of
 joi-bigint and joi-to-json included); the assertion
@@ -71,7 +71,7 @@ library is ported from [hapijs/code](https://github.com/hapijs/code) 9.0.3 (4250
     as key (only primitives are cached); `assertOptions()` also takes a single key (matched as a substring).
 - Behavior changes after the rewrite:
   - The Standard Schema vendor of the schemas is `'lakutata'` (upstream: `'joi'`).
-- Performance changes (same behavior, covered by `src/tests/engine/joi/Caching.spec.ts`):
+- Performance changes (same behavior, covered by `src/tests/engine/schema/Caching.spec.ts`):
   - The validation settings (defaults merged with the validate() options) are reused for options which cannot change:
     frozen, with primitive values only. Upstream merges them on every validation.
   - The preferences of a schema merged with its parent preferences are cached by parent preferences (upstream caches
@@ -117,7 +117,7 @@ library is ported from [hapijs/code](https://github.com/hapijs/code) 9.0.3 (4250
   - With these, the parsers, the unit tests and the test data are at parity with upstream master
     (92d3a44b605a3309aa7e4dc96582296b51a0afd6, 5.0.5), plus the single branch switch fix above.
 - Tests: the unit, baseline and parser suites are ported; their JSON data files are copied as is into
-  `src/tests/engine/joi-to-json/data` (read from the source tree, not published). jest's `toEqual()` (which ignores
+  `src/tests/engine/json-schema/data` (read from the source tree, not published). jest's `toEqual()` (which ignores
   undefined properties) is reproduced by the test support, `toBeTruthy()`/`toBeFalsy()` by boolean checks. The
   generated schemas are still checked with ajv 8 (a test-only devDependency, like upstream).
 - Added (not in upstream): `array().unique()` conversion, the single branch switch, and the lodash semantics of

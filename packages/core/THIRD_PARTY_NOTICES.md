@@ -98,7 +98,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 ## joi 18.0.2
 
-Used in `src/lib/validation/engine/joi`; the validation type declarations in `src/lib/validation/interfaces` and
+Used in `src/lib/validation/engine/schema`; the validation type declarations in `src/lib/validation/interfaces` and
 `src/lib/validation/types` are adapted from its `lib/index.d.ts`.
 
 Copyright (c) 2012-2022, Project contributors.
@@ -115,7 +115,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 ## @softstack/joi-bigint 1.1.1
 
-Used in `src/lib/validation/engine/joi-bigint`.
+Used in `src/lib/validation/engine/schema/extensions/bigint.ts`.
 
 Copyright (c) 2022 Softstack GmbH
 
@@ -139,7 +139,7 @@ SOFTWARE.
 
 ## joi-to-json 5.0.0
 
-Used in `src/lib/validation/engine/joi-to-json` (and its ported tests and test data).
+Used in `src/lib/validation/engine/json-schema` (and its ported tests and test data).
 
 Copyright (c) 2020 Ken Chen
 
@@ -163,7 +163,7 @@ SOFTWARE.
 
 ## combinations 1.0.0
 
-Used in `src/lib/validation/engine/joi-to-json/combinations.ts`.
+Used in `src/lib/validation/engine/json-schema/combinations.ts`.
 
 Author: Greg Allen (per the package metadata, which declares the MIT license; the package ships no license file).
 
@@ -188,7 +188,7 @@ SOFTWARE.
 ## lodash 4.17.21
 
 The semantics (and, for merge, the algorithm) of the lodash functions used by joi-to-json are reimplemented in
-`src/lib/validation/engine/joi-to-json/helpers.ts`.
+`src/lib/validation/engine/json-schema/helpers.ts`.
 
 Copyright OpenJS Foundation and other contributors <https://openjsf.org/>
 
