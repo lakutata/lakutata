@@ -3,7 +3,7 @@ import {Container} from '../core/Container.js'
 import {ApplicationConfigLoader} from './ApplicationConfigLoader.js'
 import {ApplicationOptions} from '../../options/ApplicationOptions.js'
 import {Alias} from '../core/Alias.js'
-import {GetBasicInfo} from '../foundation/BasicInfo.js'
+import {GetAppId, GetAppName, GetBasicInfo} from '../foundation/BasicInfo.js'
 import {SetDestroyErrorReporter} from '../foundation/DestroyErrorReporter.js'
 import {Entrypoint} from '../../components/entrypoint/Entrypoint.js'
 import {Logger} from '../../components/Logger.js'
@@ -370,14 +370,14 @@ export class Application extends Module {
      * Get application's ID
      */
     public get appId(): string {
-        return GetBasicInfo().appId
+        return GetAppId()
     }
 
     /**
      * Get application's name
      */
     public get appName(): string {
-        return GetBasicInfo().appName
+        return GetAppName()
     }
 
     /**

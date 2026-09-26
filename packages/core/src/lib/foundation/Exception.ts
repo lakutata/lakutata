@@ -1,4 +1,4 @@
-import {GetBasicInfo} from './BasicInfo.js'
+import {GetAppId, GetAppName} from './BasicInfo.js'
 import {Templating} from '../helpers/Templating.js'
 import {As} from '../helpers/As.js'
 import {CamelCase} from '../helpers/internal/CamelCase.js'
@@ -28,8 +28,8 @@ function format(template: string, ...args: any[]): string {
  */
 export abstract class Exception extends Error {
     public abstract errno: number | string
-    public readonly appId: string = (() => GetBasicInfo().appId)()
-    public readonly appName: string = (() => GetBasicInfo().appName)()
+    public readonly appId: string = GetAppId()
+    public readonly appName: string = GetAppName()
     public readonly errMsg: string
     public readonly err: string
     public readonly statusCode: number = 500

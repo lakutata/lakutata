@@ -40,13 +40,29 @@ export function SetBasicInfo(info: BasicInfo): BasicInfo {
 }
 
 /**
+ * Get application id (reads a single environment variable, much cheaper than GetBasicInfo())
+ * @constructor
+ */
+export function GetAppId(): string {
+    return process.env.appId || 'Unknown'
+}
+
+/**
+ * Get application name (reads a single environment variable, much cheaper than GetBasicInfo())
+ * @constructor
+ */
+export function GetAppName(): string {
+    return process.env.appName || 'Unknown'
+}
+
+/**
  * Get application basic info
  * @constructor
  */
 export function GetBasicInfo(): BasicInfo {
     return {
-        appId: process.env.appId ? process.env.appId : 'Unknown',
-        appName: process.env.appName ? process.env.appName : 'Unknown',
+        appId: GetAppId(),
+        appName: GetAppName(),
         timezone: As<string>(process.env.TZ),
         mode: process.env.NODE_ENV ? As<'development'>(process.env.NODE_ENV) : 'development'
     }
