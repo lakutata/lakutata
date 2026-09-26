@@ -22,6 +22,7 @@ import {isClass} from '../ioc/Utils.js'
 import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
 import {LifetimeType} from '../ioc/Lifetime.js'
 import {ReportDestroyError} from '../foundation/DestroyErrorReporter.js'
+import {IsSubclassOf} from '../helpers/internal/IsSubclassOf.js'
 import {ObjectDestroyedException} from '../../exceptions/ObjectDestroyedException.js'
 import {As} from '../helpers/As.js'
 import {IsEmptyObject} from '../helpers/IsEmptyObject.js'
@@ -161,7 +162,7 @@ export class Container {
      */
     protected async processResolved<T extends BaseObject>(resolved: T | Promise<T>, registrationName: string | symbol, configurableRecords: Record<string, any> = {}): Promise<T> {
         const presetConfigurableRecords: Record<string, any> = GetConfigurableRecords(As<typeof BaseObject>(resolved.constructor), registrationName)
-        const isValidSubBaseObject: boolean = DTO.isValid(resolved.constructor, DTO.Class(BaseObject))
+        const isValidSubBaseObject: boolean = IsSubclassOf(resolved?.constructor, BaseObject)
         if (isValidSubBaseObject) {
             //set id into object instance
             SetIdToInstance(As<T>(resolved), registrationName)
@@ -200,7 +201,7 @@ export class Container {
                 import(pathToFileURL(moduleDescriptor.path).toString()).then((importResult: Record<string, any>): void => {
                     Object.keys(importResult).forEach((exportName: string): void => {
                         const exportObj: any = importResult[exportName]
-                        if (isClass(exportObj) && DTO.isValid(exportObj, DTO.Class(BaseObject))) {
+                        if (isClass(exportObj) && IsSubclassOf(exportObj, BaseObject)) {
                             const objectConstructor: T = exportObj
                             const pair: NameAndRegistrationPair<T> = {}
                             pair[ConstructorSymbol(objectConstructor)] = asClass(objectConstructor, this.buildResolverOptions(objectConstructor))

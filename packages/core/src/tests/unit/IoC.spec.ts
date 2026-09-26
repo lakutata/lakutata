@@ -3,6 +3,8 @@ import assert from 'node:assert'
 import {isClass} from '../../lib/ioc/Utils.js'
 import {BaseObject} from '../../lib/base/BaseObject.js'
 import {Container} from '../../lib/core/Container.js'
+import {IsSubclassOf} from '../../lib/helpers/internal/IsSubclassOf.js'
+import {DTO} from '../../lib/core/DTO.js'
 
 class SubObject extends BaseObject {
 }
@@ -37,6 +39,19 @@ await describe('IoC Test', async function (): Promise<void> {
         const built: SubObject = await root.build(SubObject)
         assert.ok(built instanceof SubObject)
         await root.destroy()
+    })
+
+    await it('IsSubclassOf() gives the same result as DTO.Class() validation', async (): Promise<void> => {
+        // eslint-disable-next-line @typescript-eslint/no-extraneous-class
+        class Unrelated {
+        }
+
+        const values: unknown[] = [BaseObject, SubObject, class extends SubObject {
+        }, Unrelated, Date, (): void => undefined, function helper(): void {
+        }, new Unrelated(), {}, null, 'BaseObject', 1]
+        for (const value of values) assert.equal(IsSubclassOf(value, BaseObject), DTO.isValid(value, DTO.Class(BaseObject)), String(value))
+        //Joi treats undefined as "not provided" and accepts it, but undefined is no subclass (no call site passes it)
+        assert.equal(IsSubclassOf(undefined, BaseObject), false)
     })
 })
 

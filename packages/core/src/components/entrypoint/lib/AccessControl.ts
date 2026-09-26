@@ -18,6 +18,7 @@ import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor
 import {DTO} from '../../../lib/core/DTO.js'
 import {FunctionSchema} from '../../../lib/validation/interfaces/FunctionSchema.js'
 import {As} from '../../../lib/helpers/As.js'
+import {IsSubclassOf} from '../../../lib/helpers/internal/IsSubclassOf.js'
 
 export class AccessControl extends BaseObject {
 
@@ -45,7 +46,13 @@ export class AccessControl extends BaseObject {
     @Configurable()
     protected readonly rules: (IBaseObjectConstructor<AccessControlRule> | AccessControlRuleHandler<any>)[]
 
-    protected readonly accessControlRuleConstructorDTO: FunctionSchema<typeof AccessControlRule> = DTO.Class(AccessControlRule)
+    /**
+     * Schema of access control rule constructors, built only when it is used
+     * @protected
+     */
+    protected get accessControlRuleConstructorDTO(): FunctionSchema<typeof AccessControlRule> {
+        return DTO.Class(AccessControlRule)
+    }
 
     /**
      * Initializer
@@ -67,7 +74,7 @@ export class AccessControl extends BaseObject {
      */
     protected async match(): Promise<boolean> {
         for (const rule of this.rules) {
-            if (DTO.isValid(rule, this.accessControlRuleConstructorDTO)) {
+            if (IsSubclassOf(rule, AccessControlRule)) {
                 const RuleObjectConstructor: IBaseObjectConstructor<AccessControlRule> = As<IBaseObjectConstructor<AccessControlRule>>(rule)
                 const ruleObjectInstance: AccessControlRule = await this.runtimeContainer.build(RuleObjectConstructor, {
                     actions: this.actions,

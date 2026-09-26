@@ -1,7 +1,7 @@
 import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
 import {ClassDecorator} from '../../../types/ClassDecorator.js'
 import {ObjectParentConstructors} from '../../helpers/ObjectParentConstructors.js'
-import {DTO} from '../../core/DTO.js'
+import {IsSubclassOf} from '../../helpers/internal/IsSubclassOf.js'
 import {BaseObject} from '../BaseObject.js'
 
 /**
@@ -37,7 +37,7 @@ export function DefineObjectType<ClassConstructor extends IBaseObjectConstructor
  * @constructor
  */
 export function SetObjectType<ClassConstructor extends IBaseObjectConstructor>(target: ClassConstructor, type: ObjectType): ClassConstructor {
-    Reflect.defineMetadata(OBJECT_TYPE, DTO.isValid(target, DTO.Class(BaseObject)) ? type : ObjectType.Unknown, target)
+    Reflect.defineMetadata(OBJECT_TYPE, IsSubclassOf(target, BaseObject) ? type : ObjectType.Unknown, target)
     return target
 }
 
