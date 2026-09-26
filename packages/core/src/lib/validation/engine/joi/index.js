@@ -8,7 +8,7 @@ import * as Common from './common.js';
 import * as Compile from './compile.js';
 import * as Errors from './errors.js';
 import * as Extend from './extend.js';
-import Manifest from './manifest.js';
+import * as Manifest from './manifest.js';
 import * as Ref from './ref.js';
 import { Template } from './template.js';
 import * as Trace from './trace.js';

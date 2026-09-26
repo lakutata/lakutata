@@ -5,7 +5,7 @@ import {deepEqual} from '../hoek/index.js'
 import * as Pinpoint from '../pinpoint/index.js'
 import * as Errors from './errors.js'
 import type {ModifyEachSource} from './modify.js'
-import type {PathKey, SchemaInternals} from './model.js'
+import type {MainstayLike, PathKey, SchemaInternals, StateLike} from './model.js'
 import type {ResolvableValue, Values} from './values.js'
 
 type TraceResult = 'error' | 'pass' | 'full'
@@ -41,10 +41,9 @@ export interface DebugEvent {
 /**
  * The state parts the tracer reads
  */
-export interface TraceState {
-    path: PathKey[]
+export interface TraceState extends StateLike {
     debug?: unknown
-    mainstay: { debug?: DebugEvent[] | null }
+    mainstay: MainstayLike & { debug?: DebugEvent[] | null }
 }
 
 /**

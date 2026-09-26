@@ -88,21 +88,22 @@ export class Cache {
         return this._map.size
     }
 
-    public set(key: CacheKey, value: unknown): void {
-        if (key !== null && !supported.has(typeof key)) return
+    public set(value: unknown, result: unknown): void {
+        if (value !== null && !supported.has(typeof value)) return
+        const key: CacheKey = value as CacheKey
         let node: ListNode | undefined = this._map.get(key)
         if (node) {
-            node.value = value
+            node.value = result
             this._list.first(node)
             return
         }
-        node = this._list.unshift({key, value, next: null, prev: null})
+        node = this._list.unshift({key, value: result, next: null, prev: null})
         this._map.set(key, node)
         this._compact()
     }
 
-    public get(key: CacheKey): unknown {
-        const node: ListNode | undefined = this._map.get(key)
+    public get(value: unknown): unknown {
+        const node: ListNode | undefined = this._map.get(value as CacheKey)
         if (node) {
             this._list.first(node)
             return clone(node.value)

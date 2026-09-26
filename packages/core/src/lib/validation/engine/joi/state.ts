@@ -3,7 +3,8 @@
  */
 import {clone, reach} from '../hoek/index.js'
 import * as Common from './common.js'
-import type {MainstayLike, PathKey, StateLike} from './model.js'
+import type {PathKey, StateLike} from './model.js'
+import type {Mainstay} from './validator.js'
 
 const valueSymbol: unique symbol = Symbol('value')
 
@@ -12,15 +13,6 @@ const valueSymbol: unique symbol = Symbol('value')
  */
 type ShadowNode = Map<PathKey, ShadowNode> & { [valueSymbol]?: unknown }
 
-/**
- * The mainstay parts a state uses
- */
-export interface StateMainstay extends MainstayLike {
-    shadow?: Shadow | null
-    snapshot(): void
-    restore(): void
-    commit(): void
-}
 
 /**
  * An entry of the schemas chain ([current, ..., root])
@@ -95,7 +87,7 @@ export class State implements StateLike {
     //[parent, ..., root]
     public ancestors: unknown[]
 
-    public mainstay: StateMainstay
+    public mainstay: Mainstay
 
     //[current, ..., root]
     public schemas: StateSchemaEntry[] | null
@@ -104,7 +96,7 @@ export class State implements StateLike {
 
     protected _snapshot: ShadowNode | undefined
 
-    constructor(path: PathKey[], ancestors: unknown[], state: { mainstay: StateMainstay, schemas?: StateSchemaEntry[] | null }) {
+    constructor(path: PathKey[], ancestors: unknown[], state: { mainstay: Mainstay, schemas?: StateSchemaEntry[] | null }) {
         this.path = path
         this.ancestors = ancestors
         this.mainstay = state.mainstay
@@ -118,7 +110,7 @@ export class State implements StateLike {
         return state
     }
 
-    public nest(schema: unknown, debug: unknown): State {
+    public nest(schema: unknown, debug?: unknown): State {
         const state: State = new State(this.path, this.ancestors, this)
         state.schemas = state.schemas && [schemaEntry(schema), ...state.schemas]
         state.debug = debug

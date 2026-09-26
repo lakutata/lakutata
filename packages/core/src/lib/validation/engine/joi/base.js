@@ -8,12 +8,12 @@ import * as Common from './common.js';
 import * as Compile from './compile.js';
 import * as Errors from './errors.js';
 import * as Extend from './extend.js';
-import Manifest from './manifest.js';
+import * as Manifest from './manifest.js';
 import * as Messages from './messages.js';
 import * as Modify from './modify.js';
 import * as Ref from './ref.js';
 import * as Trace from './trace.js';
-import Validator from './validator.js';
+import * as Validator from './validator.js';
 import { Values } from './values.js';
 const internals = {};
 

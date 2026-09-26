@@ -2,9 +2,12 @@
  * Internal types shared by the modules of the joi engine (derived from joi 18.0.2, BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
 import type {ErrorItem, Report, ReportLocal} from './errors.js'
+import type {Definition} from './extend.js'
 import type {MessagesInput} from './messages.js'
 import type {Ids, ModifyOptions} from './modify.js'
+import type {Manager} from './ref.js'
 import type {State} from './state.js'
+import type {Tracer} from './trace.js'
 import type {Values} from './values.js'
 
 /**
@@ -44,6 +47,8 @@ export interface Preferences {
     skipFunctions?: boolean
     stripUnknown?: boolean | { arrays?: boolean, objects?: boolean }
     warnings?: boolean
+    //Internal: disables the external rules (when matching)
+    _externals?: boolean
 }
 
 /**
@@ -138,10 +143,32 @@ export interface SchemaRuleOptions {
 }
 
 /**
+ * Runtime state of a schema (not cloned)
+ */
+export interface SchemaTemp {
+    //null: use last, false: error, number: start position
+    ruleset: number | false | null
+    //Runtime cache of generated whens
+    whens: Record<string, SchemaInternals>
+}
+
+/**
+ * A validation results cache (see schema.cache())
+ */
+export interface CacheLike {
+    get(value: unknown): unknown
+    set(value: unknown, result: unknown): void
+}
+
+/**
  * The schema internals used by the engine modules; the schema class (base.ts) implements it
  */
 export interface SchemaInternals extends SchemaLike {
     type: string
+    _cache: CacheLike | null
+    _definition: Definition
+    _preferences: Preferences | null
+    _refs: Manager
     _flags: SchemaFlags
     _ids: Ids
     _rules: SchemaRule[]
@@ -149,16 +176,25 @@ export interface SchemaInternals extends SchemaLike {
     _valids: Values | null
     _invalids: Values | null
     $_terms: Record<string, unknown>
+    $_temp: SchemaTemp
     $_root: RootLike
+    allow(...values: unknown[]): this
     clone(): this
     invalid(...values: unknown[]): this
     label(name: string): this
+    preferences(prefs: Preferences): this
     required(): this
     rule(options: Record<string, unknown>): this
     strict(enabled?: boolean): this
     valid(...values: unknown[]): this
     _assign<T extends SchemaInternals>(target: T): T
+    _bare(): this
+    isAsync(): boolean
+    _generate(value: unknown, state: State, prefs: Preferences): { schema: SchemaInternals, id?: string }
     $_addRule(options: string | SchemaRuleOptions): this
+    $_createError(code: string, value: unknown, local: ReportLocal | null | undefined, state: State, prefs: Preferences, options?: { flags?: boolean, messages?: MessagesInput }): Report
+    $_getRule(name: string): SchemaRule | undefined
+    $_match(value: unknown, state: State, prefs: Preferences, overrides?: { presence?: Preferences['presence'] }): boolean
     $_compile(schema: unknown, options?: { legacy?: boolean }): SchemaInternals
     $_modify(options: ModifyOptions): this
     $_mutateRebuild(): this
@@ -171,7 +207,11 @@ export interface SchemaInternals extends SchemaLike {
  */
 export interface RootLike {
     override: symbol
+    _tracer?: Tracer | null
+    trace?(): Tracer
+    untrace?(): void
     alternatives(): { try(...schemas: unknown[]): SchemaInternals }
+    assert(value: unknown, schema: unknown, ...args: unknown[]): unknown
     custom(method: Function): SchemaInternals
     date(): SchemaInternals
     invalid(...values: unknown[]): SchemaInternals
