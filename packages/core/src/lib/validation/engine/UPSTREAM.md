@@ -90,6 +90,9 @@ library is ported from [hapijs/code](https://github.com/hapijs/code) 9.0.3 (4250
     `AssertError`, or the errors of topo and formula; the schema engine asserts with its own `assert()`, and converts
     the errors of the utilities it calls, keeping them as `cause`), and a JSON Schema conversion error is a
     `SchemaConversionException`. Messages are unchanged; errors thrown by user code pass through unchanged.
+  - Added (lakutata's own): the numeric type rules of `number()`: `int8()`, `uint8()`, `int16()`, `uint16()`,
+    `int32()`, `uint32()`, `int64()`, `uint64()` (the 64-bit ranges are limited to the safe integers), `float()` (the
+    32-bit floating point range) and `double()` (every finite number); `float()` and `double()` set `unsafe()`.
 - Performance changes (same behavior, covered by `src/tests/engine/schema/Caching.spec.ts`):
   - The validation settings (defaults merged with the validate() options) are reused for options which cannot change:
     frozen, with primitive values only. Upstream merges them on every validation.
@@ -118,6 +121,8 @@ library is ported from [hapijs/code](https://github.com/hapijs/code) 9.0.3 (4250
   - The stack test matches the ESM frame name of `process()` (`Module.process`) instead of `exports.process`.
   - Added (not in upstream): the inclusive boundaries of `number().port()`.
   - The Standard Schema vendor test expects `'lakutata'`.
+  - The extension test defining a value changing number rule names it `twice` (upstream: `double`, now a rule of
+    `number()`).
 
 ### joi-bigint
 - Typed with the engine's types (`BigIntSchema` extends `AnySchema`); `BigIntSchema<T>` keeps its (unused) type

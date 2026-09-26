@@ -66,7 +66,7 @@ Validation ensures that incoming data adheres to the rules defined in DTOs. Laku
 ### 3.1 VLD Validation Library
 `VLD` is the core validation module in Lakutata, built on its own validation engine, offering extensive validation capabilities:
 - **Schema Definition**: Supports schemas for various data types such as strings (`string()`), numbers (`number()`), objects (`object()`), etc.
-- **Custom Rules**: Extends numeric range validation rules like `int8` (values between -128 and 127), `uint8` (values between 0 and 255), and more.
+- **Numeric Types**: `number()` provides the integer types `int8`, `uint8`, `int16`, `uint16`, `int32`, `uint32`, `int64` and `uint64` (the 64-bit types are limited to the safe integers of JavaScript), and the floating point types `float` (32-bit range) and `double`.
 - **Validation Methods**: Provides synchronous (`validate`) and asynchronous (`validateAsync`) validation methods, throwing an `InvalidValueException` on failure.
 - **Default Configuration**: Default validation options include `abortEarly: true` (stop at the first error), `stripUnknown: true` (remove unknown fields), and others.
 

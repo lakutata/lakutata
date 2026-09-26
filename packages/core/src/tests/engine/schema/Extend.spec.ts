@@ -505,7 +505,7 @@ describe('extension', () => {
             type: 'number',
             base: Engine.number(),
             rules: {
-                double: {
+                twice: {
                     validate(value, helpers, args, options) {
 
                         return value * 2
@@ -515,9 +515,9 @@ describe('extension', () => {
         })
 
         const original = Engine.number()
-        expect(original.double).to.not.exist()
+        expect(original.twice).to.not.exist()
 
-        const schema = custom.number().double()
+        const schema = custom.number().twice()
         expect(schema.validate(3)).to.contain({ value: 6 })
     })
 

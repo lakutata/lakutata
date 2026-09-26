@@ -18,7 +18,13 @@ export interface NumberFlags extends SchemaFlags {
  */
 export interface NumberSchema extends AnySchema {
     _flags: NumberFlags
+    double(): this
+    float(): this
     greater(limit: unknown): this
+    int8(): this
+    int16(): this
+    int32(): this
+    int64(): this
     integer(): this
     less(limit: unknown): this
     max(limit: unknown): this
@@ -29,7 +35,48 @@ export interface NumberSchema extends AnySchema {
     positive(): this
     precision(limit: number): this
     sign(sign: 'negative' | 'positive'): this
+    uint8(): this
+    uint16(): this
+    uint32(): this
+    uint64(): this
     unsafe(enabled?: boolean): this
+}
+
+/**
+ * The ranges of the integer types (the 64-bit types are limited to the safe integers of JavaScript)
+ */
+export const integerTypes: Readonly<Record<string, readonly [number, number]>> = Object.freeze({
+    int8: [-128, 127],
+    uint8: [0, 255],
+    int16: [-32768, 32767],
+    uint16: [0, 65535],
+    int32: [-2147483648, 2147483647],
+    uint32: [0, 4294967295],
+    int64: [Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER],
+    uint64: [0, Number.MAX_SAFE_INTEGER]
+})
+
+/**
+ * The largest finite 32-bit floating point number
+ */
+export const FLOAT_MAX: number = 3.4028234663852886e38
+
+/**
+ * The rule of an integer type
+ * @param name
+ */
+function integerRule(name: string): Record<string, unknown> {
+    const [min, max] = integerTypes[name]
+    return {
+        method(this: NumberSchema): NumberSchema {
+            return this.$_addRule(name)
+        },
+        validate(value: unknown, helpers: ValidationHelpers<NumberSchema>): unknown {
+            if (!Number.isInteger(value)) return helpers.error('number.integer')
+            if ((value as number) < min || (value as number) > max) return helpers.error(`number.${name}`, {min, max})
+            return value
+        }
+    }
 }
 
 const numberRx: RegExp = /^\s*[+-]?(?:(?:\d+(?:\.\d*)?)|(?:\.\d+))(?:e([+-]?\d+))?\s*$/i
@@ -129,11 +176,41 @@ const NumberType: NumberSchema = Any.extend<NumberSchema>({
             ]
         },
 
+        double: {
+            method(this: NumberSchema): NumberSchema {
+                //Every finite number is a 64-bit floating point number: the rule declares the type, beyond the safe integers
+                return this.unsafe().$_addRule('double')
+            },
+            validate(value: unknown): unknown {
+                return value
+            }
+        },
+
+        float: {
+            method(this: NumberSchema): NumberSchema {
+                //Floating point numbers are not limited to the safe integers
+                return this.unsafe().$_addRule('float')
+            },
+            validate(value: unknown, helpers: ValidationHelpers<NumberSchema>): unknown {
+                //The range of the 32-bit floating point numbers (the value is rounded to the nearest one when stored)
+                if (Math.abs(value as number) <= FLOAT_MAX) return value
+                return helpers.error('number.float', {min: -FLOAT_MAX, max: FLOAT_MAX})
+            }
+        },
+
         greater: {
             method(this: NumberSchema, limit: unknown): NumberSchema {
                 return this.$_addRule({name: 'greater', method: 'compare', args: {limit}, operator: '>'})
             }
         },
+
+        int8: integerRule('int8'),
+
+        int16: integerRule('int16'),
+
+        int32: integerRule('int32'),
+
+        int64: integerRule('int64'),
 
         integer: {
             method(this: NumberSchema): NumberSchema {
@@ -254,6 +331,14 @@ const NumberType: NumberSchema = Any.extend<NumberSchema>({
             }
         },
 
+        uint8: integerRule('uint8'),
+
+        uint16: integerRule('uint16'),
+
+        uint32: integerRule('uint32'),
+
+        uint64: integerRule('uint64'),
+
         unsafe: {
             method(this: NumberSchema, enabled: boolean = true): NumberSchema {
                 assert(typeof enabled === 'boolean', 'enabled must be a boolean')
@@ -273,8 +358,13 @@ const NumberType: NumberSchema = Any.extend<NumberSchema>({
 
     messages: {
         'number.base': '{{#label}} must be a number',
+        'number.float': '{{#label}} must be a valid Float value (between {{#min}} and {{#max}})',
         'number.greater': '{{#label}} must be greater than {{#limit}}',
         'number.infinity': '{{#label}} cannot be infinity',
+        'number.int8': '{{#label}} must be a valid Int8 value (between -128 and 127)',
+        'number.int16': '{{#label}} must be a valid Int16 value (between -32768 and 32767)',
+        'number.int32': '{{#label}} must be a valid Int32 value (between -2147483648 and 2147483647)',
+        'number.int64': '{{#label}} must be a valid Int64 value (between -9007199254740991 and 9007199254740991, the safe integers of JavaScript)',
         'number.integer': '{{#label}} must be an integer',
         'number.less': '{{#label}} must be less than {{#limit}}',
         'number.max': '{{#label}} must be less than or equal to {{#limit}}',
@@ -284,6 +374,10 @@ const NumberType: NumberSchema = Any.extend<NumberSchema>({
         'number.port': '{{#label}} must be a valid port',
         'number.positive': '{{#label}} must be a positive number',
         'number.precision': '{{#label}} must have no more than {{#limit}} decimal places',
+        'number.uint8': '{{#label}} must be a valid UInt8 value (between 0 and 255)',
+        'number.uint16': '{{#label}} must be a valid UInt16 value (between 0 and 65535)',
+        'number.uint32': '{{#label}} must be a valid UInt32 value (between 0 and 4294967295)',
+        'number.uint64': '{{#label}} must be a valid UInt64 value (between 0 and 9007199254740991, the safe integers of JavaScript)',
         'number.unsafe': '{{#label}} must be a safe number'
     }
 })
