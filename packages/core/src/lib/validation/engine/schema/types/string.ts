@@ -251,7 +251,7 @@ const StringType: StringSchema = Any.extend<StringSchema>({
                             return {value, errors: schema.$_createError('any.ref', limit, {ref: (rule.args as Record<string, unknown>).limit, arg: 'limit', reason: 'must be a positive integer'}, state, prefs)}
                         }
                     }
-                    value = (value as string).slice(0, limit as number)
+                    value = codePointSlice(value as string, limit as number)
                 }
             }
             return {value}
@@ -563,7 +563,7 @@ const StringType: StringSchema = Any.extend<StringSchema>({
                 return length(this, 'length', limit, '=', encoding)
             },
             validate(value: unknown, helpers: ValidationHelpers<StringSchema>, {limit, encoding}: Record<string, unknown>, {name, operator, args}: SchemaRule): unknown {
-                const length: number = encoding ? Buffer && Buffer.byteLength(value as string, encoding as BufferEncoding) : (value as string).length
+                const length: number = encoding ? Buffer && Buffer.byteLength(value as string, encoding as BufferEncoding) : codePointLength(value as string)
                 if (Common.compare(length, limit, operator as Common.CompareOperator)) {
                     return value
                 }
@@ -861,6 +861,41 @@ function isoDate(value: string): string | null {
         return null
     }
     return date.toISOString()
+}
+
+/**
+ * The length of a string in Unicode code points (a surrogate pair is one character, a lone surrogate too)
+ * @param value
+ */
+export function codePointLength(value: string): number {
+    let length: number = value.length
+    for (let i: number = 0; i < value.length - 1; ++i) {
+        const code: number = value.charCodeAt(i)
+        if (code >= 0xD800 && code <= 0xDBFF) {
+            const next: number = value.charCodeAt(i + 1)
+            if (next >= 0xDC00 && next <= 0xDFFF) {
+                --length
+                ++i
+            }
+        }
+    }
+    return length
+}
+
+/**
+ * The first code points of a string (a surrogate pair is not split)
+ * @param value
+ * @param limit
+ */
+function codePointSlice(value: string, limit: number): string {
+    if (value.length <= limit) return value
+    let end: number = 0
+    for (let count: number = 0; count < limit && end < value.length; ++count) {
+        const code: number = value.charCodeAt(end)
+        const next: number = value.charCodeAt(end + 1)
+        end += code >= 0xD800 && code <= 0xDBFF && next >= 0xDC00 && next <= 0xDFFF ? 2 : 1
+    }
+    return value.slice(0, end)
 }
 
 function length(schema: StringSchema, name: string, limit: unknown, operator: Common.CompareOperator, encoding: string | undefined): StringSchema {

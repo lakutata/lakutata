@@ -93,6 +93,8 @@ library is ported from [hapijs/code](https://github.com/hapijs/code) 9.0.3 (4250
   - Added (lakutata's own): the numeric type rules of `number()`: `int8()`, `uint8()`, `int16()`, `uint16()`,
     `int32()`, `uint32()`, `int64()`, `uint64()` (the 64-bit ranges are limited to the safe integers), `float()` (the
     32-bit floating point range) and `double()` (every finite number); `float()` and `double()` set `unsafe()`.
+  - The length rules of `string()` (`min()`, `max()`, `length()` without an encoding) and `truncate()` count Unicode
+    code points (upstream: UTF-16 code units), like JSON Schema: a surrogate pair is one character.
 - Performance changes (same behavior, covered by `src/tests/engine/schema/Caching.spec.ts`):
   - The validation settings (defaults merged with the validate() options) are reused for options which cannot change:
     frozen, with primitive values only. Upstream merges them on every validation.
