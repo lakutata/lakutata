@@ -289,7 +289,6 @@ export class JoiJsonSchemaParser {
         this._setIfNotEmpty(fieldSchema, 'enum', this._getEnum(fieldDefn))
         if (fieldDefn.invalid && fieldDefn.invalid.length > 0) {
             fieldSchema.not = {
-                type: fieldSchema.type,
                 enum: fieldDefn.invalid
             }
         }

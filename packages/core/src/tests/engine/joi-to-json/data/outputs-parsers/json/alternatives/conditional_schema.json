@@ -10,7 +10,6 @@
         {
           "type": "string",
           "not": {
-            "type": "string",
             "enum": [
               "",
               null
