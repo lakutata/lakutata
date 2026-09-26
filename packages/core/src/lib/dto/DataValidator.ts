@@ -2,6 +2,7 @@ import 'reflect-metadata'
 import {isAsyncFunction} from 'node:util/types'
 import {AnySchema} from '../validation/interfaces/AnySchema.js'
 import {VLD} from '../validation/VLD.js'
+import type {Description} from '../validation/interfaces/Description.js'
 import {StringSchema} from '../validation/interfaces/StringSchema.js'
 import {NumberSchema} from '../validation/interfaces/NumberSchema.js'
 import {BooleanSchema} from '../validation/interfaces/BooleanSchema.js'
@@ -59,6 +60,15 @@ import {BigIntSchema} from '../validation/interfaces/BigIntSchema.js'
 import {pure} from '../validation/engine/schema/fastpath.js'
 
 export class DataValidator {
+
+    /**
+     * Rebuild a schema from its description (the output of schema.describe()), exactly
+     * @param description
+     * @constructor
+     */
+    public static Build<TSchema = any>(description: Description): Schema<TSchema> {
+        return (VLD as unknown as { build(description: Description): Schema<TSchema> }).build(description)
+    }
 
     /**
      * 任意类型验证

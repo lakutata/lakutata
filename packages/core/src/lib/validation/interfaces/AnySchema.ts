@@ -27,6 +27,11 @@ export interface AnySchema<TSchema = any> {
     allow(...values: any[]): this;
 
     /**
+     * Requires the value to also match every schema (their errors are reported, the value is kept).
+     */
+    allOf(...schemas: SchemaLike[]): this;
+
+    /**
      * Assign target alteration options to a schema that are applied when `any.tailor()` is called.
      * @param targets - an object where each key is a target name, and each value is a function that takes an schema and returns an schema.
      */

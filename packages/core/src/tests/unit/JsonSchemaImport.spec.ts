@@ -124,3 +124,12 @@ describe('JSON Schema import', (): void => {
         assert.ok(accepts(schema, {kind: 'b', b: 'x'}))
     })
 })
+
+describe('Schema descriptions', (): void => {
+
+    it('rebuild the schemas exactly', (): void => {
+        const schema: Schema = DTO.Object({n: DTO.Number().int8().required(), e: DTO.String().email().allow(null)})
+        const rebuilt: Schema = DTO.Build(JSON.parse(JSON.stringify((schema as unknown as Base).describe())))
+        for (const value of [{n: 1, e: null}, {n: 300}, {n: 1, e: 'x'}, {n: '1'}]) assert.strictEqual(accepts(rebuilt, value), accepts(schema, value), JSON.stringify(value))
+    })
+})

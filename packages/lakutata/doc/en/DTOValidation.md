@@ -273,7 +273,48 @@ export class UserService {
 
 - **Explanation**: `UserService` receives a validated `UserRegisterDTO` and uses its properties to create a `User` entity, applying necessary business logic.
 
-## 7. Best Practices for DTOs and Validation
+## 7. JSON Schema and OpenAPI
+
+DTOs and schemas convert to and from JSON Schema (drafts 04, 06, 07, 2019-09 and 2020-12) and OpenAPI 3.0/3.1 schema objects, to share validation rules with front ends, publish API documents, store schemas, or generate DTOs from OpenAPI documents.
+
+### 7.1 Export
+
+```typescript
+import {DTO} from 'lakutata'
+import {toJsonSchema} from 'lakutata/dtos'
+
+UserDTO.toJsonSchema()                  // JSON Schema 2020-12 (default)
+UserDTO.toJsonSchema('draft-07')        // 'draft-2020-12' | 'draft-2019-09' | 'draft-07' | 'draft-04'
+UserDTO.toOpenAPIJsonSchema()           // OpenAPI 3.1 (default), or '3.0'
+toJsonSchema(DTO.String().email(), {target: 'openapi-3.0'})   // any schema, or a DTO class
+```
+
+- The JSON Schema describes the values the schema accepts without conversion, so ajv (with ajv-formats) and other validators accept exactly these values; what JSON Schema cannot express (custom rules, references to other values, conversions) is dropped, so the JSON Schema may accept more values, never less.
+- The unknown keys follow the validation options: with lakutata's defaults (`allowUnknown`, `stripUnknown`) objects accept them; pass `preferences` to convert for other options.
+- Numeric types convert to integer bounds (`int8` to `uint64`) and float ranges; OpenAPI also names the formats `int32`, `int64`, `float` and `double`.
+
+### 7.2 Import
+
+```typescript
+import {fromJsonSchema} from 'lakutata/dtos'
+
+const schema = fromJsonSchema({type: 'object', properties: {id: {type: 'integer'}}, required: ['id']})
+DTO.validate({id: 1}, schema)
+
+// A DTO class, a subclass of the class it is created from
+const UserDTO = DTO.fromJsonSchema(userJsonSchema)
+const user = new UserDTO({id: 1, name: 'Alice'})
+
+// The DTO classes of the object schemas of an OpenAPI document (components.schemas), by name
+const {Pet, Person} = DTO.fromOpenAPI(openApiDocument)
+```
+
+- Imported schemas validate like JSON Schema: values are not converted (`convert: true` converts them), unknown keys follow `additionalProperties`, formats validate like ajv-formats, and the defaults are applied.
+- References resolve by JSON pointer, `$anchor` and `$id` (pass other documents with `schemas`, an OpenAPI document with `document`); recursive references are supported.
+- The version is read from `$schema`, or given with `dialect` (default: 2020-12).
+- JSON Schema is lossy for lakutata schemas (custom rules, conversions): to store a schema and restore it exactly, keep its `describe()` output (a JSON value unless it holds functions) and rebuild it with `DTO.Build(description)`.
+
+## 8. Best Practices for DTOs and Validation
 
 - **Keep DTOs Focused**: Define DTOs for specific use cases (e.g., `UserRegisterDTO`, `UserUpdateDTO`) rather than reusing a single DTO for multiple purposes, ensuring clarity and maintainability.
 - **Declarative Validation**: Prefer using decorators (e.g., `@Expect`, `@Accept`) to define validation rules, keeping code concise.

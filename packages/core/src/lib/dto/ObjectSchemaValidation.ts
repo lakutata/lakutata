@@ -2,6 +2,7 @@ import {DTO} from './DTO.js'
 import {
     DTO_CONSTRUCTOR,
     DTO_INDEX_SIGNATURE_SCHEMA,
+    DTO_OBJECT_REFINEMENT,
     DTO_PROPERTY_SCHEMAS
 } from '../../constants/DTOMetadataKey.js'
 import {DataValidator} from './DataValidator.js'
@@ -15,6 +16,11 @@ import {IsSymbol} from '../helpers/IsSymbol.js'
 import {As} from '../helpers/As.js'
 
 export type ObjectPropertySchemaMap = Map<string, Schema>
+
+/**
+ * Adds the class-level constraints of a DTO to the object schema of its properties
+ */
+export type ObjectSchemaRefinement = (schema: ObjectSchema) => ObjectSchema
 
 /**
  * Revision of all DTO schema definitions, bumped whenever a schema definition changes
@@ -160,7 +166,8 @@ export function GetObjectSchemaByPrototype<ClassPrototype extends DTO>(target: C
         GetObjectPropertySchemas(target).forEach((propertySchema: Schema, propertyKey: string): void => {
             schemaMap[propertyKey] = propertySchema
         })
-        return DataValidator.Object(schemaMap)
+        const refinement: ObjectSchemaRefinement | undefined = Reflect.getMetadata(DTO_OBJECT_REFINEMENT, ObjectConstructor(target))
+        return refinement ? refinement(DataValidator.Object(schemaMap)) : DataValidator.Object(schemaMap)
     })
 }
 
@@ -171,4 +178,16 @@ export function GetObjectSchemaByPrototype<ClassPrototype extends DTO>(target: C
  */
 export function GetObjectSchemaByConstructor<ClassConstructor extends typeof DTO>(target: ClassConstructor): ObjectSchema {
     return GetObjectSchemaByPrototype(ObjectPrototype(target))
+}
+
+/**
+ * Set the class-level constraints of a DTO (applied to the object schema of its properties, inherited by its subclasses)
+ * @param target
+ * @param refinement
+ * @constructor
+ */
+export function SetObjectSchemaRefinement<ClassConstructor extends typeof DTO>(target: ClassConstructor, refinement: ObjectSchemaRefinement): ClassConstructor {
+    Reflect.defineMetadata(DTO_OBJECT_REFINEMENT, refinement, target)
+    InvalidateDTOSchemas()
+    return target
 }

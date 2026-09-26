@@ -48,6 +48,23 @@ export interface ImportOptions {
 type SchemaObject = Record<string, unknown>
 
 /**
+ * The parts of an object JSON Schema for the classes of objects (DTOs)
+ */
+export interface ImportedObject {
+    /**
+     * The schemas of the keys (the properties, and the required keys)
+     */
+    keys: Record<string, Base>
+    /**
+     * Adds the other keywords of the JSON Schema to an object schema of the keys
+     * @param schema
+     */
+    refine(schema: ObjectSchema): ObjectSchema
+    title?: string
+    description?: string
+}
+
+/**
  * A JSON Schema: an object, or a boolean
  */
 type SchemaNode = SchemaObject | boolean
@@ -74,6 +91,11 @@ const TYPE_KEYWORDS: Record<string, string[]> = {
     array: ['items', 'prefixItems', 'additionalItems', 'contains', 'minContains', 'maxContains', 'minItems', 'maxItems', 'uniqueItems'],
     object: ['properties', 'required', 'patternProperties', 'additionalProperties', 'propertyNames', 'minProperties', 'maxProperties', 'dependentRequired', 'dependencies']
 }
+
+/**
+ * The keywords which annotate a JSON Schema
+ */
+const ANNOTATION_KEYWORDS: string[] = ['title', 'description', 'default', 'examples', 'example', 'deprecated', 'readOnly', 'writeOnly', '$comment']
 
 /**
  * The keywords holding values, not schemas
@@ -195,6 +217,8 @@ class Importer {
 
     protected ids: number = 0
 
+    protected readonly usedIds: Set<string> = new Set()
+
     constructor(protected readonly root: SchemaNode, options: ImportOptions) {
         const declared: unknown = isObject(root) ? root.$schema : undefined
         let dialect: ImportDialect | undefined = options.dialect
@@ -283,6 +307,19 @@ class Importer {
     }
 
     /**
+     * The id of the shared schema of a recursive reference: the last name of the reference (unique)
+     * @param reference
+     */
+    protected idOf(reference: string): string {
+        const fragment: string = reference.slice(reference.indexOf('#') + 1)
+        const name: string = decodeURIComponent(fragment.split('/').pop() || '').replace(/~1/g, '/').replace(/~0/g, '~').replace(/[^\w-]/g, '_') || 'schema'
+        let id: string = name
+        while (this.usedIds.has(id)) id = `${name}_${++this.ids}`
+        this.usedIds.add(id)
+        return id
+    }
+
+    /**
      * The schema of a reference (a link for a recursion)
      * @param reference
      * @param base
@@ -296,7 +333,7 @@ class Importer {
             pending.used = true
             return Engine.link(`#${pending.id}`)
         }
-        const id: string = `ref${++this.ids}`
+        const id: string = this.idOf(reference)
         this.pending.set(node, {id, used: false})
         let schema: Base = this.node(node, targetBase)
         const {used} = this.pending.get(node)!
@@ -566,21 +603,39 @@ class Importer {
      * @param base
      */
     protected object(node: SchemaObject, base: string): Base {
+        return this.refineObject(Engine.object(this.objectKeys(node, base)), node, base)
+    }
+
+    /**
+     * The pattern properties of an object JSON Schema
+     * @param node
+     * @param base
+     */
+    protected objectPatterns(node: SchemaObject, base: string): { regex: RegExp, schema: Base }[] {
+        const patterns: { regex: RegExp, schema: Base }[] = []
+        if (!isObject(node.patternProperties)) return patterns
+        for (const [source, subschema] of Object.entries(node.patternProperties)) {
+            if (!isSchema(subschema)) continue
+            let regex: RegExp
+            try {
+                regex = new RegExp(source, 'u')
+            } catch {
+                throw new SchemaConversionException(`Invalid pattern: ${source}`)
+            }
+            patterns.push({regex, schema: this.node(subschema, base)})
+        }
+        return patterns
+    }
+
+    /**
+     * The schemas of the keys of an object JSON Schema: its properties and its required keys
+     * @param node
+     * @param base
+     */
+    protected objectKeys(node: SchemaObject, base: string): Record<string, Base> {
         const properties: SchemaObject = isObject(node.properties) ? node.properties : {}
         const required: string[] = Array.isArray(node.required) ? node.required.filter((key: unknown): key is string => typeof key === 'string') : []
-        const patterns: { regex: RegExp, schema: Base }[] = []
-        if (isObject(node.patternProperties)) {
-            for (const [source, subschema] of Object.entries(node.patternProperties)) {
-                if (!isSchema(subschema)) continue
-                let regex: RegExp
-                try {
-                    regex = new RegExp(source, 'u')
-                } catch {
-                    throw new SchemaConversionException(`Invalid pattern: ${source}`)
-                }
-                patterns.push({regex, schema: this.node(subschema, base)})
-            }
-        }
+        const patterns: { regex: RegExp, schema: Base }[] = this.objectPatterns(node, base)
         const additional: unknown = node.additionalProperties
         const keys: Record<string, Base> = {}
         for (const key of new Set([...Object.keys(properties), ...required])) {
@@ -592,8 +647,18 @@ class Importer {
             const schema: Base = schemas.length === 0 ? Engine.any() : all(schemas)
             keys[key] = required.includes(key) ? schema.required() : schema.optional()
         }
-        let schema: ObjectSchema = Engine.object(keys)
-        for (const {regex, schema: patternSchema} of patterns) schema = schema.pattern(regex, patternSchema, {fallthrough: true})
+        return keys
+    }
+
+    /**
+     * Adds the keywords of an object JSON Schema, but its keys, to an object schema
+     * @param schema
+     * @param node
+     * @param base
+     */
+    protected refineObject(schema: ObjectSchema, node: SchemaObject, base: string): ObjectSchema {
+        for (const {regex, schema: patternSchema} of this.objectPatterns(node, base)) schema = schema.pattern(regex, patternSchema, {fallthrough: true})
+        const additional: unknown = node.additionalProperties
         if (additional === false) {
             schema = schema.unknown(false)
         } else if (isSchema(additional) && additional !== true) {
@@ -613,6 +678,56 @@ class Importer {
         }
         return schema
     }
+
+    /**
+     * The parts of an object JSON Schema (the root) for the classes of objects: the schemas of its keys, and its other
+     * keywords, as the refinement of an object schema made of the keys
+     */
+    public objectParts(): ImportedObject {
+        let node: SchemaNode = this.root
+        let base: string = DEFAULT_BASE
+        //A reference to an object JSON Schema
+        while (isObject(node) && typeof node.$ref === 'string' && Object.keys(node).every((key: string): boolean => key === '$ref' || ANNOTATION_KEYWORDS.includes(key))) {
+            const annotations: SchemaObject = node
+            const resolved: Resolved = this.resolve(node.$ref as string, base)
+            node = isObject(resolved.node) ? {...annotations, ...resolved.node} : resolved.node
+            delete (node as SchemaObject).$ref
+            if (isObject(resolved.node) && typeof resolved.node.$ref === 'string') (node as SchemaObject).$ref = resolved.node.$ref
+            base = resolved.base
+        }
+        if (!isObject(node)) throw new SchemaConversionException('The JSON Schema of a DTO must describe objects')
+        const types: unknown = node.type
+        if (types !== undefined && !(types === 'object' || Array.isArray(types) && types.includes('object'))) throw new SchemaConversionException('The JSON Schema of a DTO must describe objects')
+        const id: unknown = node[this.idKeyword]
+        if (typeof id === 'string' && !id.startsWith('#')) base = resolveUri(id, base)
+        const object: SchemaObject = node
+        const keys: Record<string, Base> = this.objectKeys(object, base)
+        //The other keywords: the subschemas, the references, the values
+        const {type, properties, required, patternProperties, additionalProperties, propertyNames, minProperties, maxProperties, dependentRequired, ...rest} = object
+        const others: SchemaObject = Object.fromEntries(Object.entries(rest).filter(([key]: [string, unknown]): boolean => !TYPE_KEYWORDS.string.includes(key) && !TYPE_KEYWORDS.number.includes(key) && !TYPE_KEYWORDS.array.includes(key)))
+        //The array form of dependencies is a key dependency of the object
+        if (isObject(others.dependencies)) others.dependencies = Object.fromEntries(Object.entries(others.dependencies).filter(([, value]: [string, unknown]): boolean => isSchema(value)))
+        const hasOthers: boolean = Object.keys(others).some((key: string): boolean => !ANNOTATION_KEYWORDS.includes(key) && !['$schema', '$id', 'id', '$defs', 'definitions', '$comment', 'nullable', 'discriminator', 'xml', 'externalDocs'].includes(key))
+        //The unevaluated keywords evaluate the keys with the properties: the whole JSON Schema is the constraint
+        const constraint: Base | undefined = !hasOthers ? undefined : others.unevaluatedProperties !== undefined || others.unevaluatedItems !== undefined ? this.node(object, base) : this.node({...others, type: 'object'}, base)
+        const shared: Base[] = this.shared
+        const withShared = <S extends Base>(schema: S): S => {
+            for (const sharedSchema of shared) schema = (schema as unknown as AnySchema).shared(sharedSchema) as unknown as S
+            return schema
+        }
+        for (const key of Object.keys(keys)) keys[key] = withShared(keys[key])
+        return {
+            keys,
+            refine: (schema: ObjectSchema): ObjectSchema => {
+                let refined: ObjectSchema = this.refineObject(schema, object, base)
+                if (constraint) refined = refined.allOf(constraint)
+                return withShared(refined)
+            },
+            title: typeof object.title === 'string' ? object.title : undefined,
+            description: typeof object.description === 'string' ? object.description : undefined
+        }
+    }
+
 
     /**
      * The keys and the item indexes of a value the keywords of a JSON Schema evaluate (its annotations): the keywords
@@ -744,4 +859,15 @@ class Importer {
 export function fromJsonSchema(schema: unknown, options: ImportOptions = {}): Base {
     if (!isSchema(schema)) throw new SchemaConversionException('A JSON Schema must be an object or a boolean')
     return new Importer(schema, options).run()
+}
+
+/**
+ * Converts an object JSON Schema (or an OpenAPI schema object) into the parts of a class of objects (a DTO): the
+ * schemas of its keys, and its other keywords as the refinement of an object schema
+ * @param schema
+ * @param options
+ */
+export function importObject(schema: unknown, options: ImportOptions = {}): ImportedObject {
+    if (!isSchema(schema)) throw new SchemaConversionException('A JSON Schema must be an object or a boolean')
+    return new Importer(schema, options).objectParts()
 }

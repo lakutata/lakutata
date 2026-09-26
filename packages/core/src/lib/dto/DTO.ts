@@ -3,7 +3,9 @@ import {
     DefineObjectAsDTO, GetCachedDTOSchema, GetObjectIndexSignatureSchemaByConstructor, InvalidateDTOSchemas,
     GetObjectIndexSignatureSchemaByPrototype,
     GetObjectSchemaByConstructor,
-    GetObjectSchemaByPrototype
+    GetObjectSchemaByPrototype,
+    SetObjectPropertySchema,
+    SetObjectSchemaRefinement
 } from './ObjectSchemaValidation.js'
 import {InvalidValueException} from '../../exceptions/dto/InvalidValueException.js'
 import {WithCause} from '../helpers/internal/WithCause.js'
@@ -14,7 +16,9 @@ import {ObjectSchema} from '../validation/interfaces/ObjectSchema.js'
 import {IsSymbol} from '../helpers/IsSymbol.js'
 import {As} from '../helpers/As.js'
 import {ObjectConstructor} from '../helpers/ObjectConstructor.js'
-import {toJsonSchema, type ToJsonSchemaOptions} from '../validation/JsonSchema.js'
+import {toJsonSchema, type FromJsonSchemaOptions, type ToJsonSchemaOptions} from '../validation/JsonSchema.js'
+import {importObject, type ImportedObject} from '../validation/engine/json-schema/import.js'
+import {SchemaConversionException} from '../validation/exceptions/SchemaConversionException.js'
 import {JSONSchema} from '../../types/JSONSchema.js'
 
 /**
@@ -157,6 +161,48 @@ export class DTO extends DataValidator {
      */
     public static toOpenAPIJsonSchema(version: '3.0' | '3.1' = '3.1', options: Omit<ToJsonSchemaOptions, 'target' | 'dialect'> = {}): JSONSchema {
         return toJsonSchema(this, {...options, target: version === '3.0' ? 'openapi-3.0' : 'openapi-3.1'})
+    }
+
+    /**
+     * Create a DTO class (a subclass of the current DTO class) from an object JSON Schema (or an OpenAPI schema object),
+     * validating like JSON Schema: its properties become the properties of the DTO, its other keywords (unknown keys,
+     * pattern properties, key counts, dependencies, subschemas) constrain the whole object
+     * @param schema
+     * @param options
+     */
+    public static fromJsonSchema<T extends typeof DTO>(this: T, schema: JSONSchema, options: FromJsonSchemaOptions & { name?: string } = {}): T {
+        const imported: ImportedObject = importObject(schema, options)
+        const BaseDTO: typeof DTO = this
+        const name: string = options.name || imported.title || `${BaseDTO.name}FromJsonSchema`
+        //A named subclass
+        const GeneratedDTO: T = As<T>({[name]: class extends BaseDTO {}}[name])
+        for (const [propertyKey, propertySchema] of Object.entries(imported.keys)) SetObjectPropertySchema(GeneratedDTO.prototype, propertyKey, As<Schema>(propertySchema))
+        SetObjectSchemaRefinement(GeneratedDTO, (objectSchema: ObjectSchema): ObjectSchema => As<ObjectSchema>(imported.refine(As(objectSchema))))
+        if (imported.description) GeneratedDTO.description(imported.description)
+        return GeneratedDTO
+    }
+
+    /**
+     * Create the DTO classes of the object schemas of an OpenAPI document (its components.schemas), by name; the
+     * references between the schemas are resolved in the document
+     * @param document
+     * @param options
+     */
+    public static fromOpenAPI<T extends typeof DTO>(this: T, document: Record<string, unknown>, options: Omit<FromJsonSchemaOptions, 'document'> = {}): Record<string, T> {
+        const version: unknown = document.openapi
+        const dialect: FromJsonSchemaOptions['dialect'] = options.dialect || (typeof version === 'string' && version.startsWith('3.0') ? 'openapi-3.0' : 'openapi-3.1')
+        const components: unknown = (document.components as Record<string, unknown> | undefined)?.schemas
+        if (!components || typeof components !== 'object') throw new SchemaConversionException('The OpenAPI document has no schemas')
+        const result: Record<string, T> = {}
+        for (const [name, component] of Object.entries(components)) {
+            //Only the schemas of objects are classes
+            if (!component || typeof component !== 'object') continue
+            const type: unknown = (component as JSONSchema).type
+            if (type !== undefined && type !== 'object') continue
+            const pointer: string = `#/components/schemas/${name.replace(/~/g, '~0').replace(/\//g, '~1')}`
+            result[name] = this.fromJsonSchema({$ref: pointer}, {...options, dialect, document, name})
+        }
+        return result
     }
 
     /**

@@ -273,7 +273,48 @@ export class UserService {
 
 - **说明**：`UserService` 接收一个已验证的 `UserRegisterDTO`，并使用其属性创建 `User` 实体，应用必要的业务逻辑。
 
-## 7. DTO 和验证的最佳实践
+## 7. JSON Schema 与 OpenAPI
+
+DTO 与 Schema 可以与 JSON Schema（draft-04、06、07、2019-09、2020-12）以及 OpenAPI 3.0/3.1 的 Schema 对象相互转换，用于与前端共享校验规则、发布 API 文档、存储 Schema，或根据 OpenAPI 文档生成 DTO。
+
+### 7.1 导出
+
+```typescript
+import {DTO} from 'lakutata'
+import {toJsonSchema} from 'lakutata/dtos'
+
+UserDTO.toJsonSchema()                  // JSON Schema 2020-12（默认）
+UserDTO.toJsonSchema('draft-07')        // 'draft-2020-12' | 'draft-2019-09' | 'draft-07' | 'draft-04'
+UserDTO.toOpenAPIJsonSchema()           // OpenAPI 3.1（默认），或 '3.0'
+toJsonSchema(DTO.String().email(), {target: 'openapi-3.0'})   // 任意 Schema，或 DTO 类
+```
+
+- 导出的 JSON Schema 描述的是 Schema 在不做类型转换时接受的值，因此 ajv（配合 ajv-formats）等校验器接受的正是这些值；JSON Schema 无法表达的部分（自定义规则、对其他值的引用、类型转换）会被丢弃，所以导出的 JSON Schema 可能接受更多的值，但不会拒绝 Schema 接受的值。
+- 未知键的处理遵循校验选项：在 lakutata 的默认选项（`allowUnknown`、`stripUnknown`）下对象接受未知键；如需按其他选项导出，请传入 `preferences`。
+- 数值类型会转换为整数边界（`int8` 到 `uint64`）与浮点范围；OpenAPI 还会标注格式 `int32`、`int64`、`float`、`double`。
+
+### 7.2 导入
+
+```typescript
+import {fromJsonSchema} from 'lakutata/dtos'
+
+const schema = fromJsonSchema({type: 'object', properties: {id: {type: 'integer'}}, required: ['id']})
+DTO.validate({id: 1}, schema)
+
+// 生成 DTO 类（调用它的类的子类）
+const UserDTO = DTO.fromJsonSchema(userJsonSchema)
+const user = new UserDTO({id: 1, name: 'Alice'})
+
+// 按名称生成 OpenAPI 文档中对象 Schema（components.schemas）的 DTO 类
+const {Pet, Person} = DTO.fromOpenAPI(openApiDocument)
+```
+
+- 导入的 Schema 按 JSON Schema 语义校验：不做类型转换（`convert: true` 可开启转换），未知键遵循 `additionalProperties`，格式与 ajv-formats 一致，并会应用默认值。
+- 引用通过 JSON Pointer、`$anchor` 与 `$id` 解析（其他文档通过 `schemas` 传入，OpenAPI 文档通过 `document` 传入），支持递归引用。
+- 版本从 `$schema` 读取，也可以通过 `dialect` 指定（默认 2020-12）。
+- 对 lakutata 的 Schema 而言 JSON Schema 是有损的（自定义规则、类型转换）：如需精确地存储与还原 Schema，请保存其 `describe()` 的输出（不含函数时即为 JSON 值），并通过 `DTO.Build(description)` 还原。
+
+## 8. DTO 和验证的最佳实践
 
 - **保持 DTO 专注**：为特定用例定义 DTO（例如 `UserRegisterDTO`、`UserUpdateDTO`），而不是为多个用途重用单个 DTO，确保清晰性和可维护性。
 - **声明式验证**：优先使用装饰器（例如 `@Expect`、`@Accept`）定义验证规则，保持代码简洁。
