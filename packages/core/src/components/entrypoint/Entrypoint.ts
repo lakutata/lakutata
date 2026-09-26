@@ -17,7 +17,7 @@ import {As} from '../../lib/helpers/As.js'
 import {ControllerActionNotFoundException} from './exceptions/ControllerActionNotFoundException.js'
 import {JSONSchema} from '../../types/JSONSchema.js'
 import {Container} from '../../lib/core/Container.js'
-import {DestroyRuntimeContainerException} from '../../exceptions/DestroyRuntimeContainerException.js'
+import {DevNull} from '../../lib/helpers/DevNull.js'
 import {GetObjectPropertyPaths} from '../../lib/helpers/GetObjectPropertyPaths.js'
 import {UniqueArray} from '../../lib/helpers/UniqueArray.js'
 import {DTO} from '../../lib/core/DTO.js'
@@ -440,11 +440,8 @@ export class Entrypoint extends Component {
         } catch (e) {
             throw e
         } finally {
-            runtimeContainer
-                .destroy()
-                .catch((error: Error): never => {
-                    throw new DestroyRuntimeContainerException(error.message)
-                })
+            //Container destruction never rejects, errors of destroyed objects are reported by the container
+            runtimeContainer.destroy().catch(DevNull)
         }
     }
 
@@ -457,26 +454,26 @@ export class Entrypoint extends Component {
      * @protected
      */
     protected async runControllerMethodWithAbortController<DTOConstructor extends typeof DTO = typeof DTO>(details: ActionDetails, context: CLIContext | HTTPContext | ServiceContext, dtoConstructor: DTOConstructor, abortController: AbortController): Promise<unknown> {
+        const runtimeContainer: Container = this.createScope()
         let isAborted: boolean = false
+        //Aborting destroys the request scope right away, container destruction is idempotent
         const abortHandler: () => void = (): void => {
             isAborted = true
-            runtimeContainer
-                .destroy()
-                .catch((error: Error): never => {
-                    throw new DestroyRuntimeContainerException(error.message)
-                })
+            runtimeContainer.destroy().catch(DevNull)
         }
         abortController.signal.addEventListener('abort', abortHandler, {once: true})
-        const runtimeContainer: Container = this.createScope()
-        const controller: Controller = await runtimeContainer.get(details.constructor, {context: context})
         try {
+            const controller: Controller = await runtimeContainer.get(details.constructor, {context: context})
             const input: Record<string, any> = structuredClone(await dtoConstructor.validateAsync(context.data))
             await this.runAccessControl(this.rules, runtimeContainer, context, input, details)
             const runResult: any = await controller.getMethod(As(details.method))(input)
             if (!isAborted) return runResult
         } catch (e) {
-            if (!isAborted) abortController.signal.removeEventListener('abort', abortHandler)
-            throw e
+            if (!isAborted) throw e
+        } finally {
+            //The request scope is always destroyed once the dispatch ends
+            abortController.signal.removeEventListener('abort', abortHandler)
+            runtimeContainer.destroy().catch(DevNull)
         }
     }
 

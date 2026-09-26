@@ -29,19 +29,38 @@ class ProbeDTO extends DTO {
 
 class ProbeController extends Controller {
 
+    public static destroyed: number = 0
+
     @Inject()
     protected readonly log!: Logger
+
+    protected async destroy(): Promise<void> {
+        ProbeController.destroyed++
+    }
 
     @ServiceAction({act: 'probe'}, ProbeDTO)
     public async probe(inp: { name: string }): Promise<string> {
         return `hi:${inp.name}`
     }
 
+    @ServiceAction({act: 'slow'})
+    public async slow(): Promise<string> {
+        await new Promise(resolve => setTimeout(resolve, 50))
+        return 'slow'
+    }
+
+}
+
+/**
+ * Let the fire-and-forget request scope teardown finish
+ */
+async function settleTeardown(): Promise<void> {
+    for (let i: number = 0; i < 5; i++) await new Promise(resolve => setImmediate(resolve))
 }
 
 const nullStream: NodeJS.WritableStream = new Writable({write(_c, _e, cb): void { cb() }})
 
-let serviceHandler: (context: ServiceContext) => Promise<unknown>
+let serviceHandler: (context: ServiceContext, abortController?: AbortController) => Promise<unknown>
 
 Application
     .env({})
@@ -52,7 +71,7 @@ Application
             log: {level: 'silent', destinations: [nullStream]},
             entrypoint: BuildEntrypoints({
                 controllers: [ProbeController],
-                service: BuildServiceEntrypoint((_module: unknown, handler: (context: ServiceContext) => Promise<unknown>, onDestroy: (fn: () => void) => void): void => {
+                service: BuildServiceEntrypoint((_module: unknown, handler: (context: ServiceContext, abortController?: AbortController) => Promise<unknown>, onDestroy: (fn: () => void) => void): void => {
                     serviceHandler = handler
                     onDestroy((): void => {})
                 })
@@ -88,6 +107,29 @@ Application
                 serviceHandler(new ServiceContext({data: {act: 'nope'}})),
                 'an unmatched service pattern must reject'
             )
+
+            //Every dispatch destroys its request scope exactly once, whether or not an
+            //AbortController is passed and whether or not the request is aborted.
+            await settleTeardown()
+            ProbeController.destroyed = 0
+            await serviceHandler(new ServiceContext({data: {act: 'probe', name: 'a'}}))
+            await settleTeardown()
+            assert.equal(ProbeController.destroyed, 1, 'request scope must be destroyed after a dispatch without AbortController')
+
+            await settleTeardown()
+            ProbeController.destroyed = 0
+            await serviceHandler(new ServiceContext({data: {act: 'probe', name: 'b'}}), new AbortController())
+            await settleTeardown()
+            assert.equal(ProbeController.destroyed, 1, 'request scope must be destroyed after a completed dispatch with AbortController')
+
+            await settleTeardown()
+            ProbeController.destroyed = 0
+            const abortController: AbortController = new AbortController()
+            const aborted: Promise<unknown> = serviceHandler(new ServiceContext({data: {act: 'slow'}}), abortController)
+            setTimeout((): void => abortController.abort(), 10)
+            assert.equal(await aborted, undefined, 'an aborted dispatch resolves without a result')
+            await settleTeardown()
+            assert.equal(ProbeController.destroyed, 1, 'request scope must be destroyed once after an aborted dispatch')
         } catch (e) {
             console.error('DISPATCH CONTRACT FAILED:\n', e)
             process.exit(1)
