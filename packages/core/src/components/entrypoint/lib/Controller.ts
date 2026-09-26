@@ -23,10 +23,11 @@ export class Controller extends Provider {
      * Context, possible be cli context, http context or service context
      * @protected
      */
+    //The context is created (and validated) by the entrypoint, only its type is checked here
     @Configurable(DTO.Alternatives(
-        CLIContext.Schema().raw(true),
-        HTTPContext.Schema().raw(true),
-        ServiceContext.Schema().raw(true)
-    ).raw(true).required())
+        DTO.InstanceOf(CLIContext),
+        DTO.InstanceOf(HTTPContext),
+        DTO.InstanceOf(ServiceContext)
+    ).required())
     protected readonly context: CLIContext | HTTPContext | ServiceContext
 }

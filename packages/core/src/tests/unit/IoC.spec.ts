@@ -5,8 +5,16 @@ import {BaseObject} from '../../lib/base/BaseObject.js'
 import {Container} from '../../lib/core/Container.js'
 import {IsSubclassOf} from '../../lib/helpers/internal/IsSubclassOf.js'
 import {DTO} from '../../lib/core/DTO.js'
+import {Controller} from '../../components/entrypoint/lib/Controller.js'
+import {ServiceContext} from '../../lib/context/ServiceContext.js'
 
 class SubObject extends BaseObject {
+}
+
+class ContextController extends Controller {
+    public get currentContext(): unknown {
+        return this.context
+    }
 }
 
 await describe('IoC Test', async function (): Promise<void> {
@@ -52,6 +60,16 @@ await describe('IoC Test', async function (): Promise<void> {
         for (const value of values) assert.equal(IsSubclassOf(value, BaseObject), DTO.isValid(value, DTO.Class(BaseObject)), String(value))
         //Joi treats undefined as "not provided" and accepts it, but undefined is no subclass (no call site passes it)
         assert.equal(IsSubclassOf(undefined, BaseObject), false)
+    })
+
+    await it('a controller receives its context instance as is and rejects anything else', async (): Promise<void> => {
+        const root: Container = new Container()
+        await root.load([ContextController])
+        const context: ServiceContext = new ServiceContext({data: {act: 'x'}})
+        const controller: ContextController = await root.createScope().get(ContextController, {context: context})
+        assert.equal(controller.currentContext, context)
+        await assert.rejects(root.createScope().get(ContextController, {context: {type: 'SERVICE', data: {}}}))
+        await root.destroy()
     })
 })
 
