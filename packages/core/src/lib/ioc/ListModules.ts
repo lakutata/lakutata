@@ -1,4 +1,4 @@
-import fg from 'fast-glob'
+import {globSync} from 'glob'
 import * as path from 'path'
 import {flatten} from './Utils.js'
 import {BuildResolverOptions, type ResolverOptions} from './Resolvers.js'
@@ -10,7 +10,7 @@ import {LifetimeType} from './Lifetime.js'
  */
 export interface ListModulesOptions {
     cwd?: string
-    glob?: typeof fg.sync
+    glob?: (pattern: string, options: { cwd: string }) => string[]
 }
 
 /**
@@ -30,6 +30,15 @@ export interface ModuleDescriptor {
 export type GlobWithOptions =
     | [string]
     | [string, BuildResolverOptions<any> | LifetimeType]
+
+/**
+ * Default glob: matches files only and follows symbolic links, like the previous fast-glob based lookup
+ * @param pattern
+ * @param options
+ */
+function defaultGlob(pattern: string, options: { cwd: string }): string[] {
+    return globSync(pattern, {cwd: options.cwd, nodir: true, follow: true})
+}
 
 // Regex to extract the module name.
 const nameExpr = /(.*)\..*/i
@@ -54,7 +63,7 @@ function _listModules(
     globPattern: string | GlobWithOptions,
     opts?: ListModulesOptions
 ): Array<ModuleDescriptor> {
-    opts = {cwd: process.cwd(), glob: fg.sync, ...opts}
+    opts = {cwd: process.cwd(), glob: defaultGlob, ...opts}
     let patternOpts: ResolverOptions<any> | null = null
     if (Array.isArray(globPattern)) {
         patternOpts = globPattern[1] as ResolverOptions<any>
@@ -64,7 +73,7 @@ function _listModules(
     // Replace Windows path separators with Posix path
     globPattern = globPattern.replace(/\\/g, '/')
 
-    const result = opts.glob!(globPattern, {cwd: opts.cwd})
+    const result = opts.glob!(globPattern, {cwd: opts.cwd!})
     const mapped = result.map((p) => ({
         name: nameExpr.exec(path.basename(p))![1],
         path: path.resolve(opts!.cwd!, p),

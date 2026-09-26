@@ -7,6 +7,10 @@ import {IsSubclassOf} from '../../lib/helpers/internal/IsSubclassOf.js'
 import {DTO} from '../../lib/dto/DTO.js'
 import {Controller} from '../../components/entrypoint/lib/Controller.js'
 import {ServiceContext} from '../../lib/context/ServiceContext.js'
+import {listModules, type ModuleDescriptor} from '../../lib/ioc/ListModules.js'
+import {mkdtempSync, mkdirSync, rmSync, writeFileSync} from 'node:fs'
+import {tmpdir} from 'node:os'
+import path from 'node:path'
 
 class SubObject extends BaseObject {
 }
@@ -70,6 +74,22 @@ await describe('IoC Test', async function (): Promise<void> {
         assert.equal(controller.currentContext, context)
         await assert.rejects(root.createScope().get(ContextController, {context: {type: 'SERVICE', data: {}}}))
         await root.destroy()
+    })
+
+    await it('listModules() matches files only and resolves absolute paths', async (): Promise<void> => {
+        const dir: string = mkdtempSync(path.join(tmpdir(), 'lakutata-list-modules-'))
+        try {
+            writeFileSync(path.join(dir, 'First.js'), '')
+            writeFileSync(path.join(dir, 'Second.js'), '')
+            mkdirSync(path.join(dir, 'Folder.js'))
+            const names = (modules: ModuleDescriptor[]): string[] => modules.map((module: ModuleDescriptor): string => module.name).sort()
+            const relative: ModuleDescriptor[] = listModules('*.js', {cwd: dir})
+            assert.deepEqual(names(relative), ['First', 'Second'], 'directories are not matched')
+            assert.ok(relative.every((module: ModuleDescriptor): boolean => path.isAbsolute(module.path) && module.path.startsWith(dir)))
+            assert.deepEqual(names(listModules(path.join(dir, '*.js'))), ['First', 'Second'], 'absolute pattern')
+        } finally {
+            rmSync(dir, {recursive: true, force: true})
+        }
     })
 })
 
