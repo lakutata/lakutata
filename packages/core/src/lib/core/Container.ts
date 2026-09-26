@@ -6,7 +6,7 @@ import {
 import {__destroy, BaseObject} from '../base/BaseObject.js'
 import {ConstructorSymbol} from '../ioc/ConstructorSymbol.js'
 import {LoadObjectOptions, OBJECT_ID} from '../../options/LoadObjectOptions.js'
-import {asClass, asValue, type BuildResolverOptions} from '../ioc/Resolvers.js'
+import {asClass, asValue, type BuildResolver, type BuildResolverOptions, type DisposableResolver, type Resolver} from '../ioc/Resolvers.js'
 import {GetObjectLifetime} from '../ioc/ObjectLifetime.js'
 import {
     GetConfigurableRecords,
@@ -23,6 +23,8 @@ import {isClass} from '../ioc/Utils.js'
 import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
 import {LifetimeType} from '../ioc/Lifetime.js'
 import {ReportDestroyError} from '../foundation/DestroyErrorReporter.js'
+import {ThrowWarning} from '../foundation/ThrowWarning.js'
+import {GetObjectType, ObjectType} from '../base/internal/ObjectType.js'
 import {IsSubclassOf} from '../helpers/internal/IsSubclassOf.js'
 import {ObjectDestroyedException} from '../../exceptions/ObjectDestroyedException.js'
 import {As} from '../helpers/As.js'
@@ -32,6 +34,11 @@ import {AppendObjectWeakRefs, ClearObjectWeakRefs, GetObjectWeakRefs} from '../i
 export const containerSymbol: symbol = Symbol('LAKUTATA.DI.CONTAINER.SYMBOL')
 
 export const ownerSymbol: symbol = Symbol('LAKUTATA.DI.OWNER.SYMBOL')
+
+/**
+ * Resolver property holding the class of a registration
+ */
+const registeredClassSymbol: symbol = Symbol('LAKUTATA.DI.REGISTERED_CLASS.SYMBOL')
 
 export class Container {
 
@@ -100,6 +107,17 @@ export class Container {
     }
 
     /**
+     * Create the resolver of a registration, remembering the registered class
+     * @param target
+     * @private
+     */
+    #createResolver(target: IBaseObjectConstructor): BuildResolver<any> & DisposableResolver<any> {
+        const resolver: BuildResolver<any> & DisposableResolver<any> = asClass(target, As<BuildResolverOptions<any>>(this.buildResolverOptions(target)))
+        Reflect.set(resolver, registeredClassSymbol, target)
+        return resolver
+    }
+
+    /**
      * Throw if current container has been destroyed (or is being destroyed)
      * @private
      */
@@ -163,7 +181,11 @@ export class Container {
      */
     protected async processResolved<T extends BaseObject>(resolved: T | Promise<T>, registrationName: string | symbol, configurableRecords: Record<string, any> = {}): Promise<T> {
         //Only a newly created object gets its id and configurable records, a cached one is already initialized
-        const isNewSubBaseObject: boolean = IsSubclassOf(resolved?.constructor, BaseObject) && GetRegistrationNameFromInstance(As<T>(resolved)) === undefined
+        const isSubBaseObject: boolean = IsSubclassOf(resolved?.constructor, BaseObject)
+        const isNewSubBaseObject: boolean = isSubBaseObject && GetRegistrationNameFromInstance(As<T>(resolved)) === undefined
+        if (isSubBaseObject && !isNewSubBaseObject && !IsEmptyObject(configurableRecords) && process.env.NODE_ENV !== 'production') {
+            ThrowWarning(`The configuration passed for the already created object "${As<T>(resolved).className}" is ignored. Use a scoped or transient object to get an instance with its own configuration.`)
+        }
         if (isNewSubBaseObject) {
             const presetConfigurableRecords: Record<string, any> = GetConfigurableRecords(As<typeof BaseObject>(resolved.constructor), registrationName)
             //set id into object instance
@@ -187,7 +209,7 @@ export class Container {
         delete configurableRecords.class
         SetConfigurableRecords(options.class, id, configurableRecords)
         // @ts-ignore
-        pair[id] = asClass(options.class, this.buildResolverOptions(options.class))
+        pair[id] = this.#createResolver(options.class)
         return pair
     }
 
@@ -206,7 +228,7 @@ export class Container {
                         if (isClass(exportObj) && IsSubclassOf(exportObj, BaseObject)) {
                             const objectConstructor: T = exportObj
                             const pair: NameAndRegistrationPair<T> = {}
-                            pair[ConstructorSymbol(objectConstructor)] = asClass(objectConstructor, this.buildResolverOptions(objectConstructor))
+                            pair[ConstructorSymbol(objectConstructor)] = this.#createResolver(objectConstructor)
                             return resolve(pair)
                         } else {
                             return resolve({})
@@ -309,7 +331,18 @@ export class Container {
                 class: As<typeof BaseObject>(inp)
             }])
         }
-        const lifetime: LifetimeType | undefined = this.#dic.getRegistration(registrationName)?.lifetime
+        const registration: Resolver<any> | null = this.#dic.getRegistration(registrationName)
+        const lifetime: LifetimeType | undefined = registration?.lifetime
+        //A scoped object requested with its own configuration is a new instance owned by the requester, it is not cached,
+        //so it never replaces the instance shared within the request (a controller keeps its per-request instance)
+        if (registration && lifetime === 'SCOPED' && !IsEmptyObject(configurableRecords)) {
+            const registeredClass: IBaseObjectConstructor | undefined = Reflect.get(registration, registeredClassSymbol)
+            if (!registeredClass || GetObjectType(registeredClass) !== ObjectType.Controller) {
+                const configured: T = await this.processResolved(this.#dic.build<T>(registration), registrationName, configurableRecords)
+                AppendObjectWeakRefs(this.#dic, configured)
+                return configured
+            }
+        }
         let resolver: Container = this
         if (lifetime === 'SINGLETON' || lifetime === 'MODULE_SINGLETON') {
             //Singletons are resolved by the container which registered them

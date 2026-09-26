@@ -6,6 +6,8 @@ import {Component} from '../../lib/core/Component.js'
 import {Container} from '../../lib/core/Container.js'
 import {Inject} from '../../decorators/di/Inject.js'
 import {Autoload} from '../../decorators/di/Autoload.js'
+import {Configurable} from '../../decorators/di/Configurable.js'
+import {DTO} from '../../lib/core/DTO.js'
 import {GetObjectContainer} from '../../lib/base/internal/ObjectContainer.js'
 import v8 from 'node:v8'
 import vm from 'node:vm'
@@ -63,6 +65,28 @@ class Invisible extends Provider {
 }
 
 class Job extends BaseObject {
+}
+
+class Report extends Provider {
+    public static destroyed: number = 0
+
+    @Configurable(DTO.String().optional().default('pdf'))
+    public readonly format: string
+
+    protected async destroy(): Promise<void> {
+        Report.destroyed++
+    }
+}
+
+class ReportUser extends BaseObject {
+    public async report(configurableRecords?: Record<string, any>): Promise<Report> {
+        return configurableRecords ? await this.getObject(Report, configurableRecords) : await this.getObject(Report)
+    }
+}
+
+class Settings extends Component {
+    @Configurable(DTO.String().optional().default('default'))
+    public readonly mode: string
 }
 
 @Autoload()
@@ -168,6 +192,45 @@ await describe('Scope Test', async function (): Promise<void> {
         const first: AutoloadUser = await request.get(AutoloadUser)
         const second: AutoloadUser = await request.get(AutoloadUser)
         assert.equal(await first.state(), await second.state())
+        await root.destroy()
+    })
+
+    await it('a scoped object requested with its own configuration is a new instance for the requester', async (): Promise<void> => {
+        const root: Container = new Container()
+        await root.load([Report, ReportUser])
+        const request: Container = root.createScope()
+        const user: ReportUser = await request.get(ReportUser)
+        const shared: Report = await user.report()
+        const csv: Report = await user.report({format: 'csv'})
+        const xml: Report = await user.report({format: 'xml'})
+        assert.equal(shared.format, 'pdf', 'without configuration, the shared request instance')
+        assert.equal(csv.format, 'csv')
+        assert.equal(xml.format, 'xml')
+        assert.notEqual(csv, shared)
+        assert.notEqual(csv, xml)
+        assert.equal(await user.report(), shared, 'the shared instance is not affected')
+        Report.destroyed = 0
+        await user.dispose()
+        assert.equal(Report.destroyed, 2, 'configured instances are destroyed with their requester')
+        await request.destroy()
+        assert.equal(Report.destroyed, 3, 'the shared instance is destroyed with the request')
+        await root.destroy()
+    })
+
+    await it('configuration passed for an already created object is ignored with a warning', async (): Promise<void> => {
+        const root: Container = new Container()
+        await root.load([Settings])
+        const warnings: string[] = []
+        const onWarning = (warning: Error): void => void warnings.push(warning.message)
+        process.on('warning', onWarning)
+        const first: Settings = await root.get(Settings, {mode: 'first'})
+        const second: Settings = await root.get(Settings, {mode: 'second'})
+        await root.get(Settings)
+        process.off('warning', onWarning)
+        assert.equal(second, first)
+        assert.equal(second.mode, 'first')
+        assert.equal(warnings.length, 1, 'only the call with an ignored configuration warns')
+        assert.match(warnings[0], /Settings/)
         await root.destroy()
     })
 })
