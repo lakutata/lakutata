@@ -81,17 +81,24 @@ export class JoiOpenApiSchemaParser extends JoiJsonDraftSchemaParser {
     protected _addNullTypeIfNullable(fieldSchema: JsonSchema, fieldDefn: JoiSpec): void {
         super._addNullTypeIfNullable(fieldSchema, fieldDefn)
         if (fieldSchema.type === 'null') {
-            delete fieldSchema.type
+            //OpenAPI 3.0 does not support type with value 'null', so we need to set type to 'object' and nullable to true
+            fieldSchema.type = 'object'
             fieldSchema.nullable = true
         } else if (Array.isArray(fieldSchema.type) && fieldSchema.type.includes('null')) {
             _.remove(fieldSchema.type, (i: string): boolean => {
                 return i === 'null'
             })
             fieldSchema.nullable = true
-            if (fieldSchema.type.length === 1) fieldSchema.type = fieldSchema.type[0]
+            if (fieldSchema.type.length === 1) {
+                fieldSchema.type = fieldSchema.type[0]
+            } else if (!fieldSchema.type) {
+                //Like upstream (unreachable, an array is truthy): if the only type is null, we need to set type to object
+                //because open-api 3.0 does not support type with value 'null'
+                fieldSchema.type = 'object'
+            }
         }
         if (Array.isArray(fieldSchema.type)) {
-            //anyOf might exist for When / Alternative case
+            //anyOf is used for When / Alternative case because open-api 3.0 does not support type with array value
             const anyOf: JsonSchema[] = fieldSchema.anyOf || []
             fieldSchema.anyOf = anyOf
             _.each(fieldSchema.type, (t: string): void => {
@@ -104,7 +111,11 @@ export class JoiOpenApiSchemaParser extends JoiJsonDraftSchemaParser {
                     anyOf.push(def)
                 }
             })
+            _.each(anyOf, (condition: JsonSchema): void => {
+                if (fieldSchema.nullable) condition.nullable = true
+            })
             delete fieldSchema.type
+            delete fieldSchema.nullable
         }
     }
 

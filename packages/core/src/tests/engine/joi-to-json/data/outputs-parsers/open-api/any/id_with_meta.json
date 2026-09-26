@@ -2,23 +2,27 @@
   "$ref": "#/components/schemas/person",
   "schemas": {
     "person": {
-      "nullable": true,
       "anyOf": [
         {
           "items": {},
-          "type": "array"
+          "type": "array",
+          "nullable": true
         },
         {
-          "type": "boolean"
+          "type": "boolean",
+          "nullable": true
         },
         {
-          "type": "number"
+          "type": "number",
+          "nullable": true
         },
         {
-          "type": "object"
+          "type": "object",
+          "nullable": true
         },
         {
-          "type": "string"
+          "type": "string",
+          "nullable": true
         }
       ],
       "deprecated": true,

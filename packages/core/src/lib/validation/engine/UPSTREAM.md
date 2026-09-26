@@ -103,6 +103,10 @@ library is ported from [hapijs/code](https://github.com/hapijs/code) 9.0.3 (4250
     - a4a7275 (5.0.3): OpenAPI 3.0 schemas keep `example` and drop `examples`.
     - 79228c3 (5.0.4): OpenAPI 3.0 keeps only the known keys of every schema, the shared ones (by id) included; the
       unreachable const branch reads the schema (upstream reads its former variable).
+    - 92d3a44 (5.0.5): OpenAPI 3.0 has no `null` type: a null only schema becomes a nullable object, and the type
+      branches (anyOf) of a nullable schema are each nullable.
+  - With these, the parsers, the unit tests and the test data are at parity with upstream master
+    (92d3a44b605a3309aa7e4dc96582296b51a0afd6, 5.0.5), plus the single branch switch fix above.
 - Tests: the unit, baseline and parser suites are ported; their JSON data files are copied as is into
   `src/tests/engine/joi-to-json/data` (read from the source tree, not published). jest's `toEqual()` (which ignores
   undefined properties) is reproduced by the test support, `toBeTruthy()`/`toBeFalsy()` by boolean checks. The

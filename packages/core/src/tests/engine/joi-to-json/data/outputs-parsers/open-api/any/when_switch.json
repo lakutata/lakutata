@@ -1,10 +1,12 @@
 {
   "anyOf": [
     {
-      "type": "string"
+      "type": "string",
+      "nullable": true
     },
     {
-      "type": "number"
+      "type": "number",
+      "nullable": true
     },
     {
       "type": "object",
@@ -16,18 +18,21 @@
           "type": "number"
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "nullable": true
     },
     {
-      "type": "string"
+      "type": "string",
+      "nullable": true
     },
     {
       "type": "array",
-      "items": {}
+      "items": {},
+      "nullable": true
     },
     {
-      "type": "boolean"
+      "type": "boolean",
+      "nullable": true
     }
-  ],
-  "nullable": true
+  ]
 }

@@ -2,23 +2,27 @@
   "anyOf": [
     {
       "type": "array",
-      "items": {}
+      "items": {},
+      "nullable": true
     },
     {
-      "type": "boolean"
+      "type": "boolean",
+      "nullable": true
     },
     {
-      "type": "number"
+      "type": "number",
+      "nullable": true
     },
     {
-      "type": "object"
+      "type": "object",
+      "nullable": true
     },
     {
-      "type": "string"
+      "type": "string",
+      "nullable": true
     }
   ],
   "deprecated": true,
-  "nullable": true,
   "readOnly": false,
   "writeOnly": true,
   "title": "This is title",
