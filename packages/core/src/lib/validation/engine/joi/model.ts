@@ -1,14 +1,11 @@
 /**
  * Internal types shared by the modules of the joi engine (derived from joi 18.0.2, BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
+import type {Base} from './base.js'
 import type {ErrorItem, Report, ReportLocal} from './errors.js'
-import type {Definition} from './extend.js'
 import type {MessagesInput} from './messages.js'
-import type {Ids, ModifyOptions} from './modify.js'
-import type {Manager} from './ref.js'
 import type {State} from './state.js'
 import type {Tracer} from './trace.js'
-import type {Values} from './values.js'
 
 /**
  * How errors are rendered
@@ -63,12 +60,12 @@ export interface PathError {
  * The result of a schema validation, as far as the engine modules read it
  */
 export interface ValidationResultLike {
-    error?: { message: string, details: { message: string }[] }
+    error?: { message: string } | null
     value?: unknown
 }
 
 /**
- * A validated schema, as far as the engine modules use it before base.ts types the schema class
+ * A schema, as far as the modules which cannot depend on the schema class use it
  */
 export interface SchemaLike {
     validate(value: unknown, preferences?: Preferences): ValidationResultLike
@@ -161,46 +158,9 @@ export interface CacheLike {
 }
 
 /**
- * The schema internals used by the engine modules; the schema class (base.ts) implements it
+ * The schema internals used by the engine modules: the schema class
  */
-export interface SchemaInternals extends SchemaLike {
-    type: string
-    _cache: CacheLike | null
-    _definition: Definition
-    _preferences: Preferences | null
-    _refs: Manager
-    _flags: SchemaFlags
-    _ids: Ids
-    _rules: SchemaRule[]
-    _singleRules: Map<string, SchemaRule>
-    _valids: Values | null
-    _invalids: Values | null
-    $_terms: Record<string, unknown>
-    $_temp: SchemaTemp
-    $_root: RootLike
-    allow(...values: unknown[]): this
-    clone(): this
-    invalid(...values: unknown[]): this
-    label(name: string): this
-    preferences(prefs: Preferences): this
-    required(): this
-    rule(options: Record<string, unknown>): this
-    strict(enabled?: boolean): this
-    valid(...values: unknown[]): this
-    _assign<T extends SchemaInternals>(target: T): T
-    _bare(): this
-    isAsync(): boolean
-    _generate(value: unknown, state: State, prefs: Preferences): { schema: SchemaInternals, id?: string }
-    $_addRule(options: string | SchemaRuleOptions): this
-    $_createError(code: string, value: unknown, local: ReportLocal | null | undefined, state: State, prefs: Preferences, options?: { flags?: boolean, messages?: MessagesInput }): Report
-    $_getRule(name: string): SchemaRule | undefined
-    $_match(value: unknown, state: State, prefs: Preferences, overrides?: { presence?: Preferences['presence'] }): boolean
-    $_compile(schema: unknown, options?: { legacy?: boolean }): SchemaInternals
-    $_modify(options: ModifyOptions): this
-    $_mutateRebuild(): this
-    $_setFlag(name: string, value: unknown, options?: { clone?: boolean }): this
-    $_property(name: string): unknown
-}
+export type SchemaInternals = Base
 
 /**
  * The root object (Joi), as far as the engine modules use it

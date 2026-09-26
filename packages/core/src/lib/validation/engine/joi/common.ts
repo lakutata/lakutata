@@ -70,7 +70,8 @@ function symbolOf(value: unknown, symbol: symbol): unknown {
     return (value as Record<symbol, unknown>)[symbol]
 }
 
-export function assertOptions(options: unknown, keys: string[], name: string = 'Options'): void {
+//Like upstream, keys may be a single key (then matched as a substring)
+export function assertOptions(options: unknown, keys: string | string[], name: string = 'Options'): void {
     Assert(options && typeof options === 'object' && !isArray(options), 'Options must be of type object')
     const unknownKeys: string[] = Object.keys(options).filter((k: string): boolean => !keys.includes(k))
     Assert(unknownKeys.length === 0, `${name} contain unknown keys: ${unknownKeys}`)
@@ -79,7 +80,8 @@ export function assertOptions(options: unknown, keys: string[], name: string = '
 export function checkPreferences(prefs: unknown): void {
     Schemas = Schemas || (Lazy.schemas as () => LazySchemas)()
     const result = Schemas.preferences.validate(prefs)
-    if (result.error) throw new AssertError(String([result.error.details[0].message]))
+    //The preferences schema has no error override: its errors are validation errors
+    if (result.error) throw new AssertError(String([(result.error as { message: string, details: { message: string }[] }).details[0].message]))
 }
 
 /**
