@@ -464,9 +464,13 @@ export class Base implements SchemaInternals {
         return obj.$_mutateRebuild()
     }
 
-    public extend(options: Extend.TypeDefinition<this>): this {
+    /**
+     * A new type extending the type of this schema
+     * @param options the type definition, where S is the schema type of the new type
+     */
+    public extend<S extends Base = this>(options: Extend.TypeDefinition<S>): S {
         assert(!options.base, 'Cannot extend type with another base')
-        return Extend.type(this, options)
+        return Extend.type(this as unknown as S, options)
     }
 
     public extract(path: string | string[]): SchemaInternals {
