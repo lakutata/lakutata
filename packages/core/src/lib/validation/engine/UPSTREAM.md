@@ -100,6 +100,7 @@ library is ported from [hapijs/code](https://github.com/hapijs/code) 9.0.3 (4250
   - Also ported from upstream after 5.0.1, each with its test changes:
     - 8dd0d57: the unknown keys unit test.
     - 2c2d6b0 (5.0.2): the `not` schema of invalid values no longer repeats the type (test data from a4a7275).
+    - a4a7275 (5.0.3): OpenAPI 3.0 schemas keep `example` and drop `examples`.
 - Tests: the unit, baseline and parser suites are ported; their JSON data files are copied as is into
   `src/tests/engine/joi-to-json/data` (read from the source tree, not published). jest's `toEqual()` (which ignores
   undefined properties) is reproduced by the test support, `toBeTruthy()`/`toBeFalsy()` by boolean checks. The

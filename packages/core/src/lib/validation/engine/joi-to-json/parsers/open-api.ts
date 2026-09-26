@@ -39,7 +39,10 @@ export class JoiOpenApiSchemaParser extends JoiJsonDraftSchemaParser {
 
     protected _setBasicProperties(fieldSchema: JsonSchema, fieldDefn: JoiSpec): void {
         super._setBasicProperties(fieldSchema, fieldDefn)
-        if (!_.isEmpty(fieldSchema.examples)) fieldSchema.example = (fieldSchema.examples as unknown[])[0]
+        if (!_.isEmpty(fieldSchema.examples)) {
+            fieldSchema.example = (fieldSchema.examples as unknown[])[0]
+            delete fieldSchema.examples
+        }
     }
 
     protected _addNullTypeIfNullable(fieldSchema: JsonSchema, fieldDefn: JoiSpec): void {
