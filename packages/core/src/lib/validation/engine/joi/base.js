@@ -3,8 +3,8 @@
  * Mechanical CommonJS to ESM conversion, to be rewritten in TypeScript
  */
 import { assert, clone, deepEqual, merge } from '../hoek/index.js';
-import Cache from './cache.js';
-import Common from './common.js';
+import * as Cache from './cache.js';
+import * as Common from './common.js';
 import Compile from './compile.js';
 import Errors from './errors.js';
 import Extend from './extend.js';

@@ -5,7 +5,7 @@
 import { Lazy } from './lazy.js';
 import { assert, clone, escapeHtml } from '../hoek/index.js';
 import * as Formula from '../formula/index.js';
-import Common from './common.js';
+import * as Common from './common.js';
 import Errors from './errors.js';
 import Ref from './ref.js';
 const internals = {

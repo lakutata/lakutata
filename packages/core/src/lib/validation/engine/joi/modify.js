@@ -3,7 +3,7 @@
  * Mechanical CommonJS to ESM conversion, to be rewritten in TypeScript
  */
 import { assert } from '../hoek/index.js';
-import Common from './common.js';
+import * as Common from './common.js';
 import Ref from './ref.js';
 const $exports = {};
 export default $exports;

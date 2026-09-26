@@ -3,7 +3,7 @@
  * Mechanical CommonJS to ESM conversion, to be rewritten in TypeScript
  */
 import { assert, clone, reach } from '../hoek/index.js';
-import Common from './common.js';
+import * as Common from './common.js';
 import { Lazy } from './lazy.js';
 const $exports = {};
 export default $exports;

@@ -4,7 +4,7 @@
  */
 import { assert, deepEqual, reach } from '../../hoek/index.js';
 import Any from './any.js';
-import Common from '../common.js';
+import * as Common from '../common.js';
 import Compile from '../compile.js';
 const internals = {};
 
@@ -478,7 +478,7 @@ export default Any.extend({
 
                 if (comparator) {
                     if (typeof comparator === 'string') {
-                        const separator = Common.default(options.separator, '.');
+                        const separator = Common.defaultValue(options.separator, '.');
                         rule.path = separator ? comparator.split(separator) : [comparator];
                     }
                     else {

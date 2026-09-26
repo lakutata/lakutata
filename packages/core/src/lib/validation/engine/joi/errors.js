@@ -2,8 +2,8 @@
  * Derived from joi 18.0.2 lib/errors.js (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  * Mechanical CommonJS to ESM conversion, to be rewritten in TypeScript
  */
-import Annotate from './annotate.js';
-import Common from './common.js';
+import * as Annotate from './annotate.js';
+import * as Common from './common.js';
 import Template from './template.js';
 const $exports = {};
 export default $exports;

@@ -4,7 +4,7 @@
  */
 import { assert } from '../../hoek/index.js';
 import Any from './any.js';
-import Common from '../common.js';
+import * as Common from '../common.js';
 const internals = {};
 
 

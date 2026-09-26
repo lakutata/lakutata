@@ -4,7 +4,7 @@
  */
 import { assert, merge } from '../../hoek/index.js';
 import Any from './any.js';
-import Common from '../common.js';
+import * as Common from '../common.js';
 import Compile from '../compile.js';
 import Errors from '../errors.js';
 import Ref from '../ref.js';

@@ -5,7 +5,7 @@
 import { applyToDefaults, assert, clone as Clone } from '../../hoek/index.js';
 import * as Topo from '../../topo/index.js';
 import Any from './any.js';
-import Common from '../common.js';
+import * as Common from '../common.js';
 import Compile from '../compile.js';
 import Errors from '../errors.js';
 import Ref from '../ref.js';
@@ -625,7 +625,7 @@ internals.dependency = function (schema, rel, key, peers, options) {
 
     // Cast peer paths
 
-    const separator = Common.default(options.separator, '.');
+    const separator = Common.defaultValue(options.separator, '.');
     const paths = [];
     for (const peer of peers) {
         assert(typeof peer === 'string', rel, 'peers must be strings');
@@ -1012,7 +1012,7 @@ internals.unknown = function (schema, value, unprocessed, errors, state, prefs) 
         }
     }
 
-    const forbidUnknown = !Common.default(schema._flags.unknown, prefs.allowUnknown);
+    const forbidUnknown = !Common.defaultValue(schema._flags.unknown, prefs.allowUnknown);
     if (forbidUnknown) {
         for (const unprocessedKey of unprocessed) {
             const localState = state.localize([...state.path, unprocessedKey], []);

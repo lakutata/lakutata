@@ -6,7 +6,7 @@ import { assert, escapeRegex } from '../../hoek/index.js';
 import { isDomainValid, isEmailValid, ipRegex, uriRegex } from '../../address/index.js';
 import * as Tlds from '../../tlds/index.js';
 import Any from './any.js';
-import Common from '../common.js';
+import * as Common from '../common.js';
 const internals = {
     tlds: Tlds.tlds instanceof Set ? { tlds: { allow: Tlds.tlds, deny: null } } : false,              // $lab:coverage:ignore$
     base64Regex: {

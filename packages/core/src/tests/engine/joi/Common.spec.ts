@@ -6,7 +6,7 @@
 // @ts-nocheck
 import {describe, it} from 'node:test'
 import {expect} from '../support/Expect.js'
-import Common from '../../../lib/validation/engine/joi/common.js'
+import * as Common from '../../../lib/validation/engine/joi/common.js'
 const internals = {}
 
 describe('Common', () => {

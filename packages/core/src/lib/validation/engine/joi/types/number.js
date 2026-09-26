@@ -4,7 +4,7 @@
  */
 import { assert } from '../../hoek/index.js';
 import Any from './any.js';
-import Common from '../common.js';
+import * as Common from '../common.js';
 const internals = {
     numberRx: /^\s*[+-]?(?:(?:\d+(?:\.\d*)?)|(?:\.\d+))(?:e([+-]?\d+))?\s*$/i,
     precisionRx: /(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/,
