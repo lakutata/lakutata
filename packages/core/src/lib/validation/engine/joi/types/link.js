@@ -6,7 +6,7 @@ import { assert } from '../../hoek/index.js';
 import Any from './any.js';
 import * as Common from '../common.js';
 import Compile from '../compile.js';
-import Errors from '../errors.js';
+import * as Errors from '../errors.js';
 const internals = {};
 
 

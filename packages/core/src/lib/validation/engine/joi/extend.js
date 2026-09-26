@@ -4,7 +4,7 @@
  */
 import { assert, clone } from '../hoek/index.js';
 import * as Common from './common.js';
-import Messages from './messages.js';
+import * as Messages from './messages.js';
 const $exports = {};
 export default $exports;
 

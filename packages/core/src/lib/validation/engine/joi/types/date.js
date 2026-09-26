@@ -5,7 +5,7 @@
 import { assert } from '../../hoek/index.js';
 import Any from './any.js';
 import * as Common from '../common.js';
-import Template from '../template.js';
+import { Template } from '../template.js';
 const internals = {};
 
 

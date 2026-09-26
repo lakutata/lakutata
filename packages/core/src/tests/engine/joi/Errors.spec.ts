@@ -34,7 +34,8 @@ describe('errors', () => {
         expect(err).to.be.an.error()
         expect(err.isJoi).to.be.true()
         expect(err.stack).to.contain('    at ')
-        expect(err.stack).to.contain('exports.process')
+        //Upstream frame is 'exports.process' (CJS), the ESM module export frame is 'Module.process'
+        expect(err.stack).to.contain('.process (')
     })
 
     it('supports custom errors when validating types', () => {

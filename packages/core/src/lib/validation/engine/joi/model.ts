@@ -78,7 +78,7 @@ export interface ErrorDetail {
     type: string
     context?: {
         key?: PathKey
-        label?: string
+        label?: unknown
         value?: unknown
         [name: string]: unknown
     }

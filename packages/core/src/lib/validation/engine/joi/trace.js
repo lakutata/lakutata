@@ -4,7 +4,7 @@
  */
 import { deepEqual } from '../hoek/index.js';
 import * as Pinpoint from '../pinpoint/index.js';
-import Errors from './errors.js';
+import * as Errors from './errors.js';
 const $exports = {};
 export default $exports;
 

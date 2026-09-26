@@ -4,8 +4,8 @@
  */
 import { assert, clone, ignore, reach } from '../hoek/index.js';
 import * as Common from './common.js';
-import Errors from './errors.js';
-import State from './state.js';
+import * as Errors from './errors.js';
+import { State } from './state.js';
 const $exports = {};
 export default $exports;
 
