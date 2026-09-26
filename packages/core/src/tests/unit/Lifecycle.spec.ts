@@ -6,6 +6,9 @@ import {Container} from '../../lib/core/Container.js'
 import {SetDestroyErrorReporter} from '../../lib/foundation/DestroyErrorReporter.js'
 import {Module, MODULE_INITIALIZED} from '../../lib/core/Module.js'
 import {ObjectDestroyedException} from '../../exceptions/ObjectDestroyedException.js'
+import {LifetimeLockedException} from '../../exceptions/di/LifetimeLockedException.js'
+import {Provider} from '../../lib/core/Provider.js'
+import {Scoped, Singleton, Transient} from '../../decorators/di/Lifetime.js'
 
 /**
  * Resolve with the given promise's outcome, or with 'timeout' if it does not settle in time
@@ -213,5 +216,44 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         component.removeAllListeners()
         assert.equal(component.listenerCount('a') + component.listenerCount('b'), 0)
         await root.destroy()
+    })
+
+    await it('components are always singletons', async (): Promise<void> => {
+        assert.doesNotThrow((): void => {
+            @Singleton()
+            class RedeclaredSingletonComponent extends Component {
+            }
+
+            void RedeclaredSingletonComponent
+        }, 'redeclaring the locked lifetime is allowed')
+        assert.throws((): void => {
+            @Transient()
+            class TransientComponent extends Component {
+            }
+
+            void TransientComponent
+        }, LifetimeLockedException)
+    })
+
+    await it('providers cannot be singletons', async (): Promise<void> => {
+        assert.throws((): void => {
+            @Singleton()
+            class SingletonProvider extends Provider {
+            }
+
+            void SingletonProvider
+        }, LifetimeLockedException)
+        assert.doesNotThrow((): void => {
+            @Transient()
+            class TransientProvider extends Provider {
+            }
+
+            @Scoped()
+            class ScopedProvider extends Provider {
+            }
+
+            void TransientProvider
+            void ScopedProvider
+        })
     })
 })

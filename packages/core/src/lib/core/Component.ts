@@ -9,7 +9,7 @@ import {Container} from './Container.js'
 /**
  * Component base class
  */
-@Singleton()
+@Singleton(true)
 @DefineObjectType(ObjectType.Component)
 export class Component extends Provider {
 
