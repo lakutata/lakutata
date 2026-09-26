@@ -9,16 +9,19 @@ import {ObjectDestroyedException} from '../../exceptions/ObjectDestroyedExceptio
 import {LifetimeLockedException} from '../../exceptions/di/LifetimeLockedException.js'
 import {Provider} from '../../lib/core/Provider.js'
 import {Scoped, Singleton, Transient} from '../../decorators/di/Lifetime.js'
+import {Inject} from '../../decorators/di/Inject.js'
+
+const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms))
 
 /**
  * Resolve with the given promise's outcome, or with 'timeout' if it does not settle in time
  * @param promise
  * @param ms
  */
-async function settleWithin(promise: Promise<unknown>, ms: number = 1000): Promise<'settled' | 'timeout'> {
+async function settleWithin(promise: Promise<unknown>, ms: number = 1000): Promise<'settled' | 'rejected' | 'timeout'> {
     let timer: NodeJS.Timeout | undefined
     const timeout: Promise<'timeout'> = new Promise(resolve => timer = setTimeout(() => resolve('timeout'), ms))
-    const result: 'settled' | 'timeout' = await Promise.race([promise.then(() => 'settled' as const, () => 'settled' as const), timeout])
+    const result: 'settled' | 'rejected' | 'timeout' = await Promise.race([promise.then(() => 'settled' as const, () => 'rejected' as const), timeout])
     clearTimeout(timer)
     return result
 }
@@ -75,6 +78,47 @@ class Reloadable extends Component {
     }
 }
 
+class SlowInit extends BaseObject {
+    public static instance: SlowInit
+
+    protected async init(): Promise<void> {
+        SlowInit.instance = this
+        await sleep(30)
+    }
+
+    public async take<T extends BaseObject>(constructor: new (...args: any[]) => T): Promise<T> {
+        return await this.buildObject(constructor as any)
+    }
+}
+
+class SlowLeaf extends BaseObject {
+    protected async destroy(): Promise<void> {
+        await sleep(30)
+        events.push('SlowLeaf.destroy')
+    }
+}
+
+class SlowHolder extends BaseObject {
+    protected async init(): Promise<void> {
+        await this.buildObject(SlowLeaf)
+    }
+
+    protected async destroy(): Promise<void> {
+        events.push('SlowHolder.destroy')
+    }
+}
+
+class DeferredModule extends Module {
+    protected async init(): Promise<void> {
+        events.push('DeferredModule.init')
+    }
+}
+
+class InjectingComponent extends Component {
+    @Inject(Holder)
+    public readonly holder: Holder
+}
+
 class ModuleFinder extends BaseObject {
     public find(): Module {
         return this.getModule()
@@ -118,7 +162,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         assert.equal(await settleWithin(root.destroy()), 'settled')
         assert.equal(DestroyCounter.count, 1, 'other objects are still destroyed')
         assert.equal(reported.length, 1, 'the destroy error is reported, not swallowed')
-        assert.equal(reported[0].message, 'destroy failed')
+        assert.match(reported[0].message, /ThrowOnDestroy.*destroy failed/, 'the report names the failing object')
         SetDestroyErrorReporter()
     })
 
@@ -193,7 +237,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         const root: Container = new Container()
         await root.load([TestModule])
         const module: TestModule = await initializedModule(root)
-        assert.equal(await settleWithin(module.reload()), 'settled')
+        assert.equal(await settleWithin(module.reload()), 'settled', 'reload resolves, neither hangs nor rejects')
         await root.destroy()
     })
 
@@ -213,8 +257,11 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         const component: Reloadable = await root.get(Reloadable)
         component.on('a', (): void => undefined)
         component.on('b', (): void => undefined)
+        component.onAny((): void => undefined)
+        assert.equal(component.listenerCount(), 2, 'listenerCount() without an event counts every regular listener')
         component.removeAllListeners()
         assert.equal(component.listenerCount('a') + component.listenerCount('b'), 0)
+        assert.equal(component.listenersAny().length, 1, 'onAny listeners are kept')
         await root.destroy()
     })
 
@@ -255,5 +302,90 @@ await describe('Lifecycle Test', async function (): Promise<void> {
             void TransientProvider
             void ScopedProvider
         })
+    })
+
+    await it('an object disposed while initializing does not come back to life', async (): Promise<void> => {
+        const root: Container = new Container()
+        await root.load([Owner, SlowInit, Leaf])
+        const owner: Owner = await root.get(Owner)
+        const building: Promise<SlowInit> = owner.take(SlowInit)
+        await sleep(5)
+        await SlowInit.instance.dispose()
+        await assert.rejects(building, ObjectDestroyedException, 'the pending construction fails')
+        await assert.rejects(SlowInit.instance.take(Leaf), ObjectDestroyedException, 'the object stays destroyed')
+        await root.destroy()
+    })
+
+    await it('a module disposed before its deferred initialization never initializes', async (): Promise<void> => {
+        const root: Container = new Container()
+        await root.load([DeferredModule])
+        const module: DeferredModule = await root.get(DeferredModule)
+        events.length = 0
+        await module.dispose()
+        await sleep(20)
+        assert.deepEqual(events, [])
+        await root.destroy()
+    })
+
+    await it('a concurrent dispose waits for the teardown already in progress', async (): Promise<void> => {
+        const root: Container = new Container()
+        await root.load([Owner, SlowHolder, SlowLeaf])
+        const holder: SlowHolder = await (await root.get(Owner)).take(SlowHolder)
+        events.length = 0
+        const shutdown: Promise<void> = root.destroy()
+        await holder.dispose()
+        await shutdown
+        assert.deepEqual(events, ['SlowLeaf.destroy', 'SlowHolder.destroy'], 'children are still destroyed first')
+    })
+
+    await it('reload() fails while the parent is being destroyed', async (): Promise<void> => {
+        const root: Container = new Container()
+        await root.load([Owner, Leaf])
+        const owner: Owner = await root.get(Owner)
+        const shutdown: Promise<void> = root.destroy()
+        await assert.rejects(owner.reload(), ObjectDestroyedException)
+        await shutdown
+        await assert.rejects(owner.take(Leaf), ObjectDestroyedException, 'nothing survives the shutdown')
+    })
+
+    await it('reload() injects dependencies again', async (): Promise<void> => {
+        const root: Container = new Container()
+        await root.load([InjectingComponent, Holder, Leaf])
+        const component: InjectingComponent = await root.get(InjectingComponent)
+        const before: Holder = component.holder
+        await component.reload()
+        assert.notEqual(component.holder, before, 'the destroyed dependency is replaced')
+        await assert.doesNotReject(component.holder.take(Leaf))
+        await root.destroy()
+    })
+
+    await it('dispose() of a cached object lets the container create a new one', async (): Promise<void> => {
+        const root: Container = new Container()
+        await root.load([Reloadable])
+        const first: Reloadable = await root.get(Reloadable)
+        await first.dispose()
+        assert.notEqual(await root.get(Reloadable), first)
+        await root.destroy()
+    })
+
+    await it('a destroy error delivered to dispose() is not reported again', async (): Promise<void> => {
+        const reported: Error[] = []
+        SetDestroyErrorReporter((error: Error): void => void reported.push(error))
+        const root: Container = new Container()
+        await root.load([Owner, ThrowOnDestroy])
+        await assert.rejects((await (await root.get(Owner)).take(ThrowOnDestroy)).dispose())
+        await root.destroy()
+        assert.equal(reported.length, 0)
+        SetDestroyErrorReporter()
+    })
+
+    await it('a destroyed container refuses to resolve or build objects', async (): Promise<void> => {
+        const root: Container = new Container()
+        await root.load([Leaf])
+        const scope: Container = root.createScope()
+        await scope.destroy()
+        await assert.rejects(scope.get(Leaf), ObjectDestroyedException)
+        await assert.rejects(scope.build(Leaf), ObjectDestroyedException)
+        await root.destroy()
     })
 })

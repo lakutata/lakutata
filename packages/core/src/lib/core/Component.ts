@@ -1,4 +1,4 @@
-import {__destroy, __init} from '../base/BaseObject.js'
+import {__destroy, __init, __revive} from '../base/BaseObject.js'
 import {Singleton} from '../../decorators/di/Lifetime.js'
 import {EventEmitter, type event, type ListenerFn, type EventAndListener} from '../base/EventEmitter.js'
 import {Provider} from './Provider.js'
@@ -270,6 +270,7 @@ export class Component extends Provider {
      */
     public async reload(): Promise<void> {
         await this[__destroy]()
+        this[__revive]()
         await this[__init]()
     }
 }

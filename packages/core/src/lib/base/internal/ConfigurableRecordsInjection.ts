@@ -50,6 +50,15 @@ export function GetIdFromInstance<ClassInstance extends BaseObject>(target: Clas
 }
 
 /**
+ * Get the registration name the instance was resolved by (including constructor symbols, unlike GetIdFromInstance)
+ * @param target
+ * @constructor
+ */
+export function GetRegistrationNameFromInstance<ClassInstance extends BaseObject>(target: ClassInstance): string | symbol | undefined {
+    return Reflect.getOwnMetadata(DI_TARGET_ID, target)
+}
+
+/**
  * Set configurable records to instance's metadata
  * @param target
  * @param configurableRecords

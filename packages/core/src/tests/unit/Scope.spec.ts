@@ -5,6 +5,7 @@ import {Provider} from '../../lib/core/Provider.js'
 import {Component} from '../../lib/core/Component.js'
 import {Container} from '../../lib/core/Container.js'
 import {Inject} from '../../decorators/di/Inject.js'
+import {Autoload} from '../../decorators/di/Autoload.js'
 import {GetObjectContainer} from '../../lib/base/internal/ObjectContainer.js'
 import v8 from 'node:v8'
 import vm from 'node:vm'
@@ -62,6 +63,16 @@ class Invisible extends Provider {
 }
 
 class Job extends BaseObject {
+}
+
+@Autoload()
+class AutoloadedState extends Provider {
+}
+
+class AutoloadUser extends BaseObject {
+    public async state(): Promise<AutoloadedState> {
+        return await this.getObject(AutoloadedState)
+    }
 }
 
 class LongLived extends Component {
@@ -148,5 +159,15 @@ await describe('Scope Test', async function (): Promise<void> {
         RequestState.destroyed = 0
         await root.destroy()
         assert.equal(RequestState.destroyed, 1)
+    })
+
+    await it('an autoloaded scoped object is shared within the request', async (): Promise<void> => {
+        const root: Container = new Container()
+        await root.load([AutoloadUser])
+        const request: Container = root.createScope()
+        const first: AutoloadUser = await request.get(AutoloadUser)
+        const second: AutoloadUser = await request.get(AutoloadUser)
+        assert.equal(await first.state(), await second.state())
+        await root.destroy()
     })
 })

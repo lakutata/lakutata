@@ -1,6 +1,6 @@
 import {Component} from './Component.js'
 import {Singleton} from '../../decorators/di/Lifetime.js'
-import {__destroy, __init, type BaseObject} from '../base/BaseObject.js'
+import {__destroy, __init, __revive, type BaseObject} from '../base/BaseObject.js'
 import {Container} from './Container.js'
 import {GetObjectContainer} from '../base/internal/ObjectContainer.js'
 import {BootstrapAsyncFunction, BootstrapOption, ModuleOptions} from '../../options/ModuleOptions.js'
@@ -141,6 +141,7 @@ export class Module extends Component {
      */
     public async reload(): Promise<void> {
         await this[__destroy]()
+        this[__revive]()
         //Listen after the teardown, which removes all event listeners of the module
         await new Promise<void>((resolve, reject): void => {
             const onInitialized = (): void => {

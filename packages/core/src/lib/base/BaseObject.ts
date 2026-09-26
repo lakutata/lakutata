@@ -3,7 +3,7 @@ import {Transient} from '../../decorators/di/Lifetime.js'
 import {MethodNotFoundException} from '../../exceptions/MethodNotFoundException.js'
 import {Container, containerSymbol} from '../core/Container.js'
 import {randomUUID} from 'node:crypto'
-import {GetConfigurableRecordsFromInstance, GetIdFromInstance} from './internal/ConfigurableRecordsInjection.js'
+import {GetConfigurableRecordsFromInstance, GetIdFromInstance, GetRegistrationNameFromInstance} from './internal/ConfigurableRecordsInjection.js'
 import {GetObjectConfigurableProperties} from './internal/ObjectConfiguration.js'
 import {
     GetObjectInjectItemsByPrototype,
@@ -33,6 +33,11 @@ export const __init: symbol = Symbol('__init')
 export const __destroy: symbol = Symbol('__destroy')
 
 /**
+ * Symbol of the method that makes a destroyed object ready to be initialized again (reload)
+ */
+export const __revive: symbol = Symbol('__revive')
+
+/**
  * Anonymous ID symbol, the default id value if object's id not defined in runtime
  */
 export const anonymousId: symbol = Symbol('anonymous')
@@ -57,7 +62,9 @@ export class BaseObject extends AsyncConstructor {
 
     #uniqueId: string = randomUUID()
 
-    #internalInitialized: boolean = false
+    #injectionApplied: boolean = false
+
+    #configurableRecordsLoaded: boolean = false
 
     #state: ObjectState = 'constructing'
 
@@ -68,7 +75,7 @@ export class BaseObject extends AsyncConstructor {
      * @private
      */
     #assertNotDestroyed(): void {
-        if (this.#state === 'destroyed') throw new ObjectDestroyedException('Object "{className}" has been destroyed', {className: this.className})
+        if (this.#state === 'destroying' || this.#state === 'destroyed') throw new ObjectDestroyedException('Object "{className}" has been destroyed', {className: this.className})
     }
 
     /**
@@ -171,24 +178,39 @@ export class BaseObject extends AsyncConstructor {
      * @protected
      */
     protected async [__init](...hooks: (() => Promise<void>)[]): Promise<void> {
-        //Initializing a destroyed object again (reload) starts a new lifecycle
-        if (this.#state === 'destroyed') {
-            this.#destroying = undefined
-            this.#state = 'constructing'
-        }
+        //A destroyed object is only initialized again through an explicit reload (see __revive)
+        this.#assertNotDestroyed()
         this.#container.registerContainerToItsParent()
-        if (!this.#internalInitialized) {
+        if (!this.#injectionApplied) {
             //Apply object injection
             await this.#applyInjection()
+            this.#injectionApplied = true
+        }
+        if (!this.#configurableRecordsLoaded) {
             //Load and apply configurable records to current object's property
             await this.#loadConfigurableRecords()
-            this.#internalInitialized = true
+            this.#configurableRecordsLoaded = true
         }
         //Execute hooks
         for (const hook of hooks) await hook()
         //Execute normal initializer
         await this.init()
+        //A teardown which happened during the initialization wins, the object never becomes ready
+        this.#assertNotDestroyed()
         this.#state = 'ready'
+    }
+
+    /**
+     * Make a destroyed object ready to be initialized again (reload)
+     * @description Fails when the parent has been destroyed (or is being destroyed). Injected dependencies were destroyed with the object, so they are injected again
+     * @protected
+     */
+    protected [__revive](): void {
+        if (this.#state !== 'destroyed') return
+        this.#container.revive()
+        this.#destroying = undefined
+        this.#injectionApplied = false
+        this.#state = 'constructing'
     }
 
     /**
@@ -197,8 +219,9 @@ export class BaseObject extends AsyncConstructor {
      * @protected
      */
     protected async [__destroy](...hooks: (() => Promise<void>)[]): Promise<void> {
-        //Every teardown path (dispose, owner/scope teardown, asyncDispose) runs the same teardown only once
-        if (this.#destroying) return await this.#destroying
+        //Every teardown path (dispose, owner/scope teardown, asyncDispose) runs the same teardown only once,
+        //its errors are delivered to the first caller only
+        if (this.#destroying) return await this.#destroying.catch(DevNull)
         this.#state = 'destroying'
         this.#destroying = (async (): Promise<void> => {
             const errors: unknown[] = []
@@ -408,7 +431,13 @@ export class BaseObject extends AsyncConstructor {
      * errors of the objects it created are reported instead.
      */
     public async dispose(): Promise<void> {
-        await this[__destroy]()
+        try {
+            await this[__destroy]()
+        } finally {
+            //A disposed cached object (singleton, scoped) is dropped, so the container creates a new one next time
+            const registrationName: string | symbol | undefined = GetRegistrationNameFromInstance(this)
+            if (registrationName !== undefined) this.#container.parent?.forget(registrationName, this)
+        }
     }
 
     /**

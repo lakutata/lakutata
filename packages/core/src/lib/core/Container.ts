@@ -22,6 +22,7 @@ import {isClass} from '../ioc/Utils.js'
 import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
 import {LifetimeType} from '../ioc/Lifetime.js'
 import {ReportDestroyError} from '../foundation/DestroyErrorReporter.js'
+import {ObjectDestroyedException} from '../../exceptions/ObjectDestroyedException.js'
 import {As} from '../helpers/As.js'
 import {IsEmptyObject} from '../helpers/IsEmptyObject.js'
 import {AppendObjectWeakRefs, ClearObjectWeakRefs, GetObjectWeakRefs} from '../ioc/ObjectWeakRefs.js'
@@ -55,6 +56,8 @@ export class Container {
     readonly #selfRef: WeakRef<Container> = new WeakRef(this)
 
     #destroyed: boolean = false
+
+    #destroyPromise: Promise<void> | undefined
 
     /**
      * Whether current container is a scope (the root container or one created by createScope()),
@@ -96,6 +99,24 @@ export class Container {
     }
 
     /**
+     * Throw if current container has been destroyed (or is being destroyed)
+     * @private
+     */
+    #assertNotDestroyed(): void {
+        if (this.#destroyed) throw new ObjectDestroyedException('The container has been destroyed')
+    }
+
+    /**
+     * Get the nearest scope, starting from current container
+     * @private
+     */
+    #nearestScope(): Container {
+        let container: Container = this
+        while (!container.#isScope && container.parent) container = container.parent
+        return container
+    }
+
+    /**
      * Stop being tracked by the parent
      * @private
      */
@@ -115,7 +136,7 @@ export class Container {
             await instance.getMethod(__destroy, false)()
         } catch (e) {
             //Cascaded destruction never throws, errors are reported instead
-            ReportDestroyError(e)
+            ReportDestroyError(e, instance.className)
         }
     }
 
@@ -216,6 +237,7 @@ export class Container {
      */
     @Accept(DTO.Array(DTO.Alternatives(LoadObjectOptions.Schema(), DTO.Class(() => BaseObject), DTO.Glob())))
     public async load<T extends typeof BaseObject>(options: (LoadObjectOptions | typeof BaseObject | string)[]): Promise<void> {
+        this.#assertNotDestroyed()
         let pair: NameAndRegistrationPair<T> = {}
         const buildNameAndRegistrationPairFromGlobPromises: Promise<NameAndRegistrationPair<T>>[] = []
         options.forEach((value: string | LoadObjectOptions | IBaseObjectConstructor): void => {
@@ -276,8 +298,11 @@ export class Container {
     public async get<T extends BaseObject>(nameOrConstructor: string | symbol | IBaseObjectConstructor<T>, configurableRecords?: Record<string, any>): Promise<T>
     public async get<T extends BaseObject>(inp: string | symbol | IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
         const registrationName: string | symbol = typeof inp === 'function' ? ConstructorSymbol(inp) : inp
+        this.#assertNotDestroyed()
         if (!this.#dic.hasRegistration(registrationName) && typeof inp === 'function' && GetObjectIsAutoload(As<typeof BaseObject>(inp))) {
-            await this.load([{
+            //An autoloaded scoped object is registered in the nearest scope, so it is shared within the request
+            const registerContainer: Container = GetObjectLifetime(As<typeof BaseObject>(inp)) === 'SCOPED' ? this.#nearestScope() : this
+            await registerContainer.load([{
                 id: registrationName,
                 class: As<typeof BaseObject>(inp)
             }])
@@ -382,6 +407,7 @@ export class Container {
      * @param configurableRecords
      */
     public async build<T extends BaseObject>(target: IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
+        this.#assertNotDestroyed()
         const builtObject: T = await this.processResolved(this.#dic.build<T>(target, this.buildResolverOptions(target)), ConstructorSymbol(target), configurableRecords)
         AppendObjectWeakRefs(this.#dic, builtObject)
         return builtObject
@@ -391,6 +417,7 @@ export class Container {
      * Create sub container scope
      */
     public createScope(): Container {
+        this.#assertNotDestroyed()
         const scope: Container = new Container(this, this.owner())
         scope.#detachFromParent()
         scope.#isScope = true
@@ -400,11 +427,30 @@ export class Container {
 
     /**
      * Register current container to its parent
-     * @description Also makes a destroyed container usable again, its owner is being initialized again (reload)
      */
     public registerContainerToItsParent(): void {
-        this.#destroyed = false
         this.#attachToParent()
+    }
+
+    /**
+     * Make a destroyed container usable again, its owner is being reloaded
+     * @description Fails when the parent container has been destroyed (or is being destroyed)
+     */
+    public revive(): void {
+        if (this.parent && this.parent.#destroyed) throw new ObjectDestroyedException('Cannot revive a container whose parent container has been destroyed')
+        this.#destroyed = false
+        this.#destroyPromise = undefined
+        this.#attachToParent()
+    }
+
+    /**
+     * Drop the cached instance of a registration, so the next resolution creates a new one
+     * @param name
+     * @param instance
+     */
+    public forget(name: string | symbol, instance: BaseObject): void {
+        const cached: { value: any } | undefined = this.#dic.cache.get(name)
+        if (cached && cached.value === instance) this.#dic.cache.delete(name)
     }
 
     /**
@@ -436,9 +482,11 @@ export class Container {
      * Destroy current container
      */
     public async destroy(): Promise<void> {
-        if (this.#destroyed) return
+        //A teardown already in progress is awaited, not skipped
+        if (this.#destroyPromise) return await this.#destroyPromise
         this.#destroyed = true
         this.#detachFromParent()
-        await this.clear()
+        this.#destroyPromise = this.clear()
+        await this.#destroyPromise
     }
 }
