@@ -82,8 +82,9 @@
     "build:js": "npm run build:cjs && npm run build:esm && npm run build:cjs-pkg",
     "rebuild": "npm run clean && npm run build:js",
     "compile": "npm run rebuild",
-    "test:unit": "npm run compile && node --test dist/esm/tests/unit/*.spec.js",
-    "test:layers": "node scripts/check-layers.mjs"
+    "test:unit": "npm run compile && node --test \"dist/esm/tests/unit/*.spec.js\" \"dist/esm/tests/engine/**/*.spec.js\"",
+    "test:layers": "node scripts/check-layers.mjs",
+    "test:engine-types": "node scripts/check-engine-types.mjs"
   },
   "dependencies": {
     "@msgpack/msgpack": "^3.1.3",
@@ -127,6 +128,7 @@
     "*.md",
     "LICENSE",
     "package.json",
-    "tsconfig.json"
+    "tsconfig.json",
+    "THIRD_PARTY_NOTICES.md"
   ]
 }
