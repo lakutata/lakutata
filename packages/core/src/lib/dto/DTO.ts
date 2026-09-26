@@ -1,6 +1,6 @@
 import {DataValidator} from './DataValidator.js'
 import {
-    DefineObjectAsDTO, GetObjectIndexSignatureSchemaByConstructor,
+    DefineObjectAsDTO, GetCachedDTOSchema, GetObjectIndexSignatureSchemaByConstructor, InvalidateDTOSchemas,
     GetObjectIndexSignatureSchemaByPrototype,
     GetObjectSchemaByConstructor,
     GetObjectSchemaByPrototype
@@ -12,6 +12,7 @@ import {Schema} from '../validation/types/Schema.js'
 import {ObjectSchema} from '../validation/interfaces/ObjectSchema.js'
 import {IsSymbol} from '../helpers/IsSymbol.js'
 import {As} from '../helpers/As.js'
+import {ObjectConstructor} from '../helpers/ObjectConstructor.js'
 import parse from 'joi-to-json'
 import {JSONSchema} from '../../types/JSONSchema.js'
 
@@ -20,10 +21,22 @@ import {JSONSchema} from '../../types/JSONSchema.js'
  * @param target
  */
 function getObjectSchema<ClassPrototype extends DTO>(target: ClassPrototype): Schema {
-    const indexSignatureSchema: Schema | null = GetObjectIndexSignatureSchemaByPrototype(target)
-    const objectSchema: ObjectSchema<ClassPrototype> = GetObjectSchemaByPrototype(target)
-    return indexSignatureSchema ? objectSchema.pattern(DTO.String(), indexSignatureSchema) : objectSchema
+    return GetCachedDTOSchema(instanceSchemaCache, ObjectConstructor(target), (): Schema => {
+        const indexSignatureSchema: Schema | null = GetObjectIndexSignatureSchemaByPrototype(target)
+        const objectSchema: ObjectSchema<ClassPrototype> = GetObjectSchemaByPrototype(target)
+        return indexSignatureSchema ? objectSchema.pattern(DTO.String(), indexSignatureSchema) : objectSchema
+    })
 }
+
+/**
+ * Schemas validating DTO instances (without description), per DTO class
+ */
+const instanceSchemaCache: WeakMap<Function, { revision: number, value: Schema }> = new WeakMap()
+
+/**
+ * Schemas returned by DTO.Schema(), per DTO class
+ */
+const classSchemaCache: WeakMap<Function, { revision: number, value: ObjectSchema }> = new WeakMap()
 
 /**
  * Validate property value
@@ -163,6 +176,7 @@ export class DTO extends DataValidator {
      */
     public static description(desc: string): typeof DTO {
         Reflect.defineMetadata(DTODescriptionSymbol, desc, this)
+        InvalidateDTOSchemas()
         return this
     }
 
@@ -171,11 +185,13 @@ export class DTO extends DataValidator {
      * @constructor
      */
     public static Schema(): ObjectSchema {
-        const objectSchema: ObjectSchema = GetObjectSchemaByConstructor(this)
-        const indexSignatureSchema: Schema | null = GetObjectIndexSignatureSchemaByConstructor(this)
-        const description: string | undefined = Reflect.getOwnMetadata(DTODescriptionSymbol, this)
-        const finalSchema: ObjectSchema = indexSignatureSchema ? objectSchema.pattern(DTO.String(), indexSignatureSchema) : objectSchema
-        return description === undefined ? finalSchema : finalSchema.description(description)
+        return GetCachedDTOSchema(classSchemaCache, this, (): ObjectSchema => {
+            const objectSchema: ObjectSchema = GetObjectSchemaByConstructor(this)
+            const indexSignatureSchema: Schema | null = GetObjectIndexSignatureSchemaByConstructor(this)
+            const description: string | undefined = Reflect.getOwnMetadata(DTODescriptionSymbol, this)
+            const finalSchema: ObjectSchema = indexSignatureSchema ? objectSchema.pattern(DTO.String(), indexSignatureSchema) : objectSchema
+            return description === undefined ? finalSchema : finalSchema.description(description)
+        })
     }
 
     /**

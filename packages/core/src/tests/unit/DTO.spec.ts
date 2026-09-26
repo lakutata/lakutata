@@ -5,6 +5,26 @@ import {Expect} from '../../decorators/dto/Expect.js'
 import {Accept} from '../../decorators/dto/Accept.js'
 import {Return} from '../../decorators/dto/Return.js'
 import {DevNull} from '../../lib/helpers/DevNull.js'
+import {IndexSignature} from '../../decorators/dto/IndexSignature.js'
+
+class CachedParentDTO extends DTO {
+    @Expect(DTO.String().required())
+    public name: string
+}
+
+class CachedChildDTO extends CachedParentDTO {
+    @Expect(DTO.Number().required())
+    public age: number
+}
+
+class LateFieldDTO extends DTO {
+    @Expect(DTO.String().optional())
+    public early: string
+}
+
+@IndexSignature(DTO.Number())
+class IndexedDTO extends DTO {
+}
 
 await describe('DTO Test', async function (): Promise<void> {
     await it('validate string', async (): Promise<void> => {
@@ -206,5 +226,36 @@ await describe('DTO Test', async function (): Promise<void> {
         assert.doesNotThrow(() => new TestClass().testReturn(validOutput))
         assert.equal(new TestClass().testReturn(validOutput).gender, 'unknown')
     })
+
+    await it('a DTO class schema is built once and reused', async (): Promise<void> => {
+        assert.equal(CachedParentDTO.Schema(), CachedParentDTO.Schema())
+        assert.equal(CachedChildDTO.Schema(), CachedChildDTO.Schema())
+    })
+
+    await it('cached schemas keep the behavior of subclasses, index signatures and instances', async (): Promise<void> => {
+        CachedParentDTO.Schema()
+        assert.doesNotThrow((): unknown => CachedParentDTO.validate({name: 'a'}), 'the parent does not get the child field')
+        assert.throws((): unknown => CachedChildDTO.validate({name: 'a'}), 'the child requires its own field')
+        assert.doesNotThrow((): unknown => CachedChildDTO.validate({name: 'a', age: 1}))
+        assert.doesNotThrow((): unknown => IndexedDTO.validate({anything: 1}))
+        assert.throws((): unknown => IndexedDTO.validate({anything: 'x'}), 'index signature applies')
+        const instance: CachedChildDTO = new CachedChildDTO({name: 'a', age: 1})
+        assert.throws((): void => {
+            instance.age = As<number>('not a number')
+        }, 'instance property assignment is still validated')
+        instance.age = 2
+        assert.equal(instance.age, 2)
+    })
+
+    await it('a cached schema follows later schema changes', async (): Promise<void> => {
+        assert.doesNotThrow((): unknown => LateFieldDTO.validate({}))
+        Expect(DTO.String().required())(LateFieldDTO.prototype, 'late')
+        assert.throws((): unknown => LateFieldDTO.validate({}), 'a field added after the first use is validated')
+        LateFieldDTO.description('described later')
+        assert.equal(As<{ description?: string }>(LateFieldDTO.Schema().describe().flags)?.description, 'described later')
+    })
 })
 
+function As<T>(value: unknown): T {
+    return value as T
+}
