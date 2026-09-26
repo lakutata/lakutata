@@ -5,7 +5,7 @@
 import { assert, deepEqual, reach } from '../../hoek/index.js';
 import Any from './any.js';
 import * as Common from '../common.js';
-import Compile from '../compile.js';
+import * as Compile from '../compile.js';
 const internals = {};
 
 

@@ -40,9 +40,11 @@ function lowercases(from: Iterable<unknown> | undefined): Map<string, string> {
  */
 export class Values {
 
-    protected _values: Set<unknown>
+    //Read by the tracer
+    public _values: Set<unknown>
 
-    protected _refs: Set<ResolvableValue>
+    //Read by the tracer
+    public _refs: Set<ResolvableValue>
 
     protected _lowercase: Map<string, string>
 

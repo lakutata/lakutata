@@ -5,14 +5,14 @@
 import { assert, clone, deepEqual, merge } from '../hoek/index.js';
 import * as Cache from './cache.js';
 import * as Common from './common.js';
-import Compile from './compile.js';
+import * as Compile from './compile.js';
 import * as Errors from './errors.js';
-import Extend from './extend.js';
+import * as Extend from './extend.js';
 import Manifest from './manifest.js';
 import * as Messages from './messages.js';
-import Modify from './modify.js';
+import * as Modify from './modify.js';
 import * as Ref from './ref.js';
-import Trace from './trace.js';
+import * as Trace from './trace.js';
 import Validator from './validator.js';
 import { Values } from './values.js';
 const internals = {};

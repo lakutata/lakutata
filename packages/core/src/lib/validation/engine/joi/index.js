@@ -5,13 +5,13 @@
 import { assert, clone } from '../hoek/index.js';
 import * as Cache from './cache.js';
 import * as Common from './common.js';
-import Compile from './compile.js';
+import * as Compile from './compile.js';
 import * as Errors from './errors.js';
-import Extend from './extend.js';
+import * as Extend from './extend.js';
 import Manifest from './manifest.js';
 import * as Ref from './ref.js';
 import { Template } from './template.js';
-import Trace from './trace.js';
+import * as Trace from './trace.js';
 import Lazy_types_alternatives from './types/alternatives.js';
 import Lazy_types_any from './types/any.js';
 import Lazy_types_array from './types/array.js';
