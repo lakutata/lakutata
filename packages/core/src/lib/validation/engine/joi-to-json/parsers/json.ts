@@ -116,6 +116,9 @@ export class JoiJsonSchemaParser {
 
     public logicalOpParser: Record<string, LogicalOpParserFn | null | undefined>
 
+    //The keys a schema may keep (with the known meta keys), all when undefined
+    public knownKeys: string[] | undefined
+
     constructor(opts: ParserOptions = {}) {
         //Like upstream: false options read as no options
         const settings: ParserSettings = opts as ParserSettings
@@ -162,6 +165,8 @@ export class JoiJsonSchemaParser {
             })
         }
         this._copyMetasToSchema(joiSpec, schema)
+        //Last step to remove any unknown keys that are not in the JSON Schema specification or known meta keys
+        schema = this._retainKnownKeys(schema)
         const schemaId: unknown = _.get(joiSpec, 'flags.id')
         if (schemaId) {
             definitions[schemaId as string] = schema
@@ -173,6 +178,12 @@ export class JoiJsonSchemaParser {
         if (this.includeSchemaDialect && level === 0 && this.$schema) schema.$schema = this.$schema
         if (hasPreferences) this._popInheritiedPreferences()
         return schema
+    }
+
+    protected _retainKnownKeys(schema: JsonSchema): JsonSchema {
+        if (!this.knownKeys) return schema
+        const knownKeys: string[] = this.knownKeys
+        return _.pickBy(schema, (value: unknown, key: string): boolean => knownKeys.includes(key) || this._isKnownMetaKey(key))
     }
 
     protected _pushInheritiedPreferences(joiSpec: JoiSpec): boolean {

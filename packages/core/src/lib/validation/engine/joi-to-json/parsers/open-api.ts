@@ -19,13 +19,46 @@ export class JoiOpenApiSchemaParser extends JoiJsonDraftSchemaParser {
             }
         }, opts))
         this.$schema = undefined
+        this.knownKeys = [
+            '$ref',
+            'title',
+            'multipleOf',
+            'maximum',
+            'exclusiveMaximum',
+            'minimum',
+            'exclusiveMinimum',
+            'maxLength',
+            'minLength',
+            'pattern',
+            'maxItems',
+            'minItems',
+            'uniqueItems',
+            'maxProperties',
+            'minProperties',
+            'required',
+            'enum',
+            'description',
+            'format',
+            'default',
+            'type',
+            'allOf',
+            'oneOf',
+            'anyOf',
+            'not',
+            'items',
+            'properties',
+            'additionalProperties',
+            'example',
+            'nullable'
+        ]
     }
 
     public parse(joiSpec: JoiSpec, definitions: Definitions = {}, level: number = 0): JsonSchema {
-        const fullSchema: JsonSchema = super.parse(joiSpec, definitions, level)
-        const schema: JsonSchema = _.pickBy(fullSchema, (value: unknown, key: string): boolean => isKnownKey(key))
+        const schema: JsonSchema = super.parse(joiSpec, definitions, level)
         if (level === 0 && !_.isEmpty(definitions)) schema.schemas = definitions
-        if (fullSchema.const) schema.enum = [fullSchema.const]
+        delete schema.components
+        //Unreachable, as const is not a known key (upstream reads the former fullSchema variable here)
+        if (schema.const) schema.enum = [schema.const]
         return schema
     }
 
@@ -76,46 +109,6 @@ export class JoiOpenApiSchemaParser extends JoiJsonDraftSchemaParser {
     }
 
     protected _isKnownMetaKey(key: string): boolean {
-        return isKnownMetaKey(key)
+        return key.startsWith('x-') || key === 'deprecated' || key === 'readOnly' || key === 'writeOnly'
     }
-}
-
-function isKnownMetaKey(key: string): boolean {
-    return key.startsWith('x-') || key === 'deprecated' || key === 'readOnly' || key === 'writeOnly'
-}
-
-function isKnownKey(key: string): boolean {
-    const knownKeys: Set<string> = new Set([
-        '$ref',
-        'title',
-        'multipleOf',
-        'maximum',
-        'exclusiveMaximum',
-        'minimum',
-        'exclusiveMinimum',
-        'maxLength',
-        'minLength',
-        'pattern',
-        'maxItems',
-        'minItems',
-        'uniqueItems',
-        'maxProperties',
-        'minProperties',
-        'required',
-        'enum',
-        'description',
-        'format',
-        'default',
-        'type',
-        'allOf',
-        'oneOf',
-        'anyOf',
-        'not',
-        'items',
-        'properties',
-        'additionalProperties',
-        'example',
-        'nullable'
-    ])
-    return knownKeys.has(key) || isKnownMetaKey(key)
 }
