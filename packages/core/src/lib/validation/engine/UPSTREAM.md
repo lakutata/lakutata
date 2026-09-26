@@ -69,6 +69,8 @@ library is ported from [hapijs/code](https://github.com/hapijs/code) 9.0.3 (4250
     variable of the same name would shadow them (the rewritten files note the upstream name).
   - Types widened to what upstream accepts at runtime: `RefOptions.prefix` may be `false`; the cache takes any value
     as key (only primitives are cached); `assertOptions()` also takes a single key (matched as a substring).
+- Behavior changes after the rewrite:
+  - The Standard Schema vendor of the schemas is `'lakutata'` (upstream: `'joi'`).
 - Test adaptations (the rest of the 27 upstream test files is kept line by line):
   - `@hapi/bourne` parse is replaced by `JSON.parse` (the parsed inputs contain no prototype keys).
   - hoek's `wait()` (not part of the engine) is provided locally in the validator tests.
@@ -79,6 +81,7 @@ library is ported from [hapijs/code](https://github.com/hapijs/code) 9.0.3 (4250
     because the TypeScript compiler drops the blank lines the upstream offsets rely on.
   - The stack test matches the ESM frame name of `process()` (`Module.process`) instead of `exports.process`.
   - Added (not in upstream): the inclusive boundaries of `number().port()`.
+  - The Standard Schema vendor test expects `'lakutata'`.
 
 ### joi-bigint
 - Typed with the engine's types (`BigIntSchema` extends `AnySchema`); `BigIntSchema<T>` keeps its (unused) type

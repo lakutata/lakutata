@@ -4028,7 +4028,8 @@ describe('any', () => {
         it('returns the vendor name of the schema library', () => {
 
             const schema = Joi.number()
-            expect(schema['~standard'].vendor).to.equal('joi')
+            //lakutata: the vendor of the engine is lakutata (upstream: 'joi')
+            expect(schema['~standard'].vendor).to.equal('lakutata')
         })
 
         describe('validate', () => {

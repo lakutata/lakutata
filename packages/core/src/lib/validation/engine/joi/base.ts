@@ -93,7 +93,7 @@ export type StandardResult = { value: unknown } | { issues: StandardIssue[] }
  */
 export interface StandardSchema {
     version: 1
-    vendor: 'joi'
+    vendor: 'lakutata'
     validate(value: unknown): StandardResult | Promise<StandardResult>
 }
 
@@ -914,7 +914,7 @@ export class Base implements SchemaInternals {
         const mapToStandardValue = (value: unknown): { value: unknown } => ({value})
         return {
             version: 1,
-            vendor: 'joi',
+            vendor: 'lakutata',
             validate: (value: unknown): StandardResult | Promise<StandardResult> => {
                 const result: Validator.ValidationResult | Promise<unknown> = Validator.standard(value, this)
                 if (result instanceof Promise) return result.then(mapToStandardValue, mapToStandardError)
