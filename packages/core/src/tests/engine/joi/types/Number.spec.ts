@@ -993,6 +993,23 @@ describe('number', () => {
                 }]
             ])
         })
+
+        //Not in upstream: the inclusive boundaries of the port range
+        it('validates the boundaries', () => {
+
+            const schema = Joi.number().port()
+
+            Helper.validate(schema, [
+                [0, true],
+                [65535, true],
+                [65536, false, {
+                    message: '"value" must be a valid port',
+                    path: [],
+                    type: 'number.port',
+                    context: { value: 65536, label: 'value' }
+                }]
+            ])
+        })
     })
 
     describe('precision()', () => {
