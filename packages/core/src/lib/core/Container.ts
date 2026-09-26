@@ -38,10 +38,18 @@ export class Container {
 
     #destroyed: boolean = false
 
+    /**
+     * Whether current container is a scope (the root container or one created by createScope()),
+     * an object's own container is not a scope, it only tracks the objects created by that object
+     * @private
+     */
+    #isScope: boolean
+
     public readonly parent?: Container
 
     constructor(parent?: Container, owner?: BaseObject) {
         this.parent = parent
+        this.#isScope = !parent
         this.#dic = parent ? parent.#dic.createScope() : createContainer({
             injectionMode: 'PROXY',
             //strict must be false
@@ -229,14 +237,13 @@ export class Container {
                 class: As<typeof BaseObject>(inp)
             }])
         }
-        return (
-            (
-                this.#dic.getRegistration(registrationName)?.lifetime === 'SINGLETON'
-                || this.#dic.getRegistration(registrationName)?.lifetime === 'MODULE_SINGLETON'
-            )
-            && !this.injectionNames.has(registrationName)
-            && this.parent
-        )
+        const lifetime: LifetimeType | undefined = this.#dic.getRegistration(registrationName)?.lifetime
+        const registeredHere: boolean = this.injectionNames.has(registrationName)
+        //Singletons are resolved by the container which registered them
+        const resolveSingletonInParent: boolean = (lifetime === 'SINGLETON' || lifetime === 'MODULE_SINGLETON') && !registeredHere
+        //Scoped objects are resolved by the nearest scope (one instance per request), or by the container which registered them
+        const resolveScopedInParent: boolean = lifetime === 'SCOPED' && !registeredHere && !this.#isScope
+        return (this.parent && (resolveSingletonInParent || resolveScopedInParent))
             ? await this.parent.get(registrationName, configurableRecords)
             : await this.processResolved(this.#dic.resolve(registrationName), registrationName, configurableRecords)
     }
@@ -339,7 +346,9 @@ export class Container {
      * Create sub container scope
      */
     public createScope(): Container {
-        return new Container(this, this.owner())
+        const scope: Container = new Container(this, this.owner())
+        scope.#isScope = true
+        return scope
     }
 
     /**
