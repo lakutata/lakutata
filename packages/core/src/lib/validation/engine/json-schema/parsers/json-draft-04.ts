@@ -1,5 +1,5 @@
 /**
- * Derived from joi-to-json 5.0.0 lib/parsers/json-draft-04.js (MIT, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream lib/parsers/json-draft-04.js (see UPSTREAM.md; MIT, see THIRD_PARTY_NOTICES.md)
  */
 import * as _ from '../helpers.js'
 import type {Definitions, SpecDependency, SchemaSpec, JsonSchema, ParserOptions, ParserSettings} from '../model.js'

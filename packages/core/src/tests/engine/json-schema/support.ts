@@ -1,5 +1,5 @@
 /**
- * Test support for the joi-to-json tests ported from joi-to-json 5.0.0 (MIT, see THIRD_PARTY_NOTICES.md): the upstream
+ * Test support for the JSON Schema conversion tests ported from upstream (see UPSTREAM.md; MIT, see THIRD_PARTY_NOTICES.md): the upstream
  * data files (read from the source tree, as the compiler does not copy them) and jest's toEqual() semantics
  */
 import {existsSync, readdirSync, readFileSync} from 'node:fs'

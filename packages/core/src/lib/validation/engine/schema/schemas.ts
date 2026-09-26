@@ -1,5 +1,5 @@
 /**
- * Derived from joi 18.0.2 lib/schemas.js (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream lib/schemas.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
 import type {Base} from './base.js'
 import Engine from './index.js'

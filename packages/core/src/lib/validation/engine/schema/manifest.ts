@@ -1,5 +1,5 @@
 /**
- * Derived from joi 18.0.2 lib/manifest.js (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream lib/manifest.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
 import {assert, clone} from '../hoek/index.js'
 import * as Common from './common.js'

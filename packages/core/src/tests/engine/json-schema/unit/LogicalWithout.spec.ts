@@ -1,5 +1,5 @@
 /**
- * Ported from joi-to-json 5.0.0 test/unit/logical_without.spec.js (MIT, see THIRD_PARTY_NOTICES.md)
+ * Ported from the upstream test/unit/logical_without.spec.js (see UPSTREAM.md; MIT, see THIRD_PARTY_NOTICES.md)
  * Upstream test logic is kept line by line (only the runner, the assertions and the code style differ).
  * It exercises dynamic inputs, so it is not type-checked.
  */

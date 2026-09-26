@@ -1,5 +1,5 @@
 /**
- * Ported from joi/test/base.js (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Ported from the upstream test/base.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  * Upstream test logic is kept line by line (only the runner, the imports and the code style differ) so it can be
  * compared with upstream. It deliberately exercises dynamic and invalid inputs, so it is not type-checked.
  */
@@ -4028,7 +4028,7 @@ describe('any', () => {
         it('returns the vendor name of the schema library', () => {
 
             const schema = Engine.number()
-            //lakutata: the vendor of the engine is lakutata (upstream: 'joi')
+            //lakutata: the vendor of the engine is lakutata (upstream: its own name)
             expect(schema['~standard'].vendor).to.equal('lakutata')
         })
 

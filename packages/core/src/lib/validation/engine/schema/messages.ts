@@ -1,5 +1,5 @@
 /**
- * Derived from joi 18.0.2 lib/messages.js (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream lib/messages.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
 import {assert, clone, isArray} from '../hoek/index.js'
 import {Lazy} from './lazy.js'

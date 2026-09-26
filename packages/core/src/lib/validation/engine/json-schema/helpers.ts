@@ -1,6 +1,7 @@
 /**
- * Native equivalents of the lodash 4.17.21 collection functions used by joi-to-json 5.0.0 (lodash and joi-to-json:
- * MIT, see THIRD_PARTY_NOTICES.md). Each function keeps the lodash semantics for the values joi-to-json passes
+ * Native equivalents of the lodash 4.17.21 collection functions used by the upstream JSON Schema conversion (see
+ * UPSTREAM.md; lodash and the upstream library: MIT, see THIRD_PARTY_NOTICES.md). Each function keeps the lodash
+ * semantics for the values the parsers pass
  * (plain objects, arrays, strings, null and undefined); merge() follows lodash's merge algorithm.
  */
 

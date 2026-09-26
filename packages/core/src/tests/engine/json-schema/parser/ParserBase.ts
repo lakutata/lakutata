@@ -1,5 +1,5 @@
 /**
- * Ported from joi-to-json 5.0.0 test/parser/parser.base.js (MIT, see THIRD_PARTY_NOTICES.md)
+ * Ported from the upstream test/parser/parser.base.js (see UPSTREAM.md; MIT, see THIRD_PARTY_NOTICES.md)
  * Upstream test logic is kept (only the runner, the module loading and the code style differ). Not type-checked.
  */
 // @ts-nocheck

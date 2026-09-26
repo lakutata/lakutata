@@ -12,7 +12,7 @@
 - **Validation and Constraints**: DTOs provide a centralized point to apply data validation rules, ensuring data meets expectations before being processed by business logic.
 
 ### 1.2 Integration with Lakutata
-Lakutata provides a comprehensive DTO system based on the `DTO` base class and a Joi-based validation library (implemented through the `VLD` module), enabling developers to define data structures with validation rules. Lakutata's IoC container further supports injecting DTOs or related validation services into components or controllers, ensuring seamless integration across the application. Additionally, Lakutata offers various decorators (e.g., `@Expect`, `@Accept`, `@Return`) to define validation logic declaratively.
+Lakutata provides a comprehensive DTO system based on the `DTO` base class and Lakutata's built-in validation engine (exposed through the `VLD` module), enabling developers to define data structures with validation rules. Lakutata's IoC container further supports injecting DTOs or related validation services into components or controllers, ensuring seamless integration across the application. Additionally, Lakutata offers various decorators (e.g., `@Expect`, `@Accept`, `@Return`) to define validation logic declaratively.
 
 ## 2. Defining DTOs
 
@@ -61,10 +61,10 @@ export class UserRegisterDTO extends DTO {
 
 ## 3. DTO Validation Mechanism
 
-Validation ensures that incoming data adheres to the rules defined in DTOs. Lakutata provides underlying validation support through the `VLD` module (based on the Joi library). Validation can be automatically triggered during DTO instantiation or manually invoked in controllers or services.
+Validation ensures that incoming data adheres to the rules defined in DTOs. Lakutata provides underlying validation support through the `VLD` module, backed by Lakutata's built-in validation engine. Validation can be automatically triggered during DTO instantiation or manually invoked in controllers or services.
 
 ### 3.1 VLD Validation Library
-`VLD` is the core validation module in Lakutata, extended from Joi, offering extensive validation capabilities:
+`VLD` is the core validation module in Lakutata, built on its own validation engine, offering extensive validation capabilities:
 - **Schema Definition**: Supports schemas for various data types such as strings (`string()`), numbers (`number()`), objects (`object()`), etc.
 - **Custom Rules**: Extends numeric range validation rules like `int8` (values between -128 and 127), `uint8` (values between 0 and 255), and more.
 - **Validation Methods**: Provides synchronous (`validate`) and asynchronous (`validateAsync`) validation methods, throwing an `InvalidValueException` on failure.

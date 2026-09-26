@@ -1,5 +1,5 @@
 /**
- * Ported from joi-to-json 5.0.1+ test/unit/unknown.spec.js (commit 8dd0d57, MIT, see THIRD_PARTY_NOTICES.md)
+ * Ported from the upstream test/unit/unknown.spec.js (commit 8dd0d57, see UPSTREAM.md; MIT, see THIRD_PARTY_NOTICES.md)
  * Upstream test logic is kept line by line (only the runner, the assertions and the code style differ; the result
  * variable, assigned without a declaration upstream, is declared as ES modules are strict). Not type-checked.
  */

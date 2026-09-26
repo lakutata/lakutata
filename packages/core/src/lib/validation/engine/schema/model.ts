@@ -1,5 +1,5 @@
 /**
- * Internal types shared by the modules of the validation engine (derived from joi 18.0.2, BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Internal types shared by the modules of the validation engine (derived from the upstream library, see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
 import type {Base} from './base.js'
 import type {ErrorItem, Report, ReportLocal} from './errors.js'

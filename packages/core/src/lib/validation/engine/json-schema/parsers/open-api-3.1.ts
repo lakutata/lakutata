@@ -1,5 +1,5 @@
 /**
- * Derived from joi-to-json 5.0.0 lib/parsers/open-api-3.1.js (MIT, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream lib/parsers/open-api-3.1.js (see UPSTREAM.md; MIT, see THIRD_PARTY_NOTICES.md)
  */
 import * as _ from '../helpers.js'
 import type {Definitions, SchemaSpec, JsonSchema, ParserOptions} from '../model.js'

@@ -31,7 +31,7 @@ Lakutata's functionality is categorized by domain and purpose, allowing develope
 ### 3. Data Management
 - **ORM Integration**: Based on TypeORM, supporting multiple databases (e.g., MySQL, PostgreSQL, SQLite).
 - **Database Component**: Provides an abstraction layer for database connection management and operations.
-- **DTO Validation**: Supports JSON Schema and Joi for validating data structures.
+- **DTO Validation**: Validates data structures with schemas built on Lakutata's own validation engine, and exports them as JSON Schema / OpenAPI schemas.
 
 ### 4. Components & Services
 - **Docker Component**: Integrates with Dockerode for Docker container management and operations.

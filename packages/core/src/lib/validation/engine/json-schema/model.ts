@@ -1,5 +1,5 @@
 /**
- * Types of joi-to-json (derived from joi-to-json 5.0.0 index.d.ts, MIT, see THIRD_PARTY_NOTICES.md)
+ * Types of the JSON Schema conversion (derived from the upstream index.d.ts, see UPSTREAM.md; MIT, see THIRD_PARTY_NOTICES.md)
  */
 
 /**

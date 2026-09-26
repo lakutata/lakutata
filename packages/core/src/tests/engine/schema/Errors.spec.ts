@@ -1,5 +1,5 @@
 /**
- * Ported from joi/test/errors.js (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Ported from the upstream test/errors.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  * Upstream test logic is kept line by line (only the runner, the imports and the code style differ) so it can be
  * compared with upstream. It deliberately exercises dynamic and invalid inputs, so it is not type-checked.
  */
@@ -12,7 +12,7 @@ const internals = {}
 
 describe('errors', () => {
 
-    //lakutata: validation errors are identified by isError() (upstream also sets an isJoi property)
+    //lakutata: validation errors are identified by isError() (upstream also sets a legacy marker property)
     it('is a validation error', () => {
 
         const err = Engine.valid('foo').validate('bar').error

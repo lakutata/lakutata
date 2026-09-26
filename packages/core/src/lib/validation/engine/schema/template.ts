@@ -1,5 +1,5 @@
 /**
- * Derived from joi 18.0.2 lib/template.js (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream lib/template.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
 import {assert, clone, escapeHtml, isArray} from '../hoek/index.js'
 import {type FormulaConstant, type FormulaEvaluator, type FormulaFunction, Parser} from '../formula/index.js'

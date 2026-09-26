@@ -1,5 +1,5 @@
 /**
- * Derived from joi 18.0.2 lib/types/function.js (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream lib/types/function.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
 import {assert} from '../../hoek/index.js'
 import type {ValidationHelpers} from '../model.js'

@@ -1,5 +1,5 @@
 /**
- * Ported from joi/test/compile.js (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Ported from the upstream test/compile.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  * Upstream test logic is kept line by line (only the runner, the imports and the code style differ) so it can be
  * compared with upstream. It deliberately exercises dynamic and invalid inputs, so it is not type-checked.
  */
@@ -7,7 +7,7 @@
 import {describe, it} from 'node:test'
 import {expect} from '../support/Expect.js'
 import Engine from '../../../lib/validation/engine/schema/index.js'
-//Adapted: upstream tests schemas of an older release (@hapi/joi-legacy-test, not a dependency). The engine detects schemas of other
+//Adapted: upstream tests schemas of an older release (an older upstream release, not a dependency). The engine detects schemas of other
 //versions only through the version of the shared schema marker, so a schema of another version is simulated with that marker.
 const LegacyVersion = '15.1.1'
 const Legacy = {

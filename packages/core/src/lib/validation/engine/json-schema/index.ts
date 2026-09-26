@@ -1,5 +1,5 @@
 /**
- * Derived from joi-to-json 5.0.0 index.js (MIT, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream index.js (see UPSTREAM.md; MIT, see THIRD_PARTY_NOTICES.md)
  */
 import type {Definitions, SchemaSpec, JsonSchema, Mode, ParserOptions} from './model.js'
 import {JsonSchemaParser} from './parsers/json.js'

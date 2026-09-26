@@ -1,5 +1,5 @@
 /**
- * Ported from joi-to-json 5.0.0 test/parser/open-api-3.1.spec.js (MIT, see THIRD_PARTY_NOTICES.md). Not type-checked.
+ * Ported from the upstream test/parser/open-api-3.1.spec.js (see UPSTREAM.md; MIT, see THIRD_PARTY_NOTICES.md). Not type-checked.
  */
 // @ts-nocheck
 import Ajv from 'ajv/dist/2020.js'

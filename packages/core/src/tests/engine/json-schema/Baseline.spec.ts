@@ -1,5 +1,5 @@
 /**
- * Ported from joi-to-json 5.0.0 test/baseline.spec.js (MIT, see THIRD_PARTY_NOTICES.md)
+ * Ported from the upstream test/baseline.spec.js (see UPSTREAM.md; MIT, see THIRD_PARTY_NOTICES.md)
  * Checks that the engine describes the fixture schemas like the engine release the baseline was made with.
  * Upstream test logic is kept (only the runner, the module loading and the code style differ). Not type-checked.
  */

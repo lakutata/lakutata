@@ -1,5 +1,5 @@
 /**
- * Derived from joi 18.0.2 lib/errors.js (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream lib/errors.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
 import * as Annotate from './annotate.js'
 import * as Common from './common.js'

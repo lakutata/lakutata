@@ -31,7 +31,7 @@ Lakutata 的功能按领域和用途分类，开发者可根据需求选择使�
 ### 3. 数据管理
 - **ORM 集成**：基于 TypeORM，支持多种数据库（如 MySQL、PostgreSQL、SQLite）。
 - **数据库组件**：提供数据库连接管理和操作的抽象层。
-- **DTO 验证**：支持 JSON Schema 和 Joi 进行数据结构验证。
+- **DTO 验证**：基于 Lakutata 自有的验证引擎进行数据结构验证，并可导出为 JSON Schema / OpenAPI Schema。
 
 ### 4. 组件与服务
 - **Docker 组件**：与 Dockerode 集成，用于 Docker 容器管理和操作。

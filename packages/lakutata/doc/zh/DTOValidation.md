@@ -12,7 +12,7 @@
 - **验证和约束**：DTO 提供了一个集中点来应用数据验证规则，确保数据在被业务逻辑处理前符合预期。
 
 ### 1.2 与 Lakutata 的集成
-Lakutata 基于 `DTO` 基类和基于 Joi 的验证库（通过 `VLD` 模块实现）提供了一个全面的 DTO 系统，使开发者能够定义带有验证规则的数据结构。Lakutata 的 IoC 容器进一步支持将 DTO 或相关验证服务注入到组件或控制器中，确保在整个应用中无缝集成。此外，Lakutata 提供了多种装饰器（如 `@Expect`、`@Accept`、`@Return`）来以声明式方式定义验证逻辑。
+Lakutata 基于 `DTO` 基类和 Lakutata 内置的验证引擎（通过 `VLD` 模块提供）提供了一个全面的 DTO 系统，使开发者能够定义带有验证规则的数据结构。Lakutata 的 IoC 容器进一步支持将 DTO 或相关验证服务注入到组件或控制器中，确保在整个应用中无缝集成。此外，Lakutata 提供了多种装饰器（如 `@Expect`、`@Accept`、`@Return`）来以声明式方式定义验证逻辑。
 
 ## 2. 定义 DTO
 
@@ -61,10 +61,10 @@ export class UserRegisterDTO extends DTO {
 
 ## 3. DTO 验证机制
 
-验证确保传入数据符合 DTO 中定义的规则。Lakutata 通过 `VLD` 模块（基于 Joi 库）提供底层的验证支持。验证可以在 DTO 实例化时自动触发，也可以在控制器或服务中手动调用。
+验证确保传入数据符合 DTO 中定义的规则。Lakutata 通过 `VLD` 模块提供底层的验证支持，由 Lakutata 内置的验证引擎实现。验证可以在 DTO 实例化时自动触发，也可以在控制器或服务中手动调用。
 
 ### 3.1 VLD 验证库
-`VLD` 是 Lakutata 中的核心验证模块，扩展自 Joi，提供了广泛的验证能力：
+`VLD` 是 Lakutata 中的核心验证模块，构建在其自有的验证引擎之上，提供了广泛的验证能力：
 - **模式定义**：支持多种数据类型的模式，如字符串（`string()`）、数字（`number()`）、对象（`object()`）等。
 - **自定义规则**：扩展了数值范围验证规则，如 `int8`（值在 -128 到 127 之间）、`uint8`（值在 0 到 255 之间）等。
 - **验证方法**：提供同步（`validate`）和异步（`validateAsync`）验证方法，失败时抛出 `InvalidValueException`。

@@ -1,5 +1,5 @@
 /**
- * Ported from joi-to-json 5.0.0 fixtures-baseline/date.js (MIT, see THIRD_PARTY_NOTICES.md)
+ * Ported from the upstream fixtures-baseline/date.js (see UPSTREAM.md; MIT, see THIRD_PARTY_NOTICES.md)
  * The schemas whose descriptions are the baseline of the parser tests. Not type-checked.
  */
 // @ts-nocheck

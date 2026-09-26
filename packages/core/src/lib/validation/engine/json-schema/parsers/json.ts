@@ -1,5 +1,5 @@
 /**
- * Derived from joi-to-json 5.0.0 lib/parsers/json.js (MIT, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream lib/parsers/json.js (see UPSTREAM.md; MIT, see THIRD_PARTY_NOTICES.md)
  */
 import {combinations} from '../combinations.js'
 import * as _ from '../helpers.js'

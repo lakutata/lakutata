@@ -1,5 +1,5 @@
 /**
- * Derived from @softstack/joi-bigint 1.1.1 src/index.ts and src/types.ts (MIT, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream src/index.ts and src/types.ts (see UPSTREAM.md; MIT, see THIRD_PARTY_NOTICES.md)
  */
 import type * as Ref from '../ref.js'
 import type {Extension, ExtensionFactory, Root} from '../index.js'

@@ -1,5 +1,5 @@
 /**
- * Ported from joi-to-json 5.0.0 test/unit/alternative_try_with_only_one_option.spec.js (MIT, see THIRD_PARTY_NOTICES.md)
+ * Ported from the upstream test/unit/alternative_try_with_only_one_option.spec.js (see UPSTREAM.md; MIT, see THIRD_PARTY_NOTICES.md)
  * Upstream test logic is kept line by line (only the runner, the assertions and the code style differ).
  * It exercises dynamic inputs, so it is not type-checked.
  */

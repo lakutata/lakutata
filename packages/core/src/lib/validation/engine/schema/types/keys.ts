@@ -1,5 +1,5 @@
 /**
- * Derived from joi 18.0.2 lib/types/keys.js (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream lib/types/keys.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
 import {applyToDefaults, assert, clone as Clone} from '../../hoek/index.js'
 import * as Topo from '../../topo/index.js'

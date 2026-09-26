@@ -1,5 +1,5 @@
 /**
- * Derived from joi 18.0.2 lib/types/string.js (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream lib/types/string.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
 import {assert, escapeRegex} from '../../hoek/index.js'
 import {type DomainOptions as AddressDomainOptions, type EmailOptions as AddressEmailOptions, isDomainValid, isEmailValid, ipRegex, uriRegex} from '../../address/index.js'

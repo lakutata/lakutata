@@ -1,5 +1,5 @@
 /**
- * Not from upstream: the lodash semantics joi-to-json relies on, kept by the native helpers (the expected values were
+ * Not from upstream: the lodash semantics the parsers rely on, kept by the native helpers (the expected values were
  * produced by lodash 4.17.21)
  */
 // @ts-nocheck
@@ -7,7 +7,7 @@ import {describe, it} from 'node:test'
 import {expect} from '../support/Expect.js'
 import * as _ from '../../../lib/validation/engine/json-schema/helpers.js'
 
-describe('joi-to-json helpers', () => {
+describe('json-schema helpers', () => {
 
     describe('merge()', () => {
 
@@ -81,7 +81,7 @@ describe('joi-to-json helpers', () => {
     })
 })
 
-describe('joi-to-json additions', () => {
+describe('json-schema additions', () => {
 
     it('converts array().unique() (not covered upstream)', async () => {
         const {default: engine} = await import('../../../lib/validation/engine/schema/index.js')
@@ -93,7 +93,7 @@ describe('joi-to-json additions', () => {
     })
 })
 
-describe('joi-to-json fixes', () => {
+describe('json-schema fixes', () => {
 
     it('converts a switch with a single branch like the equivalent condition (upstream threw a ReferenceError)', async () => {
         const {default: engine} = await import('../../../lib/validation/engine/schema/index.js')

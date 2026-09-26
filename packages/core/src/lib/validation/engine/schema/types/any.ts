@@ -1,5 +1,5 @@
 /**
- * Derived from joi 18.0.2 lib/types/any.js (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream lib/types/any.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
 import {assert} from '../../hoek/index.js'
 import base, {type AlterationTerm, type Base, type SchemaTerms, type WhenTerm} from '../base.js'

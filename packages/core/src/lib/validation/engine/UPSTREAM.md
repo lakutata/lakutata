@@ -3,6 +3,10 @@
 The validation engine is lakutata's own TypeScript module. It is derived from the projects below, which are not
 dependencies of lakutata. License texts: `THIRD_PARTY_NOTICES.md` in the package root.
 
+The file headers name "the upstream" file a module is derived from (or a test is ported from): it is the file of the
+upstream project of the module's directory in the table below, at the listed version unless the header gives a commit.
+The engine's code, messages and documentation do not name these projects; this file and the license notices do.
+
 | Directory | Upstream | Version | Commit | Scope |
 |---|---|---|---|---|
 | `hoek/` | [hapijs/hoek](https://github.com/hapijs/hoek) | 11.0.7 | 40e7940363febdb4d427d57c88eba96accdcc0e1 | applyToDefaults, assert, AssertError, clone, deepEqual, escapeHtml, escapeRegex, ignore, merge, reach, stringify (+ internal types, utils) |
@@ -87,6 +91,7 @@ library is ported from [hapijs/code](https://github.com/hapijs/code) 9.0.3 (4250
     Merged preferences are never mutated, so they can be shared.
 - Test adaptations (the rest of the 27 upstream test files is kept line by line, with the engine's names):
   - The `isJoi` checks are `isError()` checks.
+  - A URI test value naming the upstream repository is replaced by another repository URL of the same form.
   - `@hapi/bourne` parse is replaced by `JSON.parse` (the parsed inputs contain no prototype keys).
   - hoek's `wait()` (not part of the engine) is provided locally in the validator tests.
   - A schema of another version is simulated through the shared version marker (the only thing the engine inspects);

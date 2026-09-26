@@ -1,5 +1,5 @@
 /**
- * Ported from joi-to-json 5.0.4 test/unit/unknown_keys_in_shared_schemas.spec.js (commit 79228c3, MIT, see
+ * Ported from the upstream test/unit/unknown_keys_in_shared_schemas.spec.js (commit 79228c3, see UPSTREAM.md; MIT, see
  * THIRD_PARTY_NOTICES.md). Upstream test logic is kept line by line (only the runner, the assertions and the code
  * style differ). Not type-checked.
  */

@@ -1,5 +1,5 @@
 /**
- * Ported from @softstack/joi-bigint 1.1.1 src/__tests__/joi-bigint.test.ts (MIT, see THIRD_PARTY_NOTICES.md)
+ * Ported from the upstream test suite (src/__tests__, see UPSTREAM.md; MIT, see THIRD_PARTY_NOTICES.md)
  * Upstream test logic is kept line by line (only the runner, the assertions library and the code style differ).
  * It exercises dynamic and invalid inputs, so it is not type-checked.
  */
@@ -11,7 +11,7 @@ import {extendBigInt} from '../../../../lib/validation/engine/schema/extensions/
 
 const Engine = extendBigInt(BaseEngine)
 
-describe('joi-bigint', () => {
+describe('bigint extension', () => {
 
     it('Value should be bigint', () => {
         const schema = Engine.bigint().prefs({ convert: false }).required()
