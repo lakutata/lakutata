@@ -279,6 +279,31 @@ export interface ValidateAPI {
     x(template: string, options?: ReferenceOptions): any;
 }
 
+/**
+ * The object schemas wrapping a schema under a target name, by schema then by name (schemas are immutable)
+ */
+const targetSchemas: WeakMap<object, Map<string | symbol, Base>> = new WeakMap()
+
+/**
+ * An object schema with the schema under the target name, reused for schema objects
+ * @param schema
+ * @param targetName
+ */
+function targetSchema(schema: Schema, targetName: string | symbol): Base {
+    if (!Joi.isSchema(schema)) return Joi.object({[targetName]: schema})
+    let byName: Map<string | symbol, Base> | undefined = targetSchemas.get(schema)
+    if (!byName) {
+        byName = new Map()
+        targetSchemas.set(schema, byName)
+    }
+    let wrapper: Base | undefined = byName.get(targetName)
+    if (!wrapper) {
+        wrapper = Joi.object({[targetName]: schema})
+        byName.set(targetName, wrapper)
+    }
+    return wrapper
+}
+
 class ValidateMethods {
 
     /**
@@ -330,7 +355,7 @@ class ValidateMethods {
         let error: Error | undefined
         let value: T
         if (options.targetName) {
-            const result: EngineValidationResult = Joi.object({[options.targetName]: schema}).validate({[options.targetName]: data}, As<Preferences>(options))
+            const result: EngineValidationResult = targetSchema(schema, options.targetName).validate({[options.targetName]: data}, As<Preferences>(options))
             error = result.error
             value = As<Record<symbol | string, T>>(result.value)[options.targetName]
         } else {
@@ -352,7 +377,7 @@ class ValidateMethods {
         options = {...DefaultValidationOptions, ...options}
         try {
             if (options.targetName) {
-                const result: Record<symbol | string, T> = As<Record<symbol | string, T>>(await Joi.object({[options.targetName]: schema}).validateAsync({[options.targetName]: data}, As<Preferences>({
+                const result: Record<symbol | string, T> = As<Record<symbol | string, T>>(await targetSchema(schema, options.targetName).validateAsync({[options.targetName]: data}, As<Preferences>({
                     ...options,
                     artifacts: false
                 })))
