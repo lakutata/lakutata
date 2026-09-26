@@ -11,6 +11,7 @@ dependencies of lakutata. License texts: `THIRD_PARTY_NOTICES.md` in the package
 | `topo/` | [hapijs/topo](https://github.com/hapijs/topo) | 6.0.2 | 3c4ee008ec9f719b0992ba06feb35c24b57787d7 | Sorter |
 | `tlds/` | [hapijs/tlds](https://github.com/hapijs/tlds) | 1.1.4 | 2c9410a8cb6dcb5a0c1d329a4359074b10151582 | tlds (IANA list, version 2025102200) |
 | `address/` | [hapijs/address](https://github.com/hapijs/address) | 5.1.1 | f23e252d821644b4422220a2482d6f832aaf49ed | domain, email, ip, uri, decode, errors |
+| `joi/` | [hapijs/joi](https://github.com/hapijs/joi) | 18.0.2 | 481e270e6c4ff8728d6fda248fd83f6ff70f7ed9 | the whole library (lib/, lib/types/) |
 
 Tests are ported from the upstream suites into `src/tests/engine` and run on `node:test`; the assertion
 library is ported from [hapijs/code](https://github.com/hapijs/code) 9.0.3 (425043e302090e541f569ee37d8dd4c0444a9cf4).
@@ -50,3 +51,21 @@ library is ported from [hapijs/code](https://github.com/hapijs/code) 9.0.3 (4250
 - Strict typing fixes without behavior change: `isTldsAllow()` takes `unknown` instead of `any`, the tlds deny check
   and the URI scheme list are typed (`Partial<TldsDeny>`, `Scheme[]`), `wrap()`'s scheme parameter is `string | null`.
 - The address tests use Node's deprecated built-in `punycode` module to compute expected values (test only).
+
+### joi
+- **Stage 4.0 (current): mechanical CommonJS to ESM conversion, still JavaScript**, to be rewritten in TypeScript
+  file by file with the ported test suite green at every step.
+  - A module exporting through `exports.x` default-exports an object filled progressively, like a CommonJS exports
+    object in import cycles; `module.exports = X` became `export default X`.
+  - Upstream required some modules lazily (inside functions) to keep its load order. ESM imports are static, so:
+    `schemas.js` builds its schemas on first use (`getSchemas()`), and `messages`, `template` and `schemas` register
+    themselves in `lazy.js` for the modules which read them at runtime (`common`, `ref`, `manifest`).
+  - `Joi.version` is the constant '18.0.2' (upstream read it from package.json).
+- Test adaptations (the rest of the 27 upstream test files is kept line by line):
+  - `@hapi/bourne` parse is replaced by `JSON.parse` (the parsed inputs contain no prototype keys).
+  - hoek's `wait()` (not part of the engine) is provided locally in the validator tests.
+  - A schema of another joi version is simulated through the shared version marker (the only thing joi inspects);
+    the two tests compiling v15 schemas are skipped: they need the compiler of an older joi release.
+  - The annotate test reads the function source at runtime instead of hard-coding it.
+  - Tracer tests: `__filename` comes from the stack (ESM), and expected lines are looked up in the compiled file
+    because the TypeScript compiler drops the blank lines the upstream offsets rely on.
