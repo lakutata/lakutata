@@ -2,7 +2,7 @@ import {SchemaLike} from '../types/SchemaLike.js'
 
 export interface SwitchCases {
     /**
-     * the required condition engine type.
+     * the required condition schema type.
      */
     is: SchemaLike;
     /**

@@ -4,7 +4,7 @@ import {SwitchDefault} from './SwitchDefault.js'
 
 export interface WhenOptions {
     /**
-     * the required condition engine type.
+     * the required condition schema type.
      */
     is?: SchemaLike;
 

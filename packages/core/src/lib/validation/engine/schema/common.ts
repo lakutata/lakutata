@@ -11,9 +11,10 @@ let Schemas: LazySchemas | undefined
 const isoDate: RegExp = /^(?:[-+]\d{2})?(?:\d{4}(?!\d{2}\b))(?:(-?)(?:(?:0[1-9]|1[0-2])(?:\1(?:[12]\d|0[1-9]|3[01]))?|W(?:[0-4]\d|5[0-2])(?:-?[1-7])?|(?:00[1-9]|0[1-9]\d|[12]\d{2}|3(?:[0-5]\d|6[1-6])))(?![T]$|[T][\d]+Z$)(?:[T\s](?:(?:(?:[01]\d|2[0-3])(?:(:?)[0-5]\d)?|24\:?00)(?:[.,]\d+(?!:))?)(?:\2[0-5]\d(?:[.,]\d+)?)?(?:[Z]|(?:[+-])(?:[01]\d|2[0-3])(?::?[0-5]\d)?)?)?)?$/
 
 /**
- * Version of the validation engine (the joi release it derives from)
+ * Version of the schema format of the validation engine: schemas of engines with another version are not mixed (bump it
+ * when the schema internals change incompatibly)
  */
-export const version: string = '18.0.2'
+export const version: string = '1.0.0'
 
 export const defaults: Preferences = {
     abortEarly: true,
@@ -45,8 +46,8 @@ export const defaults: Preferences = {
 }
 
 export const symbols = {
-    //Used to internally identify any-based types (shared with other engine versions)
-    any: Symbol.for('@hapi/joi/schema'),
+    //Used to internally identify any-based types (shared with the other copies and versions of the engine)
+    any: Symbol.for('@lakutata/validation/schema'),
     arraySingle: Symbol('arraySingle'),
     deepDefault: Symbol('deepDefault'),
     errors: Symbol('errors'),

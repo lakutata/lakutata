@@ -105,7 +105,6 @@ export interface TraceRoot {
     _tracer?: Tracer | null
     trace?: () => Tracer
     untrace?: () => void
-    [key: symbol]: unknown
 }
 
 /**
@@ -118,7 +117,6 @@ export function setup(root: TraceRoot): void {
         return root._tracer
     }
     root.trace = trace
-    root[Symbol.for('@hapi/lab/coverage/initialize')] = trace
     root.untrace = (): void => {
         root._tracer = null
     }

@@ -1339,7 +1339,7 @@ describe('Engine', () => {
         it('should be Engine', () => {
 
             const error = new Engine.ValidationError()
-            expect(error.isJoi).to.equal(true)
+            expect(Engine.isError(error)).to.equal(true)
         })
 
         it('should be named ValidationError', () => {

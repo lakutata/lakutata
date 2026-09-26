@@ -64,7 +64,6 @@ library is ported from [hapijs/code](https://github.com/hapijs/code) 9.0.3 (4250
   - Upstream required some modules lazily (inside functions) to keep its load order. ESM imports are static, so:
     `schemas.ts` builds its schemas on first use (`getSchemas()`), and `messages`, `template` and `schemas` register
     themselves in `lazy.ts` for the modules which read them at runtime (`common`, `ref`, `manifest`).
-  - `Joi.version` is the constant '18.0.2' (upstream read it from package.json).
   - Upstream's internal module helpers (`internals.x`) are module-level functions; a few are renamed where a local
     variable of the same name would shadow them (the rewritten files note the upstream name).
   - Types widened to what upstream accepts at runtime: `RefOptions.prefix` may be `false`; the cache takes any value
@@ -76,16 +75,21 @@ library is ported from [hapijs/code](https://github.com/hapijs/code) 9.0.3 (4250
     reference", `object.schema` "must be a schema of {type} type", "Cannot mix different versions of validation
     schemas", "Must be invoked on a validation root.", "Object schema cannot be a schema object", "adjuster function
     failed to return a schema"; joi-to-json's "Not a schema object.". The ported tests expect the new messages.
+  - Validation errors have no `isJoi` property (they are identified by `isError()`), the tracer has no @hapi/lab
+    coverage hook, and schemas are marked with `Symbol.for('@lakutata/validation/schema')` (upstream: the joi marker
+    shared by all joi versions), with the engine's own schema format version `'1.0.0'` (upstream: the joi release):
+    engine schemas and joi schemas no longer recognize each other.
 - Performance changes (same behavior, covered by `src/tests/engine/schema/Caching.spec.ts`):
   - The validation settings (defaults merged with the validate() options) are reused for options which cannot change:
     frozen, with primitive values only. Upstream merges them on every validation.
   - The preferences of a schema merged with its parent preferences are cached by parent preferences (upstream caches
     only the merge with the default preferences), and `$_match()` reuses its abort-early copy of the preferences.
     Merged preferences are never mutated, so they can be shared.
-- Test adaptations (the rest of the 27 upstream test files is kept line by line):
+- Test adaptations (the rest of the 27 upstream test files is kept line by line, with the engine's names):
+  - The `isJoi` checks are `isError()` checks.
   - `@hapi/bourne` parse is replaced by `JSON.parse` (the parsed inputs contain no prototype keys).
   - hoek's `wait()` (not part of the engine) is provided locally in the validator tests.
-  - A schema of another joi version is simulated through the shared version marker (the only thing joi inspects);
+  - A schema of another version is simulated through the shared version marker (the only thing the engine inspects);
     the two tests compiling v15 schemas are skipped: they need the compiler of an older joi release.
   - The annotate test reads the function source at runtime instead of hard-coding it.
   - Tracer tests: `__filename` comes from the stack (ESM), and expected lines are looked up in the compiled file

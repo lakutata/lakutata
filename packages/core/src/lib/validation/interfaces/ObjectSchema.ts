@@ -85,7 +85,7 @@ export interface ObjectSchema<TSchema = any> extends AnySchema<TSchema> {
     pattern(pattern: RegExp | SchemaLike, schema: SchemaLike, options?: ObjectPatternOptions): this;
 
     /**
-     * Requires the object to be a Engine reference.
+     * Requires the object to be a reference.
      */
     ref(): this;
 
@@ -100,7 +100,7 @@ export interface ObjectSchema<TSchema = any> extends AnySchema<TSchema> {
     rename(from: string | RegExp, to: string, options?: RenameOptions): this;
 
     /**
-     * Requires the object to be a Engine schema instance.
+     * Requires the object to be a schema instance.
      */
     schema(type?: SchemaLike): this;
 

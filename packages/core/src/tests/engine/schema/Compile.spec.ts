@@ -7,14 +7,14 @@
 import {describe, it} from 'node:test'
 import {expect} from '../support/Expect.js'
 import Engine from '../../../lib/validation/engine/schema/index.js'
-//Adapted: @hapi/engine-legacy-test (an older engine release) is not a dependency. engine detects schemas of other versions only
-//through the version of the shared schema marker, so a schema of another version is simulated with that marker.
+//Adapted: upstream tests schemas of an older release (@hapi/joi-legacy-test, not a dependency). The engine detects schemas of other
+//versions only through the version of the shared schema marker, so a schema of another version is simulated with that marker.
 const LegacyVersion = '15.1.1'
 const Legacy = {
     number: () => {
 
         const schema = Engine.number()
-        const marker = Symbol.for('@hapi/joi/schema')
+        const marker = Symbol.for('@lakutata/validation/schema')
         return Object.create(schema, {[marker]: {value: {...schema[marker], version: LegacyVersion}}})
     }
 }

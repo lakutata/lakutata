@@ -239,8 +239,6 @@ export {detailsOf as details}
  */
 export class ValidationError extends Error {
 
-    declare public isJoi: true
-
     declare public annotate: typeof Annotate.error
 
     public _original: unknown
@@ -258,6 +256,5 @@ export class ValidationError extends Error {
     }
 }
 
-Object.defineProperty(ValidationError.prototype, 'isJoi', {value: true, writable: true, enumerable: true, configurable: true})
 Object.defineProperty(ValidationError.prototype, 'name', {value: 'ValidationError', writable: true, enumerable: true, configurable: true})
 Object.defineProperty(ValidationError.prototype, 'annotate', {value: Annotate.error, writable: true, enumerable: true, configurable: true})

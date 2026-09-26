@@ -1350,7 +1350,7 @@ describe('any', () => {
             })
 
             const err = schema.validate({ a: 'abc', b: { c: 'x' } }).error
-            expect(err.isJoi).to.not.exist()
+            expect(Engine.isError(err)).to.be.false()
             expect(err.message).to.equal('Really wanted a number!')
             expect(err.details).to.not.exist()
         })
@@ -1365,7 +1365,7 @@ describe('any', () => {
             }).prefs({ abortEarly: false })
 
             const err = schema.validate({ a: 22, b: { c: 'x' } }).error
-            expect(err.isJoi).to.not.exist()
+            expect(Engine.isError(err)).to.be.false()
             expect(err.message).to.equal('Really wanted a number!')
             expect(err.details).to.not.exist()
         })
@@ -1380,7 +1380,7 @@ describe('any', () => {
             })
 
             const err = schema.validate({ a: 22, b: { c: 'x' } }).error
-            expect(err.isJoi).to.be.true()
+            expect(Engine.isError(err)).to.be.true()
             expect(err.message).to.equal('"a" must be a string')
             expect(err.details).to.equal([{
                 message: '"a" must be a string',
@@ -1428,7 +1428,7 @@ describe('any', () => {
                 })
 
                 const err = schema.validate({ a: 'abc', b: { c: 'x' } }).error
-                expect(err.isJoi).to.not.exist()
+                expect(Engine.isError(err)).to.be.false()
                 expect(err.message).to.equal('Really wanted a number!')
             })
 
@@ -1445,7 +1445,7 @@ describe('any', () => {
                 })
 
                 const err = schema.validate({ a: 'abc', b: { c: -1.5 } }, { abortEarly: false }).error
-                expect(err.isJoi).to.not.exist()
+                expect(Engine.isError(err)).to.be.false()
                 expect(err.message).to.equal('"b.c" must be greater than or equal to 0 and "b.c" must be an integer')
             })
 
@@ -1467,7 +1467,7 @@ describe('any', () => {
                 })
 
                 const err = schema.validate({ a: 'abc', b: { c: -1.5 } }, { abortEarly: false }).error
-                expect(err.isJoi).to.not.exist()
+                expect(Engine.isError(err)).to.be.false()
                 expect(err.message).to.equal('"b.c" must be greater than or equal to 0! and "b.c" must be an integer!')
             })
 
@@ -1483,7 +1483,7 @@ describe('any', () => {
                 })
 
                 const err = schema.validate({ a: new Date('1973-01-01') }, { dateFormat: 'date', abortEarly: false }).error
-                expect(err.isJoi).to.not.exist()
+                expect(Engine.isError(err)).to.be.false()
                 expect(err.message).to.equal(`"a" must be greater than or equal to "${min.toDateString()}" and "a" must be greater than "${min.toDateString()}"`)
             })
 
@@ -1518,7 +1518,7 @@ describe('any', () => {
                 })
 
                 const err = schema.validate({ a: 'abc', b: { c: -1.5 } }, { abortEarly: false }).error
-                expect(err.isJoi).to.not.exist()
+                expect(Engine.isError(err)).to.be.false()
                 expect(err.message).to.equal('"c" > 0 && "c" ∈ ℤ')
             })
 
@@ -1533,7 +1533,7 @@ describe('any', () => {
 
                 const err = schema.validate({ a: 'abc', b: { c: -1.5 } }, { abortEarly: false }).error
                 expect(err).to.be.an.error('error of type number.min')
-                expect(err.isJoi).to.not.exist()
+                expect(Engine.isError(err)).to.be.false()
                 expect(err.details).to.not.exist()
             })
 

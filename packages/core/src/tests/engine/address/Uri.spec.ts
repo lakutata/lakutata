@@ -170,7 +170,7 @@ describe('uri', () => {
             ['https://google.com', true],
             ['ftp://google.com', true],
             ['file:/asdf', true],
-            ['git+http://github.com/hapijs/engine', true],
+            ['git+http://github.com/hapijs/joi', true],
             ['/path?query=value#hash', false]
         ])
     })

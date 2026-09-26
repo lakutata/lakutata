@@ -39,10 +39,10 @@ export interface AnySchema<TSchema = any> {
     artifact(id: any): this;
 
     /**
-     * By default, some Engine methods to function properly need to rely on the Engine instance they are attached to because
+     * By default, some VLD methods to function properly need to rely on the VLD instance they are attached to because
      * they use `this` internally.
      * So `VLD.string()` works but if you extract the function from it and call `string()` it won't.
-     * `bind()` creates a new Engine instance where all the functions relying on `this` are bound to the Engine instance.
+     * `bind()` creates a new VLD instance where all the functions relying on `this` are bound to the VLD instance.
      */
     bind(): this;
 
@@ -102,7 +102,7 @@ export interface AnySchema<TSchema = any> {
 
     /**
      * Considers anything that matches the schema to be empty (undefined).
-     * @param schema - any object or engine schema to match. An undefined schema unsets that rule.
+     * @param schema - any object or schema to match. An undefined schema unsets that rule.
      */
     empty(schema?: SchemaLike): this;
 
@@ -112,7 +112,7 @@ export interface AnySchema<TSchema = any> {
     equal(...values: any[]): this;
 
     /**
-     * Overrides the default engine error with a custom error if the rule fails where:
+     * Overrides the default validation error with a custom error if the rule fails where:
      * @param err - can be:
      *   an instance of `Error` - the override error.
      *   a `function(errors)`, taking an array of errors as argument, where it must either:
@@ -120,12 +120,12 @@ export interface AnySchema<TSchema = any> {
      *    return a single ` object` or an `Array` of it, where:
      *     `type` - optional parameter providing the type of the error (eg. `number.min`).
      *     `message` - optional parameter if `template` is provided, containing the text of the error.
-     *     `template` - optional parameter if `message` is provided, containing a template string, using the same format as usual engine language errors.
+     *     `template` - optional parameter if `message` is provided, containing a template string, using the same format as usual validation language errors.
      *     `context` - optional parameter, to provide context to your error if you are using the `template`.
      *    return an `Error` - same as when you directly provide an `Error`, but you can customize the error message based on the errors.
      *
      * Note that if you provide an `Error`, it will be returned as-is, unmodified and undecorated with any of the
-     * normal engine error properties. If validation fails and another error is found before the error
+     * normal validation error properties. If validation fails and another error is found before the error
      * override, that error will be returned and the override will be ignored (unless the `abortEarly`
      * option has been set to `false`).
      */

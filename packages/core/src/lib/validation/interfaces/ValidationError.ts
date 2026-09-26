@@ -3,8 +3,6 @@ import {ValidationErrorItem} from './ValidationErrorItem.js'
 export interface ValidationError extends Error {
     name: 'ValidationError';
 
-    isJoi: boolean;
-
     /**
      * array of errors.
      */

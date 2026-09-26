@@ -12,11 +12,11 @@ const internals = {}
 
 describe('errors', () => {
 
-    it('has an isJoi property', () => {
+    //lakutata: validation errors are identified by isError() (upstream also sets an isJoi property)
+    it('is a validation error', () => {
 
         const err = Engine.valid('foo').validate('bar').error
         expect(err).to.be.an.error()
-        expect(err.isJoi).to.be.true()
         expect(Engine.isError(err)).to.be.true()
     })
 
@@ -24,7 +24,7 @@ describe('errors', () => {
 
         const err = Engine.valid('foo').validate('bar').error
         expect(err).to.be.an.error()
-        expect(err.isJoi).to.be.true()
+        expect(Engine.isError(err)).to.be.true()
         expect(err.stack).to.not.contain('\n')
     })
 
@@ -32,7 +32,7 @@ describe('errors', () => {
 
         const err = Engine.valid('foo').validate('bar', { errors: { stack: true } }).error
         expect(err).to.be.an.error()
-        expect(err.isJoi).to.be.true()
+        expect(Engine.isError(err)).to.be.true()
         expect(err.stack).to.contain('    at ')
         //Upstream frame is 'exports.process' (CJS), the ESM module export frame is 'Module.process'
         expect(err.stack).to.contain('.process (')

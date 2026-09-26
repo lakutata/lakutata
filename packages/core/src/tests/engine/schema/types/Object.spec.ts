@@ -3437,11 +3437,11 @@ describe('object', () => {
                     type: 'object.schema',
                     context: { label: 'value', type: 'any', value: {} }
                 }],
-                [{ isJoi: true }, false, {
+                [{ isSchema: true }, false, {
                     message: '"value" must be a schema of any type',
                     path: [],
                     type: 'object.schema',
-                    context: { label: 'value', type: 'any', value: { isJoi: true } }
+                    context: { label: 'value', type: 'any', value: { isSchema: true } }
                 }],
                 [Engine.number().max(2), true]
             ])
@@ -3458,11 +3458,11 @@ describe('object', () => {
                     type: 'object.schema',
                     context: { label: 'value', type: 'number', value: {} }
                 }],
-                [{ isJoi: true }, false, {
+                [{ isSchema: true }, false, {
                     message: '"value" must be a schema of number type',
                     path: [],
                     type: 'object.schema',
-                    context: { label: 'value', type: 'number', value: { isJoi: true } }
+                    context: { label: 'value', type: 'number', value: { isSchema: true } }
                 }],
                 [Engine.string(), false, {
                     message: '"value" must be a schema of number type',
