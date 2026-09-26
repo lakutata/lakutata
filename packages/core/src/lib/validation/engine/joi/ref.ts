@@ -29,7 +29,8 @@ export interface RefOptions {
     in?: boolean
     iterables?: boolean | null
     map?: [unknown, unknown][] | null
-    prefix?: RefPrefix
+    //false disables the prefixes
+    prefix?: RefPrefix | false
     render?: boolean
     separator?: string | false
 }
@@ -211,7 +212,7 @@ interface Context {
     root?: boolean
 }
 
-function context(key: string, separator: string | false | undefined, prefix: RefPrefix | undefined = {}): Context {
+function context(key: string, separator: string | false | undefined, prefix: RefPrefix | false | undefined = {}): Context {
     key = key.trim()
     if (prefix) {
         const globalp: string = prefix.global === undefined ? '$' : prefix.global
@@ -246,7 +247,7 @@ export function create(key: string, options: RefOptions = {}): Ref {
     assert(typeof key === 'string', 'Invalid reference key:', key)
     Common.assertOptions(options, ['adjust', 'ancestor', 'in', 'iterables', 'map', 'prefix', 'render', 'separator'])
     assert(!options.prefix || typeof options.prefix === 'object', 'options.prefix must be of type object')
-    const ref: RefSettings & { prefix?: RefPrefix } = Object.assign({}, defaults, options) as RefSettings & { prefix?: RefPrefix }
+    const ref: RefSettings & { prefix?: RefPrefix | false } = Object.assign({}, defaults, options) as RefSettings & { prefix?: RefPrefix | false }
     delete ref.prefix
     const separator: string | false | undefined = ref.separator
     const refContext: Context = context(key, separator, options.prefix)
