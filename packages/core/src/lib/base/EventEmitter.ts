@@ -177,7 +177,10 @@ export class EventEmitter {
     }
 
     public listenerCount(event?: string | symbol | event[] | undefined): number {
-        return Reflect.getMetadata(this.constructor.name, this).listenerCount(event === undefined ? undefined : coerceEvent(event))
+        const internal: InternalEventEmitter = Reflect.getMetadata(this.constructor.name, this)
+        //Without an event, count the listeners of every event
+        if (event === undefined) return internal.eventNames().reduce((count: number, name: string | symbol): number => count + internal.listenerCount(name), 0)
+        return internal.listenerCount(coerceEvent(event))
     }
 
     public listeners(event?: string | symbol | event[] | undefined): ListenerFn[] {
