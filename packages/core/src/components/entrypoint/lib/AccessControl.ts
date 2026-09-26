@@ -101,10 +101,11 @@ export class AccessControl extends BaseObject {
      * @param details
      * @param getActionsCallback
      */
-    public static async run(rules: IBaseObjectConstructor<AccessControlRule>[], runtimeContainer: Container, context: CLIContext | HTTPContext | ServiceContext, input: Record<string, any>, details: ActionDetails, getActionsCallback: (type: ContextType) => BaseActionInfo[]): Promise<[boolean, Error | Exception]> {
+    public static async run(rules: IBaseObjectConstructor<AccessControlRule>[], runtimeContainer: Container, context: CLIContext | HTTPContext | ServiceContext, input: Record<string, any>, details: ActionDetails, getActionsCallback: (type: ContextType) => BaseActionInfo[]): Promise<[boolean, Error | Exception | undefined]> {
         const actions: BaseActionInfo[] = getActionsCallback(context.type)
         let allowed: boolean = !details.acl
-        let exception: Error | Exception = new AccessDenyException()
+        //The exception is created only when access is denied (building it captures a stack trace)
+        let exception: Error | Exception | undefined
         if (!allowed) {
             await runtimeContainer.set(this, {
             // await runtimeContainer.build(this, {
@@ -142,7 +143,7 @@ export class AccessControl extends BaseObject {
         }
         return [
             allowed,
-            exception
+            allowed ? undefined : (exception ? exception : new AccessDenyException())
         ]
     }
 }

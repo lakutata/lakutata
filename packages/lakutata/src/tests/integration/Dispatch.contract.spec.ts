@@ -22,6 +22,7 @@ import {Logger} from '@lakutata/core'
 import {ServiceContext} from '@lakutata/core'
 import {BuildEntrypoints, BuildServiceEntrypoint, Entrypoint} from '@lakutata/core'
 import {Provider} from '@lakutata/core'
+import {AccessControlRule, AccessDenyException, ContextType} from '@lakutata/core'
 
 class ProbeDTO extends DTO {
     @Expect(DTO.String().required())
@@ -79,6 +80,27 @@ class BrokenController extends Controller {
 
 }
 
+class DenyRule extends AccessControlRule {
+
+    public get supportContextTypes(): ContextType[] {
+        return [ContextType.SERVICE]
+    }
+
+    public async rule(): Promise<boolean> {
+        return false
+    }
+
+}
+
+class GuardedController extends Controller {
+
+    @ServiceAction({act: 'guarded'}, {acl: true})
+    public async guarded(): Promise<string> {
+        return 'unreachable'
+    }
+
+}
+
 let slowExecuted: boolean = false
 
 /**
@@ -100,7 +122,8 @@ Application
         components: {
             log: {level: 'silent', destinations: [nullStream]},
             entrypoint: BuildEntrypoints({
-                controllers: [ProbeController, BrokenController],
+                controllers: [ProbeController, BrokenController, GuardedController],
+                rules: [DenyRule],
                 service: BuildServiceEntrypoint((_module: unknown, handler: (context: ServiceContext, abortController?: AbortController) => Promise<unknown>, onDestroy: (fn: () => void) => void): void => {
                     serviceHandler = handler
                     onDestroy((): void => {})
@@ -176,6 +199,10 @@ Application
             await assert.rejects(serviceHandler(new ServiceContext({data: {act: 'broken'}}), new AbortController()), /controller construction failed/)
             await settleTeardown()
             assert.equal(Tracked.destroyed, 1, 'request scope must be destroyed when the controller fails with AbortController')
+
+            //An ACL guarded action denied by a rule rejects with AccessDenyException;
+            //actions without ACL are not affected by the rules.
+            await assert.rejects(serviceHandler(new ServiceContext({data: {act: 'guarded'}})), AccessDenyException)
 
             //An already aborted request is not executed at all.
             slowExecuted = false
