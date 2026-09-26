@@ -20,7 +20,7 @@ import {
     asClass,
     asFunction
 } from './Resolvers.js'
-import {isClass, last, nameValueToObject} from './Utils.js'
+import {isClass, nameValueToObject} from './Utils.js'
 import {GetObjectLifetime} from './ObjectLifetime.js'
 import {As} from '../helpers/As.js'
 import {AppendObjectWeakRefs} from './ObjectWeakRefs.js'
@@ -363,10 +363,6 @@ function createContainerInternal<
         // Save it so we can access it from a scoped container.
     ;(container as any)[FAMILY_TREE] = familyTree
 
-    // We need a reference to the root container,
-    // so we can retrieve and store singletons.
-    const rootContainer = last(familyTree)
-
     return container
 
     /**
@@ -488,7 +484,7 @@ function createContainerInternal<
             if (resolver && !options.strict) {
                 const cachedLifetime: LifetimeType = resolver.lifetime || Lifetime.TRANSIENT
                 if (cachedLifetime !== Lifetime.TRANSIENT) {
-                    const cachedEntry: CacheEntry | undefined = (cachedLifetime === Lifetime.APPLICATION_SINGLETON ? rootContainer : container).cache.get(name)
+                    const cachedEntry: CacheEntry | undefined = container.cache.get(name)
                     if (cachedEntry !== undefined) return cachedEntry.value
                 }
             }
@@ -570,21 +566,6 @@ function createContainerInternal<
                     // Transient lifetime means resolve every time.
                     resolved = resolver.resolve(container)
                     break
-                case Lifetime.APPLICATION_SINGLETON:
-                    // Application-Singleton lifetime means cache at all times, regardless of scope.
-                    cached = rootContainer.cache.get(name)
-                    if (!cached) {
-                        // if we are running in strict mode, perform singleton resolution using the root
-                        // container only.
-                        resolved = resolver.resolve(
-                            options.strict ? rootContainer : container
-                        )
-                        rootContainer.cache.set(name, {resolver, value: resolved})
-                    } else {
-                        resolved = cached.value
-                    }
-                    break
-                case Lifetime.MODULE_SINGLETON:
                 case Lifetime.SINGLETON:
                     //Outside container class will handle it, just implement as SCOPED in here
                     cached = container.cache.get(name)

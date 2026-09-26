@@ -344,7 +344,7 @@ export class Container {
             }
         }
         let resolver: Container = this
-        if (lifetime === 'SINGLETON' || lifetime === 'MODULE_SINGLETON') {
+        if (lifetime === 'SINGLETON') {
             //Singletons are resolved by the container which registered them
             while (!resolver.injectionNames.has(registrationName) && resolver.parent) resolver = resolver.parent
         } else if (lifetime === 'SCOPED') {
