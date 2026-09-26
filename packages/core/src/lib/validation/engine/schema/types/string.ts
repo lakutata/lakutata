@@ -578,7 +578,15 @@ const StringType: StringSchema = Any.extend<StringSchema>({
                 return length(this, 'length', limit, '=', encoding)
             },
             validate(value: unknown, helpers: ValidationHelpers<StringSchema>, {limit, encoding}: Record<string, unknown>, {name, operator, args}: SchemaRule): unknown {
-                const length: number = encoding ? Buffer && Buffer.byteLength(value as string, encoding as BufferEncoding) : codePointLength(value as string)
+                let length: number
+                if (encoding) {
+                    length = Buffer && Buffer.byteLength(value as string, encoding as BufferEncoding)
+                } else {
+                    //The code points are between half the code units and the code units: they are only counted when it matters
+                    const units: number = (value as string).length
+                    const atLeast: boolean | undefined = Common.compare(Math.ceil(units / 2), limit, operator as Common.CompareOperator)
+                    length = atLeast === Common.compare(units, limit, operator as Common.CompareOperator) ? units : codePointLength(value as string)
+                }
                 if (Common.compare(length, limit, operator as Common.CompareOperator)) {
                     return value
                 }
