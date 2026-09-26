@@ -1,43 +1,34 @@
 /**
  * Derived from joi 18.0.2 lib/schemas.js (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
- * Mechanical CommonJS to ESM conversion, to be rewritten in TypeScript
  */
-import Joi from './index.js';
-import { Lazy } from './lazy.js';
-const $exports = {};
-let built = false;
+import type {Base} from './base.js'
+import Joi from './index.js'
+import {Lazy, type LazySchemas} from './lazy.js'
+import type {ObjectSchema} from './types/object.js'
+import type {StringSchema} from './types/string.js'
+
+const schemas: LazySchemas = {} as LazySchemas
+let built: boolean = false
 
 /**
  * The schemas are built on first use: building them needs the fully loaded root (index.js), which imports this
  * module (CommonJS upstream required it lazily for the same reason)
  */
-export default function getSchemas() {
-
+export default function getSchemas(): LazySchemas {
     if (!built) {
-        built = true;
-        build();
+        built = true
+        build()
     }
-
-    return $exports;
+    return schemas
 }
 
-
-function build() {
-
-
-
-    const internals = {};
-
-
-    // Preferences
-
-    internals.wrap = Joi.string()
+function build(): void {
+    //Preferences
+    const wrap: StringSchema = Joi.string()
         .min(1)
         .max(2)
-        .allow(false);
-
-
-    $exports.preferences = Joi.object({
+        .allow(false)
+    schemas.preferences = Joi.object({
         allowUnknown: Joi.boolean(),
         abortEarly: Joi.boolean(),
         artifacts: Joi.boolean(),
@@ -56,9 +47,9 @@ function build() {
             render: Joi.boolean(),
             stack: Joi.boolean(),
             wrap: {
-                label: internals.wrap,
-                array: internals.wrap,
-                string: internals.wrap
+                label: wrap,
+                array: wrap,
+                string: wrap
             }
         },
         externals: Joi.boolean(),
@@ -75,20 +66,15 @@ function build() {
             .allow(true, false),
         warnings: Joi.boolean()
     })
-        .strict();
-
-
-    // Extensions
-
-    internals.nameRx = /^[a-zA-Z0-9]\w*$/;
-
-
-    internals.rule = Joi.object({
-        alias: Joi.array().items(Joi.string().pattern(internals.nameRx)).single(),
+        .strict()
+    //Extensions
+    const nameRx: RegExp = /^[a-zA-Z0-9]\w*$/
+    const rule: ObjectSchema = Joi.object({
+        alias: Joi.array().items(Joi.string().pattern(nameRx)).single(),
         args: Joi.array().items(
             Joi.string(),
             Joi.object({
-                name: Joi.string().pattern(internals.nameRx).required(),
+                name: Joi.string().pattern(nameRx).required(),
                 ref: Joi.boolean(),
                 assert: Joi.alternatives([
                     Joi.function(),
@@ -104,17 +90,15 @@ function build() {
         method: Joi.function().allow(false),
         multi: Joi.boolean(),
         validate: Joi.function()
-    });
-
-
-    $exports.extension = Joi.object({
+    })
+    schemas.extension = Joi.object({
         type: Joi.alternatives([
             Joi.string(),
             Joi.object().regex()
         ])
             .required(),
         args: Joi.function(),
-        cast: Joi.object().pattern(internals.nameRx, Joi.object({
+        cast: Joi.object().pattern(nameRx, Joi.object({
             from: Joi.function().maxArity(1).required(),
             to: Joi.function().minArity(1).maxArity(2).required()
         })),
@@ -124,7 +108,7 @@ function build() {
             Joi.function().maxArity(3),
             Joi.object({ method: Joi.function().maxArity(3).required(), from: Joi.array().items(Joi.string()).single() })
         ],
-        flags: Joi.object().pattern(internals.nameRx, Joi.object({
+        flags: Joi.object().pattern(nameRx, Joi.object({
             setter: Joi.string(),
             default: Joi.any()
         })),
@@ -132,12 +116,12 @@ function build() {
             build: Joi.function().arity(2)
         },
         messages: [Joi.object(), Joi.string()],
-        modifiers: Joi.object().pattern(internals.nameRx, Joi.function().minArity(1).maxArity(2)),
-        overrides: Joi.object().pattern(internals.nameRx, Joi.function()),
+        modifiers: Joi.object().pattern(nameRx, Joi.function().minArity(1).maxArity(2)),
+        overrides: Joi.object().pattern(nameRx, Joi.function()),
         prepare: Joi.function().maxArity(3),
         rebuild: Joi.function().arity(1),
-        rules: Joi.object().pattern(internals.nameRx, internals.rule),
-        terms: Joi.object().pattern(internals.nameRx, Joi.object({
+        rules: Joi.object().pattern(nameRx, rule),
+        terms: Joi.object().pattern(nameRx, Joi.object({
             init: Joi.array().allow(null).required(),
             manifest: Joi.object().pattern(/.+/, [
                 Joi.valid('schema', 'single'),
@@ -152,31 +136,22 @@ function build() {
         })),
         validate: Joi.function().maxArity(3)
     })
-        .strict();
-
-
-    $exports.extensions = Joi.array().items(Joi.object(), Joi.function().arity(1)).strict();
-
-
-    // Manifest
-
-    internals.desc = {
-
+        .strict()
+    schemas.extensions = Joi.array().items(Joi.object(), Joi.function().arity(1)).strict()
+    //Manifest
+    const desc: Record<string, Base> = {
         buffer: Joi.object({
             buffer: Joi.string()
         }),
-
         func: Joi.object({
             function: Joi.function().required(),
             options: {
                 literal: true
             }
         }),
-
         override: Joi.object({
             override: true
         }),
-
         ref: Joi.object({
             ref: Joi.object({
                 type: Joi.valid('value', 'global', 'local'),
@@ -191,44 +166,36 @@ function build() {
             })
                 .required()
         }),
-
         regex: Joi.object({
             regex: Joi.string().min(3)
         }),
-
         special: Joi.object({
             special: Joi.valid('deep').required()
         }),
-
         template: Joi.object({
             template: Joi.string().required(),
             options: Joi.object()
         }),
-
         value: Joi.object({
             value: Joi.alternatives([Joi.object(), Joi.array()]).required()
         })
-    };
-
-
-    internals.desc.entity = Joi.alternatives([
+    }
+    desc.entity = Joi.alternatives([
         Joi.array().items(Joi.link('...')),
         Joi.boolean(),
         Joi.function(),
         Joi.number(),
         Joi.string(),
-        internals.desc.buffer,
-        internals.desc.func,
-        internals.desc.ref,
-        internals.desc.regex,
-        internals.desc.special,
-        internals.desc.template,
-        internals.desc.value,
+        desc.buffer,
+        desc.func,
+        desc.ref,
+        desc.regex,
+        desc.special,
+        desc.template,
+        desc.value,
         Joi.link('/')
-    ]);
-
-
-    internals.desc.values = Joi.array()
+    ])
+    desc.values = Joi.array()
         .items(
             null,
             Joi.boolean(),
@@ -236,32 +203,28 @@ function build() {
             Joi.number().allow(Infinity, -Infinity),
             Joi.string().allow(''),
             Joi.symbol(),
-            internals.desc.buffer,
-            internals.desc.func,
-            internals.desc.override,
-            internals.desc.ref,
-            internals.desc.regex,
-            internals.desc.template,
-            internals.desc.value
-        );
-
-
-    internals.desc.messages = Joi.object()
+            desc.buffer,
+            desc.func,
+            desc.override,
+            desc.ref,
+            desc.regex,
+            desc.template,
+            desc.value
+        )
+    desc.messages = Joi.object()
         .pattern(/.+/, [
             Joi.string(),
-            internals.desc.template,
-            Joi.object().pattern(/.+/, [Joi.string(), internals.desc.template])
-        ]);
-
-
-    $exports.description = Joi.object({
+            desc.template,
+            Joi.object().pattern(/.+/, [Joi.string(), desc.template])
+        ])
+    schemas.description = Joi.object({
         type: Joi.string().required(),
         flags: Joi.object({
             cast: Joi.string(),
             default: Joi.any(),
             description: Joi.string(),
             empty: Joi.link('/'),
-            failover: internals.desc.entity,
+            failover: desc.entity,
             id: Joi.string(),
             label: Joi.string(),
             only: true,
@@ -283,15 +246,15 @@ function build() {
                 label: ['path', 'key'],
                 language: [
                     Joi.string(),
-                    internals.desc.ref
+                    desc.ref
                 ],
                 wrap: {
-                    label: internals.wrap,
-                    array: internals.wrap
+                    label: wrap,
+                    array: wrap
                 }
             },
             externals: Joi.boolean(),
-            messages: internals.desc.messages,
+            messages: desc.messages,
             noDefaults: Joi.boolean(),
             nonEnumerables: Joi.boolean(),
             presence: ['required', 'optional', 'forbidden'],
@@ -304,26 +267,23 @@ function build() {
                 .allow(true, false),
             warnings: Joi.boolean()
         },
-        allow: internals.desc.values,
-        invalid: internals.desc.values,
+        allow: desc.values,
+        invalid: desc.values,
         rules: Joi.array().min(1).items({
             name: Joi.string().required(),
             args: Joi.object().min(1),
             keep: Joi.boolean(),
             message: [
                 Joi.string(),
-                internals.desc.messages
+                desc.messages
             ],
             warn: Joi.boolean()
         }),
-
-        // Terms
-
+        //Terms
         keys: Joi.object().pattern(/.*/, Joi.link('/')),
-        link: internals.desc.ref
+        link: desc.ref
     })
-        .pattern(/^[a-z]\w*$/, Joi.any());
-
+        .pattern(/^[a-z]\w*$/, Joi.any())
 }
 
-Lazy.schemas = getSchemas;
+Lazy.schemas = getSchemas
