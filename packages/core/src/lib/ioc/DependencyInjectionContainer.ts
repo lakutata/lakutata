@@ -484,12 +484,22 @@ function createContainerInternal<
         try {
             // Grab the registration by name.
             const resolver = getRegistration(name)
-            if (resolutionStack.some(({name: parentName}) => parentName === name)) {
-                throw new DependencyInjectionResolutionError(
-                    name,
-                    resolutionStack,
-                    'Cyclic dependencies detected.'
-                )
+            // Cache-first: an already cached singleton or scoped value needs neither cycle detection nor construction
+            if (resolver && !options.strict) {
+                const cachedLifetime: LifetimeType = resolver.lifetime || Lifetime.TRANSIENT
+                if (cachedLifetime !== Lifetime.TRANSIENT) {
+                    const cachedEntry: CacheEntry | undefined = (cachedLifetime === Lifetime.APPLICATION_SINGLETON ? rootContainer : container).cache.get(name)
+                    if (cachedEntry !== undefined) return cachedEntry.value
+                }
+            }
+            for (let index: number = 0; index < resolutionStack.length; index++) {
+                if (resolutionStack[index].name === name) {
+                    throw new DependencyInjectionResolutionError(
+                        name,
+                        resolutionStack,
+                        'Cyclic dependencies detected.'
+                    )
+                }
             }
 
             // Used in JSON.stringify.

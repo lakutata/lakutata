@@ -10,6 +10,7 @@ import {asClass, asValue, type BuildResolverOptions} from '../ioc/Resolvers.js'
 import {GetObjectLifetime} from '../ioc/ObjectLifetime.js'
 import {
     GetConfigurableRecords,
+    GetRegistrationNameFromInstance,
     SetConfigurableRecords,
     SetConfigurableRecordsToInstance, SetIdToInstance
 } from '../base/internal/ConfigurableRecordsInjection.js'
@@ -161,9 +162,10 @@ export class Container {
      * @protected
      */
     protected async processResolved<T extends BaseObject>(resolved: T | Promise<T>, registrationName: string | symbol, configurableRecords: Record<string, any> = {}): Promise<T> {
-        const presetConfigurableRecords: Record<string, any> = GetConfigurableRecords(As<typeof BaseObject>(resolved.constructor), registrationName)
-        const isValidSubBaseObject: boolean = IsSubclassOf(resolved?.constructor, BaseObject)
-        if (isValidSubBaseObject) {
+        //Only a newly created object gets its id and configurable records, a cached one is already initialized
+        const isNewSubBaseObject: boolean = IsSubclassOf(resolved?.constructor, BaseObject) && GetRegistrationNameFromInstance(As<T>(resolved)) === undefined
+        if (isNewSubBaseObject) {
+            const presetConfigurableRecords: Record<string, any> = GetConfigurableRecords(As<typeof BaseObject>(resolved.constructor), registrationName)
             //set id into object instance
             SetIdToInstance(As<T>(resolved), registrationName)
             //set configurable records into object instance
@@ -308,14 +310,16 @@ export class Container {
             }])
         }
         const lifetime: LifetimeType | undefined = this.#dic.getRegistration(registrationName)?.lifetime
-        const registeredHere: boolean = this.injectionNames.has(registrationName)
-        //Singletons are resolved by the container which registered them
-        const resolveSingletonInParent: boolean = (lifetime === 'SINGLETON' || lifetime === 'MODULE_SINGLETON') && !registeredHere
-        //Scoped objects are resolved by the nearest scope (one instance per request), or by the container which registered them
-        const resolveScopedInParent: boolean = lifetime === 'SCOPED' && !registeredHere && !this.#isScope
-        return (this.parent && (resolveSingletonInParent || resolveScopedInParent))
-            ? await this.parent.get(registrationName, configurableRecords)
-            : await this.processResolved(this.#dic.resolve(registrationName), registrationName, configurableRecords)
+        let resolver: Container = this
+        if (lifetime === 'SINGLETON' || lifetime === 'MODULE_SINGLETON') {
+            //Singletons are resolved by the container which registered them
+            while (!resolver.injectionNames.has(registrationName) && resolver.parent) resolver = resolver.parent
+        } else if (lifetime === 'SCOPED') {
+            //Scoped objects are resolved by the nearest scope (one instance per request), or by the container which registered them
+            while (!resolver.injectionNames.has(registrationName) && !resolver.#isScope && resolver.parent) resolver = resolver.parent
+        }
+        resolver.#assertNotDestroyed()
+        return await resolver.processResolved(resolver.#dic.resolve(registrationName), registrationName, configurableRecords)
     }
 
     /**
