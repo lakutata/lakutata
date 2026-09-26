@@ -441,7 +441,7 @@ export class JoiJsonSchemaParser {
                 case 'pattern': {
                     let regex: string = args.regex as string
                     if (regex.indexOf('/') === 0) regex = regex.replace('/', '')
-                    //Like upstream: the trailing slash is always removed (upstream compares a boolean with -1)
+                    //Remove the trailing slash, if any (upstream guards this with an always true comparison)
                     regex = regex.replace(/\/$/, '')
                     fieldSchema.pattern = regex
                     break
@@ -545,8 +545,9 @@ export class JoiJsonSchemaParser {
         const conditions: JoiCondition[] | undefined = joiSpec[conditionFieldName] as JoiCondition[] | undefined
         if (!conditions || conditions.length === 0) return
         let ifThenStyle: boolean = this._isIfThenElseSupported()
-        //Like upstream: removes all the metas (upstream's filter, typeof ... !== undefined, is always true)
-        const styleSetting: Record<string, unknown>[] = _.remove(joiSpec.metas, (): boolean => true)
+        const styleSetting: Record<string, unknown>[] = _.remove(joiSpec.metas, (meta: Record<string, unknown>): boolean => {
+            return typeof meta['if-style'] !== 'undefined'
+        })
         if (ifThenStyle && styleSetting.length > 0 && styleSetting[0]['if-style'] === false) ifThenStyle = false
         if (conditions.length > 1) {
             //Multiple case

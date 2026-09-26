@@ -1,4 +1,5 @@
 {
+  "x-custom": "test",
   "allOf": [
     {
       "anyOf": [

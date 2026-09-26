@@ -93,9 +93,10 @@ library is ported from [hapijs/code](https://github.com/hapijs/code) 9.0.3 (4250
 - Upstream bugs kept for now (behavior changes are separate commits):
   - A `when()` switch which yields a single schema throws `ReferenceError: oneOf is not defined` (upstream merges an
     undeclared variable).
-  - The `if-style` meta filter is always true (`typeof x !== undefined`), so converting a condition removes all the
-    metas of the description.
-  - The trailing slash of a pattern is always removed (upstream compares a boolean with -1).
+- Fixes after 5.0.0:
+  - From upstream 5.0.1 (61fde575b289e4b30ca987f01f2314a2d633c064): converting a condition removes only the `if-style`
+    meta, not all the metas (the filter compared `typeof` with `undefined` instead of `'undefined'`); its test data
+    changes are ported too.
 - Tests: the unit, baseline and parser suites are ported; their JSON data files are copied as is into
   `src/tests/engine/joi-to-json/data` (read from the source tree, not published). jest's `toEqual()` (which ignores
   undefined properties) is reproduced by the test support, `toBeTruthy()`/`toBeFalsy()` by boolean checks. The

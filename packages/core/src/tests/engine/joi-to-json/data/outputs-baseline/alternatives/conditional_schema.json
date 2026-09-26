@@ -3,6 +3,9 @@
   "metas": [
     {
       "if-style": false
+    },
+    {
+      "x-custom": "test"
     }
   ],
   "matches": [
