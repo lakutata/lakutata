@@ -1,0 +1,22 @@
+{
+  "anyOf": [
+    {
+      "type": "array",
+      "items": {}
+    },
+    {
+      "type": "boolean"
+    },
+    {
+      "type": "number"
+    },
+    {
+      "type": "object"
+    },
+    {
+      "type": "string"
+    }
+  ],
+  "nullable": true,
+  "description": "Hero Nickname"
+}

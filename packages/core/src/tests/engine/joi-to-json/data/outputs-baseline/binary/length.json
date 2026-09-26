@@ -1,0 +1,11 @@
+{
+  "type": "binary",
+  "rules": [
+    {
+      "name": "length",
+      "args": {
+        "limit": 64
+      }
+    }
+  ]
+}

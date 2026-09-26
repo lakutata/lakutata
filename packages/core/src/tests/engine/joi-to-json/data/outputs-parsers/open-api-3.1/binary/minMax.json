@@ -1,0 +1,6 @@
+{
+  "type": "string",
+  "format": "binary",
+  "minLength": 64,
+  "maxLength": 128
+}

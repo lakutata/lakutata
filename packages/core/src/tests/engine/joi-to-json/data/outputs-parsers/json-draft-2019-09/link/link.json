@@ -1,0 +1,93 @@
+{
+  "$ref": "#/$defs/person",
+  "$defs": {
+    "unit": {
+      "type": "object",
+      "properties": {
+        "quantity": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "minimum": 0,
+          "exclusiveMaximum": 200,
+          "maximum": 200
+        },
+        "unit": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "unit"
+      ],
+      "additionalProperties": false
+    },
+    "unifiedString": {
+      "type": "string"
+    },
+    "person": {
+      "type": "object",
+      "properties": {
+        "genderSpecific": {
+          "type": [
+            "array",
+            "boolean",
+            "number",
+            "object",
+            "string",
+            "null"
+          ],
+          "oneOf": [
+            {
+              "type": "number",
+              "enum": [
+                0,
+                1,
+                2
+              ]
+            },
+            {
+              "$ref": "#/$defs/unifiedString"
+            }
+          ]
+        },
+        "height": {
+          "$ref": "#/$defs/unit"
+        },
+        "heightRank": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/unifiedString"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "level": {
+                  "type": "number"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "weight": {
+          "$ref": "#/$defs/unit"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/person"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

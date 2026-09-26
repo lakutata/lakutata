@@ -1,0 +1,15 @@
+{
+  "$ref": "#/components/schemas/person",
+  "schemas": {
+    "person": {
+      "type": [
+        "array",
+        "boolean",
+        "number",
+        "object",
+        "string",
+        "null"
+      ]
+    }
+  }
+}

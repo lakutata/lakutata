@@ -1,0 +1,39 @@
+{
+  "type": "any",
+  "whens": [
+    {
+      "ref": {
+        "path": [
+          "gender"
+        ]
+      },
+      "is": {
+        "type": "any",
+        "flags": {
+          "only": true
+        },
+        "allow": [
+          {
+            "override": true
+          },
+          "Female"
+        ]
+      },
+      "then": {
+        "type": "boolean"
+      },
+      "otherwise": {
+        "type": "number",
+        "flags": {
+          "only": true,
+          "presence": "required"
+        },
+        "allow": [
+          0,
+          1,
+          2
+        ]
+      }
+    }
+  ]
+}

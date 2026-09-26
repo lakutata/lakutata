@@ -1,0 +1,10 @@
+{
+  "type": "boolean",
+  "flags": {
+    "sensitive": true
+  },
+  "falsy": [
+    "N",
+    "No"
+  ]
+}

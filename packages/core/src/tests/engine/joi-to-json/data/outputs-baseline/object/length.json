@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "rules": [
+    {
+      "name": "length",
+      "args": {
+        "limit": 3
+      }
+    }
+  ]
+}

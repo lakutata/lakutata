@@ -1,0 +1,25 @@
+{
+  "type": "array",
+  "rules": [
+    {
+      "name": "has",
+      "args": {
+        "schema": {
+          "type": "string",
+          "flags": {
+            "only": true
+          },
+          "allow": [
+            "kc",
+            "ws"
+          ]
+        }
+      }
+    }
+  ],
+  "items": [
+    {
+      "type": "string"
+    }
+  ]
+}

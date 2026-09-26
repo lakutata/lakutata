@@ -1,0 +1,13 @@
+{
+  "type": "array",
+  "contains": {
+    "type": "string",
+    "enum": [
+      "kc",
+      "ws"
+    ]
+  },
+  "items": {
+    "type": "string"
+  }
+}

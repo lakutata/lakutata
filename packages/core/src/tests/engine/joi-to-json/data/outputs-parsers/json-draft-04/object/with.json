@@ -1,0 +1,17 @@
+{
+  "type": "object",
+  "properties": {
+    "birthTime": {
+      "type": "string"
+    },
+    "birthday": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "dependencies": {
+    "birthTime": [
+      "birthday"
+    ]
+  }
+}

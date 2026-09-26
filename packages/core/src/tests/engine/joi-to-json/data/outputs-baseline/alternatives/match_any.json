@@ -1,0 +1,15 @@
+{
+  "type": "alternatives",
+  "matches": [
+    {
+      "schema": {
+        "type": "number"
+      }
+    },
+    {
+      "schema": {
+        "type": "string"
+      }
+    }
+  ]
+}

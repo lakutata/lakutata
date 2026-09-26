@@ -1,0 +1,13 @@
+{
+  "type": "number",
+  "rules": [
+    {
+      "name": "multiple",
+      "args": {
+        "base": 10,
+        "baseDecimalPlace": 0,
+        "pfactor": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "allOf": [
+    {
+      "anyOf": [
+        {
+          "not": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "string",
+          "not": {
+            "type": "string",
+            "enum": [
+              "",
+              null
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "minimum": 0
+        }
+      ]
+    }
+  ]
+}

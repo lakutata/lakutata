@@ -1,0 +1,84 @@
+{
+  "type": "object",
+  "flags": {
+    "unknown": true
+  },
+  "metas": [
+    {
+      "if-style": false
+    }
+  ],
+  "whens": [
+    {
+      "is": {
+        "type": "object",
+        "flags": {
+          "unknown": true
+        },
+        "keys": {
+          "key": {
+            "type": "any",
+            "flags": {
+              "only": true
+            },
+            "allow": [
+              "xxx"
+            ]
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "flags": {
+          "unknown": true
+        },
+        "keys": {
+          "key1": {
+            "type": "string",
+            "flags": {
+              "presence": "required"
+            }
+          }
+        }
+      }
+    },
+    {
+      "is": {
+        "type": "object",
+        "flags": {
+          "unknown": true
+        },
+        "keys": {
+          "key": {
+            "type": "any",
+            "flags": {
+              "only": true
+            },
+            "allow": [
+              "yyy"
+            ]
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "flags": {
+          "unknown": true
+        },
+        "keys": {
+          "key2": {
+            "type": "string",
+            "flags": {
+              "presence": "required"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "keys": {
+    "key": {
+      "type": "string"
+    }
+  }
+}

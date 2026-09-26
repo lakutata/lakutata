@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "dependencies": [
+    {
+      "rel": "with",
+      "peers": [
+        "birthday"
+      ],
+      "key": "birthTime"
+    }
+  ],
+  "keys": {
+    "birthTime": {
+      "type": "string"
+    },
+    "birthday": {
+      "type": "string"
+    }
+  }
+}

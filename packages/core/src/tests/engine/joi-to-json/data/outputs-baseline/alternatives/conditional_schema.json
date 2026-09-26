@@ -1,0 +1,33 @@
+{
+  "type": "alternatives",
+  "metas": [
+    {
+      "if-style": false
+    }
+  ],
+  "matches": [
+    {
+      "is": {
+        "type": "string"
+      },
+      "then": {
+        "type": "string",
+        "invalid": [
+          "",
+          null
+        ]
+      },
+      "otherwise": {
+        "type": "number",
+        "rules": [
+          {
+            "args": {
+              "limit": 0
+            },
+            "name": "greater"
+          }
+        ]
+      }
+    }
+  ]
+}

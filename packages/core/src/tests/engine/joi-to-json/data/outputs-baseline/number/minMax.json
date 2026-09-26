@@ -1,0 +1,20 @@
+{
+  "type": "number",
+  "rules": [
+    {
+      "name": "integer"
+    },
+    {
+      "name": "min",
+      "args": {
+        "limit": 6
+      }
+    },
+    {
+      "name": "max",
+      "args": {
+        "limit": 21
+      }
+    }
+  ]
+}

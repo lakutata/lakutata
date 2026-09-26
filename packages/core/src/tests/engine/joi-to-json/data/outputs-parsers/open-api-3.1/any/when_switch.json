@@ -1,0 +1,33 @@
+{
+  "type": [
+    "array",
+    "boolean",
+    "number",
+    "object",
+    "string",
+    "null"
+  ],
+  "anyOf": [
+    {
+      "type": "string"
+    },
+    {
+      "type": "number"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "level": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "string"
+    }
+  ]
+}

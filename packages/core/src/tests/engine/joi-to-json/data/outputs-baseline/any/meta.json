@@ -1,0 +1,19 @@
+{
+  "type": "any",
+  "metas": [
+    {
+      "x-expandable": true,
+      "x-lookup": "name",
+      "z-ignore": true,
+      "format": "custom_format",
+      "x-supported-lang": [
+        "zh-CN",
+        "en-US"
+      ],
+      "deprecated": true,
+      "readOnly": false,
+      "writeOnly": true,
+      "title": "This is title"
+    }
+  ]
+}

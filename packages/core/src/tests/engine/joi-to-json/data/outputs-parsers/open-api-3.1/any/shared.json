@@ -1,0 +1,15 @@
+{
+  "type": [
+    "array",
+    "boolean",
+    "number",
+    "object",
+    "string",
+    "null"
+  ],
+  "schemas": {
+    "unifiedString": {
+      "type": "string"
+    }
+  }
+}

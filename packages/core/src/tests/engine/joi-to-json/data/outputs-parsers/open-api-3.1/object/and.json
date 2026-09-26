@@ -1,0 +1,49 @@
+{
+  "type": "object",
+  "properties": {
+    "email": {
+      "type": "string"
+    },
+    "password": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "oneOf": [
+    {
+      "required": [
+        "email",
+        "password",
+        "type"
+      ]
+    },
+    {
+      "allOf": [
+        {
+          "not": {
+            "required": [
+              "email"
+            ]
+          }
+        },
+        {
+          "not": {
+            "required": [
+              "password"
+            ]
+          }
+        },
+        {
+          "not": {
+            "required": [
+              "type"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "dependencies": [
+    {
+      "rel": "nand",
+      "peers": [
+        "readOnlyTrue",
+        "readOnlyFalse"
+      ]
+    }
+  ],
+  "keys": {
+    "readOnlyTrue": {
+      "type": "string"
+    },
+    "readOnlyFalse": {
+      "type": "string"
+    }
+  }
+}

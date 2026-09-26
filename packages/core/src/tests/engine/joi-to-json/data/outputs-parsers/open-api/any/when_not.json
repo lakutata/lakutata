@@ -1,0 +1,34 @@
+{
+  "anyOf": [
+    {
+      "type": "array",
+      "items": {}
+    },
+    {
+      "type": "boolean"
+    },
+    {
+      "type": "number"
+    },
+    {
+      "type": "object"
+    },
+    {
+      "type": "string"
+    }
+  ],
+  "nullable": true,
+  "oneOf": [
+    {
+      "type": "boolean"
+    },
+    {
+      "type": "number",
+      "enum": [
+        0,
+        1,
+        2
+      ]
+    }
+  ]
+}

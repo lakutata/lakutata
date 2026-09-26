@@ -1,0 +1,12 @@
+{
+  "type": [
+    "array",
+    "boolean",
+    "number",
+    "object",
+    "string",
+    "null"
+  ],
+  "title": "This is title",
+  "format": "custom_format"
+}

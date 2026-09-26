@@ -1,0 +1,39 @@
+{
+  "type": "object",
+  "properties": {
+    "readOnlyTrue": {
+      "type": "string"
+    },
+    "readOnlyFalse": {
+      "type": "string"
+    },
+    "writeOnlyTrue": {
+      "type": "string"
+    },
+    "writeOnlyFalse": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "if": {
+    "required": [
+      "readOnlyTrue"
+    ]
+  },
+  "then": {
+    "not": {
+      "anyOf": [
+        {
+          "required": [
+            "writeOnlyTrue"
+          ]
+        },
+        {
+          "required": [
+            "writeOnlyFalse"
+          ]
+        }
+      ]
+    }
+  }
+}

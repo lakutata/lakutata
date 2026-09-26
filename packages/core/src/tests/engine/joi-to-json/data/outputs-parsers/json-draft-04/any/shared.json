@@ -1,0 +1,15 @@
+{
+  "type": [
+    "array",
+    "boolean",
+    "number",
+    "object",
+    "string",
+    "null"
+  ],
+  "definitions": {
+    "unifiedString": {
+      "type": "string"
+    }
+  }
+}

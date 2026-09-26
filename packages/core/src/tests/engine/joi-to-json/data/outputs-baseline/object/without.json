@@ -1,0 +1,27 @@
+{
+  "type": "object",
+  "dependencies": [
+    {
+      "rel": "without",
+      "peers": [
+        "writeOnlyTrue",
+        "writeOnlyFalse"
+      ],
+      "key": "readOnlyTrue"
+    }
+  ],
+  "keys": {
+    "readOnlyTrue": {
+      "type": "string"
+    },
+    "readOnlyFalse": {
+      "type": "string"
+    },
+    "writeOnlyTrue": {
+      "type": "string"
+    },
+    "writeOnlyFalse": {
+      "type": "string"
+    }
+  }
+}

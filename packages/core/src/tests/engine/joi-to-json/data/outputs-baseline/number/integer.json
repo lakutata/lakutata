@@ -1,0 +1,8 @@
+{
+  "type": "number",
+  "rules": [
+    {
+      "name": "integer"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "type": "alternatives",
+  "flags": {
+    "match": "one"
+  },
+  "matches": [
+    {
+      "schema": {
+        "type": "number"
+      }
+    },
+    {
+      "schema": {
+        "type": "string"
+      }
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "type": [
+    "array",
+    "boolean",
+    "number",
+    "object",
+    "string",
+    "null"
+  ],
+  "deprecated": true,
+  "readOnly": false,
+  "writeOnly": true,
+  "title": "This is title",
+  "x-expandable": true,
+  "x-lookup": "name",
+  "x-supported-lang": [
+    "zh-CN",
+    "en-US"
+  ],
+  "format": "custom_format"
+}

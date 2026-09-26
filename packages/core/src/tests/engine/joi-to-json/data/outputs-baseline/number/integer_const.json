@@ -1,0 +1,14 @@
+{
+  "type": "number",
+  "allow": [
+     1
+  ],
+  "flags": {
+     "only": true
+  },
+  "rules": [
+    {
+      "name": "integer"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "type": "binary",
+  "rules": [
+    {
+      "name": "min",
+      "args": {
+        "limit": 64
+      }
+    },
+    {
+      "name": "max",
+      "args": {
+        "limit": 128
+      }
+    }
+  ]
+}

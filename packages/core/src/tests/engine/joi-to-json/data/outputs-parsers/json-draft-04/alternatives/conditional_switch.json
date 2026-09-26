@@ -1,0 +1,25 @@
+{
+  "anyOf": [
+    {
+      "$ref": "#/definitions/unifiedString"
+    },
+    {
+      "type": "number"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "level": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "string"
+    }
+  ]
+}

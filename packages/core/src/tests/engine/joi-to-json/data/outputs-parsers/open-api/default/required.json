@@ -1,0 +1,33 @@
+{
+  "type": "object",
+  "properties": {
+    "hash": {
+      "type": "string"
+    },
+    "optional": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {}
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "object"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "nullable": true
+    }
+  },
+  "required": [
+    "hash"
+  ],
+  "additionalProperties": false
+}

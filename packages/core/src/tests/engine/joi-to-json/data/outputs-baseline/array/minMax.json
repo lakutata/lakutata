@@ -1,0 +1,22 @@
+{
+  "type": "array",
+  "rules": [
+    {
+      "name": "min",
+      "args": {
+        "limit": 1
+      }
+    },
+    {
+      "name": "max",
+      "args": {
+        "limit": 3
+      }
+    }
+  ],
+  "items": [
+    {
+      "type": "string"
+    }
+  ]
+}

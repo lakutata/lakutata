@@ -1,0 +1,17 @@
+{
+  "type": "any",
+  "flags": {
+    "id": "person"
+  },
+  "metas": [
+    {
+      "x-expandable": true,
+      "x-lookup": "name",
+      "x-supported-lang": ["zh-CN", "en-US"],
+      "deprecated": true,
+      "readOnly": false,
+      "writeOnly": true,
+      "z-ignore": true
+    }
+  ]
+}

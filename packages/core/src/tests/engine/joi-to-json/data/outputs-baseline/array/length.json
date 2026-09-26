@@ -1,0 +1,16 @@
+{
+  "type": "array",
+  "rules": [
+    {
+      "name": "length",
+      "args": {
+        "limit": 2
+      }
+    }
+  ],
+  "items": [
+    {
+      "type": "string"
+    }
+  ]
+}

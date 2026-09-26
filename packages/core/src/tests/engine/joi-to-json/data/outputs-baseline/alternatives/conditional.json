@@ -1,0 +1,43 @@
+{
+  "type": "alternatives",
+  "matches": [
+    {
+      "ref": {
+        "path": [
+          "gender"
+        ]
+      },
+      "is": {
+        "type": "any",
+        "flags": {
+          "only": true,
+          "presence": "required"
+        },
+        "allow": [
+          {
+            "override": true
+          },
+          "Male"
+        ]
+      },
+      "then": {
+        "type": "string",
+        "invalid": [
+          "",
+          null
+        ]
+      },
+      "otherwise": {
+        "type": "number",
+        "rules": [
+          {
+            "args": {
+              "limit": 0
+            },
+            "name": "greater"
+          }
+        ]
+      }
+    }
+  ]
+}

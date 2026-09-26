@@ -1,0 +1,26 @@
+{
+  "anyOf": [
+    {
+      "type": "array",
+      "items": {}
+    },
+    {
+      "type": "boolean"
+    },
+    {
+      "type": "number"
+    },
+    {
+      "type": "object"
+    },
+    {
+      "type": "string"
+    }
+  ],
+  "nullable": true,
+  "schemas": {
+    "unifiedString": {
+      "type": "string"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "oneOf": [
+    {
+      "type": "string",
+      "not": {
+        "type": "string",
+        "enum": [
+          "",
+          null
+        ]
+      }
+    },
+    {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "minimum": 0
+    }
+  ]
+}

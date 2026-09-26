@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "dependencies": [
+    {
+      "rel": "and",
+      "peers": [
+        "email",
+        "password",
+        "type"
+      ]
+    }
+  ],
+  "keys": {
+    "email": {
+      "type": "string"
+    },
+    "password": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string"
+    }
+  }
+}

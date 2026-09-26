@@ -1,0 +1,22 @@
+{
+  "type": "object",
+  "properties": {
+    "hash": {
+      "type": "string"
+    },
+    "optional": {
+      "type": [
+        "array",
+        "boolean",
+        "number",
+        "object",
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "hash"
+  ],
+  "additionalProperties": false
+}

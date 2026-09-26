@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "properties": {
+    "readOnlyTrue": {
+      "type": "string"
+    },
+    "readOnlyFalse": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "not": {
+    "required": [
+      "readOnlyTrue",
+      "readOnlyFalse"
+    ]
+  }
+}

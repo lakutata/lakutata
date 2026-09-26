@@ -1,0 +1,22 @@
+{
+  "type": "string",
+  "flags": {
+    "only": true
+  },
+  "allow": [
+    "a",
+    "b",
+    "c",
+    "x",
+    "y",
+    "z"
+  ],
+  "examples": [
+    "a",
+    "b",
+    "c",
+    "x",
+    "y",
+    "z"
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "type": "alternatives",
+  "flags": {
+    "match": "all"
+  },
+  "matches": [
+    {
+      "schema": {
+        "type": "number",
+        "rules": [
+          {
+            "args": {
+              "limit": 0
+            },
+            "name": "greater"
+          }
+        ]
+      }
+    },
+    {
+      "schema": {
+        "type": "number",
+        "rules": [
+          {
+            "args": {
+              "limit": 100
+            },
+            "name": "less"
+          }
+        ]
+      }
+    }
+  ]
+}

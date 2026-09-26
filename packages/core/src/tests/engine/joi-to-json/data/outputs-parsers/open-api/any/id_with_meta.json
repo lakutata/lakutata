@@ -1,0 +1,32 @@
+{
+  "$ref": "#/components/schemas/person",
+  "schemas": {
+    "person": {
+      "nullable": true,
+      "anyOf": [
+        {
+          "items": {},
+          "type": "array"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "object"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "deprecated": true,
+      "x-expandable": true,
+      "x-lookup": "name",
+      "x-supported-lang": ["zh-CN", "en-US"],
+      "readOnly": false,
+      "writeOnly": true
+    }
+  }
+}

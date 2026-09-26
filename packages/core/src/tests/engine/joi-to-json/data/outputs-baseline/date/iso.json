@@ -1,0 +1,6 @@
+{
+  "type": "date",
+  "flags": {
+    "format": "iso"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "type": "object",
+  "preferences": {
+    "allowUnknown": true
+  },
+  "keys": {
+    "inner": {
+      "type": "object",
+      "flags": {
+        "unknown": false
+      },
+      "keys": {
+        "a": {
+          "type": "string"
+        },
+        "innerMost": {
+          "type": "object",
+          "keys": {
+            "c": {
+              "type": "string"
+            },
+            "d": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "preferences": {
+        "allowUnknown": true
+      }
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "type": [
+    "array",
+    "boolean",
+    "number",
+    "object",
+    "string",
+    "null"
+  ],
+  "enum": [
+    "Male",
+    "Female",
+    0,
+    1,
+    "",
+    null
+  ]
+}

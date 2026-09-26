@@ -1,0 +1,6 @@
+{
+  "type": "binary",
+  "flags": {
+    "encoding": "base64"
+  }
+}

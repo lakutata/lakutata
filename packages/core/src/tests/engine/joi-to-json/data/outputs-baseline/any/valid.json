@@ -1,0 +1,14 @@
+{
+  "type": "any",
+  "flags": {
+    "only": true
+  },
+  "allow": [
+    "Male",
+    "Female",
+    0,
+    1,
+    "",
+    null
+  ]
+}

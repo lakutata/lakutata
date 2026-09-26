@@ -1,0 +1,83 @@
+{
+  "type": "alternatives",
+  "matches": [
+    {
+      "ref": {
+        "path": [
+          "height"
+        ]
+      },
+      "switch": [
+        {
+          "is": {
+            "type": "any",
+            "flags": {
+              "only": true,
+              "presence": "required"
+            },
+            "allow": [
+              {
+                "override": true
+              },
+              0
+            ]
+          },
+          "then": {
+            "type": "link",
+            "link": {
+              "ref": {
+                "path": [
+                  "unifiedString"
+                ],
+                "type": "local"
+              }
+            }
+          }
+        },
+        {
+          "is": {
+            "type": "number",
+            "rules": [
+              {
+                "name": "greater",
+                "args": {
+                  "limit": 160
+                }
+              }
+            ]
+          },
+          "then": {
+            "type": "number"
+          }
+        },
+        {
+          "is": {
+            "type": "number",
+            "rules": [
+              {
+                "name": "greater",
+                "args": {
+                  "limit": 300
+                }
+              }
+            ]
+          },
+          "then": {
+            "type": "object",
+            "keys": {
+              "name": {
+                "type": "string"
+              },
+              "level": {
+                "type": "number"
+              }
+            }
+          },
+          "otherwise": {
+            "type": "string"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "type": "any",
+  "flags": {
+    "description": "Hero Nickname"
+  }
+}

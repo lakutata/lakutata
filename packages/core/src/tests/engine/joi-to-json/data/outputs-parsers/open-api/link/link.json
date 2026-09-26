@@ -1,0 +1,104 @@
+{
+  "$ref": "#/components/schemas/person",
+  "schemas": {
+    "unit": {
+      "type": "object",
+      "properties": {
+        "quantity": {
+          "type": "number",
+          "exclusiveMinimum": true,
+          "minimum": 0,
+          "exclusiveMaximum": true,
+          "maximum": 200
+        },
+        "unit": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "unit"
+      ],
+      "additionalProperties": false
+    },
+    "unifiedString": {
+      "type": "string"
+    },
+    "person": {
+      "type": "object",
+      "properties": {
+        "genderSpecific": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {}
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "object"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "nullable": true,
+          "oneOf": [
+            {
+              "type": "number",
+              "enum": [
+                0,
+                1,
+                2
+              ]
+            },
+            {
+              "$ref": "#/components/schemas/unifiedString"
+            }
+          ]
+        },
+        "height": {
+          "$ref": "#/components/schemas/unit"
+        },
+        "heightRank": {
+          "anyOf": [
+            {
+              "$ref": "#/components/schemas/unifiedString"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "level": {
+                  "type": "number"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "weight": {
+          "$ref": "#/components/schemas/unit"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/person"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

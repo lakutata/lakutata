@@ -1,0 +1,15 @@
+{
+  "type": "string",
+  "rules": [
+    {
+      "name": "pattern",
+      "args": {
+        "regex": "/^[a-z]+$/",
+        "options": {
+          "name": "alpha",
+          "invert": true
+        }
+      }
+    }
+  ]
+}

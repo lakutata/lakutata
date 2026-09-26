@@ -1,0 +1,14 @@
+{
+  "allOf": [
+    {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "minimum": 0
+    },
+    {
+      "type": "number",
+      "exclusiveMaximum": 100,
+      "maximum": 100
+    }
+  ]
+}

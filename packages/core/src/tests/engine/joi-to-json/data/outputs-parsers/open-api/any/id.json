@@ -1,0 +1,26 @@
+{
+  "$ref": "#/components/schemas/person",
+  "schemas": {
+    "person": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {}
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "object"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "nullable": true
+    }
+  }
+}

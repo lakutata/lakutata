@@ -1,0 +1,19 @@
+{
+  "type": "string",
+  "flags": {
+    "only": true
+  },
+  "allow": [
+    {
+      "override": true
+    },
+    "x",
+    "y",
+    "z"
+  ],
+  "examples": [
+    "x",
+    "y",
+    "z"
+  ]
+}

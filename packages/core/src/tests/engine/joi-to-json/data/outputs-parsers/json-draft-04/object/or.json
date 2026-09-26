@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "properties": {
+    "guid": {
+      "type": "string"
+    },
+    "uuid": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "anyOf": [
+    {
+      "required": [
+        "guid"
+      ]
+    },
+    {
+      "required": [
+        "uuid"
+      ]
+    }
+  ]
+}

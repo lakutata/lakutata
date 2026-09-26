@@ -1,0 +1,275 @@
+{
+  "type": "object",
+  "flags": {
+    "id": "person"
+  },
+  "shared": [
+    {
+      "type": "string",
+      "flags": {
+        "id": "unifiedString"
+      }
+    }
+  ],
+  "keys": {
+    "genderSpecific": {
+      "type": "any",
+      "whens": [
+        {
+          "ref": {
+            "path": [
+              "gender"
+            ]
+          },
+          "is": {
+            "type": "any",
+            "flags": {
+              "only": true,
+              "presence": "required"
+            },
+            "allow": [
+              {
+                "override": true
+              },
+              "Female"
+            ]
+          },
+          "then": {
+            "type": "number",
+            "flags": {
+              "only": true,
+              "presence": "required"
+            },
+            "allow": [
+              0,
+              1,
+              2
+            ]
+          },
+          "otherwise": {
+            "type": "link",
+            "link": {
+              "ref": {
+                "path": [
+                  "unifiedString"
+                ],
+                "type": "local"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "height": {
+      "type": "link",
+      "shared": [
+        {
+          "type": "object",
+          "flags": {
+            "id": "unit"
+          },
+          "keys": {
+            "quantity": {
+              "type": "number",
+              "rules": [
+                {
+                  "name": "precision",
+                  "args": {
+                    "limit": 2
+                  }
+                },
+                {
+                  "name": "sign",
+                  "args": {
+                    "sign": "positive"
+                  }
+                },
+                {
+                  "name": "greater",
+                  "args": {
+                    "limit": 0
+                  }
+                },
+                {
+                  "name": "less",
+                  "args": {
+                    "limit": 200
+                  }
+                }
+              ]
+            },
+            "unit": {
+              "type": "string",
+              "flags": {
+                "presence": "required"
+              }
+            }
+          }
+        }
+      ],
+      "link": {
+        "ref": {
+          "path": [
+            "unit"
+          ],
+          "type": "local"
+        }
+      }
+    },
+    "heightRank": {
+      "type": "alternatives",
+      "matches": [
+        {
+          "ref": {
+            "path": [
+              "height"
+            ]
+          },
+          "switch": [
+            {
+              "is": {
+                "type": "any",
+                "flags": {
+                  "only": true,
+                  "presence": "required"
+                },
+                "allow": [
+                  {
+                    "override": true
+                  },
+                  0
+                ]
+              },
+              "then": {
+                "type": "link",
+                "link": {
+                  "ref": {
+                    "path": [
+                      "unifiedString"
+                    ],
+                    "type": "local"
+                  }
+                }
+              }
+            },
+            {
+              "is": {
+                "type": "number",
+                "rules": [
+                  {
+                    "name": "greater",
+                    "args": {
+                      "limit": 160
+                    }
+                  }
+                ]
+              },
+              "then": {
+                "type": "number"
+              }
+            },
+            {
+              "is": {
+                "type": "number",
+                "rules": [
+                  {
+                    "name": "greater",
+                    "args": {
+                      "limit": 300
+                    }
+                  }
+                ]
+              },
+              "then": {
+                "type": "object",
+                "keys": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "level": {
+                    "type": "number"
+                  }
+                }
+              },
+              "otherwise": {
+                "type": "string"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "weight": {
+      "type": "link",
+      "shared": [
+        {
+          "type": "object",
+          "flags": {
+            "id": "unit"
+          },
+          "keys": {
+            "quantity": {
+              "type": "number",
+              "rules": [
+                {
+                  "name": "precision",
+                  "args": {
+                    "limit": 2
+                  }
+                },
+                {
+                  "name": "sign",
+                  "args": {
+                    "sign": "positive"
+                  }
+                },
+                {
+                  "name": "greater",
+                  "args": {
+                    "limit": 0
+                  }
+                },
+                {
+                  "name": "less",
+                  "args": {
+                    "limit": 200
+                  }
+                }
+              ]
+            },
+            "unit": {
+              "type": "string",
+              "flags": {
+                "presence": "required"
+              }
+            }
+          }
+        }
+      ],
+      "link": {
+        "ref": {
+          "path": [
+            "unit"
+          ],
+          "type": "local"
+        }
+      }
+    },
+    "children": {
+      "type": "array",
+      "items": [
+        {
+          "type": "link",
+          "link": {
+            "ref": {
+              "path": [
+                "person"
+              ],
+              "type": "local"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

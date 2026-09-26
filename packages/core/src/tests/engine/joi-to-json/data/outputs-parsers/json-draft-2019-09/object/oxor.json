@@ -1,0 +1,46 @@
+{
+  "type": "object",
+  "properties": {
+    "ip": {
+      "type": "string"
+    },
+    "hostname": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "oneOf": [
+    {
+      "required": [
+        "ip"
+      ]
+    },
+    {
+      "required": [
+        "hostname"
+      ]
+    },
+    {
+      "not": {
+        "oneOf": [
+          {
+            "required": [
+              "ip"
+            ]
+          },
+          {
+            "required": [
+              "hostname"
+            ]
+          },
+          {
+            "required": [
+              "ip",
+              "hostname"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

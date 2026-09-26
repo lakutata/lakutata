@@ -1,0 +1,17 @@
+{
+  "type": "string",
+  "rules": [
+    {
+      "name": "min",
+      "args": {
+        "limit": 3
+      }
+    },
+    {
+      "name": "max",
+      "args": {
+        "limit": 20
+      }
+    }
+  ]
+}

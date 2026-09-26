@@ -1,0 +1,12 @@
+{
+  "type": "string",
+  "example": "a",
+  "enum": [
+    "a",
+    "b",
+    "c",
+    "x",
+    "y",
+    "z"
+  ]
+}

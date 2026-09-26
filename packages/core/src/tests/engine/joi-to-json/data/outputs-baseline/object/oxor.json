@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "dependencies": [
+    {
+      "rel": "oxor",
+      "peers": [
+        "ip",
+        "hostname"
+      ]
+    }
+  ],
+  "keys": {
+    "ip": {
+      "type": "string"
+    },
+    "hostname": {
+      "type": "string"
+    }
+  }
+}

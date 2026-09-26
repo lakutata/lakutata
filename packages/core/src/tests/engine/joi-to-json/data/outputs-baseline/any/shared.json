@@ -1,0 +1,11 @@
+{
+  "type": "any",
+  "shared": [
+    {
+      "type": "string",
+      "flags": {
+        "id": "unifiedString"
+      }
+    }
+  ]
+}

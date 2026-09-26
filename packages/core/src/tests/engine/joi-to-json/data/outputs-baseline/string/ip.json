@@ -1,0 +1,17 @@
+{
+  "type": "string",
+  "rules": [
+    {
+      "name": "ip",
+      "args": {
+        "options": {
+          "cidr": "optional",
+          "version": [
+            "ipv4",
+            "ipv6"
+          ]
+        }
+      }
+    }
+  ]
+}

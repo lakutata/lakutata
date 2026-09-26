@@ -1,0 +1,17 @@
+{
+  "type": "number",
+  "rules": [
+    {
+      "name": "greater",
+      "args": {
+        "limit": 0
+      }
+    },
+    {
+      "name": "less",
+      "args": {
+        "limit": 200
+      }
+    }
+  ]
+}

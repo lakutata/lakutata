@@ -1,0 +1,93 @@
+{
+  "$ref": "#/definitions/person",
+  "definitions": {
+    "unit": {
+      "type": "object",
+      "properties": {
+        "quantity": {
+          "type": "number",
+          "exclusiveMinimum": true,
+          "minimum": 0,
+          "exclusiveMaximum": true,
+          "maximum": 200
+        },
+        "unit": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "unit"
+      ],
+      "additionalProperties": false
+    },
+    "unifiedString": {
+      "type": "string"
+    },
+    "person": {
+      "type": "object",
+      "properties": {
+        "genderSpecific": {
+          "type": [
+            "array",
+            "boolean",
+            "number",
+            "object",
+            "string",
+            "null"
+          ],
+          "oneOf": [
+            {
+              "type": "number",
+              "enum": [
+                0,
+                1,
+                2
+              ]
+            },
+            {
+              "$ref": "#/definitions/unifiedString"
+            }
+          ]
+        },
+        "height": {
+          "$ref": "#/definitions/unit"
+        },
+        "heightRank": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/unifiedString"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "level": {
+                  "type": "number"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "weight": {
+          "$ref": "#/definitions/unit"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/person"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

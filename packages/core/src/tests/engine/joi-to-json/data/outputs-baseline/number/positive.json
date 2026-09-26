@@ -1,0 +1,11 @@
+{
+  "type": "number",
+  "rules": [
+    {
+      "name": "sign",
+      "args": {
+        "sign": "positive"
+      }
+    }
+  ]
+}

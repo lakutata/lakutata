@@ -1,0 +1,16 @@
+{
+  "type": "string",
+  "rules": [
+    {
+      "name": "guid",
+      "args": {
+        "options": {
+          "version": [
+            "uuidv2",
+            "uuidv4"
+          ]
+        }
+      }
+    }
+  ]
+}

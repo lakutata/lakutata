@@ -1,0 +1,11 @@
+{
+  "type": "string",
+  "flags": {
+    "insensitive": true
+  },
+  "rules": [
+    {
+      "name": "hostname"
+    }
+  ]
+}

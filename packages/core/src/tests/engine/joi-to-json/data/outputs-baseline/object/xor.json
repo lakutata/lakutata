@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "dependencies": [
+    {
+      "rel": "xor",
+      "peers": [
+        "genderSpecific",
+        "maleSpecific"
+      ]
+    }
+  ],
+  "keys": {
+    "genderSpecific": {
+      "type": "string"
+    },
+    "maleSpecific": {
+      "type": "string"
+    }
+  }
+}

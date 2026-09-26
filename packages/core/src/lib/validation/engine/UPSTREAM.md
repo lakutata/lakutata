@@ -13,9 +13,11 @@ dependencies of lakutata. License texts: `THIRD_PARTY_NOTICES.md` in the package
 | `address/` | [hapijs/address](https://github.com/hapijs/address) | 5.1.1 | f23e252d821644b4422220a2482d6f832aaf49ed | domain, email, ip, uri, decode, errors |
 | `joi/` | [hapijs/joi](https://github.com/hapijs/joi) | 18.0.2 | 481e270e6c4ff8728d6fda248fd83f6ff70f7ed9 | the whole library (lib/, lib/types/) |
 | `joi-bigint/` | [softstackhq/joi-bigint](https://github.com/softstackhq/joi-bigint) | 1.1.1 | a3db89f8baf264f44b2c09f8baa2c37d00cca942 | the bigint extension (src/index.ts, src/types.ts) |
+| `joi-to-json/` | [kenspirit/joi-to-json](https://github.com/kenspirit/joi-to-json) | 5.0.0 | c2bfe68698397e9f2391b2e145bb38ae76d1b97a | the whole library (index.js, lib/parsers/) |
+| `joi-to-json/combinations.ts` | [jgallen23/combinations](https://github.com/jgallen23/combinations) (npm package) | 1.0.0 | (npm tarball) | index.js |
 
-Tests are ported from the upstream suites into `src/tests/engine` and run on `node:test` (joi-bigint's jest suite
-included); the assertion
+Tests are ported from the upstream suites into `src/tests/engine` and run on `node:test` (the jest suites of
+joi-bigint and joi-to-json included); the assertion
 library is ported from [hapijs/code](https://github.com/hapijs/code) 9.0.3 (425043e302090e541f569ee37d8dd4c0444a9cf4).
 
 ## Rules
@@ -83,3 +85,19 @@ library is ported from [hapijs/code](https://github.com/hapijs/code) 9.0.3 (4250
   parameter for compatibility with the upstream type.
 - Test adaptations: jest's `toHaveProperty('error')` is checked with `'error' in result`; `toBeTruthy()` on booleans
   with `to.be.true()`.
+
+### joi-to-json
+- lodash and combinations are no longer dependencies: `helpers.ts` implements the lodash 4.17.21 functions the parsers
+  use with lodash's semantics (merge follows lodash's algorithm: null replaces, undefined does not replace an existing
+  key, arrays merge by index, cycles are handled); `combinations.ts` is the combinations package.
+- Upstream bugs kept for now (behavior changes are separate commits):
+  - A `when()` switch which yields a single schema throws `ReferenceError: oneOf is not defined` (upstream merges an
+    undeclared variable).
+  - The `if-style` meta filter is always true (`typeof x !== undefined`), so converting a condition removes all the
+    metas of the description.
+  - The trailing slash of a pattern is always removed (upstream compares a boolean with -1).
+- Tests: the unit, baseline and parser suites are ported; their JSON data files are copied as is into
+  `src/tests/engine/joi-to-json/data` (read from the source tree, not published). jest's `toEqual()` (which ignores
+  undefined properties) is reproduced by the test support, `toBeTruthy()`/`toBeFalsy()` by boolean checks. The
+  generated schemas are still checked with ajv 8 (a test-only devDependency, like upstream).
+- Added (not in upstream): `array().unique()` conversion, and the lodash semantics of the helpers.

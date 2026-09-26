@@ -1,0 +1,11 @@
+{
+  "type": "string",
+  "rules": [
+    {
+      "name": "case",
+      "args": {
+        "direction": "lower"
+      }
+    }
+  ]
+}
