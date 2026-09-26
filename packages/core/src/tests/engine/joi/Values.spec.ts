@@ -8,7 +8,7 @@ import {describe, it} from 'node:test'
 import {expect} from '../support/Expect.js'
 import Joi from '../../../lib/validation/engine/joi/index.js'
 import * as Helper from './Helper.js'
-import Values from '../../../lib/validation/engine/joi/values.js'
+import { Values } from '../../../lib/validation/engine/joi/values.js'
 const internals = {}
 
 describe('Values', () => {

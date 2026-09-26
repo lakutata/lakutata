@@ -83,3 +83,20 @@ export interface ErrorDetail {
         [name: string]: unknown
     }
 }
+
+/**
+ * Validation-wide state shared by all the states of one validation (the parts read outside validator.ts)
+ */
+export interface MainstayLike {
+    shadow?: { get(path: PathKey[]): unknown } | null
+    tracer: { resolve(state: StateLike, ref: unknown, resolved: unknown): void }
+}
+
+/**
+ * State of the value being validated (the parts read outside state.ts)
+ */
+export interface StateLike {
+    ancestors: unknown[]
+    path: PathKey[]
+    mainstay?: MainstayLike | null
+}

@@ -11,10 +11,10 @@ import Extend from './extend.js';
 import Manifest from './manifest.js';
 import Messages from './messages.js';
 import Modify from './modify.js';
-import Ref from './ref.js';
+import * as Ref from './ref.js';
 import Trace from './trace.js';
 import Validator from './validator.js';
-import Values from './values.js';
+import { Values } from './values.js';
 const internals = {};
 
 

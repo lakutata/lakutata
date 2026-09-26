@@ -9,7 +9,7 @@ import Compile from './compile.js';
 import Errors from './errors.js';
 import Extend from './extend.js';
 import Manifest from './manifest.js';
-import Ref from './ref.js';
+import * as Ref from './ref.js';
 import Template from './template.js';
 import Trace from './trace.js';
 import Lazy_types_alternatives from './types/alternatives.js';

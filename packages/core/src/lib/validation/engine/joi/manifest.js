@@ -5,7 +5,7 @@
 import { assert, clone } from '../hoek/index.js';
 import * as Common from './common.js';
 import Messages from './messages.js';
-import Ref from './ref.js';
+import * as Ref from './ref.js';
 import Template from './template.js';
 import { Lazy } from './lazy.js';
 const $exports = {};
