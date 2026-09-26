@@ -2,33 +2,10 @@
   "type": "object",
   "properties": {
     "hash": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1
     },
-    "optional": {
-      "anyOf": [
-        {
-          "type": "array",
-          "items": {},
-          "nullable": true
-        },
-        {
-          "type": "boolean",
-          "nullable": true
-        },
-        {
-          "type": "number",
-          "nullable": true
-        },
-        {
-          "type": "object",
-          "nullable": true
-        },
-        {
-          "type": "string",
-          "nullable": true
-        }
-      ]
-    }
+    "optional": {}
   },
   "required": [
     "hash"

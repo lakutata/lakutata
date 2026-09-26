@@ -1,0 +1,33 @@
+{
+  "type": "object",
+  "properties": {},
+  "patternProperties": {
+    "s": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "number"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "^(?![\\s\\S]*?(?:s))[\\s\\S]*?(?:a)": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "additionalProperties": false
+}

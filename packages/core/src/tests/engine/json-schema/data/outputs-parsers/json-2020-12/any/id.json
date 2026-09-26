@@ -1,0 +1,15 @@
+{
+  "$ref": "#/$defs/person",
+  "$defs": {
+    "person": {
+      "type": [
+        "array",
+        "boolean",
+        "number",
+        "object",
+        "string",
+        "null"
+      ]
+    }
+  }
+}

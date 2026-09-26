@@ -2,10 +2,12 @@
   "type": "object",
   "properties": {
     "guid": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1
     },
     "uuid": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1
     }
   },
   "additionalProperties": false,

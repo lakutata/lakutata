@@ -1,5 +1,4 @@
 {
-  "type": "integer",
   "enum": [
     1
   ]

@@ -7,6 +7,6 @@
     "string",
     "null"
   ],
-  "title": "This is title",
-  "format": "custom_format"
+  "format": "custom_format",
+  "title": "This is title"
 }

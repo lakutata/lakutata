@@ -28,7 +28,7 @@ const BASE_SCHEMA = {
             anyOf: [{ required: ['b'] }, { required: ['c'] }]
         }
     },
-    properties: { a: { type: 'string' }, b: { type: 'number' }, c: { type: 'boolean' }, d: { type: 'number' } },
+    properties: { a: { type: 'string', minLength: 1 }, b: { type: 'number' }, c: { type: 'boolean' }, d: { type: 'number' } },
     additionalProperties: false
 }
 
@@ -47,7 +47,7 @@ it('without - no dependent properties exists when checking property is present',
     const jsonSchema = parse(schemaObj)
     const validate = ajv.compile(jsonSchema)
 
-    validate({ a: '' })
+    validate({ a: 'x' })
     expect(!(validate.errors)).to.be.true()
     toEqual(jsonSchema, BASE_SCHEMA)
 })
@@ -57,7 +57,7 @@ it('without - dependent property exists when checking property is present', () =
     const jsonSchema = parse(schemaObj)
     const validate = ajv.compile(jsonSchema)
 
-    validate({ a: '', b: 1 })
+    validate({ a: 'x', b: 1 })
     expect(!!(validate.errors)).to.be.true()
     toEqual(jsonSchema, BASE_SCHEMA)
 })

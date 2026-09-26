@@ -1,0 +1,11 @@
+{
+  "type": [
+    "array",
+    "boolean",
+    "number",
+    "object",
+    "string",
+    "null"
+  ],
+  "description": "Hero Nickname"
+}

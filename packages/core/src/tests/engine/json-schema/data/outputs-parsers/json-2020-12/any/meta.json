@@ -1,0 +1,15 @@
+{
+  "type": [
+    "array",
+    "boolean",
+    "number",
+    "object",
+    "string",
+    "null"
+  ],
+  "format": "custom_format",
+  "title": "This is title",
+  "deprecated": true,
+  "readOnly": false,
+  "writeOnly": true
+}

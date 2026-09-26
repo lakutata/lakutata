@@ -22,7 +22,7 @@ const SCHEMA_OBJ = engine.object({
 
 const BASE_SCHEMA = {
     type: 'object',
-    properties: { a: { type: 'string' }, b: { type: 'number' }, c: { type: 'boolean' }, d: { type: 'number' } },
+    properties: { a: { type: 'string', minLength: 1 }, b: { type: 'number' }, c: { type: 'boolean' }, d: { type: 'number' } },
     if: { propertyNames: { enum: ['a', 'b', 'c'] }, minProperties: 2 },
     then: false,
     else: {

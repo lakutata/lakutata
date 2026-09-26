@@ -1,0 +1,13 @@
+{
+  "type": [
+    "array",
+    "boolean",
+    "number",
+    "object",
+    "string",
+    "null"
+  ],
+  "examples": [
+    "鹄思乱想"
+  ]
+}

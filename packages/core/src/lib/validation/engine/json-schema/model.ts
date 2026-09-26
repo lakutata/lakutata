@@ -5,7 +5,7 @@
 /**
  * The output format of a conversion
  */
-export type Mode = 'json' | 'open-api' | 'open-api-3.1' | 'json-draft-2019-09' | 'json-draft-04'
+export type Mode = 'json' | 'open-api' | 'open-api-3.1' | 'json-2020-12' | 'json-draft-2019-09' | 'json-draft-04'
 
 /**
  * A JSON schema (or OpenAPI schema object) produced by a parser
@@ -25,7 +25,8 @@ export interface JsonSchema {
     if?: JsonSchema
     then?: JsonSchema | false
     else?: JsonSchema
-    items?: JsonSchema
+    items?: JsonSchema | JsonSchema[] | false
+    prefixItems?: JsonSchema[]
     contains?: JsonSchema
     enum?: unknown[]
     const?: unknown
@@ -120,6 +121,8 @@ export interface ParserSettings {
     includeSchemaDialect?: boolean
     //false: no logical operator parser
     logicalOpParser?: LogicalOpParserOpts | false
+    //The validation preferences the schemas are used with (lakutata's own: unknown keys, presence)
+    preferences?: Record<string, unknown>
 }
 
 export type ParserOptions = false | ParserSettings

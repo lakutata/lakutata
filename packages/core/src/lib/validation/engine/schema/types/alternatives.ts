@@ -144,7 +144,9 @@ const Alternatives: AlternativesSchema = Any.extend<AlternativesSchema>({
                         ((v.schema as Base).type === 'alternatives' && isAnyObj(v.schema as AlternativesSchema))
                 })
             }
-            return isAnyObj(schema) ? {value: matched.reduce((acc: unknown, v: unknown): unknown => merge(acc as object, v as object, {mergeArrays: false}))} : {value: matched[matched.length - 1]}
+            //Only objects are merged (upstream also merges the null an object schema allows, and throws)
+            const objects: boolean = matched.every((v: unknown): boolean => v !== null && typeof v === 'object')
+            return isAnyObj(schema) && objects ? {value: matched.reduce((acc: unknown, v: unknown): unknown => merge(acc as object, v as object, {mergeArrays: false}))} : {value: matched[matched.length - 1]}
         }
         //Match any
         const errors: Failure[] = []

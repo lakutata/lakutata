@@ -20,8 +20,8 @@ const SCHEMA_OBJ = engine.alternatives().try(
 
 const BASE_SCHEMA = {
     allOf: [
-        { type: 'number', minimum: 100, exclusiveMinimum: 100 },
-        { type: 'number', maximum: 200, exclusiveMaximum: 200 }
+        { type: 'number', exclusiveMinimum: 100 },
+        { type: 'number', exclusiveMaximum: 200 }
     ]
 }
 

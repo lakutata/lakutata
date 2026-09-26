@@ -7,12 +7,13 @@
         "quantity": {
           "type": "number",
           "exclusiveMinimum": true,
-          "minimum": 0,
           "exclusiveMaximum": true,
+          "minimum": 0,
           "maximum": 200
         },
         "unit": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -21,7 +22,8 @@
       "additionalProperties": false
     },
     "unifiedString": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1
     },
     "person": {
       "type": "object",
@@ -29,30 +31,6 @@
         "genderSpecific": {
           "anyOf": [
             {
-              "type": "array",
-              "items": {},
-              "nullable": true
-            },
-            {
-              "type": "boolean",
-              "nullable": true
-            },
-            {
-              "type": "number",
-              "nullable": true
-            },
-            {
-              "type": "object",
-              "nullable": true
-            },
-            {
-              "type": "string",
-              "nullable": true
-            }
-          ],
-          "oneOf": [
-            {
-              "type": "number",
               "enum": [
                 0,
                 1,
@@ -79,7 +57,8 @@
               "type": "object",
               "properties": {
                 "name": {
-                  "type": "string"
+                  "type": "string",
+                  "minLength": 1
                 },
                 "level": {
                   "type": "number"
@@ -88,7 +67,8 @@
               "additionalProperties": false
             },
             {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           ]
         },

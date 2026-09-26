@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "properties": {
+    "readOnlyTrue": {
+      "type": "string",
+      "minLength": 1
+    },
+    "readOnlyFalse": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": false,
+  "not": {
+    "required": [
+      "readOnlyTrue",
+      "readOnlyFalse"
+    ]
+  }
+}

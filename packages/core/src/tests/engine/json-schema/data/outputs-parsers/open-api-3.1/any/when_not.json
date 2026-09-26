@@ -7,12 +7,11 @@
     "string",
     "null"
   ],
-  "oneOf": [
+  "anyOf": [
     {
       "type": "boolean"
     },
     {
-      "type": "number",
       "enum": [
         0,
         1,

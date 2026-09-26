@@ -1,4 +1,7 @@
 {
   "type": "string",
-  "pattern": "^[a-z]+$"
+  "not": {
+    "pattern": "^[a-z]+$"
+  },
+  "minLength": 1
 }

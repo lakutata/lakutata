@@ -1,0 +1,19 @@
+{
+  "type": "object",
+  "properties": {
+    "birthTime": {
+      "type": "string",
+      "minLength": 1
+    },
+    "birthday": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": false,
+  "dependentRequired": {
+    "birthTime": [
+      "birthday"
+    ]
+  }
+}

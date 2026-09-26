@@ -1,0 +1,16 @@
+{
+  "type": [
+    "array",
+    "boolean",
+    "number",
+    "object",
+    "string",
+    "null"
+  ],
+  "$defs": {
+    "unifiedString": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

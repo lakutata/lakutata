@@ -18,7 +18,7 @@ const SCHEMA_OBJ = engine.alternatives().try(engine.number(), engine.string()).m
 const BASE_SCHEMA = {
     oneOf: [
         { type: 'number' },
-        { type: 'string' }
+        { type: 'string', minLength: 1 }
     ]
 }
 

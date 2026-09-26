@@ -2,7 +2,14 @@
   "$ref": "#/definitions/person",
   "definitions": {
     "person": {
-      "type": ["array", "boolean", "number", "object", "string", "null"]
+      "type": [
+        "array",
+        "boolean",
+        "number",
+        "object",
+        "string",
+        "null"
+      ]
     }
   }
 }

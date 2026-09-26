@@ -2,7 +2,7 @@
  * Derived from the upstream lib/parsers/json-draft-04.js (see UPSTREAM.md; MIT, see THIRD_PARTY_NOTICES.md)
  */
 import * as _ from '../helpers.js'
-import type {Definitions, SpecDependency, SchemaSpec, JsonSchema, ParserOptions, ParserSettings} from '../model.js'
+import type {SpecDependency, SchemaSpec, JsonSchema, ParserOptions, ParserSettings} from '../model.js'
 import {JsonSchemaParser} from './json.js'
 
 /**
@@ -46,25 +46,18 @@ export class JsonDraft04SchemaParser extends JsonSchemaParser {
         return '#/definitions'
     }
 
-    protected _setArrayFieldProperties(fieldSchema: JsonSchema, fieldDefn: SchemaSpec, definitions: Definitions, level: number): void {
-        super._setArrayFieldProperties(fieldSchema, fieldDefn, definitions, level)
-        delete fieldSchema.contains
+    protected _setContains(schema: JsonSchema, contains: JsonSchema, options: { min?: number, max?: number }): void {
+        //Draft 04 has no contains
+        this._inexact()
     }
 
-    protected _setConst(fieldSchema: JsonSchema, fieldDefn: SchemaSpec): void {
-        super._setConst(fieldSchema, fieldDefn)
-        if (typeof fieldSchema.const !== 'undefined') {
-            if (fieldSchema.const === null) {
-                fieldSchema.type = 'null'
-            } else if (Array.isArray(fieldSchema.const)) {
-                fieldSchema.type = 'array'
-            } else {
-                //boolean / number / string / object
-                fieldSchema.type = typeof fieldSchema.const
-                if (fieldSchema.type === 'number' && Number.isInteger(fieldSchema.const)) fieldSchema.type = 'integer'
-            }
-            fieldSchema.enum = [fieldSchema.const]
-            delete fieldSchema.const
-        }
+    protected _setPropertyNames(schema: JsonSchema, names: JsonSchema): void {
+        //Draft 04 has no propertyNames
+        this._inexact()
+    }
+
+    protected _getValuesSchema(values: unknown[]): JsonSchema {
+        //Draft 04 has no const (upstream also sets the type of a single value)
+        return {enum: values}
     }
 }

@@ -1,0 +1,22 @@
+{
+  "type": [
+    "array",
+    "boolean",
+    "number",
+    "object",
+    "string",
+    "null"
+  ],
+  "anyOf": [
+    {
+      "type": "boolean"
+    },
+    {
+      "enum": [
+        0,
+        1,
+        2
+      ]
+    }
+  ]
+}

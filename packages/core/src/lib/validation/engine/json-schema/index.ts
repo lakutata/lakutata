@@ -5,16 +5,18 @@ import {SchemaConversionException} from '../../exceptions/SchemaConversionExcept
 import type {Definitions, SchemaSpec, JsonSchema, Mode, ParserOptions} from './model.js'
 import {JsonSchemaParser} from './parsers/json.js'
 import {JsonDraft04SchemaParser} from './parsers/json-draft-04.js'
+import {JsonDraft202012SchemaParser} from './parsers/json-2020-12.js'
 import {JsonDraft201909SchemaParser} from './parsers/json-draft-2019-09.js'
 import {OpenApiSchemaParser} from './parsers/open-api.js'
 import {OpenApi31SchemaParser} from './parsers/open-api-3.1.js'
 
 export type * from './model.js'
-export {JsonSchemaParser, JsonDraft04SchemaParser, JsonDraft201909SchemaParser, OpenApiSchemaParser, OpenApi31SchemaParser}
+export {JsonSchemaParser, JsonDraft04SchemaParser, JsonDraft202012SchemaParser, JsonDraft201909SchemaParser, OpenApiSchemaParser, OpenApi31SchemaParser}
 
 type ParserConstructor = new (opts?: ParserOptions) => JsonSchemaParser
 
 const parsers: Record<string, ParserConstructor> = {
+    'json-2020-12': JsonDraft202012SchemaParser,
     'json-draft-2019-09': JsonDraft201909SchemaParser,
     'json-draft-04': JsonDraft04SchemaParser,
     json: JsonSchemaParser,

@@ -2,33 +2,13 @@
   "$ref": "#/components/schemas/person",
   "schemas": {
     "person": {
-      "anyOf": [
-        {
-          "items": {},
-          "type": "array",
-          "nullable": true
-        },
-        {
-          "type": "boolean",
-          "nullable": true
-        },
-        {
-          "type": "number",
-          "nullable": true
-        },
-        {
-          "type": "object",
-          "nullable": true
-        },
-        {
-          "type": "string",
-          "nullable": true
-        }
-      ],
-      "deprecated": true,
       "x-expandable": true,
       "x-lookup": "name",
-      "x-supported-lang": ["zh-CN", "en-US"],
+      "x-supported-lang": [
+        "zh-CN",
+        "en-US"
+      ],
+      "deprecated": true,
       "readOnly": false,
       "writeOnly": true
     }

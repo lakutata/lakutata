@@ -1,0 +1,38 @@
+{
+  "type": "object",
+  "properties": {
+    "genderSpecific": {
+      "type": "string",
+      "minLength": 1
+    },
+    "maleSpecific": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": false,
+  "if": {
+    "propertyNames": {
+      "enum": [
+        "genderSpecific",
+        "maleSpecific"
+      ]
+    },
+    "minProperties": 2
+  },
+  "then": false,
+  "else": {
+    "oneOf": [
+      {
+        "required": [
+          "genderSpecific"
+        ]
+      },
+      {
+        "required": [
+          "maleSpecific"
+        ]
+      }
+    ]
+  }
+}

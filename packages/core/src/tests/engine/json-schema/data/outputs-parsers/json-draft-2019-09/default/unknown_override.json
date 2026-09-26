@@ -5,16 +5,19 @@
       "type": "object",
       "properties": {
         "a": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "innerMost": {
           "type": "object",
           "properties": {
             "c": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "d": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           },
           "additionalProperties": true

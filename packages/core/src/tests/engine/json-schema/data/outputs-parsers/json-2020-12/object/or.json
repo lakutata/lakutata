@@ -1,0 +1,26 @@
+{
+  "type": "object",
+  "properties": {
+    "guid": {
+      "type": "string",
+      "minLength": 1
+    },
+    "uuid": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": false,
+  "anyOf": [
+    {
+      "required": [
+        "guid"
+      ]
+    },
+    {
+      "required": [
+        "uuid"
+      ]
+    }
+  ]
+}

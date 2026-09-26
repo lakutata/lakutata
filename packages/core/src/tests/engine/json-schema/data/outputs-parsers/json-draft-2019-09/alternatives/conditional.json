@@ -1,5 +1,5 @@
 {
-  "oneOf": [
+  "anyOf": [
     {
       "type": "string",
       "not": {
@@ -7,12 +7,12 @@
           "",
           null
         ]
-      }
+      },
+      "minLength": 1
     },
     {
       "type": "number",
-      "exclusiveMinimum": 0,
-      "minimum": 0
+      "exclusiveMinimum": 0
     }
   ]
 }

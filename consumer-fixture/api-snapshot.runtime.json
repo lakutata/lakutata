@@ -211,7 +211,8 @@
     "SchemaConversionException",
     "SchemaDefinitionException",
     "SchemaException",
-    "SchemaValidationException"
+    "SchemaValidationException",
+    "toJsonSchema"
   ],
   "lakutata/helper": [
     "ArrayToSet",

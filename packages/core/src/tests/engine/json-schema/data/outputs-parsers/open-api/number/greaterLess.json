@@ -1,7 +1,7 @@
 {
   "type": "number",
   "exclusiveMinimum": true,
-  "minimum": 0,
   "exclusiveMaximum": true,
+  "minimum": 0,
   "maximum": 200
 }

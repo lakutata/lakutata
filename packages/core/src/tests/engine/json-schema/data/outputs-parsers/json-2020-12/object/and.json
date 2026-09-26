@@ -1,0 +1,52 @@
+{
+  "type": "object",
+  "properties": {
+    "email": {
+      "type": "string",
+      "minLength": 1
+    },
+    "password": {
+      "type": "string",
+      "minLength": 1
+    },
+    "type": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": false,
+  "oneOf": [
+    {
+      "required": [
+        "email",
+        "password",
+        "type"
+      ]
+    },
+    {
+      "allOf": [
+        {
+          "not": {
+            "required": [
+              "email"
+            ]
+          }
+        },
+        {
+          "not": {
+            "required": [
+              "password"
+            ]
+          }
+        },
+        {
+          "not": {
+            "required": [
+              "type"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -2,37 +2,27 @@
   "anyOf": [
     {
       "type": "string",
-      "nullable": true
+      "minLength": 1
     },
     {
-      "type": "number",
-      "nullable": true
+      "type": "number"
     },
     {
       "type": "object",
       "properties": {
         "name": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "level": {
           "type": "number"
         }
       },
-      "additionalProperties": false,
-      "nullable": true
+      "additionalProperties": false
     },
     {
       "type": "string",
-      "nullable": true
-    },
-    {
-      "type": "array",
-      "items": {},
-      "nullable": true
-    },
-    {
-      "type": "boolean",
-      "nullable": true
+      "minLength": 1
     }
   ]
 }

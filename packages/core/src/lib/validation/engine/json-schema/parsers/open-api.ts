@@ -2,8 +2,21 @@
  * Derived from the upstream lib/parsers/open-api.js (see UPSTREAM.md; MIT, see THIRD_PARTY_NOTICES.md)
  */
 import * as _ from '../helpers.js'
-import type {Definitions, SchemaSpec, JsonSchema, ParserOptions, ParserSettings} from '../model.js'
+import type {Definitions, SchemaSpec, JsonSchema, ParserOptions, ParserSettings, SpecRule} from '../model.js'
 import {JsonDraft04SchemaParser} from './json-draft-04.js'
+
+/**
+ * The OpenAPI format of a number schema: the formats of the integer and floating point types (lakutata's own)
+ * @param rules
+ */
+export function openApiNumberFormat(rules: SpecRule[]): string | undefined {
+    const names: string[] = rules.map((rule: SpecRule): string => rule.name)
+    if (names.some((name: string): boolean => ['int8', 'uint8', 'int16', 'uint16', 'int32', 'port'].includes(name))) return 'int32'
+    if (names.some((name: string): boolean => ['uint32', 'int64', 'uint64'].includes(name))) return 'int64'
+    if (names.includes('float')) return 'float'
+    if (names.includes('double')) return 'double'
+    return undefined
+}
 
 /**
  * Converts schema descriptions into OpenAPI 3.0 schema objects
@@ -64,6 +77,38 @@ export class OpenApiSchemaParser extends JsonDraft04SchemaParser {
 
     protected _isIfThenElseSupported(): boolean {
         return false
+    }
+
+    protected _getNumberFormat(rules: SpecRule[]): string | undefined {
+        return openApiNumberFormat(rules)
+    }
+
+    protected _setAnyProperties(schema: JsonSchema): void {
+        //Any value: no type (upstream lists the types, which become anyOf branches merged into the anyOf of conditions)
+        if (schema.type === 'any') delete schema.type
+    }
+
+    protected _getBinaryFormat(): string | undefined {
+        return 'binary'
+    }
+
+    protected _setTuple(schema: JsonSchema, ordered: JsonSchema[], rest: JsonSchema | undefined): void {
+        //OpenAPI 3.0 has no ordered items: every item matches one of the item schemas
+        this._inexact()
+        schema.items = {anyOf: rest === undefined ? ordered : [...ordered, rest]}
+        if (rest === undefined && !(typeof schema.maxItems === 'number' && schema.maxItems <= ordered.length)) schema.maxItems = ordered.length
+    }
+
+    protected _setObjectProperties(schema: JsonSchema, spec: SchemaSpec, definitions: Definitions, level: number): void {
+        super._setObjectProperties(schema, spec, definitions, level)
+        if (!schema.patternProperties) return
+        //OpenAPI 3.0 has no patternProperties: the keys they match are additional properties (lakutata)
+        const patterns: JsonSchema[] = Object.values(schema.patternProperties)
+        delete schema.patternProperties
+        this._inexact()
+        if (schema.additionalProperties === true) return
+        const additional: JsonSchema[] = typeof schema.additionalProperties === 'object' ? [...patterns, schema.additionalProperties as JsonSchema] : patterns
+        schema.additionalProperties = additional.length === 1 ? additional[0] : {anyOf: additional}
     }
 
     protected _getLocalSchemaBasePath(): string {

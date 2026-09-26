@@ -2,10 +2,12 @@
   "type": "object",
   "properties": {
     "genderSpecific": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1
     },
     "maleSpecific": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1
     }
   },
   "additionalProperties": false,

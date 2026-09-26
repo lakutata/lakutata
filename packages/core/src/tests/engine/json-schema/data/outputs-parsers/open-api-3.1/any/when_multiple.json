@@ -2,7 +2,8 @@
   "type": "object",
   "properties": {
     "key": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1
     }
   },
   "additionalProperties": true,
@@ -24,7 +25,8 @@
           "type": "object",
           "properties": {
             "key1": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           },
           "required": [
@@ -51,7 +53,8 @@
           "type": "object",
           "properties": {
             "key2": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           },
           "required": [

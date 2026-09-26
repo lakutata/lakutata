@@ -9,7 +9,8 @@
   ],
   "$defs": {
     "unifiedString": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1
     }
   }
 }

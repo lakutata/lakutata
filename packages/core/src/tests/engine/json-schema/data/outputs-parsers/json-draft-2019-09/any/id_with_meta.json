@@ -2,7 +2,14 @@
   "$ref": "#/$defs/person",
   "$defs": {
     "person": {
-      "type": ["array", "boolean", "number", "object", "string", "null"],
+      "type": [
+        "array",
+        "boolean",
+        "number",
+        "object",
+        "string",
+        "null"
+      ],
       "deprecated": true,
       "readOnly": false,
       "writeOnly": true

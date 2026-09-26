@@ -23,7 +23,7 @@ const SCHEMA_OBJ = engine.object({
 const BASE_SCHEMA = {
     type: 'object',
     not: { required: ['a', 'b', 'c'] },
-    properties: { a: { type: 'string' }, b: { type: 'number' }, c: { type: 'boolean' }, d: { type: 'number' } },
+    properties: { a: { type: 'string', minLength: 1 }, b: { type: 'number' }, c: { type: 'boolean' }, d: { type: 'number' } },
     additionalProperties: false
 }
 
@@ -72,7 +72,7 @@ it('nand - some exists', () => {
     const jsonSchema = parse(schemaObj)
     const validate = ajv.compile(jsonSchema)
 
-    validate({ a: '' })
+    validate({ a: 'x' })
     expect(!(validate.errors)).to.be.true()
     toEqual(jsonSchema, BASE_SCHEMA)
 })
@@ -82,7 +82,7 @@ it('nand - some exists with unknown field allown', () => {
     const jsonSchema = parse(schemaObj)
     const validate = ajv.compile(jsonSchema)
 
-    validate({ a: '', e: 1 })
+    validate({ a: 'x', e: 1 })
     expect(!(validate.errors)).to.be.true()
     toEqual(jsonSchema, Object.assign({ }, BASE_SCHEMA, { additionalProperties: true }))
 })

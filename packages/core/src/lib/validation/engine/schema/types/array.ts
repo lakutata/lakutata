@@ -131,6 +131,7 @@ const ArrayType: ArraySchema = Any.extend<ArraySchema>({
                 Common.assertOptions(options, ['min', 'max'])
                 assert(options.min === undefined || Number.isSafeInteger(options.min) && options.min >= 0, 'min must be a non-negative integer')
                 assert(options.max === undefined || Number.isSafeInteger(options.max) && options.max >= 0, 'max must be a non-negative integer')
+                assert(options.max === undefined || (options.min ?? 1) <= options.max, 'min must not be greater than max')
                 const obj: ArraySchema = this.$_addRule({name: 'has', args: {schema, options}})
                 obj.$_mutateRegister(schema)
                 return obj

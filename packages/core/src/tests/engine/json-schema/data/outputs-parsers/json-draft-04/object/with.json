@@ -2,10 +2,12 @@
   "type": "object",
   "properties": {
     "birthTime": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1
     },
     "birthday": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1
     }
   },
   "additionalProperties": false,

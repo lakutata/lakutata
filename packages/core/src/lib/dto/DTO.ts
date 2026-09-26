@@ -14,7 +14,7 @@ import {ObjectSchema} from '../validation/interfaces/ObjectSchema.js'
 import {IsSymbol} from '../helpers/IsSymbol.js'
 import {As} from '../helpers/As.js'
 import {ObjectConstructor} from '../helpers/ObjectConstructor.js'
-import parse from '../validation/engine/json-schema/index.js'
+import {toJsonSchema, type ToJsonSchemaOptions} from '../validation/JsonSchema.js'
 import {JSONSchema} from '../../types/JSONSchema.js'
 
 /**
@@ -142,33 +142,21 @@ export class DTO extends DataValidator {
     }
 
     /**
-     * Convert current DTO to JSONSchema
+     * Convert current DTO to JSONSchema (default: JSON Schema 2020-12)
+     * @param version
+     * @param options
      */
-    public static toJsonSchema(version: 'draft-07' | 'draft-2019-09' | 'draft-04' = 'draft-07'): JSONSchema {
-        switch (version) {
-            case 'draft-04':
-                return As(parse)(this.Schema(), 'json-draft-04')
-            case 'draft-07':
-                return As(parse)(this.Schema(), 'json')
-            case 'draft-2019-09':
-                return As(parse)(this.Schema(), 'json-draft-2019-09')
-            default:
-                return As(parse)(this.Schema(), 'json')
-        }
+    public static toJsonSchema(version: 'draft-2020-12' | 'draft-2019-09' | 'draft-07' | 'draft-04' = 'draft-2020-12', options: Omit<ToJsonSchemaOptions, 'target'> = {}): JSONSchema {
+        return toJsonSchema(this, {...options, target: version})
     }
 
     /**
-     * Convert current DTO to OpenAPI JSONSchema
+     * Convert current DTO to OpenAPI JSONSchema (default: OpenAPI 3.1)
+     * @param version
+     * @param options
      */
-    public static toOpenAPIJsonSchema(version: '3.0' | '3.1' = '3.0'): JSONSchema {
-        switch (version) {
-            case '3.0':
-                return As(parse)(this.Schema(), 'open-api')
-            case '3.1':
-                return As(parse)(this.Schema(), 'open-api-3.1')
-            default:
-                return As(parse)(this.Schema(), 'open-api')
-        }
+    public static toOpenAPIJsonSchema(version: '3.0' | '3.1' = '3.1', options: Omit<ToJsonSchemaOptions, 'target' | 'dialect'> = {}): JSONSchema {
+        return toJsonSchema(this, {...options, target: version === '3.0' ? 'openapi-3.0' : 'openapi-3.1'})
     }
 
     /**

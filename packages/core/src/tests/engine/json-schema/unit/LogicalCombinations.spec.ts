@@ -41,25 +41,25 @@ const SCHEMA_OBJ = engine.object({
 const BASE_SCHEMA = {
     'type': 'object',
     'properties': {
-        'guid': { 'type': 'string' },
-        'uuid': { 'type': 'string' },
-        'email': { 'type': 'string' },
-        'password': { 'type': 'string' },
-        'type': { 'type': 'string' },
-        'birthTime': { 'type': 'string' },
-        'birthday': { 'type': 'string' },
-        'readOnlyTrue': { 'type': 'string' },
-        'readOnlyFalse': { 'type': 'string' },
-        'writeOnlyTrue': { 'type': 'string' },
-        'writeOnlyFalse': { 'type': 'string' },
-        'genderSpecific': { 'type': 'string' },
-        'maleSpecific': { 'type': 'string' },
-        'ip': { 'type': 'string' },
-        'hostname': { 'type': 'string' },
+        'guid': { 'type': 'string', 'minLength': 1 },
+        'uuid': { 'type': 'string', 'minLength': 1 },
+        'email': { 'type': 'string', 'minLength': 1 },
+        'password': { 'type': 'string', 'minLength': 1 },
+        'type': { 'type': 'string', 'minLength': 1 },
+        'birthTime': { 'type': 'string', 'minLength': 1 },
+        'birthday': { 'type': 'string', 'minLength': 1 },
+        'readOnlyTrue': { 'type': 'string', 'minLength': 1 },
+        'readOnlyFalse': { 'type': 'string', 'minLength': 1 },
+        'writeOnlyTrue': { 'type': 'string', 'minLength': 1 },
+        'writeOnlyFalse': { 'type': 'string', 'minLength': 1 },
+        'genderSpecific': { 'type': 'string', 'minLength': 1 },
+        'maleSpecific': { 'type': 'string', 'minLength': 1 },
+        'ip': { 'type': 'string', 'minLength': 1 },
+        'hostname': { 'type': 'string', 'minLength': 1 },
         'isAdditional': { 'type': 'boolean' }
     },
     'additionalProperties': false,
-    'dependentRequired': {
+    'dependencies': {
         'birthTime': [
             'birthday'
         ]
@@ -156,9 +156,9 @@ it('or - normal', () => {
     const validate = ajv.compile(jsonSchema)
 
     toEqual(jsonSchema, BASE_SCHEMA)
-    validate({ genderSpecific: '' })
+    validate({ genderSpecific: 'x' })
     expect(!!(validate.errors)).to.be.true()
-    validate({ uuid: '', genderSpecific: '' })
+    validate({ uuid: 'x', genderSpecific: 'x' })
     expect(!(validate.errors)).to.be.true()
 })
 
@@ -168,9 +168,9 @@ it('and - normal', () => {
     const validate = ajv.compile(jsonSchema)
 
     toEqual(jsonSchema, BASE_SCHEMA)
-    validate({ guid: '', genderSpecific: '', email: '', password: '' })
+    validate({ guid: 'x', genderSpecific: 'x', email: 'x', password: 'x' })
     expect(!!(validate.errors)).to.be.true()
-    validate({ guid: '', genderSpecific: '', email: '', password: '', type: '' })
+    validate({ guid: 'x', genderSpecific: 'x', email: 'x', password: 'x', type: 'x' })
     expect(!(validate.errors)).to.be.true()
 })
 
@@ -180,9 +180,9 @@ it('nand - normal', () => {
     const validate = ajv.compile(jsonSchema)
 
     toEqual(jsonSchema, BASE_SCHEMA)
-    validate({ guid: '', genderSpecific: '', readOnlyTrue: '', readOnlyFalse: '' })
+    validate({ guid: 'x', genderSpecific: 'x', readOnlyTrue: 'x', readOnlyFalse: 'x' })
     expect(!!(validate.errors)).to.be.true()
-    validate({ guid: '', genderSpecific: '', readOnlyTrue: '' })
+    validate({ guid: 'x', genderSpecific: 'x', readOnlyTrue: 'x' })
     expect(!(validate.errors)).to.be.true()
 })
 
@@ -192,9 +192,9 @@ it('xor - normal', () => {
     const validate = ajv.compile(jsonSchema)
 
     toEqual(jsonSchema, BASE_SCHEMA)
-    validate({ guid: '' })
+    validate({ guid: 'x' })
     expect(!!(validate.errors)).to.be.true()
-    validate({ guid: '', maleSpecific: '' })
+    validate({ guid: 'x', maleSpecific: 'x' })
     expect(!(validate.errors)).to.be.true()
 })
 
@@ -204,9 +204,9 @@ it('oxor - normal', () => {
     const validate = ajv.compile(jsonSchema)
 
     toEqual(jsonSchema, BASE_SCHEMA)
-    validate({ guid: '', maleSpecific: '', ip: '', hostname: '' })
+    validate({ guid: 'x', maleSpecific: 'x', ip: 'x', hostname: 'x' })
     expect(!!(validate.errors)).to.be.true()
-    validate({ guid: '', maleSpecific: '', ip: '' })
+    validate({ guid: 'x', maleSpecific: 'x', ip: 'x' })
     expect(!(validate.errors)).to.be.true()
 })
 
@@ -216,9 +216,9 @@ it('with - normal', () => {
     const validate = ajv.compile(jsonSchema)
 
     toEqual(jsonSchema, BASE_SCHEMA)
-    validate({ guid: '', maleSpecific: '', birthTime: '' })
+    validate({ guid: 'x', maleSpecific: 'x', birthTime: 'x' })
     expect(!!(validate.errors)).to.be.true()
-    validate({ guid: '', maleSpecific: '', birthTime: '', birthday: '' })
+    validate({ guid: 'x', maleSpecific: 'x', birthTime: 'x', birthday: 'x' })
     expect(!(validate.errors)).to.be.true()
 })
 
@@ -228,9 +228,9 @@ it('without - normal', () => {
     const validate = ajv.compile(jsonSchema)
 
     toEqual(jsonSchema, BASE_SCHEMA)
-    validate({ guid: '', maleSpecific: '', readOnlyTrue: '', writeOnlyTrue: '' })
+    validate({ guid: 'x', maleSpecific: 'x', readOnlyTrue: 'x', writeOnlyTrue: 'x' })
     expect(!!(validate.errors)).to.be.true()
-    validate({ guid: '', maleSpecific: '', readOnlyTrue: '' })
+    validate({ guid: 'x', maleSpecific: 'x', readOnlyTrue: 'x' })
     expect(!(validate.errors)).to.be.true()
 })
 
@@ -240,7 +240,7 @@ it('combination - normal', () => {
     const validate = ajv.compile(jsonSchema)
 
     toEqual(jsonSchema, BASE_SCHEMA)
-    validate({ guid: '', genderSpecific: '', hostname: '', email: '', password: '', type: '', birthTime: '', birthday: '', readOnlyTrue: '' })
+    validate({ guid: 'x', genderSpecific: 'x', hostname: 'x', email: 'x', password: 'x', type: 'x', birthTime: 'x', birthday: 'x', readOnlyTrue: 'x' })
     expect(!(validate.errors)).to.be.true()
 })
 
@@ -249,7 +249,7 @@ it('combination - disable all logical convertor', () => {
     const jsonSchema = parse(schemaObj, 'json', {}, { logicalOpParser: false })
     const validate = ajv.compile(jsonSchema)
 
-    toEqual(jsonSchema, omit(BASE_SCHEMA, ['allOf', 'dependentRequired']))
-    validate({ guid: '', genderSpecific: '', hostname: '', readOnlyFalse: '', email: '', password: '', type: '' })
+    toEqual(jsonSchema, omit(BASE_SCHEMA, ['allOf', 'dependencies']))
+    validate({ guid: 'x', genderSpecific: 'x', hostname: 'x', readOnlyFalse: 'x', email: 'x', password: 'x', type: 'x' })
     expect(!(validate.errors)).to.be.true()
 })

@@ -99,6 +99,9 @@ library is ported from [hapijs/code](https://github.com/hapijs/code) 9.0.3 (4250
     allowed and must match the schema; the flag holds the schema), `object().keyNames(schema)` (every key name must
     match), `array().has(schema, {min, max})` (the number of matching items; without options `has()` is unchanged)
     and `alternatives().match('none')` (the value must match none of the alternatives).
+- Fixes:
+  - `alternatives().match('all')` with object alternatives merges the matched values only when they are all objects
+    (upstream also merges the `null` of an object schema allowing it, and throws hoek's merge assertion).
 - Performance changes (same behavior, covered by `src/tests/engine/schema/Caching.spec.ts`):
   - The validation settings (defaults merged with the validate() options) are reused for options which cannot change:
     frozen, with primitive values only. Upstream merges them on every validation.
@@ -163,3 +166,45 @@ library is ported from [hapijs/code](https://github.com/hapijs/code) 9.0.3 (4250
   generated schemas are still checked with ajv 8 (a test-only devDependency, like upstream).
 - Added (not in upstream): `array().unique()` conversion, the single branch switch, and the lodash semantics of
   the helpers.
+- Conversion semantics (lakutata's own, after the parity above): a converted JSON Schema describes the values the
+  schema accepts without conversion, so it can validate data like the engine (with ajv, and the other validators).
+  What has no JSON Schema equivalent is dropped, so a JSON Schema never rejects a value the schema accepts; the parser
+  tracks what it drops (`isExact()`), and a negated subschema which is not exact (`not`, `oneOf`, an `if` condition)
+  is loosened instead of negated. `src/tests/engine/json-schema/Fidelity.spec.ts` verifies both properties with ajv on
+  random schemas and values of every version. Known limits: formats are named after the rules (their implementations
+  differ on edge cases), numbers beyond the safe integers are accepted, and `when()` conditions are converted as
+  conjunctions (the engine concatenates them to the schema).
+  - Values: `valid()` values are the only accepted values (upstream keeps the type and the rules, which do not apply to
+    them); case-insensitive values match a case-insensitive pattern; `allow()` values are accepted besides the values
+    of the schema (null by the type when the schema has one, the others with anyOf; upstream only handles null); the
+    values of objects are unwrapped; references drop the values.
+  - Strings are not empty (`minLength: 1`) unless the empty string is allowed or the minimum length is zero; the
+    length rules are merged (the tightest), `length()` converts, lengths in bytes are dropped; patterns with flags,
+    and patterns which are not valid Unicode regular expressions, are dropped; inverted patterns are negated;
+    `alphanum()`, `token()`, `hex()` and `trim()` convert to patterns; IP addresses with a CIDR prefix accept an
+    address pattern besides the formats; URIs with relative references are `uri-reference`.
+  - Numbers: the integer types, `port()`, `float()` and the signs convert to integer types and bounds (the tightest,
+    exclusive bounds without the redundant inclusive ones); references drop the bounds; OpenAPI names the formats
+    `int32`, `int64`, `float` and `double`; big integers are integers.
+  - Objects: an object without keys accepts every key (the engine does not check them; upstream applies the unknown
+    keys handling); the unknown keys are accepted by the validation preferences (the parser option `preferences`) or
+    the flag, stripped keys included, or match the schema of `unknown(schema)`; a pattern applies to the keys which
+    are not defined keys and which no previous pattern (without fallthrough) matched, like the engine (upstream also
+    adds the patterns as properties); patterns the JSON Schema cannot express accept every unknown key; the key count
+    rules convert (not the ones the stripped keys or the defaults change); `keyNames()` converts to propertyNames;
+    the dependencies of nested keys, and of stripped keys, are dropped. Draft 07 converts `with()` to `dependencies`
+    (upstream: `dependentRequired`, a 2019-09 keyword).
+  - Arrays: ordered items convert (items arrays and additionalItems, or prefixItems in 2020-12; OpenAPI 3.0 lists
+    them in anyOf); `has()` counts convert to minContains/maxContains (2019-09 and later); `single()` accepts a value
+    of the items.
+  - Conditions on references are anyOf of the branches (upstream: oneOf, which rejects a value of both branches);
+    `match('none')` converts to `not`.
+  - Types: function and symbol schemas match no JSON value; links outside the shared schemas and unknown types accept
+    every value; timestamps are numbers (upstream: integers); binary strings have no format in JSON Schema (OpenAPI:
+    `binary`); OpenAPI 3.0 converts `any()` to a schema without type (upstream lists the types, as anyOf branches).
+  - Defaults and examples are only kept when they are JSON values. The preferences of a schema are merged with the
+    inherited ones (upstream uses them instead).
+  - Added: JSON Schema 2020-12 (`json-2020-12`), the base of OpenAPI 3.1 (upstream: 2019-09).
+  - Tests: the expected parser outputs of the ported data are regenerated with these semantics (the 2020-12 parser has
+    the cases of the 2019-09 parser), the ported unit tests expect them (non-empty strings, exclusive bounds, anyOf
+    conditions, draft 07 dependencies, and non-empty strings in their data).

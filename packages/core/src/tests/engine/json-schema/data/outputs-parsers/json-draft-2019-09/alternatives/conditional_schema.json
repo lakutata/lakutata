@@ -4,7 +4,8 @@
       "anyOf": [
         {
           "not": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
@@ -14,19 +15,20 @@
               "",
               null
             ]
-          }
+          },
+          "minLength": 1
         }
       ]
     },
     {
       "anyOf": [
         {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         {
           "type": "number",
-          "exclusiveMinimum": 0,
-          "minimum": 0
+          "exclusiveMinimum": 0
         }
       ]
     }

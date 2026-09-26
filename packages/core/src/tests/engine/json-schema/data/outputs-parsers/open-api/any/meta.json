@@ -1,30 +1,5 @@
 {
-  "anyOf": [
-    {
-      "type": "array",
-      "items": {},
-      "nullable": true
-    },
-    {
-      "type": "boolean",
-      "nullable": true
-    },
-    {
-      "type": "number",
-      "nullable": true
-    },
-    {
-      "type": "object",
-      "nullable": true
-    },
-    {
-      "type": "string",
-      "nullable": true
-    }
-  ],
-  "deprecated": true,
-  "readOnly": false,
-  "writeOnly": true,
+  "format": "custom_format",
   "title": "This is title",
   "x-expandable": true,
   "x-lookup": "name",
@@ -32,5 +7,7 @@
     "zh-CN",
     "en-US"
   ],
-  "format": "custom_format"
+  "deprecated": true,
+  "readOnly": false,
+  "writeOnly": true
 }

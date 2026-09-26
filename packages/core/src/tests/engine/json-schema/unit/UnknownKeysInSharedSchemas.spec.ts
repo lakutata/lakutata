@@ -12,8 +12,8 @@ import {toEqual} from '../support.js'
 const SCHEMA_DEFINITION = engine.object().pattern(/a/, engine.array().items(engine.string())).id('patternObject')
 
 const expected = {
-    'additionalProperties': false,
-    'properties': { '/a/': { 'items': { 'type': 'string' }, 'type': 'array' } }, 'type': 'object'
+    'additionalProperties': { 'items': { 'type': 'string', 'minLength': 1 }, 'type': 'array' },
+    'properties': {}, 'type': 'object'
 }
 
 it('open-api - patternProperties should not in shared schemas', () => {

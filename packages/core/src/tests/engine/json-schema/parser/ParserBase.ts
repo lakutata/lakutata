@@ -6,13 +6,14 @@
 import {it} from 'node:test'
 import Ajv from 'ajv'
 import {expect} from '../../support/Expect.js'
-import {JsonDraft04SchemaParser, JsonDraft201909SchemaParser, JsonSchemaParser, OpenApiSchemaParser, OpenApi31SchemaParser} from '../../../../lib/validation/engine/json-schema/index.js'
+import {JsonDraft04SchemaParser, JsonDraft201909SchemaParser, JsonDraft202012SchemaParser, JsonSchemaParser, OpenApiSchemaParser, OpenApi31SchemaParser} from '../../../../lib/validation/engine/json-schema/index.js'
 import {hasData, listData, readJson, toEqual} from '../support.js'
 
 const parsers = {
     'json': JsonSchemaParser,
     'json-draft-04': JsonDraft04SchemaParser,
     'json-draft-2019-09': JsonDraft201909SchemaParser,
+    'json-2020-12': JsonDraft202012SchemaParser,
     'open-api': OpenApiSchemaParser,
     'open-api-3.1': OpenApi31SchemaParser
 }

@@ -26,23 +26,20 @@ const BASE_SCHEMA = {
     'type': 'object',
     'properties': {
         'gender': {
-            'type': 'string'
+            'type': 'string',
+            'minLength': 1
         },
         'commonHeightRange': {
-            'oneOf': [
+            'anyOf': [
                 {
                     'type': 'number',
                     'exclusiveMinimum': 140,
-                    'minimum': 140,
-                    'exclusiveMaximum': 180,
-                    'maximum': 180
+                    'exclusiveMaximum': 180
                 },
                 {
                     'type': 'number',
                     'exclusiveMinimum': 150,
-                    'minimum': 150,
-                    'exclusiveMaximum': 200,
-                    'maximum': 200
+                    'exclusiveMaximum': 200
                 }
             ]
         }

@@ -29,10 +29,12 @@ const BASE_SCHEMA = {
     'type': 'object',
     'properties': {
         'key': {
-            'type': 'string'
+            'type': 'string',
+            'minLength': 1
         },
         'another': {
-            'type': 'string'
+            'type': 'string',
+            'minLength': 1
         }
     },
     additionalProperties: true,
@@ -46,7 +48,7 @@ const BASE_SCHEMA = {
             then: {
                 type: 'object',
                 required: ['key1'],
-                properties: { key1: { type: 'string' } },
+                properties: { key1: { type: 'string', minLength: 1 } },
                 additionalProperties: true
             }
         },
@@ -59,7 +61,7 @@ const BASE_SCHEMA = {
             then: {
                 type: 'object',
                 required: ['key2'],
-                properties: { key2: { type: 'string' } },
+                properties: { key2: { type: 'string', minLength: 1 } },
                 additionalProperties: true
             }
         },
@@ -72,7 +74,7 @@ const BASE_SCHEMA = {
             then: {
                 type: 'object',
                 required: ['key3'],
-                properties: { key3: { type: 'string' } },
+                properties: { key3: { type: 'string', minLength: 1 } },
                 additionalProperties: true
             }
         }

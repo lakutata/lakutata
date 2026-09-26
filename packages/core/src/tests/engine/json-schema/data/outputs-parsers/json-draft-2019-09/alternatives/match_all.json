@@ -2,13 +2,11 @@
   "allOf": [
     {
       "type": "number",
-      "exclusiveMinimum": 0,
-      "minimum": 0
+      "exclusiveMinimum": 0
     },
     {
       "type": "number",
-      "exclusiveMaximum": 100,
-      "maximum": 100
+      "exclusiveMaximum": 100
     }
   ]
 }

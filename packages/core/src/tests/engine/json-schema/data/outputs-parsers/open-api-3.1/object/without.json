@@ -2,16 +2,20 @@
   "type": "object",
   "properties": {
     "readOnlyTrue": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1
     },
     "readOnlyFalse": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1
     },
     "writeOnlyTrue": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1
     },
     "writeOnlyFalse": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1
     }
   },
   "additionalProperties": false,
