@@ -106,6 +106,7 @@
     "NonceStr",
     "OPTIONS",
     "ObjectConstructor",
+    "ObjectDestroyedException",
     "ObjectHash",
     "ObjectParentConstructor",
     "ObjectParentConstructors",

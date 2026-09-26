@@ -140,9 +140,20 @@ export class Module extends Component {
      * Reload self
      */
     public async reload(): Promise<void> {
+        await this[__destroy]()
+        //Listen after the teardown, which removes all event listeners of the module
         await new Promise<void>((resolve, reject): void => {
-            this.once(MODULE_INITIALIZED, () => resolve())
-            super.reload().catch(reject)
+            const onInitialized = (): void => {
+                this.off(MODULE_INITIALIZE_ERROR, onInitializeError)
+                resolve()
+            }
+            const onInitializeError = (error: Error): void => {
+                this.off(MODULE_INITIALIZED, onInitialized)
+                reject(error)
+            }
+            this.once(MODULE_INITIALIZED, onInitialized)
+            this.once(MODULE_INITIALIZE_ERROR, onInitializeError)
+            this[__init]().catch(reject)
         })
     }
 

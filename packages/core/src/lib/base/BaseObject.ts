@@ -20,6 +20,7 @@ import {DevNull} from '../helpers/DevNull.js'
 import {DefineObjectType, GetObjectType, ObjectType} from './internal/ObjectType.js'
 import {Module} from '../core/Module.js'
 import {DependencyInjectionException} from '../../exceptions/di/DependencyInjectionException.js'
+import {ObjectDestroyedException} from '../../exceptions/ObjectDestroyedException.js'
 
 /**
  * Internal init function symbol
@@ -39,6 +40,11 @@ export const anonymousId: symbol = Symbol('anonymous')
 const OSP: symbol = Symbol('OBJECT.SYMBOL.PROPERTY')
 
 /**
+ * Object lifecycle state
+ */
+type ObjectState = 'constructing' | 'ready' | 'destroying' | 'destroyed'
+
+/**
  * Lakutata object base class
  */
 @Transient()
@@ -52,6 +58,18 @@ export class BaseObject extends AsyncConstructor {
     #uniqueId: string = randomUUID()
 
     #internalInitialized: boolean = false
+
+    #state: ObjectState = 'constructing'
+
+    #destroying: Promise<void> | undefined
+
+    /**
+     * Throw if current object has been destroyed
+     * @private
+     */
+    #assertNotDestroyed(): void {
+        if (this.#state === 'destroyed') throw new ObjectDestroyedException('Object "{className}" has been destroyed', {className: this.className})
+    }
 
     /**
      * Load configurable records
@@ -153,6 +171,11 @@ export class BaseObject extends AsyncConstructor {
      * @protected
      */
     protected async [__init](...hooks: (() => Promise<void>)[]): Promise<void> {
+        //Initializing a destroyed object again (reload) starts a new lifecycle
+        if (this.#state === 'destroyed') {
+            this.#destroying = undefined
+            this.#state = 'constructing'
+        }
         this.#container.registerContainerToItsParent()
         if (!this.#internalInitialized) {
             //Apply object injection
@@ -165,6 +188,7 @@ export class BaseObject extends AsyncConstructor {
         for (const hook of hooks) await hook()
         //Execute normal initializer
         await this.init()
+        this.#state = 'ready'
     }
 
     /**
@@ -173,12 +197,32 @@ export class BaseObject extends AsyncConstructor {
      * @protected
      */
     protected async [__destroy](...hooks: (() => Promise<void>)[]): Promise<void> {
-        //Destroy internal container
-        await this.#container.destroy()
-        //Execute hooks
-        for (const hook of hooks) await hook()
-        //Execute normal destroyer
-        await this.destroy()
+        //Every teardown path (dispose, owner/scope teardown, asyncDispose) runs the same teardown only once
+        if (this.#destroying) return await this.#destroying
+        this.#state = 'destroying'
+        this.#destroying = (async (): Promise<void> => {
+            const errors: unknown[] = []
+            //Destroy internal container, objects created by current object are destroyed first (errors are reported by container)
+            await this.#container.destroy()
+            //Execute hooks
+            for (const hook of hooks) {
+                try {
+                    await hook()
+                } catch (e) {
+                    errors.push(e)
+                }
+            }
+            //Execute normal destroyer
+            try {
+                await this.destroy()
+            } catch (e) {
+                errors.push(e)
+            }
+            this.#state = 'destroyed'
+            if (errors.length === 1) throw errors[0]
+            if (errors.length > 1) throw new AggregateError(errors, `Failed to destroy object "${this.className}"`)
+        })()
+        return await this.#destroying
     }
 
     /**
@@ -230,6 +274,7 @@ export class BaseObject extends AsyncConstructor {
      */
     protected async getObject<T extends BaseObject>(nameOrConstructor: string | symbol | IBaseObjectConstructor<T>, configurableRecords?: Record<string, any>): Promise<T>
     protected async getObject<T extends BaseObject>(inp: string | symbol | IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
+        this.#assertNotDestroyed()
         return await this.#container.get(inp, configurableRecords)
     }
 
@@ -240,6 +285,7 @@ export class BaseObject extends AsyncConstructor {
      * @protected
      */
     protected async buildObject<T extends BaseObject>(constructor: IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
+        this.#assertNotDestroyed()
         return this.#container.build(constructor, configurableRecords)
     }
 
@@ -258,7 +304,7 @@ export class BaseObject extends AsyncConstructor {
     protected getModule(): Module {
         let parent: BaseObject | undefined = this.getParent()
         while (parent && GetObjectType(As<IBaseObjectConstructor>(ObjectConstructor(parent))) !== ObjectType.Module) {
-            parent = this.getParent()
+            parent = parent.getParent()
         }
         return As<Module>(parent)
     }
@@ -357,9 +403,18 @@ export class BaseObject extends AsyncConstructor {
 
     /**
      * Dispose current object
-     * @description Call this function will invoke internal destroy method
+     * @description Destroy the objects created by current object, then current object itself.
+     * Calling it more than once destroys only once. Errors thrown by current object's destroyer are rethrown,
+     * errors of the objects it created are reported instead.
      */
     public async dispose(): Promise<void> {
-        await this.destroy()
+        await this[__destroy]()
+    }
+
+    /**
+     * Support explicit resource management: `await using object = ...`
+     */
+    public async [Symbol.asyncDispose](): Promise<void> {
+        await this.dispose()
     }
 }

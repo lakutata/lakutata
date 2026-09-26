@@ -74,6 +74,7 @@ export {InvalidActionPatternDepthException} from '../exceptions/InvalidActionPat
 export {InvalidAssistantFunctionTypeException} from '../exceptions/InvalidAssistantFunctionTypeException.js'
 export {InvalidObjectTypeException} from '../exceptions/InvalidObjectTypeException.js'
 export {MethodNotFoundException} from '../exceptions/MethodNotFoundException.js'
+export {ObjectDestroyedException} from '../exceptions/ObjectDestroyedException.js'
 
 /**
  * Types

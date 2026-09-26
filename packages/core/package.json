@@ -107,7 +107,7 @@
     "@keyv/postgres": "2.2.2",
     "@keyv/redis": "4.6.0",
     "@keyv/sqlite": "4.0.6",
-    "@types/node": "20.11.16",
+    "@types/node": "22.20.4",
     "@types/object-hash": "3.0.6",
     "cross-env": "10.1.0",
     "shx": "0.3.4",
@@ -115,7 +115,7 @@
     "typescript": "5.3.3"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "files": [
     "dist",

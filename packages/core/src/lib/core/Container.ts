@@ -344,8 +344,10 @@ export class Container {
 
     /**
      * Register current container to its parent subContainerSet
+     * @description Also makes a destroyed container usable again, its owner is being initialized again (reload)
      */
     public registerContainerToItsParent(): void {
+        this.#destroyed = false
         if (this.parent) this.parent.#subContainerSet.add(this)
     }
 
