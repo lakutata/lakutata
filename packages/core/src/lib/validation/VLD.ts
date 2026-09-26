@@ -1,5 +1,8 @@
-import Joi, {AddRuleOptions, Extension, Root} from 'joi'
-import {extendJoi} from '@softstack/joi-bigint'
+import Joi, {type Extension as EngineExtension, type Root} from './engine/joi/index.js'
+import type {Base} from './engine/joi/base.js'
+import type {Preferences} from './engine/joi/model.js'
+import type {ValidationResult as EngineValidationResult} from './engine/joi/validator.js'
+import {extendJoi} from './engine/joi-bigint/index.js'
 import {AnySchema} from './interfaces/AnySchema.js'
 import {ArraySchema} from './interfaces/ArraySchema.js'
 import {BooleanSchema} from './interfaces/BooleanSchema.js'
@@ -23,6 +26,16 @@ import {CustomValidator} from './types/CustomValidator.js'
 import {ReferenceOptions} from './interfaces/ReferenceOptions.js'
 import {Reference} from './interfaces/Reference.js'
 import {BigIntSchema} from './interfaces/BigIntSchema.js'
+import {ValidationError} from './interfaces/ValidationError.js'
+import {ValidationErrorItem} from './interfaces/ValidationErrorItem.js'
+import {CacheConfiguration} from './interfaces/CacheConfiguration.js'
+import {CompileOptions} from './interfaces/CompileOptions.js'
+import {Extension} from './interfaces/Extension.js'
+
+/**
+ * An extension created from the validation API
+ */
+export type ExtensionFactory = (vld: ValidateAPI) => Extension
 
 export const DefaultValidationOptions: ValidationOptions = {
     abortEarly: true,
@@ -32,9 +45,9 @@ export const DefaultValidationOptions: ValidationOptions = {
     convert: true
 }
 
-interface ValidateAPI {
+export interface ValidateAPI {
 
-    ValidationError: new (message: string, details: Joi.ValidationErrorItem[], original: any) => Joi.ValidationError;
+    ValidationError: new (message: string, details: ValidationErrorItem[], original: any) => ValidationError;
 
     /**
      * Generates a schema object that matches any data type.
@@ -165,12 +178,12 @@ interface ValidateAPI {
      */
     attempt<TSchema extends Schema>(value: any, schema: TSchema, message: string | Error, options?: ValidationOptions): TSchema extends Schema<infer Value> ? Value : never;
 
-    cache: Joi.CacheConfiguration;
+    cache: CacheConfiguration;
 
     /**
      * Converts literal schema definition to schema object (or returns the same back if already a schema object).
      */
-    compile(schema: SchemaLike, options?: Joi.CompileOptions): Schema;
+    compile(schema: SchemaLike, options?: CompileOptions): Schema;
 
     /**
      * Checks if the provided preferences are valid.
@@ -203,7 +216,7 @@ interface ValidateAPI {
     /**
      * Creates a new instance customized with the extension(s) you provide included.
      */
-    extend(...extensions: Array<Joi.Extension | Joi.ExtensionFactory>): any;
+    extend(...extensions: Array<Extension | ExtensionFactory>): any;
 
     /**
      * Creates a reference that when resolved, is used as an array of values to match against the rule.
@@ -213,7 +226,7 @@ interface ValidateAPI {
     /**
      * Checks whether or not the provided argument is an instance of ValidationError
      */
-    isError(error: any): error is Joi.ValidationError;
+    isError(error: any): error is ValidationError;
 
     /**
      * Checks whether or not the provided argument is an expression.
@@ -228,7 +241,7 @@ interface ValidateAPI {
     /**
      * Checks whether or not the provided argument is a schema.
      */
-    isSchema(schema: any, options?: Joi.CompileOptions): schema is AnySchema;
+    isSchema(schema: any, options?: CompileOptions): schema is AnySchema;
 
     /**
      * A special value used with `any.allow()`, `any.invalid()`, and `any.valid()` as the first value to reset any previously set values.
@@ -317,13 +330,13 @@ class ValidateMethods {
         let error: Error | undefined
         let value: T
         if (options.targetName) {
-            const result: Joi.ValidationResult = Joi.object({[options.targetName]: schema}).validate({[options.targetName]: data}, options)
+            const result: EngineValidationResult = Joi.object({[options.targetName]: schema}).validate({[options.targetName]: data}, As<Preferences>(options))
             error = result.error
-            value = result.value[options.targetName]
+            value = As<Record<symbol | string, T>>(result.value)[options.targetName]
         } else {
-            const result: Joi.ValidationResult = As<Joi.Schema>(schema).validate(data, options)
+            const result: EngineValidationResult = As<Base>(schema).validate(data, As<Preferences>(options))
             error = result.error
-            value = result.value
+            value = As<T>(result.value)
         }
         if (error) throw new InvalidValueException(error.message)
         return value
@@ -339,13 +352,13 @@ class ValidateMethods {
         options = {...DefaultValidationOptions, ...options}
         try {
             if (options.targetName) {
-                const result: Record<symbol | string, T> = await Joi.object({[options.targetName]: schema}).validateAsync({[options.targetName]: data}, {
+                const result: Record<symbol | string, T> = As<Record<symbol | string, T>>(await Joi.object({[options.targetName]: schema}).validateAsync({[options.targetName]: data}, As<Preferences>({
                     ...options,
                     artifacts: false
-                })
+                })))
                 return result[options.targetName]
             } else {
-                return await As<Joi.Schema>(schema).validateAsync(data, options)
+                return As<T>(await As<Base>(schema).validateAsync(data, As<Preferences>(options)))
             }
         } catch (e) {
             throw new InvalidValueException((e as Error).message)
@@ -354,7 +367,7 @@ class ValidateMethods {
 }
 
 export const VLD: ValidateAPI = As<any>(
-    extendJoi(Joi).extend((joi: Root): Extension => ({
+    extendJoi(Joi).extend((joi: Root): EngineExtension => ({
         type: 'number',
         base: joi.number(),
         messages: {
@@ -372,18 +385,18 @@ export const VLD: ValidateAPI = As<any>(
                 method(): any {
                     return this
                         .$_addRule('integer')
-                        .$_addRule(As<AddRuleOptions>({
+                        .$_addRule({
                             name: 'min',
                             method: 'compare',
                             args: {limit: -128},
                             operator: '>='
-                        }))
-                        .$_addRule(As<AddRuleOptions>({
+                        })
+                        .$_addRule({
                             name: 'max',
                             method: 'compare',
                             args: {limit: 127},
                             operator: '<='
-                        }))
+                        })
                         .$_addRule({name: 'int8'})
                 },
                 validate(value: any, helpers: any): any {
@@ -396,18 +409,18 @@ export const VLD: ValidateAPI = As<any>(
                 method(): any {
                     return this
                         .$_addRule('integer')
-                        .$_addRule(As<AddRuleOptions>({
+                        .$_addRule({
                             name: 'min',
                             method: 'compare',
                             args: {limit: 0},
                             operator: '>='
-                        }))
-                        .$_addRule(As<AddRuleOptions>({
+                        })
+                        .$_addRule({
                             name: 'max',
                             method: 'compare',
                             args: {limit: 255},
                             operator: '<='
-                        }))
+                        })
                         .$_addRule({name: 'uint8'})
                 },
                 validate(value: any, helpers: any): any {
@@ -420,18 +433,18 @@ export const VLD: ValidateAPI = As<any>(
                 method(): any {
                     return this
                         .$_addRule('integer')
-                        .$_addRule(As<AddRuleOptions>({
+                        .$_addRule({
                             name: 'min',
                             method: 'compare',
                             args: {limit: -32768},
                             operator: '>='
-                        }))
-                        .$_addRule(As<AddRuleOptions>({
+                        })
+                        .$_addRule({
                             name: 'max',
                             method: 'compare',
                             args: {limit: 32767},
                             operator: '<='
-                        }))
+                        })
                         .$_addRule({name: 'int16'})
                 },
                 validate(value: any, helpers: any): any {
@@ -444,18 +457,18 @@ export const VLD: ValidateAPI = As<any>(
                 method(): any {
                     return this
                         .$_addRule('integer')
-                        .$_addRule(As<AddRuleOptions>({
+                        .$_addRule({
                             name: 'min',
                             method: 'compare',
                             args: {limit: 0},
                             operator: '>='
-                        }))
-                        .$_addRule(As<AddRuleOptions>({
+                        })
+                        .$_addRule({
                             name: 'max',
                             method: 'compare',
                             args: {limit: 65535},
                             operator: '<='
-                        }))
+                        })
                         .$_addRule({name: 'uint16'})
                 },
                 validate(value: any, helpers: any): any {
@@ -468,18 +481,18 @@ export const VLD: ValidateAPI = As<any>(
                 method(): any {
                     return this
                         .$_addRule('integer')
-                        .$_addRule(As<AddRuleOptions>({
+                        .$_addRule({
                             name: 'min',
                             method: 'compare',
                             args: {limit: -2147483648},
                             operator: '>='
-                        }))
-                        .$_addRule(As<AddRuleOptions>({
+                        })
+                        .$_addRule({
                             name: 'max',
                             method: 'compare',
                             args: {limit: 2147483647},
                             operator: '<='
-                        }))
+                        })
                         .$_addRule({name: 'int32'})
                 },
                 validate(value: any, helpers: any): any {
@@ -492,18 +505,18 @@ export const VLD: ValidateAPI = As<any>(
                 method(): any {
                     return this
                         .$_addRule('integer')
-                        .$_addRule(As<AddRuleOptions>({
+                        .$_addRule({
                             name: 'min',
                             method: 'compare',
                             args: {limit: 0},
                             operator: '>='
-                        }))
-                        .$_addRule(As<AddRuleOptions>({
+                        })
+                        .$_addRule({
                             name: 'max',
                             method: 'compare',
                             args: {limit: 4294967295},
                             operator: '<='
-                        }))
+                        })
                         .$_addRule({name: 'uint32'})
                 },
                 validate(value: any, helpers: any): any {
@@ -516,18 +529,18 @@ export const VLD: ValidateAPI = As<any>(
                 method(): any {
                     return this
                         .$_addRule('integer')
-                        .$_addRule(As<AddRuleOptions>({
+                        .$_addRule({
                             name: 'min',
                             method: 'compare',
                             args: {limit: -9007199254740991},
                             operator: '>='
-                        }))
-                        .$_addRule(As<AddRuleOptions>({
+                        })
+                        .$_addRule({
                             name: 'max',
                             method: 'compare',
                             args: {limit: 9007199254740991},
                             operator: '<='
-                        }))
+                        })
                         .$_addRule({name: 'int64'})
                 },
                 validate(value: any, helpers: any): any {
@@ -544,18 +557,18 @@ export const VLD: ValidateAPI = As<any>(
                 method(): any {
                     return this
                         .$_addRule('integer')
-                        .$_addRule(As<AddRuleOptions>({
+                        .$_addRule({
                             name: 'min',
                             method: 'compare',
                             args: {limit: 0},
                             operator: '>='
-                        }))
-                        .$_addRule(As<AddRuleOptions>({
+                        })
+                        .$_addRule({
                             name: 'max',
                             method: 'compare',
                             args: {limit: 9007199254740991},
                             operator: '<='
-                        }))
+                        })
                         .$_addRule({name: 'uint64'})
                 },
                 validate(value: any, helpers: any): any {

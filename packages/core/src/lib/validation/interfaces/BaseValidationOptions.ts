@@ -1,6 +1,6 @@
-import Joi from 'joi'
 import {ErrorFormattingOptions} from './ErrorFormattingOptions.js'
 import {PresenceMode} from '../types/PresenceMode.js'
+import {Context} from './Context.js'
 
 export interface BaseValidationOptions {
     /**
@@ -30,7 +30,7 @@ export interface BaseValidationOptions {
     /**
      * provides an external data set to be used in references
      */
-    context?: Joi.Context;
+    context?: Context;
     /**
      * when true, attempts to cast values to the required types (e.g. a string to a number).
      *

@@ -98,7 +98,8 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 ## joi 18.0.2
 
-Used in `src/lib/validation/engine/joi`.
+Used in `src/lib/validation/engine/joi`; the validation type declarations in `src/lib/validation/interfaces` and
+`src/lib/validation/types` are adapted from its `lib/index.d.ts`.
 
 Copyright (c) 2012-2022, Project contributors.
 Copyright (c) 2012-2022, Sideway. Inc.

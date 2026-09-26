@@ -1,4 +1,3 @@
-import Joi from 'joi'
 import {Types} from '../types/Types.js'
 import {Schema} from '../types/Schema.js'
 import {SchemaFunction} from '../types/SchemaFunction.js'
@@ -12,6 +11,12 @@ import {Reference} from './Reference.js'
 import {LanguageMessages} from '../types/LanguageMessages.js'
 import {PresenceMode} from '../types/PresenceMode.js'
 import {ValidationOptions} from './ValidationOptions.js'
+import {BasicType} from '../types/BasicType.js'
+import {Cache} from './Cache.js'
+import {Context} from './Context.js'
+import {Description} from './Description.js'
+import {RuleOptions} from './RuleOptions.js'
+import {ValidationErrorFunction} from '../types/ValidationErrorFunction.js'
 
 export interface AnySchema<TSchema = any> {
     type?: Types | undefined;
@@ -36,7 +41,7 @@ export interface AnySchema<TSchema = any> {
     /**
      * By default, some Joi methods to function properly need to rely on the Joi instance they are attached to because
      * they use `this` internally.
-     * So `Joi.string()` works but if you extract the function from it and call `string()` it won't.
+     * So `VLD.string()` works but if you extract the function from it and call `string()` it won't.
      * `bind()` creates a new Joi instance where all the functions relying on `this` are bound to the Joi instance.
      */
     bind(): this;
@@ -45,7 +50,7 @@ export interface AnySchema<TSchema = any> {
      * Adds caching to the schema which will attempt to cache the validation results (success and failures) of incoming inputs.
      * If no cache is passed, a default cache is provisioned by using `cache.provision()` internally.
      */
-    cache(cache?: Joi.Cache): this;
+    cache(cache?: Cache): this;
 
     /**
      * Casts the validated value to the specified type.
@@ -78,12 +83,12 @@ export interface AnySchema<TSchema = any> {
      * Note that if value is an object, any changes to the object after `default()` is called will change the
      *  reference and any future assignment.
      */
-    default(value?: Joi.BasicType | Reference | ((parent: any, helpers: CustomHelpers) => Joi.BasicType | Reference)): this;
+    default(value?: BasicType | Reference | ((parent: any, helpers: CustomHelpers) => BasicType | Reference)): this;
 
     /**
      * Returns a plain object representing the schema's rules and properties
      */
-    describe(): Joi.Description;
+    describe(): Description;
 
     /**
      * Annotates the key
@@ -124,7 +129,7 @@ export interface AnySchema<TSchema = any> {
      * override, that error will be returned and the override will be ignored (unless the `abortEarly`
      * option has been set to `false`).
      */
-    error(err: Error | Joi.ValidationErrorFunction): this;
+    error(err: Error | ValidationErrorFunction): this;
 
     /**
      * Annotates the key with an example value, must be valid.
@@ -286,7 +291,7 @@ export interface AnySchema<TSchema = any> {
      * internal implementation (e.g. `valid()`).
      * In those cases, use the `any.messages()` method to override the error codes for the errors you want to customize.
      */
-    rule(options: Joi.RuleOptions): this;
+    rule(options: RuleOptions): this;
 
     /**
      * Registers a schema to be used by descendants of the current schema in named link references.
@@ -337,7 +342,7 @@ export interface AnySchema<TSchema = any> {
      * Warnings are reported separately from errors alongside the result value via the warning key (i.e. `{ value, warning }`).
      * Warning are always included when calling `any.validate()`.
      */
-    warning(code: string, context: Joi.Context): this;
+    warning(code: string, context: Context): this;
 
     /**
      * Converts the type into an alternatives type where the conditions are merged into the type definition where:
