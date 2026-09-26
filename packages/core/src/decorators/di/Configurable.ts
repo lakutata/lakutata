@@ -1,7 +1,7 @@
 import {PropertyDecorator} from '../../types/PropertyDecorator.js'
 import {BaseObject} from '../../lib/base/BaseObject.js'
 import {SetObjectConfigurableProperty} from '../../lib/base/internal/ObjectConfiguration.js'
-import {DTO} from '../../lib/core/DTO.js'
+import {DTO} from '../../lib/dto/DTO.js'
 import {Schema} from '../../lib/validation/types/Schema.js'
 
 /**

@@ -1,5 +1,5 @@
 import {Controller, type ControllerProperty} from '../../../components/entrypoint/lib/Controller.js'
-import {DTO} from '../../../lib/core/DTO.js'
+import {DTO} from '../../../lib/dto/DTO.js'
 import {MethodDecorator} from '../../../types/MethodDecorator.js'
 import {HTTPAction} from '../HTTPAction.js'
 import {ActionOptions} from '../../../components/entrypoint/lib/ActionOptions.js'

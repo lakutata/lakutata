@@ -1,4 +1,4 @@
-import {DTO} from '../lib/core/DTO.js'
+import {DTO} from '../lib/dto/DTO.js'
 import {BaseObject} from '../lib/base/BaseObject.js'
 import {Expect} from '../decorators/dto/Expect.js'
 import {IndexSignature} from '../decorators/dto/IndexSignature.js'

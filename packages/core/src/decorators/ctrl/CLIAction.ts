@@ -1,7 +1,7 @@
 import {Controller, type ControllerProperty} from '../../components/entrypoint/lib/Controller.js'
 import {MethodDecorator} from '../../types/MethodDecorator.js'
 import {RegisterCLIAction} from '../../components/entrypoint/lib/ControllerEntrypoint.js'
-import {DTO} from '../../lib/core/DTO.js'
+import {DTO} from '../../lib/dto/DTO.js'
 import {ActionOptions} from '../../components/entrypoint/lib/ActionOptions.js'
 import {GetActionDTOAndOptions} from '../../components/entrypoint/lib/GetActionDTOAndOptions.js'
 import {CLIContext} from '../../lib/context/CLIContext.js'

@@ -4,7 +4,7 @@ import {isClass} from '../../lib/ioc/Utils.js'
 import {BaseObject} from '../../lib/base/BaseObject.js'
 import {Container} from '../../lib/core/Container.js'
 import {IsSubclassOf} from '../../lib/helpers/internal/IsSubclassOf.js'
-import {DTO} from '../../lib/core/DTO.js'
+import {DTO} from '../../lib/dto/DTO.js'
 import {Controller} from '../../components/entrypoint/lib/Controller.js'
 import {ServiceContext} from '../../lib/context/ServiceContext.js'
 

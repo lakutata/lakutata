@@ -1,18 +1,18 @@
-import {DTO} from '../../core/DTO.js'
+import {DTO} from './DTO.js'
 import {
     DTO_CONSTRUCTOR,
     DTO_INDEX_SIGNATURE_SCHEMA,
     DTO_PROPERTY_SCHEMAS
-} from '../../../constants/DTOMetadataKey.js'
+} from '../../constants/DTOMetadataKey.js'
 import {DataValidator} from './DataValidator.js'
-import {Schema} from '../../validation/types/Schema.js'
-import {ObjectSchema} from '../../validation/interfaces/ObjectSchema.js'
-import {SchemaMap} from '../../validation/types/SchemaMap.js'
-import {ObjectConstructor} from '../../helpers/ObjectConstructor.js'
-import {ObjectParentConstructors} from '../../helpers/ObjectParentConstructors.js'
-import {ObjectPrototype} from '../../helpers/ObjectPrototype.js'
-import {IsSymbol} from '../../helpers/IsSymbol.js'
-import {As} from '../../helpers/As.js'
+import {Schema} from '../validation/types/Schema.js'
+import {ObjectSchema} from '../validation/interfaces/ObjectSchema.js'
+import {SchemaMap} from '../validation/types/SchemaMap.js'
+import {ObjectConstructor} from '../helpers/ObjectConstructor.js'
+import {ObjectParentConstructors} from '../helpers/ObjectParentConstructors.js'
+import {ObjectPrototype} from '../helpers/ObjectPrototype.js'
+import {IsSymbol} from '../helpers/IsSymbol.js'
+import {As} from '../helpers/As.js'
 
 export type ObjectPropertySchemaMap = Map<string, Schema>
 

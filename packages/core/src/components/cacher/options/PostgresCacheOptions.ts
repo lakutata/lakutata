@@ -1,4 +1,4 @@
-import {DTO} from '../../../lib/core/DTO.js'
+import {DTO} from '../../../lib/dto/DTO.js'
 import {Expect} from '../../../decorators/dto/Expect.js'
 
 export class PostgresCacheOptions extends DTO {

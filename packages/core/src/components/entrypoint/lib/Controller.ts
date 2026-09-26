@@ -5,7 +5,7 @@ import {CLIContext} from '../../../lib/context/CLIContext.js'
 import {HTTPContext} from '../../../lib/context/HTTPContext.js'
 import {ServiceContext} from '../../../lib/context/ServiceContext.js'
 import {Configurable} from '../../../decorators/di/Configurable.js'
-import {DTO} from '../../../lib/core/DTO.js'
+import {DTO} from '../../../lib/dto/DTO.js'
 
 /**
  * For action decorator

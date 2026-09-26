@@ -1,7 +1,7 @@
 import {Component} from '../lib/core/Component.js'
 import {Singleton} from '../decorators/di/Lifetime.js'
 import {Configurable} from '../decorators/di/Configurable.js'
-import {DTO} from '../lib/core/DTO.js'
+import {DTO} from '../lib/dto/DTO.js'
 import {pino, Logger as PinoLogger, DestinationStream, destination, multistream} from 'pino'
 import {GetBasicInfo} from '../lib/foundation/BasicInfo.js'
 import PinoPretty from 'pino-pretty'

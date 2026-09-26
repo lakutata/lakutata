@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs'
 import {Provider} from '../lib/core/Provider.js'
 import {Configurable} from '../decorators/di/Configurable.js'
-import {DTO} from '../lib/core/DTO.js'
+import {DTO} from '../lib/dto/DTO.js'
 
 export class PasswordHash extends Provider {
 

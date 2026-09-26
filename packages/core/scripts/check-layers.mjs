@@ -34,29 +34,31 @@ const LAYERS = [
     //L2 - engines
     ['lib/ioc', 2, 'ioc'],
     ['lib/validation', 2, 'validation'],
-    //L3 - object model
-    ['lib/base', 3, 'model'],
-    ['lib/core', 3, 'model'],
-    ['decorators/di', 3, 'model'],
-    ['decorators/dto', 3, 'model'],
-    ['decorators/asst', 3, 'model'],
-    ['options', 3, 'model'],
-    ['types', 3, 'model'],
-    ['interfaces', 3, 'model'],
-    ['dto', 3, 'model'],
-    //L4 - built-in components & providers (independent of each other)
-    ['components/entrypoint', 4, 'entrypoint'],
-    ['decorators/ctrl', 4, 'entrypoint'],
-    ['lib/context', 4, 'entrypoint'],
-    ['components/Logger.ts', 4, 'logger'],
-    ['components/cacher', 4, 'cacher'],
-    ['components/monitor', 4, 'monitor'],
-    ['providers/PasswordHash.ts', 4, 'passwordHash'],
-    //L5 - application
-    ['lib/app', 5, 'app'],
-    //L6 - public barrels & tests
-    ['exports', 6, 'exports'],
-    ['tests', 6, 'tests']
+    //L3 - DTO: schema based validation of objects, properties and methods
+    ['lib/dto', 3, 'dto'],
+    ['decorators/dto', 3, 'dto'],
+    //L4 - object model
+    ['lib/base', 4, 'model'],
+    ['lib/core', 4, 'model'],
+    ['decorators/di', 4, 'model'],
+    ['decorators/asst', 4, 'model'],
+    ['options', 4, 'model'],
+    ['types', 4, 'model'],
+    ['interfaces', 4, 'model'],
+    ['dto', 4, 'model'],
+    //L5 - built-in components & providers (independent of each other)
+    ['components/entrypoint', 5, 'entrypoint'],
+    ['decorators/ctrl', 5, 'entrypoint'],
+    ['lib/context', 5, 'entrypoint'],
+    ['components/Logger.ts', 5, 'logger'],
+    ['components/cacher', 5, 'cacher'],
+    ['components/monitor', 5, 'monitor'],
+    ['providers/PasswordHash.ts', 5, 'passwordHash'],
+    //L6 - application
+    ['lib/app', 6, 'app'],
+    //L7 - public barrels & tests
+    ['exports', 7, 'exports'],
+    ['tests', 7, 'tests']
 ]
 
 function classify(relFile) {

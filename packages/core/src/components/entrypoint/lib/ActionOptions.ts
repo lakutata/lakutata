@@ -1,4 +1,4 @@
-import {DTO} from '../../../lib/core/DTO.js'
+import {DTO} from '../../../lib/dto/DTO.js'
 import {Expect} from '../../../decorators/dto/Expect.js'
 import type {AccessControlRuleHandler} from './AccessControlRule.js'
 import {BaseContext} from '../../../lib/base/Context.js'

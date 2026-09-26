@@ -1,4 +1,4 @@
-import {DTO} from '../lib/core/DTO.js'
+import {DTO} from '../lib/dto/DTO.js'
 import {LoadObjectOptions} from './LoadObjectOptions.js'
 import {IndexSignature} from '../decorators/dto/IndexSignature.js'
 

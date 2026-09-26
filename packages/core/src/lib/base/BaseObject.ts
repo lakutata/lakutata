@@ -11,7 +11,7 @@ import {
     type ObjectInjectionMap
 } from './internal/ObjectInjection.js'
 import {SetObjectContainerGetter} from './internal/ObjectContainer.js'
-import {DTO} from '../core/DTO.js'
+import {DTO} from '../dto/DTO.js'
 import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
 import {IsSymbol} from '../helpers/IsSymbol.js'
 import {ObjectConstructor} from '../helpers/ObjectConstructor.js'

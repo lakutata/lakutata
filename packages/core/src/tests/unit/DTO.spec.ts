@@ -1,6 +1,6 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
-import {DTO} from '../../lib/core/DTO.js'
+import {DTO} from '../../lib/dto/DTO.js'
 import {Expect} from '../../decorators/dto/Expect.js'
 import {Accept} from '../../decorators/dto/Accept.js'
 import {Return} from '../../decorators/dto/Return.js'

@@ -1,6 +1,6 @@
-import {DTO} from '../../lib/core/DTO.js'
+import {DTO} from '../../lib/dto/DTO.js'
 import {PropertyDecorator} from '../../types/PropertyDecorator.js'
-import {SetObjectPropertySchema} from '../../lib/base/internal/ObjectSchemaValidation.js'
+import {SetObjectPropertySchema} from '../../lib/dto/ObjectSchemaValidation.js'
 import {Schema} from '../../lib/validation/types/Schema.js'
 
 /**

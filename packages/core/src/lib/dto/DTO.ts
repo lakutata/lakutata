@@ -1,10 +1,10 @@
-import {DataValidator} from '../base/internal/DataValidator.js'
+import {DataValidator} from './DataValidator.js'
 import {
     DefineObjectAsDTO, GetObjectIndexSignatureSchemaByConstructor,
     GetObjectIndexSignatureSchemaByPrototype,
     GetObjectSchemaByConstructor,
     GetObjectSchemaByPrototype
-} from '../base/internal/ObjectSchemaValidation.js'
+} from './ObjectSchemaValidation.js'
 import {InvalidValueException} from '../../exceptions/dto/InvalidValueException.js'
 import {ValidationOptions} from '../validation/interfaces/ValidationOptions.js'
 import {VLDMethods} from '../validation/VLD.js'

@@ -14,7 +14,7 @@ import {
     SetConfigurableRecords,
     SetConfigurableRecordsToInstance, SetIdToInstance
 } from '../base/internal/ConfigurableRecordsInjection.js'
-import {DTO} from './DTO.js'
+import {DTO} from '../dto/DTO.js'
 import {GetObjectIsAutoload} from '../base/internal/ObjectInjection.js'
 import {Accept} from '../../decorators/dto/Accept.js'
 import {listModules, type ModuleDescriptor} from '../ioc/ListModules.js'

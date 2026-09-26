@@ -1,6 +1,6 @@
-import {DTO} from '../../../lib/core/DTO.js'
+import {DTO} from '../../../lib/dto/DTO.js'
 import {ActionOptions} from './ActionOptions.js'
-import {FlexibleDTO} from '../../../lib/base/internal/FlexibleDTO.js'
+import {FlexibleDTO} from '../../../lib/dto/FlexibleDTO.js'
 
 /**
  * Get action's DTO and options from decorator

@@ -1,6 +1,6 @@
 import 'reflect-metadata'
 import MomentTimezone from 'moment-timezone'
-import {DTO} from './DTO.js'
+import {DTO} from '../dto/DTO.js'
 
 export namespace UnitOfTime {
     export type Base = (
