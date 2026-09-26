@@ -11,6 +11,7 @@ import type {PathKey, Preferences, SchemaInternals, SchemaRule, ValidationHelper
 import type {Shadow} from './state.js'
 import {State, type StateSchemaEntry} from './state.js'
 import type {DebugEvent, Store} from './trace.js'
+import {compiledFor, FALLBACK, INVALID, sameResult} from './fastpath.js'
 import type {ValuesMatch} from './values.js'
 
 /**
@@ -139,7 +140,10 @@ export function entry(value: unknown, schema: SchemaInternals, prefs?: Preferenc
         assert(prefs.artifacts === undefined, 'Cannot override artifacts preference in synchronous validation')
         settings = entrySettings(prefs)
     }
+    const fast: unknown = fastPath(value, schema, settings)
+    if (fast !== FALLBACK && fast !== INVALID && fastPathMode === 'on') return {value: fast}
     const result: EntryResult = validateEntry(value, schema, settings)
+    if (fastPathMode === 'verify') verifyFastPath(value, fast, result)
     assert(!result.mainstay.externals.length, 'Schema with external rules must use validateAsync()')
     const outcome: ValidationResult = {value: result.value}
     if (result.error) outcome.error = result.error
@@ -158,7 +162,13 @@ export function entry(value: unknown, schema: SchemaInternals, prefs?: Preferenc
 export async function entryAsync(value: unknown, schema: SchemaInternals, prefs?: Preferences): Promise<unknown> {
     let settings: Preferences = Common.defaults
     if (prefs) settings = entrySettings(prefs)
+    const fast: unknown = fastPath(value, schema, settings)
+    if (fast !== FALLBACK && fast !== INVALID && fastPathMode === 'on') {
+        if (!settings.warnings && !settings.debug && !settings.artifacts) return fast
+        return {value: fast}
+    }
     const result: EntryResult = validateEntry(value, schema, settings)
+    if (fastPathMode === 'verify') verifyFastPath(value, fast, result)
     const mainstay: Mainstay = result.mainstay
     if (result.error) {
         if (mainstay.debug) (result.error as DebuggedError).debug = mainstay.debug
@@ -582,6 +592,56 @@ function prefsOf(schema: SchemaInternals, prefs: Preferences): Preferences {
 const settingsByOptions: WeakMap<Preferences, Preferences> = new WeakMap()
 
 /**
+ * The validation settings which never change (the defaults, and the settings of options which cannot change): the fast
+ * path compiles the schemas for them
+ */
+const stableSettings: WeakSet<Preferences> = new WeakSet([Common.defaults])
+
+/**
+ * The mode of the validation fast path (fastpath.ts): 'on' (the default), 'off' (interpreter only), or 'verify' (both
+ * run, for any settings, and a different result throws: for tests)
+ */
+export type FastPathMode = 'on' | 'off' | 'verify'
+
+let fastPathMode: FastPathMode = 'on'
+
+/**
+ * Set the mode of the validation fast path
+ * @param mode
+ */
+export function setFastPathMode(mode: FastPathMode): void {
+    fastPathMode = mode
+}
+
+/**
+ * The value validated by the fast path, or FALLBACK (the interpreter must validate it)
+ * @param value
+ * @param schema
+ * @param settings
+ */
+function fastPath(value: unknown, schema: SchemaInternals, settings: Preferences): unknown {
+    if (fastPathMode === 'off' || schema.$_root._tracer) return FALLBACK
+    if (fastPathMode === 'on' && !stableSettings.has(settings)) return FALLBACK
+    const compiled: ((value: unknown) => unknown) | null = compiledFor(schema, settings)
+    return compiled ? compiled(value) : FALLBACK
+}
+
+/**
+ * Check (verify mode) that the interpreter validated the value like the fast path
+ * @param value
+ * @param fast
+ * @param result
+ */
+function verifyFastPath(value: unknown, fast: unknown, result: EntryResult): void {
+    if (fast === FALLBACK) return
+    if (fast === INVALID) {
+        if (!result.error) throw new Error('Validation fast path mismatch: invalid for the fast path, valid for the interpreter')
+        return
+    }
+    if (result.error || !sameResult(fast, result.value, value)) throw new Error(`Validation fast path mismatch: ${result.error ? result.error.message : 'different value'}`)
+}
+
+/**
  * Whether options cannot change: frozen, without symbol keys, with primitive values only
  * @param prefs
  */
@@ -602,7 +662,10 @@ function entrySettings(prefs: Preferences): Preferences {
     const cached: Preferences | undefined = settingsByOptions.get(prefs)
     if (cached) return cached
     const settings: Preferences = Common.preferences(Common.defaults, prefs)
-    if (isImmutableOptions(prefs)) settingsByOptions.set(prefs, settings)
+    if (isImmutableOptions(prefs)) {
+        settingsByOptions.set(prefs, settings)
+        stableSettings.add(settings)
+    }
     return settings
 }
 

@@ -8,6 +8,7 @@
   "scripts": {
     "build": "npm run compile -w @lakutata/core && npm run compile -w packages/lakutata",
     "test:unit": "npm run test:unit -w @lakutata/core",
+    "test:fastpath": "npm run test:fastpath -w @lakutata/core",
     "test:layers": "npm run test:layers -w @lakutata/core",
     "test:engine-types": "npm run test:engine-types -w @lakutata/core",
     "test:dispatch": "npm run compile -w @lakutata/core && npm run test:dispatch -w packages/lakutata",

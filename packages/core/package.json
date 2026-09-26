@@ -83,6 +83,7 @@
     "rebuild": "npm run clean && npm run build:js",
     "compile": "npm run rebuild",
     "test:unit": "npm run compile && node --test \"dist/esm/tests/unit/*.spec.js\" \"dist/esm/tests/engine/**/*.spec.js\"",
+    "test:fastpath": "npm run compile && node --import ./dist/esm/tests/engine/support/FastPathVerify.js --test \"dist/esm/tests/unit/*.spec.js\" \"dist/esm/tests/engine/**/*.spec.js\"",
     "test:layers": "node scripts/check-layers.mjs",
     "test:engine-types": "node scripts/check-engine-types.mjs"
   },

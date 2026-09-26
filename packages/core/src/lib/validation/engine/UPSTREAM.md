@@ -96,6 +96,14 @@ library is ported from [hapijs/code](https://github.com/hapijs/code) 9.0.3 (4250
   - The preferences of a schema merged with its parent preferences are cached by parent preferences (upstream caches
     only the merge with the default preferences), and `$_match()` reuses its abort-early copy of the preferences.
     Merged preferences are never mutated, so they can be shared.
+  - The fast path (`schema/fastpath.ts`, lakutata's own): a schema made of common constructs (any, string, number,
+    boolean, date; objects with keys and patterns; arrays with one item schema and ordered items; try alternatives;
+    custom rules marked as pure) is compiled, per validation settings, into closures which validate without the
+    per node states, helpers and results of the interpreter. It only produces successful results: on an error it
+    returns INVALID and on anything it does not decide FALLBACK, and the interpreter then validates the value. The type,
+    coercion and rule functions of the types are called as they are. `npm run test:fastpath` runs the ported suites in
+    its verify mode (both validate, a different result fails), and `src/tests/engine/schema/FastPath.spec.ts` fuzzes it
+    against the interpreter. Known difference: when it falls back, getters of the value are read once more.
 - Test adaptations (the rest of the 27 upstream test files is kept line by line, with the engine's names):
   - The `isJoi` checks are `isError()` checks.
   - The names of validation errors are `SchemaValidationException` (upstream: `ValidationError`).

@@ -56,6 +56,7 @@ import {ReferenceOptions} from '../validation/interfaces/ReferenceOptions.js'
 import {Reference} from '../validation/interfaces/Reference.js'
 import {LinkSchema} from '../validation/interfaces/LinkSchema.js'
 import {BigIntSchema} from '../validation/interfaces/BigIntSchema.js'
+import {pure} from '../validation/engine/schema/fastpath.js'
 
 export class DataValidator {
 
@@ -146,10 +147,10 @@ export class DataValidator {
      * @constructor
      */
     public static AsyncFunction<TSchema = Function>(): FunctionSchema<TSchema> {
-        return this.Function<TSchema>().custom((value: TSchema, helpers) => {
+        return this.Function<TSchema>().custom(pure((value: TSchema, helpers) => {
             if (isAsyncFunction(value)) return value
             return helpers.error('asyncFunc.invalid')
-        }, 'Async Function Validation').error((errors: ErrorReport[]) => {
+        }), 'Async Function Validation').error((errors: ErrorReport[]) => {
             for (const error of errors) {
                 if (error.code === 'asyncFunc.invalid') {
                     error.message = 'Expected AsyncFunction but got Function'
@@ -167,11 +168,11 @@ export class DataValidator {
      */
     public static Class<TSchema = Function>(inheritsFrom?: TSchema | (() => TSchema)): FunctionSchema<TSchema> {
         if (!inheritsFrom) return VLD.func<TSchema>().class()
-        return this.Function<TSchema>().class().custom((value: TSchema, helpers: CustomHelpers) => {
+        return this.Function<TSchema>().class().custom(pure((value: TSchema, helpers: CustomHelpers) => {
             if (!As<() => TSchema>(inheritsFrom).prototype) inheritsFrom = As<() => TSchema>(inheritsFrom)()
             if (value instanceof As(inheritsFrom) || value['prototype'] instanceof As(inheritsFrom)) return value
             return helpers.error('any.invalid')
-        }, 'Class Validation')
+        }), 'Class Validation')
     }
 
     /**
@@ -180,10 +181,10 @@ export class DataValidator {
      * @constructor
      */
     public static InstanceOf<TSchema = Function>(constructor: TSchema): AnySchema<TSchema> {
-        return this.Any<TSchema>().custom((value: TSchema, helpers: CustomHelpers) => {
+        return this.Any<TSchema>().custom(pure((value: TSchema, helpers: CustomHelpers) => {
             if (value instanceof As(constructor) || value['prototype'] instanceof As(constructor)) return value
             return helpers.error('any.invalid')
-        }, 'Class Instance Validation')
+        }), 'Class Instance Validation')
     }
 
     /**
@@ -191,11 +192,11 @@ export class DataValidator {
      * @constructor
      */
     public static Glob<TSchema = string>(): StringSchema<TSchema> {
-        return this.String<TSchema>().custom((value: TSchema, helpers: CustomHelpers) => {
+        return this.String<TSchema>().custom(pure((value: TSchema, helpers: CustomHelpers) => {
             if (typeof value === 'string' && IsGlobString(value)) return value
             return helpers.error('any.invalid')
 
-        }, 'Glob Validation')
+        }), 'Glob Validation')
     }
 
     /**
@@ -208,7 +209,7 @@ export class DataValidator {
         allowBlankDay?: boolean
         allowSevenAsSunday?: boolean
     }): StringSchema<TSchema> {
-        return this.String<TSchema>().custom((value: TSchema, helpers: CustomHelpers) => {
+        return this.String<TSchema>().custom(pure((value: TSchema, helpers: CustomHelpers) => {
             options = options ? options : {}
             options.alias = options.alias !== undefined ? options.alias : false
             options.seconds = options.seconds !== undefined ? options.seconds : true
@@ -216,7 +217,7 @@ export class DataValidator {
             options.allowSevenAsSunday = options.allowSevenAsSunday !== undefined ? options.allowSevenAsSunday : true
             if (typeof value === 'string' && isValidCron(value, options)) return value
             return helpers.error('any.invalid')
-        }, 'Cron Validation')
+        }), 'Cron Validation')
     }
 
     /**
@@ -224,10 +225,10 @@ export class DataValidator {
      * @constructor
      */
     public static HttpDocument<TSchema = string>(): StringSchema<TSchema> {
-        return this.String<TSchema>().custom((value: TSchema, helpers: CustomHelpers) => {
+        return this.String<TSchema>().custom(pure((value: TSchema, helpers: CustomHelpers) => {
             if (typeof value === 'string' && (IsHtml(value) || IsXML(value))) return value
             return helpers.error('any.invalid')
-        }, 'HttpDocument Validation')
+        }), 'HttpDocument Validation')
     }
 
     /**
