@@ -6,7 +6,7 @@
 // @ts-nocheck
 import {describe, it} from 'node:test'
 import {expect} from '../support/Expect.js'
-import Joi from '../../../lib/validation/engine/schema/index.js'
+import Engine from '../../../lib/validation/engine/schema/index.js'
 import * as Helper from './Helper.js'
 const internals = {}
 
@@ -14,15 +14,15 @@ describe('errors', () => {
 
     it('has an isJoi property', () => {
 
-        const err = Joi.valid('foo').validate('bar').error
+        const err = Engine.valid('foo').validate('bar').error
         expect(err).to.be.an.error()
         expect(err.isJoi).to.be.true()
-        expect(Joi.isError(err)).to.be.true()
+        expect(Engine.isError(err)).to.be.true()
     })
 
     it('has no stack by default', () => {
 
-        const err = Joi.valid('foo').validate('bar').error
+        const err = Engine.valid('foo').validate('bar').error
         expect(err).to.be.an.error()
         expect(err.isJoi).to.be.true()
         expect(err.stack).to.not.contain('\n')
@@ -30,7 +30,7 @@ describe('errors', () => {
 
     it('has a stack when enabled', () => {
 
-        const err = Joi.valid('foo').validate('bar', { errors: { stack: true } }).error
+        const err = Engine.valid('foo').validate('bar', { errors: { stack: true } }).error
         expect(err).to.be.an.error()
         expect(err.isJoi).to.be.true()
         expect(err.stack).to.contain('    at ')
@@ -40,16 +40,16 @@ describe('errors', () => {
 
     it('supports custom errors when validating types', () => {
 
-        const schema = Joi.object({
-            email: Joi.string().email(),
-            date: Joi.date(),
-            alphanum: Joi.string().alphanum(),
-            min: Joi.string().min(3),
-            max: Joi.string().max(3),
-            required: Joi.string().required(),
-            xor: Joi.string(),
-            renamed: Joi.string().valid('456'),
-            notEmpty: Joi.string().required()
+        const schema = Engine.object({
+            email: Engine.string().email(),
+            date: Engine.date(),
+            alphanum: Engine.string().alphanum(),
+            min: Engine.string().min(3),
+            max: Engine.string().max(3),
+            required: Engine.string().required(),
+            xor: Engine.string(),
+            renamed: Engine.string().valid('456'),
+            notEmpty: Engine.string().required()
         })
             .rename('renamed', 'required')
             .without('required', 'xor')
@@ -172,7 +172,7 @@ describe('errors', () => {
 
     it('supports language preference', () => {
 
-        const schema = Joi.number().min(10)
+        const schema = Engine.number().min(10)
 
         const messages = {
             english: {
@@ -181,7 +181,7 @@ describe('errors', () => {
             },
             latin: {
                 root: 'valorem',
-                'number.min': Joi.x('{@label} angustus', { prefix: { local: '@' } })
+                'number.min': Engine.x('{@label} angustus', { prefix: { local: '@' } })
             },
             empty: {}
         }
@@ -203,7 +203,7 @@ describe('errors', () => {
             'number.min': '{#label} angustus'
         }
 
-        const schema = Joi.number().min(10).prefs({ messages })
+        const schema = Engine.number().min(10).prefs({ messages })
 
         expect(schema.validate(1, { errors: { language: 'english' } }).error).to.be.an.error('"value" too small')
         expect(schema.validate(1, { errors: { language: 'latin' } }).error).to.be.an.error('"valorem" angustus')
@@ -218,7 +218,7 @@ describe('errors', () => {
                 'number.min': '{#label} too small'
             },
             latin: {
-                'number.min': Joi.x('{@label} angustus', { prefix: { local: '@' } })
+                'number.min': Engine.x('{@label} angustus', { prefix: { local: '@' } })
             },
             empty: {}
         }
@@ -232,7 +232,7 @@ describe('errors', () => {
             }
         }
 
-        const schema = Joi.number().min(10).prefs({ messages: code }).prefs({ messages: root })
+        const schema = Engine.number().min(10).prefs({ messages: code }).prefs({ messages: root })
 
         expect(schema.validate(1, { errors: { language: 'english' } }).error).to.be.an.error('"value" too small')
         expect(schema.validate(1, { errors: { language: 'latin' } }).error).to.be.an.error('"valorem" angustus')
@@ -247,19 +247,19 @@ describe('errors', () => {
                 'number.min': '{#label} too small'
             },
             latin: {
-                'number.min': Joi.x('{@label} angustus', { prefix: { local: '@' } })
+                'number.min': Engine.x('{@label} angustus', { prefix: { local: '@' } })
             },
             empty: {}
         }
 
-        const schema = Joi.object({
-            a: Joi.number().min(10),
-            lang: Joi.string().required()
+        const schema = Engine.object({
+            a: Engine.number().min(10),
+            lang: Engine.string().required()
         })
             .prefs({
                 messages,
                 errors: {
-                    language: Joi.ref('/lang'),
+                    language: Engine.ref('/lang'),
                     wrap: {
                         label: false
                     }
@@ -279,20 +279,20 @@ describe('errors', () => {
                 'number.min': '{#label} too small'
             },
             latin: {
-                'number.min': Joi.x('{@label} angustus', { prefix: { local: '@' } })
+                'number.min': Engine.x('{@label} angustus', { prefix: { local: '@' } })
             },
             empty: {}
         }
 
-        const schema = Joi.object({
-            a: Joi.number().min(10),
-            lang: Joi.string().required(),
+        const schema = Engine.object({
+            a: Engine.number().min(10),
+            lang: Engine.string().required(),
             select: ['x']
         })
             .prefs({
                 messages,
                 errors: {
-                    language: Joi.ref('/lang'),
+                    language: Engine.ref('/lang'),
                     wrap: {
                         label: '{}',
                         string: '`\''
@@ -309,12 +309,12 @@ describe('errors', () => {
 
     it('supports render preference', () => {
 
-        expect(Joi.number().min(10).validate(1, { errors: { render: false } }).error).to.be.an.error('number.min')
+        expect(Engine.number().min(10).validate(1, { errors: { render: false } }).error).to.be.an.error('number.min')
     })
 
     it('does not prefix with key when messages uses context.key', () => {
 
-        const schema = Joi.valid('sad').prefs({ messages: { 'any.only': 'my hero {{#label}} is not {{#valids}}' } })
+        const schema = Engine.valid('sad').prefs({ messages: { 'any.only': 'my hero {{#label}} is not {{#valids}}' } })
         const err = schema.validate(5).error
         expect(err).to.be.an.error('my hero "value" is not [sad]')
         expect(err.details).to.equal([{
@@ -327,8 +327,8 @@ describe('errors', () => {
 
     it('escapes unsafe keys', () => {
 
-        const schema = Joi.object({
-            'a()': Joi.number()
+        const schema = Engine.object({
+            'a()': Engine.number()
         })
 
         const err = schema.validate({ 'a()': 'x' }, { errors: { escapeHtml: true } }).error
@@ -352,8 +352,8 @@ describe('errors', () => {
 
     it('does not escape unsafe keys by default', () => {
 
-        const schema = Joi.object({
-            'a()': Joi.number()
+        const schema = Engine.object({
+            'a()': Engine.number()
         })
 
         const err = schema.validate({ 'a()': 'x' }).error
@@ -383,10 +383,10 @@ describe('errors', () => {
             notBoolean: 9
         }
 
-        const schema = Joi.object({
-            notNumber: Joi.number().required(),
-            notString: Joi.string().required(),
-            notBoolean: Joi.boolean().required()
+        const schema = Engine.object({
+            notNumber: Engine.number().required(),
+            notString: Engine.string().required(),
+            notBoolean: Engine.boolean().required()
         })
 
         const err = schema.validate(input, { abortEarly: false }).error
@@ -415,7 +415,7 @@ describe('errors', () => {
 
     it('returns a full path to an error value on an array (items)', () => {
 
-        const schema = Joi.array().items(Joi.array().items({ x: Joi.number() }))
+        const schema = Engine.array().items(Engine.array().items({ x: Engine.number() }))
         const input = [
             [{ x: 1 }],
             [{ x: 1 }, { x: 'a' }]
@@ -433,7 +433,7 @@ describe('errors', () => {
 
     it('returns a full path to an error value on an array (items forbidden)', () => {
 
-        const schema = Joi.array().items(Joi.array().items(Joi.object({ x: Joi.string() }).forbidden()))
+        const schema = Engine.array().items(Engine.array().items(Engine.object({ x: Engine.string() }).forbidden()))
         const input = [
             [{ x: 1 }],
             [{ x: 1 }, { x: 'a' }]
@@ -451,8 +451,8 @@ describe('errors', () => {
 
     it('returns a full path to an error value on an object', () => {
 
-        const schema = Joi.object({
-            x: Joi.array().items({ x: Joi.number() })
+        const schema = Engine.object({
+            x: Engine.array().items({ x: Engine.number() })
         })
 
         const input = {
@@ -471,7 +471,7 @@ describe('errors', () => {
 
     it('overrides root key messages', () => {
 
-        const schema = Joi.string().prefs({ messages: { root: 'blah' } })
+        const schema = Engine.string().prefs({ messages: { root: 'blah' } })
         const err = schema.validate(4).error
         expect(err).to.be.an.error('"blah" must be a string')
         expect(err.details).to.equal([{
@@ -484,7 +484,7 @@ describe('errors', () => {
 
     it('disables wrap.array', () => {
 
-        const schema = Joi.alternatives(Joi.number(), Joi.string()).prefs({ errors: { wrap: { array: false } } })
+        const schema = Engine.alternatives(Engine.number(), Engine.string()).prefs({ errors: { wrap: { array: false } } })
 
         Helper.validate(schema, [
             [1, true],
@@ -495,7 +495,7 @@ describe('errors', () => {
 
     it('overrides wrap.array', () => {
 
-        const schema = Joi.alternatives(Joi.number(), Joi.string()).prefs({ errors: { wrap: { array: '{}' } } })
+        const schema = Engine.alternatives(Engine.number(), Engine.string()).prefs({ errors: { wrap: { array: '{}' } } })
 
         Helper.validate(schema, [
             [1, true],
@@ -506,7 +506,7 @@ describe('errors', () => {
 
     it('allows html escaping', () => {
 
-        const schema = Joi.string().prefs({ messages: { root: 'blah' } }).label('bleh')
+        const schema = Engine.string().prefs({ messages: { root: 'blah' } }).label('bleh')
         const err = schema.validate(4).error
         expect(err).to.be.an.error('"bleh" must be a string')
         expect(err.details).to.equal([{
@@ -519,7 +519,7 @@ describe('errors', () => {
 
     it('provides context with the error', () => {
 
-        const schema = Joi.object({ length: Joi.number().min(3).required() })
+        const schema = Engine.object({ length: Engine.number().min(3).required() })
         const err = schema.validate({ length: 1 }).error
         expect(err.details).to.equal([{
             message: '"length" must be greater than or equal to 3',
@@ -536,12 +536,12 @@ describe('errors', () => {
 
     it('has a name that is ValidationError', () => {
 
-        const schema = Joi.number()
+        const schema = Engine.number()
         const validateErr = schema.validate('a').error
         expect(validateErr.name).to.be.equal('ValidationError')
 
         try {
-            Joi.assert('a', schema)
+            Engine.assert('a', schema)
             throw new Error('should not reach that')
         }
         catch (assertErr) {
@@ -549,7 +549,7 @@ describe('errors', () => {
         }
 
         try {
-            Joi.assert('a', schema, 'foo')
+            Engine.assert('a', schema, 'foo')
             throw new Error('should not reach that')
         }
         catch (assertErr) {
@@ -557,7 +557,7 @@ describe('errors', () => {
         }
 
         try {
-            Joi.assert('a', schema, new Error('foo'))
+            Engine.assert('a', schema, new Error('foo'))
             throw new Error('should not reach that')
         }
         catch (assertErr) {
@@ -567,11 +567,11 @@ describe('errors', () => {
 
     it('changes label value', () => {
 
-        const schema = Joi.object({
-            x: Joi.object({
-                y: Joi.object({
-                    z: Joi.valid('z'),
-                    a: Joi.array().items(Joi.string())
+        const schema = Engine.object({
+            x: Engine.object({
+                y: Engine.object({
+                    z: Engine.valid('z'),
+                    a: Engine.array().items(Engine.string())
                 })
             })
         })
@@ -585,11 +585,11 @@ describe('errors', () => {
 
     it('removes labels when label is false', () => {
 
-        const schema = Joi.object({
-            x: Joi.object({
-                y: Joi.object({
-                    z: Joi.valid('z').label('z'),
-                    a: Joi.array().items(Joi.string().label('item'))
+        const schema = Engine.object({
+            x: Engine.object({
+                y: Engine.object({
+                    z: Engine.valid('z').label('z'),
+                    a: Engine.array().items(Engine.string().label('item'))
                 })
             })
         }).options({ errors: { label: false } })
@@ -611,14 +611,14 @@ describe('errors', () => {
                 }
             }
 
-            const schema = Joi.object({
-                a: Joi.string().valid('a', 'b', 'c', 'd'),
-                y: Joi.object({
-                    u: Joi.string().valid('e', 'f', 'g', 'h').required(),
-                    b: Joi.string().valid('i', 'j').allow(false),
-                    d: Joi.object({
-                        x: Joi.string().valid('k', 'l').required(),
-                        c: Joi.number()
+            const schema = Engine.object({
+                a: Engine.string().valid('a', 'b', 'c', 'd'),
+                y: Engine.object({
+                    u: Engine.string().valid('e', 'f', 'g', 'h').required(),
+                    b: Engine.string().valid('i', 'j').allow(false),
+                    d: Engine.object({
+                        x: Engine.string().valid('k', 'l').required(),
+                        c: Engine.number()
                     })
                 })
             })
@@ -661,8 +661,8 @@ describe('errors', () => {
                 a: 'm'
             }
 
-            const schema = Joi.object({
-                a: Joi.string().valid('a', 'b', 'c', 'd')
+            const schema = Engine.object({
+                a: Engine.string().valid('a', 'b', 'c', 'd')
             })
 
             const err = schema.validate(object, { abortEarly: false }).error
@@ -682,8 +682,8 @@ describe('errors', () => {
                 a: [1, 2, 3, 4, 2, 5]
             }
 
-            const schema = Joi.object({
-                a: Joi.array().items(Joi.valid(1, 2))
+            const schema = Engine.object({
+                a: Engine.array().items(Engine.valid(1, 2))
             })
 
             const err = schema.validate(object, { abortEarly: false }).error
@@ -717,8 +717,8 @@ describe('errors', () => {
                 a: [2, 3, 4]
             }
 
-            const schema = Joi.object({
-                a: Joi.array().items(Joi.number().min(4).max(2))
+            const schema = Engine.object({
+                a: Engine.array().items(Engine.number().min(4).max(2))
             })
 
             const err = schema.validate(object, { abortEarly: false }).error
@@ -759,8 +759,8 @@ describe('errors', () => {
                 a: [{ b: 2 }]
             }
 
-            const schema = Joi.object({
-                a: Joi.array().items(Joi.number())
+            const schema = Engine.object({
+                a: Engine.array().items(Engine.number())
             })
 
             const err = schema.validate(object, { abortEarly: false }).error
@@ -781,9 +781,9 @@ describe('errors', () => {
                 b: [2, 3, 4]
             }
 
-            const schema = Joi.object({
-                a: Joi.array().items(Joi.number().min(4).max(2)),
-                b: Joi.array().items(Joi.number().min(4).max(2))
+            const schema = Engine.object({
+                a: Engine.array().items(Engine.number().min(4).max(2)),
+                b: Engine.array().items(Engine.number().min(4).max(2))
             })
 
             const err = schema.validate(object, { abortEarly: false }).error
@@ -843,11 +843,11 @@ describe('errors', () => {
 
         it('displays alternatives fail as a single line', () => {
 
-            const schema = Joi.object({
+            const schema = Engine.object({
                 x: [
-                    Joi.string(),
-                    Joi.number(),
-                    Joi.date()
+                    Engine.string(),
+                    Engine.number(),
+                    Engine.date()
                 ]
             })
 
@@ -867,10 +867,10 @@ describe('errors', () => {
 
         it('annotates circular input', () => {
 
-            const schema = Joi.object({
-                x: Joi.object({
-                    y: Joi.object({
-                        z: Joi.number()
+            const schema = Engine.object({
+                x: Engine.object({
+                    y: Engine.object({
+                        z: Engine.number()
                     })
                 })
             })
@@ -891,10 +891,10 @@ describe('errors', () => {
 
         it('annotates deep circular input', () => {
 
-            const schema = Joi.object({
-                x: Joi.object({
-                    y: Joi.object({
-                        z: Joi.number()
+            const schema = Engine.object({
+                x: Engine.object({
+                    y: Engine.object({
+                        z: Engine.number()
                     })
                 })
             })
@@ -915,10 +915,10 @@ describe('errors', () => {
 
         it('annotates deep circular input with extra keys', () => {
 
-            const schema = Joi.object({
-                x: Joi.object({
-                    y: Joi.object({
-                        z: Joi.number()
+            const schema = Engine.object({
+                x: Engine.object({
+                    y: Engine.object({
+                        z: Engine.number()
                     })
                 })
             })
@@ -941,17 +941,17 @@ describe('errors', () => {
 
             //Adapted: upstream hard-codes the source text of input.x.f, which depends on the test file formatting
 
-            const schema = Joi.object({
-                x: Joi.object({
-                    y: Joi.date().allow(null),
-                    z: Joi.date().allow(null),
-                    u: Joi.date().allow(null),
-                    g: Joi.date().allow(null),
-                    h: Joi.date().allow(null),
-                    i: Joi.date().allow(null),
-                    k: Joi.date().allow(null),
-                    p: Joi.date().allow(null),
-                    f: Joi.date().allow(null)
+            const schema = Engine.object({
+                x: Engine.object({
+                    y: Engine.date().allow(null),
+                    z: Engine.date().allow(null),
+                    u: Engine.date().allow(null),
+                    g: Engine.date().allow(null),
+                    h: Engine.date().allow(null),
+                    i: Engine.date().allow(null),
+                    k: Engine.date().allow(null),
+                    p: Engine.date().allow(null),
+                    f: Engine.date().allow(null)
                 })
             })
 
@@ -993,13 +993,13 @@ describe('errors', () => {
                 }
             }
 
-            const ref = Joi.ref('.options.stripUnknown')
-            const schema = Joi.object({
-                response: Joi.object({
-                    modify: Joi.boolean(),
-                    options: Joi.object()
+            const ref = Engine.ref('.options.stripUnknown')
+            const schema = Engine.object({
+                response: Engine.object({
+                    modify: Engine.boolean(),
+                    options: Engine.object()
                 })
-                    .assert(ref, Joi.ref('modify'), 'meet requirement of having peer modify set to true')
+                    .assert(ref, Engine.ref('modify'), 'meet requirement of having peer modify set to true')
             })
 
             const err = schema.validate(object, { abortEarly: false }).error
@@ -1020,18 +1020,18 @@ describe('errors', () => {
             expect(() => err.annotate(true)).to.not.throw()
         })
 
-        it('annotates joi schema error', () => {
+        it('annotates engine schema error', () => {
 
-            const schema = Joi.object({
+            const schema = Engine.object({
                 type: 'string'
             })
                 .unknown()
 
-            const value = Joi.number().min(1)
+            const value = Engine.number().min(1)
             const err = schema.validate(value).error
             expect(err.message).equal('"type" must be [string]')
             expect(err.annotate()).to.contain('"type" must be [string]')
-            Helper.equal(value, Joi.number().min(1))
+            Helper.equal(value, Engine.number().min(1))
         })
     })
 })

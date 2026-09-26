@@ -325,7 +325,7 @@ const KeysType: KeysSchema = Any.extend<KeysSchema>({
         keys: {
             method(this: KeysSchema, schema?: Record<string, unknown> | null): KeysSchema {
                 assert(schema === undefined || typeof schema === 'object', 'Object schema must be a valid object')
-                assert(!Common.isSchema(schema), 'Object schema cannot be a joi schema')
+                assert(!Common.isSchema(schema), 'Object schema cannot be a schema object')
                 const obj: KeysSchema = this.clone()
                 if (!schema) {
                     //Allow all
@@ -557,11 +557,11 @@ const KeysType: KeysSchema = Any.extend<KeysSchema>({
         'object.nand': '{{:#mainWithLabel}} must not exist simultaneously with {{#peersWithLabels}}',
         'object.oxor': '{{#label}} contains a conflict between optional exclusive peers {{#peersWithLabels}}',
         'object.pattern.match': '{{#label}} keys failed to match pattern requirements',
-        'object.refType': '{{#label}} must be a Joi reference',
+        'object.refType': '{{#label}} must be a reference',
         'object.regex': '{{#label}} must be a RegExp object',
         'object.rename.multiple': '{{#label}} cannot rename {{:#from}} because multiple renames are disabled and another key was already renamed to {{:#to}}',
         'object.rename.override': '{{#label}} cannot rename {{:#from}} because override is disabled and target {{:#to}} exists',
-        'object.schema': '{{#label}} must be a Joi schema of {{#type}} type',
+        'object.schema': '{{#label}} must be a schema of {{#type}} type',
         'object.unknown': '{{#label}} is not allowed',
         'object.with': '{{:#mainWithLabel}} missing required peer {{:#peerWithLabel}}',
         'object.without': '{{:#mainWithLabel}} conflict with forbidden peer {{:#peerWithLabel}}',

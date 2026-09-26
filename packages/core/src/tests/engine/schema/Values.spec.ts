@@ -6,7 +6,7 @@
 // @ts-nocheck
 import {describe, it} from 'node:test'
 import {expect} from '../support/Expect.js'
-import Joi from '../../../lib/validation/engine/schema/index.js'
+import Engine from '../../../lib/validation/engine/schema/index.js'
 import * as Helper from './Helper.js'
 import { Values } from '../../../lib/validation/engine/schema/values.js'
 const internals = {}
@@ -31,7 +31,7 @@ describe('Values', () => {
         it('ignores refs added multiple times', () => {
 
             const set = new Values()
-            const ref = Joi.ref('x')
+            const ref = Engine.ref('x')
             set.add(ref)
             set.add(ref)
             expect(set).to.have.length(1)
@@ -73,7 +73,7 @@ describe('Values', () => {
         it('merges keeps refs flag set', () => {
 
             const set = new Values()
-            set.add(Joi.ref('x'))
+            set.add(Engine.ref('x'))
             set.concat(new Values())
             expect(set._refs.size).to.equal(1)
         })
@@ -83,9 +83,9 @@ describe('Values', () => {
 
         it('compares empty string to refs when insensitive', () => {
 
-            const schema = Joi.object({
-                a: Joi.string().allow(3).default(''),
-                b: Joi.string().insensitive().valid(Joi.ref('a'))
+            const schema = Engine.object({
+                a: Engine.string().allow(3).default(''),
+                b: Engine.string().insensitive().valid(Engine.ref('a'))
             })
 
             Helper.validate(schema, [

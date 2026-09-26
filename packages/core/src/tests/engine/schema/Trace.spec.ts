@@ -8,7 +8,7 @@ import {afterEach, describe, it} from 'node:test'
 import {readFileSync} from 'node:fs'
 import {fileURLToPath} from 'node:url'
 import {expect} from '../support/Expect.js'
-import Joi from '../../../lib/validation/engine/schema/index.js'
+import Engine from '../../../lib/validation/engine/schema/index.js'
 import * as Pinpoint from '../../../lib/validation/engine/pinpoint/index.js'
 const internals = {}
 
@@ -35,22 +35,22 @@ describe('Trace', () => {
 
     describe('trace()', () => {
 
-        afterEach(() => Joi.untrace())
+        afterEach(() => Engine.untrace())
 
         it('reuses tracer', () => {
 
-            const tracer = Joi.trace()
-            expect(Joi.trace()).to.shallow.equal(tracer)
-            Joi.untrace()
+            const tracer = Engine.trace()
+            expect(Engine.trace()).to.shallow.equal(tracer)
+            Engine.untrace()
 
-            expect(Joi.trace()).to.not.shallow.equal(tracer)
+            expect(Engine.trace()).to.not.shallow.equal(tracer)
         })
 
         it('tracks rules', () => {
 
-            const tracer = Joi.trace()
+            const tracer = Engine.trace()
 
-            const schema = Joi.string()
+            const schema = Engine.string()
                 .lowercase()
                 .pattern(/\d/)
 
@@ -62,9 +62,9 @@ describe('Trace', () => {
 
         it('reports coverage', () => {
 
-            const tracer = Joi.trace()
+            const tracer = Engine.trace()
 
-            const schema = Joi.string()
+            const schema = Engine.string()
                 .lowercase()
                 .pattern(/\d/)
                 .max(20)
@@ -100,18 +100,18 @@ describe('Trace', () => {
 
         it('reports nested coverage', () => {
 
-            const tracer = Joi.trace()
+            const tracer = Engine.trace()
 
-            const schema = Joi.object({
+            const schema = Engine.object({
                 a: {
-                    x: Joi.string()
+                    x: Engine.string()
                         .lowercase()
                         .pattern(/\d/)
                         .max(20)
                         .min(10)
                 },
 
-                b: Joi.number()
+                b: Engine.number()
                     .min(100)
             })
 
@@ -150,11 +150,11 @@ describe('Trace', () => {
 
         it('uses schema id', () => {
 
-            const tracer = Joi.trace()
+            const tracer = Engine.trace()
 
-            const schema = Joi.object({
-                a: Joi.object({
-                    x: Joi.string()
+            const schema = Engine.object({
+                a: Engine.object({
+                    x: Engine.string()
                         .lowercase()
                         .pattern(/\d/)
                         .max(20)
@@ -162,11 +162,11 @@ describe('Trace', () => {
                 })
                     .id('A'),
 
-                b: Joi.number()
+                b: Engine.number()
                     .min(100),
 
-                c: Joi.any()
-                    .empty(Joi.number().max(10))
+                c: Engine.any()
+                    .empty(Engine.number().max(10))
             })
 
             schema.validate({ a: { x: '123456789012345678901' }, b: 11, c: 5 })
@@ -208,10 +208,10 @@ describe('Trace', () => {
 
         it('handles reused schema', () => {
 
-            const tracer = Joi.trace()
+            const tracer = Engine.trace()
 
-            const key = Joi.any().empty(Joi.number().max(10))
-            const schema = Joi.object({
+            const key = Engine.any().empty(Engine.number().max(10))
+            const schema = Engine.object({
                 a: key,
                 b: key
             })
@@ -237,11 +237,11 @@ describe('Trace', () => {
 
         it('reports skipped schema without rule', () => {
 
-            const tracer = Joi.trace()
+            const tracer = Engine.trace()
 
-            const schema = Joi.alternatives([
-                Joi.string(),
-                Joi.number()
+            const schema = Engine.alternatives([
+                Engine.string(),
+                Engine.number()
             ])
 
             schema.validate('x')
@@ -264,9 +264,9 @@ describe('Trace', () => {
 
         it('reports array items', () => {
 
-            const tracer = Joi.trace()
+            const tracer = Engine.trace()
 
-            const schema = Joi.array().items(Joi.boolean(), Joi.string())
+            const schema = Engine.array().items(Engine.boolean(), Engine.string())
 
             schema.validate([true])
 
@@ -292,9 +292,9 @@ describe('Trace', () => {
 
         it('tracks valid and invalid values', () => {
 
-            const tracer = Joi.trace()
+            const tracer = Engine.trace()
 
-            const schema = Joi.string()
+            const schema = Engine.string()
                 .allow('a', 'b', 'c')
                 .deny('x', 'y', 'z')
 
@@ -330,13 +330,13 @@ describe('Trace', () => {
 
         it('tracks valid values (refs)', () => {
 
-            const tracer = Joi.trace()
+            const tracer = Engine.trace()
 
-            const schema = Joi.object({
-                a: Joi.string(),
-                b: Joi.string(),
-                c: Joi.string()
-                    .allow(Joi.ref('a'), Joi.ref('b'))
+            const schema = Engine.object({
+                a: Engine.string(),
+                b: Engine.string(),
+                c: Engine.string()
+                    .allow(Engine.ref('a'), Engine.ref('b'))
             })
 
             schema.validate({ a: 'a', b: 'b', c: 'a' })
@@ -363,9 +363,9 @@ describe('Trace', () => {
 
         it('tracks default and failover', () => {
 
-            const tracer = Joi.trace()
+            const tracer = Engine.trace()
 
-            const schema = Joi.string()
+            const schema = Engine.string()
                 .default('x')
                 .failover('y')
 
@@ -398,9 +398,9 @@ describe('Trace', () => {
 
         it('reports coverage with manual location', () => {
 
-            const tracer = Joi.trace()
+            const tracer = Engine.trace()
 
-            const schema = Joi.string().tracer()
+            const schema = Engine.string().tracer()
                 .lowercase()
                 .pattern(/\d/)
                 .max(20)
@@ -411,7 +411,7 @@ describe('Trace', () => {
             expect(tracer.report(__filename)).to.equal([
                 {
                     filename: __filename,
-                    line: lineOf("const schema = Joi.string().tracer()", 0),
+                    line: lineOf("const schema = Engine.string().tracer()", 0),
                     message: 'Schema missing tests for pattern (always pass), max (always error), min (never used)',
                     missing: [
                         {
@@ -434,13 +434,13 @@ describe('Trace', () => {
 
         it('reports coverage with manual location (concat override)', () => {
 
-            const tracer = Joi.trace()
+            const tracer = Engine.trace()
 
-            const base = Joi.string().lowercase()
+            const base = Engine.string().lowercase()
                 .pattern(/\d/)
                 .tracer()
 
-            const schema = Joi.any().concat(base).tracer()
+            const schema = Engine.any().concat(base).tracer()
                 .max(20)
                 .min(10)
 
@@ -449,7 +449,7 @@ describe('Trace', () => {
             expect(tracer.report(__filename)).to.equal([
                 {
                     filename: __filename,
-                    line: lineOf("const schema = Joi.any().concat(base).tracer()", 0),
+                    line: lineOf("const schema = Engine.any().concat(base).tracer()", 0),
                     message: 'Schema missing tests for pattern (always pass), max (always error), min (never used)',
                     missing: [
                         {
@@ -472,13 +472,13 @@ describe('Trace', () => {
 
         it('reports coverage with manual location (concat)', () => {
 
-            const tracer = Joi.trace()
+            const tracer = Engine.trace()
 
-            const base = Joi.string().lowercase()
+            const base = Engine.string().lowercase()
                 .pattern(/\d/)
                 .tracer()
 
-            const schema = Joi.any().concat(base)
+            const schema = Engine.any().concat(base)
                 .max(20)
                 .min(10)
 
@@ -510,14 +510,14 @@ describe('Trace', () => {
 
         it('handles when()', () => {
 
-            const tracer = Joi.trace()
+            const tracer = Engine.trace()
 
-            const schema = Joi.object({
-                a: Joi.boolean(),
-                b: Joi.boolean(),
-                c: Joi.string()
-                    .when('a', { is: true, then: Joi.string().min(10).allow('y') })
-                    .when('b', { is: true, then: Joi.string().max(100) })
+            const schema = Engine.object({
+                a: Engine.boolean(),
+                b: Engine.boolean(),
+                c: Engine.string()
+                    .when('a', { is: true, then: Engine.string().min(10).allow('y') })
+                    .when('b', { is: true, then: Engine.string().max(100) })
             })
 
             schema.validate({ a: true, b: true, c: 'x' })
@@ -550,19 +550,19 @@ describe('Trace', () => {
 
         it('creates debug log', () => {
 
-            const schema = Joi.object({
+            const schema = Engine.object({
                 a: {
-                    x: Joi.string()
+                    x: Engine.string()
                         .lowercase()
                         .pattern(/\d/)
                         .max(20)
                         .min(10)
                 },
 
-                b: Joi.number()
+                b: Engine.number()
                     .min(100),
 
-                c: Joi.not('y')
+                c: Engine.not('y')
             })
 
             const debug = schema.validate({ a: { x: '12345678901234567890' }, b: 110, c: 'y' }, { debug: true }).debug
@@ -584,19 +584,19 @@ describe('Trace', () => {
 
         it('creates debug log (async)', async () => {
 
-            const schema = Joi.object({
+            const schema = Engine.object({
                 a: {
-                    x: Joi.string()
+                    x: Engine.string()
                         .lowercase()
                         .pattern(/\d/)
                         .max(20)
                         .min(10)
                 },
 
-                b: Joi.number()
+                b: Engine.number()
                     .min(100),
 
-                c: Joi.not('y')
+                c: Engine.not('y')
             })
 
             const err = await expect(schema.validateAsync({ a: { x: '12345678901234567890' }, b: 110, c: 'y' }, { debug: true })).to.reject()
@@ -632,14 +632,14 @@ describe('Trace', () => {
 
         it('logs when forks', () => {
 
-            const schema = Joi.object({
-                a: Joi.number(),
+            const schema = Engine.object({
+                a: Engine.number(),
 
-                b: Joi.number()
+                b: Engine.number()
                     .when('a', { is: 1, then: 2, otherwise: 3 })
                     .when('a', { is: 4, then: 5, otherwise: 6 }),       // This conflicts with the first when()
 
-                c: Joi.number()
+                c: Engine.number()
                     .when('a', [
                         { is: 1, then: 2 },
                         { is: 3, then: 4 }
@@ -668,11 +668,11 @@ describe('Trace', () => {
 
         it('logs when on sub key', () => {
 
-            const building = Joi.object({
-                a: Joi.object({
-                    name: Joi.string().cache(),
-                    lucky: Joi.string()
-                        .when('name', { is: 'thirteen', then: Joi.valid('no') })
+            const building = Engine.object({
+                a: Engine.object({
+                    name: Engine.string().cache(),
+                    lucky: Engine.string()
+                        .when('name', { is: 'thirteen', then: Engine.valid('no') })
                 })
             })
 
@@ -695,11 +695,11 @@ describe('Trace', () => {
 
         it('logs sub when condition (then)', () => {
 
-            const sub = Joi.when('b', { is: true, then: 2, otherwise: 3 })
-            const schema = Joi.object({
-                a: Joi.boolean().required(),
-                b: Joi.boolean().required(),
-                c: Joi.number()
+            const sub = Engine.when('b', { is: true, then: 2, otherwise: 3 })
+            const schema = Engine.object({
+                a: Engine.boolean().required(),
+                b: Engine.boolean().required(),
+                c: Engine.number()
                     .when('a', { is: true, then: sub, otherwise: 1 })
             })
 
@@ -723,11 +723,11 @@ describe('Trace', () => {
 
         it('logs sub when condition (otherwise)', () => {
 
-            const sub = Joi.when('b', { is: true, then: 2, otherwise: 3 })
-            const schema = Joi.object({
-                a: Joi.boolean().required(),
-                b: Joi.boolean().required(),
-                c: Joi.number()
+            const sub = Engine.when('b', { is: true, then: 2, otherwise: 3 })
+            const schema = Engine.object({
+                a: Engine.boolean().required(),
+                b: Engine.boolean().required(),
+                c: Engine.number()
                     .when('a', { is: true, then: 1, otherwise: sub })
             })
 
@@ -750,20 +750,20 @@ describe('Trace', () => {
 
         it('logs compounded whens', () => {
 
-            const schema = Joi.object({
-                a: Joi.string(),
-                b: Joi.boolean()
+            const schema = Engine.object({
+                a: Engine.string(),
+                b: Engine.boolean()
             })
                 .when('.a', {
                     is: 'x',
-                    then: Joi.object({
-                        c: Joi.boolean()
+                    then: Engine.object({
+                        c: Engine.boolean()
                     })
                 })
                 .when('.b', {
                     is: true,
-                    then: Joi.object({
-                        c: Joi.forbidden()
+                    then: Engine.object({
+                        c: Engine.forbidden()
                     })
                 })
 
@@ -785,7 +785,7 @@ describe('Trace', () => {
 
         it('logs changes in value', () => {
 
-            const schema = Joi.number().raw()
+            const schema = Engine.number().raw()
 
             const debug = schema.validate('123', { debug: true }).debug
             expect(debug).to.equal([
@@ -797,7 +797,7 @@ describe('Trace', () => {
 
         it('logs changes in value (with name)', () => {
 
-            const schema = Joi.number().cast('string')
+            const schema = Engine.number().cast('string')
 
             const debug = schema.validate('123', { debug: true }).debug
             expect(debug).to.equal([
@@ -809,10 +809,10 @@ describe('Trace', () => {
 
         it('debugs multiple time same schema (link)', () => {
 
-            const schema = Joi.object({
-                a: Joi.boolean(),
-                b: Joi.link('a')
-                    .when('a', { then: Joi.forbidden() })
+            const schema = Engine.object({
+                a: Engine.boolean(),
+                b: Engine.link('a')
+                    .when('a', { then: Engine.forbidden() })
             })
 
             const debug1 = schema.validate({ a: true, b: true }, { debug: true }).debug
@@ -841,9 +841,9 @@ describe('Trace', () => {
 
         it('debugs multiple time same schema (whens)', () => {
 
-            const schema = Joi.object({
-                a: Joi.number(),
-                b: Joi.number()
+            const schema = Engine.object({
+                a: Engine.number(),
+                b: Engine.number()
                     .when('a', { is: 1, then: 2 })
                     .when('a', { is: 2, then: 3 })
             })
@@ -864,9 +864,9 @@ describe('Trace', () => {
 
         it('debugs multiple time same schema (whens + partial validate)', () => {
 
-            const x = Joi.object({
-                a: Joi.number(),
-                b: Joi.number()
+            const x = Engine.object({
+                a: Engine.number(),
+                b: Engine.number()
                     .when('a', { is: 1, then: 2 })
                     .when('a', { is: 2, then: 3 })
             })
@@ -880,7 +880,7 @@ describe('Trace', () => {
 
             x.validate({ a: 1, b: 2 })         // No debug
 
-            const schema = Joi.object({ x })
+            const schema = Engine.object({ x })
 
             for (const value of values) {
                 schema.validate(value, { debug: true })
@@ -889,9 +889,9 @@ describe('Trace', () => {
 
         it('debugs multiple time same schema (recursive)', () => {
 
-            const schema = Joi.object({
-                a: Joi.number(),
-                b: Joi.link('..')
+            const schema = Engine.object({
+                a: Engine.number(),
+                b: Engine.link('..')
             })
 
             const debug1 = schema.validate({ a: 1, b: { a: 2 } }, { debug: true }).debug
@@ -920,7 +920,7 @@ describe('Trace', () => {
 
         it('handles array item exclusions', () => {
 
-            const schema = Joi.array().items(Joi.string().forbidden())
+            const schema = Engine.array().items(Engine.string().forbidden())
 
             const debug = schema.validate(['x'], { debug: true }).debug
             expect(debug).to.equal([
@@ -933,10 +933,10 @@ describe('Trace', () => {
 
         it('handles recursive links with when', () => {
 
-            const schema = Joi.object({
-                must: Joi.boolean().required(),
-                child: Joi.link('..')
-                    .when('must', { then: Joi.required() })
+            const schema = Engine.object({
+                must: Engine.boolean().required(),
+                child: Engine.link('..')
+                    .when('must', { then: Engine.required() })
             })
 
             const debug = schema.validate({ must: true, child: { must: true, child: { must: false } } }, { debug: true }).debug
@@ -963,12 +963,12 @@ describe('Trace', () => {
 
         it('handles link.concat() after resolved', () => {
 
-            const a = Joi.object({
-                x: Joi.link('..')
+            const a = Engine.object({
+                x: Engine.link('..')
             })
 
-            const b = Joi.object({
-                x: Joi.forbidden()
+            const b = Engine.object({
+                x: Engine.forbidden()
             })
 
             a.validate({ x: {} }, { debug: true })

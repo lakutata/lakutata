@@ -6,7 +6,7 @@
 // @ts-nocheck
 import {describe, it} from 'node:test'
 import {expect} from '../../support/Expect.js'
-import Joi from '../../../../lib/validation/engine/schema/index.js'
+import Engine from '../../../../lib/validation/engine/schema/index.js'
 import * as Helper from '../Helper.js'
 const internals = {}
 
@@ -14,12 +14,12 @@ describe('array', () => {
 
     it('should throw an exception if arguments were passed.', () => {
 
-        expect(() => Joi.array('invalid argument.')).to.throw('The array type does not allow arguments')
+        expect(() => Engine.array('invalid argument.')).to.throw('The array type does not allow arguments')
     })
 
     it('errors on invalid type', () => {
 
-        Helper.validate(Joi.array(), [
+        Helper.validate(Engine.array(), [
             [3, false, {
                 message: '"value" must be an array',
                 path: [],
@@ -39,7 +39,7 @@ describe('array', () => {
 
         it('casts value to set', () => {
 
-            const schema = Joi.array().items(Joi.number()).cast('set')
+            const schema = Engine.array().items(Engine.number()).cast('set')
             Helper.validate(schema, [
                 [['1', '2', '3', '4', '5'], true, new Set([1, 2, 3, 4, 5])]
             ])
@@ -47,7 +47,7 @@ describe('array', () => {
 
         it('does not leak casts to any', () => {
 
-            expect(() => Joi.any().cast('set')).to.throw('Type any does not support casting to set')
+            expect(() => Engine.any().cast('set')).to.throw('Type any does not support casting to set')
         })
     })
 
@@ -55,7 +55,7 @@ describe('array', () => {
 
         it('returns an empty description when no rules are applied', () => {
 
-            const schema = Joi.array()
+            const schema = Engine.array()
             const desc = schema.describe()
             expect(desc).to.equal({
                 type: 'array'
@@ -64,7 +64,7 @@ describe('array', () => {
 
         it('returns an updated description when sparse rule is applied', () => {
 
-            const schema = Joi.array().sparse()
+            const schema = Engine.array().sparse()
             const desc = schema.describe()
             expect(desc).to.equal({
                 type: 'array',
@@ -74,18 +74,18 @@ describe('array', () => {
 
         it('returns an items array only if items are specified', () => {
 
-            const schema = Joi.array().items().max(5)
+            const schema = Engine.array().items().max(5)
             const desc = schema.describe()
             expect(desc.items).to.not.exist()
         })
 
         it('returns a recursively defined array of items when specified', () => {
 
-            const schema = Joi.array()
-                .items(Joi.number(), Joi.string())
-                .items(Joi.boolean().forbidden())
-                .ordered(Joi.number(), Joi.string())
-                .ordered(Joi.string().required())
+            const schema = Engine.array()
+                .items(Engine.number(), Engine.string())
+                .items(Engine.boolean().forbidden())
+                .ordered(Engine.number(), Engine.string())
+                .ordered(Engine.string().required())
             const desc = schema.describe()
             expect(desc.items).to.have.length(3)
             expect(desc).to.equal({
@@ -105,7 +105,7 @@ describe('array', () => {
 
         it('describes an array with array items', () => {
 
-            const schema = Joi.array().items(Joi.array())
+            const schema = Engine.array().items(Engine.array())
             const desc = schema.describe()
             expect(desc).to.equal({
                 type: 'array',
@@ -124,7 +124,7 @@ describe('array', () => {
 
             expect(() => {
 
-                Joi.array().has({
+                Engine.array().has({
                     a: {
                         b: {
                             c: {
@@ -138,22 +138,22 @@ describe('array', () => {
 
         it('shows errors in schema', () => {
 
-            expect(() => Joi.array().has(undefined)).to.throw('Invalid undefined schema')
+            expect(() => Engine.array().has(undefined)).to.throw('Invalid undefined schema')
         })
 
         it('works with object.assert', () => {
 
-            const schema = Joi.array().items(
-                Joi.object().keys({
+            const schema = Engine.array().items(
+                Engine.object().keys({
                     a: {
-                        b: Joi.string(),
-                        c: Joi.number()
+                        b: Engine.string(),
+                        c: Engine.number()
                     },
                     d: {
-                        e: Joi.any()
+                        e: Engine.any()
                     }
                 })
-            ).has(Joi.object().assert('d.e', Joi.ref('a.c'), 'equal to a.c'))
+            ).has(Engine.object().assert('d.e', Engine.ref('a.c'), 'equal to a.c'))
 
             Helper.validate(schema, [
                 [[{ a: { b: 'x', c: 5 }, d: { e: 5 } }], true]
@@ -162,7 +162,7 @@ describe('array', () => {
 
         it('does not throw if assertion passes', () => {
 
-            const schema = Joi.array().has(Joi.string())
+            const schema = Engine.array().has(Engine.string())
             Helper.validate(schema, [
                 [['foo'], true]
             ])
@@ -170,7 +170,7 @@ describe('array', () => {
 
         it('throws with proper message if assertion fails on unknown schema', () => {
 
-            const schema = Joi.array().has(Joi.string())
+            const schema = Engine.array().has(Engine.string())
             Helper.validate(schema, [
                 [[0], false, {
                     message: '"value" does not contain at least one required match',
@@ -183,7 +183,7 @@ describe('array', () => {
 
         it('throws with proper message if assertion fails on known schema', () => {
 
-            const schema = Joi.array().has(Joi.string().label('foo'))
+            const schema = Engine.array().has(Engine.string().label('foo'))
             Helper.validate(schema, [
                 [[0], false, {
                     message: '"value" does not contain at least one required match for type "foo"',
@@ -196,8 +196,8 @@ describe('array', () => {
 
         it('shows correct path for error', () => {
 
-            const schema = Joi.object({
-                arr: Joi.array().has(Joi.string())
+            const schema = Engine.object({
+                arr: Engine.array().has(Engine.string())
             })
             Helper.validate(schema, [
                 [{ arr: [0] }, false, {
@@ -211,9 +211,9 @@ describe('array', () => {
 
         it('supports nested arrays', () => {
 
-            const schema = Joi.object({
-                arr: Joi.array().items(
-                    Joi.object({ foo: Joi.array().has(Joi.string()) })
+            const schema = Engine.object({
+                arr: Engine.array().items(
+                    Engine.object({ foo: Engine.array().has(Engine.string()) })
                 )
             })
             Helper.validate(schema, [
@@ -223,10 +223,10 @@ describe('array', () => {
 
         it('supports peer item references', () => {
 
-            const schema = Joi.object({
-                array: Joi.array()
-                    .items(Joi.number())
-                    .has(Joi.number().greater(Joi.ref('..0')))
+            const schema = Engine.object({
+                array: Engine.array()
+                    .items(Engine.number())
+                    .has(Engine.number().greater(Engine.ref('..0')))
             })
 
             Helper.validate(schema, [
@@ -243,9 +243,9 @@ describe('array', () => {
 
         it('provides accurate error message for nested arrays', () => {
 
-            const schema = Joi.object({
-                arr: Joi.array().items(
-                    Joi.object({ foo: Joi.array().has(Joi.string()) })
+            const schema = Engine.object({
+                arr: Engine.array().items(
+                    Engine.object({ foo: Engine.array().has(Engine.string()) })
                 )
             })
             Helper.validate(schema, [
@@ -260,7 +260,7 @@ describe('array', () => {
 
         it('handles multiple assertions', () => {
 
-            const schema = Joi.array().has(Joi.string()).has(Joi.number())
+            const schema = Engine.array().has(Engine.string()).has(Engine.number())
             Helper.validate(schema, [
                 [['foo', 0], true]
             ])
@@ -277,7 +277,7 @@ describe('array', () => {
 
         it('describes the pattern schema', () => {
 
-            const schema = Joi.array().has(Joi.string()).has(Joi.number())
+            const schema = Engine.array().has(Engine.string()).has(Engine.number())
             expect(schema.describe()).to.equal({
                 type: 'array',
                 rules: [
@@ -292,7 +292,7 @@ describe('array', () => {
 
         it('converts members', () => {
 
-            const schema = Joi.array().items(Joi.number())
+            const schema = Engine.array().items(Engine.number())
             Helper.validate(schema, [
                 [['1', '2', '3'], true, [1, 2, 3]]
             ])
@@ -302,7 +302,7 @@ describe('array', () => {
 
             expect(() => {
 
-                Joi.array().items({
+                Engine.array().items({
                     a: {
                         b: {
                             c: {
@@ -313,14 +313,14 @@ describe('array', () => {
                 })
             }).to.throw(Error, 'Invalid undefined schema (0.a.b.c.d)')
 
-            expect(() => Joi.array().items({ foo: 'bar' }, undefined)).to.throw('Invalid undefined schema (1)')
+            expect(() => Engine.array().items({ foo: 'bar' }, undefined)).to.throw('Invalid undefined schema (1)')
         })
 
         it('allows zero size', () => {
 
-            const schema = Joi.object({
-                test: Joi.array().items(Joi.object({
-                    foo: Joi.string().required()
+            const schema = Engine.object({
+                test: Engine.array().items(Engine.object({
+                    foo: Engine.string().required()
                 }))
             })
 
@@ -331,7 +331,7 @@ describe('array', () => {
 
         it('allows Error items', () => {
 
-            const schema = Joi.array().items(Joi.object())
+            const schema = Engine.array().items(Engine.object())
             const error = new Error()
             Helper.validate(schema, [
                 [[error], true, [error]]
@@ -340,9 +340,9 @@ describe('array', () => {
 
         it('returns the first error when only one inclusion', () => {
 
-            const schema = Joi.object({
-                test: Joi.array().items(Joi.object({
-                    foo: Joi.string().required()
+            const schema = Engine.object({
+                test: Engine.array().items(Engine.object({
+                    foo: Engine.string().required()
                 }))
             })
 
@@ -358,21 +358,21 @@ describe('array', () => {
 
         it('validates multiple types added in two calls', () => {
 
-            const schema = Joi.array()
-                .items(Joi.number())
-                .items(Joi.string())
+            const schema = Engine.array()
+                .items(Engine.number())
+                .items(Engine.string())
 
             Helper.validate(schema, [
                 [[1, 2, 3], true],
                 [[50, 100, 1000], true],
                 [[1, 'a', 5, 10], true],
-                [['joi', 'everydaylowprices', 5000], true]
+                [['engine', 'everydaylowprices', 5000], true]
             ])
         })
 
         it('validates multiple types with stripUnknown', () => {
 
-            const schema = Joi.array().items(Joi.number(), Joi.string()).prefs({ stripUnknown: true })
+            const schema = Engine.array().items(Engine.number(), Engine.string()).prefs({ stripUnknown: true })
 
             Helper.validate(schema, [
                 [[1, 2, 'a'], true, [1, 2, 'a']],
@@ -392,7 +392,7 @@ describe('array', () => {
 
         it('validates multiple types with stripUnknown (as an object)', () => {
 
-            const schema = Joi.array().items(Joi.number(), Joi.string()).prefs({ stripUnknown: { arrays: true, objects: false } })
+            const schema = Engine.array().items(Engine.number(), Engine.string()).prefs({ stripUnknown: { arrays: true, objects: false } })
 
             Helper.validate(schema, [
                 [[1, 2, 'a'], true, [1, 2, 'a']],
@@ -402,7 +402,7 @@ describe('array', () => {
 
         it('allows forbidden to restrict values', () => {
 
-            const schema = Joi.array().items(Joi.string().valid('four').forbidden(), Joi.string())
+            const schema = Engine.array().items(Engine.string().valid('four').forbidden(), Engine.string())
             Helper.validate(schema, [
                 [['one', 'two', 'three', 'four'], false, {
                     message: '"[3]" contains an excluded value',
@@ -415,9 +415,9 @@ describe('array', () => {
 
         it('allows forbidden to restrict values (ref)', () => {
 
-            const schema = Joi.object({
-                array: Joi.array().items(Joi.valid(Joi.ref('...value')).forbidden(), Joi.string()),
-                value: Joi.string().required()
+            const schema = Engine.object({
+                array: Engine.array().items(Engine.valid(Engine.ref('...value')).forbidden(), Engine.string()),
+                value: Engine.string().required()
             })
             Helper.validate(schema, [
                 [{
@@ -434,9 +434,9 @@ describe('array', () => {
 
         it('process referenced property first when referenced by an item rule', () => {
 
-            const schema = Joi.object({
-                array: Joi.array().items(Joi.valid(Joi.ref('...value')).forbidden(), Joi.number()),
-                value: Joi.number().required()
+            const schema = Engine.object({
+                array: Engine.array().items(Engine.valid(Engine.ref('...value')).forbidden(), Engine.number()),
+                value: Engine.number().required()
             })
 
             Helper.validate(schema, [
@@ -454,7 +454,7 @@ describe('array', () => {
 
         it('validates that a required value exists', () => {
 
-            const schema = Joi.array().items(Joi.string().valid('four').required(), Joi.string())
+            const schema = Engine.array().items(Engine.string().valid('four').required(), Engine.string())
             Helper.validate(schema, [
                 [['one', 'two', 'three'], false, {
                     message: '"value" does not contain 1 required value(s)',
@@ -467,7 +467,7 @@ describe('array', () => {
 
         it('validates that values are validated when all items are required', () => {
 
-            const schema = Joi.array().items(Joi.string().valid('one').required(), Joi.string().valid('two').required())
+            const schema = Engine.array().items(Engine.string().valid('one').required(), Engine.string().valid('two').required())
             Helper.validate(schema, [
                 [['one', 'one', 'two', 'two', 'three'], false, {
                     message: '"[4]" does not match any of the allowed types',
@@ -480,8 +480,8 @@ describe('array', () => {
 
         it('validates that a required value exists with abortEarly = false', () => {
 
-            const schema = Joi.array()
-                .items(Joi.string().valid('four').required(), Joi.string())
+            const schema = Engine.array()
+                .items(Engine.string().valid('four').required(), Engine.string())
                 .prefs({ abortEarly: false })
 
             const input = ['one', 'two', 'three']
@@ -501,7 +501,7 @@ describe('array', () => {
 
         it('does not re-run required tests that have already been matched', () => {
 
-            const schema = Joi.array().items(Joi.string().valid('four').required(), Joi.string())
+            const schema = Engine.array().items(Engine.string().valid('four').required(), Engine.string())
             Helper.validate(schema, [
                 [['one', 'two', 'three', 'four', 'four', 'four'], true]
             ])
@@ -509,7 +509,7 @@ describe('array', () => {
 
         it('does not re-run required tests that have already failed', () => {
 
-            const schema = Joi.array().items(Joi.string().valid('four').required(), Joi.boolean().required(), Joi.number())
+            const schema = Engine.array().items(Engine.string().valid('four').required(), Engine.boolean().required(), Engine.number())
             Helper.validate(schema, [
                 [['one', 'two', 'three', 'four', 'four', 'four'], false, {
                     message: '"[0]" does not match any of the allowed types',
@@ -522,7 +522,7 @@ describe('array', () => {
 
         it('can require duplicates of the same schema and fail', () => {
 
-            const schema = Joi.array().items(Joi.string().valid('four').required(), Joi.string().valid('four').required(), Joi.string())
+            const schema = Engine.array().items(Engine.string().valid('four').required(), Engine.string().valid('four').required(), Engine.string())
 
             Helper.validate(schema, [
                 [['one', 'two', 'three', 'four'], false, {
@@ -536,7 +536,7 @@ describe('array', () => {
 
         it('can require duplicates of the same schema and pass', () => {
 
-            const schema = Joi.array().items(Joi.string().valid('four').required(), Joi.string().valid('four').required(), Joi.string())
+            const schema = Engine.array().items(Engine.string().valid('four').required(), Engine.string().valid('four').required(), Engine.string())
 
             Helper.validate(schema, [
                 [['one', 'two', 'three', 'four', 'four'], true]
@@ -545,7 +545,7 @@ describe('array', () => {
 
         it('continues to validate after a required match', () => {
 
-            const schema = Joi.array().items(Joi.string().required(), Joi.boolean())
+            const schema = Engine.array().items(Engine.string().required(), Engine.boolean())
 
             Helper.validate(schema, [
                 [[true, 'one', false, 'two'], true]
@@ -554,7 +554,7 @@ describe('array', () => {
 
         it('can use a label on a required parameter', () => {
 
-            const schema = Joi.array().items(Joi.string().required().label('required string'), Joi.boolean())
+            const schema = Engine.array().items(Engine.string().required().label('required string'), Engine.boolean())
 
             Helper.validate(schema, [
                 [[true, false], false, {
@@ -568,7 +568,7 @@ describe('array', () => {
 
         it('can use a label on one required parameter, and no label on another', () => {
 
-            const schema = Joi.array().items(Joi.string().required().label('required string'), Joi.string().required(), Joi.boolean())
+            const schema = Engine.array().items(Engine.string().required().label('required string'), Engine.string().required(), Engine.boolean())
 
             Helper.validate(schema, [
                 [[true, false], false, {
@@ -587,7 +587,7 @@ describe('array', () => {
 
         it('can fill the default values into the value array', () => {
 
-            const schema = Joi.array().ordered(Joi.string().required(), Joi.number().default(0), Joi.number().default(6)).required()
+            const schema = Engine.array().ordered(Engine.string().required(), Engine.number().default(0), Engine.number().default(6)).required()
 
             Helper.validate(schema, [
                 [['a'], true, ['a', 0, 6]]
@@ -596,7 +596,7 @@ describe('array', () => {
 
         it('ignore trailing undefined', () => {
 
-            const schema = Joi.array().ordered(Joi.string().required(), Joi.string(), Joi.number().default(5), Joi.string(), Joi.string())
+            const schema = Engine.array().ordered(Engine.string().required(), Engine.string(), Engine.number().default(5), Engine.string(), Engine.string())
 
             Helper.validate(schema, [
                 [['a'], true, ['a', undefined, 5]]
@@ -605,7 +605,7 @@ describe('array', () => {
 
         it('generate sparse array', () => {
 
-            const schema = Joi.array().ordered(Joi.string(), Joi.number().default(5), Joi.string(), Joi.string().default('f'))
+            const schema = Engine.array().ordered(Engine.string(), Engine.number().default(5), Engine.string(), Engine.string().default('f'))
 
             Helper.validate(schema, [
                 [[], true, [undefined, 5, undefined, 'f']]
@@ -614,14 +614,14 @@ describe('array', () => {
 
         it('fills defaults correctly when nested items contain references', () => {
 
-            const schema = Joi.object({
-                info: Joi.object(),
-                values: Joi.array().ordered(
-                    Joi.string().required(),
-                    Joi.string().default(Joi.ref('...info.firstname')),
-                    Joi.string(),
-                    Joi.string().default(Joi.ref('...info.lastname')),
-                    Joi.string()
+            const schema = Engine.object({
+                info: Engine.object(),
+                values: Engine.array().ordered(
+                    Engine.string().required(),
+                    Engine.string().default(Engine.ref('...info.firstname')),
+                    Engine.string(),
+                    Engine.string().default(Engine.ref('...info.lastname')),
+                    Engine.string()
                 ).required()
             })
 
@@ -633,19 +633,19 @@ describe('array', () => {
 
         it('fills defaults correctly when nested items contain references', () => {
 
-            const schema = Joi.object({
-                info: Joi.object().required(),
-                values: Joi.array().ordered(
-                    Joi.string().required(),
-                    Joi.array().ordered(
-                        Joi.string(),
-                        Joi.string().default('normal value'),
-                        Joi.string(),
-                        Joi.number().default(Joi.x('{number("202099")}'))
+            const schema = Engine.object({
+                info: Engine.object().required(),
+                values: Engine.array().ordered(
+                    Engine.string().required(),
+                    Engine.array().ordered(
+                        Engine.string(),
+                        Engine.string().default('normal value'),
+                        Engine.string(),
+                        Engine.number().default(Engine.x('{number("202099")}'))
                     ),
-                    Joi.string(),
-                    Joi.string().default(Joi.ref('...info.firstname')),
-                    Joi.string()
+                    Engine.string(),
+                    Engine.string().default(Engine.ref('...info.firstname')),
+                    Engine.string()
                 ).required()
             })
 
@@ -656,7 +656,7 @@ describe('array', () => {
 
         it('can strip matching items', () => {
 
-            const schema = Joi.array().items(Joi.string(), Joi.any().strip())
+            const schema = Engine.array().items(Engine.string(), Engine.any().strip())
 
             Helper.validate(schema, [
                 [['one', 'two', 3, 4], true, ['one', 'two']]
@@ -665,9 +665,9 @@ describe('array', () => {
 
         it('returns custom item error', () => {
 
-            const schema = Joi.array().items(
-                Joi.object({
-                    a: Joi.number().error(new Error('custom'))
+            const schema = Engine.array().items(
+                Engine.object({
+                    a: Engine.number().error(new Error('custom'))
                 })
             )
 
@@ -679,9 +679,9 @@ describe('array', () => {
 
         it('returns custom item error (required)', () => {
 
-            const schema = Joi.array().items(
-                Joi.object({
-                    a: Joi.number().error(new Error('custom'))
+            const schema = Engine.array().items(
+                Engine.object({
+                    a: Engine.number().error(new Error('custom'))
                 })
                     .required()
             )
@@ -697,7 +697,7 @@ describe('array', () => {
 
         it('validates array size', () => {
 
-            const schema = Joi.array().length(2)
+            const schema = Engine.array().length(2)
             Helper.validate(schema, [
                 [[1, 2], true],
                 [[1], false, {
@@ -711,7 +711,7 @@ describe('array', () => {
 
         it('overrides rule when called multiple times', () => {
 
-            const schema = Joi.array().length(2).length(1)
+            const schema = Engine.array().length(2).length(1)
             Helper.validate(schema, [
                 [[1], true],
                 [[1, 2], false, {
@@ -725,25 +725,25 @@ describe('array', () => {
 
         it('throws when limit is not a number', () => {
 
-            expect(() => Joi.array().length('a')).to.throw('limit must be a positive integer or reference')
+            expect(() => Engine.array().length('a')).to.throw('limit must be a positive integer or reference')
         })
 
         it('throws when limit is not an integer', () => {
 
-            expect(() => Joi.array().length(1.2)).to.throw('limit must be a positive integer or reference')
+            expect(() => Engine.array().length(1.2)).to.throw('limit must be a positive integer or reference')
         })
 
         it('throws when limit is negative', () => {
 
-            expect(() => Joi.array().length(-1)).to.throw('limit must be a positive integer or reference')
+            expect(() => Engine.array().length(-1)).to.throw('limit must be a positive integer or reference')
         })
 
         it('validates array size when a reference', () => {
 
-            const ref = Joi.ref('limit')
-            const schema = Joi.object().keys({
-                limit: Joi.any(),
-                arr: Joi.array().length(ref)
+            const ref = Engine.ref('limit')
+            const schema = Engine.object().keys({
+                limit: Engine.any(),
+                arr: Engine.array().length(ref)
             })
 
             Helper.validate(schema, [
@@ -759,12 +759,12 @@ describe('array', () => {
 
         it('handles references within a when', () => {
 
-            const schema = Joi.object({
-                limit: Joi.any(),
-                arr: Joi.array(),
-                arr2: Joi.when('arr', {
-                    is: Joi.array().length(Joi.ref('limit')),
-                    then: Joi.array()
+            const schema = Engine.object({
+                limit: Engine.any(),
+                arr: Engine.array(),
+                arr2: Engine.when('arr', {
+                    is: Engine.array().length(Engine.ref('limit')),
+                    then: Engine.array()
                 })
             })
 
@@ -775,10 +775,10 @@ describe('array', () => {
 
         it('validates reference is a safe integer', () => {
 
-            const ref = Joi.ref('limit')
-            const schema = Joi.object().keys({
-                limit: Joi.any(),
-                arr: Joi.array().length(ref)
+            const ref = Engine.ref('limit')
+            const schema = Engine.object().keys({
+                limit: Engine.any(),
+                arr: Engine.array().length(ref)
             })
 
             Helper.validate(schema, [
@@ -802,7 +802,7 @@ describe('array', () => {
 
         it('validates array size', () => {
 
-            const schema = Joi.array().max(1)
+            const schema = Engine.array().max(1)
             Helper.validate(schema, [
                 [[1, 2], false, {
                     message: '"value" must contain less than or equal to 1 items',
@@ -816,7 +816,7 @@ describe('array', () => {
 
         it('overrides rule when called multiple times', () => {
 
-            const schema = Joi.array().max(1).max(2)
+            const schema = Engine.array().max(1).max(2)
             Helper.validate(schema, [
                 [[1, 2], true],
                 [[1], true]
@@ -825,25 +825,25 @@ describe('array', () => {
 
         it('throws when limit is not a number', () => {
 
-            expect(() => Joi.array().max('a')).to.throw('limit must be a positive integer or reference')
+            expect(() => Engine.array().max('a')).to.throw('limit must be a positive integer or reference')
         })
 
         it('throws when limit is not an integer', () => {
 
-            expect(() => Joi.array().max(1.2)).to.throw('limit must be a positive integer or reference')
+            expect(() => Engine.array().max(1.2)).to.throw('limit must be a positive integer or reference')
         })
 
         it('throws when limit is negative', () => {
 
-            expect(() => Joi.array().max(-1)).to.throw('limit must be a positive integer or reference')
+            expect(() => Engine.array().max(-1)).to.throw('limit must be a positive integer or reference')
         })
 
         it('validates array size when a reference', () => {
 
-            const ref = Joi.ref('limit')
-            const schema = Joi.object().keys({
-                limit: Joi.any(),
-                arr: Joi.array().max(ref)
+            const ref = Engine.ref('limit')
+            const schema = Engine.object().keys({
+                limit: Engine.any(),
+                arr: Engine.array().max(ref)
             })
 
             Helper.validate(schema, [
@@ -859,12 +859,12 @@ describe('array', () => {
 
         it('handles references within a when', () => {
 
-            const schema = Joi.object({
-                limit: Joi.any(),
-                arr: Joi.array(),
-                arr2: Joi.when('arr', {
-                    is: Joi.array().max(Joi.ref('limit')),
-                    then: Joi.array()
+            const schema = Engine.object({
+                limit: Engine.any(),
+                arr: Engine.array(),
+                arr2: Engine.when('arr', {
+                    is: Engine.array().max(Engine.ref('limit')),
+                    then: Engine.array()
                 })
             })
 
@@ -875,10 +875,10 @@ describe('array', () => {
 
         it('validates reference is a safe integer', () => {
 
-            const ref = Joi.ref('limit')
-            const schema = Joi.object().keys({
-                limit: Joi.any(),
-                arr: Joi.array().max(ref)
+            const ref = Engine.ref('limit')
+            const schema = Engine.object().keys({
+                limit: Engine.any(),
+                arr: Engine.array().max(ref)
             })
 
             Helper.validate(schema, [
@@ -902,7 +902,7 @@ describe('array', () => {
 
         it('validates array size', () => {
 
-            const schema = Joi.array().min(2)
+            const schema = Engine.array().min(2)
             Helper.validate(schema, [
                 [[1, 2], true],
                 [[1], false, {
@@ -916,7 +916,7 @@ describe('array', () => {
 
         it('overrides rule when called multiple times', () => {
 
-            const schema = Joi.array().min(2).min(1)
+            const schema = Engine.array().min(2).min(1)
             Helper.validate(schema, [
                 [[1, 2], true],
                 [[1], true]
@@ -925,25 +925,25 @@ describe('array', () => {
 
         it('throws when limit is not a number', () => {
 
-            expect(() => Joi.array().min('a')).to.throw('limit must be a positive integer or reference')
+            expect(() => Engine.array().min('a')).to.throw('limit must be a positive integer or reference')
         })
 
         it('throws when limit is not an integer', () => {
 
-            expect(() => Joi.array().min(1.2)).to.throw('limit must be a positive integer or reference')
+            expect(() => Engine.array().min(1.2)).to.throw('limit must be a positive integer or reference')
         })
 
         it('throws when limit is negative', () => {
 
-            expect(() => Joi.array().min(-1)).to.throw('limit must be a positive integer or reference')
+            expect(() => Engine.array().min(-1)).to.throw('limit must be a positive integer or reference')
         })
 
         it('validates array size when a reference', () => {
 
-            const ref = Joi.ref('limit')
-            const schema = Joi.object().keys({
-                limit: Joi.any(),
-                arr: Joi.array().min(ref)
+            const ref = Engine.ref('limit')
+            const schema = Engine.object().keys({
+                limit: Engine.any(),
+                arr: Engine.array().min(ref)
             })
 
             Helper.validate(schema, [
@@ -959,12 +959,12 @@ describe('array', () => {
 
         it('handles references within a when', () => {
 
-            const schema = Joi.object({
-                limit: Joi.any(),
-                arr: Joi.array(),
-                arr2: Joi.when('arr', {
-                    is: Joi.array().min(Joi.ref('limit')),
-                    then: Joi.array()
+            const schema = Engine.object({
+                limit: Engine.any(),
+                arr: Engine.array(),
+                arr2: Engine.when('arr', {
+                    is: Engine.array().min(Engine.ref('limit')),
+                    then: Engine.array()
                 })
             })
 
@@ -975,10 +975,10 @@ describe('array', () => {
 
         it('validates reference is a safe integer', () => {
 
-            const ref = Joi.ref('limit')
-            const schema = Joi.object().keys({
-                limit: Joi.any(),
-                arr: Joi.array().min(ref)
+            const ref = Engine.ref('limit')
+            const schema = Engine.object().keys({
+                limit: Engine.any(),
+                arr: Engine.array().min(ref)
             })
 
             Helper.validate(schema, [
@@ -1002,7 +1002,7 @@ describe('array', () => {
 
         it('ignores stripUnknown when true', () => {
 
-            const schema = Joi.array().items(Joi.string()).prefs({ stripUnknown: true })
+            const schema = Engine.array().items(Engine.string()).prefs({ stripUnknown: true })
 
             Helper.validate(schema, [
                 [['one', 'two', 3, 4, true, false], false, '"[2]" must be a string']
@@ -1011,7 +1011,7 @@ describe('array', () => {
 
         it('respects stripUnknown (as an object)', () => {
 
-            const schema = Joi.array().items(Joi.string()).prefs({ stripUnknown: { arrays: true, objects: false } })
+            const schema = Engine.array().items(Engine.string()).prefs({ stripUnknown: { arrays: true, objects: false } })
 
             Helper.validate(schema, [
                 [['one', 'two', 3, 4, true, false], true, ['one', 'two']]
@@ -1025,7 +1025,7 @@ describe('array', () => {
 
             expect(() => {
 
-                Joi.array().ordered({
+                Engine.array().ordered({
                     a: {
                         b: {
                             c: {
@@ -1036,12 +1036,12 @@ describe('array', () => {
                 })
             }).to.throw('Invalid undefined schema (0.a.b.c.d)')
 
-            expect(() => Joi.array().ordered({ foo: 'bar' }, undefined)).to.throw('Invalid undefined schema (1)')
+            expect(() => Engine.array().ordered({ foo: 'bar' }, undefined)).to.throw('Invalid undefined schema (1)')
         })
 
         it('validates input against items in order', () => {
 
-            const schema = Joi.array().ordered(Joi.string().required(), Joi.number().required())
+            const schema = Engine.array().ordered(Engine.string().required(), Engine.number().required())
 
             Helper.validate(schema, [
                 [['s1', 2], true]
@@ -1050,7 +1050,7 @@ describe('array', () => {
 
         it('validates input with optional item', () => {
 
-            const schema = Joi.array().ordered(Joi.string().required(), Joi.number().required(), Joi.number())
+            const schema = Engine.array().ordered(Engine.string().required(), Engine.number().required(), Engine.number())
 
             Helper.validate(schema, [
                 [['s1', 2, 3], true]
@@ -1059,7 +1059,7 @@ describe('array', () => {
 
         it('validates input without optional item', () => {
 
-            const schema = Joi.array().ordered(Joi.string().required(), Joi.number().required(), Joi.number())
+            const schema = Engine.array().ordered(Engine.string().required(), Engine.number().required(), Engine.number())
 
             Helper.validate(schema, [
                 [['s1', 2], true]
@@ -1068,7 +1068,7 @@ describe('array', () => {
 
         it('validates input without optional item', () => {
 
-            const schema = Joi.array().ordered(Joi.string().required(), Joi.number().required(), Joi.number()).sparse(true)
+            const schema = Engine.array().ordered(Engine.string().required(), Engine.number().required(), Engine.number()).sparse(true)
 
             Helper.validate(schema, [
                 [['s1', 2, undefined], true]
@@ -1077,7 +1077,7 @@ describe('array', () => {
 
         it('validates input without optional item in a sparse array', () => {
 
-            const schema = Joi.array().ordered(Joi.string().required(), Joi.number(), Joi.number().required()).sparse(true)
+            const schema = Engine.array().ordered(Engine.string().required(), Engine.number(), Engine.number().required()).sparse(true)
 
             Helper.validate(schema, [
                 [['s1', undefined, 3], true]
@@ -1086,7 +1086,7 @@ describe('array', () => {
 
         it('validates when input matches ordered items and matches regular items', () => {
 
-            const schema = Joi.array().ordered(Joi.string().required(), Joi.number().required()).items(Joi.number())
+            const schema = Engine.array().ordered(Engine.string().required(), Engine.number().required()).items(Engine.number())
 
             Helper.validate(schema, [
                 [['s1', 2, 3, 4, 5], true]
@@ -1095,7 +1095,7 @@ describe('array', () => {
 
         it('errors when input does not match ordered items', () => {
 
-            const schema = Joi.array().ordered(Joi.number().required(), Joi.string().required())
+            const schema = Engine.array().ordered(Engine.number().required(), Engine.string().required())
 
             Helper.validate(schema, [
                 [['s1', 2], false, {
@@ -1109,7 +1109,7 @@ describe('array', () => {
 
         it('errors when input has more items than ordered items', () => {
 
-            const schema = Joi.array().ordered(Joi.number().required(), Joi.string().required())
+            const schema = Engine.array().ordered(Engine.number().required(), Engine.string().required())
 
             Helper.validate(schema, [
                 [[1, 's2', 3], false, {
@@ -1123,7 +1123,7 @@ describe('array', () => {
 
         it('errors when input has more items than ordered items with abortEarly = false', () => {
 
-            const schema = Joi.array().ordered(Joi.string(), Joi.number()).prefs({ abortEarly: false })
+            const schema = Engine.array().ordered(Engine.string(), Engine.number()).prefs({ abortEarly: false })
 
             Helper.validate(schema, [
                 [[1, 2, 3, 4, 5], false, {
@@ -1148,7 +1148,7 @@ describe('array', () => {
 
         it('errors when input has less items than ordered items', () => {
 
-            const schema = Joi.array().ordered(Joi.number().required(), Joi.string().required())
+            const schema = Engine.array().ordered(Engine.number().required(), Engine.string().required())
 
             Helper.validate(schema, [
                 [[1], false, {
@@ -1162,9 +1162,9 @@ describe('array', () => {
 
         it('errors when input matches ordered items but not matches regular items', () => {
 
-            const schema = Joi.array()
-                .ordered(Joi.string().required(), Joi.number().required())
-                .items(Joi.number())
+            const schema = Engine.array()
+                .ordered(Engine.string().required(), Engine.number().required())
+                .items(Engine.number())
                 .prefs({ abortEarly: false })
 
             Helper.validate(schema, [
@@ -1182,9 +1182,9 @@ describe('array', () => {
 
         it('errors when input does not match ordered items but matches regular items', () => {
 
-            const schema = Joi.array()
-                .ordered(Joi.string(), Joi.number())
-                .items(Joi.number())
+            const schema = Engine.array()
+                .ordered(Engine.string(), Engine.number())
+                .items(Engine.number())
                 .prefs({ abortEarly: false })
 
             Helper.validate(schema, [
@@ -1202,7 +1202,7 @@ describe('array', () => {
 
         it('errors when input does not match ordered items not matches regular items', () => {
 
-            const schema = Joi.array().ordered(Joi.string(), Joi.number()).items(Joi.string()).prefs({ abortEarly: false })
+            const schema = Engine.array().ordered(Engine.string(), Engine.number()).items(Engine.string()).prefs({ abortEarly: false })
 
             Helper.validate(schema, [
                 [[1, 2, 3, 4, 5], false, {
@@ -1239,7 +1239,7 @@ describe('array', () => {
 
         it('errors but continues when abortEarly is set to false', () => {
 
-            const schema = Joi.array().ordered(Joi.number().required(), Joi.string().required()).prefs({ abortEarly: false })
+            const schema = Engine.array().ordered(Engine.number().required(), Engine.string().required()).prefs({ abortEarly: false })
 
             Helper.validate(schema, [
                 [['s1', 2], false, {
@@ -1264,11 +1264,11 @@ describe('array', () => {
 
         it('errors on sparse arrays and continues when abortEarly is set to false', () => {
 
-            const schema = Joi.array().ordered(
-                Joi.number().min(0),
-                Joi.string().min(2),
-                Joi.number().max(0),
-                Joi.string().max(3)
+            const schema = Engine.array().ordered(
+                Engine.number().min(0),
+                Engine.string().min(2),
+                Engine.number().max(0),
+                Engine.string().max(3)
             )
                 .prefs({ abortEarly: false })
 
@@ -1315,11 +1315,11 @@ describe('array', () => {
 
         it('errors on forbidden items and continues when abortEarly is set to false', () => {
 
-            const schema = Joi.array().items(Joi.bool().forbidden()).ordered(
-                Joi.number().min(0),
-                Joi.string().min(2),
-                Joi.number().max(0),
-                Joi.string().max(3)
+            const schema = Engine.array().items(Engine.bool().forbidden()).ordered(
+                Engine.number().min(0),
+                Engine.string().min(2),
+                Engine.number().max(0),
+                Engine.string().max(3)
             )
                 .prefs({ abortEarly: false })
 
@@ -1392,7 +1392,7 @@ describe('array', () => {
 
         it('strips item', () => {
 
-            const schema = Joi.array().ordered(Joi.string().required(), Joi.number().strip(), Joi.number().required())
+            const schema = Engine.array().ordered(Engine.string().required(), Engine.number().strip(), Engine.number().required())
 
             Helper.validate(schema, [
                 [['s1', 2, 3], true, ['s1', 3]]
@@ -1401,7 +1401,7 @@ describe('array', () => {
 
         it('strips multiple items', () => {
 
-            const schema = Joi.array().ordered(Joi.string().strip(), Joi.number(), Joi.number().strip())
+            const schema = Engine.array().ordered(Engine.string().strip(), Engine.number(), Engine.number().strip())
 
             Helper.validate(schema, [
                 [['s1', 2, 3], true, [2]]
@@ -1410,7 +1410,7 @@ describe('array', () => {
 
         it('references array members', () => {
 
-            const schema = Joi.array().ordered(Joi.number(), Joi.number().greater(Joi.ref('..0')))
+            const schema = Engine.array().ordered(Engine.number(), Engine.number().greater(Engine.ref('..0')))
 
             Helper.validate(schema, [
                 [[1, 2], true],
@@ -1423,7 +1423,7 @@ describe('array', () => {
 
         it('allows a single element', () => {
 
-            const schema = Joi.array().items(Joi.number()).items(Joi.boolean().forbidden()).single()
+            const schema = Engine.array().items(Engine.number()).items(Engine.boolean().forbidden()).single()
 
             Helper.validate(schema, [
                 [[1, 2, 3], true],
@@ -1451,7 +1451,7 @@ describe('array', () => {
 
         it('allows a single element with multiple types', () => {
 
-            const schema = Joi.array().items(Joi.number(), Joi.string()).single()
+            const schema = Engine.array().items(Engine.number(), Engine.string()).single()
 
             Helper.validate(schema, [
                 [[1, 2, 3], true],
@@ -1469,23 +1469,23 @@ describe('array', () => {
 
         it('errors on single with array items', () => {
 
-            expect(() => Joi.array().items(Joi.array()).single()).to.throw('Cannot specify single rule when array has array items')
-            expect(() => Joi.array().items(Joi.alternatives([Joi.array()])).single()).to.throw('Cannot specify single rule when array has array items')
-            expect(() => Joi.array().items(Joi.alternatives([Joi.number(), Joi.string()])).single()).to.not.throw()
+            expect(() => Engine.array().items(Engine.array()).single()).to.throw('Cannot specify single rule when array has array items')
+            expect(() => Engine.array().items(Engine.alternatives([Engine.array()])).single()).to.throw('Cannot specify single rule when array has array items')
+            expect(() => Engine.array().items(Engine.alternatives([Engine.number(), Engine.string()])).single()).to.not.throw()
 
-            expect(() => Joi.array().single().items(Joi.array())).to.throw('Cannot specify array item with single rule enabled')
-            expect(() => Joi.array().single().items(Joi.alternatives([Joi.array()]))).to.throw('Cannot specify array item with single rule enabled')
+            expect(() => Engine.array().single().items(Engine.array())).to.throw('Cannot specify array item with single rule enabled')
+            expect(() => Engine.array().single().items(Engine.alternatives([Engine.array()]))).to.throw('Cannot specify array item with single rule enabled')
 
-            expect(() => Joi.array().ordered(Joi.array()).single()).to.throw('Cannot specify single rule when array has array items')
-            expect(() => Joi.array().ordered(Joi.alternatives([Joi.array()])).single()).to.throw('Cannot specify single rule when array has array items')
+            expect(() => Engine.array().ordered(Engine.array()).single()).to.throw('Cannot specify single rule when array has array items')
+            expect(() => Engine.array().ordered(Engine.alternatives([Engine.array()])).single()).to.throw('Cannot specify single rule when array has array items')
 
-            expect(() => Joi.array().single().ordered(Joi.array())).to.throw('Cannot specify array item with single rule enabled')
-            expect(() => Joi.array().single().ordered(Joi.alternatives([Joi.array()]))).to.throw('Cannot specify array item with single rule enabled')
+            expect(() => Engine.array().single().ordered(Engine.array())).to.throw('Cannot specify array item with single rule enabled')
+            expect(() => Engine.array().single().ordered(Engine.alternatives([Engine.array()]))).to.throw('Cannot specify array item with single rule enabled')
         })
 
         it('switches the single flag with explicit value', () => {
 
-            const schema = Joi.array().single(true)
+            const schema = Engine.array().single(true)
             const desc = schema.describe()
             expect(desc).to.equal({
                 type: 'array',
@@ -1495,14 +1495,14 @@ describe('array', () => {
 
         it('switches the single flag back', () => {
 
-            const schema = Joi.array().single().single(false)
+            const schema = Engine.array().single().single(false)
             const desc = schema.describe()
             expect(desc).to.equal({ type: 'array' })
         })
 
         it('avoids unnecessary cloning when called twice', () => {
 
-            const schema = Joi.array().single()
+            const schema = Engine.array().single()
             expect(schema.single()).to.shallow.equal(schema)
         })
     })
@@ -1511,7 +1511,7 @@ describe('array', () => {
 
         it('validates array sorts order', () => {
 
-            const schema = Joi.array().sort().prefs({ convert: false })
+            const schema = Engine.array().sort().prefs({ convert: false })
 
             Helper.validate(schema, [
                 [[1, 2], true],
@@ -1559,7 +1559,7 @@ describe('array', () => {
 
         it('validates array sorts order (ascending)', () => {
 
-            const schema = Joi.array().sort({ order: 'ascending' }).prefs({ convert: false })
+            const schema = Engine.array().sort({ order: 'ascending' }).prefs({ convert: false })
 
             Helper.validate(schema, [
                 [[1, 2], true],
@@ -1607,7 +1607,7 @@ describe('array', () => {
 
         it('validates array sorts order (descending)', () => {
 
-            const schema = Joi.array().sort({ order: 'descending' }).prefs({ convert: false })
+            const schema = Engine.array().sort({ order: 'descending' }).prefs({ convert: false })
 
             Helper.validate(schema, [
                 [[2, 1], true],
@@ -1655,7 +1655,7 @@ describe('array', () => {
 
         it('validates array sorts order (object key)', () => {
 
-            const schema = Joi.array().sort({ by: 'x' }).prefs({ convert: false })
+            const schema = Engine.array().sort({ by: 'x' }).prefs({ convert: false })
 
             Helper.validate(schema, [
                 [[{ x: 1 }, { x: 2 }], true],
@@ -1703,7 +1703,7 @@ describe('array', () => {
 
         it('sorts array (ascending)', () => {
 
-            const schema = Joi.array().sort({ order: 'ascending' })
+            const schema = Engine.array().sort({ order: 'ascending' })
 
             Helper.validate(schema, [
                 [[2, 1], true, [1, 2]],
@@ -1729,7 +1729,7 @@ describe('array', () => {
 
         it('sorts array (object key)', () => {
 
-            const schema = Joi.array().sort({ by: 'x' })
+            const schema = Engine.array().sort({ by: 'x' })
 
             Helper.validate(schema, [
                 [[{ x: 1 }, { x: 2 }], true, [{ x: 1 }, { x: 2 }]],
@@ -1750,7 +1750,7 @@ describe('array', () => {
 
         it('errors on unsupported type', () => {
 
-            const schema = Joi.array().sort().prefs({ convert: false })
+            const schema = Engine.array().sort().prefs({ convert: false })
 
             Helper.validate(schema, [
                 [[{}, {}], false, '"value" cannot be sorted due to unsupported type object']
@@ -1759,7 +1759,7 @@ describe('array', () => {
 
         it('errors on mismatching types', () => {
 
-            const schema = Joi.array().sort().prefs({ convert: false })
+            const schema = Engine.array().sort().prefs({ convert: false })
 
             Helper.validate(schema, [
                 [[1, 'x'], false, '"value" cannot be sorted due to mismatching types']
@@ -1771,7 +1771,7 @@ describe('array', () => {
 
         it('errors on undefined value', () => {
 
-            const schema = Joi.array().items(Joi.number())
+            const schema = Engine.array().items(Engine.number())
 
             Helper.validate(schema, [
                 [[undefined], false, {
@@ -1791,7 +1791,7 @@ describe('array', () => {
 
         it('errors on undefined value after validation', () => {
 
-            const schema = Joi.array().items(Joi.object().empty({}))
+            const schema = Engine.array().items(Engine.object().empty({}))
 
             Helper.validate(schema, [
                 [[{ a: 1 }, {}, { c: 3 }], false, {
@@ -1805,7 +1805,7 @@ describe('array', () => {
 
         it('errors on undefined value after validation with abortEarly false', () => {
 
-            const schema = Joi.array().items(Joi.object().empty({})).prefs({ abortEarly: false })
+            const schema = Engine.array().items(Engine.object().empty({})).prefs({ abortEarly: false })
 
             Helper.validate(schema, [
                 [[{ a: 1 }, {}, 3], false, {
@@ -1830,7 +1830,7 @@ describe('array', () => {
 
         it('errors on undefined value after validation with required', () => {
 
-            const schema = Joi.array().items(Joi.object().empty({}).required())
+            const schema = Engine.array().items(Engine.object().empty({}).required())
 
             Helper.validate(schema, [
                 [[{}, { c: 3 }], false, {
@@ -1844,7 +1844,7 @@ describe('array', () => {
 
         it('errors on undefined value after custom validation with required', () => {
 
-            const custom = Joi.extend({
+            const custom = Engine.extend({
                 type: 'extended',
                 rules: {
                     foo: {
@@ -1871,7 +1871,7 @@ describe('array', () => {
 
         it('errors on undefined value after custom validation with required and abortEarly false', () => {
 
-            const custom = Joi.extend({
+            const custom = Engine.extend({
                 type: 'extended',
                 rules: {
                     foo: {
@@ -1909,7 +1909,7 @@ describe('array', () => {
 
         it('errors on undefined value after validation with required and abortEarly false', () => {
 
-            const schema = Joi.array().items(Joi.object().empty({}).required()).prefs({ abortEarly: false })
+            const schema = Engine.array().items(Engine.object().empty({}).required()).prefs({ abortEarly: false })
 
             Helper.validate(schema, [
                 [[{}, 3], false, {
@@ -1940,7 +1940,7 @@ describe('array', () => {
 
         it('errors on undefined value after validation with ordered', () => {
 
-            const schema = Joi.array().ordered(Joi.object().empty({}))
+            const schema = Engine.array().ordered(Engine.object().empty({}))
 
             Helper.validate(schema, [
                 [[{}], false, {
@@ -1954,7 +1954,7 @@ describe('array', () => {
 
         it('errors on undefined value after validation with ordered and abortEarly false', () => {
 
-            const schema = Joi.array().ordered(Joi.object().empty({})).prefs({ abortEarly: false })
+            const schema = Engine.array().ordered(Engine.object().empty({})).prefs({ abortEarly: false })
 
             Helper.validate(schema, [
                 [[{}, 3], false, {
@@ -1979,7 +1979,7 @@ describe('array', () => {
 
         it('validates on undefined value with sparse', () => {
 
-            const schema = Joi.array().items(Joi.number()).sparse()
+            const schema = Engine.array().items(Engine.number()).sparse()
 
             Helper.validate(schema, [
                 [[undefined], true],
@@ -1989,7 +1989,7 @@ describe('array', () => {
 
         it('validates on undefined value after validation', () => {
 
-            const schema = Joi.array().items(Joi.object().empty({})).sparse()
+            const schema = Engine.array().items(Engine.object().empty({})).sparse()
 
             Helper.validate(schema, [
                 [[{ a: 1 }, {}, { c: 3 }], true, [{ a: 1 }, undefined, { c: 3 }]]
@@ -1998,7 +1998,7 @@ describe('array', () => {
 
         it('validates on undefined value after validation with required', () => {
 
-            const schema = Joi.array().items(Joi.object().empty({}).required()).sparse()
+            const schema = Engine.array().items(Engine.object().empty({}).required()).sparse()
 
             Helper.validate(schema, [
                 [[{ a: 1 }, {}, { c: 3 }], false, {
@@ -2012,7 +2012,7 @@ describe('array', () => {
 
         it('validates on undefined value after validation with ordered', () => {
 
-            const schema = Joi.array().ordered(Joi.object().empty({})).sparse()
+            const schema = Engine.array().ordered(Engine.object().empty({})).sparse()
 
             Helper.validate(schema, [
                 [[{}], true, [undefined]]
@@ -2021,7 +2021,7 @@ describe('array', () => {
 
         it('switches the sparse flag', () => {
 
-            const schema = Joi.array().sparse()
+            const schema = Engine.array().sparse()
             const desc = schema.describe()
             expect(desc).to.equal({
                 type: 'array',
@@ -2031,7 +2031,7 @@ describe('array', () => {
 
         it('switches the sparse flag with explicit value', () => {
 
-            const schema = Joi.array().sparse(true)
+            const schema = Engine.array().sparse(true)
             const desc = schema.describe()
             expect(desc).to.equal({
                 type: 'array',
@@ -2041,7 +2041,7 @@ describe('array', () => {
 
         it('switches the sparse flag back', () => {
 
-            const schema = Joi.array().sparse().sparse(false)
+            const schema = Engine.array().sparse().sparse(false)
             const desc = schema.describe()
             expect(desc).to.equal({
                 type: 'array'
@@ -2050,7 +2050,7 @@ describe('array', () => {
 
         it('avoids unnecessary cloning when called twice', () => {
 
-            const schema = Joi.array().sparse()
+            const schema = Engine.array().sparse()
             expect(schema.sparse()).to.shallow.equal(schema)
         })
     })
@@ -2062,7 +2062,7 @@ describe('array', () => {
             const buffer = Buffer.from('hello world')
             const func = function () { }
             const now = new Date()
-            const schema = Joi.array().sparse().unique()
+            const schema = Engine.array().sparse().unique()
 
             Helper.validate(schema, [
                 [[2, 2], false, {
@@ -2201,7 +2201,7 @@ describe('array', () => {
 
         it('errors with the correct details', () => {
 
-            Helper.validate(Joi.array().items(Joi.number()).unique(), [
+            Helper.validate(Engine.array().items(Engine.number()).unique(), [
                 [[1, 2, 3, 1, 4], false, {
                     context: {
                         key: 3,
@@ -2217,7 +2217,7 @@ describe('array', () => {
                 }]
             ])
 
-            Helper.validate(Joi.array().items(Joi.number()).unique((a, b) => a === b), [
+            Helper.validate(Engine.array().items(Engine.number()).unique((a, b) => a === b), [
                 [[1, 2, 3, 1, 4], false, {
                     context: {
                         key: 3,
@@ -2233,7 +2233,7 @@ describe('array', () => {
                 }]
             ])
 
-            Helper.validate(Joi.object({ a: Joi.array().items(Joi.number()).unique() }), [
+            Helper.validate(Engine.object({ a: Engine.array().items(Engine.number()).unique() }), [
                 [{ a: [1, 2, 3, 1, 4] }, false, {
                     context: {
                         key: 3,
@@ -2249,7 +2249,7 @@ describe('array', () => {
                 }]
             ])
 
-            Helper.validate(Joi.object({ a: Joi.array().items(Joi.number()).unique((a, b) => a === b) }), [
+            Helper.validate(Engine.object({ a: Engine.array().items(Engine.number()).unique((a, b) => a === b) }), [
                 [{ a: [1, 2, 3, 1, 4] }, false, {
                     context: {
                         key: 3,
@@ -2268,7 +2268,7 @@ describe('array', () => {
 
         it('ignores duplicates if they are of different types', () => {
 
-            const schema = Joi.array().unique()
+            const schema = Engine.array().unique()
 
             Helper.validate(schema, [
                 [[2, '2'], true]
@@ -2283,7 +2283,7 @@ describe('array', () => {
             const func2 = function () { }
             const now = new Date()
             const now2 = new Date(+now + 100)
-            const schema = Joi.array().unique()
+            const schema = Engine.array().unique()
 
             Helper.validate(schema, [
                 [[1, 2], true],
@@ -2298,7 +2298,7 @@ describe('array', () => {
 
         it('validates using a comparator', () => {
 
-            const schema = Joi.array().unique((left, right) => left.a === right.a)
+            const schema = Engine.array().unique((left, right) => left.a === right.a)
 
             Helper.validate(schema, [
                 [[{ a: 'b' }, { a: 'c' }], true],
@@ -2334,7 +2334,7 @@ describe('array', () => {
 
         it('validates using a comparator with different types', () => {
 
-            const schema = Joi.array().items(Joi.string(), Joi.object({ a: Joi.string() })).unique((left, right) => {
+            const schema = Engine.array().items(Engine.string(), Engine.object({ a: Engine.string() })).unique((left, right) => {
 
                 if (typeof left === 'object') {
                     if (typeof right === 'object') {
@@ -2386,7 +2386,7 @@ describe('array', () => {
 
         it('validates using a path comparator', () => {
 
-            let schema = Joi.array().items(Joi.object({ id: Joi.number() })).unique('id')
+            let schema = Engine.array().items(Engine.object({ id: Engine.number() })).unique('id')
 
             Helper.validate(schema, [
                 [[{ id: 1 }, { id: 2 }, { id: 3 }], true],
@@ -2421,7 +2421,7 @@ describe('array', () => {
                 }]
             ])
 
-            schema = Joi.array().items(Joi.object({ nested: { id: Joi.number() } })).unique('nested.id')
+            schema = Engine.array().items(Engine.object({ nested: { id: Engine.number() } })).unique('nested.id')
 
             Helper.validate(schema, [
                 [[{ nested: { id: 1 } }, { nested: { id: 2 } }, { nested: { id: 3 } }], true],
@@ -2456,7 +2456,7 @@ describe('array', () => {
                 }]
             ])
 
-            schema = Joi.array().items(Joi.object({ nested: { id: Joi.number() } })).unique('nested')
+            schema = Engine.array().items(Engine.object({ nested: { id: Engine.number() } })).unique('nested')
 
             Helper.validate(schema, [
                 [[{ nested: { id: 1 } }, { nested: { id: 2 } }, { nested: { id: 3 } }], true],
@@ -2494,7 +2494,7 @@ describe('array', () => {
 
         it('ignores undefined value when ignoreUndefined is true', () => {
 
-            const schema = Joi.array().unique('a', { ignoreUndefined: true })
+            const schema = Engine.array().unique('a', { ignoreUndefined: true })
 
             Helper.validate(schema, [
                 [[{ a: 'b' }, { a: 'c' }], true],
@@ -2532,18 +2532,18 @@ describe('array', () => {
 
         it('fails with invalid configs', () => {
 
-            expect(() => Joi.array().unique('id', 'invalid configs')).to.throw('Options must be of type object')
-            expect(() => Joi.array().unique('id', {})).to.not.throw()
+            expect(() => Engine.array().unique('id', 'invalid configs')).to.throw('Options must be of type object')
+            expect(() => Engine.array().unique('id', {})).to.not.throw()
         })
 
         it('fails with invalid comparator', () => {
 
-            expect(() => Joi.array().unique({})).to.throw(Error, 'comparator must be a function or a string')
+            expect(() => Engine.array().unique({})).to.throw(Error, 'comparator must be a function or a string')
         })
 
         it('handles period in key names', () => {
 
-            const schema = Joi.array().unique('a.b', { separator: false })
+            const schema = Engine.array().unique('a.b', { separator: false })
 
             Helper.validate(schema, [
                 [[{ 'a.b': 1 }, { 'a.b': 2 }], true]
@@ -2555,7 +2555,7 @@ describe('array', () => {
 
         it('should, by default, allow undefined, allow empty array', () => {
 
-            Helper.validate(Joi.array(), [
+            Helper.validate(Engine.array(), [
                 [undefined, true],
                 [[], true]
             ])
@@ -2563,7 +2563,7 @@ describe('array', () => {
 
         it('should, when .required(), deny undefined', () => {
 
-            Helper.validate(Joi.array().required(), [
+            Helper.validate(Engine.array().required(), [
                 [undefined, false, {
                     message: '"value" is required',
                     path: [],
@@ -2575,7 +2575,7 @@ describe('array', () => {
 
         it('allows empty arrays', () => {
 
-            Helper.validate(Joi.array(), [
+            Helper.validate(Engine.array(), [
                 [undefined, true],
                 [[], true]
             ])
@@ -2583,7 +2583,7 @@ describe('array', () => {
 
         it('excludes values when items are forbidden', () => {
 
-            Helper.validate(Joi.array().items(Joi.string().forbidden()), [
+            Helper.validate(Engine.array().items(Engine.string().forbidden()), [
                 [['2', '1'], false, {
                     message: '"[0]" contains an excluded value',
                     path: [0],
@@ -2602,7 +2602,7 @@ describe('array', () => {
 
         it('allows types to be forbidden', () => {
 
-            const schema = Joi.array().items(Joi.number().forbidden())
+            const schema = Engine.array().items(Engine.number().forbidden())
 
             Helper.validate(schema, [
                 [['x', 'y', 'z'], true],
@@ -2617,7 +2617,7 @@ describe('array', () => {
 
         it('validates array of Numbers', () => {
 
-            Helper.validate(Joi.array().items(Joi.number()), [
+            Helper.validate(Engine.array().items(Engine.number()), [
                 [[1, 2, 3], true],
                 [[50, 100, 1000], true],
                 [['a', 1, 2], false, {
@@ -2632,17 +2632,17 @@ describe('array', () => {
 
         it('validates array of mixed Numbers & Strings', () => {
 
-            Helper.validate(Joi.array().items(Joi.number(), Joi.string()), [
+            Helper.validate(Engine.array().items(Engine.number(), Engine.string()), [
                 [[1, 2, 3], true],
                 [[50, 100, 1000], true],
                 [[1, 'a', 5, 10], true],
-                [['joi', 'everydaylowprices', 5000], true]
+                [['engine', 'everydaylowprices', 5000], true]
             ])
         })
 
         it('validates array of objects with schema', () => {
 
-            Helper.validate(Joi.array().items(Joi.object({ h1: Joi.number().required() })), [
+            Helper.validate(Engine.array().items(Engine.object({ h1: Engine.number().required() })), [
                 [[{ h1: 1 }, { h1: 2 }, { h1: 3 }], true],
                 [[{ h2: 1, h3: 'somestring' }, { h1: 2 }, { h1: 3 }], false, {
                     message: '"[0].h1" is required',
@@ -2661,7 +2661,7 @@ describe('array', () => {
 
         it('errors on array of unallowed mixed types (Array)', () => {
 
-            Helper.validate(Joi.array().items(Joi.number()), [
+            Helper.validate(Engine.array().items(Engine.number()), [
                 [[1, 2, 3], true],
                 [[1, 2, [1]], false, {
                     message: '"[2]" must be a number',
@@ -2674,8 +2674,8 @@ describe('array', () => {
 
         it('errors on invalid number rule using includes', () => {
 
-            const schema = Joi.object({
-                arr: Joi.array().items(Joi.number().integer())
+            const schema = Engine.object({
+                arr: Engine.array().items(Engine.number().integer())
             })
 
             Helper.validate(schema, [
@@ -2690,8 +2690,8 @@ describe('array', () => {
 
         it('validates an array within an object', () => {
 
-            const schema = Joi.object({
-                array: Joi.array().items(Joi.string().min(5), Joi.number().min(3))
+            const schema = Engine.object({
+                array: Engine.array().items(Engine.string().min(5), Engine.number().min(3))
             }).prefs({ convert: false })
 
             Helper.validate(schema, [
@@ -2709,7 +2709,7 @@ describe('array', () => {
 
         it('should not change original value', () => {
 
-            const schema = Joi.array().items(Joi.number()).unique()
+            const schema = Engine.array().items(Engine.number()).unique()
             const input = ['1', '2']
 
             Helper.validate(schema, [
@@ -2721,7 +2721,7 @@ describe('array', () => {
 
         it('returns multiple errors if abort early is false', () => {
 
-            const schema = Joi.array().items(Joi.number(), Joi.object()).items(Joi.boolean().forbidden())
+            const schema = Engine.array().items(Engine.number(), Engine.object()).items(Engine.boolean().forbidden())
 
             Helper.validate(schema, { abortEarly: false }, [
                 [[1, undefined, true, 'a'], false, {
@@ -2766,12 +2766,12 @@ describe('array', () => {
 
         it('returns multiple errors if abort early is false across items() and unique()', () => {
 
-            const item = Joi.object({
-                test: Joi.string(),
-                hello: Joi.string().required()
+            const item = Engine.object({
+                test: Engine.string(),
+                hello: Engine.string().required()
             })
 
-            const schema = Joi.array().items(item).unique('test')
+            const schema = Engine.array().items(item).unique('test')
 
             Helper.validate(schema, { abortEarly: false }, [
                 [[{ test: 'test', hello: 'world' }, { test: 'test' }], false, {

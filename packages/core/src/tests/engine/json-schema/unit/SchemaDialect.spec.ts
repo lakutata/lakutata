@@ -6,38 +6,38 @@
 // @ts-nocheck
 import {it} from 'node:test'
 import {expect} from '../../support/Expect.js'
-import joi from '../../../../lib/validation/engine/schema/index.js'
+import engine from '../../../../lib/validation/engine/schema/index.js'
 import parse from '../../../../lib/validation/engine/json-schema/index.js'
 import {toEqual} from '../support.js'
 
-const JOI_SCHEMA = joi.object().keys({
-    field: joi.string()
+const SCHEMA_DEFINITION = engine.object().keys({
+    field: engine.string()
 })
 
 it('json - includes schema dialect', () => {
-    toEqual(parse(JOI_SCHEMA, 'json', {}, { includeSchemaDialect: true }).$schema, 'http://json-schema.org/draft-07/schema#')
+    toEqual(parse(SCHEMA_DEFINITION, 'json', {}, { includeSchemaDialect: true }).$schema, 'http://json-schema.org/draft-07/schema#')
 })
 
 it('json - no schema dialect', () => {
-    toEqual(parse(JOI_SCHEMA, 'json').$schema, undefined)
+    toEqual(parse(SCHEMA_DEFINITION, 'json').$schema, undefined)
 })
 
 it('json-draft-04 - includes schema dialect', () => {
-    toEqual(parse(JOI_SCHEMA, 'json-draft-04', {}, { includeSchemaDialect: true }).$schema, 'http://json-schema.org/draft-04/schema#')
+    toEqual(parse(SCHEMA_DEFINITION, 'json-draft-04', {}, { includeSchemaDialect: true }).$schema, 'http://json-schema.org/draft-04/schema#')
 })
 
 it('json-draft-04 - no schema dialect', () => {
-    toEqual(parse(JOI_SCHEMA, 'json-draft-04').$schema, undefined)
+    toEqual(parse(SCHEMA_DEFINITION, 'json-draft-04').$schema, undefined)
 })
 
 it('json-draft-2019-09 - includes schema dialect', () => {
-    toEqual(parse(JOI_SCHEMA, 'json-draft-2019-09', {}, { includeSchemaDialect: true }).$schema, 'https://json-schema.org/draft/2019-09/schema')
+    toEqual(parse(SCHEMA_DEFINITION, 'json-draft-2019-09', {}, { includeSchemaDialect: true }).$schema, 'https://json-schema.org/draft/2019-09/schema')
 })
 
 it('json-draft-2019-09 - no schema dialect', () => {
-    toEqual(parse(JOI_SCHEMA, 'json-draft-2019-09').$schema, undefined)
+    toEqual(parse(SCHEMA_DEFINITION, 'json-draft-2019-09').$schema, undefined)
 })
 
 it('open-api - no schema dialect even specified', () => {
-    toEqual(parse(JOI_SCHEMA, 'open-api', {}, { includeSchemaDialect: true }).$schema, undefined)
+    toEqual(parse(SCHEMA_DEFINITION, 'open-api', {}, { includeSchemaDialect: true }).$schema, undefined)
 })

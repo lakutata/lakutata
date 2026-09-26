@@ -6,17 +6,17 @@
 // @ts-nocheck
 import {it} from 'node:test'
 import {expect} from '../../support/Expect.js'
-import Joi from '../../../../lib/validation/engine/schema/index.js'
+import Engine from '../../../../lib/validation/engine/schema/index.js'
 import parse from '../../../../lib/validation/engine/json-schema/index.js'
 import {toEqual} from '../support.js'
 
 it('Multiple shared schemas should be included correctly.', () => {
-    const shared1 = Joi.string().valid('Something-1').id('Something-1')
-    const shared2 = Joi.string().valid('Something-2').id('Something-2')
+    const shared1 = Engine.string().valid('Something-1').id('Something-1')
+    const shared2 = Engine.string().valid('Something-2').id('Something-2')
 
-    const schemaUsingShared = Joi.object({
-        random: Joi.link('#Something-2'),
-        random2: Joi.link('#Something-1')
+    const schemaUsingShared = Engine.object({
+        random: Engine.link('#Something-2'),
+        random2: Engine.link('#Something-1')
     })
         .shared(shared1)
         .shared(shared2)

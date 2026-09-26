@@ -40,7 +40,7 @@ export function error(this: AnnotatedError, stripColorCodes?: boolean): string {
         let node: Annotated = obj as Annotated
         for (let j: number = 0; ; ++j) {
             const seg: PathKey = path[j]
-            //joi schemas are not cloned by hoek, we have to take this extra step
+            //Schemas are not cloned by hoek, we have to take this extra step
             if (Common.isSchema(node)) node = (node as unknown as { clone(): Annotated }).clone()
             if (j + 1 < path.length && typeof node[seg] !== 'string') {
                 node = node[seg] as Annotated

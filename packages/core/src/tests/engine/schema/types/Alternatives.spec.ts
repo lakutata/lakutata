@@ -6,7 +6,7 @@
 // @ts-nocheck
 import {describe, it} from 'node:test'
 import {expect} from '../../support/Expect.js'
-import Joi from '../../../../lib/validation/engine/schema/index.js'
+import Engine from '../../../../lib/validation/engine/schema/index.js'
 import * as Helper from '../Helper.js'
 const internals = {}
 
@@ -14,7 +14,7 @@ describe('alternatives', () => {
 
     it('fails when no alternatives are provided', () => {
 
-        Helper.validate(Joi.alternatives(), [
+        Helper.validate(Engine.alternatives(), [
             ['a', false, {
                 context: {
                     label: 'value',
@@ -29,17 +29,17 @@ describe('alternatives', () => {
 
     it('allows undefined when no alternatives are provided', () => {
 
-        Helper.validate(Joi.alternatives(), [
+        Helper.validate(Engine.alternatives(), [
             [undefined, true]
         ])
     })
 
     it('applies modifiers when higher priority converts', () => {
 
-        const schema = Joi.object({
+        const schema = Engine.object({
             a: [
-                Joi.number(),
-                Joi.string()
+                Engine.number(),
+                Engine.string()
             ]
         })
 
@@ -50,10 +50,10 @@ describe('alternatives', () => {
 
     it('applies modifiers when lower priority valid is a match', () => {
 
-        const schema = Joi.object({
+        const schema = Engine.object({
             a: [
-                Joi.number(),
-                Joi.valid('5')
+                Engine.number(),
+                Engine.valid('5')
             ]
         })
 
@@ -64,10 +64,10 @@ describe('alternatives', () => {
 
     it('does not apply modifier if alternative fails', () => {
 
-        const schema = Joi.object({
+        const schema = Engine.object({
             a: [
-                Joi.object({ c: Joi.any(), d: Joi.number() }).rename('b', 'c'),
-                { b: Joi.any(), d: Joi.string() }
+                Engine.object({ c: Engine.any(), d: Engine.number() }).rename('b', 'c'),
+                { b: Engine.any(), d: Engine.string() }
             ]
         })
 
@@ -78,9 +78,9 @@ describe('alternatives', () => {
 
     it('consolidates types only when all coming from top level base errors', () => {
 
-        const schema = Joi.alternatives(
-            Joi.string(),
-            Joi.array().items(Joi.string())
+        const schema = Engine.alternatives(
+            Engine.string(),
+            Engine.array().items(Engine.string())
         )
 
         Helper.validate(schema, [
@@ -90,9 +90,9 @@ describe('alternatives', () => {
 
     it('consolidates types only when all are base or valids', () => {
 
-        const schema = Joi.alternatives(
-            Joi.string(),
-            Joi.number().min(1)
+        const schema = Engine.alternatives(
+            Engine.string(),
+            Engine.number().min(1)
         )
 
         Helper.validate(schema, [
@@ -102,7 +102,7 @@ describe('alternatives', () => {
 
     it('consolidates types with valid values', () => {
 
-        const schema = Joi.alternatives(Joi.boolean(), 'xyz')
+        const schema = Engine.alternatives(Engine.boolean(), 'xyz')
 
         Helper.validate(schema, [
             ['x', false, '"value" must be one of [boolean, xyz]']
@@ -111,7 +111,7 @@ describe('alternatives', () => {
 
     it('consolidates types', () => {
 
-        const schema = Joi.alternatives(Joi.boolean(), Joi.binary())
+        const schema = Engine.alternatives(Engine.boolean(), Engine.binary())
 
         Helper.validate(schema, [
             [[], false, '"value" must be one of [boolean, binary]']
@@ -120,7 +120,7 @@ describe('alternatives', () => {
 
     it('passes errors through when abortEarly is false', () => {
 
-        const schema = Joi.alternatives(Joi.number().min(1).positive(), Joi.binary())
+        const schema = Engine.alternatives(Engine.number().min(1).positive(), Engine.binary())
 
         Helper.validate(schema, { abortEarly: false }, [
             [-1, false, '"value" does not match any of the allowed types']
@@ -129,9 +129,9 @@ describe('alternatives', () => {
 
     it('abstracts multiple complex object errors', () => {
 
-        const schema = Joi.alternatives([
-            Joi.object({ a: Joi.string() }),
-            Joi.object({ b: Joi.string() })
+        const schema = Engine.alternatives([
+            Engine.object({ a: Engine.string() }),
+            Engine.object({ b: Engine.string() })
         ])
 
         Helper.validate(schema, [
@@ -143,26 +143,26 @@ describe('alternatives', () => {
 
         it('throws on invalid ref (not string)', () => {
 
-            expect(() => Joi.alternatives().conditional(5, { is: 6, then: Joi.number() })).to.throw('Invalid condition: 5')
+            expect(() => Engine.alternatives().conditional(5, { is: 6, then: Engine.number() })).to.throw('Invalid condition: 5')
         })
 
         it('throws on unreachable condition', () => {
 
             expect(() => {
 
-                Joi.object({
+                Engine.object({
 
-                    a: Joi.alternatives().conditional('b', { is: 6, then: 7, otherwise: 0 }).conditional('b', { is: 6, then: 7 }),
-                    b: Joi.any()
+                    a: Engine.alternatives().conditional('b', { is: 6, then: 7, otherwise: 0 }).conditional('b', { is: 6, then: 7 }),
+                    b: Engine.any()
                 })
             }).to.throw('Unreachable condition')
         })
 
         it('tests only otherwise', () => {
 
-            const schema = Joi.object({
-                a: Joi.number().required(),
-                b: Joi.alternatives().conditional('a', { is: 0, otherwise: Joi.valid(1) })
+            const schema = Engine.object({
+                a: Engine.number().required(),
+                b: Engine.alternatives().conditional('a', { is: 0, otherwise: Engine.valid(1) })
             })
 
             Helper.validate(schema, [
@@ -180,10 +180,10 @@ describe('alternatives', () => {
 
             it('validates conditional alternatives', () => {
 
-                const schema = Joi.object({
-                    a: Joi.alternatives()
+                const schema = Engine.object({
+                    a: Engine.alternatives()
                         .conditional('b', { is: 5, then: 'x', otherwise: 'y' }),
-                    b: Joi.any()
+                    b: Engine.any()
                 })
 
                 Helper.validate(schema, [
@@ -218,16 +218,16 @@ describe('alternatives', () => {
 
             it('validates conditional alternatives (self reference, explicit)', () => {
 
-                const schema = Joi.alternatives()
-                    .conditional(Joi.ref('a', { ancestor: 0 }), {
+                const schema = Engine.alternatives()
+                    .conditional(Engine.ref('a', { ancestor: 0 }), {
                         is: true,
                         then: {
-                            a: Joi.boolean().required(),
-                            b: Joi.string().required()
+                            a: Engine.boolean().required(),
+                            b: Engine.string().required()
                         },
                         otherwise: {
-                            a: Joi.boolean().required(),
-                            c: Joi.string().required()
+                            a: Engine.boolean().required(),
+                            c: Engine.string().required()
                         }
                     })
 
@@ -288,16 +288,16 @@ describe('alternatives', () => {
 
             it('validates conditional alternatives (self reference, implicit)', () => {
 
-                const schema = Joi.alternatives()
+                const schema = Engine.alternatives()
                     .conditional('.a', {
                         is: true,
                         then: {
-                            a: Joi.boolean().required(),
-                            b: Joi.string().required()
+                            a: Engine.boolean().required(),
+                            b: Engine.string().required()
                         },
                         otherwise: {
-                            a: Joi.boolean().required(),
-                            c: Joi.string().required()
+                            a: Engine.boolean().required(),
+                            c: Engine.string().required()
                         }
                     })
 
@@ -358,10 +358,10 @@ describe('alternatives', () => {
 
             it('validates conditional alternatives (empty key)', () => {
 
-                const schema = Joi.object({
-                    a: Joi.alternatives()
+                const schema = Engine.object({
+                    a: Engine.alternatives()
                         .conditional('', { is: 5, then: 'x', otherwise: 'y' }),
-                    '': Joi.any()
+                    '': Engine.any()
                 })
 
                 Helper.validate(schema, [
@@ -396,11 +396,11 @@ describe('alternatives', () => {
 
             it('validates only then', () => {
 
-                const schema = Joi.object({
-                    a: Joi.alternatives()
-                        .conditional(Joi.ref('b'), { is: 5, then: 'x' })
+                const schema = Engine.object({
+                    a: Engine.alternatives()
+                        .conditional(Engine.ref('b'), { is: 5, then: 'x' })
                         .try('z'),
-                    b: Joi.any()
+                    b: Engine.any()
                 })
 
                 Helper.validate(schema, [
@@ -435,11 +435,11 @@ describe('alternatives', () => {
 
             it('validates only otherwise', () => {
 
-                const schema = Joi.object({
-                    a: Joi.alternatives()
+                const schema = Engine.object({
+                    a: Engine.alternatives()
                         .conditional('b', { is: 5, otherwise: 'y' })
                         .try('z'),
-                    b: Joi.any()
+                    b: Engine.any()
                 })
 
                 Helper.validate(schema, [
@@ -474,12 +474,12 @@ describe('alternatives', () => {
 
             it('validates "then" when a preceding "when" has only "otherwise"', () => {
 
-                const schema = Joi.object({
-                    a: Joi.number(),
-                    b: Joi.number(),
-                    c: Joi.alternatives()
-                        .conditional('a', { is: 1, otherwise: Joi.number().min(1) })
-                        .conditional('b', { is: 1, then: Joi.number().min(1), otherwise: Joi.number() })
+                const schema = Engine.object({
+                    a: Engine.number(),
+                    b: Engine.number(),
+                    c: Engine.alternatives()
+                        .conditional('a', { is: 1, otherwise: Engine.number().min(1) })
+                        .conditional('b', { is: 1, then: Engine.number().min(1), otherwise: Engine.number() })
                 })
 
                 Helper.validate(schema, [
@@ -497,9 +497,9 @@ describe('alternatives', () => {
 
             it('validates when is is null', () => {
 
-                const schema = Joi.object({
-                    a: Joi.alternatives().conditional('b', { is: null, then: 'x', otherwise: Joi.number() }),
-                    b: Joi.any()
+                const schema = Engine.object({
+                    a: Engine.alternatives().conditional('b', { is: null, then: 'x', otherwise: Engine.number() }),
+                    b: Engine.any()
                 })
 
                 Helper.validate(schema, [
@@ -528,10 +528,10 @@ describe('alternatives', () => {
 
             it('validates when is has ref', () => {
 
-                const schema = Joi.object({
-                    a: Joi.alternatives().conditional('b', { is: Joi.ref('c'), then: 'x' }),
-                    b: Joi.any(),
-                    c: Joi.number()
+                const schema = Engine.object({
+                    a: Engine.alternatives().conditional('b', { is: Engine.ref('c'), then: 'x' }),
+                    b: Engine.any(),
+                    c: Engine.number()
                 })
 
                 Helper.validate(schema, [
@@ -567,10 +567,10 @@ describe('alternatives', () => {
 
                 const date = new Date(42)
 
-                const schema = Joi.object({
-                    a: Joi.alternatives().conditional('b', { is: Joi.ref('c'), then: 'x' }),
-                    b: Joi.date(),
-                    c: Joi.date()
+                const schema = Engine.object({
+                    a: Engine.alternatives().conditional('b', { is: Engine.ref('c'), then: 'x' }),
+                    b: Engine.date(),
+                    c: Engine.date()
                 })
 
                 Helper.validate(schema, [
@@ -601,16 +601,16 @@ describe('alternatives', () => {
                 const date = new Date(42)
                 const now = Date.now()
 
-                const schema = Joi.object({
-                    a: Joi.alternatives().conditional('b', {
-                        is: Joi.valid(
+                const schema = Engine.object({
+                    a: Engine.alternatives().conditional('b', {
+                        is: Engine.valid(
                             new Date(+date), // Intentional cloning of the date to change the reference
-                            Joi.ref('c')
+                            Engine.ref('c')
                         ),
                         then: 'x'
                     }),
-                    b: Joi.date(),
-                    c: Joi.date()
+                    b: Engine.date(),
+                    c: Engine.date()
                 })
 
                 Helper.validate(schema, [
@@ -633,11 +633,11 @@ describe('alternatives', () => {
 
             it('validates when then has ref', () => {
 
-                const ref = Joi.ref('c')
-                const schema = Joi.object({
-                    a: Joi.alternatives().conditional('b', { is: 5, then: ref }),
-                    b: Joi.any(),
-                    c: Joi.number()
+                const ref = Engine.ref('c')
+                const schema = Engine.object({
+                    a: Engine.alternatives().conditional('b', { is: 5, then: ref }),
+                    b: Engine.any(),
+                    c: Engine.number()
                 })
 
                 Helper.validate(schema, [
@@ -659,11 +659,11 @@ describe('alternatives', () => {
 
             it('validates when otherwise has ref', () => {
 
-                const ref = Joi.ref('c')
-                const schema = Joi.object({
-                    a: Joi.alternatives().conditional('b', { is: 6, otherwise: ref }),
-                    b: Joi.any(),
-                    c: Joi.number()
+                const ref = Engine.ref('c')
+                const schema = Engine.object({
+                    a: Engine.alternatives().conditional('b', { is: 6, otherwise: ref }),
+                    b: Engine.any(),
+                    c: Engine.number()
                 })
 
                 Helper.validate(schema, [
@@ -685,9 +685,9 @@ describe('alternatives', () => {
 
             it('validates when empty value', () => {
 
-                const schema = Joi.object({
-                    a: Joi.alternatives().conditional('b', { is: true, then: Joi.required() }),
-                    b: Joi.boolean().default(false)
+                const schema = Engine.object({
+                    a: Engine.alternatives().conditional('b', { is: true, then: Engine.required() }),
+                    b: Engine.boolean().default(false)
                 })
 
                 Helper.validate(schema, [
@@ -698,13 +698,13 @@ describe('alternatives', () => {
 
             it('validates when missing value', () => {
 
-                const schema = Joi.object({
-                    a: Joi.alternatives().conditional('b', {
+                const schema = Engine.object({
+                    a: Engine.alternatives().conditional('b', {
                         is: 5,
-                        then: Joi.optional(),
-                        otherwise: Joi.required()
+                        then: Engine.optional(),
+                        otherwise: Engine.required()
                     }).required(),
-                    b: Joi.number()
+                    b: Engine.number()
                 })
 
                 Helper.validate(schema, [
@@ -739,17 +739,17 @@ describe('alternatives', () => {
                 // then c === 456
                 // else c === 789
 
-                const schema = Joi.object({
-                    a: Joi.number().required(),
-                    b: Joi.number().required(),
-                    c: Joi.alternatives().conditional('a', {
-                        is: Joi.alternatives().conditional('b', {
-                            is: Joi.valid(0),
-                            then: Joi.valid(123),
-                            otherwise: Joi.any()
+                const schema = Engine.object({
+                    a: Engine.number().required(),
+                    b: Engine.number().required(),
+                    c: Engine.alternatives().conditional('a', {
+                        is: Engine.alternatives().conditional('b', {
+                            is: Engine.valid(0),
+                            then: Engine.valid(123),
+                            otherwise: Engine.any()
                         }),
-                        then: Joi.valid(456),
-                        otherwise: Joi.valid(789)
+                        then: Engine.valid(456),
+                        otherwise: Engine.valid(789)
                     })
                 })
 
@@ -778,8 +778,8 @@ describe('alternatives', () => {
 
             it('should peek inside a simple value', () => {
 
-                const schema = Joi.alternatives()
-                    .conditional(Joi.number().min(0), { then: Joi.number().min(10), otherwise: Joi.number() })
+                const schema = Engine.alternatives()
+                    .conditional(Engine.number().min(0), { then: Engine.number().min(10), otherwise: Engine.number() })
 
                 Helper.validate(schema, [
                     [-1, true, -1],
@@ -795,15 +795,15 @@ describe('alternatives', () => {
 
             it('should peek inside an object', () => {
 
-                const schema = Joi.alternatives()
-                    .conditional(Joi.object().keys({ foo: Joi.valid('hasBar').required() }).unknown(), {
-                        then: Joi.object({
-                            foo: Joi.string(),
-                            bar: Joi.number().required()
+                const schema = Engine.alternatives()
+                    .conditional(Engine.object().keys({ foo: Engine.valid('hasBar').required() }).unknown(), {
+                        then: Engine.object({
+                            foo: Engine.string(),
+                            bar: Engine.number().required()
                         }),
-                        otherwise: Joi.object({
-                            foo: Joi.string(),
-                            bar: Joi.number()
+                        otherwise: Engine.object({
+                            foo: Engine.string(),
+                            bar: Engine.number()
                         })
                     })
 
@@ -825,13 +825,13 @@ describe('alternatives', () => {
 
             it('sets value based on multiple conditions', () => {
 
-                const schema = Joi.object({
-                    a: Joi.number().required(),
-                    b: Joi.alternatives()
+                const schema = Engine.object({
+                    a: Engine.number().required(),
+                    b: Engine.alternatives()
                         .conditional('a', [
-                            { is: 0, then: Joi.valid(1) },
-                            { is: 1, then: Joi.valid(2) },
-                            { is: 2, then: Joi.valid(3), otherwise: Joi.valid(4) }
+                            { is: 0, then: Engine.valid(1) },
+                            { is: 1, then: Engine.valid(2) },
+                            { is: 2, then: Engine.valid(3), otherwise: Engine.valid(4) }
                         ])
                 })
 
@@ -873,12 +873,12 @@ describe('alternatives', () => {
 
         it('describes when', () => {
 
-            const schema = Joi.object({
-                a: Joi.alternatives()
+            const schema = Engine.object({
+                a: Engine.alternatives()
                     .conditional('b', { is: 5, then: 'x' })
                     .conditional('b', { is: 6, otherwise: 'y' })
                     .try('z'),
-                b: Joi.any()
+                b: Engine.any()
             })
 
             expect(schema.describe()).to.equal({
@@ -943,11 +943,11 @@ describe('alternatives', () => {
 
         it('describes when (only then)', () => {
 
-            const schema = Joi.object({
-                a: Joi.alternatives()
+            const schema = Engine.object({
+                a: Engine.alternatives()
                     .conditional('b', { is: 5, then: 'x' })
-                    .try(Joi.valid('z')),
-                b: Joi.any()
+                    .try(Engine.valid('z')),
+                b: Engine.any()
             })
 
             expect(schema.describe()).to.equal({
@@ -994,11 +994,11 @@ describe('alternatives', () => {
 
         it('describes when (only otherwise)', () => {
 
-            const schema = Joi.object({
-                a: Joi.alternatives()
+            const schema = Engine.object({
+                a: Engine.alternatives()
                     .conditional('b', { is: 5, otherwise: 'y' })
                     .try('z'),
-                b: Joi.any()
+                b: Engine.any()
             })
 
             expect(schema.describe()).to.equal({
@@ -1045,10 +1045,10 @@ describe('alternatives', () => {
 
         it('describes when (with schema)', () => {
 
-            const schema = Joi.alternatives()
-                .conditional(Joi.string().label('foo'), {
-                    then: Joi.string().required().min(1),
-                    otherwise: Joi.boolean()
+            const schema = Engine.alternatives()
+                .conditional(Engine.string().label('foo'), {
+                    then: Engine.string().required().min(1),
+                    otherwise: Engine.boolean()
                 })
 
             const outcome = {
@@ -1076,7 +1076,7 @@ describe('alternatives', () => {
 
         it('describes inherited fields (from any)', () => {
 
-            const schema = Joi.alternatives()
+            const schema = Engine.alternatives()
                 .try('a')
                 .description('d')
                 .example('a')
@@ -1115,10 +1115,10 @@ describe('alternatives', () => {
 
             const override = new Error('failed!')
 
-            const schema = Joi.object({
-                x: Joi.alternatives([
-                    Joi.number(),
-                    Joi.string().error(override)
+            const schema = Engine.object({
+                x: Engine.alternatives([
+                    Engine.number(),
+                    Engine.string().error(override)
                 ])
             })
 
@@ -1152,10 +1152,10 @@ describe('alternatives', () => {
 
         it('overrides top level error', () => {
 
-            const schema = Joi.object({
-                x: Joi.alternatives([
-                    Joi.number(),
-                    Joi.string()
+            const schema = Engine.object({
+                x: Engine.alternatives([
+                    Engine.number(),
+                    Engine.string()
                 ])
                     .error(new Error('failed!'))
             })
@@ -1170,25 +1170,25 @@ describe('alternatives', () => {
 
         it('passes the label to the underlying schema', () => {
 
-            const schema = Joi.object().keys({
-                a: Joi.boolean(),
+            const schema = Engine.object().keys({
+                a: Engine.boolean(),
 
-                b: Joi.alternatives().conditional('a', {
+                b: Engine.alternatives().conditional('a', {
                     is: true,
-                    then: Joi.string().empty('').allow(null),
-                    otherwise: Joi.any()
+                    then: Engine.string().empty('').allow(null),
+                    otherwise: Engine.any()
                 })
                     .label('Label b'),
 
-                c: Joi.alternatives().conditional('a', {
+                c: Engine.alternatives().conditional('a', {
                     is: true,
-                    then: Joi.any(),
-                    otherwise: Joi.string().empty('').allow(null)
+                    then: Engine.any(),
+                    otherwise: Engine.string().empty('').allow(null)
                 })
                     .label('Label c'),
 
-                d: Joi.alt()
-                    .try(Joi.string())
+                d: Engine.alt()
+                    .try(Engine.string())
                     .label('Label d')
             })
                 .or('b', 'c', 'd')
@@ -1217,10 +1217,10 @@ describe('alternatives', () => {
 
         it('does not modify the original schema', () => {
 
-            const schema = Joi.alternatives().conditional('a', {
+            const schema = Engine.alternatives().conditional('a', {
                 is: true,
-                then: Joi.string().empty('').allow(null),
-                otherwise: Joi.any()
+                then: Engine.string().empty('').allow(null),
+                otherwise: Engine.any()
             })
 
             const labeled = schema.label('Label b')
@@ -1283,10 +1283,10 @@ describe('alternatives', () => {
 
         it('applies label to then', () => {
 
-            const schema = Joi.object({
-                a: Joi.boolean(),
-                b: Joi.alternatives()
-                    .conditional('a', { is: true, then: Joi.string() })
+            const schema = Engine.object({
+                a: Engine.boolean(),
+                b: Engine.alternatives()
+                    .conditional('a', { is: true, then: Engine.string() })
                     .label('x')
             })
 
@@ -1329,10 +1329,10 @@ describe('alternatives', () => {
 
         it('applies label to otherwise', () => {
 
-            const schema = Joi.object({
-                a: Joi.boolean(),
-                b: Joi.alternatives()
-                    .conditional('a', { is: true, otherwise: Joi.string() })
+            const schema = Engine.object({
+                a: Engine.boolean(),
+                b: Engine.alternatives()
+                    .conditional('a', { is: true, otherwise: Engine.string() })
                     .label('x')
             })
 
@@ -1375,11 +1375,11 @@ describe('alternatives', () => {
 
         it('does not override existing labels in nested alternatives', () => {
 
-            const schema = Joi.alternatives().try(
-                Joi.boolean().label('boolean'),
-                Joi.alternatives().try(
-                    Joi.string().label('string'),
-                    Joi.number().label('number')
+            const schema = Engine.alternatives().try(
+                Engine.boolean().label('boolean'),
+                Engine.alternatives().try(
+                    Engine.string().label('string'),
+                    Engine.number().label('number')
                 ).label('string or number')
             )
 
@@ -1426,10 +1426,10 @@ describe('alternatives', () => {
 
         it('does not override existing label of then', () => {
 
-            const schema = Joi.object({
-                a: Joi.boolean(),
-                b: Joi.alternatives()
-                    .conditional('a', { is: true, then: Joi.string().label('not x') })
+            const schema = Engine.object({
+                a: Engine.boolean(),
+                b: Engine.alternatives()
+                    .conditional('a', { is: true, then: Engine.string().label('not x') })
                     .label('x')
             })
 
@@ -1472,10 +1472,10 @@ describe('alternatives', () => {
 
         it('does not override existing label of otherwise', () => {
 
-            const schema = Joi.object({
-                a: Joi.boolean(),
-                b: Joi.alternatives()
-                    .conditional('a', { is: true, otherwise: Joi.string().label('not x') })
+            const schema = Engine.object({
+                a: Engine.boolean(),
+                b: Engine.alternatives()
+                    .conditional('a', { is: true, otherwise: Engine.string().label('not x') })
                     .label('x')
             })
 
@@ -1521,9 +1521,9 @@ describe('alternatives', () => {
 
         it('matches one', () => {
 
-            const schema = Joi.alternatives([
-                Joi.number(),
-                Joi.string()
+            const schema = Engine.alternatives([
+                Engine.number(),
+                Engine.string()
             ])
                 .match('one')
 
@@ -1583,9 +1583,9 @@ describe('alternatives', () => {
 
         it('matches one (retains coerce)', () => {
 
-            const schema = Joi.alternatives([
-                Joi.number(),
-                Joi.boolean()
+            const schema = Engine.alternatives([
+                Engine.number(),
+                Engine.boolean()
             ])
                 .match('one')
 
@@ -1596,9 +1596,9 @@ describe('alternatives', () => {
 
         it('matches all', () => {
 
-            const schema = Joi.alternatives([
-                Joi.number(),
-                Joi.string()
+            const schema = Engine.alternatives([
+                Engine.number(),
+                Engine.string()
             ])
                 .match('all')
 
@@ -1698,11 +1698,11 @@ describe('alternatives', () => {
 
         it('merges return values when matching all objects', () => {
 
-            const schema = Joi.alternatives([
-                Joi.object({ foo: Joi.string().default('bar') }).unknown(),
-                Joi.object({
-                    baz: Joi.string().default('buz'),
-                    lol: Joi.string()
+            const schema = Engine.alternatives([
+                Engine.object({ foo: Engine.string().default('bar') }).unknown(),
+                Engine.object({
+                    baz: Engine.string().default('buz'),
+                    lol: Engine.string()
                 })
             ]).match('all')
 
@@ -1740,14 +1740,14 @@ describe('alternatives', () => {
 
         it('merges defaults when nesting alternatives', () => {
 
-            const schema = Joi.alternatives([
-                Joi.alternatives(
-                    Joi.object({ foo: Joi.string().default('bar') }).unknown(),
-                    Joi.object({ baz: Joi.boolean().default(false) }).unknown()
+            const schema = Engine.alternatives([
+                Engine.alternatives(
+                    Engine.object({ foo: Engine.string().default('bar') }).unknown(),
+                    Engine.object({ baz: Engine.boolean().default(false) }).unknown()
                 ).
                     match('all'),
 
-                Joi.object({ lol: Joi.boolean().default(true) }).unknown()
+                Engine.object({ lol: Engine.boolean().default(true) }).unknown()
             ])
                 .match('all')
 
@@ -1760,14 +1760,14 @@ describe('alternatives', () => {
 
         it('ignores defaults when nesting does not include objects', () => {
 
-            const schema = Joi.alternatives([
-                Joi.alternatives(
-                    Joi.number(),
-                    Joi.string()
+            const schema = Engine.alternatives([
+                Engine.alternatives(
+                    Engine.number(),
+                    Engine.string()
                 ).
                     match('all'),
 
-                Joi.any()
+                Engine.any()
             ])
                 .match('all')
 
@@ -1778,14 +1778,14 @@ describe('alternatives', () => {
 
         it('errors on mix with conditional', () => {
 
-            expect(() => Joi.alternatives().match('all').conditional('$a', { is: true, then: false })).to.throw('Cannot combine match mode all with conditional rule')
-            expect(() => Joi.alternatives().conditional('$a', { is: true, then: false }).match('all')).to.throw('Cannot combine match mode all with conditional rules')
+            expect(() => Engine.alternatives().match('all').conditional('$a', { is: true, then: false })).to.throw('Cannot combine match mode all with conditional rule')
+            expect(() => Engine.alternatives().conditional('$a', { is: true, then: false }).match('all')).to.throw('Cannot combine match mode all with conditional rules')
 
-            expect(() => Joi.alternatives().match('one').conditional('$a', { is: true, then: false })).to.throw('Cannot combine match mode one with conditional rule')
-            expect(() => Joi.alternatives().conditional('$a', { is: true, then: false }).match('one')).to.throw('Cannot combine match mode one with conditional rules')
+            expect(() => Engine.alternatives().match('one').conditional('$a', { is: true, then: false })).to.throw('Cannot combine match mode one with conditional rule')
+            expect(() => Engine.alternatives().conditional('$a', { is: true, then: false }).match('one')).to.throw('Cannot combine match mode one with conditional rules')
 
-            expect(() => Joi.alternatives().match('any').conditional('$a', { is: true, then: false })).to.not.throw()
-            expect(() => Joi.alternatives().conditional('$a', { is: true, then: false }).match('any')).to.not.throw()
+            expect(() => Engine.alternatives().match('any').conditional('$a', { is: true, then: false })).to.not.throw()
+            expect(() => Engine.alternatives().conditional('$a', { is: true, then: false }).match('any')).to.not.throw()
         })
     })
 
@@ -1797,10 +1797,10 @@ describe('alternatives', () => {
                 v: (s) => s.min(10)
             }
 
-            const before = Joi.object({
-                x: Joi.alternatives([
-                    Joi.number().alter(alternatives),
-                    Joi.string().alter(alternatives)
+            const before = Engine.object({
+                x: Engine.alternatives([
+                    Engine.number().alter(alternatives),
+                    Engine.string().alter(alternatives)
                 ])
             })
 
@@ -1808,10 +1808,10 @@ describe('alternatives', () => {
 
             const first = before.tailor('v')
 
-            const after = Joi.object({
-                x: Joi.alternatives([
-                    Joi.number().min(10).alter(alternatives),
-                    Joi.string().min(10).alter(alternatives)
+            const after = Engine.object({
+                x: Engine.alternatives([
+                    Engine.number().min(10).alter(alternatives),
+                    Engine.string().min(10).alter(alternatives)
                 ])
             })
 
@@ -1827,13 +1827,13 @@ describe('alternatives', () => {
             }
 
             const alt2 = {
-                v: (s) => s.try(Joi.valid('x'))
+                v: (s) => s.try(Engine.valid('x'))
             }
 
-            const before = Joi.object({
-                x: Joi.alternatives([
-                    Joi.number().alter(alt1),
-                    Joi.string().alter(alt1)
+            const before = Engine.object({
+                x: Engine.alternatives([
+                    Engine.number().alter(alt1),
+                    Engine.string().alter(alt1)
                 ])
                     .alter(alt2)
             })
@@ -1842,11 +1842,11 @@ describe('alternatives', () => {
 
             const first = before.tailor('v')
 
-            const after = Joi.object({
-                x: Joi.alternatives([
-                    Joi.number().min(10).alter(alt1),
-                    Joi.string().min(10).alter(alt1),
-                    Joi.valid('x')
+            const after = Engine.object({
+                x: Engine.alternatives([
+                    Engine.number().min(10).alter(alt1),
+                    Engine.string().min(10).alter(alt1),
+                    Engine.valid('x')
                 ])
                     .alter(alt2)
             })
@@ -1861,29 +1861,29 @@ describe('alternatives', () => {
 
         it('throws when missing alternatives', () => {
 
-            expect(() => Joi.alternatives().try()).to.throw('Missing alternative schemas')
+            expect(() => Engine.alternatives().try()).to.throw('Missing alternative schemas')
         })
 
         it('throws on unreachable condition', () => {
 
             expect(() => {
 
-                Joi.object({
+                Engine.object({
 
-                    a: Joi.alternatives().conditional('b', { is: 6, then: 7, otherwise: 0 }).try(5),
-                    b: Joi.any()
+                    a: Engine.alternatives().conditional('b', { is: 6, then: 7, otherwise: 0 }).try(5),
+                    b: Engine.any()
                 })
             }).to.throw('Unreachable condition')
         })
 
         it('validates deep alternatives', () => {
 
-            const schema = Joi.alternatives().try(
-                Joi.boolean(),
-                Joi.object({
-                    p: Joi.alternatives().try(
-                        Joi.boolean(),
-                        Joi.string().valid('foo', 'bar')
+            const schema = Engine.alternatives().try(
+                Engine.boolean(),
+                Engine.object({
+                    p: Engine.alternatives().try(
+                        Engine.boolean(),
+                        Engine.string().valid('foo', 'bar')
                     )
                 })
             )
@@ -1922,12 +1922,12 @@ describe('alternatives', () => {
 
         it('validates deep alternatives (with wrap.array false)', () => {
 
-            const schema = Joi.alternatives().try(
-                Joi.boolean(),
-                Joi.object({
-                    p: Joi.alternatives().try(
-                        Joi.boolean(),
-                        Joi.string().valid('foo', 'bar')
+            const schema = Engine.alternatives().try(
+                Engine.boolean(),
+                Engine.object({
+                    p: Engine.alternatives().try(
+                        Engine.boolean(),
+                        Engine.string().valid('foo', 'bar')
                     )
                 })
             ).prefs({ errors: { wrap: { array: false } } })
@@ -1966,10 +1966,10 @@ describe('alternatives', () => {
 
         it('validates deep alternatives (with custom error)', () => {
 
-            const schema = Joi.alternatives([
-                Joi.boolean(),
-                Joi.object({
-                    p: Joi.number()
+            const schema = Engine.alternatives([
+                Engine.boolean(),
+                Engine.object({
+                    p: Engine.number()
                 })
             ])
                 .error(new Error('oops'))
@@ -1981,9 +1981,9 @@ describe('alternatives', () => {
 
         it('validates alternatives with the correct type', () => {
 
-            const schema = Joi.alternatives([
-                Joi.boolean(),
-                Joi.function()
+            const schema = Engine.alternatives([
+                Engine.boolean(),
+                Engine.function()
             ])
 
             Helper.validate(schema, [
@@ -1996,13 +1996,13 @@ describe('alternatives', () => {
 
         it('combines when() with tries', () => {
 
-            const schema = Joi.object({
-                a: Joi.boolean(),
-                b: Joi.alternatives([
-                    Joi.string(),
-                    Joi.number()
+            const schema = Engine.object({
+                a: Engine.boolean(),
+                b: Engine.alternatives([
+                    Engine.string(),
+                    Engine.number()
                 ])
-                    .when('a', { is: true, then: Joi.required() })
+                    .when('a', { is: true, then: Engine.required() })
             })
 
             Helper.validate(schema, [

@@ -6,18 +6,18 @@
 // @ts-nocheck
 import {it} from 'node:test'
 import {expect} from '../../support/Expect.js'
-import joi from '../../../../lib/validation/engine/schema/index.js'
+import engine from '../../../../lib/validation/engine/schema/index.js'
 import parse from '../../../../lib/validation/engine/json-schema/index.js'
 import Ajv from 'ajv'
 import {toEqual} from '../support.js'
 
 const ajv = new Ajv({ allErrors: true })
 
-const JOI_OBJ = joi.object({
-    a: joi.string(),
-    b: joi.number(),
-    c: joi.boolean(),
-    d: joi.number()
+const SCHEMA_OBJ = engine.object({
+    a: engine.string(),
+    b: engine.number(),
+    c: engine.boolean(),
+    d: engine.number()
 }).xor('a', 'b', 'c')
 
 const BASE_SCHEMA = {
@@ -42,8 +42,8 @@ const BASE_SCHEMA = {
 }
 
 it('xor - single field', () => {
-    const joiObj = JOI_OBJ
-    const jsonSchema = parse(joiObj)
+    const schemaObj = SCHEMA_OBJ
+    const jsonSchema = parse(schemaObj)
     const validate = ajv.compile(jsonSchema)
 
     validate({ a: 'hi' })
@@ -52,8 +52,8 @@ it('xor - single field', () => {
 })
 
 it('xor - single field with unknown field allown', () => {
-    const joiObj = JOI_OBJ.unknown(true)
-    const jsonSchema = parse(joiObj)
+    const schemaObj = SCHEMA_OBJ.unknown(true)
+    const jsonSchema = parse(schemaObj)
     const validate = ajv.compile(jsonSchema)
 
     validate({ a: 'hi', e: 1 })
@@ -62,8 +62,8 @@ it('xor - single field with unknown field allown', () => {
 })
 
 it('xor - multiple fields', () => {
-    const joiObj = JOI_OBJ
-    const jsonSchema = parse(joiObj)
+    const schemaObj = SCHEMA_OBJ
+    const jsonSchema = parse(schemaObj)
     const validate = ajv.compile(jsonSchema)
 
     validate({ a: 'hi', b: 1 })
@@ -72,8 +72,8 @@ it('xor - multiple fields', () => {
 })
 
 it('xor - multiple fields with unknown field allown', () => {
-    const joiObj = JOI_OBJ.unknown(true)
-    const jsonSchema = parse(joiObj)
+    const schemaObj = SCHEMA_OBJ.unknown(true)
+    const jsonSchema = parse(schemaObj)
     const validate = ajv.compile(jsonSchema)
 
     validate({ a: 'hi', b: 1, e: 1 })
@@ -82,8 +82,8 @@ it('xor - multiple fields with unknown field allown', () => {
 })
 
 it('xor - missing field', () => {
-    const joiObj = JOI_OBJ
-    const jsonSchema = parse(joiObj)
+    const schemaObj = SCHEMA_OBJ
+    const jsonSchema = parse(schemaObj)
     const validate = ajv.compile(jsonSchema)
 
     validate({ })
@@ -92,8 +92,8 @@ it('xor - missing field', () => {
 })
 
 it('xor - missing field with unknown field allown', () => {
-    const joiObj = JOI_OBJ.unknown(true)
-    const jsonSchema = parse(joiObj)
+    const schemaObj = SCHEMA_OBJ.unknown(true)
+    const jsonSchema = parse(schemaObj)
     const validate = ajv.compile(jsonSchema)
 
     validate({ e: 1 })

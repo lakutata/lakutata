@@ -6,97 +6,97 @@
 // @ts-nocheck
 import {describe, it} from 'node:test'
 import {expect} from '../support/Expect.js'
-import Joi from '../../../lib/validation/engine/schema/index.js'
+import Engine from '../../../lib/validation/engine/schema/index.js'
 describe('isAsync()', () => {
 
     it('returns false for schemas without async rules', () => {
 
-        expect(Joi.alternatives().isAsync()).to.be.false()
-        expect(Joi.array().isAsync()).to.be.false()
-        expect(Joi.boolean().isAsync()).to.be.false()
-        expect(Joi.date().isAsync()).to.be.false()
-        expect(Joi.number().isAsync()).to.be.false()
-        expect(Joi.object().isAsync()).to.be.false()
-        expect(Joi.string().isAsync()).to.be.false()
+        expect(Engine.alternatives().isAsync()).to.be.false()
+        expect(Engine.array().isAsync()).to.be.false()
+        expect(Engine.boolean().isAsync()).to.be.false()
+        expect(Engine.date().isAsync()).to.be.false()
+        expect(Engine.number().isAsync()).to.be.false()
+        expect(Engine.object().isAsync()).to.be.false()
+        expect(Engine.string().isAsync()).to.be.false()
     })
 
     it('returns true for schemas with external rules', () => {
 
-        expect(Joi.string().external(() => {}).isAsync()).to.be.true()
-        expect(Joi.number().external(() => {}).isAsync()).to.be.true()
-        expect(Joi.boolean().external(() => {}).isAsync()).to.be.true()
-        expect(Joi.date().external(() => {}).isAsync()).to.be.true()
-        expect(Joi.object().external(() => {}).isAsync()).to.be.true()
-        expect(Joi.array().external(() => {}).isAsync()).to.be.true()
-        expect(Joi.alternatives().external(() => {}).isAsync()).to.be.true()
+        expect(Engine.string().external(() => {}).isAsync()).to.be.true()
+        expect(Engine.number().external(() => {}).isAsync()).to.be.true()
+        expect(Engine.boolean().external(() => {}).isAsync()).to.be.true()
+        expect(Engine.date().external(() => {}).isAsync()).to.be.true()
+        expect(Engine.object().external(() => {}).isAsync()).to.be.true()
+        expect(Engine.array().external(() => {}).isAsync()).to.be.true()
+        expect(Engine.alternatives().external(() => {}).isAsync()).to.be.true()
     })
 
     it('returns true for objects with async child schemas', () => {
 
-        expect(Joi.object({ a: Joi.string().external(() => {}) }).isAsync()).to.be.true()
-        expect(Joi.object({ a: Joi.string() }).isAsync()).to.be.false()
-        expect(Joi.object().pattern(/a/, Joi.string().external(() => {})).isAsync()).to.be.true()
-        expect(Joi.object().pattern(/a/, Joi.string()).isAsync()).to.be.false()
-        expect(Joi.object().pattern(Joi.string(), { a: Joi.string().external(() => {}) }).isAsync()).to.be.true()
-        expect(Joi.object().pattern(Joi.string(), { a: Joi.string() }).isAsync()).to.be.false()
+        expect(Engine.object({ a: Engine.string().external(() => {}) }).isAsync()).to.be.true()
+        expect(Engine.object({ a: Engine.string() }).isAsync()).to.be.false()
+        expect(Engine.object().pattern(/a/, Engine.string().external(() => {})).isAsync()).to.be.true()
+        expect(Engine.object().pattern(/a/, Engine.string()).isAsync()).to.be.false()
+        expect(Engine.object().pattern(Engine.string(), { a: Engine.string().external(() => {}) }).isAsync()).to.be.true()
+        expect(Engine.object().pattern(Engine.string(), { a: Engine.string() }).isAsync()).to.be.false()
     })
 
     it('returns true for arrays with async items', () => {
 
-        expect(Joi.array().items(Joi.string().external(() => {})).isAsync()).to.be.true()
-        expect(Joi.array().items(Joi.string()).isAsync()).to.be.false()
-        expect(Joi.array().ordered(Joi.string().external(() => {})).isAsync()).to.be.true()
-        expect(Joi.array().ordered(Joi.string()).isAsync()).to.be.false()
+        expect(Engine.array().items(Engine.string().external(() => {})).isAsync()).to.be.true()
+        expect(Engine.array().items(Engine.string()).isAsync()).to.be.false()
+        expect(Engine.array().ordered(Engine.string().external(() => {})).isAsync()).to.be.true()
+        expect(Engine.array().ordered(Engine.string()).isAsync()).to.be.false()
     })
 
     it('returns true for alternatives with async schemas', () => {
 
-        expect(Joi.alternatives().try(Joi.string().external(() => {})).isAsync()).to.be.true()
-        expect(Joi.alternatives().conditional('a', { is: 'b', then: Joi.string().external(() => {}) }).isAsync()).to.be.true()
-        expect(Joi.alternatives().conditional('a', { is: 'b', otherwise: Joi.string().external(() => {}) }).isAsync()).to.be.true()
-        expect(Joi.alternatives().conditional('a', {
+        expect(Engine.alternatives().try(Engine.string().external(() => {})).isAsync()).to.be.true()
+        expect(Engine.alternatives().conditional('a', { is: 'b', then: Engine.string().external(() => {}) }).isAsync()).to.be.true()
+        expect(Engine.alternatives().conditional('a', { is: 'b', otherwise: Engine.string().external(() => {}) }).isAsync()).to.be.true()
+        expect(Engine.alternatives().conditional('a', {
             is: 'b',
-            otherwise: Joi.string().external(() => {})
+            otherwise: Engine.string().external(() => {})
         }).isAsync()).to.be.true()
-        expect(Joi.alternatives().conditional('a', {
+        expect(Engine.alternatives().conditional('a', {
             is: 'b',
-            then: Joi.string(),
-            otherwise: Joi.number()
+            then: Engine.string(),
+            otherwise: Engine.number()
         }).isAsync()).to.be.false()
-        expect(Joi.any().when('a', {
+        expect(Engine.any().when('a', {
             is: 'b',
-            then: Joi.string().external(() => {})
+            then: Engine.string().external(() => {})
         }).isAsync()).to.be.true()
-        expect(Joi.any().when('a', {
+        expect(Engine.any().when('a', {
             is: 'b',
-            otherwise: Joi.string().external(() => {})
+            otherwise: Engine.string().external(() => {})
         }).isAsync()).to.be.true()
-        expect(Joi.any().when('a', {
+        expect(Engine.any().when('a', {
             is: 'b',
-            otherwise: Joi.string()
+            otherwise: Engine.string()
         }).isAsync()).to.be.false()
-        expect(Joi.any().when('a', {
+        expect(Engine.any().when('a', {
             switch: [
-                { is: 'b', then: Joi.string() },
-                { is: 'c', then: Joi.number().external(() => {}), otherwise: Joi.string() }
+                { is: 'b', then: Engine.string() },
+                { is: 'c', then: Engine.number().external(() => {}), otherwise: Engine.string() }
             ]
         }).isAsync()).to.be.true()
-        expect(Joi.any().when('a', {
+        expect(Engine.any().when('a', {
             switch: [
-                { is: 'b', then: Joi.string() },
-                { is: 'c', then: Joi.number(), otherwise: Joi.string() }
+                { is: 'b', then: Engine.string() },
+                { is: 'c', then: Engine.number(), otherwise: Engine.string() }
             ]
         }).isAsync()).to.be.false()
-        expect(Joi.any().when('a', {
+        expect(Engine.any().when('a', {
             switch: [
-                { is: 'b', then: Joi.string() },
-                { is: 'c', then: Joi.string(), otherwise: Joi.number().external(() => {}) }
+                { is: 'b', then: Engine.string() },
+                { is: 'c', then: Engine.string(), otherwise: Engine.number().external(() => {}) }
             ]
         }).isAsync()).to.be.true()
-        expect(Joi.any().when('a', {
+        expect(Engine.any().when('a', {
             switch: [
-                { is: 'b', then: Joi.string() },
-                { is: 'c', then: Joi.string(), otherwise: Joi.number() }
+                { is: 'b', then: Engine.string() },
+                { is: 'c', then: Engine.string(), otherwise: Engine.number() }
             ]
         }).isAsync()).to.be.false()
     })

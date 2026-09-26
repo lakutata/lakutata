@@ -28,9 +28,9 @@ type Helpers = ValidationHelpers<BigIntSchema>
 
 /**
  * The bigint extension of the root object
- * @param joi
+ * @param engine
  */
-export const joiBigint = (joi: Root): Extension<BigIntSchema> => ({
+export const bigintExtension = (engine: Root): Extension<BigIntSchema> => ({
     type: 'bigint',
     messages: {
         'bigint.base': '{{#label}} must be a bigint',
@@ -182,9 +182,9 @@ export const joiBigint = (joi: Root): Extension<BigIntSchema> => ({
 
 /**
  * A root object with the bigint type
- * @param baseJoi
+ * @param baseEngine
  */
-export const extendJoi = <T extends Root>(baseJoi: T): T & { bigint<U = bigint>(): BigIntSchema<U> } => {
+export const extendBigInt = <T extends Root>(baseEngine: T): T & { bigint<U = bigint>(): BigIntSchema<U> } => {
     //The extension is typed with its own schema type, the root accepts the extensions of any schema type
-    return baseJoi.extend(joiBigint as unknown as ExtensionFactory) as T & { bigint<U = bigint>(): BigIntSchema<U> }
+    return baseEngine.extend(bigintExtension as unknown as ExtensionFactory) as T & { bigint<U = bigint>(): BigIntSchema<U> }
 }

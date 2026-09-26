@@ -6,14 +6,14 @@
 // @ts-nocheck
 import {describe, it} from 'node:test'
 import {expect} from '../support/Expect.js'
-import Joi from '../../../lib/validation/engine/schema/index.js'
-//Adapted: @hapi/joi-legacy-test (an older joi release) is not a dependency. joi detects schemas of other versions only
+import Engine from '../../../lib/validation/engine/schema/index.js'
+//Adapted: @hapi/engine-legacy-test (an older engine release) is not a dependency. engine detects schemas of other versions only
 //through the version of the shared schema marker, so a schema of another version is simulated with that marker.
 const LegacyVersion = '15.1.1'
 const Legacy = {
     number: () => {
 
-        const schema = Joi.number()
+        const schema = Engine.number()
         const marker = Symbol.for('@hapi/joi/schema')
         return Object.create(schema, {[marker]: {value: {...schema[marker], version: LegacyVersion}}})
     }
@@ -27,9 +27,9 @@ describe('cast', () => {
 
         it('casts templates', () => {
 
-            const schema = Joi.object({
-                a: Joi.number(),
-                b: Joi.x('{a + 1}')
+            const schema = Engine.object({
+                a: Engine.number(),
+                b: Engine.x('{a + 1}')
             })
 
             Helper.validate(schema, [[{ a: 5, b: 6 }, true]])
@@ -37,7 +37,7 @@ describe('cast', () => {
 
         it('compiles null schema', () => {
 
-            Helper.validate(Joi.compile(null), [
+            Helper.validate(Engine.compile(null), [
                 ['a', false, {
                     message: '"value" must be [null]',
                     path: [],
@@ -50,7 +50,7 @@ describe('cast', () => {
 
         it('compiles number literal', () => {
 
-            Helper.validate(Joi.compile(5), [
+            Helper.validate(Engine.compile(5), [
                 [6, false, {
                     message: '"value" must be [5]',
                     path: [],
@@ -63,7 +63,7 @@ describe('cast', () => {
 
         it('compiles string literal', () => {
 
-            Helper.validate(Joi.compile('5'), [
+            Helper.validate(Engine.compile('5'), [
                 ['6', false, {
                     message: '"value" must be [5]',
                     path: [],
@@ -76,7 +76,7 @@ describe('cast', () => {
 
         it('compiles boolean literal', () => {
 
-            Helper.validate(Joi.compile(true), [
+            Helper.validate(Engine.compile(true), [
                 [false, false, {
                     message: '"value" must be [true]',
                     path: [],
@@ -91,7 +91,7 @@ describe('cast', () => {
 
             const now = Date.now()
             const dnow = new Date(now)
-            Helper.validate(Joi.compile(dnow), [
+            Helper.validate(Engine.compile(dnow), [
                 [new Date(now), true],
                 [now, true, new Date(now)],
                 [now * 2, false, {
@@ -105,44 +105,44 @@ describe('cast', () => {
 
         it('compile [null]', () => {
 
-            const schema = Joi.compile([null])
-            Helper.equal(schema, Joi.valid(Joi.override, null))
+            const schema = Engine.compile([null])
+            Helper.equal(schema, Engine.valid(Engine.override, null))
         })
 
         it('compile [1]', () => {
 
-            const schema = Joi.compile([1])
-            Helper.equal(schema, Joi.valid(Joi.override, 1))
+            const schema = Engine.compile([1])
+            Helper.equal(schema, Engine.valid(Engine.override, 1))
         })
 
         it('compile ["a"]', () => {
 
-            const schema = Joi.compile(['a'])
-            Helper.equal(schema, Joi.valid(Joi.override, 'a'))
+            const schema = Engine.compile(['a'])
+            Helper.equal(schema, Engine.valid(Engine.override, 'a'))
         })
 
         it('compile [null, null, null]', () => {
 
-            const schema = Joi.compile([null])
-            Helper.equal(schema, Joi.valid(Joi.override, null))
+            const schema = Engine.compile([null])
+            Helper.equal(schema, Engine.valid(Engine.override, null))
         })
 
         it('compile [1, 2, 3]', () => {
 
-            const schema = Joi.compile([1, 2, 3])
-            Helper.equal(schema, Joi.valid(Joi.override, 1, 2, 3))
+            const schema = Engine.compile([1, 2, 3])
+            Helper.equal(schema, Engine.valid(Engine.override, 1, 2, 3))
         })
 
         it('compile ["a", "b", "c"]', () => {
 
-            const schema = Joi.compile(['a', 'b', 'c'])
-            Helper.equal(schema, Joi.valid(Joi.override, 'a', 'b', 'c'))
+            const schema = Engine.compile(['a', 'b', 'c'])
+            Helper.equal(schema, Engine.valid(Engine.override, 'a', 'b', 'c'))
         })
 
         it('compile [null, "a", 1, true]', () => {
 
-            const schema = Joi.compile([null, 'a', 1, true])
-            Helper.equal(schema, Joi.valid(Joi.override, null, 'a', 1, true))
+            const schema = Engine.compile([null, 'a', 1, true])
+            Helper.equal(schema, Engine.valid(Engine.override, null, 'a', 1, true))
         })
     })
 
@@ -154,29 +154,29 @@ describe('cast', () => {
                 a: 1
             }
 
-            expect(Joi.isSchema(schema)).to.be.false()
+            expect(Engine.isSchema(schema)).to.be.false()
 
-            const compiled = Joi.compile(schema)
-            expect(Joi.isSchema(compiled)).to.be.true()
+            const compiled = Engine.compile(schema)
+            expect(Engine.isSchema(compiled)).to.be.true()
         })
 
         it('compiles object with schema keys', () => {
 
             const schema = {
-                a: Joi.number()
+                a: Engine.number()
             }
 
-            expect(Joi.isSchema(schema)).to.be.false()
+            expect(Engine.isSchema(schema)).to.be.false()
 
-            const compiled = Joi.compile(schema)
-            expect(Joi.isSchema(compiled)).to.be.true()
+            const compiled = Engine.compile(schema)
+            expect(Engine.isSchema(compiled)).to.be.true()
         })
 
         it('errors on legacy schema', () => {
 
             const schema = Legacy.number()
-            expect(() => Joi.compile(schema)).to.throw(`Cannot mix different versions of joi schemas: ${LegacyVersion} ${Joi.version}`)
-            expect(() => Joi.compile(schema, { legacy: true })).to.not.throw()
+            expect(() => Engine.compile(schema)).to.throw(`Cannot mix different versions of validation schemas: ${LegacyVersion} ${Engine.version}`)
+            expect(() => Engine.compile(schema, { legacy: true })).to.not.throw()
         })
 
         it('errors on legacy keys', () => {
@@ -185,7 +185,7 @@ describe('cast', () => {
                 a: Legacy.number()
             }
 
-            expect(() => Joi.compile(schema)).to.throw('Cannot mix different versions of joi schemas (a)')
+            expect(() => Engine.compile(schema)).to.throw('Cannot mix different versions of validation schemas (a)')
         })
 
         describe('legacy', () => {
@@ -197,62 +197,62 @@ describe('cast', () => {
                     b: [2, 3]
                 }
 
-                expect(Joi.isSchema(schema)).to.be.false()
+                expect(Engine.isSchema(schema)).to.be.false()
 
-                const compiled = Joi.compile(schema, { legacy: true })
-                expect(Joi.isSchema(compiled)).to.be.true()
+                const compiled = Engine.compile(schema, { legacy: true })
+                expect(Engine.isSchema(compiled)).to.be.true()
             })
 
             it('compiles object with schema keys (v16)', () => {
 
                 const schema = {
-                    a: Joi.number()
+                    a: Engine.number()
                 }
 
-                expect(Joi.isSchema(schema)).to.be.false()
+                expect(Engine.isSchema(schema)).to.be.false()
 
-                const compiled = Joi.compile(schema, { legacy: true })
-                expect(Joi.isSchema(compiled)).to.be.true()
+                const compiled = Engine.compile(schema, { legacy: true })
+                expect(Engine.isSchema(compiled)).to.be.true()
             })
 
             it('compiles object with schema array items (v16)', () => {
 
                 const schema = {
-                    a: [Joi.number()]
+                    a: [Engine.number()]
                 }
 
-                expect(Joi.isSchema(schema)).to.be.false()
+                expect(Engine.isSchema(schema)).to.be.false()
 
-                const compiled = Joi.compile(schema, { legacy: true })
-                expect(Joi.isSchema(compiled)).to.be.true()
+                const compiled = Engine.compile(schema, { legacy: true })
+                expect(Engine.isSchema(compiled)).to.be.true()
             })
 
-            //Skipped: compiling v15 schemas needs the real compiler of an older joi release, which is not a dependency
+            //Skipped: compiling v15 schemas needs the real compiler of an older engine release, which is not a dependency
             it.skip('compiles object with schema keys (v15)', () => {
 
                 const schema = {
                     a: Legacy.number()
                 }
 
-                expect(Joi.isSchema(schema)).to.be.false()
+                expect(Engine.isSchema(schema)).to.be.false()
 
-                const compiled = Joi.compile(schema, { legacy: true })
-                expect(Joi.isSchema(compiled, { legacy: true })).to.be.true()
-                expect(() => Joi.isSchema(compiled)).to.throw('Cannot mix different versions of joi schemas')
+                const compiled = Engine.compile(schema, { legacy: true })
+                expect(Engine.isSchema(compiled, { legacy: true })).to.be.true()
+                expect(() => Engine.isSchema(compiled)).to.throw('Cannot mix different versions of validation schemas')
             })
 
-            //Skipped: compiling v15 schemas needs the real compiler of an older joi release, which is not a dependency
+            //Skipped: compiling v15 schemas needs the real compiler of an older engine release, which is not a dependency
             it.skip('compiles object with schema keys (v15)', () => {
 
                 const schema = {
                     a: [Legacy.number()]
                 }
 
-                expect(Joi.isSchema(schema)).to.be.false()
+                expect(Engine.isSchema(schema)).to.be.false()
 
-                const compiled = Joi.compile(schema, { legacy: true })
-                expect(Joi.isSchema(compiled, { legacy: true })).to.be.true()
-                expect(() => Joi.isSchema(compiled)).to.throw('Cannot mix different versions of joi schemas')
+                const compiled = Engine.compile(schema, { legacy: true })
+                expect(Engine.isSchema(compiled, { legacy: true })).to.be.true()
+                expect(() => Engine.isSchema(compiled)).to.throw('Cannot mix different versions of validation schemas')
             })
         })
     })

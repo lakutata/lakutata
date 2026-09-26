@@ -143,7 +143,7 @@ export class Tracer {
     protected _schemas: Map<SchemaInternals, RegisteredSchema>
 
     constructor() {
-        this.name = 'Joi'
+        this.name = 'lakutata'
         this._schemas = new Map()
     }
 

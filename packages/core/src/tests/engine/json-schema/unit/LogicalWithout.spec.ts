@@ -6,18 +6,18 @@
 // @ts-nocheck
 import {it} from 'node:test'
 import {expect} from '../../support/Expect.js'
-import joi from '../../../../lib/validation/engine/schema/index.js'
+import engine from '../../../../lib/validation/engine/schema/index.js'
 import parse from '../../../../lib/validation/engine/json-schema/index.js'
 import Ajv from 'ajv'
 import {toEqual} from '../support.js'
 
 const ajv = new Ajv({ allErrors: true })
 
-const JOI_OBJ = joi.object({
-    a: joi.string(),
-    b: joi.number(),
-    c: joi.boolean(),
-    d: joi.number()
+const SCHEMA_OBJ = engine.object({
+    a: engine.string(),
+    b: engine.number(),
+    c: engine.boolean(),
+    d: engine.number()
 }).without('a', ['b', 'c'])
 
 const BASE_SCHEMA = {
@@ -33,8 +33,8 @@ const BASE_SCHEMA = {
 }
 
 it('without - checking property is not present', () => {
-    const joiObj = JOI_OBJ
-    const jsonSchema = parse(joiObj)
+    const schemaObj = SCHEMA_OBJ
+    const jsonSchema = parse(schemaObj)
     const validate = ajv.compile(jsonSchema)
 
     validate({ b: 1, c: true })
@@ -43,8 +43,8 @@ it('without - checking property is not present', () => {
 })
 
 it('without - no dependent properties exists when checking property is present', () => {
-    const joiObj = JOI_OBJ
-    const jsonSchema = parse(joiObj)
+    const schemaObj = SCHEMA_OBJ
+    const jsonSchema = parse(schemaObj)
     const validate = ajv.compile(jsonSchema)
 
     validate({ a: '' })
@@ -53,8 +53,8 @@ it('without - no dependent properties exists when checking property is present',
 })
 
 it('without - dependent property exists when checking property is present', () => {
-    const joiObj = JOI_OBJ
-    const jsonSchema = parse(joiObj)
+    const schemaObj = SCHEMA_OBJ
+    const jsonSchema = parse(schemaObj)
     const validate = ajv.compile(jsonSchema)
 
     validate({ a: '', b: 1 })

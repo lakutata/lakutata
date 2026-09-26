@@ -5,10 +5,10 @@ import {combinations} from '../combinations.js'
 import * as _ from '../helpers.js'
 import type {
     Definitions,
-    JoiCondition,
-    JoiDependency,
-    JoiRule,
-    JoiSpec,
+    SpecCondition,
+    SpecDependency,
+    SpecRule,
+    SchemaSpec,
     JsonSchema,
     LogicalOpParserFn,
     ParserOptions,
@@ -16,15 +16,15 @@ import type {
 } from '../model.js'
 
 /**
- * Default Joi logical operator (or/and/nand/xor/oxor) parsers
+ * Default logical operator (or/and/nand/xor/oxor) parsers
  */
 const LOGICAL_OP_PARSER: Record<string, LogicalOpParserFn> = {
-    or: function (schema: JsonSchema, dependency: JoiDependency): void {
+    or: function (schema: JsonSchema, dependency: SpecDependency): void {
         schema.anyOf = _.map(dependency.peers, (peer: string): JsonSchema => {
             return {required: [peer]}
         })
     },
-    and: function (schema: JsonSchema, dependency: JoiDependency): void {
+    and: function (schema: JsonSchema, dependency: SpecDependency): void {
         schema.oneOf = [{required: dependency.peers}]
         schema.oneOf.push({
             allOf: _.map(dependency.peers, (peer: string): JsonSchema => {
@@ -32,10 +32,10 @@ const LOGICAL_OP_PARSER: Record<string, LogicalOpParserFn> = {
             })
         })
     },
-    nand: function (schema: JsonSchema, dependency: JoiDependency): void {
+    nand: function (schema: JsonSchema, dependency: SpecDependency): void {
         schema.not = {required: dependency.peers}
     },
-    xor: function (schema: JsonSchema, dependency: JoiDependency): void {
+    xor: function (schema: JsonSchema, dependency: SpecDependency): void {
         schema.if = {
             propertyNames: {enum: dependency.peers},
             minProperties: 2
@@ -47,7 +47,7 @@ const LOGICAL_OP_PARSER: Record<string, LogicalOpParserFn> = {
             })
         }
     },
-    oxor: function (schema: JsonSchema, dependency: JoiDependency): void {
+    oxor: function (schema: JsonSchema, dependency: SpecDependency): void {
         schema.oneOf = _.map(dependency.peers, (peer: string): JsonSchema => {
             return {required: [peer]}
         })
@@ -59,11 +59,11 @@ const LOGICAL_OP_PARSER: Record<string, LogicalOpParserFn> = {
             }
         })
     },
-    with: function (schema: JsonSchema, dependency: JoiDependency): void {
+    with: function (schema: JsonSchema, dependency: SpecDependency): void {
         schema.dependentRequired = schema.dependentRequired || {}
         schema.dependentRequired[dependency.key as string] = dependency.peers
     },
-    without: function (schema: JsonSchema, dependency: JoiDependency): void {
+    without: function (schema: JsonSchema, dependency: SpecDependency): void {
         schema.if = {required: [dependency.key as string]}
         schema.then = {
             not: {
@@ -76,9 +76,9 @@ const LOGICAL_OP_PARSER: Record<string, LogicalOpParserFn> = {
 }
 
 /**
- * Recognize the `joi.override` representation in `describe()` output.
+ * Recognize the `override` representation in `describe()` output.
  *
- * `joi.override` is a Symbol that can be used in `joi.any().valid(…)`
+ * `override` is a Symbol that can be used in `any().valid(…)`
  * statements, to reset the list of valid values. In `describe()` output, it
  * turns up as an object with 1 property:
  *
@@ -86,7 +86,7 @@ const LOGICAL_OP_PARSER: Record<string, LogicalOpParserFn> = {
  * { override: true }
  * ```
  */
-function isJoiOverride(e: unknown): boolean {
+function isOverride(e: unknown): boolean {
     return typeof e === 'object'
         && e !== null
         && Object.keys(e).length === 1
@@ -94,9 +94,9 @@ function isJoiOverride(e: unknown): boolean {
 }
 
 /**
- * Converts joi schema descriptions into JSON schemas (draft 07)
+ * Converts schema descriptions into JSON schemas (draft 07)
  */
-export class JoiJsonSchemaParser {
+export class JsonSchemaParser {
 
     public $schema: string | undefined
 
@@ -137,37 +137,37 @@ export class JoiJsonSchemaParser {
         }
     }
 
-    public parse(joiSpec: JoiSpec, definitions: Definitions = {}, level: number = 0): JsonSchema {
+    public parse(spec: SchemaSpec, definitions: Definitions = {}, level: number = 0): JsonSchema {
         let schema: JsonSchema = {}
-        const hasPreferences: boolean = this._pushInheritiedPreferences(joiSpec)
-        if (this._getPresence(joiSpec) === 'forbidden') {
+        const hasPreferences: boolean = this._pushInheritiedPreferences(spec)
+        if (this._getPresence(spec) === 'forbidden') {
             if (hasPreferences) this._popInheritiedPreferences()
             schema.not = {}
             return schema
         }
-        this._setBasicProperties(schema, joiSpec)
-        this._setNumberFieldProperties(schema, joiSpec)
-        this._setBinaryFieldProperties(schema, joiSpec)
-        this._setStringFieldProperties(schema, joiSpec)
-        this._setDateFieldProperties(schema, joiSpec)
-        this._setArrayFieldProperties(schema, joiSpec, definitions, level)
-        this._setObjectProperties(schema, joiSpec, definitions, level)
-        this._setAlternativesProperties(schema, joiSpec, definitions, level)
-        this._setConditionProperties(schema, joiSpec, definitions, level, 'whens')
-        this._setMetaProperties(schema, joiSpec)
-        this._setLinkFieldProperties(schema, joiSpec)
-        this._setConst(schema, joiSpec)
+        this._setBasicProperties(schema, spec)
+        this._setNumberFieldProperties(schema, spec)
+        this._setBinaryFieldProperties(schema, spec)
+        this._setStringFieldProperties(schema, spec)
+        this._setDateFieldProperties(schema, spec)
+        this._setArrayFieldProperties(schema, spec, definitions, level)
+        this._setObjectProperties(schema, spec, definitions, level)
+        this._setAlternativesProperties(schema, spec, definitions, level)
+        this._setConditionProperties(schema, spec, definitions, level, 'whens')
+        this._setMetaProperties(schema, spec)
+        this._setLinkFieldProperties(schema, spec)
+        this._setConst(schema, spec)
         this._setAnyProperties(schema)
-        this._addNullTypeIfNullable(schema, joiSpec)
-        if (!_.isEmpty(joiSpec.shared)) {
-            _.each(joiSpec.shared, (sharedSchema: JoiSpec): void => {
+        this._addNullTypeIfNullable(schema, spec)
+        if (!_.isEmpty(spec.shared)) {
+            _.each(spec.shared, (sharedSchema: SchemaSpec): void => {
                 this.parse(sharedSchema, definitions, level)
             })
         }
-        this._copyMetasToSchema(joiSpec, schema)
+        this._copyMetasToSchema(spec, schema)
         //Last step to remove any unknown keys that are not in the JSON Schema specification or known meta keys
         schema = this._retainKnownKeys(schema)
-        const schemaId: unknown = _.get(joiSpec, 'flags.id')
+        const schemaId: unknown = _.get(spec, 'flags.id')
         if (schemaId) {
             definitions[schemaId as string] = schema
             schema = {
@@ -186,9 +186,9 @@ export class JoiJsonSchemaParser {
         return _.pickBy(schema, (value: unknown, key: string): boolean => knownKeys.includes(key) || this._isKnownMetaKey(key))
     }
 
-    protected _pushInheritiedPreferences(joiSpec: JoiSpec): boolean {
-        if (joiSpec.preferences) {
-            this.inheritedPreferences.push(_.merge({}, this._getInheritedPreferences(), joiSpec.preferences))
+    protected _pushInheritiedPreferences(spec: SchemaSpec): boolean {
+        if (spec.preferences) {
+            this.inheritedPreferences.push(_.merge({}, this._getInheritedPreferences(), spec.preferences))
             return true
         }
         return false
@@ -230,17 +230,17 @@ export class JoiJsonSchemaParser {
         return '#/$defs'
     }
 
-    protected _getFieldDescription(fieldDefn: JoiSpec): unknown {
+    protected _getFieldDescription(fieldDefn: SchemaSpec): unknown {
         return _.get(fieldDefn, 'flags.description')
     }
 
-    protected _getFieldType(fieldDefn: JoiSpec): string {
+    protected _getFieldType(fieldDefn: SchemaSpec): string {
         let type: string = fieldDefn.type
-        if (type === 'number' && !_.isEmpty(fieldDefn.rules) && (fieldDefn.rules as JoiRule[])[0].name === 'integer') type = 'integer'
+        if (type === 'number' && !_.isEmpty(fieldDefn.rules) && (fieldDefn.rules as SpecRule[])[0].name === 'integer') type = 'integer'
         return type
     }
 
-    protected _addNullTypeIfNullable(fieldSchema: JsonSchema, fieldDefn: JoiSpec): void {
+    protected _addNullTypeIfNullable(fieldSchema: JsonSchema, fieldDefn: SchemaSpec): void {
         //This should always be the last call in parse
         if (fieldSchema.const === null) return
         const enums: unknown = _.get(fieldDefn, this.enumFieldName)
@@ -255,36 +255,36 @@ export class JoiJsonSchemaParser {
         }
     }
 
-    protected _getFieldExample(fieldDefn: JoiSpec): unknown {
+    protected _getFieldExample(fieldDefn: SchemaSpec): unknown {
         return _.get(fieldDefn, 'examples')
     }
 
-    protected _getPresence(fieldDefn: JoiSpec): unknown {
+    protected _getPresence(fieldDefn: SchemaSpec): unknown {
         const presence: unknown = _.get(fieldDefn, 'flags.presence')
         if (presence !== undefined) return presence
         const preferences: unknown = fieldDefn[this.optionsFieldName] || this._getInheritedPreferences()
         return _.get(preferences, 'presence')
     }
 
-    protected _isRequired(fieldDefn: JoiSpec): boolean {
+    protected _isRequired(fieldDefn: SchemaSpec): boolean {
         const presence: unknown = this._getPresence(fieldDefn)
         return presence === 'required'
     }
 
-    protected _getDefaultValue(fieldDefn: JoiSpec): unknown {
+    protected _getDefaultValue(fieldDefn: SchemaSpec): unknown {
         return _.get(fieldDefn, 'flags.default')
     }
 
-    protected _getEnum(fieldDefn: JoiSpec): unknown[] | undefined {
+    protected _getEnum(fieldDefn: SchemaSpec): unknown[] | undefined {
         const enumList: unknown[] | undefined = fieldDefn[this.enumFieldName] as unknown[] | undefined
-        const filteredEnumList: unknown[] | undefined = enumList ? enumList.filter((e: unknown): boolean => !isJoiOverride(e)) : enumList
+        const filteredEnumList: unknown[] | undefined = enumList ? enumList.filter((e: unknown): boolean => !isOverride(e)) : enumList
         if (fieldDefn.flags && fieldDefn.flags.only && _.size(filteredEnumList) > 1) return _.uniq(filteredEnumList)
     }
 
-    protected _getUnknown(joiSpec: JoiSpec): unknown {
-        const allowUnknown: unknown = _.get(joiSpec, `flags.${this.allowUnknownFlagName}`)
+    protected _getUnknown(spec: SchemaSpec): unknown {
+        const allowUnknown: unknown = _.get(spec, `flags.${this.allowUnknownFlagName}`)
         if (allowUnknown !== undefined) return allowUnknown
-        const preferences: unknown = joiSpec[this.optionsFieldName] || this._getInheritedPreferences()
+        const preferences: unknown = spec[this.optionsFieldName] || this._getInheritedPreferences()
         return _.get(preferences, 'allowUnknown') || false
     }
 
@@ -292,7 +292,7 @@ export class JoiJsonSchemaParser {
         if (value !== null && value !== undefined) schema[field] = value
     }
 
-    protected _setBasicProperties(fieldSchema: JsonSchema, fieldDefn: JoiSpec): void {
+    protected _setBasicProperties(fieldSchema: JsonSchema, fieldDefn: SchemaSpec): void {
         this._setIfNotEmpty(fieldSchema, 'type', this._getFieldType(fieldDefn))
         this._setIfNotEmpty(fieldSchema, 'examples', this._getFieldExample(fieldDefn))
         this._setIfNotEmpty(fieldSchema, 'description', this._getFieldDescription(fieldDefn))
@@ -305,21 +305,21 @@ export class JoiJsonSchemaParser {
         }
     }
 
-    protected _setBinaryFieldProperties(fieldSchema: JsonSchema, fieldDefn: JoiSpec): void {
+    protected _setBinaryFieldProperties(fieldSchema: JsonSchema, fieldDefn: SchemaSpec): void {
         if (fieldSchema.type !== 'binary') return
         fieldSchema.type = 'string'
         if (fieldDefn.flags && fieldDefn.flags.encoding) fieldSchema.contentEncoding = fieldDefn.flags.encoding
         fieldSchema.format = 'binary'
     }
 
-    protected _setObjectProperties(schema: JsonSchema, joiSpec: JoiSpec, definitions: Definitions, level: number): void {
+    protected _setObjectProperties(schema: JsonSchema, spec: SchemaSpec, definitions: Definitions, level: number): void {
         if (schema.type !== 'object') return
         const properties: Record<string, JsonSchema> = {}
         const required: string[] = []
         schema.properties = properties
         schema.required = required
-        schema.additionalProperties = this._getUnknown(joiSpec)
-        _.map(joiSpec[this.childrenFieldName] as Record<string, JoiSpec> | undefined, (fieldDefn: JoiSpec, key: number | string): void => {
+        schema.additionalProperties = this._getUnknown(spec)
+        _.map(spec[this.childrenFieldName] as Record<string, SchemaSpec> | undefined, (fieldDefn: SchemaSpec, key: number | string): void => {
             const fieldSchema: JsonSchema = this.parse(fieldDefn, definitions, level + 1)
             if (this._isRequired(fieldDefn)) required.push(key as string)
             properties[key] = fieldSchema
@@ -328,8 +328,8 @@ export class JoiJsonSchemaParser {
          * For dynamic key scenarios to store the pattern as key
          * and have the properties be as with other examples
          */
-        if (joiSpec.patterns) {
-            _.each(joiSpec.patterns, (patternObj: NonNullable<JoiSpec['patterns']>[number]): void => {
+        if (spec.patterns) {
+            _.each(spec.patterns, (patternObj: NonNullable<SchemaSpec['patterns']>[number]): void => {
                 if (typeof patternObj.rule !== 'object' || typeof patternObj.regex === 'undefined') return
                 properties[patternObj.regex] = this.parse(patternObj.rule, definitions, level + 1)
                 schema.patternProperties = schema.patternProperties || {}
@@ -340,25 +340,25 @@ export class JoiJsonSchemaParser {
             })
         }
         if (_.isEmpty(schema.required)) delete schema.required
-        this._setObjectDependencies(schema, joiSpec)
+        this._setObjectDependencies(schema, spec)
     }
 
-    protected _setObjectDependencies(schema: JsonSchema, joiSpec: JoiSpec): void {
-        if (!Array.isArray(joiSpec.dependencies) || joiSpec.dependencies.length === 0) return
-        if (joiSpec.dependencies.length === 1) {
-            this._setDependencySubSchema(schema, joiSpec.dependencies[0])
+    protected _setObjectDependencies(schema: JsonSchema, spec: SchemaSpec): void {
+        if (!Array.isArray(spec.dependencies) || spec.dependencies.length === 0) return
+        if (spec.dependencies.length === 1) {
+            this._setDependencySubSchema(schema, spec.dependencies[0])
         } else {
             //Like upstream: removes the with dependencies from the description
-            const withDependencies: JoiDependency[] = _.remove(joiSpec.dependencies, (dependency: JoiDependency): boolean => {
+            const withDependencies: SpecDependency[] = _.remove(spec.dependencies, (dependency: SpecDependency): boolean => {
                 return dependency.rel === 'with'
             })
-            const allOf: JsonSchema[] = _.compact(_.map(joiSpec.dependencies, (dependency: JoiDependency): JsonSchema | null => {
+            const allOf: JsonSchema[] = _.compact(_.map(spec.dependencies, (dependency: SpecDependency): JsonSchema | null => {
                 const subSchema: JsonSchema = this._setDependencySubSchema({}, dependency)
                 if (_.isEmpty(subSchema)) return null
                 return subSchema
             }))
             schema.allOf = allOf
-            _.each(withDependencies, (dependency: JoiDependency): void => {
+            _.each(withDependencies, (dependency: SpecDependency): void => {
                 this._setDependencySubSchema(schema, dependency)
             })
             //When the logicalOpParser is set to false
@@ -366,17 +366,17 @@ export class JoiJsonSchemaParser {
         }
     }
 
-    protected _setDependencySubSchema(schema: JsonSchema, dependency: JoiDependency): JsonSchema {
+    protected _setDependencySubSchema(schema: JsonSchema, dependency: SpecDependency): JsonSchema {
         const opParser: LogicalOpParserFn | null | undefined = this.logicalOpParser[dependency.rel]
         if (typeof opParser !== 'function') return schema
         opParser(schema, dependency)
         return schema
     }
 
-    protected _setNumberFieldProperties(fieldSchema: JsonSchema, fieldDefn: JoiSpec): void {
+    protected _setNumberFieldProperties(fieldSchema: JsonSchema, fieldDefn: SchemaSpec): void {
         if (fieldSchema.type !== 'number' && fieldSchema.type !== 'integer') return
         const ruleArgFieldName: string = this.ruleArgFieldName
-        _.each(fieldDefn.rules, (rule: JoiRule): void => {
+        _.each(fieldDefn.rules, (rule: SpecRule): void => {
             const value: Record<string, unknown> = rule[ruleArgFieldName] as Record<string, unknown>
             switch (rule.name) {
                 case 'max':
@@ -409,11 +409,11 @@ export class JoiJsonSchemaParser {
         })
     }
 
-    protected _setStringFieldProperties(fieldSchema: JsonSchema, fieldDefn: JoiSpec): void {
+    protected _setStringFieldProperties(fieldSchema: JsonSchema, fieldDefn: SchemaSpec): void {
         if (fieldSchema.type !== 'string') return
         if (fieldDefn.flags && fieldDefn.flags.encoding) fieldSchema.contentEncoding = fieldDefn.flags.encoding
         const ruleArgFieldName: string = this.ruleArgFieldName
-        _.each(fieldDefn.rules, (rule: JoiRule): void => {
+        _.each(fieldDefn.rules, (rule: SpecRule): void => {
             const args: Record<string, unknown> = rule[ruleArgFieldName] as Record<string, unknown>
             switch (rule.name) {
                 case 'min':
@@ -472,10 +472,10 @@ export class JoiJsonSchemaParser {
         })
     }
 
-    protected _setArrayFieldProperties(fieldSchema: JsonSchema, fieldDefn: JoiSpec, definitions: Definitions, level: number): void {
+    protected _setArrayFieldProperties(fieldSchema: JsonSchema, fieldDefn: SchemaSpec, definitions: Definitions, level: number): void {
         if (fieldSchema.type !== 'array') return
         const ruleArgFieldName: string = this.ruleArgFieldName
-        _.each(fieldDefn.rules, (rule: JoiRule): void => {
+        _.each(fieldDefn.rules, (rule: SpecRule): void => {
             const value: Record<string, unknown> = rule[ruleArgFieldName] as Record<string, unknown>
             switch (rule.name) {
                 case 'max':
@@ -492,7 +492,7 @@ export class JoiJsonSchemaParser {
                     fieldSchema.uniqueItems = true
                     break
                 case 'has':
-                    fieldSchema.contains = this.parse(value.schema as JoiSpec, definitions, level + 1)
+                    fieldSchema.contains = this.parse(value.schema as SchemaSpec, definitions, level + 1)
                     break
                 default:
                     break
@@ -506,39 +506,39 @@ export class JoiJsonSchemaParser {
             fieldSchema.items = this.parse(fieldDefn.items[0], definitions, level + 1)
         } else {
             fieldSchema.items = {
-                anyOf: _.map(fieldDefn.items, (itemSchema: JoiSpec): JsonSchema => {
+                anyOf: _.map(fieldDefn.items, (itemSchema: SchemaSpec): JsonSchema => {
                     return this.parse(itemSchema, definitions, level + 1)
                 })
             }
         }
     }
 
-    protected _setDateFieldProperties(fieldSchema: JsonSchema, fieldDefn: JoiSpec): void {
+    protected _setDateFieldProperties(fieldSchema: JsonSchema, fieldDefn: SchemaSpec): void {
         if (fieldSchema.type !== 'date') return
         if (fieldDefn.flags && fieldDefn.flags.format !== 'iso') {
             fieldSchema.type = 'integer'
         } else {
             //https://datatracker.ietf.org/doc/draft-handrews-json-schema-validation
             //JSON Schema does not have date type, but use string with format.
-            //However, joi definition cannot clearly tells the date/time/date-time format
+            //However, the schema definition cannot clearly tells the date/time/date-time format
             fieldSchema.type = 'string'
             fieldSchema.format = 'date-time'
         }
     }
 
-    protected _setAlternativesProperties(schema: JsonSchema, joiSpec: JoiSpec, definitions: Definitions, level: number): void {
-        if (schema.type !== 'alternatives' || (joiSpec.matches as JoiCondition[]).length === 0) return
-        const matches: JoiCondition[] = joiSpec.matches as JoiCondition[]
+    protected _setAlternativesProperties(schema: JsonSchema, spec: SchemaSpec, definitions: Definitions, level: number): void {
+        if (schema.type !== 'alternatives' || (spec.matches as SpecCondition[]).length === 0) return
+        const matches: SpecCondition[] = spec.matches as SpecCondition[]
         if (matches[0].schema) {
             //try style
             let mode: 'anyOf' | 'oneOf' | 'allOf' = 'anyOf'
-            if (joiSpec.flags && joiSpec.flags.match === 'one') {
+            if (spec.flags && spec.flags.match === 'one') {
                 mode = 'oneOf'
-            } else if (joiSpec.flags && joiSpec.flags.match === 'all') {
+            } else if (spec.flags && spec.flags.match === 'all') {
                 mode = 'allOf'
             }
-            const schemas: JsonSchema[] = _.map(matches, (match: JoiCondition): JsonSchema => {
-                return this.parse(match.schema as JoiSpec, definitions, level + 1)
+            const schemas: JsonSchema[] = _.map(matches, (match: SpecCondition): JsonSchema => {
+                return this.parse(match.schema as SchemaSpec, definitions, level + 1)
             })
             schema[mode] = schemas
             if (schemas.length === 1) {
@@ -546,22 +546,22 @@ export class JoiJsonSchemaParser {
                 delete schema[mode]
             }
         } else {
-            this._setConditionProperties(schema, joiSpec, definitions, level, 'matches', 'anyOf')
+            this._setConditionProperties(schema, spec, definitions, level, 'matches', 'anyOf')
         }
         if (schema.type === 'alternatives') delete schema.type
     }
 
-    protected _setConditionProperties(schema: JsonSchema, joiSpec: JoiSpec, definitions: Definitions, level: number, conditionFieldName: string, logicKeyword: string = 'allOf'): void {
-        const conditions: JoiCondition[] | undefined = joiSpec[conditionFieldName] as JoiCondition[] | undefined
+    protected _setConditionProperties(schema: JsonSchema, spec: SchemaSpec, definitions: Definitions, level: number, conditionFieldName: string, logicKeyword: string = 'allOf'): void {
+        const conditions: SpecCondition[] | undefined = spec[conditionFieldName] as SpecCondition[] | undefined
         if (!conditions || conditions.length === 0) return
         let ifThenStyle: boolean = this._isIfThenElseSupported()
-        const styleSetting: Record<string, unknown>[] = _.remove(joiSpec.metas, (meta: Record<string, unknown>): boolean => {
+        const styleSetting: Record<string, unknown>[] = _.remove(spec.metas, (meta: Record<string, unknown>): boolean => {
             return typeof meta['if-style'] !== 'undefined'
         })
         if (ifThenStyle && styleSetting.length > 0 && styleSetting[0]['if-style'] === false) ifThenStyle = false
         if (conditions.length > 1) {
             //Multiple case
-            schema[logicKeyword] = _.map(conditions, (condition: JoiCondition): JsonSchema | undefined => {
+            schema[logicKeyword] = _.map(conditions, (condition: SpecCondition): JsonSchema | undefined => {
                 return this._setConditionSchema(ifThenStyle, {}, condition, definitions, level + 1)
             })
         } else {
@@ -569,37 +569,37 @@ export class JoiJsonSchemaParser {
         }
     }
 
-    protected _setConditionSchema(ifThenStyle: boolean, schema: JsonSchema, conditionJoiSpec: JoiCondition, definitions: Definitions, level: number): JsonSchema | undefined {
+    protected _setConditionSchema(ifThenStyle: boolean, schema: JsonSchema, conditionSpec: SpecCondition, definitions: Definitions, level: number): JsonSchema | undefined {
         //When "if" is not present, both "then" and "else" MUST be entirely ignored.
         //There must be either "is" or "switch"
-        if (!conditionJoiSpec.is && !conditionJoiSpec.switch) return
-        if (conditionJoiSpec.switch) {
-            this._parseSwitchCondition(ifThenStyle, schema, conditionJoiSpec, definitions, level)
+        if (!conditionSpec.is && !conditionSpec.switch) return
+        if (conditionSpec.switch) {
+            this._parseSwitchCondition(ifThenStyle, schema, conditionSpec, definitions, level)
         } else {
             if (ifThenStyle) {
-                this._parseIfThenElseCondition(schema, conditionJoiSpec, definitions, level)
+                this._parseIfThenElseCondition(schema, conditionSpec, definitions, level)
             } else {
-                this._setConditionCompositionStyle(schema, conditionJoiSpec, definitions, level)
+                this._setConditionCompositionStyle(schema, conditionSpec, definitions, level)
             }
         }
         return schema
     }
 
-    protected _parseIfThenElseCondition(schema: JsonSchema, conditionSpec: JoiCondition, definitions: Definitions, level: number): JsonSchema {
+    protected _parseIfThenElseCondition(schema: JsonSchema, conditionSpec: SpecCondition, definitions: Definitions, level: number): JsonSchema {
         //Currently, if there is reference, if-then-else style is not supported
         //To use it, the condition must be defined in parent level using schema-style is
         if (conditionSpec.ref) return this._setConditionCompositionStyle(schema, conditionSpec, definitions, level)
-        schema.if = this.parse(conditionSpec.is as JoiSpec, definitions, level)
+        schema.if = this.parse(conditionSpec.is as SchemaSpec, definitions, level)
         if (conditionSpec.then) schema.then = this.parse(conditionSpec.then, definitions, level)
         if (conditionSpec.otherwise) schema.else = this.parse(conditionSpec.otherwise, definitions, level)
         return schema
     }
 
-    protected _parseSwitchCondition(ifThenStyle: boolean, schema: JsonSchema, condition: JoiCondition, definitions: Definitions, level: number): void {
-        //Switch cannot be used if the joi condition is a schema
+    protected _parseSwitchCondition(ifThenStyle: boolean, schema: JsonSchema, condition: SpecCondition, definitions: Definitions, level: number): void {
+        //Switch cannot be used if the condition is a schema
         //Hence, condition.ref should always exists
         const anyOf: JsonSchema[] = []
-        for (const switchCondition of condition.switch as JoiCondition[]) {
+        for (const switchCondition of condition.switch as SpecCondition[]) {
             if (ifThenStyle && !condition.ref) {
                 const innerSchema: JsonSchema = this._parseIfThenElseCondition(
                     {}, switchCondition, definitions, level + 1)
@@ -617,7 +617,7 @@ export class JoiJsonSchemaParser {
         }
     }
 
-    protected _setConditionCompositionStyle(schema: JsonSchema, condition: JoiCondition, definitions: Definitions, level: number): JsonSchema {
+    protected _setConditionCompositionStyle(schema: JsonSchema, condition: SpecCondition, definitions: Definitions, level: number): JsonSchema {
         if (condition.ref) {
             //If the condition is refering to other field, cannot use the `is` condition for composition
             //Simple choise between then / otherwise
@@ -666,9 +666,9 @@ export class JoiJsonSchemaParser {
         return schema
     }
 
-    protected _setConst(schema: JsonSchema, fieldDefn: JoiSpec): void {
+    protected _setConst(schema: JsonSchema, fieldDefn: SchemaSpec): void {
         const enumList: unknown[] | undefined = fieldDefn[this.enumFieldName] as unknown[] | undefined
-        const filteredEnumList: unknown[] | undefined = enumList ? enumList.filter((e: unknown): boolean => !isJoiOverride(e)) : enumList
+        const filteredEnumList: unknown[] | undefined = enumList ? enumList.filter((e: unknown): boolean => !isOverride(e)) : enumList
         if (fieldDefn.flags && fieldDefn.flags.only && _.size(filteredEnumList) === 1) {
             schema.const = (filteredEnumList as unknown[])[0]
             delete schema.type
@@ -687,25 +687,25 @@ export class JoiJsonSchemaParser {
         ]
     }
 
-    protected _setMetaProperties(schema: JsonSchema, joiSpec: JoiSpec): void {
-        _.each(joiSpec.metas, (m: Record<string, unknown>): void => {
+    protected _setMetaProperties(schema: JsonSchema, spec: SchemaSpec): void {
+        _.each(spec.metas, (m: Record<string, unknown>): void => {
             if (m.contentMediaType) schema.contentMediaType = m.contentMediaType
             if (m.format) schema.format = m.format
             if (m.title) schema.title = m.title
         })
     }
 
-    protected _setLinkFieldProperties(schema: JsonSchema, joiSpec: JoiSpec): void {
+    protected _setLinkFieldProperties(schema: JsonSchema, spec: SchemaSpec): void {
         if (schema.type !== 'link') return
-        if (_.get(joiSpec, 'link.ref.type') === 'local') {
-            schema.$ref = `${this._getLocalSchemaBasePath()}/${(joiSpec.link as NonNullable<JoiSpec['link']>).ref!.path.join('/')}`
+        if (_.get(spec, 'link.ref.type') === 'local') {
+            schema.$ref = `${this._getLocalSchemaBasePath()}/${(spec.link as NonNullable<SchemaSpec['link']>).ref!.path.join('/')}`
             delete schema.type
         }
     }
 
-    protected _copyMetasToSchema(joiSpec: JoiSpec, schema: JsonSchema): void {
-        if (!_.isEmpty(joiSpec.metas)) {
-            _.each(joiSpec.metas, (meta: Record<string, unknown>): void => {
+    protected _copyMetasToSchema(spec: SchemaSpec, schema: JsonSchema): void {
+        if (!_.isEmpty(spec.metas)) {
+            _.each(spec.metas, (meta: Record<string, unknown>): void => {
                 _.each(meta, (value: unknown, key: number | string): void => {
                     if (this._isKnownMetaKey(key as string)) schema[key] = value
                 })

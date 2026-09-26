@@ -179,11 +179,11 @@ function describeItem(item: unknown, options: DescribeOptions = {}): unknown {
 
 /**
  * Build a schema from its description
- * @param joi
+ * @param engine
  * @param desc
  */
-export function build(joi: RootLike, desc: SchemaDescription): SchemaInternals {
-    const builder: Builder = new Builder(joi)
+export function build(engine: RootLike, desc: SchemaDescription): SchemaInternals {
+    const builder: Builder = new Builder(engine)
     return builder.parse(desc)
 }
 
@@ -192,16 +192,16 @@ export function build(joi: RootLike, desc: SchemaDescription): SchemaInternals {
  */
 export class Builder {
 
-    public joi: BuilderRoot
+    public engine: BuilderRoot
 
-    constructor(joi: RootLike) {
-        this.joi = joi as BuilderRoot
+    constructor(engine: RootLike) {
+        this.engine = engine as BuilderRoot
     }
 
     public parse(desc: SchemaDescription): SchemaInternals {
-        validate(this.joi, desc)
+        validate(this.engine, desc)
         //Type
-        let schema: SchemaInternals = (this.joi[desc.type] as (this: BuilderRoot) => SchemaInternals).call(this.joi)._bare()
+        let schema: SchemaInternals = (this.engine[desc.type] as (this: BuilderRoot) => SchemaInternals).call(this.engine)._bare()
         const def: Definition = schema._definition
         //Flags
         if (desc.flags) {
@@ -323,7 +323,7 @@ function regex(string: string): RegExp {
     return new RegExp(exp, flags)
 }
 
-function validate(joi: RootLike, desc: SchemaDescription): void {
+function validate(engine: RootLike, desc: SchemaDescription): void {
     Schemas = Schemas || (Lazy.schemas as () => LazySchemas)()
-    joi.assert(desc, Schemas.description)
+    engine.assert(desc, Schemas.description)
 }

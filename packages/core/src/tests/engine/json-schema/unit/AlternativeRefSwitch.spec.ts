@@ -6,19 +6,19 @@
 // @ts-nocheck
 import {it} from 'node:test'
 import {expect} from '../../support/Expect.js'
-import joi from '../../../../lib/validation/engine/schema/index.js'
+import engine from '../../../../lib/validation/engine/schema/index.js'
 import parse from '../../../../lib/validation/engine/json-schema/index.js'
 import Ajv from 'ajv'
 import {toEqual} from '../support.js'
 
 const ajv = new Ajv({ allErrors: true })
 
-const JOI_OBJ = joi.object().keys({
-        gender: joi.string(),
-        commonHeightRange: joi.alternatives().conditional('gender', {
+const SCHEMA_OBJ = engine.object().keys({
+        gender: engine.string(),
+        commonHeightRange: engine.alternatives().conditional('gender', {
             switch: [
-                { is: 'Female', then: joi.number().greater(140).less(180) },
-                { is: 'Male', then: joi.number().greater(150).less(200), otherwise: joi.number() }
+                { is: 'Female', then: engine.number().greater(140).less(180) },
+                { is: 'Male', then: engine.number().greater(150).less(200), otherwise: engine.number() }
             ]
         })
     })
@@ -54,7 +54,7 @@ const BASE_SCHEMA = {
     'additionalProperties': false
 }
 
-const jsonSchema = parse(JOI_OBJ)
+const jsonSchema = parse(SCHEMA_OBJ)
 const validate = ajv.compile(jsonSchema, { allowUnionTypes: true })
 
 it('alternative ref switch - valid schema', () => {
@@ -65,19 +65,19 @@ it('alternative ref switch - valid', () => {
     const value = { commonHeightRange: 141, gender: 'Female' }
     validate(value)
     expect(!(validate.errors)).to.be.true()
-    expect(!(JOI_OBJ.validate(value).error)).to.be.true()
+    expect(!(SCHEMA_OBJ.validate(value).error)).to.be.true()
 })
 
 it('alternative ref switch - valid otherwise', () => {
     const value = { commonHeightRange: 0 }
     validate(value)
     expect(!(validate.errors)).to.be.true()
-    expect(!(JOI_OBJ.validate(value).error)).to.be.true()
+    expect(!(SCHEMA_OBJ.validate(value).error)).to.be.true()
 })
 
 it('alternative ref switch - invalid', () => {
     const value = { commonHeightRange: false }
     validate(value)
     expect(!!(validate.errors)).to.be.true()
-    expect(!!(JOI_OBJ.validate(value).error)).to.be.true()
+    expect(!!(SCHEMA_OBJ.validate(value).error)).to.be.true()
 })

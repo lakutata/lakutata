@@ -6,7 +6,7 @@
 // @ts-nocheck
 import {describe, it} from 'node:test'
 import {expect} from '../support/Expect.js'
-import Joi from '../../../lib/validation/engine/schema/index.js'
+import Engine from '../../../lib/validation/engine/schema/index.js'
 const internals = {}
 
 describe('Cache', () => {
@@ -15,7 +15,7 @@ describe('Cache', () => {
 
         it('caches values', () => {
 
-            const schema = Joi.string().pattern(/abc/).cache()
+            const schema = Engine.string().pattern(/abc/).cache()
 
             const validate = schema._definition.rules.pattern.validate
             let count = 0
@@ -36,8 +36,8 @@ describe('Cache', () => {
 
         it('caches values (object key)', () => {
 
-            const a = Joi.string().pattern(/abc/).cache()
-            const schema = Joi.object({ a })
+            const a = Engine.string().pattern(/abc/).cache()
+            const schema = Engine.object({ a })
 
             const validate = a._definition.rules.pattern.validate
             let count = 0
@@ -58,7 +58,7 @@ describe('Cache', () => {
 
         it('caches errors', () => {
 
-            const schema = Joi.string().pattern(/abc/).cache()
+            const schema = Engine.string().pattern(/abc/).cache()
 
             const validate = schema._definition.rules.pattern.validate
             let count = 0
@@ -80,8 +80,8 @@ describe('Cache', () => {
 
         it('skips caching when prefs disabled', () => {
 
-            const cache = Joi.cache.provision()
-            const schema = Joi.string().pattern(/abc/).cache(cache)
+            const cache = Engine.cache.provision()
+            const schema = Engine.string().pattern(/abc/).cache(cache)
 
             const validate = schema._definition.rules.pattern.validate
             let count = 0
@@ -102,10 +102,10 @@ describe('Cache', () => {
 
         it('skips caching when schema contains refs', () => {
 
-            const a = Joi.string().allow(Joi.ref('b')).pattern(/abc/).cache()
-            const schema = Joi.object({
+            const a = Engine.string().allow(Engine.ref('b')).pattern(/abc/).cache()
+            const schema = Engine.object({
                 a,
-                b: Joi.any()
+                b: Engine.any()
             })
 
             const validate = a._definition.rules.pattern.validate
@@ -132,7 +132,7 @@ describe('Cache', () => {
 
             it('generates cache', () => {
 
-                const cache = Joi.cache.provision({ max: 5 })
+                const cache = Engine.cache.provision({ max: 5 })
 
                 cache.set(1, 'x')
                 expect(cache.get(1)).to.equal('x')
@@ -165,11 +165,11 @@ describe('Cache', () => {
             })
         })
 
-        describe('Joi.cache', () => {
+        describe('Engine.cache', () => {
 
             it('generates cache with default max', () => {
 
-                const cache = Joi.cache.provision()
+                const cache = Engine.cache.provision()
                 for (let i = 0; i < 1020; ++i) {
                     cache.set(i, i + 10)
                     expect(cache.get(i)).to.equal(i + 10)
@@ -180,10 +180,10 @@ describe('Cache', () => {
 
             it('errors on invalid max option', () => {
 
-                expect(() => Joi.cache.provision({ max: null })).to.throw('Invalid max cache size')
-                expect(() => Joi.cache.provision({ max: Infinity })).to.throw('Invalid max cache size')
-                expect(() => Joi.cache.provision({ max: -1 })).to.throw('Invalid max cache size')
-                expect(() => Joi.cache.provision({ max: 0 })).to.throw('Invalid max cache size')
+                expect(() => Engine.cache.provision({ max: null })).to.throw('Invalid max cache size')
+                expect(() => Engine.cache.provision({ max: Infinity })).to.throw('Invalid max cache size')
+                expect(() => Engine.cache.provision({ max: -1 })).to.throw('Invalid max cache size')
+                expect(() => Engine.cache.provision({ max: 0 })).to.throw('Invalid max cache size')
             })
         })
     })

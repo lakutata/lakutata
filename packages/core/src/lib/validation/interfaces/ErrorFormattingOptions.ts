@@ -17,7 +17,7 @@ export  interface ErrorFormattingOptions {
      * Can be a reference to the value, global context, or local context which is the root value passed to the validation function.
      *
      * Note that references to the value are usually not what you want as they move around the value structure relative to where the error happens.
-     * Instead, either use the global context, or the absolute value (e.g. `Joi.ref('/variable')`)
+     * Instead, either use the global context, or the absolute value (e.g. `Engine.ref('/variable')`)
      */
     language?: keyof LanguageMessages;
     /**

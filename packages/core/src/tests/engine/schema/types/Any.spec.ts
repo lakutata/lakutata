@@ -6,7 +6,7 @@
 // @ts-nocheck
 import {describe, it} from 'node:test'
 import {expect} from '../../support/Expect.js'
-import Joi from '../../../../lib/validation/engine/schema/index.js'
+import Engine from '../../../../lib/validation/engine/schema/index.js'
 import * as Helper from '../Helper.js'
 const internals = {}
 
@@ -38,7 +38,7 @@ describe('any', () => {
                 return value
             }
 
-            const schema = Joi.string().custom(method, 'custom validation')
+            const schema = Engine.string().custom(method, 'custom validation')
             Helper.validate(schema, [
                 ['x', true, 'x'],
                 ['2', true, '3'],
@@ -61,11 +61,11 @@ describe('any', () => {
         it('errors on invalid arguments', () => {
 
             const method = () => null
-            expect(() => Joi.any().custom({})).to.throw('Method must be a function')
-            expect(() => Joi.any().custom(method)).to.not.throw()
-            expect(() => Joi.any().custom(method, '')).to.throw('Description must be a non-empty string')
-            expect(() => Joi.any().custom(method, 0)).to.throw('Description must be a non-empty string')
-            expect(() => Joi.any().custom(method, [])).to.throw('Description must be a non-empty string')
+            expect(() => Engine.any().custom({})).to.throw('Method must be a function')
+            expect(() => Engine.any().custom(method)).to.not.throw()
+            expect(() => Engine.any().custom(method, '')).to.throw('Description must be a non-empty string')
+            expect(() => Engine.any().custom(method, 0)).to.throw('Description must be a non-empty string')
+            expect(() => Engine.any().custom(method, [])).to.throw('Description must be a non-empty string')
         })
     })
 
@@ -79,7 +79,7 @@ describe('any', () => {
                 }
             }
 
-            Helper.equal(Joi.string().valid('x').messages(messages), Joi.string().valid('x').prefs({ messages }))
+            Helper.equal(Engine.string().valid('x').messages(messages), Engine.string().valid('x').prefs({ messages }))
         })
     })
 
@@ -87,8 +87,8 @@ describe('any', () => {
 
         it('errors on missing id', () => {
 
-            expect(() => Joi.any().shared(Joi.number())).to.throw('Schema must be a schema with an id')
-            expect(() => Joi.any().shared(1)).to.throw('Schema must be a schema with an id')
+            expect(() => Engine.any().shared(Engine.number())).to.throw('Schema must be a schema with an id')
+            expect(() => Engine.any().shared(1)).to.throw('Schema must be a schema with an id')
         })
     })
 
@@ -96,8 +96,8 @@ describe('any', () => {
 
         it('errors on invalid code', () => {
 
-            expect(() => Joi.any().warning()).to.throw('Invalid warning code')
-            expect(() => Joi.any().warning(123)).to.throw('Invalid warning code')
+            expect(() => Engine.any().warning()).to.throw('Invalid warning code')
+            expect(() => Engine.any().warning(123)).to.throw('Invalid warning code')
         })
     })
 })

@@ -79,13 +79,13 @@ export interface ObjectSchema<TSchema = any> extends AnySchema<TSchema> {
     /**
      * Specify validation rules for unknown keys matching a pattern.
      *
-     * @param pattern - a pattern that can be either a regular expression or a joi schema that will be tested against the unknown key names
+     * @param pattern - a pattern that can be either a regular expression or a schema that will be tested against the unknown key names
      * @param schema - the schema object matching keys must validate against
      */
     pattern(pattern: RegExp | SchemaLike, schema: SchemaLike, options?: ObjectPatternOptions): this;
 
     /**
-     * Requires the object to be a Joi reference.
+     * Requires the object to be a Engine reference.
      */
     ref(): this;
 
@@ -100,7 +100,7 @@ export interface ObjectSchema<TSchema = any> extends AnySchema<TSchema> {
     rename(from: string | RegExp, to: string, options?: RenameOptions): this;
 
     /**
-     * Requires the object to be a Joi schema instance.
+     * Requires the object to be a Engine schema instance.
      */
     schema(type?: SchemaLike): this;
 

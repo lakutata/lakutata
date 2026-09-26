@@ -6,14 +6,14 @@
 // @ts-nocheck
 import {it} from 'node:test'
 import {expect} from '../../support/Expect.js'
-import joi from '../../../../lib/validation/engine/schema/index.js'
+import engine from '../../../../lib/validation/engine/schema/index.js'
 import parse from '../../../../lib/validation/engine/json-schema/index.js'
 import Ajv from 'ajv'
 import {toEqual} from '../support.js'
 
 const ajv = new Ajv({ allErrors: true })
 
-const JOI_OBJ = joi.alternatives().try(joi.number(), joi.string()).match('one')
+const SCHEMA_OBJ = engine.alternatives().try(engine.number(), engine.string()).match('one')
 
 const BASE_SCHEMA = {
     oneOf: [
@@ -22,7 +22,7 @@ const BASE_SCHEMA = {
     ]
 }
 
-const jsonSchema = parse(JOI_OBJ)
+const jsonSchema = parse(SCHEMA_OBJ)
 const validate = ajv.compile(jsonSchema)
 
 it('alternative try one - valid schema', () => {
@@ -33,19 +33,19 @@ it('alternative try one - valid matching one', () => {
     const value = 50
     validate(value)
     expect(!(validate.errors)).to.be.true()
-    expect(!(JOI_OBJ.validate(value).error)).to.be.true()
+    expect(!(SCHEMA_OBJ.validate(value).error)).to.be.true()
 })
 
 it('alternative try one - valid matching one 2', () => {
     const value = 'kc'
     validate(value)
     expect(!(validate.errors)).to.be.true()
-    expect(!(JOI_OBJ.validate(value).error)).to.be.true()
+    expect(!(SCHEMA_OBJ.validate(value).error)).to.be.true()
 })
 
 it('alternative try one - invalid matching none', () => {
     const value = true
     validate(value)
     expect(!!(validate.errors)).to.be.true()
-    expect(!!(JOI_OBJ.validate(value).error)).to.be.true()
+    expect(!!(SCHEMA_OBJ.validate(value).error)).to.be.true()
 })

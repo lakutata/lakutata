@@ -5,11 +5,11 @@
  */
 // @ts-nocheck
 import {it} from 'node:test'
-import joi from '../../../../lib/validation/engine/schema/index.js'
+import engine from '../../../../lib/validation/engine/schema/index.js'
 import parse from '../../../../lib/validation/engine/json-schema/index.js'
 import {toEqual} from '../support.js'
 
-const JOI_SCHEMA = joi.object().pattern(/a/, joi.array().items(joi.string())).id('patternObject')
+const SCHEMA_DEFINITION = engine.object().pattern(/a/, engine.array().items(engine.string())).id('patternObject')
 
 const expected = {
     'additionalProperties': false,
@@ -18,7 +18,7 @@ const expected = {
 
 it('open-api - patternProperties should not in shared schemas', () => {
     const sharedSchemas = {}
-    const result = parse(JOI_SCHEMA, 'open-api', sharedSchemas)
+    const result = parse(SCHEMA_DEFINITION, 'open-api', sharedSchemas)
     toEqual(result, {
         '$ref': '#/components/schemas/patternObject',
         schemas: { patternObject: expected }

@@ -6,7 +6,7 @@
 // @ts-nocheck
 import {describe, it} from 'node:test'
 import {expect} from '../../support/Expect.js'
-import Joi from '../../../../lib/validation/engine/schema/index.js'
+import Engine from '../../../../lib/validation/engine/schema/index.js'
 import * as Helper from '../Helper.js'
 const internals = {}
 
@@ -14,20 +14,20 @@ describe('symbol', () => {
 
     it('cannot be called on its own', () => {
 
-        const symbol = Joi.symbol
-        expect(() => symbol()).to.throw('Must be invoked on a Joi instance.')
+        const symbol = Engine.symbol
+        expect(() => symbol()).to.throw('Must be invoked on a validation root.')
     })
 
     it('should throw an exception if arguments were passed.', () => {
 
-        expect(() => Joi.symbol('invalid argument.')).to.throw('The symbol type does not allow arguments')
+        expect(() => Engine.symbol('invalid argument.')).to.throw('The symbol type does not allow arguments')
     })
 
     describe('clone()', () => {
 
         it('clones a symbols type', () => {
 
-            const schema = Joi.symbol()
+            const schema = Engine.symbol()
             const clone = schema.clone()
             Helper.equal(schema, clone)
             expect(schema).to.not.shallow.equal(clone)
@@ -39,7 +39,7 @@ describe('symbol', () => {
         it('handles plain symbols', () => {
 
             const symbols = [Symbol(1), Symbol(2)]
-            const rule = Joi.symbol()
+            const rule = Engine.symbol()
             Helper.validate(rule, [
                 [symbols[0], true, symbols[0]],
                 [symbols[1], true, symbols[1]],
@@ -56,7 +56,7 @@ describe('symbol', () => {
 
             const symbols = [Symbol(1), Symbol(2)]
             const otherSymbol = Symbol(1)
-            const rule = Joi.symbol().valid(...symbols)
+            const rule = Engine.symbol().valid(...symbols)
             Helper.validate(rule, [
                 [symbols[0], true, symbols[0]],
                 [symbols[1], true, symbols[1]],
@@ -76,7 +76,7 @@ describe('symbol', () => {
                 const symbols = [Symbol(1), Symbol(2)]
                 const otherSymbol = Symbol(1)
                 const map = new Map([[1, symbols[0]], ['two', symbols[1]]])
-                const rule = Joi.symbol().map(map)
+                const rule = Engine.symbol().map(map)
                 Helper.validate(rule, [
                     [1, true, symbols[0]],
                     [symbols[0], true, symbols[0]],
@@ -100,7 +100,7 @@ describe('symbol', () => {
 
                 const symbols = [Symbol('one'), Symbol('two')]
                 const otherSymbol = Symbol('one')
-                const rule = Joi.symbol().map({ one: symbols[0], two: symbols[1] })
+                const rule = Engine.symbol().map({ one: symbols[0], two: symbols[1] })
                 Helper.validate(rule, [
                     [symbols[0], true, symbols[0]],
                     ['one', true, symbols[0]],
@@ -124,7 +124,7 @@ describe('symbol', () => {
 
                 const symbols = [Symbol(1), Symbol(2)]
                 const otherSymbol = Symbol(1)
-                const rule = Joi.symbol().map([[1, symbols[0]]]).map([[2, symbols[1]]])
+                const rule = Engine.symbol().map([[1, symbols[0]]]).map([[2, symbols[1]]])
                 Helper.validate(rule, [
                     [1, true, symbols[0]],
                     [2, true, symbols[1]],
@@ -140,35 +140,35 @@ describe('symbol', () => {
             it('throws on bad input', () => {
 
                 expect(
-                    () => Joi.symbol().map()
+                    () => Engine.symbol().map()
                 ).to.throw('Iterable must be an iterable or object')
 
                 expect(
-                    () => Joi.symbol().map(Symbol())
+                    () => Engine.symbol().map(Symbol())
                 ).to.throw('Iterable must be an iterable or object')
 
                 expect(
-                    () => Joi.symbol().map([undefined])
+                    () => Engine.symbol().map([undefined])
                 ).to.throw('Entry must be an iterable')
 
                 expect(
-                    () => Joi.symbol().map([123])
+                    () => Engine.symbol().map([123])
                 ).to.throw('Entry must be an iterable')
 
                 expect(
-                    () => Joi.symbol().map([[123, 456]])
+                    () => Engine.symbol().map([[123, 456]])
                 ).to.throw('Value must be a Symbol')
 
                 expect(
-                    () => Joi.symbol().map([[{}, Symbol()]])
+                    () => Engine.symbol().map([[{}, Symbol()]])
                 ).to.throw('Key must not be of type object, function, or Symbol')
 
                 expect(
-                    () => Joi.symbol().map([[() => { }, Symbol()]])
+                    () => Engine.symbol().map([[() => { }, Symbol()]])
                 ).to.throw('Key must not be of type object, function, or Symbol')
 
                 expect(
-                    () => Joi.symbol().map([[Symbol(), Symbol()]])
+                    () => Engine.symbol().map([[Symbol(), Symbol()]])
                 ).to.throw('Key must not be of type object, function, or Symbol')
             })
         })
@@ -176,14 +176,14 @@ describe('symbol', () => {
         it('handles plain symbols when convert is disabled', () => {
 
             const symbols = [Symbol(1), Symbol(2)]
-            const schema = Joi.symbol().map([[1, symbols[0]], ['two', symbols[1]]]).prefs({ convert: false })
+            const schema = Engine.symbol().map([[1, symbols[0]], ['two', symbols[1]]]).prefs({ convert: false })
             Helper.validate(schema, [[symbols[1], true, symbols[1]]])
         })
 
         it('errors on mapped input and convert is disabled', () => {
 
             const symbols = [Symbol(1), Symbol(2)]
-            const schema = Joi.symbol().map([[1, symbols[0]], ['two', symbols[1]]]).prefs({ convert: false })
+            const schema = Engine.symbol().map([[1, symbols[0]], ['two', symbols[1]]]).prefs({ convert: false })
             Helper.validate(schema, [[1, false, {
                 message: '"value" must be one of [Symbol(1), Symbol(2)]',
                 path: [],

@@ -3,10 +3,10 @@
  * The schemas whose descriptions are the baseline of the parser tests. Not type-checked.
  */
 // @ts-nocheck
-export default function (joi) {
+export default function (engine) {
     return {
-        encoding: joi.binary().encoding('base64'),
-        length: joi.binary().length(64),
-        minMax: joi.binary().min(64).max(128)
+        encoding: engine.binary().encoding('base64'),
+        length: engine.binary().length(64),
+        minMax: engine.binary().min(64).max(128)
     }
 }

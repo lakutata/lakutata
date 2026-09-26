@@ -21,7 +21,7 @@ export interface RefPrefix {
 }
 
 /**
- * Options of Joi.ref()
+ * Options of Engine.ref()
  */
 export interface RefOptions {
     adjust?: RefAdjust | null

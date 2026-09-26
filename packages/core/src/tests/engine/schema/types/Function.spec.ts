@@ -6,7 +6,7 @@
 // @ts-nocheck
 import {describe, it} from 'node:test'
 import {expect} from '../../support/Expect.js'
-import Joi from '../../../../lib/validation/engine/schema/index.js'
+import Engine from '../../../../lib/validation/engine/schema/index.js'
 import * as Helper from '../Helper.js'
 const internals = {}
 
@@ -14,12 +14,12 @@ describe('function', () => {
 
     it('throws an exception if arguments were passed.', () => {
 
-        expect(() => Joi.function('invalid argument.')).to.throw('The function type does not allow arguments')
+        expect(() => Engine.function('invalid argument.')).to.throw('The function type does not allow arguments')
     })
 
     it('validates a function', () => {
 
-        Helper.validate(Joi.function().required(), [
+        Helper.validate(Engine.function().required(), [
             [function () { }, true],
             ['', false, {
                 message: '"value" must be of type function',
@@ -32,7 +32,7 @@ describe('function', () => {
 
     it('supports func() alias', () => {
 
-        Helper.validate(Joi.func().required(), [
+        Helper.validate(Engine.func().required(), [
             [function () { }, true],
             ['', false, {
                 message: '"value" must be of type function',
@@ -45,7 +45,7 @@ describe('function', () => {
 
     it('validates a function arity', () => {
 
-        const schema = Joi.function().arity(2).required()
+        const schema = Engine.function().arity(2).required()
         Helper.validate(schema, [
             [function (a, b) { }, true],
             [(a, b) => { }, true],
@@ -93,12 +93,12 @@ describe('function', () => {
 
         const schemaWithStringArity = function () {
 
-            return Joi.function().arity('deux')
+            return Engine.function().arity('deux')
         }
 
         const schemaWithNegativeArity = function () {
 
-            return Joi.function().arity(-2)
+            return Engine.function().arity(-2)
         }
 
         expect(schemaWithStringArity).to.throw(Error, 'n must be a positive integer')
@@ -107,7 +107,7 @@ describe('function', () => {
 
     it('validates a function min arity', () => {
 
-        const schema = Joi.function().minArity(2).required()
+        const schema = Engine.function().minArity(2).required()
         const f1 = function (a) { }
         const f2 = (a) => { }
 
@@ -141,17 +141,17 @@ describe('function', () => {
 
         const schemaWithStringMinArity = function () {
 
-            return Joi.function().minArity('deux')
+            return Engine.function().minArity('deux')
         }
 
         const schemaWithNegativeMinArity = function () {
 
-            return Joi.function().minArity(-2)
+            return Engine.function().minArity(-2)
         }
 
         const schemaWithZeroArity = function () {
 
-            return Joi.function().minArity(0)
+            return Engine.function().minArity(0)
         }
 
         expect(schemaWithStringMinArity).to.throw(Error, 'n must be a strict positive integer')
@@ -161,7 +161,7 @@ describe('function', () => {
 
     it('validates a function max arity', () => {
 
-        const schema = Joi.function().maxArity(2).required()
+        const schema = Engine.function().maxArity(2).required()
         const f1 = function (a, b, c) { }
         const f2 = (a, b, c) => { }
 
@@ -195,12 +195,12 @@ describe('function', () => {
 
         const schemaWithStringMaxArity = function () {
 
-            return Joi.function().maxArity('deux')
+            return Engine.function().maxArity('deux')
         }
 
         const schemaWithNegativeMaxArity = function () {
 
-            return Joi.function().maxArity(-2)
+            return Engine.function().maxArity(-2)
         }
 
         expect(schemaWithStringMaxArity).to.throw('n must be a positive integer')
@@ -215,7 +215,7 @@ describe('function', () => {
         const b = function () { }
         b.a = 123
 
-        Helper.validate(Joi.function().keys({ a: Joi.string().required() }).required(), [
+        Helper.validate(Engine.function().keys({ a: Engine.string().required() }).required(), [
             [function () { }, false, {
                 message: '"a" is required',
                 path: ['a'],
@@ -240,8 +240,8 @@ describe('function', () => {
 
     it('validates a function with keys and function rules', () => {
 
-        const schema = Joi.function()
-            .keys({ a: Joi.string().required() })
+        const schema = Engine.function()
+            .keys({ a: Engine.string().required() })
             .minArity(1)
             .required()
 
@@ -282,7 +282,7 @@ describe('function', () => {
 
     it('validates a function with object rules and function rules', () => {
 
-        const schema = Joi.function()
+        const schema = Engine.function()
             .min(1)
             .minArity(1)
             .required()
@@ -314,7 +314,7 @@ describe('function', () => {
 
     it('keeps validated value as a function', () => {
 
-        const schema = Joi.function().keys({ a: Joi.number() })
+        const schema = Engine.function().keys({ a: Engine.number() })
 
         const b = 'abc'
         const value = function () {
@@ -332,7 +332,7 @@ describe('function', () => {
 
     it('retains validated value prototype', () => {
 
-        const schema = Joi.function().keys({ a: Joi.number() })
+        const schema = Engine.function().keys({ a: Engine.number() })
 
         const value = function () {
 
@@ -353,7 +353,7 @@ describe('function', () => {
 
     it('keeps validated value as a function (no clone)', () => {
 
-        const schema = Joi.function()
+        const schema = Engine.function()
 
         const b = 'abc'
         const value = function () {
@@ -374,8 +374,8 @@ describe('function().class()', () => {
 
     it('should differentiate between classes and functions', () => {
 
-        const classSchema = Joi.object({
-            _class: Joi.function().class()
+        const classSchema = Engine.object({
+            _class: Engine.function().class()
         })
 
         const testFunc = function () { }
@@ -394,8 +394,8 @@ describe('function().class()', () => {
 
     it('refuses class look-alikes and bad values', () => {
 
-        const classSchema = Joi.object({
-            _class: Joi.function().class()
+        const classSchema = Engine.object({
+            _class: Engine.function().class()
         })
 
         Helper.validate(classSchema, [

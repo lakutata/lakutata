@@ -3,26 +3,26 @@
  * The schemas whose descriptions are the baseline of the parser tests. Not type-checked.
  */
 // @ts-nocheck
-export default function (joi) {
+export default function (engine) {
     return {
-        conditional: joi.alternatives().conditional('gender', {
+        conditional: engine.alternatives().conditional('gender', {
             is: 'Male',
-            then: joi.string().not('', null),
-            otherwise: joi.number().greater(0)
+            then: engine.string().not('', null),
+            otherwise: engine.number().greater(0)
         }),
-        conditional_schema: joi.alternatives().conditional(joi.string(), {
-            then: joi.string().not('', null),
-            otherwise: joi.number().greater(0)
+        conditional_schema: engine.alternatives().conditional(engine.string(), {
+            then: engine.string().not('', null),
+            otherwise: engine.number().greater(0)
         }).meta({ 'if-style': false }).meta({ 'x-custom': 'test' }),
-        conditional_switch: joi.alternatives().conditional('height', {
+        conditional_switch: engine.alternatives().conditional('height', {
             switch: [
-                { is: 0, then: joi.link('#unifiedString') },
-                { is: joi.number().greater(160), then: joi.number() },
-                { is: joi.number().greater(300), then: joi.object().keys({ name: joi.string(), level: joi.number() }), otherwise: joi.string() }
+                { is: 0, then: engine.link('#unifiedString') },
+                { is: engine.number().greater(160), then: engine.number() },
+                { is: engine.number().greater(300), then: engine.object().keys({ name: engine.string(), level: engine.number() }), otherwise: engine.string() }
             ]
         }),
-        match_any: joi.alternatives().try(joi.number(), joi.string()),
-        match_all: joi.alternatives().try(joi.number().greater(0), joi.number().less(100)).match('all'),
-        match_one: joi.alternatives().try(joi.number(), joi.string()).match('one')
+        match_any: engine.alternatives().try(engine.number(), engine.string()),
+        match_all: engine.alternatives().try(engine.number().greater(0), engine.number().less(100)).match('all'),
+        match_one: engine.alternatives().try(engine.number(), engine.string()).match('one')
     }
 }

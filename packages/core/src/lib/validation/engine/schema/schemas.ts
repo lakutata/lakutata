@@ -2,7 +2,7 @@
  * Derived from joi 18.0.2 lib/schemas.js (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
 import type {Base} from './base.js'
-import Joi from './index.js'
+import Engine from './index.js'
 import {Lazy, type LazySchemas} from './lazy.js'
 import type {ObjectSchema} from './types/object.js'
 import type {StringSchema} from './types/string.js'
@@ -24,168 +24,168 @@ export default function getSchemas(): LazySchemas {
 
 function build(): void {
     //Preferences
-    const wrap: StringSchema = Joi.string()
+    const wrap: StringSchema = Engine.string()
         .min(1)
         .max(2)
         .allow(false)
-    schemas.preferences = Joi.object({
-        allowUnknown: Joi.boolean(),
-        abortEarly: Joi.boolean(),
-        artifacts: Joi.boolean(),
-        cache: Joi.boolean(),
-        context: Joi.object(),
-        convert: Joi.boolean(),
-        dateFormat: Joi.valid('date', 'iso', 'string', 'time', 'utc'),
-        debug: Joi.boolean(),
+    schemas.preferences = Engine.object({
+        allowUnknown: Engine.boolean(),
+        abortEarly: Engine.boolean(),
+        artifacts: Engine.boolean(),
+        cache: Engine.boolean(),
+        context: Engine.object(),
+        convert: Engine.boolean(),
+        dateFormat: Engine.valid('date', 'iso', 'string', 'time', 'utc'),
+        debug: Engine.boolean(),
         errors: {
-            escapeHtml: Joi.boolean(),
-            label: Joi.valid('path', 'key', false),
+            escapeHtml: Engine.boolean(),
+            label: Engine.valid('path', 'key', false),
             language: [
-                Joi.string(),
-                Joi.object().ref()
+                Engine.string(),
+                Engine.object().ref()
             ],
-            render: Joi.boolean(),
-            stack: Joi.boolean(),
+            render: Engine.boolean(),
+            stack: Engine.boolean(),
             wrap: {
                 label: wrap,
                 array: wrap,
                 string: wrap
             }
         },
-        externals: Joi.boolean(),
-        messages: Joi.object(),
-        noDefaults: Joi.boolean(),
-        nonEnumerables: Joi.boolean(),
-        presence: Joi.valid('required', 'optional', 'forbidden'),
-        skipFunctions: Joi.boolean(),
-        stripUnknown: Joi.object({
-            arrays: Joi.boolean(),
-            objects: Joi.boolean()
+        externals: Engine.boolean(),
+        messages: Engine.object(),
+        noDefaults: Engine.boolean(),
+        nonEnumerables: Engine.boolean(),
+        presence: Engine.valid('required', 'optional', 'forbidden'),
+        skipFunctions: Engine.boolean(),
+        stripUnknown: Engine.object({
+            arrays: Engine.boolean(),
+            objects: Engine.boolean()
         })
             .or('arrays', 'objects')
             .allow(true, false),
-        warnings: Joi.boolean()
+        warnings: Engine.boolean()
     })
         .strict()
     //Extensions
     const nameRx: RegExp = /^[a-zA-Z0-9]\w*$/
-    const rule: ObjectSchema = Joi.object({
-        alias: Joi.array().items(Joi.string().pattern(nameRx)).single(),
-        args: Joi.array().items(
-            Joi.string(),
-            Joi.object({
-                name: Joi.string().pattern(nameRx).required(),
-                ref: Joi.boolean(),
-                assert: Joi.alternatives([
-                    Joi.function(),
-                    Joi.object().schema()
+    const rule: ObjectSchema = Engine.object({
+        alias: Engine.array().items(Engine.string().pattern(nameRx)).single(),
+        args: Engine.array().items(
+            Engine.string(),
+            Engine.object({
+                name: Engine.string().pattern(nameRx).required(),
+                ref: Engine.boolean(),
+                assert: Engine.alternatives([
+                    Engine.function(),
+                    Engine.object().schema()
                 ])
-                    .conditional('ref', { is: true, then: Joi.required() }),
-                normalize: Joi.function(),
-                message: Joi.string().when('assert', { is: Joi.function(), then: Joi.required() })
+                    .conditional('ref', { is: true, then: Engine.required() }),
+                normalize: Engine.function(),
+                message: Engine.string().when('assert', { is: Engine.function(), then: Engine.required() })
             })
         ),
-        convert: Joi.boolean(),
-        manifest: Joi.boolean(),
-        method: Joi.function().allow(false),
-        multi: Joi.boolean(),
-        validate: Joi.function()
+        convert: Engine.boolean(),
+        manifest: Engine.boolean(),
+        method: Engine.function().allow(false),
+        multi: Engine.boolean(),
+        validate: Engine.function()
     })
-    schemas.extension = Joi.object({
-        type: Joi.alternatives([
-            Joi.string(),
-            Joi.object().regex()
+    schemas.extension = Engine.object({
+        type: Engine.alternatives([
+            Engine.string(),
+            Engine.object().regex()
         ])
             .required(),
-        args: Joi.function(),
-        cast: Joi.object().pattern(nameRx, Joi.object({
-            from: Joi.function().maxArity(1).required(),
-            to: Joi.function().minArity(1).maxArity(2).required()
+        args: Engine.function(),
+        cast: Engine.object().pattern(nameRx, Engine.object({
+            from: Engine.function().maxArity(1).required(),
+            to: Engine.function().minArity(1).maxArity(2).required()
         })),
-        base: Joi.object().schema()
-            .when('type', { is: Joi.object().regex(), then: Joi.forbidden() }),
+        base: Engine.object().schema()
+            .when('type', { is: Engine.object().regex(), then: Engine.forbidden() }),
         coerce: [
-            Joi.function().maxArity(3),
-            Joi.object({ method: Joi.function().maxArity(3).required(), from: Joi.array().items(Joi.string()).single() })
+            Engine.function().maxArity(3),
+            Engine.object({ method: Engine.function().maxArity(3).required(), from: Engine.array().items(Engine.string()).single() })
         ],
-        flags: Joi.object().pattern(nameRx, Joi.object({
-            setter: Joi.string(),
-            default: Joi.any()
+        flags: Engine.object().pattern(nameRx, Engine.object({
+            setter: Engine.string(),
+            default: Engine.any()
         })),
         manifest: {
-            build: Joi.function().arity(2)
+            build: Engine.function().arity(2)
         },
-        messages: [Joi.object(), Joi.string()],
-        modifiers: Joi.object().pattern(nameRx, Joi.function().minArity(1).maxArity(2)),
-        overrides: Joi.object().pattern(nameRx, Joi.function()),
-        prepare: Joi.function().maxArity(3),
-        rebuild: Joi.function().arity(1),
-        rules: Joi.object().pattern(nameRx, rule),
-        terms: Joi.object().pattern(nameRx, Joi.object({
-            init: Joi.array().allow(null).required(),
-            manifest: Joi.object().pattern(/.+/, [
-                Joi.valid('schema', 'single'),
-                Joi.object({
-                    mapped: Joi.object({
-                        from: Joi.string().required(),
-                        to: Joi.string().required()
+        messages: [Engine.object(), Engine.string()],
+        modifiers: Engine.object().pattern(nameRx, Engine.function().minArity(1).maxArity(2)),
+        overrides: Engine.object().pattern(nameRx, Engine.function()),
+        prepare: Engine.function().maxArity(3),
+        rebuild: Engine.function().arity(1),
+        rules: Engine.object().pattern(nameRx, rule),
+        terms: Engine.object().pattern(nameRx, Engine.object({
+            init: Engine.array().allow(null).required(),
+            manifest: Engine.object().pattern(/.+/, [
+                Engine.valid('schema', 'single'),
+                Engine.object({
+                    mapped: Engine.object({
+                        from: Engine.string().required(),
+                        to: Engine.string().required()
                     })
                         .required()
                 })
             ])
         })),
-        validate: Joi.function().maxArity(3)
+        validate: Engine.function().maxArity(3)
     })
         .strict()
-    schemas.extensions = Joi.array().items(Joi.object(), Joi.function().arity(1)).strict()
+    schemas.extensions = Engine.array().items(Engine.object(), Engine.function().arity(1)).strict()
     //Manifest
     const desc: Record<string, Base> = {
-        buffer: Joi.object({
-            buffer: Joi.string()
+        buffer: Engine.object({
+            buffer: Engine.string()
         }),
-        func: Joi.object({
-            function: Joi.function().required(),
+        func: Engine.object({
+            function: Engine.function().required(),
             options: {
                 literal: true
             }
         }),
-        override: Joi.object({
+        override: Engine.object({
             override: true
         }),
-        ref: Joi.object({
-            ref: Joi.object({
-                type: Joi.valid('value', 'global', 'local'),
-                path: Joi.array().required(),
-                separator: Joi.string().length(1).allow(false),
-                ancestor: Joi.number().min(0).integer().allow('root'),
-                map: Joi.array().items(Joi.array().length(2)).min(1),
-                adjust: Joi.function(),
-                iterables: Joi.boolean(),
-                in: Joi.boolean(),
-                render: Joi.boolean()
+        ref: Engine.object({
+            ref: Engine.object({
+                type: Engine.valid('value', 'global', 'local'),
+                path: Engine.array().required(),
+                separator: Engine.string().length(1).allow(false),
+                ancestor: Engine.number().min(0).integer().allow('root'),
+                map: Engine.array().items(Engine.array().length(2)).min(1),
+                adjust: Engine.function(),
+                iterables: Engine.boolean(),
+                in: Engine.boolean(),
+                render: Engine.boolean()
             })
                 .required()
         }),
-        regex: Joi.object({
-            regex: Joi.string().min(3)
+        regex: Engine.object({
+            regex: Engine.string().min(3)
         }),
-        special: Joi.object({
-            special: Joi.valid('deep').required()
+        special: Engine.object({
+            special: Engine.valid('deep').required()
         }),
-        template: Joi.object({
-            template: Joi.string().required(),
-            options: Joi.object()
+        template: Engine.object({
+            template: Engine.string().required(),
+            options: Engine.object()
         }),
-        value: Joi.object({
-            value: Joi.alternatives([Joi.object(), Joi.array()]).required()
+        value: Engine.object({
+            value: Engine.alternatives([Engine.object(), Engine.array()]).required()
         })
     }
-    desc.entity = Joi.alternatives([
-        Joi.array().items(Joi.link('...')),
-        Joi.boolean(),
-        Joi.function(),
-        Joi.number(),
-        Joi.string(),
+    desc.entity = Engine.alternatives([
+        Engine.array().items(Engine.link('...')),
+        Engine.boolean(),
+        Engine.function(),
+        Engine.number(),
+        Engine.string(),
         desc.buffer,
         desc.func,
         desc.ref,
@@ -193,16 +193,16 @@ function build(): void {
         desc.special,
         desc.template,
         desc.value,
-        Joi.link('/')
+        Engine.link('/')
     ])
-    desc.values = Joi.array()
+    desc.values = Engine.array()
         .items(
             null,
-            Joi.boolean(),
-            Joi.function(),
-            Joi.number().allow(Infinity, -Infinity),
-            Joi.string().allow(''),
-            Joi.symbol(),
+            Engine.boolean(),
+            Engine.function(),
+            Engine.number().allow(Infinity, -Infinity),
+            Engine.string().allow(''),
+            Engine.symbol(),
             desc.buffer,
             desc.func,
             desc.override,
@@ -211,41 +211,41 @@ function build(): void {
             desc.template,
             desc.value
         )
-    desc.messages = Joi.object()
+    desc.messages = Engine.object()
         .pattern(/.+/, [
-            Joi.string(),
+            Engine.string(),
             desc.template,
-            Joi.object().pattern(/.+/, [Joi.string(), desc.template])
+            Engine.object().pattern(/.+/, [Engine.string(), desc.template])
         ])
-    schemas.description = Joi.object({
-        type: Joi.string().required(),
-        flags: Joi.object({
-            cast: Joi.string(),
-            default: Joi.any(),
-            description: Joi.string(),
-            empty: Joi.link('/'),
+    schemas.description = Engine.object({
+        type: Engine.string().required(),
+        flags: Engine.object({
+            cast: Engine.string(),
+            default: Engine.any(),
+            description: Engine.string(),
+            empty: Engine.link('/'),
             failover: desc.entity,
-            id: Joi.string(),
-            label: Joi.string(),
+            id: Engine.string(),
+            label: Engine.string(),
             only: true,
             presence: ['optional', 'required', 'forbidden'],
             result: ['raw', 'strip'],
-            strip: Joi.boolean(),
-            unit: Joi.string()
+            strip: Engine.boolean(),
+            unit: Engine.string()
         })
             .unknown(),
         preferences: {
-            allowUnknown: Joi.boolean(),
-            abortEarly: Joi.boolean(),
-            artifacts: Joi.boolean(),
-            cache: Joi.boolean(),
-            convert: Joi.boolean(),
+            allowUnknown: Engine.boolean(),
+            abortEarly: Engine.boolean(),
+            artifacts: Engine.boolean(),
+            cache: Engine.boolean(),
+            convert: Engine.boolean(),
             dateFormat: ['date', 'iso', 'string', 'time', 'utc'],
             errors: {
-                escapeHtml: Joi.boolean(),
+                escapeHtml: Engine.boolean(),
                 label: ['path', 'key'],
                 language: [
-                    Joi.string(),
+                    Engine.string(),
                     desc.ref
                 ],
                 wrap: {
@@ -253,37 +253,37 @@ function build(): void {
                     array: wrap
                 }
             },
-            externals: Joi.boolean(),
+            externals: Engine.boolean(),
             messages: desc.messages,
-            noDefaults: Joi.boolean(),
-            nonEnumerables: Joi.boolean(),
+            noDefaults: Engine.boolean(),
+            nonEnumerables: Engine.boolean(),
             presence: ['required', 'optional', 'forbidden'],
-            skipFunctions: Joi.boolean(),
-            stripUnknown: Joi.object({
-                arrays: Joi.boolean(),
-                objects: Joi.boolean()
+            skipFunctions: Engine.boolean(),
+            stripUnknown: Engine.object({
+                arrays: Engine.boolean(),
+                objects: Engine.boolean()
             })
                 .or('arrays', 'objects')
                 .allow(true, false),
-            warnings: Joi.boolean()
+            warnings: Engine.boolean()
         },
         allow: desc.values,
         invalid: desc.values,
-        rules: Joi.array().min(1).items({
-            name: Joi.string().required(),
-            args: Joi.object().min(1),
-            keep: Joi.boolean(),
+        rules: Engine.array().min(1).items({
+            name: Engine.string().required(),
+            args: Engine.object().min(1),
+            keep: Engine.boolean(),
             message: [
-                Joi.string(),
+                Engine.string(),
                 desc.messages
             ],
-            warn: Joi.boolean()
+            warn: Engine.boolean()
         }),
         //Terms
-        keys: Joi.object().pattern(/.*/, Joi.link('/')),
+        keys: Engine.object().pattern(/.*/, Engine.link('/')),
         link: desc.ref
     })
-        .pattern(/^[a-z]\w*$/, Joi.any())
+        .pattern(/^[a-z]\w*$/, Engine.any())
 }
 
 Lazy.schemas = getSchemas

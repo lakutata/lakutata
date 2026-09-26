@@ -7,7 +7,7 @@
 import {describe, it} from 'node:test'
 import {expect} from '../support/Expect.js'
 const Bourne = { parse: JSON.parse }  // adapted: @hapi/bourne (safe JSON.parse) is not a dependency; the parsed test inputs contain no prototype keys
-import Joi from '../../../lib/validation/engine/schema/index.js'
+import Engine from '../../../lib/validation/engine/schema/index.js'
 import * as Helper from './Helper.js'
 const internals = {}
 
@@ -15,7 +15,7 @@ describe('extension', () => {
 
     it('extends string locally', () => {
 
-        const special = Joi.string().extend({
+        const special = Engine.string().extend({
             type: 'special',
             rules: {
                 hello: {
@@ -62,9 +62,9 @@ describe('extension', () => {
 
     it('extends string globally', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'special',
-            base: Joi.string(),
+            base: Engine.string(),
             rules: {
                 hello: {
                     validate(value, helpers, args, options) {
@@ -90,7 +90,7 @@ describe('extension', () => {
 
     it('extends multiple types', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: /^s/,
             rules: {
                 hello: {
@@ -115,9 +115,9 @@ describe('extension', () => {
 
     it('aliases a type', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'special',
-            base: Joi.string()
+            base: Engine.string()
         })
 
         const special = custom.special()
@@ -127,7 +127,7 @@ describe('extension', () => {
 
     it('errors on missing error code', () => {
 
-        const special = Joi.string().extend({
+        const special = Engine.string().extend({
             type: 'special',
             rules: {
                 fail: {
@@ -148,12 +148,12 @@ describe('extension', () => {
 
     it('extends with a custom base', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'special',
-            base: Joi.string().min(2)
+            base: Engine.string().min(2)
         })
 
-        expect(Joi.special).to.not.exist()
+        expect(Engine.special).to.not.exist()
         expect(custom.special).to.be.a.function()
 
         const schema = custom.special()
@@ -181,16 +181,16 @@ describe('extension', () => {
 
     it('extends with constructor arguments', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'special',
-            base: Joi.string(),
+            base: Engine.string(),
             args(schema, limit) {
 
                 return schema.min(limit)
             }
         })
 
-        expect(Joi.special).to.not.exist()
+        expect(Engine.special).to.not.exist()
         expect(custom.special).to.be.a.function()
 
         const schema = custom.special(2)
@@ -218,12 +218,12 @@ describe('extension', () => {
 
     it('extends with a custom base while preserving its original constructor arguments', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'special',
-            base: Joi.object()
+            base: Engine.object()
         })
 
-        expect(Joi.special).to.not.exist()
+        expect(Engine.special).to.not.exist()
         expect(custom.special).to.be.a.function()
 
         const schema = custom.special({ a: custom.number() })
@@ -242,16 +242,16 @@ describe('extension', () => {
 
     it('extends with a custom base and validate (object)', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'special',
-            base: Joi.object(),
+            base: Engine.object(),
             validate(value, helpers) {
 
                 return { value }
             }
         })
 
-        expect(Joi.special).to.not.exist()
+        expect(Engine.special).to.not.exist()
         expect(custom.special).to.be.a.function()
 
         const schema = custom.special({ a: custom.number() })
@@ -270,16 +270,16 @@ describe('extension', () => {
 
     it('extends with a custom base and validate (number)', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'special',
-            base: Joi.number(),
+            base: Engine.number(),
             validate(value, helpers) {
 
                 return { value }
             }
         })
 
-        expect(Joi.special).to.not.exist()
+        expect(Engine.special).to.not.exist()
         expect(custom.special).to.be.a.function()
 
         const schema = custom.special({ a: custom.number() })
@@ -298,16 +298,16 @@ describe('extension', () => {
 
     it('extends with a custom base and validate (boolean)', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'special',
-            base: Joi.boolean(),
+            base: Engine.boolean(),
             validate(value, helpers) {
 
                 return { value }
             }
         })
 
-        expect(Joi.special).to.not.exist()
+        expect(Engine.special).to.not.exist()
         expect(custom.special).to.be.a.function()
 
         const schema = custom.special()
@@ -326,7 +326,7 @@ describe('extension', () => {
 
     it('extends with new rules', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'special',
             rules: {
                 foo: {
@@ -353,7 +353,7 @@ describe('extension', () => {
             }
         })
 
-        const original = Joi.any()
+        const original = Engine.any()
         expect(original.foo).to.not.exist()
         expect(original.bar).to.not.exist()
         expect(original.foo_bar).to.not.exist()
@@ -366,7 +366,7 @@ describe('extension', () => {
 
     it('concats custom type', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'special',
             rules: {
                 test: {
@@ -391,7 +391,7 @@ describe('extension', () => {
 
     it('adds a new rule with the correct this', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'special',
             rules: {
                 foo: {
@@ -412,7 +412,7 @@ describe('extension', () => {
 
     it('extends with flag rule', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'special',
             validate(value, { schema }) {
 
@@ -422,8 +422,8 @@ describe('extension', () => {
                 foo: {
                     method(first, second) {
 
-                        Joi.assert(first, Joi.string())
-                        Joi.assert(second, Joi.object().ref())
+                        Engine.assert(first, Engine.string())
+                        Engine.assert(second, Engine.object().ref())
 
                         return this.$_setFlag('foo', { first, second })
                     }
@@ -433,13 +433,13 @@ describe('extension', () => {
 
         const schema = custom.special()
         expect(schema.foo('bar').validate(null)).to.equal({ value: { first: 'bar', second: undefined } })
-        expect(schema.foo('bar', Joi.ref('a.b')).validate(null).value.first).to.equal('bar')
-        expect(Joi.isRef(schema.foo('bar', Joi.ref('a.b')).validate(null).value.second)).to.be.true()
+        expect(schema.foo('bar', Engine.ref('a.b')).validate(null).value.first).to.equal('bar')
+        expect(Engine.isRef(schema.foo('bar', Engine.ref('a.b')).validate(null).value.second)).to.be.true()
     })
 
     it('extends with flag rule (customer setter)', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'special',
             flags: {
                 xfoo: {
@@ -454,8 +454,8 @@ describe('extension', () => {
                 foo: {
                     method(first, second) {
 
-                        Joi.assert(first, Joi.string())
-                        Joi.assert(second, Joi.object().ref())
+                        Engine.assert(first, Engine.string())
+                        Engine.assert(second, Engine.object().ref())
 
                         return this.$_setFlag('xfoo', { first, second })
                     }
@@ -465,13 +465,13 @@ describe('extension', () => {
 
         const schema = custom.special()
         expect(schema.foo('bar').validate(null)).to.equal({ value: { first: 'bar', second: undefined } })
-        expect(schema.foo('bar', Joi.ref('a.b')).validate(null).value.first).to.equal('bar')
-        expect(Joi.isRef(schema.foo('bar', Joi.ref('a.b')).validate(null).value.second)).to.be.true()
+        expect(schema.foo('bar', Engine.ref('a.b')).validate(null).value.first).to.equal('bar')
+        expect(Engine.isRef(schema.foo('bar', Engine.ref('a.b')).validate(null).value.second)).to.be.true()
     })
 
     it('extends with flag rule (schema)', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'special',
             coerce(value, helpers) {
 
@@ -492,7 +492,7 @@ describe('extension', () => {
             }
         })
 
-        const schema = custom.special().swap(Joi.number().id('x')).empty(Joi.object())
+        const schema = custom.special().swap(Engine.number().id('x')).empty(Engine.object())
         expect(schema.validate(3)).to.equal({ value: 'swapped' })
         expect(schema.validate({})).to.equal({ value: undefined })
 
@@ -501,9 +501,9 @@ describe('extension', () => {
 
     it('defines a rule that can change the value', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'number',
-            base: Joi.number(),
+            base: Engine.number(),
             rules: {
                 double: {
                     validate(value, helpers, args, options) {
@@ -514,7 +514,7 @@ describe('extension', () => {
             }
         })
 
-        const original = Joi.number()
+        const original = Engine.number()
         expect(original.double).to.not.exist()
 
         const schema = custom.number().double()
@@ -523,9 +523,9 @@ describe('extension', () => {
 
     it('overrides all error messages with string', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'special',
-            base: Joi.string(),
+            base: Engine.string(),
             messages: 'shit happens'
         })
 
@@ -536,10 +536,10 @@ describe('extension', () => {
 
     it('overrides all error messages with a template', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'special',
-            base: Joi.string(),
-            messages: Joi.x('shit happens')
+            base: Engine.string(),
+            messages: Engine.x('shit happens')
         })
 
         const special = custom.special()
@@ -549,9 +549,9 @@ describe('extension', () => {
 
     it('overrides specific error messages with string', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'special',
-            base: Joi.string(),
+            base: Engine.string(),
             messages: {
                 'string.base': 'shit happens'
             }
@@ -564,11 +564,11 @@ describe('extension', () => {
 
     it('overrides specific error messages with template', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'special',
-            base: Joi.string(),
+            base: Engine.string(),
             messages: {
-                'string.base': Joi.x('shit happens')
+                'string.base': Engine.x('shit happens')
             }
         })
 
@@ -579,10 +579,10 @@ describe('extension', () => {
 
     it('overrides specific error messages with string (language)', () => {
 
-        const custom = Joi.extend(
+        const custom = Engine.extend(
             {
                 type: 'special',
-                base: Joi.string(),
+                base: Engine.string(),
                 messages: {
                     root: 'thing',
                     en: {
@@ -591,11 +591,11 @@ describe('extension', () => {
                     }
                 }
             },
-            (joi) => {
+            (engine) => {
 
                 return {
                     type: 'special',
-                    base: joi.special(),
+                    base: engine.special(),
                     messages: {
                         en: {
                             'string.base': '{{#label}} bad shit happens'
@@ -611,14 +611,14 @@ describe('extension', () => {
 
     it('overrides specific error messages with template (language)', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'special',
-            base: Joi.string(),
+            base: Engine.string(),
             messages: {
                 root: 'thing',
                 en: {
                     root: 'stuff',
-                    'string.base': Joi.x('{{#label}} shit happens')
+                    'string.base': Engine.x('{{#label}} shit happens')
                 }
             }
         })
@@ -633,9 +633,9 @@ describe('extension', () => {
 
         expect(() => {
 
-            Joi.extend({
+            Engine.extend({
                 type: 'special',
-                base: Joi.string(),
+                base: Engine.string(),
                 messages: {
                     root: 'thing',
                     en: 10
@@ -646,9 +646,9 @@ describe('extension', () => {
 
     it('retains base predefined options', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'special',
-            base: Joi.number().prefs({ abortEarly: false }),
+            base: Engine.number().prefs({ abortEarly: false }),
             rules: {
                 foo: {
                     validate(value, { error }, args, options) {
@@ -668,9 +668,9 @@ describe('extension', () => {
 
     it('extends coerce', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'special',
-            base: Joi.string(),
+            base: Engine.string(),
             coerce(value, helpers) {
 
                 return { value: 'foobar' }
@@ -683,7 +683,7 @@ describe('extension', () => {
 
     it('extends coerce (from different types)', () => {
 
-        const type1 = Joi.any().extend({
+        const type1 = Engine.any().extend({
             type: 'type1',
             coerce: {
                 from: 'string',
@@ -733,7 +733,7 @@ describe('extension', () => {
 
     it('extends coerce (no from on parent)', () => {
 
-        const type1 = Joi.any().extend({
+        const type1 = Engine.any().extend({
             type: 'type1',
             coerce: {
                 method(value, { error }) {
@@ -782,7 +782,7 @@ describe('extension', () => {
 
     it('extends coerce (undefined)', () => {
 
-        const type1 = Joi.any().extend({
+        const type1 = Engine.any().extend({
             type: 'type1',
             coerce(value, { error }) {
 
@@ -820,7 +820,7 @@ describe('extension', () => {
 
     it('extends with a failing validate', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'special',
             validate(value, { error }) {
 
@@ -832,9 +832,9 @@ describe('extension', () => {
         expect(schema.validate('foo').error).to.be.an.error('"value" contains an invalid value')
     })
 
-    it('returns a custom Joi with types not inheriting root properties', () => {
+    it('returns a custom Engine with types not inheriting root properties', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'special'
         })
 
@@ -844,13 +844,13 @@ describe('extension', () => {
 
     it('uses types defined in the same extend call', () => {
 
-        const custom = Joi.extend(
+        const custom = Engine.extend(
             {
                 type: 'special'
             },
-            (joi) => ({
+            (engine) => ({
                 type: 'second',
-                base: joi.special()
+                base: engine.special()
             })
         )
 
@@ -859,10 +859,10 @@ describe('extension', () => {
 
     it('merges rules when type is defined several times in the same extend call', () => {
 
-        const custom = Joi.extend(
-            (joi) => ({
+        const custom = Engine.extend(
+            (engine) => ({
                 type: 'special',
-                base: joi.number(),
+                base: engine.number(),
                 rules: {
                     foo: {
                         validate(value, helpers) {
@@ -872,9 +872,9 @@ describe('extension', () => {
                     }
                 }
             }),
-            (joi) => ({
+            (engine) => ({
                 type: 'special',
-                base: joi.special(),
+                base: engine.special(),
                 rules: {
                     bar: {
                         validate(value, helpers) {
@@ -887,15 +887,15 @@ describe('extension', () => {
         )
 
         expect(() => custom.special().foo().bar()).to.not.throw()
-        expect(custom.attempt({ a: 123, b: 456 }, Joi.object({ a: custom.special().foo(), b: custom.special().bar() }))).to.equal({ a: 1, b: 2 })
+        expect(custom.attempt({ a: 123, b: 456 }, Engine.object({ a: custom.special().foo(), b: custom.special().bar() }))).to.equal({ a: 1, b: 2 })
     })
 
     it('uses last definition when type is defined several times with different bases', () => {
 
-        const custom = Joi.extend(
-            (joi) => ({
+        const custom = Engine.extend(
+            (engine) => ({
                 type: 'special',
-                base: Joi.number(),
+                base: Engine.number(),
                 rules: {
                     foo: {
                         validate(value, { error }) {
@@ -905,9 +905,9 @@ describe('extension', () => {
                     }
                 }
             }),
-            (joi) => ({
+            (engine) => ({
                 type: 'special',
-                base: Joi.string(),
+                base: Engine.string(),
                 rules: {
                     bar: {
                         validate(value, { error }) {
@@ -925,10 +925,10 @@ describe('extension', () => {
 
     it('merges languages when multiple extensions extend the same type', () => {
 
-        const customJoiWithBoth = Joi.extend(
-            (joi) => ({
+        const customEngineWithBoth = Engine.extend(
+            (engine) => ({
                 type: 'number',
-                base: joi.number(),
+                base: engine.number(),
                 messages: { 'number.foo': '{#label} foo' },
                 rules: {
                     foo: {
@@ -939,9 +939,9 @@ describe('extension', () => {
                     }
                 }
             }),
-            (joi) => ({
+            (engine) => ({
                 type: 'number',
-                base: joi.number(),
+                base: engine.number(),
                 messages: { 'number.bar': '{#label} bar' },
                 rules: {
                     bar: {
@@ -954,13 +954,13 @@ describe('extension', () => {
             })
         )
 
-        expect(customJoiWithBoth.number().foo().validate(0).error).to.be.an.error('"value" foo')
-        expect(customJoiWithBoth.number().bar().validate(0).error).to.be.an.error('"value" bar')
+        expect(customEngineWithBoth.number().foo().validate(0).error).to.be.an.error('"value" foo')
+        expect(customEngineWithBoth.number().bar().validate(0).error).to.be.an.error('"value" bar')
 
-        const customJoiWithFirst = Joi.extend(
-            (joi) => ({
+        const customEngineWithFirst = Engine.extend(
+            (engine) => ({
                 type: 'number',
-                base: joi.number(),
+                base: engine.number(),
                 messages: { 'number.foo': '{#label} foo' },
                 rules: {
                     foo: {
@@ -971,9 +971,9 @@ describe('extension', () => {
                     }
                 }
             }),
-            (joi) => ({
+            (engine) => ({
                 type: 'number',
-                base: joi.number(),
+                base: engine.number(),
                 rules: {
                     bar: {
                         validate(value, { error }) {
@@ -985,13 +985,13 @@ describe('extension', () => {
             })
         )
 
-        expect(customJoiWithFirst.number().foo().validate(0).error).to.be.an.error('"value" foo')
-        expect(customJoiWithFirst.number().bar().validate(0).error).to.be.an.error('"value" must be a number')
+        expect(customEngineWithFirst.number().foo().validate(0).error).to.be.an.error('"value" foo')
+        expect(customEngineWithFirst.number().bar().validate(0).error).to.be.an.error('"value" must be a number')
 
-        const customJoiWithSecond = Joi.extend(
-            (joi) => ({
+        const customEngineWithSecond = Engine.extend(
+            (engine) => ({
                 type: 'number',
-                base: joi.number(),
+                base: engine.number(),
                 rules: {
                     foo: {
                         validate(value, { error }) {
@@ -1001,9 +1001,9 @@ describe('extension', () => {
                     }
                 }
             }),
-            (joi) => ({
+            (engine) => ({
                 type: 'number',
-                base: joi.number(),
+                base: engine.number(),
                 messages: { 'number.bar': '{#label} bar' },
                 rules: {
                     bar: {
@@ -1016,14 +1016,14 @@ describe('extension', () => {
             })
         )
 
-        expect(customJoiWithSecond.number().foo().validate(0).error).to.be.an.error('"value" must be a number')
-        expect(customJoiWithSecond.number().bar().validate(0).error).to.be.an.error('"value" bar')
+        expect(customEngineWithSecond.number().foo().validate(0).error).to.be.an.error('"value" must be a number')
+        expect(customEngineWithSecond.number().bar().validate(0).error).to.be.an.error('"value" bar')
     })
 
     it('returns extended shortcuts', () => {
 
-        const custom = Joi.extend({
-            base: Joi.string(),
+        const custom = Engine.extend({
+            base: Engine.string(),
             type: 'special'
         })
 
@@ -1031,7 +1031,7 @@ describe('extension', () => {
 
             const string = custom.string
             string()
-        }).to.throw('Must be invoked on a Joi instance.')
+        }).to.throw('Must be invoked on a validation root.')
 
         const { string, special } = custom.types()
         expect(() => string.allow('x')).to.not.throw()
@@ -1040,14 +1040,14 @@ describe('extension', () => {
         expect(() => special.allow('x')).to.not.throw()
         expect(special.validate(0).error).to.be.an.error('"value" must be a string')
 
-        expect(custom._types.size).to.equal(Joi._types.size + 1)
+        expect(custom._types.size).to.equal(Engine._types.size + 1)
     })
 
     it('supports rule()', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'ext',
-            base: Joi.number(),
+            base: Engine.number(),
             messages: {
                 'ext.big': 'Not big enough'
             },
@@ -1071,11 +1071,11 @@ describe('extension', () => {
 
     it('extends rule with complex example', () => {
 
-        const custom = Joi.extend((joi) => {
+        const custom = Engine.extend((engine) => {
 
             return {
                 type: 'million',
-                base: joi.number(),
+                base: engine.number(),
                 messages: {
                     'million.base': '{{#label}} must be at least a million',
                     'million.big': '{{#label}} must be at least five millions',
@@ -1165,7 +1165,7 @@ describe('extension', () => {
         })
 
         const schema = custom.object({
-            a: custom.million().round().dividable(Joi.ref('b')),
+            a: custom.million().round().dividable(Engine.ref('b')),
             b: custom.number(),
             c: custom.million().even().dividable(7),
             d: custom.million().round().prefs({ convert: false }),
@@ -1206,11 +1206,11 @@ describe('extension', () => {
 
     it('extends rule with schema ref validation', () => {
 
-        const custom = Joi.extend((joi) => {
+        const custom = Engine.extend((engine) => {
 
             return {
                 type: 'number',
-                base: joi.number(),
+                base: engine.number(),
                 messages: {
                     'number.dividable': '{{#label}} must be dividable by {{#q}}'
                 },
@@ -1224,7 +1224,7 @@ describe('extension', () => {
                             {
                                 name: 'q',
                                 ref: true,
-                                assert: Joi.number().required()
+                                assert: Engine.number().required()
                             }
                         ],
                         validate(value, helpers, args, options) {
@@ -1240,7 +1240,7 @@ describe('extension', () => {
             }
         })
 
-        const ref = Joi.ref('b')
+        const ref = Engine.ref('b')
         const schema = custom.object({
             a: custom.number().dividable(ref),
             b: custom.number()
@@ -1259,11 +1259,11 @@ describe('extension', () => {
 
     it('extends rebuild', () => {
 
-        const custom = Joi.extend((joi) => {
+        const custom = Engine.extend((engine) => {
 
             return {
                 type: 'special',
-                base: joi.object(),
+                base: engine.object(),
                 terms: {
                     tests: { init: [] }
                 },
@@ -1290,17 +1290,17 @@ describe('extension', () => {
             }
         })
 
-        const schema = custom.special().test(Joi.number())
+        const schema = custom.special().test(Engine.number())
         expect(schema.$_getFlag('_hasNumbers')).to.be.true()
     })
 
     it('supports fork', () => {
 
-        const custom = Joi.extend((joi) => {
+        const custom = Engine.extend((engine) => {
 
             return {
                 type: 'special',
-                base: joi.object(),
+                base: engine.object(),
                 terms: {
                     tests: { init: [] }
                 },
@@ -1318,7 +1318,7 @@ describe('extension', () => {
             }
         })
 
-        const schema = custom.special().keys({ y: Joi.number() }).test(Joi.number().id('x'))
+        const schema = custom.special().keys({ y: Engine.number() }).test(Engine.number().id('x'))
 
         const modified1 = schema.fork('x', (s) => s.min(10))
         expect(modified1.describe()).to.equal({
@@ -1365,9 +1365,9 @@ describe('extension', () => {
 
     it('extends modifiers', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'special',
-            base: Joi.number(),
+            base: Engine.number(),
             modifiers: {
                 factor(rule, n) {
 
@@ -1387,7 +1387,7 @@ describe('extension', () => {
 
     it('validates rule arguments', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'special',
             rules: {
                 foo: {
@@ -1398,7 +1398,7 @@ describe('extension', () => {
                     args: [
                         {
                             name: 'b',
-                            assert: Joi.number()
+                            assert: Engine.number()
                         }
                     ]
                 }
@@ -1412,9 +1412,9 @@ describe('extension', () => {
 
     it('extends number to support comma delimiter', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'number',
-            base: Joi.number(),
+            base: Engine.number(),
             prepare(value, helpers) {
 
                 if (typeof value !== 'string') {
@@ -1434,9 +1434,9 @@ describe('extension', () => {
 
     it('extends number to support only comma delimiter', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'number',
-            base: Joi.number(),
+            base: Engine.number(),
             prepare(value, { error }) {
 
                 if (typeof value !== 'string') {
@@ -1460,10 +1460,10 @@ describe('extension', () => {
 
     it('extends number to support comma delimiter and then " delimiter', () => {
 
-        const custom = Joi.extend(
+        const custom = Engine.extend(
             {
                 type: 'number',
-                base: Joi.number(),
+                base: Engine.number(),
                 prepare(value, helpers) {
 
                     if (typeof value !== 'string') {
@@ -1473,11 +1473,11 @@ describe('extension', () => {
                     return { value: value.replace(',', '.') }
                 }
             },
-            (joi) => {
+            (engine) => {
 
                 return {
                     type: 'number',
-                    base: joi.number(),
+                    base: engine.number(),
                     prepare(value, { error }) {
 
                         if (value === 0) {
@@ -1510,9 +1510,9 @@ describe('extension', () => {
 
     it('extends object to support string coerce', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'object',
-            base: Joi.object(),
+            base: Engine.object(),
             coerce: {
                 from: 'string',
                 method(value, helpers) {
@@ -1559,9 +1559,9 @@ describe('extension', () => {
 
     it('extends array to support string coerce', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'array',
-            base: Joi.array(),
+            base: Engine.array(),
             coerce: {
                 from: 'string',
                 method(value, helpers) {
@@ -1605,9 +1605,9 @@ describe('extension', () => {
 
     it('extends with a cast', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'special',
-            base: Joi.string(),
+            base: Engine.string(),
             cast: {
                 object: {
                     from: (value) => !!value,
@@ -1623,9 +1623,9 @@ describe('extension', () => {
 
     it('retains base overrides', () => {
 
-        const custom = Joi.extend({
+        const custom = Engine.extend({
             type: 'test',
-            base: Joi.object(),
+            base: Engine.object(),
             overrides: {
                 label(...args) {
 
@@ -1644,6 +1644,6 @@ describe('extension', () => {
 
     it('errors on non-type override', () => {
 
-        expect(() => Joi.extend({ type: 'x' })).to.throw('Cannot override name x')
+        expect(() => Engine.extend({ type: 'x' })).to.throw('Cannot override name x')
     })
 })

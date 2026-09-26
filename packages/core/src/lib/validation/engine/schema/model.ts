@@ -1,5 +1,5 @@
 /**
- * Internal types shared by the modules of the joi engine (derived from joi 18.0.2, BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Internal types shared by the modules of the validation engine (derived from joi 18.0.2, BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
 import type {Base} from './base.js'
 import type {ErrorItem, Report, ReportLocal} from './errors.js'
@@ -163,7 +163,7 @@ export interface CacheLike {
 export type SchemaInternals = Base
 
 /**
- * The root object (Joi), as far as the engine modules use it
+ * The root object (Engine), as far as the engine modules use it
  */
 export interface RootLike {
     override: symbol

@@ -24,7 +24,7 @@ export interface ArraySchema<TSchema = any[]> extends AnySchema<TSchema> {
     //  * Errors will contain the number of items that didn't match.
     //  * Any unmatched item having a label will be mentioned explicitly.
     //  *
-    //  * @param types - a joi schema object to validate each array item against.
+    //  * @param types - a schema object to validate each array item against.
     //  */
     // items<TSchema = any[]>(...types: SchemaLikeWithoutArray[]): this;
 
@@ -36,7 +36,7 @@ export interface ArraySchema<TSchema = any[]> extends AnySchema<TSchema> {
      * Errors will contain the number of items that didn't match.
      * Any unmatched item having a label will be mentioned explicitly.
      *
-     * @param type - a joi schema object to validate each array item against.
+     * @param type - a schema object to validate each array item against.
      */
     items<A>(a: SchemaLikeWithoutArray<A>): ArraySchema<A[]>;
     items<A, B>(
@@ -97,7 +97,7 @@ export interface ArraySchema<TSchema = any[]> extends AnySchema<TSchema> {
 
     /**
      * Lists the types in sequence order for the array values where:
-     * @param type - a joi schema object to validate against each array item in sequence order. type can be multiple values passed as individual arguments.
+     * @param type - a schema object to validate against each array item in sequence order. type can be multiple values passed as individual arguments.
      * If a given type is .required() then there must be a matching item with the same index position in the array.
      * Errors will contain the number of items that didn't match.
      * Any unmatched item having a label will be mentioned explicitly.

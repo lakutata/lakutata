@@ -6,7 +6,7 @@
 // @ts-nocheck
 import {after, before, describe, it} from 'node:test'
 import {expect} from '../../support/Expect.js'
-import Joi from '../../../../lib/validation/engine/schema/index.js'
+import Engine from '../../../../lib/validation/engine/schema/index.js'
 import * as Helper from '../Helper.js'
 const internals = {}
 
@@ -36,12 +36,12 @@ describe('date', () => {
 
     it('should throw an exception if arguments were passed.', () => {
 
-        expect(() => Joi.date('invalid argument.')).to.throw('The date type does not allow arguments')
+        expect(() => Engine.date('invalid argument.')).to.throw('The date type does not allow arguments')
     })
 
     it('fails on boolean', () => {
 
-        const schema = Joi.date()
+        const schema = Engine.date()
         Helper.validate(schema, [
             [true, false, {
                 message: '"value" must be a valid date',
@@ -60,7 +60,7 @@ describe('date', () => {
 
     it('fails on non-finite numbers', () => {
 
-        const schema = Joi.date()
+        const schema = Engine.date()
         Helper.validate(schema, [
             [Infinity, false, {
                 message: '"value" must be a valid date',
@@ -86,7 +86,7 @@ describe('date', () => {
     it('matches specific date', () => {
 
         const now = Date.now()
-        Helper.validate(Joi.date().valid(new Date(now)), [
+        Helper.validate(Engine.date().valid(new Date(now)), [
             [new Date(now), true],
             [new Date(now).toISOString(), true, new Date(now)]
         ])
@@ -94,7 +94,7 @@ describe('date', () => {
 
     it('errors on invalid input and convert disabled', () => {
 
-        Helper.validate(Joi.date().prefs({ convert: false }), [['1-1-2013 UTC', false, {
+        Helper.validate(Engine.date().prefs({ convert: false }), [['1-1-2013 UTC', false, {
             message: '"value" must be a valid date',
             path: [],
             type: 'date.base',
@@ -104,7 +104,7 @@ describe('date', () => {
 
     it('validates date', () => {
 
-        Helper.validate(Joi.date(), [[new Date(), true]])
+        Helper.validate(Engine.date(), [[new Date(), true]])
     })
 
     it('validates millisecond date as a string', () => {
@@ -112,7 +112,7 @@ describe('date', () => {
         const now = new Date()
         const mili = now.getTime()
 
-        Helper.validate(Joi.date(), [[mili.toString(), true, now]])
+        Helper.validate(Engine.date(), [[mili.toString(), true, now]])
     })
 
     it('validates only valid dates', () => {
@@ -120,7 +120,7 @@ describe('date', () => {
         const now = new Date()
         const invalidDate = new Date('not a valid date')
 
-        Helper.validate(Joi.date(), [
+        Helper.validate(Engine.date(), [
             ['1-1-2013 UTC', true, new Date('1-1-2013 UTC')],
             [now.getTime(), true, now],
             [now.getTime().toFixed(4), true, now],
@@ -143,31 +143,31 @@ describe('date', () => {
 
         it('casts value to number', () => {
 
-            const schema = Joi.date().cast('number')
+            const schema = Engine.date().cast('number')
             Helper.validate(schema, [[new Date('1974-05-07'), true, 137116800000]])
         })
 
         it('casts value to string', () => {
 
-            const schema = Joi.date().cast('string')
+            const schema = Engine.date().cast('string')
             Helper.validate(schema, [[new Date('1974-05-07'), true, '1974-05-07T00:00:00.000Z']])
         })
 
         it('casts value to string (custom format)', () => {
 
-            const schema = Joi.date().prefs({ dateFormat: 'date' }).cast('string')
+            const schema = Engine.date().prefs({ dateFormat: 'date' }).cast('string')
             Helper.validate(schema, [[new Date('1974-05-07'), true, 'Tue May 07 1974']])
         })
 
         it('ignores null', () => {
 
-            const schema = Joi.date().allow(null).cast('string')
+            const schema = Engine.date().allow(null).cast('string')
             Helper.validate(schema, [[null, true, null]])
         })
 
         it('ignores string', () => {
 
-            const schema = Joi.date().allow('x').cast('string')
+            const schema = Engine.date().allow('x').cast('string')
             Helper.validate(schema, [['x', true, 'x']])
         })
     })
@@ -176,9 +176,9 @@ describe('date', () => {
 
         it('ignores unknown formats', () => {
 
-            const custom = Joi.extend({
+            const custom = Engine.extend({
                 type: 'date',
-                base: Joi.date(),
+                base: Engine.date(),
                 overrides: {
                     format(format) {
 
@@ -204,7 +204,7 @@ describe('date', () => {
 
         it('enforces format when value is a string', () => {
 
-            const schema = Joi.date().$_setFlag('format', 'MM-DD-YY')
+            const schema = Engine.date().$_setFlag('format', 'MM-DD-YY')
 
             // Cannot use Helper since format is set to unknown value
 
@@ -220,7 +220,7 @@ describe('date', () => {
 
             const d = new Date('1-1-2000 UTC')
             const message = `"value" must be greater than "${d.toISOString()}"`
-            Helper.validate(Joi.date().greater('1-1-2000 UTC'), [
+            Helper.validate(Engine.date().greater('1-1-2000 UTC'), [
                 ['1-1-2001 UTC', true, new Date('1-1-2001 UTC')],
                 ['1-1-2000 UTC', false, {
                     message,
@@ -258,7 +258,7 @@ describe('date', () => {
         it('accepts "now" as the greater date', () => {
 
             const future = new Date(Date.now() + 1000000)
-            expect(Joi.date().greater('now').validate(future)).to.equal({ value: future })
+            expect(Engine.date().greater('now').validate(future)).to.equal({ value: future })
         })
 
         it('errors if .greater("now") is used with a past date', () => {
@@ -266,7 +266,7 @@ describe('date', () => {
             const now = Date.now()
             const past = new Date(now - 1000000)
 
-            Helper.validate(Joi.date().greater('now'), [
+            Helper.validate(Engine.date().greater('now'), [
                 [past, false, {
                     message: '"value" must be greater than "now"',
                     path: [],
@@ -278,8 +278,8 @@ describe('date', () => {
 
         it('accepts references as greater date', () => {
 
-            const ref = Joi.ref('a')
-            const schema = Joi.object({ a: Joi.date(), b: Joi.date().greater(ref) })
+            const ref = Engine.ref('a')
+            const schema = Engine.object({ a: Engine.date(), b: Engine.date().greater(ref) })
             const now = Date.now()
 
             Helper.validate(schema, [
@@ -301,13 +301,13 @@ describe('date', () => {
 
         it('accepts references as greater date within a when', () => {
 
-            const ref = Joi.ref('b')
-            const schema = Joi.object({
-                a: Joi.date().required(),
-                b: Joi.date().required(),
-                c: Joi.number().required().when('a', {
-                    is: Joi.date().greater(ref), // a > b
-                    then: Joi.number().valid(0)
+            const ref = Engine.ref('b')
+            const schema = Engine.object({
+                a: Engine.date().required(),
+                b: Engine.date().required(),
+                c: Engine.number().required().when('a', {
+                    is: Engine.date().greater(ref), // a > b
+                    then: Engine.number().valid(0)
                 })
             })
 
@@ -327,8 +327,8 @@ describe('date', () => {
 
         it('accepts context references as greater date', () => {
 
-            const ref = Joi.ref('$a')
-            const schema = Joi.object({ b: Joi.date().greater(ref) })
+            const ref = Engine.ref('$a')
+            const schema = Engine.object({ b: Engine.date().greater(ref) })
             const now = Date.now()
 
             Helper.validate(schema, { context: { a: now } }, [
@@ -350,8 +350,8 @@ describe('date', () => {
 
         it('errors if reference is not a date', () => {
 
-            const ref = Joi.ref('a')
-            const schema = Joi.object({ a: Joi.string(), b: Joi.date().greater(ref) })
+            const ref = Engine.ref('a')
+            const schema = Engine.object({ a: Engine.string(), b: Engine.date().greater(ref) })
             const now = Date.now()
 
             Helper.validate(schema, [
@@ -373,8 +373,8 @@ describe('date', () => {
 
         it('errors if context reference is not a date', () => {
 
-            const ref = Joi.ref('$a')
-            const schema = Joi.object({ b: Joi.date().greater(ref) })
+            const ref = Engine.ref('$a')
+            const schema = Engine.object({ b: Engine.date().greater(ref) })
             const now = Date.now()
 
             Helper.validate(schema, { context: { a: 'abc' } }, [
@@ -401,13 +401,13 @@ describe('date', () => {
 
         it('avoids unnecessary cloning when called twice', () => {
 
-            const schema = Joi.date().iso()
+            const schema = Engine.date().iso()
             expect(schema.iso()).to.shallow.equal(schema)
         })
 
         it('validates isoDate', () => {
 
-            Helper.validate(Joi.date().iso(), [
+            Helper.validate(Engine.date().iso(), [
                 ['+002013-06-07T14:21:46.295Z', true, new Date('+002013-06-07T14:21:46.295Z')],
                 ['-002013-06-07T14:21:46.295Z', true, new Date('-002013-06-07T14:21:46.295Z')],
                 ['002013-06-07T14:21:46.295Z', false, {
@@ -487,14 +487,14 @@ describe('date', () => {
 
         it('converts expanded isoDates', () => {
 
-            const schema = { item: Joi.date().iso() }
-            expect(Joi.compile(schema).validate({ item: '-002013-06-07T14:21:46.295Z' })).to.equal({ value: { item: new Date('-002013-06-07T14:21:46.295Z') } })
+            const schema = { item: Engine.date().iso() }
+            expect(Engine.compile(schema).validate({ item: '-002013-06-07T14:21:46.295Z' })).to.equal({ value: { item: new Date('-002013-06-07T14:21:46.295Z') } })
         })
 
         it('validates isoDate with a friendly error message', () => {
 
-            const schema = { item: Joi.date().iso() }
-            Helper.validate(Joi.compile(schema), [
+            const schema = { item: Engine.date().iso() }
+            Helper.validate(Engine.compile(schema), [
                 [{ item: 'something' }, false, {
                     message: '"item" must be in ISO 8601 date format',
                     path: ['item'],
@@ -506,8 +506,8 @@ describe('date', () => {
 
         it('validates isoDate after clone', () => {
 
-            const schema = { item: Joi.date().iso().clone() }
-            Helper.validate(Joi.compile(schema), [[{ item: '2013-06-07T14:21:46.295Z' }, true, { item: new Date('2013-06-07T14:21:46.295Z') }]])
+            const schema = { item: Engine.date().iso().clone() }
+            Helper.validate(Engine.compile(schema), [[{ item: '2013-06-07T14:21:46.295Z' }, true, { item: new Date('2013-06-07T14:21:46.295Z') }]])
         })
     })
 
@@ -517,7 +517,7 @@ describe('date', () => {
 
             const d = new Date('1-1-1970 UTC')
             const message = `"value" must be less than "${d}"`
-            Helper.validate(Joi.date().less('1-1-1970 UTC').prefs({ dateFormat: 'string' }), [
+            Helper.validate(Engine.date().less('1-1-1970 UTC').prefs({ dateFormat: 'string' }), [
                 ['1-1-1971 UTC', false, {
                     message,
                     path: [],
@@ -561,7 +561,7 @@ describe('date', () => {
         it('accepts "now" as the less date', () => {
 
             const past = new Date(Date.now() - 1000000)
-            Helper.validate(Joi.date().less('now'), [[past, true, past]])
+            Helper.validate(Engine.date().less('now'), [[past, true, past]])
         })
 
         it('errors if .less("now") is used with a future date', () => {
@@ -569,7 +569,7 @@ describe('date', () => {
             const now = Date.now()
             const future = new Date(now + 1000000)
 
-            Helper.validate(Joi.date().less('now'), [[future, false, {
+            Helper.validate(Engine.date().less('now'), [[future, false, {
                 message: '"value" must be less than "now"',
                 path: [],
                 type: 'date.less',
@@ -579,8 +579,8 @@ describe('date', () => {
 
         it('accepts references as less date', () => {
 
-            const ref = Joi.ref('a')
-            const schema = Joi.object({ a: Joi.date(), b: Joi.date().less(ref) })
+            const ref = Engine.ref('a')
+            const schema = Engine.object({ a: Engine.date(), b: Engine.date().less(ref) })
             const now = Date.now()
 
             Helper.validate(schema, [
@@ -602,8 +602,8 @@ describe('date', () => {
 
         it('accepts references as less date', () => {
 
-            const ref = Joi.ref('$a')
-            const schema = Joi.object({ b: Joi.date().less(ref) })
+            const ref = Engine.ref('$a')
+            const schema = Engine.object({ b: Engine.date().less(ref) })
             const now = Date.now()
 
             Helper.validate(schema, { context: { a: now } }, [
@@ -625,8 +625,8 @@ describe('date', () => {
 
         it('errors if reference is not a date', () => {
 
-            const ref = Joi.ref('a')
-            const schema = Joi.object({ a: Joi.string(), b: Joi.date().less(ref) })
+            const ref = Engine.ref('a')
+            const schema = Engine.object({ a: Engine.string(), b: Engine.date().less(ref) })
             const now = Date.now()
 
             Helper.validate(schema, [
@@ -648,8 +648,8 @@ describe('date', () => {
 
         it('errors if context reference is not a date', () => {
 
-            const ref = Joi.ref('$a')
-            const schema = Joi.object({ b: Joi.date().less(ref) })
+            const ref = Engine.ref('$a')
+            const schema = Engine.object({ b: Engine.date().less(ref) })
             const now = Date.now()
 
             Helper.validate(schema, { context: { a: 'abc' } }, [
@@ -682,7 +682,7 @@ describe('date', () => {
 
             const d = new Date('1-1-1970 UTC')
             const message = `"value" must be less than or equal to "${d.toISOString()}"`
-            Helper.validate(Joi.date().max('1-1-1970 UTC'), [
+            Helper.validate(Engine.date().max('1-1-1970 UTC'), [
                 ['1-1-1971 UTC', false, {
                     message,
                     path: [],
@@ -711,7 +711,7 @@ describe('date', () => {
         it('accepts "now" as the max date', () => {
 
             const past = new Date(Date.now() - 1000000)
-            Helper.validate(Joi.date().max('now'), [[past, true, past]])
+            Helper.validate(Engine.date().max('now'), [[past, true, past]])
         })
 
         it('errors if .max("now") is used with a future date', () => {
@@ -719,7 +719,7 @@ describe('date', () => {
             const now = Date.now()
             const future = new Date(now + 1000000)
 
-            Helper.validate(Joi.date().max('now'), [[future, false, {
+            Helper.validate(Engine.date().max('now'), [[future, false, {
                 message: '"value" must be less than or equal to "now"',
                 path: [],
                 type: 'date.max',
@@ -729,8 +729,8 @@ describe('date', () => {
 
         it('accepts references as max date', () => {
 
-            const ref = Joi.ref('a')
-            const schema = Joi.object({ a: Joi.date(), b: Joi.date().max(ref) })
+            const ref = Engine.ref('a')
+            const schema = Engine.object({ a: Engine.date(), b: Engine.date().max(ref) })
             const now = Date.now()
 
             Helper.validate(schema, [
@@ -747,8 +747,8 @@ describe('date', () => {
 
         it('accepts context references as max date', () => {
 
-            const ref = Joi.ref('$a')
-            const schema = Joi.object({ b: Joi.date().max(ref) })
+            const ref = Engine.ref('$a')
+            const schema = Engine.object({ b: Engine.date().max(ref) })
             const now = Date.now()
 
             Helper.validate(schema, { context: { a: now } }, [
@@ -765,12 +765,12 @@ describe('date', () => {
 
         it('supports template operations', () => {
 
-            const ref = Joi.x('{number(from) + 364 * day}')
-            const schema = Joi.object({
-                annual: Joi.boolean().required(),
-                from: Joi.date().required(),
-                to: Joi.date().required()
-                    .when('annual', { is: true, then: Joi.date().max(ref) })
+            const ref = Engine.x('{number(from) + 364 * day}')
+            const schema = Engine.object({
+                annual: Engine.boolean().required(),
+                from: Engine.date().required(),
+                to: Engine.date().required()
+                    .when('annual', { is: true, then: Engine.date().max(ref) })
             })
 
             Helper.validate(schema, [
@@ -787,8 +787,8 @@ describe('date', () => {
 
         it('errors if reference is not a date', () => {
 
-            const ref = Joi.ref('a')
-            const schema = Joi.object({ a: Joi.string(), b: Joi.date().max(ref) })
+            const ref = Engine.ref('a')
+            const schema = Engine.object({ a: Engine.string(), b: Engine.date().max(ref) })
             const now = Date.now()
 
             Helper.validate(schema, [
@@ -810,8 +810,8 @@ describe('date', () => {
 
         it('errors if context reference is not a date', () => {
 
-            const ref = Joi.ref('$a')
-            const schema = Joi.object({ b: Joi.date().max(ref) })
+            const ref = Engine.ref('$a')
+            const schema = Engine.object({ b: Engine.date().max(ref) })
             const now = Date.now()
 
             Helper.validate(schema, { context: { a: 'abc' } }, [
@@ -844,7 +844,7 @@ describe('date', () => {
 
             const d = new Date('1-1-2000 UTC')
             const message = `"value" must be greater than or equal to "${d.toISOString()}"`
-            Helper.validate(Joi.date().min('1-1-2000 UTC'), [
+            Helper.validate(Engine.date().min('1-1-2000 UTC'), [
                 ['1-1-2001 UTC', true, new Date('1-1-2001 UTC')],
                 ['1-1-2000 UTC', true, d],
                 [0, false, {
@@ -877,7 +877,7 @@ describe('date', () => {
         it('accepts "now" as the min date', () => {
 
             const future = new Date(Date.now() + 1000000)
-            expect(Joi.date().min('now').validate(future)).to.equal({ value: future })
+            expect(Engine.date().min('now').validate(future)).to.equal({ value: future })
         })
 
         it('errors if .min("now") is used with a past date', () => {
@@ -885,7 +885,7 @@ describe('date', () => {
             const now = Date.now()
             const past = new Date(now - 1000000)
 
-            Helper.validate(Joi.date().min('now'), [[past, false, {
+            Helper.validate(Engine.date().min('now'), [[past, false, {
                 message: '"value" must be greater than or equal to "now"',
                 path: [],
                 type: 'date.min',
@@ -895,8 +895,8 @@ describe('date', () => {
 
         it('accepts references as min date', () => {
 
-            const ref = Joi.ref('a')
-            const schema = Joi.object({ a: Joi.date(), b: Joi.date().min(ref) })
+            const ref = Engine.ref('a')
+            const schema = Engine.object({ a: Engine.date(), b: Engine.date().min(ref) })
             const now = Date.now()
 
             Helper.validate(schema, [
@@ -913,13 +913,13 @@ describe('date', () => {
 
         it('accepts references as min date within a when', () => {
 
-            const ref = Joi.ref('b')
-            const schema = Joi.object({
-                a: Joi.date().required(),
-                b: Joi.date().required(),
-                c: Joi.number().required().when('a', {
-                    is: Joi.date().min(ref), // a >= b
-                    then: Joi.number().valid(0)
+            const ref = Engine.ref('b')
+            const schema = Engine.object({
+                a: Engine.date().required(),
+                b: Engine.date().required(),
+                c: Engine.number().required().when('a', {
+                    is: Engine.date().min(ref), // a >= b
+                    then: Engine.number().valid(0)
                 })
             })
 
@@ -944,8 +944,8 @@ describe('date', () => {
 
         it('accepts context references as min date', () => {
 
-            const ref = Joi.ref('$a')
-            const schema = Joi.object({ b: Joi.date().min(ref) })
+            const ref = Engine.ref('$a')
+            const schema = Engine.object({ b: Engine.date().min(ref) })
             const now = Date.now()
 
             Helper.validate(schema, { context: { a: now } }, [
@@ -962,8 +962,8 @@ describe('date', () => {
 
         it('errors if reference is not a date', () => {
 
-            const ref = Joi.ref('a')
-            const schema = Joi.object({ a: Joi.string(), b: Joi.date().min(ref) })
+            const ref = Engine.ref('a')
+            const schema = Engine.object({ a: Engine.string(), b: Engine.date().min(ref) })
             const now = Date.now()
 
             Helper.validate(schema, [
@@ -985,8 +985,8 @@ describe('date', () => {
 
         it('errors if context reference is not a date', () => {
 
-            const ref = Joi.ref('$a')
-            const schema = Joi.object({ b: Joi.date().min(ref) })
+            const ref = Engine.ref('$a')
+            const schema = Engine.object({ b: Engine.date().min(ref) })
             const now = Date.now()
 
             Helper.validate(schema, { context: { a: 'abc' } }, [
@@ -1013,13 +1013,13 @@ describe('date', () => {
 
         it('avoids unnecessary cloning when called twice', () => {
 
-            const schema = Joi.date().timestamp('unix')
+            const schema = Engine.date().timestamp('unix')
             expect(schema.timestamp('unix')).to.shallow.equal(schema)
         })
 
         it('fails on empty strings', () => {
 
-            const schema = Joi.date().timestamp()
+            const schema = Engine.date().timestamp()
             Helper.validate(schema, [
                 ['', false, {
                     message: '"value" must be in timestamp or number of milliseconds format',
@@ -1041,9 +1041,9 @@ describe('date', () => {
             const now = new Date()
             const milliseconds = now.getTime()
 
-            Helper.validate(Joi.date().timestamp(), [[milliseconds, true, now]])
-            Helper.validate(Joi.date().timestamp('javascript'), [[milliseconds, true, now]])
-            Helper.validate(Joi.date().timestamp('unix').timestamp('javascript'), [[milliseconds, true, now]])
+            Helper.validate(Engine.date().timestamp(), [[milliseconds, true, now]])
+            Helper.validate(Engine.date().timestamp('javascript'), [[milliseconds, true, now]])
+            Helper.validate(Engine.date().timestamp('unix').timestamp('javascript'), [[milliseconds, true, now]])
         })
 
         it('validates unix timestamp', () => {
@@ -1051,24 +1051,24 @@ describe('date', () => {
             const now = new Date()
             const seconds = now.getTime() / 1000
 
-            Helper.validate(Joi.date().timestamp('unix'), [[seconds, true, now]])
-            Helper.validate(Joi.date().timestamp().timestamp('unix'), [[seconds, true, now]])
-            Helper.validate(Joi.date().timestamp('javascript').timestamp('unix'), [[seconds, true, now]])
+            Helper.validate(Engine.date().timestamp('unix'), [[seconds, true, now]])
+            Helper.validate(Engine.date().timestamp().timestamp('unix'), [[seconds, true, now]])
+            Helper.validate(Engine.date().timestamp('javascript').timestamp('unix'), [[seconds, true, now]])
         })
 
         it('validates timestamps with decimals', () => {
 
             const now = new Date()
 
-            Helper.validate(Joi.date().timestamp(), [
+            Helper.validate(Engine.date().timestamp(), [
                 [now.getTime().toFixed(4), true, now]
             ])
 
-            Helper.validate(Joi.date().timestamp('javascript'), [
+            Helper.validate(Engine.date().timestamp('javascript'), [
                 [now.getTime().toFixed(4), true, now]
             ])
 
-            Helper.validate(Joi.date().timestamp('unix'), [
+            Helper.validate(Engine.date().timestamp('unix'), [
                 [(now.getTime() / 1000).toFixed(4), true, now]
             ])
         })
@@ -1078,7 +1078,7 @@ describe('date', () => {
             const invalidDate = new Date('not a valid date')
             const now = new Date()
 
-            Helper.validate(Joi.date().timestamp(), [
+            Helper.validate(Engine.date().timestamp(), [
                 [now.getTime(), true, now],
                 [now.getTime().toFixed(4), true, now],
                 ['1.452126061677e+12', true, new Date(1.452126061677e+12)],
@@ -1122,7 +1122,7 @@ describe('date', () => {
 
             expect(() => {
 
-                Joi.date().timestamp('not allowed')
+                Engine.date().timestamp('not allowed')
             }).to.throw(Error, /"type" must be one of/)
         })
     })

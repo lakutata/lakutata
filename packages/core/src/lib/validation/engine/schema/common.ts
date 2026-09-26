@@ -45,7 +45,7 @@ export const defaults: Preferences = {
 }
 
 export const symbols = {
-    //Used to internally identify any-based types (shared with other joi versions)
+    //Used to internally identify any-based types (shared with other engine versions)
     any: Symbol.for('@hapi/joi/schema'),
     arraySingle: Symbol('arraySingle'),
     deepDefault: Symbol('deepDefault'),
@@ -134,14 +134,14 @@ export function isResolvable(obj: unknown): boolean {
 }
 
 /**
- * Whether the value is a schema (of this engine version, or of any joi version with the legacy option)
+ * Whether the value is a schema (of this engine version, or of any engine version with the legacy option)
  * @param schema
  * @param options
  */
 export function isSchema(schema: unknown, options: { legacy?: boolean } = {}): schema is SchemaLike {
     const any: { version?: string } | undefined = schema ? symbolOf(schema, symbols.any) as { version?: string } | undefined : undefined
     if (!any) return false
-    Assert(options.legacy || any.version === version, 'Cannot mix different versions of joi schemas')
+    Assert(options.legacy || any.version === version, 'Cannot mix different versions of validation schemas')
     return true
 }
 

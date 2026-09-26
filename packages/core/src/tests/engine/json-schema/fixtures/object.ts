@@ -3,53 +3,53 @@
  * The schemas whose descriptions are the baseline of the parser tests. Not type-checked.
  */
 // @ts-nocheck
-export default function (joi) {
+export default function (engine) {
     return {
-        length: joi.object().length(3),
-        or: joi.object().keys({
-            'guid': joi.string(),
-            'uuid': joi.string()
+        length: engine.object().length(3),
+        or: engine.object().keys({
+            'guid': engine.string(),
+            'uuid': engine.string()
         }).or('guid', 'uuid'),
-        and: joi.object().keys({
-            'email': joi.string(),
-            'password': joi.string(),
-            'type': joi.string()
+        and: engine.object().keys({
+            'email': engine.string(),
+            'password': engine.string(),
+            'type': engine.string()
         }).and('email', 'password', 'type'),
-        nand: joi.object().keys({
-            'readOnlyTrue': joi.string(),
-            'readOnlyFalse': joi.string()
+        nand: engine.object().keys({
+            'readOnlyTrue': engine.string(),
+            'readOnlyFalse': engine.string()
         }).nand('readOnlyTrue', 'readOnlyFalse'),
-        xor: joi.object().keys({
-            'genderSpecific': joi.string(),
-            'maleSpecific': joi.string()
+        xor: engine.object().keys({
+            'genderSpecific': engine.string(),
+            'maleSpecific': engine.string()
         }).xor('genderSpecific', 'maleSpecific'),
-        with: joi.object().keys({
-            'birthTime': joi.string(),
-            'birthday': joi.string()
+        with: engine.object().keys({
+            'birthTime': engine.string(),
+            'birthday': engine.string()
         }).with('birthTime', ['birthday']),
-        without: joi.object().keys({
-            'readOnlyTrue': joi.string(),
-            'readOnlyFalse': joi.string(),
-            'writeOnlyTrue': joi.string(),
-            'writeOnlyFalse': joi.string()
+        without: engine.object().keys({
+            'readOnlyTrue': engine.string(),
+            'readOnlyFalse': engine.string(),
+            'writeOnlyTrue': engine.string(),
+            'writeOnlyFalse': engine.string()
         }).without('readOnlyTrue', ['writeOnlyTrue', 'writeOnlyFalse']),
-        oxor: joi.object().keys({
-            'ip': joi.string(),
-            'hostname': joi.string()
+        oxor: engine.object().keys({
+            'ip': engine.string(),
+            'hostname': engine.string()
         }).oxor('ip', 'hostname'),
-        minMax: joi.object().min(4).max(12),
-        pattern: joi.object()
-            .pattern(/s/, joi.object().keys({
-                id: joi
+        minMax: engine.object().min(4).max(12),
+        pattern: engine.object()
+            .pattern(/s/, engine.object().keys({
+                id: engine
                     .number()
                     .required(),
-                name: joi
+                name: engine
                     .string()
                     .allow('', null)
                     .required()
             }))
-            .pattern(/a/, joi.array().items(joi.string())),
-        unknown_false: joi.object().unknown(false),
-        unknown_true: joi.object().unknown(true)
+            .pattern(/a/, engine.array().items(engine.string())),
+        unknown_false: engine.object().unknown(false),
+        unknown_true: engine.object().unknown(true)
     }
 }

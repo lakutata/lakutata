@@ -6,18 +6,18 @@
 // @ts-nocheck
 import {it} from 'node:test'
 import {expect} from '../../support/Expect.js'
-import joi from '../../../../lib/validation/engine/schema/index.js'
+import engine from '../../../../lib/validation/engine/schema/index.js'
 import parse from '../../../../lib/validation/engine/json-schema/index.js'
 import Ajv from 'ajv'
 import {toEqual} from '../support.js'
 
 const ajv = new Ajv({ allErrors: true })
 
-const JOI_OBJ = joi.number().when(
-    joi.number().multiple(10),
+const SCHEMA_OBJ = engine.number().when(
+    engine.number().multiple(10),
     {
-        then: joi.number().max(100),
-        otherwise: joi.number().max(9)
+        then: engine.number().max(100),
+        otherwise: engine.number().max(9)
     }
 ).meta({ 'if-style': false })
 
@@ -39,7 +39,7 @@ const BASE_SCHEMA = {
     ]
 }
 
-const jsonSchema = parse(JOI_OBJ)
+const jsonSchema = parse(SCHEMA_OBJ)
 const validate = ajv.compile(jsonSchema)
 
 it('when type simple - valid schema', () => {
@@ -50,26 +50,26 @@ it('when type simple - valid matching if', () => {
     const value = 50
     validate(value)
     expect(!(validate.errors)).to.be.true()
-    expect(!(JOI_OBJ.validate(value).error)).to.be.true()
+    expect(!(SCHEMA_OBJ.validate(value).error)).to.be.true()
 })
 
 it('when type simple - valid matching otherwise', () => {
     const value = 8
     validate(value)
     expect(!(validate.errors)).to.be.true()
-    expect(!(JOI_OBJ.validate(value).error)).to.be.true()
+    expect(!(SCHEMA_OBJ.validate(value).error)).to.be.true()
 })
 
 it('when type simple - invalid matching if', () => {
     const value = 110
     validate(value)
     expect(!!(validate.errors)).to.be.true()
-    expect(!!(JOI_OBJ.validate(value).error)).to.be.true()
+    expect(!!(SCHEMA_OBJ.validate(value).error)).to.be.true()
 })
 
 it('when type simple - invalid matching otherwise', () => {
     const value = 19
     validate(value)
     expect(!!(validate.errors)).to.be.true()
-    expect(!!(JOI_OBJ.validate(value).error)).to.be.true()
+    expect(!!(SCHEMA_OBJ.validate(value).error)).to.be.true()
 })

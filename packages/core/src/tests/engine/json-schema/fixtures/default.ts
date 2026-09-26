@@ -3,28 +3,28 @@
  * The schemas whose descriptions are the baseline of the parser tests. Not type-checked.
  */
 // @ts-nocheck
-export default function (joi) {
-    const joiRequired = joi.defaults((schema) => schema.options({
+export default function (engine) {
+    const engineRequired = engine.defaults((schema) => schema.options({
         presence: 'required'
     }))
-    const joiAllowUnknown = joi.defaults((schema) => schema.options({
+    const engineAllowUnknown = engine.defaults((schema) => schema.options({
         allowUnknown: true
     }))
 
     return {
-        required: joiRequired.object().keys({
-            hash: joiRequired.string(),
-            optional: joiRequired.optional()
+        required: engineRequired.object().keys({
+            hash: engineRequired.string(),
+            optional: engineRequired.optional()
         }),
-        unknown: joiAllowUnknown.object().keys({
-            key: joi.string()
+        unknown: engineAllowUnknown.object().keys({
+            key: engine.string()
         }),
-        unknown_override: joiAllowUnknown.object().keys({
-            inner: joiAllowUnknown.object().keys({
-                a: joi.string(),
-                innerMost: joi.object().keys({
-                    c: joi.string(),
-                    d: joi.string()
+        unknown_override: engineAllowUnknown.object().keys({
+            inner: engineAllowUnknown.object().keys({
+                a: engine.string(),
+                innerMost: engine.object().keys({
+                    c: engine.string(),
+                    d: engine.string()
                 })
             }).unknown(false)
         })

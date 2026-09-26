@@ -6,7 +6,7 @@
 // @ts-nocheck
 import {describe, it} from 'node:test'
 import {expect} from '../support/Expect.js'
-import Joi from '../../../lib/validation/engine/schema/index.js'
+import Engine from '../../../lib/validation/engine/schema/index.js'
 import * as Helper from './Helper.js'
 const internals = {}
 
@@ -16,10 +16,10 @@ describe('Modify', () => {
 
         it('extracts nested schema with keys', () => {
 
-            const d = Joi.number()
-            const c = Joi.object({ d })
-            const b = Joi.object({ c })
-            const a = Joi.object({ b })
+            const d = Engine.number()
+            const c = Engine.object({ d })
+            const b = Engine.object({ c })
+            const a = Engine.object({ b })
 
             expect(a.extract('b')).to.shallow.equal(b)
             expect(a.extract('b.c.d')).to.shallow.equal(d)
@@ -28,10 +28,10 @@ describe('Modify', () => {
 
         it('extracts nested schema with ids', () => {
 
-            const d = Joi.number().id('D')
-            const c = Joi.object({ d }).id('C')
-            const b = Joi.object({ c }).id('B')
-            const a = Joi.object({ b })
+            const d = Engine.number().id('D')
+            const c = Engine.object({ d }).id('C')
+            const b = Engine.object({ c }).id('B')
+            const a = Engine.object({ b })
 
             expect(a.extract('B')).to.shallow.equal(b)
             expect(a.extract('B.C.D')).to.shallow.equal(d)
@@ -39,10 +39,10 @@ describe('Modify', () => {
 
         it('extracts nested schema with ids by keys', () => {
 
-            const d = Joi.number().id('D')
-            const c = Joi.object({ d }).id('C')
-            const b = Joi.object({ c }).id('B')
-            const a = Joi.object({ b })
+            const d = Engine.number().id('D')
+            const c = Engine.object({ d }).id('C')
+            const b = Engine.object({ c }).id('B')
+            const a = Engine.object({ b })
 
             expect(a.extract('b')).to.shallow.equal(b)
             expect(a.extract('b.c.d')).to.shallow.equal(d)
@@ -50,10 +50,10 @@ describe('Modify', () => {
 
         it('extracts nested schema with duplicate ids', () => {
 
-            const d = Joi.number().id('D')
-            const c = Joi.object({ d }).id('C')
-            const b = Joi.object({ c }).id('B')
-            const a = Joi.object({ b, x: b })
+            const d = Engine.number().id('D')
+            const c = Engine.object({ d }).id('C')
+            const b = Engine.object({ c }).id('B')
+            const a = Engine.object({ b, x: b })
 
             expect(a.extract('b')).to.shallow.equal(b)
             expect(a.extract('x')).to.shallow.equal(b)
@@ -62,10 +62,10 @@ describe('Modify', () => {
 
         it('extracts nested schema from array', () => {
 
-            const d = Joi.number().id('D')
-            const c = Joi.object({ d }).id('C')
-            const b = Joi.object({ c }).id('b')
-            const a = Joi.array().items(b)
+            const d = Engine.number().id('D')
+            const c = Engine.object({ d }).id('C')
+            const b = Engine.object({ c }).id('b')
+            const a = Engine.array().items(b)
 
             expect(a.extract('b')).to.shallow.equal(b)
             expect(a.extract('b.c.d')).to.shallow.equal(d)
@@ -73,10 +73,10 @@ describe('Modify', () => {
 
         it('extracts nested schema from alternatives', () => {
 
-            const d = Joi.number().id('D')
-            const c = Joi.object({ d }).id('C')
-            const b = Joi.object({ c }).id('b')
-            const a = Joi.alternatives(b)
+            const d = Engine.number().id('D')
+            const c = Engine.object({ d }).id('C')
+            const b = Engine.object({ c }).id('b')
+            const a = Engine.alternatives(b)
 
             expect(a.extract('b')).to.shallow.equal(b)
             expect(a.extract('b.c.d')).to.shallow.equal(d)
@@ -84,10 +84,10 @@ describe('Modify', () => {
 
         it('extracts nested schema after object key override', () => {
 
-            const d = Joi.number()
-            const c = Joi.object({ d })
-            const b = Joi.object({ c })
-            const a = Joi.object({ b })
+            const d = Engine.number()
+            const c = Engine.object({ d })
+            const b = Engine.object({ c })
+            const a = Engine.object({ b })
             const x = a.keys({ b: c })
 
             expect(x.extract('b')).to.shallow.equal(c)
@@ -96,10 +96,10 @@ describe('Modify', () => {
 
         it('extracts nested schema after object key override and custom ids', () => {
 
-            const d = Joi.number().id('D')
-            const c = Joi.object({ d }).id('C')
-            const b = Joi.object({ c }).id('B')
-            const a = Joi.object({ b }).id('A')
+            const d = Engine.number().id('D')
+            const c = Engine.object({ d }).id('C')
+            const b = Engine.object({ c }).id('B')
+            const a = Engine.object({ b }).id('A')
             const x = a.keys({ b: c })
 
             expect(x.extract('C')).to.shallow.equal(c)
@@ -108,10 +108,10 @@ describe('Modify', () => {
 
         it('extracts nested schema after object concat (keys)', () => {
 
-            const d = Joi.number()
-            const c = Joi.object({ d })
-            const b = Joi.object({ c })
-            const a = Joi.object({ b })
+            const d = Engine.number()
+            const c = Engine.object({ d })
+            const b = Engine.object({ c })
+            const a = Engine.object({ b })
             const x = a.concat(b)
 
             expect(x.extract('b')).to.shallow.equal(b)
@@ -120,10 +120,10 @@ describe('Modify', () => {
 
         it('extracts nested schema after object concat (ids)', () => {
 
-            const d = Joi.number().id('D')
-            const c = Joi.object({ d }).id('C')
-            const b = Joi.object({ c }).id('B')
-            const a = Joi.object({ b }).id('A')
+            const d = Engine.number().id('D')
+            const c = Engine.object({ d }).id('C')
+            const b = Engine.object({ c }).id('B')
+            const a = Engine.object({ b }).id('A')
             const x = a.concat(b)
 
             expect(x.extract('B')).to.shallow.equal(b)
@@ -132,20 +132,20 @@ describe('Modify', () => {
 
         it('errors on missing schema', () => {
 
-            const d = Joi.number()
-            const c = Joi.object({ d })
-            const b = Joi.object({ c })
-            const a = Joi.object({ b })
+            const d = Engine.number()
+            const c = Engine.object({ d })
+            const b = Engine.object({ c })
+            const a = Engine.object({ b })
 
             expect(() => a.extract(['b', 'c', 'x'])).to.throw('Schema does not contain path b.c.x')
         })
 
         it('errors on conflicting schema ids', () => {
 
-            const a = Joi.number().id('A')
-            const b = Joi.string().id('A')
+            const a = Engine.number().id('A')
+            const b = Engine.string().id('A')
 
-            expect(() => Joi.object({ a, b })).to.throw('Cannot add different schemas with the same id: A')
+            expect(() => Engine.object({ a, b })).to.throw('Cannot add different schemas with the same id: A')
         })
     })
 
@@ -153,25 +153,25 @@ describe('Modify', () => {
 
         it('adjusts empty', () => {
 
-            const before = Joi.string().empty(Joi.number().id('x'))
-            const after = Joi.string().empty(Joi.number().min(10).id('x'))
+            const before = Engine.string().empty(Engine.number().id('x'))
+            const after = Engine.string().empty(Engine.number().min(10).id('x'))
 
             Helper.equal(before.fork('x', (schema) => schema.min(10)), after)
         })
 
         it('preserves unchanged schemas', () => {
 
-            const before = Joi.object({ x: Joi.string().optional() })
-            const after = Joi.object({ x: Joi.string().optional() })
+            const before = Engine.object({ x: Engine.string().optional() })
+            const after = Engine.object({ x: Engine.string().optional() })
 
             Helper.equal(before.fork('x', (schema) => schema.optional()), after)
         })
 
         it('adjusts reused schema in multiple places', () => {
 
-            const shared = Joi.number().id('x')
+            const shared = Engine.number().id('x')
 
-            const before = Joi.object({
+            const before = Engine.object({
                 a: shared,
                 b: shared
             })
@@ -179,7 +179,7 @@ describe('Modify', () => {
             expect(before.extract('a')).to.shallow.equal(before.extract('b'))
 
             const sharedAfter = shared.min(10)
-            const after = Joi.object({
+            const after = Engine.object({
                 a: sharedAfter,
                 b: sharedAfter
             })
@@ -195,22 +195,22 @@ describe('Modify', () => {
 
             it('adjusts nested schema', () => {
 
-                const before = Joi.alternatives([
-                    Joi.number().positive().id('numbers'),
-                    Joi.object({
-                        c: Joi.object({
-                            d: Joi.number().positive()
+                const before = Engine.alternatives([
+                    Engine.number().positive().id('numbers'),
+                    Engine.object({
+                        c: Engine.object({
+                            d: Engine.number().positive()
                         })
                     }).id('objects')
                 ])
 
                 const first = before.fork('objects.c.d', (schema) => schema.max(5))
 
-                const after1 = Joi.alternatives([
-                    Joi.number().positive().id('numbers'),
-                    Joi.object({
-                        c: Joi.object({
-                            d: Joi.number().positive().max(5)
+                const after1 = Engine.alternatives([
+                    Engine.number().positive().id('numbers'),
+                    Engine.object({
+                        c: Engine.object({
+                            d: Engine.number().positive().max(5)
                         })
                     }).id('objects')
                 ])
@@ -219,11 +219,11 @@ describe('Modify', () => {
 
                 const second = first.fork('numbers', (schema) => schema.min(10))
 
-                const after2 = Joi.alternatives([
-                    Joi.number().positive().id('numbers').min(10),
-                    Joi.object({
-                        c: Joi.object({
-                            d: Joi.number().positive().max(5)
+                const after2 = Engine.alternatives([
+                    Engine.number().positive().id('numbers').min(10),
+                    Engine.object({
+                        c: Engine.object({
+                            d: Engine.number().positive().max(5)
                         })
                     }).id('objects')
                 ])
@@ -233,23 +233,23 @@ describe('Modify', () => {
 
             it('adjusts when schema', () => {
 
-                const before = Joi.object({
-                    a: Joi.number(),
-                    b: Joi.boolean()
+                const before = Engine.object({
+                    a: Engine.number(),
+                    b: Engine.boolean()
                         .when('a', [
-                            { is: 0, then: Joi.valid(0).id('zero') },
-                            { is: 1, then: Joi.valid(1).id('one') }
+                            { is: 0, then: Engine.valid(0).id('zero') },
+                            { is: 1, then: Engine.valid(1).id('one') }
                         ])
                 })
 
                 const forked = before.fork('b.one', (schema) => schema.allow(2))
 
-                const after = Joi.object({
-                    a: Joi.number(),
-                    b: Joi.boolean()
+                const after = Engine.object({
+                    a: Engine.number(),
+                    b: Engine.boolean()
                         .when('a', [
-                            { is: 0, then: Joi.valid(0).id('zero') },
-                            { is: 1, then: Joi.valid(1, 2).id('one') }
+                            { is: 0, then: Engine.valid(0).id('zero') },
+                            { is: 1, then: Engine.valid(1, 2).id('one') }
                         ])
                 })
 
@@ -258,26 +258,26 @@ describe('Modify', () => {
 
             it('adjusts alternatives schema', () => {
 
-                const before = Joi.object({
-                    a: Joi.number(),
-                    b: Joi.alternatives()
+                const before = Engine.object({
+                    a: Engine.number(),
+                    b: Engine.alternatives()
                         .conditional('a', {
                             switch: [
-                                { is: 0, then: Joi.valid(0).id('zero') },
-                                { is: 1, then: Joi.valid(1).id('one'), otherwise: Joi.boolean() }
+                                { is: 0, then: Engine.valid(0).id('zero') },
+                                { is: 1, then: Engine.valid(1).id('one'), otherwise: Engine.boolean() }
                             ]
                         })
                 })
 
                 const forked = before.fork('b.one', (schema) => schema.allow(2))
 
-                const after = Joi.object({
-                    a: Joi.number(),
-                    b: Joi.alternatives()
+                const after = Engine.object({
+                    a: Engine.number(),
+                    b: Engine.alternatives()
                         .conditional('a', {
                             switch: [
-                                { is: 0, then: Joi.valid(0).id('zero') },
-                                { is: 1, then: Joi.valid(1, 2).id('one'), otherwise: Joi.boolean() }
+                                { is: 0, then: Engine.valid(0).id('zero') },
+                                { is: 1, then: Engine.valid(1, 2).id('one'), otherwise: Engine.boolean() }
                             ]
                         })
                 })
@@ -290,63 +290,63 @@ describe('Modify', () => {
 
             it('adjusts nested schema', () => {
 
-                const before = Joi.array().items(
-                    Joi.number().positive().id('numbers'),
-                    Joi.object({
-                        c: Joi.object({
-                            d: Joi.number().positive()
+                const before = Engine.array().items(
+                    Engine.number().positive().id('numbers'),
+                    Engine.object({
+                        c: Engine.object({
+                            d: Engine.number().positive()
                         })
                     })
                         .id('objects')
                 )
-                    .has(Joi.object())
-                    .has(Joi.valid(5).id('five'))
+                    .has(Engine.object())
+                    .has(Engine.valid(5).id('five'))
 
                 const first = before.fork('objects.c.d', (schema) => schema.max(5))
 
-                const after1 = Joi.array().items(
-                    Joi.number().positive().id('numbers'),
-                    Joi.object({
-                        c: Joi.object({
-                            d: Joi.number().positive().max(5)
+                const after1 = Engine.array().items(
+                    Engine.number().positive().id('numbers'),
+                    Engine.object({
+                        c: Engine.object({
+                            d: Engine.number().positive().max(5)
                         })
                     })
                         .id('objects')
                 )
-                    .has(Joi.object())
-                    .has(Joi.valid(5).id('five'))
+                    .has(Engine.object())
+                    .has(Engine.valid(5).id('five'))
 
                 Helper.equal(first, after1)
 
                 const second = first.fork('numbers', (schema) => schema.min(10))
 
-                const after2 = Joi.array().items(
-                    Joi.number().positive().id('numbers').min(10),
-                    Joi.object({
-                        c: Joi.object({
-                            d: Joi.number().positive().max(5)
+                const after2 = Engine.array().items(
+                    Engine.number().positive().id('numbers').min(10),
+                    Engine.object({
+                        c: Engine.object({
+                            d: Engine.number().positive().max(5)
                         })
                     })
                         .id('objects')
                 )
-                    .has(Joi.object())
-                    .has(Joi.valid(5).id('five'))
+                    .has(Engine.object())
+                    .has(Engine.valid(5).id('five'))
 
                 Helper.equal(second, after2)
 
                 const third = second.fork('five', (schema) => schema.allow(-5))
 
-                const after3 = Joi.array().items(
-                    Joi.number().positive().id('numbers').min(10),
-                    Joi.object({
-                        c: Joi.object({
-                            d: Joi.number().positive().max(5)
+                const after3 = Engine.array().items(
+                    Engine.number().positive().id('numbers').min(10),
+                    Engine.object({
+                        c: Engine.object({
+                            d: Engine.number().positive().max(5)
                         })
                     })
                         .id('objects')
                 )
-                    .has(Joi.object())
-                    .has(Joi.valid(5, -5).id('five'))
+                    .has(Engine.object())
+                    .has(Engine.valid(5, -5).id('five'))
 
                 Helper.equal(third, after3)
             })
@@ -356,20 +356,20 @@ describe('Modify', () => {
 
             it('adjusts nested schema', () => {
 
-                const before = Joi.object({
-                    a: Joi.number(),
-                    b: Joi.object({
-                        c: Joi.object({
-                            d: Joi.number()
+                const before = Engine.object({
+                    a: Engine.number(),
+                    b: Engine.object({
+                        c: Engine.object({
+                            d: Engine.number()
                         })
                     })
                 })
 
-                const after = Joi.object({
-                    a: Joi.number(),
-                    b: Joi.object({
-                        c: Joi.object({
-                            d: Joi.number().min(10)
+                const after = Engine.object({
+                    a: Engine.number(),
+                    b: Engine.object({
+                        c: Engine.object({
+                            d: Engine.number().min(10)
                         })
                     })
                 })
@@ -380,13 +380,13 @@ describe('Modify', () => {
 
             it('forks multiple times', () => {
 
-                const before = Joi.object({
-                    b: Joi.object({
-                        c: Joi.object({
-                            d: Joi.number()
+                const before = Engine.object({
+                    b: Engine.object({
+                        c: Engine.object({
+                            d: Engine.number()
                         })
                     }),
-                    x: Joi.number()
+                    x: Engine.number()
                 })
 
                 const bd = before.describe()
@@ -402,13 +402,13 @@ describe('Modify', () => {
 
                 const fourth = third.fork('x', (schema) => schema.required())
 
-                const after = Joi.object({
-                    b: Joi.object({
-                        c: Joi.object({
-                            d: Joi.number().max(20).min(5)
+                const after = Engine.object({
+                    b: Engine.object({
+                        c: Engine.object({
+                            d: Engine.number().max(20).min(5)
                         })
                     }),
-                    x: Joi.number().required()
+                    x: Engine.number().required()
                 })
 
                 Helper.equal(fourth, after)
@@ -421,11 +421,11 @@ describe('Modify', () => {
 
             it('forks same schema multiple times', () => {
 
-                const before = Joi.object({
-                    x: Joi.number(),
-                    b: Joi.object({
-                        c: Joi.object({
-                            d: Joi.number()
+                const before = Engine.object({
+                    x: Engine.number(),
+                    b: Engine.object({
+                        c: Engine.object({
+                            d: Engine.number()
                         })
                     })
                 })
@@ -443,44 +443,44 @@ describe('Modify', () => {
 
                 const fourth = before.fork('x', (schema) => schema.required())
 
-                const a1 = Joi.object({
-                    x: Joi.number(),
-                    b: Joi.object({
-                        c: Joi.object({
-                            d: Joi.number().min(10)
+                const a1 = Engine.object({
+                    x: Engine.number(),
+                    b: Engine.object({
+                        c: Engine.object({
+                            d: Engine.number().min(10)
                         })
                     })
                 })
 
                 Helper.equal(first, a1)
 
-                const a2 = Joi.object({
-                    x: Joi.number(),
-                    b: Joi.object({
-                        c: Joi.object({
-                            d: Joi.number().max(20)
+                const a2 = Engine.object({
+                    x: Engine.number(),
+                    b: Engine.object({
+                        c: Engine.object({
+                            d: Engine.number().max(20)
                         })
                     })
                 })
 
                 Helper.equal(second, a2)
 
-                const a3 = Joi.object({
-                    x: Joi.number(),
-                    b: Joi.object({
-                        c: Joi.object({
-                            d: Joi.number().min(5)
+                const a3 = Engine.object({
+                    x: Engine.number(),
+                    b: Engine.object({
+                        c: Engine.object({
+                            d: Engine.number().min(5)
                         })
                     })
                 })
 
                 Helper.equal(third, a3)
 
-                const a4 = Joi.object({
-                    x: Joi.number().required(),
-                    b: Joi.object({
-                        c: Joi.object({
-                            d: Joi.number()
+                const a4 = Engine.object({
+                    x: Engine.number().required(),
+                    b: Engine.object({
+                        c: Engine.object({
+                            d: Engine.number()
                         })
                     })
                 })
@@ -495,20 +495,20 @@ describe('Modify', () => {
 
             it('adjusts nested schema with ids', () => {
 
-                const before = Joi.object({
-                    a: Joi.number().id('A'),
-                    b: Joi.object({
-                        c: Joi.object({
-                            d: Joi.number().id('D')
+                const before = Engine.object({
+                    a: Engine.number().id('A'),
+                    b: Engine.object({
+                        c: Engine.object({
+                            d: Engine.number().id('D')
                         })
                     })
                 })
 
-                const after = Joi.object({
-                    a: Joi.number().id('A'),
-                    b: Joi.object({
-                        c: Joi.object({
-                            d: Joi.number().id('D').min(10)
+                const after = Engine.object({
+                    a: Engine.number().id('A'),
+                    b: Engine.object({
+                        c: Engine.object({
+                            d: Engine.number().id('D').min(10)
                         })
                     })
                 })
@@ -519,7 +519,7 @@ describe('Modify', () => {
 
             it('sets keys as required', () => {
 
-                const orig = Joi.object({ a: 0, b: 0, c: { d: 0, e: { f: 0 } }, g: { h: 0 } })
+                const orig = Engine.object({ a: 0, b: 0, c: { d: 0, e: { f: 0 } }, g: { h: 0 } })
                 const schema = orig.fork(['a', 'b', 'c.d', 'c.e.f', 'g'], (x) => x.required())
 
                 Helper.validate(orig, [
@@ -565,9 +565,9 @@ describe('Modify', () => {
 
             it('sets keys as optional', () => {
 
-                const schema = Joi.object({
-                    a: Joi.number().required(),
-                    b: Joi.number().required()
+                const schema = Engine.object({
+                    a: Engine.number().required(),
+                    b: Engine.number().required()
                 }).
                     fork(['a', 'b'], (x) => x.optional())
 
@@ -580,9 +580,9 @@ describe('Modify', () => {
 
             it('sets keys as forbidden', () => {
 
-                const schema = Joi.object({
-                    a: Joi.number().required(),
-                    b: Joi.number().required()
+                const schema = Engine.object({
+                    a: Engine.number().required(),
+                    b: Engine.number().required()
                 }).
                     fork(['a', 'b'], (x) => x.forbidden())
 
@@ -607,67 +607,67 @@ describe('Modify', () => {
 
             it('adjusts object assert', () => {
 
-                const before = Joi.object({
-                    a: Joi.object({
-                        b: Joi.number()
+                const before = Engine.object({
+                    a: Engine.object({
+                        b: Engine.number()
                     }),
-                    b: Joi.object({
-                        d: Joi.number()
+                    b: Engine.object({
+                        d: Engine.number()
                     })
                 })
-                    .assert('b.d', Joi.valid(1))
-                    .assert('a.b', Joi.valid(Joi.ref('b.d')).id('assert'))
+                    .assert('b.d', Engine.valid(1))
+                    .assert('a.b', Engine.valid(Engine.ref('b.d')).id('assert'))
 
-                const after = Joi.object({
-                    a: Joi.object({
-                        b: Joi.number()
+                const after = Engine.object({
+                    a: Engine.object({
+                        b: Engine.number()
                     }),
-                    b: Joi.object({
-                        d: Joi.number()
+                    b: Engine.object({
+                        d: Engine.number()
                     })
                 })
-                    .assert('b.d', Joi.valid(1))
-                    .assert('a.b', Joi.valid(Joi.ref('b.d'), 'x').id('assert'))
+                    .assert('b.d', Engine.valid(1))
+                    .assert('a.b', Engine.valid(Engine.ref('b.d'), 'x').id('assert'))
 
                 expect(before.fork('assert', (schema) => schema.valid('x')).describe()).to.equal(after.describe())
             })
 
             it('adjusts object assert (with pattern)', () => {
 
-                const before = Joi.object({
-                    a: Joi.object({
-                        b: Joi.number()
+                const before = Engine.object({
+                    a: Engine.object({
+                        b: Engine.number()
                     }),
-                    b: Joi.object({
-                        d: Joi.number()
+                    b: Engine.object({
+                        d: Engine.number()
                     })
                 })
                     .min(2)
-                    .pattern(/\d/, Joi.any())
-                    .assert('a.b', Joi.valid(Joi.ref('b.d')).id('assert'))
+                    .pattern(/\d/, Engine.any())
+                    .assert('a.b', Engine.valid(Engine.ref('b.d')).id('assert'))
 
-                const after = Joi.object({
-                    a: Joi.object({
-                        b: Joi.number()
+                const after = Engine.object({
+                    a: Engine.object({
+                        b: Engine.number()
                     }),
-                    b: Joi.object({
-                        d: Joi.number()
+                    b: Engine.object({
+                        d: Engine.number()
                     })
                 })
                     .min(2)
-                    .pattern(/\d/, Joi.any())
-                    .assert('a.b', Joi.valid(Joi.ref('b.d'), 'x').id('assert'))
+                    .pattern(/\d/, Engine.any())
+                    .assert('a.b', Engine.valid(Engine.ref('b.d'), 'x').id('assert'))
 
                 expect(before.fork('assert', (schema) => schema.valid('x')).describe()).to.equal(after.describe())
             })
 
             it('adjusts object pattern', () => {
 
-                const before = Joi.object()
-                    .pattern(/.*/, Joi.valid('x').id('pattern'))
+                const before = Engine.object()
+                    .pattern(/.*/, Engine.valid('x').id('pattern'))
 
-                const after = Joi.object()
-                    .pattern(/.*/, Joi.valid('x', 'y').id('pattern'))
+                const after = Engine.object()
+                    .pattern(/.*/, Engine.valid('x', 'y').id('pattern'))
 
                 expect(before.fork('pattern', (schema) => schema.valid('y')).describe()).to.equal(after.describe())
             })
@@ -678,19 +678,19 @@ describe('Modify', () => {
 
         it('unsets id', () => {
 
-            const schema = Joi.any().id('x')
-            Helper.equal(schema.id(), Joi.any())
+            const schema = Engine.any().id('x')
+            Helper.equal(schema.id(), Engine.any())
         })
 
         it('errors on invalid id', () => {
 
-            expect(() => Joi.any().id('a.b')).to.throw('id cannot contain period character')
+            expect(() => Engine.any().id('a.b')).to.throw('id cannot contain period character')
         })
 
         it('overrides id', () => {
 
-            const schema = Joi.any().id('x')
-            Helper.equal(schema.id('y'), Joi.any().id('y'))
+            const schema = Engine.any().id('x')
+            Helper.equal(schema.id('y'), Engine.any().id('y'))
         })
     })
 
@@ -698,10 +698,10 @@ describe('Modify', () => {
 
         it('extracts nested schema', () => {
 
-            const d = Joi.number()
-            const c = Joi.object({ d })
-            const b = Joi.object({ c })
-            const a = Joi.object({ b })
+            const d = Engine.number()
+            const c = Engine.object({ d })
+            const b = Engine.object({ c })
+            const a = Engine.object({ b })
 
             expect(a.$_mapLabels('b')).to.equal('b')
             expect(a.$_mapLabels('b.c.d')).to.equal('b.c.d')
@@ -710,10 +710,10 @@ describe('Modify', () => {
 
         it('extracts nested schema with ids', () => {
 
-            const d = Joi.number().label('D')
-            const c = Joi.object({ d }).label('C')
-            const b = Joi.object({ c }).label('B')
-            const a = Joi.object({ b })
+            const d = Engine.number().label('D')
+            const c = Engine.object({ d }).label('C')
+            const b = Engine.object({ c }).label('B')
+            const a = Engine.object({ b })
 
             expect(a.$_mapLabels('b')).to.equal('B')
             expect(a.$_mapLabels('b.c.d')).to.equal('B.C.D')
@@ -724,7 +724,7 @@ describe('Modify', () => {
 
         it('changes multiple schemas in different sources', () => {
 
-            const custom = Joi.extend({
+            const custom = Engine.extend({
                 type: 'special',
                 coerce(value, helpers) {
 
@@ -763,10 +763,10 @@ describe('Modify', () => {
             })
 
             const schema = custom.special()
-                .swap(Joi.number())
-                .empty(Joi.object())
-                .pattern(Joi.binary())
-                .term(Joi.number())
+                .swap(Engine.number())
+                .empty(Engine.object())
+                .pattern(Engine.binary())
+                .term(Engine.number())
 
             const each = (item) => item.min(10)
 

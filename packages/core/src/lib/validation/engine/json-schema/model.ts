@@ -39,9 +39,9 @@ export interface JsonSchema {
 }
 
 /**
- * A key dependency of an object schema (and, or, with...), as described by joi
+ * A key dependency of an object schema (and, or, with...), as described by the schema
  */
-export interface JoiDependency {
+export interface SpecDependency {
     rel: string
     key: string | null
     peers: string[]
@@ -50,23 +50,23 @@ export interface JoiDependency {
 }
 
 /**
- * A condition (when() or alternatives conditional()), or an alternatives try() match, as described by joi
+ * A condition (when() or alternatives conditional()), or an alternatives try() match, as described by the schema
  */
-export interface JoiCondition {
-    schema?: JoiSpec
+export interface SpecCondition {
+    schema?: SchemaSpec
     ref?: unknown
-    is?: JoiSpec
-    then?: JoiSpec
-    otherwise?: JoiSpec
-    switch?: JoiCondition[]
+    is?: SchemaSpec
+    then?: SchemaSpec
+    otherwise?: SchemaSpec
+    switch?: SpecCondition[]
 
     [option: string]: unknown
 }
 
 /**
- * A rule, as described by joi
+ * A rule, as described by the schema
  */
-export interface JoiRule {
+export interface SpecRule {
     name: string
     args?: Record<string, unknown>
 
@@ -74,23 +74,23 @@ export interface JoiRule {
 }
 
 /**
- * A schema description (joi's describe() output), as far as the parsers read it
+ * A schema description (describe() output), as far as the parsers read it
  */
-export interface JoiSpec {
+export interface SchemaSpec {
     type: string
     flags?: Record<string, unknown>
     preferences?: Record<string, unknown>
     allow?: unknown[]
     invalid?: unknown[]
-    rules?: JoiRule[]
-    keys?: Record<string, JoiSpec>
-    patterns?: { regex?: string, rule?: JoiSpec, schema?: JoiSpec }[]
-    dependencies?: JoiDependency[]
-    matches?: JoiCondition[]
-    whens?: JoiCondition[]
-    items?: JoiSpec[]
+    rules?: SpecRule[]
+    keys?: Record<string, SchemaSpec>
+    patterns?: { regex?: string, rule?: SchemaSpec, schema?: SchemaSpec }[]
+    dependencies?: SpecDependency[]
+    matches?: SpecCondition[]
+    whens?: SpecCondition[]
+    items?: SchemaSpec[]
     metas?: Record<string, unknown>[]
-    shared?: JoiSpec[]
+    shared?: SchemaSpec[]
     link?: { ref?: { type?: string, path: string[] } }
     examples?: unknown[]
 
@@ -100,7 +100,7 @@ export interface JoiSpec {
 /**
  * A parser of a key dependency: sets the matching keywords of the schema (in place)
  */
-export type LogicalOpParserFn = (schema: JsonSchema, dependency: JoiDependency) => void
+export type LogicalOpParserFn = (schema: JsonSchema, dependency: SpecDependency) => void
 
 export interface LogicalOpParserOpts {
     and?: LogicalOpParserFn | null

@@ -7,9 +7,9 @@
 import {describe, it} from 'node:test'
 import {expect} from '../support/Expect.js'
 import * as HoekEngine from '../../../lib/validation/engine/hoek/index.js'
-//Adapted: hoek's wait() is not part of the engine (joi does not use it); same semantics for these tests
+//Adapted: hoek's wait() is not part of the engine (engine does not use it); same semantics for these tests
 const Hoek = {...HoekEngine, wait: (timeout, returnValue) => new Promise((resolve) => setTimeout(() => resolve(returnValue), timeout))}
-import Joi from '../../../lib/validation/engine/schema/index.js'
+import Engine from '../../../lib/validation/engine/schema/index.js'
 import * as Helper from './Helper.js'
 const internals = {}
 
@@ -19,12 +19,12 @@ describe('Validator', () => {
 
         it('should work with a successful promise', async () => {
 
-            expect(await Joi.string().validateAsync('foo')).to.equal('foo')
+            expect(await Engine.string().validateAsync('foo')).to.equal('foo')
         })
 
         it('should work with a successful promise and a catch in between', () => {
 
-            const promise = Joi.string().validateAsync('foo')
+            const promise = Engine.string().validateAsync('foo')
 
             return promise
                 .catch(() => {
@@ -42,7 +42,7 @@ describe('Validator', () => {
 
         it('should work with a failing promise', () => {
 
-            const promise = Joi.string().validateAsync(0)
+            const promise = Engine.string().validateAsync(0)
 
             return promise.then((value) => {
 
@@ -61,7 +61,7 @@ describe('Validator', () => {
 
         it('should work with a failing promise and a then in between', () => {
 
-            const promise = Joi.string().validateAsync(0)
+            const promise = Engine.string().validateAsync(0)
 
             return promise
                 .then((value) => {
@@ -82,7 +82,7 @@ describe('Validator', () => {
 
         it('should work with a failing promise (with catch)', () => {
 
-            const promise = Joi.string().validateAsync(0)
+            const promise = Engine.string().validateAsync(0)
 
             return promise.catch((err) => {
 
@@ -98,7 +98,7 @@ describe('Validator', () => {
 
         it('should catch errors in a successful promise callback', () => {
 
-            const promise = Joi.string().validateAsync('foo')
+            const promise = Engine.string().validateAsync('foo')
 
             return promise.then((value) => {
 
@@ -114,7 +114,7 @@ describe('Validator', () => {
 
         it('should catch errors in a failing promise callback', () => {
 
-            const promise = Joi.string().validateAsync(0)
+            const promise = Engine.string().validateAsync(0)
 
             return promise.then((value) => {
 
@@ -133,7 +133,7 @@ describe('Validator', () => {
 
         it('should catch errors in a failing promise callback (with catch)', () => {
 
-            const promise = Joi.string().validateAsync(0)
+            const promise = Engine.string().validateAsync(0)
 
             return promise.catch(() => {
 
@@ -149,13 +149,13 @@ describe('Validator', () => {
 
         it('validates schema', async () => {
 
-            const schema = Joi.number()
+            const schema = Engine.number()
             expect(await schema.validateAsync(5)).to.equal(5)
         })
 
         it('validates schema with warnings (empty)', async () => {
 
-            const schema = Joi.number()
+            const schema = Engine.number()
             expect(await schema.validateAsync(5, { warnings: true })).to.equal({ value: 5 })
         })
     })
@@ -185,8 +185,8 @@ describe('Validator', () => {
                 return id + '!'
             }
 
-            const schema = Joi.object({
-                id: Joi.string().external(check).external(append)
+            const schema = Engine.object({
+                id: Engine.string().external(check).external(append)
             })
 
             expect(await schema.validateAsync({ id: 'valid' })).to.equal({ id: 'verified!' })
@@ -223,9 +223,9 @@ describe('Validator', () => {
                 return id + '!'
             }
 
-            const schema = Joi.object({
+            const schema = Engine.object({
                 user: {
-                    id: Joi.string().external(check).external(append)
+                    id: Engine.string().external(check).external(append)
                 }
             })
 
@@ -260,7 +260,7 @@ describe('Validator', () => {
                 return id + '!'
             }
 
-            const schema = Joi.string().external(check).external(append)
+            const schema = Engine.string().external(check).external(append)
 
             const result = await schema.validateAsync('valid')
             expect(result).to.equal('verified!')
@@ -290,7 +290,7 @@ describe('Validator', () => {
                 return id + '!'
             }
 
-            const schema = Joi.array().items(Joi.string().external(check).external(append))
+            const schema = Engine.array().items(Engine.string().external(check).external(append))
 
             expect(await schema.validateAsync(['valid'])).to.equal(['verified!'])
             expect(await schema['~standard'].validate(['valid'])).to.equal({ value: ['verified!'] })
@@ -301,7 +301,7 @@ describe('Validator', () => {
 
         it('executes externals on array', async () => {
 
-            const schema = Joi.array().items(Joi.string()).external((value) => [...value, 'extra'])
+            const schema = Engine.array().items(Engine.string()).external((value) => [...value, 'extra'])
 
             expect(await schema.validateAsync(['valid'])).to.equal(['valid', 'extra'])
             expect(await schema['~standard'].validate(['valid'])).to.equal({ value: ['valid', 'extra'] })
@@ -314,8 +314,8 @@ describe('Validator', () => {
                 throw new Error('Invalid id')
             }
 
-            const schema = Joi.object({
-                id: Joi.string().external(check)
+            const schema = Engine.object({
+                id: Engine.string().external(check)
             })
 
             await expect(schema.validateAsync({ id: 'valid' })).to.reject('Invalid id (id)')
@@ -333,8 +333,8 @@ describe('Validator', () => {
                 called = true
             }
 
-            const schema = Joi.object({
-                id: Joi.string().min(10).external(check)
+            const schema = Engine.object({
+                id: Engine.string().min(10).external(check)
             })
 
             await expect(schema.validateAsync({ id: 'valid' })).to.reject('"id" length must be at least 10 characters long')
@@ -350,7 +350,7 @@ describe('Validator', () => {
                 return id + '!'
             }
 
-            const schema = Joi.string().external(append)
+            const schema = Engine.string().external(append)
             const description = schema.describe()
             expect(description).to.equal({ type: 'string', externals: [{ method: append }] })
         })
@@ -363,7 +363,7 @@ describe('Validator', () => {
                 called = true
             }
 
-            const schema = Joi.array().has(Joi.string().external(check))
+            const schema = Engine.array().has(Engine.string().external(check))
 
             const result = await schema.validateAsync(['valid'])
             expect(result).to.equal(['valid'])
@@ -379,7 +379,7 @@ describe('Validator', () => {
                 obj.x = true
             }
 
-            const schema = Joi.object().external(tag)
+            const schema = Engine.object().external(tag)
             const input = { x: false }
 
             const result = await schema.validateAsync(input)
@@ -396,7 +396,7 @@ describe('Validator', () => {
                 obj.x = true
             }
 
-            const schema = Joi.object({ a: Joi.object().external(tag) })
+            const schema = Engine.object({ a: Engine.object().external(tag) })
             const input = { a: { x: false } }
 
             const result = await schema.validateAsync(input)
@@ -413,7 +413,7 @@ describe('Validator', () => {
                 array.push('x')
             }
 
-            const schema = Joi.array().external(tag)
+            const schema = Engine.array().external(tag)
             const input = [1]
 
             const result = await schema.validateAsync(input)
@@ -430,7 +430,7 @@ describe('Validator', () => {
                 array.push('x')
             }
 
-            const schema = Joi.array().items(Joi.array().external(tag))
+            const schema = Engine.array().items(Engine.array().external(tag))
             const input = [[1]]
 
             const result = await schema.validateAsync(input)
@@ -447,7 +447,7 @@ describe('Validator', () => {
 
                 expect(value).to.equal('my stringmy string')
                 expect(helpers).to.be.an.object()
-                expect(Joi.isSchema(helpers.schema)).to.be.true()
+                expect(Engine.isSchema(helpers.schema)).to.be.true()
                 expect(helpers.schema.type).to.equal('string')
                 expect(helpers.state).to.be.an.object()
                 expect(helpers.state.ancestors).to.equal([])
@@ -459,7 +459,7 @@ describe('Validator', () => {
                 return helpers.prefs.context.foo
             }
 
-            const schema = Joi.string().custom((v) => v + v).external(tag)
+            const schema = Engine.string().custom((v) => v + v).external(tag)
             const input = 'my string'
 
             const result = await schema.validateAsync(input, { context })
@@ -474,7 +474,7 @@ describe('Validator', () => {
 
                 expect(value).to.equal('my stringmy string')
                 expect(helpers).to.be.an.object()
-                expect(Joi.isSchema(helpers.schema)).to.be.true()
+                expect(Engine.isSchema(helpers.schema)).to.be.true()
                 expect(helpers.schema.type).to.equal('string')
                 expect(helpers.state).to.be.an.object()
                 expect(helpers.state.ancestors).to.equal([
@@ -491,9 +491,9 @@ describe('Validator', () => {
                 return helpers.prefs.context.foo
             }
 
-            const schema = Joi.object({
-                grandparent: Joi.object({
-                    parent: Joi.string().custom((v) => v + v).external(ext)
+            const schema = Engine.object({
+                grandparent: Engine.object({
+                    parent: Engine.string().custom((v) => v + v).external(ext)
                 })
             })
             const input = { grandparent: { parent: 'my string' } }
@@ -511,7 +511,7 @@ describe('Validator', () => {
                 throw new Error('Oops')
             }
 
-            const schema = Joi.string().external(tag)
+            const schema = Engine.string().external(tag)
             const input = 'my string'
 
             await expect(schema.validateAsync(input, { context })).to.reject('Oops (value)')
@@ -530,7 +530,7 @@ describe('Validator', () => {
                 return newValue
             }
 
-            const schema = Joi.string().external(ext)
+            const schema = Engine.string().external(ext)
             const input = 'my string'
 
             const result = await schema.validateAsync(input, { warnings: true })
@@ -571,7 +571,7 @@ describe('Validator', () => {
                 return error('string.max', { limit: 10, value: newValue })
             }
 
-            const schema = Joi.string().external(ext)
+            const schema = Engine.string().external(ext)
             const input = 'my string'
 
             const error = await expect(schema.validateAsync(input)).to.reject('"value" length must be less than or equal to 10 characters long')
@@ -602,7 +602,7 @@ describe('Validator', () => {
                 return errors
             }
 
-            const schema = Joi.string().external(ext)
+            const schema = Engine.string().external(ext)
             const input = 'my string'
 
             const error = await expect(schema.validateAsync(input)).to.reject('"value" length must be less than or equal to 10 characters long. "value" length must be at least 1 characters long')
@@ -635,7 +635,7 @@ describe('Validator', () => {
                 return message('{{#label}} has an invalid value {{#value}} ({{#custom}})', { custom: 'denied' })
             }
 
-            const schema = Joi.string().external(ext)
+            const schema = Engine.string().external(ext)
             const input = 'my string'
 
             const error = await expect(schema.validateAsync(input)).to.reject('"value" has an invalid value my string (denied)')
@@ -654,9 +654,9 @@ describe('Validator', () => {
 
         it('should add warnings when warn helper is used on a link', async () => {
 
-            const schema = Joi.object({
-                a: Joi.number(),
-                b: Joi.link('a').external((value, helpers) => {
+            const schema = Engine.object({
+                a: Engine.number(),
+                b: Engine.link('a').external((value, helpers) => {
 
                     expect(helpers.schema.type).to.equal('link')
                     expect(helpers.linked.type).to.equal('number')
@@ -688,9 +688,9 @@ describe('Validator', () => {
 
         it('should add errors when error helper is used on a link', async () => {
 
-            const schema = Joi.object({
-                a: Joi.number(),
-                b: Joi.link('a').external((value, helpers) => {
+            const schema = Engine.object({
+                a: Engine.number(),
+                b: Engine.link('a').external((value, helpers) => {
 
                     expect(helpers.schema.type).to.equal('link')
                     expect(helpers.linked.type).to.equal('number')
@@ -717,9 +717,9 @@ describe('Validator', () => {
 
         it('should add a custom error when message helper is used on a link', async () => {
 
-            const schema = Joi.object({
-                a: Joi.number(),
-                b: Joi.link('a').external((value, helpers) => {
+            const schema = Engine.object({
+                a: Engine.number(),
+                b: Engine.link('a').external((value, helpers) => {
 
                     return helpers.message('{{#label}} should be {{#sign}} {{#value}}', { sign: '>' })
                 })
@@ -759,7 +759,7 @@ describe('Validator', () => {
                 return errors
             }
 
-            const schema = Joi.string().external(ext1).external(ext2)
+            const schema = Engine.string().external(ext1).external(ext2)
             const input = 'my string'
 
             const error = await expect(schema.validateAsync(input, { abortEarly: false })).to.reject('"value" length must be less than or equal to 10 characters long. "value" length must be at least 8 characters long. "value" length must be less than or equal to 15 characters long')
@@ -816,7 +816,7 @@ describe('Validator', () => {
                 return errors
             }
 
-            const schema = Joi.string().external(ext1).external(ext2)
+            const schema = Engine.string().external(ext1).external(ext2)
             const input = 'my string'
 
             const error = await expect(schema.validateAsync(input, { abortEarly: false, debug: true })).to.reject()
@@ -836,9 +836,9 @@ describe('Validator', () => {
 
         it('applies raw after validation', async () => {
 
-            const schema = Joi.object({
-                a: Joi.number().raw(),
-                b: Joi.ref('a')
+            const schema = Engine.object({
+                a: Engine.number().raw(),
+                b: Engine.ref('a')
             })
 
             expect(await schema.validateAsync({ a: '5', b: 5 })).to.equal({ a: '5', b: 5 })
@@ -849,7 +849,7 @@ describe('Validator', () => {
 
         it('reports warnings (sync)', () => {
 
-            const schema = Joi.any().warning('custom.x', { w: 'world' }).message({ 'custom.x': 'hello {#w}!' })
+            const schema = Engine.any().warning('custom.x', { w: 'world' }).message({ 'custom.x': 'hello {#w}!' })
             const { value, error, warning } = schema.validate('something')
             expect(value).to.equal('something')
             expect(error).to.not.exist()
@@ -872,7 +872,7 @@ describe('Validator', () => {
 
         it('reports warnings (async)', async () => {
 
-            const schema = Joi.any().warning('custom.x', { w: 'world' }).message({ 'custom.x': 'hello {#w}!' })
+            const schema = Engine.any().warning('custom.x', { w: 'world' }).message({ 'custom.x': 'hello {#w}!' })
             const { value, warning } = await schema.validateAsync('something', { warnings: true })
             expect(value).to.equal('something')
             expect(warning).to.equal({
@@ -895,7 +895,7 @@ describe('Validator', () => {
         it('reports warnings with externals', async () => {
 
             const append = (value) => value + '!'
-            const schema = Joi.string()
+            const schema = Engine.string()
                 .warning('custom.x').message('test')
                 .external(append)
 
@@ -920,9 +920,9 @@ describe('Validator', () => {
 
         it('does not report warnings on mismatched array items', async () => {
 
-            const schema = Joi.array().items(
-                Joi.string().min(5).warning('custom.x'),
-                Joi.string()
+            const schema = Engine.array().items(
+                Engine.string().min(5).warning('custom.x'),
+                Engine.string()
             )
 
             expect(await schema.validateAsync(['x', 'y'], { warnings: true, abortEarly: false })).to.equal({ value: ['x', 'y'] })
@@ -930,9 +930,9 @@ describe('Validator', () => {
 
         it('does not report warnings on mismatched alternatives', async () => {
 
-            const schema = Joi.alternatives().try(
-                Joi.string().min(5).warning('custom.x'),
-                Joi.string()
+            const schema = Engine.alternatives().try(
+                Engine.string().min(5).warning('custom.x'),
+                Engine.string()
             )
 
             expect(await schema.validateAsync('x', { warnings: true, abortEarly: false })).to.equal({ value: 'x' })
@@ -940,9 +940,9 @@ describe('Validator', () => {
 
         it('does not report warnings on mismatched alternatives with match mode "one"', async () => {
 
-            const schema = Joi.alternatives().try(
-                Joi.string().min(5).warning('custom.x'),
-                Joi.string()
+            const schema = Engine.alternatives().try(
+                Engine.string().min(5).warning('custom.x'),
+                Engine.string()
             ).match('one')
 
             expect(await schema.validateAsync('x', { warnings: true, abortEarly: false })).to.equal({ value: 'x' })
@@ -950,13 +950,13 @@ describe('Validator', () => {
 
         it('does not report custom warnings on mismatched array items', async () => {
 
-            const schema = Joi.array().items(
-                Joi.string().min(5).custom((value, { warn }) => {
+            const schema = Engine.array().items(
+                Engine.string().min(5).custom((value, { warn }) => {
 
                     warn('custom.x')
                     return value
                 }),
-                Joi.string()
+                Engine.string()
             )
 
             expect(await schema.validateAsync(['x', 'y'], { warnings: true, abortEarly: false })).to.equal({ value: ['x', 'y'] })
@@ -964,13 +964,13 @@ describe('Validator', () => {
 
         it('does not report custom warnings on mismatched alternatives', async () => {
 
-            const schema = Joi.alternatives().try(
-                Joi.string().min(5).custom((value, { warn }) => {
+            const schema = Engine.alternatives().try(
+                Engine.string().min(5).custom((value, { warn }) => {
 
                     warn('custom.x')
                     return value
                 }),
-                Joi.string()
+                Engine.string()
             )
 
             expect(await schema.validateAsync('x', { warnings: true, abortEarly: false })).to.equal({ value: 'x' })
@@ -978,13 +978,13 @@ describe('Validator', () => {
 
         it('does not report custom warnings on mismatched alternatives with match mode "one"', async () => {
 
-            const schema = Joi.alternatives().try(
-                Joi.string().min(5).custom((value, { warn }) => {
+            const schema = Engine.alternatives().try(
+                Engine.string().min(5).custom((value, { warn }) => {
 
                     warn('custom.x')
                     return value
                 }),
-                Joi.string()
+                Engine.string()
             ).match('one')
 
             expect(await schema.validateAsync('x', { warnings: true, abortEarly: false })).to.equal({ value: 'x' })
@@ -995,25 +995,25 @@ describe('Validator', () => {
 
         it('ignores result flags on root values', () => {
 
-            const schema = Joi.string().strip()
+            const schema = Engine.string().strip()
             Helper.validate(schema, [['xyz', true, undefined]])
         })
 
         it('reaches deep into shadow', async () => {
 
-            const schema = Joi.object({
+            const schema = Engine.object({
                 a: {
                     b: {
                         c: {
                             d: {
-                                e: Joi.number().raw()
+                                e: Engine.number().raw()
                             },
-                            g: Joi.boolean().raw()
+                            g: Engine.boolean().raw()
                         }
                     }
                 },
-                f: Joi.ref('a.b.c.d.e'),
-                h: Joi.ref('a.b.c.g')
+                f: Engine.ref('a.b.c.d.e'),
+                h: Engine.ref('a.b.c.g')
             })
 
             const value = { a: { b: { c: { d: { e: '100' }, g: 'TRUE' } } }, f: 100, h: true }

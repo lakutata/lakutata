@@ -6,43 +6,43 @@
 import {it} from 'node:test'
 import Ajv from 'ajv'
 import {expect} from '../../support/Expect.js'
-import {JoiJsonDraftSchemaParser, JoiJsonDraftSchemaParser19, JoiJsonSchemaParser, JoiOpenApiSchemaParser, JoiOpenApiThreePointOneSchemaParser} from '../../../../lib/validation/engine/json-schema/index.js'
+import {JsonDraft04SchemaParser, JsonDraft201909SchemaParser, JsonSchemaParser, OpenApiSchemaParser, OpenApi31SchemaParser} from '../../../../lib/validation/engine/json-schema/index.js'
 import {hasData, listData, readJson, toEqual} from '../support.js'
 
 const parsers = {
-    'json': JoiJsonSchemaParser,
-    'json-draft-04': JoiJsonDraftSchemaParser,
-    'json-draft-2019-09': JoiJsonDraftSchemaParser19,
-    'open-api': JoiOpenApiSchemaParser,
-    'open-api-3.1': JoiOpenApiThreePointOneSchemaParser
+    'json': JsonSchemaParser,
+    'json-draft-04': JsonDraft04SchemaParser,
+    'json-draft-2019-09': JsonDraft201909SchemaParser,
+    'open-api': OpenApiSchemaParser,
+    'open-api-3.1': OpenApi31SchemaParser
 }
 
 export function executeTests(outputType, ajv = new Ajv({ allErrors: true })) {
     const Parser = parsers[outputType]
     const parser = new Parser()
-    const joiTypeInputs = listData('outputs-baseline')
+    const schemaTypeInputs = listData('outputs-baseline')
 
-    joiTypeInputs.forEach((joiType) => {
-        const parserCaseInputs = listData(`outputs-baseline/${joiType}`)
+    schemaTypeInputs.forEach((schemaType) => {
+        const parserCaseInputs = listData(`outputs-baseline/${schemaType}`)
 
-        parserCaseInputs.forEach((joiCase) => {
-            if (process.env.TEST_CASE && !process.env.TEST_CASE.split(',').includes(joiCase.replace('.json', ''))) {
+        parserCaseInputs.forEach((schemaCase) => {
+            if (process.env.TEST_CASE && !process.env.TEST_CASE.split(',').includes(schemaCase.replace('.json', ''))) {
                 return
             }
 
-            if (!hasData(`outputs-parsers/${outputType}/${joiType}/${joiCase}`)) {
+            if (!hasData(`outputs-parsers/${outputType}/${schemaType}/${schemaCase}`)) {
                 return
             }
 
-            it(`${outputType} schema parsing - ${joiType} - ${joiCase} `, () => {
-                const expected = readJson(`outputs-parsers/${outputType}/${joiType}/${joiCase}`)
-                const joiObj = readJson(`outputs-baseline/${joiType}/${joiCase}`)
-                const destSchema = parser.parse(joiObj, {})
+            it(`${outputType} schema parsing - ${schemaType} - ${schemaCase} `, () => {
+                const expected = readJson(`outputs-parsers/${outputType}/${schemaType}/${schemaCase}`)
+                const schemaObj = readJson(`outputs-baseline/${schemaType}/${schemaCase}`)
+                const destSchema = parser.parse(schemaObj, {})
 
                 //Safety net in case the expected output is not compatible to json schema
                 const validationResult = ajv.validateSchema(destSchema)
                 if (!validationResult) {
-                    console.error(`${outputType} schema validation failed on case: ${joiType} - ${joiCase}`, JSON.stringify(ajv.errors, null, 2))
+                    console.error(`${outputType} schema validation failed on case: ${schemaType} - ${schemaCase}`, JSON.stringify(ajv.errors, null, 2))
                 }
                 expect(!!(validationResult)).to.be.true()
 

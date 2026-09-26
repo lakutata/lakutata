@@ -6,18 +6,18 @@
 // @ts-nocheck
 import {it} from 'node:test'
 import {expect} from '../../support/Expect.js'
-import joi from '../../../../lib/validation/engine/schema/index.js'
+import engine from '../../../../lib/validation/engine/schema/index.js'
 import parse from '../../../../lib/validation/engine/json-schema/index.js'
 import Ajv from 'ajv'
 import {toEqual} from '../support.js'
 
 const ajv = new Ajv({ allErrors: true })
 
-const JOI_OBJ = joi.object({
-    a: joi.string(),
-    b: joi.number(),
-    c: joi.boolean(),
-    d: joi.number()
+const SCHEMA_OBJ = engine.object({
+    a: engine.string(),
+    b: engine.number(),
+    c: engine.boolean(),
+    d: engine.number()
 }).and('a', 'b', 'c')
 
 const BASE_SCHEMA = {
@@ -43,8 +43,8 @@ const BASE_SCHEMA = {
 }
 
 it('and - none exists', () => {
-    const joiObj = JOI_OBJ
-    const jsonSchema = parse(joiObj)
+    const schemaObj = SCHEMA_OBJ
+    const jsonSchema = parse(schemaObj)
     const validate = ajv.compile(jsonSchema)
 
     validate({ })
@@ -53,8 +53,8 @@ it('and - none exists', () => {
 })
 
 it('and - none exists with unknown field allown', () => {
-    const joiObj = JOI_OBJ.unknown(true)
-    const jsonSchema = parse(joiObj)
+    const schemaObj = SCHEMA_OBJ.unknown(true)
+    const jsonSchema = parse(schemaObj)
     const validate = ajv.compile(jsonSchema)
 
     validate({ e: 1 })
@@ -63,8 +63,8 @@ it('and - none exists with unknown field allown', () => {
 })
 
 it('and - all exists', () => {
-    const joiObj = JOI_OBJ
-    const jsonSchema = parse(joiObj)
+    const schemaObj = SCHEMA_OBJ
+    const jsonSchema = parse(schemaObj)
     const validate = ajv.compile(jsonSchema)
 
     validate({ a: 'hi', b: 1, c: true })
@@ -73,8 +73,8 @@ it('and - all exists', () => {
 })
 
 it('and - all exists with unknown field allown', () => {
-    const joiObj = JOI_OBJ.unknown(true)
-    const jsonSchema = parse(joiObj)
+    const schemaObj = SCHEMA_OBJ.unknown(true)
+    const jsonSchema = parse(schemaObj)
     const validate = ajv.compile(jsonSchema)
 
     validate({ a: 'hi', b: 1, c: true, e: 1 })
@@ -83,8 +83,8 @@ it('and - all exists with unknown field allown', () => {
 })
 
 it('and - some exists', () => {
-    const joiObj = JOI_OBJ
-    const jsonSchema = parse(joiObj)
+    const schemaObj = SCHEMA_OBJ
+    const jsonSchema = parse(schemaObj)
     const validate = ajv.compile(jsonSchema)
 
     validate({ a: '' })
@@ -93,8 +93,8 @@ it('and - some exists', () => {
 })
 
 it('and - some exists with unknown field allown', () => {
-    const joiObj = JOI_OBJ.unknown(true)
-    const jsonSchema = parse(joiObj)
+    const schemaObj = SCHEMA_OBJ.unknown(true)
+    const jsonSchema = parse(schemaObj)
     const validate = ajv.compile(jsonSchema)
 
     validate({ a: '', e: 1 })

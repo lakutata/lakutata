@@ -3,40 +3,40 @@
  * The schemas whose descriptions are the baseline of the parser tests. Not type-checked.
  */
 // @ts-nocheck
-export default function (joi) {
+export default function (engine) {
     return {
-        allow: joi.string().allow('', null),
-        default: joi.any().default('Male'),
-        description: joi.any().description('Hero Nickname'),
-        example: joi.any().example('鹄思乱想'),
-        forbidden: joi.forbidden(),
-        id: joi.any().id('person'),
-        meta: joi.any().meta({ 'x-expandable': true, 'x-lookup': 'name', 'z-ignore': true, format: 'custom_format', 'x-supported-lang': ['zh-CN', 'en-US'], deprecated: true, readOnly: false, writeOnly: true, title: 'This is title' }),
-        shared: joi.any().shared(joi.string().id('unifiedString')),
-        valid: joi.any().valid('Male', 'Female', 0, 1, '', null),
-        when_multiple: joi.object().keys({
-            key: joi.string()
+        allow: engine.string().allow('', null),
+        default: engine.any().default('Male'),
+        description: engine.any().description('Hero Nickname'),
+        example: engine.any().example('鹄思乱想'),
+        forbidden: engine.forbidden(),
+        id: engine.any().id('person'),
+        meta: engine.any().meta({ 'x-expandable': true, 'x-lookup': 'name', 'z-ignore': true, format: 'custom_format', 'x-supported-lang': ['zh-CN', 'en-US'], deprecated: true, readOnly: false, writeOnly: true, title: 'This is title' }),
+        shared: engine.any().shared(engine.string().id('unifiedString')),
+        valid: engine.any().valid('Male', 'Female', 0, 1, '', null),
+        when_multiple: engine.object().keys({
+            key: engine.string()
         }).unknown()
-        .when(joi.object().keys({ key: joi.valid('xxx') }).unknown(),
-            { then: joi.object().keys({ key1: joi.string().required() }).unknown() }
-        ).when(joi.object().keys({ key: joi.valid('yyy') }).unknown(),
-            { then: joi.object().keys({ key2: joi.string().required() }).unknown() }
+        .when(engine.object().keys({ key: engine.valid('xxx') }).unknown(),
+            { then: engine.object().keys({ key1: engine.string().required() }).unknown() }
+        ).when(engine.object().keys({ key: engine.valid('yyy') }).unknown(),
+            { then: engine.object().keys({ key2: engine.string().required() }).unknown() }
         ).meta({ 'if-style': false }),
-        when_is: joi.any().when('gender', {
+        when_is: engine.any().when('gender', {
             is: 'Female',
-            then: joi.number().valid(0, 1, 2).required(),
-            otherwise: joi.string()
+            then: engine.number().valid(0, 1, 2).required(),
+            otherwise: engine.string()
         }),
-        when_not: joi.any().when('gender', {
+        when_not: engine.any().when('gender', {
             not: 'Female',
-            then: joi.number().valid(0, 1, 2).required(),
-            otherwise: joi.boolean()
+            then: engine.number().valid(0, 1, 2).required(),
+            otherwise: engine.boolean()
         }),
-        when_switch: joi.any().when('gender', {
+        when_switch: engine.any().when('gender', {
             switch: [
-                { is: 0, then: joi.string() },
-                { is: joi.number().greater(160), then: joi.number() },
-                { is: joi.number().greater(300), then: joi.object().keys({ name: joi.string(), level: joi.number() }), otherwise: joi.string() }
+                { is: 0, then: engine.string() },
+                { is: engine.number().greater(160), then: engine.number() },
+                { is: engine.number().greater(300), then: engine.object().keys({ name: engine.string(), level: engine.number() }), otherwise: engine.string() }
             ]
         })
     }

@@ -6,16 +6,16 @@
 // @ts-nocheck
 import {it} from 'node:test'
 import {expect} from '../../support/Expect.js'
-import joi from '../../../../lib/validation/engine/schema/index.js'
+import engine from '../../../../lib/validation/engine/schema/index.js'
 import parse from '../../../../lib/validation/engine/json-schema/index.js'
 import Ajv from 'ajv'
 import {toEqual} from '../support.js'
 
 const ajv = new Ajv({ allErrors: true })
 
-const JOI_OBJ = joi.alternatives().try(
-    joi.number().greater(100),
-    joi.number().less(200)
+const SCHEMA_OBJ = engine.alternatives().try(
+    engine.number().greater(100),
+    engine.number().less(200)
 ).match('all')
 
 const BASE_SCHEMA = {
@@ -25,7 +25,7 @@ const BASE_SCHEMA = {
     ]
 }
 
-const jsonSchema = parse(JOI_OBJ)
+const jsonSchema = parse(SCHEMA_OBJ)
 const validate = ajv.compile(jsonSchema)
 
 it('alternative try all - valid schema', () => {
@@ -36,26 +36,26 @@ it('alternative try all - valid matching both', () => {
     const value = 150
     validate(value)
     expect(!(validate.errors)).to.be.true()
-    expect(!(JOI_OBJ.validate(value).error)).to.be.true()
+    expect(!(SCHEMA_OBJ.validate(value).error)).to.be.true()
 })
 
 it('alternative try all - invalid matching one', () => {
     const value = 300
     validate(value)
     expect(!!(validate.errors)).to.be.true()
-    expect(!!(JOI_OBJ.validate(value).error)).to.be.true()
+    expect(!!(SCHEMA_OBJ.validate(value).error)).to.be.true()
 })
 
 it('alternative try all - invalid matching one 2', () => {
     const value = 80
     validate(value)
     expect(!!(validate.errors)).to.be.true()
-    expect(!!(JOI_OBJ.validate(value).error)).to.be.true()
+    expect(!!(SCHEMA_OBJ.validate(value).error)).to.be.true()
 })
 
 it('alternative try all - invalid matching none', () => {
     const value = true
     validate(value)
     expect(!!(validate.errors)).to.be.true()
-    expect(!!(JOI_OBJ.validate(value).error)).to.be.true()
+    expect(!!(SCHEMA_OBJ.validate(value).error)).to.be.true()
 })

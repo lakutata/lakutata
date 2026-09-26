@@ -83,7 +83,7 @@ export class Ids {
         chain.push({schema: root})
         const tail: { schema: SchemaInternals, id?: string } = chain.shift() as IdNode
         let adjusted: { schema: SchemaInternals, id?: string } = {id: tail.id, schema: adjuster(tail.schema)}
-        assert(Common.isSchema(adjusted.schema), 'adjuster function failed to return a joi schema type')
+        assert(Common.isSchema(adjusted.schema), 'adjuster function failed to return a schema')
         for (const node of chain) adjusted = {id: node.id, schema: fork(node.schema, adjusted.id as string, adjusted.schema)}
         return adjusted.schema
     }

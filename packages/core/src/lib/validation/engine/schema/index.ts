@@ -43,10 +43,10 @@ export interface Extension<S extends Base = Base> extends Omit<Extend.TypeDefini
     type: string | RegExp
 }
 
-export type ExtensionFactory = (joi: Root) => Extension
+export type ExtensionFactory = (engine: Root) => Extension
 
 /**
- * The root object (Joi): the type factories, their shortcuts and the helpers
+ * The root object (Engine): the type factories, their shortcuts and the helpers
  */
 export interface Root extends RootLike {
     _types: Set<string>
@@ -203,15 +203,15 @@ const methods: Methods = {
 
     defaults(this: Root, modifier: (schema: Base) => Base): Root {
         assert(typeof modifier === 'function', 'modifier must be a function')
-        const joi: Root = Object.assign({}, this)
-        for (const type of joi._types) {
-            const schema: Base = modifier((joi[type] as TypeFactory).call(joi))
+        const engine: Root = Object.assign({}, this)
+        for (const type of engine._types) {
+            const schema: Base = modifier((engine[type] as TypeFactory).call(engine))
             assert(Common.isSchema(schema), 'modifier must return a valid schema object')
-            joi[type] = function (this: Root, ...args: unknown[]): Base {
+            engine[type] = function (this: Root, ...args: unknown[]): Base {
                 return generate(this, schema, args)
             }
         }
-        return joi
+        return engine
     },
 
     expression(source: string, options?: TemplateOptions): Template {
@@ -223,23 +223,23 @@ const methods: Methods = {
         Schemas = Schemas || getSchemas()
         assert(extensions.length, 'You need to provide at least one extension')
         this.assert(extensions, Schemas.extensions)
-        const joi: Root = Object.assign({}, this)
-        joi._types = new Set(joi._types)
+        const engine: Root = Object.assign({}, this)
+        engine._types = new Set(engine._types)
         for (let extension of extensions) {
-            if (typeof extension === 'function') extension = extension(joi)
+            if (typeof extension === 'function') extension = extension(engine)
             this.assert(extension, Schemas.extension)
-            const expanded: Extend.TypeDefinition[] = expandExtension(extension, joi)
+            const expanded: Extend.TypeDefinition[] = expandExtension(extension, engine)
             for (const item of expanded) {
-                assert(joi[item.type] === undefined || joi._types.has(item.type), 'Cannot override name', item.type)
+                assert(engine[item.type] === undefined || engine._types.has(item.type), 'Cannot override name', item.type)
                 const base: Base = item.base || this.any()
                 const schema: Base = Extend.type(base, item)
-                joi._types.add(item.type)
-                joi[item.type] = function (this: Root, ...args: unknown[]): Base {
+                engine._types.add(item.type)
+                engine[item.type] = function (this: Root, ...args: unknown[]): Base {
                     return generate(this, schema, args)
                 }
             }
         }
-        return joi
+        return engine
     },
 
     isError: Errors.ValidationError.isError,
@@ -287,26 +287,26 @@ function assertValue(value: unknown, schema: Base, annotate: boolean, args: unkn
 }
 
 function generate(root: Root, schema: Base, args: unknown[]): Base {
-    assert(root, 'Must be invoked on a Joi instance.')
+    assert(root, 'Must be invoked on a validation root.')
     schema.$_root = root
     if (!schema._definition.args || !args.length) return schema
     return (schema._definition.args as (schema: Base, ...args: unknown[]) => Base)(schema, ...args)
 }
 
-function expandExtension(extension: Extension, joi: Root): Extend.TypeDefinition[] {
+function expandExtension(extension: Extension, engine: Root): Extend.TypeDefinition[] {
     if (typeof extension.type === 'string') return [extension as Extend.TypeDefinition]
     const extended: Extend.TypeDefinition[] = []
-    for (const type of joi._types) {
+    for (const type of engine._types) {
         if (extension.type.test(type)) {
             const item: Extend.TypeDefinition = Object.assign({}, extension) as Extend.TypeDefinition
             item.type = type
-            item.base = (joi[type] as TypeFactory).call(joi)
+            item.base = (engine[type] as TypeFactory).call(engine)
             extended.push(item)
         }
     }
     return extended
 }
 
-const Joi: Root = createRoot()
+const Engine: Root = createRoot()
 
-export default Joi
+export default Engine

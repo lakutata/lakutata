@@ -3,10 +3,10 @@
  * The schemas whose descriptions are the baseline of the parser tests. Not type-checked.
  */
 // @ts-nocheck
-export default function (joi) {
+export default function (engine) {
     return {
-        has: joi.array().items(joi.string()).has(joi.string().valid('kc', 'ws')),
-        length: joi.array().items(joi.string()).length(2),
-        minMax: joi.array().items(joi.string()).min(1).max(3)
+        has: engine.array().items(engine.string()).has(engine.string().valid('kc', 'ws')),
+        length: engine.array().items(engine.string()).length(2),
+        minMax: engine.array().items(engine.string()).min(1).max(3)
     }
 }

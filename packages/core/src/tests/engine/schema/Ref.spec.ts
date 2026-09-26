@@ -6,7 +6,7 @@
 // @ts-nocheck
 import {describe, it} from 'node:test'
 import {expect} from '../support/Expect.js'
-import Joi from '../../../lib/validation/engine/schema/index.js'
+import Engine from '../../../lib/validation/engine/schema/index.js'
 import * as Helper from './Helper.js'
 const internals = {}
 
@@ -14,14 +14,14 @@ describe('ref', () => {
 
     it('detects references', () => {
 
-        expect(Joi.isRef(Joi.ref('a.b'))).to.be.true()
+        expect(Engine.isRef(Engine.ref('a.b'))).to.be.true()
     })
 
     it('throws when reference reaches beyond the schema root', () => {
 
-        const schema = Joi.object({
-            a: Joi.any(),
-            b: Joi.ref('...c')
+        const schema = Engine.object({
+            a: Engine.any(),
+            b: Engine.ref('...c')
         })
 
         expect(() => schema.validate({ a: 1, b: 2 })).to.throw('Invalid reference exceeds the schema root: ref:...c')
@@ -29,22 +29,22 @@ describe('ref', () => {
 
     it('reaches self', () => {
 
-        const schema = Joi.number().min(10).message('{#label} is {[.]} and that is not good enough')
+        const schema = Engine.number().min(10).message('{#label} is {[.]} and that is not good enough')
         Helper.validate(schema, [[1, false, '"value" is 1 and that is not good enough']])
     })
 
     it('reaches own property', () => {
 
-        const schema = Joi.object({
-            x: Joi.alternatives([
-                Joi.number(),
-                Joi.object({
-                    a: Joi.boolean().required()
+        const schema = Engine.object({
+            x: Engine.alternatives([
+                Engine.number(),
+                Engine.object({
+                    a: Engine.boolean().required()
                 })
                     .when('.a', {
                         is: true,
                         then: {
-                            b: Joi.string().required()
+                            b: Engine.string().required()
                         }
                     })
             ])
@@ -58,10 +58,10 @@ describe('ref', () => {
 
     it('reaches parent', () => {
 
-        const schema = Joi.object({
-            a: Joi.any(),
-            a1: Joi.ref('a'),
-            a2: Joi.ref('..a')
+        const schema = Engine.object({
+            a: Engine.any(),
+            a1: Engine.ref('a'),
+            a2: Engine.ref('..a')
         })
 
         Helper.validate(schema, [
@@ -77,11 +77,11 @@ describe('ref', () => {
 
     it('reaches grandparent', () => {
 
-        const schema = Joi.object({
-            a: Joi.any(),
+        const schema = Engine.object({
+            a: Engine.any(),
             b: {
-                a1: Joi.ref('...a'),
-                a2: Joi.ref('...a')
+                a1: Engine.ref('...a'),
+                a2: Engine.ref('...a')
             }
         })
 
@@ -128,11 +128,11 @@ describe('ref', () => {
 
     it('reaches literal', () => {
 
-        const schema = Joi.object({
-            a: Joi.any(),
+        const schema = Engine.object({
+            a: Engine.any(),
             b: {
-                '...a': Joi.any(),
-                c: Joi.ref('...a', { separator: false })
+                '...a': Engine.any(),
+                c: Engine.ref('...a', { separator: false })
             }
         })
 
@@ -175,12 +175,12 @@ describe('ref', () => {
 
     it('reaches ancestor literal', () => {
 
-        const schema = Joi.object({
-            a: Joi.any(),
-            '...a': Joi.any(),
+        const schema = Engine.object({
+            a: Engine.any(),
+            '...a': Engine.any(),
             b: {
-                '...a': Joi.any(),
-                c: Joi.ref('...a', { separator: false, ancestor: 2 })
+                '...a': Engine.any(),
+                c: Engine.ref('...a', { separator: false, ancestor: 2 })
             }
         })
 
@@ -200,27 +200,27 @@ describe('ref', () => {
 
     it('reaches any level of the relative value structure', () => {
 
-        const ix = Joi.ref('...i')
+        const ix = Engine.ref('...i')
 
-        const schema = Joi.object({
+        const schema = Engine.object({
             a: {
                 b: {
                     c: {
-                        d: Joi.any()
+                        d: Engine.any()
                     },
                     e: 2,
-                    dx: Joi.ref('c.d'),
-                    ex: Joi.ref('..e'),
+                    dx: Engine.ref('c.d'),
+                    ex: Engine.ref('..e'),
                     ix,
-                    gx: Joi.ref('....f.g'),
-                    hx: Joi.ref('....h')
+                    gx: Engine.ref('....f.g'),
+                    hx: Engine.ref('....h')
                 },
-                i: Joi.any()
+                i: Engine.any()
             },
             f: {
-                g: Joi.any()
+                g: Engine.any()
             },
-            h: Joi.any()
+            h: Engine.any()
         })
 
         Helper.validate(schema, [
@@ -283,27 +283,27 @@ describe('ref', () => {
 
     it('reaches any level of the relative value structure (ancestor option)', () => {
 
-        const ix = Joi.ref('i', { ancestor: 2 })
+        const ix = Engine.ref('i', { ancestor: 2 })
 
-        const schema = Joi.object({
+        const schema = Engine.object({
             a: {
                 b: {
                     c: {
-                        d: Joi.any()
+                        d: Engine.any()
                     },
                     e: 2,
-                    dx: Joi.ref('c.d', { ancestor: 1 }),
-                    ex: Joi.ref('e', { ancestor: 1 }),
+                    dx: Engine.ref('c.d', { ancestor: 1 }),
+                    ex: Engine.ref('e', { ancestor: 1 }),
                     ix,
-                    gx: Joi.ref('f.g', { ancestor: 3 }),
-                    hx: Joi.ref('h', { ancestor: 3 })
+                    gx: Engine.ref('f.g', { ancestor: 3 }),
+                    hx: Engine.ref('h', { ancestor: 3 })
                 },
-                i: Joi.any()
+                i: Engine.any()
             },
             f: {
-                g: Joi.any()
+                g: Engine.any()
             },
-            h: Joi.any()
+            h: Engine.any()
         })
 
         Helper.validate(schema, [
@@ -366,12 +366,12 @@ describe('ref', () => {
 
     it('reaches own key value', () => {
 
-        const object = Joi.object().schema('object')
-        const schema = Joi.object({
-            key: Joi.object().when('.', {
-                is: Joi.object().schema(),
+        const object = Engine.object().schema('object')
+        const schema = Engine.object({
+            key: Engine.object().when('.', {
+                is: Engine.object().schema(),
                 then: object,
-                otherwise: Joi.object().pattern(/.*/, object)
+                otherwise: Engine.object().pattern(/.*/, object)
             })
                 .required()
         })
@@ -389,15 +389,15 @@ describe('ref', () => {
                     type: 'object'
                 }
             }],
-            [{ key: Joi.number() }, false, {
-                message: '"key" must be a Joi schema of object type',
+            [{ key: Engine.number() }, false, {
+                message: '"key" must be a schema of object type',
                 type: 'object.schema',
                 path: ['key'],
                 context: {
                     key: 'key',
                     label: 'key',
                     type: 'object',
-                    value: Joi.number()
+                    value: Engine.number()
                 }
             }],
             [{ key: { a: 1 } }, false, {
@@ -412,7 +412,7 @@ describe('ref', () => {
                 }
             }],
             [{ key: { a: {} } }, false, {
-                message: '"key.a" must be a Joi schema of object type',
+                message: '"key.a" must be a schema of object type',
                 type: 'object.schema',
                 path: ['key', 'a'],
                 context: {
@@ -427,16 +427,16 @@ describe('ref', () => {
 
     it('reaches into set and map', () => {
 
-        const schema = Joi.object({
+        const schema = Engine.object({
             a: {
-                b: Joi.array()
+                b: Engine.array()
                     .items({
-                        x: Joi.number(),
-                        y: Joi.object().cast('map')
+                        x: Engine.number(),
+                        y: Engine.object().cast('map')
                     })
                     .cast('set')
             },
-            d: Joi.ref('a.b.2.y.w', { iterables: true })
+            d: Engine.ref('a.b.2.y.w', { iterables: true })
         })
 
         const value = {
@@ -477,11 +477,11 @@ describe('ref', () => {
 
     it('reaches root', () => {
 
-        const schema = Joi.object({
-            a: Joi.any(),
+        const schema = Engine.object({
+            a: Engine.any(),
             b: {
-                c: Joi.ref('/a'),
-                d: Joi.ref('@a', { prefix: { root: '@' } })
+                c: Engine.ref('/a'),
+                d: Engine.ref('@a', { prefix: { root: '@' } })
             }
         })
 
@@ -520,16 +520,16 @@ describe('ref', () => {
 
     it('errors on missing iterables flag when reaching into set and map', () => {
 
-        const schema = Joi.object({
+        const schema = Engine.object({
             a: {
-                b: Joi.array()
+                b: Engine.array()
                     .items({
-                        x: Joi.number(),
-                        y: Joi.object().cast('map')
+                        x: Engine.number(),
+                        y: Engine.object().cast('map')
                     })
                     .cast('set')
             },
-            d: Joi.ref('a.b.2.y.w')
+            d: Engine.ref('a.b.2.y.w')
         })
 
         const value = {
@@ -553,51 +553,51 @@ describe('ref', () => {
 
     it('errors on invalid separator)', () => {
 
-        expect(() => Joi.ref('x', { separator: 0 })).to.throw('Invalid separator')
-        expect(() => Joi.ref('x', { separator: '' })).to.throw('Invalid separator')
-        expect(() => Joi.ref('x', { separator: '$$' })).to.throw('Invalid separator')
+        expect(() => Engine.ref('x', { separator: 0 })).to.throw('Invalid separator')
+        expect(() => Engine.ref('x', { separator: '' })).to.throw('Invalid separator')
+        expect(() => Engine.ref('x', { separator: '$$' })).to.throw('Invalid separator')
     })
 
     it('errors on prefix + ancestor option)', () => {
 
-        expect(() => Joi.ref('..x', { ancestor: 0 })).to.throw('Cannot combine prefix with ancestor option')
+        expect(() => Engine.ref('..x', { ancestor: 0 })).to.throw('Cannot combine prefix with ancestor option')
     })
 
     it('errors on root with ancestor prefix', () => {
 
-        expect(() => Joi.ref('/.x')).to.throw('Cannot specify relative path with root prefix')
-        expect(() => Joi.ref('/.x', { separator: false })).to.not.throw()
+        expect(() => Engine.ref('/.x')).to.throw('Cannot specify relative path with root prefix')
+        expect(() => Engine.ref('/.x', { separator: false })).to.not.throw()
     })
 
     it('errors on ancestor circular dependency', () => {
 
         const schema = {
             a: {
-                x: Joi.any(),
+                x: Engine.any(),
                 b: {
                     c: {
-                        d: Joi.ref('....b.x')
+                        d: Engine.ref('....b.x')
                     }
                 }
             },
             b: {
-                x: Joi.any(),
+                x: Engine.any(),
                 y: {
                     z: {
-                        o: Joi.ref('....a.x')
+                        o: Engine.ref('....a.x')
                     }
                 }
             }
         }
 
-        expect(() => Joi.compile(schema)).to.throw('Item cannot come after itself: b (a.b)')
+        expect(() => Engine.compile(schema)).to.throw('Item cannot come after itself: b (a.b)')
     })
 
     it('references array length', () => {
 
-        const ref = Joi.ref('length')
-        const schema = Joi.object({
-            x: Joi.array().items(Joi.number().valid(ref))
+        const ref = Engine.ref('length')
+        const schema = Engine.object({
+            x: Engine.array().items(Engine.number().valid(ref))
         })
 
         Helper.validate(schema, [
@@ -619,11 +619,11 @@ describe('ref', () => {
 
     it('splits when based on own array length', () => {
 
-        const pair = Joi.array().items(2)
-        const lucky = Joi.array().items(7)
+        const pair = Engine.array().items(2)
+        const lucky = Engine.array().items(7)
 
-        const schema = Joi.object({
-            x: Joi.array().when('.length', { is: 2, then: pair, otherwise: lucky })
+        const schema = Engine.object({
+            x: Engine.array().when('.length', { is: 2, then: pair, otherwise: lucky })
         })
 
         Helper.validate(schema, [
@@ -641,8 +641,8 @@ describe('ref', () => {
 
     it('references array item', () => {
 
-        const ref = Joi.ref('0')
-        const schema = Joi.array().ordered(Joi.number(), Joi.number().min(ref))
+        const ref = Engine.ref('0')
+        const schema = Engine.array().ordered(Engine.number(), Engine.number().min(ref))
 
         Helper.validate(schema, [
             [[1, 2], true],
@@ -658,9 +658,9 @@ describe('ref', () => {
 
     it('references object own child', () => {
 
-        const ref = Joi.ref('.length')
-        const schema = Joi.object({
-            length: Joi.number().required()
+        const ref = Engine.ref('.length')
+        const schema = Engine.object({
+            length: Engine.number().required()
         })
             .length(ref)
             .unknown()
@@ -685,10 +685,10 @@ describe('ref', () => {
 
     it('uses ref as a valid value', () => {
 
-        const ref = Joi.ref('b')
-        const schema = Joi.object({
+        const ref = Engine.ref('b')
+        const schema = Engine.object({
             a: ref,
-            b: Joi.any()
+            b: Engine.any()
         })
 
         Helper.validate(schema, [[{ a: 5, b: 6 }, false, {
@@ -714,10 +714,10 @@ describe('ref', () => {
     it('sets adjust function', () => {
 
         const adjust = (v) => 2 * v
-        const ref = Joi.ref('b', { adjust })
-        const schema = Joi.object({
+        const ref = Engine.ref('b', { adjust })
+        const schema = Engine.object({
             a: ref,
-            b: Joi.number()
+            b: Engine.number()
         })
 
         Helper.validate(schema, [
@@ -756,10 +756,10 @@ describe('ref', () => {
     it('sets map', () => {
 
         const map = [[5, 10]]
-        const ref = Joi.ref('b', { map })
-        const schema = Joi.object({
+        const ref = Engine.ref('b', { map })
+        const schema = Engine.object({
             a: ref,
-            b: Joi.number()
+            b: Engine.number()
         })
 
         Helper.validate(schema, [
@@ -797,10 +797,10 @@ describe('ref', () => {
 
     it('uses ref as a valid value (empty key)', () => {
 
-        const ref = Joi.ref('')
-        const schema = Joi.object({
+        const ref = Engine.ref('')
+        const schema = Engine.object({
             a: ref,
-            '': Joi.any()
+            '': Engine.any()
         })
 
         Helper.validate(schema, [
@@ -824,11 +824,11 @@ describe('ref', () => {
 
     it('uses ref with nested keys as a valid value', () => {
 
-        const ref = Joi.ref('b.c')
-        const schema = Joi.object({
+        const ref = Engine.ref('b.c')
+        const schema = Engine.object({
             a: ref,
             b: {
-                c: Joi.any()
+                c: Engine.any()
             }
         })
 
@@ -862,20 +862,20 @@ describe('ref', () => {
 
     it('uses ref with combined nested keys in sub child', () => {
 
-        const ref = Joi.ref('b.c')
+        const ref = Engine.ref('b.c')
         expect(ref.root).to.equal('b')
 
-        const schema = Joi.object({
+        const schema = Engine.object({
             a: ref,
             b: {
-                c: Joi.any()
+                c: Engine.any()
             }
         })
 
         const input = { a: 5, b: { c: 5 } }
         Helper.validate(schema, [[input, true]])
 
-        const parent = Joi.object({
+        const parent = Engine.object({
             e: schema
         })
 
@@ -884,13 +884,13 @@ describe('ref', () => {
 
     it('uses ref reach options', () => {
 
-        const ref = Joi.ref('b/c', { separator: '/' })
+        const ref = Engine.ref('b/c', { separator: '/' })
         expect(ref.root).to.equal('b')
 
-        const schema = Joi.object({
+        const schema = Engine.object({
             a: ref,
             b: {
-                c: Joi.any()
+                c: Engine.any()
             }
         })
 
@@ -899,19 +899,19 @@ describe('ref', () => {
 
     it('ignores the order in which keys are defined', () => {
 
-        const ab = Joi.object({
+        const ab = Engine.object({
             a: {
-                c: Joi.number()
+                c: Engine.number()
             },
-            b: Joi.ref('a.c')
+            b: Engine.ref('a.c')
         })
 
         Helper.validate(ab, [[{ a: { c: '5' }, b: 5 }, true, { a: { c: 5 }, b: 5 }]])
 
-        const ba = Joi.object({
-            b: Joi.ref('a.c'),
+        const ba = Engine.object({
+            b: Engine.ref('a.c'),
             a: {
-                c: Joi.number()
+                c: Engine.number()
             }
         })
 
@@ -920,9 +920,9 @@ describe('ref', () => {
 
     it('uses ref as default value', async () => {
 
-        const schema = Joi.object({
-            a: Joi.any().default(Joi.ref('b')),
-            b: Joi.any()
+        const schema = Engine.object({
+            a: Engine.any().default(Engine.ref('b')),
+            b: Engine.any()
         })
 
         const value = await schema.validateAsync({ b: 6 })
@@ -931,9 +931,9 @@ describe('ref', () => {
 
     it('uses ref mixed with normal values', async () => {
 
-        const schema = Joi.object({
-            a: Joi.number().valid(1, Joi.ref('b')),
-            b: Joi.any()
+        const schema = Engine.object({
+            a: Engine.number().valid(1, Engine.ref('b')),
+            b: Engine.any()
         })
 
         expect(await schema.validateAsync({ a: 6, b: 6 })).to.equal({ a: 6, b: 6 })
@@ -943,17 +943,17 @@ describe('ref', () => {
 
     it('uses ref as default value regardless of order', async () => {
 
-        const ab = Joi.object({
-            a: Joi.any().default(Joi.ref('b')),
-            b: Joi.number()
+        const ab = Engine.object({
+            a: Engine.any().default(Engine.ref('b')),
+            b: Engine.number()
         })
 
         const value = await ab.validateAsync({ b: '6' })
         expect(value).to.equal({ a: 6, b: 6 })
 
-        const ba = Joi.object({
-            b: Joi.number(),
-            a: Joi.any().default(Joi.ref('b'))
+        const ba = Engine.object({
+            b: Engine.number(),
+            a: Engine.any().default(Engine.ref('b'))
         })
 
         const value2 = await ba.validateAsync({ b: '6' })
@@ -962,14 +962,14 @@ describe('ref', () => {
 
     it('ignores the order in which keys are defined with alternatives', () => {
 
-        const ref1 = Joi.ref('a.c')
-        const ref2 = Joi.ref('c')
-        const a = Joi.object({ c: Joi.number() })
-        const b = Joi.alternatives([ref1, ref2])
-        const c = Joi.number()
+        const ref1 = Engine.ref('a.c')
+        const ref2 = Engine.ref('c')
+        const a = Engine.object({ c: Engine.number() })
+        const b = Engine.alternatives([ref1, ref2])
+        const c = Engine.number()
 
         for (const schema of [{ a, b, c }, { b, a, c }, { b, c, a }, { a, c, b }, { c, a, b }, { c, b, a }]) {
-            Helper.validate(Joi.object().keys(schema), [
+            Helper.validate(Engine.object().keys(schema), [
                 [{ a: {} }, true],
                 [{ a: { c: '5' }, b: 5 }, true, { a: { c: 5 }, b: 5 }],
                 [{ a: { c: '5' }, b: 6, c: '6' }, true, { a: { c: 5 }, b: 6, c: 6 }],
@@ -990,9 +990,9 @@ describe('ref', () => {
 
     it('uses context as default value', async () => {
 
-        const schema = Joi.object({
-            a: Joi.any().default(Joi.ref('$x')),
-            b: Joi.any()
+        const schema = Engine.object({
+            a: Engine.any().default(Engine.ref('$x')),
+            b: Engine.any()
         })
 
         const value = await schema.validateAsync({ b: 6 }, { context: { x: 22 } })
@@ -1001,9 +1001,9 @@ describe('ref', () => {
 
     it('uses context as default value with custom prefix', async () => {
 
-        const schema = Joi.object({
-            a: Joi.any().default(Joi.ref('@x', { prefix: { global: '@' } })),
-            b: Joi.any()
+        const schema = Engine.object({
+            a: Engine.any().default(Engine.ref('@x', { prefix: { global: '@' } })),
+            b: Engine.any()
         })
 
         const value = await schema.validateAsync({ b: 6 }, { context: { x: 22 } })
@@ -1012,10 +1012,10 @@ describe('ref', () => {
 
     it('uses context as a valid value', () => {
 
-        const ref = Joi.ref('$x')
-        const schema = Joi.object({
+        const ref = Engine.ref('$x')
+        const schema = Engine.object({
             a: ref,
-            b: Joi.any()
+            b: Engine.any()
         })
 
         Helper.validate(schema, { context: { x: 22 } }, [
@@ -1045,8 +1045,8 @@ describe('ref', () => {
 
     it('uses context in when condition', () => {
 
-        const schema = Joi.object({
-            a: Joi.boolean().when('$x', { is: Joi.exist(), otherwise: Joi.forbidden() })
+        const schema = Engine.object({
+            a: Engine.boolean().when('$x', { is: Engine.exist(), otherwise: Engine.forbidden() })
         })
 
         Helper.validate(schema, [
@@ -1095,8 +1095,8 @@ describe('ref', () => {
 
     it('uses nested context in when condition', () => {
 
-        const schema = Joi.object({
-            a: Joi.boolean().when('$x.y', { is: Joi.exist(), otherwise: Joi.forbidden() })
+        const schema = Engine.object({
+            a: Engine.boolean().when('$x.y', { is: Engine.exist(), otherwise: Engine.forbidden() })
         })
 
         Helper.validate(schema, [
@@ -1177,16 +1177,16 @@ describe('ref', () => {
 
     it('describes schema with ref', () => {
 
-        const schema = Joi
-            .valid(Joi.ref('a.b'))
-            .invalid(Joi.ref('$b.c'))
-            .default(Joi.ref('a.b'))
+        const schema = Engine
+            .valid(Engine.ref('a.b'))
+            .invalid(Engine.ref('$b.c'))
+            .default(Engine.ref('a.b'))
             .when('a.b', {
-                is: Joi.date().min(Joi.ref('a.b')).max(Joi.ref('a.b')),
-                then: Joi.number().min(Joi.ref('a.b')).max(Joi.ref('a.b')).greater(Joi.ref('a.b')).less(Joi.ref('a.b')),
-                otherwise: Joi.object({
-                    a: Joi.string().min(Joi.ref('b.c')).max(Joi.ref('b.c')).length(Joi.ref('b.c'))
-                }).with('a', 'b').without('b', 'c').assert('a.b', Joi.ref('a.b'))
+                is: Engine.date().min(Engine.ref('a.b')).max(Engine.ref('a.b')),
+                then: Engine.number().min(Engine.ref('a.b')).max(Engine.ref('a.b')).greater(Engine.ref('a.b')).less(Engine.ref('a.b')),
+                otherwise: Engine.object({
+                    a: Engine.string().min(Engine.ref('b.c')).max(Engine.ref('b.c')).length(Engine.ref('b.c'))
+                }).with('a', 'b').without('b', 'c').assert('a.b', Engine.ref('a.b'))
             })
 
         expect(schema.describe()).to.equal({
@@ -1254,7 +1254,7 @@ describe('ref', () => {
 
         it('clones reference', () => {
 
-            const ref = Joi.ref('a.b.c')
+            const ref = Engine.ref('a.b.c')
             const clone = ref.clone()
             expect(ref).to.equal(clone)
             expect(ref).to.not.shallow.equal(clone)
@@ -1265,7 +1265,7 @@ describe('ref', () => {
 
         it('ignores global prefix when conflicts with separator', () => {
 
-            expect(Joi.ref('$a$b', { separator: '$' })).to.equal({
+            expect(Engine.ref('$a$b', { separator: '$' })).to.equal({
                 adjust: null,
                 in: false,
                 iterables: null,
@@ -1283,7 +1283,7 @@ describe('ref', () => {
 
         it('ignores local prefix when conflicts with separator', () => {
 
-            expect(Joi.ref('#a#b', { separator: '#' })).to.equal({
+            expect(Engine.ref('#a#b', { separator: '#' })).to.equal({
                 adjust: null,
                 in: false,
                 iterables: null,
@@ -1304,22 +1304,22 @@ describe('ref', () => {
 
         it('throws when key is missing', () => {
 
-            expect(() => Joi.ref(5)).to.throw('Invalid reference key: 5')
+            expect(() => Engine.ref(5)).to.throw('Invalid reference key: 5')
         })
 
         it('finds root with default separator', () => {
 
-            expect(Joi.ref('a.b.c').root).to.equal('a')
+            expect(Engine.ref('a.b.c').root).to.equal('a')
         })
 
         it('finds root with default separator and options', () => {
 
-            expect(Joi.ref('a.b.c', {}).root).to.equal('a')
+            expect(Engine.ref('a.b.c', {}).root).to.equal('a')
         })
 
         it('finds root with custom separator', () => {
 
-            expect(Joi.ref('a+b+c', { separator: '+' }).root).to.equal('a')
+            expect(Engine.ref('a+b+c', { separator: '+' }).root).to.equal('a')
         })
     })
 })

@@ -3,15 +3,15 @@
  * The schemas whose descriptions are the baseline of the parser tests. Not type-checked.
  */
 // @ts-nocheck
-export default function (joi) {
+export default function (engine) {
     return {
-        greaterLess: joi.number().greater(0).less(200),
-        integer: joi.number().integer(),
-        integer_const: joi.number().integer().valid(1),
-        minMax: joi.number().integer().min(6).max(21),
-        multiple: joi.number().multiple(10),
-        negative: joi.number().negative(),
-        positive: joi.number().positive(),
-        precision: joi.number().precision(2)
+        greaterLess: engine.number().greater(0).less(200),
+        integer: engine.number().integer(),
+        integer_const: engine.number().integer().valid(1),
+        minMax: engine.number().integer().min(6).max(21),
+        multiple: engine.number().multiple(10),
+        negative: engine.number().negative(),
+        positive: engine.number().positive(),
+        precision: engine.number().precision(2)
     }
 }

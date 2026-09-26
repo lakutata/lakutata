@@ -2,20 +2,20 @@
  * Derived from joi-to-json 5.0.0 lib/parsers/json-draft-04.js (MIT, see THIRD_PARTY_NOTICES.md)
  */
 import * as _ from '../helpers.js'
-import type {Definitions, JoiDependency, JoiSpec, JsonSchema, ParserOptions, ParserSettings} from '../model.js'
-import {JoiJsonSchemaParser} from './json.js'
+import type {Definitions, SpecDependency, SchemaSpec, JsonSchema, ParserOptions, ParserSettings} from '../model.js'
+import {JsonSchemaParser} from './json.js'
 
 /**
- * Converts joi schema descriptions into JSON schemas (draft 04)
+ * Converts schema descriptions into JSON schemas (draft 04)
  */
-export class JoiJsonDraftSchemaParser extends JoiJsonSchemaParser {
+export class JsonDraft04SchemaParser extends JsonSchemaParser {
 
     constructor(opts: ParserOptions = {}) {
         super(_.merge<ParserSettings>({
             $schema: 'http://json-schema.org/draft-04/schema#',
             logicalOpParser: {
                 xor: null,
-                with: function (schema: JsonSchema, dependency: JoiDependency): void {
+                with: function (schema: JsonSchema, dependency: SpecDependency): void {
                     schema.dependencies = schema.dependencies || {}
                     schema.dependencies[dependency.key as string] = dependency.peers
                 },
@@ -28,7 +28,7 @@ export class JoiJsonDraftSchemaParser extends JoiJsonSchemaParser {
         return false
     }
 
-    protected _setNumberFieldProperties(fieldSchema: JsonSchema, fieldDefn: JoiSpec): void {
+    protected _setNumberFieldProperties(fieldSchema: JsonSchema, fieldDefn: SchemaSpec): void {
         super._setNumberFieldProperties(fieldSchema, fieldDefn)
         if (typeof fieldSchema.exclusiveMinimum !== 'undefined') {
             fieldSchema.minimum = fieldSchema.exclusiveMinimum
@@ -46,12 +46,12 @@ export class JoiJsonDraftSchemaParser extends JoiJsonSchemaParser {
         return '#/definitions'
     }
 
-    protected _setArrayFieldProperties(fieldSchema: JsonSchema, fieldDefn: JoiSpec, definitions: Definitions, level: number): void {
+    protected _setArrayFieldProperties(fieldSchema: JsonSchema, fieldDefn: SchemaSpec, definitions: Definitions, level: number): void {
         super._setArrayFieldProperties(fieldSchema, fieldDefn, definitions, level)
         delete fieldSchema.contains
     }
 
-    protected _setConst(fieldSchema: JsonSchema, fieldDefn: JoiSpec): void {
+    protected _setConst(fieldSchema: JsonSchema, fieldDefn: SchemaSpec): void {
         super._setConst(fieldSchema, fieldDefn)
         if (typeof fieldSchema.const !== 'undefined') {
             if (fieldSchema.const === null) {

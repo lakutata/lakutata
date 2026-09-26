@@ -71,6 +71,11 @@ library is ported from [hapijs/code](https://github.com/hapijs/code) 9.0.3 (4250
     as key (only primitives are cached); `assertOptions()` also takes a single key (matched as a substring).
 - Behavior changes after the rewrite:
   - The Standard Schema vendor of the schemas is `'lakutata'` (upstream: `'joi'`).
+  - Nothing refers to joi anymore (the engine is lakutata's): internal names follow the engine (the root object
+    is `Engine`, the tracer is named `'lakutata'`), and the messages are reworded: `object.refType` "must be a
+    reference", `object.schema` "must be a schema of {type} type", "Cannot mix different versions of validation
+    schemas", "Must be invoked on a validation root.", "Object schema cannot be a schema object", "adjuster function
+    failed to return a schema"; joi-to-json's "Not a schema object.". The ported tests expect the new messages.
 - Performance changes (same behavior, covered by `src/tests/engine/schema/Caching.spec.ts`):
   - The validation settings (defaults merged with the validate() options) are reused for options which cannot change:
     frozen, with primitive values only. Upstream merges them on every validation.

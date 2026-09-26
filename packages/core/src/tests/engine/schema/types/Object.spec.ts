@@ -6,7 +6,7 @@
 // @ts-nocheck
 import {describe, it} from 'node:test'
 import {expect} from '../../support/Expect.js'
-import Joi from '../../../../lib/validation/engine/schema/index.js'
+import Engine from '../../../../lib/validation/engine/schema/index.js'
 import * as Helper from '../Helper.js'
 const internals = {}
 
@@ -14,7 +14,7 @@ describe('object', () => {
 
     it('validates an object', () => {
 
-        const schema = Joi.object().required()
+        const schema = Engine.object().required()
         Helper.validate(schema, [
             [{}, true],
             [{ hi: true }, true],
@@ -29,14 +29,14 @@ describe('object', () => {
 
     it('validates basic object', () => {
 
-        const schema = Joi.object({
-            a: Joi.number().min(0).max(3),
-            b: Joi.string().valid('a', 'b', 'c'),
-            c: Joi.string().email().optional()
+        const schema = Engine.object({
+            a: Engine.number().min(0).max(3),
+            b: Engine.string().valid('a', 'b', 'c'),
+            c: Engine.string().email().optional()
         }).without('a', 'none')
 
-        expect(Joi.isSchema(schema)).to.be.true()
-        expect(Joi.isSchema({})).to.be.false()
+        expect(Engine.isSchema(schema)).to.be.true()
+        expect(Engine.isSchema({})).to.be.false()
 
         const obj = {
             a: 1,
@@ -49,8 +49,8 @@ describe('object', () => {
 
     it('returns object reference when no rules specified', () => {
 
-        const schema = Joi.object({
-            a: Joi.object()
+        const schema = Engine.object({
+            a: Engine.object()
         })
 
         const item = { x: 5 }
@@ -59,19 +59,19 @@ describe('object', () => {
 
     it('retains ignored values', () => {
 
-        const schema = Joi.object()
+        const schema = Engine.object()
         Helper.validate(schema, [[{ a: 5 }, true, { a: 5 }]])
     })
 
     it('retains skipped values', () => {
 
-        const schema = Joi.object({ b: 5 }).unknown(true)
+        const schema = Engine.object({ b: 5 }).unknown(true)
         Helper.validate(schema, [[{ b: 5, a: 5 }, true, { a: 5, b: 5 }]])
     })
 
     it('retains symbols', () => {
 
-        const schema = Joi.object({ a: Joi.number() })
+        const schema = Engine.object({ a: Engine.number() })
 
         const symbol = Symbol()
         Helper.validate(schema, [[{ [symbol]: 5, a: 5 }, true, { [symbol]: 5, a: 5 }]])
@@ -79,7 +79,7 @@ describe('object', () => {
 
     it('retains non-enumerable', () => {
 
-        const schema = Joi.object({ a: Joi.number() })
+        const schema = Engine.object({ a: Engine.number() })
 
         const obj = { a: 100 }
         Object.defineProperty(obj, 'test', { value: 42, enumerable: false })
@@ -89,7 +89,7 @@ describe('object', () => {
 
     it('retains prototype', () => {
 
-        const schema = Joi.object({ a: Joi.number() })
+        const schema = Engine.object({ a: Engine.number() })
 
         const Test = class {
             constructor() {
@@ -103,39 +103,39 @@ describe('object', () => {
 
     it('allows any key when schema is undefined', () => {
 
-        Helper.validate(Joi.object(), [[{ a: 4 }, true]])
-        Helper.validate(Joi.object(undefined), [[{ a: 4 }, true]])
+        Helper.validate(Engine.object(), [[{ a: 4 }, true]])
+        Helper.validate(Engine.object(undefined), [[{ a: 4 }, true]])
     })
 
     it('allows any key when schema is null', () => {
 
-        Helper.validate(Joi.object(null), [[{ a: 4 }, true]])
+        Helper.validate(Engine.object(null), [[{ a: 4 }, true]])
     })
 
     it('throws on invalid object schema', () => {
 
         expect(() => {
 
-            Joi.object(4)
+            Engine.object(4)
         }).to.throw('Object schema must be a valid object')
     })
 
-    it('throws on joi object schema', () => {
+    it('throws on engine object schema', () => {
 
         expect(() => {
 
-            Joi.object(Joi.object())
-        }).to.throw('Object schema cannot be a joi schema')
+            Engine.object(Engine.object())
+        }).to.throw('Object schema cannot be a schema object')
     })
 
     it('skips conversion when value is undefined', () => {
 
-        Helper.validate(Joi.object({ a: Joi.object() }), [[undefined, true, undefined]])
+        Helper.validate(Engine.object({ a: Engine.object() }), [[undefined, true, undefined]])
     })
 
     it('errors on array', () => {
 
-        Helper.validate(Joi.object(), [[[1, 2, 3], false, {
+        Helper.validate(Engine.object(), [[[1, 2, 3], false, {
             message: '"value" must be of type object',
             path: [],
             type: 'object.base',
@@ -145,7 +145,7 @@ describe('object', () => {
 
     it('should prevent extra keys from existing by default', () => {
 
-        const schema = Joi.object({ item: Joi.string().required() }).required()
+        const schema = Engine.object({ item: Engine.string().required() }).required()
         Helper.validate(schema, [
             [{ item: 'something' }, true],
             [{ item: 'something', item2: 'something else' }, false, {
@@ -165,7 +165,7 @@ describe('object', () => {
 
     it('validates count when min is set', () => {
 
-        const schema = Joi.object().min(3)
+        const schema = Engine.object().min(3)
         Helper.validate(schema, [
             [{ item: 'something' }, false, {
                 message: '"value" must have at least 3 keys',
@@ -195,7 +195,7 @@ describe('object', () => {
 
     it('validates count when max is set', () => {
 
-        const schema = Joi.object().max(2)
+        const schema = Engine.object().max(2)
         Helper.validate(schema, [
             [{ item: 'something' }, true],
             [{ item: 'something', item2: 'something else' }, true],
@@ -220,7 +220,7 @@ describe('object', () => {
 
     it('validates count when min and max is set', () => {
 
-        const schema = Joi.object().max(3).min(2)
+        const schema = Engine.object().max(3).min(2)
         Helper.validate(schema, [
             [{ item: 'something' }, false, {
                 message: '"value" must have at least 2 keys',
@@ -256,7 +256,7 @@ describe('object', () => {
 
     it('validates count when length is set', () => {
 
-        const schema = Joi.object().length(2)
+        const schema = Engine.object().length(2)
         Helper.validate(schema, [
             [{ item: 'something' }, false, {
                 message: '"value" must have 2 keys',
@@ -286,7 +286,7 @@ describe('object', () => {
 
     it('validates constructor when type is set', () => {
 
-        const schema = Joi.object().instance(RegExp)
+        const schema = Engine.object().instance(RegExp)
         const d = new Date()
         Helper.validate(schema, [
             [{ item: 'something' }, false, {
@@ -314,10 +314,10 @@ describe('object', () => {
 
     it('should strip unknown values when stripUnknown === true', () => {
 
-        const schema = Joi.object({
-            itemName: Joi.string().required(),
-            nestedItem: Joi.object({
-                nestedItemName: Joi.string().required()
+        const schema = Engine.object({
+            itemName: Engine.string().required(),
+            nestedItem: Engine.object({
+                nestedItemName: Engine.string().required()
             }).required()
         }).required()
         const prefs = { abortEarly: false, stripUnknown: true }
@@ -353,8 +353,8 @@ describe('object', () => {
 
     it('traverses an object and validate all properties in the top level', () => {
 
-        const schema = Joi.object({
-            num: Joi.number()
+        const schema = Engine.object({
+            num: Engine.number()
         })
 
         Helper.validate(schema, [
@@ -370,10 +370,10 @@ describe('object', () => {
 
     it('traverses an object and child objects and validate all properties', () => {
 
-        const schema = Joi.object({
-            num: Joi.number(),
-            obj: Joi.object({
-                item: Joi.string()
+        const schema = Engine.object({
+            num: Engine.number(),
+            obj: Engine.object({
+                item: Engine.string()
             })
         })
 
@@ -397,11 +397,11 @@ describe('object', () => {
 
     it('traverses an object several levels', () => {
 
-        const schema = Joi.object({
-            obj: Joi.object({
-                obj: Joi.object({
-                    obj: Joi.object({
-                        item: Joi.boolean()
+        const schema = Engine.object({
+            obj: Engine.object({
+                obj: Engine.object({
+                    obj: Engine.object({
+                        item: Engine.boolean()
                     })
                 })
             })
@@ -429,11 +429,11 @@ describe('object', () => {
 
     it('traverses an object several levels with required levels', () => {
 
-        const schema = Joi.object({
-            obj: Joi.object({
-                obj: Joi.object({
-                    obj: Joi.object({
-                        item: Joi.boolean()
+        const schema = Engine.object({
+            obj: Engine.object({
+                obj: Engine.object({
+                    obj: Engine.object({
+                        item: Engine.boolean()
                     })
                 }).required()
             })
@@ -466,13 +466,13 @@ describe('object', () => {
         ])
     })
 
-    it('traverses an object several levels with required levels (without Joi.obj())', () => {
+    it('traverses an object several levels with required levels (without Engine.obj())', () => {
 
-        const schema = Joi.object({
+        const schema = Engine.object({
             obj: {
                 obj: {
                     obj: {
-                        item: Joi.boolean().required()
+                        item: Engine.boolean().required()
                     }
                 }
             }
@@ -507,7 +507,7 @@ describe('object', () => {
 
     it('errors on unknown keys when functions allows', () => {
 
-        const schema = Joi.object({ a: Joi.number() }).prefs({ skipFunctions: true })
+        const schema = Engine.object({ a: Engine.number() }).prefs({ skipFunctions: true })
         const obj = { a: 5, b: 'value' }
         Helper.validate(schema, [[obj, false, {
             message: '"b" is not allowed',
@@ -519,9 +519,9 @@ describe('object', () => {
 
     it('validates both valid() and with()', () => {
 
-        const schema = Joi.object({
-            first: Joi.valid('value'),
-            second: Joi.any()
+        const schema = Engine.object({
+            first: Engine.valid('value'),
+            second: Engine.any()
         }).with('first', 'second')
 
         Helper.validate(schema, [
@@ -543,9 +543,9 @@ describe('object', () => {
 
     it('validates referenced arrays in valid()', () => {
 
-        const ref = Joi.in('$x')
-        const schema = Joi.object({
-            foo: Joi.valid(ref)
+        const ref = Engine.in('$x')
+        const schema = Engine.object({
+            foo: Engine.valid(ref)
         })
 
         Helper.validate(schema, { context: { x: 'bar' } }, [
@@ -586,7 +586,7 @@ describe('object', () => {
 
     it('errors on unknown nested keys with the correct path', () => {
 
-        const schema = Joi.object({ a: Joi.object().keys({}) })
+        const schema = Engine.object({ a: Engine.object().keys({}) })
         const obj = { a: { b: 'value' } }
         Helper.validate(schema, [[obj, false, {
             message: '"a.b" is not allowed',
@@ -598,7 +598,7 @@ describe('object', () => {
 
     it('errors on unknown nested keys with the correct path at the root level', () => {
 
-        const schema = Joi.object({ a: Joi.object().keys({}) })
+        const schema = Engine.object({ a: Engine.object().keys({}) })
         const obj = { c: 'hello' }
         Helper.validate(schema, [[obj, false, {
             message: '"c" is not allowed',
@@ -611,8 +611,8 @@ describe('object', () => {
     it('should work on prototype-less objects', () => {
 
         const input = Object.create(null)
-        const schema = Joi.object().keys({
-            a: Joi.number()
+        const schema = Engine.object().keys({
+            a: Engine.number()
         })
 
         input.a = 1337
@@ -622,7 +622,7 @@ describe('object', () => {
 
     it('should be able to use rename safely with a fake hasOwnProperty', () => {
 
-        const schema = Joi.object()
+        const schema = Engine.object()
             .rename('b', 'a')
 
         const input = { b: 2, a: 1, hasOwnProperty: 'foo' }
@@ -638,7 +638,7 @@ describe('object', () => {
     it('should be able to use object.with() safely with a fake hasOwnProperty', () => {
 
         const input = { a: 1, hasOwnProperty: 'foo' }
-        const schema = Joi.object({ a: 1 }).with('a', 'b')
+        const schema = Engine.object({ a: 1 }).with('a', 'b')
 
         Helper.validate(schema, { abortEarly: false }, [[input, false, {
             message: '"hasOwnProperty" is not allowed. "a" missing required peer "b"',
@@ -674,18 +674,18 @@ describe('object', () => {
     it('aborts early on unknown keys', () => {
 
         const input = { a: 1, unknown: 2 }
-        const schema = Joi.object({ a: 1 }).with('a', 'b')
+        const schema = Engine.object({ a: 1 }).with('a', 'b')
 
         Helper.validate(schema, [[input, false, '"unknown" is not allowed']])
     })
 
     it('applies labels with nested objects', () => {
 
-        const schema = Joi.object({
-            a: Joi.number().label('first'),
-            b: Joi.object({
-                c: Joi.string().label('second'),
-                d: Joi.number()
+        const schema = Engine.object({
+            a: Engine.number().label('first'),
+            b: Engine.object({
+                c: Engine.string().label('second'),
+                d: Engine.number()
             })
         })
             .with('a', ['b.c'])
@@ -708,12 +708,12 @@ describe('object', () => {
     it('errors on unknown key', () => {
 
         const config = {
-            auth: Joi.object({
-                mode: Joi.string().valid('required', 'optional', 'try').allow(null)
+            auth: Engine.object({
+                mode: Engine.string().valid('required', 'optional', 'try').allow(null)
             }).allow(null)
         }
 
-        Helper.validate(Joi.compile(config), [
+        Helper.validate(Engine.compile(config), [
             [{ auth: { unknown: true } }, false, '"auth.unknown" is not allowed'],
             [{ something: false }, false, '"something" is not allowed']
         ])
@@ -723,7 +723,7 @@ describe('object', () => {
 
         it('throws when references are passed', () => {
 
-            expect(() => Joi.object().and(Joi.ref('test'))).to.throw('and peers must be strings')
+            expect(() => Engine.object().and(Engine.ref('test'))).to.throw('and peers must be strings')
         })
     })
 
@@ -731,10 +731,10 @@ describe('object', () => {
 
         it('validates and()', () => {
 
-            const schema = Joi.object({
-                txt: Joi.string(),
-                upc: Joi.string().allow(null, ''),
-                code: Joi.number()
+            const schema = Engine.object({
+                txt: Engine.string(),
+                upc: Engine.string().allow(null, ''),
+                code: Engine.number()
             }).and('txt', 'upc', 'code')
 
             const err = schema.validate({ txt: 'x' }, { abortEarly: false }).error
@@ -953,9 +953,9 @@ describe('object', () => {
 
         it('applies labels', () => {
 
-            const schema = Joi.object({
-                a: Joi.number().label('first'),
-                b: Joi.string().label('second')
+            const schema = Engine.object({
+                a: Engine.number().label('first'),
+                b: Engine.string().label('second')
             }).and('a', 'b')
             Helper.validate(schema, [[{ a: 1 }, false, {
                 message: '"value" contains [first] without its required peers [second]',
@@ -974,10 +974,10 @@ describe('object', () => {
 
         it('allows nested objects', () => {
 
-            const schema = Joi.object({
-                a: Joi.string(),
-                b: Joi.object({ c: Joi.string(), d: Joi.number() }),
-                d: Joi.number()
+            const schema = Engine.object({
+                a: Engine.string(),
+                b: Engine.object({ c: Engine.string(), d: Engine.number() }),
+                d: Engine.number()
             }).and('a', 'b.c')
 
             const sampleObject = { a: 'test', b: { c: 'test2' } }
@@ -1003,10 +1003,10 @@ describe('object', () => {
 
         it('allows nested keys in functions', () => {
 
-            const schema = Joi.object({
-                a: Joi.string(),
-                b: Joi.function().keys({ c: Joi.string(), d: Joi.number() }),
-                d: Joi.number()
+            const schema = Engine.object({
+                a: Engine.string(),
+                b: Engine.function().keys({ c: Engine.string(), d: Engine.number() }),
+                d: Engine.number()
             })
                 .and('a', 'b.c')
 
@@ -1018,11 +1018,11 @@ describe('object', () => {
 
         it('applies labels with nested objects', () => {
 
-            const schema = Joi.object({
-                a: Joi.number().label('first'),
-                b: Joi.object({
-                    c: Joi.string().label('second'),
-                    d: Joi.number()
+            const schema = Engine.object({
+                a: Engine.number().label('first'),
+                b: Engine.object({
+                    c: Engine.string().label('second'),
+                    d: Engine.number()
                 })
             })
                 .and('a', 'b.c')
@@ -1046,11 +1046,11 @@ describe('object', () => {
 
         it('applies labels with invalid nested peers', () => {
 
-            const schema = Joi.object({
-                a: Joi.number().label('first'),
-                b: Joi.object({
-                    c: Joi.string().label('second'),
-                    d: Joi.number()
+            const schema = Engine.object({
+                a: Engine.number().label('first'),
+                b: Engine.object({
+                    c: Engine.string().label('second'),
+                    d: Engine.number()
                 })
             })
                 .and('a', 'c.d')
@@ -1075,17 +1075,17 @@ describe('object', () => {
 
         it('should append schema', () => {
 
-            const schema = Joi.object()
-                .keys({ a: Joi.string() })
-                .append({ b: Joi.string() })
+            const schema = Engine.object()
+                .keys({ a: Engine.string() })
+                .append({ b: Engine.string() })
 
             Helper.validate(schema, [[{ a: 'x', b: 'y' }, true]])
         })
 
         it('should not change schema if it is null', () => {
 
-            const schema = Joi.object()
-                .keys({ a: Joi.string() })
+            const schema = Engine.object()
+                .keys({ a: Engine.string() })
                 .append(null)
 
             Helper.validate(schema, [[{ a: 'x' }, true]])
@@ -1093,8 +1093,8 @@ describe('object', () => {
 
         it('should not change schema if it is undefined', () => {
 
-            const schema = Joi.object()
-                .keys({ a: Joi.string() })
+            const schema = Engine.object()
+                .keys({ a: Engine.string() })
                 .append(undefined)
 
             Helper.validate(schema, [[{ a: 'x' }, true]])
@@ -1102,8 +1102,8 @@ describe('object', () => {
 
         it('should not change schema if it is empty-object', () => {
 
-            const schema = Joi.object()
-                .keys({ a: Joi.string() })
+            const schema = Engine.object()
+                .keys({ a: Engine.string() })
                 .append({})
 
             Helper.validate(schema, [[{ a: 'x' }, true]])
@@ -1116,7 +1116,7 @@ describe('object', () => {
 
             expect(() => {
 
-                Joi.object().assert('.a.b', {
+                Engine.object().assert('.a.b', {
                     a: {
                         b: {
                             c: {
@@ -1132,22 +1132,22 @@ describe('object', () => {
 
             expect(() => {
 
-                Joi.object().assert('.a.b', undefined)
+                Engine.object().assert('.a.b', undefined)
             }).to.throw('Invalid undefined schema')
         })
 
         it('validates upwards reference', () => {
 
-            const schema = Joi.object({
+            const schema = Engine.object({
                 a: {
-                    b: Joi.string(),
-                    c: Joi.number()
+                    b: Engine.string(),
+                    c: Engine.number()
                 },
                 d: {
-                    e: Joi.any()
+                    e: Engine.any()
                 }
             })
-                .assert(Joi.ref('/d/e', { separator: '/' }), Joi.ref('a.c'), 'equal to a/c')
+                .assert(Engine.ref('/d/e', { separator: '/' }), Engine.ref('a.c'), 'equal to a/c')
 
             Helper.validate(schema, [[{ a: { b: 'x', c: 5 }, d: { e: 6 } }, false, '"value" is invalid because "d/e" failed to equal to a/c']])
 
@@ -1158,17 +1158,17 @@ describe('object', () => {
 
         it('validates upwards reference with implicit context', () => {
 
-            const ref = Joi.ref('.d.e')
-            const schema = Joi.object({
+            const ref = Engine.ref('.d.e')
+            const schema = Engine.object({
                 a: {
-                    b: Joi.string(),
-                    c: Joi.number()
+                    b: Engine.string(),
+                    c: Engine.number()
                 },
                 d: {
-                    e: Joi.any()
+                    e: Engine.any()
                 }
             })
-                .assert(ref, Joi.ref('a.c'), 'equal to a.c')
+                .assert(ref, Engine.ref('a.c'), 'equal to a.c')
 
             Helper.validate(schema, [
                 [{ a: { b: 'x', c: 5 }, d: { e: 6 } }, false, {
@@ -1188,14 +1188,14 @@ describe('object', () => {
 
         it('support own keys', () => {
 
-            const subject = Joi.ref('.a')
-            const schema = Joi.object({
-                a: Joi.number(),
+            const subject = Engine.ref('.a')
+            const schema = Engine.object({
+                a: Engine.number(),
                 d: {
-                    e: Joi.any()
+                    e: Engine.any()
                 }
             })
-                .assert(subject, Joi.ref('d.e'), 'equal to d.e')
+                .assert(subject, Engine.ref('d.e'), 'equal to d.e')
 
             Helper.validate(schema, [
                 [{ a: 5, d: { e: 5 } }, true],
@@ -1217,31 +1217,31 @@ describe('object', () => {
 
             expect(() => {
 
-                Joi.object({
+                Engine.object({
                     a: {
-                        b: Joi.string(),
-                        c: Joi.number()
+                        b: Engine.string(),
+                        c: Engine.number()
                     },
                     d: {
-                        e: Joi.any()
+                        e: Engine.any()
                     }
                 })
-                    .assert('$a', Joi.ref('d.e'), 'equal to d.e')
+                    .assert('$a', Engine.ref('d.e'), 'equal to d.e')
             }).to.not.throw()
         })
 
         it('provides a default message for failed assertions', () => {
 
-            const ref = Joi.ref('.d.e')
-            const schema = Joi.object({
+            const ref = Engine.ref('.d.e')
+            const schema = Engine.object({
                 a: {
-                    b: Joi.string(),
-                    c: Joi.number()
+                    b: Engine.string(),
+                    c: Engine.number()
                 },
                 d: {
-                    e: Joi.any()
+                    e: Engine.any()
                 }
-            }).assert(ref, Joi.boolean())
+            }).assert(ref, Engine.boolean())
 
             Helper.validate(schema, [[{ d: { e: [] } }, false, {
                 message: '"value" is invalid because "d.e" failed to pass the assertion test',
@@ -1258,22 +1258,22 @@ describe('object', () => {
 
         it('works with keys()', () => {
 
-            const schema = Joi.object({ a: { b: Joi.any() } })
+            const schema = Engine.object({ a: { b: Engine.any() } })
                 .min(2)
-                .assert('.a.b', Joi.number())
-                .keys({ b: { c: Joi.any() } })
-                .assert('.b.c', Joi.number())
+                .assert('.a.b', Engine.number())
+                .keys({ b: { c: Engine.any() } })
+                .assert('.b.c', Engine.number())
 
             Helper.validate(schema, [[{ a: { b: 1 }, b: { c: 2 } }, true]])
         })
 
         it('uses templates', () => {
 
-            const subject = Joi.x('{.a || .b || .c}')
-            const schema = Joi.object({
-                a: Joi.boolean(),
-                b: Joi.boolean(),
-                c: Joi.boolean()
+            const subject = Engine.x('{.a || .b || .c}')
+            const schema = Engine.object({
+                a: Engine.boolean(),
+                b: Engine.boolean(),
+                c: Engine.boolean()
             })
                 .assert(subject, true, 'at least one key must be true')
 
@@ -1302,25 +1302,25 @@ describe('object', () => {
 
         it('casts value to map', () => {
 
-            const schema = Joi.object({ a: Joi.number(), b: Joi.number() }).cast('map')
+            const schema = Engine.object({ a: Engine.number(), b: Engine.number() }).cast('map')
             expect(schema.validate({ a: '1', b: '2' }).value).to.equal(new Map([['a', 1], ['b', 2]]))
         })
 
         it('ignores null', () => {
 
-            const schema = Joi.object({ a: Joi.number(), b: Joi.number() }).allow(null).cast('map')
+            const schema = Engine.object({ a: Engine.number(), b: Engine.number() }).allow(null).cast('map')
             Helper.validate(schema, [[null, true, null]])
         })
 
         it('ignores string', () => {
 
-            const schema = Joi.object({ a: Joi.number(), b: Joi.number() }).allow('x').cast('map')
+            const schema = Engine.object({ a: Engine.number(), b: Engine.number() }).allow('x').cast('map')
             Helper.validate(schema, [['x', true, 'x']])
         })
 
         it('does not leak casts to any', () => {
 
-            expect(() => Joi.any().cast('map')).to.throw('Type any does not support casting to map')
+            expect(() => Engine.any().cast('map')).to.throw('Type any does not support casting to map')
         })
     })
 
@@ -1328,7 +1328,7 @@ describe('object', () => {
 
         it('return empty description when no schema defined', () => {
 
-            const schema = Joi.object()
+            const schema = Engine.object()
             const desc = schema.describe()
             expect(desc).to.equal({
                 type: 'object'
@@ -1337,9 +1337,9 @@ describe('object', () => {
 
         it('describes patterns', () => {
 
-            const schema = Joi.object({
-                a: Joi.string()
-            }).pattern(/\w\d/i, Joi.boolean())
+            const schema = Engine.object({
+                a: Engine.string()
+            }).pattern(/\w\d/i, Engine.boolean())
 
             expect(schema.describe()).to.equal({
                 type: 'object',
@@ -1361,9 +1361,9 @@ describe('object', () => {
 
         it('describes patterns with schema', () => {
 
-            const schema = Joi.object({
-                a: Joi.string()
-            }).pattern(Joi.string().uuid({ version: 'uuidv4' }), Joi.boolean())
+            const schema = Engine.object({
+                a: Engine.string()
+            }).pattern(Engine.string().uuid({ version: 'uuidv4' }), Engine.boolean())
 
             expect(schema.describe()).to.equal({
                 type: 'object',
@@ -1397,7 +1397,7 @@ describe('object', () => {
             const Foo = function Foo() {
             }
 
-            const schema = Joi.object().instance(Foo)
+            const schema = Engine.object().instance(Foo)
             Helper.validate(schema, [[{}, false, {
                 message: '"value" must be an instance of "Foo"',
                 path: [],
@@ -1411,7 +1411,7 @@ describe('object', () => {
             const Foo = function () {
             }
 
-            const schema = Joi.object().instance(Foo, 'Bar')
+            const schema = Engine.object().instance(Foo, 'Bar')
             Helper.validate(schema, [[{}, false, {
                 message: '"value" must be an instance of "Bar"',
                 path: [],
@@ -1425,7 +1425,7 @@ describe('object', () => {
             const Foo = function Foo() {
             }
 
-            const schema = Joi.object().instance(Foo, 'Bar')
+            const schema = Engine.object().instance(Foo, 'Bar')
             Helper.validate(schema, [[{}, false, {
                 message: '"value" must be an instance of "Bar"',
                 path: [],
@@ -1436,12 +1436,12 @@ describe('object', () => {
 
         it('throws when constructor is not a function', () => {
 
-            expect(() => Joi.object().instance('')).to.throw('constructor must be a function')
+            expect(() => Engine.object().instance('')).to.throw('constructor must be a function')
         })
 
         it('uses the constructor name in the schema description', () => {
 
-            const description = Joi.object().instance(RegExp).describe()
+            const description = Engine.object().instance(RegExp).describe()
 
             expect(description.rules[0]).to.equal({ name: 'instance', args: { name: 'RegExp', constructor: RegExp } })
         })
@@ -1450,7 +1450,7 @@ describe('object', () => {
 
             const Foo = function Foo() { }
 
-            const description = Joi.object().instance(Foo).describe()
+            const description = Engine.object().instance(Foo).describe()
 
             expect(new Foo()).to.be.an.instanceof(description.rules[0].args.constructor)
         })
@@ -1460,7 +1460,7 @@ describe('object', () => {
 
         it('allows any key', () => {
 
-            const a = Joi.object({ a: 4 })
+            const a = Engine.object({ a: 4 })
             const b = a.keys()
             Helper.validate(a, [[{ b: 3 }, false, {
                 message: '"b" is not allowed',
@@ -1474,7 +1474,7 @@ describe('object', () => {
 
         it('forbids all keys', () => {
 
-            const a = Joi.object()
+            const a = Engine.object()
             const b = a.keys({})
             Helper.validate(a, [[{ b: 3 }, true]])
             Helper.validate(b, [[{ b: 3 }, false, {
@@ -1487,7 +1487,7 @@ describe('object', () => {
 
         it('adds to existing keys', () => {
 
-            const a = Joi.object({ a: 1 })
+            const a = Engine.object({ a: 1 })
             const b = a.keys({ b: 2 })
             Helper.validate(a, [[{ a: 1, b: 2 }, false, {
                 message: '"b" is not allowed',
@@ -1501,8 +1501,8 @@ describe('object', () => {
 
         it('overrides existing keys', () => {
 
-            const a = Joi.object({ a: Joi.number().valid(1) })
-            const b = a.keys({ a: Joi.string() })
+            const a = Engine.object({ a: Engine.number().valid(1) })
+            const b = a.keys({ a: Engine.string() })
 
             Helper.validate(a, [
                 [{ a: 1 }, true, { a: 1 }],
@@ -1528,9 +1528,9 @@ describe('object', () => {
 
         it('strips keys flagged with strip', () => {
 
-            const schema = Joi.object({
-                a: Joi.string().strip(),
-                b: Joi.string()
+            const schema = Engine.object({
+                a: Engine.string().strip(),
+                b: Engine.string()
             })
 
             Helper.validate(schema, [[{ a: 'test', b: 'test' }, true, { b: 'test' }]])
@@ -1538,9 +1538,9 @@ describe('object', () => {
 
         it('strips keys after validation', () => {
 
-            const schema = Joi.object({
-                a: Joi.string().strip(),
-                b: Joi.string().default(Joi.ref('a'))
+            const schema = Engine.object({
+                a: Engine.string().strip(),
+                b: Engine.string().default(Engine.ref('a'))
             })
 
             Helper.validate(schema, [[{ a: 'test' }, true, { b: 'test' }]])
@@ -1548,10 +1548,10 @@ describe('object', () => {
 
         it('strips keys while preserving transformed values', () => {
 
-            const ref = Joi.ref('a')
-            const schema = Joi.object({
-                a: Joi.number().strip(),
-                b: Joi.number().min(ref)
+            const ref = Engine.ref('a')
+            const schema = Engine.object({
+                a: Engine.number().strip(),
+                b: Engine.number().min(ref)
             })
 
             Helper.validate(schema, [
@@ -1567,9 +1567,9 @@ describe('object', () => {
 
         it('does not alter the original object when stripping keys', () => {
 
-            const schema = Joi.object({
-                a: Joi.string().strip(),
-                b: Joi.string()
+            const schema = Engine.object({
+                a: Engine.string().strip(),
+                b: Engine.string()
             })
 
             const valid = {
@@ -1584,8 +1584,8 @@ describe('object', () => {
 
         it('should strip from an alternative', () => {
 
-            const schema = Joi.object({
-                a: [Joi.boolean().strip()]
+            const schema = Engine.object({
+                a: [Engine.boolean().strip()]
             })
 
             Helper.validate(schema, [[{ a: true }, true, {}]])
@@ -1593,16 +1593,16 @@ describe('object', () => {
 
         it('keeps keys in ref order', () => {
 
-            const schema = Joi.object({
-                type: Joi.string().required(),
+            const schema = Engine.object({
+                type: Engine.string().required(),
 
-                set: Joi.boolean()
+                set: Engine.boolean()
                     .when('flag', { is: true, then: false }),
 
-                flag: Joi.boolean()
+                flag: Engine.boolean()
             })
                 .when('.type', [
-                    { is: 'a', then: Joi.object({ flag: false }) }
+                    { is: 'a', then: Engine.object({ flag: false }) }
                 ])
 
             Helper.validate(schema, [
@@ -1620,7 +1620,7 @@ describe('object', () => {
 
             expect(() => {
 
-                Joi.object().length('a')
+                Engine.object().length('a')
             }).to.throw('limit must be a positive integer or reference')
         })
     })
@@ -1631,7 +1631,7 @@ describe('object', () => {
 
             expect(() => {
 
-                Joi.object().max('a')
+                Engine.object().max('a')
             }).to.throw('limit must be a positive integer or reference')
         })
     })
@@ -1642,7 +1642,7 @@ describe('object', () => {
 
             expect(() => {
 
-                Joi.object().min('a')
+                Engine.object().min('a')
             }).to.throw('limit must be a positive integer or reference')
         })
     })
@@ -1651,10 +1651,10 @@ describe('object', () => {
 
         it('validates nand()', () => {
 
-            const schema = Joi.object({
-                txt: Joi.string(),
-                upc: Joi.string().allow(null, ''),
-                code: Joi.number()
+            const schema = Engine.object({
+                txt: Engine.string(),
+                upc: Engine.string().allow(null, ''),
+                code: Engine.number()
             })
                 .nand('txt', 'upc', 'code')
 
@@ -1720,9 +1720,9 @@ describe('object', () => {
 
         it('applies labels', () => {
 
-            const schema = Joi.object({
-                a: Joi.number().label('first'),
-                b: Joi.string().label('second')
+            const schema = Engine.object({
+                a: Engine.number().label('first'),
+                b: Engine.string().label('second')
             })
                 .nand('a', 'b')
 
@@ -1743,10 +1743,10 @@ describe('object', () => {
 
         it('allows nested objects', () => {
 
-            const schema = Joi.object({
-                a: Joi.string(),
-                b: Joi.object({ c: Joi.string(), d: Joi.number() }),
-                d: Joi.number()
+            const schema = Engine.object({
+                a: Engine.string(),
+                b: Engine.object({ c: Engine.string(), d: Engine.number() }),
+                d: Engine.number()
             })
                 .nand('a', 'b.c')
 
@@ -1770,10 +1770,10 @@ describe('object', () => {
 
         it('allows nested keys in functions', () => {
 
-            const schema = Joi.object({
-                a: Joi.string(),
-                b: Joi.function().keys({ c: Joi.string(), d: Joi.number() }),
-                d: Joi.number()
+            const schema = Engine.object({
+                a: Engine.string(),
+                b: Engine.function().keys({ c: Engine.string(), d: Engine.number() }),
+                d: Engine.number()
             })
                 .nand('a', 'b.c')
 
@@ -1785,11 +1785,11 @@ describe('object', () => {
 
         it('applies labels with nested objects', () => {
 
-            const schema = Joi.object({
-                a: Joi.number().label('first'),
-                b: Joi.object({
-                    c: Joi.string().label('second'),
-                    d: Joi.number()
+            const schema = Engine.object({
+                a: Engine.number().label('first'),
+                b: Engine.object({
+                    c: Engine.string().label('second'),
+                    d: Engine.number()
                 })
             })
                 .nand('a', 'b.c')
@@ -1817,11 +1817,11 @@ describe('object', () => {
         it('does not require optional numbers', () => {
 
             const config = {
-                position: Joi.number(),
-                suggestion: Joi.string()
+                position: Engine.number(),
+                suggestion: Engine.string()
             }
 
-            Helper.validate(Joi.compile(config), [
+            Helper.validate(Engine.compile(config), [
                 [{ suggestion: 'something' }, true],
                 [{ position: 1 }, true]
             ])
@@ -1830,11 +1830,11 @@ describe('object', () => {
         it('does not require optional objects', () => {
 
             const config = {
-                position: Joi.number(),
-                suggestion: Joi.object()
+                position: Engine.number(),
+                suggestion: Engine.object()
             }
 
-            Helper.validate(Joi.compile(config), [
+            Helper.validate(Engine.compile(config), [
                 [{ suggestion: {} }, true],
                 [{ position: 1 }, true]
             ])
@@ -1845,10 +1845,10 @@ describe('object', () => {
 
         it('validates or()', () => {
 
-            const schema = Joi.object({
-                txt: Joi.string(),
-                upc: Joi.string().allow(null, ''),
-                code: Joi.number()
+            const schema = Engine.object({
+                txt: Engine.string(),
+                upc: Engine.string().allow(null, ''),
+                code: Engine.number()
             }).or('txt', 'upc', 'code')
 
             Helper.validate(schema, { abortEarly: false }, [[{}, false, {
@@ -1934,7 +1934,7 @@ describe('object', () => {
 
             let error
             try {
-                Joi.object().or({})
+                Engine.object().or({})
                 error = false
             }
             catch {
@@ -1944,7 +1944,7 @@ describe('object', () => {
             expect(error).to.equal(true)
 
             try {
-                Joi.object().or(123)
+                Engine.object().or(123)
                 error = false
             }
             catch {
@@ -1956,9 +1956,9 @@ describe('object', () => {
 
         it('errors multiple levels deep', () => {
 
-            const schema = Joi.object({
+            const schema = Engine.object({
                 a: {
-                    b: Joi.object().or('x', 'y')
+                    b: Engine.object().or('x', 'y')
                 }
             })
 
@@ -1978,9 +1978,9 @@ describe('object', () => {
 
         it('applies labels', () => {
 
-            const schema = Joi.object({
-                a: Joi.number().label('first'),
-                b: Joi.string().label('second')
+            const schema = Engine.object({
+                a: Engine.number().label('first'),
+                b: Engine.string().label('second')
             }).or('a', 'b')
             Helper.validate(schema, [[{}, false, {
                 message: '"value" must contain at least one of [first, second]',
@@ -1997,10 +1997,10 @@ describe('object', () => {
 
         it('allows nested objects', () => {
 
-            const schema = Joi.object({
-                a: Joi.string(),
-                b: Joi.object({ c: Joi.string() }),
-                d: Joi.number()
+            const schema = Engine.object({
+                a: Engine.string(),
+                b: Engine.object({ c: Engine.string() }),
+                d: Engine.number()
             }).or('a', 'b.c')
 
             const sampleObject = { b: { c: 'bc' } }
@@ -2024,10 +2024,10 @@ describe('object', () => {
 
         it('allows nested keys in functions', () => {
 
-            const schema = Joi.object({
-                a: Joi.string(),
-                b: Joi.function().keys({ c: Joi.string() }),
-                d: Joi.number()
+            const schema = Engine.object({
+                a: Engine.string(),
+                b: Engine.function().keys({ c: Engine.string() }),
+                d: Engine.number()
             })
                 .or('a', 'b.c')
 
@@ -2049,11 +2049,11 @@ describe('object', () => {
 
         it('applies labels with nested objects', () => {
 
-            const schema = Joi.object({
-                a: Joi.number().label('first'),
-                b: Joi.object({
-                    c: Joi.string().label('second'),
-                    d: Joi.number()
+            const schema = Engine.object({
+                a: Engine.number().label('first'),
+                b: Engine.object({
+                    c: Engine.string().label('second'),
+                    d: Engine.number()
                 })
             })
                 .or('a', 'b.c')
@@ -2078,7 +2078,7 @@ describe('object', () => {
 
             let error
             try {
-                Joi.object().oxor({})
+                Engine.object().oxor({})
                 error = false
             }
             catch {
@@ -2088,7 +2088,7 @@ describe('object', () => {
             expect(error).to.equal(true)
 
             try {
-                Joi.object().oxor(123)
+                Engine.object().oxor(123)
                 error = false
             }
             catch {
@@ -2100,9 +2100,9 @@ describe('object', () => {
 
         it('allows none of optional peers', () => {
 
-            const schema = Joi.object({
-                a: Joi.number(),
-                b: Joi.string()
+            const schema = Engine.object({
+                a: Engine.number(),
+                b: Engine.string()
             }).oxor('a', 'b')
 
             Helper.validate(schema, [[{}, true]])
@@ -2110,9 +2110,9 @@ describe('object', () => {
 
         it('applies labels with too many peers', () => {
 
-            const schema = Joi.object({
-                a: Joi.number().label('first'),
-                b: Joi.string().label('second')
+            const schema = Engine.object({
+                a: Engine.number().label('first'),
+                b: Engine.string().label('second')
             })
                 .oxor('a', 'b')
 
@@ -2133,10 +2133,10 @@ describe('object', () => {
 
         it('allows nested objects', () => {
 
-            const schema = Joi.object({
-                a: Joi.string(),
-                b: Joi.object({ c: Joi.string(), d: Joi.number() }),
-                d: Joi.number()
+            const schema = Engine.object({
+                a: Engine.string(),
+                b: Engine.object({ c: Engine.string(), d: Engine.number() }),
+                d: Engine.number()
             })
                 .oxor('a', 'b.c')
 
@@ -2160,10 +2160,10 @@ describe('object', () => {
 
         it('allows nested keys in functions', () => {
 
-            const schema = Joi.object({
-                a: Joi.string(),
-                b: Joi.function().keys({ c: Joi.string(), d: Joi.number() }),
-                d: Joi.number()
+            const schema = Engine.object({
+                a: Engine.string(),
+                b: Engine.function().keys({ c: Engine.string(), d: Engine.number() }),
+                d: Engine.number()
             })
                 .oxor('a', 'b.c')
 
@@ -2175,9 +2175,9 @@ describe('object', () => {
 
         it('allows setting custom isPresent function', () => {
 
-            const schema = Joi.object({
-                'a': Joi.string().allow(null),
-                'b': Joi.string().allow(null)
+            const schema = Engine.object({
+                'a': Engine.string().allow(null),
+                'b': Engine.string().allow(null)
             })
                 .oxor('a', 'b', { isPresent: (value) => value !== undefined && value !== null })
 
@@ -2195,7 +2195,7 @@ describe('object', () => {
 
             expect(() => {
 
-                Joi.object().pattern(/.*/, {
+                Engine.object().pattern(/.*/, {
                     a: {
                         b: {
                             c: {
@@ -2208,16 +2208,16 @@ describe('object', () => {
 
             expect(() => {
 
-                Joi.object().pattern(/.*/, Symbol('x'))
+                Engine.object().pattern(/.*/, Symbol('x'))
             }).to.throw('Invalid schema content: symbol')
 
         })
 
         it('validates unknown keys using a regex pattern', () => {
 
-            const schema = Joi.object({
-                a: Joi.number()
-            }).pattern(/\d+/, Joi.boolean()).pattern(/\w\w+/, 'x')
+            const schema = Engine.object({
+                a: Engine.number()
+            }).pattern(/\d+/, Engine.boolean()).pattern(/\w\w+/, 'x')
 
             Helper.validate(schema, { abortEarly: false }, [[{ bb: 'y', 5: 'x' }, false, {
                 message: '"5" must be a boolean. "bb" must be [x]',
@@ -2265,10 +2265,10 @@ describe('object', () => {
 
         it('validates unknown keys using a schema pattern', () => {
 
-            const schema = Joi.object({
-                a: Joi.number()
-            }).pattern(Joi.number().positive(), Joi.boolean())
-                .pattern(Joi.string().length(2), 'x')
+            const schema = Engine.object({
+                a: Engine.number()
+            }).pattern(Engine.number().positive(), Engine.boolean())
+                .pattern(Engine.string().length(2), 'x')
 
             Helper.validate(schema, { abortEarly: false }, [[{ bb: 'y', 5: 'x' }, false, {
                 message: '"5" must be a boolean. "bb" must be [x]',
@@ -2316,9 +2316,9 @@ describe('object', () => {
 
         it('validates unknown keys using a schema pattern with a reference', () => {
 
-            const schema = Joi.object({
-                a: Joi.string(),
-                b: Joi.object().pattern(Joi.valid(Joi.ref('a')), Joi.boolean())
+            const schema = Engine.object({
+                a: Engine.string(),
+                b: Engine.object().pattern(Engine.valid(Engine.ref('a')), Engine.boolean())
             })
 
             Helper.validate(schema, [
@@ -2359,10 +2359,10 @@ describe('object', () => {
 
         it('validates unknown keys using a pattern (nested)', () => {
 
-            const schema = Joi.object({
-                x: Joi.object({
-                    a: Joi.number()
-                }).pattern(/\d+/, Joi.boolean()).pattern(/\w\w+/, 'x')
+            const schema = Engine.object({
+                x: Engine.object({
+                    a: Engine.number()
+                }).pattern(/\d+/, Engine.boolean()).pattern(/\w\w+/, 'x')
             })
 
             Helper.validate(schema, { abortEarly: false }, [[{ x: { bb: 'y', 5: 'x' } }, false, {
@@ -2386,10 +2386,10 @@ describe('object', () => {
 
         it('validates unknown keys using a pattern (nested)', () => {
 
-            const schema = Joi.object({
-                x: Joi.object({
-                    a: Joi.number()
-                }).pattern(Joi.number().positive(), Joi.boolean()).pattern(Joi.string().length(2), 'x')
+            const schema = Engine.object({
+                x: Engine.object({
+                    a: Engine.number()
+                }).pattern(Engine.number().positive(), Engine.boolean()).pattern(Engine.string().length(2), 'x')
             })
 
             Helper.validate(schema, { abortEarly: false }, [[{
@@ -2418,12 +2418,12 @@ describe('object', () => {
 
         it('ensures keys are also present in another object', () => {
 
-            const matches = Joi.in('....b')    // .match .matches .a .object
-            const schema = Joi.object({
-                a: Joi.object()
-                    .pattern(/.*/, Joi.number(), { matches }),
-                b: Joi.object()
-                    .pattern(/.*/, Joi.string())
+            const matches = Engine.in('....b')    // .match .matches .a .object
+            const schema = Engine.object({
+                a: Engine.object()
+                    .pattern(/.*/, Engine.number(), { matches }),
+                b: Engine.object()
+                    .pattern(/.*/, Engine.string())
             })
 
             Helper.validate(schema, [
@@ -2459,7 +2459,7 @@ describe('object', () => {
 
         it('errors when using a pattern on empty schema with unknown(false) and regex pattern mismatch', () => {
 
-            const schema = Joi.object().pattern(/\d/, Joi.number()).unknown(false)
+            const schema = Engine.object().pattern(/\d/, Engine.number()).unknown(false)
 
             Helper.validate(schema, { abortEarly: false }, [[{ a: 5 }, false, {
                 message: '"a" is not allowed',
@@ -2474,7 +2474,7 @@ describe('object', () => {
 
         it('errors when using a pattern on empty schema with unknown(false) and schema pattern mismatch', () => {
 
-            const schema = Joi.object().pattern(Joi.number().positive(), Joi.number()).unknown(false)
+            const schema = Engine.object().pattern(Engine.number().positive(), Engine.number()).unknown(false)
 
             Helper.validate(schema, { abortEarly: false }, [[{ a: 5 }, false, {
                 message: '"a" is not allowed',
@@ -2489,19 +2489,19 @@ describe('object', () => {
 
         it('reject global and sticky flags from patterns', () => {
 
-            expect(() => Joi.object().pattern(/a/g, Joi.number())).to.throw('pattern should not use global or sticky mode')
-            expect(() => Joi.object().pattern(/a/y, Joi.number())).to.throw('pattern should not use global or sticky mode')
+            expect(() => Engine.object().pattern(/a/g, Engine.number())).to.throw('pattern should not use global or sticky mode')
+            expect(() => Engine.object().pattern(/a/y, Engine.number())).to.throw('pattern should not use global or sticky mode')
         })
 
         it('allows using empty() on values', () => {
 
-            const schema = Joi.object().pattern(/a/, Joi.any().empty(null))
+            const schema = Engine.object().pattern(/a/, Engine.any().empty(null))
             Helper.validate(schema, [[{ a1: undefined, a2: null, a3: 'test' }, true, { a1: undefined, a2: undefined, a3: 'test' }]])
         })
 
         it('compiles if pattern is not regex or schema', () => {
 
-            const schema = Joi.object().pattern('x', Joi.boolean())
+            const schema = Engine.object().pattern('x', Engine.boolean())
             Helper.validate(schema, [
                 [{ x: true }, true],
                 [{ y: true }, false, '"y" is not allowed']
@@ -2510,21 +2510,21 @@ describe('object', () => {
 
         it('allows using refs in .valid() schema pattern', () => {
 
-            const schema = Joi.object().pattern(Joi.string().valid(Joi.in('$keys')), Joi.any())
+            const schema = Engine.object().pattern(Engine.string().valid(Engine.in('$keys')), Engine.any())
             expect(schema.validate({ a: 'test' }, { context: { keys: ['a'] } })).to.equal({ value: { a: 'test' } })
         })
 
         it('enforces pattern matches rule', () => {
 
-            const ref1 = Joi.ref('a')              // .matches ..object
-            const ref2 = Joi.x('{a - 1}')
+            const ref1 = Engine.ref('a')              // .matches ..object
+            const ref2 = Engine.x('{a - 1}')
 
-            const schema = Joi.object({
-                a: Joi.number().required()
+            const schema = Engine.object({
+                a: Engine.number().required()
             })
-                .pattern(/^x\d+$/, Joi.boolean(), { matches: Joi.array().length(ref1) })
-                .pattern(/^z\w+$/, Joi.number())
-                .pattern(/^x\w+$/, Joi.number(), { matches: Joi.array().max(ref2) })
+                .pattern(/^x\d+$/, Engine.boolean(), { matches: Engine.array().length(ref1) })
+                .pattern(/^z\w+$/, Engine.number())
+                .pattern(/^x\w+$/, Engine.number(), { matches: Engine.array().max(ref2) })
 
             Helper.validate(schema, [
                 [{ a: 1, x1: true }, true],
@@ -2620,11 +2620,11 @@ describe('object', () => {
 
         it('enforces pattern matches rule (abortEarly false)', () => {
 
-            const schema = Joi.object({
-                a: Joi.number().required()
+            const schema = Engine.object({
+                a: Engine.number().required()
             })
-                .pattern(/^x\d+$/, Joi.boolean(), { matches: Joi.array().length(Joi.ref('a')) })
-                .pattern(/^x\w+$/, Joi.number(), { matches: Joi.array().max(Joi.x('{a - 1}')) })
+                .pattern(/^x\d+$/, Engine.boolean(), { matches: Engine.array().length(Engine.ref('a')) })
+                .pattern(/^x\w+$/, Engine.number(), { matches: Engine.array().max(Engine.x('{a - 1}')) })
 
             const err = schema.validate({ a: 0, x1: true, xx: 1 }, { abortEarly: false }).error
             expect(err).to.be.an.error('"value" keys failed to match pattern requirements')
@@ -2647,10 +2647,10 @@ describe('object', () => {
                 return value
             }
 
-            const schema = Joi.object()
-                .pattern(/.*/, Joi.object({
-                    match: Joi.object()
-                        .pattern(/.*/, Joi.boolean(), { matches: hasMatchingGrandparent })
+            const schema = Engine.object()
+                .pattern(/.*/, Engine.object({
+                    match: Engine.object()
+                        .pattern(/.*/, Engine.boolean(), { matches: hasMatchingGrandparent })
                 }))
 
             Helper.validate(schema, [
@@ -2680,18 +2680,18 @@ describe('object', () => {
 
         it('works with keys()', () => {
 
-            const schema = Joi.object()
-                .pattern(/a/, Joi.any())
-                .keys({ b: Joi.any() })
+            const schema = Engine.object()
+                .pattern(/a/, Engine.any())
+                .keys({ b: Engine.any() })
 
             expect(schema.validate({ a: { b: 1 }, b: { c: 2 } }).error).to.not.exist()
         })
 
         it('supports overlapping patterns', () => {
 
-            const schema = Joi.object()
-                .pattern(/^x/, Joi.number().min(1), { fallthrough: true })
-                .pattern(/^x/, Joi.number().max(10))
+            const schema = Engine.object()
+                .pattern(/^x/, Engine.number().min(1), { fallthrough: true })
+                .pattern(/^x/, Engine.number().max(10))
 
             Helper.validate(schema, [
                 [{ x1: 1, x2: 2 }, true],
@@ -2706,9 +2706,9 @@ describe('object', () => {
 
         it('ignores overlapping patterns', () => {
 
-            const schema = Joi.object()
-                .pattern(/^x/, Joi.number().min(1))
-                .pattern(/^x/, Joi.number().max(10))
+            const schema = Engine.object()
+                .pattern(/^x/, Engine.number().min(1))
+                .pattern(/^x/, Engine.number().max(10))
 
             Helper.validate(schema, [
                 [{ x1: 1, x2: 2 }, true],
@@ -2721,16 +2721,16 @@ describe('object', () => {
 
         it('validates references', () => {
 
-            const schema = Joi.object().ref()
+            const schema = Engine.object().ref()
 
             Helper.validate(schema, [
                 [{}, false, {
-                    message: '"value" must be a Joi reference',
+                    message: '"value" must be a reference',
                     path: [],
                     type: 'object.refType',
                     context: { label: 'value', value: {} }
                 }],
-                [Joi.ref('a.b'), true]
+                [Engine.ref('a.b'), true]
             ])
         })
     })
@@ -2739,7 +2739,7 @@ describe('object', () => {
 
         it('validates regular expressions', () => {
 
-            const schema = Joi.object().regex()
+            const schema = Engine.object().regex()
 
             Helper.validate(schema, [
                 [{}, false, {
@@ -2757,20 +2757,20 @@ describe('object', () => {
 
         it('allows renaming multiple times with multiple enabled', () => {
 
-            const schema = Joi.object({
-                test: Joi.string()
+            const schema = Engine.object({
+                test: Engine.string()
             }).rename('test1', 'test').rename('test2', 'test', { multiple: true })
 
-            expect(Joi.compile(schema).validate({ test1: 'a', test2: 'b' }).error).to.not.exist()
+            expect(Engine.compile(schema).validate({ test1: 'a', test2: 'b' }).error).to.not.exist()
         })
 
         it('errors renaming multiple times with multiple disabled', () => {
 
-            const schema = Joi.object({
-                test: Joi.string()
+            const schema = Engine.object({
+                test: Engine.string()
             }).rename('test1', 'test').rename('test2', 'test')
 
-            Helper.validate(Joi.compile(schema), [[{ test1: 'a', test2: 'b' }, false, {
+            Helper.validate(Engine.compile(schema), [[{ test1: 'a', test2: 'b' }, false, {
                 message: '"value" cannot rename "test2" because multiple renames are disabled and another key was already renamed to "test"',
                 path: [],
                 type: 'object.rename.multiple',
@@ -2780,7 +2780,7 @@ describe('object', () => {
 
         it('errors multiple times when abortEarly is false', () => {
 
-            const schema = Joi.object()
+            const schema = Engine.object()
                 .rename('a', 'b')
                 .rename('c', 'b')
                 .rename('d', 'b')
@@ -2807,19 +2807,19 @@ describe('object', () => {
 
         it('aliases a key', () => {
 
-            const schema = Joi.object({
-                a: Joi.number(),
-                b: Joi.number()
+            const schema = Engine.object({
+                a: Engine.number(),
+                b: Engine.number()
             }).rename('a', 'b', { alias: true })
 
             const obj = { a: 10 }
-            Helper.validate(Joi.compile(schema), [[obj, true, { a: 10, b: 10 }]])
+            Helper.validate(Engine.compile(schema), [[obj, true, { a: 10, b: 10 }]])
         })
 
         it('with override disabled should not allow overwriting existing value', () => {
 
-            const schema = Joi.object({
-                test1: Joi.string()
+            const schema = Engine.object({
+                test1: Engine.string()
             }).rename('test', 'test1')
 
             Helper.validate(schema, [[{ test: 'b', test1: 'a' }, false, {
@@ -2832,8 +2832,8 @@ describe('object', () => {
 
         it('with override enabled should allow overwriting existing value', () => {
 
-            const schema = Joi.object({
-                test1: Joi.string()
+            const schema = Engine.object({
+                test1: Engine.string()
             }).rename('test', 'test1', { override: true })
 
             Helper.validate(schema, [
@@ -2844,34 +2844,34 @@ describe('object', () => {
         it('renames when data is nested in an array via items', () => {
 
             const schema = {
-                arr: Joi.array().items(Joi.object({
-                    one: Joi.string(),
-                    two: Joi.string()
+                arr: Engine.array().items(Engine.object({
+                    one: Engine.string(),
+                    two: Engine.string()
                 }).rename('uno', 'one').rename('dos', 'two'))
             }
 
             const data = { arr: [{ uno: '1', dos: '2' }] }
-            Helper.validate(Joi.object(schema), [[data, true, { arr: [{ one: '1', two: '2' }] }]])
+            Helper.validate(Engine.object(schema), [[data, true, { arr: [{ one: '1', two: '2' }] }]])
         })
 
         it('applies rename and validation in the correct order regardless of key order', () => {
 
-            const schema1 = Joi.object({
-                a: Joi.number()
+            const schema1 = Engine.object({
+                a: Engine.number()
             }).rename('b', 'a')
 
             const input1 = { b: '5' }
             Helper.validate(schema1, [[input1, true, { a: 5 }]])
 
-            const schema2 = Joi.object({ a: Joi.number(), b: Joi.any() }).rename('b', 'a')
+            const schema2 = Engine.object({ a: Engine.number(), b: Engine.any() }).rename('b', 'a')
             const input2 = { b: '5' }
             Helper.validate(schema2, [[input2, true, { a: 5 }]])
         })
 
         it('sets the default value after key is renamed', () => {
 
-            const schema = Joi.object({
-                foo2: Joi.string().default('test')
+            const schema = Engine.object({
+                foo2: Engine.string().default('test')
             }).rename('foo', 'foo2')
 
             const input = {}
@@ -2880,7 +2880,7 @@ describe('object', () => {
 
         it('renames keys that are empty strings', () => {
 
-            const schema = Joi.object().rename('', 'notEmpty')
+            const schema = Engine.object().rename('', 'notEmpty')
             const input = {
                 '': 'something'
             }
@@ -2890,7 +2890,7 @@ describe('object', () => {
 
         it('should not create new keys when the key in question does not exist', () => {
 
-            const schema = Joi.object()
+            const schema = Engine.object()
                 .rename('b', '_b')
 
             const input = {
@@ -2902,7 +2902,7 @@ describe('object', () => {
 
         it('ignores a key with ignoredUndefined if from does not exist', () => {
 
-            const schema = Joi.object().rename('b', 'a', { ignoreUndefined: true })
+            const schema = Engine.object().rename('b', 'a', { ignoreUndefined: true })
 
             const input = {
                 a: 'something'
@@ -2913,7 +2913,7 @@ describe('object', () => {
 
         it('deletes a key with override and ignoredUndefined if from exists', () => {
 
-            const schema = Joi.object()
+            const schema = Engine.object()
                 .rename('b', 'a', { ignoreUndefined: true, override: true })
 
             const input = {
@@ -2926,7 +2926,7 @@ describe('object', () => {
 
         it('deletes a key with override if present and undefined', () => {
 
-            const schema = Joi.object()
+            const schema = Engine.object()
                 .rename('b', 'a', { override: true })
 
             const input = {
@@ -2939,7 +2939,7 @@ describe('object', () => {
 
         it('leaves target if source is present and undefined and ignoreUndefined is set', () => {
 
-            const schema = Joi.object()
+            const schema = Engine.object()
                 .rename('b', 'a', { override: true, ignoreUndefined: true })
 
             const input = {
@@ -2952,7 +2952,7 @@ describe('object', () => {
 
         it('should fulfill describe() with defaults', () => {
 
-            const schema = Joi.object().rename('b', 'a')
+            const schema = Engine.object().rename('b', 'a')
             const desc = schema.describe()
 
             expect(desc).to.equal({
@@ -2971,7 +2971,7 @@ describe('object', () => {
 
         it('should fulfill describe() with non-defaults', () => {
 
-            const schema = Joi.object().rename('b', 'a', { alias: true, multiple: true, override: true })
+            const schema = Engine.object().rename('b', 'a', { alias: true, multiple: true, override: true })
             const desc = schema.describe()
 
             expect(desc).to.equal({
@@ -2990,7 +2990,7 @@ describe('object', () => {
 
         it('should leave key if from does not exist regardless of override', () => {
 
-            const schema = Joi.object()
+            const schema = Engine.object()
                 .rename('b', 'a', { override: true })
 
             const input = {
@@ -3006,32 +3006,32 @@ describe('object', () => {
 
                 const regex = /foobar/i
 
-                const schema = Joi.object({
-                    fooBar: Joi.string()
+                const schema = Engine.object({
+                    fooBar: Engine.string()
                 }).rename(regex, 'fooBar')
 
-                Helper.validate(Joi.compile(schema), [[{ FOOBAR: 'a' }, true, { fooBar: 'a' }]])
+                Helper.validate(Engine.compile(schema), [[{ FOOBAR: 'a' }, true, { fooBar: 'a' }]])
             })
 
             it('aliases a key', () => {
 
                 const regex = /^a$/i
 
-                const schema = Joi.object({
-                    other: Joi.any(),
-                    A: Joi.number(),
-                    b: Joi.number(),
-                    c: Joi.number()
+                const schema = Engine.object({
+                    other: Engine.any(),
+                    A: Engine.number(),
+                    b: Engine.number(),
+                    c: Engine.number()
                 }).rename(regex, 'b', { alias: true })
 
-                Helper.validate(Joi.compile(schema), [[{ other: 'here', A: 100, c: 50 }, true, { other: 'here', A: 100, b: 100, c: 50 }]])
+                Helper.validate(Engine.compile(schema), [[{ other: 'here', A: 100, c: 50 }, true, { other: 'here', A: 100, b: 100, c: 50 }]])
             })
 
             it('uses template', () => {
 
-                const schema = Joi.object()
-                    .rename(/^(\d+)$/, Joi.x('x{#1}x'))
-                    .pattern(/^x\d+x$/, Joi.any())
+                const schema = Engine.object()
+                    .rename(/^(\d+)$/, Engine.x('x{#1}x'))
+                    .pattern(/^x\d+x$/, Engine.any())
 
                 const input = {
                     123: 'x',
@@ -3040,7 +3040,7 @@ describe('object', () => {
                     x4x: 'test'
                 }
 
-                Helper.validate(Joi.compile(schema), [[input, true, {
+                Helper.validate(Engine.compile(schema), [[input, true, {
                     x123x: 'x',
                     x1x: 'y',
                     x0x: 'z',
@@ -3069,9 +3069,9 @@ describe('object', () => {
 
             it('uses template with prefix override', () => {
 
-                const schema = Joi.object()
-                    .rename(/^(\d+)$/, Joi.x('x{@1}x', { prefix: { local: '@' } }))
-                    .pattern(/^x\d+x$/, Joi.any())
+                const schema = Engine.object()
+                    .rename(/^(\d+)$/, Engine.x('x{@1}x', { prefix: { local: '@' } }))
+                    .pattern(/^x\d+x$/, Engine.any())
 
                 const input = {
                     123: 'x',
@@ -3080,7 +3080,7 @@ describe('object', () => {
                     x4x: 'test'
                 }
 
-                Helper.validate(Joi.compile(schema), [[input, true, {
+                Helper.validate(Engine.compile(schema), [[input, true, {
                     x123x: 'x',
                     x1x: 'y',
                     x0x: 'z',
@@ -3110,10 +3110,10 @@ describe('object', () => {
 
             it('uses template that references another sibling key', () => {
 
-                const schema = Joi.object({
-                    prefix: Joi.string().lowercase().required()
+                const schema = Engine.object({
+                    prefix: Engine.string().lowercase().required()
                 })
-                    .rename(/^(\d+)$/, Joi.x('{.prefix}{#1}'))
+                    .rename(/^(\d+)$/, Engine.x('{.prefix}{#1}'))
                     .unknown()
 
                 const input = {
@@ -3123,7 +3123,7 @@ describe('object', () => {
                     prefix: 'TEST'
                 }
 
-                Helper.validate(Joi.compile(schema), [[input, true, {
+                Helper.validate(Engine.compile(schema), [[input, true, {
                     TEST123: 'x',
                     TEST1: 'y',
                     TEST0: 'z',
@@ -3133,12 +3133,12 @@ describe('object', () => {
 
             it('uses template that references peer key', () => {
 
-                const schema = Joi.object({
-                    a: Joi.object()
-                        .rename(/^(\d+)$/, Joi.x('{b.prefix}{#1}'))
+                const schema = Engine.object({
+                    a: Engine.object()
+                        .rename(/^(\d+)$/, Engine.x('{b.prefix}{#1}'))
                         .unknown(),
                     b: {
-                        prefix: Joi.string().lowercase()
+                        prefix: Engine.string().lowercase()
                     }
                 })
 
@@ -3153,16 +3153,16 @@ describe('object', () => {
 
             it('uses template without refs', () => {
 
-                const schema = Joi.object()
-                    .rename(/^(\d+)$/, Joi.x('x'))
+                const schema = Engine.object()
+                    .rename(/^(\d+)$/, Engine.x('x'))
                     .unknown()
 
-                Helper.validate(Joi.compile(schema), [[{ 1: 'x' }, true, { x: 'x' }]])
+                Helper.validate(Engine.compile(schema), [[{ 1: 'x' }, true, { x: 'x' }]])
             })
 
             it('deletes a key with override if present and undefined', () => {
 
-                const schema = Joi.object()
+                const schema = Engine.object()
                     .rename(/b/, 'a', { override: true })
 
                 const input = {
@@ -3175,8 +3175,8 @@ describe('object', () => {
 
             it('with override disabled it should not allow overwriting existing value', () => {
 
-                const schema = Joi.object({
-                    test1: Joi.string()
+                const schema = Engine.object({
+                    test1: Engine.string()
                 })
                     .rename(/^test1$/i, 'test')
 
@@ -3185,7 +3185,7 @@ describe('object', () => {
                     test1: 'a'
                 }
 
-                Helper.validate(Joi.compile(schema), [[item, false, {
+                Helper.validate(Engine.compile(schema), [[item, false, {
                     message: '"value" cannot rename "test1" because override is disabled and target "test" exists',
                     path: [],
                     type: 'object.rename.override',
@@ -3197,8 +3197,8 @@ describe('object', () => {
 
                 const regex = /^test$/i
 
-                const schema = Joi.object({
-                    test1: Joi.string()
+                const schema = Engine.object({
+                    test1: Engine.string()
                 }).rename(regex, 'test1', { override: true })
 
                 Helper.validate(schema, [[{ test: 'b', test1: 'a' }, true, { test1: 'b' }]])
@@ -3210,21 +3210,21 @@ describe('object', () => {
                 const regex2 = /^dos$/i
 
                 const schema = {
-                    arr: Joi.array().items(Joi.object({
-                        one: Joi.string(),
-                        two: Joi.string()
+                    arr: Engine.array().items(Engine.object({
+                        one: Engine.string(),
+                        two: Engine.string()
                     }).rename(regex1, 'one').rename(regex2, 'two'))
                 }
 
                 const data = { arr: [{ uno: '1', dos: '2' }] }
-                Helper.validate(Joi.object(schema), [[data, true, { arr: [{ one: '1', two: '2' }] }]])
+                Helper.validate(Engine.object(schema), [[data, true, { arr: [{ one: '1', two: '2' }] }]])
             })
 
             it('skips when existing name matches', () => {
 
                 const regex = /^abc$/i
 
-                const schema = Joi.object({ abc: Joi.string() }).rename(regex, 'abc', { override: true })
+                const schema = Engine.object({ abc: Engine.string() }).rename(regex, 'abc', { override: true })
 
                 Helper.validate(schema, [
                     [{ ABC: 'x' }, true, { abc: 'x' }],
@@ -3236,14 +3236,14 @@ describe('object', () => {
 
                 const regex = /^b$/i
 
-                const schema1 = Joi.object({
-                    a: Joi.number()
+                const schema1 = Engine.object({
+                    a: Engine.number()
                 }).rename(regex, 'a')
 
                 const input1 = { b: '5' }
                 Helper.validate(schema1, [[input1, true, { a: 5 }]])
 
-                const schema2 = Joi.object({ a: Joi.number(), b: Joi.any() }).rename('b', 'a')
+                const schema2 = Engine.object({ a: Engine.number(), b: Engine.any() }).rename('b', 'a')
                 const input2 = { b: '5' }
                 Helper.validate(schema2, [[input2, true, { a: 5 }]])
             })
@@ -3252,8 +3252,8 @@ describe('object', () => {
 
                 const regex = /^foo$/i
 
-                const schema = Joi.object({
-                    foo2: Joi.string().default('test')
+                const schema = Engine.object({
+                    foo2: Engine.string().default('test')
                 }).rename(regex, 'foo2')
 
                 const input = {}
@@ -3262,7 +3262,7 @@ describe('object', () => {
 
             it('should not create new keys when the key in question does not exist', () => {
 
-                const schema = Joi.object()
+                const schema = Engine.object()
                     .rename(/^b$/i, '_b')
 
                 const input = {
@@ -3274,7 +3274,7 @@ describe('object', () => {
 
             it('should leave key if from does not exist regardless of override', () => {
 
-                const schema = Joi.object()
+                const schema = Engine.object()
                     .rename(/^b$/i, 'a', { override: true })
 
                 const input = {
@@ -3286,9 +3286,9 @@ describe('object', () => {
 
             it('skips when all matches are undefined and ignoredUndefined is true', () => {
 
-                const schema = Joi.object().keys({
-                    a: Joi.any(),
-                    b: Joi.any()
+                const schema = Engine.object().keys({
+                    a: Engine.any(),
+                    b: Engine.any()
                 })
                     .rename(/^b$/i, 'a', { ignoreUndefined: true })
 
@@ -3301,9 +3301,9 @@ describe('object', () => {
 
             it('deletes a key with override and ignoredUndefined if from exists', () => {
 
-                const schema = Joi.object().keys({
-                    c: Joi.any(),
-                    a: Joi.any()
+                const schema = Engine.object().keys({
+                    c: Engine.any(),
+                    a: Engine.any()
                 })
                     .rename(/^b$/, 'a', { ignoreUndefined: true, override: true })
 
@@ -3319,7 +3319,7 @@ describe('object', () => {
 
                 const regex = /^b$/i
 
-                const schema = Joi.object().rename(regex, 'a', { alias: true, multiple: true, override: true })
+                const schema = Engine.object().rename(regex, 'a', { alias: true, multiple: true, override: true })
                 const desc = schema.describe()
 
                 expect(desc).to.equal({
@@ -3340,7 +3340,7 @@ describe('object', () => {
 
                 const regex = /^b$/i
 
-                const schema = Joi.object().rename(regex, 'a')
+                const schema = Engine.object().rename(regex, 'a')
                 const desc = schema.describe()
 
                 expect(desc).to.equal({
@@ -3359,22 +3359,22 @@ describe('object', () => {
 
             it('allows renaming multiple times with multiple enabled', () => {
 
-                const schema = Joi.object({
-                    fooBar: Joi.string()
+                const schema = Engine.object({
+                    fooBar: Engine.string()
                 }).rename(/foobar/i, 'fooBar', { multiple: true })
 
-                Helper.validate(Joi.compile(schema), [[{ FOOBAR: 'a', FooBar: 'b' }, true, { fooBar: 'b' }]])
+                Helper.validate(Engine.compile(schema), [[{ FOOBAR: 'a', FooBar: 'b' }, true, { fooBar: 'b' }]])
             })
 
             it('errors renaming multiple times with multiple disabled', () => {
 
-                const schema = Joi.object({
-                    fooBar: Joi.string()
+                const schema = Engine.object({
+                    fooBar: Engine.string()
                 })
                     .rename(/foobar/i, 'fooBar')
                     .rename(/foobar/i, 'fooBar')
 
-                Helper.validate(Joi.compile(schema), [[{ FOOBAR: 'a', FooBar: 'b' }, false, {
+                Helper.validate(Engine.compile(schema), [[{ FOOBAR: 'a', FooBar: 'b' }, false, {
                     message: '"value" cannot rename "FooBar" because multiple renames are disabled and another key was already renamed to "fooBar"',
                     path: [],
                     type: 'object.rename.multiple',
@@ -3384,8 +3384,8 @@ describe('object', () => {
 
             it('errors multiple times when abortEarly is false', () => {
 
-                const schema = Joi.object({
-                    z: Joi.string()
+                const schema = Engine.object({
+                    z: Engine.string()
                 })
                     .rename(/a/i, 'b')
                     .rename(/c/i, 'b')
@@ -3427,48 +3427,48 @@ describe('object', () => {
 
     describe('schema()', () => {
 
-        it('should detect joi instances', () => {
+        it('should detect engine instances', () => {
 
-            const schema = Joi.object().schema()
+            const schema = Engine.object().schema()
             Helper.validate(schema, [
                 [{}, false, {
-                    message: '"value" must be a Joi schema of any type',
+                    message: '"value" must be a schema of any type',
                     path: [],
                     type: 'object.schema',
                     context: { label: 'value', type: 'any', value: {} }
                 }],
                 [{ isJoi: true }, false, {
-                    message: '"value" must be a Joi schema of any type',
+                    message: '"value" must be a schema of any type',
                     path: [],
                     type: 'object.schema',
                     context: { label: 'value', type: 'any', value: { isJoi: true } }
                 }],
-                [Joi.number().max(2), true]
+                [Engine.number().max(2), true]
             ])
         })
 
         it('validated schema type', () => {
 
-            const schema = Joi.object().schema('number')
+            const schema = Engine.object().schema('number')
             Helper.validate(schema, [
-                [Joi.number().max(2), true],
+                [Engine.number().max(2), true],
                 [{}, false, {
-                    message: '"value" must be a Joi schema of number type',
+                    message: '"value" must be a schema of number type',
                     path: [],
                     type: 'object.schema',
                     context: { label: 'value', type: 'number', value: {} }
                 }],
                 [{ isJoi: true }, false, {
-                    message: '"value" must be a Joi schema of number type',
+                    message: '"value" must be a schema of number type',
                     path: [],
                     type: 'object.schema',
                     context: { label: 'value', type: 'number', value: { isJoi: true } }
                 }],
-                [Joi.string(), false, {
-                    message: '"value" must be a Joi schema of number type',
+                [Engine.string(), false, {
+                    message: '"value" must be a schema of number type',
                     path: [],
                     type: 'object.schema',
-                    context: { label: 'value', type: 'number', value: Joi.string() }
+                    context: { label: 'value', type: 'number', value: Engine.string() }
                 }]
             ])
         })
@@ -3484,35 +3484,35 @@ describe('object', () => {
                 z: (s) => s.integer()
             }
 
-            const before = Joi.object({
+            const before = Engine.object({
                 a: {
-                    b: Joi.number().alter(alterations)
+                    b: Engine.number().alter(alterations)
                 },
-                b: Joi.object()
-                    .pattern(/.*/, Joi.number().alter(alterations)),
-                c: Joi.object({
-                    x: Joi.number(),
-                    y: Joi.number()
+                b: Engine.object()
+                    .pattern(/.*/, Engine.number().alter(alterations)),
+                c: Engine.object({
+                    x: Engine.number(),
+                    y: Engine.number()
                 })
-                    .assert('.c.x', Joi.number().alter(alterations))
+                    .assert('.c.x', Engine.number().alter(alterations))
             })
 
             const bd = before.describe()
 
             const first = before.tailor('x')
 
-            const c = Joi.object({
-                x: Joi.number(),
-                y: Joi.number()
+            const c = Engine.object({
+                x: Engine.number(),
+                y: Engine.number()
             })
-                .assert('.c.x', Joi.number().min(10).alter(alterations))
+                .assert('.c.x', Engine.number().min(10).alter(alterations))
 
-            const after1 = Joi.object({
+            const after1 = Engine.object({
                 a: {
-                    b: Joi.number().min(10).alter(alterations)
+                    b: Engine.number().min(10).alter(alterations)
                 },
-                b: Joi.object()
-                    .pattern(/.*/, Joi.number().min(10).alter(alterations)),
+                b: Engine.object()
+                    .pattern(/.*/, Engine.number().min(10).alter(alterations)),
                 c
             })
 
@@ -3528,17 +3528,17 @@ describe('object', () => {
                 z: (s) => s.integer()
             }
 
-            const before = Joi.object({
+            const before = Engine.object({
                 a: {
-                    b: Joi.number().alter(alterations)
+                    b: Engine.number().alter(alterations)
                 },
-                b: Joi.object()
-                    .pattern(/.*/, Joi.number().alter(alterations)),
-                c: Joi.object({
-                    x: Joi.number(),
-                    y: Joi.number()
+                b: Engine.object()
+                    .pattern(/.*/, Engine.number().alter(alterations)),
+                c: Engine.object({
+                    x: Engine.number(),
+                    y: Engine.number()
                 })
-                    .assert('.c.x', Joi.number().alter(alterations))
+                    .assert('.c.x', Engine.number().alter(alterations))
                     .alter(alterations)
             })
 
@@ -3546,18 +3546,18 @@ describe('object', () => {
 
             const first = before.tailor('x')
 
-            const after1 = Joi.object({
+            const after1 = Engine.object({
                 a: {
-                    b: Joi.number().min(10).alter(alterations)
+                    b: Engine.number().min(10).alter(alterations)
                 },
-                b: Joi.object()
-                    .pattern(/.*/, Joi.number().min(10).alter(alterations)),
-                c: Joi.object({
-                    x: Joi.number(),
-                    y: Joi.number()
+                b: Engine.object()
+                    .pattern(/.*/, Engine.number().min(10).alter(alterations)),
+                c: Engine.object({
+                    x: Engine.number(),
+                    y: Engine.number()
                 })
                     .alter(alterations)
-                    .assert('.c.x', Joi.number().min(10).alter(alterations))
+                    .assert('.c.x', Engine.number().min(10).alter(alterations))
                     .min(10)
             })
 
@@ -3571,15 +3571,15 @@ describe('object', () => {
 
         it('avoids unnecessary cloning when called twice', () => {
 
-            const schema = Joi.object().unknown()
+            const schema = Engine.object().unknown()
             expect(schema.unknown()).to.shallow.equal(schema)
         })
 
         it('allows local unknown without applying to keys', () => {
 
-            const schema = Joi.object({
+            const schema = Engine.object({
                 a: {
-                    b: Joi.number()
+                    b: Engine.number()
                 }
             }).unknown()
 
@@ -3603,9 +3603,9 @@ describe('object', () => {
 
         it('forbids local unknown without applying to keys', () => {
 
-            const schema = Joi.object({
-                a: Joi.object({
-                    b: Joi.number()
+            const schema = Engine.object({
+                a: Engine.object({
+                    b: Engine.number()
                 }).unknown()
             }).prefs({ allowUnknown: false })
 
@@ -3629,11 +3629,11 @@ describe('object', () => {
 
         it('overrides stripUnknown at a local level', () => {
 
-            const schema = Joi.object({
-                a: Joi.object({
-                    b: Joi.number(),
-                    c: Joi.object({
-                        d: Joi.number()
+            const schema = Engine.object({
+                a: Engine.object({
+                    b: Engine.number(),
+                    c: Engine.object({
+                        d: Engine.number()
                     })
                 }).unknown()
             }).prefs({ allowUnknown: false, stripUnknown: true })
@@ -3657,9 +3657,9 @@ describe('object', () => {
 
         it('validated with', () => {
 
-            const schema = Joi.object({
-                txt: Joi.string(),
-                upc: Joi.string()
+            const schema = Engine.object({
+                txt: Engine.string(),
+                upc: Engine.string()
             }).with('txt', 'upc')
 
             Helper.validate(schema, { abortEarly: false }, [[{ txt: 'a' }, false, {
@@ -3727,7 +3727,7 @@ describe('object', () => {
 
             let error
             try {
-                Joi.object().with({})
+                Engine.object().with({})
                 error = false
             }
             catch {
@@ -3737,7 +3737,7 @@ describe('object', () => {
             expect(error).to.equal(true)
 
             try {
-                Joi.object().with(123)
+                Engine.object().with(123)
                 error = false
             }
             catch {
@@ -3749,7 +3749,7 @@ describe('object', () => {
 
         it('validates when key is an empty string', () => {
 
-            const schema = Joi.object().with('', 'b')
+            const schema = Engine.object().with('', 'b')
             Helper.validate(schema, [
                 [{ c: 'hi', d: 'there' }, true]
             ])
@@ -3757,9 +3757,9 @@ describe('object', () => {
 
         it('applies labels', () => {
 
-            const schema = Joi.object({
-                a: Joi.number().label('first'),
-                b: Joi.string().label('second')
+            const schema = Engine.object({
+                a: Engine.number().label('first'),
+                b: Engine.string().label('second')
             }).with('a', ['b'])
             Helper.validate(schema, [[{ a: 1 }, false, {
                 message: '"first" missing required peer "second"',
@@ -3778,10 +3778,10 @@ describe('object', () => {
 
         it('allows nested objects', () => {
 
-            const schema = Joi.object({
-                a: Joi.string(),
-                b: Joi.object({ c: Joi.string(), d: Joi.number() }),
-                d: Joi.number()
+            const schema = Engine.object({
+                a: Engine.string(),
+                b: Engine.object({ c: Engine.string(), d: Engine.number() }),
+                d: Engine.number()
             }).with('a', 'b.c')
 
             Helper.validate(schema, [
@@ -3801,9 +3801,9 @@ describe('object', () => {
                 }]
             ])
 
-            const schema2 = Joi.object({
-                a: Joi.object({ b: Joi.string() }),
-                b: Joi.object({ c: Joi.string() })
+            const schema2 = Engine.object({
+                a: Engine.object({ b: Engine.string() }),
+                b: Engine.object({ c: Engine.string() })
             }).with('a.b', 'b.c')
 
             Helper.validate(schema2, [
@@ -3826,10 +3826,10 @@ describe('object', () => {
 
         it('allows nested keys in functions', () => {
 
-            const schema = Joi.object({
-                a: Joi.string(),
-                b: Joi.function().keys({ c: Joi.string(), d: Joi.number() }),
-                d: Joi.number()
+            const schema = Engine.object({
+                a: Engine.string(),
+                b: Engine.function().keys({ c: Engine.string(), d: Engine.number() }),
+                d: Engine.number()
             })
                 .with('a', 'b.c')
 
@@ -3841,11 +3841,11 @@ describe('object', () => {
 
         it('applies labels with nested objects', () => {
 
-            const schema = Joi.object({
-                a: Joi.number().label('first'),
-                b: Joi.object({
-                    c: Joi.string().label('second'),
-                    d: Joi.number()
+            const schema = Engine.object({
+                a: Engine.number().label('first'),
+                b: Engine.object({
+                    c: Engine.string().label('second'),
+                    d: Engine.number()
                 })
             })
                 .with('a', ['b.c'])
@@ -3864,12 +3864,12 @@ describe('object', () => {
                 }
             }]])
 
-            const schema2 = Joi.object({
-                a: Joi.object({
-                    b: Joi.string().label('first')
+            const schema2 = Engine.object({
+                a: Engine.object({
+                    b: Engine.string().label('first')
                 }),
-                b: Joi.object({
-                    c: Joi.string().label('second')
+                b: Engine.object({
+                    c: Engine.string().label('second')
                 })
             })
                 .with('a.b', ['b.c'])
@@ -3891,9 +3891,9 @@ describe('object', () => {
 
         it('handles period in key names', () => {
 
-            const schema = Joi.object({
-                'x.from': Joi.string().lowercase().email(),
-                'x.url': Joi.string().uri({ scheme: ['https'] })
+            const schema = Engine.object({
+                'x.from': Engine.string().lowercase().email(),
+                'x.url': Engine.string().uri({ scheme: ['https'] })
             })
                 .with('x.from', 'x.url', { separator: false })
 
@@ -3906,9 +3906,9 @@ describe('object', () => {
 
         it('validated without', () => {
 
-            const schema = Joi.object({
-                txt: Joi.string(),
-                upc: Joi.string()
+            const schema = Engine.object({
+                txt: Engine.string(),
+                upc: Engine.string()
             }).without('txt', 'upc')
 
             Helper.validate(schema, { abortEarly: false }, [[{ txt: 'a', upc: 'b' }, false, {
@@ -3964,7 +3964,7 @@ describe('object', () => {
 
             let error
             try {
-                Joi.object().without({})
+                Engine.object().without({})
                 error = false
             }
             catch {
@@ -3974,7 +3974,7 @@ describe('object', () => {
             expect(error).to.equal(true)
 
             try {
-                Joi.object().without(123)
+                Engine.object().without(123)
                 error = false
             }
             catch {
@@ -3986,7 +3986,7 @@ describe('object', () => {
 
         it('validates when key is an empty string', () => {
 
-            const schema = Joi.object().without('', 'b')
+            const schema = Engine.object().without('', 'b')
             Helper.validate(schema, [
                 [{ a: 'hi', b: 'there' }, true]
             ])
@@ -3994,9 +3994,9 @@ describe('object', () => {
 
         it('validates when key is stripped', () => {
 
-            const schema = Joi.object({
-                a: Joi.any().strip(),
-                b: Joi.any()
+            const schema = Engine.object({
+                a: Engine.any().strip(),
+                b: Engine.any()
             }).without('a', 'b')
 
             Helper.validate(schema, [
@@ -4006,9 +4006,9 @@ describe('object', () => {
 
         it('applies labels', () => {
 
-            const schema = Joi.object({
-                a: Joi.number().label('first'),
-                b: Joi.string().label('second')
+            const schema = Engine.object({
+                a: Engine.number().label('first'),
+                b: Engine.string().label('second')
             }).without('a', ['b'])
             Helper.validate(schema, [[{ a: 1, b: 'b' }, false, {
                 message: '"first" conflict with forbidden peer "second"',
@@ -4027,10 +4027,10 @@ describe('object', () => {
 
         it('allows nested objects', () => {
 
-            const schema = Joi.object({
-                a: Joi.string(),
-                b: Joi.object({ c: Joi.string(), d: Joi.number() }),
-                d: Joi.number()
+            const schema = Engine.object({
+                a: Engine.string(),
+                b: Engine.object({ c: Engine.string(), d: Engine.number() }),
+                d: Engine.number()
             }).without('a', ['b.c', 'b.d'])
 
             const sampleObject = { a: 'test', d: 9000 }
@@ -4056,10 +4056,10 @@ describe('object', () => {
 
         it('allows nested keys in functions', () => {
 
-            const schema = Joi.object({
-                a: Joi.string(),
-                b: Joi.function().keys({ c: Joi.string(), d: Joi.number() }),
-                d: Joi.number()
+            const schema = Engine.object({
+                a: Engine.string(),
+                b: Engine.function().keys({ c: Engine.string(), d: Engine.number() }),
+                d: Engine.number()
             })
                 .without('a', ['b.c', 'b.d'])
 
@@ -4087,11 +4087,11 @@ describe('object', () => {
 
         it('applies labels with nested objects', () => {
 
-            const schema = Joi.object({
-                a: Joi.number().label('first'),
-                b: Joi.object({
-                    c: Joi.string().label('second'),
-                    d: Joi.number()
+            const schema = Engine.object({
+                a: Engine.number().label('first'),
+                b: Engine.object({
+                    c: Engine.string().label('second'),
+                    d: Engine.number()
                 })
             })
                 .without('a', ['b.c'])
@@ -4113,10 +4113,10 @@ describe('object', () => {
 
         it('validates keys with prefix characters', () => {
 
-            const schema = Joi.object({
-                $a: Joi.number(),
-                '#b': Joi.number(),
-                '/c': Joi.number()
+            const schema = Engine.object({
+                $a: Engine.number(),
+                '#b': Engine.number(),
+                '/c': Engine.number()
             })
                 .without('$a', ['#b', '/c'])
 
@@ -4133,9 +4133,9 @@ describe('object', () => {
 
         it('validates xor', () => {
 
-            const schema = Joi.object({
-                txt: Joi.string(),
-                upc: Joi.string()
+            const schema = Engine.object({
+                txt: Engine.string(),
+                upc: Engine.string()
             }).xor('txt', 'upc')
 
             Helper.validate(schema, { abortEarly: false }, [[{}, false, {
@@ -4224,10 +4224,10 @@ describe('object', () => {
 
         it('validates multiple peers xor', () => {
 
-            const schema = Joi.object({
-                txt: Joi.string(),
-                upc: Joi.string(),
-                code: Joi.string()
+            const schema = Engine.object({
+                txt: Engine.string(),
+                upc: Engine.string(),
+                code: Engine.string()
             }).xor('txt', 'upc', 'code')
 
             Helper.validate(schema, [
@@ -4249,9 +4249,9 @@ describe('object', () => {
 
         it('validates xor with number types', () => {
 
-            const schema = Joi.object({
-                code: Joi.number(),
-                upc: Joi.number()
+            const schema = Engine.object({
+                code: Engine.number(),
+                upc: Engine.number()
             }).xor('code', 'upc')
 
             Helper.validate(schema, [
@@ -4286,9 +4286,9 @@ describe('object', () => {
 
         it('validates xor when empty value of peer allowed', () => {
 
-            const schema = Joi.object({
-                code: Joi.string(),
-                upc: Joi.string().allow('')
+            const schema = Engine.object({
+                code: Engine.string(),
+                upc: Engine.string().allow('')
             })
                 .xor('code', 'upc')
 
@@ -4325,15 +4325,15 @@ describe('object', () => {
 
         it('errors when a parameter is not a string', () => {
 
-            expect(() => Joi.object().xor({})).to.throw()
-            expect(() => Joi.object().xor(123)).to.throw()
+            expect(() => Engine.object().xor({})).to.throw()
+            expect(() => Engine.object().xor(123)).to.throw()
         })
 
         it('applies labels without any peer', () => {
 
-            const schema = Joi.object({
-                a: Joi.number().label('first'),
-                b: Joi.string().label('second')
+            const schema = Engine.object({
+                a: Engine.number().label('first'),
+                b: Engine.string().label('second')
             })
                 .xor('a', 'b')
 
@@ -4352,9 +4352,9 @@ describe('object', () => {
 
         it('applies labels with too many peers', () => {
 
-            const schema = Joi.object({
-                a: Joi.number().label('first'),
-                b: Joi.string().label('second')
+            const schema = Engine.object({
+                a: Engine.number().label('first'),
+                b: Engine.string().label('second')
             })
                 .xor('a', 'b')
 
@@ -4375,11 +4375,11 @@ describe('object', () => {
 
         it('applies labels with too many peers', () => {
 
-            const schema = Joi.object({
-                a: Joi.number().label('first'),
-                b: Joi.string().label('second'),
-                c: Joi.string().label('third'),
-                d: Joi.string().label('fourth')
+            const schema = Engine.object({
+                a: Engine.number().label('first'),
+                b: Engine.string().label('second'),
+                c: Engine.string().label('third'),
+                d: Engine.string().label('fourth')
             })
                 .xor('a', 'b', 'c', 'd')
 
@@ -4400,10 +4400,10 @@ describe('object', () => {
 
         it('allows nested objects', () => {
 
-            const schema = Joi.object({
-                a: Joi.string(),
-                b: Joi.object({ c: Joi.string(), d: Joi.number() }),
-                d: Joi.number()
+            const schema = Engine.object({
+                a: Engine.string(),
+                b: Engine.object({ c: Engine.string(), d: Engine.number() }),
+                d: Engine.number()
             })
                 .xor('a', 'b.c')
 
@@ -4415,10 +4415,10 @@ describe('object', () => {
 
         it('allows nested keys in functions', () => {
 
-            const schema = Joi.object({
-                a: Joi.string(),
-                b: Joi.function().keys({ c: Joi.string(), d: Joi.number() }),
-                d: Joi.number()
+            const schema = Engine.object({
+                a: Engine.string(),
+                b: Engine.function().keys({ c: Engine.string(), d: Engine.number() }),
+                d: Engine.number()
             })
                 .xor('a', 'b.c')
 
@@ -4430,11 +4430,11 @@ describe('object', () => {
 
         it('applies labels without any nested peers', () => {
 
-            const schema = Joi.object({
-                a: Joi.number().label('first'),
-                b: Joi.object({
-                    c: Joi.string().label('second'),
-                    d: Joi.number()
+            const schema = Engine.object({
+                a: Engine.number().label('first'),
+                b: Engine.object({
+                    c: Engine.string().label('second'),
+                    d: Engine.number()
                 })
             })
                 .xor('a', 'b.c')
@@ -4454,11 +4454,11 @@ describe('object', () => {
 
         it('applies labels with too many nested peers', () => {
 
-            const schema = Joi.object({
-                a: Joi.number().label('first'),
-                b: Joi.object({
-                    c: Joi.string().label('second'),
-                    d: Joi.number()
+            const schema = Engine.object({
+                a: Engine.number().label('first'),
+                b: Engine.object({
+                    c: Engine.string().label('second'),
+                    d: Engine.number()
                 })
             })
                 .xor('a', 'b.c')
@@ -4480,9 +4480,9 @@ describe('object', () => {
 
         it('handles period in key names', () => {
 
-            const schema = Joi.object({
-                'x.from': Joi.string().lowercase().email(),
-                'x.url': Joi.string().uri({ scheme: ['https'] })
+            const schema = Engine.object({
+                'x.from': Engine.string().lowercase().email(),
+                'x.url': Engine.string().uri({ scheme: ['https'] })
             })
                 .xor('x.from', 'x.url', { separator: false })
 

@@ -2,13 +2,13 @@
  * Derived from joi-to-json 5.0.0 lib/parsers/open-api.js (MIT, see THIRD_PARTY_NOTICES.md)
  */
 import * as _ from '../helpers.js'
-import type {Definitions, JoiSpec, JsonSchema, ParserOptions, ParserSettings} from '../model.js'
-import {JoiJsonDraftSchemaParser} from './json-draft-04.js'
+import type {Definitions, SchemaSpec, JsonSchema, ParserOptions, ParserSettings} from '../model.js'
+import {JsonDraft04SchemaParser} from './json-draft-04.js'
 
 /**
- * Converts joi schema descriptions into OpenAPI 3.0 schema objects
+ * Converts schema descriptions into OpenAPI 3.0 schema objects
  */
-export class JoiOpenApiSchemaParser extends JoiJsonDraftSchemaParser {
+export class OpenApiSchemaParser extends JsonDraft04SchemaParser {
 
     constructor(opts: ParserOptions = {}) {
         super(_.merge<ParserSettings>({
@@ -53,8 +53,8 @@ export class JoiOpenApiSchemaParser extends JoiJsonDraftSchemaParser {
         ]
     }
 
-    public parse(joiSpec: JoiSpec, definitions: Definitions = {}, level: number = 0): JsonSchema {
-        const schema: JsonSchema = super.parse(joiSpec, definitions, level)
+    public parse(spec: SchemaSpec, definitions: Definitions = {}, level: number = 0): JsonSchema {
+        const schema: JsonSchema = super.parse(spec, definitions, level)
         if (level === 0 && !_.isEmpty(definitions)) schema.schemas = definitions
         delete schema.components
         //Unreachable, as const is not a known key (upstream reads the former fullSchema variable here)
@@ -70,7 +70,7 @@ export class JoiOpenApiSchemaParser extends JoiJsonDraftSchemaParser {
         return '#/components/schemas'
     }
 
-    protected _setBasicProperties(fieldSchema: JsonSchema, fieldDefn: JoiSpec): void {
+    protected _setBasicProperties(fieldSchema: JsonSchema, fieldDefn: SchemaSpec): void {
         super._setBasicProperties(fieldSchema, fieldDefn)
         if (!_.isEmpty(fieldSchema.examples)) {
             fieldSchema.example = (fieldSchema.examples as unknown[])[0]
@@ -78,7 +78,7 @@ export class JoiOpenApiSchemaParser extends JoiJsonDraftSchemaParser {
         }
     }
 
-    protected _addNullTypeIfNullable(fieldSchema: JsonSchema, fieldDefn: JoiSpec): void {
+    protected _addNullTypeIfNullable(fieldSchema: JsonSchema, fieldDefn: SchemaSpec): void {
         super._addNullTypeIfNullable(fieldSchema, fieldDefn)
         if (fieldSchema.type === 'null') {
             //OpenAPI 3.0 does not support type with value 'null', so we need to set type to 'object' and nullable to true

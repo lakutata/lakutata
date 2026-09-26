@@ -6,19 +6,19 @@
 // @ts-nocheck
 import {it} from 'node:test'
 import {expect} from '../../support/Expect.js'
-import joi from '../../../../lib/validation/engine/schema/index.js'
+import engine from '../../../../lib/validation/engine/schema/index.js'
 import parse from '../../../../lib/validation/engine/json-schema/index.js'
 import Ajv from 'ajv'
 import {toEqual} from '../support.js'
 
 const ajv = new Ajv({ allErrors: true })
 
-const JOI_OBJ = joi.object().keys({
-    gender: joi.string(),
-    commonHeightRange: joi.number().when('gender', {
+const SCHEMA_OBJ = engine.object().keys({
+    gender: engine.string(),
+    commonHeightRange: engine.number().when('gender', {
         is: 'Female',
-        then: joi.number().greater(140).less(180),
-        otherwise: joi.number().greater(150).less(200)
+        then: engine.number().greater(140).less(180),
+        otherwise: engine.number().greater(150).less(200)
     })
 })
 
@@ -51,7 +51,7 @@ const BASE_SCHEMA = {
     'additionalProperties': false
 }
 
-const jsonSchema = parse(JOI_OBJ)
+const jsonSchema = parse(SCHEMA_OBJ)
 const validate = ajv.compile(jsonSchema, { allowUnionTypes: true })
 
 it('when ref is then - valid schema', () => {
@@ -62,12 +62,12 @@ it('when ref is then - valid', () => {
     const value = { commonHeightRange: 141, gender: 'Female' }
     validate(value)
     expect(!(validate.errors)).to.be.true()
-    expect(!(JOI_OBJ.validate(value).error)).to.be.true()
+    expect(!(SCHEMA_OBJ.validate(value).error)).to.be.true()
 })
 
 it('when ref is then - invalid', () => {
     const value = { commonHeightRange: false }
     validate(value)
     expect(!!(validate.errors)).to.be.true()
-    expect(!!(JOI_OBJ.validate(value).error)).to.be.true()
+    expect(!!(SCHEMA_OBJ.validate(value).error)).to.be.true()
 })

@@ -1,8 +1,8 @@
-import Joi, {type Extension as EngineExtension, type Root} from './engine/schema/index.js'
+import Engine, {type Extension as EngineExtension, type Root} from './engine/schema/index.js'
 import type {Base} from './engine/schema/base.js'
 import type {Preferences} from './engine/schema/model.js'
 import type {ValidationResult as EngineValidationResult} from './engine/schema/validator.js'
-import {extendJoi} from './engine/schema/extensions/bigint.js'
+import {extendBigInt} from './engine/schema/extensions/bigint.js'
 import {AnySchema} from './interfaces/AnySchema.js'
 import {ArraySchema} from './interfaces/ArraySchema.js'
 import {BooleanSchema} from './interfaces/BooleanSchema.js'
@@ -339,7 +339,7 @@ const targetSchemas: WeakMap<object, Map<string | symbol, Base>> = new WeakMap()
  * @param targetName
  */
 function targetSchema(schema: Schema, targetName: string | symbol): Base {
-    if (!Joi.isSchema(schema)) return Joi.object({[targetName]: schema})
+    if (!Engine.isSchema(schema)) return Engine.object({[targetName]: schema})
     let byName: Map<string | symbol, Base> | undefined = targetSchemas.get(schema)
     if (!byName) {
         byName = new Map()
@@ -347,7 +347,7 @@ function targetSchema(schema: Schema, targetName: string | symbol): Base {
     }
     let wrapper: Base | undefined = byName.get(targetName)
     if (!wrapper) {
-        wrapper = Joi.object({[targetName]: schema})
+        wrapper = Engine.object({[targetName]: schema})
         byName.set(targetName, wrapper)
     }
     return wrapper
@@ -360,7 +360,7 @@ class ValidateMethods {
      * @param schema
      */
     public isSchema(schema: any): boolean {
-        return Joi.isSchema(schema)
+        return Engine.isSchema(schema)
     }
 
     /**
@@ -441,9 +441,9 @@ class ValidateMethods {
 }
 
 export const VLD: ValidateAPI = As<any>(
-    extendJoi(Joi).extend((joi: Root): EngineExtension => ({
+    extendBigInt(Engine).extend((engine: Root): EngineExtension => ({
         type: 'number',
-        base: joi.number(),
+        base: engine.number(),
         messages: {
             'number.int8': '{{#label}} must be a valid Int8 value (between -128 and 127)',
             'number.uint8': '{{#label}} must be a valid UInt8 value (between 0 and 255)',

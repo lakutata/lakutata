@@ -62,7 +62,7 @@ await describe('IoC Test', async function (): Promise<void> {
         }, Unrelated, Date, (): void => undefined, function helper(): void {
         }, new Unrelated(), {}, null, 'BaseObject', 1]
         for (const value of values) assert.equal(IsSubclassOf(value, BaseObject), DTO.isValid(value, DTO.Class(BaseObject)), String(value))
-        //Joi treats undefined as "not provided" and accepts it, but undefined is no subclass (no call site passes it)
+        //The validation engine treats undefined as "not provided" and accepts it, but undefined is no subclass (no call site passes it)
         assert.equal(IsSubclassOf(undefined, BaseObject), false)
     })
 

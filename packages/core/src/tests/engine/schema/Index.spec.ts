@@ -6,15 +6,15 @@
 // @ts-nocheck
 import {describe, it} from 'node:test'
 import {expect} from '../support/Expect.js'
-import Joi from '../../../lib/validation/engine/schema/index.js'
+import Engine from '../../../lib/validation/engine/schema/index.js'
 import * as Helper from './Helper.js'
 const internals = {}
 
-describe('Joi', () => {
+describe('Engine', () => {
 
     it('keeps schema immutable', () => {
 
-        const a = Joi.string()
+        const a = Engine.string()
         const b = a.valid('b')
 
         Helper.validate(a, [
@@ -47,7 +47,7 @@ describe('Joi', () => {
 
     it('validates a compiled complex literal', () => {
 
-        const schema = Joi.compile(['key', 5, { a: true, b: [/^a/, 'boom'] }])
+        const schema = Engine.compile(['key', 5, { a: true, b: [/^a/, 'boom'] }])
         Helper.validate(schema, [
             ['key', true],
             [5, true],
@@ -91,8 +91,8 @@ describe('Joi', () => {
 
     it('validates regex directly', () => {
 
-        Helper.validate(Joi.compile(/^5$/), [['5', true]])
-        Helper.validate(Joi.compile(/.{2}/), [['6', false, {
+        Helper.validate(Engine.compile(/^5$/), [['5', true]])
+        Helper.validate(Engine.compile(/.{2}/), [['6', false, {
             message: '"value" with value "6" fails to match the required pattern: /.{2}/',
             path: [],
             type: 'string.pattern.base',
@@ -107,13 +107,13 @@ describe('Joi', () => {
 
     it('validates an array of valid types', () => {
 
-        const schema = Joi.object({
+        const schema = Engine.object({
             auth: [
-                Joi.object({
-                    mode: Joi.string().valid('required', 'optional', 'try').allow(null)
+                Engine.object({
+                    mode: Engine.string().valid('required', 'optional', 'try').allow(null)
                 }).allow(null),
-                Joi.string(),
-                Joi.boolean()
+                Engine.string(),
+                Engine.boolean()
             ]
         })
 
@@ -147,13 +147,13 @@ describe('Joi', () => {
 
     it('validates alternatives', () => {
 
-        const schema = Joi.object({
-            auth: Joi.alternatives([
-                Joi.object({
-                    mode: Joi.string().valid('required', 'optional', 'try').allow(null)
+        const schema = Engine.object({
+            auth: Engine.alternatives([
+                Engine.object({
+                    mode: Engine.string().valid('required', 'optional', 'try').allow(null)
                 }).allow(null),
-                Joi.string(),
-                Joi.boolean()
+                Engine.string(),
+                Engine.boolean()
             ])
         })
 
@@ -189,10 +189,10 @@ describe('Joi', () => {
 
     it('validates required alternatives', () => {
 
-        const schema = Joi.object({
-            a: Joi.alternatives([
-                Joi.string().required(),
-                Joi.boolean().required()
+        const schema = Engine.object({
+            a: Engine.alternatives([
+                Engine.string().required(),
+                Engine.boolean().required()
             ])
         })
 
@@ -230,10 +230,10 @@ describe('Joi', () => {
 
     it('validates required [] alternatives', () => {
 
-        const schema = Joi.object({
+        const schema = Engine.object({
             a: [
-                Joi.string().required(),
-                Joi.boolean().required()
+                Engine.string().required(),
+                Engine.boolean().required()
             ]
         })
 
@@ -271,8 +271,8 @@ describe('Joi', () => {
 
     it('validates an array of string with valid', () => {
 
-        const schema = Joi.object({
-            brand: Joi.array().items(Joi.string().valid('amex', 'visa'))
+        const schema = Engine.object({
+            brand: Engine.array().items(Engine.string().valid('amex', 'visa'))
         })
 
         Helper.validate(schema, [
@@ -288,7 +288,7 @@ describe('Joi', () => {
 
     it('validates pre and post convert value', () => {
 
-        const schema = Joi.number().valid(5)
+        const schema = Engine.number().valid(5)
 
         Helper.validate(schema, [
             [5, true],
@@ -298,8 +298,8 @@ describe('Joi', () => {
 
     it('does not change object when validation fails', () => {
 
-        const schema = Joi.object({
-            a: Joi.number().valid(2)
+        const schema = Engine.object({
+            a: Engine.number().valid(2)
         })
 
         const obj = {
@@ -313,8 +313,8 @@ describe('Joi', () => {
 
     it('does not set optional keys when missing', () => {
 
-        const schema = Joi.object({
-            a: Joi.number()
+        const schema = Engine.object({
+            a: Engine.number()
         })
 
         const obj = {}
@@ -325,7 +325,7 @@ describe('Joi', () => {
 
     it('invalidates pre and post convert value', () => {
 
-        const schema = Joi.number().invalid(5)
+        const schema = Engine.number().invalid(5)
 
         Helper.validate(schema, [
             [5, false, {
@@ -345,28 +345,28 @@ describe('Joi', () => {
 
     it('invalidates missing peers', () => {
 
-        const schema = Joi.object({
-            username: Joi.string(),
-            password: Joi.string()
+        const schema = Engine.object({
+            username: Engine.string(),
+            password: Engine.string()
         }).with('username', 'password').without('password', 'access_token')
 
         Helper.validate(schema, [[{ username: 'bob' }, false, '"username" missing required peer "password"']])
     })
 
-    it('validates config where the root item is a joi type', () => {
+    it('validates config where the root item is an engine type', () => {
 
-        Helper.validate(Joi.boolean().allow(null), [[true, true]])
-        Helper.validate(Joi.object(), [[{ auth: { mode: 'try' } }, true]])
-        Helper.validate(Joi.object(), [[true, false, '"value" must be of type object']])
-        Helper.validate(Joi.string(), [[true, false, '"value" must be a string']])
-        Helper.validate(Joi.string().email(), [['test@test.com', true]])
-        Helper.validate(Joi.object({ param: Joi.string().required() }), [[{ param: 'item' }, true]])
+        Helper.validate(Engine.boolean().allow(null), [[true, true]])
+        Helper.validate(Engine.object(), [[{ auth: { mode: 'try' } }, true]])
+        Helper.validate(Engine.object(), [[true, false, '"value" must be of type object']])
+        Helper.validate(Engine.string(), [[true, false, '"value" must be a string']])
+        Helper.validate(Engine.string().email(), [['test@test.com', true]])
+        Helper.validate(Engine.object({ param: Engine.string().required() }), [[{ param: 'item' }, true]])
     })
 
     it('converts string to number', () => {
 
-        const schema = Joi.object({
-            a: Joi.number()
+        const schema = Engine.object({
+            a: Engine.number()
         })
 
         const input = { a: '5' }
@@ -376,36 +376,36 @@ describe('Joi', () => {
 
     it('allows unknown keys in objects if no schema was given', () => {
 
-        Helper.validate(Joi.object(), [[{ foo: 'bar' }, true]])
+        Helper.validate(Engine.object(), [[{ foo: 'bar' }, true]])
     })
 
     it('fails on unknown keys in objects if a schema was given', () => {
 
-        Helper.validate(Joi.object({}), [[{ foo: 'bar' }, false, {
+        Helper.validate(Engine.object({}), [[{ foo: 'bar' }, false, {
             message: '"foo" is not allowed',
             path: ['foo'],
             type: 'object.unknown',
             context: { child: 'foo', label: 'foo', key: 'foo', value: 'bar' }
         }]])
 
-        Helper.validate(Joi.compile({}), [[{ foo: 'bar' }, false, '"foo" is not allowed']])
+        Helper.validate(Engine.compile({}), [[{ foo: 'bar' }, false, '"foo" is not allowed']])
 
-        Helper.validate(Joi.compile({ other: Joi.number() }), [[{ foo: 'bar' }, false, '"foo" is not allowed']])
+        Helper.validate(Engine.compile({ other: Engine.number() }), [[{ foo: 'bar' }, false, '"foo" is not allowed']])
     })
 
     it('validates required key with multiple options', () => {
 
         const config = {
-            module: Joi.alternatives([
-                Joi.object({
-                    compile: Joi.function().required(),
-                    execute: Joi.function()
+            module: Engine.alternatives([
+                Engine.object({
+                    compile: Engine.function().required(),
+                    execute: Engine.function()
                 }),
-                Joi.string()
+                Engine.string()
             ]).required()
         }
 
-        Helper.validate(Joi.compile(config), [
+        Helper.validate(Engine.compile(config), [
             [{}, false, '"module" is required'],
             [{ module: 'test' }, true],
             [{ module: {} }, false, '"module.compile" is required'],
@@ -416,38 +416,38 @@ describe('Joi', () => {
     it('validates key with required alternatives', () => {
 
         const config = {
-            module: Joi.alt().try(
-                Joi.object({
-                    compile: Joi.function().required(),
-                    execute: Joi.function()
+            module: Engine.alt().try(
+                Engine.object({
+                    compile: Engine.function().required(),
+                    execute: Engine.function()
                 }).required(),
-                Joi.string().required()
+                Engine.string().required()
             )
         }
 
-        expect(Joi.compile(config).validate({}).error).to.not.exist()
+        expect(Engine.compile(config).validate({}).error).to.not.exist()
     })
 
     it('validates required key with alternatives', () => {
 
         const config = {
-            module: Joi.alt().try(
-                Joi.object({
-                    compile: Joi.function().required(),
-                    execute: Joi.function()
+            module: Engine.alt().try(
+                Engine.object({
+                    compile: Engine.function().required(),
+                    execute: Engine.function()
                 }),
-                Joi.string()
+                Engine.string()
             ).required()
         }
 
-        Helper.validate(Joi.compile(config), [[{}, false, '"module" is required']])
+        Helper.validate(Engine.compile(config), [[{}, false, '"module" is required']])
     })
 
     it('validates object successfully when config has an array of types', () => {
 
         const schema = {
-            f: [Joi.number(), Joi.boolean()],
-            g: [Joi.string(), Joi.object()]
+            f: [Engine.number(), Engine.boolean()],
+            g: [Engine.string(), Engine.object()]
         }
 
         const obj = {
@@ -455,15 +455,15 @@ describe('Joi', () => {
             g: 'test'
         }
 
-        Helper.validate(Joi.compile(schema), [[obj, true]])
+        Helper.validate(Engine.compile(schema), [[obj, true]])
     })
 
     it('validates object successfully when config allows for optional key and key is missing', () => {
 
         const schema = {
-            h: Joi.number(),
-            i: Joi.string(),
-            j: Joi.object()
+            h: Engine.number(),
+            i: Engine.string(),
+            j: Engine.object()
         }
 
         const obj = {
@@ -471,15 +471,15 @@ describe('Joi', () => {
             i: 'test'
         }
 
-        Helper.validate(Joi.compile(schema), [[obj, true]])
+        Helper.validate(Engine.compile(schema), [[obj, true]])
     })
 
     it('fails validation', () => {
 
         const schema = {
-            a: Joi.number().min(0).max(3),
-            b: Joi.string().valid('a', 'b', 'c'),
-            c: Joi.string().email().optional()
+            a: Engine.number().min(0).max(3),
+            b: Engine.string().valid('a', 'b', 'c'),
+            c: Engine.string().email().optional()
         }
 
         const obj = {
@@ -488,15 +488,15 @@ describe('Joi', () => {
             c: 'joe@example.com'
         }
 
-        Helper.validate(Joi.compile(schema), [[obj, false, '"a" must be less than or equal to 3']])
+        Helper.validate(Engine.compile(schema), [[obj, false, '"a" must be less than or equal to 3']])
     })
 
     it('fails validation when the wrong types are supplied', () => {
 
         const schema = {
-            a: Joi.number().min(0).max(3),
-            b: Joi.string().valid('a', 'b', 'c'),
-            c: Joi.string().email().optional()
+            a: Engine.number().min(0).max(3),
+            b: Engine.string().valid('a', 'b', 'c'),
+            c: Engine.string().email().optional()
         }
 
         const obj = {
@@ -505,7 +505,7 @@ describe('Joi', () => {
             c: 'joe@example.com'
         }
 
-        Helper.validate(Joi.compile(schema), [[obj, false, '"a" must be a number']])
+        Helper.validate(Engine.compile(schema), [[obj, false, '"a" must be a number']])
     })
 
     it('fails validation when missing a required parameter', () => {
@@ -514,7 +514,7 @@ describe('Joi', () => {
             c: 10
         }
 
-        Helper.validate(Joi.compile({ a: Joi.string().required() }), [[obj, false, '"a" is required']])
+        Helper.validate(Engine.compile({ a: Engine.string().required() }), [[obj, false, '"a" is required']])
     })
 
     it('fails validation when missing a required parameter within an object config', () => {
@@ -523,7 +523,7 @@ describe('Joi', () => {
             a: {}
         }
 
-        Helper.validate(Joi.compile({ a: Joi.object({ b: Joi.string().required() }) }), [[obj, false, '"a.b" is required']])
+        Helper.validate(Engine.compile({ a: Engine.object({ b: Engine.string().required() }) }), [[obj, false, '"a.b" is required']])
     })
 
     it('fails validation when parameter is required to be an Array but is given as string', () => {
@@ -532,7 +532,7 @@ describe('Joi', () => {
             a: 'an array'
         }
 
-        Helper.validate(Joi.object({ a: Joi.array() }), [[obj, false, '"a" must be an array']])
+        Helper.validate(Engine.object({ a: Engine.array() }), [[obj, false, '"a" must be an array']])
     })
 
     it('fails validation when parameter is required to be an Array but is given as a json that is incorrect (object instead of array)', () => {
@@ -541,14 +541,14 @@ describe('Joi', () => {
             a: '{"b":2}'
         }
 
-        Helper.validate(Joi.object({ a: Joi.object({ b: Joi.string().required() }) }), [[obj, false, '"a" must be of type object']])
+        Helper.validate(Engine.object({ a: Engine.object({ b: Engine.string().required() }) }), [[obj, false, '"a" must be of type object']])
     })
 
     it('fails validation when config is an array and fails', () => {
 
         const schema = {
-            d: [Joi.string(), Joi.boolean()],
-            e: [Joi.number(), Joi.object()]
+            d: [Engine.string(), Engine.boolean()],
+            e: [Engine.number(), Engine.object()]
         }
 
         const obj = {
@@ -556,14 +556,14 @@ describe('Joi', () => {
             e: 'a'
         }
 
-        Helper.validate(Joi.compile(schema), [[obj, false, '"d" must be one of [string, boolean]']])
+        Helper.validate(Engine.compile(schema), [[obj, false, '"d" must be one of [string, boolean]']])
     })
 
     it('fails validation when config is an array and fails with extra keys', () => {
 
         const schema = {
-            d: [Joi.string(), Joi.boolean()],
-            e: [Joi.number(), Joi.object()]
+            d: [Engine.string(), Engine.boolean()],
+            e: [Engine.number(), Engine.object()]
         }
 
         const obj = {
@@ -571,13 +571,13 @@ describe('Joi', () => {
             b: 'a'
         }
 
-        Helper.validate(Joi.compile(schema), [[obj, false, '"a" is not allowed']])
+        Helper.validate(Engine.compile(schema), [[obj, false, '"a" is not allowed']])
     })
 
     it('fails validation with extra keys', () => {
 
         const schema = {
-            a: Joi.number()
+            a: Engine.number()
         }
 
         const obj = {
@@ -585,24 +585,24 @@ describe('Joi', () => {
             b: 'a'
         }
 
-        Helper.validate(Joi.compile(schema), [[obj, false, '"b" is not allowed']])
+        Helper.validate(Engine.compile(schema), [[obj, false, '"b" is not allowed']])
     })
 
     it('validates missing optional key with string condition', () => {
 
         const schema = {
-            key: Joi.string().alphanum(false).min(8)
+            key: Engine.string().alphanum(false).min(8)
         }
 
-        Helper.validate(Joi.compile(schema), [[{}, true]])
+        Helper.validate(Engine.compile(schema), [[{}, true]])
     })
 
     it('validates with extra keys and remove them when stripUnknown is set', () => {
 
-        const schema = Joi.object({
-            a: Joi.number().min(0).max(3),
-            b: Joi.string().valid('a', 'b', 'c'),
-            c: Joi.string().email().optional()
+        const schema = Engine.object({
+            a: Engine.number().min(0).max(3),
+            b: Engine.string().valid('a', 'b', 'c'),
+            c: Engine.string().email().optional()
         })
 
         const obj = {
@@ -616,10 +616,10 @@ describe('Joi', () => {
 
     it('validates with extra keys and remove them when stripUnknown (as an object) is set', () => {
 
-        const schema = Joi.object({
-            a: Joi.number().min(0).max(3),
-            b: Joi.string().valid('a', 'b', 'c'),
-            c: Joi.string().email().optional()
+        const schema = Engine.object({
+            a: Engine.number().min(0).max(3),
+            b: Engine.string().valid('a', 'b', 'c'),
+            c: Engine.string().email().optional()
         })
 
         const obj = {
@@ -633,13 +633,13 @@ describe('Joi', () => {
 
     it('validates enforces local behavior of unknown(true) when stripUnknown is set', () => {
 
-        const schema = Joi.object({
-            a: Joi.number().min(0).max(3),
-            loosyObject: Joi.object({
-                b1: Joi.string()
+        const schema = Engine.object({
+            a: Engine.number().min(0).max(3),
+            loosyObject: Engine.object({
+                b1: Engine.string()
             }).unknown(true), // allows extra keys
-            anotherLoosyObject: Joi.object({
-                c1: Joi.string()
+            anotherLoosyObject: Engine.object({
+                c1: Engine.string()
             }).unknown() // also allows extra keys
         })
 
@@ -670,10 +670,10 @@ describe('Joi', () => {
 
     it('validates enforces local behavior of unknown(false) when stripUnknown is set', () => {
 
-        const schema = Joi.object({
-            a: Joi.number().min(0).max(3),
-            strictObject: Joi.object({
-                b1: Joi.string()
+        const schema = Engine.object({
+            a: Engine.number().min(0).max(3),
+            strictObject: Engine.object({
+                b1: Engine.string()
             }).unknown(false) // it shouldn't allow extra keys
         })
 
@@ -700,9 +700,9 @@ describe('Joi', () => {
 
     it('validates dependencies when stripUnknown is set', () => {
 
-        const schema = Joi.object({
-            a: Joi.number(),
-            b: Joi.string()
+        const schema = Engine.object({
+            a: Engine.number(),
+            b: Engine.string()
         }).and('a', 'b')
 
         const obj = {
@@ -727,9 +727,9 @@ describe('Joi', () => {
 
     it('validates dependencies when stripUnknown (as an object) is set', () => {
 
-        const schema = Joi.object({
-            a: Joi.number(),
-            b: Joi.string()
+        const schema = Engine.object({
+            a: Engine.number(),
+            b: Engine.string()
         })
             .and('a', 'b')
 
@@ -755,10 +755,10 @@ describe('Joi', () => {
 
     it('fails to validate with incorrect property when asked to strip unknown keys without aborting early', () => {
 
-        const schema = Joi.object({
-            a: Joi.number().min(0).max(3),
-            b: Joi.string().valid('a', 'b', 'c'),
-            c: Joi.string().email().optional()
+        const schema = Engine.object({
+            a: Engine.number().min(0).max(3),
+            b: Engine.string().valid('a', 'b', 'c'),
+            c: Engine.string().email().optional()
         })
 
         const obj = {
@@ -772,10 +772,10 @@ describe('Joi', () => {
 
     it('fails to validate with incorrect property when asked to strip unknown keys (as an object) without aborting early', () => {
 
-        const schema = Joi.object({
-            a: Joi.number().min(0).max(3),
-            b: Joi.string().valid('a', 'b', 'c'),
-            c: Joi.string().email().optional()
+        const schema = Engine.object({
+            a: Engine.number().min(0).max(3),
+            b: Engine.string().valid('a', 'b', 'c'),
+            c: Engine.string().email().optional()
         })
 
         const obj = {
@@ -789,10 +789,10 @@ describe('Joi', () => {
 
     it('should pass validation with extra keys when allowUnknown is set', () => {
 
-        const schema = Joi.object({
-            a: Joi.number().min(0).max(3),
-            b: Joi.string().valid('a', 'b', 'c'),
-            c: Joi.string().email().optional()
+        const schema = Engine.object({
+            a: Engine.number().min(0).max(3),
+            b: Engine.string().valid('a', 'b', 'c'),
+            c: Engine.string().email().optional()
         })
 
         const obj = {
@@ -806,9 +806,9 @@ describe('Joi', () => {
 
     it('should pass validation with extra keys set', () => {
 
-        const localConfig = Joi.object({
-            a: Joi.number().min(0).max(3),
-            b: Joi.string().valid('a', 'b', 'c')
+        const localConfig = Engine.object({
+            a: Engine.number().min(0).max(3),
+            b: Engine.string().valid('a', 'b', 'c')
         }).prefs({ allowUnknown: true })
 
         const obj = {
@@ -822,9 +822,9 @@ describe('Joi', () => {
 
     it('should pass validation with extra keys and remove them when stripUnknown is set locally', () => {
 
-        const localConfig = Joi.object({
-            a: Joi.number().min(0).max(3),
-            b: Joi.string().valid('a', 'b', 'c')
+        const localConfig = Engine.object({
+            a: Engine.number().min(0).max(3),
+            b: Engine.string().valid('a', 'b', 'c')
         }).prefs({ stripUnknown: true, allowUnknown: true })
 
         const obj = {
@@ -841,9 +841,9 @@ describe('Joi', () => {
 
     it('should pass validation with extra keys and remove them when stripUnknown (as an object) is set locally', () => {
 
-        const localConfig = Joi.object({
-            a: Joi.number().min(0).max(3),
-            b: Joi.string().valid('a', 'b', 'c')
+        const localConfig = Engine.object({
+            a: Engine.number().min(0).max(3),
+            b: Engine.string().valid('a', 'b', 'c')
         }).prefs({ stripUnknown: { arrays: false, objects: true }, allowUnknown: true })
 
         const obj = {
@@ -860,14 +860,14 @@ describe('Joi', () => {
 
     it('should work when the skipFunctions setting is enabled', () => {
 
-        const schema = Joi.object({ username: Joi.string() }).prefs({ skipFunctions: true })
+        const schema = Engine.object({ username: Engine.string() }).prefs({ skipFunctions: true })
         const input = { username: 'test', func() { } }
         Helper.validate(schema, [[input, true]])
     })
 
     it('should work when the skipFunctions setting is disabled', () => {
 
-        const schema = Joi.object({ username: Joi.string() })
+        const schema = Engine.object({ username: Engine.string() })
         const input = { username: 'test', func() { } }
 
         Helper.validate(schema, { skipFunctions: false }, [[input, false, '"func" is not allowed']])
@@ -875,8 +875,8 @@ describe('Joi', () => {
 
     it('should not convert values when convert is false', () => {
 
-        const schema = Joi.object({
-            arr: Joi.array().items(Joi.string())
+        const schema = Engine.object({
+            arr: Engine.array().items(Engine.string())
         })
 
         const input = { arr: 'foo' }
@@ -885,9 +885,9 @@ describe('Joi', () => {
 
     it('full errors when abortEarly is false', () => {
 
-        const schema = Joi.object({
-            a: Joi.string(),
-            b: Joi.string()
+        const schema = Engine.object({
+            a: Engine.string(),
+            b: Engine.string()
         })
 
         const input = { a: 1, b: 2 }
@@ -899,19 +899,19 @@ describe('Joi', () => {
 
     it('errors multiple times when abortEarly is false in a complex object', () => {
 
-        const schema = Joi.object({
-            test: Joi.array().items(Joi.object().keys({
-                foo: Joi.string().required().max(3),
-                bar: Joi.string().max(5)
+        const schema = Engine.object({
+            test: Engine.array().items(Engine.object().keys({
+                foo: Engine.string().required().max(3),
+                bar: Engine.string().max(5)
             })),
-            test2: Joi.object({
-                test3: Joi.array().items(Joi.object().keys({
-                    foo: Joi.string().required().max(3),
-                    bar: Joi.string().max(5),
-                    baz: Joi.object({
-                        test4: Joi.array().items(Joi.object().keys({
-                            foo: Joi.string().required().max(3),
-                            bar: Joi.string().max(5)
+            test2: Engine.object({
+                test3: Engine.array().items(Engine.object().keys({
+                    foo: Engine.string().required().max(3),
+                    bar: Engine.string().max(5),
+                    baz: Engine.object({
+                        test4: Engine.array().items(Engine.object().keys({
+                            foo: Engine.string().required().max(3),
+                            bar: Engine.string().max(5)
                         }))
                     })
                 }))
@@ -985,18 +985,18 @@ describe('Joi', () => {
 
     it('accepts no options', () => {
 
-        Helper.validate(Joi.string(), [['test', true]])
-        Helper.validate(Joi.number(), { convert: false }, [['5', false, '"value" must be a number']])
+        Helper.validate(Engine.string(), [['test', true]])
+        Helper.validate(Engine.number(), { convert: false }, [['5', false, '"value" must be a number']])
     })
 
     it('accepts null options', () => {
 
-        Helper.validate(Joi.string(), null, [['test', true]])
+        Helper.validate(Engine.string(), null, [['test', true]])
     })
 
     it('accepts undefined options', () => {
 
-        Helper.validate(Joi.string(), undefined, [['test', true]])
+        Helper.validate(Engine.string(), undefined, [['test', true]])
     })
 
     describe('assert()', () => {
@@ -1004,7 +1004,7 @@ describe('Joi', () => {
         it('respects abortEarly option', () => {
 
             try {
-                Joi.assert({}, Joi.object().keys({ a: Joi.required(), b: Joi.required() }), { abortEarly: false })
+                Engine.assert({}, Engine.object().keys({ a: Engine.required(), b: Engine.required() }), { abortEarly: false })
                 throw new Error('should not reach that')
             }
             catch (err) {
@@ -1019,7 +1019,7 @@ describe('Joi', () => {
 
             expect(() => {
 
-                Joi.attempt('x', Joi.number())
+                Engine.attempt('x', Engine.number())
             }).to.throw('"value" must be a number')
         })
 
@@ -1027,15 +1027,15 @@ describe('Joi', () => {
 
             expect(() => {
 
-                Joi.attempt('x', Joi.number())
-            }).to.throw(Joi.ValidationError)
+                Engine.attempt('x', Engine.number())
+            }).to.throw(Engine.ValidationError)
         })
 
         it('does not throw on valid value', () => {
 
             expect(() => {
 
-                Joi.attempt('4', Joi.number())
+                Engine.attempt('4', Engine.number())
             }).to.not.throw()
         })
 
@@ -1044,7 +1044,7 @@ describe('Joi', () => {
             let valid
             expect(() => {
 
-                valid = Joi.attempt('4', Joi.number())
+                valid = Engine.attempt('4', Engine.number())
             }).to.not.throw()
             expect(valid).to.equal(4)
         })
@@ -1053,34 +1053,34 @@ describe('Joi', () => {
 
             expect(() => {
 
-                Joi.attempt('x', Joi.number(), 'the reason is')
+                Engine.attempt('x', Engine.number(), 'the reason is')
             }).to.throw('the reason is "value" must be a number')
         })
 
         it('throws on invalid value with message and abortEarly: false', () => {
 
-            const schema = Joi.object({ a: Joi.required(), b: Joi.required() })
-            expect(() => Joi.attempt({}, schema, 'the reasons are', { abortEarly: false })).to.throw('the reasons are "a" is required. "b" is required')
+            const schema = Engine.object({ a: Engine.required(), b: Engine.required() })
+            expect(() => Engine.attempt({}, schema, 'the reasons are', { abortEarly: false })).to.throw('the reasons are "a" is required. "b" is required')
         })
 
         it('throws on invalid value with message as error even with abortEarly: false', () => {
 
             expect(() => {
 
-                Joi.attempt({}, Joi.object().keys({ a: Joi.required(), b: Joi.required() }), new Error('invalid value'), { abortEarly: false })
+                Engine.attempt({}, Engine.object().keys({ a: Engine.required(), b: Engine.required() }), new Error('invalid value'), { abortEarly: false })
             }).to.throw('invalid value')
         })
 
         it('throws a custom error from the schema if provided', () => {
 
-            expect(() => Joi.attempt('x', Joi.number().error(new Error('Oh noes !')))).to.throw('Oh noes !')
+            expect(() => Engine.attempt('x', Engine.number().error(new Error('Oh noes !')))).to.throw('Oh noes !')
         })
 
         it('throws an error with combined messages', () => {
 
-            const schema = Joi.number().error(new Error('Oh noes !'))
-            expect(() => Joi.attempt('x', schema, 'invalid value')).to.throw('invalid value Oh noes !')
-            expect(() => Joi.attempt('x', schema, 'invalid value')).to.throw('invalid value Oh noes !')
+            const schema = Engine.number().error(new Error('Oh noes !'))
+            expect(() => Engine.attempt('x', schema, 'invalid value')).to.throw('invalid value Oh noes !')
+            expect(() => Engine.attempt('x', schema, 'invalid value')).to.throw('invalid value Oh noes !')
         })
 
         it('should not convert to iso date', () => {
@@ -1088,7 +1088,7 @@ describe('Joi', () => {
             let value
             expect(() => {
 
-                value = Joi.attempt('2022-02-21T21:28:00Z', Joi.string().isoDate(), '', { convert: false })
+                value = Engine.attempt('2022-02-21T21:28:00Z', Engine.string().isoDate(), '', { convert: false })
             }).to.not.throw()
             expect(value).to.equal('2022-02-21T21:28:00Z')
         })
@@ -1098,7 +1098,7 @@ describe('Joi', () => {
             let value
             expect(() => {
 
-                value = Joi.attempt('2022-02-21T21:28:00Z', Joi.string().isoDate(), '', { convert: true })
+                value = Engine.attempt('2022-02-21T21:28:00Z', Engine.string().isoDate(), '', { convert: true })
             }).to.not.throw()
             expect(value).to.equal('2022-02-21T21:28:00.000Z')
         })
@@ -1108,8 +1108,8 @@ describe('Joi', () => {
 
         it('validates preferences', () => {
 
-            expect(() => Joi.checkPreferences({ abortEarly: false })).to.not.throw()
-            expect(() => Joi.checkPreferences({ x: 1 })).to.throw()
+            expect(() => Engine.checkPreferences({ abortEarly: false })).to.not.throw()
+            expect(() => Engine.checkPreferences({ x: 1 })).to.throw()
         })
     })
 
@@ -1119,7 +1119,7 @@ describe('Joi', () => {
 
             expect(() => {
 
-                Joi.compile(undefined)
+                Engine.compile(undefined)
             }).to.throw('Invalid undefined schema')
         })
 
@@ -1137,7 +1137,7 @@ describe('Joi', () => {
 
             expect(() => {
 
-                Joi.compile(schema)
+                Engine.compile(schema)
             }).to.throw(Error, 'Invalid undefined schema (a.b.c.d)')
         })
     })
@@ -1146,7 +1146,7 @@ describe('Joi', () => {
 
         it('applies defaults to root', () => {
 
-            const custom = Joi.defaults((schema) => schema.required().description('defaulted'))
+            const custom = Engine.defaults((schema) => schema.required().description('defaulted'))
             const schema = custom.optional()
             expect(schema.describe()).to.equal({
                 type: 'any',
@@ -1159,7 +1159,7 @@ describe('Joi', () => {
 
         it('applies defaults to standard types', () => {
 
-            const custom = Joi.defaults((schema) => schema.required().description('defaulted'))
+            const custom = Engine.defaults((schema) => schema.required().description('defaulted'))
             const schema = custom.string()
             expect(schema.describe()).to.equal({
                 type: 'string',
@@ -1172,7 +1172,7 @@ describe('Joi', () => {
 
         it('applies defaults to types with arguments', () => {
 
-            const custom = Joi.defaults((schema) => schema.required().description('defaulted'))
+            const custom = Engine.defaults((schema) => schema.required().description('defaulted'))
             const schema = custom.object({ foo: 'bar' })
             expect(schema.describe()).to.equal({
                 type: 'object',
@@ -1196,8 +1196,8 @@ describe('Joi', () => {
 
         it('keeps several defaults separated', () => {
 
-            const custom1 = Joi.defaults((schema) => schema.required().description('defaulted'))
-            const custom2 = Joi.defaults((schema) => schema.required().description('defaulted2'))
+            const custom1 = Engine.defaults((schema) => schema.required().description('defaulted'))
+            const custom2 = Engine.defaults((schema) => schema.required().description('defaulted2'))
 
             const schema = custom1.object({
                 foo: 'bar',
@@ -1246,7 +1246,7 @@ describe('Joi', () => {
 
         it('inherits defaults', () => {
 
-            const custom = Joi
+            const custom = Engine
                 .defaults((schema) => schema.required().description('defaulted'))
                 .defaults((schema) => schema.raw())
 
@@ -1278,7 +1278,7 @@ describe('Joi', () => {
 
         it('keeps defaults on extensions', () => {
 
-            const custom = Joi.defaults((schema) => schema.required().description('defaulted'))
+            const custom = Engine.defaults((schema) => schema.required().description('defaulted'))
 
             const extended = custom.extend({ type: 'foobar' })
             const schema = extended.foobar()
@@ -1293,7 +1293,7 @@ describe('Joi', () => {
 
         it('applies defaults on extensions', () => {
 
-            const extended = Joi.extend({ type: 'foobar' })
+            const extended = Engine.extend({ type: 'foobar' })
             const custom = extended.defaults((schema) => schema.required().description('defaulted'))
             const schema = custom.foobar()
             expect(schema.describe()).to.equal({
@@ -1309,7 +1309,7 @@ describe('Joi', () => {
 
             expect(() => {
 
-                Joi.defaults((schema) => {
+                Engine.defaults((schema) => {
 
                     switch (schema.type) {
                         case 'bool':
@@ -1323,7 +1323,7 @@ describe('Joi', () => {
 
             expect(() => {
 
-                Joi.defaults((schema) => {
+                Engine.defaults((schema) => {
 
                     switch (schema.type) {
                         case 'any':
@@ -1336,15 +1336,15 @@ describe('Joi', () => {
 
     describe('ValidationError', () => {
 
-        it('should be Joi', () => {
+        it('should be Engine', () => {
 
-            const error = new Joi.ValidationError()
+            const error = new Engine.ValidationError()
             expect(error.isJoi).to.equal(true)
         })
 
         it('should be named ValidationError', () => {
 
-            const error = new Joi.ValidationError()
+            const error = new Engine.ValidationError()
             expect(error.name).to.equal('ValidationError')
         })
     })
@@ -1355,11 +1355,11 @@ describe('Joi', () => {
 
             expect(() => {
 
-                const string = Joi.string
+                const string = Engine.string
                 string()
-            }).to.throw('Must be invoked on a Joi instance.')
+            }).to.throw('Must be invoked on a validation root.')
 
-            const { string } = Joi.types()
+            const { string } = Engine.types()
             expect(() => string.allow('x')).to.not.throw()
 
             Helper.validate(string, [[0, false, '"value" must be a string']])
@@ -1369,11 +1369,11 @@ describe('Joi', () => {
 
             expect(() => {
 
-                const func = Joi.func
+                const func = Engine.func
                 func()
-            }).to.throw('Must be invoked on a Joi instance.')
+            }).to.throw('Must be invoked on a validation root.')
 
-            const { func } = Joi.types()
+            const { func } = Engine.types()
             expect(() => func.allow('x')).to.not.throw()
 
             Helper.validate(func, [[0, false, '"value" must be of type function']])

@@ -6,7 +6,7 @@
 // @ts-nocheck
 import {describe, it} from 'node:test'
 import {expect} from '../../support/Expect.js'
-import Joi from '../../../../lib/validation/engine/schema/index.js'
+import Engine from '../../../../lib/validation/engine/schema/index.js'
 import * as Helper from '../Helper.js'
 const internals = {}
 
@@ -14,12 +14,12 @@ describe('number', () => {
 
     it('throws an exception if arguments were passed.', () => {
 
-        expect(() => Joi.number('invalid argument.')).to.throw('The number type does not allow arguments')
+        expect(() => Engine.number('invalid argument.')).to.throw('The number type does not allow arguments')
     })
 
     it('validates 0', () => {
 
-        Helper.validate(Joi.number(), [
+        Helper.validate(Engine.number(), [
             [0, true, 0],
             [-0, true, 0],
             [parseFloat('-0'), true, 0]
@@ -28,7 +28,7 @@ describe('number', () => {
 
     it('fails on boolean', () => {
 
-        const schema = Joi.number()
+        const schema = Engine.number()
         Helper.validate(schema, [
             [true, false, {
                 message: '"value" must be a number',
@@ -47,15 +47,15 @@ describe('number', () => {
 
     it('instantiates separate copies on invocation', () => {
 
-        const result1 = Joi.number().min(5)
-        const result2 = Joi.number().max(5)
+        const result1 = Engine.number().min(5)
+        const result2 = Engine.number().max(5)
 
         expect(Object.keys(result1)).to.not.shallow.equal(Object.keys(result2))
     })
 
     it('shows resulting object with #valueOf', () => {
 
-        const result = Joi.number().min(5)
+        const result = Engine.number().min(5)
         expect(result.valueOf()).to.exist()
     })
 
@@ -63,8 +63,8 @@ describe('number', () => {
 
         it('displays correctly for int type', () => {
 
-            const t = Joi.number().integer()
-            Helper.validate(Joi.compile(t), [
+            const t = Engine.number().integer()
+            Helper.validate(Engine.compile(t), [
                 ['1.1', false, {
                     message: '"value" must be an integer',
                     path: [],
@@ -79,7 +79,7 @@ describe('number', () => {
 
         it('casts value to string', () => {
 
-            const schema = Joi.number().cast('string')
+            const schema = Engine.number().cast('string')
             Helper.validate(schema, [
                 [0, true, '0'],
                 [0.01, true, '0.01'],
@@ -89,13 +89,13 @@ describe('number', () => {
 
         it('ignores null', () => {
 
-            const schema = Joi.number().allow(null).cast('string')
+            const schema = Engine.number().allow(null).cast('string')
             Helper.validate(schema, [[null, true, null]])
         })
 
         it('ignores string', () => {
 
-            const schema = Joi.number().allow('x').cast('string')
+            const schema = Engine.number().allow('x').cast('string')
             Helper.validate(schema, [['x', true, 'x']])
         })
     })
@@ -104,7 +104,7 @@ describe('number', () => {
 
         it('describes a minimum of 0', () => {
 
-            const schema = Joi.number().min(0)
+            const schema = Engine.number().min(0)
             expect(schema.describe()).to.equal({
                 type: 'number',
                 rules: [
@@ -123,7 +123,7 @@ describe('number', () => {
 
             expect(() => {
 
-                Joi.number().greater()
+                Engine.number().greater()
             }).to.throw('limit must be a number or reference')
         })
 
@@ -131,14 +131,14 @@ describe('number', () => {
 
             expect(() => {
 
-                Joi.number().greater('a')
+                Engine.number().greater('a')
             }).to.throw('limit must be a number or reference')
         })
 
         it('accepts references as greater value', () => {
 
-            const ref = Joi.ref('a')
-            const schema = Joi.object({ a: Joi.number(), b: Joi.number().greater(ref) })
+            const ref = Engine.ref('a')
+            const schema = Engine.object({ a: Engine.number(), b: Engine.number().greater(ref) })
 
             Helper.validate(schema, [
                 [{ a: 42, b: 1337 }, true],
@@ -173,8 +173,8 @@ describe('number', () => {
 
         it('accepts context references as greater value', () => {
 
-            const ref = Joi.ref('$a')
-            const schema = Joi.object({ b: Joi.number().greater(ref) })
+            const ref = Engine.ref('$a')
+            const schema = Engine.object({ b: Engine.number().greater(ref) })
 
             Helper.validate(schema, { context: { a: 42 } }, [
                 [{ b: 1337 }, true]
@@ -218,8 +218,8 @@ describe('number', () => {
 
         it('errors if reference is not a number', () => {
 
-            const ref = Joi.ref('a')
-            const schema = Joi.object({ a: Joi.string(), b: Joi.number().greater(ref) })
+            const ref = Engine.ref('a')
+            const schema = Engine.object({ a: Engine.string(), b: Engine.number().greater(ref) })
 
             Helper.validate(schema, [
                 [{ a: 'abc', b: 42 }, false, {
@@ -233,8 +233,8 @@ describe('number', () => {
 
         it('errors if context reference is not a number', () => {
 
-            const ref = Joi.ref('$a')
-            const schema = Joi.object({ b: Joi.number().greater(ref) })
+            const ref = Engine.ref('$a')
+            const schema = Engine.object({ b: Engine.number().greater(ref) })
 
             Helper.validate(schema, { context: { a: 'abc' } }, [
                 [{ b: 42 }, false, {
@@ -253,7 +253,7 @@ describe('number', () => {
 
             expect(() => {
 
-                Joi.number().less()
+                Engine.number().less()
             }).to.throw('limit must be a number or reference')
         })
 
@@ -261,14 +261,14 @@ describe('number', () => {
 
             expect(() => {
 
-                Joi.number().less('a')
+                Engine.number().less('a')
             }).to.throw('limit must be a number or reference')
         })
 
         it('accepts references as less value', () => {
 
-            const ref = Joi.ref('a')
-            const schema = Joi.object({ a: Joi.number(), b: Joi.number().less(ref) })
+            const ref = Engine.ref('a')
+            const schema = Engine.object({ a: Engine.number(), b: Engine.number().less(ref) })
 
             Helper.validate(schema, [
                 [{ a: 1337, b: 42 }, true],
@@ -303,8 +303,8 @@ describe('number', () => {
 
         it('accepts context references as less value', () => {
 
-            const ref = Joi.ref('$a')
-            const schema = Joi.object({ b: Joi.number().less(ref) })
+            const ref = Engine.ref('$a')
+            const schema = Engine.object({ b: Engine.number().less(ref) })
 
             Helper.validate(schema, { context: { a: 1337 } }, [
                 [{ b: 42 }, true]
@@ -345,8 +345,8 @@ describe('number', () => {
 
         it('errors if reference is not a number', () => {
 
-            const ref = Joi.ref('a')
-            const schema = Joi.object({ a: Joi.string(), b: Joi.number().less(ref) })
+            const ref = Engine.ref('a')
+            const schema = Engine.object({ a: Engine.string(), b: Engine.number().less(ref) })
 
             Helper.validate(schema, [
                 [{ a: 'abc', b: 42 }, false, {
@@ -360,8 +360,8 @@ describe('number', () => {
 
         it('errors if reference is null', () => {
 
-            const ref = Joi.ref('a')
-            const schema = Joi.object({ a: Joi.any(), b: Joi.number().less(ref) })
+            const ref = Engine.ref('a')
+            const schema = Engine.object({ a: Engine.any(), b: Engine.number().less(ref) })
 
             Helper.validate(schema, [
                 [{ a: null, b: 42 }, false, {
@@ -375,8 +375,8 @@ describe('number', () => {
 
         it('errors if context reference is not a number', () => {
 
-            const ref = Joi.ref('$a')
-            const schema = Joi.object({ a: Joi.string(), b: Joi.number().less(ref) })
+            const ref = Engine.ref('$a')
+            const schema = Engine.object({ a: Engine.string(), b: Engine.number().less(ref) })
 
             Helper.validate(schema, { context: { a: 'abc' } }, [
                 [{ b: 42 }, false, {
@@ -395,7 +395,7 @@ describe('number', () => {
 
             expect(() => {
 
-                Joi.number().max()
+                Engine.number().max()
             }).to.throw('limit must be a number or reference')
         })
 
@@ -403,14 +403,14 @@ describe('number', () => {
 
             expect(() => {
 
-                Joi.number().max('a')
+                Engine.number().max('a')
             }).to.throw('limit must be a number or reference')
         })
 
         it('accepts references as max value', () => {
 
-            const ref = Joi.ref('a')
-            const schema = Joi.object({ a: Joi.number(), b: Joi.number().max(ref) })
+            const ref = Engine.ref('a')
+            const schema = Engine.object({ a: Engine.number(), b: Engine.number().max(ref) })
 
             Helper.validate(schema, [
                 [{ a: 1337, b: 42 }, true],
@@ -445,8 +445,8 @@ describe('number', () => {
 
         it('accepts context references as max value', () => {
 
-            const ref = Joi.ref('$a')
-            const schema = Joi.object({ b: Joi.number().max(ref) })
+            const ref = Engine.ref('$a')
+            const schema = Engine.object({ b: Engine.number().max(ref) })
 
             Helper.validate(schema, { context: { a: 1337 } }, [
                 [{ b: 42 }, true]
@@ -487,8 +487,8 @@ describe('number', () => {
 
         it('errors if reference is not a number', () => {
 
-            const ref = Joi.ref('a')
-            const schema = Joi.object({ a: Joi.string(), b: Joi.number().max(ref) })
+            const ref = Engine.ref('a')
+            const schema = Engine.object({ a: Engine.string(), b: Engine.number().max(ref) })
 
             Helper.validate(schema, [
                 [{ a: 'abc', b: 42 }, false, {
@@ -502,8 +502,8 @@ describe('number', () => {
 
         it('errors if context reference is not a number', () => {
 
-            const ref = Joi.ref('$a')
-            const schema = Joi.object({ b: Joi.number().max(ref) })
+            const ref = Engine.ref('$a')
+            const schema = Engine.object({ b: Engine.number().max(ref) })
 
             Helper.validate(schema, { context: { a: 'abc' } }, [
                 [{ b: 42 }, false, {
@@ -520,22 +520,22 @@ describe('number', () => {
 
         it('throws when limit is undefined', () => {
 
-            expect(() => Joi.number().min()).to.throw('limit must be a number or reference')
+            expect(() => Engine.number().min()).to.throw('limit must be a number or reference')
         })
 
         it('throws when limit is not a number', () => {
 
-            expect(() => Joi.number().min('a')).to.throw('limit must be a number or reference')
+            expect(() => Engine.number().min('a')).to.throw('limit must be a number or reference')
         })
 
         it('throws when limit is null', () => {
 
-            expect(() => Joi.number().min(null)).to.throw('limit must be a number or reference')
+            expect(() => Engine.number().min(null)).to.throw('limit must be a number or reference')
         })
 
         it('supports 64bit numbers', () => {
 
-            const schema = Joi.number().min(1394035612500)
+            const schema = Engine.number().min(1394035612500)
             const input = 1394035612552
 
             Helper.validate(schema, [[input, true, input]])
@@ -543,8 +543,8 @@ describe('number', () => {
 
         it('accepts references as min value', () => {
 
-            const ref = Joi.ref('a')
-            const schema = Joi.object({ a: Joi.number(), b: Joi.number().min(ref) })
+            const ref = Engine.ref('a')
+            const schema = Engine.object({ a: Engine.number(), b: Engine.number().min(ref) })
 
             Helper.validate(schema, [
                 [{ a: 42, b: 1337 }, true],
@@ -579,12 +579,12 @@ describe('number', () => {
 
         it('accepts references as min value within a when', () => {
 
-            const schema = Joi.object({
-                a: Joi.number().required(),
-                b: Joi.number().required(),
-                c: Joi.number().required().when('a', {
-                    is: Joi.number().min(Joi.ref('b')), // a >= b
-                    then: Joi.number().valid(0)
+            const schema = Engine.object({
+                a: Engine.number().required(),
+                b: Engine.number().required(),
+                c: Engine.number().required().when('a', {
+                    is: Engine.number().min(Engine.ref('b')), // a >= b
+                    then: Engine.number().valid(0)
                 })
             })
 
@@ -609,8 +609,8 @@ describe('number', () => {
 
         it('accepts context references as min value', () => {
 
-            const ref = Joi.ref('$a')
-            const schema = Joi.object({ b: Joi.number().min(ref) })
+            const ref = Engine.ref('$a')
+            const schema = Engine.object({ b: Engine.number().min(ref) })
 
             Helper.validate(schema, { context: { a: 42 } }, [
                 [{ b: 1337 }, true]
@@ -654,8 +654,8 @@ describe('number', () => {
 
         it('errors if reference is not a number', () => {
 
-            const ref = Joi.ref('a')
-            const schema = Joi.object({ a: Joi.string(), b: Joi.number().min(ref) })
+            const ref = Engine.ref('a')
+            const schema = Engine.object({ a: Engine.string(), b: Engine.number().min(ref) })
 
             Helper.validate(schema, [
                 [{ a: 'abc', b: 42 }, false, {
@@ -669,8 +669,8 @@ describe('number', () => {
 
         it('errors if context reference is not a number', () => {
 
-            const ref = Joi.ref('$a')
-            const schema = Joi.object({ b: Joi.number().min(ref) })
+            const ref = Engine.ref('$a')
+            const schema = Engine.object({ b: Engine.number().min(ref) })
 
             Helper.validate(schema, { context: { a: 'abc' } }, [
                 [{ b: 42 }, false, {
@@ -689,7 +689,7 @@ describe('number', () => {
 
             expect(() => {
 
-                Joi.number().multiple()
+                Engine.number().multiple()
             }).to.throw('base must be a positive number or reference')
         })
 
@@ -697,7 +697,7 @@ describe('number', () => {
 
             expect(() => {
 
-                Joi.number().multiple('a')
+                Engine.number().multiple('a')
             }).to.throw('base must be a positive number or reference')
         })
 
@@ -705,13 +705,13 @@ describe('number', () => {
 
             expect(() => {
 
-                Joi.number().multiple(0)
+                Engine.number().multiple(0)
             }).to.throw('base must be a positive number or reference')
         })
 
         it('handles integer multiples correctly', () => {
 
-            const rule = Joi.number().multiple(3)
+            const rule = Engine.number().multiple(3)
             Helper.validate(rule, [
                 [0, true], // 0 is a multiple of every integer
                 [3, true],
@@ -780,14 +780,14 @@ describe('number', () => {
             ]
 
             for (const [multiple, tests] of cases) {
-                const schema = Joi.number().multiple(multiple)
+                const schema = Engine.number().multiple(multiple)
                 Helper.validate(schema, tests)
             }
         })
 
         it('handles floats multiples correctly', () => {
 
-            const schema = Joi.number().multiple(3.5)
+            const schema = Engine.number().multiple(3.5)
             Helper.validate(schema, [
                 [0, true],  // 0 is a multiple of every number
                 [3.5, true],
@@ -821,7 +821,7 @@ describe('number', () => {
 
         it('handles 0.1 multiples', () => {
 
-            const schema = Joi.number().multiple(0.1)
+            const schema = Engine.number().multiple(0.1)
             Helper.validate(schema, [
                 [0, true],  // 0 is a multiple of every number
                 [3.5, true],
@@ -832,8 +832,8 @@ describe('number', () => {
 
         it('handles references correctly', () => {
 
-            const ref = Joi.ref('a')
-            const schema = Joi.object({ a: Joi.number(), b: Joi.number().multiple(ref) })
+            const ref = Engine.ref('a')
+            const schema = Engine.object({ a: Engine.number(), b: Engine.number().multiple(ref) })
             Helper.validate(schema, [
                 [{ a: 2, b: 32 }, true],
                 [{ a: 43, b: 0 }, true],
@@ -854,12 +854,12 @@ describe('number', () => {
 
         it('handles references correctly within a when', () => {
 
-            const schema = Joi.object({
-                a: Joi.number().required(),
-                b: Joi.number().required(),
-                c: Joi.number().required().when('a', {
-                    is: Joi.number().multiple(Joi.ref('b')), // a % b === 0
-                    then: Joi.number().valid(0)
+            const schema = Engine.object({
+                a: Engine.number().required(),
+                b: Engine.number().required(),
+                c: Engine.number().required().when('a', {
+                    is: Engine.number().multiple(Engine.ref('b')), // a % b === 0
+                    then: Engine.number().valid(0)
                 })
             })
 
@@ -878,8 +878,8 @@ describe('number', () => {
 
         it('handles non-number references correctly', () => {
 
-            const ref = Joi.ref('a')
-            const schema = Joi.object({ a: Joi.string(), b: Joi.number().multiple(ref) })
+            const ref = Engine.ref('a')
+            const schema = Engine.object({ a: Engine.string(), b: Engine.number().multiple(ref) })
             Helper.validate(schema, [
                 [{ a: 'test', b: 32 }, false, {
                     message: '"b" base references "ref:a" which must be a positive number',
@@ -904,8 +904,8 @@ describe('number', () => {
 
         it('handles context references correctly', () => {
 
-            const ref = Joi.ref('$a')
-            const schema = Joi.object({ b: Joi.number().multiple(ref) })
+            const ref = Engine.ref('$a')
+            const schema = Engine.object({ b: Engine.number().multiple(ref) })
 
             Helper.validate(schema, { context: { a: 2 } }, [
                 [{ b: 32 }, true]
@@ -969,7 +969,7 @@ describe('number', () => {
 
         it('validates correctly', () => {
 
-            const schema = Joi.object({ port: Joi.number().port() })
+            const schema = Engine.object({ port: Engine.number().port() })
 
             Helper.validate(schema, [
                 [{ port: 1337 }, true],
@@ -997,7 +997,7 @@ describe('number', () => {
         //Not in upstream: the inclusive boundaries of the port range
         it('validates the boundaries', () => {
 
-            const schema = Joi.number().port()
+            const schema = Engine.number().port()
 
             Helper.validate(schema, [
                 [0, true],
@@ -1016,7 +1016,7 @@ describe('number', () => {
 
         it('converts numbers', () => {
 
-            const schema = Joi.number().precision(4)
+            const schema = Engine.number().precision(4)
             Helper.validate(schema, [
                 [1.5, true, 1.5],
                 [0.12345, true, 0.1235],
@@ -1040,7 +1040,7 @@ describe('number', () => {
 
         it('validates with min()', () => {
 
-            const schema = Joi.number()
+            const schema = Engine.number()
                 .min(0)
                 .precision(2)
 
@@ -1058,7 +1058,7 @@ describe('number', () => {
 
         it('accepts safe numbers', () => {
 
-            const t = Joi.number()
+            const t = Engine.number()
             Helper.validate(t, [
                 [Number.MAX_SAFE_INTEGER, true, Number.MAX_SAFE_INTEGER],
                 [Number.MIN_SAFE_INTEGER, true, Number.MIN_SAFE_INTEGER]
@@ -1070,14 +1070,14 @@ describe('number', () => {
 
         it('allows undefined', () => {
 
-            Helper.validate(Joi.number(), [
+            Helper.validate(Engine.number(), [
                 [undefined, true]
             ])
         })
 
         it('denies undefined when .required()', () => {
 
-            Helper.validate(Joi.number().required(), [
+            Helper.validate(Engine.number().required(), [
                 [undefined, false, {
                     message: '"value" is required',
                     path: [],
@@ -1089,19 +1089,19 @@ describe('number', () => {
 
         it('compares valid matching post-coerce value', () => {
 
-            const schema = Joi.number().valid(1, 2, 3)
+            const schema = Engine.number().valid(1, 2, 3)
             Helper.validate(schema, [['1', true, 1]])
         })
 
         it('ignores invalid matching of pre-coerce value', () => {
 
-            const schema = Joi.number().invalid('1')
+            const schema = Engine.number().invalid('1')
             Helper.validate(schema, [['1', true, 1]])
         })
 
         it('returns false for denied value', () => {
 
-            const text = Joi.number().invalid(50)
+            const text = Engine.number().invalid(50)
             Helper.validate(text, [
                 [50, false, {
                     message: '"value" contains an invalid value',
@@ -1114,7 +1114,7 @@ describe('number', () => {
 
         it('validates integer', () => {
 
-            const t = Joi.number().integer()
+            const t = Engine.number().integer()
             Helper.validate(t, [
                 [100, true],
                 [0, true],
@@ -1142,7 +1142,7 @@ describe('number', () => {
 
         it('returns false for Infinity', () => {
 
-            const t = Joi.number()
+            const t = Engine.number()
             Helper.validate(t, [
                 [Infinity, false, {
                     message: '"value" cannot be infinity',
@@ -1161,7 +1161,7 @@ describe('number', () => {
 
         it('returns true for allowed Infinity', () => {
 
-            const t = Joi.number().allow(Infinity, -Infinity)
+            const t = Engine.number().allow(Infinity, -Infinity)
             Helper.validate(t, [
                 [Infinity, true],
                 [-Infinity, true]
@@ -1170,7 +1170,7 @@ describe('number', () => {
 
         it('returns true for decimal numbers', () => {
 
-            const t = Joi.number()
+            const t = Engine.number()
             Helper.validate(t, [
                 [0.00000001, true, 0.00000001]
             ])
@@ -1178,7 +1178,7 @@ describe('number', () => {
 
         it('can accept string numbers', () => {
 
-            const t = Joi.number()
+            const t = Engine.number()
             Helper.validate(t, [
                 ['1', true, 1],
                 ['100', true, 100],
@@ -1237,7 +1237,7 @@ describe('number', () => {
 
         it('required validates correctly', () => {
 
-            const t = Joi.number().required()
+            const t = Engine.number().required()
             Helper.validate(t, [
                 [NaN, false, {
                     message: '"value" must be a number',
@@ -1251,21 +1251,21 @@ describe('number', () => {
 
         it('converts an object string to a number', () => {
 
-            const config = { a: Joi.number() }
+            const config = { a: Engine.number() }
             const obj = { a: '123' }
-            Helper.validate(Joi.compile(config), [
+            Helper.validate(Engine.compile(config), [
                 [obj, true, { a: 123 }]
             ])
         })
 
         it('converts a string to a number', () => {
 
-            Helper.validate(Joi.number(), [['1', true, 1]])
+            Helper.validate(Engine.number(), [['1', true, 1]])
         })
 
         it('errors on null', () => {
 
-            Helper.validate(Joi.number(), [
+            Helper.validate(Engine.number(), [
                 [null, false, {
                     message: '"value" must be a number',
                     path: [],
@@ -1277,7 +1277,7 @@ describe('number', () => {
 
         it('handles combination of min and max', () => {
 
-            const rule = Joi.number().min(8).max(10)
+            const rule = Engine.number().min(8).max(10)
             Helper.validate(rule, [
                 [1, false, {
                     message: '"value" must be greater than or equal to 8',
@@ -1304,7 +1304,7 @@ describe('number', () => {
 
         it('handles combination of min, max, and null allowed', () => {
 
-            const rule = Joi.number().min(8).max(10).allow(null)
+            const rule = Engine.number().min(8).max(10).allow(null)
             Helper.validate(rule, [
                 [1, false, {
                     message: '"value" must be greater than or equal to 8',
@@ -1326,7 +1326,7 @@ describe('number', () => {
 
         it('handles combination of min and positive', () => {
 
-            const rule = Joi.number().min(-3).positive()
+            const rule = Engine.number().min(-3).positive()
             Helper.validate(rule, [
                 [1, true],
                 [-2, false, {
@@ -1347,7 +1347,7 @@ describe('number', () => {
 
         it('handles combination of max and positive', () => {
 
-            const rule = Joi.number().max(5).positive()
+            const rule = Engine.number().max(5).positive()
             Helper.validate(rule, [
                 [4, true],
                 [-2, false, {
@@ -1373,7 +1373,7 @@ describe('number', () => {
 
         it('handles combination of min and negative', () => {
 
-            const rule = Joi.number().min(-3).negative()
+            const rule = Engine.number().min(-3).negative()
             Helper.validate(rule, [
                 [4, false, {
                     message: '"value" must be a negative number',
@@ -1399,7 +1399,7 @@ describe('number', () => {
 
         it('handles combination of negative and allow', () => {
 
-            const rule = Joi.number().negative().allow(1)
+            const rule = Engine.number().negative().allow(1)
             Helper.validate(rule, [
                 [1, true],
                 [-10, true],
@@ -1426,7 +1426,7 @@ describe('number', () => {
 
         it('handles combination of positive and allow', () => {
 
-            const rule = Joi.number().positive().allow(-1)
+            const rule = Engine.number().positive().allow(-1)
             Helper.validate(rule, [
                 [1, true],
                 [-1, true],
@@ -1448,7 +1448,7 @@ describe('number', () => {
 
         it('handles combination of positive, allow, and null allowed', () => {
 
-            const rule = Joi.number().positive().allow(-1).allow(null)
+            const rule = Engine.number().positive().allow(-1).allow(null)
             Helper.validate(rule, [
                 [1, true],
                 [-1, true],
@@ -1465,7 +1465,7 @@ describe('number', () => {
 
         it('handles combination of negative, allow, and null allowed', () => {
 
-            const rule = Joi.number().negative().allow(1).allow(null)
+            const rule = Engine.number().negative().allow(1).allow(null)
             Helper.validate(rule, [
                 [1, true],
                 [-10, true],
@@ -1487,7 +1487,7 @@ describe('number', () => {
 
         it('handles combination of positive, allow, null allowed, and invalid', () => {
 
-            const rule = Joi.number().positive().allow(-1).allow(null).invalid(1)
+            const rule = Engine.number().positive().allow(-1).allow(null).invalid(1)
             Helper.validate(rule, [
                 [1, false, {
                     message: '"value" contains an invalid value',
@@ -1509,7 +1509,7 @@ describe('number', () => {
 
         it('handles combination of negative, allow, null allowed, and invalid', () => {
 
-            const rule = Joi.number().negative().allow(1).allow(null).invalid(-5)
+            const rule = Engine.number().negative().allow(1).allow(null).invalid(-5)
             Helper.validate(rule, [
                 [1, true],
                 [-10, true],
@@ -1537,7 +1537,7 @@ describe('number', () => {
 
         it('handles combination of min, max, and allow', () => {
 
-            const rule = Joi.number().min(8).max(10).allow(1)
+            const rule = Engine.number().min(8).max(10).allow(1)
             Helper.validate(rule, [
                 [1, true],
                 [11, false, {
@@ -1559,7 +1559,7 @@ describe('number', () => {
 
         it('handles combination of min, max, allow, and null allowed', () => {
 
-            const rule = Joi.number().min(8).max(10).allow(1).allow(null)
+            const rule = Engine.number().min(8).max(10).allow(1).allow(null)
             Helper.validate(rule, [
                 [1, true],
                 [11, false, {
@@ -1576,7 +1576,7 @@ describe('number', () => {
 
         it('handles combination of min, max, allow, and invalid', () => {
 
-            const rule = Joi.number().min(8).max(10).allow(1).invalid(9)
+            const rule = Engine.number().min(8).max(10).allow(1).invalid(9)
             Helper.validate(rule, [
                 [1, true],
                 [11, false, {
@@ -1603,7 +1603,7 @@ describe('number', () => {
 
         it('handles combination of min, max, allow, invalid, and null allowed', () => {
 
-            const rule = Joi.number().min(8).max(10).allow(1).invalid(9).allow(null)
+            const rule = Engine.number().min(8).max(10).allow(1).invalid(9).allow(null)
             Helper.validate(rule, [
                 [1, true],
                 [11, false, {
@@ -1625,7 +1625,7 @@ describe('number', () => {
 
         it('handles combination of min, max, and integer', () => {
 
-            const rule = Joi.number().min(8).max(10).integer()
+            const rule = Engine.number().min(8).max(10).integer()
             Helper.validate(rule, [
                 [1, false, {
                     message: '"value" must be greater than or equal to 8',
@@ -1658,7 +1658,7 @@ describe('number', () => {
 
         it('handles combination of min, max, integer, and allow', () => {
 
-            const rule = Joi.number().min(8).max(10).integer().allow(9.1)
+            const rule = Engine.number().min(8).max(10).integer().allow(9.1)
             Helper.validate(rule, [
                 [1, false, {
                     message: '"value" must be greater than or equal to 8',
@@ -1692,7 +1692,7 @@ describe('number', () => {
 
         it('handles combination of min, max, integer, allow, and invalid', () => {
 
-            const rule = Joi.number().min(8).max(10).integer().allow(9.1).invalid(8)
+            const rule = Engine.number().min(8).max(10).integer().allow(9.1).invalid(8)
             Helper.validate(rule, [
                 [1, false, {
                     message: '"value" must be greater than or equal to 8',
@@ -1731,7 +1731,7 @@ describe('number', () => {
 
         it('handles combination of min, max, integer, allow, invalid, and null allowed', () => {
 
-            const rule = Joi.number().min(8).max(10).integer().allow(9.1).invalid(8).allow(null)
+            const rule = Engine.number().min(8).max(10).integer().allow(9.1).invalid(8).allow(null)
             Helper.validate(rule, [
                 [1, false, {
                     message: '"value" must be greater than or equal to 8',
@@ -1765,7 +1765,7 @@ describe('number', () => {
 
         it('handles limiting the number of decimal places', () => {
 
-            const rule = Joi.number().precision(1).prefs({ convert: false })
+            const rule = Engine.number().precision(1).prefs({ convert: false })
             Helper.validate(rule, [
                 [1, true],
                 [9.1, true],
@@ -1799,7 +1799,7 @@ describe('number', () => {
 
         it('handles combination of min, max, integer, allow, invalid, null allowed and precision', () => {
 
-            const rule = Joi.number().min(8).max(10).integer().allow(9.1).invalid(8).allow(null).precision(1).prefs({ convert: false })
+            const rule = Engine.number().min(8).max(10).integer().allow(9.1).invalid(8).allow(null).precision(1).prefs({ convert: false })
             Helper.validate(rule, [
                 [1, false, {
                     message: '"value" must be greater than or equal to 8',
@@ -1845,7 +1845,7 @@ describe('number', () => {
 
         it('handles combination of greater and less', () => {
 
-            const rule = Joi.number().greater(5).less(10)
+            const rule = Engine.number().greater(5).less(10)
             Helper.validate(rule, [
                 [0, false, {
                     message: '"value" must be greater than 5',
@@ -1885,7 +1885,7 @@ describe('number', () => {
 
         it('handles combination of greater, less, and integer', () => {
 
-            const rule = Joi.number().integer().greater(5).less(10)
+            const rule = Engine.number().integer().greater(5).less(10)
             Helper.validate(rule, [
                 [0, false, {
                     message: '"value" must be greater than 5',
@@ -1930,7 +1930,7 @@ describe('number', () => {
 
         it('handles combination of greater, less, and null allowed', () => {
 
-            const rule = Joi.number().greater(5).less(10).allow(null)
+            const rule = Engine.number().greater(5).less(10).allow(null)
             Helper.validate(rule, [
                 [0, false, {
                     message: '"value" must be greater than 5',
@@ -1965,7 +1965,7 @@ describe('number', () => {
 
         it('handles combination of greater, less, invalid, and allow', () => {
 
-            const rule = Joi.number().greater(5).less(10).invalid(6).allow(-3)
+            const rule = Engine.number().greater(5).less(10).invalid(6).allow(-3)
             Helper.validate(rule, [
                 [0, false, {
                     message: '"value" must be greater than 5',
@@ -2015,7 +2015,7 @@ describe('number', () => {
 
         it('returns the same instance if nothing changed', () => {
 
-            const schema = Joi.number()
+            const schema = Engine.number()
             expect(schema.unsafe(false)).to.shallow.equal(schema)
             expect(schema.unsafe()).to.not.shallow.equal(schema)
             expect(schema.unsafe(true)).to.not.shallow.equal(schema)
@@ -2023,7 +2023,7 @@ describe('number', () => {
 
         it('checks unsafe numbers', () => {
 
-            const t = Joi.number()
+            const t = Engine.number()
             Helper.validate(t, [
                 ['-0', true, 0],
                 ['9007199254740981.1', false, {
@@ -2079,7 +2079,7 @@ describe('number', () => {
 
         it('accepts unsafe numbers with a loss of precision when disabled', () => {
 
-            const t = Joi.number().unsafe()
+            const t = Engine.number().unsafe()
             Helper.validate(t, [
                 ['9007199254740981.1', true, 9007199254740981],
                 ['9007199254740992', true, 9007199254740992],

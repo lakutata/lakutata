@@ -6,21 +6,21 @@
 // @ts-nocheck
 import {it} from 'node:test'
 import {expect} from '../../support/Expect.js'
-import joi from '../../../../lib/validation/engine/schema/index.js'
+import engine from '../../../../lib/validation/engine/schema/index.js'
 import parse from '../../../../lib/validation/engine/json-schema/index.js'
 import Ajv from 'ajv'
 import {toEqual} from '../support.js'
 
 const ajv = new Ajv({ allErrors: true })
 
-const JOI_OBJ = joi.alternatives().conditional(
-    joi.object().keys({
-        dynamic: joi.string().valid('kc').required()
+const SCHEMA_OBJ = engine.alternatives().conditional(
+    engine.object().keys({
+        dynamic: engine.string().valid('kc').required()
     }).unknown(true),
     {
-        then: joi.object().keys({ number: joi.number() }).unknown(true),
-        otherwise: joi.object().keys({
-            mustHave: joi.boolean().required()
+        then: engine.object().keys({ number: engine.number() }).unknown(true),
+        otherwise: engine.object().keys({
+            mustHave: engine.boolean().required()
         })
     }
 ).meta({ 'if-style': false })
@@ -85,7 +85,7 @@ const BASE_SCHEMA = {
     ]
 }
 
-const jsonSchema = parse(JOI_OBJ)
+const jsonSchema = parse(SCHEMA_OBJ)
 const validate = ajv.compile(jsonSchema, { allowUnionTypes: true })
 
 it('alternative type object - valid schema', () => {
@@ -96,19 +96,19 @@ it('alternative type object - valid matching if', () => {
     const value = { dynamic: 'kc', anything: true }
     validate(value)
     expect(!(validate.errors)).to.be.true()
-    expect(!(JOI_OBJ.validate(value).error)).to.be.true()
+    expect(!(SCHEMA_OBJ.validate(value).error)).to.be.true()
 })
 
 it('alternative type object - valid matching otherwise', () => {
     const value = { mustHave: true }
     validate(value)
     expect(!(validate.errors)).to.be.true()
-    expect(!(JOI_OBJ.validate(value).error)).to.be.true()
+    expect(!(SCHEMA_OBJ.validate(value).error)).to.be.true()
 })
 
 it('alternative type object - invalid matching any', () => {
     const value = { something: false }
     validate(value)
     expect(!!(validate.errors)).to.be.true()
-    expect(!!(JOI_OBJ.validate(value).error)).to.be.true()
+    expect(!!(SCHEMA_OBJ.validate(value).error)).to.be.true()
 })

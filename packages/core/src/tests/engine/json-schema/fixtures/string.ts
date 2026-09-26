@@ -3,22 +3,22 @@
  * The schemas whose descriptions are the baseline of the parser tests. Not type-checked.
  */
 // @ts-nocheck
-export default function (joi) {
+export default function (engine) {
     return {
-        alphanum: joi.string().alphanum(),
-        case_lower: joi.string().case('lower'),
-        case_upper: joi.string().case('upper'),
-        email: joi.string().email(),
-        guid: joi.string().guid({ version: ['uuidv2', 'uuidv4'] }),
-        hostname: joi.string().hostname().insensitive(),
-        ip: joi.string().ip({ version: ['ipv4', 'ipv6'] }),
-        isoDate: joi.string().isoDate(),
-        isoDuration: joi.string().isoDuration(),
-        lowercase: joi.string().lowercase(),
-        minMax: joi.string().min(3).max(20),
-        regex: joi.string().regex(/^[a-z]+$/, { name: 'alpha', invert: true }),
-        uppercase: joi.string().uppercase(),
-        uri: joi.string().uri(),
-        uuid: joi.string().uuid({ version: ['uuidv3', 'uuidv5'] })
+        alphanum: engine.string().alphanum(),
+        case_lower: engine.string().case('lower'),
+        case_upper: engine.string().case('upper'),
+        email: engine.string().email(),
+        guid: engine.string().guid({ version: ['uuidv2', 'uuidv4'] }),
+        hostname: engine.string().hostname().insensitive(),
+        ip: engine.string().ip({ version: ['ipv4', 'ipv6'] }),
+        isoDate: engine.string().isoDate(),
+        isoDuration: engine.string().isoDuration(),
+        lowercase: engine.string().lowercase(),
+        minMax: engine.string().min(3).max(20),
+        regex: engine.string().regex(/^[a-z]+$/, { name: 'alpha', invert: true }),
+        uppercase: engine.string().uppercase(),
+        uri: engine.string().uri(),
+        uuid: engine.string().uuid({ version: ['uuidv3', 'uuidv5'] })
     }
 }

@@ -3,9 +3,9 @@
  * The schemas whose descriptions are the baseline of the parser tests. Not type-checked.
  */
 // @ts-nocheck
-export default function (joi) {
+export default function (engine) {
     return {
-        extended_enum: joi
+        extended_enum: engine
             .string()
             .valid('a', 'b', 'c')
             .example('a')
@@ -15,19 +15,19 @@ export default function (joi) {
             .example('x')
             .example('y')
             .example('z'),
-        enum_override: joi
+        enum_override: engine
             .string()
             .valid('a', 'b', 'c')
             .example('a')
             .example('b')
             .example('c')
-            .valid(joi.override, 'x', 'y', 'z')
+            .valid(engine.override, 'x', 'y', 'z')
             .example('x', { override: true })
             .example('y')
             .example('z'),
-        enum_empty_override: joi
+        enum_empty_override: engine
             .string()
             .valid('a', 'b', 'c')
-            .valid(joi.override)
+            .valid(engine.override)
     }
 }

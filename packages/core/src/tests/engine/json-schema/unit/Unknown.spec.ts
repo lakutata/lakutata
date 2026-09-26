@@ -6,20 +6,20 @@
 // @ts-nocheck
 import {it} from 'node:test'
 import {expect} from '../../support/Expect.js'
-import joi from '../../../../lib/validation/engine/schema/index.js'
+import engine from '../../../../lib/validation/engine/schema/index.js'
 
-// Defaut value of allowUnknown in Joi validate is false
+// Defaut value of allowUnknown in Engine validate is false
 
 it('unknown_override', () => {
-    const joiAllowUnknown = joi.defaults((schema) => schema.options({
+    const engineAllowUnknown = engine.defaults((schema) => schema.options({
         allowUnknown: true
     }))
-    const unknown_override = joiAllowUnknown.object().keys({
-        inner: joiAllowUnknown.object().keys({
-            a: joi.string(),
-            innerMost: joi.object().keys({
-                c: joi.string(),
-                d: joi.string()
+    const unknown_override = engineAllowUnknown.object().keys({
+        inner: engineAllowUnknown.object().keys({
+            a: engine.string(),
+            innerMost: engine.object().keys({
+                c: engine.string(),
+                d: engine.string()
             })
         }).unknown(false)
     })
@@ -34,12 +34,12 @@ it('unknown_override', () => {
 })
 
 it('unknown_default', () => {
-    const unknown_default = joi.object().keys({
-        inner: joi.object().keys({
-            a: joi.string(),
-            innerMost: joi.object().keys({
-                c: joi.string(),
-                d: joi.string()
+    const unknown_default = engine.object().keys({
+        inner: engine.object().keys({
+            a: engine.string(),
+            innerMost: engine.object().keys({
+                c: engine.string(),
+                d: engine.string()
             })
         }).unknown(false)
     })

@@ -6,7 +6,7 @@
 // @ts-nocheck
 import {describe, it} from 'node:test'
 import {expect} from '../../support/Expect.js'
-import Joi from '../../../../lib/validation/engine/schema/index.js'
+import Engine from '../../../../lib/validation/engine/schema/index.js'
 import * as Helper from '../Helper.js'
 const internals = {}
 
@@ -14,12 +14,12 @@ describe('boolean', () => {
 
     it('should throw an exception if arguments were passed.', () => {
 
-        expect(() => Joi.boolean('invalid argument.')).to.throw('The boolean type does not allow arguments')
+        expect(() => Engine.boolean('invalid argument.')).to.throw('The boolean type does not allow arguments')
     })
 
     it('converts boolean string to a boolean', () => {
 
-        Helper.validate(Joi.boolean(), [
+        Helper.validate(Engine.boolean(), [
             ['true', true, true],
             ['false', true, false],
             ['TrUe', true, true],
@@ -29,7 +29,7 @@ describe('boolean', () => {
 
     it('converts boolean string with trailing spaces to a boolean', () => {
 
-        Helper.validate(Joi.boolean(), [
+        Helper.validate(Engine.boolean(), [
             ['true ', true, true],
             ['false ', true, false]
         ])
@@ -37,7 +37,7 @@ describe('boolean', () => {
 
     it('does not convert boolean string to a boolean in strict mode', () => {
 
-        Helper.validate(Joi.boolean().strict(), [
+        Helper.validate(Engine.boolean().strict(), [
             ['true', false, {
                 message: '"value" must be a boolean',
                 path: [],
@@ -67,7 +67,7 @@ describe('boolean', () => {
 
     it('errors on a number', () => {
 
-        Helper.validate(Joi.boolean(), [
+        Helper.validate(Engine.boolean(), [
             [1, false, {
                 message: '"value" must be a boolean',
                 path: [],
@@ -91,7 +91,7 @@ describe('boolean', () => {
 
     it('respects case for allow', () => {
 
-        const schema = Joi.boolean().allow('X')
+        const schema = Engine.boolean().allow('X')
         Helper.validate(schema, [
             ['X', true],
             ['x', false, '"value" must be a boolean']
@@ -102,7 +102,7 @@ describe('boolean', () => {
 
         it('casts value to number', () => {
 
-            const schema = Joi.boolean().cast('number')
+            const schema = Engine.boolean().cast('number')
             Helper.validate(schema, [
                 [true, true, 1],
                 [false, true, 0]
@@ -111,7 +111,7 @@ describe('boolean', () => {
 
         it('casts value to string', () => {
 
-            const schema = Joi.boolean().cast('string')
+            const schema = Engine.boolean().cast('string')
             Helper.validate(schema, [
                 [true, true, 'true'],
                 [false, true, 'false']
@@ -120,13 +120,13 @@ describe('boolean', () => {
 
         it('ignores null', () => {
 
-            const schema = Joi.boolean().allow(null).cast('string')
+            const schema = Engine.boolean().allow(null).cast('string')
             Helper.validate(schema, [[null, true, null]])
         })
 
         it('ignores string', () => {
 
-            const schema = Joi.boolean().allow('x').cast('string')
+            const schema = Engine.boolean().allow('x').cast('string')
             Helper.validate(schema, [['x', true, 'x']])
         })
     })
@@ -135,7 +135,7 @@ describe('boolean', () => {
 
         it('works with additional falsy value', () => {
 
-            const rule = Joi.boolean().falsy('N')
+            const rule = Engine.boolean().falsy('N')
             Helper.validate(rule, [
                 ['N', true, false],
                 ['Y', false, {
@@ -157,7 +157,7 @@ describe('boolean', () => {
 
         it('works with additional falsy arguments', () => {
 
-            const rule = Joi.boolean().falsy('N', 'Never')
+            const rule = Engine.boolean().falsy('N', 'Never')
             Helper.validate(rule, [
                 ['N', true, false],
                 ['Never', true, false],
@@ -180,7 +180,7 @@ describe('boolean', () => {
 
         it('works with additional falsy statements', () => {
 
-            const rule = Joi.boolean().falsy('N').falsy('Never')
+            const rule = Engine.boolean().falsy('N').falsy('Never')
             Helper.validate(rule, [
                 ['N', true, false],
                 ['Never', true, false],
@@ -203,7 +203,7 @@ describe('boolean', () => {
 
         it('errors on falsy without convert', () => {
 
-            const schema = Joi.boolean().falsy('n')
+            const schema = Engine.boolean().falsy('n')
             expect(schema.validate('n', { convert: false }).error).be.an.error('"value" must be a boolean')
         })
     })
@@ -212,19 +212,19 @@ describe('boolean', () => {
 
         it('should default to case insensitive', () => {
 
-            const schema = Joi.boolean().truthy('Y')
+            const schema = Engine.boolean().truthy('Y')
             Helper.validate(schema, [['y', true, true]])
         })
 
         it('should stick to case insensitive if called', () => {
 
-            const schema = Joi.boolean().truthy('Y').sensitive(false)
+            const schema = Engine.boolean().truthy('Y').sensitive(false)
             expect(schema.validate('y').error).not.to.exist()
         })
 
         it('should be able to do strict comparison', () => {
 
-            const schema = Joi.boolean().truthy('Y').sensitive()
+            const schema = Engine.boolean().truthy('Y').sensitive()
             Helper.validate(schema, [['y', false, {
                 message: '"value" must be a boolean',
                 path: [],
@@ -235,18 +235,18 @@ describe('boolean', () => {
 
         it('should return the same instance if nothing changed', () => {
 
-            const insensitiveSchema = Joi.boolean()
+            const insensitiveSchema = Engine.boolean()
             expect(insensitiveSchema.sensitive(false)).to.shallow.equal(insensitiveSchema)
             expect(insensitiveSchema.sensitive()).to.not.shallow.equal(insensitiveSchema)
 
-            const sensitiveSchema = Joi.boolean().sensitive()
+            const sensitiveSchema = Engine.boolean().sensitive()
             expect(sensitiveSchema.sensitive()).to.shallow.equal(sensitiveSchema)
             expect(sensitiveSchema.sensitive(false)).to.not.shallow.equal(sensitiveSchema)
         })
 
         it('converts boolean string to a boolean with a sensitive case', () => {
 
-            Helper.validate(Joi.boolean().sensitive(), [
+            Helper.validate(Engine.boolean().sensitive(), [
                 ['true', true, true],
                 ['false', true, false],
                 ['TrUe', false, {
@@ -270,7 +270,7 @@ describe('boolean', () => {
 
         it('does not convert string values and validates', () => {
 
-            const rule = Joi.boolean()
+            const rule = Engine.boolean()
             Helper.validate(rule, [
                 ['1234', false, {
                     message: '"value" must be a boolean',
@@ -327,7 +327,7 @@ describe('boolean', () => {
 
         it('works with required', () => {
 
-            const rule = Joi.boolean().required()
+            const rule = Engine.boolean().required()
             Helper.validate(rule, [
                 ['1234', false, {
                     message: '"value" must be a boolean',
@@ -348,7 +348,7 @@ describe('boolean', () => {
 
         it('works with allow', () => {
 
-            const rule = Joi.boolean().allow(false)
+            const rule = Engine.boolean().allow(false)
             Helper.validate(rule, [
                 ['1234', false, {
                     message: '"value" must be a boolean',
@@ -368,7 +368,7 @@ describe('boolean', () => {
 
         it('works with invalid', () => {
 
-            const rule = Joi.boolean().invalid(false)
+            const rule = Engine.boolean().invalid(false)
             Helper.validate(rule, [
                 ['1234', false, {
                     message: '"value" must be a boolean',
@@ -394,7 +394,7 @@ describe('boolean', () => {
 
         it('works with invalid and null allowed', () => {
 
-            const rule = Joi.boolean().invalid(false).allow(null)
+            const rule = Engine.boolean().invalid(false).allow(null)
             Helper.validate(rule, [
                 ['1234', false, {
                     message: '"value" must be a boolean',
@@ -415,7 +415,7 @@ describe('boolean', () => {
 
         it('works with allow and invalid', () => {
 
-            const rule = Joi.boolean().invalid(true).allow(false)
+            const rule = Engine.boolean().invalid(true).allow(false)
             Helper.validate(rule, [
                 ['1234', false, {
                     message: '"value" must be a boolean',
@@ -441,7 +441,7 @@ describe('boolean', () => {
 
         it('works with allow, invalid, and null allowed', () => {
 
-            const rule = Joi.boolean().invalid(true).allow(false).allow(null)
+            const rule = Engine.boolean().invalid(true).allow(false).allow(null)
             Helper.validate(rule, [
                 ['1234', false, {
                     message: '"value" must be a boolean',
@@ -462,7 +462,7 @@ describe('boolean', () => {
 
         it('works with required, null allowed, and both additional truthy and falsy values', () => {
 
-            const rule = Joi.boolean().truthy('Y', 'Si', 1).falsy('N', 'Never', 0).allow(null).required()
+            const rule = Engine.boolean().truthy('Y', 'Si', 1).falsy('N', 'Never', 0).allow(null).required()
             Helper.validate(rule, [
                 ['N', true, false],
                 ['Never', true, false],
@@ -491,8 +491,8 @@ describe('boolean', () => {
 
         it('should handle concatenated schema', () => {
 
-            const a = Joi.boolean().truthy('yes')
-            const b = Joi.boolean().falsy('no')
+            const a = Engine.boolean().truthy('yes')
+            const b = Engine.boolean().falsy('no')
 
             Helper.validate(a, [
                 ['yes', true, true],
@@ -522,7 +522,7 @@ describe('boolean', () => {
 
         it('should describe truthy and falsy values', () => {
 
-            const schema = Joi.boolean().truthy('yes').falsy('no').required().describe()
+            const schema = Engine.boolean().truthy('yes').falsy('no').required().describe()
             expect(schema).to.equal({
                 type: 'boolean',
                 flags: {
@@ -538,7 +538,7 @@ describe('boolean', () => {
 
         it('works with additional truthy value', () => {
 
-            const rule = Joi.boolean().truthy('Y')
+            const rule = Engine.boolean().truthy('Y')
             Helper.validate(rule, [
                 ['Y', true, true],
                 [true, true],
@@ -560,7 +560,7 @@ describe('boolean', () => {
 
         it('works with additional truthy arguments', () => {
 
-            const rule = Joi.boolean().truthy('Y', 'Si')
+            const rule = Engine.boolean().truthy('Y', 'Si')
             Helper.validate(rule, [
                 ['Si', true, true],
                 ['Y', true, true],
@@ -583,7 +583,7 @@ describe('boolean', () => {
 
         it('works with multiple truthy arguments', () => {
 
-            const rule = Joi.boolean().truthy('Y').truthy('Si')
+            const rule = Engine.boolean().truthy('Y').truthy('Si')
             Helper.validate(rule, [
                 ['Si', true, true],
                 ['Y', true, true],
@@ -606,7 +606,7 @@ describe('boolean', () => {
 
         it('errors on truthy without convert', () => {
 
-            const schema = Joi.boolean().truthy('y')
+            const schema = Engine.boolean().truthy('y')
             Helper.validate(schema, { convert: false }, [['y', false, '"value" must be a boolean']])
         })
     })

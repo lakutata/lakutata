@@ -83,45 +83,45 @@ type ConditionInput = { ref?: Ref.Ref, is: SchemaInternals, then?: unknown, othe
 
 /**
  * Compile a schema description (literals, arrays, objects, regular expressions...) into a schema
- * @param Joi
+ * @param root
  * @param config
  * @param options
  */
-export function schema(Joi: RootLike, config: unknown, options: SchemaOptions = {}): SchemaInternals {
+export function schema(root: RootLike, config: unknown, options: SchemaOptions = {}): SchemaInternals {
     Common.assertOptions(options, ['appendPath', 'override'])
     try {
-        return compileSchema(Joi, config, options)
+        return compileSchema(root, config, options)
     } catch (err) {
         if (options.appendPath && (err as PathError).path !== undefined) (err as PathError).message = `${(err as PathError).message} (${(err as PathError).path})`
         throw err
     }
 }
 
-function compileSchema(Joi: RootLike, config: unknown, options: SchemaOptions): SchemaInternals {
+function compileSchema(root: RootLike, config: unknown, options: SchemaOptions): SchemaInternals {
     assert(config !== undefined, 'Invalid undefined schema')
     if (Array.isArray(config)) {
         assert(config.length, 'Invalid empty array schema')
         if (config.length === 1) config = config[0]
     }
     const valid = (base: { valid(...values: unknown[]): SchemaInternals }, ...values: unknown[]): SchemaInternals => {
-        if (options.override !== false) return base.valid(Joi.override, ...values)
+        if (options.override !== false) return base.valid(root.override, ...values)
         return base.valid(...values)
     }
-    if (simple(config)) return valid(Joi, config)
-    if (typeof config === 'function') return Joi.custom(config)
+    if (simple(config)) return valid(root, config)
+    if (typeof config === 'function') return root.custom(config)
     assert(typeof config === 'object', 'Invalid schema content:', typeof config)
-    if (Common.isResolvable(config)) return valid(Joi, config)
+    if (Common.isResolvable(config)) return valid(root, config)
     if (Common.isSchema(config)) return config as SchemaInternals
     if (Array.isArray(config)) {
         for (const item of config) {
-            if (!simple(item)) return Joi.alternatives().try(...config)
+            if (!simple(item)) return root.alternatives().try(...config)
         }
-        return valid(Joi, ...config)
+        return valid(root, ...config)
     }
-    if (config instanceof RegExp) return Joi.string().regex(config)
-    if (config instanceof Date) return valid(Joi.date(), config)
+    if (config instanceof RegExp) return root.string().regex(config)
+    if (config instanceof Date) return valid(root.date(), config)
     assert(Object.getPrototypeOf(config) === Object.getPrototypeOf({}), 'Schema can only contain plain objects')
-    return Joi.object().keys(config)
+    return root.object().keys(config)
 }
 
 /**
@@ -144,7 +144,7 @@ export function compile(root: RootLike, schema: unknown, options: CompileOptions
     //Compiled by any supported version
     const any: AnyMarker | undefined = schema ? (schema as Record<symbol, AnyMarker | undefined>)[Common.symbols.any] : undefined
     if (any) {
-        assert(options.legacy || any.version === Common.version, 'Cannot mix different versions of joi schemas:', any.version, Common.version)
+        assert(options.legacy || any.version === Common.version, 'Cannot mix different versions of validation schemas:', any.version, Common.version)
         return schema as SchemaInternals
     }
     //Uncompiled root

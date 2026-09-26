@@ -6,7 +6,7 @@
 // @ts-nocheck
 import {describe, it} from 'node:test'
 import {expect} from '../../support/Expect.js'
-import Joi from '../../../../lib/validation/engine/schema/index.js'
+import Engine from '../../../../lib/validation/engine/schema/index.js'
 import * as Helper from '../Helper.js'
 const internals = {}
 
@@ -14,14 +14,14 @@ describe('link', () => {
 
     it('errors on uninitialized link', () => {
 
-        expect(() => Joi.link().validate(1)).to.throw('Uninitialized link schema')
+        expect(() => Engine.link().validate(1)).to.throw('Uninitialized link schema')
     })
 
     it('links named schema (explicit)', () => {
 
-        const schema = Joi.object({
-            a: [Joi.string(), Joi.number()],
-            b: Joi.link('#type.a')
+        const schema = Engine.object({
+            a: [Engine.string(), Engine.number()],
+            b: Engine.link('#type.a')
         })
             .id('type')
 
@@ -34,9 +34,9 @@ describe('link', () => {
 
     it('links named schema (by ref)', () => {
 
-        const schema = Joi.object({
-            a: [Joi.string(), Joi.number()],
-            b: Joi.link().ref('#type.a')
+        const schema = Engine.object({
+            a: [Engine.string(), Engine.number()],
+            b: Engine.link().ref('#type.a')
         })
             .id('type')
 
@@ -49,15 +49,15 @@ describe('link', () => {
 
     it('links named schema (implicit)', () => {
 
-        const schema = Joi.object({
-            a: Joi.object({
-                b: Joi.object({
-                    c: Joi.object({
-                        d: Joi.link('#a.e.f')
+        const schema = Engine.object({
+            a: Engine.object({
+                b: Engine.object({
+                    c: Engine.object({
+                        d: Engine.link('#a.e.f')
                     })
                 }),
-                e: Joi.object({
-                    f: [Joi.string(), Joi.number()]
+                e: Engine.object({
+                    f: [Engine.string(), Engine.number()]
                 })
             })
         })
@@ -71,13 +71,13 @@ describe('link', () => {
 
     it('links shared schema', () => {
 
-        const shared = Joi.number().id('shared')
+        const shared = Engine.number().id('shared')
 
-        const schema = Joi.object({
-            a: [Joi.string(), Joi.link('#shared')],
-            b: Joi.link('#type.a')
+        const schema = Engine.object({
+            a: [Engine.string(), Engine.link('#shared')],
+            b: Engine.link('#type.a')
         })
-            .shared(Joi.any().id('ignore'))
+            .shared(Engine.any().id('ignore'))
             .shared(shared)
             .id('type')
 
@@ -90,9 +90,9 @@ describe('link', () => {
 
     it('links schema nodes', () => {
 
-        const schema = Joi.object({
-            a: [Joi.string(), Joi.number()],
-            b: Joi.link('a')
+        const schema = Engine.object({
+            a: [Engine.string(), Engine.number()],
+            b: Engine.link('a')
         })
 
         Helper.validate(schema, [
@@ -104,10 +104,10 @@ describe('link', () => {
 
     it('links schema cousin nodes', () => {
 
-        const schema = Joi.object({
-            a: [Joi.string(), Joi.number()],
+        const schema = Engine.object({
+            a: [Engine.string(), Engine.number()],
             b: {
-                c: Joi.link('...a')
+                c: Engine.link('...a')
             }
         })
 
@@ -120,10 +120,10 @@ describe('link', () => {
 
     it('links schema cousin nodes (root)', () => {
 
-        const schema = Joi.object({
-            a: [Joi.string(), Joi.number()],
+        const schema = Engine.object({
+            a: [Engine.string(), Engine.number()],
             b: {
-                c: Joi.link('/a')
+                c: Engine.link('/a')
             }
         })
 
@@ -136,10 +136,10 @@ describe('link', () => {
 
     it('validates a recursive schema', () => {
 
-        const schema = Joi.object({
-            name: Joi.string().required(),
-            keys: Joi.array()
-                .items(Joi.link('...'))         // .item .array .schema
+        const schema = Engine.object({
+            name: Engine.string().required(),
+            keys: Engine.array()
+                .items(Engine.link('...'))         // .item .array .schema
         })
 
         expect(schema.validate({ name: 'foo', keys: [{ name: 'bar' }] }).error).to.not.exist()
@@ -161,10 +161,10 @@ describe('link', () => {
 
     it('validates a recursive schema (root)', () => {
 
-        const schema = Joi.object({
-            name: Joi.string().required(),
-            keys: Joi.array()
-                .items(Joi.link('/'))
+        const schema = Engine.object({
+            name: Engine.string().required(),
+            keys: Engine.array()
+                .items(Engine.link('/'))
         })
 
         expect(schema.validate({ name: 'foo', keys: [{ name: 'bar' }] }).error).to.not.exist()
@@ -186,8 +186,8 @@ describe('link', () => {
 
     it('caches resolved schema', () => {
 
-        const link = Joi.link('x')
-        const schema = Joi.object({
+        const link = Engine.link('x')
+        const schema = Engine.object({
             a: {
                 y: link,
                 x: 1
@@ -206,8 +206,8 @@ describe('link', () => {
 
     it('re-resolves schema', () => {
 
-        const link = Joi.link('x').relative()
-        const schema = Joi.object({
+        const link = Engine.link('x').relative()
+        const schema = Engine.object({
             a: {
                 y: link,
                 x: 1
@@ -226,12 +226,12 @@ describe('link', () => {
 
     it('validates a recursive schema (in alternatives)', () => {
 
-        const schema = Joi.object({
-            happy: Joi.boolean().required(),
-            children: Joi.object()
+        const schema = Engine.object({
+            happy: Engine.boolean().required(),
+            children: Engine.object()
                 .pattern(/.*/, [
                     'none',
-                    Joi.link('....')        // .alternatives .child .children .schema
+                    Engine.link('....')        // .alternatives .child .children .schema
                 ])
         })
 
@@ -251,12 +251,12 @@ describe('link', () => {
 
     it('concats schemas with links', () => {
 
-        const a = Joi.object({
-            a: [Joi.string(), Joi.number()],
-            b: Joi.link('a')
+        const a = Engine.object({
+            a: [Engine.string(), Engine.number()],
+            b: Engine.link('a')
         })
 
-        const b = Joi.object({ c: Joi.number() })
+        const b = Engine.object({ c: Engine.number() })
 
         const schema = b.concat(a)
 
@@ -269,18 +269,18 @@ describe('link', () => {
 
     it('errors on invalid reference', () => {
 
-        expect(() => Joi.link('.')).to.throw('Link cannot reference itself')
+        expect(() => Engine.link('.')).to.throw('Link cannot reference itself')
     })
 
     it('errors on invalid reference type', () => {
 
-        expect(() => Joi.link('$x')).to.throw('Invalid reference type: global')
+        expect(() => Engine.link('$x')).to.throw('Invalid reference type: global')
     })
 
     it('errors on out of boundaries reference', () => {
 
-        const schema = Joi.object({
-            x: Joi.link('...')
+        const schema = Engine.object({
+            x: Engine.link('...')
         })
 
         expect(() => schema.validate({ x: 123 })).to.throw('"x" contains link reference "ref:..." which is outside of schema boundaries')
@@ -288,8 +288,8 @@ describe('link', () => {
 
     it('errors on missing reference (relative)', () => {
 
-        const schema = Joi.object({
-            x: Joi.link('y')
+        const schema = Engine.object({
+            x: Engine.link('y')
         })
 
         expect(() => schema.validate({ x: 123 })).to.throw('"x" contains link reference "ref:y" to non-existing schema')
@@ -297,8 +297,8 @@ describe('link', () => {
 
     it('errors on missing reference (named)', () => {
 
-        const schema = Joi.object({
-            x: Joi.link('#y')
+        const schema = Engine.object({
+            x: Engine.link('#y')
         })
 
         expect(() => schema.validate({ x: 123 })).to.throw('"x" contains link reference "ref:local:y" which is outside of schema boundaries')
@@ -306,10 +306,10 @@ describe('link', () => {
 
     it('errors on referenced link', () => {
 
-        const schema = Joi.object({
-            x: Joi.link('y'),
-            y: Joi.link('z'),
-            z: Joi.any()
+        const schema = Engine.object({
+            x: Engine.link('y'),
+            y: Engine.link('z'),
+            z: Engine.any()
         })
 
         expect(() => schema.validate({ x: 123 })).to.throw('"x" contains link reference "ref:y" which is another link')
@@ -319,10 +319,10 @@ describe('link', () => {
 
         it('validates a schema with when()', () => {
 
-            const schema = Joi.object({
-                must: Joi.boolean().required(),
-                child: Joi.link('..')
-                    .when('must', { then: Joi.required() })
+            const schema = Engine.object({
+                must: Engine.boolean().required(),
+                child: Engine.link('..')
+                    .when('must', { then: Engine.required() })
             })
 
             Helper.validate(schema, [
@@ -335,10 +335,10 @@ describe('link', () => {
 
         it('changes the resolved schema', () => {
 
-            const schema = Joi.object({
-                category: Joi.valid('x', 'y').required(),
-                subs: Joi.array()
-                    .items(Joi.link('#unit').when('...category', { is: 'y', then: Joi.object({ subs: Joi.forbidden() }) }))
+            const schema = Engine.object({
+                category: Engine.valid('x', 'y').required(),
+                subs: Engine.array()
+                    .items(Engine.link('#unit').when('...category', { is: 'y', then: Engine.object({ subs: Engine.forbidden() }) }))
                     .min(1)
             })
                 .id('unit')
@@ -360,17 +360,17 @@ describe('link', () => {
 
         it('errors on concat of link to link', () => {
 
-            expect(() => Joi.link('..').concat(Joi.link('..'))).to.throw('Cannot merge type link with another link')
+            expect(() => Engine.link('..').concat(Engine.link('..'))).to.throw('Cannot merge type link with another link')
         })
 
         it('combines link with any', () => {
 
-            const a = Joi.object({
-                x: Joi.link('..')
+            const a = Engine.object({
+                x: Engine.link('..')
             })
 
-            const b = Joi.object({
-                x: Joi.forbidden()
+            const b = Engine.object({
+                x: Engine.forbidden()
             })
 
             Helper.validate(a, [
@@ -384,14 +384,14 @@ describe('link', () => {
 
         it('applies concat after ref resolved', () => {
 
-            const shared = Joi.object({
-                a: Joi.number()
+            const shared = Engine.object({
+                a: Engine.number()
             })
                 .id('shared')
 
-            const schema = Joi.object({
-                x: Joi.link('#shared')
-                    .concat(Joi.object({ a: 3 }))
+            const schema = Engine.object({
+                x: Engine.link('#shared')
+                    .concat(Engine.object({ a: 3 }))
             })
                 .shared(shared)
 
@@ -408,16 +408,16 @@ describe('link', () => {
 
         it('applies concat after ref resolved (with when)', () => {
 
-            const shared = Joi.object({
-                a: Joi.number()
+            const shared = Engine.object({
+                a: Engine.number()
             })
                 .id('shared')
 
-            const schema = Joi.object({
-                w: Joi.boolean(),
-                x: Joi.link('#shared')
-                    .when('w', { then: Joi.object({ a: 4 }) })
-                    .concat(Joi.object({ a: Joi.valid(3) }))
+            const schema = Engine.object({
+                w: Engine.boolean(),
+                x: Engine.link('#shared')
+                    .when('w', { then: Engine.object({ a: 4 }) })
+                    .concat(Engine.object({ a: Engine.valid(3) }))
             })
                 .shared(shared)
 
@@ -436,20 +436,20 @@ describe('link', () => {
 
         it('combines link and linked whens', () => {
 
-            const schema = Joi.object({
-                type: Joi.valid('a', 'b').required()
+            const schema = Engine.object({
+                type: Engine.valid('a', 'b').required()
             })
                 .when('.type', [
                     {
                         is: 'a',
-                        then: Joi.object({
-                            x: Joi.boolean()
+                        then: Engine.object({
+                            x: Engine.boolean()
                         })
                     },
                     {
                         is: 'b',
-                        then: Joi.object({
-                            y: Joi.link('#root').concat(Joi.object({ type: 'a' }))
+                        then: Engine.object({
+                            y: Engine.link('#root').concat(Engine.object({ type: 'a' }))
                         })
                     }
                 ])
@@ -466,9 +466,9 @@ describe('link', () => {
 
         it('describes link', () => {
 
-            const schema = Joi.object({
-                a: Joi.string(),
-                b: Joi.link('a')
+            const schema = Engine.object({
+                a: Engine.string(),
+                b: Engine.link('a')
             })
 
             expect(schema.describe()).to.equal({

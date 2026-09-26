@@ -6,23 +6,23 @@
 // @ts-nocheck
 import {it} from 'node:test'
 import {expect} from '../../support/Expect.js'
-import joi from '../../../../lib/validation/engine/schema/index.js'
+import engine from '../../../../lib/validation/engine/schema/index.js'
 import parse from '../../../../lib/validation/engine/json-schema/index.js'
 import Ajv from 'ajv'
 import {toEqual} from '../support.js'
 
 const ajv = new Ajv({ allErrors: true })
 
-const JOI_OBJ = joi.object().keys({
-    key: joi.string(),
-    another: joi.string()
+const SCHEMA_OBJ = engine.object().keys({
+    key: engine.string(),
+    another: engine.string()
 }).unknown()
-.when(joi.object().keys({ key: joi.string().valid('xxx') }).unknown(),
-    { then: joi.object().keys({ key1: joi.string().required() }).unknown() }
-).when(joi.object().keys({ key: joi.string().valid('yyy') }).unknown(),
-    { then: joi.object().keys({ key2: joi.string().required() }).unknown() }
-).when(joi.object().keys({ another: joi.string().valid('zzz') }).unknown(),
-    { then: joi.object().keys({ key3: joi.string().required() }).unknown() }
+.when(engine.object().keys({ key: engine.string().valid('xxx') }).unknown(),
+    { then: engine.object().keys({ key1: engine.string().required() }).unknown() }
+).when(engine.object().keys({ key: engine.string().valid('yyy') }).unknown(),
+    { then: engine.object().keys({ key2: engine.string().required() }).unknown() }
+).when(engine.object().keys({ another: engine.string().valid('zzz') }).unknown(),
+    { then: engine.object().keys({ key3: engine.string().required() }).unknown() }
 )
 
 const BASE_SCHEMA = {
@@ -79,7 +79,7 @@ const BASE_SCHEMA = {
     ]
 }
 
-const jsonSchema = parse(JOI_OBJ)
+const jsonSchema = parse(SCHEMA_OBJ)
 const validate = ajv.compile(jsonSchema, { allowUnionTypes: true })
 
 it('when multiple if style - valid schema', () => {
@@ -90,26 +90,26 @@ it('when multiple if style - valid matching all of the condition', () => {
     const value = { key: 'xxx', key1: 'kc', another: 'zzz', key3: 'ws' }
     validate(value)
     expect(!(validate.errors)).to.be.true()
-    expect(!(JOI_OBJ.validate(value).error)).to.be.true()
+    expect(!(SCHEMA_OBJ.validate(value).error)).to.be.true()
 })
 
 it('when multiple if style - valid matching one of the condition', () => {
     const value = { key: 'yyy', key2: 'kc' }
     validate(value)
     expect(!!(validate.errors)).to.be.true()
-    expect(!!(JOI_OBJ.validate(value).error)).to.be.true()
+    expect(!!(SCHEMA_OBJ.validate(value).error)).to.be.true()
 })
 
 it('when multiple if style - invalid matching one of the condition', () => {
     const value = { key: 'xxx' }
     validate(value)
     expect(!!(validate.errors)).to.be.true()
-    expect(!!(JOI_OBJ.validate(value).error)).to.be.true()
+    expect(!!(SCHEMA_OBJ.validate(value).error)).to.be.true()
 })
 
 it('when multiple if style - invalid matching none', () => {
     const value = { something: false }
     validate(value)
     expect(!!(validate.errors)).to.be.true()
-    expect(!!(JOI_OBJ.validate(value).error)).to.be.true()
+    expect(!!(SCHEMA_OBJ.validate(value).error)).to.be.true()
 })

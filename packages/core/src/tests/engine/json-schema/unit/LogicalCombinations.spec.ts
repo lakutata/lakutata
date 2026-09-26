@@ -6,30 +6,30 @@
 // @ts-nocheck
 import {it} from 'node:test'
 import {expect} from '../../support/Expect.js'
-import joi from '../../../../lib/validation/engine/schema/index.js'
+import engine from '../../../../lib/validation/engine/schema/index.js'
 import parse from '../../../../lib/validation/engine/json-schema/index.js'
 import Ajv from 'ajv/dist/2019.js'
 import {toEqual, omit} from '../support.js'
 
 const ajv = new Ajv({ allErrors: true })
 
-const JOI_OBJ = joi.object({
-    guid: joi.string(),
-    uuid: joi.string(),
-    email: joi.string(),
-    password: joi.string(),
-    type: joi.string(),
-    birthTime: joi.string(),
-    birthday: joi.string(),
-    readOnlyTrue: joi.string(),
-    readOnlyFalse: joi.string(),
-    writeOnlyTrue: joi.string(),
-    writeOnlyFalse: joi.string(),
-    genderSpecific: joi.string(),
-    maleSpecific: joi.string(),
-    ip: joi.string(),
-    hostname: joi.string(),
-    isAdditional: joi.boolean()
+const SCHEMA_OBJ = engine.object({
+    guid: engine.string(),
+    uuid: engine.string(),
+    email: engine.string(),
+    password: engine.string(),
+    type: engine.string(),
+    birthTime: engine.string(),
+    birthday: engine.string(),
+    readOnlyTrue: engine.string(),
+    readOnlyFalse: engine.string(),
+    writeOnlyTrue: engine.string(),
+    writeOnlyFalse: engine.string(),
+    genderSpecific: engine.string(),
+    maleSpecific: engine.string(),
+    ip: engine.string(),
+    hostname: engine.string(),
+    isAdditional: engine.boolean()
 }).or('guid', 'uuid')
     .and('email', 'password', 'type')
     .nand('readOnlyTrue', 'readOnlyFalse')
@@ -151,8 +151,8 @@ const BASE_SCHEMA = {
 }
 
 it('or - normal', () => {
-    const joiObj = JOI_OBJ
-    const jsonSchema = parse(joiObj)
+    const schemaObj = SCHEMA_OBJ
+    const jsonSchema = parse(schemaObj)
     const validate = ajv.compile(jsonSchema)
 
     toEqual(jsonSchema, BASE_SCHEMA)
@@ -163,8 +163,8 @@ it('or - normal', () => {
 })
 
 it('and - normal', () => {
-    const joiObj = JOI_OBJ
-    const jsonSchema = parse(joiObj)
+    const schemaObj = SCHEMA_OBJ
+    const jsonSchema = parse(schemaObj)
     const validate = ajv.compile(jsonSchema)
 
     toEqual(jsonSchema, BASE_SCHEMA)
@@ -175,8 +175,8 @@ it('and - normal', () => {
 })
 
 it('nand - normal', () => {
-    const joiObj = JOI_OBJ
-    const jsonSchema = parse(joiObj)
+    const schemaObj = SCHEMA_OBJ
+    const jsonSchema = parse(schemaObj)
     const validate = ajv.compile(jsonSchema)
 
     toEqual(jsonSchema, BASE_SCHEMA)
@@ -187,8 +187,8 @@ it('nand - normal', () => {
 })
 
 it('xor - normal', () => {
-    const joiObj = JOI_OBJ
-    const jsonSchema = parse(joiObj)
+    const schemaObj = SCHEMA_OBJ
+    const jsonSchema = parse(schemaObj)
     const validate = ajv.compile(jsonSchema)
 
     toEqual(jsonSchema, BASE_SCHEMA)
@@ -199,8 +199,8 @@ it('xor - normal', () => {
 })
 
 it('oxor - normal', () => {
-    const joiObj = JOI_OBJ
-    const jsonSchema = parse(joiObj)
+    const schemaObj = SCHEMA_OBJ
+    const jsonSchema = parse(schemaObj)
     const validate = ajv.compile(jsonSchema)
 
     toEqual(jsonSchema, BASE_SCHEMA)
@@ -211,8 +211,8 @@ it('oxor - normal', () => {
 })
 
 it('with - normal', () => {
-    const joiObj = JOI_OBJ
-    const jsonSchema = parse(joiObj)
+    const schemaObj = SCHEMA_OBJ
+    const jsonSchema = parse(schemaObj)
     const validate = ajv.compile(jsonSchema)
 
     toEqual(jsonSchema, BASE_SCHEMA)
@@ -223,8 +223,8 @@ it('with - normal', () => {
 })
 
 it('without - normal', () => {
-    const joiObj = JOI_OBJ
-    const jsonSchema = parse(joiObj)
+    const schemaObj = SCHEMA_OBJ
+    const jsonSchema = parse(schemaObj)
     const validate = ajv.compile(jsonSchema)
 
     toEqual(jsonSchema, BASE_SCHEMA)
@@ -235,8 +235,8 @@ it('without - normal', () => {
 })
 
 it('combination - normal', () => {
-    const joiObj = JOI_OBJ
-    const jsonSchema = parse(joiObj)
+    const schemaObj = SCHEMA_OBJ
+    const jsonSchema = parse(schemaObj)
     const validate = ajv.compile(jsonSchema)
 
     toEqual(jsonSchema, BASE_SCHEMA)
@@ -245,8 +245,8 @@ it('combination - normal', () => {
 })
 
 it('combination - disable all logical convertor', () => {
-    const joiObj = JOI_OBJ
-    const jsonSchema = parse(joiObj, 'json', {}, { logicalOpParser: false })
+    const schemaObj = SCHEMA_OBJ
+    const jsonSchema = parse(schemaObj, 'json', {}, { logicalOpParser: false })
     const validate = ajv.compile(jsonSchema)
 
     toEqual(jsonSchema, omit(BASE_SCHEMA, ['allOf', 'dependentRequired']))

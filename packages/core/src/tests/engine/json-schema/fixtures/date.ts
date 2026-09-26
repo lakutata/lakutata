@@ -3,9 +3,9 @@
  * The schemas whose descriptions are the baseline of the parser tests. Not type-checked.
  */
 // @ts-nocheck
-export default function (joi) {
+export default function (engine) {
     return {
-        iso: joi.date().iso(),
-        timestamp: joi.date().timestamp('unix')
+        iso: engine.date().iso(),
+        timestamp: engine.date().timestamp('unix')
     }
 }
