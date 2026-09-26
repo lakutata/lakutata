@@ -90,10 +90,10 @@ library is ported from [hapijs/code](https://github.com/hapijs/code) 9.0.3 (4250
 - lodash and combinations are no longer dependencies: `helpers.ts` implements the lodash 4.17.21 functions the parsers
   use with lodash's semantics (merge follows lodash's algorithm: null replaces, undefined does not replace an existing
   key, arrays merge by index, cycles are handled); `combinations.ts` is the combinations package.
-- Upstream bugs kept for now (behavior changes are separate commits):
-  - A `when()` switch which yields a single schema throws `ReferenceError: oneOf is not defined` (upstream merges an
-    undeclared variable).
 - Fixes after 5.0.0:
+  - A `when()` switch (or `conditional()` switch) which yields a single schema threw `ReferenceError: oneOf is not
+    defined` (upstream, still on its master, merges an undeclared variable): the single schema is merged, like the
+    single branch of a condition.
   - From upstream 5.0.1 (61fde575b289e4b30ca987f01f2314a2d633c064): converting a condition removes only the `if-style`
     meta, not all the metas (the filter compared `typeof` with `undefined` instead of `'undefined'`); its test data
     changes are ported too.
@@ -101,4 +101,5 @@ library is ported from [hapijs/code](https://github.com/hapijs/code) 9.0.3 (4250
   `src/tests/engine/joi-to-json/data` (read from the source tree, not published). jest's `toEqual()` (which ignores
   undefined properties) is reproduced by the test support, `toBeTruthy()`/`toBeFalsy()` by boolean checks. The
   generated schemas are still checked with ajv 8 (a test-only devDependency, like upstream).
-- Added (not in upstream): `array().unique()` conversion, and the lodash semantics of the helpers.
+- Added (not in upstream): `array().unique()` conversion, the single branch switch, and the lodash semantics of
+  the helpers.

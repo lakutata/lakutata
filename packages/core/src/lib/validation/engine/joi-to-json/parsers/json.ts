@@ -602,8 +602,8 @@ export class JoiJsonSchemaParser {
         if (anyOf.length > 1) {
             schema.anyOf = anyOf
         } else {
-            //Like upstream, which merges an undeclared variable (oneOf[0]) here
-            throw new ReferenceError('oneOf is not defined')
+            //A single branch is merged (upstream merged an undeclared variable here, and threw)
+            _.merge(schema, anyOf[0])
         }
     }
 

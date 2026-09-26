@@ -92,3 +92,18 @@ describe('joi-to-json additions', () => {
         }
     })
 })
+
+describe('joi-to-json fixes', () => {
+
+    it('converts a switch with a single branch like the equivalent condition (upstream threw a ReferenceError)', async () => {
+        const {default: joi} = await import('../../../lib/validation/engine/joi/index.js')
+        const {default: parse} = await import('../../../lib/validation/engine/joi-to-json/index.js')
+        const withSwitch = joi.object({t: joi.string(), v: joi.any().when('t', {switch: [{is: 'a', then: joi.string()}]})})
+        const withCondition = joi.object({t: joi.string(), v: joi.any().when('t', {is: 'a', then: joi.string()})})
+        const alternatives = joi.alternatives().conditional('t', {switch: [{is: 1, then: joi.number()}]})
+        for (const mode of ['json', 'json-draft-04', 'json-draft-2019-09', 'open-api', 'open-api-3.1']) {
+            expect(parse(withSwitch, mode)).to.equal(parse(withCondition, mode))
+            expect(parse(alternatives, mode).type).to.equal('number')
+        }
+    })
+})
