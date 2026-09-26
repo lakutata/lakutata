@@ -432,8 +432,9 @@ export class Entrypoint extends Component {
      */
     protected async runControllerMethodWithoutAbortController<DTOConstructor extends typeof DTO = typeof DTO>(details: ActionDetails, context: CLIContext | HTTPContext | ServiceContext, dtoConstructor: DTOConstructor): Promise<unknown> {
         const runtimeContainer: Container = this.createScope()
-        const controller: Controller = await runtimeContainer.get(details.constructor, {context: context})
         try {
+            //Created inside the try block, so a failing controller construction still destroys the request scope
+            const controller: Controller = await runtimeContainer.get(details.constructor, {context: context})
             const input: Record<string, any> = structuredClone(await dtoConstructor.validateAsync(context.data))
             await this.runAccessControl(this.rules, runtimeContainer, context, input, details)
             return await controller.getMethod(As(details.method))(input)
@@ -454,6 +455,8 @@ export class Entrypoint extends Component {
      * @protected
      */
     protected async runControllerMethodWithAbortController<DTOConstructor extends typeof DTO = typeof DTO>(details: ActionDetails, context: CLIContext | HTTPContext | ServiceContext, dtoConstructor: DTOConstructor, abortController: AbortController): Promise<unknown> {
+        //An already aborted request is not executed at all
+        if (abortController.signal.aborted) return
         const runtimeContainer: Container = this.createScope()
         let isAborted: boolean = false
         //Aborting destroys the request scope right away, container destruction is idempotent

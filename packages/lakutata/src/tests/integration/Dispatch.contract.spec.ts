@@ -21,6 +21,7 @@ import {Controller} from '@lakutata/core'
 import {Logger} from '@lakutata/core'
 import {ServiceContext} from '@lakutata/core'
 import {BuildEntrypoints, BuildServiceEntrypoint, Entrypoint} from '@lakutata/core'
+import {Provider} from '@lakutata/core'
 
 class ProbeDTO extends DTO {
     @Expect(DTO.String().required())
@@ -45,11 +46,40 @@ class ProbeController extends Controller {
 
     @ServiceAction({act: 'slow'})
     public async slow(): Promise<string> {
+        slowExecuted = true
         await new Promise(resolve => setTimeout(resolve, 50))
         return 'slow'
     }
 
 }
+
+class Tracked extends Provider {
+
+    public static destroyed: number = 0
+
+    protected async destroy(): Promise<void> {
+        Tracked.destroyed++
+    }
+
+}
+
+class BrokenController extends Controller {
+
+    @Inject('tracked')
+    protected readonly tracked!: Tracked
+
+    protected async init(): Promise<void> {
+        throw new Error('controller construction failed')
+    }
+
+    @ServiceAction({act: 'broken'})
+    public async broken(): Promise<string> {
+        return 'unreachable'
+    }
+
+}
+
+let slowExecuted: boolean = false
 
 /**
  * Let the fire-and-forget request scope teardown finish
@@ -70,12 +100,15 @@ Application
         components: {
             log: {level: 'silent', destinations: [nullStream]},
             entrypoint: BuildEntrypoints({
-                controllers: [ProbeController],
+                controllers: [ProbeController, BrokenController],
                 service: BuildServiceEntrypoint((_module: unknown, handler: (context: ServiceContext, abortController?: AbortController) => Promise<unknown>, onDestroy: (fn: () => void) => void): void => {
                     serviceHandler = handler
                     onDestroy((): void => {})
                 })
             })
+        },
+        providers: {
+            tracked: {class: Tracked}
         },
         bootstrap: ['entrypoint']
     }))
@@ -130,6 +163,26 @@ Application
             assert.equal(await aborted, undefined, 'an aborted dispatch resolves without a result')
             await settleTeardown()
             assert.equal(ProbeController.destroyed, 1, 'request scope must be destroyed once after an aborted dispatch')
+
+            //A failing controller construction still destroys the request scope (and the
+            //scoped objects already created for it), with and without an AbortController.
+            await settleTeardown()
+            Tracked.destroyed = 0
+            await assert.rejects(serviceHandler(new ServiceContext({data: {act: 'broken'}})), /controller construction failed/)
+            await settleTeardown()
+            assert.equal(Tracked.destroyed, 1, 'request scope must be destroyed when the controller fails without AbortController')
+
+            Tracked.destroyed = 0
+            await assert.rejects(serviceHandler(new ServiceContext({data: {act: 'broken'}}), new AbortController()), /controller construction failed/)
+            await settleTeardown()
+            assert.equal(Tracked.destroyed, 1, 'request scope must be destroyed when the controller fails with AbortController')
+
+            //An already aborted request is not executed at all.
+            slowExecuted = false
+            const alreadyAborted: AbortController = new AbortController()
+            alreadyAborted.abort()
+            assert.equal(await serviceHandler(new ServiceContext({data: {act: 'slow'}}), alreadyAborted), undefined)
+            assert.equal(slowExecuted, false, 'an already aborted request must not run the controller method')
         } catch (e) {
             console.error('DISPATCH CONTRACT FAILED:\n', e)
             process.exit(1)
