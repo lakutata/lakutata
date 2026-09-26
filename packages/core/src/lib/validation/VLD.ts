@@ -37,12 +37,61 @@ import {Extension} from './interfaces/Extension.js'
  */
 export type ExtensionFactory = (vld: ValidateAPI) => Extension
 
-export const DefaultValidationOptions: ValidationOptions = {
+export const DefaultValidationOptions: ValidationOptions = Object.freeze({
     abortEarly: true,
     cache: false,
     allowUnknown: true,
     stripUnknown: true,
     convert: true
+})
+
+/**
+ * A node of the merged options cache: the merged options of the option path, and the next nodes by option name then value
+ */
+interface MergedOptionsNode {
+    merged?: ValidationOptions
+    next: Map<string, Map<unknown, MergedOptionsNode>>
+}
+
+let mergedOptionsRoot: MergedOptionsNode = {next: new Map()}
+
+let mergedOptionsCount: number = 0
+
+const maxMergedOptions: number = 1000
+
+/**
+ * The default options merged with the options. For options of primitive values, the merged options are frozen and
+ * reused (the validation engine then reuses its settings and the schema preferences merged with them).
+ * @param options
+ */
+function mergeOptions(options: ValidationOptions): ValidationOptions {
+    if (Object.getOwnPropertySymbols(options).length) return {...DefaultValidationOptions, ...options}
+    let node: MergedOptionsNode = mergedOptionsRoot
+    for (const name of Object.keys(options)) {
+        const value: unknown = (options as Record<string, unknown>)[name]
+        //-0 is not kept apart from 0 by the maps
+        if ((value !== null && typeof value === 'object') || typeof value === 'function' || Object.is(value, -0)) return {...DefaultValidationOptions, ...options}
+        let byValue: Map<unknown, MergedOptionsNode> | undefined = node.next.get(name)
+        if (!byValue) {
+            byValue = new Map()
+            node.next.set(name, byValue)
+        }
+        let child: MergedOptionsNode | undefined = byValue.get(value)
+        if (!child) {
+            child = {next: new Map()}
+            byValue.set(value, child)
+        }
+        node = child
+    }
+    if (!node.merged) {
+        if (mergedOptionsCount >= maxMergedOptions) {
+            mergedOptionsRoot = {next: new Map()}
+            mergedOptionsCount = 0
+        }
+        node.merged = Object.freeze({...DefaultValidationOptions, ...options})
+        mergedOptionsCount++
+    }
+    return node.merged
 }
 
 export interface ValidateAPI {
@@ -351,7 +400,7 @@ class ValidateMethods {
      * @param options
      */
     public validate<T = any>(data: T, schema: Schema, options: ValidationOptions = {}): T {
-        options = {...DefaultValidationOptions, ...options}
+        options = mergeOptions(options)
         let error: Error | undefined
         let value: T
         if (options.targetName) {
@@ -374,13 +423,13 @@ class ValidateMethods {
      * @param options
      */
     public async validateAsync<T = any>(data: T, schema: Schema, options: ValidationOptions = {}): Promise<T> {
-        options = {...DefaultValidationOptions, ...options}
+        options = mergeOptions(options)
         try {
             if (options.targetName) {
-                const result: Record<symbol | string, T> = As<Record<symbol | string, T>>(await targetSchema(schema, options.targetName).validateAsync({[options.targetName]: data}, As<Preferences>({
+                const result: Record<symbol | string, T> = As<Record<symbol | string, T>>(await targetSchema(schema, options.targetName).validateAsync({[options.targetName]: data}, As<Preferences>(mergeOptions({
                     ...options,
                     artifacts: false
-                })))
+                }))))
                 return result[options.targetName]
             } else {
                 return As<T>(await As<Base>(schema).validateAsync(data, As<Preferences>(options)))

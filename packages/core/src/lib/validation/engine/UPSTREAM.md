@@ -71,6 +71,12 @@ library is ported from [hapijs/code](https://github.com/hapijs/code) 9.0.3 (4250
     as key (only primitives are cached); `assertOptions()` also takes a single key (matched as a substring).
 - Behavior changes after the rewrite:
   - The Standard Schema vendor of the schemas is `'lakutata'` (upstream: `'joi'`).
+- Performance changes (same behavior, covered by `src/tests/engine/joi/Caching.spec.ts`):
+  - The validation settings (defaults merged with the validate() options) are reused for options which cannot change:
+    frozen, with primitive values only. Upstream merges them on every validation.
+  - The preferences of a schema merged with its parent preferences are cached by parent preferences (upstream caches
+    only the merge with the default preferences), and `$_match()` reuses its abort-early copy of the preferences.
+    Merged preferences are never mutated, so they can be shared.
 - Test adaptations (the rest of the 27 upstream test files is kept line by line):
   - `@hapi/bourne` parse is replaced by `JSON.parse` (the parsed inputs contain no prototype keys).
   - hoek's `wait()` (not part of the engine) is provided locally in the validator tests.

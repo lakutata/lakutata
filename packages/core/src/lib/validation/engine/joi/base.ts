@@ -98,6 +98,27 @@ export interface StandardSchema {
 }
 
 /**
+ * The preferences of $_match() by parent preferences (lakutata: upstream makes a new copy on each call)
+ */
+const matchPreferencesCache: WeakMap<Preferences, Preferences> = new WeakMap()
+
+/**
+ * The parent preferences, aborting early and without external rules (preferences are never mutated)
+ * @param prefs
+ */
+function matchPreferences(prefs: Preferences): Preferences {
+    let matched: Preferences | undefined = matchPreferencesCache.get(prefs)
+    if (!matched) {
+        //Shallow cloned
+        matched = Object.assign({}, prefs)
+        matched.abortEarly = true
+        matched._externals = false
+        matchPreferencesCache.set(prefs, matched)
+    }
+    return matched
+}
+
+/**
  * A schema method, looked up by name
  */
 type SchemaMethod = (this: Base, ...args: unknown[]) => unknown
@@ -649,10 +670,7 @@ export class Base implements SchemaInternals {
     }
 
     public $_match(value: unknown, state: State, prefs: Preferences, overrides?: { presence?: Preferences['presence'] }): boolean {
-        //Shallow cloned
-        prefs = Object.assign({}, prefs)
-        prefs.abortEarly = true
-        prefs._externals = false
+        prefs = matchPreferences(prefs)
         state.snapshot()
         const result: boolean = !Validator.validate(value, this, state, prefs, overrides).errors
         state.restore()

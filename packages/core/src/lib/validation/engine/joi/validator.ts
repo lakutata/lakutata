@@ -136,7 +136,7 @@ export function entry(value: unknown, schema: SchemaInternals, prefs?: Preferenc
     if (prefs) {
         assert(prefs.warnings === undefined, 'Cannot override warnings preference in synchronous validation')
         assert(prefs.artifacts === undefined, 'Cannot override artifacts preference in synchronous validation')
-        settings = Common.preferences(Common.defaults, prefs)
+        settings = entrySettings(prefs)
     }
     const result: EntryResult = validateEntry(value, schema, settings)
     assert(!result.mainstay.externals.length, 'Schema with external rules must use validateAsync()')
@@ -156,7 +156,7 @@ export function entry(value: unknown, schema: SchemaInternals, prefs?: Preferenc
  */
 export async function entryAsync(value: unknown, schema: SchemaInternals, prefs?: Preferences): Promise<unknown> {
     let settings: Preferences = Common.defaults
-    if (prefs) settings = Common.preferences(Common.defaults, prefs)
+    if (prefs) settings = entrySettings(prefs)
     const result: EntryResult = validateEntry(value, schema, settings)
     const mainstay: Mainstay = result.mainstay
     if (result.error) {
@@ -547,13 +547,62 @@ function finalize(value: unknown, errors: Errors.ErrorItem[] | null, helpers: Va
 
 type CachedPreferences = Preferences & { [key: symbol]: Preferences | undefined }
 
+/**
+ * The preferences of schemas merged with their parent preferences, by schema preferences then by parent preferences
+ * (lakutata: upstream caches only the merge with the default preferences). Merged preferences are never mutated.
+ */
+const mergedPreferences: WeakMap<Preferences, WeakMap<Preferences, Preferences>> = new WeakMap()
+
 function prefsOf(schema: SchemaInternals, prefs: Preferences): Preferences {
     const preferences: CachedPreferences = schema._preferences as CachedPreferences
     const isDefaultOptions: boolean = prefs === Common.defaults
     if (isDefaultOptions && preferences[Common.symbols.prefs]) return preferences[Common.symbols.prefs] as Preferences
-    prefs = Common.preferences(prefs, preferences)
-    if (isDefaultOptions) preferences[Common.symbols.prefs] = prefs
-    return prefs
+    let byParent: WeakMap<Preferences, Preferences> | undefined = mergedPreferences.get(preferences)
+    const cached: Preferences | undefined = byParent && byParent.get(prefs)
+    if (cached) return cached
+    const merged: Preferences = Common.preferences(prefs, preferences)
+    if (isDefaultOptions) {
+        preferences[Common.symbols.prefs] = merged
+    } else {
+        if (!byParent) {
+            byParent = new WeakMap()
+            mergedPreferences.set(preferences, byParent)
+        }
+        byParent.set(prefs, merged)
+    }
+    return merged
+}
+
+/**
+ * The validation settings (the defaults merged with the validate() options) by options, for the options which cannot
+ * change: frozen, with primitive values only (lakutata: the settings are reused across validations, so the schema
+ * preferences merged with them are reused too). Merged preferences are never mutated.
+ */
+const settingsByOptions: WeakMap<Preferences, Preferences> = new WeakMap()
+
+/**
+ * Whether options cannot change: frozen, without symbol keys, with primitive values only
+ * @param prefs
+ */
+function isImmutableOptions(prefs: Preferences): boolean {
+    if (!Object.isFrozen(prefs) || Object.getOwnPropertySymbols(prefs).length) return false
+    for (const name of Object.keys(prefs)) {
+        const value: unknown = (prefs as Record<string, unknown>)[name]
+        if ((value !== null && typeof value === 'object') || typeof value === 'function') return false
+    }
+    return true
+}
+
+/**
+ * The defaults merged with the validate() options
+ * @param prefs
+ */
+function entrySettings(prefs: Preferences): Preferences {
+    const cached: Preferences | undefined = settingsByOptions.get(prefs)
+    if (cached) return cached
+    const settings: Preferences = Common.preferences(Common.defaults, prefs)
+    if (isImmutableOptions(prefs)) settingsByOptions.set(prefs, settings)
+    return settings
 }
 
 /**
