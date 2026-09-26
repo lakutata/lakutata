@@ -155,7 +155,12 @@ export class EventEmitter {
     }
 
     public removeAllListeners(event?: string | symbol | event[] | undefined): this {
-        Reflect.getMetadata(this.constructor.name, this).removeAllListeners(coerceEvent(event as string | symbol | event[]))
+        //Node's emitter removes every listener only when called without any argument
+        if (event === undefined) {
+            Reflect.getMetadata(this.constructor.name, this).removeAllListeners()
+        } else {
+            Reflect.getMetadata(this.constructor.name, this).removeAllListeners(coerceEvent(event))
+        }
         return this
     }
 
