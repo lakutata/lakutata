@@ -212,6 +212,7 @@
     "SchemaDefinitionException",
     "SchemaException",
     "SchemaValidationException",
+    "fromJsonSchema",
     "toJsonSchema"
   ],
   "lakutata/helper": [

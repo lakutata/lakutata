@@ -98,10 +98,15 @@ library is ported from [hapijs/code](https://github.com/hapijs/code) 9.0.3 (4250
   - Added (lakutata's own, for the constructs of JSON Schema): `object().unknown(schema)` (the unknown keys are
     allowed and must match the schema; the flag holds the schema), `object().keyNames(schema)` (every key name must
     match), `array().has(schema, {min, max})` (the number of matching items; without options `has()` is unchanged)
-    and `alternatives().match('none')` (the value must match none of the alternatives).
+    and `alternatives().match('none')` (the value must match none of the alternatives); `any().allOf(...schemas)`
+    (the value must also match every schema; its errors are theirs, the value is kept) and `string().format(name)`
+    (the string formats of JSON Schema, in `schema/formats.ts`, validated like the full formats of ajv-formats).
 - Fixes:
-  - `alternatives().match('all')` with object alternatives merges the matched values only when they are all objects
-    (upstream also merges the `null` of an object schema allowing it, and throws hoek's merge assertion).
+  - `alternatives().match('all')` with object alternatives merges the matched values only when they are all plain
+    objects (not arrays), into a new object with the prototype of the first one. Upstream merges into the first matched
+    value, which may be the validated value itself (an array it matches is emptied: hoek's merge truncates the target
+    before copying the source, the same array), and merges the `null` of an object schema allowing it (and throws hoek's
+    merge assertion).
 - Performance changes (same behavior, covered by `src/tests/engine/schema/Caching.spec.ts`):
   - The validation settings (defaults merged with the validate() options) are reused for options which cannot change:
     frozen, with primitive values only. Upstream merges them on every validation.
@@ -204,7 +209,16 @@ library is ported from [hapijs/code](https://github.com/hapijs/code) 9.0.3 (4250
     `binary`); OpenAPI 3.0 converts `any()` to a schema without type (upstream lists the types, as anyOf branches).
   - Defaults and examples are only kept when they are JSON values. The preferences of a schema are merged with the
     inherited ones (upstream uses them instead).
-  - Added: JSON Schema 2020-12 (`json-2020-12`), the base of OpenAPI 3.1 (upstream: 2019-09).
+  - Added: JSON Schema 2020-12 (`json-2020-12`), the base of OpenAPI 3.1 (upstream: 2019-09); the engine additions
+    convert (`format()`, `allOf()`, `keyNames()`, `unknown(schema)`, `has()` counts, `match('none')`); a minimum
+    string length of zero is not written.
+- The import (`json-schema/import.ts`, lakutata's own, not from upstream): JSON Schemas (drafts 04 to 2020-12) and
+  OpenAPI 3.0/3.1 schema objects become schemas which validate like JSON Schema (without conversion, the formats like
+  ajv-formats, the $ref siblings applied like ajv does in every version). References resolve by JSON pointer, anchor
+  and $id (recursive ones become shared schemas and links); unevaluatedProperties/unevaluatedItems are evaluated with
+  the subschemas which match the value. `src/tests/engine/json-schema/ImportFidelity.spec.ts` verifies it against ajv
+  on random JSON Schemas and values of every version (except where ajv diverges from the specification: contains with
+  ordered items, and contains with unevaluatedItems).
   - Tests: the expected parser outputs of the ported data are regenerated with these semantics (the 2020-12 parser has
     the cases of the 2019-09 parser), the ported unit tests expect them (non-empty strings, exclusive bounds, anyOf
     conditions, draft 07 dependencies, and non-empty strings in their data).

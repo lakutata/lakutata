@@ -47,6 +47,13 @@ export interface StringSchema<TSchema = string> extends AnySchema<TSchema> {
     email(options?: EmailOptions): this;
 
     /**
+     * Requires the string value to be valid in a format of JSON Schema: date, time, date-time, duration, email,
+     * idn-email, hostname, ipv4, ipv6, uri, uri-reference, uri-template, uuid, regex, json-pointer,
+     * relative-json-pointer or byte (base64).
+     */
+    format(name: string): this;
+
+    /**
      * Requires the string value to be a valid GUID.
      */
     guid(options?: GuidOptions): this;

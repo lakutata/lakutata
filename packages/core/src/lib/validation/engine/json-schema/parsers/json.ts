@@ -86,14 +86,14 @@ const INTEGER_RULES: string[] = ['integer', 'port', ...Object.keys(integerTypes)
  * The rules the type setters convert, by type (the rules of the other types, and the other rules, are dropped)
  */
 const CONVERTED_RULES: Record<string, string[]> = {
-    any: [],
-    alternatives: [],
-    boolean: [],
-    number: ['min', 'max', 'greater', 'less', 'multiple', 'sign', 'port', 'float', 'double', 'integer', ...Object.keys(integerTypes)],
-    bigint: ['min', 'max', 'greater', 'less', 'multiple', 'negative', 'positive'],
-    string: ['min', 'max', 'length', 'email', 'hostname', 'uri', 'ip', 'pattern', 'alphanum', 'token', 'hex', 'trim', 'isoDate', 'isoDuration', 'guid', 'uuid'],
-    object: ['min', 'max', 'length', 'keyNames'],
-    array: ['min', 'max', 'length', 'unique', 'has', 'items', 'ordered']
+    any: ['allOf'],
+    alternatives: ['allOf'],
+    boolean: ['allOf'],
+    number: ['allOf', 'min', 'max', 'greater', 'less', 'multiple', 'sign', 'port', 'float', 'double', 'integer', ...Object.keys(integerTypes)],
+    bigint: ['allOf', 'min', 'max', 'greater', 'less', 'multiple', 'negative', 'positive'],
+    string: ['allOf', 'min', 'max', 'length', 'format', 'email', 'hostname', 'uri', 'ip', 'pattern', 'alphanum', 'token', 'hex', 'trim', 'isoDate', 'isoDuration', 'guid', 'uuid'],
+    object: ['allOf', 'min', 'max', 'length', 'keyNames'],
+    array: ['allOf', 'min', 'max', 'length', 'unique', 'has', 'items', 'ordered']
 }
 
 /**
@@ -330,6 +330,7 @@ export class JsonSchemaParser {
         this._setObjectProperties(schema, spec, definitions, level)
         this._setAlternativesProperties(schema, spec, definitions, level)
         this._setConditionProperties(schema, spec, definitions, level, 'whens')
+        this._setAllOf(schema, spec, definitions, level)
         this._setMetaProperties(schema, spec)
         this._setLinkFieldProperties(schema, spec)
         this._setAnyProperties(schema)
@@ -698,7 +699,7 @@ export class JsonSchemaParser {
     protected _rejectsEmpty(schema: JsonSchema): boolean {
         if (typeof schema.minLength === 'number' && schema.minLength >= 1) return true
         if (typeof schema.pattern === 'string' && !new RegExp(schema.pattern, 'u').test('')) return true
-        return typeof schema.format === 'string' && ['email', 'hostname', 'uri', 'uuid', 'date-time', 'duration', 'ipv4', 'ipv6'].includes(schema.format)
+        return typeof schema.format === 'string' && ['date', 'time', 'date-time', 'duration', 'email', 'idn-email', 'hostname', 'ipv4', 'ipv6', 'uri', 'uuid'].includes(schema.format)
     }
 
     /**
@@ -1013,6 +1014,9 @@ export class JsonSchemaParser {
                     if (rule.name !== 'max') lower = this._bound(lower, args.limit, false, true)
                     if (rule.name !== 'min') upper = this._bound(upper, args.limit, false, false)
                     break
+                case 'format':
+                    this._addKeyword(fieldSchema, 'format', args.name)
+                    break
                 case 'email':
                     this._addKeyword(fieldSchema, 'format', 'email')
                     break
@@ -1076,7 +1080,8 @@ export class JsonSchemaParser {
                     break
             }
         })
-        if (lower) fieldSchema.minLength = lower.value
+        //A minimum length of zero only allows the empty string
+        if (lower && lower.value > 0) fieldSchema.minLength = lower.value
         if (upper) fieldSchema.maxLength = upper.value
     }
 
@@ -1212,8 +1217,9 @@ export class JsonSchemaParser {
     protected _setConditionProperties(schema: JsonSchema, spec: SchemaSpec, definitions: Definitions, level: number, conditionFieldName: string, logicKeyword: string = 'allOf'): void {
         const conditions: SpecCondition[] | undefined = spec[conditionFieldName] as SpecCondition[] | undefined
         if (!conditions || conditions.length === 0) return
-        //The conditions of whens are concatenated to the schema, which may replace its values and flags
-        if (conditionFieldName === 'whens') this._inexact()
+        //The conditions of whens are concatenated to the schema, which may replace its values and flags (not the ones of
+        //a schema without constraints)
+        if (conditionFieldName === 'whens' && (spec.type !== 'any' || spec.rules || spec.allow || spec.invalid)) this._inexact()
         let ifThenStyle: boolean = this._isIfThenElseSupported()
         const styleSetting: Record<string, unknown>[] = _.remove(spec.metas, (meta: Record<string, unknown>): boolean => {
             return typeof meta['if-style'] !== 'undefined'
@@ -1365,6 +1371,21 @@ export class JsonSchemaParser {
             'string',
             'null'
         ]
+    }
+
+    /**
+     * The schemas the value must also match (lakutata)
+     * @param schema
+     * @param spec
+     * @param definitions
+     * @param level
+     */
+    protected _setAllOf(schema: JsonSchema, spec: SchemaSpec, definitions: Definitions, level: number): void {
+        for (const rule of spec.rules || []) {
+            if (rule.name !== 'allOf') continue
+            const schemas: SchemaSpec[] = _.get(rule, `${this.ruleArgFieldName}.schemas`) as SchemaSpec[]
+            this._mergeKeywords(schema, {allOf: schemas.map((subschema: SchemaSpec): JsonSchema => this.parse(subschema, definitions, level + 1))})
+        }
     }
 
     /**

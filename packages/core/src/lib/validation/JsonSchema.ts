@@ -12,6 +12,7 @@ import {
     OpenApiSchemaParser
 } from './engine/json-schema/index.js'
 import type {Definitions, JsonSchema as ParsedSchema, SchemaSpec} from './engine/json-schema/index.js'
+import {fromJsonSchema as importJsonSchema} from './engine/json-schema/import.js'
 
 /**
  * The JSON Schema versions (and the OpenAPI schema objects) of the conversions
@@ -79,4 +80,42 @@ export function toJsonSchema(source: JsonSchemaSource, options: ToJsonSchemaOpti
     const definitions: Definitions = (options.definitions || {}) as Definitions
     const result: ParsedSchema = parser.parse((schema as { describe(): SchemaSpec }).describe(), definitions)
     return result as JSONSchema
+}
+
+/**
+ * The JSON Schema versions (and the OpenAPI schema objects) a JSON Schema may be written in
+ */
+export type JsonSchemaDialect = JsonSchemaTarget | 'draft-06'
+
+/**
+ * The options of the conversion of a JSON Schema into a schema
+ */
+export interface FromJsonSchemaOptions {
+    /**
+     * The version of the JSON Schema (default: the version its $schema declares, else draft-2020-12)
+     */
+    dialect?: JsonSchemaDialect
+    /**
+     * The document the references are resolved in (default: the JSON Schema itself), like an OpenAPI document
+     */
+    document?: unknown
+    /**
+     * Other JSON Schemas the references may refer to, by URI (their $id, when they have one)
+     */
+    schemas?: Record<string, unknown>
+    /**
+     * Whether the values are converted, like lakutata does (default: false, like JSON Schema)
+     */
+    convert?: boolean
+}
+
+/**
+ * Converts a JSON Schema (drafts 04 to 2020-12, or an OpenAPI 3.0/3.1 schema object) into a schema, which validates
+ * like JSON Schema: without conversion, the unknown keys as the additional properties say, the formats like the full
+ * formats of ajv-formats, and $ref siblings applied (like ajv). The defaults are applied.
+ * @param schema
+ * @param options
+ */
+export function fromJsonSchema(schema: JSONSchema | boolean, options: FromJsonSchemaOptions = {}): Schema {
+    return importJsonSchema(schema, options) as unknown as Schema
 }

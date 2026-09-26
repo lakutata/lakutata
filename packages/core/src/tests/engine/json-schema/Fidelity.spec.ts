@@ -119,7 +119,7 @@ function schema(d) {
                 () => E.date(), () => E.date().iso(), () => E.binary(), () => E.func(), () => E.symbol(),
                 () => E.any().custom((v) => v), () => E.string().empty(''), () => E.string().lowercase(), () => E.string().trim(),
                 () => E.string().email(), () => E.string().guid(), () => E.string().isoDate(), () => E.string().uri(),
-                () => E.string().ip({cidr: 'forbidden'}), () => E.string().ip(), () => E.string().max(1, 'utf8'), () => E.string().pattern(/a/i),
+                () => E.string().ip({cidr: 'forbidden'}), () => E.string().ip(), () => E.string().max(1, 'utf8'), () => E.string().pattern(/a/i), () => E.string().format(pick(['date', 'email', 'uuid', 'uri-reference'])),
                 () => E.object({a: E.number()}).rename('b', 'a'), () => E.object({a: E.number(), b: E.number().min(E.ref('a'))}),
                 () => E.object({a: E.string(), b: E.valid(E.ref('a'))}), () => E.array().items(E.number().required()),
                 () => E.number().precision(1), () => E.string().creditCard(), () => E.array().single().items(E.number()),
@@ -139,6 +139,10 @@ function schema(d) {
             break
         }
         case 'alternatives':
+            if (chance(0.3)) {
+                s = schema(d + 1).allOf(schema(d + 1))
+                break
+            }
             s = E.alternatives().try(schema(d + 1), schema(d + 1))
             if (chance(0.5)) s = s.match(pick(['one', 'all', 'none']))
             break

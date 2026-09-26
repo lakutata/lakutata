@@ -3,6 +3,7 @@
  */
 import {escapeRegex} from '../../hoek/index.js'
 import {assert, definition} from '../assert.js'
+import {formats} from '../formats.js'
 import {type DomainOptions as AddressDomainOptions, type EmailOptions as AddressEmailOptions, isDomainValid, isEmailValid, ipRegex, uriRegex} from '../../address/index.js'
 import * as Tlds from '../../tlds/index.js'
 import Any, {type AnySchema, type AnyTerms} from './any.js'
@@ -106,6 +107,7 @@ export interface StringSchema extends AnySchema {
     dataUri(options?: DataUriOptions): this
     domain(options?: DomainOptions): this
     email(options?: EmailOptions): this
+    format(name: string): this
     guid(options?: GuidOptions): this
     uuid(options?: GuidOptions): this
     hex(options?: HexOptions): this
@@ -402,6 +404,19 @@ const StringType: StringSchema = Any.extend<StringSchema>({
                 }
                 return helpers.error('string.email', {value, invalids})
             }
+        },
+
+        format: {
+            method(this: StringSchema, name: string): StringSchema {
+                //lakutata's own: a string format of JSON Schema
+                assert(typeof name === 'string' && Object.prototype.hasOwnProperty.call(formats, name), 'Unknown format', name)
+                return this.$_addRule({name: 'format', args: {name}})
+            },
+            validate(value: unknown, helpers: ValidationHelpers<StringSchema>, {name}: Record<string, unknown>): unknown {
+                if (formats[name as string](value as string)) return value
+                return helpers.error('string.format', {format: name})
+            },
+            args: ['name']
         },
 
         guid: {
@@ -758,6 +773,7 @@ const StringType: StringSchema = Any.extend<StringSchema>({
         'string.domain': '{{#label}} must contain a valid domain name',
         'string.email': '{{#label}} must be a valid email',
         'string.empty': '{{#label}} is not allowed to be empty',
+        'string.format': '{{#label}} must be a valid {{#format}}',
         'string.guid': '{{#label}} must be a valid GUID',
         'string.hex': '{{#label}} must only contain hexadecimal characters',
         'string.hexAlign': '{{#label}} hex decoded representation must be byte aligned',

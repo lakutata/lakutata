@@ -7,6 +7,7 @@ import * as Common from '../common.js'
 import type {ReportLocal} from '../errors.js'
 import * as Messages from '../messages.js'
 import type {SchemaRule, ValidationHelpers} from '../model.js'
+import type {SchemaResult} from '../validator.js'
 
 /**
  * A custom rule method: the validated (or converted) value, or an error
@@ -32,6 +33,7 @@ export interface AnyTerms {
  */
 export interface AnySchema extends Base {
     $_terms: SchemaTerms & AnyTerms
+    allOf(...schemas: unknown[]): this
     custom(method: CustomMethod, description?: string): this
     messages(messages: Messages.MessagesInput): this
     shared(schema: Base): this
@@ -72,6 +74,33 @@ const Any: AnySchema = base.extend<AnySchema>({
     },
 
     rules: {
+
+        allOf: {
+            method(this: AnySchema, ...schemas: unknown[]): AnySchema {
+                //lakutata's own: the value must also match every schema (a description holds them as a list)
+                if (schemas.length === 1 && Array.isArray(schemas[0])) schemas = schemas[0]
+                assert(schemas.length > 0, 'Missing schemas')
+                const compiled: Base[] = schemas.map((schema: unknown, i: number): Base => Common.tryWithPath((): Base => this.$_compile(schema), i, {append: true}))
+                const obj: AnySchema = this.$_addRule({name: 'allOf', args: {schemas: compiled}})
+                for (const schema of compiled) obj.$_mutateRegister(schema)
+                return obj
+            },
+            validate(value: unknown, {state, prefs, errorsArray}: ValidationHelpers<AnySchema>, {schemas}: Record<string, unknown>): unknown {
+                for (let i: number = 0; i < (schemas as Base[]).length; ++i) {
+                    const schema: Base = (schemas as Base[])[i]
+                    const result: SchemaResult = schema.$_validate(value, state.nest(schema, `allOf.${i}`), prefs)
+                    if (result.errors) {
+                        //The errors of the schema (the value is kept)
+                        const errors: ReturnType<typeof errorsArray> = errorsArray()
+                        errors.push(...result.errors)
+                        return errors
+                    }
+                }
+                return value
+            },
+            args: ['schemas'],
+            multi: true
+        },
 
         custom: {
             method(this: AnySchema, method: CustomMethod, description?: string): AnySchema {
