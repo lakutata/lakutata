@@ -4,7 +4,6 @@ import {
     DependencyInjectionResolutionError,
     DependencyInjectionTypeError
 } from './Errors.js'
-import {InjectionMode, type InjectionModeType} from './InjectionMode.js'
 import {Lifetime, type LifetimeType, isLifetimeLonger} from './Lifetime.js'
 import {GlobWithOptions, listModules} from './ListModules.js'
 import {importModule} from './LoadModuleNative.js'
@@ -204,7 +203,6 @@ export type ClassOrFunctionReturning<T> = FunctionReturning<T> | Constructor<T>
  */
 export interface ContainerOptions {
     require?: (id: string) => any
-    injectionMode?: InjectionModeType
     strict?: boolean
 }
 
@@ -238,8 +236,7 @@ const CRADLE_STRING_TAG: string = 'DependencyInjectionContainerCradle'
  *
  * @param {Function} options.require The require function to use. Defaults to require.
  *
- * @param {string} options.injectionMode The mode used by the container to resolve dependencies.
- * Defaults to 'Proxy'.
+ * Dependencies are always provided through the cradle proxy.
  *
  * @param {boolean} options.strict True if the container should run in strict mode with additional
  * validation for resolver configuration correctness. Defaults to false.
@@ -261,7 +258,6 @@ function createContainerInternal<
     parentResolutionStack?: ResolutionStack
 ): IDependencyInjectionContainer<T> {
     options = {
-        injectionMode: InjectionMode.PROXY,
         strict: false,
         ...options
     }

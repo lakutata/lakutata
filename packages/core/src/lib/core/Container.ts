@@ -72,7 +72,6 @@ export class Container {
         this.parent = parent
         this.#isScope = !parent
         this.#dic = parent ? parent.#dic.createScope() : createContainer({
-            injectionMode: 'PROXY',
             //strict must be false
             strict: false
         })

@@ -1,4 +1,3 @@
-import {createTokenizer, type Token} from './FunctionTokenizer.js'
 import {Constructor} from './Resolvers.js'
 import {IsSymbol} from '../helpers/IsSymbol.js'
 import {As} from '../helpers/As.js'
@@ -45,17 +44,13 @@ export function last<T>(arr: Array<T>): T {
  */
 export function isClass(fn: Function | Constructor<any>): boolean {
     if (typeof fn !== 'function') return false
-    // Should only need 2 tokens.
-    const tokenizer = createTokenizer(fn.toString())
-    const first: Token = tokenizer.next()
-    if (first.type === 'class') return true
-    const second: Token = tokenizer.next()
-    if (first.type === 'function' && second.value) {
-        if (second.value[0] === second.value[0].toUpperCase()) {
-            return true
-        }
-    }
-    return false
+    //Arrow, async and method functions have no prototype, so they are never constructors
+    const prototypeDescriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(fn, 'prototype')
+    if (!prototypeDescriptor) return false
+    //The prototype of a class (and of built-in constructors) is read-only, unlike the one of a plain function
+    if (!prototypeDescriptor.writable) return true
+    //A plain function named in PascalCase is treated as an ES5 constructor function
+    return !!fn.name && fn.name[0] === fn.name[0].toUpperCase()
 }
 
 /**

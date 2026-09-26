@@ -4,9 +4,7 @@ import {
     ResolveOptions
 } from './DependencyInjectionContainer.js'
 import {DependencyInjectionTypeError} from './Errors.js'
-import {InjectionMode, type InjectionModeType} from './InjectionMode.js'
 import {Lifetime, type LifetimeType} from './Lifetime.js'
-import {Parameter, parseParameterList} from './ParamParser.js'
 import {isFunction, uniq} from './Utils.js'
 import {DI_CONTAINER_INJECT_PROPERTIES} from '../../constants/DIMetadataKey.js'
 
@@ -41,22 +39,15 @@ export interface Resolver<T> extends ResolverOptions<T> {
  * A resolver object created by asClass() or asFunction().
  */
 export interface BuildResolver<T> extends Resolver<T>, BuildResolverOptions<T> {
-    injectionMode?: InjectionModeType
     injector?: InjectorFunction
 
     setLifetime(lifetime: LifetimeType): this
-
-    setInjectionMode(mode: InjectionModeType): this
 
     singleton(): this
 
     scoped(): this
 
     transient(): this
-
-    proxy(): this
-
-    classic(): this
 
     inject(injector: InjectorFunction): this
 }
@@ -112,10 +103,6 @@ export interface ResolverOptions<T> {
 export interface BuildResolverOptions<T>
     extends ResolverOptions<T>,
         DisposableResolverOptions<T> {
-    /**
-     * Resolution mode.
-     */
-    injectionMode?: InjectionModeType
     /**
      * Injector function to provide additional parameters.
      */
@@ -223,7 +210,7 @@ export function asClass<T = object>(
         return Reflect.construct(Type, args)
     }
 
-    const resolve = generateResolve(newClass, Type)
+    const resolve = generateResolve(newClass)
     return createDisposableResolver(
         createBuildResolver({
             ...opts,
@@ -267,13 +254,6 @@ function createBuildResolver<T, B extends Resolver<T>>(
         })
     }
 
-    function setInjectionMode(this: any, value: InjectionModeType) {
-        return createBuildResolver({
-            ...this,
-            injectionMode: value
-        })
-    }
-
     function inject(this: any, injector: InjectorFunction) {
         return createBuildResolver({
             ...this,
@@ -286,10 +266,7 @@ function createBuildResolver<T, B extends Resolver<T>>(
         inject,
         transient: partial(setLifetime, Lifetime.TRANSIENT),
         scoped: partial(setLifetime, Lifetime.SCOPED),
-        singleton: partial(setLifetime, Lifetime.SINGLETON),
-        setInjectionMode,
-        proxy: partial(setInjectionMode, InjectionMode.PROXY),
-        classic: partial(setInjectionMode, InjectionMode.CLASSIC)
+        singleton: partial(setLifetime, Lifetime.SINGLETON)
     })
 }
 
@@ -352,27 +329,6 @@ function updateResolver<T, A extends Resolver<T>, B>(
         ...(target as any)
     }
     return result
-}
-
-/**
- * Returns a wrapped `resolve` function that provides values
- * from the injector and defers to `container.resolve`.
- *
- * @param  {IDependencyInjectionContainer} container
- * @param  {Object} locals
- * @return {Function}
- */
-function wrapWithLocals<T extends object>(
-    container: IDependencyInjectionContainer<T>,
-    locals: any
-) {
-    return function wrappedResolve(name: string, resolveOpts: ResolveOptions) {
-        if (name in locals) {
-            return locals[name]
-        }
-
-        return container.resolve(name, resolveOpts)
-    }
 }
 
 /**
@@ -442,75 +398,21 @@ function createInjectorProxy<T extends object>(
 
 /**
  * Returns a resolve function used to construct the dependency graph
+ * @description Dependencies are always provided through the cradle proxy (lakutata declares them with decorators),
+ * so the construction target is never parsed for its parameter names
  * @param fn The function to construct
- * @param dependencyParseTarget The function to parse for the dependencies of the construction target
  */
-function generateResolve(fn: Function, dependencyParseTarget?: Function) {
-    // If the function used for dependency parsing is falsy, use the supplied function
-    if (!dependencyParseTarget) {
-        dependencyParseTarget = fn
-    }
-
-    // Parse out the dependencies
-    // NOTE: we do this regardless of whether PROXY is used or not,
-    // because if this fails, we want it to fail early (at startup) rather
-    // than at resolution time.
-    const dependencies = parseDependencies(dependencyParseTarget)
-
+function generateResolve(fn: Function) {
     // Use a regular function instead of an arrow function to facilitate binding to the resolver.
     return function resolve<T extends object>(
         this: BuildResolver<any>,
         container: IDependencyInjectionContainer<T>
     ) {
-        // Because the container holds a global reolutionMode we need to determine it in the proper order of precedence:
-        // resolver -> container -> default value
-        const injectionMode =
-            this.injectionMode ||
-            container.options.injectionMode ||
-            InjectionMode.PROXY
-
-        if (injectionMode !== InjectionMode.CLASSIC) {
-            // If we have a custom injector, we need to wrap the cradle.
-            const cradle = this.injector
-                ? createInjectorProxy(container, this.injector)
-                : container.cradle
-            // Return the target injected with the cradle
-            return fn(cradle)
-        }
-
-        // We have dependencies so we need to resolve them manually
-        if (dependencies.length > 0) {
-            const resolve = this.injector
-                ? wrapWithLocals(container, this.injector(container))
-                : container.resolve
-
-            const children = dependencies.map((p) =>
-                resolve(p.name, {allowUnregistered: p.optional})
-            )
-            return fn(...children)
-        }
-
-        return fn()
+        // If we have a custom injector, we need to wrap the cradle.
+        const cradle = this.injector
+            ? createInjectorProxy(container, this.injector)
+            : container.cradle
+        // Return the target injected with the cradle
+        return fn(cradle)
     }
-}
-
-/**
- * Parses the dependencies from the given function.
- * If it's a class that extends another class, and it does
- * not have a defined constructor, attempt to parse it's super constructor.
- */
-function parseDependencies(fn: Function): Array<Parameter> {
-    const result = parseParameterList(fn.toString())
-    if (!result) {
-        // No defined constructor for a class, check if there is a parent
-        // we can parse.
-        const parent = Object.getPrototypeOf(fn)
-        if (typeof parent === 'function' && parent !== Function.prototype) {
-            // Try to parse the parent
-            return parseDependencies(parent)
-        }
-        return []
-    }
-
-    return result
 }
