@@ -39,7 +39,7 @@ export type TypeFactory<S extends Base = Base> = (this: Root, ...args: never[]) 
  * An extension: a type definition, extending a base schema (or any())
  * or all the types matching a pattern, or a function of the root returning one
  */
-export interface Extension extends Omit<Extend.TypeDefinition, 'type'> {
+export interface Extension<S extends Base = Base> extends Omit<Extend.TypeDefinition<S>, 'type'> {
     type: string | RegExp
 }
 
