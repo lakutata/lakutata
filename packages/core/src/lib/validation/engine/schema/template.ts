@@ -1,7 +1,8 @@
 /**
  * Derived from the upstream lib/template.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
-import {assert, clone, escapeHtml, isArray} from '../hoek/index.js'
+import {clone, escapeHtml, isArray} from '../hoek/index.js'
+import {assert, definitionException} from './assert.js'
 import {type FormulaConstant, type FormulaEvaluator, type FormulaFunction, Parser} from '../formula/index.js'
 import * as Common from './common.js'
 import * as Errors from './errors.js'
@@ -320,8 +321,7 @@ export class Template {
             const templateFunctions: Record<string, FormulaFunction> = this._functions ? {...functions, ...this._functions} : functions
             formula = new Parser(content, {reference, functions: templateFunctions, constants})
         } catch (err) {
-            (err as Error).message = `Invalid template variable "${content}" fails due to: ${(err as Error).message}`
-            throw err
+            throw definitionException(`Invalid template variable "${content}" fails due to: ${(err as Error).message}`, Template.prototype._ref, err)
         }
         if (formula.single) {
             if (formula.single.type === 'reference') {

@@ -1,7 +1,7 @@
 /**
  * Derived from the upstream lib/types/binary.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
-import {assert} from '../../hoek/index.js'
+import {assert} from '../assert.js'
 import Any, {type AnySchema} from './any.js'
 import * as Common from '../common.js'
 import type {SchemaFlags, SchemaRule, ValidationHelpers, ValidationOutcome} from '../model.js'

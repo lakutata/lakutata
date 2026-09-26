@@ -6,6 +6,7 @@ import {InvalidMethodReturnException} from '../../exceptions/dto/InvalidMethodRe
 import {Schema} from '../validation/types/Schema.js'
 import {ArraySchema} from '../validation/interfaces/ArraySchema.js'
 import {As} from '../helpers/As.js'
+import {WithCause} from '../helpers/internal/WithCause.js'
 
 /**
  * For validate method accept arguments
@@ -28,10 +29,10 @@ export function SetMethodAcceptArgumentsValidator<ClassPrototype, DTOConstructor
             try {
                 args = await DTO.validateAsync(args, schema.concat(DTO.Array().ordered(...new Array(argumentCount >= 0 ? argumentCount : 0).fill(DTO.Any()))))
             } catch (e) {
-                throw new InvalidMethodAcceptException('Method [{propertyKey}] accept argument {reason}', {
+                throw WithCause(new InvalidMethodAcceptException('Method [{propertyKey}] accept argument {reason}', {
                     propertyKey: propertyKey,
                     reason: (e as Error).message
-                })
+                }), e)
             }
             return originalMethod.apply(this, args)
         }
@@ -41,10 +42,10 @@ export function SetMethodAcceptArgumentsValidator<ClassPrototype, DTOConstructor
             try {
                 args = DTO.validate(args, schema.concat(DTO.Array().ordered(...new Array(argumentCount >= 0 ? argumentCount : 0).fill(DTO.Any()))))
             } catch (e) {
-                throw new InvalidMethodAcceptException('Method [{propertyKey}] accept argument {reason}', {
+                throw WithCause(new InvalidMethodAcceptException('Method [{propertyKey}] accept argument {reason}', {
                     propertyKey: propertyKey,
                     reason: (e as Error).message
-                })
+                }), e)
             }
             return originalMethod.apply(this, args)
         }
@@ -73,10 +74,10 @@ export function SetMethodReturnValueValidator<ClassPrototype, DTOConstructor ext
             try {
                 return await DTO.validateAsync(asyncResult, schema)
             } catch (e) {
-                throw new InvalidMethodReturnException('Method [{propertyKey}] return value {reason}', {
+                throw WithCause(new InvalidMethodReturnException('Method [{propertyKey}] return value {reason}', {
                     propertyKey: propertyKey,
                     reason: (e as Error).message
-                })
+                }), e)
             }
         }
     } else {
@@ -88,10 +89,10 @@ export function SetMethodReturnValueValidator<ClassPrototype, DTOConstructor ext
             try {
                 return DTO.validate(syncResult, schema)
             } catch (e) {
-                throw new InvalidMethodReturnException('Method [{propertyKey}] return value {reason}', {
+                throw WithCause(new InvalidMethodReturnException('Method [{propertyKey}] return value {reason}', {
                     propertyKey: propertyKey,
                     reason: (e as Error).message
-                })
+                }), e)
             }
         }
     }

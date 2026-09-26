@@ -85,7 +85,7 @@ describe('errors', () => {
         delete value.renamed
 
         expect(error).to.be.an.error('"value" 11. "email" 19. "date" 18. "alphanum" 16. "min" 14. "max" 15. "notEmpty" 3. "value" 7')
-        expect(error.name).to.equal('ValidationError')
+        expect(error.name).to.equal('SchemaValidationException')
         expect(error.details).to.equal([
             {
                 message: '"value" 11',
@@ -534,18 +534,19 @@ describe('errors', () => {
         }])
     })
 
-    it('has a name that is ValidationError', () => {
+    //lakutata: validation errors are SchemaValidationException (upstream: ValidationError)
+    it('has a name that is SchemaValidationException', () => {
 
         const schema = Engine.number()
         const validateErr = schema.validate('a').error
-        expect(validateErr.name).to.be.equal('ValidationError')
+        expect(validateErr.name).to.be.equal('SchemaValidationException')
 
         try {
             Engine.assert('a', schema)
             throw new Error('should not reach that')
         }
         catch (assertErr) {
-            expect(assertErr.name).to.be.equal('ValidationError')
+            expect(assertErr.name).to.be.equal('SchemaValidationException')
         }
 
         try {
@@ -553,7 +554,7 @@ describe('errors', () => {
             throw new Error('should not reach that')
         }
         catch (assertErr) {
-            expect(assertErr.name).to.be.equal('ValidationError')
+            expect(assertErr.name).to.be.equal('SchemaValidationException')
         }
 
         try {

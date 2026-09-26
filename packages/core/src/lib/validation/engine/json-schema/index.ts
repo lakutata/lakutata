@@ -1,6 +1,7 @@
 /**
  * Derived from the upstream index.js (see UPSTREAM.md; MIT, see THIRD_PARTY_NOTICES.md)
  */
+import {SchemaConversionException} from '../../exceptions/SchemaConversionException.js'
 import type {Definitions, SchemaSpec, JsonSchema, Mode, ParserOptions} from './model.js'
 import {JsonSchemaParser} from './parsers/json.js'
 import {JsonDraft04SchemaParser} from './parsers/json-draft-04.js'
@@ -29,10 +30,10 @@ const parsers: Record<string, ParserConstructor> = {
  * @param parserOptions
  */
 export function parse(schemaObj: { describe(): unknown }, type: Mode = 'json', definitions: Definitions = {}, parserOptions: ParserOptions = {}): JsonSchema {
-    if (typeof schemaObj.describe !== 'function') throw new Error('Not a schema object.')
+    if (typeof schemaObj.describe !== 'function') throw new SchemaConversionException('Not a schema object.')
     const baseSpec: SchemaSpec = schemaObj.describe() as SchemaSpec
     const parser: ParserConstructor | undefined = parsers[type]
-    if (!parser) throw new Error(`No parser is registered for ${type}`)
+    if (!parser) throw new SchemaConversionException(`No parser is registered for ${type}`)
     return new parser(parserOptions).parse(baseSpec, definitions)
 }
 

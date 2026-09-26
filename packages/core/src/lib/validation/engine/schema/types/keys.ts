@@ -1,7 +1,8 @@
 /**
  * Derived from the upstream lib/types/keys.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
-import {applyToDefaults, assert, clone as Clone} from '../../hoek/index.js'
+import {applyToDefaults, clone as Clone} from '../../hoek/index.js'
+import {assert, definition} from '../assert.js'
 import * as Topo from '../../topo/index.js'
 import type {Base, DefaultOptions, SchemaTerms} from '../base.js'
 import * as Common from '../common.js'
@@ -522,7 +523,7 @@ const KeysType: KeysSchema = Any.extend<KeysSchema>({
         if (schema.$_terms.keys) {
             const topo: Topo.Sorter<KeysChild> = new Topo.Sorter()
             for (const child of schema.$_terms.keys) {
-                Common.tryWithPath((): KeysChild[] => topo.add(child, {after: child.schema.$_rootReferences() as string[], group: child.key}), child.key)
+                Common.tryWithPath((): KeysChild[] => definition((): KeysChild[] => topo.add(child, {after: child.schema.$_rootReferences() as string[], group: child.key})), child.key)
             }
             schema.$_terms.keys = new Keys(...topo.nodes)
         }

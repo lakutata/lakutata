@@ -1,7 +1,9 @@
 /**
  * Derived from the upstream lib/base.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
-import {assert, clone, deepEqual, merge} from '../hoek/index.js'
+import {clone, deepEqual, merge} from '../hoek/index.js'
+import {assert} from './assert.js'
+import {SchemaValidationException} from '../../exceptions/SchemaValidationException.js'
 import * as Cache from './cache.js'
 import * as Common from './common.js'
 import * as Compile from './compile.js'
@@ -915,7 +917,7 @@ export class Base implements SchemaInternals {
     public get '~standard'(): StandardSchema {
         const mapToStandardError = (error: unknown): { issues: StandardIssue[] } => {
             let issues: StandardIssue[]
-            if (Errors.ValidationError.isError(error)) {
+            if (SchemaValidationException.isError(error)) {
                 issues = error.details.map(({message, path}: { message: string, path: PathKey[] }): StandardIssue => ({
                     message,
                     path

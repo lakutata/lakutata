@@ -1,7 +1,8 @@
 /**
  * Derived from the upstream lib/manifest.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
-import {assert, clone} from '../hoek/index.js'
+import {clone} from '../hoek/index.js'
+import {assert} from './assert.js'
 import * as Common from './common.js'
 import type {Definition, RuleArgDefinition, TermManifest} from './extend.js'
 import {Lazy, type LazySchemas} from './lazy.js'

@@ -83,6 +83,13 @@ library is ported from [hapijs/code](https://github.com/hapijs/code) 9.0.3 (4250
     coverage hook, and schemas are marked with `Symbol.for('@lakutata/validation/schema')` (upstream: the joi marker
     shared by all joi versions), with the engine's own schema format version `'1.0.0'` (upstream: the joi release):
     engine schemas and joi schemas no longer recognize each other.
+  - The errors are framework exceptions (`src/lib/validation/exceptions`, subclasses of `SchemaException`, itself a
+    subclass of the framework `Exception`): a failed validation is a `SchemaValidationException` (upstream:
+    `ValidationError`; its name is the class name, as for all framework exceptions), an invalid definition (rule
+    arguments, options, templates, references, key dependencies) is a `SchemaDefinitionException` (upstream: hoek's
+    `AssertError`, or the errors of topo and formula; the schema engine asserts with its own `assert()`, and converts
+    the errors of the utilities it calls, keeping them as `cause`), and a JSON Schema conversion error is a
+    `SchemaConversionException`. Messages are unchanged; errors thrown by user code pass through unchanged.
 - Performance changes (same behavior, covered by `src/tests/engine/schema/Caching.spec.ts`):
   - The validation settings (defaults merged with the validate() options) are reused for options which cannot change:
     frozen, with primitive values only. Upstream merges them on every validation.
@@ -91,6 +98,7 @@ library is ported from [hapijs/code](https://github.com/hapijs/code) 9.0.3 (4250
     Merged preferences are never mutated, so they can be shared.
 - Test adaptations (the rest of the 27 upstream test files is kept line by line, with the engine's names):
   - The `isJoi` checks are `isError()` checks.
+  - The names of validation errors are `SchemaValidationException` (upstream: `ValidationError`).
   - A URI test value naming the upstream repository is replaced by another repository URL of the same form.
   - `@hapi/bourne` parse is replaced by `JSON.parse` (the parsed inputs contain no prototype keys).
   - hoek's `wait()` (not part of the engine) is provided locally in the validator tests.

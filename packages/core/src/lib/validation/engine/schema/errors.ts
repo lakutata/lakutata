@@ -1,7 +1,7 @@
 /**
  * Derived from the upstream lib/errors.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
-import * as Annotate from './annotate.js'
+import {SchemaValidationException} from '../../exceptions/SchemaValidationException.js'
 import * as Common from './common.js'
 import type {Message, Messages} from './messages.js'
 import type {ErrorDetail, ErrorPreferences, PathKey, Preferences, StateLike} from './model.js'
@@ -174,10 +174,10 @@ export function process(errors: ErrorItem[] | null | undefined, original: unknow
     const {override, message, details} = detailsOf(errors)
     if (override) return override
     //Without override details, as override errors are returned as they are
-    if ((prefs.errors as ErrorPreferences).stack) return new ValidationError(message as string, details as ErrorDetail[], original)
+    if ((prefs.errors as ErrorPreferences).stack) return new SchemaValidationException(message as string, details as ErrorDetail[], original)
     const limit: number = Error.stackTraceLimit
     Error.stackTraceLimit = 0
-    const validationError: ValidationError = new ValidationError(message as string, details as ErrorDetail[], original)
+    const validationError: SchemaValidationException = new SchemaValidationException(message as string, details as ErrorDetail[], original)
     Error.stackTraceLimit = limit
     return validationError
 }
@@ -233,28 +233,3 @@ function detailsOf(errors: ErrorItem[], options: { override?: boolean } = {}): E
 }
 
 export {detailsOf as details}
-
-/**
- * The error returned (or thrown) by a failed validation
- */
-export class ValidationError extends Error {
-
-    declare public annotate: typeof Annotate.error
-
-    public _original: unknown
-
-    public details: ErrorDetail[]
-
-    constructor(message: string, details: ErrorDetail[], original: unknown) {
-        super(message)
-        this._original = original
-        this.details = details
-    }
-
-    public static isError(err: unknown): err is ValidationError {
-        return err instanceof ValidationError
-    }
-}
-
-Object.defineProperty(ValidationError.prototype, 'name', {value: 'ValidationError', writable: true, enumerable: true, configurable: true})
-Object.defineProperty(ValidationError.prototype, 'annotate', {value: Annotate.error, writable: true, enumerable: true, configurable: true})

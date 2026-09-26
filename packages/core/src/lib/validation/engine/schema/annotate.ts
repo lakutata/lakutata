@@ -23,7 +23,7 @@ export interface AnnotatedError {
 }
 
 /**
- * Render the validated value with the errors marked in place (ValidationError.annotate())
+ * Render the validated value with the errors marked in place (SchemaValidationException.annotate())
  * @param stripColorCodes
  */
 export function error(this: AnnotatedError, stripColorCodes?: boolean): string {

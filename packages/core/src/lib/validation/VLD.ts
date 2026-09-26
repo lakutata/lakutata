@@ -26,8 +26,8 @@ import {CustomValidator} from './types/CustomValidator.js'
 import {ReferenceOptions} from './interfaces/ReferenceOptions.js'
 import {Reference} from './interfaces/Reference.js'
 import {BigIntSchema} from './interfaces/BigIntSchema.js'
-import {ValidationError} from './interfaces/ValidationError.js'
-import {ValidationErrorItem} from './interfaces/ValidationErrorItem.js'
+import {SchemaValidationException} from './exceptions/SchemaValidationException.js'
+import {WithCause} from '../helpers/internal/WithCause.js'
 import {CacheConfiguration} from './interfaces/CacheConfiguration.js'
 import {CompileOptions} from './interfaces/CompileOptions.js'
 import {Extension} from './interfaces/Extension.js'
@@ -96,7 +96,7 @@ function mergeOptions(options: ValidationOptions): ValidationOptions {
 
 export interface ValidateAPI {
 
-    ValidationError: new (message: string, details: ValidationErrorItem[], original: any) => ValidationError;
+    ValidationError: typeof SchemaValidationException;
 
     /**
      * Generates a schema object that matches any data type.
@@ -273,9 +273,9 @@ export interface ValidateAPI {
     in(ref: string, options?: ReferenceOptions): Reference;
 
     /**
-     * Checks whether or not the provided argument is an instance of ValidationError
+     * Checks whether or not the provided argument is a SchemaValidationException
      */
-    isError(error: any): error is ValidationError;
+    isError(error: any): error is SchemaValidationException;
 
     /**
      * Checks whether or not the provided argument is an expression.
@@ -412,7 +412,7 @@ class ValidateMethods {
             error = result.error
             value = As<T>(result.value)
         }
-        if (error) throw new InvalidValueException(error.message)
+        if (error) throw WithCause(new InvalidValueException(error.message), error)
         return value
     }
 
@@ -435,7 +435,7 @@ class ValidateMethods {
                 return As<T>(await As<Base>(schema).validateAsync(data, As<Preferences>(options)))
             }
         } catch (e) {
-            throw new InvalidValueException((e as Error).message)
+            throw WithCause(new InvalidValueException((e as Error).message), e)
         }
     }
 }

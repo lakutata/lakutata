@@ -1,7 +1,7 @@
 /**
  * Derived from the upstream lib/compile.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
-import {assert} from '../hoek/index.js'
+import {assert, setMessage} from './assert.js'
 import * as Common from './common.js'
 import type {PathError, RootLike, SchemaInternals} from './model.js'
 import * as Ref from './ref.js'
@@ -92,7 +92,7 @@ export function schema(root: RootLike, config: unknown, options: SchemaOptions =
     try {
         return compileSchema(root, config, options)
     } catch (err) {
-        if (options.appendPath && (err as PathError).path !== undefined) (err as PathError).message = `${(err as PathError).message} (${(err as PathError).path})`
+        if (options.appendPath && (err as PathError).path !== undefined) setMessage(err as Error, `${(err as PathError).message} (${(err as PathError).path})`)
         throw err
     }
 }

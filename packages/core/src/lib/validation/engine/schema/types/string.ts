@@ -1,7 +1,8 @@
 /**
  * Derived from the upstream lib/types/string.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
-import {assert, escapeRegex} from '../../hoek/index.js'
+import {escapeRegex} from '../../hoek/index.js'
+import {assert, definition} from '../assert.js'
 import {type DomainOptions as AddressDomainOptions, type EmailOptions as AddressEmailOptions, isDomainValid, isEmailValid, ipRegex, uriRegex} from '../../address/index.js'
 import * as Tlds from '../../tlds/index.js'
 import Any, {type AnySchema, type AnyTerms} from './any.js'
@@ -518,7 +519,7 @@ const StringType: StringSchema = Any.extend<StringSchema>({
         ip: {
             method(this: StringSchema, options: IpOptions = {}): StringSchema {
                 Common.assertOptions(options, ['cidr', 'version'])
-                const {cidr, versions, regex} = ipRegex(options as Parameters<typeof ipRegex>[0])
+                const {cidr, versions, regex} = definition((): ReturnType<typeof ipRegex> => ipRegex(options as Parameters<typeof ipRegex>[0]))
                 const version: string[] | undefined = options.version ? versions : undefined
                 return this.$_addRule({name: 'ip', args: {options: {cidr, version}}, regex})
             },
@@ -699,7 +700,7 @@ const StringType: StringSchema = Any.extend<StringSchema>({
                 if (options.domain) {
                     Common.assertOptions(options.domain, ['allowFullyQualified', 'allowUnicode', 'maxDomainSegments', 'minDomainSegments', 'tlds'])
                 }
-                const {regex, scheme} = uriRegex(options as Parameters<typeof uriRegex>[0])
+                const {regex, scheme} = definition((): ReturnType<typeof uriRegex> => uriRegex(options as Parameters<typeof uriRegex>[0]))
                 const domain: AddressOptions | false | undefined | null = options.domain ? addressOptions(options.domain) : null
                 return this.$_addRule({name: 'uri', args: {options}, regex, domain, scheme})
             },

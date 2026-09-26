@@ -207,7 +207,11 @@
   ],
   "lakutata/dtos": [
     "PaginationResultDTO",
-    "PaginationSearchDTO"
+    "PaginationSearchDTO",
+    "SchemaConversionException",
+    "SchemaDefinitionException",
+    "SchemaException",
+    "SchemaValidationException"
   ],
   "lakutata/helper": [
     "ArrayToSet",

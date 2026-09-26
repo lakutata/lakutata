@@ -1,7 +1,7 @@
 /**
  * Derived from the upstream lib/types/function.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
-import {assert} from '../../hoek/index.js'
+import {assert} from '../assert.js'
 import type {ValidationHelpers} from '../model.js'
 import Keys, {type KeysSchema} from './keys.js'
 

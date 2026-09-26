@@ -1,7 +1,8 @@
 /**
  * Derived from the upstream lib/validator.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
-import {assert, clone, ignore, reach} from '../hoek/index.js'
+import {clone, ignore, reach} from '../hoek/index.js'
+import {assert, setMessage} from './assert.js'
 import * as Common from './common.js'
 import * as Errors from './errors.js'
 import type {CastDefinition, Definition, ExtendedRuleDefinition, RuleArgDefinition} from './extend.js'
@@ -221,7 +222,7 @@ export async function entryAsync(value: unknown, schema: SchemaInternals, prefs?
                 }
             } catch (err) {
                 //Change message to include path
-                if ((settings.errors as NonNullable<Preferences['errors']>).label) (err as Error).message += ` (${(external.label)})`
+                if ((settings.errors as NonNullable<Preferences['errors']>).label) setMessage(err as Error, `${(err as Error).message} (${(external.label)})`)
                 throw err
             }
         }

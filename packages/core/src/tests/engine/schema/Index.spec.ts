@@ -1342,10 +1342,11 @@ describe('Engine', () => {
             expect(Engine.isError(error)).to.equal(true)
         })
 
-        it('should be named ValidationError', () => {
+        //lakutata: the ValidationError class of the root is SchemaValidationException
+        it('should be named SchemaValidationException', () => {
 
             const error = new Engine.ValidationError()
-            expect(error.name).to.equal('ValidationError')
+            expect(error.name).to.equal('SchemaValidationException')
         })
     })
 

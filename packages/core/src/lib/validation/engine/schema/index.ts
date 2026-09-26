@@ -1,8 +1,10 @@
 /**
  * Derived from the upstream lib/index.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
-import {assert, clone} from '../hoek/index.js'
+import {clone} from '../hoek/index.js'
+import {assert, setMessage} from './assert.js'
 import type {Base} from './base.js'
+import {SchemaValidationException} from '../../exceptions/SchemaValidationException.js'
 import * as Cache from './cache.js'
 import * as Common from './common.js'
 import * as Compile from './compile.js'
@@ -86,7 +88,7 @@ export interface Root extends RootLike {
     valid(...values: unknown[]): AnySchema
     when(condition: unknown, options?: Compile.WhenOptions | Compile.WhenSwitchCase[]): AnySchema
     //Methods
-    ValidationError: typeof Errors.ValidationError
+    ValidationError: typeof SchemaValidationException
     version: string
     cache: typeof Cache.provider
     assert(value: unknown, schema: unknown, ...args: unknown[]): void
@@ -98,7 +100,7 @@ export interface Root extends RootLike {
     expression(source: string, options?: TemplateOptions): Template
     x(source: string, options?: TemplateOptions): Template
     extend(...extensions: (Extension | ExtensionFactory)[]): Root
-    isError(err: unknown): err is Errors.ValidationError
+    isError(err: unknown): err is SchemaValidationException
     isExpression(template: unknown): template is Template
     isRef(ref: unknown): ref is Ref.Ref
     isSchema(schema: unknown, options?: { legacy?: boolean }): boolean
@@ -174,7 +176,7 @@ function createRoot(): Root {
 
 const methods: Methods = {
 
-    ValidationError: Errors.ValidationError,
+    ValidationError: SchemaValidationException,
     version: Common.version,
     cache: Cache.provider,
 
@@ -242,7 +244,7 @@ const methods: Methods = {
         return engine
     },
 
-    isError: Errors.ValidationError.isError,
+    isError: SchemaValidationException.isError,
     isExpression: Template.isTemplate,
     isRef: Ref.isRef,
     isSchema: Common.isSchema,
@@ -281,8 +283,8 @@ function assertValue(value: unknown, schema: Base, annotate: boolean, args: unkn
     if (!error) return result.value
     if (message instanceof Error) throw message
     const display: string = annotate && typeof error.annotate === 'function' ? error.annotate() : error.message
-    if (error instanceof Errors.ValidationError === false) error = clone(error)
-    error.message = message ? `${message} ${display}` : display
+    if (error instanceof SchemaValidationException === false) error = clone(error)
+    setMessage(error, message ? `${message} ${display}` : display)
     throw error
 }
 

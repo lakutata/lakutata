@@ -1,7 +1,8 @@
 /**
  * Derived from the upstream lib/types/alternatives.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
-import {assert, merge} from '../../hoek/index.js'
+import {merge} from '../../hoek/index.js'
+import {assert} from '../assert.js'
 import type {Base, SchemaTerms} from '../base.js'
 import * as Common from '../common.js'
 import * as Compile from '../compile.js'

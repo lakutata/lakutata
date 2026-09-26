@@ -6,6 +6,7 @@ import {
     GetObjectSchemaByPrototype
 } from './ObjectSchemaValidation.js'
 import {InvalidValueException} from '../../exceptions/dto/InvalidValueException.js'
+import {WithCause} from '../helpers/internal/WithCause.js'
 import {ValidationOptions} from '../validation/interfaces/ValidationOptions.js'
 import {VLDMethods} from '../validation/VLD.js'
 import {Schema} from '../validation/types/Schema.js'
@@ -115,7 +116,7 @@ export class DTO extends DataValidator {
             Object.keys(validProps).forEach((propertyKey: string) => Reflect.set(this, propertyKey, validProps[propertyKey]))
 
         } catch (e) {
-            throw new InvalidValueException((As<Error>(e).message))
+            throw WithCause(new InvalidValueException((As<Error>(e).message)), e)
         }
         return DTOInstanceProxy
     }

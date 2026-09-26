@@ -1,7 +1,8 @@
 /**
  * Derived from the upstream lib/common.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
-import {assert as Assert, AssertError, isArray} from '../hoek/index.js'
+import {isArray} from '../hoek/index.js'
+import {assert as Assert, definitionException, setMessage} from './assert.js'
 import {Lazy, type LazyMessages, type LazySchemas} from './lazy.js'
 import type {PathError, Preferences, SchemaLike} from './model.js'
 
@@ -82,7 +83,7 @@ export function checkPreferences(prefs: unknown): void {
     Schemas = Schemas || (Lazy.schemas as () => LazySchemas)()
     const result = Schemas.preferences.validate(prefs)
     //The preferences schema has no error override: its errors are validation errors
-    if (result.error) throw new AssertError(String([(result.error as { message: string, details: { message: string }[] }).details[0].message]))
+    if (result.error) throw definitionException(String([(result.error as { message: string, details: { message: string }[] }).details[0].message]), checkPreferences)
 }
 
 /**
@@ -191,7 +192,7 @@ export function tryWithPath<T>(fn: () => T, key: string | number, options: { app
         } else {
             error.path = String(key)
         }
-        if (options.append) error.message = `${error.message} (${error.path})`
+        if (options.append) setMessage(error as Error, `${error.message} (${error.path})`)
         throw err
     }
 }
