@@ -1,5 +1,5 @@
 import {DTO} from '@lakutata/core'
-import {Expect} from '@lakutata/core'
+import {Expect} from '@lakutata/core/decorator/dto'
 import {NetworkIPAMConfig} from '../../types/NetworkInfo.js'
 
 export class NetworkCreateOptions extends DTO {

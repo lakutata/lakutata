@@ -1,7 +1,7 @@
-import {Configurable} from '@lakutata/core'
+import {Configurable} from '@lakutata/core/decorator/di'
 import {Component} from '@lakutata/core'
 import {Provider} from '@lakutata/core'
-import {Singleton} from '@lakutata/core'
+import {Singleton} from '@lakutata/core/decorator/di'
 import {type DataSourceOptions} from 'typeorm/data-source/DataSourceOptions.js'
 import {DataSource} from 'typeorm/data-source/DataSource.js'
 import {Driver} from 'typeorm/driver/Driver.js'
@@ -20,7 +20,7 @@ import {SelectQueryBuilder} from 'typeorm/query-builder/SelectQueryBuilder.js'
 import {ReplicationMode} from 'typeorm/driver/types/ReplicationMode.js'
 import {QueryResultCache} from 'typeorm/cache/QueryResultCache.js'
 import {IsolationLevel} from 'typeorm/driver/types/IsolationLevel.js'
-import {DatabaseSymbol} from '@lakutata/core'
+import {DatabaseSymbol} from '@lakutata/core/internal'
 
 /**
  * Build database connection options

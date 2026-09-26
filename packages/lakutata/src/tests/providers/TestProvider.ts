@@ -1,8 +1,8 @@
 import {Provider} from '@lakutata/core'
-import {Transient} from '@lakutata/core'
-import {Configurable} from '@lakutata/core'
+import {Transient} from '@lakutata/core/decorator/di'
+import {Configurable} from '@lakutata/core/decorator/di'
 import {TestProvider2} from './TestProvider2.js'
-import {Inject} from '@lakutata/core'
+import {Inject} from '@lakutata/core/decorator/di'
 
 @Transient()
 export class TestProvider extends Provider {

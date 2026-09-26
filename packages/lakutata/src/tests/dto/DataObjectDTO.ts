@@ -1,5 +1,5 @@
 import {DTO} from '@lakutata/core'
-import {Expect} from '@lakutata/core'
+import {Expect} from '@lakutata/core/decorator/dto'
 import {DataFieldDTO} from './DataFieldDTO.js'
 
 export class DataObjectDTO extends DTO {

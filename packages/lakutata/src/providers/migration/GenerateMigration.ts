@@ -1,5 +1,5 @@
 import {Provider} from '@lakutata/core'
-import {Configurable} from '@lakutata/core'
+import {Configurable} from '@lakutata/core/decorator/di'
 import {DTO} from '@lakutata/core'
 import {type DataSourceOptions} from 'typeorm/data-source/DataSourceOptions.js'
 import path from 'path'
@@ -10,7 +10,7 @@ import {camelCase} from 'typeorm/util/StringUtils.js'
 import {PlatformTools} from 'typeorm/platform/PlatformTools.js'
 import {CommandUtils} from 'typeorm/commands/CommandUtils.js'
 import ansi from 'ansis'
-import {Transient} from '@lakutata/core'
+import {Transient} from '@lakutata/core/decorator/di'
 import {Application} from '@lakutata/core'
 
 @Transient()

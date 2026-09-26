@@ -1,5 +1,5 @@
 import {DTO} from '@lakutata/core'
-import {Expect} from '@lakutata/core'
+import {Expect} from '@lakutata/core/decorator/dto'
 import {ContainerDevice} from '../../types/ContainerDevice.js'
 import {type ContainerRestartPolicy} from '../../types/ContainerRestartPolicy.js'
 import {ContainerPort} from '../../types/ContainerPort.js'

@@ -1,5 +1,5 @@
 import {DTO} from '@lakutata/core'
-import {Expect} from '@lakutata/core'
+import {Expect} from '@lakutata/core/decorator/dto'
 import {Stream} from 'node:stream'
 
 export class ImageImportOptions extends DTO {

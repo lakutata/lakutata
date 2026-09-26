@@ -1,14 +1,14 @@
 import {Provider} from '@lakutata/core'
-import {Configurable} from '@lakutata/core'
+import {Configurable} from '@lakutata/core/decorator/di'
 import {DTO} from '@lakutata/core'
 import Dockerode from 'dockerode'
 import stream from 'stream'
-import {Transient} from '@lakutata/core'
+import {Transient} from '@lakutata/core/decorator/di'
 import {ContainerTTYConsoleSizeOptions} from '../options/container/ContainerTTYConsoleSizeOptions.js'
-import {Accept} from '@lakutata/core'
-import {As} from '@lakutata/core'
-import {Logger} from '@lakutata/core'
-import {Inject} from '@lakutata/core'
+import {Accept} from '@lakutata/core/decorator/dto'
+import {As} from '@lakutata/core/helper'
+import {Logger} from '@lakutata/core/com/logger'
+import {Inject} from '@lakutata/core/decorator/di'
 
 @Transient()
 export class DockerContainerTTY extends Provider {

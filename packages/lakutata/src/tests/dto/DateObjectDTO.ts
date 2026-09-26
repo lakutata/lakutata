@@ -1,5 +1,5 @@
 import {DTO} from '@lakutata/core'
-import {Expect} from '@lakutata/core'
+import {Expect} from '@lakutata/core/decorator/dto'
 import {Time} from '@lakutata/core'
 
 export class DateObjectDTO extends DTO {

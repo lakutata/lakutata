@@ -1,5 +1,5 @@
-import {Configurable} from '@lakutata/core'
-import {Transient} from '@lakutata/core'
+import {Configurable} from '@lakutata/core/decorator/di'
+import {Transient} from '@lakutata/core/decorator/di'
 import {type DataSourceOptions} from 'typeorm/data-source/DataSourceOptions.js'
 import {DataSource} from 'typeorm/data-source/DataSource.js'
 import {Driver} from 'typeorm/driver/Driver.js'
@@ -20,8 +20,8 @@ import {QueryResultCache} from 'typeorm/cache/QueryResultCache.js'
 import {IsolationLevel} from 'typeorm/driver/types/IsolationLevel.js'
 import {Provider} from '@lakutata/core'
 import {EntitySchema, type MixedList} from 'typeorm'
-import {As} from '@lakutata/core'
-import {DatabaseSymbol} from '@lakutata/core'
+import {As} from '@lakutata/core/helper'
+import {DatabaseSymbol} from '@lakutata/core/internal'
 
 /**
  * Build database provider connection options

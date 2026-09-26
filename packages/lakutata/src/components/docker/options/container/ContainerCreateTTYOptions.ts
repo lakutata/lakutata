@@ -1,5 +1,5 @@
 import {DTO} from '@lakutata/core'
-import {Expect} from '@lakutata/core'
+import {Expect} from '@lakutata/core/decorator/dto'
 import {ContainerTTYConsoleSizeOptions} from './ContainerTTYConsoleSizeOptions.js'
 
 export class ContainerCreateTTYOptions extends DTO {

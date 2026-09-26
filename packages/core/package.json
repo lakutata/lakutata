@@ -66,6 +66,11 @@
       "import": "./dist/esm/exports/DTODecorators.js",
       "require": "./dist/cjs/exports/DTODecorators.js"
     },
+    "./internal": {
+      "types": "./dist/types/exports/Internal.d.ts",
+      "import": "./dist/esm/exports/Internal.js",
+      "require": "./dist/cjs/exports/Internal.js"
+    },
     "./tsconfig.json": "./tsconfig.json",
     "./package.json": "./package.json"
   },

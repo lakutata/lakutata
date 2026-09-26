@@ -45,6 +45,9 @@
             "@lakutata/core/helper": [
                 "../core/dist/types/exports/Helpers"
             ],
+            "@lakutata/core/internal": [
+                "../core/dist/types/exports/Internal"
+            ],
             "@lakutata/core/com/cacher": [
                 "../core/dist/types/exports/CacherComponent"
             ],
