@@ -34,7 +34,25 @@ export class Container {
 
     readonly #dic: IDependencyInjectionContainer
 
-    #subContainerSet: Set<Container> = new Set()
+    /**
+     * Removes the weak reference of a garbage collected sub object container from its parent
+     * @private
+     */
+    static readonly #releasedContainerRegistry: FinalizationRegistry<{ refs: Set<WeakRef<Container>>, ref: WeakRef<Container> }> = new FinalizationRegistry(({refs, ref}): boolean => refs.delete(ref))
+
+    /**
+     * Sub scopes are held strongly, a scope lives until it is destroyed explicitly or together with its parent
+     * @private
+     */
+    readonly #subScopeSet: Set<Container> = new Set()
+
+    /**
+     * Containers of sub objects are held weakly, they live as long as their owner objects
+     * @private
+     */
+    readonly #subObjectContainerRefs: Set<WeakRef<Container>> = new Set()
+
+    readonly #selfRef: WeakRef<Container> = new WeakRef(this)
 
     #destroyed: boolean = false
 
@@ -55,9 +73,36 @@ export class Container {
             //strict must be false
             strict: false
         })
-        if (this.parent) this.parent.#subContainerSet.add(this)
+        if (this.parent) Container.#releasedContainerRegistry.register(this, {
+            refs: this.parent.#subObjectContainerRefs,
+            ref: this.#selfRef
+        })
+        this.#attachToParent()
         this.#dic.register(containerSymbol, asValue(this))
         if (owner) this.#dic.register(ownerSymbol, asValue(new WeakRef(owner)))
+    }
+
+    /**
+     * Let the parent track current container, so it is destroyed together with its parent
+     * @private
+     */
+    #attachToParent(): void {
+        if (!this.parent) return
+        if (this.#isScope) {
+            this.parent.#subScopeSet.add(this)
+        } else {
+            this.parent.#subObjectContainerRefs.add(this.#selfRef)
+        }
+    }
+
+    /**
+     * Stop being tracked by the parent
+     * @private
+     */
+    #detachFromParent(): void {
+        if (!this.parent) return
+        this.parent.#subScopeSet.delete(this)
+        this.parent.#subObjectContainerRefs.delete(this.#selfRef)
     }
 
     /**
@@ -347,17 +392,19 @@ export class Container {
      */
     public createScope(): Container {
         const scope: Container = new Container(this, this.owner())
+        scope.#detachFromParent()
         scope.#isScope = true
+        scope.#attachToParent()
         return scope
     }
 
     /**
-     * Register current container to its parent subContainerSet
+     * Register current container to its parent
      * @description Also makes a destroyed container usable again, its owner is being initialized again (reload)
      */
     public registerContainerToItsParent(): void {
         this.#destroyed = false
-        if (this.parent) this.parent.#subContainerSet.add(this)
+        this.#attachToParent()
     }
 
     /**
@@ -365,7 +412,12 @@ export class Container {
      */
     public async clear(): Promise<void> {
         //Every step always runs to the end, a failing object never stops the teardown of the others
-        await Promise.all(Array.from(this.#subContainerSet).map((subContainer: Container): Promise<void> => subContainer.destroy()))
+        const subContainers: Container[] = [...this.#subScopeSet]
+        this.#subObjectContainerRefs.forEach((ref: WeakRef<Container>): void => {
+            const subContainer: Container | undefined = ref.deref()
+            if (subContainer) subContainers.push(subContainer)
+        })
+        await Promise.all(subContainers.map((subContainer: Container): Promise<void> => subContainer.destroy()))
         try {
             await this.#dic.dispose()
         } catch (e) {
@@ -386,7 +438,7 @@ export class Container {
     public async destroy(): Promise<void> {
         if (this.#destroyed) return
         this.#destroyed = true
-        if (this.parent) this.parent.#subContainerSet.delete(this)
+        this.#detachFromParent()
         await this.clear()
     }
 }

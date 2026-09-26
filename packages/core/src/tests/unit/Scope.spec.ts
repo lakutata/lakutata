@@ -5,6 +5,25 @@ import {Provider} from '../../lib/core/Provider.js'
 import {Component} from '../../lib/core/Component.js'
 import {Container} from '../../lib/core/Container.js'
 import {Inject} from '../../decorators/di/Inject.js'
+import {GetObjectContainer} from '../../lib/base/internal/ObjectContainer.js'
+import v8 from 'node:v8'
+import vm from 'node:vm'
+
+v8.setFlagsFromString('--expose_gc')
+const gc: () => void = vm.runInNewContext('gc')
+
+/**
+ * Collect garbage until the weak reference is cleared or attempts run out
+ * @param ref
+ */
+async function collected(ref: WeakRef<object>): Promise<boolean> {
+    for (let attempt: number = 0; attempt < 10; attempt++) {
+        await new Promise(resolve => setImmediate(resolve))
+        gc()
+        if (!ref.deref()) return true
+    }
+    return false
+}
 
 class RequestState extends Provider {
     public static destroyed: number = 0
@@ -40,6 +59,19 @@ class AnotherComponent extends Component {
 }
 
 class Invisible extends Provider {
+}
+
+class Job extends BaseObject {
+}
+
+class LongLived extends Component {
+    public async buildJob(): Promise<WeakRef<Container>> {
+        return new WeakRef(GetObjectContainer(await this.buildObject(Job)))
+    }
+
+    public async resolveJob(): Promise<WeakRef<Container>> {
+        return new WeakRef(GetObjectContainer(await this.getObject(Job)))
+    }
 }
 
 async function createRoot(): Promise<Container> {
@@ -99,5 +131,22 @@ await describe('Scope Test', async function (): Promise<void> {
         await assert.rejects(requestB.get(Invisible))
         await assert.rejects(root.get(Invisible))
         await root.destroy()
+    })
+
+    await it('containers of objects built by a long-lived object are released with the objects', async (): Promise<void> => {
+        const root: Container = new Container()
+        await root.load([LongLived, Job])
+        const longLived: LongLived = await root.get(LongLived)
+        assert.equal(await collected(await longLived.buildJob()), true, 'buildObject()')
+        assert.equal(await collected(await longLived.resolveJob()), true, 'getObject() of a transient object')
+        await root.destroy()
+    })
+
+    await it('a request scope that is never destroyed explicitly is destroyed with its parent', async (): Promise<void> => {
+        const root: Container = await createRoot()
+        await (await root.createScope().get(Service)).state()
+        RequestState.destroyed = 0
+        await root.destroy()
+        assert.equal(RequestState.destroyed, 1)
     })
 })
