@@ -1,1 +1,1 @@
-export * from '@lakutata/core/com/cacher'
+export * from '@lakutata/cacher'

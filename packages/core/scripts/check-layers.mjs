@@ -51,7 +51,6 @@ const LAYERS = [
     ['decorators/ctrl', 5, 'entrypoint'],
     ['lib/context', 5, 'entrypoint'],
     ['components/Logger.ts', 5, 'logger'],
-    ['components/cacher', 5, 'cacher'],
     ['components/monitor', 5, 'monitor'],
     //L6 - application
     ['lib/app', 6, 'app'],

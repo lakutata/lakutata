@@ -1,6 +1,6 @@
 import Keyv from 'keyv'
 import {SqliteCacheOptions} from '../options/SqliteCacheOptions.js'
-import {URLBuilder} from '../../../lib/helpers/URLBuilder.js'
+import {URLBuilder} from '@lakutata/core/helper'
 import {IsDriverPackageInstalled} from '../lib/IsDriverPackageInstalled.js'
 
 export async function CreateSqliteCacheAdapter(storeOptions: SqliteCacheOptions): Promise<Keyv> {

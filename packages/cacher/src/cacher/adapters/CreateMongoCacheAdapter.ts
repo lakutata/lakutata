@@ -1,6 +1,6 @@
 import Keyv from 'keyv'
 import {MongoCacheOptions} from '../options/MongoCacheOptions.js'
-import {URLBuilder} from '../../../lib/helpers/URLBuilder.js'
+import {URLBuilder} from '@lakutata/core/helper'
 import {IsDriverPackageInstalled} from '../lib/IsDriverPackageInstalled.js'
 
 export async function CreateMongoCacheAdapter(storeOptions: MongoCacheOptions): Promise<Keyv> {

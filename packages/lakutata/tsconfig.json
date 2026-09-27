@@ -48,8 +48,8 @@
             "@lakutata/core/internal": [
                 "../core/dist/types/exports/Internal"
             ],
-            "@lakutata/core/com/cacher": [
-                "../core/dist/types/exports/CacherComponent"
+            "@lakutata/cacher": [
+                "../cacher/dist/types/exports/Cacher"
             ],
             "@lakutata/core/com/monitor": [
                 "../core/dist/types/exports/MonitorComponent"

@@ -1,5 +1,5 @@
-import {DTO} from '../../../lib/dto/DTO.js'
-import {Expect} from '../../../decorators/dto/Expect.js'
+import {DTO} from '@lakutata/core'
+import {Expect} from '@lakutata/core/decorator/dto'
 
 export class FileCacheOptions extends DTO {
     @Expect(DTO.String().allow('file').only().required())

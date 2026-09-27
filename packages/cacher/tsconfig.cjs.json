@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "outDir": "dist/cjs",
+    "declaration": false,
+    "declarationMap": false
+  },
+  "exclude": [
+    "node_modules",
+    "scripts",
+    "build",
+    "distro",
+    "dist",
+    "publish.mjs",
+    "rollup.mjs",
+    "src/tests"
+  ]
+}

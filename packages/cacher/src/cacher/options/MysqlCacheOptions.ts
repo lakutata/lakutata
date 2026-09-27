@@ -1,9 +1,9 @@
-import {DTO} from '../../../lib/dto/DTO.js'
-import {Expect} from '../../../decorators/dto/Expect.js'
+import {DTO} from '@lakutata/core'
+import {Expect} from '@lakutata/core/decorator/dto'
 
-export class MongoCacheOptions extends DTO {
-    @Expect(DTO.String().allow('mongo').only().required())
-    public type: 'mongo'
+export class MysqlCacheOptions extends DTO {
+    @Expect(DTO.String().allow('mysql').only().required())
+    public type: 'mysql'
 
     @Expect(DTO.String().required())
     public host: string
@@ -12,9 +12,9 @@ export class MongoCacheOptions extends DTO {
     public database: string
 
     @Expect(DTO.String().required())
-    public collection:string
+    public table: string
 
-    @Expect(DTO.Number().positive().port().optional().default(27017))
+    @Expect(DTO.Number().positive().port().optional().default(3306))
     public port?: number
 
     @Expect(DTO.String().required())

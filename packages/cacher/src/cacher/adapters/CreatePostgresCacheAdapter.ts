@@ -1,6 +1,6 @@
 import Keyv from 'keyv'
 import {PostgresCacheOptions} from '../options/PostgresCacheOptions.js'
-import {URLBuilder} from '../../../lib/helpers/URLBuilder.js'
+import {URLBuilder} from '@lakutata/core/helper'
 import {IsDriverPackageInstalled} from '../lib/IsDriverPackageInstalled.js'
 
 export async function CreatePostgresCacheAdapter(storeOptions: PostgresCacheOptions): Promise<Keyv> {
