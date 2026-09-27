@@ -1,8 +1,8 @@
 /**
  * Derived from the upstream lib/trace.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
-import {deepEqual} from '../hoek/index.js'
-import * as Pinpoint from '../pinpoint/index.js'
+import {deepEqual} from '../utils/index.js'
+import {location as callLocation, type Location} from '../location/index.js'
 import * as Errors from './errors.js'
 import type {ModifyEachSource} from './modify.js'
 import type {MainstayLike, PathKey, SchemaInternals, StateLike} from './model.js'
@@ -128,7 +128,7 @@ export function setup(root: TraceRoot): void {
  */
 export function location<T extends SchemaInternals>(schema: T): T {
     //base.tracer(), caller
-    return schema.$_setFlag('_tracerLocation', Pinpoint.location(2))
+    return schema.$_setFlag('_tracerLocation', callLocation(2))
 }
 
 /**
@@ -150,7 +150,7 @@ export class Tracer {
         if (existing) return existing.store
         const store: Store = new Store(schema)
         //internals.tracer(), internals.entry(), $exports.entry(), validate(), caller
-        const {filename, line} = schema._flags._tracerLocation as Pinpoint.Location | undefined || Pinpoint.location(5)
+        const {filename, line} = schema._flags._tracerLocation as Location | undefined || callLocation(5)
         this._schemas.set(schema, {filename, line, store})
         return store
     }

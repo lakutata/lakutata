@@ -1,7 +1,7 @@
 /**
  * Derived from the upstream lib/types/array.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
-import {deepEqual, reach} from '../../hoek/index.js'
+import {deepEqual, reach} from '../../utils/index.js'
 import {assert} from '../assert.js'
 import type {Base, SchemaTerms} from '../base.js'
 import * as Common from '../common.js'

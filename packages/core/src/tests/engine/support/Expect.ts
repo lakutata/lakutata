@@ -1,9 +1,9 @@
 /**
- * Derived from @hapi/code 9.0.3 lib/index.js (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream lib/index.js of the assertion library (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  * Test support only: the assertion library of the upstream test suites, running on node:test
  */
 import {inspect} from 'node:util'
-import {applyToDefaults, assert as hoekAssert, deepEqual, type DeepEqualOptions, isArray} from '../../../lib/validation/engine/hoek/index.js'
+import {applyToDefaults, assert as utilsAssert, deepEqual, type DeepEqualOptions, isArray} from '../../../lib/validation/engine/utils/index.js'
 import {contain} from './contain.js'
 
 export const settings: { truncateMessages: boolean, comparePrototypes: boolean } = {
@@ -106,7 +106,7 @@ export class Assertion {
      * @param error
      */
     #usage(condition: unknown, error: string): void {
-        if (!condition) hoekAssert(condition, error)
+        if (!condition) utilsAssert(condition, error)
     }
 
     #assert(result: unknown, verb: string, ...details: unknown[]): this {

@@ -1,12 +1,12 @@
 /**
- * Ported from hoek/test/clone.js (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Ported from the upstream test/clone.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  * Upstream test logic is kept line by line (only the runner, the imports and the code style differ) so it can be
  * compared with upstream. It deliberately exercises dynamic and invalid inputs, so it is not type-checked.
  */
 // @ts-nocheck
 import {describe, it} from 'node:test'
 import {expect} from '../support/Expect.js'
-import * as Hoek from '../../../lib/validation/engine/hoek/index.js'
+import * as Utils from '../../../lib/validation/engine/utils/index.js'
 const internals = {}
 
 const nestedObj = {
@@ -28,7 +28,7 @@ describe('clone()', () => {
     it('clones a nested object', () => {
 
         const a = nestedObj
-        const b = Hoek.clone(a)
+        const b = Utils.clone(a)
 
         expect(a).to.equal(b)
         expect(a.z.getTime()).to.equal(b.z.getTime())
@@ -36,7 +36,7 @@ describe('clone()', () => {
 
     it('clones a null object', () => {
 
-        const b = Hoek.clone(null)
+        const b = Utils.clone(null)
 
         expect(b).to.equal(null)
     })
@@ -44,7 +44,7 @@ describe('clone()', () => {
     it('should not convert undefined properties to null', () => {
 
         const obj = { something: undefined }
-        const b = Hoek.clone(obj)
+        const b = Utils.clone(obj)
 
         expect(typeof b.something).to.equal('undefined')
     })
@@ -56,7 +56,7 @@ describe('clone()', () => {
 
         expect(() => {
 
-            Hoek.clone(a)
+            Utils.clone(a)
         }).to.not.throw()
     })
 
@@ -67,7 +67,7 @@ describe('clone()', () => {
         }
         x.y = x
 
-        const b = Hoek.clone(x)
+        const b = Utils.clone(x)
         expect(Object.keys(b.y)).to.equal(Object.keys(x))
         expect(b.z).to.not.shallow.equal(x.z)
         expect(b.y).to.not.shallow.equal(x.y)
@@ -79,7 +79,7 @@ describe('clone()', () => {
     it('clones an object with a null prototype', () => {
 
         const obj = Object.create(null)
-        const b = Hoek.clone(obj)
+        const b = Utils.clone(obj)
 
         expect(b).to.equal(obj)
     })
@@ -98,7 +98,7 @@ describe('clone()', () => {
             }
         }
 
-        const b = Hoek.clone(a)
+        const b = Utils.clone(a)
 
         expect(a).to.equal(b)
         expect(a.x.y.c.getTime()).to.equal(b.x.y.c.getTime())
@@ -119,7 +119,7 @@ describe('clone()', () => {
             }
         }
 
-        const b = Hoek.clone(a)
+        const b = Utils.clone(a)
 
         expect(b).to.equal(a)
         expect(b).to.not.equal(new Set(['a', 'b', s]))
@@ -140,7 +140,7 @@ describe('clone()', () => {
         set.add('b')
         set.add(set)
 
-        const clone = Hoek.clone(set, { shallow: true })
+        const clone = Utils.clone(set, { shallow: true })
 
         expect(clone).to.equal(set)
         expect(clone.has(set)).to.be.true()
@@ -161,7 +161,7 @@ describe('clone()', () => {
             }
         }
 
-        const b = Hoek.clone(a)
+        const b = Utils.clone(a)
 
         // Verify key ordering
 
@@ -177,7 +177,7 @@ describe('clone()', () => {
         map.set('a', { x: 1 })
         map.set(map, map)
 
-        const clone = Hoek.clone(map, { shallow: true })
+        const clone = Utils.clone(map, { shallow: true })
 
         expect(clone).to.equal(map)
         expect(clone.has(map)).to.be.true()
@@ -188,7 +188,7 @@ describe('clone()', () => {
 
         const a = [1, 2, 3]
 
-        const b = Hoek.clone(a)
+        const b = Utils.clone(a)
 
         expect(a).to.equal(b)
     })
@@ -198,7 +198,7 @@ describe('clone()', () => {
         const a = new Array(3)
         a[1] = 'one'
 
-        const b = Hoek.clone(a)
+        const b = Utils.clone(a)
 
         expect(a).to.equal(b)
     })
@@ -216,7 +216,7 @@ describe('clone()', () => {
 
         const a = new A(1, 2, 3)
 
-        const b = Hoek.clone(a)
+        const b = Utils.clone(a)
 
         expect(a).to.equal(b)
         expect(b.__x).to.equal(1)
@@ -237,7 +237,7 @@ describe('clone()', () => {
 
         const a = new A(1, 2, 3)
 
-        const b = Hoek.clone(a, { prototype: false })
+        const b = Utils.clone(a, { prototype: false })
 
         expect(a).to.equal(b)
         expect(b.__x).to.equal(1)
@@ -251,19 +251,19 @@ describe('clone()', () => {
         const a = { [sym1]: 1 }
         Object.defineProperty(a, sym2, { value: 2 })
 
-        const b = Hoek.clone(a)
+        const b = Utils.clone(a)
 
         expect(a).to.equal(b)
         expect(b[sym1]).to.be.equal(1)
         expect(b[sym2]).to.be.equal(2)
 
-        expect(Hoek.deepEqual(a, b)).to.be.true()
+        expect(Utils.deepEqual(a, b)).to.be.true()
     })
 
     it('performs actual copy for shallow keys (no pass by reference)', () => {
 
-        const x = Hoek.clone(nestedObj)
-        const y = Hoek.clone(nestedObj)
+        const x = Utils.clone(nestedObj)
+        const y = Utils.clone(nestedObj)
 
         // Date
         expect(x.z).to.not.shallow.equal(nestedObj.z)
@@ -285,8 +285,8 @@ describe('clone()', () => {
 
     it('performs actual copy for deep keys (no pass by reference)', () => {
 
-        const x = Hoek.clone(nestedObj)
-        const y = Hoek.clone(nestedObj)
+        const x = Utils.clone(nestedObj)
+        const y = Utils.clone(nestedObj)
 
         expect(x.x.c).to.not.shallow.equal(nestedObj.x.c)
         expect(x.x.c).to.not.shallow.equal(y.x.c)
@@ -312,7 +312,7 @@ describe('clone()', () => {
 
         a.y.u = a.x
 
-        const b = Hoek.clone(a)
+        const b = Utils.clone(a)
         expect(b.x()).to.equal(1)
         expect(b.x.v()).to.equal(2)
         expect(b.y.u).to.equal(b.x)
@@ -326,7 +326,7 @@ describe('clone()', () => {
             cert: Buffer.from([1, 2, 3, 4, 5, 6, 10])
         }
 
-        const copiedTls = Hoek.clone(tls)
+        const copiedTls = Utils.clone(tls)
         expect(Buffer.isBuffer(copiedTls.key)).to.equal(true)
         expect(JSON.stringify(copiedTls.key)).to.equal(JSON.stringify(tls.key))
         expect(Buffer.isBuffer(copiedTls.cert)).to.equal(true)
@@ -349,7 +349,7 @@ describe('clone()', () => {
         }
 
         const a = new Obj()
-        const b = Hoek.clone(a)
+        const b = Utils.clone(a)
 
         expect(b.a).to.equal(5)
         expect(b.b()).to.equal('c')
@@ -371,7 +371,7 @@ describe('clone()', () => {
         const a = new Obj()
         a.x = 123
 
-        const b = Hoek.clone(a, { prototype: false })
+        const b = Utils.clone(a, { prototype: false })
 
         expect(a).to.equal(b)
         expect(a).to.not.equal(b, { prototype: true })
@@ -388,7 +388,7 @@ describe('clone()', () => {
 
         obj.b = obj.a
 
-        const copy = Hoek.clone(obj)
+        const copy = Utils.clone(obj)
         expect(copy.a).to.equal(copy.b)
     })
 
@@ -410,7 +410,7 @@ describe('clone()', () => {
             a: new Obj()
         }
 
-        const copy = Hoek.clone(obj)
+        const copy = Utils.clone(obj)
 
         expect(obj.a.value).to.equal(5)
         expect(copy.a.value).to.equal(5)
@@ -434,7 +434,7 @@ describe('clone()', () => {
             }
         })
 
-        const copy = Hoek.clone(obj)
+        const copy = Utils.clone(obj)
         expect(execCount).to.equal(0)
         expect(copy.test).to.equal(1)
         expect(execCount).to.equal(1)
@@ -459,7 +459,7 @@ describe('clone()', () => {
             }
         })
 
-        const copy = Hoek.clone(obj)
+        const copy = Utils.clone(obj)
         expect(copy.test).to.equal(0)
         copy.test = 5
         expect(copy.test).to.equal(4)
@@ -480,7 +480,7 @@ describe('clone()', () => {
             }
         })
 
-        const copy = Hoek.clone(obj)
+        const copy = Utils.clone(obj)
         expect(copy._test).to.equal(0)
         copy.test = 5
         expect(copy._test).to.equal(4)
@@ -501,7 +501,7 @@ describe('clone()', () => {
             }
         })
 
-        const copy = Hoek.clone(obj)
+        const copy = Utils.clone(obj)
         expect(copy._test).to.equal(0)
         copy.test = 5
         expect(copy._test).to.equal(4)
@@ -516,7 +516,7 @@ describe('clone()', () => {
             return undefined
         }
 
-        const copy = Hoek.clone(obj)
+        const copy = Utils.clone(obj)
         Object.getOwnPropertyDescriptor = oldGetOwnPropertyDescriptor
         expect(copy).to.equal(obj)
     })
@@ -537,14 +537,14 @@ describe('clone()', () => {
             value: 0, writable: true
         })
 
-        const copy = Hoek.clone(obj)
+        const copy = Utils.clone(obj)
         expect(copy).to.equal(obj)
     })
 
     it('clones a Set', () => {
 
         const a = new Set([1, 2, 3])
-        const b = Hoek.clone(a)
+        const b = Utils.clone(a)
 
         expect(b).to.equal(a)
         expect(b).to.not.equal(new Set([2, 3, 4]))
@@ -563,7 +563,7 @@ describe('clone()', () => {
         const a = new Set([1])
         a.val = { b: 2 }
 
-        const b = Hoek.clone(a)
+        const b = Utils.clone(a)
 
         expect(b).to.equal(a)
         expect(b.val).to.equal(a.val)
@@ -575,12 +575,12 @@ describe('clone()', () => {
         const MySet = class extends Set { }
 
         const a = new MySet([1])
-        const b = Hoek.clone(a)
+        const b = Utils.clone(a)
 
         expect(b).to.equal(a)
         expect(b).to.be.instanceof(MySet)
 
-        const c = Hoek.clone(a, { prototype: false })
+        const c = Utils.clone(a, { prototype: false })
 
         expect(c).to.not.equal(a, { prototype: true })
         expect(c).to.equal(a, { prototype: false })
@@ -593,7 +593,7 @@ describe('clone()', () => {
         const a = new Set([1, 2, 3])
         a.add(nestedObj)
 
-        const b = Hoek.clone(a)
+        const b = Utils.clone(a)
 
         expect(b).to.equal(a)
         expect(b).to.not.shallow.equal(a)
@@ -603,7 +603,7 @@ describe('clone()', () => {
     it('clones a Map', () => {
 
         const a = new Map([['a', 1], ['b', 2], ['c', 3]])
-        const b = Hoek.clone(a)
+        const b = Utils.clone(a)
 
         expect(b).to.equal(a)
         expect(b).to.not.equal(new Map())
@@ -622,7 +622,7 @@ describe('clone()', () => {
         const a = new Map([['a', 1]])
         a.val = { b: 2 }
 
-        const b = Hoek.clone(a)
+        const b = Utils.clone(a)
 
         expect(b).to.equal(a)
         expect(b.val).to.equal(a.val)
@@ -634,12 +634,12 @@ describe('clone()', () => {
         const MyMap = class extends Map { }
 
         const a = new MyMap([['a', 1]])
-        const b = Hoek.clone(a)
+        const b = Utils.clone(a)
 
         expect(b).to.equal(a)
         expect(b).to.be.instanceof(MyMap)
 
-        const c = Hoek.clone(a, { prototype: false })
+        const c = Utils.clone(a, { prototype: false })
 
         expect(c).to.not.equal(a, { prototype: true })
         expect(c).to.equal(a, { prototype: false })
@@ -654,7 +654,7 @@ describe('clone()', () => {
         a.set('b', 2)
         a.set('c', nestedObj)
 
-        const b = Hoek.clone(a)
+        const b = Utils.clone(a)
 
         expect(b).to.equal(a)
         expect(b).to.not.shallow.equal(a)
@@ -669,7 +669,7 @@ describe('clone()', () => {
         a.set('b', 2)
         a.set(nestedObj, 3)
 
-        const b = Hoek.clone(a)
+        const b = Utils.clone(a)
 
         expect(b).to.equal(a)
         expect(b).to.not.shallow.equal(a)
@@ -678,8 +678,8 @@ describe('clone()', () => {
 
     it('clones an URL', () => {
 
-        const a = new URL('https://hapi.dev/')
-        const b = Hoek.clone(a)
+        const a = new URL('https://example.com/')
+        const b = Utils.clone(a)
 
         expect(b.href).to.equal(a.href)
         expect(b).to.not.shallow.equal(a)
@@ -694,7 +694,7 @@ describe('clone()', () => {
         const a = new CustomError('bad')
         a.test = Symbol('test')
 
-        const b = Hoek.clone(a)
+        const b = Utils.clone(a)
 
         expect(b).to.equal(a)
         expect(b).to.not.shallow.equal(a)
@@ -705,7 +705,7 @@ describe('clone()', () => {
     it('clones Error with cause', { skip: process.version.startsWith('v14') }, () => {
 
         const a = new TypeError('bad', { cause: new Error('embedded') })
-        const b = Hoek.clone(a)
+        const b = Utils.clone(a)
 
         expect(b).to.equal(a)
         expect(b).to.not.shallow.equal(a)
@@ -719,7 +719,7 @@ describe('clone()', () => {
         const a = new Error()
         a.message = new Error('message')
 
-        const b = Hoek.clone(a)
+        const b = Utils.clone(a)
 
         //expect(b).to.equal(a);                           // deepEqual() always compares message using ===
         expect(b.message).to.equal(a.message)
@@ -732,7 +732,7 @@ describe('clone()', () => {
         const a = new Error('hello')
         a.fun = new Function()
 
-        const b = Hoek.clone(a)
+        const b = Utils.clone(a)
 
         expect(b).to.equal(a)
         expect(b.stack).to.equal(a.stack)
@@ -750,7 +750,7 @@ describe('clone()', () => {
         const a = new CustomError('hello')
         a.fun = new Function()
 
-        const b = Hoek.clone(a)
+        const b = Utils.clone(a)
 
         expect(b).to.equal(a)
         expect(b.stack).to.equal(a.stack)
@@ -759,7 +759,7 @@ describe('clone()', () => {
     it('cloned Error handles late stack update', () => {
 
         const a = new Error('bad')
-        const b = Hoek.clone(a)
+        const b = Utils.clone(a)
 
         a.stack = 'late update'
 
@@ -779,9 +779,9 @@ describe('clone()', () => {
             }
         }
 
-        const copy = Hoek.clone(source, { symbols: false })
+        const copy = Utils.clone(source, { symbols: false })
         expect(copy).to.equal(source, { symbols: false })
-        expect(Hoek.deepEqual(source, copy)).to.be.false()
+        expect(Utils.deepEqual(source, copy)).to.be.false()
         expect(copy).to.not.shallow.equal(source)
         expect(copy.a).to.not.shallow.equal(source.a)
         expect(copy[sym]).to.not.exist()
@@ -799,7 +799,7 @@ describe('clone()', () => {
             e() { }
         }
 
-        const copy = Hoek.clone(source, { shallow: ['c', 'e'] })
+        const copy = Utils.clone(source, { shallow: ['c', 'e'] })
         expect(copy).to.equal(source)
         expect(copy).to.not.shallow.equal(source)
         expect(copy.a).to.not.shallow.equal(source.a)
@@ -809,17 +809,17 @@ describe('clone()', () => {
 
     it('returns immutable value', () => {
 
-        expect(Hoek.clone(5, { shallow: [] })).to.equal(5)
+        expect(Utils.clone(5, { shallow: [] })).to.equal(5)
     })
 
     it('returns null value', () => {
 
-        expect(Hoek.clone(null, { shallow: [] })).to.equal(null)
+        expect(Utils.clone(null, { shallow: [] })).to.equal(null)
     })
 
     it('returns undefined value', () => {
 
-        expect(Hoek.clone(undefined, { shallow: [] })).to.equal(undefined)
+        expect(Utils.clone(undefined, { shallow: [] })).to.equal(undefined)
     })
 
     it('deep clones except for listed keys (including missing keys)', () => {
@@ -833,7 +833,7 @@ describe('clone()', () => {
             }
         }
 
-        const copy = Hoek.clone(source, { shallow: ['c', 'v'] })
+        const copy = Utils.clone(source, { shallow: ['c', 'v'] })
         expect(copy).to.equal(source)
         expect(copy).to.not.shallow.equal(source)
         expect(copy.a).to.not.shallow.equal(source.a)
@@ -852,7 +852,7 @@ describe('clone()', () => {
             }
         }
 
-        const copy = Hoek.clone(source, { shallow: [[sym]], symbols: true })
+        const copy = Utils.clone(source, { shallow: [[sym]], symbols: true })
         expect(copy).to.equal(source)
         expect(copy).to.not.shallow.equal(source)
         expect(copy.a).to.not.shallow.equal(source.a)
@@ -882,7 +882,7 @@ describe('clone()', () => {
             }
         })
 
-        const copy = Hoek.clone(obj, { shallow: true })
+        const copy = Utils.clone(obj, { shallow: true })
         expect(execCount).to.equal(0)
         expect(copy.test).to.equal(1)
         expect(execCount).to.equal(1)
@@ -897,7 +897,7 @@ describe('clone()', () => {
         Object.defineProperty(obj, 'a', { enumerable: true, value: {} })
         Object.defineProperty(obj, 'b', { enumerable: true, value: {} })
 
-        const copy = Hoek.clone(obj, { shallow: ['a'] })
+        const copy = Utils.clone(obj, { shallow: ['a'] })
 
         expect(copy).equal({ a: {}, b: {} })
         expect(copy.a).to.shallow.equal(obj.a)
@@ -908,7 +908,7 @@ describe('clone()', () => {
         const a = JSON.parse('{ "__proto__": { "x": 1 } }')
         expect(a.x).to.not.exist()
 
-        const b = Hoek.clone(a)
+        const b = Utils.clone(a)
         expect(b.x).to.not.exist()
     })
 
@@ -930,7 +930,7 @@ describe('clone()', () => {
                 return clone
             }
 
-            var cloned = Hoek.clone(error)
+            var cloned = Utils.clone(error)
         }
         finally {
             structuredClone = origStructuredClone

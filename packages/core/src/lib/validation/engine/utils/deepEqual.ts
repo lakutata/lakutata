@@ -1,5 +1,5 @@
 /**
- * Derived from @hapi/hoek 11.0.7 lib/deepEqual.js (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream lib/deepEqual.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
 import {getInternalProto, type InternalProto, Types} from './types.js'
 import type {Indexable} from './utils.js'

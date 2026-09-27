@@ -1,7 +1,7 @@
 /**
  * Derived from the upstream lib/annotate.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
-import {clone, type Indexable, isArray} from '../hoek/index.js'
+import {clone, type Indexable, isArray} from '../utils/index.js'
 import * as Common from './common.js'
 import type {ErrorDetail, PathKey} from './model.js'
 
@@ -40,7 +40,7 @@ export function error(this: AnnotatedError, stripColorCodes?: boolean): string {
         let node: Annotated = obj as Annotated
         for (let j: number = 0; ; ++j) {
             const seg: PathKey = path[j]
-            //Schemas are not cloned by hoek, we have to take this extra step
+            //Schemas are not cloned by clone(), we have to take this extra step
             if (Common.isSchema(node)) node = (node as unknown as { clone(): Annotated }).clone()
             if (j + 1 < path.length && typeof node[seg] !== 'string') {
                 node = node[seg] as Annotated

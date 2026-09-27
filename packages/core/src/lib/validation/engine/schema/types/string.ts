@@ -1,7 +1,7 @@
 /**
  * Derived from the upstream lib/types/string.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
-import {escapeRegex} from '../../hoek/index.js'
+import {escapeRegex} from '../../utils/index.js'
 import {assert, definition} from '../assert.js'
 import {formats} from '../formats.js'
 import {type DomainOptions as AddressDomainOptions, type EmailOptions as AddressEmailOptions, isDomainValid, isEmailValid, ipRegex, uriRegex} from '../../address/index.js'

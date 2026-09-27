@@ -10,7 +10,7 @@
  * definitions with fixed helpers, whose error() returns a marker. Only the flow of a node (validator.ts validate() and
  * finalize()), the keys of objects and the items of arrays are compiled.
  */
-import {clone} from '../hoek/index.js'
+import {clone} from '../utils/index.js'
 import type {Base} from './base.js'
 import * as Common from './common.js'
 import * as Errors from './errors.js'

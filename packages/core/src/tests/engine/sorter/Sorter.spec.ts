@@ -1,26 +1,26 @@
 /**
- * Ported from topo/test/index.js (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Ported from the upstream test/index.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  * Upstream test logic is kept line by line (only the runner, the imports and the code style differ) so it can be
  * compared with upstream. It deliberately exercises dynamic and invalid inputs, so it is not type-checked.
  */
 // @ts-nocheck
 import {describe, it} from 'node:test'
 import {expect} from '../support/Expect.js'
-import * as Hoek from '../../../lib/validation/engine/hoek/index.js'
-import * as Topo from '../../../lib/validation/engine/topo/index.js'
+import * as Utils from '../../../lib/validation/engine/utils/index.js'
+import * as Sorting from '../../../lib/validation/engine/sorter/index.js'
 const internals = {}
 
 describe('Sorter', () => {
 
     const testDeps = function (scenario) {
 
-        const topo = new Topo.Sorter()
+        const sorter = new Sorting.Sorter()
         for (const record of scenario) {
             const options = record.before || record.after || record.group ? { before: record.before, after: record.after, group: record.group } : null
-            topo.add(record.id, options)
+            sorter.add(record.id, options)
         }
 
-        return topo.nodes.join('')
+        return sorter.nodes.join('')
     }
 
     it('sorts dependencies', () => {
@@ -56,15 +56,15 @@ describe('Sorter', () => {
             { id: '9', after: 'c', group: 'a' }
         ]
 
-        const topo = new Topo.Sorter()
+        const sorter = new Sorting.Sorter()
         for (const record of scenario) {
             const options = record.before || record.after || record.group ? { before: record.before, after: record.after, group: record.group } : null
-            topo.add(record.id, { ...options, manual: true })
+            sorter.add(record.id, { ...options, manual: true })
         }
 
-        expect(topo.nodes.join('')).to.equal('')
-        expect(topo.sort().join('')).to.equal('0213547869')
-        expect(topo.nodes.join('')).to.equal('0213547869')
+        expect(sorter.nodes.join('')).to.equal('')
+        expect(sorter.sort().join('')).to.equal('0213547869')
+        expect(sorter.nodes.join('')).to.equal('0213547869')
     })
 
     it('sorts dependencies (before as array)', () => {
@@ -134,8 +134,8 @@ describe('Sorter', () => {
                 before: groups.slice(i + 1)
             }
 
-            scenarioAfter.push(Hoek.applyToDefaults(item, afterMod))
-            scenarioBefore.push(Hoek.applyToDefaults(item, beforeMod))
+            scenarioAfter.push(Utils.applyToDefaults(item, afterMod))
+            scenarioBefore.push(Utils.applyToDefaults(item, beforeMod))
         }
 
         fisherYates(scenarioAfter)
@@ -174,15 +174,15 @@ describe('Sorter', () => {
 
         it('merges objects', () => {
 
-            const topo = new Topo.Sorter()
-            topo.add(['0'], { before: 'a' })
-            topo.add('2', { before: 'a' })
-            topo.add('4', { after: 'c', group: 'b' })
-            topo.add('6', { group: 'd' })
-            topo.add('8', { before: 'd' })
-            expect(topo.nodes.join('')).to.equal('02486')
+            const sorter = new Sorting.Sorter()
+            sorter.add(['0'], { before: 'a' })
+            sorter.add('2', { before: 'a' })
+            sorter.add('4', { after: 'c', group: 'b' })
+            sorter.add('6', { group: 'd' })
+            sorter.add('8', { before: 'd' })
+            expect(sorter.nodes.join('')).to.equal('02486')
 
-            const other = new Topo.Sorter()
+            const other = new Sorting.Sorter()
             other.add('1', { after: 'f', group: 'a' })
             other.add('3', { before: ['b', 'c'], group: 'a' })
             other.add('5', { group: 'c' })
@@ -190,21 +190,21 @@ describe('Sorter', () => {
             other.add('9', { after: 'c', group: 'a' })
             expect(other.nodes.join('')).to.equal('13579')
 
-            topo.merge(other)
-            expect(topo.nodes.join('')).to.equal('0286135479')
+            sorter.merge(other)
+            expect(sorter.nodes.join('')).to.equal('0286135479')
         })
 
         it('merges objects (explicit sort)', () => {
 
-            const topo = new Topo.Sorter()
-            topo.add('0', { before: 'a', sort: 1 })
-            topo.add('2', { before: 'a', sort: 2 })
-            topo.add('4', { after: 'c', group: 'b', sort: 3 })
-            topo.add('6', { group: 'd', sort: 4 })
-            topo.add('8', { before: 'd', sort: 5 })
-            expect(topo.nodes.join('')).to.equal('02486')
+            const sorter = new Sorting.Sorter()
+            sorter.add('0', { before: 'a', sort: 1 })
+            sorter.add('2', { before: 'a', sort: 2 })
+            sorter.add('4', { after: 'c', group: 'b', sort: 3 })
+            sorter.add('6', { group: 'd', sort: 4 })
+            sorter.add('8', { before: 'd', sort: 5 })
+            expect(sorter.nodes.join('')).to.equal('02486')
 
-            const other = new Topo.Sorter()
+            const other = new Sorting.Sorter()
             other.add('1', { after: 'f', group: 'a', sort: 6 })
             other.add('3', { before: ['b', 'c'], group: 'a', sort: 7 })
             other.add('5', { group: 'c', sort: 8 })
@@ -212,21 +212,21 @@ describe('Sorter', () => {
             other.add('9', { after: 'c', group: 'a', sort: 10 })
             expect(other.nodes.join('')).to.equal('13579')
 
-            topo.merge(other)
-            expect(topo.nodes.join('')).to.equal('0286135479')
+            sorter.merge(other)
+            expect(sorter.nodes.join('')).to.equal('0286135479')
         })
 
         it('merges objects (mixed sort)', () => {
 
-            const topo = new Topo.Sorter()
-            topo.add('0', { before: 'a', sort: 1 })
-            topo.add('2', { before: 'a', sort: 3 })
-            topo.add('4', { after: 'c', group: 'b', sort: 5 })
-            topo.add('6', { group: 'd', sort: 7 })
-            topo.add('8', { before: 'd', sort: 9 })
-            expect(topo.nodes.join('')).to.equal('02486')
+            const sorter = new Sorting.Sorter()
+            sorter.add('0', { before: 'a', sort: 1 })
+            sorter.add('2', { before: 'a', sort: 3 })
+            sorter.add('4', { after: 'c', group: 'b', sort: 5 })
+            sorter.add('6', { group: 'd', sort: 7 })
+            sorter.add('8', { before: 'd', sort: 9 })
+            expect(sorter.nodes.join('')).to.equal('02486')
 
-            const other = new Topo.Sorter()
+            const other = new Sorting.Sorter()
             other.add('1', { after: 'f', group: 'a', sort: 2 })
             other.add('3', { before: ['b', 'c'], group: 'a', sort: 4 })
             other.add('5', { group: 'c', sort: 6 })
@@ -234,22 +234,22 @@ describe('Sorter', () => {
             other.add('9', { after: 'c', group: 'a', sort: 10 })
             expect(other.nodes.join('')).to.equal('13579')
 
-            topo.merge(other)
-            expect(topo.nodes.join('')).to.equal('0213547869')
+            sorter.merge(other)
+            expect(sorter.nodes.join('')).to.equal('0213547869')
         })
 
         it('merges objects (multiple)', () => {
 
-            const topo1 = new Topo.Sorter()
+            const topo1 = new Sorting.Sorter()
             topo1.add('0', { before: 'a', sort: 1 })
             topo1.add('2', { before: 'a', sort: 3 })
             topo1.add('4', { after: 'c', group: 'b', sort: 5 })
 
-            const topo2 = new Topo.Sorter()
+            const topo2 = new Sorting.Sorter()
             topo2.add('6', { group: 'd', sort: 7 })
             topo2.add('8', { before: 'd', sort: 9 })
 
-            const other = new Topo.Sorter()
+            const other = new Sorting.Sorter()
             other.add('1', { after: 'f', group: 'a', sort: 2 })
             other.add('3', { before: ['b', 'c'], group: 'a', sort: 4 })
             other.add('5', { group: 'c', sort: 6 })
@@ -263,16 +263,16 @@ describe('Sorter', () => {
 
         it('throws on circular dependency', () => {
 
-            const topo = new Topo.Sorter()
-            topo.add('0', { before: 'a', group: 'b' })
-            topo.add('1', { before: 'c', group: 'a' })
+            const sorter = new Sorting.Sorter()
+            sorter.add('0', { before: 'a', group: 'b' })
+            sorter.add('1', { before: 'c', group: 'a' })
 
-            const other = new Topo.Sorter()
+            const other = new Sorting.Sorter()
             other.add('2', { before: 'b', group: 'c' })
 
             expect(() => {
 
-                topo.merge(other)
+                sorter.merge(other)
             }).to.throw('merge created a dependencies error')
         })
     })

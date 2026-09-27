@@ -1,7 +1,7 @@
 /**
- * Derived from @hapi/address 5.1.1 src/ip.ts (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream src/ip.ts (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
-import { assert } from '../hoek/index.js'
+import { assert } from '../utils/index.js'
 
 import { ipVersions } from './uri.js'
 

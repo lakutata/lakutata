@@ -1,5 +1,5 @@
 /**
- * Ported from hoek/test/index.js (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Ported from the upstream test/index.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  * Upstream test logic is kept line by line (only the runner, the imports and the code style differ) so it can be
  * compared with upstream. It deliberately exercises dynamic and invalid inputs, so it is not type-checked.
  */
@@ -7,7 +7,7 @@
 import {describe, it} from 'node:test'
 import {expect} from '../support/Expect.js'
 import Util from 'node:util'
-import * as Hoek from '../../../lib/validation/engine/hoek/index.js'
+import * as Utils from '../../../lib/validation/engine/utils/index.js'
 const internals = {}
 
 const nestedObj = {
@@ -48,7 +48,7 @@ describe('merge()', () => {
             [sym3]: false
         }
 
-        Hoek.merge(target, source)
+        Utils.merge(target, source)
         expect(target.c).to.not.shallow.equal(source.c)
         expect(target.c).to.equal(source.c)
         expect(target.d).to.not.shallow.equal(source.d)
@@ -82,7 +82,7 @@ describe('merge()', () => {
             [sym3]: false
         }
 
-        Hoek.merge(target, source, { symbols: false })
+        Utils.merge(target, source, { symbols: false })
         expect(target.c).to.not.shallow.equal(source.c)
         expect(target.c).to.equal(source.c)
         expect(target.d).to.not.shallow.equal(source.d)
@@ -107,7 +107,7 @@ describe('merge()', () => {
             }
         }
 
-        Hoek.merge(b, a)
+        Utils.merge(b, a)
         expect(a.x[0]).to.equal('n')
         expect(a.x.n).to.not.exist()
     })
@@ -125,7 +125,7 @@ describe('merge()', () => {
             }
         }
 
-        Hoek.merge(a, b)
+        Utils.merge(a, b)
         expect(a.x.n).to.equal('1')
         expect(a.x[0]).to.not.exist()
     })
@@ -137,7 +137,7 @@ describe('merge()', () => {
         const b = Object.create(null)
         b.x = true
 
-        Hoek.merge(a, b)
+        Utils.merge(a, b)
         expect(a.x).to.be.true()
     })
 
@@ -151,7 +151,7 @@ describe('merge()', () => {
             value: 1
         })
 
-        Hoek.merge(a, b)
+        Utils.merge(a, b)
         expect(a.x).to.equal(0)
     })
 
@@ -163,7 +163,7 @@ describe('merge()', () => {
 
         expect(() => {
 
-            c = Hoek.merge(a, b)
+            c = Utils.merge(a, b)
         }).to.not.throw()
 
         expect(c).to.equal(a)
@@ -177,7 +177,7 @@ describe('merge()', () => {
 
         expect(() => {
 
-            c = Hoek.merge(a, b)
+            c = Utils.merge(a, b)
         }).to.not.throw()
 
         expect(c).to.equal(a)
@@ -190,7 +190,7 @@ describe('merge()', () => {
             const a = {}
             const b = 0
 
-            Hoek.merge(a, b)
+            Utils.merge(a, b)
         }).to.throw('Invalid source value: must be null, undefined, or an object')
     })
 
@@ -201,7 +201,7 @@ describe('merge()', () => {
             const a = 0
             const b = {}
 
-            Hoek.merge(a, b)
+            Utils.merge(a, b)
         }).to.throw('Invalid target value: must be an object')
     })
 
@@ -212,7 +212,7 @@ describe('merge()', () => {
             const a = {}
             const b = [1, 2]
 
-            Hoek.merge(a, b)
+            Utils.merge(a, b)
         }).to.throw('Cannot merge array onto an object')
     })
 
@@ -221,7 +221,7 @@ describe('merge()', () => {
         const a = []
         const b = [1, 2]
 
-        expect(Hoek.merge(a, b)).to.equal(a)
+        expect(Utils.merge(a, b)).to.equal(a)
     })
 
     it('combines an empty object with a non-empty object', () => {
@@ -229,7 +229,7 @@ describe('merge()', () => {
         const a = {}
         const b = nestedObj
 
-        const c = Hoek.merge(a, b)
+        const c = Utils.merge(a, b)
         expect(a).to.equal(b)
         expect(c).to.equal(b)
     })
@@ -239,7 +239,7 @@ describe('merge()', () => {
         const a = { x: 1, y: 2, z: 3, v: 5, t: 'test', s: 1, m: 'abc' }
         const b = { x: null, z: 4, v: 0, t: { u: 6 }, s: undefined, m: '123' }
 
-        const c = Hoek.merge(a, b)
+        const c = Utils.merge(a, b)
         expect(c.x).to.equal(null)
         expect(c.y).to.equal(2)
         expect(c.z).to.equal(4)
@@ -254,7 +254,7 @@ describe('merge()', () => {
         const a = { x: 1, y: 2, z: 3, v: 5, t: 'test', s: 1, m: 'abc' }
         const b = { x: null, z: 4, v: 0, t: { u: 6 }, s: undefined, m: '123' }
 
-        const d = Hoek.merge(b, a)
+        const d = Utils.merge(b, a)
         expect(d.x).to.equal(1)
         expect(d.y).to.equal(2)
         expect(d.z).to.equal(3)
@@ -268,7 +268,7 @@ describe('merge()', () => {
 
         const a = { x: new Date(1378776452757) }
 
-        const b = Hoek.merge({}, a)
+        const b = Utils.merge({}, a)
         expect(a.x.getTime()).to.equal(b.x.getTime())
     })
 
@@ -276,7 +276,7 @@ describe('merge()', () => {
 
         const a = { x: new Date(1378776452757) }
 
-        const b = Hoek.merge({ x: {} }, a)
+        const b = Utils.merge({ x: {} }, a)
         expect(a.x.getTime()).to.equal(b.x.getTime())
     })
 
@@ -284,7 +284,7 @@ describe('merge()', () => {
 
         const a = { x: Buffer.from('abc') }
 
-        Hoek.merge({ x: {} }, a)
+        Utils.merge({ x: {} }, a)
         expect(a.x.toString()).to.equal('abc')
     })
 
@@ -292,7 +292,7 @@ describe('merge()', () => {
 
         const a = { x: /test/ }
 
-        Hoek.merge({ x: {} }, a)
+        Utils.merge({ x: {} }, a)
         expect(a.x).to.equal(/test/)
     })
 
@@ -301,7 +301,7 @@ describe('merge()', () => {
         const sym = Symbol()
         const a = { [sym]: 1 }
 
-        Hoek.merge({ [sym]: {} }, a)
+        Utils.merge({ [sym]: {} }, a)
         expect(a[sym]).to.equal(1)
     })
 
@@ -309,7 +309,7 @@ describe('merge()', () => {
 
         const a = '{ "ok": "value", "__proto__": { "test": "value" } }'
 
-        const b = Hoek.merge({}, JSON.parse(a))
+        const b = Utils.merge({}, JSON.parse(a))
         expect(b).to.equal({ ok: 'value' })
         expect(b.test).to.equal(undefined)
     })
@@ -321,7 +321,7 @@ describe('applyToDefaults()', () => {
 
         expect(() => {
 
-            Hoek.applyToDefaults(null, {})
+            Utils.applyToDefaults(null, {})
         }).to.throw('Invalid defaults value: must be an object')
     })
 
@@ -329,12 +329,12 @@ describe('applyToDefaults()', () => {
 
         expect(() => {
 
-            Hoek.applyToDefaults({}, {}, false)
+            Utils.applyToDefaults({}, {}, false)
         }).to.throw('Invalid options: must be an object')
 
         expect(() => {
 
-            Hoek.applyToDefaults({}, {}, 123)
+            Utils.applyToDefaults({}, {}, 123)
         }).to.throw('Invalid options: must be an object')
     })
 
@@ -351,7 +351,7 @@ describe('applyToDefaults()', () => {
             g: 'test'
         }
 
-        const result = Hoek.applyToDefaults(defaults, false)
+        const result = Utils.applyToDefaults(defaults, false)
         expect(result).to.equal(null)
     })
 
@@ -368,7 +368,7 @@ describe('applyToDefaults()', () => {
             g: 'test'
         }
 
-        const result = Hoek.applyToDefaults(defaults, null)
+        const result = Utils.applyToDefaults(defaults, null)
         expect(result).to.equal(null)
     })
 
@@ -385,7 +385,7 @@ describe('applyToDefaults()', () => {
             g: 'test'
         }
 
-        const result = Hoek.applyToDefaults(defaults, undefined)
+        const result = Utils.applyToDefaults(defaults, undefined)
         expect(result).to.equal(null)
     })
 
@@ -402,7 +402,7 @@ describe('applyToDefaults()', () => {
             g: 'test'
         }
 
-        const result = Hoek.applyToDefaults(defaults, true)
+        const result = Utils.applyToDefaults(defaults, true)
         expect(result).to.equal(defaults)
     })
 
@@ -430,7 +430,7 @@ describe('applyToDefaults()', () => {
             }
         }
 
-        const result = Hoek.applyToDefaults(defaults, obj)
+        const result = Utils.applyToDefaults(defaults, obj)
         expect(result.c.e).to.equal([4])
         expect(result.a).to.equal(1)
         expect(result.b).to.equal(2)
@@ -462,7 +462,7 @@ describe('applyToDefaults()', () => {
             }
         }
 
-        const result = Hoek.applyToDefaults(defaults, obj, { nullOverride: true })
+        const result = Utils.applyToDefaults(defaults, obj, { nullOverride: true })
         expect(result.c.e).to.equal([4])
         expect(result.a).to.equal(null)
         expect(result.b).to.equal(2)
@@ -493,7 +493,7 @@ describe('applyToDefaults()', () => {
             }
         }
 
-        const merged = Hoek.applyToDefaults(defaults, source, { shallow: ['a'] })
+        const merged = Utils.applyToDefaults(defaults, source, { shallow: ['a'] })
         expect(merged).to.equal({ a: { b: 4 }, c: { d: 6, g: 1, f: 7 } })
         expect(merged.a).to.shallow.equal(source.a)
         expect(merged.a).to.not.equal(defaults.a)
@@ -525,7 +525,7 @@ describe('applyToDefaults()', () => {
             }
         }
 
-        const merged = Hoek.applyToDefaults(defaults, source, { shallow: ['c.g'] })
+        const merged = Utils.applyToDefaults(defaults, source, { shallow: ['c.g'] })
         expect(merged).to.equal({ a: { b: 4 }, c: { d: 6, g: { h: 8 } } })
         expect(merged.c.g).to.shallow.equal(source.c.g)
     })
@@ -549,7 +549,7 @@ describe('applyToDefaults()', () => {
             }
         }
 
-        const merged = Hoek.applyToDefaults(defaults, source, { shallow: ['c.g'] })
+        const merged = Utils.applyToDefaults(defaults, source, { shallow: ['c.g'] })
         expect(merged).to.equal({ a: { b: 4 }, c: { g: { h: 8 } } })
         expect(merged.c.g).to.shallow.equal(source.c.g)
     })
@@ -578,7 +578,7 @@ describe('applyToDefaults()', () => {
             }
         }
 
-        const merged = Hoek.applyToDefaults(defaults, source, { shallow: ['c.g'] })
+        const merged = Utils.applyToDefaults(defaults, source, { shallow: ['c.g'] })
         expect(merged).to.equal({ a: { b: 4 }, c: { g: { h: 8 } } })
         expect(merged.c.g).to.shallow.equal(source.c.g)
     })
@@ -604,7 +604,7 @@ describe('applyToDefaults()', () => {
             }
         }
 
-        const merged = Hoek.applyToDefaults(defaults, source, { shallow: ['c.g.r'] })
+        const merged = Utils.applyToDefaults(defaults, source, { shallow: ['c.g.r'] })
         expect(merged).to.equal({ a: { b: 4 }, c: { g: { r: { h: 8 } } } })
         expect(merged.c.g.r).to.shallow.equal(source.c.g.r)
     })
@@ -630,7 +630,7 @@ describe('applyToDefaults()', () => {
             }
         }
 
-        const merged = Hoek.applyToDefaults(defaults, source, { shallow: ['x.y'] })
+        const merged = Utils.applyToDefaults(defaults, source, { shallow: ['x.y'] })
         expect(merged).to.equal({ a: { b: 4 }, c: { g: { r: { h: 8 } } } })
     })
 
@@ -684,7 +684,7 @@ describe('applyToDefaults()', () => {
             _function: () => {}
         }
 
-        const merged = Hoek.applyToDefaults(defaults, source, { shallow: [
+        const merged = Utils.applyToDefaults(defaults, source, { shallow: [
             '_undefined.a',
             '_null.a',
             '_false.a',
@@ -718,7 +718,7 @@ describe('applyToDefaults()', () => {
             }
         }
 
-        const merged = Hoek.applyToDefaults(defaults, {}, { shallow: ['a'] })
+        const merged = Utils.applyToDefaults(defaults, {}, { shallow: ['a'] })
         expect(merged.a).to.shallow.equal(defaults.a)
     })
 
@@ -730,7 +730,7 @@ describe('applyToDefaults()', () => {
             }
         }
 
-        const merged = Hoek.applyToDefaults(defaults, true, { shallow: ['a'] })
+        const merged = Utils.applyToDefaults(defaults, true, { shallow: ['a'] })
         expect(merged.a).to.shallow.equal(defaults.a)
     })
 
@@ -742,7 +742,7 @@ describe('applyToDefaults()', () => {
             }
         }
 
-        const merged = Hoek.applyToDefaults(defaults, false, { shallow: ['a'] })
+        const merged = Utils.applyToDefaults(defaults, false, { shallow: ['a'] })
         expect(merged).to.equal(null)
     })
 
@@ -763,31 +763,31 @@ describe('applyToDefaults()', () => {
             }
         }
 
-        const merged = Hoek.applyToDefaults(defaults, options, { shallow: ['c'] })
+        const merged = Utils.applyToDefaults(defaults, options, { shallow: ['c'] })
         expect(merged).to.equal({ a: { b: 4 }, c: { d: 2 } })
         expect(merged.c).to.shallow.equal(options.c)
 
-        expect(Hoek.applyToDefaults(defaults, true, { shallow: ['c'] })).to.equal({ a: { b: 1 } })
+        expect(Utils.applyToDefaults(defaults, true, { shallow: ['c'] })).to.equal({ a: { b: 1 } })
     })
 
     it('throws on missing defaults', () => {
 
-        expect(() => Hoek.applyToDefaults(null, {}, { shallow: ['a'] })).to.throw('Invalid defaults value: must be an object')
+        expect(() => Utils.applyToDefaults(null, {}, { shallow: ['a'] })).to.throw('Invalid defaults value: must be an object')
     })
 
     it('throws on invalid defaults', () => {
 
-        expect(() => Hoek.applyToDefaults('abc', {}, { shallow: ['a'] })).to.throw('Invalid defaults value: must be an object')
+        expect(() => Utils.applyToDefaults('abc', {}, { shallow: ['a'] })).to.throw('Invalid defaults value: must be an object')
     })
 
     it('throws on invalid source', () => {
 
-        expect(() => Hoek.applyToDefaults({}, 'abc', { shallow: ['a'] })).to.throw('Invalid source value: must be true, falsy or an object')
+        expect(() => Utils.applyToDefaults({}, 'abc', { shallow: ['a'] })).to.throw('Invalid source value: must be true, falsy or an object')
     })
 
     it('throws on missing keys', () => {
 
-        expect(() => Hoek.applyToDefaults({}, true, { shallow: 123 })).to.throw('Invalid keys')
+        expect(() => Utils.applyToDefaults({}, true, { shallow: 123 })).to.throw('Invalid keys')
     })
 
     it('handles array keys', () => {
@@ -819,7 +819,7 @@ describe('applyToDefaults()', () => {
             }
         }
 
-        const merged = Hoek.applyToDefaults(defaults, options, { shallow: [['c', sym]] })
+        const merged = Utils.applyToDefaults(defaults, options, { shallow: [['c', sym]] })
         expect(merged).to.equal({ a: { b: 4, e: 3 }, c: { d: 6, [sym]: { g: 1 } } })
         expect(merged.c[sym]).to.shallow.equal(options.c[sym])
     })
@@ -836,7 +836,7 @@ describe('applyToDefaults()', () => {
 
         Object.defineProperty(source, 'a', { value: { b: 4 } })
 
-        const merged = Hoek.applyToDefaults(defaults, source, { shallow: ['a'] })
+        const merged = Utils.applyToDefaults(defaults, source, { shallow: ['a'] })
         expect(merged).to.equal({ a: { b: 4 } })
         expect(merged.a).to.shallow.equal(source.a)
         expect(merged.a).to.not.equal(defaults.a)
@@ -847,7 +847,7 @@ describe('applyToDefaults()', () => {
         const defaults = { host: 'localhost', port: 8000 }
         const source = { host: null, port: 8080 }
 
-        const result = Hoek.applyToDefaults(defaults, source, { nullOverride: true, shallow: [] })
+        const result = Utils.applyToDefaults(defaults, source, { nullOverride: true, shallow: [] })
         expect(result.host).to.equal(null)
         expect(result.port).to.equal(8080)
     })
@@ -858,49 +858,49 @@ describe('deepEqual()', () => {
     it('compares identical references', () => {
 
         const x = {}
-        expect(Hoek.deepEqual(x, x)).to.be.true()
+        expect(Utils.deepEqual(x, x)).to.be.true()
     })
 
     it('compares simple values', () => {
 
-        expect(Hoek.deepEqual('x', 'x')).to.be.true()
-        expect(Hoek.deepEqual('x', 'y')).to.be.false()
-        expect(Hoek.deepEqual('x1', 'x')).to.be.false()
-        expect(Hoek.deepEqual(-0, +0)).to.be.false()
-        expect(Hoek.deepEqual(-0, -0)).to.be.true()
-        expect(Hoek.deepEqual(+0, +0)).to.be.true()
-        expect(Hoek.deepEqual(+0, -0)).to.be.false()
-        expect(Hoek.deepEqual(1, 1)).to.be.true()
-        expect(Hoek.deepEqual(0, 0)).to.be.true()
-        expect(Hoek.deepEqual(-1, 1)).to.be.false()
-        expect(Hoek.deepEqual(NaN, 0)).to.be.false()
-        expect(Hoek.deepEqual(NaN, NaN)).to.be.true()
+        expect(Utils.deepEqual('x', 'x')).to.be.true()
+        expect(Utils.deepEqual('x', 'y')).to.be.false()
+        expect(Utils.deepEqual('x1', 'x')).to.be.false()
+        expect(Utils.deepEqual(-0, +0)).to.be.false()
+        expect(Utils.deepEqual(-0, -0)).to.be.true()
+        expect(Utils.deepEqual(+0, +0)).to.be.true()
+        expect(Utils.deepEqual(+0, -0)).to.be.false()
+        expect(Utils.deepEqual(1, 1)).to.be.true()
+        expect(Utils.deepEqual(0, 0)).to.be.true()
+        expect(Utils.deepEqual(-1, 1)).to.be.false()
+        expect(Utils.deepEqual(NaN, 0)).to.be.false()
+        expect(Utils.deepEqual(NaN, NaN)).to.be.true()
     })
 
     it('compares different types', () => {
 
-        expect(Hoek.deepEqual([], 5, { prototype: false })).to.be.false()
-        expect(Hoek.deepEqual(5, [], { prototype: false })).to.be.false()
-        expect(Hoek.deepEqual({}, null, { prototype: false })).to.be.false()
-        expect(Hoek.deepEqual(null, {}, { prototype: false })).to.be.false()
-        expect(Hoek.deepEqual('abc', {}, { prototype: false })).to.be.false()
-        expect(Hoek.deepEqual({}, 'abc', { prototype: false })).to.be.false()
+        expect(Utils.deepEqual([], 5, { prototype: false })).to.be.false()
+        expect(Utils.deepEqual(5, [], { prototype: false })).to.be.false()
+        expect(Utils.deepEqual({}, null, { prototype: false })).to.be.false()
+        expect(Utils.deepEqual(null, {}, { prototype: false })).to.be.false()
+        expect(Utils.deepEqual('abc', {}, { prototype: false })).to.be.false()
+        expect(Utils.deepEqual({}, 'abc', { prototype: false })).to.be.false()
     })
 
     it('compares empty structures', () => {
 
-        expect(Hoek.deepEqual([], [])).to.be.true()
-        expect(Hoek.deepEqual({}, {})).to.be.true()
-        expect(Hoek.deepEqual([], {})).to.be.false()
-        expect(Hoek.deepEqual([], {}, { prototype: false })).to.be.false()
-        expect(Hoek.deepEqual({}, [], { prototype: false })).to.be.false()
+        expect(Utils.deepEqual([], [])).to.be.true()
+        expect(Utils.deepEqual({}, {})).to.be.true()
+        expect(Utils.deepEqual([], {})).to.be.false()
+        expect(Utils.deepEqual([], {}, { prototype: false })).to.be.false()
+        expect(Utils.deepEqual({}, [], { prototype: false })).to.be.false()
     })
 
     it('compares empty arguments object', () => {
 
         const compare = function () {
 
-            expect(Hoek.deepEqual([], arguments)).to.be.false()            // eslint-disable-line prefer-rest-params
+            expect(Utils.deepEqual([], arguments)).to.be.false()            // eslint-disable-line prefer-rest-params
         }
 
         compare()
@@ -915,7 +915,7 @@ describe('deepEqual()', () => {
             const inner = function () {
 
                 // callee is not supported in strict mode, was previously false becuse callee was different
-                expect(Hoek.deepEqual(arg1, arguments)).to.be.true()       // eslint-disable-line prefer-rest-params
+                expect(Utils.deepEqual(arg1, arguments)).to.be.true()       // eslint-disable-line prefer-rest-params
             }
 
             inner()
@@ -931,102 +931,102 @@ describe('deepEqual()', () => {
         const ne = {}
         Object.defineProperty(ne, sym, { value: true })
 
-        expect(Hoek.deepEqual({ [sym]: { c: true } }, { [sym]: { c: true } })).to.be.true()
-        expect(Hoek.deepEqual({ [sym]: { c: true } }, { [sym]: { c: false } })).to.be.false()
-        expect(Hoek.deepEqual({ [sym]: { c: true } }, { [sym]: true })).to.be.false()
-        expect(Hoek.deepEqual({ [sym]: undefined }, { [sym]: undefined })).to.be.true()
-        expect(Hoek.deepEqual({ [sym]: undefined }, {})).to.be.false()
-        expect(Hoek.deepEqual({}, { [sym]: undefined })).to.be.false()
+        expect(Utils.deepEqual({ [sym]: { c: true } }, { [sym]: { c: true } })).to.be.true()
+        expect(Utils.deepEqual({ [sym]: { c: true } }, { [sym]: { c: false } })).to.be.false()
+        expect(Utils.deepEqual({ [sym]: { c: true } }, { [sym]: true })).to.be.false()
+        expect(Utils.deepEqual({ [sym]: undefined }, { [sym]: undefined })).to.be.true()
+        expect(Utils.deepEqual({ [sym]: undefined }, {})).to.be.false()
+        expect(Utils.deepEqual({}, { [sym]: undefined })).to.be.false()
 
-        expect(Hoek.deepEqual({}, ne)).to.be.true()
-        expect(Hoek.deepEqual(ne, {})).to.be.true()
-        expect(Hoek.deepEqual({ [sym]: true }, ne)).to.be.false()
-        expect(Hoek.deepEqual(ne, { [sym]: true })).to.be.false()
-        expect(Hoek.deepEqual(ne, { [Symbol()]: undefined })).to.be.false()
+        expect(Utils.deepEqual({}, ne)).to.be.true()
+        expect(Utils.deepEqual(ne, {})).to.be.true()
+        expect(Utils.deepEqual({ [sym]: true }, ne)).to.be.false()
+        expect(Utils.deepEqual(ne, { [sym]: true })).to.be.false()
+        expect(Utils.deepEqual(ne, { [Symbol()]: undefined })).to.be.false()
 
-        expect(Hoek.deepEqual({ [sym]: true }, { [sym]: true })).to.be.true()
-        expect(Hoek.deepEqual({ [sym]: true }, {})).to.be.false()
-        expect(Hoek.deepEqual({ [sym]: true }, {}, { symbols: false })).to.be.true()
+        expect(Utils.deepEqual({ [sym]: true }, { [sym]: true })).to.be.true()
+        expect(Utils.deepEqual({ [sym]: true }, {})).to.be.false()
+        expect(Utils.deepEqual({ [sym]: true }, {}, { symbols: false })).to.be.true()
     })
 
     it('compares dates', () => {
 
-        expect(Hoek.deepEqual(new Date(2015, 1, 1), new Date('2015/02/01'))).to.be.true()
-        expect(Hoek.deepEqual(new Date(100), new Date(101))).to.be.false()
-        expect(Hoek.deepEqual(new Date(), {})).to.be.false()
-        expect(Hoek.deepEqual(new Date(2015, 1, 1), new Date('2015/02/01'), { prototype: false })).to.be.true()
-        expect(Hoek.deepEqual(new Date(), {}, { prototype: false })).to.be.false()
-        expect(Hoek.deepEqual({}, new Date(), { prototype: false })).to.be.false()
+        expect(Utils.deepEqual(new Date(2015, 1, 1), new Date('2015/02/01'))).to.be.true()
+        expect(Utils.deepEqual(new Date(100), new Date(101))).to.be.false()
+        expect(Utils.deepEqual(new Date(), {})).to.be.false()
+        expect(Utils.deepEqual(new Date(2015, 1, 1), new Date('2015/02/01'), { prototype: false })).to.be.true()
+        expect(Utils.deepEqual(new Date(), {}, { prototype: false })).to.be.false()
+        expect(Utils.deepEqual({}, new Date(), { prototype: false })).to.be.false()
     })
 
     it('compares regular expressions', () => {
 
-        expect(Hoek.deepEqual(/\s/, new RegExp('\\\s'))).to.be.true()
-        expect(Hoek.deepEqual(/\s/g, /\s/g)).to.be.true()
-        expect(Hoek.deepEqual(/a/, {}, { prototype: false })).to.be.false()
-        expect(Hoek.deepEqual(/\s/g, /\s/i)).to.be.false()
-        expect(Hoek.deepEqual(/a/g, /b/g)).to.be.false()
+        expect(Utils.deepEqual(/\s/, new RegExp('\\\s'))).to.be.true()
+        expect(Utils.deepEqual(/\s/g, /\s/g)).to.be.true()
+        expect(Utils.deepEqual(/a/, {}, { prototype: false })).to.be.false()
+        expect(Utils.deepEqual(/\s/g, /\s/i)).to.be.false()
+        expect(Utils.deepEqual(/a/g, /b/g)).to.be.false()
     })
 
     it('compares errors', () => {
 
-        expect(Hoek.deepEqual(new Error('a'), new Error('a'))).to.be.true()
-        expect(Hoek.deepEqual(new Error('a'), new Error('b'))).to.be.false()
+        expect(Utils.deepEqual(new Error('a'), new Error('a'))).to.be.true()
+        expect(Utils.deepEqual(new Error('a'), new Error('b'))).to.be.false()
 
-        expect(Hoek.deepEqual(new Error('a'), new TypeError('a'))).to.be.false()
-        expect(Hoek.deepEqual(new Error('a'), new TypeError('a'), { prototype: false })).to.be.false()
+        expect(Utils.deepEqual(new Error('a'), new TypeError('a'))).to.be.false()
+        expect(Utils.deepEqual(new Error('a'), new TypeError('a'), { prototype: false })).to.be.false()
 
-        expect(Hoek.deepEqual(new Error(), {})).to.be.false()
-        expect(Hoek.deepEqual(new Error(), {}, { prototype: false })).to.be.false()
+        expect(Utils.deepEqual(new Error(), {})).to.be.false()
+        expect(Utils.deepEqual(new Error(), {}, { prototype: false })).to.be.false()
 
-        expect(Hoek.deepEqual({}, new Error())).to.be.false()
-        expect(Hoek.deepEqual({}, new Error(), { prototype: false })).to.be.false()
+        expect(Utils.deepEqual({}, new Error())).to.be.false()
+        expect(Utils.deepEqual({}, new Error(), { prototype: false })).to.be.false()
 
         const error = new Error('a')
-        expect(Hoek.deepEqual(Hoek.clone(error), error)).to.be.true()
-        expect(Hoek.deepEqual(Hoek.clone(error), error, { prototype: false })).to.be.true()
+        expect(Utils.deepEqual(Utils.clone(error), error)).to.be.true()
+        expect(Utils.deepEqual(Utils.clone(error), error, { prototype: false })).to.be.true()
     })
 
     it('compares arrays', () => {
 
-        expect(Hoek.deepEqual([[1]], [[1]])).to.be.true()
-        expect(Hoek.deepEqual([1, 2, 3], [1, 2, 3])).to.be.true()
-        expect(Hoek.deepEqual([1, 2, 3], [1, 3, 2])).to.be.false()
-        expect(Hoek.deepEqual([1, 2, 3], [1, 2])).to.be.false()
-        expect(Hoek.deepEqual([1], [1])).to.be.true()
+        expect(Utils.deepEqual([[1]], [[1]])).to.be.true()
+        expect(Utils.deepEqual([1, 2, 3], [1, 2, 3])).to.be.true()
+        expect(Utils.deepEqual([1, 2, 3], [1, 3, 2])).to.be.false()
+        expect(Utils.deepEqual([1, 2, 3], [1, 2])).to.be.false()
+        expect(Utils.deepEqual([1], [1])).to.be.true()
         const item1 = { key: 'value1' }
         const item2 = { key: 'value2' }
-        expect(Hoek.deepEqual([item1, item1], [item1, item2])).to.be.false()
+        expect(Utils.deepEqual([item1, item1], [item1, item2])).to.be.false()
     })
 
     it('compares sets', () => {
 
-        expect(Hoek.deepEqual(new Set(), new Set())).to.be.true()
-        expect(Hoek.deepEqual(new Set([1]), new Set([1]))).to.be.true()
-        expect(Hoek.deepEqual(new Set([]), new Set([]))).to.be.true()
-        expect(Hoek.deepEqual(new Set([1, 2, 3]), new Set([1, 2, 3]))).to.be.true()
-        expect(Hoek.deepEqual(new Set([1, 2, 3]), new Set([3, 2, 1]))).to.be.true()
-        expect(Hoek.deepEqual(new Set([1, 2, 3]), new Set([1, 2, 4]))).to.be.false()
-        expect(Hoek.deepEqual(new Set([1, 2, 3]), new Set([1, 2]))).to.be.false()
-        expect(Hoek.deepEqual(new Set([1, 2, 1]), new Set([1, 2]))).to.be.true()
-        expect(Hoek.deepEqual(new Set([+0]), new Set([-0]))).to.be.true()
-        expect(Hoek.deepEqual(new Set([NaN]), new Set([NaN]))).to.be.true()
-        expect(Hoek.deepEqual(new Set([1, {}]), new Set([1, {}]))).to.be.true()
-        expect(Hoek.deepEqual(new Set([1, {}]), new Set([{}, 1]))).to.be.true()
-        expect(Hoek.deepEqual(new Set([1, {}, {}]), new Set([{}, 1, {}]))).to.be.true()
-        expect(Hoek.deepEqual(new Set([1, { a: 1 }]), new Set([{ a: 0 }, 1]))).to.be.false()
-        expect(Hoek.deepEqual(new WeakSet(), new WeakSet())).to.be.true()
+        expect(Utils.deepEqual(new Set(), new Set())).to.be.true()
+        expect(Utils.deepEqual(new Set([1]), new Set([1]))).to.be.true()
+        expect(Utils.deepEqual(new Set([]), new Set([]))).to.be.true()
+        expect(Utils.deepEqual(new Set([1, 2, 3]), new Set([1, 2, 3]))).to.be.true()
+        expect(Utils.deepEqual(new Set([1, 2, 3]), new Set([3, 2, 1]))).to.be.true()
+        expect(Utils.deepEqual(new Set([1, 2, 3]), new Set([1, 2, 4]))).to.be.false()
+        expect(Utils.deepEqual(new Set([1, 2, 3]), new Set([1, 2]))).to.be.false()
+        expect(Utils.deepEqual(new Set([1, 2, 1]), new Set([1, 2]))).to.be.true()
+        expect(Utils.deepEqual(new Set([+0]), new Set([-0]))).to.be.true()
+        expect(Utils.deepEqual(new Set([NaN]), new Set([NaN]))).to.be.true()
+        expect(Utils.deepEqual(new Set([1, {}]), new Set([1, {}]))).to.be.true()
+        expect(Utils.deepEqual(new Set([1, {}]), new Set([{}, 1]))).to.be.true()
+        expect(Utils.deepEqual(new Set([1, {}, {}]), new Set([{}, 1, {}]))).to.be.true()
+        expect(Utils.deepEqual(new Set([1, { a: 1 }]), new Set([{ a: 0 }, 1]))).to.be.false()
+        expect(Utils.deepEqual(new WeakSet(), new WeakSet())).to.be.true()
         const obj = {}
-        expect(Hoek.deepEqual(new WeakSet([obj]), new WeakSet())).to.be.true()
-        expect(Hoek.deepEqual(new WeakSet(), new Set()), { prototype: false }).to.be.false()
+        expect(Utils.deepEqual(new WeakSet([obj]), new WeakSet())).to.be.true()
+        expect(Utils.deepEqual(new WeakSet(), new Set()), { prototype: false }).to.be.false()
 
         const sets = [new Set(), new Set()].map((set) => {
 
             set.modified = true
             return set
         })
-        expect(Hoek.deepEqual(sets[0], sets[1])).to.be.true()
-        expect(Hoek.deepEqual(sets[0], new Set())).to.be.false()
+        expect(Utils.deepEqual(sets[0], sets[1])).to.be.true()
+        expect(Utils.deepEqual(sets[0], new Set())).to.be.false()
     })
 
     it('compares extended sets', () => {
@@ -1040,12 +1040,12 @@ describe('deepEqual()', () => {
         }
 
         const entries = ['a', undefined]
-        expect(Hoek.deepEqual(new PrivateSet(), new PrivateSet())).to.be.true()
-        expect(Hoek.deepEqual(new PrivateSet(entries), new PrivateSet(entries))).to.be.true()
-        expect(Hoek.deepEqual(new PrivateSet(entries), new Set(entries), { prototype: false })).to.be.true()
-        expect(Hoek.deepEqual(new PrivateSet(entries), new Set(entries), { prototype: true })).to.be.false()
-        expect(Hoek.deepEqual(new PrivateSet(), new PrivateSet(entries))).to.be.false()
-        expect(Hoek.deepEqual(new PrivateSet(entries), new PrivateSet())).to.be.false()
+        expect(Utils.deepEqual(new PrivateSet(), new PrivateSet())).to.be.true()
+        expect(Utils.deepEqual(new PrivateSet(entries), new PrivateSet(entries))).to.be.true()
+        expect(Utils.deepEqual(new PrivateSet(entries), new Set(entries), { prototype: false })).to.be.true()
+        expect(Utils.deepEqual(new PrivateSet(entries), new Set(entries), { prototype: true })).to.be.false()
+        expect(Utils.deepEqual(new PrivateSet(), new PrivateSet(entries))).to.be.false()
+        expect(Utils.deepEqual(new PrivateSet(entries), new PrivateSet())).to.be.false()
 
         class LockableSet extends Set {
 
@@ -1063,39 +1063,39 @@ describe('deepEqual()', () => {
             }
         }
 
-        expect(Hoek.deepEqual(new LockableSet(), new LockableSet())).to.be.true()
-        expect(Hoek.deepEqual(new LockableSet(entries), new LockableSet(entries))).to.be.true()
-        expect(Hoek.deepEqual(new LockableSet(entries, false), new LockableSet(entries, false))).to.be.true()
-        expect(Hoek.deepEqual(new LockableSet(entries, true), new LockableSet(entries, false))).to.be.false()
-        expect(Hoek.deepEqual(new LockableSet(entries, false), new LockableSet(entries, true))).to.be.false()
-        expect(Hoek.deepEqual(new LockableSet(entries), new Set(entries), { prototype: false })).to.be.false()
-        expect(Hoek.deepEqual(new LockableSet(entries), new PrivateSet(entries), { prototype: false })).to.be.false()
+        expect(Utils.deepEqual(new LockableSet(), new LockableSet())).to.be.true()
+        expect(Utils.deepEqual(new LockableSet(entries), new LockableSet(entries))).to.be.true()
+        expect(Utils.deepEqual(new LockableSet(entries, false), new LockableSet(entries, false))).to.be.true()
+        expect(Utils.deepEqual(new LockableSet(entries, true), new LockableSet(entries, false))).to.be.false()
+        expect(Utils.deepEqual(new LockableSet(entries, false), new LockableSet(entries, true))).to.be.false()
+        expect(Utils.deepEqual(new LockableSet(entries), new Set(entries), { prototype: false })).to.be.false()
+        expect(Utils.deepEqual(new LockableSet(entries), new PrivateSet(entries), { prototype: false })).to.be.false()
     })
 
     it('compares maps', () => {
 
         const item1 = { key: 'value1' }
         const item2 = { key: 'value2' }
-        expect(Hoek.deepEqual(new Map(), new Map())).to.be.true()
-        expect(Hoek.deepEqual(new Map([[1, {}]]), new Map([[1, {}]]))).to.be.true()
-        expect(Hoek.deepEqual(new Map([[1, item1]]), new Map([[1, item1]]))).to.be.true()
-        expect(Hoek.deepEqual(new Map([[1, item1]]), new Map([[1, item2]]))).to.be.false()
-        expect(Hoek.deepEqual(new Map([[1, undefined]]), new Map([[1, undefined]]))).to.be.true()
-        expect(Hoek.deepEqual(new Map([[1, undefined]]), new Map([[2, undefined]]))).to.be.false()
-        expect(Hoek.deepEqual(new Map([[1, {}]]), new Map([[1, {}], [2, {}]]))).to.be.false()
-        expect(Hoek.deepEqual(new Map([[item1, 1]]), new Map([[item1, 1]]))).to.be.true()
-        expect(Hoek.deepEqual(new Map([[{}, 1]]), new Map([[{}, 1]]))).to.be.false()
-        expect(Hoek.deepEqual(new WeakMap(), new WeakMap())).to.be.true()
-        expect(Hoek.deepEqual(new WeakMap([[item1, 1]]), new WeakMap())).to.be.true()
-        expect(Hoek.deepEqual(new WeakMap(), new Map()), { prototype: false }).to.be.false()
+        expect(Utils.deepEqual(new Map(), new Map())).to.be.true()
+        expect(Utils.deepEqual(new Map([[1, {}]]), new Map([[1, {}]]))).to.be.true()
+        expect(Utils.deepEqual(new Map([[1, item1]]), new Map([[1, item1]]))).to.be.true()
+        expect(Utils.deepEqual(new Map([[1, item1]]), new Map([[1, item2]]))).to.be.false()
+        expect(Utils.deepEqual(new Map([[1, undefined]]), new Map([[1, undefined]]))).to.be.true()
+        expect(Utils.deepEqual(new Map([[1, undefined]]), new Map([[2, undefined]]))).to.be.false()
+        expect(Utils.deepEqual(new Map([[1, {}]]), new Map([[1, {}], [2, {}]]))).to.be.false()
+        expect(Utils.deepEqual(new Map([[item1, 1]]), new Map([[item1, 1]]))).to.be.true()
+        expect(Utils.deepEqual(new Map([[{}, 1]]), new Map([[{}, 1]]))).to.be.false()
+        expect(Utils.deepEqual(new WeakMap(), new WeakMap())).to.be.true()
+        expect(Utils.deepEqual(new WeakMap([[item1, 1]]), new WeakMap())).to.be.true()
+        expect(Utils.deepEqual(new WeakMap(), new Map()), { prototype: false }).to.be.false()
 
         const maps = [new Map(), new Map()].map((map) => {
 
             map.modified = true
             return map
         })
-        expect(Hoek.deepEqual(maps[0], maps[1])).to.be.true()
-        expect(Hoek.deepEqual(maps[0], new Map())).to.be.false()
+        expect(Utils.deepEqual(maps[0], maps[1])).to.be.true()
+        expect(Utils.deepEqual(maps[0], new Map())).to.be.false()
     })
 
     it('compares extended maps', () => {
@@ -1109,12 +1109,12 @@ describe('deepEqual()', () => {
         }
 
         const entries = [['a', 1], ['b', undefined]]
-        expect(Hoek.deepEqual(new PrivateMap(), new PrivateMap())).to.be.true()
-        expect(Hoek.deepEqual(new PrivateMap(entries), new PrivateMap(entries))).to.be.true()
-        expect(Hoek.deepEqual(new PrivateMap(entries), new Map(entries), { prototype: false })).to.be.true()
-        expect(Hoek.deepEqual(new PrivateMap(entries), new Map(entries), { prototype: true })).to.be.false()
-        expect(Hoek.deepEqual(new PrivateMap(), new PrivateMap(entries))).to.be.false()
-        expect(Hoek.deepEqual(new PrivateMap(entries), new PrivateMap())).to.be.false()
+        expect(Utils.deepEqual(new PrivateMap(), new PrivateMap())).to.be.true()
+        expect(Utils.deepEqual(new PrivateMap(entries), new PrivateMap(entries))).to.be.true()
+        expect(Utils.deepEqual(new PrivateMap(entries), new Map(entries), { prototype: false })).to.be.true()
+        expect(Utils.deepEqual(new PrivateMap(entries), new Map(entries), { prototype: true })).to.be.false()
+        expect(Utils.deepEqual(new PrivateMap(), new PrivateMap(entries))).to.be.false()
+        expect(Utils.deepEqual(new PrivateMap(entries), new PrivateMap())).to.be.false()
 
         class LockableMap extends Map {
 
@@ -1132,87 +1132,87 @@ describe('deepEqual()', () => {
             }
         }
 
-        expect(Hoek.deepEqual(new LockableMap(), new LockableMap())).to.be.true()
-        expect(Hoek.deepEqual(new LockableMap(entries), new LockableMap(entries))).to.be.true()
-        expect(Hoek.deepEqual(new LockableMap(entries, false), new LockableMap(entries, false))).to.be.true()
-        expect(Hoek.deepEqual(new LockableMap(entries, true), new LockableMap(entries, false))).to.be.false()
-        expect(Hoek.deepEqual(new LockableMap(entries, false), new LockableMap(entries, true))).to.be.false()
-        expect(Hoek.deepEqual(new LockableMap(entries), new Map(entries), { prototype: false })).to.be.false()
-        expect(Hoek.deepEqual(new LockableMap(entries), new PrivateMap(entries), { prototype: false })).to.be.false()
+        expect(Utils.deepEqual(new LockableMap(), new LockableMap())).to.be.true()
+        expect(Utils.deepEqual(new LockableMap(entries), new LockableMap(entries))).to.be.true()
+        expect(Utils.deepEqual(new LockableMap(entries, false), new LockableMap(entries, false))).to.be.true()
+        expect(Utils.deepEqual(new LockableMap(entries, true), new LockableMap(entries, false))).to.be.false()
+        expect(Utils.deepEqual(new LockableMap(entries, false), new LockableMap(entries, true))).to.be.false()
+        expect(Utils.deepEqual(new LockableMap(entries), new Map(entries), { prototype: false })).to.be.false()
+        expect(Utils.deepEqual(new LockableMap(entries), new PrivateMap(entries), { prototype: false })).to.be.false()
     })
 
     it('compares promises', () => {
 
         const a = new Promise(() => { })
 
-        expect(Hoek.deepEqual(a, a)).to.be.true()
-        expect(Hoek.deepEqual(a, new Promise(() => { }))).to.be.false()
+        expect(Utils.deepEqual(a, a)).to.be.true()
+        expect(Utils.deepEqual(a, new Promise(() => { }))).to.be.false()
     })
 
     it('compares urls', () => {
 
-        const a = new URL('https://hapi.dev/')
+        const a = new URL('https://example.com/')
 
-        expect(Hoek.deepEqual(a, a)).to.be.true()
-        expect(Hoek.deepEqual(a, new URL('https://hapi.dev/?new'))).to.be.false()
-        expect(Hoek.deepEqual(a, {}, { prototype: false })).to.be.false()
+        expect(Utils.deepEqual(a, a)).to.be.true()
+        expect(Utils.deepEqual(a, new URL('https://example.com/?new'))).to.be.false()
+        expect(Utils.deepEqual(a, {}, { prototype: false })).to.be.false()
     })
 
     it('compares buffers', () => {
 
-        expect(Hoek.deepEqual(Buffer.from([1, 2, 3]), Buffer.from([1, 2, 3]))).to.be.true()
-        expect(Hoek.deepEqual(Buffer.from([1, 2, 3]), Buffer.from([1, 3, 2]))).to.be.false()
-        expect(Hoek.deepEqual(Buffer.from([1, 2, 3]), Buffer.from([1, 2]))).to.be.false()
-        expect(Hoek.deepEqual(Buffer.from([1, 2, 3]), {})).to.be.false()
-        expect(Hoek.deepEqual(Buffer.from([1, 2, 3]), [1, 2, 3])).to.be.false()
+        expect(Utils.deepEqual(Buffer.from([1, 2, 3]), Buffer.from([1, 2, 3]))).to.be.true()
+        expect(Utils.deepEqual(Buffer.from([1, 2, 3]), Buffer.from([1, 3, 2]))).to.be.false()
+        expect(Utils.deepEqual(Buffer.from([1, 2, 3]), Buffer.from([1, 2]))).to.be.false()
+        expect(Utils.deepEqual(Buffer.from([1, 2, 3]), {})).to.be.false()
+        expect(Utils.deepEqual(Buffer.from([1, 2, 3]), [1, 2, 3])).to.be.false()
     })
 
     it('compares string objects', () => {
 
         /* eslint-disable no-new-wrappers */
-        expect(Hoek.deepEqual(new String('a'), new String('a'))).to.be.true()
-        expect(Hoek.deepEqual(new String('a'), new String('b'))).to.be.false()
-        expect(Hoek.deepEqual(new String(''), {}, { prototype: false })).to.be.false()
-        expect(Hoek.deepEqual({}, new String(''), { prototype: false })).to.be.false()
-        expect(Hoek.deepEqual(new String('a'), 'a', { prototype: false })).to.be.false()
-        expect(Hoek.deepEqual('a', new String('a'), { prototype: false })).to.be.false()
+        expect(Utils.deepEqual(new String('a'), new String('a'))).to.be.true()
+        expect(Utils.deepEqual(new String('a'), new String('b'))).to.be.false()
+        expect(Utils.deepEqual(new String(''), {}, { prototype: false })).to.be.false()
+        expect(Utils.deepEqual({}, new String(''), { prototype: false })).to.be.false()
+        expect(Utils.deepEqual(new String('a'), 'a', { prototype: false })).to.be.false()
+        expect(Utils.deepEqual('a', new String('a'), { prototype: false })).to.be.false()
         /* eslint-enable no-new-wrappers */
     })
 
     it('compares number objects', () => {
 
         /* eslint-disable no-new-wrappers */
-        expect(Hoek.deepEqual(new Number(1), new Number(1))).to.be.true()
-        expect(Hoek.deepEqual(new Number(1), new Number(2))).to.be.false()
-        expect(Hoek.deepEqual(new Number(+0), new Number(-0))).to.be.false()
-        expect(Hoek.deepEqual(new Number(NaN), new Number(NaN))).to.be.true()
-        expect(Hoek.deepEqual(new Number(0), {}, { prototype: false })).to.be.false()
-        expect(Hoek.deepEqual({}, new Number(0), { prototype: false })).to.be.false()
-        expect(Hoek.deepEqual(new Number(1), 1, { prototype: false })).to.be.false()
-        expect(Hoek.deepEqual(1, new Number(1), { prototype: false })).to.be.false()
+        expect(Utils.deepEqual(new Number(1), new Number(1))).to.be.true()
+        expect(Utils.deepEqual(new Number(1), new Number(2))).to.be.false()
+        expect(Utils.deepEqual(new Number(+0), new Number(-0))).to.be.false()
+        expect(Utils.deepEqual(new Number(NaN), new Number(NaN))).to.be.true()
+        expect(Utils.deepEqual(new Number(0), {}, { prototype: false })).to.be.false()
+        expect(Utils.deepEqual({}, new Number(0), { prototype: false })).to.be.false()
+        expect(Utils.deepEqual(new Number(1), 1, { prototype: false })).to.be.false()
+        expect(Utils.deepEqual(1, new Number(1), { prototype: false })).to.be.false()
         /* eslint-enable no-new-wrappers */
     })
 
     it('compares boolean objects', () => {
 
         /* eslint-disable no-new-wrappers */
-        expect(Hoek.deepEqual(new Boolean(true), new Boolean(true))).to.be.true()
-        expect(Hoek.deepEqual(new Boolean(true), new Boolean(false))).to.be.false()
-        expect(Hoek.deepEqual(new Boolean(false), {}, { prototype: false })).to.be.false()
-        expect(Hoek.deepEqual({}, new Boolean(false), { prototype: false })).to.be.false()
-        expect(Hoek.deepEqual(new Boolean(true), true, { prototype: false })).to.be.false()
-        expect(Hoek.deepEqual(true, new Boolean(true), { prototype: false })).to.be.false()
+        expect(Utils.deepEqual(new Boolean(true), new Boolean(true))).to.be.true()
+        expect(Utils.deepEqual(new Boolean(true), new Boolean(false))).to.be.false()
+        expect(Utils.deepEqual(new Boolean(false), {}, { prototype: false })).to.be.false()
+        expect(Utils.deepEqual({}, new Boolean(false), { prototype: false })).to.be.false()
+        expect(Utils.deepEqual(new Boolean(true), true, { prototype: false })).to.be.false()
+        expect(Utils.deepEqual(true, new Boolean(true), { prototype: false })).to.be.false()
         /* eslint-enable no-new-wrappers */
     })
 
     it('compares objects', () => {
 
-        expect(Hoek.deepEqual({ a: 1, b: 2, c: 3 }, { a: 1, b: 2, c: 3 })).to.be.true()
-        expect(Hoek.deepEqual({ foo: 'bar' }, { foo: 'baz' })).to.be.false()
-        expect(Hoek.deepEqual({ foo: { bar: 'foo' } }, { foo: { bar: 'baz' } })).to.be.false()
-        expect(Hoek.deepEqual({ foo: undefined }, {})).to.be.false()
-        expect(Hoek.deepEqual({}, { foo: undefined })).to.be.false()
-        expect(Hoek.deepEqual({ foo: undefined }, { bar: undefined })).to.be.false()
+        expect(Utils.deepEqual({ a: 1, b: 2, c: 3 }, { a: 1, b: 2, c: 3 })).to.be.true()
+        expect(Utils.deepEqual({ foo: 'bar' }, { foo: 'baz' })).to.be.false()
+        expect(Utils.deepEqual({ foo: { bar: 'foo' } }, { foo: { bar: 'baz' } })).to.be.false()
+        expect(Utils.deepEqual({ foo: undefined }, {})).to.be.false()
+        expect(Utils.deepEqual({}, { foo: undefined })).to.be.false()
+        expect(Utils.deepEqual({ foo: undefined }, { bar: undefined })).to.be.false()
     })
 
     it('compares functions', () => {
@@ -1221,11 +1221,11 @@ describe('deepEqual()', () => {
         const f2 = () => 2
         const f2a = () => 2
 
-        expect(Hoek.deepEqual({ f1 }, { f1 })).to.be.true()
-        expect(Hoek.deepEqual({ f1 }, { f1: f2 })).to.be.false()
-        expect(Hoek.deepEqual({ f2 }, { f2: f2a })).to.be.false()
-        expect(Hoek.deepEqual({ f2 }, { f2: f2a }, { deepFunction: true })).to.be.true()
-        expect(Hoek.deepEqual({ f2 }, { f2: f1 }, { deepFunction: true })).to.be.false()
+        expect(Utils.deepEqual({ f1 }, { f1 })).to.be.true()
+        expect(Utils.deepEqual({ f1 }, { f1: f2 })).to.be.false()
+        expect(Utils.deepEqual({ f2 }, { f2: f2a })).to.be.false()
+        expect(Utils.deepEqual({ f2 }, { f2: f2a }, { deepFunction: true })).to.be.true()
+        expect(Utils.deepEqual({ f2 }, { f2: f1 }, { deepFunction: true })).to.be.false()
 
         const f3 = () => 3
         f3.x = 1
@@ -1236,28 +1236,28 @@ describe('deepEqual()', () => {
         const f3b = () => 3
         f3b.x = 2
 
-        expect(Hoek.deepEqual({ f3 }, { f3: f3a }, { deepFunction: true })).to.be.true()
-        expect(Hoek.deepEqual({ f3 }, { f3: f3b }, { deepFunction: true })).to.be.false()
+        expect(Utils.deepEqual({ f3 }, { f3: f3a }, { deepFunction: true })).to.be.true()
+        expect(Utils.deepEqual({ f3 }, { f3: f3b }, { deepFunction: true })).to.be.false()
     })
 
     it('skips keys', () => {
 
-        expect(Hoek.deepEqual({ a: 1, b: 2, c: 3 }, { a: 1, b: 2, c: 4 })).to.be.false()
-        expect(Hoek.deepEqual({ a: 1, b: 2, c: 3 }, { a: 1, b: 2, c: 4 }, { skip: ['c'] })).to.be.true()
+        expect(Utils.deepEqual({ a: 1, b: 2, c: 3 }, { a: 1, b: 2, c: 4 })).to.be.false()
+        expect(Utils.deepEqual({ a: 1, b: 2, c: 3 }, { a: 1, b: 2, c: 4 }, { skip: ['c'] })).to.be.true()
 
-        expect(Hoek.deepEqual({ a: 1, b: 2, c: 3 }, { a: 1, b: 2 })).to.be.false()
-        expect(Hoek.deepEqual({ a: 1, b: 2, c: 3 }, { a: 1, b: 2 }, { skip: ['c'] })).to.be.true()
+        expect(Utils.deepEqual({ a: 1, b: 2, c: 3 }, { a: 1, b: 2 })).to.be.false()
+        expect(Utils.deepEqual({ a: 1, b: 2, c: 3 }, { a: 1, b: 2 }, { skip: ['c'] })).to.be.true()
 
         const sym = Symbol('test')
-        expect(Hoek.deepEqual({ a: 1, b: 2, [sym]: 3 }, { a: 1, b: 2, [sym]: 4 })).to.be.false()
-        expect(Hoek.deepEqual({ a: 1, b: 2, [sym]: 3 }, { a: 1, b: 2, [sym]: 4 }, { skip: [sym] })).to.be.true()
+        expect(Utils.deepEqual({ a: 1, b: 2, [sym]: 3 }, { a: 1, b: 2, [sym]: 4 })).to.be.false()
+        expect(Utils.deepEqual({ a: 1, b: 2, [sym]: 3 }, { a: 1, b: 2, [sym]: 4 }, { skip: [sym] })).to.be.true()
 
-        expect(Hoek.deepEqual({ a: 1, b: 2, [sym]: 3 }, { a: 1, b: 2 })).to.be.false()
-        expect(Hoek.deepEqual({ a: 1, b: 2, [sym]: 3 }, { a: 1, b: 2 }, { skip: [sym] })).to.be.true()
-        expect(Hoek.deepEqual({ a: 1, b: 2, [sym]: 3, [Symbol('other')]: true }, { a: 1, b: 2 }, { skip: [sym] })).to.be.false()
+        expect(Utils.deepEqual({ a: 1, b: 2, [sym]: 3 }, { a: 1, b: 2 })).to.be.false()
+        expect(Utils.deepEqual({ a: 1, b: 2, [sym]: 3 }, { a: 1, b: 2 }, { skip: [sym] })).to.be.true()
+        expect(Utils.deepEqual({ a: 1, b: 2, [sym]: 3, [Symbol('other')]: true }, { a: 1, b: 2 }, { skip: [sym] })).to.be.false()
 
-        expect(Hoek.deepEqual({ a: 1, b: 2 }, { a: 1 }, { skip: ['a'] })).to.be.false()
-        expect(Hoek.deepEqual({ a: 1 }, { a: 1, b: 2 }, { skip: ['a'] })).to.be.false()
+        expect(Utils.deepEqual({ a: 1, b: 2 }, { a: 1 }, { skip: ['a'] })).to.be.false()
+        expect(Utils.deepEqual({ a: 1 }, { a: 1, b: 2 }, { skip: ['a'] })).to.be.false()
     })
 
     it('handles circular dependency', () => {
@@ -1265,8 +1265,8 @@ describe('deepEqual()', () => {
         const a = {}
         a.x = a
 
-        const b = Hoek.clone(a)
-        expect(Hoek.deepEqual(a, b)).to.be.true()
+        const b = Utils.clone(a)
+        expect(Utils.deepEqual(a, b)).to.be.true()
     })
 
     it('handles obj only circular dependency', () => {
@@ -1275,8 +1275,8 @@ describe('deepEqual()', () => {
         a.x = a
 
         const b = { x: {} }
-        expect(Hoek.deepEqual(a, b)).to.be.false()
-        expect(Hoek.deepEqual(b, a)).to.be.false()
+        expect(Utils.deepEqual(a, b)).to.be.false()
+        expect(Utils.deepEqual(b, a)).to.be.false()
     })
 
     it('handles irregular circular dependency', () => {
@@ -1289,15 +1289,15 @@ describe('deepEqual()', () => {
 
         const c = { x: { x: {} } }
         c.x.x.x = c
-        expect(Hoek.deepEqual(a, b)).to.be.true()
-        expect(Hoek.deepEqual(b, a)).to.be.true()
-        expect(Hoek.deepEqual(a, c)).to.be.true()
-        expect(Hoek.deepEqual(b, c)).to.be.true()
-        expect(Hoek.deepEqual(c, a)).to.be.true()
-        expect(Hoek.deepEqual(c, b)).to.be.true()
+        expect(Utils.deepEqual(a, b)).to.be.true()
+        expect(Utils.deepEqual(b, a)).to.be.true()
+        expect(Utils.deepEqual(a, c)).to.be.true()
+        expect(Utils.deepEqual(b, c)).to.be.true()
+        expect(Utils.deepEqual(c, a)).to.be.true()
+        expect(Utils.deepEqual(c, b)).to.be.true()
         b.x.y = 1
-        expect(Hoek.deepEqual(a, b)).to.be.false()
-        expect(Hoek.deepEqual(b, a)).to.be.false()
+        expect(Utils.deepEqual(a, b)).to.be.false()
+        expect(Utils.deepEqual(b, a)).to.be.false()
     })
 
     it('handles cross circular dependency', () => {
@@ -1308,11 +1308,11 @@ describe('deepEqual()', () => {
         b.x.y = b.x
         a.x = b
         a.y = a
-        expect(Hoek.deepEqual(b, a)).to.be.true()
-        expect(Hoek.deepEqual(a, b)).to.be.true()
+        expect(Utils.deepEqual(b, a)).to.be.true()
+        expect(Utils.deepEqual(a, b)).to.be.true()
         b.x.y = 1
-        expect(Hoek.deepEqual(b, a)).to.be.false()
-        expect(Hoek.deepEqual(a, b)).to.be.false()
+        expect(Utils.deepEqual(b, a)).to.be.false()
+        expect(Utils.deepEqual(a, b)).to.be.false()
     })
 
     it('handles reuse of objects', () => {
@@ -1320,7 +1320,7 @@ describe('deepEqual()', () => {
         const date1 = { year: 2018, month: 1, day: 1 }
         const date2 = { year: 2000, month: 1, day: 1 }
 
-        expect(Hoek.deepEqual({ start: date1, end: date1 }, { start: date1, end: date2 })).to.be.false()
+        expect(Utils.deepEqual({ start: date1, end: date1 }, { start: date1, end: date2 })).to.be.false()
     })
 
     it('handles valueOf() that throws', () => {
@@ -1338,10 +1338,10 @@ describe('deepEqual()', () => {
             }
         }
 
-        expect(Hoek.deepEqual(new throwing('a'), new throwing('a'))).to.be.true()
-        expect(Hoek.deepEqual(new throwing('a'), new throwing('b'))).to.be.false()
-        expect(Hoek.deepEqual(new throwing('a'), { value: 'a' }, { prototype: false })).to.be.false()
-        expect(Hoek.deepEqual({ value: 'a' }, new throwing('a'), { prototype: false })).to.be.false()
+        expect(Utils.deepEqual(new throwing('a'), new throwing('a'))).to.be.true()
+        expect(Utils.deepEqual(new throwing('a'), new throwing('b'))).to.be.false()
+        expect(Utils.deepEqual(new throwing('a'), { value: 'a' }, { prototype: false })).to.be.false()
+        expect(Utils.deepEqual({ value: 'a' }, new throwing('a'), { prototype: false })).to.be.false()
     })
 
     it('handles valueOf() that returns similar value', () => {
@@ -1359,12 +1359,12 @@ describe('deepEqual()', () => {
             }
         }
 
-        expect(Hoek.deepEqual(new identity('a'), new identity('a'))).to.be.true()
-        expect(Hoek.deepEqual(new identity('a'), new identity('b'))).to.be.false()
-        expect(Hoek.deepEqual(new identity('a'), { value: 'a' }, { prototype: true })).to.be.false()
-        expect(Hoek.deepEqual(new identity('a'), { value: 'a' }, { prototype: false })).to.be.true()
-        expect(Hoek.deepEqual({ value: 'a' }, new identity('a'), { prototype: true })).to.be.false()
-        expect(Hoek.deepEqual({ value: 'a' }, new identity('a'), { prototype: false })).to.be.true()
+        expect(Utils.deepEqual(new identity('a'), new identity('a'))).to.be.true()
+        expect(Utils.deepEqual(new identity('a'), new identity('b'))).to.be.false()
+        expect(Utils.deepEqual(new identity('a'), { value: 'a' }, { prototype: true })).to.be.false()
+        expect(Utils.deepEqual(new identity('a'), { value: 'a' }, { prototype: false })).to.be.true()
+        expect(Utils.deepEqual({ value: 'a' }, new identity('a'), { prototype: true })).to.be.false()
+        expect(Utils.deepEqual({ value: 'a' }, new identity('a'), { prototype: false })).to.be.true()
     })
 
     it('skips enumerable properties on prototype chain', () => {
@@ -1384,12 +1384,12 @@ describe('deepEqual()', () => {
         })
 
         expect('enum' in new base('a')).to.be.true()
-        expect(Hoek.deepEqual(new base('a'), new base('a'))).to.be.true()
-        expect(Hoek.deepEqual(new base('a'), new base('b'))).to.be.false()
-        expect(Hoek.deepEqual(new base('a'), { value: 'a' }, { prototype: false })).to.be.true()
-        expect(Hoek.deepEqual({ value: 'a' }, new base('a'), { prototype: false })).to.be.true()
-        expect(Hoek.deepEqual(new base('a', 1), { value: 'a', enum: true }, { prototype: false })).to.be.false()
-        expect(Hoek.deepEqual({ value: 'a', enum: true }, new base('a', 1), { prototype: false })).to.be.false()
+        expect(Utils.deepEqual(new base('a'), new base('a'))).to.be.true()
+        expect(Utils.deepEqual(new base('a'), new base('b'))).to.be.false()
+        expect(Utils.deepEqual(new base('a'), { value: 'a' }, { prototype: false })).to.be.true()
+        expect(Utils.deepEqual({ value: 'a' }, new base('a'), { prototype: false })).to.be.true()
+        expect(Utils.deepEqual(new base('a', 1), { value: 'a', enum: true }, { prototype: false })).to.be.false()
+        expect(Utils.deepEqual({ value: 'a', enum: true }, new base('a', 1), { prototype: false })).to.be.false()
     })
 
     it('skips non-enumerable properties', () => {
@@ -1415,12 +1415,12 @@ describe('deepEqual()', () => {
             return obj
         }
 
-        expect(Hoek.deepEqual(createObj('a'), createObj('a'))).to.be.true()
-        expect(Hoek.deepEqual(createObj('a'), createObj('b'))).to.be.false()
-        expect(Hoek.deepEqual(createObj('a'), { value: 'a' }, { prototype: false })).to.be.true()
-        expect(Hoek.deepEqual({ value: 'a' }, createObj('a'), { prototype: false })).to.be.true()
-        expect(Hoek.deepEqual(createObj('a', 1), { value: 'a', hidden: true }, { prototype: false })).to.be.false()
-        expect(Hoek.deepEqual({ value: 'a', hidden: true }, createObj('a', 1), { prototype: false })).to.be.false()
+        expect(Utils.deepEqual(createObj('a'), createObj('a'))).to.be.true()
+        expect(Utils.deepEqual(createObj('a'), createObj('b'))).to.be.false()
+        expect(Utils.deepEqual(createObj('a'), { value: 'a' }, { prototype: false })).to.be.true()
+        expect(Utils.deepEqual({ value: 'a' }, createObj('a'), { prototype: false })).to.be.true()
+        expect(Utils.deepEqual(createObj('a', 1), { value: 'a', hidden: true }, { prototype: false })).to.be.false()
+        expect(Utils.deepEqual({ value: 'a', hidden: true }, createObj('a', 1), { prototype: false })).to.be.false()
     })
 
     it('compares an object with property getter while executing it', () => {
@@ -1439,8 +1439,8 @@ describe('deepEqual()', () => {
             }
         })
 
-        const copy = Hoek.clone(obj)
-        expect(Hoek.deepEqual(obj, copy)).to.be.true()
+        const copy = Utils.clone(obj)
+        expect(Utils.deepEqual(obj, copy)).to.be.true()
         expect(execCount).to.equal(2)
         expect(copy.test).to.equal(1)
         expect(execCount).to.equal(3)
@@ -1468,7 +1468,7 @@ describe('deepEqual()', () => {
             }
         })
 
-        expect(Hoek.deepEqual(obj, ref)).to.be.false()
+        expect(Utils.deepEqual(obj, ref)).to.be.false()
     })
 
     it('compares object prototypes', () => {
@@ -1493,9 +1493,9 @@ describe('deepEqual()', () => {
             return this.a
         }
 
-        expect(Hoek.deepEqual(new Obj(), new Ref())).to.be.false()
-        expect(Hoek.deepEqual(new Obj(), new Obj())).to.be.true()
-        expect(Hoek.deepEqual(new Ref(), new Ref())).to.be.true()
+        expect(Utils.deepEqual(new Obj(), new Ref())).to.be.false()
+        expect(Utils.deepEqual(new Obj(), new Obj())).to.be.true()
+        expect(Utils.deepEqual(new Ref(), new Ref())).to.be.true()
     })
 
     it('compares plain objects', () => {
@@ -1506,16 +1506,16 @@ describe('deepEqual()', () => {
         a.b = 'c'
         b.b = 'c'
 
-        expect(Hoek.deepEqual(a, b)).to.be.true()
-        expect(Hoek.deepEqual(a, { b: 'c' })).to.be.false()
+        expect(Utils.deepEqual(a, b)).to.be.true()
+        expect(Utils.deepEqual(a, { b: 'c' })).to.be.false()
     })
 
     it('compares an object with an empty object', () => {
 
         const a = { a: 1, b: 2 }
 
-        expect(Hoek.deepEqual({}, a)).to.be.false()
-        expect(Hoek.deepEqual(a, {})).to.be.false()
+        expect(Utils.deepEqual({}, a)).to.be.false()
+        expect(Utils.deepEqual(a, {})).to.be.false()
     })
 
     it('compares an object ignoring the prototype', () => {
@@ -1523,7 +1523,7 @@ describe('deepEqual()', () => {
         const a = Object.create(null)
         const b = {}
 
-        expect(Hoek.deepEqual(a, b, { prototype: false })).to.be.true()
+        expect(Utils.deepEqual(a, b, { prototype: false })).to.be.true()
     })
 
     it('compares an object ignoring the prototype recursively', () => {
@@ -1531,7 +1531,7 @@ describe('deepEqual()', () => {
         const a = [Object.create(null)]
         const b = [{}]
 
-        expect(Hoek.deepEqual(a, b, { prototype: false })).to.be.true()
+        expect(Utils.deepEqual(a, b, { prototype: false })).to.be.true()
     })
 })
 
@@ -1564,128 +1564,128 @@ describe('reach()', () => {
 
     it('returns object itself', () => {
 
-        expect(Hoek.reach(obj, null)).to.equal(obj)
-        expect(Hoek.reach(obj, false)).to.equal(obj)
-        expect(Hoek.reach(obj)).to.equal(obj)
-        expect(Hoek.reach(obj, [])).to.equal(obj)
+        expect(Utils.reach(obj, null)).to.equal(obj)
+        expect(Utils.reach(obj, false)).to.equal(obj)
+        expect(Utils.reach(obj)).to.equal(obj)
+        expect(Utils.reach(obj, [])).to.equal(obj)
     })
 
     it('returns values of array', () => {
 
-        expect(Hoek.reach(obj, 'k.0')).to.equal(4)
-        expect(Hoek.reach(obj, 'k.1')).to.equal(8)
+        expect(Utils.reach(obj, 'k.0')).to.equal(4)
+        expect(Utils.reach(obj, 'k.1')).to.equal(8)
     })
 
     it('returns last value of array using negative index', () => {
 
-        expect(Hoek.reach(obj, 'k.-1')).to.equal(1)
-        expect(Hoek.reach(obj, 'k.-2')).to.equal(9)
+        expect(Utils.reach(obj, 'k.-1')).to.equal(1)
+        expect(Utils.reach(obj, 'k.-2')).to.equal(9)
     })
 
     it('returns object property with negative index for non-array', () => {
 
-        expect(Hoek.reach(obj, 'a.-2')).to.be.equal(true)
+        expect(Utils.reach(obj, 'a.-2')).to.be.equal(true)
     })
 
     it('returns a valid member', () => {
 
-        expect(Hoek.reach(obj, 'a.b.c.d')).to.equal(1)
+        expect(Utils.reach(obj, 'a.b.c.d')).to.equal(1)
     })
 
     it('returns a valid member with separator override', () => {
 
-        expect(Hoek.reach(obj, 'a/b/c/d', '/')).to.equal(1)
+        expect(Utils.reach(obj, 'a/b/c/d', '/')).to.equal(1)
     })
 
     it('returns undefined on null object', () => {
 
-        expect(Hoek.reach(null, 'a.b.c.d')).to.equal(undefined)
+        expect(Utils.reach(null, 'a.b.c.d')).to.equal(undefined)
     })
 
     it('returns undefined on missing object member', () => {
 
-        expect(Hoek.reach(obj, 'a.b.c.d.x')).to.equal(undefined)
+        expect(Utils.reach(obj, 'a.b.c.d.x')).to.equal(undefined)
     })
 
     it('returns undefined on missing function member', () => {
 
-        expect(Hoek.reach(obj, 'i.y', { functions: true })).to.equal(undefined)
+        expect(Utils.reach(obj, 'i.y', { functions: true })).to.equal(undefined)
     })
 
     it('throws on missing member in strict mode', () => {
 
         expect(() => {
 
-            Hoek.reach(obj, 'a.b.c.o.x', { strict: true })
+            Utils.reach(obj, 'a.b.c.o.x', { strict: true })
         }).to.throw('Missing segment o in reach path  a.b.c.o.x')
 
     })
 
     it('returns undefined on invalid member', () => {
 
-        expect(Hoek.reach(obj, 'a.b.c.d-.x')).to.equal(undefined)
-        expect(Hoek.reach(obj, 'k.x')).to.equal(undefined)
-        expect(Hoek.reach(obj, 'k.1000')).to.equal(undefined)
-        expect(Hoek.reach(obj, 'k/0.5', '/')).to.equal(undefined)
+        expect(Utils.reach(obj, 'a.b.c.d-.x')).to.equal(undefined)
+        expect(Utils.reach(obj, 'k.x')).to.equal(undefined)
+        expect(Utils.reach(obj, 'k.1000')).to.equal(undefined)
+        expect(Utils.reach(obj, 'k/0.5', '/')).to.equal(undefined)
     })
 
     it('returns function member', () => {
 
-        expect(typeof Hoek.reach(obj, 'i')).to.equal('function')
+        expect(typeof Utils.reach(obj, 'i')).to.equal('function')
     })
 
     it('returns function property', () => {
 
-        expect(Hoek.reach(obj, 'i.x')).to.equal(5)
+        expect(Utils.reach(obj, 'i.x')).to.equal(5)
     })
 
     it('returns null', () => {
 
-        expect(Hoek.reach(obj, 'j')).to.equal(null)
+        expect(Utils.reach(obj, 'j')).to.equal(null)
     })
 
     it('throws on function property when functions not allowed', () => {
 
         expect(() => {
 
-            Hoek.reach(obj, 'i.x', { functions: false })
+            Utils.reach(obj, 'i.x', { functions: false })
         }).to.throw('Invalid segment x in reach path  i.x')
     })
 
     it('will return a default value if property is not found', () => {
 
-        expect(Hoek.reach(obj, 'a.b.q', { default: 'defaultValue' })).to.equal('defaultValue')
+        expect(Utils.reach(obj, 'a.b.q', { default: 'defaultValue' })).to.equal('defaultValue')
     })
 
     it('will return a default value if path is not found', () => {
 
-        expect(Hoek.reach(obj, 'q', { default: 'defaultValue' })).to.equal('defaultValue')
+        expect(Utils.reach(obj, 'q', { default: 'defaultValue' })).to.equal('defaultValue')
     })
 
     it('allows a falsey value to be used as the default value', () => {
 
-        expect(Hoek.reach(obj, 'q', { default: '' })).to.equal('')
+        expect(Utils.reach(obj, 'q', { default: '' })).to.equal('')
     })
 
     it('allows array-based lookup', () => {
 
-        expect(Hoek.reach(obj, ['a', 'b', 'c', 'd'])).to.equal(1)
-        expect(Hoek.reach(obj, ['k', '1'])).to.equal(8)
-        expect(Hoek.reach(obj, ['k', 1])).to.equal(8)
-        expect(Hoek.reach(obj, ['k', '-2'])).to.equal(9)
-        expect(Hoek.reach(obj, ['k', -2])).to.equal(9)
+        expect(Utils.reach(obj, ['a', 'b', 'c', 'd'])).to.equal(1)
+        expect(Utils.reach(obj, ['k', '1'])).to.equal(8)
+        expect(Utils.reach(obj, ['k', 1])).to.equal(8)
+        expect(Utils.reach(obj, ['k', '-2'])).to.equal(9)
+        expect(Utils.reach(obj, ['k', -2])).to.equal(9)
     })
 
     it('allows array-based lookup with symbols', () => {
 
-        expect(Hoek.reach(obj, ['a', sym, 'v'])).to.equal(true)
-        expect(Hoek.reach(obj, ['a', Symbol(), 'v'])).to.equal(undefined)
+        expect(Utils.reach(obj, ['a', sym, 'v'])).to.equal(true)
+        expect(Utils.reach(obj, ['a', Symbol(), 'v'])).to.equal(undefined)
     })
 
     it('returns character in string', () => {
 
-        expect(Hoek.reach(['abc'], [0])).to.equal('abc')
-        expect(Hoek.reach(['abc'], ['0'])).to.equal('abc')
+        expect(Utils.reach(['abc'], [0])).to.equal('abc')
+        expect(Utils.reach(['abc'], ['0'])).to.equal('abc')
     })
 
     it('reaches sets and maps', () => {
@@ -1705,8 +1705,8 @@ describe('reach()', () => {
             }
         }
 
-        expect(Hoek.reach(value, 'a.b.2.y.w')).to.not.exist()
-        expect(Hoek.reach(value, 'a.b.2.y.w', { iterables: true })).to.equal(5)
+        expect(Utils.reach(value, 'a.b.2.y.w')).to.not.exist()
+        expect(Utils.reach(value, 'a.b.2.y.w', { iterables: true })).to.equal(5)
     })
 })
 
@@ -1716,54 +1716,54 @@ describe('assert()', () => {
 
         expect(() => {
 
-            Hoek.assert(false, 'my error message')
-        }).to.throw(Hoek.AssertError, 'my error message')
+            Utils.assert(false, 'my error message')
+        }).to.throw(Utils.AssertError, 'my error message')
     })
 
     it('throws an Error when using assert in a test with no message', () => {
 
         expect(() => {
 
-            Hoek.assert(false)
-        }).to.throw(Hoek.AssertError, 'Unknown error')
+            Utils.assert(false)
+        }).to.throw(Utils.AssertError, 'Unknown error')
     })
 
     it('throws an Error when using assert in a test with multipart message', () => {
 
         expect(() => {
 
-            Hoek.assert(false, 'This', 'is', 'my message')
-        }).to.throw(Hoek.AssertError, 'This is my message')
+            Utils.assert(false, 'This', 'is', 'my message')
+        }).to.throw(Utils.AssertError, 'This is my message')
     })
 
     it('throws an Error when using assert in a test with multipart message (empty)', () => {
 
         expect(() => {
 
-            Hoek.assert(false, 'This', 'is', '', 'my message')
-        }).to.throw(Hoek.AssertError, 'This is my message')
+            Utils.assert(false, 'This', 'is', '', 'my message')
+        }).to.throw(Utils.AssertError, 'This is my message')
     })
 
     it('throws an Error when using assert in a test with object message', () => {
 
         expect(() => {
 
-            Hoek.assert(false, 'This', 'is', { spinal: 'tap' })
-        }).to.throw(Hoek.AssertError, 'This is {"spinal":"tap"}')
+            Utils.assert(false, 'This', 'is', { spinal: 'tap' })
+        }).to.throw(Utils.AssertError, 'This is {"spinal":"tap"}')
     })
 
     it('throws an Error when using assert in a test with multipart string and error messages', () => {
 
         expect(() => {
 
-            Hoek.assert(false, new Error('This'), 'is', 'spinal', new Error('tap'))
-        }).to.throw(Hoek.AssertError, 'This is spinal tap')
+            Utils.assert(false, new Error('This'), 'is', 'spinal', new Error('tap'))
+        }).to.throw(Utils.AssertError, 'This is spinal tap')
     })
 
     it('throws an Error when using assert in a test with error object message', () => {
 
         const err = new TypeError('This is spinal tap')
-        const got = expect(() => Hoek.assert(false, err)).to.throw(TypeError, 'This is spinal tap')
+        const got = expect(() => Utils.assert(false, err)).to.throw(TypeError, 'This is spinal tap')
         expect(got).to.shallow.equal(err)
     })
 
@@ -1774,7 +1774,7 @@ describe('assert()', () => {
 
         const fn = function () {
 
-            Hoek.assert(false, error)
+            Utils.assert(false, error)
         }
 
         try {
@@ -1791,25 +1791,25 @@ describe('AssertError', () => {
 
     it('takes an optional message', () => {
 
-        expect(new Hoek.AssertError().message).to.equal('Unknown error')
-        expect(new Hoek.AssertError(null).message).to.equal('Unknown error')
-        expect(new Hoek.AssertError('msg').message).to.equal('msg')
+        expect(new Utils.AssertError().message).to.equal('Unknown error')
+        expect(new Utils.AssertError(null).message).to.equal('Unknown error')
+        expect(new Utils.AssertError('msg').message).to.equal('msg')
     })
 
     it('has AssertError name property', () => {
 
-        expect(new Hoek.AssertError().name).to.equal('AssertError')
-        expect(new Hoek.AssertError('msg').name).to.equal('AssertError')
+        expect(new Utils.AssertError().name).to.equal('AssertError')
+        expect(new Utils.AssertError('msg').name).to.equal('AssertError')
     })
 
     it('uses ctor argument to hide stack', { skip: typeof Error.captureStackTrace !== 'function' }, () => {
 
         const parentFn = () => {
 
-            throw new Hoek.AssertError('msg', parentFn)
+            throw new Utils.AssertError('msg', parentFn)
         }
 
-        const err = expect(parentFn).to.throw(Hoek.AssertError)
+        const err = expect(parentFn).to.throw(Utils.AssertError)
 
         expect(err.stack).to.not.contain('parentFn')
     })
@@ -1819,7 +1819,7 @@ describe('escapeRegex()', () => {
 
     it('escapes all special regular expression characters', () => {
 
-        const a = Hoek.escapeRegex('4^f$s.4*5+-_?%=#!:@|~\\/`"(>)[<]d{}s,')
+        const a = Utils.escapeRegex('4^f$s.4*5+-_?%=#!:@|~\\/`"(>)[<]d{}s,')
         expect(a).to.equal('4\\^f\\$s\\.4\\*5\\+\\-_\\?%\\=#\\!\\:@\\|~\\\\\\/`"\\(>\\)\\[<\\]d\\{\\}s\\,')
     })
 })
@@ -1828,19 +1828,19 @@ describe('escapeHtml()', () => {
 
     it('escapes all special HTML characters', () => {
 
-        const a = Hoek.escapeHtml('&<>"\'`')
+        const a = Utils.escapeHtml('&<>"\'`')
         expect(a).to.equal('&amp;&lt;&gt;&quot;&#x27;&#x60;')
     })
 
     it('returns empty string on falsy input', () => {
 
-        const a = Hoek.escapeHtml('')
+        const a = Utils.escapeHtml('')
         expect(a).to.equal('')
     })
 
     it('returns unchanged string on no reserved input', () => {
 
-        const a = Hoek.escapeHtml('abc')
+        const a = Utils.escapeHtml('abc')
         expect(a).to.equal('abc')
     })
 })
@@ -1849,8 +1849,8 @@ describe('ignore()', () => {
 
     it('exists', () => {
 
-        expect(Hoek.ignore).to.exist()
-        expect(typeof Hoek.ignore).to.equal('function')
+        expect(Utils.ignore).to.exist()
+        expect(typeof Utils.ignore).to.equal('function')
     })
 })
 
@@ -1859,13 +1859,13 @@ describe('stringify()', () => {
     it('converts object to string', () => {
 
         const obj = { a: 1 }
-        expect(Hoek.stringify(obj)).to.equal('{"a":1}')
+        expect(Utils.stringify(obj)).to.equal('{"a":1}')
     })
 
     it('returns error in result string', () => {
 
         const obj = { a: 1 }
         obj.b = obj
-        expect(Hoek.stringify(obj)).to.contain('Cannot display object')
+        expect(Utils.stringify(obj)).to.contain('Cannot display object')
     })
 })

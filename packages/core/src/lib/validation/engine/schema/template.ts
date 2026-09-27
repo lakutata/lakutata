@@ -1,9 +1,9 @@
 /**
  * Derived from the upstream lib/template.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
-import {clone, escapeHtml, isArray} from '../hoek/index.js'
+import {clone, escapeHtml, isArray} from '../utils/index.js'
 import {assert, definitionException} from './assert.js'
-import {type FormulaConstant, type FormulaEvaluator, type FormulaFunction, Parser} from '../formula/index.js'
+import {type ExpressionConstant, type ExpressionEvaluator, type ExpressionFunction, Parser} from '../expression/index.js'
 import * as Common from './common.js'
 import * as Errors from './errors.js'
 import {Lazy} from './lazy.js'
@@ -25,16 +25,16 @@ const dateFormat: Record<DateFormat, (this: Date) => string> = {
 }
 
 /**
- * Options of a template: reference options, and functions callable from the template formulas
+ * Options of a template: reference options, and functions callable from the template expressions
  */
 export interface TemplateOptions extends Ref.RefOptions {
-    functions?: Record<string, FormulaFunction>
+    functions?: Record<string, ExpressionFunction>
 }
 
 export interface TemplateDescription {
     template: string
     options?: Ref.RefOptions
-    functions?: Record<string, FormulaFunction>
+    functions?: Record<string, ExpressionFunction>
 }
 
 /**
@@ -47,7 +47,7 @@ export interface RenderOptions extends Ref.ResolveOptions {
 }
 
 /**
- * The arguments a template resolves with, also the `this` of its formula functions
+ * The arguments a template resolves with, also the `this` of its expression functions
  */
 type RenderContext = [value: unknown, state: StateLike, prefs: Preferences, local: unknown, options: RenderOptions]
 
@@ -58,19 +58,19 @@ interface RefPart {
     wrapped: boolean
 }
 
-interface FormulaPart {
-    formula: Parser
+interface ExpressionPart {
+    expression: Parser
     raw: boolean
     refs: Ref.Ref[]
     wrapped?: undefined
     ref?: undefined
 }
 
-type DynamicPart = RefPart | FormulaPart
+type DynamicPart = RefPart | ExpressionPart
 
 type TemplatePart = string | DynamicPart
 
-const constants: Record<string, FormulaConstant> = {
+const constants: Record<string, ExpressionConstant> = {
     true: true,
     false: false,
     null: null,
@@ -80,7 +80,7 @@ const constants: Record<string, FormulaConstant> = {
     day: 24 * 60 * 60 * 1000
 }
 
-const functions: Record<string, FormulaFunction> = {
+const functions: Record<string, ExpressionFunction> = {
     if(condition: unknown, then: unknown, otherwise: unknown): unknown {
         return condition ? then : otherwise
     },
@@ -171,7 +171,7 @@ function stringify(value: unknown, original?: unknown, state?: StateLike, prefs?
 }
 
 /**
- * A message template: text with {references} and {{escaped references}}, which may be formulas
+ * A message template: text with {references} and {{escaped references}}, which may be expressions
  */
 export class Template {
 
@@ -185,7 +185,7 @@ export class Template {
 
     protected _settings: Ref.RefOptions | undefined
 
-    protected _functions: Record<string, FormulaFunction> | undefined
+    protected _functions: Record<string, ExpressionFunction> | undefined
 
     constructor(source: string, options?: TemplateOptions) {
         assert(typeof source === 'string', 'Template source must be a string')
@@ -285,7 +285,7 @@ export class Template {
 
     protected _part(part: DynamicPart, context: RenderContext): unknown {
         if (part.ref) return part.ref.resolve(...context)
-        return (part as FormulaPart).formula.evaluate(context)
+        return (part as ExpressionPart).expression.evaluate(context)
     }
 
     public render(value: unknown, state: StateLike, prefs: Preferences, local: unknown, options: RenderOptions = {}): string {
@@ -308,7 +308,7 @@ export class Template {
 
     protected _ref(content: string, {raw, wrapped}: { raw: boolean, wrapped: boolean }): string | DynamicPart {
         const refs: Ref.Ref[] = []
-        const reference = (variable: string): FormulaEvaluator => {
+        const reference = (variable: string): ExpressionEvaluator => {
             const ref: Ref.Ref = Ref.create(variable, this._settings)
             refs.push(ref)
             return (context: unknown): unknown => {
@@ -316,21 +316,21 @@ export class Template {
                 return resolved !== undefined ? resolved : null
             }
         }
-        let formula: Parser
+        let expression: Parser
         try {
-            const templateFunctions: Record<string, FormulaFunction> = this._functions ? {...functions, ...this._functions} : functions
-            formula = new Parser(content, {reference, functions: templateFunctions, constants})
+            const templateFunctions: Record<string, ExpressionFunction> = this._functions ? {...functions, ...this._functions} : functions
+            expression = new Parser(content, {reference, functions: templateFunctions, constants})
         } catch (err) {
             throw definitionException(`Invalid template variable "${content}" fails due to: ${(err as Error).message}`, Template.prototype._ref, err)
         }
-        if (formula.single) {
-            if (formula.single.type === 'reference') {
+        if (expression.single) {
+            if (expression.single.type === 'reference') {
                 const ref: Ref.Ref = refs[0]
                 return {ref, raw, refs, wrapped: wrapped || ref.type === 'local' && ref.key === 'label'}
             }
-            return stringify(formula.single.value) as string
+            return stringify(expression.single.value) as string
         }
-        return {formula, raw, refs}
+        return {expression, raw, refs}
     }
 
     public toString(): string {
@@ -339,7 +339,7 @@ export class Template {
 }
 
 Object.defineProperty(Template.prototype, Common.symbols.template, {value: true, writable: true, enumerable: true, configurable: true})
-//Prevents Hoek from deep cloning schema objects
+//Prevents clone() from deep cloning schema objects
 Object.defineProperty(Template.prototype, 'isImmutable', {value: true, writable: true, enumerable: true, configurable: true})
 
 Lazy.template = Template

@@ -1,7 +1,7 @@
 /**
  * Derived from the upstream lib/state.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
-import {clone, reach} from '../hoek/index.js'
+import {clone, reach} from '../utils/index.js'
 import * as Common from './common.js'
 import type {PathKey, StateLike} from './model.js'
 import type {Mainstay} from './validator.js'

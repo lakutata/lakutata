@@ -1,5 +1,5 @@
 /**
- * Derived from @hapi/hoek 11.0.7 lib/utils.js (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream lib/utils.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
 
 /**

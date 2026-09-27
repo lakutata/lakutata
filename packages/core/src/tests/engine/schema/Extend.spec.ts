@@ -6,7 +6,7 @@
 // @ts-nocheck
 import {describe, it} from 'node:test'
 import {expect} from '../support/Expect.js'
-const Bourne = { parse: JSON.parse }  // adapted: @hapi/bourne (safe JSON.parse) is not a dependency; the parsed test inputs contain no prototype keys
+const SafeJson = { parse: JSON.parse }  // adapted: the safe JSON parser of the upstream tests is not a dependency; the parsed test inputs contain no prototype keys
 import Engine from '../../../lib/validation/engine/schema/index.js'
 import * as Helper from './Helper.js'
 const internals = {}
@@ -1524,7 +1524,7 @@ describe('extension', () => {
                     }
 
                     try {
-                        return { value: Bourne.parse(value) }
+                        return { value: SafeJson.parse(value) }
                     }
                     catch { }
                 }
@@ -1573,7 +1573,7 @@ describe('extension', () => {
                     }
 
                     try {
-                        return { value: Bourne.parse(value) }
+                        return { value: SafeJson.parse(value) }
                     }
                     catch { }
                 }

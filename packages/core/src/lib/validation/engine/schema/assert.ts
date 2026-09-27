@@ -1,10 +1,10 @@
 /**
  * Assertions of the schema definitions: a failed assertion throws a SchemaDefinitionException (the message is built like
- * the assertions of hoek, see hoek/assert.ts)
+ * the assertions of the utilities, see utils/assert.ts)
  */
 import {Exception} from '../../../foundation/Exception.js'
 import {SchemaDefinitionException} from '../../exceptions/SchemaDefinitionException.js'
-import {AssertError, stringify} from '../hoek/index.js'
+import {AssertError, stringify} from '../utils/index.js'
 
 /**
  * A definition exception, with the stack from the caller of the given function
@@ -44,7 +44,7 @@ export function assert(condition: unknown, ...args: unknown[]): asserts conditio
 }
 
 /**
- * Call a utility (hoek, topo, address) with definition inputs: its assertion errors become definition exceptions
+ * Call a utility (utils, sorter, address) with definition inputs: its assertion errors become definition exceptions
  * @param fn
  */
 export function definition<T>(fn: () => T): T {

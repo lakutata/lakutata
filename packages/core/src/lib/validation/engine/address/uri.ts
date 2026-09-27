@@ -1,7 +1,7 @@
 /**
- * Derived from @hapi/address 5.1.1 src/uri.ts (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream src/uri.ts (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
-import { assert, escapeRegex } from '../hoek/index.js'
+import { assert, escapeRegex } from '../utils/index.js'
 
 interface RFC3986 {
     ipv4address: string

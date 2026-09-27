@@ -1,8 +1,8 @@
 /**
- * Derived from @hapi/hoek 11.0.7 lib/contain.js (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream lib/contain.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  * Test support only: used by expect().to.include()
  */
-import {assert, deepEqual, escapeRegex, type Indexable, isArray, keys} from '../../../lib/validation/engine/hoek/index.js'
+import {assert, deepEqual, escapeRegex, type Indexable, isArray, keys} from '../../../lib/validation/engine/utils/index.js'
 
 export interface ContainOptions {
     deep?: boolean

@@ -1,5 +1,5 @@
 /**
- * Derived from @hapi/address 5.1.1 src/index.ts (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream src/index.ts (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
 export * from './domain.js'
 export * from './email.js'

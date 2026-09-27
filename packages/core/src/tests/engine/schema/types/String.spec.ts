@@ -7919,7 +7919,7 @@ describe('string', () => {
                 ['https://google.com', true],
                 ['ftp://google.com', true],
                 ['file:/asdf', true],
-                ['git+http://github.com/hapijs/hoek', true],
+                ['git+http://github.com/nodejs/node', true],
                 ['/path?query=value#hash', false, {
                     message: '"value" must be a valid uri with a scheme matching the https?|ftp|file|git\\+http pattern',
                     path: [],

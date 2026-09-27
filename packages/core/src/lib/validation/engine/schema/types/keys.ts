@@ -1,9 +1,9 @@
 /**
  * Derived from the upstream lib/types/keys.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
-import {applyToDefaults, clone as Clone} from '../../hoek/index.js'
+import {applyToDefaults, clone as Clone} from '../../utils/index.js'
 import {assert, definition} from '../assert.js'
-import * as Topo from '../../topo/index.js'
+import * as Sorting from '../../sorter/index.js'
 import type {Base, DefaultOptions, SchemaTerms} from '../base.js'
 import * as Common from '../common.js'
 import * as Compile from '../compile.js'
@@ -551,11 +551,11 @@ const KeysType: KeysSchema = Any.extend<KeysSchema>({
 
     rebuild(schema: KeysSchema): void {
         if (schema.$_terms.keys) {
-            const topo: Topo.Sorter<KeysChild> = new Topo.Sorter()
+            const sorter: Sorting.Sorter<KeysChild> = new Sorting.Sorter()
             for (const child of schema.$_terms.keys) {
-                Common.tryWithPath((): KeysChild[] => definition((): KeysChild[] => topo.add(child, {after: child.schema.$_rootReferences() as string[], group: child.key})), child.key)
+                Common.tryWithPath((): KeysChild[] => definition((): KeysChild[] => sorter.add(child, {after: child.schema.$_rootReferences() as string[], group: child.key})), child.key)
             }
-            schema.$_terms.keys = new Keys(...topo.nodes)
+            schema.$_terms.keys = new Keys(...sorter.nodes)
         }
     },
 

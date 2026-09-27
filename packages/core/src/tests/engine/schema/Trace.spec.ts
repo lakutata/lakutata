@@ -9,14 +9,14 @@ import {readFileSync} from 'node:fs'
 import {fileURLToPath} from 'node:url'
 import {expect} from '../support/Expect.js'
 import Engine from '../../../lib/validation/engine/schema/index.js'
-import * as Pinpoint from '../../../lib/validation/engine/pinpoint/index.js'
+import * as Locator from '../../../lib/validation/engine/location/index.js'
 const internals = {}
 
 //Adapted: ESM has no __filename; the tracer records file names from stack frames (file:// URLs in ESM), so the
 //expected name comes from the same source
-const __filename = Pinpoint.location().filename
+const __filename = Locator.location().filename
 
-//Adapted: upstream expects `Pinpoint.location().line - n`, which relies on the blank lines of the source file (the
+//Adapted: upstream expects `Locator.location().line - n`, which relies on the blank lines of the source file (the
 //TypeScript compiler drops them); the expected line is looked up in the compiled file instead
 const compiledLines = readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').map((line) => line.trim().replace(/;$/, ''))
 const lineOf = (text, occurrence) => {

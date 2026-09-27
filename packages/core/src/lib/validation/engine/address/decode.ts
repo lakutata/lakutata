@@ -1,5 +1,5 @@
 /**
- * Derived from @hapi/address 5.1.1 src/decode.ts (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream src/decode.ts (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
 const HEX: Record<string, number> = {
     '0': 0,

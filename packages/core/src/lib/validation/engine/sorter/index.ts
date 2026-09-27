@@ -1,7 +1,7 @@
 /**
- * Derived from @hapi/topo 6.0.2 lib/index.js (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream lib/index.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
-import {assert} from '../hoek/index.js'
+import {assert} from '../utils/index.js'
 
 export interface SorterOptions {
     /**
@@ -164,7 +164,7 @@ export class Sorter<T> {
                 ancestors[child].push(node)
             }
         }
-        //Topo sort
+        //Topological sort
         const visited: Record<string, boolean> = {}
         const sorted: number[] = []
         //Looping through item.seq values out of order

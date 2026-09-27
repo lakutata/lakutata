@@ -1,7 +1,7 @@
 /**
  * Derived from the upstream lib/base.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
-import {clone, deepEqual, merge} from '../hoek/index.js'
+import {clone, deepEqual, merge} from '../utils/index.js'
 import {assert} from './assert.js'
 import {SchemaValidationException} from '../../exceptions/SchemaValidationException.js'
 import * as Cache from './cache.js'
@@ -169,7 +169,7 @@ export class Base implements SchemaInternals {
     //Set on the prototype of the types with overrides: the prototype of their parent type
     declare public _super: Record<string, Function>
 
-    //Prevents Hoek from deep cloning schema objects (must be on prototype)
+    //Prevents clone() from deep cloning schema objects (must be on prototype)
     declare public isImmutable: true
 
     declare public deny: Base['invalid']
@@ -956,7 +956,7 @@ Object.defineProperty(Base.prototype, Common.symbols.any, {
     configurable: true
 })
 
-//Prevents Hoek from deep cloning schema objects (must be on prototype)
+//Prevents clone() from deep cloning schema objects (must be on prototype)
 Object.defineProperty(Base.prototype, 'isImmutable', {value: true, writable: true, enumerable: true, configurable: true})
 
 //Aliases

@@ -1,5 +1,5 @@
 /**
- * Derived from @hapi/address 5.1.1 src/domain.ts (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream src/domain.ts (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
 import * as Url from 'node:url'
 

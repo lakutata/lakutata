@@ -139,10 +139,10 @@ describe('Template', () => {
 
     describe('_ref()', () => {
 
-        it('errors on template with invalid formula', () => {
+        it('errors on template with invalid expression', () => {
 
             const source = '{x +}'
-            expect(() => Engine.x(source)).to.throw('Invalid template variable "x +" fails due to: Formula contains invalid trailing operator')
+            expect(() => Engine.x(source)).to.throw('Invalid template variable "x +" fails due to: Expression contains invalid trailing operator')
         })
     })
 

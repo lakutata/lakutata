@@ -1,7 +1,7 @@
 /**
  * Derived from the upstream lib/messages.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
-import {clone, isArray} from '../hoek/index.js'
+import {clone, isArray} from '../utils/index.js'
 import {assert} from './assert.js'
 import {Lazy} from './lazy.js'
 import {Template} from './template.js'

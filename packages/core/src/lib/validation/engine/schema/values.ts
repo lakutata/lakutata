@@ -1,7 +1,7 @@
 /**
  * Derived from the upstream lib/values.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
-import {deepEqual, isArray} from '../hoek/index.js'
+import {deepEqual, isArray} from '../utils/index.js'
 import {assert} from './assert.js'
 import * as Common from './common.js'
 import type {Preferences, StateLike} from './model.js'

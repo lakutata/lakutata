@@ -1,5 +1,5 @@
 /**
- * Ported from address/test/uri.ts (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Ported from the upstream test/uri.ts (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  * Upstream test logic is kept line by line (only the runner, the imports and the code style differ) so it can be
  * compared with upstream. It deliberately exercises dynamic and invalid inputs, so it is not type-checked.
  */
@@ -170,7 +170,7 @@ describe('uri', () => {
             ['https://google.com', true],
             ['ftp://google.com', true],
             ['file:/asdf', true],
-            ['git+http://github.com/hapijs/hoek', true],
+            ['git+http://github.com/nodejs/node', true],
             ['/path?query=value#hash', false]
         ])
     })

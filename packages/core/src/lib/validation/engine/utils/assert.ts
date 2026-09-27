@@ -1,5 +1,5 @@
 /**
- * Derived from @hapi/hoek 11.0.7 lib/assert.js (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream lib/assert.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
 import {AssertError} from './assertError.js'
 import {stringify} from './stringify.js'

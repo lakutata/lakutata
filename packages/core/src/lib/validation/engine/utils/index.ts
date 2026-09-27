@@ -1,5 +1,5 @@
 /**
- * Subset of @hapi/hoek 11.0.7 used by the validation engine (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Subset of the upstream used by the validation engine (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
 export {applyToDefaults, type ApplyToDefaultsOptions} from './applyToDefaults.js'
 export {assert} from './assert.js'

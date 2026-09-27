@@ -1,7 +1,7 @@
 /**
  * Derived from the upstream lib/validator.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
-import {clone, ignore, reach} from '../hoek/index.js'
+import {clone, ignore, reach} from '../utils/index.js'
 import {assert, setMessage} from './assert.js'
 import * as Common from './common.js'
 import * as Errors from './errors.js'

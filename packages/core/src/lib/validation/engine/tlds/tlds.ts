@@ -1,5 +1,5 @@
 /**
- * Derived from @hapi/tlds 1.1.4 src/tlds.ts (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream src/tlds.ts (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
 // https://data.iana.org/TLD/tlds-alpha-by-domain.txt
 // # Version 2025102200, Last Updated Wed Oct 22 07:07:01 2025 UTC

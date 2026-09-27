@@ -1,7 +1,7 @@
 /**
  * Derived from the upstream lib/parsers/json.js (see UPSTREAM.md; MIT, see THIRD_PARTY_NOTICES.md)
  */
-import {escapeRegex} from '../../hoek/index.js'
+import {escapeRegex} from '../../utils/index.js'
 import {FLOAT_MAX, integerTypes} from '../../schema/types/number.js'
 import {combinations} from '../combinations.js'
 import * as _ from '../helpers.js'

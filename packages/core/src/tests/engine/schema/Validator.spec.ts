@@ -6,9 +6,9 @@
 // @ts-nocheck
 import {describe, it} from 'node:test'
 import {expect} from '../support/Expect.js'
-import * as HoekEngine from '../../../lib/validation/engine/hoek/index.js'
-//Adapted: hoek's wait() is not part of the engine (engine does not use it); same semantics for these tests
-const Hoek = {...HoekEngine, wait: (timeout, returnValue) => new Promise((resolve) => setTimeout(() => resolve(returnValue), timeout))}
+import * as UtilsEngine from '../../../lib/validation/engine/utils/index.js'
+//Adapted: the wait() of the upstream utilities is not part of the engine (engine does not use it); same semantics for these tests
+const Utils = {...UtilsEngine, wait: (timeout, returnValue) => new Promise((resolve) => setTimeout(() => resolve(returnValue), timeout))}
 import Engine from '../../../lib/validation/engine/schema/index.js'
 import * as Helper from './Helper.js'
 const internals = {}
@@ -166,7 +166,7 @@ describe('Validator', () => {
 
             const check = async (id) => {
 
-                await Hoek.wait(0)
+                await Utils.wait(0)
 
                 if (id === 'valid') {
                     return 'verified'
@@ -181,7 +181,7 @@ describe('Validator', () => {
 
             const append = async (id) => {
 
-                await Hoek.wait(0)
+                await Utils.wait(0)
                 return id + '!'
             }
 
@@ -200,7 +200,7 @@ describe('Validator', () => {
 
             const check = async (id) => {
 
-                await Hoek.wait(0)
+                await Utils.wait(0)
 
                 if (id === 'valid') {
                     return 'verified'
@@ -219,7 +219,7 @@ describe('Validator', () => {
 
             const append = async (id) => {
 
-                await Hoek.wait(0)
+                await Utils.wait(0)
                 return id + '!'
             }
 
@@ -246,7 +246,7 @@ describe('Validator', () => {
 
             const check = async (id) => {
 
-                await Hoek.wait(0)
+                await Utils.wait(0)
                 if (id === 'valid') {
                     return 'verified'
                 }
@@ -256,7 +256,7 @@ describe('Validator', () => {
 
             const append = async (id) => {
 
-                await Hoek.wait(0)
+                await Utils.wait(0)
                 return id + '!'
             }
 
@@ -271,7 +271,7 @@ describe('Validator', () => {
 
             const check = async (id) => {
 
-                await Hoek.wait(0)
+                await Utils.wait(0)
 
                 if (id === 'valid') {
                     return 'verified'
@@ -286,7 +286,7 @@ describe('Validator', () => {
 
             const append = async (id) => {
 
-                await Hoek.wait(0)
+                await Utils.wait(0)
                 return id + '!'
             }
 
@@ -346,7 +346,7 @@ describe('Validator', () => {
 
             const append = async (id) => {
 
-                await Hoek.wait(0)
+                await Utils.wait(0)
                 return id + '!'
             }
 

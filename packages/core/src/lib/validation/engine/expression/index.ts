@@ -1,27 +1,27 @@
 /**
- * Derived from @hapi/formula 3.0.2 lib/index.js (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream lib/index.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
 
 /**
- * Value of a formula constant
+ * Value of a expression constant
  */
-export type FormulaConstant = string | number | boolean | null
+export type ExpressionConstant = string | number | boolean | null
 
 /**
- * Function evaluating a formula part against a context
+ * Function evaluating a expression part against a context
  */
-export type FormulaEvaluator = (context: unknown) => unknown
+export type ExpressionEvaluator = (context: unknown) => unknown
 
 /**
- * Function callable from a formula, `this` is the evaluation context
+ * Function callable from a expression, `this` is the evaluation context
  */
-export type FormulaFunction = (this: unknown, ...args: unknown[]) => unknown
+export type ExpressionFunction = (this: unknown, ...args: unknown[]) => unknown
 
 export interface ParserOptions {
     /**
-     * Constants the formula may reference by name
+     * Constants the expression may reference by name
      */
-    readonly constants?: Record<string, FormulaConstant>
+    readonly constants?: Record<string, ExpressionConstant>
     /**
      * Regular expression every reference must match
      */
@@ -29,20 +29,20 @@ export interface ParserOptions {
     /**
      * Resolver of references, defaults to reading the reference from the context
      */
-    readonly reference?: (name: string) => FormulaEvaluator
+    readonly reference?: (name: string) => ExpressionEvaluator
     /**
-     * Functions the formula may call by name
+     * Functions the expression may call by name
      */
-    readonly functions?: Record<string, FormulaFunction>
+    readonly functions?: Record<string, ExpressionFunction>
 }
 
 const settingsSymbol: unique symbol = Symbol('settings')
-const formulaSymbol: unique symbol = Symbol('formula')
+const expressionSymbol: unique symbol = Symbol('expression')
 
 interface ParserSettings extends ParserOptions {
     readonly [settingsSymbol]: true
-    readonly constants: Record<string, FormulaConstant>
-    readonly functions: Record<string, FormulaFunction>
+    readonly constants: Record<string, ExpressionConstant>
+    readonly functions: Record<string, ExpressionFunction>
 }
 
 const operators: string[] = ['!', '^', '*', '/', '%', '+', '-', '<', '<=', '>', '>=', '==', '!=', '&&', '||', '??']
@@ -62,9 +62,9 @@ type ParsedPart =
     | { type: 'segment', value: Parser }
     | { type: 'literal', value: string }
     | { type: 'operator', value: string }
-    | { type: 'constant', value: FormulaConstant }
+    | { type: 'constant', value: ExpressionConstant }
     | { type: 'reference', value: string }
-    | { type: 'function', value: FormulaEvaluator }
+    | { type: 'function', value: ExpressionEvaluator }
 
 /**
  * A prefix operator ('!' or 'n', the internal negative operator), kept as a part until evaluation
@@ -77,10 +77,10 @@ interface PrefixOperator {
 /**
  * A processed part: an infix operator (string), a prefix operator, or an operand
  */
-type ProcessedPart = string | PrefixOperator | FormulaConstant | Parser | FormulaEvaluator
+type ProcessedPart = string | PrefixOperator | ExpressionConstant | Parser | ExpressionEvaluator
 
 /**
- * A formula parsed into parts, evaluated against a context
+ * A expression parsed into parts, evaluated against a context
  */
 export class Parser<T = unknown> {
 
@@ -95,7 +95,7 @@ export class Parser<T = unknown> {
             for (const constant in options.constants) {
                 const value: unknown = options.constants[constant]
                 if (value !== null && !['boolean', 'number', 'string'].includes(typeof value)) {
-                    throw new Error(`Formula constant ${constant} contains invalid ${typeof value} value type`)
+                    throw new Error(`Expression constant ${constant} contains invalid ${typeof value} value type`)
                 }
             }
         }
@@ -109,12 +109,12 @@ export class Parser<T = unknown> {
         let parenthesis: number = 0
         let literal: string | false = false
         const flush = (inner?: string): void => {
-            if (parenthesis) throw new Error('Formula missing closing parenthesis')
+            if (parenthesis) throw new Error('Expression missing closing parenthesis')
             const last: ParsedPart | null = parts.length ? parts[parts.length - 1] : null
             if (!literal && !current && !inner) return
             //Function
             if (last && last.type === 'reference' && inner === ')') {
-                parts[parts.length - 1] = {type: 'function', value: this._subFormula(current, last.value)}
+                parts[parts.length - 1] = {type: 'function', value: this._subExpression(current, last.value)}
                 current = ''
                 return
             }
@@ -146,7 +146,7 @@ export class Parser<T = unknown> {
                 parts.push({type: 'constant', value: this.settings.constants[current]})
             } else {
                 //Reference
-                if (!current.match(tokenRx)) throw new Error(`Formula contains invalid token: ${current}`)
+                if (!current.match(tokenRx)) throw new Error(`Expression contains invalid token: ${current}`)
                 parts.push({type: 'reference', value: current})
             }
             current = ''
@@ -199,14 +199,14 @@ export class Parser<T = unknown> {
         for (const part of parts) {
             if (part.type === 'operator') {
                 if (operatorsPrefix.includes(part.value)) continue
-                if (!operator) throw new Error('Formula contains an operator in invalid position')
-                if (!operators.includes(part.value)) throw new Error(`Formula contains an unknown operator ${part.value}`)
+                if (!operator) throw new Error('Expression contains an operator in invalid position')
+                if (!operators.includes(part.value)) throw new Error(`Expression contains an unknown operator ${part.value}`)
             } else if (operator) {
-                throw new Error('Formula missing expected operator')
+                throw new Error('Expression missing expected operator')
             }
             operator = !operator
         }
-        if (!operator) throw new Error('Formula contains invalid trailing operator')
+        if (!operator) throw new Error('Expression contains invalid trailing operator')
         //Identify single part
         if (parts.length === 1 && ['reference', 'literal', 'constant'].includes(parts[0].type)) {
             this.single = {type: parts[0].type === 'reference' ? 'reference' : 'value', value: parts[0].value}
@@ -218,22 +218,22 @@ export class Parser<T = unknown> {
             //Literals, constants, segments
             if (part.type !== 'reference') return part.value
             //References
-            if (this.settings.tokenRx && !this.settings.tokenRx.test(part.value)) throw new Error(`Formula contains invalid reference ${part.value}`)
+            if (this.settings.tokenRx && !this.settings.tokenRx.test(part.value)) throw new Error(`Expression contains invalid reference ${part.value}`)
             if (this.settings.reference) return this.settings.reference(part.value)
             return reference(part.value)
         })
     }
 
-    protected _subFormula(string: string, name: string): FormulaEvaluator {
-        const method: FormulaFunction | undefined = this.settings.functions[name]
-        if (typeof method !== 'function') throw new Error(`Formula contains unknown function ${name}`)
+    protected _subExpression(string: string, name: string): ExpressionEvaluator {
+        const method: ExpressionFunction | undefined = this.settings.functions[name]
+        if (typeof method !== 'function') throw new Error(`Expression contains unknown function ${name}`)
         const rawArgs: string[] = []
         if (string) {
             let current: string = ''
             let parenthesis: number = 0
             let literal: string | false = false
             const flush = (): void => {
-                if (!current) throw new Error(`Formula contains function ${name} with invalid arguments ${string}`)
+                if (!current) throw new Error(`Expression contains function ${name} with invalid arguments ${string}`)
                 rawArgs.push(current)
                 current = ''
             }
@@ -267,7 +267,7 @@ export class Parser<T = unknown> {
     }
 
     /**
-     * Evaluate the formula against a context
+     * Evaluate the expression against a context
      * @param context
      */
     public evaluate(context?: unknown): T {
@@ -302,13 +302,13 @@ export class Parser<T = unknown> {
     }
 }
 
-Object.defineProperty(Parser.prototype, formulaSymbol, {value: true, writable: true, enumerable: true, configurable: true})
+Object.defineProperty(Parser.prototype, expressionSymbol, {value: true, writable: true, enumerable: true, configurable: true})
 
 function isPrefixOperator(part: unknown): part is PrefixOperator {
     return !!part && (part as Partial<PrefixOperator>).type === 'operator'
 }
 
-function reference(name: string): FormulaEvaluator {
+function reference(name: string): ExpressionEvaluator {
     return function (context: unknown): unknown {
         return context && (context as Record<string, unknown>)[name] !== undefined ? (context as Record<string, unknown>)[name] : null
     }
@@ -316,8 +316,8 @@ function reference(name: string): FormulaEvaluator {
 
 function evaluatePart(part: unknown, context: unknown): unknown {
     if (part === null) return null
-    if (typeof part === 'function') return (part as FormulaEvaluator)(context)
-    if ((part as { [formulaSymbol]?: boolean })[formulaSymbol]) return (part as Parser).evaluate(context)
+    if (typeof part === 'function') return (part as ExpressionEvaluator)(context)
+    if ((part as { [expressionSymbol]?: boolean })[expressionSymbol]) return (part as Parser).evaluate(context)
     return part
 }
 

@@ -1,5 +1,5 @@
 /**
- * Derived from @hapi/pinpoint 2.0.1 lib/index.js (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream lib/index.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
 
 export interface Location {

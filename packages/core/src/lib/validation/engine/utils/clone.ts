@@ -1,5 +1,5 @@
 /**
- * Derived from @hapi/hoek 11.0.7 lib/clone.js (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream lib/clone.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
 import {reach} from './reach.js'
 import {getInternalProto, type InternalProto, Types} from './types.js'

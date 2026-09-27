@@ -1,7 +1,7 @@
 /**
  * Derived from the upstream lib/ref.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
-import {clone, isArray, reach} from '../hoek/index.js'
+import {clone, isArray, reach} from '../utils/index.js'
 import {assert} from './assert.js'
 import * as Common from './common.js'
 import {Lazy, type LazyTemplate} from './lazy.js'

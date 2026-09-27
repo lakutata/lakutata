@@ -1,7 +1,7 @@
 /**
  * Derived from the upstream lib/common.js (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
-import {isArray} from '../hoek/index.js'
+import {isArray} from '../utils/index.js'
 import {assert as Assert, definitionException, setMessage} from './assert.js'
 import {Lazy, type LazyMessages, type LazySchemas} from './lazy.js'
 import type {PathError, Preferences, SchemaLike} from './model.js'

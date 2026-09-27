@@ -1,5 +1,5 @@
 /**
- * Derived from @hapi/address 5.1.1 src/errors.ts (BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
+ * Derived from the upstream src/errors.ts (see UPSTREAM.md; BSD-3-Clause, see THIRD_PARTY_NOTICES.md)
  */
 export const errorCodes = {
     EMPTY_STRING: 'Address must be a non-empty string',

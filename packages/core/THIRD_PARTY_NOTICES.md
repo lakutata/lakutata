@@ -6,7 +6,7 @@ Where a file is derived from one of these projects, its header names the project
 
 ## @hapi/hoek 11.0.7
 
-Used in `src/lib/validation/engine/hoek` (subset of the library).
+Used in `src/lib/validation/engine/utils` (subset of the library).
 
 Copyright (c) 2011-2022, Project contributors
 Copyright (c) 2011-2020, Sideway Inc
@@ -25,7 +25,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 ## @hapi/pinpoint 2.0.1
 
-Used in `src/lib/validation/engine/pinpoint`.
+Used in `src/lib/validation/engine/location`.
 
 Copyright (c) 2019-2020, Sideway. Inc, and project contributors  
 
@@ -40,7 +40,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 ## @hapi/formula 3.0.2
 
-Used in `src/lib/validation/engine/formula`.
+Used in `src/lib/validation/engine/expression`.
 
 Copyright (c) 2019-2020, Sideway. Inc, and project contributors
 All rights reserved.
@@ -54,7 +54,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 ## @hapi/topo 6.0.2
 
-Used in `src/lib/validation/engine/topo`.
+Used in `src/lib/validation/engine/sorter`.
 
 Copyright (c) 2012-2022, Project contributors
 Copyright (c) 2012-2020, Sideway Inc
@@ -258,5 +258,5 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 ## deep-eql
 
-A code fragment of `src/lib/validation/engine/hoek/deepEqual.ts` (identity comparison of zero values) is copied
+A code fragment of `src/lib/validation/engine/utils/deepEqual.ts` (identity comparison of zero values) is copied
 from deep-eql, copyright (c) 2013 Jake Luer, jake@alogicalparadox.com, MIT Licensed, https://github.com/chaijs/deep-eql
