@@ -112,6 +112,53 @@ function validatePropertyValue<U extends DTO, T = any>(instance: U, propertyKey:
 }
 
 /**
+ * The array methods which change the array
+ */
+const ARRAY_MUTATORS: string[] = ['push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse', 'fill', 'copyWithin']
+
+/**
+ * Restore the items of an array (its holes included)
+ * @param array
+ * @param snapshot
+ */
+function restoreArray(array: unknown[], snapshot: unknown[]): void {
+    array.length = 0
+    for (let i: number = 0; i < snapshot.length; ++i) {
+        if (i in snapshot) array[i] = snapshot[i]
+    }
+    array.length = snapshot.length
+}
+
+/**
+ * Restore a property of an object after a rejected change: its previous value, or its absence (and the length of an
+ * array)
+ * @param target
+ * @param prop
+ * @param state
+ */
+function restoreProperty(target: any, prop: string | symbol, state: { had: boolean, value: any, length?: number }): void {
+    if (state.had) {
+        Reflect.set(target, prop, state.value)
+    } else {
+        Reflect.deleteProperty(target, prop)
+    }
+    if (state.length !== undefined) target.length = state.length
+}
+
+/**
+ * The state of a property before a change
+ * @param target
+ * @param prop
+ */
+function propertyState(target: any, prop: string | symbol): { had: boolean, value: any, length?: number } {
+    return {
+        had: Object.prototype.hasOwnProperty.call(target, prop),
+        value: Reflect.get(target, prop),
+        length: Array.isArray(target) ? target.length : undefined
+    }
+}
+
+/**
  * Return dynamic property proxy object
  * @param target
  * @param prop
@@ -121,16 +168,33 @@ function validatePropertyValue<U extends DTO, T = any>(instance: U, propertyKey:
 function dynamicProxyProperty(target: any, prop: string | symbol, receiver: any, validateFn: () => void) {
     const propertyValue: any = Reflect.get(target, prop, receiver)
     if (!propertyValue) return propertyValue
-    if (typeof propertyValue !== 'object') return typeof propertyValue === 'function' ? propertyValue.bind(target) : propertyValue
+    if (typeof propertyValue !== 'object') {
+        if (typeof propertyValue !== 'function') return propertyValue
+        //A change made by an array method is validated once it is done (its steps may be invalid), and undone if invalid
+        if (Array.isArray(target) && typeof prop === 'string' && ARRAY_MUTATORS.includes(prop)) {
+            return (...args: any[]): any => {
+                const snapshot: any[] = target.slice()
+                try {
+                    const result: any = propertyValue.apply(target, args)
+                    validateFn()
+                    return result
+                } catch (e) {
+                    restoreArray(target, snapshot)
+                    throw e
+                }
+            }
+        }
+        return propertyValue.bind(target)
+    }
     return new Proxy(propertyValue, {
         set(target: any, p: string | symbol, value: any, receiver: any): boolean {
-            const origValue: any = Reflect.get(target, p)
+            const state: { had: boolean, value: any, length?: number } = propertyState(target, p)
             try {
                 const isSuccess: boolean = Reflect.set(target, p, value, receiver)
                 validateFn()
                 return isSuccess
             } catch (e) {
-                Reflect.set(target, p, origValue, receiver)
+                restoreProperty(target, p, state)
                 throw e
             }
         },
@@ -138,13 +202,13 @@ function dynamicProxyProperty(target: any, prop: string | symbol, receiver: any,
             return dynamicProxyProperty(target, p, receiver, validateFn)
         },
         deleteProperty: (target: any, prop: string | symbol): boolean => {
-            const origValue: any = Reflect.get(target, prop)
+            const state: { had: boolean, value: any, length?: number } = propertyState(target, prop)
             try {
                 const isSuccess: boolean = Reflect.deleteProperty(target, prop)
                 validateFn()
                 return isSuccess
             } catch (e) {
-                Reflect.set(target, prop, origValue, receiver)
+                restoreProperty(target, prop, state)
                 throw e
             }
         }

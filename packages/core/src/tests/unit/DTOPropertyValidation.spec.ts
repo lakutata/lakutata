@@ -108,7 +108,47 @@ describe('DTO property validation', (): void => {
         assert.throws((): void => {
             profile.tags[1] = 'abc'
         }, {message: '"tags[1]" length must be less than or equal to 2 characters long'})
-        assert.strictEqual(profile.tags[0], 'a')
+        //A rejected new item leaves no hole
+        assert.deepStrictEqual(JSON.parse(JSON.stringify(profile.tags)), ['a'])
+        assert.strictEqual(profile.tags.length, 1)
+        //A rejected nested deletion restores the property
+        assert.throws((): void => {
+            delete (profile.address as Record<string, unknown>).city
+        }, {message: '"address.city" is required'})
+        assert.strictEqual(profile.address.city, 'Rome')
+    })
+
+    it('validates the changes of the array methods', (): void => {
+        const profile: ProfileDTO = new ProfileDTO({name: 'x', tags: ['a']})
+        assert.throws((): void => {
+            profile.tags.push('abc')
+        }, {message: '"tags[1]" length must be less than or equal to 2 characters long'})
+        assert.deepStrictEqual(JSON.parse(JSON.stringify(profile.tags)), ['a'])
+        assert.throws((): void => {
+            profile.tags.push('b', 'c')
+        }, {message: '"tags" must contain less than or equal to 2 items'})
+        assert.strictEqual(profile.tags.length, 1)
+        assert.strictEqual(profile.tags.push('b'), 2)
+        profile.tags.reverse()
+        assert.deepStrictEqual(JSON.parse(JSON.stringify(profile.tags)), ['b', 'a'])
+        assert.throws((): void => {
+            profile.tags.splice(0, 1, 'abc')
+        })
+        assert.deepStrictEqual(JSON.parse(JSON.stringify(profile.tags)), ['b', 'a'])
+        assert.strictEqual(profile.tags.pop(), 'a')
+        //The steps of a method are not validated: a sort of unique items goes through duplicates
+        class UniqueDTO extends DTO {
+            @Expect(DTO.Array().items(DTO.Number()).unique())
+            public list: number[]
+        }
+
+        const unique: UniqueDTO = new UniqueDTO({list: [3, 1, 2]})
+        unique.list.sort()
+        assert.deepStrictEqual(JSON.parse(JSON.stringify(unique.list)), [1, 2, 3])
+        assert.throws((): void => {
+            unique.list.fill(0)
+        })
+        assert.deepStrictEqual(JSON.parse(JSON.stringify(unique.list)), [1, 2, 3])
     })
 
     it('validates the properties constrained together with the whole object', (): void => {
