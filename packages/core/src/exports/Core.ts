@@ -5,7 +5,6 @@ import 'reflect-metadata'
  */
 export {Exception} from '../lib/foundation/Exception.js'
 export {DTO} from '../lib/dto/DTO.js'
-export {Time} from '../lib/core/Time.js'
 export {Container} from '../lib/core/Container.js'
 export {BaseObject} from '../lib/base/BaseObject.js'
 export {Provider} from '../lib/core/Provider.js'

@@ -1,4 +1,4 @@
-import {Time} from '@lakutata/core'
+import {Time} from '@lakutata/utils'
 
 export type NetworkIPAMConfig = {
     subnet: string

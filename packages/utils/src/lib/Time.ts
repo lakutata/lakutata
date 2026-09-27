@@ -1,6 +1,5 @@
-import 'reflect-metadata'
 import MomentTimezone from 'moment-timezone'
-import {DTO} from '../dto/DTO.js'
+import {DTO} from '@lakutata/core'
 
 export namespace UnitOfTime {
     export type Base = (

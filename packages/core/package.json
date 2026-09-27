@@ -89,7 +89,6 @@
     "glob": "13.0.0",
     "keyv": "^5.0.0",
     "keyv-file": "5.3.3",
-    "moment-timezone": "0.6.0",
     "path-scurry": "^2.0.0",
     "patrun": "7.2.7",
     "pino": "10.1.0",

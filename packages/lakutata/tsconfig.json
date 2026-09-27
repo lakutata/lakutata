@@ -63,6 +63,9 @@
             "@lakutata/security": [
                 "../security/dist/types/exports/Security"
             ],
+            "@lakutata/utils": [
+                "../utils/dist/types/exports/Utils"
+            ],
             "@lakutata/core/decorator/asst": [
                 "../core/dist/types/exports/ASSTDecorators"
             ],
