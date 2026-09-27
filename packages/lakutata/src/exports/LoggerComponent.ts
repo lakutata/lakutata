@@ -1,1 +1,1 @@
-export * from '@lakutata/core/com/logger'
+export * from '@lakutata/logger'

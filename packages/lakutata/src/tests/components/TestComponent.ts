@@ -1,7 +1,7 @@
 import {Component} from '@lakutata/core'
 import {Time} from '@lakutata/utils'
 import {Inject} from '@lakutata/core/decorator/di'
-import type {Logger} from '@lakutata/core/com/logger'
+import type {Logger} from '@lakutata/logger'
 
 export class TestComponent extends Component {
 

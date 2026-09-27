@@ -77,6 +77,9 @@
             ],
             "@lakutata/core/decorator/dto": [
                 "../core/dist/types/exports/DTODecorators"
+            ],
+            "@lakutata/logger": [
+                "../logger/dist/types/exports/Logger"
             ]
         }
     },

@@ -5,8 +5,8 @@ import {ApplicationOptions} from '../../options/ApplicationOptions.js'
 import {Alias} from '../core/Alias.js'
 import {GetAppId, GetAppName, GetBasicInfo} from '../foundation/BasicInfo.js'
 import {SetDestroyErrorReporter} from '../foundation/DestroyErrorReporter.js'
-import {Entrypoint} from '../../components/entrypoint/Entrypoint.js'
-import {Logger} from '../../components/Logger.js'
+import {ILogger} from '../../interfaces/ILogger.js'
+import {GetDefaultComponentClass, GetDefaultComponents} from './ApplicationDefaults.js'
 import {Accept} from '../../decorators/dto/Accept.js'
 import {DTO} from '../dto/DTO.js'
 import {mkdirSync} from 'fs'
@@ -17,22 +17,23 @@ import {EventEmitter} from '../base/EventEmitter.js'
 import {BootstrapOption} from '../../options/ModuleOptions.js'
 import {DatabaseSymbol} from '../base/internal/DatabaseSymbol.js'
 
+//The handlers are method signatures, so a handler may declare the logger implementation it expects (such as Logger)
 /**
  * On application launched event handler
  */
-export type LaunchedHandler = (app: Application, logger: Logger) => void | Promise<void>
+export type LaunchedHandler = { handler(app: Application, logger: ILogger): void | Promise<void> }['handler']
 /**
  * On application done event handler
  */
-export type DoneHandler = (app: Application, logger: Logger) => void | Promise<void>
+export type DoneHandler = { handler(app: Application, logger: ILogger): void | Promise<void> }['handler']
 /**
  * On process uncaught exception event handler
  */
-export type UncaughtExceptionHandler = (error: Error, logger: Logger) => void | Promise<void>
+export type UncaughtExceptionHandler = { handler(error: Error, logger: ILogger): void | Promise<void> }['handler']
 /**
  * On application fatal exception event handler
  */
-export type FatalExceptionHandler = (error: Error, logger: Logger) => number | undefined | void | Promise<number | undefined | void>
+export type FatalExceptionHandler = { handler(error: Error, logger: ILogger): number | undefined | void | Promise<number | undefined | void> }['handler']
 
 /**
  * Application states
@@ -93,8 +94,8 @@ export class Application extends Module {
      * Get logger
      * @protected
      */
-    protected static async getLogger(): Promise<Logger> {
-        return this.appInstance ? await this.appInstance.getObject('log') : await new Container().set(Logger)
+    protected static async getLogger(): Promise<ILogger> {
+        return this.appInstance ? As<ILogger>(await this.appInstance.getObject('log')) : As<ILogger>(await new Container().set(GetDefaultComponentClass('log')!))
     }
 
     /**
@@ -128,7 +129,7 @@ export class Application extends Module {
      * @param handler
      */
     public static onLaunched(handler: LaunchedHandler): typeof Application {
-        this.eventEmitter.once(ApplicationState.Launched, async (app: Application) => handler(app, await app.getObject('log')))
+        this.eventEmitter.once(ApplicationState.Launched, async (app: Application) => handler(app, As<ILogger>(await app.getObject('log'))))
         return this.launch()
     }
 
@@ -137,7 +138,7 @@ export class Application extends Module {
      * @param handler
      */
     public static onDone(handler: DoneHandler): typeof Application {
-        this.eventEmitter.once(ApplicationState.Done, async (app: Application) => handler(app, await app.getObject('log')))
+        this.eventEmitter.once(ApplicationState.Done, async (app: Application) => handler(app, As<ILogger>(await app.getObject('log'))))
         return this.launch()
     }
 
@@ -147,7 +148,7 @@ export class Application extends Module {
      */
     public static onUncaughtException(handler: UncaughtExceptionHandler): typeof Application {
         this.eventEmitter.on(ApplicationState.UncaughtException, async (error: Error) => {
-            const logger: Logger = await this.getLogger()
+            const logger: ILogger = await this.getLogger()
             await handler(error, logger)
         })
         return this.launch()
@@ -159,7 +160,7 @@ export class Application extends Module {
      */
     public static onFatalException(handler: FatalExceptionHandler): typeof Application {
         this.eventEmitter.once(ApplicationState.FatalException, async (error: Error) => {
-            const logger: Logger = await this.getLogger()
+            const logger: ILogger = await this.getLogger()
             let exitCode: number | undefined | void = await handler(error, logger)
             if (typeof exitCode !== 'number') exitCode = 1
             return process.exit(exitCode)
@@ -193,7 +194,7 @@ export class Application extends Module {
                 .on('uncaughtException', async (error: Error) => {
                     if (this.eventEmitter.listenerCount(ApplicationState.UncaughtException))
                         return this.eventEmitter.emit(ApplicationState.UncaughtException, error)
-                    const logger: Logger = await this.getLogger()
+                    const logger: ILogger = await this.getLogger()
                     return logger.warn(new Error('UncaughtException', {cause: error}))
                 })
             try {
@@ -213,7 +214,7 @@ export class Application extends Module {
     protected static processFatalException(error: Error): void {
         if (!this.eventEmitter.listenerCount(ApplicationState.FatalException)) {
             return process.nextTick(async () => {
-                const logger: Logger = await this.getLogger()
+                const logger: ILogger = await this.getLogger()
                 logger.error(new Error('FatalException', {cause: error}))
             })
 
@@ -321,7 +322,7 @@ export class Application extends Module {
                         }
                         launchedCallbackRemover.bind(As<Application>(target))()
                         //Errors raised by cascaded destruction are reported through the application logger
-                        const logger: Logger = await target.getObject('log')
+                        const logger: ILogger = As<ILogger>(await target.getObject('log'))
                         SetDestroyErrorReporter((error: Error): void => logger.warn(error, 'An error occurred while destroying an object'))
                         this.eventEmitter.emit(ApplicationState.Launched, As<Application>(target))
                     })
@@ -348,14 +349,7 @@ export class Application extends Module {
      * @protected
      */
     protected options: Partial<ApplicationOptions> = {
-        components: {
-            log: {
-                class: Logger
-            },
-            entrypoint: {
-                class: Entrypoint
-            }
-        },
+        components: GetDefaultComponents(),
         bootstrap: ['log']
     }
 

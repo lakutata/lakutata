@@ -7,7 +7,7 @@ import {Transient} from '@lakutata/core/decorator/di'
 import {ContainerTTYConsoleSizeOptions} from '../options/container/ContainerTTYConsoleSizeOptions.js'
 import {Accept} from '@lakutata/core/decorator/dto'
 import {As} from '@lakutata/core/helper'
-import {Logger} from '@lakutata/core/com/logger'
+import {Logger} from '@lakutata/logger'
 import {Inject} from '@lakutata/core/decorator/di'
 
 @Transient()

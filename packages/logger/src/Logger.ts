@@ -1,11 +1,10 @@
-import {Component} from '../lib/core/Component.js'
-import {Singleton} from '../decorators/di/Lifetime.js'
-import {Configurable} from '../decorators/di/Configurable.js'
-import {DTO} from '../lib/dto/DTO.js'
+import {Component, DTO} from '@lakutata/core'
+import {Configurable, Singleton} from '@lakutata/core/decorator/di'
+import {As} from '@lakutata/core/helper'
+import type {ILogger} from '@lakutata/core/com/logger'
+import {GetAppName} from '@lakutata/core/internal'
 import {pino, Logger as PinoLogger, DestinationStream, destination, multistream} from 'pino'
-import {GetBasicInfo} from '../lib/foundation/BasicInfo.js'
 import PinoPretty from 'pino-pretty'
-import {As} from '../lib/helpers/As.js'
 import {Stream} from 'node:stream'
 import {SonicBoom as UTF8OnlyStream} from 'sonic-boom'
 
@@ -13,7 +12,7 @@ import {SonicBoom as UTF8OnlyStream} from 'sonic-boom'
  * Logger component
  */
 @Singleton()
-export class Logger extends Component {
+export class Logger extends Component implements ILogger {
 
     /**
      * Format pretty log message
@@ -63,7 +62,7 @@ export class Logger extends Component {
     protected async init(): Promise<void> {
         this.#instance = pino({
                 level: this.level,
-                name: GetBasicInfo().appName || 'Unnamed'
+                name: GetAppName()
             }, multistream(
                 this.destinations
                     .map((destinationWritableStream: NodeJS.WritableStream) => {

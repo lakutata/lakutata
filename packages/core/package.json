@@ -1,7 +1,7 @@
 {
   "name": "@lakutata/core",
   "version": "2.0.126",
-  "description": "Core of the lakutata IoC framework (IoC/DI, BaseObject, DTO/validation, decorators, contexts, entrypoint, logger, monitor).",
+  "description": "Core of the lakutata IoC framework (IoC/DI, BaseObject, DTO/validation, decorators, contexts, entrypoint, console logger, monitor).",
   "type": "module",
   "main": "./dist/cjs/exports/Core.js",
   "types": "./dist/types/exports/Core.d.ts",
@@ -83,11 +83,8 @@
     "glob": "13.0.0",
     "path-scurry": "^2.0.0",
     "patrun": "7.2.7",
-    "pino": "10.1.0",
-    "pino-pretty": "13.1.2",
     "reflect-metadata": "0.2.2",
-    "simple-statistics": "7.8.8",
-    "sonic-boom": "4.2.0"
+    "simple-statistics": "7.8.8"
   },
   "devDependencies": {
     "@types/node": "22.20.4",

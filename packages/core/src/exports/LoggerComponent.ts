@@ -1,3 +1,4 @@
 import 'reflect-metadata'
 
-export * from '../components/Logger.js'
+export * from '../components/ConsoleLogger.js'
+export * from '../interfaces/ILogger.js'

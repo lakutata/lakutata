@@ -62,3 +62,8 @@ export type _Entity = typeof Entity
 export type _PaginationSearchDTO = PaginationSearchDTO
 
 
+
+// The handlers of 2.x declare the Logger component as their logger
+import type {Logger} from 'lakutata/com/logger'
+export const _launched: Parameters<typeof Application.onLaunched>[0] = (app: Application, logger: Logger): void => logger.info(app.appName)
+export const _fatal: Parameters<typeof Application.onFatalException>[0] = (error: Error, logger: Logger): number => (logger.error(error), 1)
