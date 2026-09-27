@@ -97,4 +97,24 @@ describe('Time', (): void => {
         //A day across the transition keeps the wall clock
         assert.strictEqual(new Time('2024-03-09T17:00:00Z').timezone('America/New_York').add(1, 'day').format('HH:mm Z'), '12:00 -04:00')
     })
+
+    it('uses the TZ environment variable as default time zone (UTC when invalid, like Date)', (): void => {
+        const tz: string | undefined = process.env.TZ
+        try {
+            process.env.TZ = 'Asia/Tokyo'
+            assert.strictEqual(new Time().timezone(), 'Asia/Tokyo')
+            assert.strictEqual(new Time('2024-01-01T00:00:00Z').format('HH:mm'), '09:00')
+            process.env.TZ = 'Invalid/Zone'
+            assert.strictEqual(new Time().timezone(), 'UTC')
+            assert.strictEqual(new Time('2024-01-01T00:00:00Z').format('HH:mm'), '00:00')
+        } finally {
+            if (tz === undefined) {
+                delete process.env.TZ
+            } else {
+                process.env.TZ = tz
+            }
+        }
+        //A Time keeps the time zone of the Time it is created from
+        assert.strictEqual(new Time(new Time().timezone('Europe/Paris')).timezone(), 'Europe/Paris')
+    })
 })

@@ -17,18 +17,44 @@ const QUARTER_HOUR: number = 15 * 60 * 1000
 const MAX_CACHED_OFFSETS: number = 4096
 
 /**
- * The time zone of the process: the TZ environment variable, else the time zone of the system (read once)
+ * The time zone of the system (read once)
  */
 let systemZone: string | undefined
 
 /**
- * The default time zone: the TZ environment variable, else the time zone of the system
+ * The last TZ environment variable, and the time zone it gives
+ */
+let lastTZ: string | undefined
+let lastTZZone: string = 'UTC'
+
+/**
+ * The default time zone: the TZ environment variable, else the time zone of the system; like Date, an invalid TZ
+ * environment variable gives UTC
  */
 export function DefaultZone(): string {
     const tz: string | undefined = process.env.TZ
-    if (tz) return tz
-    if (systemZone === undefined) systemZone = new Intl.DateTimeFormat().resolvedOptions().timeZone
+    if (tz) {
+        if (tz !== lastTZ) {
+            lastTZ = tz
+            lastTZZone = isZone(tz) ? tz : 'UTC'
+        }
+        return lastTZZone
+    }
+    if (systemZone === undefined) systemZone = new Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
     return systemZone
+}
+
+/**
+ * Whether a time zone is supported
+ * @param zone
+ */
+function isZone(zone: string): boolean {
+    try {
+        fieldFormatter(zone)
+        return true
+    } catch {
+        return false
+    }
 }
 
 /**
@@ -68,11 +94,7 @@ function fieldFormatter(zone: string): Intl.DateTimeFormat {
  * @throws RangeError when the time zone is not supported
  */
 export function AssertZone(zone: string): void {
-    try {
-        fieldFormatter(zone)
-    } catch {
-        throw new RangeError(`Invalid time zone: ${zone}`)
-    }
+    if (!isZone(zone)) throw new RangeError(`Invalid time zone: ${zone}`)
 }
 
 /**
