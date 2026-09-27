@@ -359,8 +359,10 @@
     "Entrypoint",
     "HTTPContext",
     "InvalidMiddlewareException",
+    "InvalidPrefixException",
     "Middleware",
     "MiddlewareNextCalledException",
+    "PrefixOptions",
     "ServiceContext"
   ],
   "lakutata/com/logger": [
@@ -404,6 +406,7 @@
     "PATCH",
     "POST",
     "PUT",
+    "Prefix",
     "ServiceAction",
     "UseMiddlewares"
   ],

@@ -75,3 +75,9 @@ export type _Middleware = Middleware
 export type _MiddlewareHandler = MiddlewareHandler
 export type _ActionInvocation = ActionInvocation
 export type _UseMiddlewares = typeof UseMiddlewares
+
+// Controller prefixes
+import type {PrefixOptions} from 'lakutata/com/entrypoint'
+import type {Prefix} from 'lakutata/decorator/ctrl'
+export type _PrefixOptions = PrefixOptions
+export type _Prefix = typeof Prefix

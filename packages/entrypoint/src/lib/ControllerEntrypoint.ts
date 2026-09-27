@@ -18,6 +18,7 @@ import {ServiceContext} from '../context/ServiceContext.js'
 import {HTTPContext} from '../context/HTTPContext.js'
 import type {AccessControlRuleHandler} from './AccessControlRule.js'
 import {MiddlewareDefinition, ValidateMiddlewares} from './Middleware.js'
+import {GetPrefix, PrefixCommand, PrefixOptions, PrefixPattern, PrefixRoute} from './Prefix.js'
 
 export enum ActionPatternManagerType {
     HTTP = '_$APMT_HTTP',
@@ -149,14 +150,41 @@ export function BindControllerToComponent(component: Component, controllerConstr
         HTTP: new Map(),
         Service: new Map()
     }
+    const prefix: PrefixOptions | undefined = GetPrefix(controllerConstructor)
     //The actions inherited from a parent controller are run by the registered controller
-    const bind = (value: InternalActionPatternMapValue): InternalActionPatternMapValue => ({
-        pattern: value.pattern,
-        details: {...value.details, constructor: controllerConstructor}
+    const bind = (type: ActionPatternManagerType, value: InternalActionPatternMapValue): [string, InternalActionPatternMapValue] => {
+        const details: ActionDetails = {...value.details, constructor: controllerConstructor}
+        let pattern: ActionPattern = value.pattern
+        let extra: string | undefined
+        if (type === ActionPatternManagerType.HTTP && prefix?.route !== undefined) {
+            pattern = {...pattern, route: PrefixRoute(prefix.route, pattern.route)}
+            extra = pattern.route
+        } else if (type === ActionPatternManagerType.CLI && prefix?.command !== undefined) {
+            pattern = {command: PrefixCommand(prefix.command, pattern.command)}
+            extra = pattern.command
+        } else if (type === ActionPatternManagerType.Service && prefix?.pattern !== undefined) {
+            pattern = ValidateActionPatternDefinition(PrefixPattern(prefix.pattern, pattern))
+            extra = StringifyPattern(pattern)
+        }
+        if (extra !== undefined) {
+            //A prefixed action is named after the registered controller, so the controllers sharing a parent have distinct actions
+            const action: string = `${controllerConstructor.className}:${String(details.method)}`
+            details.name = details.name === details.action ? action : details.name
+            details.action = action
+            details.id = UUID.v5(`${action}:${extra}`, UUID.NIL)
+            details.pattern = pattern
+            const actionInfo: ActionInfo = {id: details.id, acl: details.acl, action: action, name: details.name, description: details.description, groups: details.groups, rule: details.rule}
+            details.getActionInfo = (): ActionInfo => actionInfo
+        }
+        return [extra === undefined ? '' : ObjectHash(pattern), {pattern: pattern, details: details}]
+    }
+    const add = (type: ActionPatternManagerType, map: InternalActionPatternMap): void => GetInternalControllerActionPatternMap(type, controllerConstructor).forEach((value: InternalActionPatternMapValue, hash: string): void => {
+        const [prefixedHash, bound] = bind(type, value)
+        map.set(prefixedHash || hash, bound)
     })
-    GetInternalControllerActionPatternMap(ActionPatternManagerType.CLI, controllerConstructor).forEach((value: InternalActionPatternMapValue, hash: string) => totalInternalActionPatternMap.CLI.set(hash, bind(value)))
-    GetInternalControllerActionPatternMap(ActionPatternManagerType.HTTP, controllerConstructor).forEach((value: InternalActionPatternMapValue, hash: string) => totalInternalActionPatternMap.HTTP.set(hash, bind(value)))
-    GetInternalControllerActionPatternMap(ActionPatternManagerType.Service, controllerConstructor).forEach((value: InternalActionPatternMapValue, hash: string) => totalInternalActionPatternMap.Service.set(hash, bind(value)))
+    add(ActionPatternManagerType.CLI, totalInternalActionPatternMap.CLI)
+    add(ActionPatternManagerType.HTTP, totalInternalActionPatternMap.HTTP)
+    add(ActionPatternManagerType.Service, totalInternalActionPatternMap.Service)
     Reflect.defineMetadata(COMPONENT_CTRL_MAP, totalInternalActionPatternMap, component)
 }
 

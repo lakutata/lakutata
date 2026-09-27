@@ -13,3 +13,5 @@ export {PUT} from '../decorators/http/PUT.js'
 export {ServiceAction} from '../decorators/ServiceAction.js'
 //Middlewares
 export {UseMiddlewares} from '../decorators/UseMiddlewares.js'
+//Controller prefixes
+export {Prefix} from '../decorators/Prefix.js'
