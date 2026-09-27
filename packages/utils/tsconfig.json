@@ -33,13 +33,7 @@
     "skipLibCheck": true,
     "allowArbitraryExtensions": true,
     "isolatedModules": true,
-    "declarationMap": true,
-    "baseUrl": ".",
-    "paths": {
-      "@lakutata/core": [
-        "../core/dist/types/exports/Core"
-      ]
-    }
+    "declarationMap": true
   },
   "exclude": [
     "node_modules",

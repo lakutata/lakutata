@@ -1,1 +1,1 @@
-export {Time} from '../lib/Time.js'
+export {Time, type TimeInput, type TimeObject, type UnitOfTime} from '../lib/Time.js'
