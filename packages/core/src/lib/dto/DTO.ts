@@ -10,7 +10,8 @@ import {
 import {InvalidValueException} from '../../exceptions/dto/InvalidValueException.js'
 import {WithCause} from '../helpers/internal/WithCause.js'
 import {ValidationOptions} from '../validation/interfaces/ValidationOptions.js'
-import {VLDMethods} from '../validation/VLD.js'
+import {VLD, VLDMethods} from '../validation/VLD.js'
+import type {Base} from '../validation/engine/schema/base.js'
 import {Schema} from '../validation/types/Schema.js'
 import {ObjectSchema} from '../validation/interfaces/ObjectSchema.js'
 import {IsSymbol} from '../helpers/IsSymbol.js'
@@ -44,12 +45,69 @@ const instanceSchemaCache: WeakMap<Function, { revision: number, value: Schema }
 const classSchemaCache: WeakMap<Function, { revision: number, value: ObjectSchema }> = new WeakMap()
 
 /**
- * Validate property value
+ * The schemas validating a single property, per DTO class (null: the whole object is validated)
+ */
+const propertySchemaCache: WeakMap<Function, { revision: number, value: Map<string, Schema | null> }> = new WeakMap()
+
+/**
+ * The flags of an object schema which do not constrain its properties together
+ */
+const PROPERTY_INDEPENDENT_FLAGS: string[] = ['presence', 'description', 'label', 'unknown']
+
+/**
+ * Whether the properties of an object schema are validated independently: no rule, dependency, rename, condition,
+ * value list or reference constrains them together
+ * @param objectSchema
+ */
+function arePropertiesIndependent(objectSchema: Base): boolean {
+    const terms: Record<string, unknown> = objectSchema.$_terms
+    for (const term of ['dependencies', 'renames', 'externals', 'whens', 'alterations']) {
+        const value: unknown = terms[term]
+        if (value && (!Array.isArray(value) || value.length)) return false
+    }
+    if (objectSchema._rules.length || objectSchema._valids || objectSchema._invalids) return false
+    for (const [flag, value] of Object.entries(objectSchema._flags)) {
+        if (!PROPERTY_INDEPENDENT_FLAGS.includes(flag) || (flag === 'unknown' && typeof value === 'object')) return false
+    }
+    const keys: { key: string, schema: Base }[] = (terms.keys || []) as { key: string, schema: Base }[]
+    //A property referring to other properties (or referred to) is validated with them
+    return keys.every(({schema}: { schema: Base }): boolean => !schema.$_rootReferences().length)
+}
+
+/**
+ * The schema validating a single property of a DTO, with the same label, path and preferences as the object schema
+ * (null: the property is validated with the whole object)
+ * @param instance
+ * @param propertyKey
+ */
+function getPropertySchema<U extends DTO>(instance: U, propertyKey: string): Schema | null {
+    const schemas: Map<string, Schema | null> = GetCachedDTOSchema(propertySchemaCache, ObjectConstructor(instance), (): Map<string, Schema | null> => new Map())
+    let schema: Schema | null | undefined = schemas.get(propertyKey)
+    if (schema !== undefined) return schema
+    schema = null
+    const objectSchema: Base = As<Base>(getObjectSchema(instance))
+    if (arePropertiesIndependent(objectSchema)) {
+        const child: { key: string, schema: Base } | undefined = ((objectSchema.$_terms.keys || []) as { key: string, schema: Base }[]).find(({key}: { key: string }): boolean => key === propertyKey)
+        if (child) {
+            const propertyObjectSchema: Base = As<Base>(VLD.object({[propertyKey]: child.schema}))
+            schema = As<Schema>(objectSchema._preferences ? propertyObjectSchema.prefs(objectSchema._preferences) : propertyObjectSchema)
+        }
+    }
+    schemas.set(propertyKey, schema)
+    return schema
+}
+
+/**
+ * Validate property value (only the property when the properties are validated independently)
  * @param instance
  * @param propertyKey
  * @param value
  */
 function validatePropertyValue<U extends DTO, T = any>(instance: U, propertyKey: string | symbol, value: T): T {
+    if (typeof propertyKey === 'string') {
+        const propertySchema: Schema | null = getPropertySchema(instance, propertyKey)
+        if (propertySchema) return DTO.validate<Record<string, T>>({[propertyKey]: value}, propertySchema, {noDefaults: true})[propertyKey]
+    }
     return DTO.validate({...instance, [propertyKey]: value}, getObjectSchema(instance), {noDefaults: true})[propertyKey]
 }
 
@@ -109,7 +167,14 @@ export class DTO extends DataValidator {
                 if (!IsSymbol(prop)) value = validatePropertyValue(this, prop, value)
                 return Reflect.set(target, prop, value, receiver)
             },
-            get: (target: this, p: string | symbol, receiver: any): any => dynamicProxyProperty(target, p, receiver, () => DTO.validate({...this}, getObjectSchema(this), {noDefaults: true})),
+            get: (target: this, p: string | symbol, receiver: any): any => dynamicProxyProperty(target, p, receiver, (): void => {
+                //A nested change is validated with the property holding it
+                if (IsSymbol(p)) {
+                    DTO.validate({...this}, getObjectSchema(this), {noDefaults: true})
+                } else {
+                    validatePropertyValue(this, p, Reflect.get(target, p))
+                }
+            }),
             deleteProperty: (target: any, prop: string | symbol): boolean => {
                 if (!IsSymbol(prop)) validatePropertyValue(this, prop, void (0))
                 return Reflect.deleteProperty(target, prop)
