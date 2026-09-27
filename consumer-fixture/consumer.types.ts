@@ -67,3 +67,11 @@ export type _PaginationSearchDTO = PaginationSearchDTO
 import type {Logger} from 'lakutata/com/logger'
 export const _launched: Parameters<typeof Application.onLaunched>[0] = (app: Application, logger: Logger): void => logger.info(app.appName)
 export const _fatal: Parameters<typeof Application.onFatalException>[0] = (error: Error, logger: Logger): number => (logger.error(error), 1)
+
+// Middlewares of the entrypoint
+import type {Middleware, MiddlewareHandler, ActionInvocation} from 'lakutata/com/entrypoint'
+import type {UseMiddlewares} from 'lakutata/decorator/ctrl'
+export type _Middleware = Middleware
+export type _MiddlewareHandler = MiddlewareHandler
+export type _ActionInvocation = ActionInvocation
+export type _UseMiddlewares = typeof UseMiddlewares

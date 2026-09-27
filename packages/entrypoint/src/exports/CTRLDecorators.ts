@@ -11,3 +11,5 @@ export {POST} from '../decorators/http/POST.js'
 export {PUT} from '../decorators/http/PUT.js'
 //Service actions
 export {ServiceAction} from '../decorators/ServiceAction.js'
+//Middlewares
+export {UseMiddlewares} from '../decorators/UseMiddlewares.js'

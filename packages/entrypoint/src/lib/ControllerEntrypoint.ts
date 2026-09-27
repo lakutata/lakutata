@@ -17,6 +17,7 @@ import {CLIContext} from '../context/CLIContext.js'
 import {ServiceContext} from '../context/ServiceContext.js'
 import {HTTPContext} from '../context/HTTPContext.js'
 import type {AccessControlRuleHandler} from './AccessControlRule.js'
+import {MiddlewareDefinition, ValidateMiddlewares} from './Middleware.js'
 
 export enum ActionPatternManagerType {
     HTTP = '_$APMT_HTTP',
@@ -39,6 +40,7 @@ export type ActionDetails<ClassPrototype extends Controller = Controller, DTOCon
         method: string | number | symbol
         dtoConstructor: DTOConstructor
         jsonSchema: JSONSchema
+        middlewares: MiddlewareDefinition[]
         getActionInfo: () => ActionInfo
     }
     & ActionInfo
@@ -147,9 +149,14 @@ export function BindControllerToComponent(component: Component, controllerConstr
         HTTP: new Map(),
         Service: new Map()
     }
-    GetInternalControllerActionPatternMap(ActionPatternManagerType.CLI, controllerConstructor).forEach((value: InternalActionPatternMapValue, hash: string) => totalInternalActionPatternMap.CLI.set(hash, value))
-    GetInternalControllerActionPatternMap(ActionPatternManagerType.HTTP, controllerConstructor).forEach((value: InternalActionPatternMapValue, hash: string) => totalInternalActionPatternMap.HTTP.set(hash, value))
-    GetInternalControllerActionPatternMap(ActionPatternManagerType.Service, controllerConstructor).forEach((value: InternalActionPatternMapValue, hash: string) => totalInternalActionPatternMap.Service.set(hash, value))
+    //The actions inherited from a parent controller are run by the registered controller
+    const bind = (value: InternalActionPatternMapValue): InternalActionPatternMapValue => ({
+        pattern: value.pattern,
+        details: {...value.details, constructor: controllerConstructor}
+    })
+    GetInternalControllerActionPatternMap(ActionPatternManagerType.CLI, controllerConstructor).forEach((value: InternalActionPatternMapValue, hash: string) => totalInternalActionPatternMap.CLI.set(hash, bind(value)))
+    GetInternalControllerActionPatternMap(ActionPatternManagerType.HTTP, controllerConstructor).forEach((value: InternalActionPatternMapValue, hash: string) => totalInternalActionPatternMap.HTTP.set(hash, bind(value)))
+    GetInternalControllerActionPatternMap(ActionPatternManagerType.Service, controllerConstructor).forEach((value: InternalActionPatternMapValue, hash: string) => totalInternalActionPatternMap.Service.set(hash, bind(value)))
     Reflect.defineMetadata(COMPONENT_CTRL_MAP, totalInternalActionPatternMap, component)
 }
 
@@ -210,6 +217,7 @@ export function RegisterHTTPAction<ClassPrototype extends Controller, DTOConstru
                 method: propertyKey,
                 dtoConstructor: dtoConstructor,
                 jsonSchema: dtoConstructor.toJsonSchema(),
+                middlewares: ValidateMiddlewares(actionOptions.middlewares ?? []),
                 getActionInfo: () => actionInfo
             })
     })
@@ -246,6 +254,7 @@ export function RegisterCLIAction<ClassPrototype extends Controller, DTOConstruc
             method: propertyKey,
             dtoConstructor: dtoConstructor,
             jsonSchema: dtoConstructor.toJsonSchema(),
+            middlewares: ValidateMiddlewares(actionOptions.middlewares ?? []),
             getActionInfo: () => actionInfo
         }
     )
@@ -280,6 +289,7 @@ export function RegisterServiceAction<ClassPrototype extends Controller, DTOCons
             method: propertyKey,
             dtoConstructor: dtoConstructor,
             jsonSchema: dtoConstructor.toJsonSchema(),
+            middlewares: ValidateMiddlewares(actionOptions.middlewares ?? []),
             getActionInfo: () => actionInfo
         }
     )

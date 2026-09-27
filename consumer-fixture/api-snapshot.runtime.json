@@ -358,6 +358,9 @@
     "DuplicateActionNameException",
     "Entrypoint",
     "HTTPContext",
+    "InvalidMiddlewareException",
+    "Middleware",
+    "MiddlewareNextCalledException",
     "ServiceContext"
   ],
   "lakutata/com/logger": [
@@ -401,7 +404,8 @@
     "PATCH",
     "POST",
     "PUT",
-    "ServiceAction"
+    "ServiceAction",
+    "UseMiddlewares"
   ],
   "lakutata/decorator/di": [
     "Autoload",

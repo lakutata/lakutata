@@ -2,6 +2,7 @@ import {DTO} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
 import type {AccessControlRuleHandler} from './AccessControlRule.js'
 import {BaseContext} from '../context/BaseContext.js'
+import type {MiddlewareDefinition} from './Middleware.js'
 
 export class ActionOptions<T extends BaseContext<Record<string, any>>> extends DTO {
     /**
@@ -33,5 +34,11 @@ export class ActionOptions<T extends BaseContext<Record<string, any>>> extends D
      */
     @Expect(DTO.Function().optional())
     public rule?: AccessControlRuleHandler<T>
+
+    /**
+     * Action middlewares (run before the ones added to the action method by @UseMiddlewares)
+     */
+    @Expect(DTO.Array(DTO.Function()).optional().default([]))
+    public middlewares?: MiddlewareDefinition[]
 }
 

@@ -28,6 +28,17 @@ import {AccessControl} from './lib/AccessControl.js'
 import {ContextType} from './context/BaseContext.js'
 import {AccessControlRule} from './lib/AccessControlRule.js'
 import {InvalidActionGroupException} from './exceptions/InvalidActionGroupException.js'
+import {
+    ActionInvocation,
+    ComposeMiddlewares,
+    GetClassMiddlewares,
+    GetMethodMiddlewares,
+    InvocationRunner,
+    IsMiddlewareClass,
+    Middleware,
+    MiddlewareDefinition,
+    ValidateMiddlewares
+} from './lib/Middleware.js'
 
 //Self-implemented (replaces the `unset-value` package dependency).
 function unset(obj: Record<string, any>, path: string): boolean {
@@ -63,6 +74,7 @@ export type EntrypointDestroyerRegistrar = (destroyer: EntrypointDestroyer) => v
 
 export type EntrypointOptions = {
     controllers: IBaseObjectConstructor<Controller>[]
+    middlewares?: MiddlewareDefinition[]
     rules?: IBaseObjectConstructor<AccessControlRule>[]
     cliActionGroups?: Record<string, string>
     cli?: CLIEntrypoint | CLIEntrypoint[]
@@ -134,6 +146,26 @@ export const BuildServiceEntrypoint: (entrypoint: ServiceEntrypoint) => ServiceE
  */
 export const BuildEntrypoints: (options: EntrypointOptions) => EntrypointOptions = (options: EntrypointOptions): EntrypointOptions => options
 
+type ActionContext = CLIContext | HTTPContext | ServiceContext
+
+/**
+ * A dispatchable action: its details, its information and its pipeline
+ */
+type ActionEntry = {
+    details: ActionDetails
+    info: BaseActionInfo
+    run: InvocationRunner
+}
+
+/**
+ * The key of an HTTP action
+ * @param route
+ * @param method
+ */
+function HTTPActionKey(route: string, method: string): string {
+    return `${method}\u0000${route}`
+}
+
 /**
  * Entrypoint Component
  */
@@ -152,6 +184,11 @@ export class Entrypoint extends Component {
 
     protected readonly ServiceActionPatternManager: PatternManager = new PatternManager()
 
+    //The exact matches of the commands and the routes, the pattern managers match the glob patterns
+    protected readonly CLIActions: Map<string, ActionEntry> = new Map()
+
+    protected readonly HTTPActions: Map<string, ActionEntry> = new Map()
+
     protected readonly entrypointDestroyers: EntrypointDestroyer[] = []
 
     protected readonly httpActionInfoMap: Map<string, HTTPActionInfo> = new Map()
@@ -162,9 +199,24 @@ export class Entrypoint extends Component {
 
     protected readonly accessControl: IBaseObjectConstructor<AccessControl> = AccessControl
 
+    /**
+     * Controllers
+     * @protected
+     */
     @Configurable(DTO.Array(DTO.Class(Controller)).optional().default([]))
     protected readonly controllers: IBaseObjectConstructor<Controller>[]
 
+    /**
+     * Middlewares of all the actions
+     * @protected
+     */
+    @Configurable(DTO.Array(DTO.Function()).optional().default([]))
+    protected readonly middlewares: MiddlewareDefinition[]
+
+    /**
+     * Access control rules
+     * @protected
+     */
     @Configurable(DTO.Array(DTO.Class(AccessControlRule)).optional().default([]))
     protected readonly rules: IBaseObjectConstructor<AccessControlRule>[]
 
@@ -191,96 +243,103 @@ export class Entrypoint extends Component {
      * @protected
      */
     protected async init(): Promise<void> {
+        ValidateMiddlewares(this.middlewares)
         await Promise.all(this.controllers.map((controllerConstructor: IBaseObjectConstructor<Controller>): Promise<void> => {
             BindControllerToComponent(this, controllerConstructor)
-            return new Promise<void>((resolve, reject) => this.container.register(controllerConstructor).then(resolve).catch(reject))
+            return this.container.register(controllerConstructor)
         }))
+        const middlewareClasses: Set<IBaseObjectConstructor<Middleware>> = new Set()
         const {CLI, HTTP, Service} = GetComponentControllerActionMap(this)
-        CLI.forEach((details: ActionDetails, actionPattern: ActionPattern): void => {
-            this.cliActionInfoMap.set(details.id, {
-                id: details.id,
-                command: details.pattern.command,
-                acl: details.acl,
-                name: details.name,
-                description: details.description,
-                groups: details.groups,
-                controller: details.constructor.className,
-                method: details.method.toString(),
-                jsonSchema: details.jsonSchema
-            })
-            this.CLIActionPatternMap.set(actionPattern, details)
-            this.CLIActionPatternManager.add(actionPattern, details)
+        this.collectActions('CLI', CLI, middlewareClasses, (details: ActionDetails, info: BaseActionInfo, entry: ActionEntry): void => {
+            const cliInfo: CLIActionInfo = {...info, command: details.pattern.command}
+            entry.info = cliInfo
+            this.cliActionInfoMap.set(details.id, cliInfo)
+            this.CLIActionPatternMap.set(details.pattern, details)
+            this.CLIActionPatternManager.add(details.pattern, entry)
+            this.CLIActions.set(details.pattern.command, entry)
         })
-        HTTP.forEach((details: ActionDetails, actionPattern: ActionPattern): void => {
-            this.httpActionInfoMap.set(details.id, {
-                id: details.id,
-                route: details.pattern.route,
-                acl: details.acl,
-                name: details.name,
-                description: details.description,
-                groups: details.groups,
-                controller: details.constructor.className,
-                method: details.method.toString(),
-                jsonSchema: details.jsonSchema
-            })
-            this.HTTPActionPatternMap.set(actionPattern, details)
-            this.HTTPActionPatternManager.add(actionPattern, details)
+        this.collectActions('HTTP', HTTP, middlewareClasses, (details: ActionDetails, info: BaseActionInfo, entry: ActionEntry): void => {
+            const httpInfo: HTTPActionInfo = {...info, route: details.pattern.route}
+            entry.info = httpInfo
+            this.httpActionInfoMap.set(details.id, httpInfo)
+            this.HTTPActionPatternMap.set(details.pattern, details)
+            this.HTTPActionPatternManager.add(details.pattern, entry)
+            this.HTTPActions.set(HTTPActionKey(details.pattern.route, details.pattern.method), entry)
         })
-        Service.forEach((details: ActionDetails, actionPattern: ActionPattern): void => {
-            this.serviceActionInfoMap.set(details.id, {
-                id: details.id,
-                pattern: details.pattern,
-                acl: details.acl,
-                name: details.name,
-                description: details.description,
-                groups: details.groups,
-                controller: details.constructor.className,
-                method: details.method.toString(),
-                jsonSchema: details.jsonSchema
-            })
-            this.ServiceActionPatternMap.set(actionPattern, details)
-            this.ServiceActionPatternManager.add(actionPattern, details)
+        this.collectActions('Service', Service, middlewareClasses, (details: ActionDetails, info: BaseActionInfo, entry: ActionEntry): void => {
+            const serviceInfo: ServiceActionInfo = {...info, pattern: details.pattern}
+            entry.info = serviceInfo
+            this.serviceActionInfoMap.set(details.id, serviceInfo)
+            this.ServiceActionPatternMap.set(details.pattern, details)
+            this.ServiceActionPatternManager.add(details.pattern, entry)
         })
+        //The middleware classes are created in the container of each request
+        await Promise.all([...middlewareClasses].map((middlewareClass: IBaseObjectConstructor<Middleware>): Promise<void> => this.container.register(middlewareClass)))
         this.register(this.service, (entrypoint: ServiceEntrypoint): void => this.registerServiceEntrypoint(entrypoint))
         this.register(this.cli, (entrypoint: CLIEntrypoint): void => this.registerCLIEntrypoint(entrypoint))
         this.register(this.http, (entrypoint: HTTPEntrypoint): void => this.registerHTTPEntrypoint(entrypoint))
-        const invalidCliActionGroupIds: string[] = this.findInvalidActionGroupIds(this.cliActionInfoMap, 'cli')
-        if (invalidCliActionGroupIds.length) throw new InvalidActionGroupException('Found {type} action groups are not defined in cliActionGroups: {groupIds}', {
-            type: 'CLI',
-            groupIds: invalidCliActionGroupIds
-        })
-        const invalidHttpActionGroupIds: string[] = this.findInvalidActionGroupIds(this.httpActionInfoMap, 'http')
-        if (invalidHttpActionGroupIds.length) throw new InvalidActionGroupException('Found {type} action groups are not defined in httpActionGroups: {groupIds}', {
-            type: 'HTTP',
-            groupIds: invalidHttpActionGroupIds
-        })
-        const invalidServiceActionGroupIds: string[] = this.findInvalidActionGroupIds(this.serviceActionInfoMap, 'service')
-        if (invalidServiceActionGroupIds.length) throw new InvalidActionGroupException('Found {type} action groups are not defined in serviceActionGroups: {groupIds}', {
-            type: 'Service',
-            groupIds: invalidServiceActionGroupIds
-        })
-        const duplicateCliActionNames: string[] = this.findDuplicateActionNames(this.cliActionInfoMap)
-        if (duplicateCliActionNames.length) throw new DuplicateActionNameException('Duplicate {type} action names found: {names}', {
-            type: 'CLI',
-            names: duplicateCliActionNames
-        })
-        const duplicateHttpActionNames: string[] = this.findDuplicateActionNames(this.httpActionInfoMap)
-        if (duplicateHttpActionNames.length) throw new DuplicateActionNameException('Duplicate {type} action names found: {names}', {
-            type: 'HTTP',
-            names: duplicateHttpActionNames
-        })
-        const duplicateServiceActionNames: string[] = this.findDuplicateActionNames(this.serviceActionInfoMap)
-        if (duplicateServiceActionNames.length) throw new DuplicateActionNameException('Duplicate {type} action names found: {names}', {
-            type: 'Service',
-            names: duplicateServiceActionNames
+        this.checkActions('CLI', this.cliActionInfoMap, this.cliActionGroups)
+        this.checkActions('HTTP', this.httpActionInfoMap, this.httpActionGroups)
+        this.checkActions('Service', this.serviceActionInfoMap, this.serviceActionGroups)
+    }
+
+    /**
+     * Collect the actions of a transport, with their pipelines
+     * @param type
+     * @param actions
+     * @param middlewareClasses
+     * @param add
+     * @protected
+     */
+    protected collectActions(type: 'CLI' | 'HTTP' | 'Service', actions: ActionPatternMap, middlewareClasses: Set<IBaseObjectConstructor<Middleware>>, add: (details: ActionDetails, info: BaseActionInfo, entry: ActionEntry) => void): void {
+        actions.forEach((details: ActionDetails): void => {
+            const info: BaseActionInfo = {
+                id: details.id,
+                acl: details.acl,
+                name: details.name,
+                description: details.description,
+                groups: details.groups,
+                controller: details.constructor.className,
+                method: details.method.toString(),
+                jsonSchema: details.jsonSchema
+            }
+            const middlewares: MiddlewareDefinition[] = [
+                ...this.middlewares,
+                ...GetClassMiddlewares(details.constructor),
+                ...details.middlewares,
+                ...GetMethodMiddlewares(details.constructor, As<string | symbol>(details.method))
+            ]
+            middlewares.filter(IsMiddlewareClass).forEach((middlewareClass: IBaseObjectConstructor<Middleware>): unknown => middlewareClasses.add(middlewareClass))
+            const entry: ActionEntry = {
+                details: details,
+                info: info,
+                run: ComposeMiddlewares(middlewares, (invocation: ActionInvocation): Promise<unknown> => this.runAction(details, invocation))
+            }
+            add(details, info, entry)
         })
     }
 
     /**
-     * Http action info getter
-     * @constructor
+     * Check the action groups and names of a transport
+     * @param type
+     * @param actionInfoMap
+     * @param actionGroups
      * @protected
      */
+    protected checkActions(type: 'CLI' | 'HTTP' | 'Service', actionInfoMap: Map<string, BaseActionInfo>, actionGroups: Record<string, string>): void {
+        const invalidGroupIds: string[] = this.findInvalidActionGroupIds(actionInfoMap, As(type.toLowerCase()))
+        if (invalidGroupIds.length) throw new InvalidActionGroupException('Found {type} action groups are not defined in {option}: {groupIds}', {
+            type: type,
+            option: `${type === 'Service' ? 'service' : type.toLowerCase()}ActionGroups`,
+            groupIds: invalidGroupIds
+        })
+        const duplicateNames: string[] = this.findDuplicateActionNames(actionInfoMap)
+        if (duplicateNames.length) throw new DuplicateActionNameException('Duplicate {type} action names found: {names}', {
+            type: type,
+            names: duplicateNames
+        })
+    }
+
     protected get HTTP_ACTIONS(): HTTPActionInfo[] {
         return [...this.httpActionInfoMap.values()]
     }
@@ -430,33 +489,30 @@ export class Entrypoint extends Component {
      * @param dtoConstructor
      * @protected
      */
-    protected async runControllerMethodWithoutAbortController<DTOConstructor extends typeof DTO = typeof DTO>(details: ActionDetails, context: CLIContext | HTTPContext | ServiceContext, dtoConstructor: DTOConstructor): Promise<unknown> {
-        const runtimeContainer: Container = this.createScope()
-        try {
-            //Created inside the try block, so a failing controller construction still destroys the request scope
-            const controller: Controller = await runtimeContainer.get(details.constructor, {context: context})
-            const input: Record<string, any> = structuredClone(await dtoConstructor.validateAsync(context.data))
-            await this.runAccessControl(this.rules, runtimeContainer, context, input, details)
-            return await controller.getMethod(As(details.method))(input)
-        } catch (e) {
-            throw e
-        } finally {
-            //Container destruction never rejects, errors of destroyed objects are reported by the container
-            runtimeContainer.destroy().catch(DevNull)
-        }
+    /**
+     * Run an action in the container of its request: create the controller, validate the input, check the access and call the action
+     * @param details
+     * @param invocation
+     * @protected
+     */
+    protected async runAction(details: ActionDetails, invocation: ActionInvocation): Promise<unknown> {
+        const {context, container} = invocation
+        const controller: Controller = await container.get(details.constructor, {context: context})
+        const input: Record<string, any> = structuredClone(await details.dtoConstructor.validateAsync(context.data))
+        await this.runAccessControl(this.rules, container, context, input, details)
+        return await controller.getMethod(As(details.method))(input)
     }
 
     /**
-     * Run controller's method and return its result (with AbortController)
-     * @param details
+     * Dispatch a request to an action, in a new request container
+     * @param entry
      * @param context
-     * @param dtoConstructor
      * @param abortController
      * @protected
      */
-    protected async runControllerMethodWithAbortController<DTOConstructor extends typeof DTO = typeof DTO>(details: ActionDetails, context: CLIContext | HTTPContext | ServiceContext, dtoConstructor: DTOConstructor, abortController: AbortController): Promise<unknown> {
+    protected async dispatch(entry: ActionEntry, context: ActionContext, abortController?: AbortController): Promise<unknown> {
         //An already aborted request is not executed at all
-        if (abortController.signal.aborted) return
+        if (abortController?.signal.aborted) return
         const runtimeContainer: Container = this.createScope()
         let isAborted: boolean = false
         //Aborting destroys the request scope right away, container destruction is idempotent
@@ -464,41 +520,24 @@ export class Entrypoint extends Component {
             isAborted = true
             runtimeContainer.destroy().catch(DevNull)
         }
-        abortController.signal.addEventListener('abort', abortHandler, {once: true})
+        abortController?.signal.addEventListener('abort', abortHandler, {once: true})
         try {
-            const controller: Controller = await runtimeContainer.get(details.constructor, {context: context})
-            const input: Record<string, any> = structuredClone(await dtoConstructor.validateAsync(context.data))
-            await this.runAccessControl(this.rules, runtimeContainer, context, input, details)
-            const runResult: any = await controller.getMethod(As(details.method))(input)
-            if (!isAborted) return runResult
+            const result: unknown = await entry.run({
+                context: context,
+                action: As(entry.info),
+                container: runtimeContainer,
+                signal: abortController?.signal
+            })
+            if (!isAborted) return result
         } catch (e) {
             if (!isAborted) throw e
         } finally {
-            //The request scope is always destroyed once the dispatch ends
-            abortController.signal.removeEventListener('abort', abortHandler)
+            //The request scope is always destroyed once the dispatch ends, its destruction never rejects
+            abortController?.signal.removeEventListener('abort', abortHandler)
             runtimeContainer.destroy().catch(DevNull)
         }
     }
 
-    /**
-     * Run controller's method and return its result
-     * @param details
-     * @param context
-     * @param dtoConstructor
-     * @param abortController
-     * @protected
-     */
-    protected async runControllerMethod<DTOConstructor extends typeof DTO = typeof DTO>(details: ActionDetails, context: CLIContext | HTTPContext | ServiceContext, dtoConstructor: DTOConstructor, abortController?: AbortController): Promise<unknown> {
-        if (abortController) return await this.runControllerMethodWithAbortController<DTOConstructor>(details, context, dtoConstructor, abortController)
-        return await this.runControllerMethodWithoutAbortController<DTOConstructor>(details, context, dtoConstructor)
-    }
-
-    /**
-     * Register
-     * @param eps
-     * @param registerFunc
-     * @protected
-     */
     protected register<T>(eps: any | any[] | undefined, registerFunc: (entrypoint: T) => void): void {
         (eps ? Array.isArray(eps) ? eps : [eps] : []).forEach((entrypoint: T) => registerFunc(entrypoint))
     }
@@ -515,9 +554,9 @@ export class Entrypoint extends Component {
             const actionPattern: ActionPattern = {
                 command: context.command
             }
-            const details: ActionDetails | null = this.CLIActionPatternManager.find(actionPattern)
-            if (!details) throw new ControllerActionNotFoundException('Command not found')
-            return await this.runControllerMethod(details, context, details.dtoConstructor, abortController)
+            const entry: ActionEntry | null = this.CLIActions.get(context.command) ?? this.CLIActionPatternManager.find(actionPattern)
+            if (!entry) throw new ControllerActionNotFoundException('Command not found')
+            return await this.dispatch(entry, context, abortController)
         }, (destroyer: EntrypointDestroyer): number => this.entrypointDestroyers.push(destroyer))
     }
 
@@ -538,9 +577,9 @@ export class Entrypoint extends Component {
                 route: context.route,
                 method: context.method
             }
-            const details: ActionDetails | null = this.HTTPActionPatternManager.find(actionPattern)
-            if (!details) throw new ControllerActionNotFoundException('Route \'{route}\' not found', context)
-            return await this.runControllerMethod(details, context, details.dtoConstructor, abortController)
+            const entry: ActionEntry | null = this.HTTPActions.get(HTTPActionKey(context.route, context.method)) ?? this.HTTPActionPatternManager.find(actionPattern)
+            if (!entry) throw new ControllerActionNotFoundException('Route \'{route}\' not found', context)
+            return await this.dispatch(entry, context, abortController)
         }, (destroyer: EntrypointDestroyer): number => this.entrypointDestroyers.push(destroyer))
     }
 
@@ -551,8 +590,9 @@ export class Entrypoint extends Component {
      */
     protected registerServiceEntrypoint(entrypoint: ServiceEntrypoint): void {
         return entrypoint(this.getModule(), async (context: ServiceContext, abortController?: AbortController) => {
-            const details: ActionDetails | null = this.ServiceActionPatternManager.find(context.input)
-            if (!details) throw new ControllerActionNotFoundException('Controller action not found')
+            const entry: ActionEntry | null = this.ServiceActionPatternManager.find(context.input)
+            if (!entry) throw new ControllerActionNotFoundException('Controller action not found')
+            const details: ActionDetails = entry.details
             const patternPaths: string[] = GetObjectPropertyPaths(details.pattern)
             patternPaths.forEach((path: string) => unset(context.data, path))
             const checkPatternPaths: string[] = UniqueArray(patternPaths
@@ -563,7 +603,7 @@ export class Entrypoint extends Component {
                 path.split('.').forEach((key: string) => target = target[key] ? target[key] : undefined)
                 if (target && !Object.keys(target).length) unset(context.data, path)
             })
-            return await this.runControllerMethod(details, context, details.dtoConstructor, abortController)
+            return await this.dispatch(entry, context, abortController)
         }, (destroyer: EntrypointDestroyer): number => this.entrypointDestroyers.push(destroyer))
     }
 
