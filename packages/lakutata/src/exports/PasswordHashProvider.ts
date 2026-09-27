@@ -1,1 +1,1 @@
-export * from '@lakutata/security'
+export {PasswordHash, PasswordTooLongException} from '@lakutata/security'

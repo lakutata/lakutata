@@ -372,8 +372,20 @@
     "PasswordTooLongException"
   ],
   "lakutata/security": [
+    "Crypt",
+    "DecryptByKey",
+    "DecryptByPassword",
+    "DecryptionFailedException",
+    "EncryptByKey",
+    "EncryptByPassword",
+    "GenerateKey",
+    "HMAC",
+    "InvalidSignatureException",
+    "Mac",
     "PasswordHash",
-    "PasswordTooLongException"
+    "PasswordTooLongException",
+    "TimingSafeEqual",
+    "VerifyHMAC"
   ],
   "lakutata/decorator/asst": [
     "After",
