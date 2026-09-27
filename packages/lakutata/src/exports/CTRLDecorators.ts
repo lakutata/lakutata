@@ -1,1 +1,1 @@
-export * from '@lakutata/core/decorator/ctrl'
+export * from '@lakutata/entrypoint/decorator/ctrl'

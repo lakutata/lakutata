@@ -1,7 +1,6 @@
 import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
 import {Component} from '../core/Component.js'
 import {ConsoleLogger} from '../../components/ConsoleLogger.js'
-import {Entrypoint} from '../../components/entrypoint/Entrypoint.js'
 
 export type DefaultComponentOptions = {
     class: IBaseObjectConstructor<Component>
@@ -9,8 +8,7 @@ export type DefaultComponentOptions = {
 }
 
 const defaultComponents: Map<string, DefaultComponentOptions> = new Map<string, DefaultComponentOptions>([
-    ['log', {class: ConsoleLogger}],
-    ['entrypoint', {class: Entrypoint}]
+    ['log', {class: ConsoleLogger}]
 ])
 
 /**

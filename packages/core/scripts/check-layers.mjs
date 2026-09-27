@@ -47,9 +47,6 @@ const LAYERS = [
     ['interfaces', 4, 'model'],
     ['dto', 4, 'model'],
     //L5 - built-in components & providers (independent of each other)
-    ['components/entrypoint', 5, 'entrypoint'],
-    ['decorators/ctrl', 5, 'entrypoint'],
-    ['lib/context', 5, 'entrypoint'],
     ['components/ConsoleLogger.ts', 5, 'logger'],
     ['components/monitor', 5, 'monitor'],
     //L6 - application

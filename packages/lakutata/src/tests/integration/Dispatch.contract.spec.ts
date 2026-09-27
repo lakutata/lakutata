@@ -12,17 +12,17 @@
 // whole assertion block in try/catch and force process.exit(1) on any failure.
 import assert from 'node:assert'
 import {Writable} from 'node:stream'
-import {Application} from '@lakutata/core'
+import {Application} from '../../exports/Lakutata.js'
 import {DTO} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
 import {Inject} from '@lakutata/core/decorator/di'
-import {ServiceAction} from '@lakutata/core/decorator/ctrl'
-import {Controller} from '@lakutata/core/com/entrypoint'
+import {ServiceAction} from '@lakutata/entrypoint/decorator/ctrl'
+import {Controller} from '@lakutata/entrypoint'
 import {Logger} from '@lakutata/logger'
-import {ServiceContext} from '@lakutata/core/com/entrypoint'
-import {BuildEntrypoints, BuildServiceEntrypoint, Entrypoint} from '@lakutata/core/com/entrypoint'
+import {ServiceContext} from '@lakutata/entrypoint'
+import {BuildEntrypoints, BuildServiceEntrypoint, Entrypoint} from '@lakutata/entrypoint'
 import {Provider} from '@lakutata/core'
-import {AccessControlRule, AccessDenyException, ContextType} from '@lakutata/core/com/entrypoint'
+import {AccessControlRule, AccessDenyException, ContextType} from '@lakutata/entrypoint'
 
 class ProbeDTO extends DTO {
     @Expect(DTO.String().required())

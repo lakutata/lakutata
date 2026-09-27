@@ -5,8 +5,10 @@ import {BaseObject} from '../../lib/base/BaseObject.js'
 import {Container} from '../../lib/core/Container.js'
 import {IsSubclassOf} from '../../lib/helpers/internal/IsSubclassOf.js'
 import {DTO} from '../../lib/dto/DTO.js'
-import {Controller} from '../../components/entrypoint/lib/Controller.js'
-import {ServiceContext} from '../../lib/context/ServiceContext.js'
+import {Provider} from '../../lib/core/Provider.js'
+import {DefineObjectType, ObjectType} from '../../lib/base/internal/ObjectType.js'
+import {Scoped} from '../../decorators/di/Lifetime.js'
+import {Configurable} from '../../decorators/di/Configurable.js'
 import {listModules, type ModuleDescriptor} from '../../lib/ioc/ListModules.js'
 import {mkdtempSync, mkdirSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
@@ -15,10 +17,17 @@ import path from 'node:path'
 class SubObject extends BaseObject {
 }
 
-class ContextController extends Controller {
-    public get currentContext(): unknown {
-        return this.context
-    }
+class ConfiguredProvider extends Provider {
+    @Configurable(DTO.Any())
+    public readonly context: unknown
+}
+
+//A controller (from the entrypoint package) is recognized by its object type
+@Scoped(true)
+@DefineObjectType(ObjectType.Controller)
+class MarkedController extends Provider {
+    @Configurable(DTO.Any())
+    public readonly context: unknown
 }
 
 await describe('IoC Test', async function (): Promise<void> {
@@ -66,13 +75,16 @@ await describe('IoC Test', async function (): Promise<void> {
         assert.equal(IsSubclassOf(undefined, BaseObject), false)
     })
 
-    await it('a controller receives its context instance as is and rejects anything else', async (): Promise<void> => {
+    await it('a configured scoped object is owned by its requester, except a controller', async (): Promise<void> => {
         const root: Container = new Container()
-        await root.load([ContextController])
-        const context: ServiceContext = new ServiceContext({data: {act: 'x'}})
-        const controller: ContextController = await root.createScope().get(ContextController, {context: context})
-        assert.equal(controller.currentContext, context)
-        await assert.rejects(root.createScope().get(ContextController, {context: {type: 'SERVICE', data: {}}}))
+        await root.load([ConfiguredProvider, MarkedController])
+        const scope: Container = root.createScope()
+        const first: ConfiguredProvider = await scope.get(ConfiguredProvider, {context: 1})
+        assert.notEqual(await scope.get(ConfiguredProvider, {context: 2}), first)
+        //A controller keeps its instance within the request
+        const controller: MarkedController = await scope.get(MarkedController, {context: 1})
+        assert.equal(await scope.get(MarkedController, {context: 2}), controller)
+        assert.equal(controller.context, 1)
         await root.destroy()
     })
 

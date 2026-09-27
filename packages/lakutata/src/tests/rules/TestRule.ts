@@ -1,7 +1,7 @@
-import {AccessControlRule} from '@lakutata/core/com/entrypoint'
-import {Application} from '@lakutata/core'
+import {AccessControlRule} from '@lakutata/entrypoint'
+import {Application} from '../../exports/Lakutata.js'
 import {Inject} from '@lakutata/core/decorator/di'
-import {ContextType} from '@lakutata/core/com/entrypoint'
+import {ContextType} from '@lakutata/entrypoint'
 
 export class TestRule extends AccessControlRule {
     public get supportContextTypes(): ContextType[] {

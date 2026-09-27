@@ -54,9 +54,6 @@
             "@lakutata/core/com/monitor": [
                 "../core/dist/types/exports/MonitorComponent"
             ],
-            "@lakutata/core/com/entrypoint": [
-                "../core/dist/types/exports/EntrypointComponent"
-            ],
             "@lakutata/core/com/logger": [
                 "../core/dist/types/exports/LoggerComponent"
             ],
@@ -69,9 +66,6 @@
             "@lakutata/core/decorator/asst": [
                 "../core/dist/types/exports/ASSTDecorators"
             ],
-            "@lakutata/core/decorator/ctrl": [
-                "../core/dist/types/exports/CTRLDecorators"
-            ],
             "@lakutata/core/decorator/di": [
                 "../core/dist/types/exports/DIDecorators"
             ],
@@ -80,6 +74,12 @@
             ],
             "@lakutata/logger": [
                 "../logger/dist/types/exports/Logger"
+            ],
+            "@lakutata/entrypoint": [
+                "../entrypoint/dist/types/exports/Entrypoint"
+            ],
+            "@lakutata/entrypoint/decorator/ctrl": [
+                "../entrypoint/dist/types/exports/CTRLDecorators"
             ]
         }
     },

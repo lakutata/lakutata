@@ -1,1 +1,1 @@
-export * from '@lakutata/core/com/entrypoint'
+export * from '@lakutata/entrypoint'

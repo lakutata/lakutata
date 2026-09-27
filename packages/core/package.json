@@ -1,7 +1,7 @@
 {
   "name": "@lakutata/core",
   "version": "2.0.126",
-  "description": "Core of the lakutata IoC framework (IoC/DI, BaseObject, DTO/validation, decorators, contexts, entrypoint, console logger, monitor).",
+  "description": "Core of the lakutata IoC framework (IoC/DI, BaseObject, DTO/validation, decorators, console logger, monitor).",
   "type": "module",
   "main": "./dist/cjs/exports/Core.js",
   "types": "./dist/types/exports/Core.d.ts",
@@ -26,11 +26,6 @@
       "import": "./dist/esm/exports/MonitorComponent.js",
       "require": "./dist/cjs/exports/MonitorComponent.js"
     },
-    "./com/entrypoint": {
-      "types": "./dist/types/exports/EntrypointComponent.d.ts",
-      "import": "./dist/esm/exports/EntrypointComponent.js",
-      "require": "./dist/cjs/exports/EntrypointComponent.js"
-    },
     "./com/logger": {
       "types": "./dist/types/exports/LoggerComponent.d.ts",
       "import": "./dist/esm/exports/LoggerComponent.js",
@@ -40,11 +35,6 @@
       "types": "./dist/types/exports/ASSTDecorators.d.ts",
       "import": "./dist/esm/exports/ASSTDecorators.js",
       "require": "./dist/cjs/exports/ASSTDecorators.js"
-    },
-    "./decorator/ctrl": {
-      "types": "./dist/types/exports/CTRLDecorators.d.ts",
-      "import": "./dist/esm/exports/CTRLDecorators.js",
-      "require": "./dist/cjs/exports/CTRLDecorators.js"
     },
     "./decorator/di": {
       "types": "./dist/types/exports/DIDecorators.d.ts",
@@ -82,7 +72,6 @@
     "fast-xml-parser": "4.5.3",
     "glob": "13.0.0",
     "path-scurry": "^2.0.0",
-    "patrun": "7.2.7",
     "reflect-metadata": "0.2.2",
     "simple-statistics": "7.8.8"
   },
