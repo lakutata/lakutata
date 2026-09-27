@@ -7,3 +7,4 @@ export {SetDefaultComponent, type DefaultComponentOptions} from '../lib/app/Appl
 export {ObjectType, DefineObjectType} from '../lib/base/internal/ObjectType.js'
 export {IsSubclassOf} from '../lib/helpers/internal/IsSubclassOf.js'
 export {FlexibleDTO} from '../lib/dto/FlexibleDTO.js'
+export {clone as CloneDeep} from '../lib/validation/engine/utils/clone.js'

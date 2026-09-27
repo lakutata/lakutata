@@ -14,6 +14,7 @@ import {
 import {PatternManager} from './lib/PatternManager.js'
 import {Controller} from './lib/Controller.js'
 import {As} from '@lakutata/core/helper'
+import {CloneDeep} from '@lakutata/core/internal'
 import {ControllerActionNotFoundException} from './exceptions/ControllerActionNotFoundException.js'
 import {JSONSchema} from '@lakutata/core'
 import {Container} from '@lakutata/core'
@@ -498,7 +499,8 @@ export class Entrypoint extends Component {
     protected async runAction(details: ActionDetails, invocation: ActionInvocation): Promise<unknown> {
         const {context, container} = invocation
         const controller: Controller = await container.get(details.constructor, {context: context})
-        const input: Record<string, any> = structuredClone(await details.dtoConstructor.validateAsync(context.data))
+        //The input is detached from the context, whose values are proxies validating their changes
+        const input: Record<string, any> = CloneDeep(await details.dtoConstructor.validateAsync(context.data))
         await this.runAccessControl(this.rules, container, context, input, details)
         return await controller.getMethod(As(details.method))(input)
     }
