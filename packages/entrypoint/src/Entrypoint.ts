@@ -5,28 +5,19 @@ import {HTTPContext} from './context/HTTPContext.js'
 import {ServiceContext} from './context/ServiceContext.js'
 import {ActionPattern} from '@lakutata/core'
 import {Module} from '@lakutata/core'
-import {
-    ActionDetails,
-    ActionPatternMap,
-    BindControllerToComponent,
-    GetComponentControllerActionMap
-} from './lib/ControllerEntrypoint.js'
-import {PatternManager} from './lib/PatternManager.js'
+import {ActionDetails, ActionPatternMap, BindControllerToComponent, GetComponentControllerActionMap} from './lib/ControllerEntrypoint.js'
 import {Controller} from './lib/Controller.js'
 import {As} from '@lakutata/core/helper'
-import {CloneDeep} from '@lakutata/core/internal'
-import {ControllerActionNotFoundException} from './exceptions/ControllerActionNotFoundException.js'
+import {CloneDeep, GetConfigurableRecordsFromInstance, RegisterTeardownHook} from '@lakutata/core/internal'
 import {JSONSchema} from '@lakutata/core'
 import {Container} from '@lakutata/core'
 import {DevNull} from '@lakutata/core/helper'
-import {GetObjectPropertyPaths} from '@lakutata/core/helper'
-import {UniqueArray} from '@lakutata/core/helper'
 import {DTO} from '@lakutata/core'
 import {Singleton} from '@lakutata/core/decorator/di'
 import type {IBaseObjectConstructor} from '@lakutata/core'
 import {DuplicateActionNameException} from './exceptions/DuplicateActionNameException.js'
 import {AccessControl} from './lib/AccessControl.js'
-import {ContextType} from './context/BaseContext.js'
+import {BaseContext, ContextType} from './context/BaseContext.js'
 import {AccessControlRule} from './lib/AccessControlRule.js'
 import {InvalidActionGroupException} from './exceptions/InvalidActionGroupException.js'
 import {
@@ -40,19 +31,10 @@ import {
     MiddlewareDefinition,
     ValidateMiddlewares
 } from './lib/Middleware.js'
-
-//Self-implemented (replaces the `unset-value` package dependency).
-function unset(obj: Record<string, any>, path: string): boolean {
-    const keys: string[] = path.split('.')
-    let current: any = obj
-    for (let i = 0; i < keys.length - 1; i++) {
-        if (current[keys[i]] === undefined) return false
-        current = current[keys[i]]
-    }
-    const lastKey: string = keys[keys.length - 1]
-    if (current[lastKey] !== undefined) { delete current[lastKey]; return true }
-    return false
-}
+import {ChannelDefinition, ChannelEntry, ChannelMatch, ChannelMatcher, DefineChannel, GetChannel, GetChannelByContextType, HasChannel} from './channel/Channel.js'
+import {ChannelActionInfo, ChannelRuntime, CommandMap, DispatchOptions, EntrypointAdapter, IsEntrypointAdapter} from './channel/EntrypointAdapter.js'
+import {InvalidEntrypointAdapterException} from './exceptions/InvalidEntrypointAdapterException.js'
+import './channel/BuiltinChannels.js'
 
 export {ContextType, BaseContext} from './context/BaseContext.js'
 export {CLIContext} from './context/CLIContext.js'
@@ -73,16 +55,23 @@ export type ServiceEntrypointHandler<T = unknown> = (context: ServiceContext, ab
 export type EntrypointDestroyer = () => void | Promise<void>
 export type EntrypointDestroyerRegistrar = (destroyer: EntrypointDestroyer) => void
 
-export type EntrypointOptions = {
+/**
+ * The entrypoint options, the packages of the other channels add their adapter keys (declaration merging)
+ */
+export interface EntrypointOptions {
     controllers: IBaseObjectConstructor<Controller>[]
     middlewares?: MiddlewareDefinition[]
     rules?: IBaseObjectConstructor<AccessControlRule>[]
+    /**
+     * ms, the time given to the requests in progress when the entrypoint stops, they are aborted after it
+     */
+    shutdownTimeout?: number
     cliActionGroups?: Record<string, string>
-    cli?: CLIEntrypoint | CLIEntrypoint[]
+    cli?: CLIEntrypoint | EntrypointAdapter<CLIContext> | (CLIEntrypoint | EntrypointAdapter<CLIContext>)[]
     httpActionGroups?: Record<string, string>
-    http?: HTTPEntrypoint | HTTPEntrypoint[]
+    http?: HTTPEntrypoint | EntrypointAdapter<HTTPContext> | (HTTPEntrypoint | EntrypointAdapter<HTTPContext>)[]
     serviceActionGroups?: Record<string, string>
-    service?: ServiceEntrypoint | ServiceEntrypoint[]
+    service?: ServiceEntrypoint | EntrypointAdapter<ServiceContext> | (ServiceEntrypoint | EntrypointAdapter<ServiceContext>)[]
 }
 
 export interface BaseActionInfo {
@@ -147,56 +136,52 @@ export const BuildServiceEntrypoint: (entrypoint: ServiceEntrypoint) => ServiceE
  */
 export const BuildEntrypoints: (options: EntrypointOptions) => EntrypointOptions = (options: EntrypointOptions): EntrypointOptions => options
 
-type ActionContext = CLIContext | HTTPContext | ServiceContext
-
 /**
- * A dispatchable action: its details, its information and its pipeline
+ * A dispatchable action: its details, its information and its middlewares (controller, options, method)
  */
-type ActionEntry = {
-    details: ActionDetails
-    info: BaseActionInfo
-    run: InvocationRunner
+type ActionEntry = ChannelEntry & {
+    readonly middlewares: MiddlewareDefinition[]
+    readonly address: ChannelActionInfo
 }
 
 /**
- * The key of an HTTP action
- * @param route
- * @param method
+ * The actions of a channel
  */
-function HTTPActionKey(route: string, method: string): string {
-    return `${method}\u0000${route}`
+type ChannelState = {
+    readonly definition: ChannelDefinition
+    readonly entries: ActionEntry[]
+    //The action information by id (the entries of an action declared for several addresses share it)
+    readonly infos: Map<string, BaseActionInfo & Record<string, unknown>>
+    readonly matcher: ChannelMatcher
 }
+
+/**
+ * A request in progress
+ */
+type InflightRequest = {
+    readonly abortController: AbortController
+    promise?: Promise<unknown>
+}
+
+/**
+ * A started adapter
+ */
+type StartedAdapter = {
+    readonly adapter: EntrypointAdapter<any>
+    readonly inflight: Set<InflightRequest>
+}
+
+//The options of the entrypoint which are not adapters
+const ENTRYPOINT_OPTIONS: Set<string> = new Set(['class', 'id', 'controllers', 'middlewares', 'rules', 'shutdownTimeout', 'cliActionGroups', 'httpActionGroups', 'serviceActionGroups'])
+
+//The channels accepting the callbacks of 2.x
+const LEGACY_CHANNELS: Set<string> = new Set(['cli', 'http', 'service'])
 
 /**
  * Entrypoint Component
  */
 @Singleton()
 export class Entrypoint extends Component {
-
-    protected readonly CLIActionPatternMap: ActionPatternMap = new Map()
-
-    protected readonly HTTPActionPatternMap: ActionPatternMap = new Map()
-
-    protected readonly ServiceActionPatternMap: ActionPatternMap = new Map()
-
-    protected readonly CLIActionPatternManager: PatternManager = new PatternManager()
-
-    protected readonly HTTPActionPatternManager: PatternManager = new PatternManager()
-
-    protected readonly ServiceActionPatternManager: PatternManager = new PatternManager()
-
-    //The exact matches of the commands and the routes, the pattern managers match the glob patterns
-    protected readonly CLIActions: Map<string, ActionEntry> = new Map()
-
-    protected readonly HTTPActions: Map<string, ActionEntry> = new Map()
-
-    protected readonly entrypointDestroyers: EntrypointDestroyer[] = []
-
-    protected readonly httpActionInfoMap: Map<string, HTTPActionInfo> = new Map()
-
-    protected readonly serviceActionInfoMap: Map<string, ServiceActionInfo> = new Map()
-
-    protected readonly cliActionInfoMap: Map<string, CLIActionInfo> = new Map()
 
     protected readonly accessControl: IBaseObjectConstructor<AccessControl> = AccessControl
 
@@ -221,6 +206,13 @@ export class Entrypoint extends Component {
     @Configurable(DTO.Array(DTO.Class(AccessControlRule)).optional().default([]))
     protected readonly rules: IBaseObjectConstructor<AccessControlRule>[]
 
+    /**
+     * ms, the time given to the requests in progress when the entrypoint stops
+     * @protected
+     */
+    @Configurable(DTO.Number().integer().min(0).optional().default(30000))
+    protected readonly shutdownTimeout: number
+
     @Configurable(DTO.Object().pattern(DTO.String(), DTO.String()).optional().default({}))
     protected readonly cliActionGroups: Record<string, string>
 
@@ -231,13 +223,21 @@ export class Entrypoint extends Component {
     protected readonly serviceActionGroups: Record<string, string>
 
     @Configurable()
-    protected readonly cli?: CLIEntrypoint | CLIEntrypoint[]
+    protected readonly cli?: CLIEntrypoint | EntrypointAdapter | (CLIEntrypoint | EntrypointAdapter)[]
 
     @Configurable()
-    protected readonly http?: HTTPEntrypoint | HTTPEntrypoint[]
+    protected readonly http?: HTTPEntrypoint | EntrypointAdapter | (HTTPEntrypoint | EntrypointAdapter)[]
 
     @Configurable()
-    protected readonly service?: ServiceEntrypoint | ServiceEntrypoint[]
+    protected readonly service?: ServiceEntrypoint | EntrypointAdapter | (ServiceEntrypoint | EntrypointAdapter)[]
+
+    #channels: Map<string, ChannelState> = new Map()
+
+    #started: StartedAdapter[] = []
+
+    #stopping?: Promise<void>
+
+    #unregisterTeardown?: () => void
 
     /**
      * Initializer
@@ -245,56 +245,127 @@ export class Entrypoint extends Component {
      */
     protected async init(): Promise<void> {
         ValidateMiddlewares(this.middlewares)
+        const adapters: EntrypointAdapter<any>[] = this.configuredAdapters()
         await Promise.all(this.controllers.map((controllerConstructor: IBaseObjectConstructor<Controller>): Promise<void> => {
             BindControllerToComponent(this, controllerConstructor)
             return this.container.register(controllerConstructor)
         }))
-        const middlewareClasses: Set<IBaseObjectConstructor<Middleware>> = new Set()
-        const {CLI, HTTP, Service} = GetComponentControllerActionMap(this)
-        this.collectActions('CLI', CLI, middlewareClasses, (details: ActionDetails, info: BaseActionInfo, entry: ActionEntry): void => {
-            const cliInfo: CLIActionInfo = {...info, command: details.pattern.command}
-            entry.info = cliInfo
-            this.cliActionInfoMap.set(details.id, cliInfo)
-            this.CLIActionPatternMap.set(details.pattern, details)
-            this.CLIActionPatternManager.add(details.pattern, entry)
-            this.CLIActions.set(details.pattern.command, entry)
-        })
-        this.collectActions('HTTP', HTTP, middlewareClasses, (details: ActionDetails, info: BaseActionInfo, entry: ActionEntry): void => {
-            const httpInfo: HTTPActionInfo = {...info, route: details.pattern.route}
-            entry.info = httpInfo
-            this.httpActionInfoMap.set(details.id, httpInfo)
-            this.HTTPActionPatternMap.set(details.pattern, details)
-            this.HTTPActionPatternManager.add(details.pattern, entry)
-            this.HTTPActions.set(HTTPActionKey(details.pattern.route, details.pattern.method), entry)
-        })
-        this.collectActions('Service', Service, middlewareClasses, (details: ActionDetails, info: BaseActionInfo, entry: ActionEntry): void => {
-            const serviceInfo: ServiceActionInfo = {...info, pattern: details.pattern}
-            entry.info = serviceInfo
-            this.serviceActionInfoMap.set(details.id, serviceInfo)
-            this.ServiceActionPatternMap.set(details.pattern, details)
-            this.ServiceActionPatternManager.add(details.pattern, entry)
-        })
+        GetComponentControllerActionMap(this).forEach((actions: ActionPatternMap, channel: string): unknown => this.#channels.set(channel, this.createChannelState(GetChannel(channel), actions)))
+        this.checkActions('CLI', this.#channels.get('cli')?.infos, this.cliActionGroups, 'cliActionGroups')
+        this.checkActions('HTTP', this.#channels.get('http')?.infos, this.httpActionGroups, 'httpActionGroups')
+        this.checkActions('Service', this.#channels.get('service')?.infos, this.serviceActionGroups, 'serviceActionGroups')
+        for (const [name, state] of this.#channels) if (!LEGACY_CHANNELS.has(name)) this.checkActions(name, state.infos)
         //The middleware classes are created in the container of each request
+        const middlewareClasses: Set<IBaseObjectConstructor<Middleware>> = new Set()
+        const addMiddlewareClasses = (middlewares: MiddlewareDefinition[]): void => middlewares.filter(IsMiddlewareClass).forEach((middlewareClass: IBaseObjectConstructor<Middleware>): unknown => middlewareClasses.add(middlewareClass))
+        addMiddlewareClasses(this.middlewares)
+        this.#channels.forEach((state: ChannelState): void => state.entries.forEach((entry: ActionEntry): void => addMiddlewareClasses(entry.middlewares)))
+        adapters.forEach((adapter: EntrypointAdapter<any>): void => addMiddlewareClasses(ValidateMiddlewares(adapter.middlewares ?? [])))
         await Promise.all([...middlewareClasses].map((middlewareClass: IBaseObjectConstructor<Middleware>): Promise<void> => this.container.register(middlewareClass)))
-        this.register(this.service, (entrypoint: ServiceEntrypoint): void => this.registerServiceEntrypoint(entrypoint))
-        this.register(this.cli, (entrypoint: CLIEntrypoint): void => this.registerCLIEntrypoint(entrypoint))
-        this.register(this.http, (entrypoint: HTTPEntrypoint): void => this.registerHTTPEntrypoint(entrypoint))
-        this.checkActions('CLI', this.cliActionInfoMap, this.cliActionGroups)
-        this.checkActions('HTTP', this.httpActionInfoMap, this.httpActionGroups)
-        this.checkActions('Service', this.serviceActionInfoMap, this.serviceActionGroups)
+        //The adapters stop before the container destroys the scopes of the requests in progress
+        this.#unregisterTeardown = RegisterTeardownHook(this.container, (): Promise<void> => this.stopAdapters())
+        for (const adapter of adapters) await this.startAdapter(adapter)
     }
 
     /**
-     * Collect the actions of a transport, with their pipelines
-     * @param type
-     * @param actions
-     * @param middlewareClasses
-     * @param add
+     * Destroyer: stop the adapters (in reverse order) and wait for their requests in progress
      * @protected
      */
-    protected collectActions(type: 'CLI' | 'HTTP' | 'Service', actions: ActionPatternMap, middlewareClasses: Set<IBaseObjectConstructor<Middleware>>, add: (details: ActionDetails, info: BaseActionInfo, entry: ActionEntry) => void): void {
+    protected async destroy(): Promise<void> {
+        this.#unregisterTeardown?.()
+        await this.stopAdapters()
+    }
+
+    /**
+     * Stop the adapters (in reverse order) and wait for their requests in progress, once
+     * @protected
+     */
+    protected stopAdapters(): Promise<void> {
+        this.#stopping ??= (async (): Promise<void> => {
+            const errors: unknown[] = []
+            for (const started of [...this.#started].reverse()) {
+                try {
+                    await started.adapter.stop?.()
+                } catch (e) {
+                    errors.push(e)
+                }
+                await this.drain(started)
+            }
+            this.#started = []
+            if (errors.length === 1) throw errors[0]
+            if (errors.length) throw new AggregateError(errors, 'Failed to stop the entrypoint adapters')
+        })()
+        return this.#stopping
+    }
+
+    /**
+     * The adapters of the options: every option which is not an entrypoint option is a channel
+     * @protected
+     */
+    protected configuredAdapters(): EntrypointAdapter<any>[] {
+        const records: Record<string, unknown> = GetConfigurableRecordsFromInstance(this)
+        const adapters: EntrypointAdapter<any>[] = []
+        for (const [key, value] of Object.entries(records)) {
+            if (ENTRYPOINT_OPTIONS.has(key) || value === undefined || value === null) continue
+            for (const item of Array.isArray(value) ? value : [value]) {
+                if (typeof item === 'function' && LEGACY_CHANNELS.has(key)) {
+                    adapters.push(this.legacyAdapter(key, item))
+                } else if (IsEntrypointAdapter(item)) {
+                    if (item.channel !== key) throw new InvalidEntrypointAdapterException('The option "{key}" is given an adapter of the channel "{channel}"', {key: key, channel: item.channel})
+                    if (item.definition) DefineChannel(item.definition)
+                    if (!HasChannel(key)) throw new InvalidEntrypointAdapterException('The channel "{key}" of an adapter is not defined', {key: key})
+                    adapters.push(item)
+                } else {
+                    throw new InvalidEntrypointAdapterException('The option "{key}" is not an entrypoint option nor an adapter', {key: key})
+                }
+            }
+        }
+        return adapters
+    }
+
+    /**
+     * The adapter of a callback of 2.x
+     * @param channel
+     * @param callback
+     * @protected
+     */
+    protected legacyAdapter(channel: string, callback: Function): EntrypointAdapter<any> {
+        const destroyers: EntrypointDestroyer[] = []
+        const registerDestroy: EntrypointDestroyerRegistrar = (destroyer: EntrypointDestroyer): unknown => destroyers.push(destroyer)
+        return {
+            channel: channel,
+            start: (runtime: ChannelRuntime<any>): void => {
+                const handler = (context: BaseContext, abortController?: AbortController): Promise<unknown> => runtime.dispatch(context, {signal: abortController?.signal})
+                switch (channel) {
+                    case 'http': {
+                        const routeMap: HTTPRouteMap = new Map()
+                        for (const action of runtime.actions) {
+                            const methods: Set<string> = routeMap.get(action.address.route) ?? new Set()
+                            routeMap.set(action.address.route, methods.add(action.address.method))
+                        }
+                        return callback(runtime.module, routeMap, handler, registerDestroy)
+                    }
+                    case 'cli':
+                        return callback(runtime.module, CommandMap(runtime.actions), handler, registerDestroy)
+                    default:
+                        return callback(runtime.module, handler, registerDestroy)
+                }
+            },
+            stop: async (): Promise<void> => void await Promise.all(destroyers.map((destroyer: EntrypointDestroyer): Promise<void> => Promise.resolve(destroyer())))
+        }
+    }
+
+    /**
+     * Collect the actions of a channel
+     * @param definition
+     * @param actions
+     * @protected
+     */
+    protected createChannelState(definition: ChannelDefinition, actions: ActionPatternMap): ChannelState {
+        const entries: ActionEntry[] = []
+        const infos: Map<string, BaseActionInfo & Record<string, unknown>> = new Map()
         actions.forEach((details: ActionDetails): void => {
-            const info: BaseActionInfo = {
+            const info: BaseActionInfo & Record<string, unknown> = {
                 id: details.id,
                 acl: details.acl,
                 name: details.name,
@@ -302,38 +373,42 @@ export class Entrypoint extends Component {
                 groups: details.groups,
                 controller: details.constructor.className,
                 method: details.method.toString(),
-                jsonSchema: details.jsonSchema
+                jsonSchema: details.jsonSchema,
+                ...definition.describe(details.pattern)
             }
-            const middlewares: MiddlewareDefinition[] = [
-                ...this.middlewares,
-                ...GetClassMiddlewares(details.constructor),
-                ...details.middlewares,
-                ...GetMethodMiddlewares(details.constructor, As<string | symbol>(details.method))
-            ]
-            middlewares.filter(IsMiddlewareClass).forEach((middlewareClass: IBaseObjectConstructor<Middleware>): unknown => middlewareClasses.add(middlewareClass))
-            const entry: ActionEntry = {
+            infos.set(details.id, info)
+            entries.push({
                 details: details,
                 info: info,
-                run: ComposeMiddlewares(middlewares, (invocation: ActionInvocation): Promise<unknown> => this.runAction(details, invocation))
-            }
-            add(details, info, entry)
+                address: {...info, address: details.pattern},
+                middlewares: [
+                    ...GetClassMiddlewares(details.constructor),
+                    ...details.middlewares,
+                    ...GetMethodMiddlewares(details.constructor, As<string | symbol>(details.method))
+                ]
+            })
         })
+        return {definition: definition, entries: entries, infos: infos, matcher: definition.createMatcher(entries)}
     }
 
     /**
-     * Check the action groups and names of a transport
+     * Check the action groups and names of a channel
      * @param type
      * @param actionInfoMap
      * @param actionGroups
+     * @param option
      * @protected
      */
-    protected checkActions(type: 'CLI' | 'HTTP' | 'Service', actionInfoMap: Map<string, BaseActionInfo>, actionGroups: Record<string, string>): void {
-        const invalidGroupIds: string[] = this.findInvalidActionGroupIds(actionInfoMap, As(type.toLowerCase()))
-        if (invalidGroupIds.length) throw new InvalidActionGroupException('Found {type} action groups are not defined in {option}: {groupIds}', {
-            type: type,
-            option: `${type === 'Service' ? 'service' : type.toLowerCase()}ActionGroups`,
-            groupIds: invalidGroupIds
-        })
+    protected checkActions(type: string, actionInfoMap: Map<string, BaseActionInfo> | undefined, actionGroups?: Record<string, string>, option?: string): void {
+        if (!actionInfoMap) return
+        if (actionGroups) {
+            const invalidGroupIds: string[] = this.findInvalidActionGroupIds(actionInfoMap, actionGroups)
+            if (invalidGroupIds.length) throw new InvalidActionGroupException('Found {type} action groups are not defined in {option}: {groupIds}', {
+                type: type,
+                option: option,
+                groupIds: invalidGroupIds
+            })
+        }
         const duplicateNames: string[] = this.findDuplicateActionNames(actionInfoMap)
         if (duplicateNames.length) throw new DuplicateActionNameException('Duplicate {type} action names found: {names}', {
             type: type,
@@ -341,68 +416,178 @@ export class Entrypoint extends Component {
         })
     }
 
-    protected get HTTP_ACTIONS(): HTTPActionInfo[] {
-        return [...this.httpActionInfoMap.values()]
-    }
-
     /**
-     * Service action info getter
-     * @constructor
+     * Start an adapter
+     * @param adapter
      * @protected
      */
-    protected get SERVICE_ACTIONS(): ServiceActionInfo[] {
-        return [...this.serviceActionInfoMap.values()]
-    }
-
-    /**
-     * Cli action info getter
-     * @constructor
-     * @protected
-     */
-    protected get CLI_ACTIONS(): CLIActionInfo[] {
-        return [...this.cliActionInfoMap.values()]
-    }
-
-    /**
-     * Destroyer
-     * @protected
-     */
-    protected async destroy(): Promise<void> {
-        await Promise.all(this.entrypointDestroyers.map((destroyer: EntrypointDestroyer) => new Promise((resolve, reject) => Promise.resolve(destroyer()).then(resolve).catch(reject))))
-    }
-
-    /**
-     * Get entrypoint actions
-     * @param type
-     * @protected
-     */
-    protected getEntrypointActions<T extends BaseActionInfo>(type: 'http' | 'cli' | 'service'): EntrypointActions<T> {
-        const groupMap: Map<string, ActionGroupInfo<T>> = new Map()
-        let actionGroups: Record<string, string>
-        let actions: T[]
-        switch (type) {
-            case 'http': {
-                actions = As<T[]>(this.HTTP_ACTIONS)
-                actionGroups = this.httpActionGroups
+    protected async startAdapter(adapter: EntrypointAdapter<any>): Promise<void> {
+        const definition: ChannelDefinition = GetChannel(adapter.channel)
+        let state: ChannelState | undefined = this.#channels.get(definition.name)
+        if (!state) {
+            state = this.createChannelState(definition, new Map())
+            this.#channels.set(definition.name, state)
+        }
+        const started: StartedAdapter = {adapter: adapter, inflight: new Set()}
+        const channelState: ChannelState = state
+        const runners: Map<ActionEntry, InvocationRunner> = new Map()
+        const outerMiddlewares: MiddlewareDefinition[] = [...this.middlewares, ...(adapter.middlewares ?? [])]
+        const runnerOf = (entry: ActionEntry): InvocationRunner => {
+            let runner: InvocationRunner | undefined = runners.get(entry)
+            if (!runner) {
+                runner = ComposeMiddlewares([...outerMiddlewares, ...entry.middlewares], (invocation: ActionInvocation): Promise<unknown> => this.runAction(entry.details, invocation))
+                runners.set(entry, runner)
             }
-                break
-            case 'cli': {
-                actions = As<T[]>(this.CLI_ACTIONS)
-                actionGroups = this.cliActionGroups
-            }
-                break
-            case 'service': {
-                actions = As<T[]>(this.SERVICE_ACTIONS)
-                actionGroups = this.serviceActionGroups
-            }
-                break
-            default: {
-                actions = []
-                actionGroups = {}
+            return runner
+        }
+        const entriesByAddress: Map<ChannelActionInfo, ActionEntry> = new Map(channelState.entries.map((entry: ActionEntry): [ChannelActionInfo, ActionEntry] => [entry.address, entry]))
+        const runtime: ChannelRuntime<any> = {
+            channel: definition,
+            module: this.getModule(),
+            actions: channelState.entries.map((entry: ActionEntry): ChannelActionInfo => entry.address),
+            dispatch: async (context: BaseContext, options: DispatchOptions = {}): Promise<unknown> => {
+                const match: ChannelMatch | undefined = channelState.matcher.match(context)
+                if (!match) throw definition.notFound(context)
+                const entry: ActionEntry = As<ActionEntry>(match.entry)
+                definition.prepare?.(entry, context)
+                return this.dispatch(started, entry, runnerOf(entry), context, {...options, params: {...match.params, ...options.params}})
+            },
+            dispatchTo: async (action: ChannelActionInfo, context: BaseContext, options: DispatchOptions = {}): Promise<unknown> => {
+                const entry: ActionEntry | undefined = entriesByAddress.get(action)
+                if (!entry) throw definition.notFound(context)
+                return this.dispatch(started, entry, runnerOf(entry), context, options)
             }
         }
-        actions.forEach((action: T) => {
-            action.groups.forEach((groupId: string) => {
+        await adapter.start(runtime)
+        this.#started.push(started)
+    }
+
+    /**
+     * Wait for the requests in progress of a stopped adapter, abort them after the shutdown timeout
+     * @param started
+     * @protected
+     */
+    protected async drain(started: StartedAdapter): Promise<void> {
+        if (!started.inflight.size) return
+        let timer: NodeJS.Timeout | undefined
+        const timeout: Promise<void> = new Promise((resolve: () => void): void => {
+            timer = setTimeout(resolve, this.shutdownTimeout)
+        })
+        await Promise.race([Promise.allSettled([...started.inflight].map((request: InflightRequest): Promise<unknown> | undefined => request.promise)), timeout])
+        clearTimeout(timer)
+        started.inflight.forEach((request: InflightRequest): void => request.abortController.abort())
+    }
+
+    /**
+     * Run an action in the container of its request: create the controller, validate the input, check the access and call the action
+     * @param details
+     * @param invocation
+     * @protected
+     */
+    protected async runAction(details: ActionDetails, invocation: ActionInvocation): Promise<unknown> {
+        const {context, container, params} = invocation
+        const controller: Controller = await container.get(details.constructor, {context: context})
+        //The parameters of the address take precedence over the data of the request
+        const data: Record<string, any> = params && Object.keys(params).length ? {...context.data, ...params} : context.data
+        //The input is detached from the context, whose values are proxies validating their changes
+        const input: Record<string, any> = CloneDeep(await details.dtoConstructor.validateAsync(data))
+        await this.runAccessControl(this.rules, container, As(context), input, details)
+        return await controller.getMethod(As(details.method))(input)
+    }
+
+    /**
+     * Dispatch a request to an action, in a new request container
+     * @param started
+     * @param entry
+     * @param runner
+     * @param context
+     * @param options
+     * @protected
+     */
+    protected async dispatch(started: StartedAdapter, entry: ActionEntry, runner: InvocationRunner, context: BaseContext, options: DispatchOptions): Promise<unknown> {
+        //An already aborted request is not executed at all
+        if (options.signal?.aborted) return
+        const request: InflightRequest = {abortController: new AbortController()}
+        const abortRequest: () => void = (): void => request.abortController.abort()
+        options.signal?.addEventListener('abort', abortRequest, {once: true})
+        started.inflight.add(request)
+        try {
+            request.promise = this.execute(entry, runner, context, request.abortController.signal, options.params)
+            return await request.promise
+        } finally {
+            options.signal?.removeEventListener('abort', abortRequest)
+            started.inflight.delete(request)
+        }
+    }
+
+    /**
+     * Execute a request in a new request container, an aborted request destroys its container and its result is dropped
+     * @param entry
+     * @param runner
+     * @param context
+     * @param signal
+     * @param params
+     * @protected
+     */
+    protected async execute(entry: ActionEntry, runner: InvocationRunner, context: BaseContext, signal: AbortSignal, params?: Record<string, unknown>): Promise<unknown> {
+        const runtimeContainer: Container = this.createScope()
+        let isAborted: boolean = false
+        //Aborting destroys the request scope right away, container destruction is idempotent
+        const abortHandler: () => void = (): void => {
+            isAborted = true
+            runtimeContainer.destroy().catch(DevNull)
+        }
+        signal.addEventListener('abort', abortHandler, {once: true})
+        try {
+            const result: unknown = await runner({
+                context: As(context),
+                action: As(entry.info),
+                container: runtimeContainer,
+                signal: signal,
+                params: params
+            })
+            if (!isAborted) return result
+        } catch (e) {
+            if (!isAborted) throw e
+        } finally {
+            //The request scope is always destroyed once the dispatch ends, its destruction never rejects
+            signal.removeEventListener('abort', abortHandler)
+            runtimeContainer.destroy().catch(DevNull)
+        }
+    }
+
+    /**
+     * The action information of a channel
+     * @param channel
+     * @protected
+     */
+    protected actionInfos<T extends BaseActionInfo>(channel: string): T[] {
+        return As<T[]>([...(this.#channels.get(channel)?.infos.values() ?? [])])
+    }
+
+    protected get HTTP_ACTIONS(): HTTPActionInfo[] {
+        return this.actionInfos('http')
+    }
+
+    protected get SERVICE_ACTIONS(): ServiceActionInfo[] {
+        return this.actionInfos('service')
+    }
+
+    protected get CLI_ACTIONS(): CLIActionInfo[] {
+        return this.actionInfos('cli')
+    }
+
+    /**
+     * The actions of a channel, with their groups
+     * @param channel
+     * @param actionGroups
+     * @protected
+     */
+    protected getEntrypointActions<T extends BaseActionInfo>(channel: string, actionGroups: Record<string, string> = {}): EntrypointActions<T> {
+        const groupMap: Map<string, ActionGroupInfo<T>> = new Map()
+        const actions: T[] = this.actionInfos<T>(channel)
+        actions.forEach((action: T): void => {
+            action.groups.forEach((groupId: string): void => {
                 if (!groupMap.has(groupId)) groupMap.set(groupId, {
                     id: groupId,
                     name: actionGroups[groupId],
@@ -418,48 +603,33 @@ export class Entrypoint extends Component {
     }
 
     /**
-     * Find invalid action group ids
+     * The groups of the actions which are not defined
      * @param actionInfoMap
-     * @param type
+     * @param actionGroups
      * @protected
      */
-    protected findInvalidActionGroupIds(actionInfoMap: Map<string, BaseActionInfo>, type: 'cli' | 'http' | 'service'): string[] {
-        const actions: BaseActionInfo[] = [...actionInfoMap.values()]
+    protected findInvalidActionGroupIds(actionInfoMap: Map<string, BaseActionInfo>, actionGroups: Record<string, string>): string[] {
         const notfoundGroupIdSet: Set<string> = new Set()
-        actions.forEach((action: BaseActionInfo) => {
-            action.groups.forEach((groupId: string) => {
-                switch (type) {
-                    case 'cli':
-                        if (this.cliActionGroups[groupId] !== undefined) return
-                        break
-                    case 'http':
-                        if (this.httpActionGroups[groupId] !== undefined) return
-                        break
-                    case 'service':
-                        if (this.serviceActionGroups[groupId] !== undefined) return
-                        break
-                }
-                notfoundGroupIdSet.add(groupId)
-            })
-        })
+        actionInfoMap.forEach((action: BaseActionInfo): void => action.groups.forEach((groupId: string): void => {
+            if (actionGroups[groupId] === undefined) notfoundGroupIdSet.add(groupId)
+        }))
         return [...notfoundGroupIdSet]
     }
 
     /**
-     * Find duplicate action names
-     * @protected
+     * The duplicate names of the actions
      * @param actionInfoMap
+     * @protected
      */
     protected findDuplicateActionNames(actionInfoMap: Map<string, BaseActionInfo>): string[] {
-        const actionNames: string[] = [...actionInfoMap.values()].map((value: BaseActionInfo): string => value.name)
-        const seen = new Set<string>()
-        const duplicates = new Set<string>()
-        actionNames.forEach((item: string) => seen.has(item) ? duplicates.add(item) : seen.add(item))
-        return Array.from(duplicates)
+        const seen: Set<string> = new Set()
+        const duplicates: Set<string> = new Set()
+        actionInfoMap.forEach((action: BaseActionInfo): unknown => seen.has(action.name) ? duplicates.add(action.name) : seen.add(action.name))
+        return [...duplicates]
     }
 
     /**
-     * Run access control
+     * Check the access to an action
      * @param rules
      * @param runtimeContainer
      * @param context
@@ -467,187 +637,43 @@ export class Entrypoint extends Component {
      * @param details
      * @protected
      */
-    protected async runAccessControl(rules: IBaseObjectConstructor<AccessControlRule>[], runtimeContainer: Container, context: CLIContext | HTTPContext | ServiceContext, input: Record<string, any>, details: ActionDetails) {
-        const [allowed, exception] = await this.accessControl.run(rules, runtimeContainer, context, input, details, (type: ContextType) => {
-            switch (type) {
-                case ContextType.HTTP:
-                    return this.HTTP_ACTIONS
-                case ContextType.SERVICE:
-                    return this.SERVICE_ACTIONS
-                case ContextType.CLI:
-                    return this.CLI_ACTIONS
-                default:
-                    return []
-            }
+    protected async runAccessControl(rules: IBaseObjectConstructor<AccessControlRule>[], runtimeContainer: Container, context: CLIContext | HTTPContext | ServiceContext, input: Record<string, any>, details: ActionDetails): Promise<void> {
+        const [allowed, exception] = await this.accessControl.run(rules, runtimeContainer, context, input, details, (type: ContextType | string): BaseActionInfo[] => {
+            const channel: ChannelDefinition | undefined = GetChannelByContextType(type)
+            return channel ? this.actionInfos(channel.name) : []
         })
         if (!allowed) throw exception
     }
 
-    /**
-     * Run controller's method and return its result (without AbortController)
-     * @param details
-     * @param context
-     * @param dtoConstructor
-     * @protected
-     */
-    /**
-     * Run an action in the container of its request: create the controller, validate the input, check the access and call the action
-     * @param details
-     * @param invocation
-     * @protected
-     */
-    protected async runAction(details: ActionDetails, invocation: ActionInvocation): Promise<unknown> {
-        const {context, container} = invocation
-        const controller: Controller = await container.get(details.constructor, {context: context})
-        //The input is detached from the context, whose values are proxies validating their changes
-        const input: Record<string, any> = CloneDeep(await details.dtoConstructor.validateAsync(context.data))
-        await this.runAccessControl(this.rules, container, context, input, details)
-        return await controller.getMethod(As(details.method))(input)
-    }
-
-    /**
-     * Dispatch a request to an action, in a new request container
-     * @param entry
-     * @param context
-     * @param abortController
-     * @protected
-     */
-    protected async dispatch(entry: ActionEntry, context: ActionContext, abortController?: AbortController): Promise<unknown> {
-        //An already aborted request is not executed at all
-        if (abortController?.signal.aborted) return
-        const runtimeContainer: Container = this.createScope()
-        let isAborted: boolean = false
-        //Aborting destroys the request scope right away, container destruction is idempotent
-        const abortHandler: () => void = (): void => {
-            isAborted = true
-            runtimeContainer.destroy().catch(DevNull)
-        }
-        abortController?.signal.addEventListener('abort', abortHandler, {once: true})
-        try {
-            const result: unknown = await entry.run({
-                context: context,
-                action: As(entry.info),
-                container: runtimeContainer,
-                signal: abortController?.signal
-            })
-            if (!isAborted) return result
-        } catch (e) {
-            if (!isAborted) throw e
-        } finally {
-            //The request scope is always destroyed once the dispatch ends, its destruction never rejects
-            abortController?.signal.removeEventListener('abort', abortHandler)
-            runtimeContainer.destroy().catch(DevNull)
-        }
-    }
-
-    protected register<T>(eps: any | any[] | undefined, registerFunc: (entrypoint: T) => void): void {
-        (eps ? Array.isArray(eps) ? eps : [eps] : []).forEach((entrypoint: T) => registerFunc(entrypoint))
-    }
-
-    /**
-     * Register CLI entrypoint
-     * @param entrypoint
-     * @protected
-     */
-    protected registerCLIEntrypoint(entrypoint: CLIEntrypoint): void {
-        const cliMap: CLIMap = new Map()
-        this.CLIActionPatternMap.forEach((details: ActionDetails, actionPattern: ActionPattern) => cliMap.set(actionPattern.command, details.jsonSchema))
-        return entrypoint(this.getModule(), cliMap, async (context: CLIContext, abortController?: AbortController) => {
-            const actionPattern: ActionPattern = {
-                command: context.command
-            }
-            const entry: ActionEntry | null = this.CLIActions.get(context.command) ?? this.CLIActionPatternManager.find(actionPattern)
-            if (!entry) throw new ControllerActionNotFoundException('Command not found')
-            return await this.dispatch(entry, context, abortController)
-        }, (destroyer: EntrypointDestroyer): number => this.entrypointDestroyers.push(destroyer))
-    }
-
-    /**
-     * Register http entrypoint
-     * @param entrypoint
-     * @protected
-     */
-    protected registerHTTPEntrypoint(entrypoint: HTTPEntrypoint): void {
-        const routeMap: HTTPRouteMap = new Map()
-        for (const actionPattern of this.HTTPActionPatternMap.keys()) {
-            const methodsSet: Set<string> = routeMap.get(actionPattern.route) || new Set()
-            methodsSet.add(actionPattern.method)
-            routeMap.set(actionPattern.route, methodsSet)
-        }
-        return entrypoint(this.getModule(), routeMap, async (context: HTTPContext, abortController?: AbortController) => {
-            const actionPattern: ActionPattern = {
-                route: context.route,
-                method: context.method
-            }
-            const entry: ActionEntry | null = this.HTTPActions.get(HTTPActionKey(context.route, context.method)) ?? this.HTTPActionPatternManager.find(actionPattern)
-            if (!entry) throw new ControllerActionNotFoundException('Route \'{route}\' not found', context)
-            return await this.dispatch(entry, context, abortController)
-        }, (destroyer: EntrypointDestroyer): number => this.entrypointDestroyers.push(destroyer))
-    }
-
-    /**
-     * Register service entrypoint
-     * @param entrypoint
-     * @protected
-     */
-    protected registerServiceEntrypoint(entrypoint: ServiceEntrypoint): void {
-        return entrypoint(this.getModule(), async (context: ServiceContext, abortController?: AbortController) => {
-            const entry: ActionEntry | null = this.ServiceActionPatternManager.find(context.input)
-            if (!entry) throw new ControllerActionNotFoundException('Controller action not found')
-            const details: ActionDetails = entry.details
-            const patternPaths: string[] = GetObjectPropertyPaths(details.pattern)
-            patternPaths.forEach((path: string) => unset(context.data, path))
-            const checkPatternPaths: string[] = UniqueArray(patternPaths
-                .map((path: string) => path.substring(0, path.lastIndexOf('.')))
-                .filter((path: string) => !!path))
-            checkPatternPaths.forEach((path: string) => {
-                let target: ActionPattern = context.data
-                path.split('.').forEach((key: string) => target = target[key] ? target[key] : undefined)
-                if (target && !Object.keys(target).length) unset(context.data, path)
-            })
-            return await this.dispatch(entry, context, abortController)
-        }, (destroyer: EntrypointDestroyer): number => this.entrypointDestroyers.push(destroyer))
-    }
-
-    /**
-     * Get HTTP action groups
-     */
     public getHttpActionGroups(): Record<string, string> {
         return this.httpActionGroups
     }
 
-    /**
-     * Get Service action groups
-     */
     public getServiceActionGroups(): Record<string, string> {
         return this.serviceActionGroups
     }
 
-    /**
-     * Get CLI action groups
-     */
     public getCliActionGroups(): Record<string, string> {
         return this.cliActionGroups
     }
 
-    /**
-     * Get entrypoint HTTP actions
-     */
     public getHttpActions(): EntrypointActions<HTTPActionInfo> {
-        return this.getEntrypointActions('http')
+        return this.getEntrypointActions('http', this.httpActionGroups)
     }
 
-    /**
-     * Get entrypoint Service actions
-     */
     public getServiceActions(): EntrypointActions<ServiceActionInfo> {
-        return this.getEntrypointActions('service')
+        return this.getEntrypointActions('service', this.serviceActionGroups)
+    }
+
+    public getCliActions(): EntrypointActions<CLIActionInfo> {
+        return this.getEntrypointActions('cli', this.cliActionGroups)
     }
 
     /**
-     * Get entrypoint CLI actions
+     * The actions of a channel
+     * @param channel
      */
-    public getCliActions(): EntrypointActions<CLIActionInfo> {
-        return this.getEntrypointActions('cli')
+    public getActions<T extends BaseActionInfo = BaseActionInfo & Record<string, unknown>>(channel: string): EntrypointActions<T> {
+        return this.getEntrypointActions<T>(channel)
     }
 }

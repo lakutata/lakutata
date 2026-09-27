@@ -1,11 +1,12 @@
 import {DTO} from '@lakutata/core'
 import type {ActionPattern} from '@lakutata/core'
-import {Expect} from '@lakutata/core/decorator/dto'
+import {Expect, IndexSignature} from '@lakutata/core/decorator/dto'
 import {InvalidPrefixException} from '../exceptions/InvalidPrefixException.js'
 
 /**
- * The prefixes of the actions of a controller
+ * The prefixes of the actions of a controller, the packages of the other channels add their own prefixes (declaration merging)
  */
+@IndexSignature(DTO.Any())
 export class PrefixOptions extends DTO {
     /**
      * The path prepended to the routes of the HTTP actions

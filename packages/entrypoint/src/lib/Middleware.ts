@@ -5,6 +5,8 @@ import type {CLIContext} from '../context/CLIContext.js'
 import type {HTTPContext} from '../context/HTTPContext.js'
 import type {ServiceContext} from '../context/ServiceContext.js'
 import type {CLIActionInfo, HTTPActionInfo, ServiceActionInfo} from '../Entrypoint.js'
+import type {BaseContext} from '../context/BaseContext.js'
+import type {ChannelActionInfo} from '../channel/EntrypointAdapter.js'
 import {InvalidMiddlewareException} from '../exceptions/InvalidMiddlewareException.js'
 import {MiddlewareNextCalledException} from '../exceptions/MiddlewareNextCalledException.js'
 
@@ -15,11 +17,15 @@ export interface ActionInvocation {
     /**
      * The context of the request, its data is the input before validation
      */
-    readonly context: CLIContext | HTTPContext | ServiceContext
+    readonly context: CLIContext | HTTPContext | ServiceContext | BaseContext
     /**
      * The invoked action
      */
-    readonly action: HTTPActionInfo | CLIActionInfo | ServiceActionInfo
+    readonly action: HTTPActionInfo | CLIActionInfo | ServiceActionInfo | ChannelActionInfo
+    /**
+     * The parameters taken from the address of the request (such as the route parameters), merged into the input
+     */
+    readonly params?: Record<string, unknown>
     /**
      * The container of the request
      */

@@ -16,6 +16,11 @@
       "import": "./dist/esm/exports/CTRLDecorators.js",
       "require": "./dist/cjs/exports/CTRLDecorators.js"
     },
+    "./channel": {
+      "types": "./dist/types/exports/Channel.d.ts",
+      "import": "./dist/esm/exports/Channel.js",
+      "require": "./dist/cjs/exports/Channel.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {

@@ -101,7 +101,7 @@ export class AccessControl extends BaseObject {
      * @param details
      * @param getActionsCallback
      */
-    public static async run(rules: IBaseObjectConstructor<AccessControlRule>[], runtimeContainer: Container, context: CLIContext | HTTPContext | ServiceContext, input: Record<string, any>, details: ActionDetails, getActionsCallback: (type: ContextType) => BaseActionInfo[]): Promise<[boolean, Error | Exception | undefined]> {
+    public static async run(rules: IBaseObjectConstructor<AccessControlRule>[], runtimeContainer: Container, context: CLIContext | HTTPContext | ServiceContext, input: Record<string, any>, details: ActionDetails, getActionsCallback: (type: ContextType | string) => BaseActionInfo[]): Promise<[boolean, Error | Exception | undefined]> {
         const actions: BaseActionInfo[] = getActionsCallback(context.type)
         let allowed: boolean = !details.acl
         //The exception is created only when access is denied (building it captures a stack trace)

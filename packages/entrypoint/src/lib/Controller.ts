@@ -6,6 +6,7 @@ import {HTTPContext} from '../context/HTTPContext.js'
 import {ServiceContext} from '../context/ServiceContext.js'
 import {Configurable} from '@lakutata/core/decorator/di'
 import {DTO} from '@lakutata/core'
+import {BaseContext} from '../context/BaseContext.js'
 
 /**
  * For action decorator
@@ -23,11 +24,7 @@ export class Controller extends Provider {
      * Context, possible be cli context, http context or service context
      * @protected
      */
-    //The context is created (and validated) by the entrypoint, only its type is checked here
-    @Configurable(DTO.Alternatives(
-        DTO.InstanceOf(CLIContext),
-        DTO.InstanceOf(HTTPContext),
-        DTO.InstanceOf(ServiceContext)
-    ).required())
-    protected readonly context: CLIContext | HTTPContext | ServiceContext
+    //The context is created (and validated) by the entrypoint, only its type is checked here: a context of any channel
+    @Configurable(DTO.InstanceOf(BaseContext).required())
+    protected readonly context: CLIContext | HTTPContext | ServiceContext | BaseContext
 }

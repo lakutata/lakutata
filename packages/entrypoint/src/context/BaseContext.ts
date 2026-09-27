@@ -19,8 +19,9 @@ export type ContextParams<T extends {} = {}> = T & Record<string, any>
  */
 @IndexSignature(DTO.Any())
 export class BaseContext<T extends Record<string, any> = {}> extends DTO {
-    @Expect(DTO.String().valid(ContextType.CLI, ContextType.HTTP, ContextType.SERVICE))
-    public readonly type: ContextType
+    //The type of the context: one of ContextType for the built-in channels, the context type of their channel for the others
+    @Expect(DTO.String().required())
+    public readonly type: ContextType | string
 
     @Expect(DTO.Object().pattern(DTO.String(), DTO.Any()).required())
     public data: ActionPattern<T>

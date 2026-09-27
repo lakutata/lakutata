@@ -12,27 +12,16 @@ import {DTO} from '@lakutata/core'
 import {Component} from '@lakutata/core'
 import {UUID} from '@lakutata/core/helper'
 import {ActionOptions} from './ActionOptions.js'
-import {StringifyPattern} from './StringifyPattern.js'
 import {CLIContext} from '../context/CLIContext.js'
 import {ServiceContext} from '../context/ServiceContext.js'
 import {HTTPContext} from '../context/HTTPContext.js'
 import type {AccessControlRuleHandler} from './AccessControlRule.js'
 import {MiddlewareDefinition, ValidateMiddlewares} from './Middleware.js'
-import {GetPrefix, PrefixCommand, PrefixOptions, PrefixPattern, PrefixRoute} from './Prefix.js'
-
-export enum ActionPatternManagerType {
-    HTTP = '_$APMT_HTTP',
-    CLI = '_$APMT_CLI',
-    Service = '_$APMT_Service'
-}
+import {GetPrefix, PrefixOptions} from './Prefix.js'
+import {ChannelDefinition, GetChannel} from '../channel/Channel.js'
+import {CLIChannel, HTTPChannel, ServiceChannel} from '../channel/BuiltinChannels.js'
 
 export type ActionPatternMap = Map<ActionPattern, ActionDetails>
-
-export type TotalActionPatternMap = {
-    HTTP: ActionPatternMap
-    CLI: ActionPatternMap
-    Service: ActionPatternMap
-}
 
 export type ActionDetails<ClassPrototype extends Controller = Controller, DTOConstructor extends typeof DTO = typeof DTO> =
     {
@@ -56,12 +45,6 @@ export type ActionInfo = {
     rule?: AccessControlRuleHandler<any>
 }
 
-type TotalInternalActionPatternMap = {
-    HTTP: InternalActionPatternMap
-    CLI: InternalActionPatternMap
-    Service: InternalActionPatternMap
-}
-
 type InternalActionPatternMapValue = {
     pattern: ActionPattern
     details: ActionDetails
@@ -69,7 +52,19 @@ type InternalActionPatternMapValue = {
 
 type InternalActionPatternMap = Map<string, InternalActionPatternMapValue>
 
+//The channels of the actions declared by a controller class
+const CONTROLLER_CHANNELS: symbol = Symbol('CONTROLLER.CHANNELS')
+
+//The actions of the controllers bound to an entrypoint, by channel
 const COMPONENT_CTRL_MAP: symbol = Symbol('COMPONENT.CTRL.MAP')
+
+/**
+ * The metadata key of the actions of a channel
+ * @param channel
+ */
+function ChannelActionsKey(channel: string): string {
+    return `ENTRYPOINT.CHANNEL.ACTIONS.${channel}`
+}
 
 /**
  * Get action info
@@ -105,37 +100,85 @@ function ValidateActionPatternDefinition(actionPattern: ActionPattern): ActionPa
 }
 
 /**
- * Get controller's internal action pattern map
- * @param type
+ * Get controller's internal action pattern map of a channel
+ * @param channel
  * @param target
  * @constructor
  */
-function GetInternalControllerActionPatternMap(type: ActionPatternManagerType, target: IBaseObjectConstructor<Controller>): InternalActionPatternMap {
+function GetInternalControllerActionPatternMap(channel: string, target: IBaseObjectConstructor<Controller>): InternalActionPatternMap {
+    const key: string = ChannelActionsKey(channel)
     const internalActionPatternMap: InternalActionPatternMap = new Map()
     ObjectParentConstructors(target).forEach(parentConstructor => {
-        const parentActionPatternMap: InternalActionPatternMap = Reflect.getOwnMetadata(`${type}_MAP`, parentConstructor) || new Map()
+        const parentActionPatternMap: InternalActionPatternMap = Reflect.getOwnMetadata(key, parentConstructor) || new Map()
         parentActionPatternMap.forEach((value: InternalActionPatternMapValue, hash: string) => internalActionPatternMap.set(hash, value))
     })
-    As<InternalActionPatternMap>(Reflect.getOwnMetadata(`${type}_MAP`, target) || new Map()).forEach((value: InternalActionPatternMapValue, hash: string) => internalActionPatternMap.set(hash, value))
+    As<InternalActionPatternMap>(Reflect.getOwnMetadata(key, target) || new Map()).forEach((value: InternalActionPatternMapValue, hash: string) => internalActionPatternMap.set(hash, value))
     return internalActionPatternMap
 }
 
 /**
- * Register pattern to controller
- * @param type
+ * The channels of the actions of a controller, its parent classes included
+ * @param target
+ */
+export function GetControllerChannels(target: IBaseObjectConstructor<Controller>): string[] {
+    const names: Set<string> = new Set()
+    for (const constructor of [target, ...ObjectParentConstructors(target)]) {
+        const own: Set<string> | undefined = Reflect.getOwnMetadata(CONTROLLER_CHANNELS, constructor)
+        own?.forEach((name: string): unknown => names.add(name))
+    }
+    return [...names]
+}
+
+/**
+ * Register an action of a controller on a channel
+ * @param channel
  * @param target
  * @param actionPattern
  * @param details
  * @constructor
  */
-export function RegisterControllerActionPattern(type: ActionPatternManagerType, target: IBaseObjectConstructor<Controller>, actionPattern: ActionPattern, details: ActionDetails): void {
-    actionPattern = ValidateActionPatternDefinition(actionPattern)
-    const internalActionPatternMap: InternalActionPatternMap = GetInternalControllerActionPatternMap(type, target)
+export function RegisterChannelAction(channel: ChannelDefinition, target: IBaseObjectConstructor<Controller>, actionPattern: ActionPattern, details: ActionDetails): void {
+    actionPattern = ValidateActionPatternDefinition(channel.validate ? channel.validate(actionPattern) : actionPattern)
+    const internalActionPatternMap: InternalActionPatternMap = GetInternalControllerActionPatternMap(channel.name, target)
     internalActionPatternMap.set(ObjectHash(actionPattern), {
         pattern: actionPattern,
-        details: details
+        details: {...details, pattern: actionPattern}
     })
-    Reflect.defineMetadata(`${type}_MAP`, internalActionPatternMap, target)
+    Reflect.defineMetadata(ChannelActionsKey(channel.name), internalActionPatternMap, target)
+    const own: Set<string> = Reflect.getOwnMetadata(CONTROLLER_CHANNELS, target) || new Set()
+    Reflect.defineMetadata(CONTROLLER_CHANNELS, own.add(channel.name), target)
+}
+
+/**
+ * Register an action of a controller method on a channel
+ * @param channel
+ * @param controllerPrototype
+ * @param propertyKey
+ * @param actionPattern
+ * @param dtoConstructor
+ * @param actionOptions
+ * @constructor
+ */
+export function RegisterControllerAction<ClassPrototype extends Controller, DTOConstructor extends typeof DTO = typeof DTO>(
+    channel: ChannelDefinition,
+    controllerPrototype: ClassPrototype,
+    propertyKey: ControllerProperty<ClassPrototype>,
+    actionPattern: ActionPattern,
+    dtoConstructor: DTOConstructor,
+    actionOptions: ActionOptions<any>
+): void {
+    const constructor: IBaseObjectConstructor<Controller> = As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype))
+    const actionInfo: ActionInfo = getActionInfo(controllerPrototype, propertyKey, actionOptions, channel.identify(actionPattern))
+    RegisterChannelAction(channel, constructor, actionPattern, {
+        ...actionInfo,
+        pattern: actionPattern,
+        constructor: constructor,
+        method: propertyKey,
+        dtoConstructor: dtoConstructor,
+        jsonSchema: dtoConstructor.toJsonSchema(),
+        middlewares: ValidateMiddlewares(actionOptions.middlewares ?? []),
+        getActionInfo: () => actionInfo
+    })
 }
 
 /**
@@ -145,46 +188,33 @@ export function RegisterControllerActionPattern(type: ActionPatternManagerType, 
  * @constructor
  */
 export function BindControllerToComponent(component: Component, controllerConstructor: IBaseObjectConstructor<Controller>): void {
-    const totalInternalActionPatternMap: TotalInternalActionPatternMap = Reflect.getOwnMetadata(COMPONENT_CTRL_MAP, component) || {
-        CLI: new Map(),
-        HTTP: new Map(),
-        Service: new Map()
-    }
+    const totalInternalActionPatternMap: Map<string, InternalActionPatternMap> = Reflect.getOwnMetadata(COMPONENT_CTRL_MAP, component) || new Map()
     const prefix: PrefixOptions | undefined = GetPrefix(controllerConstructor)
     //The actions inherited from a parent controller are run by the registered controller
-    const bind = (type: ActionPatternManagerType, value: InternalActionPatternMapValue): [string, InternalActionPatternMapValue] => {
+    const bind = (channel: ChannelDefinition, value: InternalActionPatternMapValue): [string, InternalActionPatternMapValue] => {
         const details: ActionDetails = {...value.details, constructor: controllerConstructor}
-        let pattern: ActionPattern = value.pattern
-        let extra: string | undefined
-        if (type === ActionPatternManagerType.HTTP && prefix?.route !== undefined) {
-            pattern = {...pattern, route: PrefixRoute(prefix.route, pattern.route)}
-            extra = pattern.route
-        } else if (type === ActionPatternManagerType.CLI && prefix?.command !== undefined) {
-            pattern = {command: PrefixCommand(prefix.command, pattern.command)}
-            extra = pattern.command
-        } else if (type === ActionPatternManagerType.Service && prefix?.pattern !== undefined) {
-            pattern = ValidateActionPatternDefinition(PrefixPattern(prefix.pattern, pattern))
-            extra = StringifyPattern(pattern)
-        }
-        if (extra !== undefined) {
-            //A prefixed action is named after the registered controller, so the controllers sharing a parent have distinct actions
-            const action: string = `${controllerConstructor.className}:${String(details.method)}`
-            details.name = details.name === details.action ? action : details.name
-            details.action = action
-            details.id = UUID.v5(`${action}:${extra}`, UUID.NIL)
-            details.pattern = pattern
-            const actionInfo: ActionInfo = {id: details.id, acl: details.acl, action: action, name: details.name, description: details.description, groups: details.groups, rule: details.rule}
-            details.getActionInfo = (): ActionInfo => actionInfo
-        }
-        return [extra === undefined ? '' : ObjectHash(pattern), {pattern: pattern, details: details}]
+        const prefixed: ActionPattern | undefined = prefix && channel.prefix ? channel.prefix(prefix, value.pattern) : undefined
+        if (prefixed === undefined) return ['', {pattern: value.pattern, details: details}]
+        const pattern: ActionPattern = ValidateActionPatternDefinition(channel.validate ? channel.validate(prefixed) : prefixed)
+        //A prefixed action is named after the registered controller, so the controllers sharing a parent have distinct actions
+        const action: string = `${controllerConstructor.className}:${String(details.method)}`
+        details.name = details.name === details.action ? action : details.name
+        details.action = action
+        details.id = UUID.v5(`${action}:${channel.identify(pattern)}`, UUID.NIL)
+        details.pattern = pattern
+        const actionInfo: ActionInfo = {id: details.id, acl: details.acl, action: action, name: details.name, description: details.description, groups: details.groups, rule: details.rule}
+        details.getActionInfo = (): ActionInfo => actionInfo
+        return [ObjectHash(pattern), {pattern: pattern, details: details}]
     }
-    const add = (type: ActionPatternManagerType, map: InternalActionPatternMap): void => GetInternalControllerActionPatternMap(type, controllerConstructor).forEach((value: InternalActionPatternMapValue, hash: string): void => {
-        const [prefixedHash, bound] = bind(type, value)
-        map.set(prefixedHash || hash, bound)
-    })
-    add(ActionPatternManagerType.CLI, totalInternalActionPatternMap.CLI)
-    add(ActionPatternManagerType.HTTP, totalInternalActionPatternMap.HTTP)
-    add(ActionPatternManagerType.Service, totalInternalActionPatternMap.Service)
+    for (const name of GetControllerChannels(controllerConstructor)) {
+        const channel: ChannelDefinition = GetChannel(name)
+        const map: InternalActionPatternMap = totalInternalActionPatternMap.get(name) ?? new Map()
+        GetInternalControllerActionPatternMap(name, controllerConstructor).forEach((value: InternalActionPatternMapValue, hash: string): void => {
+            const [prefixedHash, bound] = bind(channel, value)
+            map.set(prefixedHash || hash, bound)
+        })
+        totalInternalActionPatternMap.set(name, map)
+    }
     Reflect.defineMetadata(COMPONENT_CTRL_MAP, totalInternalActionPatternMap, component)
 }
 
@@ -193,20 +223,14 @@ export function BindControllerToComponent(component: Component, controllerConstr
  * @constructor
  * @param component
  */
-export function GetComponentControllerActionMap(component: Component): TotalActionPatternMap {
-    const totalInternalActionPatternMap: TotalInternalActionPatternMap = Reflect.getOwnMetadata(COMPONENT_CTRL_MAP, component) || {
-        CLI: new Map(),
-        HTTP: new Map(),
-        Service: new Map()
-    }
-    const totalActionPatternMap: TotalActionPatternMap = {
-        CLI: new Map(),
-        HTTP: new Map(),
-        Service: new Map()
-    }
-    totalInternalActionPatternMap.CLI.forEach((value: InternalActionPatternMapValue) => totalActionPatternMap.CLI.set(value.pattern, value.details))
-    totalInternalActionPatternMap.HTTP.forEach((value: InternalActionPatternMapValue) => totalActionPatternMap.HTTP.set(value.pattern, value.details))
-    totalInternalActionPatternMap.Service.forEach((value: InternalActionPatternMapValue) => totalActionPatternMap.Service.set(value.pattern, value.details))
+export function GetComponentControllerActionMap(component: Component): Map<string, ActionPatternMap> {
+    const totalInternalActionPatternMap: Map<string, InternalActionPatternMap> = Reflect.getOwnMetadata(COMPONENT_CTRL_MAP, component) || new Map()
+    const totalActionPatternMap: Map<string, ActionPatternMap> = new Map()
+    totalInternalActionPatternMap.forEach((map: InternalActionPatternMap, channel: string): void => {
+        const actions: ActionPatternMap = new Map()
+        map.forEach((value: InternalActionPatternMapValue): unknown => actions.set(value.pattern, value.details))
+        totalActionPatternMap.set(channel, actions)
+    })
     return totalActionPatternMap
 }
 
@@ -228,27 +252,7 @@ export function RegisterHTTPAction<ClassPrototype extends Controller, DTOConstru
     dtoConstructor: DTOConstructor,
     actionOptions: ActionOptions<HTTPContext>
 ): void {
-    methods.forEach((method: string) => {
-        const actionPattern: ActionPattern = {
-            route: route,
-            method: method
-        }
-        const actionInfo: ActionInfo = getActionInfo(controllerPrototype, propertyKey, actionOptions, route)
-        RegisterControllerActionPattern(
-            ActionPatternManagerType.HTTP,
-            As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
-            actionPattern,
-            {
-                ...actionInfo,
-                pattern: actionPattern,
-                constructor: As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
-                method: propertyKey,
-                dtoConstructor: dtoConstructor,
-                jsonSchema: dtoConstructor.toJsonSchema(),
-                middlewares: ValidateMiddlewares(actionOptions.middlewares ?? []),
-                getActionInfo: () => actionInfo
-            })
-    })
+    methods.forEach((method: string): void => RegisterControllerAction(HTTPChannel, controllerPrototype, propertyKey, {route: route, method: method}, dtoConstructor, actionOptions))
 }
 
 /**
@@ -267,25 +271,7 @@ export function RegisterCLIAction<ClassPrototype extends Controller, DTOConstruc
     dtoConstructor: DTOConstructor,
     actionOptions: ActionOptions<CLIContext>
 ): void {
-    const actionPattern: ActionPattern = {
-        command: command
-    }
-    const actionInfo: ActionInfo = getActionInfo(controllerPrototype, propertyKey, actionOptions, command)
-    RegisterControllerActionPattern(
-        ActionPatternManagerType.CLI,
-        As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
-        actionPattern,
-        {
-            ...actionInfo,
-            pattern: actionPattern,
-            constructor: As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
-            method: propertyKey,
-            dtoConstructor: dtoConstructor,
-            jsonSchema: dtoConstructor.toJsonSchema(),
-            middlewares: ValidateMiddlewares(actionOptions.middlewares ?? []),
-            getActionInfo: () => actionInfo
-        }
-    )
+    RegisterControllerAction(CLIChannel, controllerPrototype, propertyKey, {command: command}, dtoConstructor, actionOptions)
 }
 
 /**
@@ -304,21 +290,5 @@ export function RegisterServiceAction<ClassPrototype extends Controller, DTOCons
     dtoConstructor: DTOConstructor,
     actionOptions: ActionOptions<ServiceContext>
 ): void {
-    const flattenPattern: string = StringifyPattern(pattern)
-    const actionInfo: ActionInfo = getActionInfo(controllerPrototype, propertyKey, actionOptions, flattenPattern)
-    RegisterControllerActionPattern(
-        ActionPatternManagerType.Service,
-        As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
-        pattern,
-        {
-            ...actionInfo,
-            pattern: pattern,
-            constructor: As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)),
-            method: propertyKey,
-            dtoConstructor: dtoConstructor,
-            jsonSchema: dtoConstructor.toJsonSchema(),
-            middlewares: ValidateMiddlewares(actionOptions.middlewares ?? []),
-            getActionInfo: () => actionInfo
-        }
-    )
+    RegisterControllerAction(ServiceChannel, controllerPrototype, propertyKey, pattern, dtoConstructor, actionOptions)
 }

@@ -81,3 +81,20 @@ import type {PrefixOptions} from 'lakutata/com/entrypoint'
 import type {Prefix} from 'lakutata/decorator/ctrl'
 export type _PrefixOptions = PrefixOptions
 export type _Prefix = typeof Prefix
+
+// A channel package adds its options to the entrypoint (declaration merging through the re-exports)
+import type {EntrypointAdapter, EntrypointOptions} from 'lakutata/com/entrypoint'
+declare module '@lakutata/entrypoint' {
+    interface EntrypointOptions {
+        custom?: EntrypointAdapter | EntrypointAdapter[]
+    }
+
+    interface PrefixOptions {
+        custom?: string
+    }
+}
+declare const customAdapter: EntrypointAdapter
+export const _customOptions: EntrypointOptions = {controllers: [], custom: customAdapter}
+export const _customPrefix: Pick<PrefixOptions, 'custom'> = {custom: '/custom'}
+// @ts-expect-error an undeclared channel key is rejected
+export const _unknownOptions: EntrypointOptions = {controllers: [], unknown: customAdapter}
