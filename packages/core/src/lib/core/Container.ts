@@ -35,6 +35,22 @@ export const containerSymbol: symbol = Symbol('LAKUTATA.DI.CONTAINER.SYMBOL')
 
 export const ownerSymbol: symbol = Symbol('LAKUTATA.DI.OWNER.SYMBOL')
 
+//The hooks run before the teardown of a container, by container
+const teardownHooks: WeakMap<Container, Set<() => Promise<void>>> = new WeakMap()
+
+/**
+ * Register a hook run when a container starts its teardown, before its scopes and objects are destroyed
+ * (an entrypoint stops receiving requests and waits for the requests in progress there), returns its unregistration
+ * @param container
+ * @param hook
+ */
+export function RegisterTeardownHook(container: Container, hook: () => Promise<void>): () => void {
+    let hooks: Set<() => Promise<void>> | undefined = teardownHooks.get(container)
+    if (!hooks) teardownHooks.set(container, hooks = new Set())
+    hooks.add(hook)
+    return (): void => void hooks!.delete(hook)
+}
+
 /**
  * Resolver property holding the class of a registration
  */
@@ -495,6 +511,11 @@ export class Container {
      */
     public async clear(): Promise<void> {
         //Every step always runs to the end, a failing object never stops the teardown of the others
+        const hooks: Set<() => Promise<void>> | undefined = teardownHooks.get(this)
+        if (hooks?.size) {
+            const results: PromiseSettledResult<void>[] = await Promise.allSettled([...hooks].map((hook: () => Promise<void>): Promise<void> => hook()))
+            results.forEach((result: PromiseSettledResult<void>): unknown => result.status === 'rejected' && ReportDestroyError(result.reason))
+        }
         const subContainers: Container[] = [...this.#subScopeSet]
         this.#subObjectContainerRefs.forEach((ref: WeakRef<Container>): void => {
             const subContainer: Container | undefined = ref.deref()

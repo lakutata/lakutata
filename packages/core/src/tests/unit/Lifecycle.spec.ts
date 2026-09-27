@@ -2,7 +2,7 @@ import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {BaseObject} from '../../lib/base/BaseObject.js'
 import {Component} from '../../lib/core/Component.js'
-import {Container} from '../../lib/core/Container.js'
+import {Container, RegisterTeardownHook} from '../../lib/core/Container.js'
 import {SetDestroyErrorReporter} from '../../lib/foundation/DestroyErrorReporter.js'
 import {Module, MODULE_INITIALIZED} from '../../lib/core/Module.js'
 import {ObjectDestroyedException} from '../../exceptions/ObjectDestroyedException.js'
@@ -387,5 +387,31 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         await assert.rejects(scope.get(Leaf), ObjectDestroyedException)
         await assert.rejects(scope.build(Leaf), ObjectDestroyedException)
         await root.destroy()
+    })
+
+    await it('the teardown hooks of a container run before its scopes are destroyed', async (): Promise<void> => {
+        class ScopedObject extends BaseObject {
+            public destroyed: boolean = false
+
+            protected async destroy(): Promise<void> {
+                this.destroyed = true
+            }
+        }
+
+        const root: Container = new Container()
+        const scope: Container = root.createScope()
+        const scoped: ScopedObject = await scope.build(ScopedObject)
+        const seen: boolean[] = []
+        RegisterTeardownHook(root, async (): Promise<void> => {
+            await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 10))
+            seen.push(scoped.destroyed)
+        })
+        const unregistered: () => void = RegisterTeardownHook(root, async (): Promise<void> => {
+            seen.push(true)
+        })
+        unregistered()
+        await root.destroy()
+        assert.deepStrictEqual(seen, [false])
+        assert.ok(scoped.destroyed)
     })
 })
