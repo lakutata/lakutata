@@ -1,7 +1,7 @@
 {
   "name": "@lakutata/security",
   "version": "2.0.126",
-  "description": "Security providers of the lakutata framework (password hashing).",
+  "description": "Security providers and functions of the lakutata framework (password hashing, signatures, encryption).",
   "type": "module",
   "main": "./dist/cjs/exports/Security.js",
   "types": "./dist/types/exports/Security.d.ts",
@@ -23,9 +23,6 @@
     "compile": "npm run rebuild",
     "test:unit": "npm run compile && node --test \"dist/esm/tests/*.spec.js\""
   },
-  "dependencies": {
-    "bcryptjs": "3.0.3"
-  },
   "peerDependencies": {
     "@lakutata/core": "2.0.126"
   },
@@ -41,6 +38,7 @@
     "dist",
     "*.md",
     "LICENSE",
-    "package.json"
+    "package.json",
+    "THIRD_PARTY_NOTICES.md"
   ]
 }

@@ -1,6 +1,6 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
-import bcrypt from 'bcryptjs'
+import * as bcrypt from '../lib/bcrypt/index.js'
 import {Container} from '@lakutata/core'
 import {PasswordHash, PasswordTooLongException} from '../exports/Security.js'
 

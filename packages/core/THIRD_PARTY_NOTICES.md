@@ -2,7 +2,8 @@
 
 Parts of `@lakutata/core` are derived from the third-party projects listed below. They are rewritten in
 TypeScript and modified; the original copyright notices and license terms are reproduced here as required.
-Where a file is derived from one of these projects, its header names the project, the version and the original file.
+The files derived from these projects refer to "the upstream" in their header; the projects, versions and directories
+are listed in `src/lib/validation/engine/UPSTREAM.md`.
 
 ## @hapi/hoek 11.0.7
 

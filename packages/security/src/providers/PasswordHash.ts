@@ -1,4 +1,4 @@
-import bcrypt from 'bcryptjs'
+import * as bcrypt from '../lib/bcrypt/index.js'
 import {DTO, Provider} from '@lakutata/core'
 import {Configurable} from '@lakutata/core/decorator/di'
 import {PasswordTooLongException} from '../exceptions/PasswordTooLongException.js'
