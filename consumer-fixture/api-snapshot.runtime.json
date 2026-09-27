@@ -371,6 +371,10 @@
     "PasswordHash",
     "PasswordTooLongException"
   ],
+  "lakutata/security": [
+    "PasswordHash",
+    "PasswordTooLongException"
+  ],
   "lakutata/decorator/asst": [
     "After",
     "Before"

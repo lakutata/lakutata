@@ -64,6 +64,11 @@
       "import": "./dist/esm/exports/PasswordHashProvider.js",
       "require": "./dist/cjs/exports/PasswordHashProvider.js"
     },
+    "./security": {
+      "types": "./dist/types/exports/Security.d.ts",
+      "import": "./dist/esm/exports/Security.js",
+      "require": "./dist/cjs/exports/Security.js"
+    },
     "./decorator/asst": {
       "types": "./dist/types/exports/ASSTDecorators.d.ts",
       "import": "./dist/esm/exports/ASSTDecorators.js",

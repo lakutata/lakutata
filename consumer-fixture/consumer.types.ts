@@ -20,6 +20,7 @@ import type * as entrypoint from 'lakutata/com/entrypoint'
 import type * as logger from 'lakutata/com/logger'
 import type * as providerDatabase from 'lakutata/provider/database'
 import type * as passwordHash from 'lakutata/provider/passwordHash'
+import type * as security from 'lakutata/security'
 import type * as asst from 'lakutata/decorator/asst'
 import type * as ctrl from 'lakutata/decorator/ctrl'
 import type * as di from 'lakutata/decorator/di'
@@ -39,6 +40,7 @@ export type _entrypoint = typeof entrypoint
 export type _logger = typeof logger
 export type _providerDatabase = typeof providerDatabase
 export type _passwordHash = typeof passwordHash
+export type _security = typeof security
 export type _asst = typeof asst
 export type _ctrl = typeof ctrl
 export type _di = typeof di
