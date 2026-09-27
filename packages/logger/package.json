@@ -1,7 +1,7 @@
 {
   "name": "@lakutata/logger",
   "version": "2.0.126",
-  "description": "The logger component of the lakutata framework (pino based).",
+  "description": "The logger component of the lakutata framework.",
   "type": "module",
   "main": "./dist/cjs/exports/Logger.js",
   "types": "./dist/types/exports/Logger.d.ts",
@@ -23,16 +23,13 @@
     "compile": "npm run rebuild",
     "test:unit": "npm run compile && node --test \"dist/esm/tests/*.spec.js\""
   },
-  "dependencies": {
-    "pino": "10.1.0",
-    "pino-pretty": "13.1.2",
-    "sonic-boom": "4.2.0"
-  },
   "peerDependencies": {
     "@lakutata/core": "2.0.126"
   },
   "devDependencies": {
     "@types/node": "22.20.4",
+    "pino": "10.1.0",
+    "pino-pretty": "13.1.2",
     "shx": "0.3.4",
     "typescript": "5.3.3"
   },
