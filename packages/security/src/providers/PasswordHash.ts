@@ -1,7 +1,6 @@
 import bcrypt from 'bcryptjs'
-import {Provider} from '../lib/core/Provider.js'
-import {Configurable} from '../decorators/di/Configurable.js'
-import {DTO} from '../lib/dto/DTO.js'
+import {DTO, Provider} from '@lakutata/core'
+import {Configurable} from '@lakutata/core/decorator/di'
 
 export class PasswordHash extends Provider {
 

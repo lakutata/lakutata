@@ -184,10 +184,8 @@ PublishScripts/
 **/[Pp]ackages/*
 !**/[Pp]ackages/build/
 # lakutata monorepo: workspace packages are source (re-include); ignore their build output + deps
-!packages/lakutata/
-!packages/lakutata/**
-!packages/core/
-!packages/core/**
+!packages/*/
+!packages/*/**
 packages/*/dist/
 packages/*/node_modules/
 *.nuget.props

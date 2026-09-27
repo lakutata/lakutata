@@ -60,8 +60,8 @@
             "@lakutata/core/com/logger": [
                 "../core/dist/types/exports/LoggerComponent"
             ],
-            "@lakutata/core/provider/passwordHash": [
-                "../core/dist/types/exports/PasswordHashProvider"
+            "@lakutata/security": [
+                "../security/dist/types/exports/Security"
             ],
             "@lakutata/core/decorator/asst": [
                 "../core/dist/types/exports/ASSTDecorators"

@@ -1,1 +1,1 @@
-export * from '@lakutata/core/provider/passwordHash'
+export * from '@lakutata/security'

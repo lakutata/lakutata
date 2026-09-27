@@ -53,7 +53,6 @@ const LAYERS = [
     ['components/Logger.ts', 5, 'logger'],
     ['components/cacher', 5, 'cacher'],
     ['components/monitor', 5, 'monitor'],
-    ['providers/PasswordHash.ts', 5, 'passwordHash'],
     //L6 - application
     ['lib/app', 6, 'app'],
     //L7 - public barrels & tests

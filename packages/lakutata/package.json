@@ -169,6 +169,7 @@
   ],
   "dependencies": {
     "@lakutata/core": "2.0.126",
+    "@lakutata/security": "2.0.126",
     "typeorm": "0.3.24",
     "dockerode": "4.0.9",
     "tar-stream": "3.1.7",
