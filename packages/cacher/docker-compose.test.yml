@@ -1,0 +1,26 @@
+# The backends of the store tests: docker compose -f docker-compose.test.yml up -d && npm run test:stores
+services:
+  redis:
+    image: redis:7-alpine
+    ports: ['16379:6379']
+  memcached:
+    image: memcached:1.6-alpine
+    ports: ['11212:11211']
+  mongo:
+    image: mongo:7
+    ports: ['27018:27017']
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: secret
+  mysql:
+    image: mysql:8
+    ports: ['13306:3306']
+    environment:
+      MYSQL_ROOT_PASSWORD: secret
+      MYSQL_DATABASE: cache
+  postgres:
+    image: postgres:16-alpine
+    ports: ['15432:5432']
+    environment:
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: cache

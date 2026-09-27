@@ -20,15 +20,11 @@ const check = async (name, fn) => {
 const {DataSource} = await import('typeorm/data-source/DataSource.js')
 await check('typeorm DataSource construct', () => { new DataSource({type: 'sqlite', database: ':memory:'}) })
 
-// cache-manager (Cacher component) — named import
-const cacheManager = await import('cache-manager')
-await check('cache-manager createCache callable', () => { if (typeof cacheManager.createCache !== 'function') throw new Error('createCache not a function') })
-
-// keyv + keyv-file (Cacher file store) — default + named
-const Keyv = (await import('keyv')).default
-await check('keyv construct (in-memory)', () => { new Keyv() })
-const {KeyvFile} = await import('keyv-file')
-await check('keyv-file KeyvFile callable', () => { if (typeof KeyvFile !== 'function') throw new Error('KeyvFile not callable') })
+// Cacher store drivers (optional CJS peers) — loaded by the Cacher driver loader
+const {LoadDriver} = await import('../packages/cacher/dist/esm/cacher/lib/LoadDriver.js')
+for (const [member, packages] of [['createClient', ['redis', '@redis/client']], ['Client', ['memjs']], ['MongoClient', ['mongodb']], ['createPool', ['mysql2']], ['Pool', ['pg']], ['Database', ['sqlite3']]]) {
+    await check(`${packages[0]} driver loads`, async () => { if (typeof (await LoadDriver(member, ...packages))[member] !== 'function') throw new Error(`${member} not callable`) })
+}
 
 // dockerode (Docker component) — default import; construct does not connect
 const Dockerode = (await import('dockerode')).default
