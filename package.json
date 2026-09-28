@@ -6,7 +6,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run compile -w @lakutata/core && npm run compile -w @lakutata/logger && npm run compile -w @lakutata/entrypoint && npm run compile -w @lakutata/nats && npm run compile -w @lakutata/mcp && npm run compile -w @lakutata/dbus && npm run compile -w @lakutata/utils && npm run compile -w @lakutata/security && npm run compile -w @lakutata/cacher && npm run compile -w packages/lakutata",
+    "build": "npm run compile -w @lakutata/core && npm run compile -w @lakutata/logger && npm run compile -w @lakutata/entrypoint && npm run compile -w @lakutata/nats && npm run compile -w @lakutata/mcp && npm run compile -w @lakutata/dbus && npm run compile -w @lakutata/utils && npm run compile -w @lakutata/security && npm run compile -w @lakutata/cacher && npm run compile -w packages/lakutata && npm run compile -w @lakutata/cli",
     "test:unit": "npm run test:unit -w @lakutata/core && npm run test:unit -w @lakutata/logger && npm run test:unit -w @lakutata/entrypoint && npm run test:unit -w @lakutata/nats && npm run test:unit -w @lakutata/utils && npm run test:unit -w @lakutata/security && npm run test:unit -w @lakutata/cacher",
     "test:fastpath": "npm run test:fastpath -w @lakutata/core",
     "test:layers": "npm run test:layers -w @lakutata/core",

@@ -1,0 +1,37 @@
+{
+  "name": "@lakutata/cli",
+  "version": "2.0.126",
+  "description": "The command line tool of the lakutata framework: create the projects from the templates, list the templates, show the framework information.",
+  "type": "module",
+  "bin": {
+    "lakutata": "./dist/esm/CLIApp.js"
+  },
+  "scripts": {
+    "clean": "shx rm -rf ./dist",
+    "build:js": "tsc -p tsconfig.esm.json && node -e \"require('node:fs').chmodSync('dist/esm/CLIApp.js',0o755)\"",
+    "rebuild": "npm run clean && npm run build:js",
+    "compile": "npm run rebuild",
+    "test:unit": "npm run compile && node --test \"dist/esm/tests/*.spec.js\""
+  },
+  "dependencies": {
+    "lakutata": "2.0.126",
+    "commander": "^15.0.0",
+    "@inquirer/prompts": "^8.7.2"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.4",
+    "shx": "0.3.4",
+    "typescript": "5.3.3"
+  },
+  "engines": {
+    "node": ">=22.12"
+  },
+  "license": "MIT",
+  "files": [
+    "dist/esm",
+    "!dist/esm/tests",
+    "*.md",
+    "LICENSE",
+    "package.json"
+  ]
+}
