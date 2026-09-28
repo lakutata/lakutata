@@ -1,10 +1,10 @@
 import {DTO} from '@lakutata/core'
 import type {MethodDecorator} from '@lakutata/core'
 import type {Controller} from '@lakutata/entrypoint'
-import {ActionOptions, GetActionDTOAndOptions, RegisterControllerAction} from '@lakutata/entrypoint/channel'
-import {MCPChannel} from '../channel/MCPChannel.js'
+import type {ActionOptions} from '@lakutata/entrypoint/channel'
 import type {MCPContext} from '../context/MCPContext.js'
-import {RegisterToolMetadata, type ToolMetadata} from '../lib/ToolMetadata.js'
+import type {MCPMetadata} from '../lib/Metadata.js'
+import {RegisterMCPAction} from '../lib/RegisterMCPAction.js'
 
 /**
  * The options of a tool: the options of an action, with the MCP metadata of the tool
@@ -40,14 +40,14 @@ export type MCPToolOptions = ActionOptions<MCPContext> & {
  * Split the MCP metadata from the action options
  * @param options
  */
-function SplitOptions(options: MCPToolOptions = {}): [ToolMetadata, ActionOptions<MCPContext>] {
+function SplitOptions(options: MCPToolOptions): [MCPMetadata, ActionOptions<MCPContext>] {
     const {title, readOnly, destructive, idempotent, openWorld, output, ...actionOptions} = options
-    const annotations: ToolMetadata['annotations'] = {}
+    const annotations: MCPMetadata['annotations'] = {}
     if (readOnly !== undefined) annotations.readOnlyHint = readOnly
     if (destructive !== undefined) annotations.destructiveHint = destructive
     if (idempotent !== undefined) annotations.idempotentHint = idempotent
     if (openWorld !== undefined) annotations.openWorldHint = openWorld
-    const metadata: ToolMetadata = {}
+    const metadata: MCPMetadata = {}
     if (title !== undefined) metadata.title = title
     if (Object.keys(annotations).length) metadata.annotations = annotations
     if (output) metadata.outputSchema = output.toJsonSchema()
@@ -80,12 +80,7 @@ export function MCPTool<ClassPrototype extends Controller, Method>(name: string,
 export function MCPTool<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(name: string, dtoConstructor: DTOConstructor, options: MCPToolOptions): MethodDecorator<ClassPrototype, Method, any>
 export function MCPTool<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(name: string, dtoConstructorOrOptions?: DTOConstructor | MCPToolOptions, options?: MCPToolOptions): MethodDecorator<ClassPrototype, Method, any> {
     return (target: ClassPrototype, propertyKey: any, descriptor: TypedPropertyDescriptor<Method>): TypedPropertyDescriptor<Method> => {
-        const isDTO: boolean = typeof dtoConstructorOrOptions === 'function'
-        const [metadata, actionOptions] = SplitOptions(isDTO ? options : dtoConstructorOrOptions as MCPToolOptions | undefined)
-        const [dtoConstructor, validatedOptions] = GetActionDTOAndOptions(isDTO ? dtoConstructorOrOptions as DTOConstructor : actionOptions, isDTO ? actionOptions : undefined)
-        const pattern: Record<string, string> = {tool: name}
-        if (Object.keys(metadata).length) pattern.metadata = RegisterToolMetadata(metadata)
-        RegisterControllerAction(MCPChannel, target, propertyKey, pattern, dtoConstructor, validatedOptions)
+        RegisterMCPAction('tool', name, target, propertyKey, dtoConstructorOrOptions, options, SplitOptions)
         return descriptor
     }
 }

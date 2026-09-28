@@ -1,7 +1,14 @@
 # @lakutata/mcp
 
 The MCP channel of the [lakutata](https://github.com/lakutata/lakutata) framework: the actions of the controllers are
-served as the tools of a [Model Context Protocol](https://modelcontextprotocol.io) server, over stdio or Streamable HTTP.
+served as the tools, the resources and the prompts of a [Model Context Protocol](https://modelcontextprotocol.io) server,
+over stdio or Streamable HTTP.
+
+| | Used when | Declared with |
+|---|---|---|
+| tools | the model decides to call them | `@MCPTool(name, DTO?, options?)` |
+| resources | the application or the user attaches them to the conversation | `@MCPResource(uri, DTO?, options?)` |
+| prompts | the user picks them (the slash commands of the clients) | `@MCPPrompt(name, DTO?, options?)` |
 
 ```bash
 npm install @lakutata/mcp
@@ -55,9 +62,45 @@ class DeviceController extends Controller {
 An error is given to the model as a result with `isError: true` and the text `errno: errMsg`: the model may correct
 its input and call the tool again.
 
+## Resources
+
+A resource is read-only data addressed by a URI. The variables of a URI template are merged into the input, as the
+route parameters (they take precedence over it):
+
+```ts
+@MCPResource('device://{sn}/status', DeviceSnDTO, {mimeType: 'application/json', description: 'The status of a device'})
+public async statusResource(input: DeviceSnDTO): Promise<StatusDTO> { ... }
+
+@MCPResource('device://catalog', {resourceName: 'catalog', title: 'The device catalog'})
+public async catalog(): Promise<string> { ... }
+```
+
+- A URI without variables is listed in `resources/list`, a URI template in `resources/templates/list`.
+- The name of a resource is `resourceName`, the name of the action by default; `title`, `mimeType`, `audience` and
+  `priority` describe it. The URIs are not prefixed by the controllers.
+- A string is a text (`text/plain` unless `mimeType` is set), bytes and files are a text or a blob by their content type,
+  the other values are JSON, and a `ReadResourceResult` (`{contents: [...]}`) is given as it is.
+- An error is a protocol error: invalid parameters for the errors of the client (a 4xx `statusCode`), an internal error
+  otherwise.
+
+## Prompts
+
+A prompt is a template of messages. Its arguments are the properties of the DTO (the clients give them as strings):
+
+```ts
+@MCPPrompt('diagnose', DeviceSnDTO, {title: 'Diagnose a device', description: 'Diagnose the failures of a device'})
+public async diagnose(input: DeviceSnDTO): Promise<string> {
+    return `Diagnose the device ${input.sn} from its status and its logs.`
+}
+```
+
+A string is a message of the user; an array gives the messages (strings for the user, or `{role, content}`); a
+`GetPromptResult` (`{messages: [...]}`) is given as it is. The names of the prompts are prefixed as the tools.
+
 ### The context
 
-The actions receive an `MCPContext`: `context.tool`, `context.sessionId`, `context.authInfo` (HTTP) and
+The actions receive an `MCPContext`: `context.kind` (`tool`, `resource` or `prompt`), `context.name` (the name of the
+tool or of the prompt, the URI template of the resource), `context.uri` (the URI read), `context.sessionId`, `context.authInfo` (HTTP) and
 `context.progress(progress, total?, message?)`, which reports the progress of a long call when the client asked for it.
 The calls cancelled by the client abort the signal of the action.
 

@@ -8,6 +8,11 @@ import {BaseContext} from '@lakutata/entrypoint'
 export const MCP_CONTEXT_TYPE: string = 'MCP'
 
 /**
+ * What the client asked for: a tool call, a resource read or a prompt
+ */
+export type MCPRequestKind = 'tool' | 'resource' | 'prompt'
+
+/**
  * The authentication of the client of an HTTP request
  */
 export type MCPAuthInfo = {
@@ -24,10 +29,22 @@ export class MCPContext<T extends Record<string, any> = {}> extends BaseContext<
     public readonly type: string
 
     /**
-     * The name of the tool called
+     * What the client asked for
+     */
+    @Expect(DTO.String().valid('tool', 'resource', 'prompt').required())
+    public readonly kind: MCPRequestKind
+
+    /**
+     * The name of the tool or of the prompt, the URI (template) of the resource
      */
     @Expect(DTO.String().required())
-    public readonly tool: string
+    public readonly name: string
+
+    /**
+     * The URI of the resource read
+     */
+    @Expect(DTO.String().optional())
+    public readonly uri?: string
 
     /**
      * The session of the client, when the transport has sessions
@@ -42,13 +59,15 @@ export class MCPContext<T extends Record<string, any> = {}> extends BaseContext<
     public readonly authInfo?: MCPAuthInfo
 
     /**
-     * Report the progress of the tool to the client, when the client asked for it
+     * Report the progress of the request to the client, when the client asked for it
      */
     @Expect(DTO.Function().required())
     public readonly progress: (progress: number, total?: number, message?: string) => Promise<void>
 
     constructor(params: {
-        readonly tool: string
+        readonly kind: MCPRequestKind
+        readonly name: string
+        readonly uri?: string
         readonly data: Record<string, any>
         readonly sessionId?: string
         readonly authInfo?: MCPAuthInfo

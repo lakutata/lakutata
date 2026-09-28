@@ -2,7 +2,7 @@ import {DTO, Exception} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
 import {Controller, Result} from '@lakutata/entrypoint'
 import {Prefix} from '@lakutata/entrypoint/decorator/ctrl'
-import {MCPContext, MCPTool} from '../../exports/MCP.js'
+import {MCPContext, MCPPrompt, MCPResource, MCPTool} from '../../exports/MCP.js'
 
 export class DeviceDTO extends DTO {
     @Expect(DTO.String().required().description('The serial number'))
@@ -24,7 +24,7 @@ export class OfflineException extends Exception {
 /**
  * The calls seen by the tools
  */
-export const calls: { tool: string, type: string, authInfo?: unknown }[] = []
+export const calls: { kind: string, name: string, type: string, authInfo?: unknown }[] = []
 
 @Prefix({mcp: 'device'})
 export class DeviceController extends Controller {
@@ -32,8 +32,31 @@ export class DeviceController extends Controller {
     @MCPTool('status', DeviceDTO, {title: 'Device status', description: 'The status of a device', readOnly: true, idempotent: true, output: StatusDTO})
     public async status(input: DeviceDTO): Promise<StatusDTO> {
         const context: MCPContext = this.context as MCPContext
-        calls.push({tool: context.tool, type: context.type, authInfo: context.authInfo})
+        calls.push({kind: context.kind, name: context.name, type: context.type, authInfo: context.authInfo})
         return {sn: input.sn, online: input.sn !== 'off'} as StatusDTO
+    }
+
+    @MCPResource('device://{sn}/status', DeviceDTO, {description: 'The status of a device', mimeType: 'application/json', audience: ['assistant']})
+    public async statusResource(input: DeviceDTO): Promise<StatusDTO> {
+        const context: MCPContext = this.context as MCPContext
+        calls.push({kind: context.kind, name: context.name, type: context.uri!})
+        if (input.sn === 'missing') throw new OfflineException('The device {sn} is unknown', {sn: input.sn})
+        return {sn: input.sn, online: true} as StatusDTO
+    }
+
+    @MCPResource('device://catalog', {resourceName: 'catalog', title: 'The device catalog'})
+    public async catalog(): Promise<string> {
+        return 'A1, B2'
+    }
+
+    @MCPPrompt('diagnose', DeviceDTO, {title: 'Diagnose a device', description: 'Diagnose the failures of a device'})
+    public async diagnose(input: DeviceDTO): Promise<string> {
+        return `Diagnose the device ${input.sn} from its status and its logs.`
+    }
+
+    @MCPPrompt('handover', DeviceDTO)
+    public async handover(input: DeviceDTO): Promise<unknown[]> {
+        return [`Take over the device ${input.sn}.`, {role: 'assistant', content: {type: 'text', text: 'Ready.'}}]
     }
 
     @MCPTool('reboot', DeviceDTO, {destructive: true})

@@ -92,6 +92,43 @@ describe('HTTP MCP adapter', (): void => {
         await container.destroy()
     })
 
+    it('reads the resources', async (): Promise<void> => {
+        const {url, container} = await Start()
+        const client: Client = await Connect(url)
+        assert.deepStrictEqual((await client.listResources()).resources, [{uri: 'device://catalog', name: 'catalog', title: 'The device catalog'}])
+        const templates = (await client.listResourceTemplates()).resourceTemplates
+        assert.deepStrictEqual(templates, [{uriTemplate: 'device://{sn}/status', name: 'DeviceController:statusResource', description: 'The status of a device', mimeType: 'application/json', annotations: {audience: ['assistant']}}])
+        calls.length = 0
+        const status = await client.readResource({uri: 'device://A1/status'})
+        assert.deepStrictEqual(status.contents, [{uri: 'device://A1/status', mimeType: 'application/json', text: JSON.stringify({sn: 'A1', online: true}, null, 2)}])
+        //The context has the URI template and the URI read
+        assert.deepStrictEqual(calls, [{kind: 'resource', name: 'device://{sn}/status', type: 'device://A1/status'}])
+        assert.deepStrictEqual((await client.readResource({uri: 'device://catalog'})).contents, [{uri: 'device://catalog', mimeType: 'text/plain', text: 'A1, B2'}])
+        await assert.rejects(client.readResource({uri: 'device://missing/status'}), /E_OFFLINE: The device missing is unknown/)
+        await client.close()
+        await container.destroy()
+    })
+
+    it('gets the prompts', async (): Promise<void> => {
+        const {url, container} = await Start()
+        const client: Client = await Connect(url)
+        const prompts = (await client.listPrompts()).prompts
+        const diagnose = prompts.find((prompt): boolean => prompt.name === 'device_diagnose')!
+        assert.strictEqual(diagnose.title, 'Diagnose a device')
+        assert.deepStrictEqual(diagnose.arguments, [{name: 'sn', description: 'The serial number', required: true}])
+        assert.deepStrictEqual(await client.getPrompt({name: 'device_diagnose', arguments: {sn: 'A1'}}), {
+            description: 'Diagnose the failures of a device',
+            messages: [{role: 'user', content: {type: 'text', text: 'Diagnose the device A1 from its status and its logs.'}}]
+        })
+        assert.deepStrictEqual((await client.getPrompt({name: 'device_handover', arguments: {sn: 'B2'}})).messages, [
+            {role: 'user', content: {type: 'text', text: 'Take over the device B2.'}},
+            {role: 'assistant', content: {type: 'text', text: 'Ready.'}}
+        ])
+        await assert.rejects(client.getPrompt({name: 'device_diagnose', arguments: {}}), /sn/)
+        await client.close()
+        await container.destroy()
+    })
+
     it('gives the errors to the model', async (): Promise<void> => {
         const {url, container} = await Start()
         const client: Client = await Connect(url)
@@ -109,7 +146,7 @@ describe('HTTP MCP adapter', (): void => {
     it('runs the middlewares with the MCP context and reports the progress', async (): Promise<void> => {
         const trace: string[] = []
         const traced = (name: string): MiddlewareHandler => async (invocation: ActionInvocation, next: Next): Promise<unknown> => {
-            trace.push(`${name}:${(invocation.context as MCPContext).type}:${(invocation.context as MCPContext).tool}`)
+            trace.push(`${name}:${(invocation.context as MCPContext).type}:${(invocation.context as MCPContext).name}`)
             return next()
         }
         const {url, container} = await Start({middlewares: [traced('adapter')]}, {middlewares: [traced('global')]})
@@ -138,7 +175,7 @@ describe('HTTP MCP adapter', (): void => {
         const client: Client = await Connect(url, {Authorization: 'Bearer secret'})
         calls.length = 0
         await client.callTool({name: 'device_status', arguments: {sn: 'A1'}})
-        assert.deepStrictEqual(JSON.parse(JSON.stringify(calls)), [{tool: 'device_status', type: 'MCP', authInfo: {token: 'secret', clientId: 'agent', scopes: ['devices']}}])
+        assert.deepStrictEqual(JSON.parse(JSON.stringify(calls)), [{kind: 'tool', name: 'device_status', type: 'MCP', authInfo: {token: 'secret', clientId: 'agent', scopes: ['devices']}}])
         //A foreign host is refused (DNS rebinding)
         assert.strictEqual(await PostStatus(url, {'Host': 'evil.example.com', 'Authorization': 'Bearer secret'}), 403)
         assert.strictEqual(await PostStatus(url, {'Origin': 'http://evil.example.com', 'Authorization': 'Bearer secret'}), 403)
