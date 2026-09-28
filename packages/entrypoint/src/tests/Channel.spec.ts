@@ -214,8 +214,8 @@ describe('Channels', (): void => {
         const start: number = Date.now()
         await second.container.destroy()
         assert.ok(Date.now() - start < 90)
-        //The result of an aborted request is dropped
-        assert.strictEqual(await aborted, undefined)
+        //A request aborted by the stop of the entrypoint fails
+        await assert.rejects(aborted, {name: 'EntrypointStoppedException', statusCode: 503})
     })
 
     it('provide the services of an adapter through autoloaded objects', async (): Promise<void> => {

@@ -93,6 +93,11 @@ export interface EntrypointAdapter<Context extends BaseContext = BaseContext> {
      * Stop receiving the requests, the entrypoint then waits for the requests in progress
      */
     stop?(): void | Promise<void>
+
+    /**
+     * Release the resources (connections, servers) once the requests in progress ended or were aborted
+     */
+    close?(): void | Promise<void>
 }
 
 /**

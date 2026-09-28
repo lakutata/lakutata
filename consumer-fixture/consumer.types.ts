@@ -98,3 +98,12 @@ export const _customOptions: EntrypointOptions = {controllers: [], custom: custo
 export const _customPrefix: Pick<PrefixOptions, 'custom'> = {custom: '/custom'}
 // @ts-expect-error an undeclared channel key is rejected
 export const _unknownOptions: EntrypointOptions = {controllers: [], unknown: customAdapter}
+
+// The express adapter of the HTTP channel
+import type {ExpressHTTPEntrypoint, JSONEnvelope} from 'lakutata/adapter/express'
+import type {Result} from 'lakutata/com/entrypoint'
+export type _ExpressHTTPEntrypoint = typeof ExpressHTTPEntrypoint
+export type _JSONEnvelope = typeof JSONEnvelope
+export type _Result = typeof Result
+declare const expressEntrypoint: typeof ExpressHTTPEntrypoint
+export const _httpOptions: EntrypointOptions = {controllers: [], http: expressEntrypoint({port: 3000})}

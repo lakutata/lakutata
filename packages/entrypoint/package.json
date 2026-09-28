@@ -21,6 +21,11 @@
       "import": "./dist/esm/exports/Channel.js",
       "require": "./dist/cjs/exports/Channel.js"
     },
+    "./adapter/express": {
+      "types": "./dist/types/exports/ExpressAdapter.d.ts",
+      "import": "./dist/esm/exports/ExpressAdapter.js",
+      "require": "./dist/cjs/exports/ExpressAdapter.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -37,10 +42,18 @@
     "patrun": "7.2.7"
   },
   "peerDependencies": {
-    "@lakutata/core": "2.0.126"
+    "@lakutata/core": "2.0.126",
+    "express": "^4.21.0 || ^5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "express": {
+      "optional": true
+    }
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
     "@types/node": "22.20.4",
+    "express": "^5.2.1",
     "shx": "0.3.4",
     "typescript": "5.3.3"
   },

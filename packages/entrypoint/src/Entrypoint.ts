@@ -34,6 +34,7 @@ import {
 import {ChannelDefinition, ChannelEntry, ChannelMatch, ChannelMatcher, DefineChannel, GetChannel, GetChannelByContextType, HasChannel} from './channel/Channel.js'
 import {ChannelActionInfo, ChannelRuntime, CommandMap, DispatchOptions, EntrypointAdapter, IsEntrypointAdapter} from './channel/EntrypointAdapter.js'
 import {InvalidEntrypointAdapterException} from './exceptions/InvalidEntrypointAdapterException.js'
+import {EntrypointStoppedException} from './exceptions/EntrypointStoppedException.js'
 import './channel/BuiltinChannels.js'
 
 export {ContextType, BaseContext} from './context/BaseContext.js'
@@ -171,6 +172,9 @@ type StartedAdapter = {
     readonly inflight: Set<InflightRequest>
 }
 
+//The settlement of an aborted request
+const ABORTED: unique symbol = Symbol('ABORTED')
+
 //The options of the entrypoint which are not adapters
 const ENTRYPOINT_OPTIONS: Set<string> = new Set(['class', 'id', 'controllers', 'middlewares', 'rules', 'shutdownTimeout', 'cliActionGroups', 'httpActionGroups', 'serviceActionGroups'])
 
@@ -290,6 +294,11 @@ export class Entrypoint extends Component {
                     errors.push(e)
                 }
                 await this.drain(started)
+                try {
+                    await started.adapter.close?.()
+                } catch (e) {
+                    errors.push(e)
+                }
             }
             this.#started = []
             if (errors.length === 1) throw errors[0]
@@ -475,7 +484,10 @@ export class Entrypoint extends Component {
         })
         await Promise.race([Promise.allSettled([...started.inflight].map((request: InflightRequest): Promise<unknown> | undefined => request.promise)), timeout])
         clearTimeout(timer)
-        started.inflight.forEach((request: InflightRequest): void => request.abortController.abort())
+        const pending: InflightRequest[] = [...started.inflight]
+        pending.forEach((request: InflightRequest): void => request.abortController.abort(new EntrypointStoppedException('The entrypoint stopped before the request completed')))
+        //The aborted requests settle at once
+        await Promise.allSettled(pending.map((request: InflightRequest): Promise<unknown> | undefined => request.promise))
     }
 
     /**
@@ -532,20 +544,28 @@ export class Entrypoint extends Component {
     protected async execute(entry: ActionEntry, runner: InvocationRunner, context: BaseContext, signal: AbortSignal, params?: Record<string, unknown>): Promise<unknown> {
         const runtimeContainer: Container = this.createScope()
         let isAborted: boolean = false
-        //Aborting destroys the request scope right away, container destruction is idempotent
+        let settleAborted: () => void = DevNull
+        const aborted: Promise<typeof ABORTED> = new Promise((resolve: (value: typeof ABORTED) => void): void => {
+            settleAborted = (): void => resolve(ABORTED)
+        })
+        //Aborting destroys the request scope right away (container destruction is idempotent) and settles the request
         const abortHandler: () => void = (): void => {
             isAborted = true
             runtimeContainer.destroy().catch(DevNull)
+            settleAborted()
         }
         signal.addEventListener('abort', abortHandler, {once: true})
         try {
-            const result: unknown = await runner({
+            const running: Promise<unknown> = runner({
                 context: As(context),
                 action: As(entry.info),
                 container: runtimeContainer,
                 signal: signal,
                 params: params
             })
+            //The action of an aborted request may still fail, its error is dropped
+            running.catch(DevNull)
+            const result: unknown = await Promise.race([running, aborted])
             if (!isAborted) return result
         } catch (e) {
             if (!isAborted) throw e
@@ -554,6 +574,9 @@ export class Entrypoint extends Component {
             signal.removeEventListener('abort', abortHandler)
             runtimeContainer.destroy().catch(DevNull)
         }
+        //A request aborted by the stop of the entrypoint fails, a request aborted by its client has no result
+        if (signal.reason instanceof EntrypointStoppedException) throw signal.reason
+        return undefined
     }
 
     /**

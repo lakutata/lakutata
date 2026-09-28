@@ -358,6 +358,9 @@
     "ControllerActionNotFoundException",
     "DuplicateActionNameException",
     "Entrypoint",
+    "EntrypointStoppedException",
+    "EventsResult",
+    "FileResult",
     "HTTPContext",
     "InvalidChannelException",
     "InvalidEntrypointAdapterException",
@@ -366,7 +369,17 @@
     "Middleware",
     "MiddlewareNextCalledException",
     "PrefixOptions",
-    "ServiceContext"
+    "Result",
+    "RouteNotFoundException",
+    "ServiceContext",
+    "StatusResult"
+  ],
+  "lakutata/adapter/express": [
+    "DescribeError",
+    "ExpressHTTPEntrypoint",
+    "JSONEnvelope",
+    "JSONResponder",
+    "StatusOfError"
   ],
   "lakutata/com/logger": [
     "Logger"

@@ -49,6 +49,11 @@
       "import": "./dist/esm/exports/EntrypointComponent.js",
       "require": "./dist/cjs/exports/EntrypointComponent.js"
     },
+    "./adapter/express": {
+      "types": "./dist/types/exports/ExpressAdapter.d.ts",
+      "import": "./dist/esm/exports/ExpressAdapter.js",
+      "require": "./dist/cjs/exports/ExpressAdapter.js"
+    },
     "./com/logger": {
       "types": "./dist/types/exports/LoggerComponent.d.ts",
       "import": "./dist/esm/exports/LoggerComponent.js",
@@ -194,5 +199,13 @@
     "LICENSE",
     "package.json",
     "tsconfig.json"
-  ]
+  ],
+  "peerDependencies": {
+    "express": "^4.21.0 || ^5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "express": {
+      "optional": true
+    }
+  }
 }

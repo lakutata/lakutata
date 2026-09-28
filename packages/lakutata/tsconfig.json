@@ -80,6 +80,9 @@
             ],
             "@lakutata/entrypoint/decorator/ctrl": [
                 "../entrypoint/dist/types/exports/CTRLDecorators"
+            ],
+            "@lakutata/entrypoint/adapter/express": [
+                "../entrypoint/dist/types/exports/ExpressAdapter"
             ]
         }
     },
