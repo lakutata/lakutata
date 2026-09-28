@@ -54,6 +54,20 @@ export function SetMethodAcceptArgumentsValidator<ClassPrototype, DTOConstructor
 }
 
 /**
+ * The metadata key of the schema of the return value of a method
+ */
+const METHOD_RETURN_SCHEMA: symbol = Symbol('DTO.METHOD.RETURN.SCHEMA')
+
+/**
+ * The schema of the return value of a method declared with @Return, for the channels describing the results of their actions
+ * @param target the prototype of the class
+ * @param propertyKey
+ */
+export function GetMethodReturnSchema(target: object, propertyKey: string | symbol): Schema | undefined {
+    return Reflect.getMetadata(METHOD_RETURN_SCHEMA, target, propertyKey)
+}
+
+/**
  * For validate method return value
  * @param target
  * @param propertyKey
@@ -63,6 +77,7 @@ export function SetMethodAcceptArgumentsValidator<ClassPrototype, DTOConstructor
  */
 export function SetMethodReturnValueValidator<ClassPrototype, DTOConstructor extends typeof DTO>(target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<any>, def: DTOConstructor | Schema): TypedPropertyDescriptor<any> {
     const schema: Schema = IsDTO(As<DTOConstructor>(def)) ? As<DTOConstructor>(def).Schema() : As<Schema>(def)
+    Reflect.defineMetadata(METHOD_RETURN_SCHEMA, schema, As<object>(target), propertyKey)
     descriptor.writable = false
     const originalMethod: (...args: any[]) => any | Promise<any> = descriptor.value
     if (isAsyncFunction(originalMethod)) {
