@@ -8,3 +8,5 @@ export {HTTPMCPEntrypoint, type HTTPMCPEntrypointOptions, type HTTPMCPEntrypoint
 export {BuildMCPServer, type MCPServerInfo} from '../lib/MCPServer.js'
 export {ToToolResult, ToErrorResult, ToResourceResult, ToPromptResult} from '../lib/Results.js'
 export type {MCPMetadata} from '../lib/Metadata.js'
+export {MCPNotifier} from '../components/MCPNotifier.js'
+export type {ServerEventBus, ServerEvent} from '@modelcontextprotocol/server'

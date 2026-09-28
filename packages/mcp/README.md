@@ -104,6 +104,32 @@ tool or of the prompt, the URI template of the resource), `context.uri` (the URI
 `context.progress(progress, total?, message?)`, which reports the progress of a long call when the client asked for it.
 The calls cancelled by the client abort the signal of the action.
 
+## Notifications
+
+`MCPNotifier` tells the clients what changed in the application. Inject it in any object (`@Inject(MCPNotifier)`) or get
+it (`getObject(MCPNotifier)`): it is autoloaded, one per application.
+
+```ts
+class DeviceWatcher extends Component {
+    @Inject(MCPNotifier)
+    protected readonly notifier: MCPNotifier
+
+    protected onStatusChanged(sn: string): void {
+        //The clients which subscribed to the resource read it again
+        this.notifier.resourceUpdated(`device://${sn}/status`)
+    }
+}
+```
+
+`resourceUpdated(uri)`, `resourcesChanged()`, `toolsChanged()` and `promptsChanged()` reach the clients through every
+MCP adapter running:
+
+- over stdio, the client subscribed to the resource (`resources/subscribe`) is notified;
+- over HTTP, the clients of the revision 2026-07-28 listening for the change (`subscriptions/listen`) are notified. The
+  clients of 2025 are served without sessions, the server cannot notify them. The subscriptions of one process are
+  kept in its memory: the instances of an application behind a load balancer share a bus of notifications
+  (`bus: ServerEventBus`, over Redis, NATS…) so that every client is notified, whatever instance it listens to.
+
 ## Adapters
 
 ```ts
@@ -136,7 +162,8 @@ of the revisions of 2025 without sessions (`legacy: 'reject'` to refuse them).
   local host names (DNS rebinding); `allowedHosts` and `allowedOrigins` set other names, `false` disables a check.
 - `authenticate(request)` returns the authentication of the client, given to the tools in `context.authInfo`; an error
   answers `401`.
-- It stops gracefully with the entrypoint: the calls in progress end before the server closes.
+- It stops gracefully with the entrypoint: the calls in progress end before the server closes, then the streams of the
+  subscriptions are closed.
 
 #### Sharing the port of another HTTP server
 

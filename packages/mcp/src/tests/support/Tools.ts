@@ -1,8 +1,9 @@
 import {DTO, Exception} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
+import {Inject} from '@lakutata/core/decorator/di'
 import {Controller, Result} from '@lakutata/entrypoint'
 import {Prefix} from '@lakutata/entrypoint/decorator/ctrl'
-import {MCPContext, MCPPrompt, MCPResource, MCPTool} from '../../exports/MCP.js'
+import {MCPContext, MCPNotifier, MCPPrompt, MCPResource, MCPTool} from '../../exports/MCP.js'
 
 export class DeviceDTO extends DTO {
     @Expect(DTO.String().required().description('The serial number'))
@@ -28,6 +29,15 @@ export const calls: { kind: string, name: string, type: string, authInfo?: unkno
 
 @Prefix({mcp: 'device'})
 export class DeviceController extends Controller {
+
+    @Inject(MCPNotifier)
+    protected readonly notifier: MCPNotifier
+
+    @MCPTool('touch', DeviceDTO, {description: 'Mark the status of a device as changed'})
+    public async touch(input: DeviceDTO): Promise<string> {
+        this.notifier.resourceUpdated(`device://${input.sn}/status`)
+        return 'touched'
+    }
 
     @MCPTool('status', DeviceDTO, {title: 'Device status', description: 'The status of a device', readOnly: true, idempotent: true, output: StatusDTO})
     public async status(input: DeviceDTO): Promise<StatusDTO> {

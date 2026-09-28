@@ -170,8 +170,9 @@ function RegisterPrompt(server: McpServer, runtime: ChannelRuntime<MCPContext>, 
  * An MCP server serving the actions of a runtime as its tools, resources and prompts
  * @param runtime
  * @param info
+ * @param subscriptions the URIs of the resources the client of a session subscribed to (resources/subscribe)
  */
-export function BuildMCPServer(runtime: ChannelRuntime<MCPContext>, info: MCPServerInfo = {}): McpServer {
+export function BuildMCPServer(runtime: ChannelRuntime<MCPContext>, info: MCPServerInfo = {}, subscriptions?: Set<string>): McpServer {
     const server: McpServer = new McpServer({
         name: info.serverName ?? GetAppName() ?? 'lakutata',
         version: info.serverVersion ?? '1.0.0'
@@ -188,6 +189,18 @@ export function BuildMCPServer(runtime: ChannelRuntime<MCPContext>, info: MCPSer
                 RegisterPrompt(server, runtime, action)
                 break
         }
+    }
+    //The clients subscribe to the resources, MCPNotifier tells them when a resource changed
+    if (runtime.actions.some((action: ChannelActionInfo): boolean => action.kind === 'resource')) {
+        server.server.registerCapabilities({resources: {subscribe: true}})
+        server.server.setRequestHandler('resources/subscribe', async (request): Promise<{}> => {
+            subscriptions?.add(request.params.uri)
+            return {}
+        })
+        server.server.setRequestHandler('resources/unsubscribe', async (request): Promise<{}> => {
+            subscriptions?.delete(request.params.uri)
+            return {}
+        })
     }
     return server
 }

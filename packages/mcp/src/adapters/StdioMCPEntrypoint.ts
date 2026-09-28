@@ -6,6 +6,7 @@ import {StdioServerTransport} from '@modelcontextprotocol/server/stdio'
 import {MCPChannel} from '../channel/MCPChannel.js'
 import type {MCPContext} from '../context/MCPContext.js'
 import {BuildMCPServer, type MCPServerInfo} from '../lib/MCPServer.js'
+import {AddNotificationSink} from '../lib/Notifications.js'
 
 export type StdioMCPEntrypointOptions = MCPServerInfo & {
     /**
@@ -49,14 +50,25 @@ export function StdioMCPEntrypoint(options: StdioMCPEntrypointOptions = {}): Ent
     let server: McpServer | undefined
     let stopped: boolean = false
     let onEnd: (() => void) | undefined
+    let removeSink: (() => void) | undefined
     return {
         channel: 'mcp',
         definition: MCPChannel,
         name: options.name,
         middlewares: options.middlewares,
         start: async (runtime: ChannelRuntime<MCPContext>): Promise<void> => {
-            server = BuildMCPServer(runtime, options)
-            await server.connect(new StdioServerTransport(stdin, options.stdout ?? process.stdout))
+            //The URIs of the resources the client subscribed to
+            const subscriptions: Set<string> = new Set()
+            const session: McpServer = BuildMCPServer(runtime, options, subscriptions)
+            server = session
+            await session.connect(new StdioServerTransport(stdin, options.stdout ?? process.stdout))
+            const send = (notification: Promise<void>): unknown => notification.catch((): undefined => undefined)
+            removeSink = AddNotificationSink({
+                toolsChanged: (): unknown => send(session.server.sendToolListChanged()),
+                promptsChanged: (): unknown => send(session.server.sendPromptListChanged()),
+                resourcesChanged: (): unknown => send(session.server.sendResourceListChanged()),
+                resourceUpdated: (uri: string): unknown => subscriptions.has(uri) ? send(session.server.sendResourceUpdated({uri: uri})) : undefined
+            })
             //The client closed its end: the application ends with it
             onEnd = (): void => {
                 if (stopped || options.exitOnClose === false) return
@@ -67,6 +79,7 @@ export function StdioMCPEntrypoint(options: StdioMCPEntrypointOptions = {}): Ent
         },
         stop: (): void => {
             stopped = true
+            removeSink?.()
             if (onEnd) stdin.off('end', onEnd)
         },
         close: async (): Promise<void> => {

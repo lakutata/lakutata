@@ -1,6 +1,5 @@
 import {createServer} from 'node:http'
 import type {IncomingMessage, Server, ServerOptions, ServerResponse} from 'node:http'
-import {Readable} from 'node:stream'
 import type {ChannelRuntime, EntrypointAdapter, MiddlewareDefinition} from '@lakutata/entrypoint'
 import {
     createMcpHandler,
@@ -9,10 +8,11 @@ import {
     localhostAllowedOrigins,
     originValidationResponse
 } from '@modelcontextprotocol/server'
-import type {McpHttpHandler} from '@modelcontextprotocol/server'
+import type {McpHttpHandler, ServerEventBus} from '@modelcontextprotocol/server'
 import {MCPChannel} from '../channel/MCPChannel.js'
 import type {MCPAuthInfo, MCPContext} from '../context/MCPContext.js'
 import {BuildMCPServer, type MCPServerInfo} from '../lib/MCPServer.js'
+import {AddNotificationSink} from '../lib/Notifications.js'
 
 export type HTTPMCPEntrypointOptions = MCPServerInfo & {
     /**
@@ -55,6 +55,11 @@ export type HTTPMCPEntrypointOptions = MCPServerInfo & {
      */
     legacy?: 'stateless' | 'reject'
     /**
+     * The bus of the notifications (MCPNotifier) to the subscriptions of the clients, in the memory of the process by default:
+     * the instances of an application behind a load balancer share a bus (over Redis, NATS…) to notify all the clients
+     */
+    bus?: ServerEventBus
+    /**
      * The maximum size of a request body in bytes, 4 MiB by default
      */
     maxRequestBodySize?: number
@@ -91,26 +96,40 @@ export type HTTPMCPEntrypointAdapter = EntrypointAdapter<MCPContext> & {
 }
 
 /**
+ * The body of a request, undefined when it is larger than the limit
+ * @param request
+ * @param limit
+ */
+async function ReadBody(request: IncomingMessage, limit: number): Promise<Buffer | undefined> {
+    const chunks: Buffer[] = []
+    let size: number = 0
+    for await (const chunk of request) {
+        size += chunk.length
+        if (size > limit) return undefined
+        chunks.push(chunk)
+    }
+    return Buffer.concat(chunks)
+}
+
+/**
  * The web request of a node request
  * @param request
+ * @param body
  * @param signal
  */
-function WebRequest(request: IncomingMessage, signal: AbortSignal): Request {
+function WebRequest(request: IncomingMessage, body: Buffer | undefined, signal: AbortSignal): Request {
     const headers: Headers = new Headers()
     for (const [name, value] of Object.entries(request.headers)) {
         if (Array.isArray(value)) value.forEach((item: string): void => headers.append(name, item))
         else if (value !== undefined) headers.set(name, value)
     }
     const method: string = request.method ?? 'GET'
-    //A body already read by a parser of the mounting server is given parsed
-    const hasBody: boolean = method !== 'GET' && method !== 'HEAD' && !request.readableEnded
     return new Request(`http://${request.headers.host ?? 'localhost'}${request.url ?? '/'}`, {
         method: method,
         headers: headers,
-        body: hasBody ? Readable.toWeb(request) as ReadableStream : undefined,
-        signal: signal,
-        duplex: hasBody ? 'half' : undefined
-    } as RequestInit)
+        body: body && method !== 'GET' && method !== 'HEAD' ? body : undefined,
+        signal: signal
+    })
 }
 
 /**
@@ -160,15 +179,17 @@ export function HTTPMCPEntrypoint(options: HTTPMCPEntrypointOptions = {}): HTTPM
     let handler: McpHttpHandler | undefined
     let closed: Promise<void> | undefined
     let stopping: boolean = false
-    //The responses not sent yet
-    const responding: Set<Promise<void>> = new Set()
+    let removeSink: (() => void) | undefined
+    //The responses not sent yet, and whether they are the streams of the subscriptions of the clients
+    const responding: Map<Promise<void>, { subscription: boolean }> = new Map()
 
     /**
      * Serve a request
      * @param request
      * @param response
+     * @param state
      */
-    const serve = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
+    const serve = async (request: IncomingMessage, response: ServerResponse, state: { subscription: boolean }): Promise<void> => {
         if (listen && new URL(request.url ?? '/', 'http://localhost').pathname !== path) {
             response.writeHead(404, {'Content-Type': 'application/json'}).end(JSON.stringify({error: 'not_found'}))
             return
@@ -177,7 +198,27 @@ export function HTTPMCPEntrypoint(options: HTTPMCPEntrypointOptions = {}): HTTPM
         response.once('close', (): void => {
             if (!response.writableFinished) abortController.abort()
         })
-        const webRequest: Request = WebRequest(request, abortController.signal)
+        //The body is read here (the requests are JSON): the streams of the subscriptions are told from the calls
+        let body: Buffer | undefined
+        let parsedBody: unknown
+        if (request.readableEnded) {
+            //Already read by a parser of the mounting server
+            parsedBody = (request as { body?: unknown }).body
+            body = parsedBody === undefined ? undefined : Buffer.from(JSON.stringify(parsedBody))
+        } else {
+            body = await ReadBody(request, options.maxRequestBodySize ?? 4 * 1024 * 1024)
+            if (!body) {
+                response.writeHead(413, {'Content-Type': 'application/json'}).end(JSON.stringify({error: 'payload_too_large'}))
+                return
+            }
+            try {
+                parsedBody = body.length ? JSON.parse(body.toString('utf8')) : undefined
+            } catch {
+                //The handler answers the parse error
+            }
+        }
+        state.subscription = (parsedBody as { method?: unknown } | undefined)?.method === 'subscriptions/listen'
+        const webRequest: Request = WebRequest(request, body, abortController.signal)
         const rejected: Response | undefined = (allowedHosts ? hostHeaderValidationResponse(webRequest, allowedHosts) : undefined)
             ?? (allowedOrigins ? originValidationResponse(webRequest, allowedOrigins) : undefined)
         if (rejected) return await WriteResponse(rejected, response)
@@ -189,7 +230,6 @@ export function HTTPMCPEntrypoint(options: HTTPMCPEntrypointOptions = {}): HTTPM
                 .end(JSON.stringify({error: 'unauthorized', error_description: (error as Error)?.message ?? String(error)}))
             return
         }
-        const parsedBody: unknown = request.readableEnded ? (request as { body?: unknown }).body : undefined
         await WriteResponse(await handler!.fetch(webRequest, {authInfo: authInfo, parsedBody: parsedBody}), response)
     }
 
@@ -204,13 +244,14 @@ export function HTTPMCPEntrypoint(options: HTTPMCPEntrypointOptions = {}): HTTPM
             response.writeHead(503, {'Content-Type': 'application/json'}).end(JSON.stringify({error: 'unavailable'}))
             return
         }
-        const served: Promise<void> = serve(request, response)
+        const state: { subscription: boolean } = {subscription: false}
+        const served: Promise<void> = serve(request, response, state)
             .catch((): void => {
                 if (!response.headersSent) response.writeHead(500, {'Content-Type': 'application/json'}).end(JSON.stringify({error: 'internal_error'}))
                 else if (!response.writableEnded) response.end()
             })
             .finally((): unknown => responding.delete(served))
-        responding.add(served)
+        responding.set(served, state)
     }
 
     return {
@@ -223,7 +264,15 @@ export function HTTPMCPEntrypoint(options: HTTPMCPEntrypointOptions = {}): HTTPM
             //Each request is served by a server of its own
             handler = createMcpHandler((): ReturnType<typeof BuildMCPServer> => BuildMCPServer(runtime, options), {
                 legacy: options.legacy ?? 'stateless',
-                maxRequestBodySize: options.maxRequestBodySize
+                maxRequestBodySize: options.maxRequestBodySize,
+                bus: options.bus
+            })
+            const notify = handler.notify
+            removeSink = AddNotificationSink({
+                toolsChanged: (): void => notify.toolsChanged(),
+                promptsChanged: (): void => notify.promptsChanged(),
+                resourcesChanged: (): void => notify.resourcesChanged(),
+                resourceUpdated: (uri: string): void => notify.resourceUpdated(uri)
             })
             if (!listen) return
             server = createServer(options.server ?? {}, handle)
@@ -238,18 +287,21 @@ export function HTTPMCPEntrypoint(options: HTTPMCPEntrypointOptions = {}): HTTPM
         stop: (): void => {
             //No new request; the server of the adapter accepts no new connection and closes the idle ones
             stopping = true
+            removeSink?.()
             if (!server?.listening) return
             closed = new Promise((resolve: () => void): void => void server!.close((): void => resolve()))
             server.closeIdleConnections()
         },
         close: async (): Promise<void> => {
-            //The streams of the handler end, the responses in progress are given a second, then the connections are closed
-            await handler?.close()
+            //The responses of the calls are given a second to be sent, then the handler ends the streams of the subscriptions
+            //(it aborts the exchanges in progress) and the remaining connections are closed
+            const calls: Promise<void>[] = [...responding].filter(([, state]): boolean => !state.subscription).map(([served]): Promise<void> => served)
             let timer: NodeJS.Timeout | undefined
-            await Promise.race([Promise.all(responding), new Promise((resolve: (value: unknown) => void): void => {
+            await Promise.race([Promise.all(calls), new Promise((resolve: (value: unknown) => void): void => {
                 timer = setTimeout(resolve, 1000)
             })])
             clearTimeout(timer)
+            await handler?.close()
             server?.closeAllConnections()
             await closed
         }

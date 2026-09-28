@@ -1,4 +1,4 @@
-import {describe, it} from 'node:test'
+import {before, describe, it} from 'node:test'
 import assert from 'node:assert'
 import type {AddressInfo} from 'node:net'
 import {request as httpRequest} from 'node:http'
@@ -35,12 +35,17 @@ async function Start(options: HTTPMCPEntrypointOptions = {}, entrypointOptions: 
 }
 
 /**
+ * The protocol revision of the clients of the running suite: 2025 ('legacy') or 2026-07-28 ('auto')
+ */
+let era: 'legacy' | 'auto' = 'legacy'
+
+/**
  * A client connected to the server
  * @param url
  * @param headers
  */
 async function Connect(url: string, headers: Record<string, string> = {}): Promise<Client> {
-    const client: Client = new Client({name: 'test', version: '1.0.0'})
+    const client: Client = new Client({name: 'test', version: '1.0.0'}, {versionNegotiation: {mode: era}})
     await client.connect(new StreamableHTTPClientTransport(new URL(url), {requestInit: {headers: headers}}))
     return client
 }
@@ -59,13 +64,17 @@ function PostStatus(url: string, headers: Record<string, string>): Promise<numbe
     })
 }
 
-describe('HTTP MCP adapter', (): void => {
+for (const suiteEra of ['legacy', 'auto'] as const) describe(`HTTP MCP adapter (${suiteEra === 'legacy' ? '2025 clients' : '2026-07-28 clients'})`, (): void => {
+
+    before((): void => {
+        era = suiteEra
+    })
 
     it('lists the actions as tools', async (): Promise<void> => {
         const {url, container} = await Start()
         const client: Client = await Connect(url)
         const tools = (await client.listTools()).tools
-        assert.deepStrictEqual(tools.map((tool): string => tool.name).sort(), ['count', 'device_reboot', 'device_status', 'echo', 'picture', 'raw', 'slow'])
+        assert.deepStrictEqual(tools.map((tool): string => tool.name).sort(), ['count', 'device_reboot', 'device_status', 'device_touch', 'echo', 'picture', 'raw', 'slow'])
         const status = tools.find((tool): boolean => tool.name === 'device_status')!
         assert.strictEqual(status.title, 'Device status')
         assert.strictEqual(status.description, 'The status of a device')
@@ -109,6 +118,30 @@ describe('HTTP MCP adapter', (): void => {
         await container.destroy()
     })
 
+    //The stateless serving of the 2025 clients has no stream to push the notifications on
+    it('notifies the subscriptions of the changes of the resources', {skip: suiteEra === 'legacy'}, async (): Promise<void> => {
+        const {url, container} = await Start()
+        const client: Client = await Connect(url)
+        const updated: string[] = []
+        client.setNotificationHandler('notifications/resources/updated', (notification): void => void updated.push(notification.params.uri))
+        const subscription = await client.listen({resourceSubscriptions: ['device://A1/status']})
+        assert.deepStrictEqual(subscription.honoredFilter.resourceSubscriptions, ['device://A1/status'])
+        //A tool changes the resources through MCPNotifier
+        await client.callTool({name: 'device_touch', arguments: {sn: 'B2'}})
+        await client.callTool({name: 'device_touch', arguments: {sn: 'A1'}})
+        await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 100))
+        assert.deepStrictEqual(updated, ['device://A1/status'])
+        await subscription.close()
+        //A subscription still open does not hold the stop of the adapter
+        const open = await client.listen({toolsListChanged: true})
+        const stopping: number = Date.now()
+        await container.destroy()
+        assert.ok(Date.now() - stopping < 900, `stopped in ${Date.now() - stopping}ms`)
+        //The server ends the stream gracefully
+        assert.strictEqual(await open.closed, 'graceful')
+        await client.close()
+    })
+
     it('gets the prompts', async (): Promise<void> => {
         const {url, container} = await Start()
         const client: Client = await Connect(url)
@@ -116,7 +149,9 @@ describe('HTTP MCP adapter', (): void => {
         const diagnose = prompts.find((prompt): boolean => prompt.name === 'device_diagnose')!
         assert.strictEqual(diagnose.title, 'Diagnose a device')
         assert.deepStrictEqual(diagnose.arguments, [{name: 'sn', description: 'The serial number', required: true}])
-        assert.deepStrictEqual(await client.getPrompt({name: 'device_diagnose', arguments: {sn: 'A1'}}), {
+        const {_meta, ...prompt} = await client.getPrompt({name: 'device_diagnose', arguments: {sn: 'A1'}})
+        void _meta
+        assert.deepStrictEqual(prompt, {
             description: 'Diagnose the failures of a device',
             messages: [{role: 'user', content: {type: 'text', text: 'Diagnose the device A1 from its status and its logs.'}}]
         })

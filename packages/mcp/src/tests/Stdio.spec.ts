@@ -22,6 +22,14 @@ describe('Stdio MCP adapter', (): void => {
         assert.deepStrictEqual((await client.callTool({name: 'device_status', arguments: {sn: 'A1'}})).structuredContent, {sn: 'A1', online: true})
         const offline = await client.callTool({name: 'device_reboot', arguments: {sn: 'off'}})
         assert.strictEqual(offline.isError, true)
+        //The client subscribed to a resource is told when it changes
+        const updated: string[] = []
+        client.setNotificationHandler('notifications/resources/updated', (notification): void => void updated.push(notification.params.uri))
+        await client.subscribeResource({uri: 'device://A1/status'})
+        await client.callTool({name: 'device_touch', arguments: {sn: 'B2'}})
+        await client.callTool({name: 'device_touch', arguments: {sn: 'A1'}})
+        await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 100))
+        assert.deepStrictEqual(updated, ['device://A1/status'])
         //The application exits once the client closed its input
         const child: ChildProcess = (transport as any)._process
         const exited: Promise<number | null> = new Promise((resolve: (code: number | null) => void): unknown => child.once('exit', resolve))
