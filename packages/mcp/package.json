@@ -33,6 +33,7 @@
   "devDependencies": {
     "@modelcontextprotocol/client": "^2.1.0",
     "@types/node": "22.20.4",
+    "express": "^5.2.1",
     "shx": "0.3.4",
     "typescript": "5.3.3"
   },

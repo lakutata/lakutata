@@ -97,7 +97,7 @@ public async diagnose(input: DeviceSnDTO): Promise<string> {
 A string is a message of the user; an array gives the messages (strings for the user, or `{role, content}`); a
 `GetPromptResult` (`{messages: [...]}`) is given as it is. The names of the prompts are prefixed as the tools.
 
-### The context
+## The context
 
 The actions receive an `MCPContext`: `context.kind` (`tool`, `resource` or `prompt`), `context.name` (the name of the
 tool or of the prompt, the URI template of the resource), `context.uri` (the URI read), `context.sessionId`, `context.authInfo` (HTTP) and
@@ -137,6 +137,26 @@ of the revisions of 2025 without sessions (`legacy: 'reject'` to refuse them).
 - `authenticate(request)` returns the authentication of the client, given to the tools in `context.authInfo`; an error
   answers `401`.
 - It stops gracefully with the entrypoint: the calls in progress end before the server closes.
+
+#### Sharing the port of another HTTP server
+
+With `listen: false`, the adapter opens no port: its `handler` is mounted on another server, such as the application
+of `ExpressHTTPEntrypoint` (it also works with a Next.js custom server or `node:http`). The routes, the middlewares and
+the port of that server apply; a body already parsed by it (`express.json()`) is used as it is.
+
+```ts
+const mcp = HTTPMCPEntrypoint({listen: false, authenticate: VerifyToken})
+
+entrypoint: BuildEntrypoints({
+    controllers: [DeviceController],
+    http: ExpressHTTPEntrypoint({port: 8080, before: (app) => app.all('/mcp', mcp.handler)}),
+    mcp: mcp
+})
+```
+
+The `Host` and `Origin` headers are checked only against the `allowedHosts` and `allowedOrigins` given, since the host
+of the mounting server is not known to the adapter. Until the adapter started, and once it stops, the handler answers
+`503`.
 
 ## Other transports
 
