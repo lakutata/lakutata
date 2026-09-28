@@ -33,6 +33,13 @@ await check('@lakutata/nats loads the nats client', () => {
     if (typeof natsPackage.StringCodec !== 'function') throw new Error('nats StringCodec missing')
 })
 
+// commander (CLI adapter, ESM only) — required by the CJS build of the adapter
+const {createRequire} = await import('node:module')
+const requireCJS = createRequire(import.meta.url)
+await check('CJS commander adapter loads', () => {
+    if (typeof requireCJS('../packages/entrypoint/dist/cjs/exports/CommanderAdapter.js').CommanderCLIEntrypoint !== 'function') throw new Error('CommanderCLIEntrypoint missing')
+})
+
 // dockerode (Docker component) — default import; construct does not connect
 const Dockerode = (await import('dockerode')).default
 await check('dockerode construct (no connect)', () => { new Dockerode({socketPath: '/nonexistent/docker.sock'}) })

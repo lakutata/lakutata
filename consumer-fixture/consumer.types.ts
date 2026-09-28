@@ -107,3 +107,8 @@ export type _JSONEnvelope = typeof JSONEnvelope
 export type _Result = typeof Result
 declare const expressEntrypoint: typeof ExpressHTTPEntrypoint
 export const _httpOptions: EntrypointOptions = {controllers: [], http: expressEntrypoint({port: 3000})}
+
+// The commander adapter of the CLI channel
+import type {CommanderCLIEntrypoint} from 'lakutata/adapter/commander'
+declare const commanderEntrypoint: typeof CommanderCLIEntrypoint
+export const _cliOptions: EntrypointOptions = {controllers: [], cli: commanderEntrypoint({version: '1.0.0', interactive: 'auto'})}

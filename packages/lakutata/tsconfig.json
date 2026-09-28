@@ -83,6 +83,9 @@
             ],
             "@lakutata/entrypoint/adapter/express": [
                 "../entrypoint/dist/types/exports/ExpressAdapter"
+            ],
+            "@lakutata/entrypoint/adapter/commander": [
+                "../entrypoint/dist/types/exports/CommanderAdapter"
             ]
         }
     },

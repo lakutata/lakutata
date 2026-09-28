@@ -1,4 +1,4 @@
-import type {ActionPattern, JSONSchema, Module} from '@lakutata/core'
+import type {ActionPattern, DTO, JSONSchema, Module} from '@lakutata/core'
 import type {BaseContext} from '../context/BaseContext.js'
 import type {BaseActionInfo} from '../Entrypoint.js'
 import type {MiddlewareDefinition} from '../lib/Middleware.js'
@@ -27,6 +27,10 @@ export type ChannelActionInfo = BaseActionInfo & Record<string, unknown> & {
      * The address of the action in its channel
      */
     readonly address: ActionPattern
+    /**
+     * The DTO of the input of the action
+     */
+    readonly dto: typeof DTO
 }
 
 /**

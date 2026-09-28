@@ -382,6 +382,9 @@
     "JSONResponder",
     "StatusOfError"
   ],
+  "lakutata/adapter/commander": [
+    "CommanderCLIEntrypoint"
+  ],
   "lakutata/com/logger": [
     "Logger"
   ],

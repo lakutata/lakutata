@@ -389,7 +389,7 @@ export class Entrypoint extends Component {
             entries.push({
                 details: details,
                 info: info,
-                address: {...info, address: details.pattern},
+                address: {...info, address: details.pattern, dto: details.dtoConstructor},
                 middlewares: [
                     ...GetClassMiddlewares(details.constructor),
                     ...details.middlewares,
