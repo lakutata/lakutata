@@ -396,6 +396,14 @@
     "FastifyJSONResponder",
     "StatusOfError"
   ],
+  "lakutata/adapter/socket.io": [
+    "SocketIOServiceEntrypoint",
+    "SocketOfContext"
+  ],
+  "lakutata/adapter/electron": [
+    "ElectronIPCServiceEntrypoint",
+    "IPCEventOfContext"
+  ],
   "lakutata/com/logger": [
     "Logger"
   ],

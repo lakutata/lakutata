@@ -89,6 +89,12 @@
             ],
             "@lakutata/entrypoint/adapter/fastify": [
                 "../entrypoint/dist/types/exports/FastifyAdapter"
+            ],
+            "@lakutata/entrypoint/adapter/socket.io": [
+                "../entrypoint/dist/types/exports/SocketIOAdapter"
+            ],
+            "@lakutata/entrypoint/adapter/electron": [
+                "../entrypoint/dist/types/exports/ElectronAdapter"
             ]
         }
     },

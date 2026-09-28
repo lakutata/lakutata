@@ -130,3 +130,12 @@ import type {FastifyHTTPEntrypoint, FastifyJSONEnvelope} from 'lakutata/adapter/
 declare const fastifyEntrypoint: typeof FastifyHTTPEntrypoint
 declare const fastifyEnvelope: typeof FastifyJSONEnvelope
 export const _fastifyOptions: EntrypointOptions = {controllers: [], http: fastifyEntrypoint({port: 3000, respond: fastifyEnvelope(), before: async (app): Promise<void> => void app.get('/health', async (): Promise<unknown> => ({status: 'ok'}))})}
+
+// The socket.io and Electron adapters of the service channel
+import type {SocketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
+import type {ElectronIPCServiceEntrypoint, IPCMain} from 'lakutata/adapter/electron'
+declare const socketIOEntrypoint: typeof SocketIOServiceEntrypoint
+declare const electronEntrypoint: typeof ElectronIPCServiceEntrypoint
+declare const ipcMain: IPCMain
+export const _socketIOOptions: EntrypointOptions = {controllers: [], service: socketIOEntrypoint({port: 3001, options: {cors: {origin: '*'}}})}
+export const _electronOptions: EntrypointOptions = {controllers: [], service: [electronEntrypoint({ipcMain: ipcMain}), socketIOEntrypoint()]}
