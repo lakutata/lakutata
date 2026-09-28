@@ -112,3 +112,15 @@ export const _httpOptions: EntrypointOptions = {controllers: [], http: expressEn
 import type {CommanderCLIEntrypoint} from 'lakutata/adapter/commander'
 declare const commanderEntrypoint: typeof CommanderCLIEntrypoint
 export const _cliOptions: EntrypointOptions = {controllers: [], cli: commanderEntrypoint({version: '1.0.0', interactive: 'auto'})}
+
+// The schedule channel: built in, enabled with its adapter
+import {ScheduleEntrypoint} from 'lakutata/com/entrypoint'
+import type {ScheduleContext} from 'lakutata/com/entrypoint'
+import type {Schedule, ScheduleOptions} from 'lakutata/decorator/ctrl'
+export const _scheduleOptions: EntrypointOptions = {controllers: [], schedule: ScheduleEntrypoint({onSkip: (): void => undefined})}
+export const _every: ScheduleOptions = {every: '30s', overlap: false}
+export const _cron: ScheduleOptions = {cron: '0 9 * * MON-FRI', timezone: 'Asia/Shanghai', immediate: true}
+// @ts-expect-error a schedule is an interval or a cron expression, not both
+export const _both: ScheduleOptions = {every: '30s', cron: '* * * * *'}
+export type _Schedule = typeof Schedule
+export type _ScheduleContext = ScheduleContext['scheduledAt']

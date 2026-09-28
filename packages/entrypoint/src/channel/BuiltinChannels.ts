@@ -9,6 +9,7 @@ import type {BaseContext} from '../context/BaseContext.js'
 import type {HTTPContext} from '../context/HTTPContext.js'
 import type {CLIContext} from '../context/CLIContext.js'
 import type {ServiceContext} from '../context/ServiceContext.js'
+import type {ScheduleContext} from '../context/ScheduleContext.js'
 import {ControllerActionNotFoundException} from '../exceptions/ControllerActionNotFoundException.js'
 
 /**
@@ -124,4 +125,28 @@ export const ServiceChannel: ChannelDefinition = DefineChannel({
         })
     },
     notFound: (): Error => new ControllerActionNotFoundException('Controller action not found')
+})
+
+/**
+ * The schedule channel: no external caller, each action is run by the timers of the schedule adapter.
+ * The address of an action is its schedule, with the key telling apart the actions of a same schedule
+ */
+export const ScheduleChannel: ChannelDefinition = DefineChannel({
+    name: 'schedule',
+    kind: 'trigger',
+    contextType: ContextType.SCHEDULE,
+    identify: (pattern: ActionPattern): string => `${pattern.schedule}#${pattern.key}`,
+    describe: (pattern: ActionPattern): Record<string, unknown> => {
+        const {key, ...schedule} = pattern
+        void key
+        return schedule
+    },
+    createMatcher: (entries: ChannelEntry[]): ChannelMatcher => ({
+        //The runs are dispatched to their action: a context is matched by its schedule
+        match: (context: BaseContext): ChannelMatch | undefined => {
+            const entry: ChannelEntry | undefined = entries.find((candidate: ChannelEntry): boolean => candidate.details.pattern.schedule === (context as ScheduleContext).schedule)
+            return entry ? {entry: entry} : undefined
+        }
+    }),
+    notFound: (context: BaseContext): Error => new ControllerActionNotFoundException('No action is scheduled {schedule}', {schedule: (context as ScheduleContext).schedule})
 })

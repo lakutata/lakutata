@@ -3,6 +3,7 @@ import {Configurable} from '@lakutata/core/decorator/di'
 import {CLIContext} from './context/CLIContext.js'
 import {HTTPContext} from './context/HTTPContext.js'
 import {ServiceContext} from './context/ServiceContext.js'
+import {ScheduleContext} from './context/ScheduleContext.js'
 import {ActionPattern} from '@lakutata/core'
 import {Module} from '@lakutata/core'
 import {ActionDetails, ActionPatternMap, BindControllerToComponent, GetComponentControllerActionMap} from './lib/ControllerEntrypoint.js'
@@ -41,6 +42,7 @@ export {ContextType, BaseContext} from './context/BaseContext.js'
 export {CLIContext} from './context/CLIContext.js'
 export {HTTPContext} from './context/HTTPContext.js'
 export {ServiceContext} from './context/ServiceContext.js'
+export {ScheduleContext} from './context/ScheduleContext.js'
 
 export type CLIEntrypoint = (module: Module, cliMap: CLIMap, handler: CLIEntrypointHandler, registerDestroy: EntrypointDestroyerRegistrar) => void
 export type HTTPEntrypoint = (module: Module, routeMap: HTTPRouteMap, handler: HTTPEntrypointHandler, registerDestroy: EntrypointDestroyerRegistrar) => void
@@ -73,6 +75,10 @@ export interface EntrypointOptions {
     http?: HTTPEntrypoint | EntrypointAdapter<HTTPContext> | (HTTPEntrypoint | EntrypointAdapter<HTTPContext>)[]
     serviceActionGroups?: Record<string, string>
     service?: ServiceEntrypoint | EntrypointAdapter<ServiceContext> | (ServiceEntrypoint | EntrypointAdapter<ServiceContext>)[]
+    /**
+     * The schedule adapter running the actions declared with @Schedule (they do not run without it)
+     */
+    schedule?: EntrypointAdapter<ScheduleContext> | EntrypointAdapter<ScheduleContext>[]
 }
 
 export interface BaseActionInfo {

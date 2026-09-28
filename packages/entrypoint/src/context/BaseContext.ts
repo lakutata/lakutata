@@ -9,7 +9,8 @@ import type {ActionPattern} from '@lakutata/core'
 export enum ContextType {
     CLI = 'CLI',
     HTTP = 'HTTP',
-    SERVICE = 'SERVICE'
+    SERVICE = 'SERVICE',
+    SCHEDULE = 'SCHEDULE'
 }
 
 export type ContextParams<T extends {} = {}> = T & Record<string, any>

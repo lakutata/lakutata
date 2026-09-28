@@ -15,3 +15,5 @@ export {ServiceAction} from '../decorators/ServiceAction.js'
 export {UseMiddlewares} from '../decorators/UseMiddlewares.js'
 //Controller prefixes
 export {Prefix} from '../decorators/Prefix.js'
+//Scheduled actions
+export {Schedule, type ScheduleOptions} from '../decorators/Schedule.js'

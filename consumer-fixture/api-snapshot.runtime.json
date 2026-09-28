@@ -356,6 +356,7 @@
     "ContextType",
     "Controller",
     "ControllerActionNotFoundException",
+    "Cron",
     "DuplicateActionNameException",
     "Entrypoint",
     "EntrypointStoppedException",
@@ -368,9 +369,12 @@
     "InvalidPrefixException",
     "Middleware",
     "MiddlewareNextCalledException",
+    "ParseDuration",
     "PrefixOptions",
     "Result",
     "RouteNotFoundException",
+    "ScheduleContext",
+    "ScheduleEntrypoint",
     "ServiceContext",
     "ServiceInvokeException",
     "StatusResult"
@@ -427,6 +431,7 @@
     "POST",
     "PUT",
     "Prefix",
+    "Schedule",
     "ServiceAction",
     "UseMiddlewares"
   ],

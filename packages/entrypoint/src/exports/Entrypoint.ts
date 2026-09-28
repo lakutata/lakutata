@@ -18,3 +18,5 @@ export {Result, StatusResult, FileResult, EventsResult, type FileResultOptions, 
 export * from '../exceptions/RouteNotFoundException.js'
 export * from '../exceptions/EntrypointStoppedException.js'
 export * from '../exceptions/ServiceInvokeException.js'
+export {ScheduleEntrypoint, type ScheduleEntrypointOptions} from '../adapter/schedule/ScheduleEntrypoint.js'
+export {Cron, ParseDuration} from '../lib/schedule/Cron.js'
