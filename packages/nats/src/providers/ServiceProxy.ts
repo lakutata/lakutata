@@ -1,4 +1,4 @@
-import {ActionPattern, Application, DTO, Provider, ProviderOptionsBuilder} from '@lakutata/core'
+import {ActionPattern, Application, Component, ComponentOptionsBuilder, DTO} from '@lakutata/core'
 import {Configurable, Inject} from '@lakutata/core/decorator/di'
 import {Delay} from '@lakutata/core/helper'
 import {NATS} from '../components/NATS.js'
@@ -22,7 +22,7 @@ export type BuildServiceProxyOptions = {
  * @param options
  * @constructor
  */
-export const BuildServiceProxy: ProviderOptionsBuilder<BuildServiceProxyOptions> = (options: BuildServiceProxyOptions) => {
+export const BuildServiceProxy: ComponentOptionsBuilder<BuildServiceProxyOptions> = (options: BuildServiceProxyOptions) => {
     return {
         class: ServiceProxy,
         natsComponentName: options.natsComponentName,
@@ -37,9 +37,10 @@ export const BuildServiceProxy: ProviderOptionsBuilder<BuildServiceProxyOptions>
  */
 /**
  * The proxy of a remote service: invokes its actions and listens to its events
- * (a provider living in its scope, its event subscriptions are kept by the NATS component)
+ * A component (one instance per declaration in the components): its event subscriptions live as long as it,
+ * they are cancelled when it is destroyed
  */
-export class ServiceProxy extends Provider {
+export class ServiceProxy extends Component {
     /**
      * Inject application instance
      * @protected
@@ -85,8 +86,34 @@ export class ServiceProxy extends Provider {
      * Initializer
      * @protected
      */
+    /**
+     * The event listeners subscribed through this proxy, by event name
+     * @protected
+     */
+    protected readonly eventListeners: Map<string, Set<(...args: any[]) => void>> = new Map()
+
     protected async init(): Promise<void> {
         this.nats = await this.app.getObject<NATS>(this.natsComponentName)
+    }
+
+    /**
+     * Cancel the event subscriptions of this proxy
+     * @protected
+     */
+    protected async destroy(): Promise<void> {
+        this.eventListeners.forEach((listeners: Set<(...args: any[]) => void>, eventName: string): void => listeners.forEach((listener: (...args: any[]) => void): unknown => this.nats.offServiceEvent(this.serviceId, eventName, listener)))
+        this.eventListeners.clear()
+    }
+
+    /**
+     * Keep an event listener subscribed through this proxy
+     * @param eventName
+     * @param listener
+     * @protected
+     */
+    protected keepListener(eventName: string, listener: (...args: any[]) => void): void {
+        const listeners: Set<(...args: any[]) => void> = this.eventListeners.get(eventName) ?? new Set()
+        this.eventListeners.set(eventName, listeners.add(listener))
     }
 
     /**
@@ -120,6 +147,7 @@ export class ServiceProxy extends Provider {
      */
     public on(eventName: string, listener: (...args: any[]) => void, onlySingleClientReceived: boolean = false): this {
         this.nats.onServiceEvent(this.serviceId, eventName, listener, onlySingleClientReceived)
+        this.keepListener(eventName, listener)
         return this
     }
 
@@ -130,6 +158,7 @@ export class ServiceProxy extends Provider {
      */
     public once(eventName: string, listener: (...args: any[]) => void): this {
         this.nats.onceServiceEvent(this.serviceId, eventName, listener)
+        this.keepListener(eventName, listener)
         return this
     }
 
@@ -140,6 +169,7 @@ export class ServiceProxy extends Provider {
      */
     public off(eventName: string, listener?: (...args: any[]) => void): this {
         this.nats.offServiceEvent(this.serviceId, eventName, listener)
+        listener ? this.eventListeners.get(eventName)?.delete(listener) : this.eventListeners.delete(eventName)
         return this
     }
 }

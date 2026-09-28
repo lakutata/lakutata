@@ -58,9 +58,7 @@ describe('S2 RPC large data relay', (): void => {
                 entrypoint: BuildEntrypoints({
                     controllers: [BulkController],
                     service: SetupNatsServiceEntrypoint('nats')
-                })
-            },
-            providers: {
+                }),
                 self: BuildServiceProxy({serviceId: 'it.bulkrpc.app', natsComponentName: 'nats'}),
                 legacy: BuildServiceProxy({serviceId: 'it.bulkrpc.app', natsComponentName: 'natsLegacy'}),
                 mismatch: BuildServiceProxy({serviceId: 'it.bulkrpc.app', natsComponentName: 'natsMismatch'})

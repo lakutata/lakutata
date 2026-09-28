@@ -46,10 +46,9 @@ Application.run({
             controllers: [DeviceController],
             //The service actions answer the requests sent to the application id
             service: NatsServiceEntrypoint('nats')
-        })
-    },
-    providers: {
+        }),
         //Invoke the actions of another service: await orderService.invoke({ctrl: 'order', act: 'get', id: 1})
+        //(a component since 3.0: declared in the components, no longer in the providers)
         orderService: BuildServiceProxy({natsComponentName: 'nats', serviceId: 'order.service'})
     }
 })

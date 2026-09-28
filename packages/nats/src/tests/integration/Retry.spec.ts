@@ -56,9 +56,7 @@ describe('#7 NoResponders safe retry', (): void => {
                 entrypoint: BuildEntrypoints({
                     controllers: [RetryController],
                     service: SetupNatsServiceEntrypoint('nats')
-                })
-            },
-            providers: {
+                }),
                 self: BuildServiceProxy({serviceId: 'it.retry.app', natsComponentName: 'nats', maxRetries: 2, retryDelay: 50}),
                 //Points to a serviceId with no subscribers, so NoResponders is guaranteed
                 dead: BuildServiceProxy({serviceId: 'nonexistent.service.xyz', natsComponentName: 'nats', maxRetries: 2, retryDelay: 50}),

@@ -51,9 +51,7 @@ describe('old/new version compatibility (bare NATS simulating the real legacy ve
                 entrypoint: BuildEntrypoints({
                     controllers: [EchoController],
                     service: SetupNatsServiceEntrypoint('nats') //New version server, serviceId = appId
-                })
-            },
-            providers: {
+                }),
                 //New version client pointing at the legacy server (the bare legacy.svc subscription below)
                 selfToLegacy: BuildServiceProxy({serviceId: 'legacy.svc', natsComponentName: 'nats'})
             },
