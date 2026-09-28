@@ -86,6 +86,9 @@
             ],
             "@lakutata/entrypoint/adapter/commander": [
                 "../entrypoint/dist/types/exports/CommanderAdapter"
+            ],
+            "@lakutata/entrypoint/adapter/fastify": [
+                "../entrypoint/dist/types/exports/FastifyAdapter"
             ]
         }
     },

@@ -389,6 +389,13 @@
   "lakutata/adapter/commander": [
     "CommanderCLIEntrypoint"
   ],
+  "lakutata/adapter/fastify": [
+    "DescribeError",
+    "FastifyHTTPEntrypoint",
+    "FastifyJSONEnvelope",
+    "FastifyJSONResponder",
+    "StatusOfError"
+  ],
   "lakutata/com/logger": [
     "Logger"
   ],

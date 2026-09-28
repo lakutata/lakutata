@@ -31,6 +31,11 @@
       "import": "./dist/esm/exports/CommanderAdapter.js",
       "require": "./dist/cjs/exports/CommanderAdapter.js"
     },
+    "./adapter/fastify": {
+      "types": "./dist/types/exports/FastifyAdapter.d.ts",
+      "import": "./dist/esm/exports/FastifyAdapter.js",
+      "require": "./dist/cjs/exports/FastifyAdapter.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -47,10 +52,11 @@
     "patrun": "7.2.7"
   },
   "peerDependencies": {
+    "@inquirer/prompts": "^7.0.0 || ^8.0.0",
     "@lakutata/core": "2.0.126",
-    "express": "^4.21.0 || ^5.0.0",
     "commander": "^12.0.0 || ^13.0.0 || ^14.0.0 || ^15.0.0",
-    "@inquirer/prompts": "^7.0.0 || ^8.0.0"
+    "express": "^4.21.0 || ^5.0.0",
+    "fastify": "^5.0.0"
   },
   "peerDependenciesMeta": {
     "express": {
@@ -61,6 +67,9 @@
     },
     "@inquirer/prompts": {
       "optional": true
+    },
+    "fastify": {
+      "optional": true
     }
   },
   "devDependencies": {
@@ -69,7 +78,10 @@
     "@types/node": "22.20.4",
     "commander": "^15.0.0",
     "express": "^5.2.1",
+    "fastify": "^5.12.5",
     "shx": "0.3.4",
+    "socket.io": "^4.8.4",
+    "socket.io-client": "^4.8.4",
     "typescript": "5.3.3"
   },
   "engines": {

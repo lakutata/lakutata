@@ -124,3 +124,9 @@ export const _cron: ScheduleOptions = {cron: '0 9 * * MON-FRI', timezone: 'Asia/
 export const _both: ScheduleOptions = {every: '30s', cron: '* * * * *'}
 export type _Schedule = typeof Schedule
 export type _ScheduleContext = ScheduleContext['scheduledAt']
+
+// The fastify adapter of the HTTP channel
+import type {FastifyHTTPEntrypoint, FastifyJSONEnvelope} from 'lakutata/adapter/fastify'
+declare const fastifyEntrypoint: typeof FastifyHTTPEntrypoint
+declare const fastifyEnvelope: typeof FastifyJSONEnvelope
+export const _fastifyOptions: EntrypointOptions = {controllers: [], http: fastifyEntrypoint({port: 3000, respond: fastifyEnvelope(), before: async (app): Promise<void> => void app.get('/health', async (): Promise<unknown> => ({status: 'ok'}))})}
