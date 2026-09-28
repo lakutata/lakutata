@@ -210,7 +210,6 @@ export function CommanderCLIEntrypoint(options: CommanderCLIEntrypointOptions = 
     const format: (result: unknown) => string | Uint8Array | undefined = options.format ?? DefaultFormat
     //Aborts the prompts and the event streams when the adapter stops
     const stopController: AbortController = new AbortController()
-    let scheduled: NodeJS.Immediate | undefined
 
     const write = (output: string | Uint8Array | undefined): void => {
         if (output !== undefined && output.length) stdout.write(output)
@@ -333,22 +332,18 @@ export function CommanderCLIEntrypoint(options: CommanderCLIEntrypointOptions = 
         name: options.name,
         middlewares: options.middlewares,
         start: (runtime: ChannelRuntime<CLIContext>): void => {
-            //The command runs once the entrypoint started, the other adapters and the objects bootstrapped after it are started then
-            scheduled = setImmediate((): void => {
-                scheduled = undefined
-                run(runtime)
-                    .catch((error: unknown): number => {
-                        stderr.write(`error: ${ErrorMessage(error)}\n`)
-                        return 1
-                    })
-                    .then((code: number | undefined): unknown => code === undefined || stopController.signal.aborted ? undefined : exit(runtime, code))
-                    .catch((error: unknown): unknown => stderr.write(`error: ${ErrorMessage(error)}\n`))
-            })
+            //The command runs once the application launched: every object, the bootstrap and the other adapters are ready
+            runtime.ready
+                .then((): Promise<number | undefined> | undefined => stopController.signal.aborted ? undefined : run(runtime))
+                .catch((error: unknown): number => {
+                    stderr.write(`error: ${ErrorMessage(error)}\n`)
+                    return 1
+                })
+                .then((code: number | undefined): unknown => code === undefined || stopController.signal.aborted ? undefined : exit(runtime, code))
+                .catch((error: unknown): unknown => stderr.write(`error: ${ErrorMessage(error)}\n`))
         },
         stop: (): void => {
             //A command not started yet is not run, the prompts and the event streams are ended
-            if (scheduled) clearImmediate(scheduled)
-            scheduled = undefined
             stopController.abort()
         }
     }

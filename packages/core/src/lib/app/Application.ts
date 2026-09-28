@@ -16,6 +16,7 @@ import {As} from '../helpers/As.js'
 import {EventEmitter} from '../base/EventEmitter.js'
 import {BootstrapOption} from '../../options/ModuleOptions.js'
 import {DatabaseSymbol} from '../base/internal/DatabaseSymbol.js'
+import {DeclareApplicationClass, MarkApplicationLaunched} from './ApplicationLaunch.js'
 
 //The handlers are method signatures, so a handler may declare the logger implementation it expects (such as Logger)
 /**
@@ -324,6 +325,7 @@ export class Application extends Module {
                         //Errors raised by cascaded destruction are reported through the application logger
                         const logger: ILogger = As<ILogger>(await target.getObject('log'))
                         SetDestroyErrorReporter((error: Error): void => logger.warn(error, 'An error occurred while destroying an object'))
+                        MarkApplicationLaunched(target)
                         this.eventEmitter.emit(ApplicationState.Launched, As<Application>(target))
                     })
                     rootContainer
@@ -406,3 +408,5 @@ export class Application extends Module {
         }
     }
 }
+
+DeclareApplicationClass(Application)

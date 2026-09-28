@@ -8,7 +8,7 @@ import {Module} from '@lakutata/core'
 import {ActionDetails, ActionPatternMap, BindControllerToComponent, GetComponentControllerActionMap} from './lib/ControllerEntrypoint.js'
 import {Controller} from './lib/Controller.js'
 import {As} from '@lakutata/core/helper'
-import {CloneDeep, GetConfigurableRecordsFromInstance, RegisterTeardownHook} from '@lakutata/core/internal'
+import {CloneDeep, GetConfigurableRecordsFromInstance, RegisterTeardownHook, WhenApplicationLaunched} from '@lakutata/core/internal'
 import {JSONSchema} from '@lakutata/core'
 import {Container} from '@lakutata/core'
 import {DevNull} from '@lakutata/core/helper'
@@ -243,6 +243,15 @@ export class Entrypoint extends Component {
 
     #unregisterTeardown?: () => void
 
+    #resolveReady: () => void = (): void => undefined
+
+    /**
+     * Resolved once the adapters started and the application launched
+     */
+    #ready: Promise<void> = new Promise((resolve: () => void): void => {
+        this.#resolveReady = resolve
+    })
+
     /**
      * Initializer
      * @protected
@@ -269,6 +278,13 @@ export class Entrypoint extends Component {
         //The adapters stop before the container destroys the scopes of the requests in progress
         this.#unregisterTeardown = RegisterTeardownHook(this.container, (): Promise<void> => this.stopAdapters())
         for (const adapter of adapters) await this.startAdapter(adapter)
+        //Without an application (a bare container), the entrypoint is ready once its adapters started
+        const launched: Promise<void> | undefined = WhenApplicationLaunched(this)
+        if (launched) {
+            launched.then((): void => this.#resolveReady())
+        } else {
+            this.#resolveReady()
+        }
     }
 
     /**
@@ -454,6 +470,7 @@ export class Entrypoint extends Component {
             channel: definition,
             module: this.getModule(),
             actions: channelState.entries.map((entry: ActionEntry): ChannelActionInfo => entry.address),
+            ready: this.#ready,
             dispatch: async (context: BaseContext, options: DispatchOptions = {}): Promise<unknown> => {
                 const match: ChannelMatch | undefined = channelState.matcher.match(context)
                 if (!match) throw definition.notFound(context)

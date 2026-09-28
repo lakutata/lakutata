@@ -49,6 +49,11 @@ export interface ChannelRuntime<Context extends BaseContext = BaseContext> {
      * The actions of the channel
      */
     readonly actions: ReadonlyArray<ChannelActionInfo>
+    /**
+     * Resolved once every adapter of the entrypoint started and the application launched (all its objects and its bootstrap are ready),
+     * for the adapters which act on their own rather than on the requests (running a command, triggering the schedules)
+     */
+    readonly ready: Promise<void>
 
     /**
      * Dispatch a request to the action it matches
