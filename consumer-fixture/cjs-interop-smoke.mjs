@@ -46,6 +46,17 @@ await check('CJS @lakutata/mcp loads the MCP server', () => {
     if (typeof mcp.HTTPMCPEntrypoint !== 'function' || typeof mcp.BuildMCPServer !== 'function') throw new Error('MCP exports missing')
 })
 
+// dbus-sdk (the DBus channel) — required by the CJS build of @lakutata/dbus
+await check('CJS @lakutata/dbus loads dbus-sdk', () => {
+    const dbus = requireCJS('../packages/dbus/dist/cjs/exports/DBus.js')
+    if (typeof dbus.DBusEntrypoint !== 'function' || typeof dbus.LocalService !== 'function') throw new Error('DBus exports missing')
+})
+// dbus-sdk named imports under ESM
+const dbusPackage = await import('../packages/dbus/dist/esm/exports/DBus.js')
+await check('@lakutata/dbus loads dbus-sdk under ESM', () => {
+    if (typeof dbusPackage.DBusObjectManager !== 'function' || typeof dbusPackage.DBus !== 'function') throw new Error('DBus exports missing')
+})
+
 // dockerode (Docker component) — default import; construct does not connect
 const Dockerode = (await import('dockerode')).default
 await check('dockerode construct (no connect)', () => { new Dockerode({socketPath: '/nonexistent/docker.sock'}) })
