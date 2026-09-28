@@ -59,11 +59,17 @@ export class ModuleConfigLoader {
      * Validate constructor's object type
      * @param expectObjectType
      * @param target
+     * @param id
      * @protected
      */
-    protected validateObjectType<ClassConstructor extends IBaseObjectConstructor>(expectObjectType: ObjectType, target: ClassConstructor): ClassConstructor {
-        if (GetObjectType(target) !== expectObjectType) throw new InvalidObjectTypeException('{0} configuration only accepts object declarations of {1} types', [expectObjectType, expectObjectType.toLowerCase()])
-        return target
+    protected validateObjectType<ClassConstructor extends IBaseObjectConstructor>(expectObjectType: ObjectType, target: ClassConstructor, id?: string): ClassConstructor {
+        const objectType: ObjectType = GetObjectType(target)
+        if (objectType === expectObjectType) return target
+        //The objects declared in the wrong configuration name the configuration they belong to
+        const expected: string = expectObjectType.toLowerCase()
+        const actual: string = objectType.toLowerCase()
+        const hint: string = objectType === ObjectType.Component || objectType === ObjectType.Provider ? `, declare it in the ${actual}s configuration` : ''
+        throw new InvalidObjectTypeException('{0} configuration only accepts object declarations of {1} types: "{2}" ({3}) is a {4}{5}', [expectObjectType, expected, id ?? target.name, target.name, actual, hint])
     }
 
     /**
@@ -78,7 +84,7 @@ export class ModuleConfigLoader {
             const overridableObjectOptions: OverridableObjectOptions = options[id]
             overridableObjectOptions[OBJECT_ID] = id
             if (overridableObjectOptions.class) {
-                overridableObjectOptions.class = this.validateObjectType(objectType, overridableObjectOptions.class)
+                overridableObjectOptions.class = this.validateObjectType(objectType, overridableObjectOptions.class, id)
                 return this.$loadOptions.push(As<LoadObjectOptions>(overridableObjectOptions)) ? void (0) : void (0)
             }
             for (const loadOptions of this.$presetLoadOptionsSet) {

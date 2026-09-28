@@ -8,6 +8,8 @@ import {Module, MODULE_INITIALIZED} from '../../lib/core/Module.js'
 import {ObjectDestroyedException} from '../../exceptions/ObjectDestroyedException.js'
 import {LifetimeLockedException} from '../../exceptions/di/LifetimeLockedException.js'
 import {Provider} from '../../lib/core/Provider.js'
+import {ModuleConfigLoader} from '../../lib/base/internal/ModuleConfigLoader.js'
+import {InvalidObjectTypeException} from '../../exceptions/InvalidObjectTypeException.js'
 import {Scoped, Singleton, Transient} from '../../decorators/di/Lifetime.js'
 import {Inject} from '../../decorators/di/Inject.js'
 
@@ -413,5 +415,14 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         await root.destroy()
         assert.deepStrictEqual(seen, [false])
         assert.ok(scoped.destroyed)
+    })
+
+    await it('a component declared as a provider is rejected with the configuration it belongs to', async (): Promise<void> => {
+        //The validation does not use the module
+        assert.throws((): unknown => new ModuleConfigLoader({} as Module, {providers: {proxy: {class: InnerComponent}}}), (error: Error): boolean => {
+            assert.ok(error instanceof InvalidObjectTypeException)
+            assert.strictEqual(error.message, 'Provider configuration only accepts object declarations of provider types: "proxy" (InnerComponent) is a component, declare it in the components configuration')
+            return true
+        })
     })
 })
