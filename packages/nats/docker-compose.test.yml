@@ -1,0 +1,7 @@
+# The NATS server of the integration tests (JetStream for the bulk channel):
+# docker compose -f docker-compose.test.yml up -d && NATS_URL=127.0.0.1:14222 npm run test:integration
+services:
+  nats:
+    image: nats:2.12-alpine
+    command: ['-js']
+    ports: ['14222:4222']

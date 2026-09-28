@@ -372,6 +372,7 @@
     "Result",
     "RouteNotFoundException",
     "ServiceContext",
+    "ServiceInvokeException",
     "StatusResult"
   ],
   "lakutata/adapter/express": [

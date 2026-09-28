@@ -26,6 +26,13 @@ for (const [member, packages] of [['createClient', ['redis', '@redis/client']], 
     await check(`${packages[0]} driver loads`, async () => { if (typeof (await LoadDriver(member, ...packages))[member] !== 'function') throw new Error(`${member} not callable`) })
 }
 
+// nats (the NATS component of @lakutata/nats) — named imports of the CJS nats client
+const natsPackage = await import('../packages/nats/dist/esm/exports/Nats.js')
+await check('@lakutata/nats loads the nats client', () => {
+    if (typeof natsPackage.NATS !== 'function' || typeof natsPackage.NatsServiceEntrypoint !== 'function') throw new Error('NATS exports missing')
+    if (typeof natsPackage.StringCodec !== 'function') throw new Error('nats StringCodec missing')
+})
+
 // dockerode (Docker component) — default import; construct does not connect
 const Dockerode = (await import('dockerode')).default
 await check('dockerode construct (no connect)', () => { new Dockerode({socketPath: '/nonexistent/docker.sock'}) })
