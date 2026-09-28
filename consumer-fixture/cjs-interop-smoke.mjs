@@ -40,6 +40,12 @@ await check('CJS commander adapter loads', () => {
     if (typeof requireCJS('../packages/entrypoint/dist/cjs/exports/CommanderAdapter.js').CommanderCLIEntrypoint !== 'function') throw new Error('CommanderCLIEntrypoint missing')
 })
 
+// MCP SDK (the MCP channel) — required by the CJS build of @lakutata/mcp
+await check('CJS @lakutata/mcp loads the MCP server', () => {
+    const mcp = requireCJS('../packages/mcp/dist/cjs/exports/MCP.js')
+    if (typeof mcp.HTTPMCPEntrypoint !== 'function' || typeof mcp.BuildMCPServer !== 'function') throw new Error('MCP exports missing')
+})
+
 // dockerode (Docker component) — default import; construct does not connect
 const Dockerode = (await import('dockerode')).default
 await check('dockerode construct (no connect)', () => { new Dockerode({socketPath: '/nonexistent/docker.sock'}) })

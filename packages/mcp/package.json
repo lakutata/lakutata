@@ -1,0 +1,50 @@
+{
+  "name": "@lakutata/mcp",
+  "version": "2.0.126",
+  "description": "The MCP channel of the lakutata framework: controller actions served as the tools of a Model Context Protocol server, over stdio or HTTP.",
+  "type": "module",
+  "main": "./dist/cjs/exports/MCP.js",
+  "types": "./dist/types/exports/MCP.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/exports/MCP.d.ts",
+      "import": "./dist/esm/exports/MCP.js",
+      "require": "./dist/cjs/exports/MCP.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "clean": "shx rm -rf ./dist",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:cjs-pkg": "node -e \"require('node:fs').writeFileSync('dist/cjs/package.json',JSON.stringify({type:'commonjs'}))\"",
+    "build:js": "npm run build:cjs && npm run build:esm && npm run build:cjs-pkg",
+    "rebuild": "npm run clean && npm run build:js",
+    "compile": "npm run rebuild",
+    "test:unit": "npm run compile && node --test \"dist/esm/tests/*.spec.js\""
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.1.0"
+  },
+  "peerDependencies": {
+    "@lakutata/core": "2.0.126",
+    "@lakutata/entrypoint": "2.0.126"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "^2.1.0",
+    "@types/node": "22.20.4",
+    "shx": "0.3.4",
+    "typescript": "5.3.3"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "dist",
+    "*.md",
+    "LICENSE",
+    "package.json",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "license": "MIT"
+}
