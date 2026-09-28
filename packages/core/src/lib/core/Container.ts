@@ -152,6 +152,16 @@ export class Container {
     }
 
     /**
+     * Get the root container, the one without parent
+     * @private
+     */
+    #root(): Container {
+        let container: Container = this
+        while (container.parent) container = container.parent
+        return container
+    }
+
+    /**
      * Stop being tracked by the parent
      * @private
      */
@@ -340,8 +350,10 @@ export class Container {
         const registrationName: string | symbol = typeof inp === 'function' ? ConstructorSymbol(inp) : inp
         this.#assertNotDestroyed()
         if (!this.#dic.hasRegistration(registrationName) && typeof inp === 'function' && GetObjectIsAutoload(As<typeof BaseObject>(inp))) {
-            //An autoloaded scoped object is registered in the nearest scope, so it is shared within the request
-            const registerContainer: Container = GetObjectLifetime(As<typeof BaseObject>(inp)) === 'SCOPED' ? this.#nearestScope() : this
+            //An autoloaded scoped object is registered in the nearest scope, so it is shared within the request;
+            //an autoloaded singleton in the root container, so it is shared by every object of the application
+            const lifetime: LifetimeType = As<LifetimeType>(GetObjectLifetime(As<typeof BaseObject>(inp)))
+            const registerContainer: Container = lifetime === 'SCOPED' ? this.#nearestScope() : lifetime === 'SINGLETON' ? this.#root() : this
             await registerContainer.load([{
                 id: registrationName,
                 class: As<typeof BaseObject>(inp)

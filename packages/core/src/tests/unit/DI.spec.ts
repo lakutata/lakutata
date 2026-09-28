@@ -7,7 +7,8 @@ import path from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {TestObj} from './resources/glob-modules/TestObj.js'
 import {OBJECT_ID} from '../../options/LoadObjectOptions.js'
-import {Transient} from '../../decorators/di/Lifetime.js'
+import {Singleton, Transient} from '../../decorators/di/Lifetime.js'
+import {Inject} from '../../decorators/di/Inject.js'
 
 const instanceSet: Set<BaseObject> = new Set()
 
@@ -52,6 +53,25 @@ await describe('DI Test', async function (): Promise<void> {
 
         const registration: AutoloadRegistrationTestClass = await container.get<AutoloadRegistrationTestClass>(AutoloadRegistrationTestClass)
         assert.equal(registration.foo(), 'autoload')
+    })
+    await it('inject an autoload class', async (): Promise<void> => {
+        @Autoload()
+        @Singleton()
+        class AutoloadNotifier extends BaseObject {
+            public readonly sent: string[] = []
+        }
+
+        class NotifierUser extends BaseObject {
+            @Inject(AutoloadNotifier)
+            public readonly notifier: AutoloadNotifier
+        }
+
+        const first: NotifierUser = await container.build(NotifierUser)
+        const second: NotifierUser = await container.build(NotifierUser)
+        assert.ok(first.notifier instanceof AutoloadNotifier)
+        //Registered once, then shared
+        assert.strictEqual(first.notifier, second.notifier)
+        assert.strictEqual(first.notifier, await container.get(AutoloadNotifier))
     })
     await it('load module by glob', async (): Promise<void> => {
         await container.load([`${path.resolve(path.dirname(fileURLToPath(import.meta.url)), './resources/glob-modules')}/**.js`])

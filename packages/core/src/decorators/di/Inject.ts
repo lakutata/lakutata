@@ -5,7 +5,6 @@ import {
     InjectionTransformFunction,
     SetObjectInjectItem
 } from '../../lib/base/internal/ObjectInjection.js'
-import {ConstructorSymbol} from '../../lib/ioc/ConstructorSymbol.js'
 import {isClass} from '../../lib/ioc/Utils.js'
 import {As} from '../../lib/helpers/As.js'
 
@@ -53,8 +52,7 @@ export function Inject<ClassPrototype extends BaseObject>(nameOrTransform?: Inje
                 }
             }
         }
-        return typeof injectionName === 'function'
-            ? SetObjectInjectItem(target, propertyKey, ConstructorSymbol(injectionName), injectionTransform)
-            : SetObjectInjectItem(target, propertyKey, injectionName, injectionTransform)
+        //A class is kept as it is: the container resolves it by its constructor symbol, and autoloads it when it is marked so
+        return SetObjectInjectItem(target, propertyKey, injectionName, injectionTransform)
     }
 }

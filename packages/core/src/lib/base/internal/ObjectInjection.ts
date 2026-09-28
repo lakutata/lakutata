@@ -12,7 +12,8 @@ export type InjectionName = string | symbol | IBaseObjectConstructor<BaseObject>
 export type InjectionTransformFunction = (injection: any) => any | Promise<any>
 
 export type ObjectInjectionMap = Map<string | symbol, {
-    name: string | symbol
+    //A class is resolved by its constructor symbol, and autoloaded when it is marked so
+    name: string | symbol | Function
     transform: InjectionTransformFunction
 }>
 
@@ -25,7 +26,7 @@ export type ObjectInjectionMap = Map<string | symbol, {
  * @param transform
  * @constructor
  */
-export function SetObjectInjectItem<ClassPrototype extends BaseObject>(target: ClassPrototype, propertyKey: string | symbol, name: string | symbol, transform: InjectionTransformFunction): void {
+export function SetObjectInjectItem<ClassPrototype extends BaseObject>(target: ClassPrototype, propertyKey: string | symbol, name: string | symbol | Function, transform: InjectionTransformFunction): void {
     let objectInjectionMap: ObjectInjectionMap
     if (Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_INJECTS, ObjectConstructor(target))) {
         objectInjectionMap = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_INJECTS, ObjectConstructor(target))

@@ -107,10 +107,10 @@ export class BaseObject extends AsyncConstructor {
         const objectInjectionMap: ObjectInjectionMap = GetObjectInjectItemsByPrototype(this)
         const injectionPromises: Promise<void>[] = []
         objectInjectionMap.forEach((info: {
-            name: string | symbol
+            name: string | symbol | Function
             transform: InjectionTransformFunction
         }, propertyKey: string | symbol): void => {
-            const registration: string | symbol | typeof BaseObject = info.name
+            const registration: string | symbol | IBaseObjectConstructor = As<string | symbol | IBaseObjectConstructor>(info.name)
             injectionPromises.push(new Promise((resolve, reject): void => {
                 //Get injection value
                 this.#container.get(registration).then(injectObject => {
