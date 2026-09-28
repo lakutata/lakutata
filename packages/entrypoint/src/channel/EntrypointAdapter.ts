@@ -1,4 +1,5 @@
-import type {ActionPattern, DTO, JSONSchema, Module} from '@lakutata/core'
+import type {ActionPattern, BaseObject, DTO, IBaseObjectConstructor, JSONSchema, Module} from '@lakutata/core'
+import type {Controller} from '../lib/Controller.js'
 import type {BaseContext} from '../context/BaseContext.js'
 import type {BaseActionInfo} from '../Entrypoint.js'
 import type {MiddlewareDefinition} from '../lib/Middleware.js'
@@ -49,6 +50,16 @@ export interface ChannelRuntime<Context extends BaseContext = BaseContext> {
      * The actions of the channel
      */
     readonly actions: ReadonlyArray<ChannelActionInfo>
+    /**
+     * The controllers of the entrypoint, for the channels declaring what the controllers serve besides their actions (their prefixes, their metadata)
+     */
+    readonly controllers: ReadonlyArray<IBaseObjectConstructor<Controller>>
+
+    /**
+     * Get an object of the application from the container of the entrypoint (the components serving the adapter, such as the autoloaded ones)
+     * @param target
+     */
+    getObject<T extends BaseObject>(target: string | symbol | IBaseObjectConstructor<T>): Promise<T>
     /**
      * Resolved once every adapter of the entrypoint started and the application launched (all its objects and its bootstrap are ready),
      * for the adapters which act on their own rather than on the requests (running a command, triggering the schedules)

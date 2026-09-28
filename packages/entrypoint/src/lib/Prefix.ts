@@ -30,12 +30,13 @@ export class PrefixOptions extends DTO {
 const CONTROLLER_PREFIX: symbol = Symbol('ENTRYPOINT.CONTROLLER.PREFIX')
 
 /**
- * Set the prefixes of a controller class
+ * Set the prefixes of a controller class, merged into the ones already set on the class (by the decorators of the other channels)
  * @param controller
  * @param options
  */
 export function SetPrefix(controller: Function, options: PrefixOptions): void {
-    Reflect.defineMetadata(CONTROLLER_PREFIX, PrefixOptions.validate(options), controller)
+    const own: PrefixOptions | undefined = Reflect.getOwnMetadata(CONTROLLER_PREFIX, controller)
+    Reflect.defineMetadata(CONTROLLER_PREFIX, PrefixOptions.validate({...own, ...options}), controller)
 }
 
 /**

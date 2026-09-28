@@ -15,7 +15,7 @@ import {Container} from '@lakutata/core'
 import {DevNull} from '@lakutata/core/helper'
 import {DTO} from '@lakutata/core'
 import {Singleton} from '@lakutata/core/decorator/di'
-import type {IBaseObjectConstructor} from '@lakutata/core'
+import type {BaseObject, IBaseObjectConstructor} from '@lakutata/core'
 import {DuplicateActionNameException} from './exceptions/DuplicateActionNameException.js'
 import {AccessControl} from './lib/AccessControl.js'
 import {BaseContext, ContextType} from './context/BaseContext.js'
@@ -477,6 +477,8 @@ export class Entrypoint extends Component {
             module: this.getModule(),
             actions: channelState.entries.map((entry: ActionEntry): ChannelActionInfo => entry.address),
             ready: this.#ready,
+            controllers: [...this.controllers],
+            getObject: <T extends BaseObject>(target: string | symbol | IBaseObjectConstructor<T>): Promise<T> => this.getObject<T>(target as any),
             dispatch: async (context: BaseContext, options: DispatchOptions = {}): Promise<unknown> => {
                 const match: ChannelMatch | undefined = channelState.matcher.match(context)
                 if (!match) throw definition.notFound(context)
