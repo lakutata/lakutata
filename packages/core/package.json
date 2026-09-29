@@ -51,7 +51,7 @@
       "import": "./dist/esm/exports/Internal.js",
       "require": "./dist/cjs/exports/Internal.js"
     },
-    "./tsconfig.json": "./tsconfig.json",
+    "./tsconfig.json": "./tsconfig.base.json",
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -94,7 +94,7 @@
     "*.md",
     "LICENSE",
     "package.json",
-    "tsconfig.json",
+    "tsconfig.base.json",
     "THIRD_PARTY_NOTICES.md"
   ]
 }
