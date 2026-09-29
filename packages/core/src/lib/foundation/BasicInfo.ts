@@ -9,20 +9,31 @@ type BasicInfo = {
 }
 
 /**
+ * Whether a time zone is known by the runtime: the canonical IANA names and their aliases ("UTC", "Etc/GMT+8", "US/Eastern")
+ * @param timezone
+ */
+function IsTimezone(timezone: string): boolean {
+    try {
+        new Intl.DateTimeFormat('en-US', {timeZone: timezone})
+        return true
+    } catch {
+        return false
+    }
+}
+
+/**
  * Whether passed timezone parameter is a valid timezone string or not
  * If passed timezone is valid, return the timezone string, else return default timezone string
  * @param timezone
  * @constructor
  */
-function ValidateTimezone(timezone: string): string {
-    const timezones: string[] = [...Intl.supportedValuesOf('timeZone')]
+export function ValidateTimezone(timezone: string): string {
     const defaultTimezone: string = Intl.DateTimeFormat().resolvedOptions().timeZone
-    if (!timezones.map((timezone: string) => timezone.toLowerCase()).includes(timezone.toLowerCase())) {
+    if (!IsTimezone(timezone)) {
         ThrowWarning(`The passed time zone "${timezone}" is invalid, use the default time zone "${defaultTimezone}"`)
         return defaultTimezone
     }
     return timezone
-
 }
 
 /**
