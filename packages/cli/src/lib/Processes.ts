@@ -1,4 +1,5 @@
 import {spawn} from 'node:child_process'
+import {LaunchEnvironment} from './Environment.js'
 
 /**
  * The package managers
@@ -25,7 +26,7 @@ export function DetectPackageManager(): PackageManager {
 export function Run(command: string, args: string[], cwd: string): Promise<{ code: number, output: string }> {
     return new Promise((resolve: (result: { code: number, output: string }) => void, reject: (error: Error) => void): void => {
         //The package managers are scripts on Windows
-        const child = spawn(command, args, {cwd: cwd, shell: process.platform === 'win32', env: process.env})
+        const child = spawn(command, args, {cwd: cwd, shell: process.platform === 'win32', env: LaunchEnvironment})
         let output: string = ''
         child.stdout.on('data', (chunk: Buffer): unknown => output += chunk.toString())
         child.stderr.on('data', (chunk: Buffer): unknown => output += chunk.toString())

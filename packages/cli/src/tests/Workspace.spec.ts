@@ -123,6 +123,14 @@ describe('The workspace commands', (): void => {
         assert.deepStrictEqual([...Events().keys()].sort(), ['app', 'tools'])
     })
 
+    it('gives the scripts the environment of the user, not the one of the application of the tool', async (): Promise<void> => {
+        Package('.', {name: 'root', private: true, workspaces: ['packages/*']})
+        Package('packages/a', {name: 'a', version: '1.0.0', scripts: {env: 'node -e "console.log(\'NODE_ENV=\'+process.env.NODE_ENV)"'}})
+        const result = await Run(['run', 'env'])
+        assert.strictEqual(result.code, 0, result.stderr)
+        assert.match(result.stdout, /NODE_ENV=undefined/)
+    })
+
     it('runs all the packages at once with --parallel', async (): Promise<void> => {
         SicService()
         assert.strictEqual((await Run(['run', 'rebuild', '--parallel'])).code, 0)
