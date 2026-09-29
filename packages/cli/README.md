@@ -50,6 +50,47 @@ with the information of the project: `{$APP_NAME}`, `{$APP_ID}`, `{$APP_DESC}`, 
 Show the versions of the tool, of the framework (and their latest versions), of Node.js, and of the framework of the
 project of the current directory.
 
+## Workspaces
+
+The projects made of several packages (`app`, `ui`, `proxy`…) are npm workspaces (the `workspaces` of the root
+`package.json`, or a `pnpm-workspace.yaml`). The tool builds and versions their packages; it is the part of lerna the
+projects use, without lerna.
+
+### `lakutata run <script>`
+
+Run a script in the packages having it, in the order of their dependencies (a package runs once the packages it depends
+on ran); the packages independent of each other run at the same time. The output is prefixed by the name of the package.
+
+| Option | |
+|---|---|
+| `--concurrency <n>` | how many packages run at a time, the number of the processors by default |
+| `--no-bail` | do not stop at the first failure: the packages which do not depend on the failed ones run |
+| `--scope <names...>` | the packages run, by name (`*` wildcards) |
+
+### `lakutata version <bump>`
+
+Give all the packages the next version (`major`, `minor`, `patch`, `premajor`, `preminor`, `prepatch`, `prerelease`
+with `--preid <id>`, or a version), update the dependencies between them (`^0.0.16` becomes `^0.0.17`: with the `0.x`
+versions a range matches its version only) and the lock file (`npm ci` fails otherwise). The version of the workspace is
+the one of `lerna.json` when there is one, of the root `package.json` otherwise. `--git` commits the changes and tags
+them `v<version>`; `--yes` gives the version without confirmation.
+
+### `lakutata list`
+
+List the packages, their versions and the packages they depend on.
+
+### From lerna
+
+| lerna | lakutata |
+|---|---|
+| `lerna run rebuild` | `lakutata run rebuild` |
+| `lerna version patch --no-git-tag-version --no-push -y` | `lakutata version patch --yes` |
+| `lerna version patch` | `lakutata version patch --git` (the tag is not pushed) |
+
+The publication stays `npm publish -w <package>`. The tool does not bump the packages independently, does not write
+changelogs from the commits and does not cache the builds: the workspaces needing it keep lerna (or nx, turborepo) next
+to it.
+
 ## Environment
 
 | Variable | |
