@@ -384,6 +384,7 @@
     "ExpressHTTPEntrypoint",
     "JSONEnvelope",
     "JSONResponder",
+    "StaticUI",
     "StatusOfError"
   ],
   "lakutata/adapter/commander": [
