@@ -13,6 +13,10 @@ export type RunOptions = {
      */
     bail?: boolean
     /**
+     * Run all the packages at once, without waiting for their dependencies: the long-running scripts (dev servers, watchers)
+     */
+    parallel?: boolean
+    /**
      * The names of the packages run (with "*" wildcards), all by default
      */
     scope?: string[]
@@ -73,14 +77,15 @@ export async function RunScript(workspace: Workspace, script: string, options: R
     const selected: WorkspacePackage[] = workspace.packages.filter((pkg: WorkspacePackage): boolean => inScope(pkg) && !!pkg.scripts[script])
     const skipped: string[] = workspace.packages.filter((pkg: WorkspacePackage): boolean => inScope(pkg) && !pkg.scripts[script]).map((pkg: WorkspacePackage): string => pkg.name)
     const selectedNames: Set<string> = new Set(selected.map((pkg: WorkspacePackage): string => pkg.name))
-    for (const cycle of workspace.cycles()) Warn(`The packages depend on each other: ${cycle.join(' → ')}, they run in the order of their names`)
+    if (!options.parallel) for (const cycle of workspace.cycles()) Warn(`The packages depend on each other: ${cycle.join(' → ')}, they run in the order of their names`)
     //The selected packages each one waits for (through the packages without the script too); the cycles are broken by name
     const waitsFor: Map<string, Set<string>> = new Map(selected.map((pkg: WorkspacePackage): [string, Set<string>] => {
+        if (options.parallel) return [pkg.name, new Set()]
         const dependencies: Set<string> = new Set([...workspace.transitiveDependencies(pkg)].filter((name: string): boolean => selectedNames.has(name)))
         for (const name of dependencies) if (workspace.transitiveDependencies(workspace.get(name)!).has(pkg.name) && name > pkg.name) dependencies.delete(name)
         return [pkg.name, dependencies]
     }))
-    const concurrency: number = Math.max(1, options.concurrency ?? os.availableParallelism())
+    const concurrency: number = options.parallel ? Math.max(1, selected.length) : Math.max(1, options.concurrency ?? os.availableParallelism())
     const width: number = Math.max(0, ...selected.map((pkg: WorkspacePackage): number => pkg.name.length))
     const done: Set<string> = new Set()
     //The packages depending on a failed package, not run

@@ -64,6 +64,7 @@ on ran); the packages independent of each other run at the same time. The output
 | Option | |
 |---|---|
 | `--concurrency <n>` | how many packages run at a time, the number of the processors by default |
+| `--parallel` | run all the packages at once, without waiting for their dependencies: the long-running scripts (`lakutata run dev --parallel`) |
 | `--no-bail` | do not stop at the first failure: the packages which do not depend on the failed ones run |
 | `--scope <names...>` | the packages run, by name (`*` wildcards) |
 

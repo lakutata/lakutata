@@ -11,6 +11,9 @@ export class RunScriptDTO extends DTO {
     @Expect(DTO.Boolean().optional().default(true).description('Stop at the first failure'))
     public bail: boolean
 
+    @Expect(DTO.Boolean().optional().default(false).description('Run all the packages at once, without waiting for their dependencies (the dev servers, the watchers)'))
+    public parallel: boolean
+
     @Expect(DTO.Array(DTO.String()).optional().description('The packages run, by name ("*" wildcards)'))
     public scope?: string[]
 }

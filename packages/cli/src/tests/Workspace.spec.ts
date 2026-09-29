@@ -123,6 +123,14 @@ describe('The workspace commands', (): void => {
         assert.deepStrictEqual([...Events().keys()].sort(), ['app', 'tools'])
     })
 
+    it('runs all the packages at once with --parallel', async (): Promise<void> => {
+        SicService()
+        assert.strictEqual((await Run(['run', 'rebuild', '--parallel'])).code, 0)
+        const events = Events()
+        //app starts before ui, which it depends on, ended
+        assert.ok(events.get('app')!.start < events.get('ui')!.end!)
+    })
+
     it('stops at the first failure, or runs the packages which do not depend on it', async (): Promise<void> => {
         SicService('app')
         const failed = await Run(['run', 'rebuild', '--concurrency', '1'])

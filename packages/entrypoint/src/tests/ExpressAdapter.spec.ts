@@ -2,7 +2,7 @@ import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import type {AddressInfo} from 'node:net'
 import type {Server} from 'node:http'
-import {mkdtemp, rm, writeFile} from 'node:fs/promises'
+import {mkdir, mkdtemp, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {Container, DTO, Exception} from '@lakutata/core'
@@ -17,7 +17,7 @@ import {
     Result
 } from '../exports/Entrypoint.js'
 import {GET, POST} from '../exports/CTRLDecorators.js'
-import {ExpressHTTPEntrypoint, ExpressHTTPEntrypointOptions, JSONEnvelope} from '../exports/ExpressAdapter.js'
+import {ExpressHTTPEntrypoint, ExpressHTTPEntrypointOptions, JSONEnvelope, StaticUI} from '../exports/ExpressAdapter.js'
 
 class DeviceDTO extends DTO {
     @Expect(DTO.String().required())
@@ -212,6 +212,28 @@ describe('Express adapter', (): void => {
         const response: Response = await aborted
         assert.strictEqual(response.status, 503)
         assert.strictEqual(((await response.json()) as any).errno, 'E_ENTRYPOINT_STOPPED')
+    })
+
+    it('serves a single-page application outside of the paths of the actions', async (): Promise<void> => {
+        const ui: string = await mkdtemp(path.join(tmpdir(), 'express-ui-'))
+        await writeFile(path.join(ui, 'index.html'), '<div id="app"></div>')
+        await mkdir(path.join(ui, 'assets'))
+        await writeFile(path.join(ui, 'assets', 'main-Cx7aB3dE.js'), 'console.log(1)')
+        const {url, container} = await Start({fallback: StaticUI(ui)})
+        const page: Response = await fetch(`${url}/`, {headers: {Accept: 'text/html'}})
+        assert.strictEqual(await page.text(), '<div id="app"></div>')
+        assert.strictEqual(page.headers.get('cache-control'), 'no-cache')
+        //A route of the application is its index
+        assert.strictEqual(await (await fetch(`${url}/stations/42`, {headers: {Accept: 'text/html'}})).text(), '<div id="app"></div>')
+        const asset: Response = await fetch(`${url}/assets/main-Cx7aB3dE.js`)
+        assert.strictEqual(await asset.text(), 'console.log(1)')
+        assert.match(asset.headers.get('cache-control')!, /immutable/)
+        //A missing file, and the paths of the actions, are not the index
+        assert.strictEqual((await fetch(`${url}/assets/missing.js`)).status, 404)
+        assert.strictEqual(((await (await fetch(`${url}/device`, {headers: {Accept: 'text/html'}})).json()) as any).errno, 'E_ROUTE_NOT_FOUND')
+        assert.deepStrictEqual(await (await fetch(`${url}/device/a`)).json(), {sn: 'a'})
+        await container.destroy()
+        await rm(ui, {recursive: true, force: true})
     })
 
     it('fails to start on an occupied port', async (): Promise<void> => {

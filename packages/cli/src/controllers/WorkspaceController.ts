@@ -16,7 +16,7 @@ export class WorkspaceController extends Controller {
     @CLIAction('run <script>', RunScriptDTO, {description: 'Run a script in the packages of the workspace, in the order of their dependencies'})
     public async run(input: RunScriptDTO): Promise<string | undefined> {
         const workspace: Workspace = await Workspace.find()
-        const result: RunResult = await RunScript(workspace, input.script, {concurrency: input.concurrency, bail: input.bail, scope: input.scope})
+        const result: RunResult = await RunScript(workspace, input.script, {concurrency: input.concurrency, bail: input.bail, parallel: input.parallel, scope: input.scope})
         if (!result.ran.length) return `No package has the script ${input.script}`
         Done(`${input.script} ran in ${result.ran.join(', ')}`)
         return undefined
