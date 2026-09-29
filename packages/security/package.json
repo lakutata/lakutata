@@ -4,12 +4,17 @@
   "description": "Security providers and functions of the lakutata framework (password hashing, signatures, encryption).",
   "type": "module",
   "main": "./dist/cjs/exports/Security.js",
-  "types": "./dist/types/exports/Security.d.ts",
+  "types": "./dist/cjs/exports/Security.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/types/exports/Security.d.ts",
-      "import": "./dist/esm/exports/Security.js",
-      "require": "./dist/cjs/exports/Security.js"
+      "import": {
+        "types": "./dist/types/exports/Security.d.ts",
+        "default": "./dist/esm/exports/Security.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/Security.d.ts",
+        "default": "./dist/cjs/exports/Security.js"
+      }
     },
     "./package.json": "./package.json"
   },

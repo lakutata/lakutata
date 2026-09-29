@@ -4,52 +4,97 @@
   "description": "Core of the lakutata IoC framework (IoC/DI, BaseObject, DTO/validation, decorators, console logger, monitor).",
   "type": "module",
   "main": "./dist/cjs/exports/Core.js",
-  "types": "./dist/types/exports/Core.d.ts",
+  "types": "./dist/cjs/exports/Core.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/types/exports/Core.d.ts",
-      "import": "./dist/esm/exports/Core.js",
-      "require": "./dist/cjs/exports/Core.js"
+      "import": {
+        "types": "./dist/types/exports/Core.d.ts",
+        "default": "./dist/esm/exports/Core.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/Core.d.ts",
+        "default": "./dist/cjs/exports/Core.js"
+      }
     },
     "./dtos": {
-      "types": "./dist/types/exports/DTOs.d.ts",
-      "import": "./dist/esm/exports/DTOs.js",
-      "require": "./dist/cjs/exports/DTOs.js"
+      "import": {
+        "types": "./dist/types/exports/DTOs.d.ts",
+        "default": "./dist/esm/exports/DTOs.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/DTOs.d.ts",
+        "default": "./dist/cjs/exports/DTOs.js"
+      }
     },
     "./helper": {
-      "types": "./dist/types/exports/Helpers.d.ts",
-      "import": "./dist/esm/exports/Helpers.js",
-      "require": "./dist/cjs/exports/Helpers.js"
+      "import": {
+        "types": "./dist/types/exports/Helpers.d.ts",
+        "default": "./dist/esm/exports/Helpers.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/Helpers.d.ts",
+        "default": "./dist/cjs/exports/Helpers.js"
+      }
     },
     "./com/monitor": {
-      "types": "./dist/types/exports/MonitorComponent.d.ts",
-      "import": "./dist/esm/exports/MonitorComponent.js",
-      "require": "./dist/cjs/exports/MonitorComponent.js"
+      "import": {
+        "types": "./dist/types/exports/MonitorComponent.d.ts",
+        "default": "./dist/esm/exports/MonitorComponent.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/MonitorComponent.d.ts",
+        "default": "./dist/cjs/exports/MonitorComponent.js"
+      }
     },
     "./com/logger": {
-      "types": "./dist/types/exports/LoggerComponent.d.ts",
-      "import": "./dist/esm/exports/LoggerComponent.js",
-      "require": "./dist/cjs/exports/LoggerComponent.js"
+      "import": {
+        "types": "./dist/types/exports/LoggerComponent.d.ts",
+        "default": "./dist/esm/exports/LoggerComponent.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/LoggerComponent.d.ts",
+        "default": "./dist/cjs/exports/LoggerComponent.js"
+      }
     },
     "./decorator/asst": {
-      "types": "./dist/types/exports/ASSTDecorators.d.ts",
-      "import": "./dist/esm/exports/ASSTDecorators.js",
-      "require": "./dist/cjs/exports/ASSTDecorators.js"
+      "import": {
+        "types": "./dist/types/exports/ASSTDecorators.d.ts",
+        "default": "./dist/esm/exports/ASSTDecorators.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/ASSTDecorators.d.ts",
+        "default": "./dist/cjs/exports/ASSTDecorators.js"
+      }
     },
     "./decorator/di": {
-      "types": "./dist/types/exports/DIDecorators.d.ts",
-      "import": "./dist/esm/exports/DIDecorators.js",
-      "require": "./dist/cjs/exports/DIDecorators.js"
+      "import": {
+        "types": "./dist/types/exports/DIDecorators.d.ts",
+        "default": "./dist/esm/exports/DIDecorators.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/DIDecorators.d.ts",
+        "default": "./dist/cjs/exports/DIDecorators.js"
+      }
     },
     "./decorator/dto": {
-      "types": "./dist/types/exports/DTODecorators.d.ts",
-      "import": "./dist/esm/exports/DTODecorators.js",
-      "require": "./dist/cjs/exports/DTODecorators.js"
+      "import": {
+        "types": "./dist/types/exports/DTODecorators.d.ts",
+        "default": "./dist/esm/exports/DTODecorators.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/DTODecorators.d.ts",
+        "default": "./dist/cjs/exports/DTODecorators.js"
+      }
     },
     "./internal": {
-      "types": "./dist/types/exports/Internal.d.ts",
-      "import": "./dist/esm/exports/Internal.js",
-      "require": "./dist/cjs/exports/Internal.js"
+      "import": {
+        "types": "./dist/types/exports/Internal.d.ts",
+        "default": "./dist/esm/exports/Internal.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/Internal.d.ts",
+        "default": "./dist/cjs/exports/Internal.js"
+      }
     },
     "./tsconfig.json": "./tsconfig.base.json",
     "./package.json": "./package.json"

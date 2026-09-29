@@ -4,12 +4,17 @@
   "description": "The DBus channel of the lakutata framework: controller actions served as the methods, properties and signals of DBus objects, and the DBus client component.",
   "type": "module",
   "main": "./dist/cjs/exports/DBus.js",
-  "types": "./dist/types/exports/DBus.d.ts",
+  "types": "./dist/cjs/exports/DBus.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/types/exports/DBus.d.ts",
-      "import": "./dist/esm/exports/DBus.js",
-      "require": "./dist/cjs/exports/DBus.js"
+      "import": {
+        "types": "./dist/types/exports/DBus.d.ts",
+        "default": "./dist/esm/exports/DBus.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/DBus.d.ts",
+        "default": "./dist/cjs/exports/DBus.js"
+      }
     },
     "./package.json": "./package.json"
   },

@@ -4,12 +4,17 @@
   "description": "The cache component of the lakutata framework (memory, file, Redis, Memcache, MongoDB, SQLite, PostgreSQL, MySQL stores).",
   "type": "module",
   "main": "./dist/cjs/exports/Cacher.js",
-  "types": "./dist/types/exports/Cacher.d.ts",
+  "types": "./dist/cjs/exports/Cacher.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/types/exports/Cacher.d.ts",
-      "import": "./dist/esm/exports/Cacher.js",
-      "require": "./dist/cjs/exports/Cacher.js"
+      "import": {
+        "types": "./dist/types/exports/Cacher.d.ts",
+        "default": "./dist/esm/exports/Cacher.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/Cacher.d.ts",
+        "default": "./dist/cjs/exports/Cacher.js"
+      }
     },
     "./package.json": "./package.json"
   },

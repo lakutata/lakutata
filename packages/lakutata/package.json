@@ -5,119 +5,234 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/types/exports/Lakutata.d.ts",
-      "import": "./dist/esm/exports/Lakutata.js",
-      "require": "./dist/cjs/exports/Lakutata.js"
+      "import": {
+        "types": "./dist/types/exports/Lakutata.d.ts",
+        "default": "./dist/esm/exports/Lakutata.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/Lakutata.d.ts",
+        "default": "./dist/cjs/exports/Lakutata.js"
+      }
     },
     "./orm": {
-      "types": "./dist/types/exports/ORM.d.ts",
-      "import": "./dist/esm/exports/ORM.js",
-      "require": "./dist/cjs/exports/ORM.js"
+      "import": {
+        "types": "./dist/types/exports/ORM.d.ts",
+        "default": "./dist/esm/exports/ORM.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/ORM.d.ts",
+        "default": "./dist/cjs/exports/ORM.js"
+      }
     },
     "./dtos": {
-      "types": "./dist/types/exports/DTOs.d.ts",
-      "import": "./dist/esm/exports/DTOs.js",
-      "require": "./dist/cjs/exports/DTOs.js"
+      "import": {
+        "types": "./dist/types/exports/DTOs.d.ts",
+        "default": "./dist/esm/exports/DTOs.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/DTOs.d.ts",
+        "default": "./dist/cjs/exports/DTOs.js"
+      }
     },
     "./helper": {
-      "types": "./dist/types/exports/Helpers.d.ts",
-      "import": "./dist/esm/exports/Helpers.js",
-      "require": "./dist/cjs/exports/Helpers.js"
+      "import": {
+        "types": "./dist/types/exports/Helpers.d.ts",
+        "default": "./dist/esm/exports/Helpers.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/Helpers.d.ts",
+        "default": "./dist/cjs/exports/Helpers.js"
+      }
     },
     "./com/docker": {
-      "types": "./dist/types/exports/DockerComponent.d.ts",
-      "import": "./dist/esm/exports/DockerComponent.js",
-      "require": "./dist/cjs/exports/DockerComponent.js"
+      "import": {
+        "types": "./dist/types/exports/DockerComponent.d.ts",
+        "default": "./dist/esm/exports/DockerComponent.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/DockerComponent.d.ts",
+        "default": "./dist/cjs/exports/DockerComponent.js"
+      }
     },
     "./com/database": {
-      "types": "./dist/types/exports/DatabaseComponent.d.ts",
-      "import": "./dist/esm/exports/DatabaseComponent.js",
-      "require": "./dist/cjs/exports/DatabaseComponent.js"
+      "import": {
+        "types": "./dist/types/exports/DatabaseComponent.d.ts",
+        "default": "./dist/esm/exports/DatabaseComponent.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/DatabaseComponent.d.ts",
+        "default": "./dist/cjs/exports/DatabaseComponent.js"
+      }
     },
     "./com/cacher": {
-      "types": "./dist/types/exports/CacherComponent.d.ts",
-      "import": "./dist/esm/exports/CacherComponent.js",
-      "require": "./dist/cjs/exports/CacherComponent.js"
+      "import": {
+        "types": "./dist/types/exports/CacherComponent.d.ts",
+        "default": "./dist/esm/exports/CacherComponent.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/CacherComponent.d.ts",
+        "default": "./dist/cjs/exports/CacherComponent.js"
+      }
     },
     "./com/monitor": {
-      "types": "./dist/types/exports/MonitorComponent.d.ts",
-      "import": "./dist/esm/exports/MonitorComponent.js",
-      "require": "./dist/cjs/exports/MonitorComponent.js"
+      "import": {
+        "types": "./dist/types/exports/MonitorComponent.d.ts",
+        "default": "./dist/esm/exports/MonitorComponent.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/MonitorComponent.d.ts",
+        "default": "./dist/cjs/exports/MonitorComponent.js"
+      }
     },
     "./com/entrypoint": {
-      "types": "./dist/types/exports/EntrypointComponent.d.ts",
-      "import": "./dist/esm/exports/EntrypointComponent.js",
-      "require": "./dist/cjs/exports/EntrypointComponent.js"
+      "import": {
+        "types": "./dist/types/exports/EntrypointComponent.d.ts",
+        "default": "./dist/esm/exports/EntrypointComponent.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/EntrypointComponent.d.ts",
+        "default": "./dist/cjs/exports/EntrypointComponent.js"
+      }
     },
     "./adapter/express": {
-      "types": "./dist/types/exports/ExpressAdapter.d.ts",
-      "import": "./dist/esm/exports/ExpressAdapter.js",
-      "require": "./dist/cjs/exports/ExpressAdapter.js"
+      "import": {
+        "types": "./dist/types/exports/ExpressAdapter.d.ts",
+        "default": "./dist/esm/exports/ExpressAdapter.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/ExpressAdapter.d.ts",
+        "default": "./dist/cjs/exports/ExpressAdapter.js"
+      }
     },
     "./adapter/commander": {
-      "types": "./dist/types/exports/CommanderAdapter.d.ts",
-      "import": "./dist/esm/exports/CommanderAdapter.js",
-      "require": "./dist/cjs/exports/CommanderAdapter.js"
+      "import": {
+        "types": "./dist/types/exports/CommanderAdapter.d.ts",
+        "default": "./dist/esm/exports/CommanderAdapter.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/CommanderAdapter.d.ts",
+        "default": "./dist/cjs/exports/CommanderAdapter.js"
+      }
     },
     "./adapter/fastify": {
-      "types": "./dist/types/exports/FastifyAdapter.d.ts",
-      "import": "./dist/esm/exports/FastifyAdapter.js",
-      "require": "./dist/cjs/exports/FastifyAdapter.js"
+      "import": {
+        "types": "./dist/types/exports/FastifyAdapter.d.ts",
+        "default": "./dist/esm/exports/FastifyAdapter.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/FastifyAdapter.d.ts",
+        "default": "./dist/cjs/exports/FastifyAdapter.js"
+      }
     },
     "./adapter/socket.io": {
-      "types": "./dist/types/exports/SocketIOAdapter.d.ts",
-      "import": "./dist/esm/exports/SocketIOAdapter.js",
-      "require": "./dist/cjs/exports/SocketIOAdapter.js"
+      "import": {
+        "types": "./dist/types/exports/SocketIOAdapter.d.ts",
+        "default": "./dist/esm/exports/SocketIOAdapter.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/SocketIOAdapter.d.ts",
+        "default": "./dist/cjs/exports/SocketIOAdapter.js"
+      }
     },
     "./adapter/electron": {
-      "types": "./dist/types/exports/ElectronAdapter.d.ts",
-      "import": "./dist/esm/exports/ElectronAdapter.js",
-      "require": "./dist/cjs/exports/ElectronAdapter.js"
+      "import": {
+        "types": "./dist/types/exports/ElectronAdapter.d.ts",
+        "default": "./dist/esm/exports/ElectronAdapter.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/ElectronAdapter.d.ts",
+        "default": "./dist/cjs/exports/ElectronAdapter.js"
+      }
     },
     "./com/logger": {
-      "types": "./dist/types/exports/LoggerComponent.d.ts",
-      "import": "./dist/esm/exports/LoggerComponent.js",
-      "require": "./dist/cjs/exports/LoggerComponent.js"
+      "import": {
+        "types": "./dist/types/exports/LoggerComponent.d.ts",
+        "default": "./dist/esm/exports/LoggerComponent.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/LoggerComponent.d.ts",
+        "default": "./dist/cjs/exports/LoggerComponent.js"
+      }
     },
     "./provider/database": {
-      "types": "./dist/types/exports/DatabaseProvider.d.ts",
-      "import": "./dist/esm/exports/DatabaseProvider.js",
-      "require": "./dist/cjs/exports/DatabaseProvider.js"
+      "import": {
+        "types": "./dist/types/exports/DatabaseProvider.d.ts",
+        "default": "./dist/esm/exports/DatabaseProvider.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/DatabaseProvider.d.ts",
+        "default": "./dist/cjs/exports/DatabaseProvider.js"
+      }
     },
     "./provider/passwordHash": {
-      "types": "./dist/types/exports/PasswordHashProvider.d.ts",
-      "import": "./dist/esm/exports/PasswordHashProvider.js",
-      "require": "./dist/cjs/exports/PasswordHashProvider.js"
+      "import": {
+        "types": "./dist/types/exports/PasswordHashProvider.d.ts",
+        "default": "./dist/esm/exports/PasswordHashProvider.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/PasswordHashProvider.d.ts",
+        "default": "./dist/cjs/exports/PasswordHashProvider.js"
+      }
     },
     "./security": {
-      "types": "./dist/types/exports/Security.d.ts",
-      "import": "./dist/esm/exports/Security.js",
-      "require": "./dist/cjs/exports/Security.js"
+      "import": {
+        "types": "./dist/types/exports/Security.d.ts",
+        "default": "./dist/esm/exports/Security.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/Security.d.ts",
+        "default": "./dist/cjs/exports/Security.js"
+      }
     },
     "./decorator/asst": {
-      "types": "./dist/types/exports/ASSTDecorators.d.ts",
-      "import": "./dist/esm/exports/ASSTDecorators.js",
-      "require": "./dist/cjs/exports/ASSTDecorators.js"
+      "import": {
+        "types": "./dist/types/exports/ASSTDecorators.d.ts",
+        "default": "./dist/esm/exports/ASSTDecorators.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/ASSTDecorators.d.ts",
+        "default": "./dist/cjs/exports/ASSTDecorators.js"
+      }
     },
     "./decorator/ctrl": {
-      "types": "./dist/types/exports/CTRLDecorators.d.ts",
-      "import": "./dist/esm/exports/CTRLDecorators.js",
-      "require": "./dist/cjs/exports/CTRLDecorators.js"
+      "import": {
+        "types": "./dist/types/exports/CTRLDecorators.d.ts",
+        "default": "./dist/esm/exports/CTRLDecorators.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/CTRLDecorators.d.ts",
+        "default": "./dist/cjs/exports/CTRLDecorators.js"
+      }
     },
     "./decorator/di": {
-      "types": "./dist/types/exports/DIDecorators.d.ts",
-      "import": "./dist/esm/exports/DIDecorators.js",
-      "require": "./dist/cjs/exports/DIDecorators.js"
+      "import": {
+        "types": "./dist/types/exports/DIDecorators.d.ts",
+        "default": "./dist/esm/exports/DIDecorators.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/DIDecorators.d.ts",
+        "default": "./dist/cjs/exports/DIDecorators.js"
+      }
     },
     "./decorator/dto": {
-      "types": "./dist/types/exports/DTODecorators.d.ts",
-      "import": "./dist/esm/exports/DTODecorators.js",
-      "require": "./dist/cjs/exports/DTODecorators.js"
+      "import": {
+        "types": "./dist/types/exports/DTODecorators.d.ts",
+        "default": "./dist/esm/exports/DTODecorators.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/DTODecorators.d.ts",
+        "default": "./dist/cjs/exports/DTODecorators.js"
+      }
     },
     "./decorator/orm": {
-      "types": "./dist/types/exports/ORMDecorators.d.ts",
-      "import": "./dist/esm/exports/ORMDecorators.js",
-      "require": "./dist/cjs/exports/ORMDecorators.js"
+      "import": {
+        "types": "./dist/types/exports/ORMDecorators.d.ts",
+        "default": "./dist/esm/exports/ORMDecorators.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/ORMDecorators.d.ts",
+        "default": "./dist/cjs/exports/ORMDecorators.js"
+      }
     },
     "./tsconfig.json": "./tsconfig.base.json",
     "./package.json": "./package.json"

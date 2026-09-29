@@ -4,12 +4,17 @@
   "description": "The MCP channel of the lakutata framework: controller actions served as the tools of a Model Context Protocol server, over stdio or HTTP.",
   "type": "module",
   "main": "./dist/cjs/exports/MCP.js",
-  "types": "./dist/types/exports/MCP.d.ts",
+  "types": "./dist/cjs/exports/MCP.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/types/exports/MCP.d.ts",
-      "import": "./dist/esm/exports/MCP.js",
-      "require": "./dist/cjs/exports/MCP.js"
+      "import": {
+        "types": "./dist/types/exports/MCP.d.ts",
+        "default": "./dist/esm/exports/MCP.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/MCP.d.ts",
+        "default": "./dist/cjs/exports/MCP.js"
+      }
     },
     "./package.json": "./package.json"
   },

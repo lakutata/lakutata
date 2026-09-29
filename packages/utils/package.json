@@ -4,12 +4,17 @@
   "description": "Utilities of the lakutata framework (Time).",
   "type": "module",
   "main": "./dist/cjs/exports/Utils.js",
-  "types": "./dist/types/exports/Utils.d.ts",
+  "types": "./dist/cjs/exports/Utils.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/types/exports/Utils.d.ts",
-      "import": "./dist/esm/exports/Utils.js",
-      "require": "./dist/cjs/exports/Utils.js"
+      "import": {
+        "types": "./dist/types/exports/Utils.d.ts",
+        "default": "./dist/esm/exports/Utils.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/Utils.d.ts",
+        "default": "./dist/cjs/exports/Utils.js"
+      }
     },
     "./package.json": "./package.json"
   },

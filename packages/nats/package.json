@@ -4,12 +4,17 @@
   "description": "The NATS component of the lakutata framework: messaging, service proxies, service entrypoint and large payloads.",
   "type": "module",
   "main": "./dist/cjs/exports/Nats.js",
-  "types": "./dist/types/exports/Nats.d.ts",
+  "types": "./dist/cjs/exports/Nats.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/types/exports/Nats.d.ts",
-      "import": "./dist/esm/exports/Nats.js",
-      "require": "./dist/cjs/exports/Nats.js"
+      "import": {
+        "types": "./dist/types/exports/Nats.d.ts",
+        "default": "./dist/esm/exports/Nats.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/Nats.d.ts",
+        "default": "./dist/cjs/exports/Nats.js"
+      }
     },
     "./package.json": "./package.json"
   },
