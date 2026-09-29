@@ -1,4 +1,4 @@
-import {Command, CommanderError, InvalidArgumentError, Option} from 'commander'
+import {Argument, Command, CommanderError, InvalidArgumentError, Option} from 'commander'
 import {createReadStream} from 'node:fs'
 import path from 'node:path'
 import type {Readable} from 'node:stream'
@@ -284,10 +284,23 @@ export function CommanderCLIEntrypoint(options: CommanderCLIEntrypointOptions = 
         for (const action of runtime.actions) {
             const schema: { properties?: Record<string, PropertySchema>, required?: string[] } = action.jsonSchema as any
             const required: Set<string> = new Set(schema.required ?? [])
+            //The command may declare positional arguments ("run <script>", "copy <files...> [target]"), given to the properties of their names
             const command: Command = program.command(action.address.command).description(action.description || action.name).allowExcessArguments(false)
+            const positional: string[] = command.registeredArguments.map((argument: Argument): string => argument.name())
+            for (const argument of command.registeredArguments) {
+                const propertySchema: PropertySchema | undefined = schema.properties?.[argument.name()]
+                if (!propertySchema) continue
+                if (propertySchema.description) argument.description = propertySchema.description
+                if (argument.variadic) {
+                    argument.argParser((value: string, previous: unknown[] | undefined): unknown[] => [...(Array.isArray(previous) ? previous : []), ParseValue(propertySchema.items ?? {}, value)])
+                } else {
+                    argument.argParser((value: string): unknown => ParseValue(propertySchema, value))
+                }
+            }
             //The properties by the attribute names of their options
             const properties: Map<string, string> = new Map()
             for (const [property, propertySchema] of Object.entries(schema.properties ?? {})) {
+                if (positional.includes(property)) continue
                 const mandatory: boolean = !prompting && required.has(property) && propertySchema.default === undefined
                 for (const option of PropertyOption(property, propertySchema, mandatory)) {
                     command.addOption(option)
@@ -296,6 +309,10 @@ export function CommanderCLIEntrypoint(options: CommanderCLIEntrypointOptions = 
             }
             command.action(async (): Promise<void> => {
                 const data: Record<string, unknown> = {}
+                positional.forEach((name: string, index: number): void => {
+                    const value: unknown = command.processedArgs[index]
+                    if (value !== undefined) data[name] = value
+                })
                 for (const [attribute, value] of Object.entries(command.opts())) {
                     if (value !== undefined && properties.has(attribute)) data[properties.get(attribute)!] = value
                 }

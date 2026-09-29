@@ -44,6 +44,20 @@ class LoginDTO extends DTO {
     public role: string
 }
 
+class SumDTO extends DTO {
+    @Expect(DTO.String().required().description('The label of the sum'))
+    public label: string
+
+    @Expect(DTO.Array(DTO.Number()).required())
+    public numbers: number[]
+
+    @Expect(DTO.String().optional().default('plain'))
+    public format: string
+
+    @Expect(DTO.Boolean().optional().default(false))
+    public round: boolean
+}
+
 class FailedException extends Exception {
     public errno: string = 'E_FAILED'
 }
@@ -87,6 +101,12 @@ class ToolController extends Controller {
             send({n: 1})
             send('done')
         })
+    }
+
+    @CLIAction('sum <label> <numbers...>', SumDTO)
+    public async sum(input: SumDTO): Promise<string> {
+        const total: number = input.numbers.reduce((sum: number, value: number): number => sum + value, 0)
+        return `${input.label}=${input.round ? Math.round(total) : total} (${input.format})`
     }
 
     @CLIAction('login', LoginDTO)
@@ -167,6 +187,22 @@ describe('Commander adapter', (): void => {
         assert.strictEqual(unknown.code, 1)
         assert.match(unknown.stderr, /unknown command 'device:ad'.*\n.*device:add/)
         assert.strictEqual((await Run(['hello', 'extra'])).code, 1)
+    })
+
+    it('gives the positional arguments to the properties of their names', async (): Promise<void> => {
+        assert.deepStrictEqual(await Run(['sum', 'total', '1.5', '2', '3']), {code: 0, stdout: 'total=6.5 (plain)\n', stderr: ''})
+        assert.strictEqual((await Run(['sum', 'total', '1.5', '2', '--round', '--format', 'fancy'])).stdout, 'total=4 (fancy)\n')
+        const invalid: Run = await Run(['sum', 'total', 'x'])
+        assert.strictEqual(invalid.code, 1)
+        assert.match(invalid.stderr, /Not a number/)
+        const missing: Run = await Run(['sum', 'total'])
+        assert.strictEqual(missing.code, 1)
+        assert.match(missing.stderr, /missing required argument 'numbers'/)
+        //The arguments are described with their properties, they are not options
+        const help: Run = await Run(['sum', '--help'])
+        assert.match(help.stdout, /Usage: tool sum \[options\] <label> <numbers\.\.\.>/)
+        assert.match(help.stdout, /label\s+The label of the sum/)
+        assert.doesNotMatch(help.stdout, /--label|--numbers/)
     })
 
     it('writes the help and the version', async (): Promise<void> => {
