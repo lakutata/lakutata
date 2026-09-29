@@ -1,0 +1,25 @@
+{
+  "name": "{$APP_ID}-workspace",
+  "version": "0.0.1",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "lakutata run rebuild",
+    "test": "lakutata run test",
+    "dev": "lakutata run build:server && lakutata run dev",
+    "start": "npm start -w app",
+    "version:patch": "lakutata version patch --yes",
+    "docker:build": "docker buildx build --tag {$APP_ID}:$npm_package_version --load .",
+    "docker:push": "docker buildx build --platform linux/amd64 --tag $DOCKER_REPOSITORY:$npm_package_version --tag $DOCKER_REPOSITORY:latest --push ."
+  },
+  "devDependencies": {
+    "@lakutata/cli": "^{$LAKUTATA_VERSION}",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.4.5"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

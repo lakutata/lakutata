@@ -1,7 +1,7 @@
 import {after, describe, it} from 'node:test'
 import assert from 'node:assert'
 import {execFile, type ExecFileException} from 'node:child_process'
-import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync} from 'node:fs'
+import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
@@ -26,7 +26,7 @@ function Run(command: string, args: string[], cwd: string): Promise<{ code: numb
         //The tests of the project run on their own, not as tests nested in the running ones
         const {NODE_TEST_CONTEXT, ...env} = process.env
         void NODE_TEST_CONTEXT
-        execFile(command, args, {cwd: cwd, env: {...env, LAKUTATA_CACHE_DIR: path.join(work, 'cache')}}, (error: ExecFileException | null, stdout: string, stderr: string): void => resolve({code: error ? (typeof error.code === 'number' ? error.code : 1) : 0, output: `${stdout}${stderr}`}))
+        execFile(command, args, {cwd: cwd, env: {...env, LAKUTATA_CACHE_DIR: path.join(work, 'cache'), NEXT_TELEMETRY_DISABLED: '1'}}, (error: ExecFileException | null, stdout: string, stderr: string): void => resolve({code: error ? (typeof error.code === 'number' ? error.code : 1) : 0, output: `${stdout}${stderr}`}))
     })
 }
 
@@ -46,14 +46,16 @@ function Link(project: string, name: string, target: string): void {
  * Install the dependencies of a project from the repository: the framework and the tool are its packages, the others its dependencies
  * @param project
  * @param names the third-party dependencies
+ * @param typescript the directory of the TypeScript of the project, the one of the repository by default
  */
-function Install(project: string, names: string[]): void {
+function Install(project: string, names: string[], typescript: string = path.join(ROOT, 'node_modules', 'typescript')): void {
     Link(project, 'lakutata', path.join(ROOT, 'packages', 'lakutata'))
     Link(project, '@lakutata/cli', path.join(ROOT, 'packages', 'cli'))
+    Link(project, 'typescript', typescript)
     for (const name of names) Link(project, name, path.join(ROOT, 'node_modules', name))
     //The commands of the scripts
     mkdirSync(path.join(project, 'node_modules', '.bin'), {recursive: true})
-    symlinkSync(path.join(ROOT, 'node_modules', 'typescript', 'bin', 'tsc'), path.join(project, 'node_modules', '.bin', 'tsc'))
+    symlinkSync(path.join(typescript, 'bin', 'tsc'), path.join(project, 'node_modules', '.bin', 'tsc'))
     symlinkSync(CLI, path.join(project, 'node_modules', '.bin', 'lakutata'))
 }
 
@@ -90,10 +92,21 @@ describe('The templates of the repository', (): void => {
             'packages/app/tsconfig.json', 'packages/app/src/App.ts', 'packages/app/src/middlewares/Authenticate.ts',
             'packages/app/src/controllers/HealthController.ts', 'packages/app/src/dtos/GreetDTO.ts'
         ]
-        for (const template of ['web-react']) {
+        //The development of web-next compiles the handler of its pages before starting the app
+        const differences: Record<string, (manifest: Record<string, any>) => void> = {
+            'web-next': (manifest: Record<string, any>): unknown => delete manifest.scripts.dev
+        }
+        for (const template of ['web-react', 'web-next']) {
             for (const file of shared) {
-                const service: string = readFileSync(path.join(ROOT, 'packages', 'template-service', 'template', file), 'utf8')
-                assert.strictEqual(readFileSync(path.join(ROOT, 'packages', `template-${template}`, 'template', file), 'utf8'), service, `${file} of ${template} differs from the one of service`)
+                let service: string = readFileSync(path.join(ROOT, 'packages', 'template-service', 'template', file), 'utf8')
+                let other: string = readFileSync(path.join(ROOT, 'packages', `template-${template}`, 'template', file), 'utf8')
+                if (file === 'package.json' && differences[template]) {
+                    const [a, b] = [JSON.parse(service), JSON.parse(other)]
+                    differences[template](a)
+                    differences[template](b)
+                    ;[service, other] = [JSON.stringify(a), JSON.stringify(b)]
+                }
+                assert.strictEqual(other, service, `${file} of ${template} differs from the one of service`)
             }
         }
     })
@@ -142,5 +155,24 @@ describe('The templates of the repository', (): void => {
         //The ui is type checked with the TypeScript of the template (vite does not check the types)
         const checked = await Run(process.execPath, [path.join(ROOT, 'packages', 'template-web-react', 'node_modules', 'typescript', 'bin', 'tsc'), '-p', path.join(project, 'packages', 'ui')], project)
         assert.strictEqual(checked.code, 0, checked.output)
+    })
+
+    it('creates a Next.js web application whose workspace builds the ui then the app, which renders its pages', async (): Promise<void> => {
+        const project: string = await Create('web-next', 'Console')
+        assert.doesNotMatch(readFileSync(path.join(project, 'packages', 'ui', 'app', 'page.tsx'), 'utf8'), /\{\$APP_/)
+        Install(project, ['express', 'compression', '@types/express', '@types/compression', '@types/node', 'next', 'react', 'react-dom', '@types/react', '@types/react-dom'], path.join(ROOT, 'packages', 'template-web-next', 'node_modules', 'typescript'))
+        LinkWorkspace(project, ['ui'])
+        symlinkSync(path.join(ROOT, 'node_modules', 'next', 'dist', 'bin', 'next'), path.join(project, 'node_modules', '.bin', 'next'))
+        //The dependencies are linked to the repository, outside of the project: turbopack resolves them from the root of the filesystem
+        //(an installed project has them in its node_modules)
+        const nextConfig: string = path.join(project, 'packages', 'ui', 'next.config.ts')
+        writeFileSync(nextConfig, readFileSync(nextConfig, 'utf8').replace('const nextConfig: NextConfig = {}', `const nextConfig: NextConfig = {turbopack: {root: ${JSON.stringify(path.parse(project).root)}}}`))
+        const built = await Run(process.execPath, [CLI, 'run', 'rebuild', '--concurrency', '1'], project)
+        assert.strictEqual(built.code, 0, built.output)
+        assert.ok(existsSync(path.join(project, 'packages', 'ui', '.next')))
+        assert.ok(existsSync(path.join(project, 'packages', 'ui', 'server', 'build', 'index.js')))
+        const tested = await Run(process.execPath, [CLI, 'run', 'test'], project)
+        assert.strictEqual(tested.code, 0, tested.output)
+        assert.match(tested.output, /pass 4/)
     })
 })

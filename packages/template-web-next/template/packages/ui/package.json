@@ -1,0 +1,23 @@
+{
+  "name": "ui",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "server/build/index.js",
+  "types": "server/build/index.d.ts",
+  "scripts": {
+    "clean": "node -e \"for (const d of ['.next', 'server/build']) require('node:fs').rmSync(d, {recursive: true, force: true})\"",
+    "build:server": "tsc -p server",
+    "build": "next build && npm run build:server",
+    "rebuild": "npm run clean && npm run build"
+  },
+  "dependencies": {
+    "next": "^16.3.7",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0"
+  }
+}
