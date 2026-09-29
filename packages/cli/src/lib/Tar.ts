@@ -5,7 +5,7 @@ import {gunzipSync} from 'node:zlib'
 /**
  * An entry of an archive
  */
-type TarEntry = {
+export type TarEntry = {
     name: string
     type: string
     mode: number

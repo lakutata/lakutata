@@ -92,12 +92,53 @@ The publication stays `npm publish -w <package>`. The tool does not bump the pac
 changelogs from the commits and does not cache the builds: the workspaces needing it keep lerna (or nx, turborepo) next
 to it.
 
+## Bundles and executables
+
+The application of the current directory, compiled (`tsc`, which emits the metadata of the decorators), is packed:
+
+### `lakutata bundle`
+
+Bundle the application and its dependencies into one CommonJS file (esbuild), run by node without `node_modules`:
+`dist/<name>.cjs`, the name being the first `bin` of the `package.json`, or its name without its scope. The entry is the
+`main` of the `package.json` (`--entry` changes it), the bundle is minified with the names of the classes kept
+(`--no-minify`), `import.meta.url` is the URL of the bundle.
+
+| Option | |
+|---|---|
+| `--entry <file>` | the compiled entry, the `main` of the `package.json` by default |
+| `--outfile <file>` | the bundle, `dist/<name>.cjs` by default |
+| `--no-minify` | do not minify the bundle |
+| `--external <modules...>` | the modules left out of the bundle, loaded at run time (the native addons) |
+
+### `lakutata executable`
+
+Make the executables of the application, which run without Node.js installed: the bundle embedded in the Node.js binary
+of each platform (the single executable applications of Node.js). The Node.js embedded is the version running the tool.
+The executable of the current platform is `dist/<name>`; `--target` makes the ones of other platforms,
+`dist/<name>-<target>`, from the binaries of the Node.js distributions, downloaded once (and checked against their
+`SHASUMS256.txt`).
+
+```bash
+lakutata executable --target linux-x64 linux-arm64 darwin-arm64 darwin-x64 win-x64
+```
+
+| Option | |
+|---|---|
+| `--target <targets...>` | the platforms, as the Node.js distributions name them, the current one by default |
+| `--outdir <directory>` | the directory of the executables, `dist` by default |
+| `--entry`, `--no-minify`, `--external` | as `lakutata bundle` |
+
+The executables of macOS are signed ad hoc when they are made on macOS (on another system, sign them on macOS:
+`codesign --sign - <file>`). The ones of Windows keep the signature of `node.exe`, which does not match anymore: sign them
+before distributing them.
+
 ## Environment
 
 | Variable | |
 |---|---|
 | `LAKUTATA_NPM_REGISTRY` | the npm registry of the templates (`npm_config_registry`, or `https://registry.npmjs.org`) |
 | `LAKUTATA_GITHUB_DOWNLOAD` | a mirror of GitHub for the `github:` templates (`https://github.com`) |
+| `LAKUTATA_NODE_MIRROR` | the mirror of the Node.js distributions of the executables (`NVM_NODEJS_ORG_MIRROR`, or `https://nodejs.org/dist`) |
 | `LAKUTATA_CACHE_DIR` | the directory of the cache (`$XDG_CACHE_HOME/lakutata`, or `~/.cache/lakutata`) |
 
 The tool is itself a lakutata application: its commands are the CLI actions of a controller, served by the commander
