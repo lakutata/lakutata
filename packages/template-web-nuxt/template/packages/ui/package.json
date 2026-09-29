@@ -1,0 +1,23 @@
+{
+  "name": "ui",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "server/index.js",
+  "types": "server/index.d.ts",
+  "scripts": {
+    "clean": "node -e \"for (const d of ['.nuxt', '.output']) require('node:fs').rmSync(d, {recursive: true, force: true})\"",
+    "build": "nuxt build",
+    "rebuild": "npm run clean && npm run build",
+    "dev": "nuxt dev --port 3000",
+    "typecheck": "nuxt typecheck",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "nuxt": "^4.5.2",
+    "vue": "^3.5.43"
+  },
+  "devDependencies": {
+    "vue-tsc": "^3.3.11"
+  }
+}

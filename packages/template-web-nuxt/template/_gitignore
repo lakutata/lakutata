@@ -1,0 +1,12 @@
+node_modules
+build
+*.log
+.env
+.env.*
+.DS_Store
+.idea
+.vscode
+.next
+next-env.d.ts
+.nuxt
+.output

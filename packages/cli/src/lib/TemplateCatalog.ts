@@ -63,7 +63,9 @@ const BUILTIN_TEMPLATES: TemplateInfo[] = [
     {name: 'default', description: 'A minimal application serving HTTP actions', package: '@lakutata/template-default'},
     {name: 'service', description: 'An HTTP API deployed as a Docker image', package: '@lakutata/template-service'},
     {name: 'web-react', description: 'An HTTP API serving a React single-page application (Vite)', package: '@lakutata/template-web-react'},
-    {name: 'web-next', description: 'An HTTP API serving a Next.js application from the same process', package: '@lakutata/template-web-next'}
+    {name: 'web-next', description: 'An HTTP API serving a Next.js application from the same process', package: '@lakutata/template-web-next'},
+    {name: 'web-vue', description: 'An HTTP API serving a Vue single-page application (Vite)', package: '@lakutata/template-web-vue'},
+    {name: 'web-nuxt', description: 'An HTTP API serving a Nuxt application from the same process', package: '@lakutata/template-web-nuxt'}
 ]
 
 /**

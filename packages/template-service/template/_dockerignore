@@ -6,3 +6,5 @@ node_modules
 .env
 .env.*
 **/.next
+**/.nuxt
+**/.output

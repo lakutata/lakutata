@@ -31,6 +31,16 @@
         "name": "web-next",
         "description": "An HTTP API serving a Next.js application from the same process",
         "package": "@lakutata/template-web-next"
+      },
+      {
+        "name": "web-vue",
+        "description": "An HTTP API serving a Vue single-page application (Vite)",
+        "package": "@lakutata/template-web-vue"
+      },
+      {
+        "name": "web-nuxt",
+        "description": "An HTTP API serving a Nuxt application from the same process",
+        "package": "@lakutata/template-web-nuxt"
       }
     ]
   }

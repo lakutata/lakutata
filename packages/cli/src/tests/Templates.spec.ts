@@ -96,7 +96,7 @@ describe('The templates of the repository', (): void => {
         const differences: Record<string, (manifest: Record<string, any>) => void> = {
             'web-next': (manifest: Record<string, any>): unknown => delete manifest.scripts.dev
         }
-        for (const template of ['web-react', 'web-next']) {
+        for (const template of ['web-react', 'web-next', 'web-vue', 'web-nuxt']) {
             for (const file of shared) {
                 let service: string = readFileSync(path.join(ROOT, 'packages', 'template-service', 'template', file), 'utf8')
                 let other: string = readFileSync(path.join(ROOT, 'packages', `template-${template}`, 'template', file), 'utf8')
@@ -174,5 +174,40 @@ describe('The templates of the repository', (): void => {
         const tested = await Run(process.execPath, [CLI, 'run', 'test'], project)
         assert.strictEqual(tested.code, 0, tested.output)
         assert.match(tested.output, /pass 4/)
+    })
+    it('creates a Vue web application whose workspace builds the ui then the app, which serves it', async (): Promise<void> => {
+        const project: string = await Create('web-vue', 'Studio')
+        assert.doesNotMatch(readFileSync(path.join(project, 'packages', 'ui', 'src', 'App.vue'), 'utf8'), /\{\$APP_/)
+        Install(project, ['express', 'compression', '@types/express', '@types/compression', '@types/node', 'vite', '@vitejs/plugin-vue', 'vue'])
+        LinkWorkspace(project, ['ui'])
+        symlinkSync(path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'), path.join(project, 'node_modules', '.bin', 'vite'))
+        const built = await Run(process.execPath, [CLI, 'run', 'rebuild', '--concurrency', '1'], project)
+        assert.strictEqual(built.code, 0, built.output)
+        assert.ok(existsSync(path.join(project, 'packages', 'ui', 'dist', 'index.html')))
+        const tested = await Run(process.execPath, [CLI, 'run', 'test'], project)
+        assert.strictEqual(tested.code, 0, tested.output)
+        assert.match(tested.output, /pass 4/)
+        //The ui is type checked by vue-tsc (vite does not check the types), with the TypeScript of the template
+        const vueTsc: string = `require(${JSON.stringify(path.join(ROOT, 'node_modules', 'vue-tsc'))}).run(${JSON.stringify(path.join(ROOT, 'packages', 'template-web-vue', 'node_modules', 'typescript', 'lib', 'tsc.js'))})`
+        const checked = await Run(process.execPath, ['-e', vueTsc, 'vue-tsc', '--noEmit', '-p', path.join(project, 'packages', 'ui')], project)
+        assert.strictEqual(checked.code, 0, checked.output)
+    })
+
+    it('creates a Nuxt web application whose workspace builds the ui then the app, which renders its pages', async (): Promise<void> => {
+        const project: string = await Create('web-nuxt', 'Board')
+        assert.doesNotMatch(readFileSync(path.join(project, 'packages', 'ui', 'app', 'app.vue'), 'utf8'), /\{\$APP_/)
+        Install(project, ['express', 'compression', '@types/express', '@types/compression', '@types/node', 'nuxt', 'vue'])
+        LinkWorkspace(project, ['ui'])
+        symlinkSync(path.join(ROOT, 'node_modules', 'nuxt', 'bin', 'nuxt.mjs'), path.join(project, 'node_modules', '.bin', 'nuxt'))
+        const built = await Run(process.execPath, [CLI, 'run', 'rebuild', '--concurrency', '1'], project)
+        assert.strictEqual(built.code, 0, built.output)
+        assert.ok(existsSync(path.join(project, 'packages', 'ui', '.output', 'server', 'index.mjs')))
+        const tested = await Run(process.execPath, [CLI, 'run', 'test'], project)
+        assert.strictEqual(tested.code, 0, tested.output)
+        assert.match(tested.output, /pass 4/)
+        //The ui is type checked as nuxt typecheck does, with the TypeScript of the template
+        const vueTsc: string = `require(${JSON.stringify(path.join(ROOT, 'node_modules', 'vue-tsc'))}).run(${JSON.stringify(path.join(ROOT, 'packages', 'template-web-nuxt', 'node_modules', 'typescript', 'lib', 'tsc.js'))})`
+        const checked = await Run(process.execPath, ['-e', vueTsc, 'vue-tsc', '-b', '--noEmit'], path.join(project, 'packages', 'ui'))
+        assert.strictEqual(checked.code, 0, checked.output)
     })
 })

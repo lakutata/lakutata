@@ -8,3 +8,5 @@ build
 .vscode
 .next
 next-env.d.ts
+.nuxt
+.output
