@@ -1,117 +1,205 @@
-import {mkdir, readFile, writeFile} from 'node:fs/promises'
+import {existsSync} from 'node:fs'
+import {mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 import {Component} from 'lakutata'
 import {Autoload, Singleton} from 'lakutata/decorator/di'
-import {Settings, TEMPLATE_PREFIX} from './Settings.js'
+import {Settings} from './Settings.js'
 import {Warn} from './Output.js'
+import {CachedPackage, DownloadPackage, LatestManifest, type PackageVersion, ResolvePackage} from './Registry.js'
+import {ExtractTarGz, Under} from './Tar.js'
+import {ToolMajor} from './Versions.js'
 
 /**
- * A project template
+ * An official template
  */
-export type Template = {
+export type TemplateInfo = {
     name: string
     description: string
-    repository: string
-    branch: string
-}
-
-type TemplateCache = {
-    updatedAt: number
-    source: string
-    templates: Template[]
+    package: string
 }
 
 /**
- * How long the list of the templates is kept, 1 day
+ * Where a template comes from
+ */
+export type TemplateSource =
+    { kind: 'npm', package: string, version?: string, official: boolean } |
+    { kind: 'github', repository: string, ref?: string } |
+    { kind: 'local', directory: string }
+
+/**
+ * The files of a template ready to be copied
+ */
+export type PreparedTemplate = {
+    /**
+     * What the template is ("@lakutata/template-default@3.0.0")
+     */
+    label: string
+    /**
+     * The directory of the files of the template
+     */
+    root: string
+    /**
+     * Remove the downloaded files
+     */
+    cleanup(): Promise<void>
+}
+
+type CatalogCache = {
+    updatedAt: number
+    registry: string
+    templates: TemplateInfo[]
+}
+
+/**
+ * The package listing the official templates (its "lakutata.templates" field)
+ */
+const CATALOG_PACKAGE: string = '@lakutata/templates'
+
+/**
+ * The official templates known when the tool was released, when the catalog cannot be fetched
+ */
+const BUILTIN_TEMPLATES: TemplateInfo[] = [
+    {name: 'default', description: 'A minimal application serving HTTP actions', package: '@lakutata/template-default'}
+]
+
+/**
+ * How long the catalog is kept, 1 day
  */
 const CACHE_TTL: number = 24 * 3600 * 1000
 
 /**
- * The project templates: the repositories "lakutata-template-<name>" of the owner of the templates, cached for a day
+ * The project templates: the official ones are the packages "@lakutata/template-<name>" of the npm registry,
+ * the others npm packages, GitHub repositories or local directories
  */
 @Autoload()
 @Singleton()
 export class TemplateCatalog extends Component {
 
     /**
-     * The file of the cache
+     * The file of the cache of the catalog
      */
     protected get cacheFile(): string {
         return path.join(Settings.cacheDirectory, 'templates.json')
     }
 
     /**
-     * The source of the list (the cache of another source is not used)
+     * Read the cached catalog of the registry
      */
-    protected get source(): string {
-        return `${Settings.templateAPI}/users/${Settings.templateOwner}`
-    }
-
-    /**
-     * Read the cache
-     */
-    protected async readCache(): Promise<TemplateCache | undefined> {
+    protected async readCache(): Promise<CatalogCache | undefined> {
         try {
-            const cache: TemplateCache = JSON.parse(await readFile(this.cacheFile, 'utf8'))
-            return cache.source === this.source && Array.isArray(cache.templates) ? cache : undefined
+            const cache: CatalogCache = JSON.parse(await readFile(this.cacheFile, 'utf8'))
+            return cache.registry === Settings.registry && Array.isArray(cache.templates) ? cache : undefined
         } catch {
             return undefined
         }
     }
 
     /**
-     * Fetch the templates, all the pages of the repositories
+     * The official templates: the catalog of the registry, cached for a day
+     * @param refresh fetch the catalog even when it is cached
      */
-    protected async fetchTemplates(): Promise<Template[]> {
-        const templates: Template[] = []
-        const headers: Record<string, string> = {'Accept': 'application/vnd.github+json', 'User-Agent': 'lakutata-cli'}
-        if (Settings.githubToken) headers.Authorization = `Bearer ${Settings.githubToken}`
-        for (let page: number = 1; ; page++) {
-            const response: Response = await fetch(`${this.source}/repos?per_page=100&page=${page}`, {headers: headers, signal: AbortSignal.timeout(15000)})
-            if (!response.ok) throw new Error(`The list of the templates cannot be fetched: ${response.status} ${response.statusText}${response.status === 403 ? ' (the rate limit of the API may be reached: set GITHUB_TOKEN)' : ''}`)
-            const repositories: { name: string, description: string | null, full_name: string, default_branch: string, archived?: boolean }[] = await response.json() as any
-            for (const repository of repositories) {
-                if (!repository.name.startsWith(TEMPLATE_PREFIX) || repository.archived) continue
-                templates.push({
-                    name: repository.name.slice(TEMPLATE_PREFIX.length),
-                    description: repository.description ?? '',
-                    repository: repository.full_name,
-                    branch: repository.default_branch
-                })
-            }
-            if (repositories.length < 100) break
-        }
-        //The default template first
-        return templates.sort((a: Template, b: Template): number => a.name === 'default' ? -1 : b.name === 'default' ? 1 : a.name.localeCompare(b.name))
-    }
-
-    /**
-     * The templates: the cached list when it is recent, the fetched one otherwise (the cached one when it cannot be fetched)
-     * @param refresh fetch the list even when it is cached
-     */
-    public async list(refresh: boolean = false): Promise<Template[]> {
-        const cache: TemplateCache | undefined = await this.readCache()
+    public async list(refresh: boolean = false): Promise<TemplateInfo[]> {
+        const cache: CatalogCache | undefined = await this.readCache()
         if (cache && !refresh && Date.now() - cache.updatedAt < CACHE_TTL) return cache.templates
-        try {
-            const templates: Template[] = await this.fetchTemplates()
+        const templates: unknown = (await LatestManifest(CATALOG_PACKAGE))?.lakutata?.templates
+        if (Array.isArray(templates)) {
             await mkdir(path.dirname(this.cacheFile), {recursive: true})
-            await writeFile(this.cacheFile, JSON.stringify({updatedAt: Date.now(), source: this.source, templates: templates} satisfies TemplateCache, null, 2))
+            await writeFile(this.cacheFile, JSON.stringify({updatedAt: Date.now(), registry: Settings.registry, templates: templates} satisfies CatalogCache, null, 2))
             return templates
-        } catch (error: unknown) {
-            if (!cache) throw error
-            Warn(`${(error as Error).message}, the list of ${new Date(cache.updatedAt).toLocaleString()} is used`)
+        }
+        if (cache) {
+            Warn(`The catalog of the templates cannot be fetched from ${Settings.registry}, the catalog of ${new Date(cache.updatedAt).toLocaleString()} is used`)
             return cache.templates
         }
+        Warn(`The catalog of the templates cannot be fetched from ${Settings.registry}, the templates known by the tool are listed`)
+        return BUILTIN_TEMPLATES
     }
 
     /**
-     * A template by name, the list is fetched again when it is not in it
-     * @param name
+     * Where a template comes from: "npm:<package>[@<version>]", "github:<owner>/<repo>[#<ref>]", a local directory,
+     * or the name of an official template
+     * @param template
      */
-    public async find(name: string): Promise<Template> {
-        let template: Template | undefined = (await this.list()).find((candidate: Template): boolean => candidate.name === name)
-        if (!template) template = (await this.list(true)).find((candidate: Template): boolean => candidate.name === name)
-        if (!template) throw new Error(`The template "${name}" does not exist, the templates are: ${(await this.list()).map((candidate: Template): string => candidate.name).join(', ')}`)
-        return template
+    public async resolve(template: string): Promise<TemplateSource> {
+        if (template.startsWith('npm:')) {
+            const matched: RegExpExecArray | null = /^((?:@[^/@]+\/)?[^/@]+)(?:@(.+))?$/.exec(template.slice(4))
+            if (!matched) throw new Error(`Invalid npm template "${template}": npm:<package>[@<version>]`)
+            return {kind: 'npm', package: matched[1], version: matched[2], official: false}
+        }
+        if (template.startsWith('github:')) {
+            const matched: RegExpExecArray | null = /^([^/#]+\/[^/#]+)(?:#(.+))?$/.exec(template.slice(7))
+            if (!matched) throw new Error(`Invalid GitHub template "${template}": github:<owner>/<repo>[#<ref>]`)
+            return {kind: 'github', repository: matched[1], ref: matched[2]}
+        }
+        if (/^[./~]/.test(template) || path.isAbsolute(template) || existsSync(template)) {
+            const directory: string = path.resolve(template.replace(/^~(?=$|\/)/, os.homedir()))
+            if (!existsSync(directory)) throw new Error(`The template directory ${directory} does not exist`)
+            return {kind: 'local', directory: directory}
+        }
+        const official: TemplateInfo | undefined = (await this.list()).find((info: TemplateInfo): boolean => info.name === template)
+        return {kind: 'npm', package: official?.package ?? `@lakutata/template-${template}`, official: true}
+    }
+
+    /**
+     * The package of a template, the cached one when the registry cannot be reached
+     * @param source
+     * @param work
+     */
+    protected async preparePackage(source: Extract<TemplateSource, { kind: 'npm' }>, work: string): Promise<string> {
+        //An official template has the major version of the tool
+        const wanted: string | number | undefined = source.version ?? (source.official ? ToolMajor() : undefined)
+        let pkg: PackageVersion | undefined
+        let archive: Buffer
+        let version: string
+        try {
+            pkg = await ResolvePackage(source.package, wanted)
+        } catch (error: unknown) {
+            const cached = typeof wanted === 'string' ? undefined : await CachedPackage(source.package, wanted)
+            if (!cached) throw error
+            Warn(`${(error as Error).message}, the cached ${source.package}@${cached.version} is used`)
+            await ExtractTarGz(cached.archive, work, Under('package'))
+            return `${source.package}@${cached.version}`
+        }
+        if (!pkg) {
+            const names: string = source.official ? `, the templates are: ${(await this.list()).map((info: TemplateInfo): string => info.name).join(', ')}` : ''
+            throw new Error(`The template ${source.official ? `"${source.package.replace('@lakutata/template-', '')}" ` : ''}does not exist (${source.package} is not on ${Settings.registry})${names}`)
+        }
+        archive = await DownloadPackage(pkg)
+        version = pkg.version
+        await ExtractTarGz(archive, work, Under('package'))
+        return `${source.package}@${version}`
+    }
+
+    /**
+     * Get the files of a template
+     * @param source
+     */
+    public async prepare(source: TemplateSource): Promise<PreparedTemplate> {
+        if (source.kind === 'local') {
+            const root: string = existsSync(path.join(source.directory, 'template')) ? path.join(source.directory, 'template') : source.directory
+            return {label: source.directory, root: root, cleanup: async (): Promise<void> => undefined}
+        }
+        const work: string = await mkdtemp(path.join(os.tmpdir(), 'lakutata-template-'))
+        const cleanup = async (): Promise<void> => rm(work, {recursive: true, force: true})
+        try {
+            let label: string
+            if (source.kind === 'npm') {
+                label = await this.preparePackage(source, work)
+            } else {
+                const url: string = `${Settings.githubDownload}/${source.repository}/archive/${source.ref ?? 'HEAD'}.tar.gz`
+                const response: Response = await fetch(url, {headers: {'User-Agent': 'lakutata-cli'}, signal: AbortSignal.timeout(60000)})
+                if (!response.ok) throw new Error(`The template ${source.repository} cannot be downloaded from ${url}: ${response.status} ${response.statusText}`)
+                //The archives of GitHub have a root directory
+                await ExtractTarGz(Buffer.from(await response.arrayBuffer()), work, Under(1))
+                label = `github:${source.repository}${source.ref ? `#${source.ref}` : ''}`
+            }
+            //A template package has its files in template/, the other sources are the template
+            const root: string = existsSync(path.join(work, 'template')) ? path.join(work, 'template') : work
+            return {label: label, root: root, cleanup: cleanup}
+        } catch (error: unknown) {
+            await cleanup()
+            throw error
+        }
     }
 }

@@ -8,7 +8,7 @@ export class CreateProjectDTO extends DTO {
     @Expect(DTO.String().optional().pattern(/^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/).description('The ID of the application (a package name), its name in lower case by default'))
     public id?: string
 
-    @Expect(DTO.String().optional().default('default').description('The template of the project (lakutata templates lists them)'))
+    @Expect(DTO.String().optional().default('default').description('The template: the name of an official template (lakutata templates lists them), npm:<package>, github:<owner>/<repo> or a directory'))
     public template: string
 
     @Expect(DTO.String().optional().default('.').description('The directory the project directory is created in'))

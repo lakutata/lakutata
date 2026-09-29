@@ -1,13 +1,12 @@
-import {readdir, readFile, stat, writeFile} from 'node:fs/promises'
+import {cp, readdir, readFile, rename, stat, writeFile} from 'node:fs/promises'
 import path from 'node:path'
 import {Component} from 'lakutata'
 import {Autoload, Inject, Singleton} from 'lakutata/decorator/di'
 import {Templating} from 'lakutata/helper'
-import {Settings} from './Settings.js'
-import {type Template, TemplateCatalog} from './TemplateCatalog.js'
-import {ExtractTarGz} from './Tar.js'
+import {type PreparedTemplate, TemplateCatalog, type TemplateSource} from './TemplateCatalog.js'
 import {type PackageManager, Run} from './Processes.js'
 import {Done, Step, Warn} from './Output.js'
+import {FrameworkVersion} from './Versions.js'
 
 /**
  * What a project is created with
@@ -18,7 +17,7 @@ export type ProjectPlan = {
     description: string
     author: string
     license: string
-    template: Template
+    template: TemplateSource
     /**
      * The directory of the project
      */
@@ -32,11 +31,36 @@ export type ProjectPlan = {
 }
 
 /**
+ * The files the npm packages cannot hold under their name, kept as "_<name>" in the templates
+ */
+const DOTFILES: string[] = ['gitignore', 'npmrc', 'npmignore', 'gitattributes', 'editorconfig', 'dockerignore', 'nvmrc', 'env', 'eslintrc.json', 'prettierrc']
+
+/**
+ * The directories of a template which are not copied
+ */
+const SKIPPED: string[] = ['node_modules', '.git']
+
+/**
  * Whether a file is text: no NUL byte in its beginning
  * @param content
  */
 function IsText(content: Buffer): boolean {
     return !content.subarray(0, 8000).includes(0)
+}
+
+/**
+ * The files of a directory, relative to it
+ * @param directory
+ * @param base
+ */
+async function ListFiles(directory: string, base: string = directory): Promise<string[]> {
+    const files: string[] = []
+    for (const entry of await readdir(directory, {withFileTypes: true})) {
+        const target: string = path.join(directory, entry.name)
+        if (entry.isDirectory()) files.push(...await ListFiles(target, base))
+        else if (entry.isFile()) files.push(path.relative(base, target))
+    }
+    return files
 }
 
 /**
@@ -70,15 +94,29 @@ export class ProjectCreator extends Component {
     }
 
     /**
-     * Download the template into the directory
+     * Copy the files of a template into the directory of the project
      * @param template
      * @param directory
+     * @return the paths of the files of the project, relative to its directory
      */
-    protected async pull(template: Template, directory: string): Promise<string[]> {
-        const url: string = `${Settings.templateDownload}/${template.repository}/tar.gz/refs/heads/${template.branch}`
-        const response: Response = await fetch(url, {headers: {'User-Agent': 'lakutata-cli'}, signal: AbortSignal.timeout(60000)})
-        if (!response.ok) throw new Error(`The template ${template.name} cannot be downloaded from ${url}: ${response.status} ${response.statusText}`)
-        return await ExtractTarGz(Buffer.from(await response.arrayBuffer()), directory, 1)
+    protected async copy(template: PreparedTemplate, directory: string): Promise<string[]> {
+        await cp(template.root, directory, {
+            recursive: true,
+            filter: (source: string): boolean => !SKIPPED.includes(path.basename(source))
+        })
+        const files: string[] = []
+        for (const file of await ListFiles(directory)) {
+            const name: string = path.basename(file)
+            //"_gitignore" becomes ".gitignore"
+            if (name.startsWith('_') && DOTFILES.includes(name.slice(1))) {
+                const renamed: string = path.join(path.dirname(file), `.${name.slice(1)}`)
+                await rename(path.join(directory, file), path.join(directory, renamed))
+                files.push(renamed)
+            } else {
+                files.push(file)
+            }
+        }
+        return files
     }
 
     /**
@@ -104,15 +142,22 @@ export class ProjectCreator extends Component {
      */
     public async create(plan: ProjectPlan): Promise<void> {
         await this.checkDirectory(plan.directory, plan.init)
-        Step(`Downloading the template ${plan.template.name}`)
-        const files: string[] = await this.pull(plan.template, plan.directory)
-        Done(`Template ${plan.template.name} downloaded (${files.length} files)`)
+        Step('Getting the template')
+        const template: PreparedTemplate = await this.catalog.prepare(plan.template)
+        let files: string[]
+        try {
+            files = await this.copy(template, plan.directory)
+        } finally {
+            await template.cleanup()
+        }
+        Done(`Template ${template.label} copied (${files.length} files)`)
         await this.fill(plan.directory, files, {
             $APP_NAME: plan.name,
             $APP_ID: plan.id,
             $APP_DESC: plan.description,
             $APP_AUTHOR: plan.author,
-            $APP_LICENSE: plan.license
+            $APP_LICENSE: plan.license,
+            $LAKUTATA_VERSION: FrameworkVersion()
         })
         Done('Project information filled')
         if (plan.packageManager !== 'none') {

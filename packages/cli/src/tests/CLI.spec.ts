@@ -7,6 +7,7 @@ import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync}
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
+import {FrameworkVersion, ToolMajor} from '../lib/Versions.js'
 
 const CLI: string = fileURLToPath(new URL('../CLIApp.js', import.meta.url))
 
@@ -16,46 +17,66 @@ const CLI: string = fileURLToPath(new URL('../CLIApp.js', import.meta.url))
 const work: string = mkdtempSync(path.join(tmpdir(), 'lakutata-cli-'))
 
 /**
- * The requests received by the mirror of GitHub
+ * The requests received by the registry and by GitHub
  */
 let requests: string[] = []
 
 /**
- * Whether the mirror answers the listing of the repositories
+ * Whether the registry answers
  */
-let apiAvailable: boolean = true
+let registryAvailable: boolean = true
 
 let server: Server
 
 let base: string
 
 /**
- * The archive of a template repository: a root directory "<repo>-main" with the files of the template
+ * Pack a directory into a gzipped tar archive
+ * @param directory its files are under its name in the archive
  */
-function TemplateArchive(): Buffer {
-    const source: string = path.join(work, 'template', 'lakutata-template-default-main')
-    mkdirSync(path.join(source, 'src'), {recursive: true})
-    writeFileSync(path.join(source, 'package.json'), JSON.stringify({name: '{$APP_ID}', description: '{$APP_DESC}', author: '{$APP_AUTHOR}', license: '{$APP_LICENSE}', appName: '{$APP_NAME}', private: true}, null, 2))
-    writeFileSync(path.join(source, 'src', 'App.ts'), 'console.log(\'{$APP_NAME}\')\n')
-    //A binary file is not filled
-    writeFileSync(path.join(source, 'logo.bin'), Buffer.from([0, 1, 2, 123, 36, 65, 80, 80, 125]))
-    const archive: string = path.join(work, 'template', 'default.tar.gz')
-    //Without the AppleDouble files of macOS, as the archives of GitHub
-    execFileSync('tar', ['-czf', archive, '-C', path.dirname(source), path.basename(source)], {env: {...process.env, COPYFILE_DISABLE: '1'}})
+function Pack(directory: string): Buffer {
+    const archive: string = `${directory}.tgz`
+    //Without the AppleDouble files of macOS, as the archives of the registry and of GitHub
+    execFileSync('tar', ['-czf', archive, '-C', path.dirname(directory), path.basename(directory)], {env: {...process.env, COPYFILE_DISABLE: '1'}})
     return readFileSync(archive)
 }
 
 /**
- * The repositories of the owner: a first full page without templates, then the templates
- * @param page
+ * The archive of a template package: "package/" with its package.json and the files of the template in "package/template/"
+ * @param marker a text telling the version apart
  */
-function Repositories(page: number): unknown[] {
-    if (page === 1) return Array.from({length: 100}, (_: unknown, index: number): unknown => ({name: `other-${index}`, description: '', full_name: `lakutata/other-${index}`, default_branch: 'main'}))
-    return [
-        {name: 'lakutata-template-service', description: 'The service template', full_name: 'lakutata/lakutata-template-service', default_branch: 'main'},
-        {name: 'lakutata-template-default', description: 'The default template', full_name: 'lakutata/lakutata-template-default', default_branch: 'main'},
-        {name: 'lakutata-template-old', description: 'An archived template', full_name: 'lakutata/lakutata-template-old', default_branch: 'main', archived: true}
-    ]
+function TemplatePackage(marker: string): Buffer {
+    const root: string = path.join(work, 'packs', marker, 'package')
+    mkdirSync(path.join(root, 'template', 'src'), {recursive: true})
+    writeFileSync(path.join(root, 'package.json'), JSON.stringify({name: '@lakutata/template-default', version: marker}))
+    writeFileSync(path.join(root, 'template', 'package.json'), JSON.stringify({name: '{$APP_ID}', description: '{$APP_DESC}', author: '{$APP_AUTHOR}', license: '{$APP_LICENSE}', appName: '{$APP_NAME}', lakutata: '^{$LAKUTATA_VERSION}', private: true}, null, 2))
+    writeFileSync(path.join(root, 'template', 'src', 'App.ts'), `console.log('{$APP_NAME}', '${marker}')\n`)
+    writeFileSync(path.join(root, 'template', '_gitignore'), 'node_modules\n')
+    //A binary file is not filled
+    writeFileSync(path.join(root, 'template', 'logo.bin'), Buffer.from([0, 1, 2, 123, 36, 65, 80, 80, 125]))
+    return Pack(root)
+}
+
+/**
+ * The archive of a package of another author, without template/: the package is the template
+ */
+function OtherPackage(): Buffer {
+    const root: string = path.join(work, 'packs', 'other', 'package')
+    mkdirSync(root, {recursive: true})
+    writeFileSync(path.join(root, 'package.json'), JSON.stringify({name: '{$APP_ID}', private: true}))
+    writeFileSync(path.join(root, 'index.js'), 'export default \'{$APP_NAME}\'\n')
+    return Pack(root)
+}
+
+/**
+ * The archive of a GitHub repository: a root directory "<repo>-<ref>" with the template
+ */
+function Repository(): Buffer {
+    const root: string = path.join(work, 'packs', 'github', 'my-template-main')
+    mkdirSync(root, {recursive: true})
+    writeFileSync(path.join(root, 'package.json'), JSON.stringify({name: '{$APP_ID}', private: true}))
+    writeFileSync(path.join(root, 'README.md'), '# {$APP_NAME}\n')
+    return Pack(root)
 }
 
 /**
@@ -69,9 +90,8 @@ function Run(args: string[], cwd: string = work): Promise<{ code: number, stdout
             cwd: cwd,
             env: {
                 ...process.env,
-                LAKUTATA_TEMPLATE_API: base,
-                LAKUTATA_TEMPLATE_DOWNLOAD: base,
                 LAKUTATA_NPM_REGISTRY: base,
+                LAKUTATA_GITHUB_DOWNLOAD: base,
                 LAKUTATA_CACHE_DIR: path.join(work, 'cache'),
                 npm_config_user_agent: ''
             }
@@ -81,17 +101,32 @@ function Run(args: string[], cwd: string = work): Promise<{ code: number, stdout
 
 describe('The command line tool', (): void => {
 
+    //The versions of the template: an older and the newest of the major version of the tool, and the next major version
+    const major: number = ToolMajor()
+    const versions: string[] = [`${major}.0.1`, `${major}.9.0`, `${major + 1}.0.0`, `${major}.10.0-beta.1`]
+
     before(async (): Promise<void> => {
-        const archive: Buffer = TemplateArchive()
+        const tarballs: Map<string, Buffer> = new Map(versions.map((version: string): [string, Buffer] => [version, TemplatePackage(version)]))
+        const other: Buffer = OtherPackage()
+        const repository: Buffer = Repository()
         server = createServer((request: IncomingMessage, response: ServerResponse): void => {
             const url: URL = new URL(request.url!, 'http://localhost')
-            requests.push(url.pathname + url.search)
-            if (url.pathname === '/users/lakutata/repos') {
-                if (!apiAvailable) return void response.writeHead(503).end()
-                return void response.writeHead(200, {'Content-Type': 'application/json'}).end(JSON.stringify(Repositories(Number(url.searchParams.get('page')))))
+            requests.push(url.pathname)
+            const json = (data: unknown): void => void response.writeHead(200, {'Content-Type': 'application/json'}).end(JSON.stringify(data))
+            if (url.pathname.startsWith('/tarballs/')) {
+                const [kind, version] = url.pathname.slice('/tarballs/'.length).split('/')
+                if (kind === 'default') return void response.writeHead(200).end(tarballs.get(version))
+                return void response.writeHead(200).end(other)
             }
-            if (url.pathname === '/lakutata/lakutata-template-default/tar.gz/refs/heads/main') return void response.writeHead(200, {'Content-Type': 'application/gzip'}).end(archive)
-            if (url.pathname === '/lakutata/latest') return void response.writeHead(200, {'Content-Type': 'application/json'}).end(JSON.stringify({version: '3.0.0'}))
+            if (url.pathname === '/me/my-template/archive/HEAD.tar.gz') return void response.writeHead(200).end(repository)
+            if (!registryAvailable) return void response.writeHead(503).end()
+            if (url.pathname === '/@lakutata%2ftemplates/latest') return json({name: '@lakutata/templates', version: '1.0.0', lakutata: {templates: [
+                {name: 'default', description: 'The default template', package: '@lakutata/template-default'},
+                {name: 'service', description: 'The service template', package: '@lakutata/template-service'}
+            ]}})
+            if (url.pathname === '/@lakutata%2ftemplate-default') return json({versions: Object.fromEntries(versions.map((version: string): [string, unknown] => [version, {dist: {tarball: `${base}/tarballs/default/${version}`}}]))})
+            if (url.pathname === '/@me%2ftemplate') return json({versions: {'1.0.0': {dist: {tarball: `${base}/tarballs/other/1.0.0`}}}})
+            if (url.pathname === '/lakutata/latest') return json({name: 'lakutata', version: '9.9.9'})
             response.writeHead(404).end()
         })
         await new Promise<void>((resolve: () => void): unknown => server.listen(0, '127.0.0.1', resolve))
@@ -103,68 +138,92 @@ describe('The command line tool', (): void => {
         rmSync(work, {recursive: true, force: true})
     })
 
-    it('lists the templates of all the pages, and keeps the list', async (): Promise<void> => {
+    it('lists the official templates of the catalog, and keeps it', async (): Promise<void> => {
+        //Without the catalog nor its cache, the templates known by the tool
+        registryAvailable = false
+        const builtin = await Run(['templates'])
+        registryAvailable = true
+        assert.strictEqual(builtin.code, 0, builtin.stderr)
+        assert.match(builtin.stderr, /the templates known by the tool are listed/)
+        assert.match(builtin.stdout, /default/)
         requests = []
         const listed = await Run(['templates'])
         assert.strictEqual(listed.code, 0, listed.stderr)
         assert.match(listed.stdout, /default\s+The default template\n\s+service\s+The service template/)
-        assert.doesNotMatch(listed.stdout, /old/)
-        assert.deepStrictEqual(requests, ['/users/lakutata/repos?per_page=100&page=1', '/users/lakutata/repos?per_page=100&page=2'])
-        //The list is cached, --refresh fetches it again
+        assert.match(listed.stdout, /npm:<package>, github:<owner>\/<repo>, or a directory/)
+        assert.deepStrictEqual(requests, ['/@lakutata%2ftemplates/latest'])
+        //The catalog is cached, --refresh fetches it again, the cache is used when the registry cannot be reached
         requests = []
         await Run(['templates'])
         assert.deepStrictEqual(requests, [])
-        await Run(['templates', '--refresh'])
-        assert.strictEqual(requests.length, 2)
-        //When it cannot be fetched, the cached list is used
-        apiAvailable = false
+        registryAvailable = false
         const offline = await Run(['templates', '--refresh'])
-        apiAvailable = true
-        assert.strictEqual(offline.code, 0)
-        assert.match(offline.stderr, /cannot be fetched: 503/)
-        assert.match(offline.stdout, /default/)
+        registryAvailable = true
+        assert.match(offline.stderr, /the catalog of .* is used/)
+        assert.match(offline.stdout, /service/)
     })
 
-    it('creates a project from a template', async (): Promise<void> => {
+    it('creates a project from the newest official template of the major version of the tool', async (): Promise<void> => {
+        requests = []
         const result = await Run(['create', '--name', 'Demo', '--description', 'A demo app', '--author', 'Alex', '--package-manager', 'npm', '--yes'])
         assert.strictEqual(result.code, 0, result.stderr)
-        assert.match(result.stdout, /Template default downloaded \(3 files\)/)
-        assert.match(result.stdout, /Dependencies installed/)
+        assert.ok(requests.includes(`/tarballs/default/${major}.9.0`), requests.join(', '))
+        assert.match(result.stdout, new RegExp(`Template @lakutata/template-default@${major}\\.9\\.0 copied \\(4 files\\)`))
         const directory: string = path.join(work, 'Demo')
-        assert.deepStrictEqual(JSON.parse(readFileSync(path.join(directory, 'package.json'), 'utf8')), {name: 'demo', description: 'A demo app', author: 'Alex', license: 'UNLICENSED', appName: 'Demo', private: true})
-        assert.strictEqual(readFileSync(path.join(directory, 'src', 'App.ts'), 'utf8'), 'console.log(\'Demo\')\n')
+        assert.deepStrictEqual(JSON.parse(readFileSync(path.join(directory, 'package.json'), 'utf8')), {name: 'demo', description: 'A demo app', author: 'Alex', license: 'UNLICENSED', appName: 'Demo', lakutata: `^${FrameworkVersion()}`, private: true})
+        assert.strictEqual(readFileSync(path.join(directory, 'src', 'App.ts'), 'utf8'), `console.log('Demo', '${major}.9.0')\n`)
         assert.deepStrictEqual([...readFileSync(path.join(directory, 'logo.bin'))], [0, 1, 2, 123, 36, 65, 80, 80, 125])
+        //The npm packages cannot hold .gitignore
+        assert.strictEqual(readFileSync(path.join(directory, '.gitignore'), 'utf8'), 'node_modules\n')
+        assert.ok(!existsSync(path.join(directory, '_gitignore')))
         assert.ok(existsSync(path.join(directory, 'package-lock.json')))
         if (spawnSync('git', ['--version']).status === 0) assert.ok(existsSync(path.join(directory, '.git')))
         assert.match(result.stdout, /cd Demo/)
+    })
+
+    it('creates the projects from the cached template when the registry cannot be reached', async (): Promise<void> => {
+        registryAvailable = false
+        const result = await Run(['create', '--name', 'Offline', '--package-manager', 'none', '--no-git'])
+        registryAvailable = true
+        assert.strictEqual(result.code, 0, result.stderr)
+        assert.match(result.stderr, new RegExp(`the cached @lakutata/template-default@${major}\\.9\\.0 is used`))
+        assert.ok(existsSync(path.join(work, 'Offline', 'src', 'App.ts')))
+    })
+
+    it('creates the projects from the other templates', async (): Promise<void> => {
+        const fromNpm = await Run(['create', '--name', 'fromnpm', '--template', 'npm:@me/template@1.0.0', '--package-manager', 'none', '--no-git'])
+        assert.strictEqual(fromNpm.code, 0, fromNpm.stderr)
+        assert.strictEqual(readFileSync(path.join(work, 'fromnpm', 'index.js'), 'utf8'), 'export default \'fromnpm\'\n')
+        const fromGitHub = await Run(['create', '--name', 'fromgithub', '--template', 'github:me/my-template', '--package-manager', 'none', '--no-git'])
+        assert.strictEqual(fromGitHub.code, 0, fromGitHub.stderr)
+        assert.strictEqual(readFileSync(path.join(work, 'fromgithub', 'README.md'), 'utf8'), '# fromgithub\n')
+        //A local template package: its template/ directory
+        const local: string = path.join(work, 'packs', `${major}.0.1`, 'package')
+        const fromDirectory = await Run(['create', '--name', 'fromdir', '--template', local, '--package-manager', 'none', '--no-git'])
+        assert.strictEqual(fromDirectory.code, 0, fromDirectory.stderr)
+        assert.strictEqual(readFileSync(path.join(work, 'fromdir', 'src', 'App.ts'), 'utf8'), `console.log('fromdir', '${major}.0.1')\n`)
+        assert.ok(existsSync(path.join(work, 'fromdir', '.gitignore')))
     })
 
     it('creates a project in an existing directory', async (): Promise<void> => {
         const directory: string = path.join(work, 'existing')
         mkdirSync(directory)
         writeFileSync(path.join(directory, 'README.md'), 'kept')
-        const refused = await Run(['create', '--name', 'app', '--path', directory, '--package-manager', 'none', '--no-git'], directory)
-        assert.strictEqual(refused.code, 0, refused.stderr)
-        //Without --init, a project directory is created in it
-        assert.ok(existsSync(path.join(directory, 'app', 'package.json')))
         const created = await Run(['create', '--name', 'here', '--path', directory, '--init', '--package-manager', 'none', '--no-git'], directory)
         assert.strictEqual(created.code, 0, created.stderr)
         assert.strictEqual(readFileSync(path.join(directory, 'README.md'), 'utf8'), 'kept')
         assert.strictEqual(JSON.parse(readFileSync(path.join(directory, 'package.json'), 'utf8')).name, 'here')
-        assert.ok(!existsSync(path.join(directory, '.git')))
     })
 
     it('fails with the errors of the arguments', async (): Promise<void> => {
         const notEmpty = await Run(['create', '--name', 'Demo', '--package-manager', 'none'])
         assert.strictEqual(notEmpty.code, 1)
         assert.match(notEmpty.stderr, /is not empty/)
-        const unknown = await Run(['create', '--name', 'x', '--template', 'nope'])
+        const unknown = await Run(['create', '--name', 'x', '--template', 'nope', '--package-manager', 'none'])
         assert.strictEqual(unknown.code, 1)
-        assert.match(unknown.stderr, /The template "nope" does not exist, the templates are: default, service/)
+        assert.match(unknown.stderr, /The template "nope" does not exist \(@lakutata\/template-nope is not on .*\), the templates are: default, service/)
         const invalid = await Run(['create', '--name', 'bad name!'])
         assert.strictEqual(invalid.code, 1)
-        assert.match(invalid.stderr, /name/)
-        //Without a terminal, the missing options are not asked
         const missing = await Run(['create'])
         assert.strictEqual(missing.code, 1)
         assert.match(missing.stderr, /required option '--name <value>'/)
@@ -173,7 +232,6 @@ describe('The command line tool', (): void => {
     it('shows the versions', async (): Promise<void> => {
         const info = await Run(['info'])
         assert.strictEqual(info.code, 0, info.stderr)
-        assert.match(info.stdout, /Framework\s+lakutata \S+ \(latest 3\.0\.0\)/)
-        assert.match(info.stdout, /Node\.js\s+v\d+/)
+        assert.match(info.stdout, /Framework\s+lakutata \S+ \(latest 9\.9\.9\)/)
     })
 })

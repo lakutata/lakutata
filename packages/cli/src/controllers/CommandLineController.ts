@@ -4,7 +4,7 @@ import {CLIAction} from 'lakutata/decorator/ctrl'
 import {Inject} from 'lakutata/decorator/di'
 import {CreateProjectDTO} from '../dtos/CreateProjectDTO.js'
 import {ListTemplatesDTO} from '../dtos/ListTemplatesDTO.js'
-import {type Template, TemplateCatalog} from '../lib/TemplateCatalog.js'
+import {TemplateCatalog, type TemplateInfo, type TemplateSource} from '../lib/TemplateCatalog.js'
 import {ProjectCreator, type ProjectPlan} from '../lib/ProjectCreator.js'
 import {DetectPackageManager} from '../lib/Processes.js'
 import {Styled, Table} from '../lib/Output.js'
@@ -27,7 +27,7 @@ export class CommandLineController extends Controller {
 
     @CLIAction('create', CreateProjectDTO, {description: 'Create a lakutata project from a template'})
     public async create(input: CreateProjectDTO): Promise<string> {
-        const template: Template = await this.catalog.find(input.template)
+        const template: TemplateSource = await this.catalog.resolve(input.template)
         const directory: string = input.init ? path.resolve(input.path) : path.resolve(input.path, input.name)
         await this.creator.checkDirectory(directory, input.init)
         const plan: ProjectPlan = {
@@ -48,7 +48,7 @@ export class CommandLineController extends Controller {
             ['Description', plan.description || '-'],
             ['Author', plan.author || '-'],
             ['License', plan.license],
-            ['Template', `${template.name} (${template.repository})`],
+            ['Template', input.template],
             ['Directory', directory],
             ['Dependencies', plan.packageManager === 'none' ? 'not installed' : `installed with ${plan.packageManager}`],
             ['Git', plan.git ? 'initialized' : 'not initialized']
@@ -66,8 +66,10 @@ export class CommandLineController extends Controller {
 
     @CLIAction('templates', ListTemplatesDTO, {description: 'List the project templates'})
     public async templates(input: ListTemplatesDTO): Promise<string> {
-        const templates: Template[] = await this.catalog.list(input.refresh)
-        return Table(templates.map((template: Template): [string, string] => [template.name, template.description]), 'The templates (lakutata create --template <name>)')
+        const templates: TemplateInfo[] = await this.catalog.list(input.refresh)
+        return `${Table(templates.map((template: TemplateInfo): [string, string] => [template.name, template.description]), 'The templates (lakutata create --template <name>)')}
+Other templates: --template npm:<package>, github:<owner>/<repo>, or a directory
+`
     }
 
     @CLIAction('info', {description: 'Show the versions of the tool and of the framework'})

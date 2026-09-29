@@ -101,16 +101,16 @@ export function ReadTar(archive: Buffer): TarEntry[] {
  * Extract a gzipped tar archive into a directory
  * @param archive
  * @param directory
- * @param strip the number of the leading path elements removed (the root directory of the archives of GitHub)
+ * @param select the path of an entry in the directory, from its path in the archive (without its leading "/"), undefined to skip it
  * @return the paths of the files extracted, relative to the directory
  */
-export async function ExtractTarGz(archive: Buffer, directory: string, strip: number = 0): Promise<string[]> {
+export async function ExtractTarGz(archive: Buffer, directory: string, select: (name: string) => string | undefined = (name: string): string => name): Promise<string[]> {
     const root: string = path.resolve(directory)
     const files: string[] = []
     for (const entry of ReadTar(gunzipSync(archive))) {
-        const relative: string = entry.name.split('/').filter((part: string): boolean => !!part).slice(strip).join('/')
-        if (!relative) continue
-        const target: string = path.resolve(root, relative)
+        const selected: string | undefined = select(entry.name.split('/').filter((part: string): boolean => !!part).join('/'))
+        if (!selected) continue
+        const target: string = path.resolve(root, selected)
         //An entry cannot be written outside of the directory
         if (target !== root && !target.startsWith(`${root}${path.sep}`)) throw new Error(`The archive entry "${entry.name}" is outside of the target directory`)
         switch (entry.type) {
@@ -123,7 +123,7 @@ export async function ExtractTarGz(archive: Buffer, directory: string, strip: nu
                 await writeFile(target, entry.data)
                 //The executable bits are kept (the scripts of the templates)
                 if (entry.mode & 0o111) await chmod(target, 0o755)
-                files.push(relative)
+                files.push(selected)
                 break
             }
             case '2': {
@@ -139,4 +139,14 @@ export async function ExtractTarGz(archive: Buffer, directory: string, strip: nu
         }
     }
     return files
+}
+
+/**
+ * Select the entries of an archive under a path, without it
+ * @param prefix the path ("package/template"), or the number of the leading elements removed
+ */
+export function Under(prefix: string | number): (name: string) => string | undefined {
+    if (typeof prefix === 'number') return (name: string): string | undefined => name.split('/').slice(prefix).join('/') || undefined
+    const start: string = `${prefix.replace(/\/+$/, '')}/`
+    return (name: string): string | undefined => name.startsWith(start) ? name.slice(start.length) || undefined : undefined
 }

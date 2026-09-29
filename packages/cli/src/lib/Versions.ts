@@ -1,7 +1,7 @@
 import {readFile} from 'node:fs/promises'
 import {createRequire} from 'node:module'
 import path from 'node:path'
-import {Settings} from './Settings.js'
+import {LatestManifest} from './Registry.js'
 
 const require: NodeJS.Require = createRequire(import.meta.url)
 
@@ -24,12 +24,14 @@ export function FrameworkVersion(): string {
  * @param name
  */
 export async function LatestVersion(name: string): Promise<string | undefined> {
-    try {
-        const response: Response = await fetch(`${Settings.registry}/${name}/latest`, {signal: AbortSignal.timeout(5000)})
-        return response.ok ? ((await response.json()) as { version?: string }).version : undefined
-    } catch {
-        return undefined
-    }
+    return (await LatestManifest(name))?.version
+}
+
+/**
+ * The major version of the tool: the templates of the same major version are used
+ */
+export function ToolMajor(): number {
+    return Number(ToolPackage().version.split('.')[0])
 }
 
 /**

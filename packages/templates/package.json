@@ -1,0 +1,22 @@
+{
+  "name": "@lakutata/templates",
+  "version": "2.0.126",
+  "description": "The catalog of the official templates of the lakutata projects, read by @lakutata/cli.",
+  "keywords": [
+    "lakutata"
+  ],
+  "license": "MIT",
+  "files": [
+    "README.md",
+    "LICENSE"
+  ],
+  "lakutata": {
+    "templates": [
+      {
+        "name": "default",
+        "description": "A minimal application serving HTTP actions",
+        "package": "@lakutata/template-default"
+      }
+    ]
+  }
+}

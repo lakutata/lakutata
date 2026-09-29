@@ -5,7 +5,7 @@ import {mkdtempSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync, c
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {gzipSync} from 'node:zlib'
-import {ExtractTarGz} from '../lib/Tar.js'
+import {ExtractTarGz, Under} from '../lib/Tar.js'
 
 describe('Tar', (): void => {
 
@@ -22,11 +22,18 @@ describe('Tar', (): void => {
         //Without the AppleDouble files of macOS, as the archives of GitHub
         execFileSync('tar', ['-czf', archive, '-C', work, 'repo-main'], {env: {...process.env, COPYFILE_DISABLE: '1'}})
         const target: string = path.join(work, 'out')
-        const files: string[] = await ExtractTarGz(readFileSync(archive), target, 1)
+        const files: string[] = await ExtractTarGz(readFileSync(archive), target, Under(1))
         assert.deepStrictEqual(files.sort(), [long, 'package.json', 'run.sh'].sort())
         assert.strictEqual(readFileSync(path.join(target, long), 'utf8'), 'long')
         assert.ok(statSync(path.join(target, 'run.sh')).mode & 0o100)
         rmSync(work, {recursive: true, force: true})
+    })
+
+    it('selects the entries under a path', (): void => {
+        assert.strictEqual(Under('package/template')('package/template/src/App.ts'), 'src/App.ts')
+        assert.strictEqual(Under('package/template')('package/package.json'), undefined)
+        assert.strictEqual(Under(1)('repo-main/src/App.ts'), 'src/App.ts')
+        assert.strictEqual(Under(1)('repo-main'), undefined)
     })
 
     it('refuses the entries outside of the target directory', async (): Promise<void> => {
@@ -40,7 +47,7 @@ describe('Tar', (): void => {
         data.write('evil')
         const archive: Buffer = gzipSync(Buffer.concat([header, data, Buffer.alloc(1024)]))
         const target: string = mkdtempSync(path.join(tmpdir(), 'lakutata-tar-'))
-        await assert.rejects(ExtractTarGz(archive, target, 1), /outside of the target directory/)
+        await assert.rejects(ExtractTarGz(archive, target, Under(1)), /outside of the target directory/)
         rmSync(target, {recursive: true, force: true})
     })
 })
