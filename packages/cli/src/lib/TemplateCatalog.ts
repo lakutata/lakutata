@@ -60,7 +60,8 @@ const CATALOG_PACKAGE: string = '@lakutata/templates'
  * The official templates known when the tool was released, when the catalog cannot be fetched
  */
 const BUILTIN_TEMPLATES: TemplateInfo[] = [
-    {name: 'default', description: 'A minimal application serving HTTP actions', package: '@lakutata/template-default'}
+    {name: 'default', description: 'A minimal application serving HTTP actions', package: '@lakutata/template-default'},
+    {name: 'service', description: 'An HTTP API deployed as a Docker image', package: '@lakutata/template-service'}
 ]
 
 /**

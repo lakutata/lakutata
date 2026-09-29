@@ -1,0 +1,27 @@
+{
+  "name": "app",
+  "version": "0.0.1",
+  "description": "{$APP_DESC}",
+  "author": "{$APP_AUTHOR}",
+  "license": "{$APP_LICENSE}",
+  "private": true,
+  "type": "module",
+  "main": "build/App.js",
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('build', {recursive: true, force: true})\"",
+    "build": "tsc",
+    "rebuild": "npm run clean && npm run build",
+    "dev": "npm run rebuild && node build/App.js",
+    "start": "node build/App.js",
+    "test": "node --test \"build/tests/**/*.spec.js\""
+  },
+  "dependencies": {
+    "compression": "^1.8.1",
+    "express": "^5.2.1",
+    "lakutata": "^{$LAKUTATA_VERSION}"
+  },
+  "devDependencies": {
+    "@types/compression": "^1.8.1",
+    "@types/express": "^5.0.6"
+  }
+}

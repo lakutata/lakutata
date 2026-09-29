@@ -1,0 +1,22 @@
+{
+  "name": "@lakutata/template-service",
+  "version": "2.0.126",
+  "description": "The service template of the lakutata projects: an HTTP API deployed as a Docker image.",
+  "keywords": [
+    "lakutata",
+    "lakutata-template"
+  ],
+  "license": "MIT",
+  "files": [
+    "template",
+    "README.md",
+    "LICENSE"
+  ],
+  "lakutata": {
+    "template": "service"
+  },
+  "devDependencies": {
+    "compression": "^1.8.1",
+    "@types/compression": "^1.8.1"
+  }
+}

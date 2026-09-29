@@ -42,15 +42,40 @@ function Link(project: string, name: string, target: string): void {
     symlinkSync(target, link, 'dir')
 }
 
+/**
+ * Install the dependencies of a project from the repository: the framework and the tool are its packages, the others its dependencies
+ * @param project
+ * @param names the third-party dependencies
+ */
+function Install(project: string, names: string[]): void {
+    Link(project, 'lakutata', path.join(ROOT, 'packages', 'lakutata'))
+    Link(project, '@lakutata/cli', path.join(ROOT, 'packages', 'cli'))
+    for (const name of names) Link(project, name, path.join(ROOT, 'node_modules', name))
+    //The commands of the scripts
+    mkdirSync(path.join(project, 'node_modules', '.bin'), {recursive: true})
+    symlinkSync(path.join(ROOT, 'node_modules', 'typescript', 'bin', 'tsc'), path.join(project, 'node_modules', '.bin', 'tsc'))
+    symlinkSync(CLI, path.join(project, 'node_modules', '.bin', 'lakutata'))
+}
+
+/**
+ * Create a project from a template of the repository
+ * @param template
+ * @param name
+ */
+async function Create(template: string, name: string): Promise<string> {
+    const created = await Run(process.execPath, [CLI, 'create', '--name', name, '--template', path.join(ROOT, 'packages', `template-${template}`), '--package-manager', 'none', '--no-git', '--yes'], work)
+    assert.strictEqual(created.code, 0, created.output)
+    const project: string = path.join(work, name)
+    assert.ok(existsSync(path.join(project, '.gitignore')))
+    return project
+}
+
 describe('The templates of the repository', (): void => {
 
     after((): void => rmSync(work, {recursive: true, force: true}))
 
     it('creates a project from the default template which builds and passes its tests with the framework of the repository', async (): Promise<void> => {
-        const created = await Run(process.execPath, [CLI, 'create', '--name', 'Demo', '--template', path.join(ROOT, 'packages', 'template-default'), '--package-manager', 'none', '--no-git', '--yes'], work)
-        assert.strictEqual(created.code, 0, created.output)
-        const project: string = path.join(work, 'Demo')
-        assert.ok(existsSync(path.join(project, '.gitignore')))
+        const project: string = await Create('default', 'Demo')
         assert.doesNotMatch(readFileSync(path.join(project, 'src', 'config', 'Config.ts'), 'utf8'), /\{\$APP_/)
         //The dependencies of the project are the packages of the repository
         Link(project, 'lakutata', path.join(ROOT, 'packages', 'lakutata'))
@@ -60,5 +85,19 @@ describe('The templates of the repository', (): void => {
         const tested = await Run(process.execPath, ['--test', 'build/tests/App.spec.js'], project)
         assert.strictEqual(tested.code, 0, tested.output)
         assert.match(tested.output, /pass 1/)
+    })
+
+    it('creates a service whose workspace builds and passes its tests', async (): Promise<void> => {
+        const project: string = await Create('service', 'Orders')
+        assert.ok(existsSync(path.join(project, '.dockerignore')))
+        assert.ok(existsSync(path.join(project, 'Dockerfile')))
+        assert.doesNotMatch(readFileSync(path.join(project, 'packages', 'app', 'src', 'config', 'Config.ts'), 'utf8'), /\{\$APP_/)
+        Install(project, ['express', 'compression', '@types/express', '@types/compression', '@types/node'])
+        //The scripts of the workspace: its packages built in order, then tested
+        const built = await Run(process.execPath, [CLI, 'run', 'rebuild'], project)
+        assert.strictEqual(built.code, 0, built.output)
+        const tested = await Run(process.execPath, [CLI, 'run', 'test'], project)
+        assert.strictEqual(tested.code, 0, tested.output)
+        assert.match(tested.output, /pass 3/)
     })
 })
