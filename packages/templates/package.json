@@ -18,6 +18,11 @@
         "package": "@lakutata/template-default"
       },
       {
+        "name": "cli",
+        "description": "A command line tool, bundled into one file or made into executables",
+        "package": "@lakutata/template-cli"
+      },
+      {
         "name": "service",
         "description": "An HTTP API deployed as a Docker image",
         "package": "@lakutata/template-service"

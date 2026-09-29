@@ -1,0 +1,38 @@
+{
+  "name": "{$APP_ID}",
+  "version": "0.0.1",
+  "description": "{$APP_DESC}",
+  "author": "{$APP_AUTHOR}",
+  "license": "{$APP_LICENSE}",
+  "private": true,
+  "type": "module",
+  "main": "build/App.js",
+  "bin": {
+    "{$APP_ID}": "build/App.js"
+  },
+  "files": [
+    "build",
+    "!build/tests"
+  ],
+  "scripts": {
+    "clean": "node -e \"for (const d of ['build', 'dist']) require('node:fs').rmSync(d, {recursive: true, force: true})\"",
+    "build": "npm run clean && tsc",
+    "start": "node build/App.js",
+    "test": "npm run build && node --test \"build/tests/**/*.spec.js\"",
+    "bundle": "npm run build && lakutata bundle",
+    "executable": "npm run build && lakutata executable"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^8.7.2",
+    "commander": "^15.0.0",
+    "lakutata": "^{$LAKUTATA_VERSION}"
+  },
+  "devDependencies": {
+    "@lakutata/cli": "^{$LAKUTATA_VERSION}",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

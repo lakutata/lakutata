@@ -124,6 +124,26 @@ describe('The templates of the repository', (): void => {
         assert.match(tested.output, /pass 1/)
     })
 
+    it('creates a command line tool which passes its tests, and is bundled and made into an executable', async (): Promise<void> => {
+        const project: string = await Create('cli', 'Greeter')
+        assert.doesNotMatch(readFileSync(path.join(project, 'src', 'config', 'Config.ts'), 'utf8'), /\{\$APP_/)
+        assert.strictEqual(JSON.parse(readFileSync(path.join(project, 'package.json'), 'utf8')).bin.greeter, 'build/App.js')
+        Install(project, ['@types/node'])
+        const tested = await Run('npm', ['test'], project)
+        assert.strictEqual(tested.code, 0, tested.output)
+        assert.match(tested.output, /pass 4/)
+        //The bundle and the executable have the dependencies and the version of the tool
+        const bundled = await Run('npm', ['run', 'bundle'], project)
+        assert.strictEqual(bundled.code, 0, bundled.output)
+        const bundle = await Run(process.execPath, [path.join(project, 'dist', 'greeter.cjs'), 'greet', '--name', 'bundle'], work)
+        assert.strictEqual(bundle.output.trim(), 'Hello, bundle!')
+        const made = await Run('npm', ['run', 'executable'], project)
+        assert.strictEqual(made.code, 0, made.output)
+        const executable: string = path.join(project, 'dist', process.platform === 'win32' ? 'greeter.exe' : 'greeter')
+        assert.strictEqual((await Run(executable, ['greet', '--name', 'executable', '--loud'], work)).output.trim(), 'HELLO, EXECUTABLE!')
+        assert.strictEqual((await Run(executable, ['--version'], work)).output.trim(), '0.0.1')
+    })
+
     it('creates a service whose workspace builds and passes its tests', async (): Promise<void> => {
         const project: string = await Create('service', 'Orders')
         assert.ok(existsSync(path.join(project, '.dockerignore')))
