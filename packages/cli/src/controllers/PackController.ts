@@ -5,8 +5,7 @@ import {BundleDTO} from '../dtos/BundleDTO.js'
 import {ExecutableDTO} from '../dtos/ExecutableDTO.js'
 import {Done, Step} from '../lib/Output.js'
 import {BundleProject, type BundleResult} from '../lib/pack/Bundle.js'
-import {BuildExecutables, type ExecutableResult} from '../lib/pack/Executable.js'
-import {ParseTarget} from '../lib/pack/NodeBinary.js'
+import {BuildExecutable, type ExecutableResult} from '../lib/pack/Executable.js'
 
 /**
  * A size in megabytes
@@ -17,7 +16,7 @@ function Megabytes(size: number): string {
 }
 
 /**
- * The commands packing the application of the current directory: into one JavaScript file, or into executables
+ * The commands packing the application of the current directory: into one JavaScript file, or into an executable
  */
 export class PackController extends Controller {
 
@@ -30,13 +29,12 @@ export class PackController extends Controller {
         return undefined
     }
 
-    @CLIAction('executable', ExecutableDTO, {description: 'Make the executables of the compiled application, which run without Node.js installed'})
+    @CLIAction('executable', ExecutableDTO, {description: 'Make the executable of the compiled application for this platform, which runs without Node.js installed'})
     public async executable(input: ExecutableDTO): Promise<undefined> {
-        const targets = input.target?.map(ParseTarget)
-        Step(`Node.js ${process.version} embedded${targets ? `, for ${targets.map(({name}): string => name).join(', ')}` : ''}`)
-        const result: ExecutableResult = await BuildExecutables({project: process.cwd(), entry: input.entry, outdir: input.outdir, minify: input.minify, external: input.external, targets: targets})
+        Step(`Node.js ${process.version} embedded`)
+        const result: ExecutableResult = await BuildExecutable({project: process.cwd(), entry: input.entry, outdir: input.outdir, minify: input.minify, external: input.external})
         if (result.native.length) Step(`Native addons embedded, extracted at the first run: ${result.native.join(', ')}`)
-        for (const {target, file, size} of result.executables) Done(`${path.relative(process.cwd(), file)} (${target.name}, ${Megabytes(size)})`)
+        Done(`${path.relative(process.cwd(), result.file)} (${result.platform}, ${Megabytes(result.size)})`)
         return undefined
     }
 }

@@ -20,7 +20,6 @@
     "start": "node build/App.js",
     "test": "npm run compile && node --test \"build/tests/**/*.spec.js\"",
     "build": "npm run compile && lakutata executable",
-    "build:all": "npm run compile && lakutata executable --target linux-x64 linux-arm64 darwin-x64 darwin-arm64 win-x64",
     "bundle": "npm run compile && lakutata bundle"
   },
 

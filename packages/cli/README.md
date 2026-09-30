@@ -121,33 +121,28 @@ the application itself (`require('./x.node')`, `createRequire(import.meta.url)('
 
 ### `lakutata executable`
 
-Make the executables of the application, which run without Node.js installed: the bundle embedded in the Node.js binary
-of each platform (the single executable applications of Node.js). The Node.js embedded is the version running the tool.
-The executable of the current platform is `dist/<name>`; `--target` makes the ones of other platforms,
-`dist/<name>-<target>`, from the binaries of the Node.js distributions, downloaded once (and checked against their
-`SHASUMS256.txt`).
+Make the executable of the application for the platform it runs on, which runs without Node.js installed: the bundle
+embedded in the Node.js binary running the tool (the single executable applications of Node.js), `dist/<name>`
+(`dist/<name>.exe` on Windows). The Node.js embedded is the version running the tool.
 
-```bash
-lakutata executable --target linux-x64 linux-arm64 darwin-arm64 darwin-x64 win-x64
-```
+The executables of the other platforms are made on them, as the applications are built there: their native addons are
+built for them, and they are tried there. The CI gives the machines of the platforms (a matrix of the Linux, macOS and
+Windows runners); the Linux architectures are also made in a container of the architecture (`docker run --platform
+linux/arm64`, as the cross builds of the templates).
 
 | Option | |
 |---|---|
-| `--target <targets...>` | the platforms, as the Node.js distributions name them (`linux-x64`, `win-x64`…) or as Docker does (`linux/amd64`, `windows/amd64`…), the current one by default |
-| `--outdir <directory>` | the directory of the executables, `dist` by default |
+| `--outdir <directory>` | the directory of the executable, `dist` by default |
 | `--entry`, `--no-minify`, `--external` | as `lakutata bundle` |
 
-The native addons are embedded in the executables: at its first run, an executable extracts them into its cache directory
+The native addons are embedded in the executable: at its first run, it extracts them into its cache directory
 (`~/.cache/<name>`, `~/Library/Caches/<name>` on macOS, `%LOCALAPPDATA%\<name>\Cache` on Windows, or `LAKUTATA_NATIVE_DIR`;
 the temporary directory when it cannot be written), in a directory named after their content: the next runs load them
-from there, the versions of the program do not share it. The addons being the ones of the platform making the
-executable, the executables with native addons are made for this platform only: make the others on their platforms (a
-machine or a runner of the CI of the platform; for Linux, a container of the architecture: `docker run --platform linux/arm64`).
-The addons need the system libraries they were built for (the glibc version of the Linux prebuilt addons).
+from there, the versions of the program do not share it. The addons need the system libraries they were built for (the
+glibc version of the Linux prebuilt addons).
 
-The executables of macOS are signed ad hoc when they are made on macOS (on another system, sign them on macOS:
-`codesign --sign - <file>`). The ones of Windows keep the signature of `node.exe`, which does not match anymore: sign them
-before distributing them.
+The executables of macOS are signed ad hoc. The ones of Windows keep the signature of `node.exe`, which does not match
+anymore: sign them before distributing them.
 
 ## Environment
 
@@ -155,7 +150,6 @@ before distributing them.
 |---|---|
 | `LAKUTATA_NPM_REGISTRY` | the npm registry of the templates (`npm_config_registry`, or `https://registry.npmjs.org`) |
 | `LAKUTATA_GITHUB_DOWNLOAD` | a mirror of GitHub for the `github:` templates (`https://github.com`) |
-| `LAKUTATA_NODE_MIRROR` | the mirror of the Node.js distributions of the executables (`NVM_NODEJS_ORG_MIRROR`, or `https://nodejs.org/dist`) |
 | `LAKUTATA_CACHE_DIR` | the directory of the cache (`$XDG_CACHE_HOME/lakutata`, or `~/.cache/lakutata`) |
 
 The tool is itself a lakutata application: its commands are the CLI actions of a controller, served by the commander

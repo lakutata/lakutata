@@ -18,13 +18,6 @@ export const Settings = {
         return (process.env.LAKUTATA_GITHUB_DOWNLOAD ?? 'https://github.com').replace(/\/+$/, '')
     },
     /**
-     * The mirror of the distributions of Node.js, whose binaries the executables are made of (the one of nvm, NVM_NODEJS_ORG_MIRROR,
-     * by default)
-     */
-    get nodeMirror(): string {
-        return (process.env.LAKUTATA_NODE_MIRROR ?? process.env.NVM_NODEJS_ORG_MIRROR ?? 'https://nodejs.org/dist').replace(/\/+$/, '')
-    },
-    /**
      * The directory of the cache of the tool
      */
     get cacheDirectory(): string {

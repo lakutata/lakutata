@@ -2,18 +2,15 @@ import {DTO} from 'lakutata'
 import {Expect} from 'lakutata/decorator/dto'
 
 export class ExecutableDTO extends DTO {
-    @Expect(DTO.Array(DTO.String()).optional().description('The platforms of the executables: linux-x64, linux-arm64, darwin-arm64, darwin-x64, win-x64… or linux/amd64, linux/arm64, windows/amd64… (the current one by default)'))
-    public target?: string[]
-
     @Expect(DTO.String().optional().description('The compiled entry of the application (the "main" of the package.json by default)'))
     public entry?: string
 
-    @Expect(DTO.String().optional().description('The directory of the executables (dist by default)'))
+    @Expect(DTO.String().optional().description('The directory of the executable (dist by default)'))
     public outdir?: string
 
-    @Expect(DTO.Boolean().optional().default(true).description('Minify the bundle embedded in the executables'))
+    @Expect(DTO.Boolean().optional().default(true).description('Minify the bundle embedded in the executable'))
     public minify: boolean
 
-    @Expect(DTO.Array(DTO.String()).optional().description('The modules left out of the bundle (they are not in the executables: they are loaded from a node_modules next to them)'))
+    @Expect(DTO.Array(DTO.String()).optional().description('The modules left out of the bundle (they are not in the executable: they are loaded from a node_modules next to it)'))
     public external?: string[]
 }

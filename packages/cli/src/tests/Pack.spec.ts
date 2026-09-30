@@ -1,14 +1,10 @@
 import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
-import {createHash} from 'node:crypto'
 import {execFile, execFileSync, type ExecFileException} from 'node:child_process'
-import {cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync} from 'node:fs'
-import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http'
-import type {AddressInfo} from 'node:net'
+import {cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {HostTarget, ParseTarget} from '../lib/pack/NodeBinary.js'
 
 /**
  * The root of the repository
@@ -120,7 +116,7 @@ Application.run({
         assert.strictEqual(where.output.trim(), realpathSync(moved))
     })
 
-    it('makes the executable of the current platform, which runs without Node.js', async (): Promise<void> => {
+    it('makes the executable of this platform, which runs without Node.js', async (): Promise<void> => {
         const made = await Run(process.execPath, [CLI, 'executable', '--outdir', 'bin'])
         assert.strictEqual(made.code, 0, made.output)
         const executable: string = path.join(project, 'bin', process.platform === 'win32' ? 'greet.exe' : 'greet')
@@ -128,46 +124,10 @@ Application.run({
         const greeted = await Run(executable, ['greet', '--name', 'executable'], {PATH: ''})
         assert.strictEqual(greeted.code, 0, greeted.output)
         assert.strictEqual(greeted.output.trim(), 'Hello, executable!')
-    })
-
-    it('makes the executables of the other platforms from the Node.js binaries of the mirror, checked and cached', async (): Promise<void> => {
-        //A mirror whose node.exe of win-x64 is the running binary (injected, not run)
-        const binary: Buffer = readFileSync(process.execPath)
-        let digest: string = createHash('sha256').update(binary).digest('hex')
-        const requests: string[] = []
-        const server: Server = createServer((request: IncomingMessage, response: ServerResponse): void => {
-            requests.push(request.url!)
-            if (request.url === `/${process.version}/SHASUMS256.txt`) return void response.end(`${digest}  win-x64/node.exe\n0000  node-${process.version}-linux-x64.tar.gz\n`)
-            if (request.url === `/${process.version}/win-x64/node.exe`) return void response.end(binary)
-            response.statusCode = 404
-            response.end()
-        })
-        await new Promise((resolve: (value: unknown) => void): unknown => server.listen(0, '127.0.0.1', (): void => resolve(undefined)))
-        const mirror: string = `http://127.0.0.1:${(server.address() as AddressInfo).port}/`
-        try {
-            //A binary whose checksum is not the one of the mirror is refused
-            digest = '0'.repeat(64)
-            const refused = await Run(process.execPath, [CLI, 'executable', '--target', 'win-x64'], {LAKUTATA_NODE_MIRROR: mirror})
-            assert.strictEqual(refused.code, 1)
-            assert.match(refused.output, /is corrupted: its SHA-256 is/)
-            digest = createHash('sha256').update(binary).digest('hex')
-            //A platform without a build of the version
-            const missing = await Run(process.execPath, [CLI, 'executable', '--target', 'linux-riscv64'], {LAKUTATA_NODE_MIRROR: mirror})
-            assert.strictEqual(missing.code, 1)
-            assert.match(missing.output, /has no build for linux-riscv64/)
-            const made = await Run(process.execPath, [CLI, 'executable', '--target', 'win-x64'], {LAKUTATA_NODE_MIRROR: mirror})
-            assert.strictEqual(made.code, 0, made.output)
-            const executable: string = path.join(project, 'dist', 'greet-win-x64.exe')
-            //The binary with the application injected
-            assert.ok(statSync(executable).size > binary.length)
-            assert.ok(readFileSync(executable).includes('Hello, '))
-            //The binary is downloaded once
-            requests.length = 0
-            assert.strictEqual((await Run(process.execPath, [CLI, 'executable', '--target', 'win-x64'], {LAKUTATA_NODE_MIRROR: mirror})).code, 0)
-            assert.deepStrictEqual(requests, [])
-        } finally {
-            server.close()
-        }
+        //The executables of the other platforms are made on them
+        const refused = await Run(process.execPath, [CLI, 'executable', '--target', 'linux-x64'])
+        assert.notStrictEqual(refused.code, 0)
+        assert.match(refused.output, /--target/)
     })
 
     it('bundles an application without native addon as it is', (): void => {
@@ -175,20 +135,6 @@ Application.run({
         assert.ok(!existsSync(path.join(project, 'dist', 'greet.native')))
     })
 
-    it('names the platforms as the distributions of Node.js', (): void => {
-        assert.deepStrictEqual(ParseTarget('linux-arm64'), {name: 'linux-arm64', platform: 'linux', arch: 'arm64'})
-        assert.deepStrictEqual(ParseTarget('win-x64'), {name: 'win-x64', platform: 'win', arch: 'x64'})
-        //As Docker names them
-        assert.strictEqual(ParseTarget('linux/amd64').name, 'linux-x64')
-        assert.strictEqual(ParseTarget('linux/arm64').name, 'linux-arm64')
-        assert.strictEqual(ParseTarget('linux/arm/v7').name, 'linux-armv7l')
-        assert.deepStrictEqual(ParseTarget('windows/amd64'), {name: 'win-x64', platform: 'win', arch: 'x64'})
-        assert.strictEqual(ParseTarget('darwin/arm64').name, 'darwin-arm64')
-        assert.throws((): unknown => ParseTarget('windows-x64'), /Invalid target "windows-x64"/)
-        assert.throws((): unknown => ParseTarget('freebsd/amd64'), /Invalid target "freebsd\/amd64"/)
-        assert.throws((): unknown => ParseTarget('linux'), /Invalid target/)
-        assert.match(HostTarget().name, /^(linux|darwin|win)-/)
-    })
 })
 
 /**
@@ -300,14 +246,6 @@ void (async () => {
         assert.ok(existsSync(path.join(cache, 'native', extracted[0], '.complete')))
         //Then it runs from the cache
         assert.match((await RunNative(executable, [], {LAKUTATA_NATIVE_DIR: cache, PATH: ''}, directory)).output.trim(), EXPECTED)
-    })
-
-    it('refuses to make the executables of the other platforms with the native addons of this one', async (): Promise<void> => {
-        const other: string = HostTarget().platform === 'linux' ? 'win-x64' : 'linux-x64'
-        const refused = await RunNative(process.execPath, [CLI, 'executable', '--target', other])
-        assert.strictEqual(refused.code, 1)
-        assert.match(refused.output, new RegExp(`are built for ${HostTarget().name}: the executables of ${other} are made where their addons are built`))
-        assert.match(refused.output, /Run lakutata executable on these platforms/)
     })
 
     it('tells to await in a function instead of at the top level', async (): Promise<void> => {
