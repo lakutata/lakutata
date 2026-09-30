@@ -59,7 +59,7 @@
     "test:unit": "npm run compile && node --test \"dist/esm/tests/*.spec.js\""
   },
   "dependencies": {
-    "typeorm": "0.3.24",
+    "typeorm": "0.3.31",
     "@sqltools/formatter": "^1.2.5",
     "ansis": "4.2.0",
     "reflect-metadata": "0.2.2"
