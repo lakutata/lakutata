@@ -1,7 +1,7 @@
 import type {ActionPattern} from '@lakutata/core'
 import {GetObjectPropertyPaths, UniqueArray} from '@lakutata/core/helper'
 import {ChannelDefinition, ChannelEntry, ChannelMatch, ChannelMatcher, DefineChannel} from './Channel.js'
-import {PatternManager} from '../lib/PatternManager.js'
+import {PatternManager} from '../lib/pattern/PatternManager.js'
 import {StringifyPattern} from '../lib/StringifyPattern.js'
 import {PrefixCommand, PrefixPattern, PrefixRoute} from '../lib/Prefix.js'
 import {ContextType} from '../context/BaseContext.js'

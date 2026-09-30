@@ -98,9 +98,6 @@
     "compile": "npm run rebuild",
     "test:unit": "npm run compile && node --test \"dist/esm/tests/*.spec.js\""
   },
-  "dependencies": {
-    "patrun": "7.2.7"
-  },
   "peerDependencies": {
     "@inquirer/prompts": "^7.0.0 || ^8.0.0",
     "@lakutata/core": "2.0.126",
