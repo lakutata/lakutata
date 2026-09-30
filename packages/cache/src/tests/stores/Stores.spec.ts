@@ -4,10 +4,10 @@ import {mkdtemp, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {Container} from '@lakutata/core'
-import {Cacher, CacheStoreOptions} from '../../exports/Cacher.js'
+import {Cacher, CacheStoreOptions} from '../../exports/Cache.js'
 
 //The backends of docker-compose.test.yml
-const HOST: string = process.env.CACHER_TEST_HOST ?? '127.0.0.1'
+const HOST: string = process.env.CACHE_TEST_HOST ?? '127.0.0.1'
 
 type RawAccess = {
     //Read the stored data of a backend key
@@ -151,7 +151,7 @@ const VALUES: Record<string, unknown> = {
     unicode: '中文😀'
 }
 
-describe('Cache stores', {skip: !process.env.CACHER_TEST_STORES && 'set CACHER_TEST_STORES=1 with the backends of docker-compose.test.yml'}, (): void => {
+describe('Cache stores', {skip: !process.env.CACHE_TEST_STORES && 'set CACHE_TEST_STORES=1 with the backends of docker-compose.test.yml'}, (): void => {
 
     before(async (): Promise<void> => {
         directory = await mkdtemp(path.join(tmpdir(), 'cacher-stores-'))

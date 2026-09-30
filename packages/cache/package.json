@@ -1,19 +1,19 @@
 {
-  "name": "@lakutata/cacher",
+  "name": "@lakutata/cache",
   "version": "2.0.126",
   "description": "The cache component of the lakutata framework (memory, file, Redis, Memcache, MongoDB, SQLite, PostgreSQL, MySQL stores).",
   "type": "module",
-  "main": "./dist/cjs/exports/Cacher.js",
-  "types": "./dist/cjs/exports/Cacher.d.ts",
+  "main": "./dist/cjs/exports/Cache.js",
+  "types": "./dist/cjs/exports/Cache.d.ts",
   "exports": {
     ".": {
       "import": {
-        "types": "./dist/types/exports/Cacher.d.ts",
-        "default": "./dist/esm/exports/Cacher.js"
+        "types": "./dist/types/exports/Cache.d.ts",
+        "default": "./dist/esm/exports/Cache.js"
       },
       "require": {
-        "types": "./dist/cjs/exports/Cacher.d.ts",
-        "default": "./dist/cjs/exports/Cacher.js"
+        "types": "./dist/cjs/exports/Cache.d.ts",
+        "default": "./dist/cjs/exports/Cache.js"
       }
     },
     "./package.json": "./package.json"
@@ -27,7 +27,7 @@
     "rebuild": "npm run clean && npm run build:js",
     "compile": "npm run rebuild",
     "test:unit": "npm run compile && node --test \"dist/esm/tests/*.spec.js\"",
-    "test:stores": "npm run compile && CACHER_TEST_STORES=1 node --test --test-concurrency=1 \"dist/esm/tests/stores/*.spec.js\""
+    "test:stores": "npm run compile && CACHE_TEST_STORES=1 node --test --test-concurrency=1 \"dist/esm/tests/stores/*.spec.js\""
   },
   "peerDependencies": {
     "@lakutata/core": "2.0.126",

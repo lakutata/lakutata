@@ -18,9 +18,20 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: secret
       MYSQL_DATABASE: cache
+    # Over TCP: the temporary server of the initialization listens on the socket only
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', '127.0.0.1', '-uroot', '-psecret', '--silent']
+      interval: 2s
+      timeout: 5s
+      retries: 60
   postgres:
     image: postgres:16-alpine
     ports: ['15432:5432']
     environment:
       POSTGRES_PASSWORD: secret
       POSTGRES_DB: cache
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-h', '127.0.0.1', '-U', 'postgres']
+      interval: 2s
+      timeout: 5s
+      retries: 60

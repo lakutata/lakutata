@@ -289,7 +289,7 @@
     "@lakutata/core": "2.0.126",
     "@lakutata/logger": "2.0.126",
     "@lakutata/entrypoint": "2.0.126",
-    "@lakutata/cacher": "2.0.126",
+    "@lakutata/cache": "2.0.126",
     "@lakutata/utils": "2.0.126",
     "@lakutata/security": "2.0.126",
     "typeorm": "0.3.24",
