@@ -57,13 +57,16 @@ await check('@lakutata/dbus loads dbus-sdk under ESM', () => {
     if (typeof dbusPackage.DBusObjectManager !== 'function' || typeof dbusPackage.DBus !== 'function') throw new Error('DBus exports missing')
 })
 
-// dockerode (Docker component) — default import; construct does not connect
-const Dockerode = (await import('dockerode')).default
-await check('dockerode construct (no connect)', () => { new Dockerode({socketPath: '/nonexistent/docker.sock'}) })
-
-// patrun (Entrypoint dispatch) — named import
-const {Patrun} = await import('patrun')
-await check('patrun construct', () => { new Patrun() })
+// @lakutata/docker — the client of the Docker Engine API is integrated; tar-stream (CJS) packs the build contexts
+await check('CJS @lakutata/docker loads', () => {
+    if (typeof requireCJS('../packages/docker/dist/cjs/exports/Docker.js').Docker !== 'function') throw new Error('Docker missing')
+})
+const dockerPackage = await import('../packages/docker/dist/esm/exports/Docker.js')
+await check('@lakutata/docker loads under ESM', () => {
+    if (typeof dockerPackage.Docker !== 'function') throw new Error('Docker missing')
+})
+const {pack: TarPack} = await import('tar-stream')
+await check('tar-stream pack (build context)', () => { TarPack().finalize() })
 
 if (failures.length) {
     console.error('\nCJS-INTEROP FAILURES (' + failures.length + '):\n' + failures.join('\n'))

@@ -30,18 +30,18 @@
     "test:docker": "npm run compile && DOCKER_TEST=1 node --test --test-concurrency=1 \"dist/esm/tests/engine/*.spec.js\""
   },
   "dependencies": {
-    "dockerode": "4.0.9",
-    "tar-stream": "3.1.7",
-    "dockerfile-ast": "0.7.1",
-    "is-base64": "1.1.0",
-    "strip-ansi": "7.1.2",
-    "strip-bom": "5.0.0",
-    "@types/dockerode": "3.3.34"
+    "tar-stream": "3.1.7"
   },
   "peerDependencies": {
     "@lakutata/core": "2.0.126",
     "@lakutata/logger": "2.0.126",
-    "@lakutata/utils": "2.0.126"
+    "@lakutata/utils": "2.0.126",
+    "ssh2": "^1.15.0"
+  },
+  "peerDependenciesMeta": {
+    "ssh2": {
+      "optional": true
+    }
   },
   "engines": {
     "node": ">=22"
@@ -51,6 +51,7 @@
     "!dist/*/tests",
     "*.md",
     "LICENSE",
-    "package.json"
+    "package.json",
+    "THIRD_PARTY_NOTICES.md"
   ]
 }

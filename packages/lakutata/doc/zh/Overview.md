@@ -34,7 +34,7 @@ Lakutata 的功能按领域和用途分类，开发者可根据需求选择使�
 - **DTO 验证**：基于 Lakutata 自有的验证引擎进行数据结构验证，并可导出为 JSON Schema / OpenAPI Schema。
 
 ### 4. 组件与服务
-- **Docker 组件**：与 Dockerode 集成，用于 Docker 容器管理和操作。
+- **Docker 组件**：内置 Docker Engine API 客户端，用于 Docker 镜像、容器和网络的管理。
 - **日志器组件**：基于 Pino，提供高性能的日志记录功能。
 - **数据库提供者**：封装数据库连接逻辑，简化配置和使用。
 

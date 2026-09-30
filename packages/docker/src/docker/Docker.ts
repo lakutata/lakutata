@@ -2,15 +2,12 @@ import {Component} from '@lakutata/core'
 import {Singleton} from '@lakutata/core/decorator/di'
 import {DockerImage} from './lib/DockerImage.js'
 import {DockerContainer} from './lib/DockerContainer.js'
-import {platform} from 'os'
 import {Configurable} from '@lakutata/core/decorator/di'
 import {DTO} from '@lakutata/core'
-import Dockerode from 'dockerode'
 import {DockerConnectionException} from './exceptions/DockerConnectionException.js'
 import {DockerImageNotFoundException} from './exceptions/DockerImageNotFoundException.js'
 import {ImagePullOptions} from './options/image/ImagePullOptions.js'
 import {Accept} from '@lakutata/core/decorator/dto'
-import {createInterface} from 'node:readline'
 import {DockerImagePullException} from './exceptions/DockerImagePullException.js'
 import {IsAbortError} from '@lakutata/core/helper'
 import {ImageBuildOptions} from './options/image/ImageBuildOptions.js'
@@ -31,13 +28,13 @@ import {ContainerBind} from './types/ContainerBind.js'
 import {DockerContainerTTY} from './lib/DockerContainerTTY.js'
 import {DockerPruneOptions} from './options/DockerPruneOptions.js'
 import {DockerAuthOptions} from './options/auth/DockerAuthOptions.js'
-import isBase64 from 'is-base64'
-import stripAnsi from 'strip-ansi'
-import stripBom from 'strip-bom'
-import {DevNull} from '@lakutata/core/helper'
-import {DockerfileParser} from 'dockerfile-ast'
 import {readFile} from 'node:fs/promises'
 import path from 'node:path'
+import {DockerClient, type DockerRegistryAuth} from '../client/DockerClient.js'
+import {PackBuildContext} from '../client/BuildContext.js'
+import {BuildKitProgress, DecodeBuildKitStatus} from '../client/BuildKitProgress.js'
+import {FollowProgress} from '../client/DockerStreams.js'
+import {ParseBaseImages} from './lib/ParseBaseImages.js'
 
 @Singleton()
 export class Docker extends Component {
@@ -100,7 +97,7 @@ export class Docker extends Component {
     @Configurable(DTO.String().optional())
     protected readonly sshAuthAgent?: string | undefined
 
-    #instance: Dockerode
+    #client: DockerClient
 
     #abortController: AbortController = new AbortController()
 
@@ -116,41 +113,26 @@ export class Docker extends Component {
             new Promise((resolve, reject) => this.container.register(DockerContainer).then(resolve).catch(reject)),
             new Promise((resolve, reject) => this.container.register(DockerContainerTTY).then(resolve).catch(reject))
         ])
-        if (!this.socketPath && !this.host) {
-            //Load default config
-            switch (platform()) {
-                case 'win32': {
-                    this.#instance = new Dockerode({
-                        host: 'localhost',
-                        port: 2375
-                    })
-                }
-                    break
-                default: {
-                    this.#instance = new Dockerode({
-                        socketPath: '/var/run/docker.sock'
-                    })
-                }
-            }
-        } else {
-            //Load passed config
-            this.#instance = new Dockerode({
-                socketPath: this.socketPath,
-                host: this.host,
-                port: this.port,
-                username: this.username,
-                headers: this.headers,
-                ca: this.ca,
-                cert: this.cert,
-                key: this.key,
-                protocol: this.protocol,
-                timeout: this.timeout,
-                version: this.version,
-                sshAuthAgent: this.sshAuthAgent
-            })
-        }
+        //Without a socket nor a host, the Docker of the environment (DOCKER_HOST, the socket of Docker Desktop or of the
+        //system, the named pipe of Windows)
+        this.#client = new DockerClient(this.socketPath || this.host ? {
+            socketPath: this.socketPath,
+            host: this.host,
+            port: this.port,
+            username: this.username,
+            headers: this.headers,
+            ca: this.ca,
+            cert: this.cert,
+            key: this.key as any,
+            protocol: this.protocol,
+            timeout: this.timeout,
+            version: this.version,
+            sshAuthAgent: this.sshAuthAgent
+        } : {version: this.version})
         try {
-            await this.#instance.ping()
+            await this.#client.ping()
+            //The API version of the requests: the newest one supported by the daemon and this client
+            await this.#client.connection.negotiate()
         } catch (e: any) {
             throw new DockerConnectionException(e.message ? e.message : 'Cannot connect to docker')
         }
@@ -162,6 +144,7 @@ export class Docker extends Component {
      */
     protected async destroy(): Promise<void> {
         this.#abortController.abort()
+        this.#client?.close()
     }
 
     /** Docker Common Operations **/
@@ -173,10 +156,10 @@ export class Docker extends Component {
     @Accept(DockerPruneOptions.optional())
     public async prune(options?: DockerPruneOptions): Promise<void> {
         if (!options) return await this.prune({})
-        if (options.containers) await this.#instance.pruneContainers()
-        if (options.images) await this.#instance.pruneImages()
-        if (options.networks) await this.#instance.pruneNetworks()
-        if (options.volumes) await this.#instance.pruneVolumes()
+        if (options.containers) await this.#client.pruneContainers()
+        if (options.images) await this.#client.pruneImages()
+        if (options.networks) await this.#client.pruneNetworks()
+        if (options.volumes) await this.#client.pruneVolumes()
     }
 
     /**
@@ -185,7 +168,7 @@ export class Docker extends Component {
      */
     @Accept(DockerAuthOptions.required())
     public async loginRepository(options: DockerAuthOptions): Promise<void> {
-        await this.#instance.checkAuth({
+        await this.#client.checkAuth({
             username: options.username,
             password: options.password,
             serveraddress: options.serverAddress,
@@ -213,12 +196,12 @@ export class Docker extends Component {
      * List docker images
      */
     public async listImages(): Promise<DockerImage[]> {
-        const rawImages: Dockerode.ImageInfo[] = await this.#instance.listImages()
+        const rawImages: Record<string, any>[] = await this.#client.listImages()
 
-        return await Promise.all(rawImages.map((rawImage: Dockerode.ImageInfo)=>{
+        return await Promise.all(rawImages.map((rawImage: Record<string, any>) => {
             return this.container.get(DockerImage, {
                 id: rawImage.Id,
-                getDockerode: () => this.#instance,
+                getClient: () => this.#client,
                 getDocker: () => this
             })
         }))
@@ -229,7 +212,7 @@ export class Docker extends Component {
      */
     @Accept(ImagePullOptions.required())
     public async pullImage(options: ImagePullOptions): Promise<DockerImage> {
-        const auth: Dockerode.AuthConfig | undefined = options.auth ? {
+        const auth: DockerRegistryAuth | undefined = options.auth ? {
             username: options.auth.username,
             password: options.auth.password,
             serveraddress: options.auth.serverAddress,
@@ -237,25 +220,14 @@ export class Docker extends Component {
             registrytoken: options.auth.registryToken
         } : undefined
         const tag: string = options.tag ? options.tag : 'latest'
-        const createImageOptions: Record<string, any> = {
-            fromImage: options.repo,
-            tag: tag,
-            platform: options.platform,
-            abortSignal: this.#abortController.signal
-        }
         try {
-            const readableStream: NodeJS.ReadableStream = auth ? await this.#instance.createImage(auth, createImageOptions) : await this.#instance.createImage(createImageOptions)
-            await new Promise<void>((resolve, reject) => {
-                createInterface({
-                    input: readableStream
-                })
-                    .on('line', (line: string) => {
-                        const outputObject: Record<string, any> = JSON.parse(line)
-                        if (options.outputCallback) options.outputCallback(outputObject)
-                        if (outputObject.error) return reject(new Error(outputObject.error))
-                    })
-                    .once('close', () => resolve())
+            const readableStream: NodeJS.ReadableStream = await this.#client.pullImage({fromImage: options.repo, tag: tag, platform: options.platform}, auth, this.#abortController.signal)
+            let pullError: string | undefined
+            await FollowProgress(readableStream, (outputObject: Record<string, any>): void => {
+                if (options.outputCallback) options.outputCallback(outputObject)
+                if (outputObject.error && !pullError) pullError = outputObject.error
             })
+            if (pullError) throw new Error(pullError)
             return await this.getImage(`${options.repo}:${tag}`)
         } catch (e: any) {
             if (!IsAbortError(e)) throw new DockerImagePullException(e.message)
@@ -264,109 +236,63 @@ export class Docker extends Component {
     }
 
     /**
-     * Build docker image
+     * Build docker image: the context is the files of the workdir (with the directories, their content), without the
+     * ones excluded by its .dockerignore; the build is done by BuildKit, its progress is given to the output callback
+     * as the lines of "docker build --progress=plain" ({id: 'moby.buildkit.trace', stream: '#2 [1/2] FROM alpine'})
      */
     @Accept(ImageBuildOptions.required())
     public async buildImage(options: ImageBuildOptions): Promise<DockerImage> {
-        const buildContext: Dockerode.ImageBuildContext = {
-            context: options.workdir,
-            src: options.files
-        }
-        const buildOptions: Dockerode.ImageBuildOptions = {
-            dockerfile: options.dockerfile,
-            t: options.repoTag ? options.repoTag : `unnamed_img_${Date.now().toString(16)}${Math.floor(Math.random() * 255).toString(16).padStart(2, '0')}`,
-            remote: options.remote,
-            q: options.quite,
-            nocache: options.nocache,
-            rm: options.rm,
-            forcerm: options.forcerm,
-            platform: options.platform,
-            target: options.target,
-            shmsize: options.shmsize,
-            buildargs: options.buildargs,
-            authconfig: options.auth,
-            abortSignal: this.#abortController.signal,
-            version: '2'
-        }
+        const dockerfile: string = options.dockerfile ? options.dockerfile : 'Dockerfile'
+        const auth: DockerRegistryAuth | undefined = options.auth ? {
+            username: options.auth.username,
+            password: options.auth.password,
+            serveraddress: options.auth.serverAddress,
+            email: options.auth.email
+        } : undefined
         try {
-            const readableStream: NodeJS.ReadableStream = await this.#instance.buildImage(buildContext, buildOptions)
-            const dockerfileContent: string = await readFile(path.resolve(options.workdir, options.dockerfile ? options.dockerfile : 'Dockerfile'), {encoding: 'utf-8'})
-            const instructions = DockerfileParser.parse(dockerfileContent)
-            const fromRepoTags: string[] = As<string[]>(instructions.getFROMs().map(value => value.getArgumentsContent()).filter(value => !!value))
-            await Promise.all(fromRepoTags.map((fromRepoTag: string): Promise<DockerImage> => {
-                const [fromRepo, tag] = fromRepoTag.split(':')
-                const pullOptions: ImagePullOptions = {
-                    repo: fromRepo,
-                    tag: tag,
-                    outputCallback: (pullImgOutput: Record<string, any>): void => {
-                        if (!pullImgOutput.id) return
-                        const stream: string = `${pullImgOutput.status} ${pullImgOutput.progress ? pullImgOutput.progress : ''}`
-                        const buildImageOutputObject: Record<string, any> = {
-                            id: pullImgOutput.id,
-                            aux: Buffer.from(stream).toString('base64'),
-                            stream: stream
-                        }
-                        if (options.outputCallback) options.outputCallback(buildImageOutputObject)
-                    }
+            //The base images of a private registry are pulled with the credentials (BuildKit is not given them)
+            if (auth) {
+                const content: string = await readFile(path.resolve(options.workdir, dockerfile), {encoding: 'utf-8'})
+                for (const baseImage of ParseBaseImages(content, options.buildargs)) {
+                    const [repo, tag] = [baseImage.replace(/:([^:/@]+)$/, ''), /:([^:/@]+)$/.exec(baseImage)?.[1]]
+                    await this.pullImage({repo: repo, tag: tag, platform: options.platform, auth: options.auth, outputCallback: options.outputCallback})
                 }
-                if (options.platform) pullOptions.platform = options.platform
-                if (options.auth) pullOptions.auth = options.auth
-                return this.pullImage(pullOptions)
-            }))
-            return new Promise<DockerImage>((resolve, reject) => {
-                let imageId: string | undefined = undefined
-                let buildImageException: DockerImageBuildException | undefined = undefined
-                let outputCache: string = ''
-                createInterface({input: readableStream})
-                    .on('line', (line: string): void => {
-                        try {
-                            const outputObject: Record<string, any> = JSON.parse(line)
-                            if (outputObject.error) buildImageException = new DockerImageBuildException(outputObject.error)
-                            if (typeof outputObject.aux !== 'string') {
-                                if (outputObject.aux) imageId = outputObject.aux.ID
-                            } else if (isBase64(outputObject.aux) && !outputObject.stream) {
-                                outputObject.stream = Buffer.from(outputObject.aux, 'base64').toString()
-                            }
-                            if (buildOptions.version === '2') {
-                                if (outputObject.stream) {
-                                    outputCache = `${outputCache}${outputObject.stream}`
-                                } else if (isBase64(outputObject.aux)) {
-                                    outputCache = `${outputCache}${Buffer.from(outputObject.aux, 'base64').toString('ascii')}`
-                                }
-                                const completedOutputCache: string = stripBom(stripAnsi(outputCache))
-                                completedOutputCache.replace(/[\f\n\r\t\v]/g, '\n').split('\n').forEach((line: string): void => {
-                                    const asciiLine: string = Buffer.from(line).toString('ascii')
-                                    if (asciiLine.startsWith(Buffer.from([0x08, 0xef]).toString('ascii'))) return
-                                    let processedOutput: string = line.replace(/[^\u4e00-\u9fa5^a-z^A-Z^0-9^\[^\]^\/^:^\s+^\-^\\^&^\.^@^|^"^*^_\\n]/g, '').trim()
-                                    if (!processedOutput || processedOutput.length < 2) return
-                                    if (processedOutput.startsWith('Gsha256')) processedOutput = processedOutput.substring(72)
-                                    if (processedOutput.startsWith('Uwriting')) processedOutput = processedOutput.substring(1)
-                                    if (processedOutput.startsWith('Gsha256')) processedOutput = processedOutput.substring(72)
-                                    if (processedOutput.startsWith('qresolve')) processedOutput = processedOutput.substring(1)
-                                    if (processedOutput.startsWith('Zexporting')) processedOutput = processedOutput.substring(1)
-                                    if (processedOutput.startsWith('Xexporting')) processedOutput = processedOutput.substring(1)
-                                    if (processedOutput.substring(1, 2) === '[') processedOutput = processedOutput.substring(1)
-                                    if (/[A-Z]/.test(processedOutput.substring(1, 2)) && !/[A-Z]/.test(processedOutput.substring(0, 1))) processedOutput = processedOutput.substring(1)
-                                    outputObject.stream = processedOutput
-                                    if (options.outputCallback) options.outputCallback(outputObject)
-                                })
-                                outputCache = ''
-                            } else {
-                                if (options.outputCallback) options.outputCallback(outputObject)
-                            }
-                        } catch (e) {
-                            DevNull(e)
-                        }
-                    })
-                    .once('close', () => {
-                        if (buildImageException) return reject(buildImageException)
-                        if (!imageId) return reject(new DockerImageBuildException('Build image failed'))
-                        return this.getImage(imageId).then(resolve).catch(reject)
-                    })
+            }
+            const context: NodeJS.ReadableStream = PackBuildContext({directory: options.workdir, entries: options.files, always: [dockerfile]})
+            const registryConfig: Record<string, DockerRegistryAuth> | undefined = auth ? {[auth.serveraddress ?? 'https://index.docker.io/v1/']: auth} : undefined
+            const readableStream: NodeJS.ReadableStream = await this.#client.buildImage(context, {
+                dockerfile: dockerfile,
+                t: options.repoTag ? options.repoTag : `unnamed_img_${Date.now().toString(16)}${Math.floor(Math.random() * 255).toString(16).padStart(2, '0')}`,
+                remote: options.remote,
+                q: options.quite,
+                nocache: options.nocache,
+                rm: options.rm,
+                forcerm: options.forcerm,
+                platform: options.platform,
+                target: options.target,
+                shmsize: options.shmsize,
+                buildargs: options.buildargs,
+                version: '2'
+            }, registryConfig, this.#abortController.signal)
+            const progress: BuildKitProgress = new BuildKitProgress()
+            let imageId: string | undefined
+            let buildError: string | undefined
+            await FollowProgress(readableStream, (outputObject: Record<string, any>): void => {
+                if (outputObject.error && !buildError) buildError = outputObject.error
+                if (outputObject.id === 'moby.buildkit.trace' && typeof outputObject.aux === 'string') {
+                    for (const line of progress.lines(DecodeBuildKitStatus(outputObject.aux))) options.outputCallback?.({id: outputObject.id, stream: line})
+                    return
+                }
+                if (outputObject.aux && typeof outputObject.aux === 'object' && outputObject.aux.ID) imageId = outputObject.aux.ID
+                options.outputCallback?.(outputObject)
             })
-        } catch (e) {
-            if (!IsAbortError(e)) throw e
-            return undefined as any
+            if (buildError) throw new DockerImageBuildException(buildError)
+            if (!imageId) throw new DockerImageBuildException('Build image failed')
+            return await this.getImage(imageId)
+        } catch (e: any) {
+            if (IsAbortError(e)) return undefined as any
+            if (e instanceof DockerImageBuildException) throw e
+            throw new DockerImageBuildException(e.message)
         }
     }
 
@@ -381,33 +307,38 @@ export class Docker extends Component {
         imageSourceReadableStream.pipe(tarExtractPassThrough)
         imageSourceReadableStream.pipe(loadImagePassThrough)
         const tarExtractor: Extract = tarExtract()
-        let imageId: string
+        let manifestImageId: string | undefined
         tarExtractor
             .on('entry', (header: Headers, stream: PassThrough, next: Function) => {
                 if (header.name === 'manifest.json') {
-                    createInterface({input: stream})
-                        .on('line', manifestLine => {
-                            const manifestObject: Record<string, any> = JSON.parse(manifestLine)[0]
-                            imageId = manifestObject.Config.toString().replace('blobs/', '').replace('/', ':')
-                        })
+                    const chunks: Buffer[] = []
+                    stream.on('data', (chunk: Buffer): unknown => chunks.push(chunk))
+                    stream.once('end', (): void => {
+                        try {
+                            const manifestObject: Record<string, any> = JSON.parse(Buffer.concat(chunks).toString())[0]
+                            manifestImageId = manifestObject.Config.toString().replace('blobs/', '').replace('.json', '').replace('/', ':')
+                        } catch {
+                            //Not a manifest of docker save
+                        }
+                    })
                 }
                 stream.on('end', () => next())
                 stream.resume()
             })
         tarExtractPassThrough.pipe(tarExtractor)
-        const readableStream: NodeJS.ReadableStream = await this.#instance.loadImage(loadImagePassThrough, {quiet: options.quiet})
-        return new Promise<DockerImage>((resolve, reject) => {
-            let importImageException: DockerImageImportException | undefined = undefined
-            createInterface({input: readableStream})
-                .on('line', (line: string) => {
-                    const outputObject: Record<string, any> = JSON.parse(line)
-                    if (outputObject.error) importImageException = new DockerImageImportException(outputObject.error)
-                })
-                .once('close', () => {
-                    if (importImageException) return reject(importImageException)
-                    return this.getImage(imageId).then(resolve).catch(reject)
-                })
+        const readableStream: NodeJS.ReadableStream = await this.#client.loadImage(loadImagePassThrough, {quiet: options.quiet})
+        let importError: string | undefined
+        let loadedImage: string | undefined
+        await FollowProgress(readableStream, (outputObject: Record<string, any>): void => {
+            if (outputObject.error && !importError) importError = outputObject.error
+            //"Loaded image ID: sha256:…" or "Loaded image: repo:tag"
+            const loaded: RegExpExecArray | null = /Loaded image(?: ID)?: (\S+)/.exec(outputObject.stream ?? '')
+            if (loaded && !loadedImage) loadedImage = loaded[1]
         })
+        if (importError) throw new DockerImageImportException(importError)
+        const image: string | undefined = loadedImage ?? manifestImageId
+        if (!image) throw new DockerImageImportException('The imported image is unknown')
+        return await this.getImage(image)
     }
 
     /**
@@ -435,11 +366,8 @@ export class Docker extends Component {
      */
     public async listContainers(): Promise<DockerContainer[]> {
         try {
-            const rawContainers: Dockerode.ContainerInfo[] = await this.#instance.listContainers({
-                all: true,
-                abortSignal: this.#abortController.signal
-            })
-            return await Promise.all(rawContainers.map((containerInfo: Dockerode.ContainerInfo) => new Promise<DockerContainer>((resolve, reject) => this.getContainer(containerInfo.Id).then(resolve).catch(reject))))
+            const rawContainers: Record<string, any>[] = await this.#client.listContainers({all: true}, this.#abortController.signal)
+            return await Promise.all(rawContainers.map((containerInfo: Record<string, any>) => new Promise<DockerContainer>((resolve, reject) => this.getContainer(containerInfo.Id).then(resolve).catch(reject))))
         } catch (e) {
             if (!IsAbortError(e)) throw e
             return []
@@ -453,7 +381,7 @@ export class Docker extends Component {
     @Accept(DTO.String().required())
     public async getContainer(id: string): Promise<DockerContainer> {
         return await this.getObject(DockerContainer, {
-            getDockerode: () => this.#instance,
+            getClient: () => this.#client,
             getDocker: () => this,
             id: id
         })
@@ -465,8 +393,13 @@ export class Docker extends Component {
      * @param platform
      * @param options
      */
-    @Accept(DTO.String().required(), DTO.String().required(), ContainerSettingOptions.required())
-    public async createContainer(imageId: string, platform: string, options: ContainerSettingOptions): Promise<DockerContainer> {
+    public async createContainer(imageId: string, options: ContainerSettingOptions): Promise<DockerContainer>
+    public async createContainer(imageId: string, platform: string, options: ContainerSettingOptions): Promise<DockerContainer>
+    @Accept(DTO.String().required(), DTO.Alternatives(DTO.String(), ContainerSettingOptions.required()).required(), ContainerSettingOptions.optional())
+    public async createContainer(imageId: string, platformOrOptions: string | ContainerSettingOptions, settingOptions?: ContainerSettingOptions): Promise<DockerContainer> {
+        //The platform is optional: the one of the image by default
+        const platform: string | undefined = typeof platformOrOptions === 'string' ? platformOrOptions : undefined
+        const options: ContainerSettingOptions = typeof platformOrOptions === 'string' ? settingOptions ?? {} : platformOrOptions
         const portBindingMap: Map<string, { HostPort: string }[]> = new Map()
         options.ports?.forEach(port => {
             const portBindingMapKey: string = `${port.port}/${port.type}`
@@ -493,7 +426,7 @@ export class Docker extends Component {
             PathInContainer: device.containerPath,
             CgroupPermissions: device.cgroupPermissions!
         }))
-        const networkConfigMapping: Record<string, Dockerode.EndpointSettings> = {}
+        const networkConfigMapping: Record<string, Record<string, unknown>> = {}
         options.networks?.forEach(network => {
             networkConfigMapping[network.networkName!] = this.#internalNetworkNames.includes(network.networkName!)
                 ? {}
@@ -505,10 +438,8 @@ export class Docker extends Component {
                 }
         })
         const containerEnvRecord: Record<string, string> = options.env ? options.env : {}
-        const rawContainer: Dockerode.Container = await this.#instance.createContainer({
+        const rawContainer: { Id: string } = await this.#client.createContainer({
             Image: imageId,
-            name: options.name,
-            platform: platform,
             Hostname: options.hostname,
             Tty: options.tty,
             Env: Object.keys(containerEnvRecord).map(envKey => `${envKey}=${containerEnvRecord[envKey]}`),
@@ -531,8 +462,8 @@ export class Docker extends Component {
             NetworkingConfig: {
                 EndpointsConfig: networkConfigMapping
             }
-        })
-        return await this.getContainer(rawContainer.id)
+        }, {name: options.name, platform: platform})
+        return await this.getContainer(rawContainer.Id)
     }
 
     /** Docker Network Operations **/
@@ -543,7 +474,7 @@ export class Docker extends Component {
      */
     @Accept(NetworkCreateOptions.required())
     public async createNetwork(options: NetworkCreateOptions): Promise<NetworkInfo> {
-        const network: Dockerode.Network = await this.#instance.createNetwork({
+        const network: { Id: string } = await this.#client.createNetwork({
             Name: options.name,
             Driver: options.driver,
             Internal: options.internal,
@@ -559,7 +490,7 @@ export class Docker extends Component {
             },
             EnableIPv6: options.enableIPv6
         })
-        return await this.getNetwork(network.id)
+        return await this.getNetwork(network.Id)
     }
 
     /**
@@ -569,7 +500,7 @@ export class Docker extends Component {
     @Accept(DTO.String().required())
     public async removeNetwork(id: string): Promise<void> {
         const network: NetworkInfo = await this.getNetwork(id)
-        await this.#instance.getNetwork(network.id).remove()
+        await this.#client.removeNetwork(network.id)
     }
 
     /**
@@ -577,8 +508,8 @@ export class Docker extends Component {
      */
     public async listNetworks(): Promise<NetworkInfo[]> {
         try {
-            const rawNetworks: Dockerode.NetworkInspectInfo[] = await this.#instance.listNetworks({abortSignal: this.#abortController.signal})
-            return rawNetworks.map((rawNetwork: Dockerode.NetworkInspectInfo): NetworkInfo => ({
+            const rawNetworks: Record<string, any>[] = await this.#client.listNetworks(undefined, this.#abortController.signal)
+            return rawNetworks.map((rawNetwork: Record<string, any>): NetworkInfo => ({
                 id: rawNetwork.Id,
                 name: rawNetwork.Name,
                 driver: As<'bridge' | 'ipvlan' | 'macvlan'>(rawNetwork.Driver),

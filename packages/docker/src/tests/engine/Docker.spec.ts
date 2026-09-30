@@ -1,14 +1,17 @@
 import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
-import {mkdtemp, rm, writeFile} from 'node:fs/promises'
+import {randomBytes} from 'node:crypto'
+import {createWriteStream} from 'node:fs'
+import {mkdir, mkdtemp, rm, symlink, writeFile} from 'node:fs/promises'
 import {arch, tmpdir} from 'node:os'
 import path from 'node:path'
 import {Application} from '@lakutata/core'
-import {Docker, DockerContainer, DockerImage, NetworkInfo} from '../../exports/Docker.js'
+import {Docker, DockerContainer, DockerContainerTTY, DockerImage, DockerImageBuildException, NetworkInfo} from '../../exports/Docker.js'
 
 /**
  * The tests run with the Docker of the machine (DOCKER_TEST=1): they pull alpine and create their images, containers and
- * networks, named lakutata-test-*, removed after them
+ * networks, named lakutata-test-*, removed after them. DOCKER_TEST_API_VERSION requests another API version than the
+ * negotiated one
  */
 const ENABLED: boolean = !!process.env.DOCKER_TEST
 
@@ -27,7 +30,7 @@ describe('The Docker component with the Docker of the machine', {skip: !ENABLED 
 
     before(async (): Promise<void> => {
         app = await new Promise<Application>((resolve: (app: Application) => void, reject: (error: Error) => void): void => {
-            Application.run({id: 'docker.test.app', name: 'docker-test', components: {docker: {class: Docker}}, bootstrap: ['docker']})
+            Application.run({id: 'docker.test.app', name: 'docker-test', components: {docker: {class: Docker, version: process.env.DOCKER_TEST_API_VERSION || undefined}}, bootstrap: ['docker']})
                 .onLaunched((launched: Application): void => resolve(launched))
                 .onFatalException((error: Error): void => reject(error))
         })
@@ -65,6 +68,102 @@ describe('The Docker component with the Docker of the machine', {skip: !ENABLED 
             }
         } finally {
             await image.remove({force: true})
+        }
+    })
+
+    it('gives the progress of a build as readable lines, with the output of its steps', async (): Promise<void> => {
+        const directory: string = path.join(context, 'progress')
+        await mkdir(directory)
+        await writeFile(path.join(directory, 'Dockerfile'), `FROM ${BASE.repo}:${BASE.tag}\nRUN echo building-step-output && echo hello > /hello.txt\n`)
+        const lines: string[] = []
+        const image: DockerImage = await docker.buildImage({workdir: directory, files: ['Dockerfile'], repoTag: 'lakutata-test-progress:1', nocache: true, platform: PLATFORM, outputCallback: (output: Record<string, any>): unknown => output.stream && lines.push(output.stream)})
+        await image.remove({force: true})
+        const text: string = lines.join('\n')
+        assert.match(text, /^#\d+ \[2\/2\] RUN echo building-step-output && echo hello > \/hello\.txt$/m, text)
+        assert.match(text, /^#\d+ building-step-output$/m, text)
+        assert.match(text, /^#\d+ DONE \d+\.\ds$/m, text)
+        assert.doesNotMatch(text, /Gsha256|\uFFFD|[\u0000-\u0008]/)
+    })
+
+    it('fails a build with the error of its step', async (): Promise<void> => {
+        const directory: string = path.join(context, 'failure')
+        await mkdir(directory)
+        await writeFile(path.join(directory, 'Dockerfile'), `FROM ${BASE.repo}:${BASE.tag}\nRUN exit 3\n`)
+        await assert.rejects(docker.buildImage({workdir: directory, files: ['Dockerfile'], platform: PLATFORM}), (error: Error): boolean => error instanceof DockerImageBuildException && /exit code: 3/.test(error.message))
+    })
+
+    it('packs the context: once each file, without the ones of .dockerignore, with the links', async (): Promise<void> => {
+        const directory: string = path.join(context, 'files')
+        await mkdir(path.join(directory, 'src', 'lib'), {recursive: true})
+        await writeFile(path.join(directory, 'src', 'lib', 'a.txt'), 'a')
+        await writeFile(path.join(directory, 'src', 'secret.key'), 'secret')
+        await symlink('lib/a.txt', path.join(directory, 'src', 'link.txt'))
+        await writeFile(path.join(directory, '.dockerignore'), '**/*.key\nDockerfile\n')
+        await writeFile(path.join(directory, 'Dockerfile'), `FROM ${BASE.repo}:${BASE.tag}\nCOPY src /src\nRUN test -f /src/lib/a.txt && test ! -e /src/secret.key && test -L /src/link.txt && echo checked\n`)
+        //The directories and their files, as a glob lists them
+        const lines: string[] = []
+        const image: DockerImage = await docker.buildImage({workdir: directory, files: ['Dockerfile', 'src', 'src/lib', 'src/lib/a.txt', 'src/secret.key', 'src/link.txt'], platform: PLATFORM, nocache: true, outputCallback: (output: Record<string, any>): unknown => output.stream && lines.push(output.stream)})
+        await image.remove({force: true})
+        assert.match(lines.join('\n'), /^#\d+ checked$/m)
+    })
+
+    it('uploads a large context to BuildKit (the kept alive connections corrupted it)', async (): Promise<void> => {
+        const directory: string = path.join(context, 'large')
+        await mkdir(directory)
+        const file = createWriteStream(path.join(directory, 'large.bin'))
+        for (let index: number = 0; index < 300; index++) if (!file.write(randomBytes(1024 * 1024))) await new Promise<void>((resolve: () => void): unknown => file.once('drain', resolve))
+        await new Promise<void>((resolve: () => void): unknown => file.end(resolve))
+        await writeFile(path.join(directory, 'Dockerfile'), `FROM ${BASE.repo}:${BASE.tag}\nCOPY large.bin /large.bin\nRUN test $(stat -c %s /large.bin) -eq 314572800\n`)
+        const image: DockerImage = await docker.buildImage({workdir: directory, files: ['Dockerfile', 'large.bin'], platform: PLATFORM, nocache: true})
+        await image.remove({force: true})
+    })
+
+    it('gives the logs, the executions and the TTYs of a container as their output', async (): Promise<void> => {
+        const image: DockerImage = await docker.buildImage({workdir: context, files: ['Dockerfile'], repoTag: 'lakutata-test-output:1', platform: PLATFORM})
+        //The platform is the one of the image
+        const container: DockerContainer = await docker.createContainer(image.id, {name: 'lakutata-test-output'})
+        try {
+            await container.start()
+            await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 1000))
+            const logs: Buffer[] = []
+            //Without follow (followed by default, until the container stops)
+            for await (const chunk of await container.logs({follow: false})) logs.push(Buffer.from(chunk))
+            assert.strictEqual(Buffer.concat(logs).toString(), 'started\n')
+            assert.strictEqual(await container.exec({cmd: ['cat', '/hello.txt']}), 'hello\n')
+            //The outputs of stdout and stderr are given as Docker copies them: in their order within each of them
+            assert.deepStrictEqual((await container.exec({cmd: ['sh', '-c', 'echo out; echo err >&2']})).split('\n').sort(), ['', 'err', 'out'])
+            const tty: DockerContainerTTY = await container.createTTY({cmd: 'sh'})
+            let output: string = ''
+            tty.onData((chunk: Buffer): unknown => output += chunk.toString())
+            tty.write('echo tty-$((40+2))\n')
+            for (let wait: number = 0; wait < 50 && !output.includes('tty-42'); wait++) await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 100))
+            assert.match(output, /tty-42/)
+            assert.doesNotMatch(output, /[\u0000\u0001\u0002]/)
+            await tty.resize({rows: 40, cols: 120})
+            tty.write('exit\n')
+        } finally {
+            await container.remove({force: true})
+            await image.remove({force: true})
+        }
+    })
+
+    it('exports an image, and imports it', async (): Promise<void> => {
+        const image: DockerImage = await docker.buildImage({workdir: context, files: ['Dockerfile'], repoTag: 'lakutata-test-export:1', platform: PLATFORM})
+        //Exported by its tag, the archive has it (by its id, as docker save does, it has none)
+        const archive: string = path.join(context, 'image.tar')
+        await image.export({destination: archive, repoTag: 'lakutata-test-export:1'})
+        const byId: string = path.join(context, 'image-id.tar')
+        await image.export({destination: byId})
+        await image.remove({force: true})
+        const untagged: DockerImage = await docker.importImage({source: byId})
+        assert.strictEqual(untagged.id, image.id)
+        const imported: DockerImage = await docker.importImage({source: archive})
+        try {
+            assert.ok(imported.repoTags.includes('lakutata-test-export:1'), imported.repoTags.join(', '))
+            await imported.tag({repo: 'lakutata-test-export', tag: '2'})
+            assert.ok(imported.repoTags.includes('lakutata-test-export:2'))
+        } finally {
+            await imported.remove({force: true})
         }
     })
 

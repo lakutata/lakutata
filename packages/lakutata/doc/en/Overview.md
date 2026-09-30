@@ -34,7 +34,7 @@ Lakutata's functionality is categorized by domain and purpose, allowing develope
 - **DTO Validation**: Validates data structures with schemas built on Lakutata's own validation engine, and exports them as JSON Schema / OpenAPI schemas.
 
 ### 4. Components & Services
-- **Docker Component**: Integrates with Dockerode for Docker container management and operations.
+- **Docker Component**: A built-in client of the Docker Engine API for Docker image, container and network management.
 - **Logger Component**: Based on Pino, offering high-performance logging capabilities.
 - **Database Provider**: Encapsulates database connection logic for simplified configuration and usage.
 

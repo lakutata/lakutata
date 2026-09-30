@@ -2,7 +2,8 @@ import {Provider} from '@lakutata/core'
 import {Transient} from '@lakutata/core/decorator/di'
 import {Configurable} from '@lakutata/core/decorator/di'
 import {DTO} from '@lakutata/core'
-import Dockerode from 'dockerode'
+import type {DockerClient} from '../../client/DockerClient.js'
+import {DockerStreamDecoder, ReadMultiplexed} from '../../client/DockerStreams.js'
 import {IsAbortError} from '@lakutata/core/helper'
 import {Time} from '@lakutata/utils'
 import {ContainerState} from '../types/ContainerState.js'
@@ -28,10 +29,10 @@ import {ContainerCapability} from '../types/ContainerCapability.js'
 import {DockerContainerTTY} from './DockerContainerTTY.js'
 import {ContainerCreateTTYOptions} from '../options/container/ContainerCreateTTYOptions.js'
 import {ContainerLogsOptions} from '../options/container/ContainerLogsOptions.js'
-import {Stream, Writable} from 'node:stream'
+import {Writable} from 'node:stream'
 import {ContainerStats} from '../types/ContainerStats.js'
 import {ContainerExecOptions} from '../options/container/ContainerExecOptions.js'
-import stream from 'stream'
+import type {Duplex} from 'node:stream'
 import {ContainerExportDirectoryOptions} from '../options/container/ContainerExportDirectoryOptions.js'
 import {pipeline} from 'stream/promises'
 import {createWriteStream} from 'node:fs'
@@ -41,12 +42,8 @@ export class DockerContainer extends Provider {
 
     readonly #abortController: AbortController = new AbortController()
 
-    get #container(): Dockerode.Container {
-        return this.getDockerode().getContainer(this.id)
-    }
-
     @Configurable(DTO.Function())
-    protected readonly getDockerode: () => Dockerode
+    protected readonly getClient: () => DockerClient
 
     @Configurable(DTO.Function())
     protected readonly getDocker: () => Docker
@@ -118,7 +115,7 @@ export class DockerContainer extends Provider {
      */
     protected async syncContainerInfo(): Promise<void> {
         try {
-            const inspectInfo: Dockerode.ContainerInspectInfo = await this.#container.inspect({abortSignal: this.#abortController.signal})
+            const inspectInfo: Record<string, any> = await this.getClient().inspectContainer(this.id, this.#abortController.signal)
             this.createdAt = new Time(inspectInfo.Created)
             this.name = inspectInfo.Name.substring(1)
             this.hostname = inspectInfo.Config.Hostname
@@ -174,7 +171,7 @@ export class DockerContainer extends Provider {
                     const portInfo: string[] = portWithType.split('/')
                     const port: number = parseInt(portInfo[0])
                     const type: 'tcp' | 'udp' = As<'tcp' | 'udp'>(portInfo[1].toLowerCase())
-                    inspectInfo.NetworkSettings.Ports[portWithType]?.forEach(hostBinding => {
+                    inspectInfo.NetworkSettings.Ports[portWithType]?.forEach((hostBinding: { HostPort: string }) => {
                         containerIpAddresses.forEach((containerIpAddress: string) => {
                             const portMapKey: string = `${containerIpAddress}_${port}_${type}`
                             if (!portMap.has(portMapKey)) portMap.set(portMapKey, [])
@@ -199,7 +196,7 @@ export class DockerContainer extends Provider {
             })
             this.ports = ports
             const binds: ContainerBind[] = []
-            inspectInfo.Mounts.forEach((mount: any): void => {
+            for (const mount of inspectInfo.Mounts ?? []) {
                 if (mount.Type === 'bind') {
                     binds.push({
                         hostPath: mount.Source,
@@ -207,7 +204,7 @@ export class DockerContainer extends Provider {
                         rw: mount.RW
                     })
                 }
-            })
+            }
             this.binds = binds
             this.devices = inspectInfo.HostConfig.Devices ? As<{
                 PathOnHost: string
@@ -255,7 +252,7 @@ export class DockerContainer extends Provider {
      */
     public async start(): Promise<void> {
         try {
-            await this.#container.start({abortSignal: this.#abortController.signal})
+            await this.getClient().startContainer(this.id, this.#abortController.signal)
             await this.syncContainerInfo()
         } catch (e) {
             if (!IsAbortError(e)) throw e
@@ -270,12 +267,7 @@ export class DockerContainer extends Provider {
     public async stop(options?: ContainerStopOptions): Promise<void> {
         if (!options) return await this.stop({})
         try {
-            const stopOptions: Dockerode.ContainerStopOptions = {
-                abortSignal: this.#abortController.signal,
-                signal: options.signal,
-                t: options.timeout
-            }
-            await this.#container.stop(stopOptions)
+            await this.getClient().stopContainer(this.id, {signal: options.signal, t: options.timeout}, this.#abortController.signal)
             await this.syncContainerInfo()
         } catch (e) {
             if (!IsAbortError(e)) throw e
@@ -286,7 +278,7 @@ export class DockerContainer extends Provider {
      * Pause container
      */
     public async pause(): Promise<void> {
-        await this.#container.pause()
+        await this.getClient().pauseContainer(this.id)
         await this.syncContainerInfo()
     }
 
@@ -294,7 +286,7 @@ export class DockerContainer extends Provider {
      * Unpause container
      */
     public async unpause(): Promise<void> {
-        await this.#container.unpause()
+        await this.getClient().unpauseContainer(this.id)
         await this.syncContainerInfo()
     }
 
@@ -306,12 +298,7 @@ export class DockerContainer extends Provider {
     public async restart(options?: ContainerStopOptions): Promise<void> {
         if (!options) return await this.restart({})
         try {
-            const stopOptions: Dockerode.ContainerStopOptions = {
-                abortSignal: this.#abortController.signal,
-                signal: options.signal,
-                t: options.timeout
-            }
-            await this.#container.restart(stopOptions)
+            await this.getClient().restartContainer(this.id, {signal: options.signal, t: options.timeout}, this.#abortController.signal)
             await this.syncContainerInfo()
         } catch (e) {
             if (!IsAbortError(e)) throw e
@@ -325,11 +312,7 @@ export class DockerContainer extends Provider {
     @Accept(ContainerRemoveOptions.optional())
     public async remove(options?: ContainerRemoveOptions): Promise<void> {
         if (!options) return await this.remove({})
-        const removeOptions: Dockerode.ContainerRemoveOptions = {
-            force: !!options.force,
-            v: true
-        }
-        await this.#container.remove(removeOptions)
+        await this.getClient().removeContainer(this.id, {force: !!options.force, v: true})
     }
 
     /**
@@ -388,7 +371,7 @@ export class DockerContainer extends Provider {
             repo = parseResult.repo
             tag = parseResult.tag
         }
-        const commitResult: { Id: string } = await this.#container.commit({
+        const commitResult: { Id: string } = await this.getClient().commitContainer(this.id, {
             repo: repo,
             tag: tag,
             pause: options.pauseBeforeCommitting !== undefined ? options.pauseBeforeCommitting : true
@@ -403,7 +386,8 @@ export class DockerContainer extends Provider {
     @Accept(ContainerCreateTTYOptions.optional())
     public async createTTY(options?: ContainerCreateTTYOptions): Promise<DockerContainerTTY> {
         return await this.getObject(DockerContainerTTY, {
-            container: this.#container,
+            getClient: this.getClient,
+            containerId: this.id,
             cmd: options?.cmd ? options.cmd : 'bash',
             initialConsoleSize: options?.consoleSize
         })
@@ -416,35 +400,27 @@ export class DockerContainer extends Provider {
     @Accept(ContainerLogsOptions.optional())
     public async logs(options?: ContainerLogsOptions): Promise<NodeJS.ReadableStream> {
         if (!options) return await this.logs({})
-        if (options.follow) {
-            return await this.#container.logs({
-                follow: true,
-                stdout: true,
-                stderr: true,
-                since: options.since,
-                until: options.until,
-                timestamps: options.timestamps,
-                tail: options.tail
-            })
-        } else {
-            const logBuffer: Buffer = await this.#container.logs({
-                follow: false,
-                stdout: true,
-                stderr: true,
-                since: options.since,
-                until: options.until,
-                timestamps: options.timestamps,
-                tail: options.tail
-            })
-            return Stream.Readable.from(logBuffer)
-        }
+        const logs: NodeJS.ReadableStream = await this.getClient().containerLogs(this.id, {
+            follow: !!options.follow,
+            stdout: true,
+            stderr: true,
+            since: options.since,
+            until: options.until,
+            timestamps: options.timestamps,
+            tail: options.tail
+        })
+        //The logs of a container without TTY are multiplexed: their contents are given, in their order
+        if (this.tty) return logs
+        const decoder: DockerStreamDecoder = new DockerStreamDecoder()
+        logs.once('error', (error: Error): unknown => decoder.destroy(error))
+        return logs.pipe(decoder)
     }
 
     /**
      * Get container stats
      */
     public async stats(): Promise<ContainerStats> {
-        return await this.#container.stats({'one-shot': true, stream: false})
+        return await this.getClient().containerStats(this.id) as ContainerStats
     }
 
     /**
@@ -453,24 +429,14 @@ export class DockerContainer extends Provider {
      */
     @Accept(ContainerExecOptions.required())
     public async exec(options: ContainerExecOptions): Promise<string> {
-        const exec: Dockerode.Exec = await this.#container.exec({
+        const exec: { Id: string } = await this.getClient().createExec(this.id, {
             Cmd: Array.isArray(options.cmd) ? options.cmd : [options.cmd],
             AttachStdout: true,
             AttachStderr: true
         })
-        return new Promise((resolve, reject): void => {
-            exec.start({Detach: false}, (error: Error | null, duplex: stream.Duplex | undefined) => {
-                if (error) return reject(error)
-                let cache: Buffer = Buffer.from([])
-                if (!duplex) return resolve(cache.toString())
-                duplex
-                    .on('data', (buf: Buffer): void => {
-                        cache = Buffer.from(new Uint8Array([...new Uint8Array(cache), ...new Uint8Array(buf)]))
-                    })
-                    .once('close', () => resolve(cache.toString()))
-                    .once('error', (error: Error) => reject(error))
-            })
-        })
+        //Without TTY, the output is multiplexed: its contents are given, in their order
+        const duplex: Duplex = await this.getClient().startExec(exec.Id, {Detach: false, Tty: false})
+        return (await ReadMultiplexed(duplex)).output
     }
 
     /**
@@ -480,7 +446,7 @@ export class DockerContainer extends Provider {
     @Accept(ContainerKillOptions.optional())
     public async kill(options?: ContainerKillOptions): Promise<void> {
         if (!options) return await this.kill({})
-        await this.#container.kill(options ? options : {})
+        await this.getClient().killContainer(this.id, {signal: options.signal})
         await this.syncContainerInfo()
     }
 
@@ -490,9 +456,7 @@ export class DockerContainer extends Provider {
      */
     @Accept(ContainerExportDirectoryOptions.required())
     public async exportDirectory(options: ContainerExportDirectoryOptions): Promise<void> {
-        const readableStream: NodeJS.ReadableStream = await this.#container.getArchive({
-            path: options.path
-        })
+        const readableStream: NodeJS.ReadableStream = await this.getClient().getArchive(this.id, {path: options.path})
         const writableStream: Writable = typeof options.destination === 'string' ? createWriteStream(options.destination) : options.destination
         await pipeline(readableStream, writableStream)
     }

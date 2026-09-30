@@ -1,12 +1,11 @@
 import {Provider} from '@lakutata/core'
 import {Configurable} from '@lakutata/core/decorator/di'
 import {DTO} from '@lakutata/core'
-import Dockerode from 'dockerode'
 import stream from 'stream'
+import type {DockerClient} from '../../client/DockerClient.js'
 import {Transient} from '@lakutata/core/decorator/di'
 import {ContainerTTYConsoleSizeOptions} from '../options/container/ContainerTTYConsoleSizeOptions.js'
 import {Accept} from '@lakutata/core/decorator/dto'
-import {As} from '@lakutata/core/helper'
 import {Logger} from '@lakutata/logger'
 import {Inject} from '@lakutata/core/decorator/di'
 
@@ -16,8 +15,11 @@ export class DockerContainerTTY extends Provider {
     @Inject('log')
     protected readonly log: Logger
 
-    @Configurable(DTO.InstanceOf(Dockerode.Container))
-    protected readonly container: Dockerode.Container
+    @Configurable(DTO.Function())
+    protected readonly getClient: () => DockerClient
+
+    @Configurable(DTO.String())
+    protected readonly containerId: string
 
     @Configurable(DTO.Alternatives(DTO.String(), DTO.Array(DTO.String()).min(1)))
     protected readonly cmd: string | string[]
@@ -25,7 +27,7 @@ export class DockerContainerTTY extends Provider {
     @Configurable(ContainerTTYConsoleSizeOptions.optional())
     protected readonly initialConsoleSize?: ContainerTTYConsoleSizeOptions
 
-    #exec: Dockerode.Exec
+    #execId: string
 
     #duplexStream: stream.Duplex
 
@@ -34,15 +36,17 @@ export class DockerContainerTTY extends Provider {
      * @protected
      */
     protected async init(): Promise<void> {
-        this.#exec = await this.container.exec(As({
+        const exec: { Id: string } = await this.getClient().createExec(this.containerId, {
             AttachStderr: true,
             AttachStdin: true,
             AttachStdout: true,
             Cmd: this.cmd ? Array.isArray(this.cmd) ? this.cmd : [this.cmd] : undefined,
             Tty: true,
             ConsoleSize: [this.initialConsoleSize?.rows ? this.initialConsoleSize.rows : 0, this.initialConsoleSize?.cols ? this.initialConsoleSize.cols : 0]
-        }))
-        this.#duplexStream = await this.#exec.start({hijack: true})
+        })
+        this.#execId = exec.Id
+        //Started with its TTY: its output is not multiplexed
+        this.#duplexStream = await this.getClient().startExec(this.#execId, {Detach: false, Tty: true})
     }
 
     /**
@@ -50,7 +54,8 @@ export class DockerContainerTTY extends Provider {
      * @protected
      */
     protected async destroy(): Promise<void> {
-        if (!this.#duplexStream.destroyed) {
+        //Not created when its execution failed to start
+        if (this.#duplexStream && !this.#duplexStream.destroyed) {
             this.#duplexStream.removeAllListeners()
             this.#duplexStream.destroy()
         }
@@ -83,7 +88,7 @@ export class DockerContainerTTY extends Provider {
      */
     @Accept(ContainerTTYConsoleSizeOptions.required())
     public async resize(options: ContainerTTYConsoleSizeOptions): Promise<void> {
-        await this.#exec.resize({
+        await this.getClient().resizeExec(this.#execId, {
             w: options.cols,
             h: options.rows
         })

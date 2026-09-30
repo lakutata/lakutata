@@ -1,6 +1,7 @@
 import {Provider} from '@lakutata/core'
 import {Transient} from '@lakutata/core/decorator/di'
-import Dockerode from 'dockerode'
+import type {DockerClient} from '../../client/DockerClient.js'
+import {FollowProgress} from '../../client/DockerStreams.js'
 import {Configurable} from '@lakutata/core/decorator/di'
 import {DTO} from '@lakutata/core'
 import {Time} from '@lakutata/utils'
@@ -14,7 +15,6 @@ import {DockerImageRepoTagNotFoundException} from '../exceptions/DockerImageRepo
 import {ImageRemoveOptions} from '../options/image/ImageRemoveOptions.js'
 import {ImagePushOptions} from '../options/image/ImagePushOptions.js'
 import {DockerImagePushException} from '../exceptions/DockerImagePushException.js'
-import {createInterface} from 'node:readline'
 import {IsAbortError} from '@lakutata/core/helper'
 import {ParseRepositoryTag} from './ParseRepositoryTag.js'
 import {As} from '@lakutata/core/helper'
@@ -29,12 +29,8 @@ export class DockerImage extends Provider {
 
     readonly #abortController: AbortController = new AbortController()
 
-    get #image(): Dockerode.Image {
-        return this.getDockerode().getImage(this.id)
-    }
-
     @Configurable(DTO.Function())
-    protected readonly getDockerode: () => Dockerode
+    protected readonly getClient: () => DockerClient
 
     @Configurable(DTO.Function())
     protected readonly getDocker: () => Docker
@@ -77,7 +73,7 @@ export class DockerImage extends Provider {
      * @protected
      */
     protected async syncImageInfo(): Promise<void> {
-        const inspectInfo: Dockerode.ImageInspectInfo = await this.#image.inspect()
+        const inspectInfo: Record<string, any> = await this.getClient().inspectImage(this.id)
         this.repoTags = inspectInfo.RepoTags
         this.createdAt = new Time(inspectInfo.Created)
         this.arch = inspectInfo.Architecture
@@ -129,7 +125,7 @@ export class DockerImage extends Provider {
     @Accept(ImageTagOptions.required())
     public async tag(options: ImageTagOptions): Promise<void> {
         try {
-            await this.#image.tag({...options, abortSignal: this.#abortController.signal})
+            await this.getClient().tagImage(this.id, {repo: options.repo, tag: options.tag})
             await this.syncImageInfo()
         } catch (e) {
             if (!IsAbortError(e)) throw e
@@ -143,18 +139,16 @@ export class DockerImage extends Provider {
     @Accept(ImageExportOptions.required())
     public async export(options: ImageExportOptions): Promise<void> {
         try {
-            let rawImage: Dockerode.Image
+            let name: string = this.id
             if (options.repoTag) {
                 if (!this.repoTags.includes(options.repoTag)) {
                     if (!options.createRepoTagIfNotExists) throw new DockerImageRepoTagNotFoundException('The current image does not contain the RepoTag of {0}', [options.repoTag])
                     const {repo, tag} = ParseRepositoryTag(options.repoTag)
                     await this.tag({repo: repo, tag: tag})
                 }
-                rawImage = this.getDockerode().getImage(options.repoTag)
-            } else {
-                rawImage = this.#image
+                name = options.repoTag
             }
-            const readableStream: NodeJS.ReadableStream = await rawImage.get()
+            const readableStream: NodeJS.ReadableStream = await this.getClient().exportImage(name)
             const destStream: NodeJS.WritableStream = typeof options.destination === 'string'
                 ? createWriteStream(options.destination, {signal: this.#abortController.signal})
                 : options.destination
@@ -171,40 +165,26 @@ export class DockerImage extends Provider {
     @Accept(ImagePushOptions.required())
     public async push(options: ImagePushOptions) {
         const tag: string = options.tag ? options.tag : 'latest'
-        const repoTag: string = `${options.repo}:${tag}`
         await this.tag({repo: options.repo, tag: tag})
         await this.syncImageInfo()
-        const readableStream: NodeJS.ReadableStream = await this.getDockerode().getImage(repoTag).push({
-            authconfig: options.auth ? {
-                username: options.auth.username,
-                password: options.auth.password,
-                serveraddress: options.auth.serverAddress,
-                email: options.auth.email
-            } : undefined
+        let pushException: DockerImagePushException | undefined
+        const readableStream: NodeJS.ReadableStream = await this.getClient().pushImage(options.repo, {tag: tag}, options.auth ? {
+            username: options.auth.username,
+            password: options.auth.password,
+            serveraddress: options.auth.serverAddress,
+            email: options.auth.email
+        } : undefined)
+        await FollowProgress(readableStream, (outputObject: Record<string, any>): void => {
+            if (outputObject.error && !pushException) pushException = new DockerImagePushException(outputObject.error)
+            if (options.outputCallback) options.outputCallback(outputObject)
         })
-        return new Promise<void>((resolve, reject) => {
-            let pushException: DockerImagePushException
-            createInterface({input: readableStream})
-                .on('line', (line: string) => {
-                    const outputObject: Record<string, any> = JSON.parse(line)
-                    if (outputObject.error) pushException = new DockerImagePushException(outputObject.error)
-                    if (options.outputCallback) options.outputCallback(outputObject)
-                })
-                .once('close', () => {
-                    if (pushException) return reject(pushException)
-                    return resolve()
-                })
-        })
+        if (pushException) throw pushException
     }
 
-    /**
-     * Remove docker image
-     * @param options
-     */
     @Accept(ImageRemoveOptions.optional().default({force: true}))
     public async remove(options?: ImageRemoveOptions): Promise<void> {
         try {
-            await this.#image.remove({...options, abortSignal: this.#abortController.signal})
+            await this.getClient().removeImage(this.id, {force: options?.force, noprune: options?.noprune})
         } catch (e) {
             if (!IsAbortError(e)) throw e
         }
