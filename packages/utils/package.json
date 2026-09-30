@@ -28,12 +28,6 @@
     "compile": "npm run rebuild",
     "test:unit": "npm run compile && node --test \"dist/esm/tests/*.spec.js\""
   },
-  "devDependencies": {
-    "@types/node": "22.20.4",
-    "moment-timezone": "0.6.0",
-    "shx": "0.3.4",
-    "typescript": "5.3.3"
-  },
   "engines": {
     "node": ">=22"
   },

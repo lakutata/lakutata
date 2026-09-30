@@ -31,13 +31,6 @@
   "peerDependencies": {
     "@lakutata/core": "2.0.126"
   },
-  "devDependencies": {
-    "@types/node": "22.20.4",
-    "pino": "10.1.0",
-    "pino-pretty": "13.1.2",
-    "shx": "0.3.4",
-    "typescript": "5.3.3"
-  },
   "engines": {
     "node": ">=22"
   },

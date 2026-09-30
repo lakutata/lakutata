@@ -126,18 +126,6 @@
       "optional": true
     }
   },
-  "devDependencies": {
-    "@inquirer/prompts": "^8.7.2",
-    "@types/express": "^5.0.6",
-    "@types/node": "22.20.4",
-    "commander": "^15.0.0",
-    "express": "^5.2.1",
-    "fastify": "^5.12.5",
-    "shx": "0.3.4",
-    "socket.io": "^4.8.4",
-    "socket.io-client": "^4.8.4",
-    "typescript": "5.3.3"
-  },
   "engines": {
     "node": ">=22"
   },

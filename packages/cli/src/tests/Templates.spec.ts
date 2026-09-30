@@ -229,14 +229,14 @@ describe('The templates of the repository', (): void => {
         assert.strictEqual(tested.code, 0, tested.output)
         assert.match(tested.output, /pass 4/)
         //The ui is type checked with the TypeScript of the template (vite does not check the types)
-        const checked = await Run(process.execPath, [path.join(ROOT, 'packages', 'template-web-react', 'node_modules', 'typescript', 'bin', 'tsc'), '-p', path.join(project, 'packages', 'ui')], project)
+        const checked = await Run(process.execPath, [path.join(ROOT, 'node_modules', 'typescript', 'bin', 'tsc'), '-p', path.join(project, 'packages', 'ui')], project)
         assert.strictEqual(checked.code, 0, checked.output)
     })
 
     it('creates a Next.js web application whose workspace builds the ui then the app, which renders its pages', async (): Promise<void> => {
         const project: string = await Create('web-next', 'Console')
         assert.doesNotMatch(readFileSync(path.join(project, 'packages', 'ui', 'app', 'page.tsx'), 'utf8'), /\{\$APP_/)
-        Install(project, ['express', 'compression', '@types/express', '@types/compression', '@types/node', 'next', 'react', 'react-dom', '@types/react', '@types/react-dom'], path.join(ROOT, 'packages', 'template-web-next', 'node_modules', 'typescript'))
+        Install(project, ['express', 'compression', '@types/express', '@types/compression', '@types/node', 'next', 'react', 'react-dom', '@types/react', '@types/react-dom'], path.join(ROOT, 'node_modules', 'typescript'))
         LinkWorkspace(project, ['ui'])
         symlinkSync(path.join(ROOT, 'node_modules', 'next', 'dist', 'bin', 'next'), path.join(project, 'node_modules', '.bin', 'next'))
         //The dependencies are linked to the repository, outside of the project: turbopack resolves them from the root of the filesystem
@@ -264,7 +264,7 @@ describe('The templates of the repository', (): void => {
         assert.strictEqual(tested.code, 0, tested.output)
         assert.match(tested.output, /pass 4/)
         //The ui is type checked by vue-tsc (vite does not check the types), with the TypeScript of the template
-        const vueTsc: string = `require(${JSON.stringify(path.join(ROOT, 'node_modules', 'vue-tsc'))}).run(${JSON.stringify(path.join(ROOT, 'packages', 'template-web-vue', 'node_modules', 'typescript', 'lib', 'tsc.js'))})`
+        const vueTsc: string = `require(${JSON.stringify(path.join(ROOT, 'node_modules', 'vue-tsc'))}).run(${JSON.stringify(path.join(ROOT, 'node_modules', 'typescript', 'lib', 'tsc.js'))})`
         const checked = await Run(process.execPath, ['-e', vueTsc, 'vue-tsc', '--noEmit', '-p', path.join(project, 'packages', 'ui')], project)
         assert.strictEqual(checked.code, 0, checked.output)
     })
@@ -282,7 +282,7 @@ describe('The templates of the repository', (): void => {
         assert.strictEqual(tested.code, 0, tested.output)
         assert.match(tested.output, /pass 4/)
         //The ui is type checked as nuxt typecheck does, with the TypeScript of the template
-        const vueTsc: string = `require(${JSON.stringify(path.join(ROOT, 'node_modules', 'vue-tsc'))}).run(${JSON.stringify(path.join(ROOT, 'packages', 'template-web-nuxt', 'node_modules', 'typescript', 'lib', 'tsc.js'))})`
+        const vueTsc: string = `require(${JSON.stringify(path.join(ROOT, 'node_modules', 'vue-tsc'))}).run(${JSON.stringify(path.join(ROOT, 'node_modules', 'typescript', 'lib', 'tsc.js'))})`
         const checked = await Run(process.execPath, ['-e', vueTsc, 'vue-tsc', '-b', '--noEmit'], path.join(project, 'packages', 'ui'))
         assert.strictEqual(checked.code, 0, checked.output)
     })
@@ -295,7 +295,7 @@ describe('The templates of the repository', (): void => {
             const project: string = await Create(template, name)
             assert.doesNotMatch(readFileSync(path.join(project, 'packages', 'ui', 'src', ui), 'utf8'), /\{\$APP_/)
             assert.ok(existsSync(path.join(project, '.dockerignore')))
-            Install(project, ['@types/node', 'electron', ...names], path.join(ROOT, 'packages', `template-${template}`, 'node_modules', 'typescript'))
+            Install(project, ['@types/node', 'electron', ...names], path.join(ROOT, 'node_modules', 'typescript'))
             LinkWorkspace(project, ['ui', 'app'])
             symlinkSync(path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'), path.join(project, 'node_modules', '.bin', 'vite'))
             const built = await Run(process.execPath, [CLI, 'run', 'rebuild', '--concurrency', '1'], project)
@@ -306,7 +306,7 @@ describe('The templates of the repository', (): void => {
             assert.strictEqual(tested.code, 0, tested.output)
             assert.match(tested.output, /pass 3/)
             //The renderer is type checked with the TypeScript of the template
-            const typescript: string = path.join(ROOT, 'packages', `template-${template}`, 'node_modules', 'typescript')
+            const typescript: string = path.join(ROOT, 'node_modules', 'typescript')
             const checked = template === 'electron-vue'
                 ? await Run(process.execPath, ['-e', `require(${JSON.stringify(path.join(ROOT, 'node_modules', 'vue-tsc'))}).run(${JSON.stringify(path.join(typescript, 'lib', 'tsc.js'))})`, 'vue-tsc', '--noEmit', '-p', path.join(project, 'packages', 'ui')], project)
                 : await Run(process.execPath, [path.join(typescript, 'bin', 'tsc'), '-p', path.join(project, 'packages', 'ui')], project)

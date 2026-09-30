@@ -14,11 +14,5 @@
   ],
   "lakutata": {
     "template": "web-nuxt"
-  },
-  "devDependencies": {
-    "nuxt": "^4.5.2",
-    "typescript": "^5.9.3",
-    "vue": "^3.5.43",
-    "vue-tsc": "^3.3.11"
   }
 }

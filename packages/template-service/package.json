@@ -14,9 +14,5 @@
   ],
   "lakutata": {
     "template": "service"
-  },
-  "devDependencies": {
-    "compression": "^1.8.1",
-    "@types/compression": "^1.8.1"
   }
 }
