@@ -1,0 +1,27 @@
+# The registry of the verification: the packages of lakutata are the ones published by it (never the ones of npmjs),
+# the other packages come from npmjs
+storage: /verdaccio/storage/data
+auth:
+  htpasswd:
+    file: /verdaccio/storage/htpasswd
+    max_users: 10
+uplinks:
+  npmjs:
+    url: https://registry.npmjs.org/
+    timeout: 60s
+packages:
+  'lakutata':
+    access: $all
+    publish: $authenticated
+  '@lakutata/*':
+    access: $all
+    publish: $authenticated
+  '**':
+    access: $all
+    publish: $authenticated
+    proxy: npmjs
+max_body_size: 500mb
+log:
+  type: stdout
+  format: pretty
+  level: warn
