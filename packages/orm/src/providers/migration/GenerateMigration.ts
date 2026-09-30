@@ -116,7 +116,7 @@ export class GenerateMigration extends Provider {
                 sqlInMemory.upQueries.forEach((upQuery) => {
                     upSqls.push(
                         '        await queryRunner.query(`' +
-                        upQuery.query.replaceAll('`', '\\`') +
+                        GenerateMigration.escapeTemplateLiteral(upQuery.query) +
                         '`' +
                         GenerateMigration.queryParams(
                             upQuery.parameters
@@ -127,7 +127,7 @@ export class GenerateMigration extends Provider {
                 sqlInMemory.downQueries.forEach((downQuery) => {
                     downSqls.push(
                         '        await queryRunner.query(`' +
-                        downQuery.query.replaceAll('`', '\\`') +
+                        GenerateMigration.escapeTemplateLiteral(downQuery.query) +
                         '`' +
                         GenerateMigration.queryParams(
                             downQuery.parameters
@@ -233,6 +233,15 @@ export class GenerateMigration extends Provider {
             //No package.json
         }
         return 'lakutata/orm'
+    }
+
+    /**
+     * Escape a query for a template literal of the migration: its backslashes, its backticks and its interpolations
+     * (the defaults and the comments of the columns are in the queries)
+     * @param query
+     */
+    protected static escapeTemplateLiteral(query: string): string {
+        return query.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${')
     }
 
     /**

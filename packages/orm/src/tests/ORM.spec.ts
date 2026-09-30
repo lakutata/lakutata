@@ -108,14 +108,15 @@ describe('The ORM', (): void => {
          * Generate the migrations of an application whose Database component has the entity Note, in a project
          * @param directory the directory of the project
          * @param dependencies the dependencies of the project
+         * @param title the options of the column title of Note
          */
-        async function generate(directory: string, dependencies: Record<string, string>): Promise<SpawnSyncReturns<string>> {
+        async function generate(directory: string, dependencies: Record<string, string>, title: Record<string, string> = {}): Promise<SpawnSyncReturns<string>> {
             await writeFile(path.join(directory, 'package.json'), JSON.stringify({name: 'project', type: 'module', dependencies: dependencies}))
             const script: string = [
                 `import {Application} from '${import.meta.resolve('@lakutata/core')}'`,
                 `import {EntitySchema} from '${new URL('../exports/ORM.js', import.meta.url)}'`,
                 `import {BuildDatabaseOptions} from '${new URL('../exports/DatabaseComponent.js', import.meta.url)}'`,
-                'const Note = new EntitySchema({name: \'note\', columns: {id: {type: Number, primary: true, generated: true}, title: {type: String}}})',
+                `const Note = new EntitySchema({name: 'note', columns: {id: {type: Number, primary: true, generated: true}, title: {type: String, ...${JSON.stringify(title)}}}})`,
                 'Application.run({id: \'migration.test\', name: \'MigrationTest\', components: {db: BuildDatabaseOptions({type: \'sqlite\', database: \'project.db\', entities: [Note]})}})'
             ].join('\n')
             return spawnSync(process.execPath, ['--input-type=module', '-e', script], {
@@ -145,6 +146,18 @@ describe('The ORM', (): void => {
             assert.strictEqual(result.status, 0, result.stdout + result.stderr)
             const [file] = await readdir(path.join(directory, 'migrations'))
             assert.match(await readFile(path.join(directory, 'migrations', file), 'utf8'), /from "lakutata\/orm";/)
+        }))
+
+        it('escapes the queries in the template literals of the migration', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+            const value: string = 'a\\b`${1+1}'
+            const result: SpawnSyncReturns<string> = await generate(directory, {'@lakutata/orm': '2.0.126'}, {default: value})
+            assert.strictEqual(result.status, 0, result.stdout + result.stderr)
+            const [file] = await readdir(path.join(directory, 'migrations'))
+            const migration: string = await readFile(path.join(directory, 'migrations', file), 'utf8')
+            //The query of the migration, as the template literal gives it
+            const literal: string = migration.slice(migration.indexOf('queryRunner.query(`') + 'queryRunner.query('.length, migration.indexOf('`);') + 1)
+            const query: string = new Function(`return ${literal}`)()
+            assert.ok(query.includes(`DEFAULT ('${value}')`), query)
         }))
 
         it('fails when the schema has no changes', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
