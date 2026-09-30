@@ -1,0 +1,56 @@
+{
+  "name": "@lakutata/docker",
+  "version": "2.0.126",
+  "description": "The Docker component of the lakutata framework: images (pull, build with BuildKit, import, export, push), containers, their TTYs and networks, over the Docker Engine API.",
+  "type": "module",
+  "main": "./dist/cjs/exports/Docker.js",
+  "types": "./dist/cjs/exports/Docker.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/types/exports/Docker.d.ts",
+        "default": "./dist/esm/exports/Docker.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/Docker.d.ts",
+        "default": "./dist/cjs/exports/Docker.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "clean": "shx rm -rf ./dist",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:cjs-pkg": "node -e \"require('node:fs').writeFileSync('dist/cjs/package.json',JSON.stringify({type:'commonjs'}))\"",
+    "build:js": "npm run build:cjs && npm run build:esm && npm run build:cjs-pkg",
+    "rebuild": "npm run clean && npm run build:js",
+    "compile": "npm run rebuild",
+    "test:unit": "npm run compile && node --test \"dist/esm/tests/*.spec.js\"",
+    "test:docker": "npm run compile && DOCKER_TEST=1 node --test --test-concurrency=1 \"dist/esm/tests/engine/*.spec.js\""
+  },
+  "dependencies": {
+    "dockerode": "4.0.9",
+    "tar-stream": "3.1.7",
+    "dockerfile-ast": "0.7.1",
+    "is-base64": "1.1.0",
+    "strip-ansi": "7.1.2",
+    "strip-bom": "5.0.0",
+    "@types/dockerode": "3.3.34"
+  },
+  "peerDependencies": {
+    "@lakutata/core": "2.0.126",
+    "@lakutata/logger": "2.0.126",
+    "@lakutata/utils": "2.0.126"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "dist",
+    "!dist/*/tests",
+    "*.md",
+    "LICENSE",
+    "package.json"
+  ]
+}

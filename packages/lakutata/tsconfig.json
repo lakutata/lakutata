@@ -51,6 +51,9 @@
             "@lakutata/cache": [
                 "../cache/dist/types/exports/Cache"
             ],
+            "@lakutata/docker": [
+                "../docker/dist/types/exports/Docker"
+            ],
             "@lakutata/core/com/monitor": [
                 "../core/dist/types/exports/MonitorComponent"
             ],

@@ -290,18 +290,12 @@
     "@lakutata/logger": "2.0.126",
     "@lakutata/entrypoint": "2.0.126",
     "@lakutata/cache": "2.0.126",
+    "@lakutata/docker": "2.0.126",
     "@lakutata/utils": "2.0.126",
     "@lakutata/security": "2.0.126",
     "typeorm": "0.3.24",
-    "dockerode": "4.0.9",
-    "tar-stream": "3.1.7",
-    "dockerfile-ast": "0.7.1",
-    "is-base64": "1.1.0",
-    "strip-ansi": "7.1.2",
-    "strip-bom": "5.0.0",
     "@sqltools/formatter": "^1.2.5",
-    "ansis": "4.2.0",
-    "@types/dockerode": "3.3.34"
+    "ansis": "4.2.0"
   },
   "files": [
     "dist",
