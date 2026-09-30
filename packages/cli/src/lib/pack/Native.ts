@@ -26,8 +26,10 @@ export type NativeLink = {
 /**
  * The native addons of an application and what they need at run time, which cannot be bundled: their packages (and
  * the packages they load), laid out as node lays them out, loaded from the disk.
- * The tree is: store/<the packages, at their paths relative to a common directory>, node_modules/<the packages the
- * application loads> linked to the store, files/<the addons loaded by the application itself>
+ * The tree is the layout of the packages from the directory of their node_modules (the project, the workspace): node
+ * finds them there as it finds them in the project; the links of the tree are the ones of the project (the packages of
+ * the workspace, pnpm) and the packages the application loads which are not in its node_modules. The addons loaded by the
+ * application itself are in .lakutata/addons
  */
 export type NativeTree = {
     /**
@@ -273,7 +275,7 @@ export class NativeCollector {
                         return {path: args.path, external: true}
                     }
                     if (ADDON.test(file)) {
-                        const key: string = `files/${createHash('sha256').update(file).digest('hex').slice(0, 16)}-${path.basename(file)}`
+                        const key: string = `.lakutata/addons/${createHash('sha256').update(file).digest('hex').slice(0, 16)}-${path.basename(file)}`
                         this.addons.set(key, file)
                         return {path: key, namespace: 'lakutata-native'}
                     }
@@ -372,7 +374,10 @@ export class NativeCollector {
         }
         let base: string = [...included][0] ?? this.project
         for (const location of [...included, ...links.map(({lookup}): string => lookup)]) base = CommonDirectory(base, location)
-        const store = (location: string): string => ['store', ...path.relative(base, location).split(path.sep)].join('/')
+        //The directory of the outermost node_modules: the packages keep the node_modules node looks them up in
+        const parts: string[] = base.split(path.sep)
+        if (parts.includes('node_modules')) base = parts.slice(0, parts.indexOf('node_modules')).join(path.sep) || path.sep
+        const store = (location: string): string => path.relative(base, location).split(path.sep).join('/')
         const files: NativeFile[] = []
         for (const root of [...included].sort()) {
             for (const file of PackageFiles(root)) files.push({path: store(file), source: file, mode: statSync(file).mode & 0o777})
@@ -380,7 +385,8 @@ export class NativeCollector {
         for (const [key, file] of this.addons) files.push({path: key, source: file, mode: statSync(file).mode & 0o777})
         const treeLinks: NativeLink[] = [
             ...links.map(({lookup, root}): NativeLink => ({path: store(lookup), target: store(root)})),
-            ...[...this.externals].map(([name, {root}]): NativeLink => ({path: `node_modules/${name}`, target: store(root)}))
+            //The packages the application loads, where node finds them from the root of the tree
+            ...[...this.externals].filter(([name, {root}]): boolean => store(root) !== `node_modules/${name}`).map(([name, {root}]): NativeLink => ({path: `node_modules/${name}`, target: store(root)}))
         ]
         const hash = createHash('sha256')
         for (const file of files) hash.update(`${file.path}\0${file.mode}\0`).update(readFileSync(file.source))

@@ -11,7 +11,8 @@ export type NativeRuntimeConfig = {
      */
     hash: string
     /**
-     * The directory of the tree next to the bundle (the bundles run by node)
+     * The directory of the tree next to the bundle (the bundles run by node), or in the resources of a packaged Electron
+     * application
      */
     directory: string
     /**
@@ -104,7 +105,10 @@ export function LakutataNativeRequire(nodeRequire: NodeJS.Require, config: Nativ
                 root = extract(path.join(os.tmpdir(), config.name))
             }
         } else {
-            root = path.join(__dirname, config.directory)
+            //Next to the bundle, or in the resources of a packaged Electron application (outside of its archive)
+            const resources: string | undefined = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath
+            const local: string = path.join(__dirname, config.directory)
+            root = fs.existsSync(local) || !resources ? local : path.join(resources, config.directory)
         }
         return root
     }

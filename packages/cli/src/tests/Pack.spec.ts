@@ -218,7 +218,7 @@ void (async () => {
         const tree: string = path.join(native, 'dist', 'natapp.native')
         const packages: string[] = readdirSync(path.join(tree, 'node_modules'))
         assert.deepStrictEqual(packages.sort(), ['cpu-features', 'native-sub', 'sharp', 'sqlite3'])
-        const stored: string = execFileSync('find', [path.join(tree, 'store'), '-name', 'package.json']).toString()
+        const stored: string = execFileSync('find', ['-L', tree, '-name', 'package.json']).toString()
         assert.match(stored, /bindings\/package\.json/)
         assert.match(stored, /sharp-libvips-/)
         assert.doesNotMatch(stored, /prebuild-install|node-gyp/)
@@ -227,6 +227,25 @@ void (async () => {
         cpSync(path.join(native, 'dist'), moved, {recursive: true, verbatimSymlinks: true})
         const ran = await RunNative(process.execPath, [path.join(moved, 'natapp.cjs')], {}, moved)
         assert.match(ran.output.trim(), EXPECTED)
+    })
+
+    it('keeps the node_modules of the project in the tree, where node finds the packages', async (): Promise<void> => {
+        //A project whose packages are installed in its node_modules (not linked): the tree is its layout, without link
+        const project: string = path.join(path.dirname(native), 'installed')
+        mkdirSync(path.join(project, 'node_modules'), {recursive: true})
+        for (const name of ['sqlite3', 'bindings', 'file-uri-to-path']) cpSync(realpathSync(path.join(ROOT, 'node_modules', name)), path.join(project, 'node_modules', name), {recursive: true})
+        writeFileSync(path.join(project, 'package.json'), JSON.stringify({name: 'installed', version: '1.0.0', main: 'index.js'}))
+        writeFileSync(path.join(project, 'index.js'), `new (require('sqlite3').Database)(':memory:').get('select 1 + 1 as x', (error, row) => console.log('sqlite ' + (error ? error.message : row.x)))`)
+        const bundled = await RunNative(process.execPath, [CLI, 'bundle'], {}, project)
+        assert.strictEqual(bundled.code, 0, bundled.output)
+        const tree: string = path.join(project, 'dist', 'installed.native')
+        assert.ok(existsSync(path.join(tree, 'node_modules', 'sqlite3', 'package.json')))
+        assert.ok(existsSync(path.join(tree, 'node_modules', 'bindings', 'package.json')))
+        assert.strictEqual(execFileSync('find', [tree, '-type', 'l']).toString().trim(), '')
+        const moved: string = path.join(path.dirname(native), 'installed-moved')
+        cpSync(path.join(project, 'dist'), moved, {recursive: true})
+        rmSync(project, {recursive: true, force: true})
+        assert.strictEqual((await RunNative(process.execPath, [path.join(moved, 'installed.cjs')], {}, moved)).output.trim(), 'sqlite 2')
     })
 
     it('makes an executable which extracts its native packages once into its cache directory', async (): Promise<void> => {
