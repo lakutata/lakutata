@@ -2,7 +2,7 @@ import {DTO} from 'lakutata'
 import {Expect} from 'lakutata/decorator/dto'
 
 export class ExecutableDTO extends DTO {
-    @Expect(DTO.Array(DTO.String()).optional().description('The platforms of the executables: linux-x64, linux-arm64, darwin-arm64, darwin-x64, win-x64… (the current one by default)'))
+    @Expect(DTO.Array(DTO.String()).optional().description('The platforms of the executables: linux-x64, linux-arm64, darwin-arm64, darwin-x64, win-x64… or linux/amd64, linux/arm64, windows/amd64… (the current one by default)'))
     public target?: string[]
 
     @Expect(DTO.String().optional().description('The compiled entry of the application (the "main" of the package.json by default)'))

@@ -80,7 +80,12 @@ export async function BuildExecutables(options: ExecutableOptions): Promise<Exec
         if (bundle.native) {
             //The addons are the ones of this platform
             const others: Target[] = targets.filter(({name}): boolean => name !== HostTarget().name)
-            if (others.length) throw new Error(`The native addons (${bundle.native.modules.join(', ') || 'the addons of the application'}) are the ones of ${HostTarget().name}: make the executables of ${others.map(({name}): string => name).join(', ')} on these platforms`)
+            if (others.length) {
+                throw new Error([
+                    `The native addons (${bundle.native.modules.join(', ') || 'the addons of the application'}) are built for ${HostTarget().name}: the executables of ${others.map(({name}): string => name).join(', ')} are made where their addons are built.`,
+                    'Run lakutata executable on these platforms: a machine or a runner of the CI of the platform, or, for Linux, a container of the architecture (docker run --platform linux/<arch>)'
+                ].join('\n'))
+            }
             //The files of the native packages, extracted by the executable at its first run
             const {index, data} = PackNativeTree(bundle.native)
             assets[NATIVE_DATA_ASSET] = path.join(work, 'native.gz')

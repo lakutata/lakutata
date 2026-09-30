@@ -133,7 +133,7 @@ lakutata executable --target linux-x64 linux-arm64 darwin-arm64 darwin-x64 win-x
 
 | Option | |
 |---|---|
-| `--target <targets...>` | the platforms, as the Node.js distributions name them, the current one by default |
+| `--target <targets...>` | the platforms, as the Node.js distributions name them (`linux-x64`, `win-x64`…) or as Docker does (`linux/amd64`, `windows/amd64`…), the current one by default |
 | `--outdir <directory>` | the directory of the executables, `dist` by default |
 | `--entry`, `--no-minify`, `--external` | as `lakutata bundle` |
 
@@ -141,7 +141,8 @@ The native addons are embedded in the executables: at its first run, an executab
 (`~/.cache/<name>`, `~/Library/Caches/<name>` on macOS, `%LOCALAPPDATA%\<name>\Cache` on Windows, or `LAKUTATA_NATIVE_DIR`;
 the temporary directory when it cannot be written), in a directory named after their content: the next runs load them
 from there, the versions of the program do not share it. The addons being the ones of the platform making the
-executable, the executables with native addons are made for this platform only (make the others on their platforms).
+executable, the executables with native addons are made for this platform only: make the others on their platforms (a
+machine or a runner of the CI of the platform; for Linux, a container of the architecture: `docker run --platform linux/arm64`).
 The addons need the system libraries they were built for (the glibc version of the Linux prebuilt addons).
 
 The executables of macOS are signed ad hoc when they are made on macOS (on another system, sign them on macOS:

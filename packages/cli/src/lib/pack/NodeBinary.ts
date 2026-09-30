@@ -27,13 +27,22 @@ export function HostTarget(): Target {
 }
 
 /**
- * A target from its name
- * @param name "linux-x64", "darwin-arm64", "win-x64"…
+ * The platforms and the architectures of Docker, as the Node.js distributions name them
+ */
+const DOCKER_PLATFORMS: Record<string, string> = {linux: 'linux', darwin: 'darwin', windows: 'win'}
+const DOCKER_ARCHITECTURES: Record<string, string> = {'amd64': 'x64', 'arm64': 'arm64', 'arm64/v8': 'arm64', 'arm/v7': 'armv7l', '386': 'x86', 'ppc64le': 'ppc64le', 's390x': 's390x'}
+
+/**
+ * A target from its name: as the Node.js distributions name it ("linux-x64", "darwin-arm64", "win-x64"…), or as Docker
+ * names it ("linux/amd64", "linux/arm64", "windows/amd64"…)
+ * @param name
  */
 export function ParseTarget(name: string): Target {
-    const matched: RegExpExecArray | null = /^(linux|darwin|win)-([a-z0-9]+)$/.exec(name)
-    if (!matched) throw new Error(`Invalid target "${name}": <platform>-<arch>, the platform linux, darwin or win (linux-x64, linux-arm64, darwin-arm64, win-x64…)`)
-    return {name: name, platform: matched[1] as Target['platform'], arch: matched[2]}
+    const docker: RegExpExecArray | null = /^([a-z]+)\/(.+)$/.exec(name)
+    const normalized: string = docker && DOCKER_PLATFORMS[docker[1]] && DOCKER_ARCHITECTURES[docker[2]] ? `${DOCKER_PLATFORMS[docker[1]]}-${DOCKER_ARCHITECTURES[docker[2]]}` : name
+    const matched: RegExpExecArray | null = /^(linux|darwin|win)-([a-z0-9]+)$/.exec(normalized)
+    if (!matched) throw new Error(`Invalid target "${name}": <platform>-<arch> (linux-x64, linux-arm64, darwin-arm64, win-x64…) or <os>/<arch> (linux/amd64, linux/arm64, windows/amd64…)`)
+    return {name: normalized, platform: matched[1] as Target['platform'], arch: matched[2]}
 }
 
 /**

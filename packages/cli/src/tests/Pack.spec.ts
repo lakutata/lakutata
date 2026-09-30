@@ -178,7 +178,14 @@ Application.run({
     it('names the platforms as the distributions of Node.js', (): void => {
         assert.deepStrictEqual(ParseTarget('linux-arm64'), {name: 'linux-arm64', platform: 'linux', arch: 'arm64'})
         assert.deepStrictEqual(ParseTarget('win-x64'), {name: 'win-x64', platform: 'win', arch: 'x64'})
+        //As Docker names them
+        assert.strictEqual(ParseTarget('linux/amd64').name, 'linux-x64')
+        assert.strictEqual(ParseTarget('linux/arm64').name, 'linux-arm64')
+        assert.strictEqual(ParseTarget('linux/arm/v7').name, 'linux-armv7l')
+        assert.deepStrictEqual(ParseTarget('windows/amd64'), {name: 'win-x64', platform: 'win', arch: 'x64'})
+        assert.strictEqual(ParseTarget('darwin/arm64').name, 'darwin-arm64')
         assert.throws((): unknown => ParseTarget('windows-x64'), /Invalid target "windows-x64"/)
+        assert.throws((): unknown => ParseTarget('freebsd/amd64'), /Invalid target "freebsd\/amd64"/)
         assert.throws((): unknown => ParseTarget('linux'), /Invalid target/)
         assert.match(HostTarget().name, /^(linux|darwin|win)-/)
     })
@@ -299,7 +306,8 @@ void (async () => {
         const other: string = HostTarget().platform === 'linux' ? 'win-x64' : 'linux-x64'
         const refused = await RunNative(process.execPath, [CLI, 'executable', '--target', other])
         assert.strictEqual(refused.code, 1)
-        assert.match(refused.output, new RegExp(`are the ones of ${HostTarget().name}: make the executables of ${other} on these platforms`))
+        assert.match(refused.output, new RegExp(`are built for ${HostTarget().name}: the executables of ${other} are made where their addons are built`))
+        assert.match(refused.output, /Run lakutata executable on these platforms/)
     })
 
     it('tells to await in a function instead of at the top level', async (): Promise<void> => {
