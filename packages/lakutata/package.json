@@ -245,6 +245,7 @@
     "build:js": "npm run build:cjs && npm run build:esm && npm run build:cjs-pkg",
     "rebuild": "npm run clean && npm run build:js",
     "compile": "npm run rebuild",
+    "test:app": "npm run compile && node dist/esm/tests/App.spec.js",
     "test:dispatch": "npm run compile && node dist/esm/tests/integration/Dispatch.contract.spec.js"
   },
   "release-it": {

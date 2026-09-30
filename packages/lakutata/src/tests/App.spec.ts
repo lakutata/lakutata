@@ -45,7 +45,7 @@ Application
             log: {
                 destinations: [
                     process.stdout,
-                    createWriteStream(path.resolve(__dirname, 'test.log'))
+                    createWriteStream(path.resolve(import.meta.dirname, 'test.log'))
                 ]
             },
             testComponent: {
@@ -182,7 +182,7 @@ Application
         ]
     }))
     .alias({
-        '@test': path.resolve(__dirname, './xxxxx'),
+        '@test': path.resolve(import.meta.dirname, './xxxxx'),
         '@test2': '@test/kkkkkkkk'
     }, true)
     .onLaunched(async (app, log) => {
@@ -280,7 +280,7 @@ Application
         // const img=await docker.buildImage({
         //     dockerfile: 'TestDockerfile',
         //     files: ['TestDockerfile'],
-        //     workdir: path.resolve(__dirname, '../../../src/tests/'),
+        //     workdir: path.resolve(import.meta.dirname, '../../../src/tests/'),
         //     platform: 'linux/arm64',
         //     outputCallback: output => console.log(output)
         // })
