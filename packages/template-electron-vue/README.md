@@ -1,0 +1,12 @@
+# @lakutata/template-electron-vue
+
+The Electron template of the [lakutata](https://github.com/lakutata/lakutata) projects with Vue: the main process is a
+lakutata application serving the actions of its controllers over IPC to the renderer (Vue, Vite), isolated from Node.js;
+the application is packaged by electron-builder, for Linux in a container of the architecture (`npm run cross`).
+
+```bash
+npx @lakutata/cli create --name my-app --template electron-vue
+```
+
+The files of the project are in `template/`; `lakutata create` fills `{$APP_NAME}`, `{$APP_ID}`, `{$APP_DESC}`,
+`{$APP_AUTHOR}` and `{$APP_LICENSE}`, and renames `_gitignore` and `_dockerignore`.

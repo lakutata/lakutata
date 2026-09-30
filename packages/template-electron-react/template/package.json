@@ -1,0 +1,31 @@
+{
+  "name": "{$APP_ID}",
+  "productName": "{$APP_NAME}",
+  "version": "0.0.1",
+  "description": "{$APP_DESC}",
+  "author": "{$APP_AUTHOR}",
+  "license": "{$APP_LICENSE}",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "lakutata run rebuild",
+    "test": "lakutata run test",
+    "dev": "lakutata run dev --parallel",
+    "start": "npm start -w app",
+    "package": "npm run build && node scripts/assemble.mjs && electron-builder",
+    "cross": "node scripts/cross.mjs",
+    "version:patch": "lakutata version patch --yes"
+  },
+  "devDependencies": {
+    "@lakutata/cli": "^{$LAKUTATA_VERSION}",
+    "@types/node": "^22.0.0",
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

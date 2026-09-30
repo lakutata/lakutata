@@ -1,0 +1,23 @@
+{
+  "name": "ui",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist', {recursive: true, force: true})\"",
+    "build": "vite build",
+    "rebuild": "npm run clean && npm run build",
+    "dev": "vite --port 5173 --strictPort",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "vite": "^8.3.1"
+  }
+}

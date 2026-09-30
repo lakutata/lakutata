@@ -46,6 +46,16 @@
         "name": "web-nuxt",
         "description": "An HTTP API serving a Nuxt application from the same process",
         "package": "@lakutata/template-web-nuxt"
+      },
+      {
+        "name": "electron-react",
+        "description": "A desktop application: Electron, its main process serving a React renderer over IPC",
+        "package": "@lakutata/template-electron-react"
+      },
+      {
+        "name": "electron-vue",
+        "description": "A desktop application: Electron, its main process serving a Vue renderer over IPC",
+        "package": "@lakutata/template-electron-vue"
       }
     ]
   }

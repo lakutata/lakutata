@@ -1,0 +1,20 @@
+{
+  "name": "app",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "build/App.js",
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('build', {recursive: true, force: true})\"",
+    "build": "tsc",
+    "rebuild": "npm run clean && npm run build",
+    "dev": "npm run rebuild && electron build/App.js --renderer=http://localhost:5173",
+    "start": "electron build/App.js",
+    "test": "node --test \"build/tests/**/*.spec.js\"",
+    "bundle": "lakutata bundle --outfile ../../release/app/main.cjs --external electron"
+  },
+  "dependencies": {
+    "lakutata": "^{$LAKUTATA_VERSION}",
+    "ui": "^0.0.1"
+  }
+}

@@ -66,7 +66,9 @@ const BUILTIN_TEMPLATES: TemplateInfo[] = [
     {name: 'web-react', description: 'An HTTP API serving a React single-page application (Vite)', package: '@lakutata/template-web-react'},
     {name: 'web-next', description: 'An HTTP API serving a Next.js application from the same process', package: '@lakutata/template-web-next'},
     {name: 'web-vue', description: 'An HTTP API serving a Vue single-page application (Vite)', package: '@lakutata/template-web-vue'},
-    {name: 'web-nuxt', description: 'An HTTP API serving a Nuxt application from the same process', package: '@lakutata/template-web-nuxt'}
+    {name: 'web-nuxt', description: 'An HTTP API serving a Nuxt application from the same process', package: '@lakutata/template-web-nuxt'},
+    {name: 'electron-react', description: 'A desktop application: Electron, its main process serving a React renderer over IPC', package: '@lakutata/template-electron-react'},
+    {name: 'electron-vue', description: 'A desktop application: Electron, its main process serving a Vue renderer over IPC', package: '@lakutata/template-electron-vue'}
 ]
 
 /**
