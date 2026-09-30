@@ -292,11 +292,9 @@
     "@lakutata/entrypoint": "2.0.126",
     "@lakutata/cache": "2.0.126",
     "@lakutata/docker": "2.0.126",
+    "@lakutata/orm": "2.0.126",
     "@lakutata/utils": "2.0.126",
-    "@lakutata/security": "2.0.126",
-    "typeorm": "0.3.24",
-    "@sqltools/formatter": "^1.2.5",
-    "ansis": "4.2.0"
+    "@lakutata/security": "2.0.126"
   },
   "files": [
     "dist",

@@ -1,0 +1,81 @@
+{
+  "name": "@lakutata/orm",
+  "version": "2.0.126",
+  "description": "The ORM of the lakutata framework, on TypeORM: the Database component and provider, the entity decorators and the generation of the migrations.",
+  "type": "module",
+  "main": "./dist/cjs/exports/ORM.js",
+  "types": "./dist/cjs/exports/ORM.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/types/exports/ORM.d.ts",
+        "default": "./dist/esm/exports/ORM.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/ORM.d.ts",
+        "default": "./dist/cjs/exports/ORM.js"
+      }
+    },
+    "./decorator/orm": {
+      "import": {
+        "types": "./dist/types/exports/ORMDecorators.d.ts",
+        "default": "./dist/esm/exports/ORMDecorators.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/ORMDecorators.d.ts",
+        "default": "./dist/cjs/exports/ORMDecorators.js"
+      }
+    },
+    "./com/database": {
+      "import": {
+        "types": "./dist/types/exports/DatabaseComponent.d.ts",
+        "default": "./dist/esm/exports/DatabaseComponent.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/DatabaseComponent.d.ts",
+        "default": "./dist/cjs/exports/DatabaseComponent.js"
+      }
+    },
+    "./provider/database": {
+      "import": {
+        "types": "./dist/types/exports/DatabaseProvider.d.ts",
+        "default": "./dist/esm/exports/DatabaseProvider.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/DatabaseProvider.d.ts",
+        "default": "./dist/cjs/exports/DatabaseProvider.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "clean": "shx rm -rf ./dist",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:cjs-pkg": "node -e \"require('node:fs').writeFileSync('dist/cjs/package.json',JSON.stringify({type:'commonjs'}))\"",
+    "build:js": "npm run build:cjs && npm run build:esm && npm run build:cjs-pkg",
+    "rebuild": "npm run clean && npm run build:js",
+    "compile": "npm run rebuild",
+    "test:unit": "npm run compile && node --test \"dist/esm/tests/*.spec.js\""
+  },
+  "dependencies": {
+    "typeorm": "0.3.24",
+    "@sqltools/formatter": "^1.2.5",
+    "ansis": "4.2.0",
+    "reflect-metadata": "0.2.2"
+  },
+  "peerDependencies": {
+    "@lakutata/core": "2.0.126"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "dist",
+    "!dist/*/tests",
+    "*.md",
+    "LICENSE",
+    "package.json",
+    "THIRD_PARTY_NOTICES.md"
+  ]
+}

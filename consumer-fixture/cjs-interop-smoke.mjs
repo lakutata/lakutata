@@ -16,9 +16,21 @@ const check = async (name, fn) => {
     }
 }
 
-// typeorm (Database component) — named imports from deep subpaths
+// The CJS builds of the packages are loaded by require
+const {createRequire} = await import('node:module')
+const requireCJS = createRequire(import.meta.url)
+
+// typeorm (the Database component of @lakutata/orm) — named imports from deep subpaths
 const {DataSource} = await import('typeorm/data-source/DataSource.js')
 await check('typeorm DataSource construct', () => { new DataSource({type: 'sqlite', database: ':memory:'}) })
+await check('CJS @lakutata/orm loads typeorm', () => {
+    if (typeof requireCJS('../packages/orm/dist/cjs/exports/DatabaseComponent.js').Database !== 'function') throw new Error('Database missing')
+    if (typeof requireCJS('../packages/orm/dist/cjs/exports/ORM.js').DataSource !== 'function') throw new Error('DataSource missing')
+})
+const ormPackage = await import('../packages/orm/dist/esm/exports/ORM.js')
+await check('@lakutata/orm loads typeorm under ESM', () => {
+    if (typeof ormPackage.DataSource !== 'function' || typeof ormPackage.BaseEntity !== 'function') throw new Error('ORM exports missing')
+})
 
 // Cacher store drivers (optional CJS peers) — loaded by the Cacher driver loader
 const {LoadDriver} = await import('../packages/cache/dist/esm/cache/lib/LoadDriver.js')
@@ -34,8 +46,6 @@ await check('@lakutata/nats loads the nats client', () => {
 })
 
 // commander (CLI adapter, ESM only) — required by the CJS build of the adapter
-const {createRequire} = await import('node:module')
-const requireCJS = createRequire(import.meta.url)
 await check('CJS commander adapter loads', () => {
     if (typeof requireCJS('../packages/entrypoint/dist/cjs/exports/CommanderAdapter.js').CommanderCLIEntrypoint !== 'function') throw new Error('CommanderCLIEntrypoint missing')
 })

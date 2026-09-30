@@ -1,8 +1,5 @@
-import {Entity} from '../../decorators/orm/Entity.js'
-import {BaseEntity} from '../../exports/ORM.js'
-import {PrimaryGeneratedColumn} from '../../decorators/orm/PrimaryGeneratedColumn.js'
-import {Column} from '../../decorators/orm/Column.js'
-import {CreateDateColumn} from '../../decorators/orm/CreateDateColumn.js'
+import {Entity, PrimaryGeneratedColumn, Column, CreateDateColumn} from '@lakutata/orm/decorator/orm'
+import {BaseEntity} from '@lakutata/orm'
 
 @Entity()
 export class TestEntity extends BaseEntity {

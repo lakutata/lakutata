@@ -98,6 +98,18 @@
             ],
             "@lakutata/entrypoint/adapter/electron": [
                 "../entrypoint/dist/types/exports/ElectronAdapter"
+            ],
+            "@lakutata/orm": [
+                "../orm/dist/types/exports/ORM"
+            ],
+            "@lakutata/orm/decorator/orm": [
+                "../orm/dist/types/exports/ORMDecorators"
+            ],
+            "@lakutata/orm/com/database": [
+                "../orm/dist/types/exports/DatabaseComponent"
+            ],
+            "@lakutata/orm/provider/database": [
+                "../orm/dist/types/exports/DatabaseProvider"
             ]
         }
     },

@@ -1,8 +1,13 @@
+/*
+ * The generation of the migrations, rewritten from the command migration:generate of TypeORM (Copyright (c) 2015-2025
+ * TypeORM, MIT License, see THIRD_PARTY_NOTICES.md)
+ */
 import {Provider} from '@lakutata/core'
 import {Configurable} from '@lakutata/core/decorator/di'
 import {DTO} from '@lakutata/core'
 import {type DataSourceOptions} from 'typeorm/data-source/DataSourceOptions.js'
 import path from 'path'
+import {readFileSync} from 'fs'
 import {DataSource} from 'typeorm/data-source/DataSource.js'
 import {SqlInMemory} from 'typeorm/driver/SqlInMemory.js'
 import {format} from '@sqltools/formatter/lib/sqlFormatter.js'
@@ -80,7 +85,8 @@ export class GenerateMigration extends Provider {
      * @protected
      */
     protected async destroy(): Promise<void> {
-        await this.#dataSource?.destroy()
+        //The data source is destroyed once the schema is read
+        if (this.#dataSource?.isInitialized) await this.#dataSource.destroy()
     }
 
     protected async handle(): Promise<void> {
@@ -216,6 +222,20 @@ export class GenerateMigration extends Provider {
     }
 
     /**
+     * The module the migrations import their types from: @lakutata/orm when the project depends on it, otherwise
+     * lakutata/orm (the migrations of the projects depending on lakutata)
+     */
+    protected static migrationModule(): string {
+        try {
+            const pkg: Record<string, Record<string, string> | undefined> = JSON.parse(readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'))
+            if (pkg.dependencies?.['@lakutata/orm'] || pkg.devDependencies?.['@lakutata/orm']) return '@lakutata/orm'
+        } catch {
+            //No package.json
+        }
+        return 'lakutata/orm'
+    }
+
+    /**
      * Formats query parameters for migration queries if parameters actually exist
      */
     protected static queryParams(parameters: any[] | undefined): string {
@@ -237,7 +257,7 @@ export class GenerateMigration extends Provider {
     ): string {
         const migrationName = `${camelCase(name, true)}${timestamp}`
 
-        return `import { MigrationInterface, QueryRunner } from "lakutata/orm";
+        return `import { MigrationInterface, QueryRunner } from "${GenerateMigration.migrationModule()}";
 
 export class ${migrationName} implements MigrationInterface {
     name = '${migrationName}'
@@ -270,9 +290,11 @@ ${downSqls.join(`
 
         const exportMethod = esm ? 'export' : 'module.exports ='
 
+        const migrationModule: string = GenerateMigration.migrationModule()
+
         return `/**
- * @typedef {import('lakutata/orm').MigrationInterface} MigrationInterface
- * @typedef {import('lakutata/orm').QueryRunner} QueryRunner
+ * @typedef {import('${migrationModule}').MigrationInterface} MigrationInterface
+ * @typedef {import('${migrationModule}').QueryRunner} QueryRunner
  */
 
 /**

@@ -1,3 +1,1 @@
-import 'reflect-metadata'
-
-export * from '../components/Database.js'
+export * from '@lakutata/orm/com/database'
