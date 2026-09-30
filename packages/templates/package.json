@@ -19,7 +19,7 @@
       },
       {
         "name": "cli",
-        "description": "A command line tool, bundled into one file or made into executables",
+        "description": "A command line tool built into executables which run without Node.js",
         "package": "@lakutata/template-cli"
       },
       {

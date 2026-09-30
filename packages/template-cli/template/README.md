@@ -3,14 +3,15 @@
 {$APP_DESC}
 
 A [lakutata](https://github.com/lakutata/lakutata) command line tool: the actions of its controllers are its commands.
+It is built into an executable which runs without Node.js.
 
 ```bash
-npm run build                           # compile into build/
-node build/App.js greet --name you      # run a command (node build/App.js --help lists them)
-npm test                                # build and run the tests
-npm run bundle                          # one file with the dependencies: node dist/{$APP_ID}.cjs greet --name you
-npm run executable                      # an executable of this platform, without Node.js: dist/{$APP_ID}
-npm run executable -- --target linux-x64 linux-arm64 darwin-arm64 darwin-x64 win-x64   # the other platforms
+npm run build                           # the executable of this platform: dist/{$APP_ID}
+./dist/{$APP_ID} greet --name you       # run a command (--help lists them)
+npm run build:all                       # the executables of linux-x64/arm64, darwin-x64/arm64, win-x64: dist/{$APP_ID}-<platform>
+npm test                                # compile and run the tests
+npm run compile                         # compile into build/, run by node: node build/App.js greet --name you
+npm run bundle                          # one JavaScript file with the dependencies: node dist/{$APP_ID}.cjs greet --name you
 ```
 
 - `src/App.ts` starts the tool;
@@ -21,7 +22,7 @@ npm run executable -- --target linux-x64 linux-arm64 darwin-arm64 darwin-x64 win
 
 `npm link` installs the command `{$APP_ID}` on this machine; `npm publish` (without `"private": true`) shares it.
 
-## The bundle and the executables
+## The executables and the bundle
 
 `lakutata bundle` bundles the compiled tool and its dependencies into `dist/{$APP_ID}.cjs`, run by node without
 `node_modules`. `lakutata executable` embeds the bundle into the Node.js binary of each platform (the single executable

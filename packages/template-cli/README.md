@@ -1,8 +1,8 @@
 # @lakutata/template-cli
 
 The command line template of the [lakutata](https://github.com/lakutata/lakutata) projects: the actions of its controllers
-are the commands of a tool (the commander adapter), run by node, bundled into one JavaScript file (`lakutata bundle`) or
-made into executables which run without Node.js (`lakutata executable`).
+are the commands of a tool (the commander adapter), built into executables which run without Node.js (`lakutata
+executable`, for this platform and the others), or bundled into one JavaScript file run by node (`lakutata bundle`).
 
 ```bash
 npx @lakutata/cli create --name my-tool --template cli

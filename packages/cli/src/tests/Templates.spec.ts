@@ -124,7 +124,7 @@ describe('The templates of the repository', (): void => {
         assert.match(tested.output, /pass 1/)
     })
 
-    it('creates a command line tool which passes its tests, and is bundled and made into an executable', async (): Promise<void> => {
+    it('creates a command line tool which passes its tests, and is built into an executable and bundled', async (): Promise<void> => {
         const project: string = await Create('cli', 'Greeter')
         assert.doesNotMatch(readFileSync(path.join(project, 'src', 'config', 'Config.ts'), 'utf8'), /\{\$APP_/)
         assert.strictEqual(JSON.parse(readFileSync(path.join(project, 'package.json'), 'utf8')).bin.greeter, 'build/App.js')
@@ -137,7 +137,7 @@ describe('The templates of the repository', (): void => {
         assert.strictEqual(bundled.code, 0, bundled.output)
         const bundle = await Run(process.execPath, [path.join(project, 'dist', 'greeter.cjs'), 'greet', '--name', 'bundle'], work)
         assert.strictEqual(bundle.output.trim(), 'Hello, bundle!')
-        const made = await Run('npm', ['run', 'executable'], project)
+        const made = await Run('npm', ['run', 'build'], project)
         assert.strictEqual(made.code, 0, made.output)
         const executable: string = path.join(project, 'dist', process.platform === 'win32' ? 'greeter.exe' : 'greeter')
         assert.strictEqual((await Run(executable, ['greet', '--name', 'executable', '--loud'], work)).output.trim(), 'HELLO, EXECUTABLE!')

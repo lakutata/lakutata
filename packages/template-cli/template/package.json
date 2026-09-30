@@ -16,12 +16,14 @@
   ],
   "scripts": {
     "clean": "node -e \"for (const d of ['build', 'dist']) require('node:fs').rmSync(d, {recursive: true, force: true})\"",
-    "build": "npm run clean && tsc",
+    "compile": "npm run clean && tsc",
     "start": "node build/App.js",
-    "test": "npm run build && node --test \"build/tests/**/*.spec.js\"",
-    "bundle": "npm run build && lakutata bundle",
-    "executable": "npm run build && lakutata executable"
+    "test": "npm run compile && node --test \"build/tests/**/*.spec.js\"",
+    "build": "npm run compile && lakutata executable",
+    "build:all": "npm run compile && lakutata executable --target linux-x64 linux-arm64 darwin-x64 darwin-arm64 win-x64",
+    "bundle": "npm run compile && lakutata bundle"
   },
+
   "dependencies": {
     "@inquirer/prompts": "^8.7.2",
     "commander": "^15.0.0",
