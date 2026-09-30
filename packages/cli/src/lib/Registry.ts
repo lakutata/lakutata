@@ -23,19 +23,32 @@ function PackageURL(name: string): string {
  * The parts of a version
  * @param version
  */
-function VersionParts(version: string): { numbers: number[], prerelease: boolean } | undefined {
-    const matched: RegExpExecArray | null = /^(\d+)\.(\d+)\.(\d+)(-.+)?$/.exec(version)
-    return matched ? {numbers: [Number(matched[1]), Number(matched[2]), Number(matched[3])], prerelease: !!matched[4]} : undefined
+function VersionParts(version: string): { numbers: number[], prerelease: string[] } | undefined {
+    const matched: RegExpExecArray | null = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+.*)?$/.exec(version)
+    return matched ? {numbers: [Number(matched[1]), Number(matched[2]), Number(matched[3])], prerelease: matched[4] ? matched[4].split('.') : []} : undefined
 }
 
 /**
- * Compare two versions without prerelease
+ * Compare two versions as semver does: a prerelease is before its release, its identifiers are compared one by one
+ * (the numbers as numbers, before the words)
  * @param a
  * @param b
  */
-function CompareVersions(a: string, b: string): number {
-    const [x, y] = [VersionParts(a)!.numbers, VersionParts(b)!.numbers]
-    return x[0] - y[0] || x[1] - y[1] || x[2] - y[2]
+export function CompareVersions(a: string, b: string): number {
+    const [x, y] = [VersionParts(a)!, VersionParts(b)!]
+    const numbers: number = x.numbers[0] - y.numbers[0] || x.numbers[1] - y.numbers[1] || x.numbers[2] - y.numbers[2]
+    if (numbers) return numbers
+    if (!x.prerelease.length || !y.prerelease.length) return y.prerelease.length - x.prerelease.length
+    for (let index: number = 0; index < Math.max(x.prerelease.length, y.prerelease.length); index++) {
+        const [left, right] = [x.prerelease[index], y.prerelease[index]]
+        if (left === undefined || right === undefined) return left === undefined ? -1 : 1
+        if (left === right) continue
+        const [leftNumber, rightNumber] = [/^\d+$/.test(left), /^\d+$/.test(right)]
+        if (leftNumber && rightNumber) return Number(left) - Number(right)
+        if (leftNumber !== rightNumber) return leftNumber ? -1 : 1
+        return left < right ? -1 : 1
+    }
+    return 0
 }
 
 /**
@@ -48,8 +61,25 @@ export function NewestVersion(versions: string[], major?: number): string | unde
         const parts = VersionParts(version)
         return !!parts && (major === undefined || parts.numbers[0] === major)
     })
-    const releases: string[] = candidates.filter((version: string): boolean => !VersionParts(version)!.prerelease)
+    const releases: string[] = candidates.filter((version: string): boolean => !VersionParts(version)!.prerelease.length)
     return (releases.length ? releases : candidates).sort(CompareVersions).at(-1)
+}
+
+/**
+ * The manifest of the newest version of a major version of a package (the prereleases when the major version has no
+ * release: the tags do not tell the major versions), undefined when it cannot be fetched
+ * @param name
+ * @param major
+ */
+export async function MajorManifest(name: string, major: number): Promise<Record<string, any> | undefined> {
+    try {
+        const pkg: PackageVersion | undefined = await ResolvePackage(name, major)
+        if (!pkg) return undefined
+        const response: Response = await fetch(`${PackageURL(name)}/${encodeURIComponent(pkg.version)}`, {signal: AbortSignal.timeout(15000)})
+        return response.ok ? await response.json() as Record<string, any> : undefined
+    } catch {
+        return undefined
+    }
 }
 
 /**

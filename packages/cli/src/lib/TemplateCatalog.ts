@@ -6,7 +6,7 @@ import {Component} from 'lakutata'
 import {Autoload, Singleton} from 'lakutata/decorator/di'
 import {Settings} from './Settings.js'
 import {Warn} from './Output.js'
-import {CachedPackage, DownloadPackage, LatestManifest, type PackageVersion, ResolvePackage} from './Registry.js'
+import {CachedPackage, DownloadPackage, MajorManifest, type PackageVersion, ResolvePackage} from './Registry.js'
 import {ExtractTarGz, Under} from './Tar.js'
 import {ToolMajor} from './Versions.js'
 
@@ -108,7 +108,8 @@ export class TemplateCatalog extends Component {
     public async list(refresh: boolean = false): Promise<TemplateInfo[]> {
         const cache: CatalogCache | undefined = await this.readCache()
         if (cache && !refresh && Date.now() - cache.updatedAt < CACHE_TTL) return cache.templates
-        const templates: unknown = (await LatestManifest(CATALOG_PACKAGE))?.lakutata?.templates
+        //The catalog of the major version of the tool (its templates are the ones of this major version)
+        const templates: unknown = (await MajorManifest(CATALOG_PACKAGE, ToolMajor()))?.lakutata?.templates
         if (Array.isArray(templates)) {
             await mkdir(path.dirname(this.cacheFile), {recursive: true})
             await writeFile(this.cacheFile, JSON.stringify({updatedAt: Date.now(), registry: Settings.registry, templates: templates} satisfies CatalogCache, null, 2))

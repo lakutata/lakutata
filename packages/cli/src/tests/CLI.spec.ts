@@ -120,10 +120,13 @@ describe('The command line tool', (): void => {
             }
             if (url.pathname === '/me/my-template/archive/HEAD.tar.gz') return void response.writeHead(200).end(repository)
             if (!registryAvailable) return void response.writeHead(503).end()
-            if (url.pathname === '/@lakutata%2ftemplates/latest') return json({name: '@lakutata/templates', version: '1.0.0', lakutata: {templates: [
+            //The catalogs: the one of the major version of the tool is read, not the one tagged latest (another major version)
+            if (url.pathname === '/@lakutata%2ftemplates') return json({'dist-tags': {latest: `${major + 1}.0.0`}, versions: Object.fromEntries([`${major}.0.0`, `${major}.1.0`, `${major + 1}.0.0`].map((version: string): [string, unknown] => [version, {dist: {tarball: `${base}/tarballs/catalog/${version}`}}]))})
+            if (url.pathname === `/@lakutata%2ftemplates/${major}.1.0`) return json({name: '@lakutata/templates', version: `${major}.1.0`, lakutata: {templates: [
                 {name: 'default', description: 'The default template', package: '@lakutata/template-default'},
                 {name: 'service', description: 'The service template', package: '@lakutata/template-service'}
             ]}})
+            if (url.pathname.startsWith('/@lakutata%2ftemplates/')) return json({name: '@lakutata/templates', lakutata: {templates: [{name: 'other', description: 'Another major version', package: '@lakutata/template-other'}]}})
             if (url.pathname === '/@lakutata%2ftemplate-default') return json({versions: Object.fromEntries(versions.map((version: string): [string, unknown] => [version, {dist: {tarball: `${base}/tarballs/default/${version}`}}]))})
             if (url.pathname === '/@me%2ftemplate') return json({versions: {'1.0.0': {dist: {tarball: `${base}/tarballs/other/1.0.0`}}}})
             if (url.pathname === '/lakutata/latest') return json({name: 'lakutata', version: '9.9.9'})
@@ -151,7 +154,8 @@ describe('The command line tool', (): void => {
         assert.strictEqual(listed.code, 0, listed.stderr)
         assert.match(listed.stdout, /default\s+The default template\n\s+service\s+The service template/)
         assert.match(listed.stdout, /npm:<package>, github:<owner>\/<repo>, or a directory/)
-        assert.deepStrictEqual(requests, ['/@lakutata%2ftemplates/latest'])
+        assert.deepStrictEqual(requests, ['/@lakutata%2ftemplates', `/@lakutata%2ftemplates/${major}.1.0`])
+        assert.doesNotMatch(listed.stdout, /Another major version/)
         //The catalog is cached, --refresh fetches it again, the cache is used when the registry cannot be reached
         requests = []
         await Run(['templates'])
