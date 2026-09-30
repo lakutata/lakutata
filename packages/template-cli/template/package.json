@@ -16,7 +16,7 @@
   ],
   "scripts": {
     "clean": "node -e \"for (const d of ['build', 'dist']) require('node:fs').rmSync(d, {recursive: true, force: true})\"",
-    "compile": "npm run clean && tsc",
+    "compile": "node -e \"require('node:fs').rmSync('build', {recursive: true, force: true})\" && tsc",
     "start": "node build/App.js",
     "test": "npm run compile && node --test \"build/tests/**/*.spec.js\"",
     "build": "npm run compile && lakutata executable",
