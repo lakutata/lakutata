@@ -29,8 +29,10 @@ applications of Node.js), which runs without Node.js installed: the Node.js embe
 The binaries of the other platforms are downloaded once from the Node.js distributions (`LAKUTATA_NODE_MIRROR`, or the
 mirror of nvm `NVM_NODEJS_ORG_MIRROR`, e.g. `https://npmmirror.com/mirrors/node`) and checked.
 
-- The native addons (`.node` files) cannot be bundled: `--external <module>` leaves a module out, it is then loaded
-  from a `node_modules` next to the bundle, which the executables do not have.
+- The native addons (`.node` files) are handled: next to the bundle (`dist/{$APP_ID}.native/`, distributed with it),
+  embedded in the executable, which extracts them at its first run into its cache directory (`LAKUTATA_NATIVE_DIR`
+  changes it). An executable with native addons is made for the platform making it: make the others on their platforms.
+- The bundle is a CommonJS module: no top-level `await` in the sources (await in an async function).
 - The executables of macOS are signed ad hoc when they are made on macOS; made elsewhere, sign them on macOS
   (`codesign --sign - <file>`). The executables of Windows keep the signature of Node.js, which does not match anymore:
   sign them before distributing them.

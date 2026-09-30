@@ -5,6 +5,8 @@ import {Run} from '../Processes.js'
 import {Warn} from '../Output.js'
 import {BundleProject, type BundleOptions, type BundleResult} from './Bundle.js'
 import {ExecutableName, HostTarget, NodeBinary, type Target} from './NodeBinary.js'
+import {PackNativeTree} from './Native.js'
+import {NATIVE_DATA_ASSET, NATIVE_INDEX_ASSET} from './NativeRuntime.js'
 
 export type ExecutableOptions = Omit<BundleOptions, 'outfile'> & {
     /**
@@ -19,6 +21,10 @@ export type ExecutableOptions = Omit<BundleOptions, 'outfile'> & {
 
 export type ExecutableResult = {
     name: string
+    /**
+     * The packages of native addons embedded, extracted at the first run
+     */
+    native: string[]
     /**
      * The Node.js embedded in the executables
      */
@@ -69,7 +75,19 @@ export async function BuildExecutables(options: ExecutableOptions): Promise<Exec
     const outdir: string = path.resolve(project, options.outdir ?? 'dist')
     const work: string = await mkdtemp(path.join(os.tmpdir(), 'lakutata-executable-'))
     try {
-        const bundle: BundleResult = await BundleProject({...options, outfile: path.join(work, 'main.cjs')})
+        const bundle: BundleResult = await BundleProject({...options, outfile: path.join(work, 'main.cjs'), native: 'embedded'})
+        const assets: Record<string, string> = {}
+        if (bundle.native) {
+            //The addons are the ones of this platform
+            const others: Target[] = targets.filter(({name}): boolean => name !== HostTarget().name)
+            if (others.length) throw new Error(`The native addons (${bundle.native.modules.join(', ') || 'the addons of the application'}) are the ones of ${HostTarget().name}: make the executables of ${others.map(({name}): string => name).join(', ')} on these platforms`)
+            //The files of the native packages, extracted by the executable at its first run
+            const {index, data} = PackNativeTree(bundle.native)
+            assets[NATIVE_DATA_ASSET] = path.join(work, 'native.gz')
+            assets[NATIVE_INDEX_ASSET] = path.join(work, 'native.json')
+            await writeFile(assets[NATIVE_DATA_ASSET], data)
+            await writeFile(assets[NATIVE_INDEX_ASSET], JSON.stringify(index))
+        }
         //The preparation blob of the bundle, read by the Node.js of the same version on any platform (without the code cache
         //and the snapshot, which are specific to the platform)
         const blob: string = path.join(work, 'main.blob')
@@ -78,7 +96,8 @@ export async function BuildExecutables(options: ExecutableOptions): Promise<Exec
             output: blob,
             disableExperimentalSEAWarning: true,
             useCodeCache: false,
-            useSnapshot: false
+            useSnapshot: false,
+            assets: assets
         }))
         await Must(process.execPath, ['--experimental-sea-config', 'sea-config.json'], work)
         const data: Buffer = await readFile(blob)
@@ -102,7 +121,7 @@ export async function BuildExecutables(options: ExecutableOptions): Promise<Exec
             if (target.platform === 'win') Warn(`${path.basename(file)} has the signature of Node.js, which is not valid anymore: sign it (signtool) before distributing it`)
             executables.push({target: target, file: file, size: (await stat(file)).size})
         }
-        return {name: bundle.name, node: process.version, executables: executables}
+        return {name: bundle.name, native: bundle.native?.modules ?? [], node: process.version, executables: executables}
     } finally {
         await rm(work, {recursive: true, force: true})
     }

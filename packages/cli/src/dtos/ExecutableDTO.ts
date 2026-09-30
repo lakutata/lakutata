@@ -14,6 +14,6 @@ export class ExecutableDTO extends DTO {
     @Expect(DTO.Boolean().optional().default(true).description('Minify the bundle embedded in the executables'))
     public minify: boolean
 
-    @Expect(DTO.Array(DTO.String()).optional().description('The modules left out of the bundle (they are not in the executables: they must be installed next to them)'))
+    @Expect(DTO.Array(DTO.String()).optional().description('The modules left out of the bundle (they are not in the executables: they are loaded from a node_modules next to them)'))
     public external?: string[]
 }

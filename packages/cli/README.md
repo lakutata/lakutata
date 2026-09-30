@@ -108,7 +108,16 @@ Bundle the application and its dependencies into one CommonJS file (esbuild), ru
 | `--entry <file>` | the compiled entry, the `main` of the `package.json` by default |
 | `--outfile <file>` | the bundle, `dist/<name>.cjs` by default |
 | `--no-minify` | do not minify the bundle |
-| `--external <modules...>` | the modules left out of the bundle, loaded at run time (the native addons) |
+| `--external <modules...>` | the modules left out of the bundle, loaded at run time from a `node_modules` next to it |
+
+The bundles are CommonJS modules (the executables of Node.js run them): the ES modules of the application are converted,
+without top-level `await` (await in an async function).
+
+The native addons (`.node` files) cannot be bundled: their packages are found while the application is bundled (the
+packages holding addons, and the packages loading them with computed paths, such as sharp) and left out of the bundle,
+with what they load at run time (the JavaScript they require, the packages of the shared libraries linked with their
+addons, such as libvips), laid out as in `node_modules`: `dist/<name>.native/`, distributed with the bundle. The addons of
+the application itself (`require('./x.node')`, `createRequire(import.meta.url)('./x.node')`) are there too.
 
 ### `lakutata executable`
 
@@ -127,6 +136,13 @@ lakutata executable --target linux-x64 linux-arm64 darwin-arm64 darwin-x64 win-x
 | `--target <targets...>` | the platforms, as the Node.js distributions name them, the current one by default |
 | `--outdir <directory>` | the directory of the executables, `dist` by default |
 | `--entry`, `--no-minify`, `--external` | as `lakutata bundle` |
+
+The native addons are embedded in the executables: at its first run, an executable extracts them into its cache directory
+(`~/.cache/<name>`, `~/Library/Caches/<name>` on macOS, `%LOCALAPPDATA%\<name>\Cache` on Windows, or `LAKUTATA_NATIVE_DIR`;
+the temporary directory when it cannot be written), in a directory named after their content: the next runs load them
+from there, the versions of the program do not share it. The addons being the ones of the platform making the
+executable, the executables with native addons are made for this platform only (make the others on their platforms).
+The addons need the system libraries they were built for (the glibc version of the Linux prebuilt addons).
 
 The executables of macOS are signed ad hoc when they are made on macOS (on another system, sign them on macOS:
 `codesign --sign - <file>`). The ones of Windows keep the signature of `node.exe`, which does not match anymore: sign them

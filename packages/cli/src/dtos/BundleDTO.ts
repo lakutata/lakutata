@@ -11,6 +11,6 @@ export class BundleDTO extends DTO {
     @Expect(DTO.Boolean().optional().default(true).description('Minify the bundle'))
     public minify: boolean
 
-    @Expect(DTO.Array(DTO.String()).optional().description('The modules left out of the bundle, loaded at run time (the native addons)'))
+    @Expect(DTO.Array(DTO.String()).optional().description('The modules left out of the bundle, loaded at run time from a node_modules next to it (the native addons are handled)'))
     public external?: string[]
 }
