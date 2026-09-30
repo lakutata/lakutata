@@ -2,7 +2,6 @@ import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor
 import {ClassDecorator} from '../../../types/ClassDecorator.js'
 import {ObjectParentConstructors} from '../../helpers/ObjectParentConstructors.js'
 import {IsSubclassOf} from '../../helpers/internal/IsSubclassOf.js'
-import {BaseObject} from '../BaseObject.js'
 
 /**
  * Internal unique symbol
@@ -22,6 +21,22 @@ export enum ObjectType {
 }
 
 /**
+ * BaseObject, registered by its module once it is defined: this module does not import it, BaseObject is decorated by
+ * DefineObjectType while it is defined (an import would be a cycle, which fails when the first module loaded imports
+ * BaseObject through this module)
+ */
+let baseObjectConstructor: Function | undefined
+
+/**
+ * Register BaseObject
+ * @param constructor
+ * @constructor
+ */
+export function RegisterBaseObject(constructor: Function): void {
+    baseObjectConstructor = constructor
+}
+
+/**
  * Class Decorator
  * @param type
  * @constructor
@@ -37,7 +52,8 @@ export function DefineObjectType<ClassConstructor extends IBaseObjectConstructor
  * @constructor
  */
 export function SetObjectType<ClassConstructor extends IBaseObjectConstructor>(target: ClassConstructor, type: ObjectType): ClassConstructor {
-    Reflect.defineMetadata(OBJECT_TYPE, IsSubclassOf(target, BaseObject) ? type : ObjectType.Unknown, target)
+    //BaseObject itself is not its own subclass: it is not registered yet when it is decorated
+    Reflect.defineMetadata(OBJECT_TYPE, baseObjectConstructor && IsSubclassOf(target, baseObjectConstructor) ? type : ObjectType.Unknown, target)
     return target
 }
 

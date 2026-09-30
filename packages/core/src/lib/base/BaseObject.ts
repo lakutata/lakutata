@@ -17,7 +17,7 @@ import {IsSymbol} from '../helpers/IsSymbol.js'
 import {ObjectConstructor} from '../helpers/ObjectConstructor.js'
 import {As} from '../helpers/As.js'
 import {DevNull} from '../helpers/DevNull.js'
-import {DefineObjectType, GetObjectType, ObjectType} from './internal/ObjectType.js'
+import {DefineObjectType, GetObjectType, ObjectType, RegisterBaseObject} from './internal/ObjectType.js'
 import {Module} from '../core/Module.js'
 import {DependencyInjectionException} from '../../exceptions/di/DependencyInjectionException.js'
 import {ObjectDestroyedException} from '../../exceptions/ObjectDestroyedException.js'
@@ -447,3 +447,5 @@ export class BaseObject extends AsyncConstructor {
         await this.dispose()
     }
 }
+
+RegisterBaseObject(BaseObject)
