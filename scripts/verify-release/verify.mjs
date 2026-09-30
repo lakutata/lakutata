@@ -21,7 +21,7 @@ const {values: options} = parseArgs({
     options: {
         'version': {type: 'string', default: '3.0.0-verify.1'},
         'tag': {type: 'string', default: 'verify'},
-        'templates': {type: 'string', default: 'default cli service web-react web-vue web-next web-nuxt'},
+        'templates': {type: 'string', default: 'default cli service web-react web-vue web-next web-nuxt electron-react electron-vue'},
         'node': {type: 'string', default: '22'},
         'skip-build': {type: 'boolean', default: false},
         'skip-images': {type: 'boolean', default: false},
@@ -173,11 +173,44 @@ function Consumer() {
 }
 
 /**
- * The Docker images of the templates having a Dockerfile: built from the registry, then run
+ * The deb of an Electron template packaged for linux/arm64 in a container (npm run cross), from the registry: installed
+ * in a clean Debian, started in a virtual display, its page read with the DevTools protocol
+ * @param template
+ * @param project
+ */
+function Cross(template, project) {
+    Step(`The cross build of ${template}: linux/arm64`)
+    writeFileSync(path.join(project, '.npmrc'), `registry=${REGISTRY}\n`)
+    let started = Date.now()
+    const packaged = spawnSync('node', ['scripts/cross.mjs', 'linux/arm64'], {cwd: project, stdio: 'inherit'}).status === 0
+    const debs = packaged && existsSync(path.join(project, 'release', 'cross', 'arm64')) ? readdirSync(path.join(project, 'release', 'cross', 'arm64')).filter(file => file.endsWith('.deb')) : []
+    results.push(`${debs.length === 1 ? 'PASS' : 'FAIL'} ${template}: cross build of the deb (${Math.round((Date.now() - started) / 1000)}s)`)
+    if (debs.length !== 1) return
+    started = Date.now()
+    const output = spawnSync('docker', [
+        'run', '--rm', '--platform', 'linux/arm64',
+        '-v', `${path.join(project, 'release', 'cross', 'arm64')}:/deb:ro`,
+        '-v', `${HERE}:/verify:ro`,
+        'node:22-trixie', 'sh', '/verify/electron-deb.sh', `/deb/${debs[0]}`
+    ], {encoding: 'utf8'})
+    //The output of the application (the pulls of the image are on stderr)
+    console.log(output.stdout.trim().split('\n').slice(-15).join('\n'))
+    if (output.status !== 0) console.log(output.stderr.trim().split('\n').slice(-15).join('\n'))
+    const shown = /PAGE: .*Hello, verify-/.test(output.stdout) && /isolated: true/.test(output.stdout)
+    results.push(`${shown ? 'PASS' : 'FAIL'} ${template}: the deb installed and started, its page shown (${Math.round((Date.now() - started) / 1000)}s)`)
+}
+
+/**
+ * The Docker images of the templates having a Dockerfile: built from the registry, then run; the cross builds of the
+ * Electron templates
  */
 async function Images() {
     for (const template of options.templates.split(/\s+/)) {
         const project = path.join(work, 'projects', `verify-${template}`)
+        if (template.startsWith('electron-') && existsSync(path.join(project, 'scripts', 'cross.mjs'))) {
+            Cross(template, project)
+            continue
+        }
         if (!existsSync(path.join(project, 'Dockerfile'))) continue
         const image = `lakutata-verify-${template}`
         Step(`The image of ${template}`)

@@ -5,7 +5,7 @@
 set -u
 
 TAG="${VERIFY_TAG:-verify}"
-TEMPLATES="${VERIFY_TEMPLATES:-default cli service web-react web-vue web-next web-nuxt}"
+TEMPLATES="${VERIFY_TEMPLATES:-default cli service web-react web-vue web-next web-nuxt electron-react electron-vue}"
 RESULTS=/work/results.txt
 LOGS=/work/logs
 PROJECTS=/work/projects
