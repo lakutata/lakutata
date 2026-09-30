@@ -27,7 +27,9 @@ time.isBetween('2024-01-01', '2024-12-31', 'day', '[]')  // true
 ## Time zones
 
 - `timezone()` gives the time zone, `timezone(zone)` a new time in another zone (the same instant); `Time.timezones()`
-  lists the supported zones. An unknown zone throws a `RangeError`.
+  lists the supported zones by their current IANA names, with `UTC` and the fixed offsets `Etc/GMT-14`…`Etc/GMT+12`.
+  The former names and the aliases (`Asia/Calcutta`, `US/Eastern`) are accepted but not listed (the list of 2.x, the one
+  of moment-timezone, had them). An unknown zone throws a `RangeError`.
 - `utcOffset()` is the offset of the zone in minutes (480 for UTC+8); `getTimezoneOffset()` is the one of `Date`
   (-480 for UTC+8).
 - The getters, the setters, the calendar operations (`add` of days, months...) and `format` use the wall clock of the

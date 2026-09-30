@@ -98,6 +98,21 @@ describe('Time', (): void => {
         assert.strictEqual(new Time('2024-03-09T17:00:00Z').timezone('America/New_York').add(1, 'day').format('HH:mm Z'), '12:00 -04:00')
     })
 
+    it('lists the time zones by their current IANA names, with UTC and the fixed offsets', (): void => {
+        const zones: string[] = Time.timezones()
+        for (const zone of ['UTC', 'Etc/GMT-8', 'Etc/GMT+12', 'Etc/GMT-14', 'Asia/Kolkata', 'Europe/Kyiv', 'America/Argentina/Buenos_Aires', 'Europe/Amsterdam', 'Europe/Brussels']) assert.ok(zones.includes(zone), zone)
+        //The former names are not listed, and are still accepted
+        for (const zone of ['Asia/Calcutta', 'Europe/Kiev', 'Etc/GMT+0']) assert.ok(!zones.includes(zone), zone)
+        assert.strictEqual(new Time('2024-01-01T00:00:00Z').timezone('Asia/Calcutta').format('HH:mm'), '05:30')
+        //Each listed time zone is usable, once
+        assert.strictEqual(new Set(zones).size, zones.length)
+        for (const zone of zones) assert.doesNotThrow((): unknown => new Time('2024-01-01T00:00:00Z').timezone(zone).format(), zone)
+        assert.strictEqual(new Time('2024-01-01T00:00:00Z').timezone('Etc/GMT-8').format('HH:mm'), '08:00')
+        //The list given is a copy
+        zones.length = 0
+        assert.ok(Time.timezones().length > 400)
+    })
+
     it('uses the TZ environment variable as default time zone (UTC when invalid, like Date)', (): void => {
         const tz: string | undefined = process.env.TZ
         try {

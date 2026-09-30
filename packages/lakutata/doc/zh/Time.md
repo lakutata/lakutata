@@ -21,7 +21,7 @@ time.isBetween('2024-01-01', '2024-12-31', 'day', '[]')  // true
 
 ## 时区
 
-- `timezone()` 返回时区，`timezone(zone)` 返回同一时刻在另一个时区的新实例；`Time.timezones()` 列出支持的时区。未知时区抛出 `RangeError`。
+- `timezone()` 返回时区，`timezone(zone)` 返回同一时刻在另一个时区的新实例；`Time.timezones()` 按 IANA 现行名称列出支持的时区，包括 `UTC` 和固定偏移时区 `Etc/GMT-14`…`Etc/GMT+12`。旧名称和别名（`Asia/Calcutta`、`US/Eastern`）可以使用，但不在列表中（2.x 的列表来自 moment-timezone，包含它们）。未知时区抛出 `RangeError`。
 - `utcOffset()` 返回时区的偏移分钟数（UTC+8 为 480）；`getTimezoneOffset()` 与 `Date` 一致（UTC+8 为 -480）。
 - 取值、设置、日历运算（按天、月等加减）和 `format` 都按该时区的本地时间计算。按天加减时，跨越夏令时切换仍保持本地时间不变；不存在的本地时间会顺延。
 

@@ -58,10 +58,55 @@ function isZone(zone: string): boolean {
 }
 
 /**
- * The names of the time zones the runtime supports
+ * The time zones Intl names by their former names (the ones of CLDR), renamed since by the IANA database: the names of
+ * the cities which changed, and the zones moved under a country. The zones merged by IANA with another one (Europe/Amsterdam
+ * with Europe/Brussels) are not renamed, they are other places
+ */
+const RENAMED_ZONES: Record<string, string> = {
+    'Africa/Asmera': 'Africa/Asmara',
+    'America/Buenos_Aires': 'America/Argentina/Buenos_Aires',
+    'America/Catamarca': 'America/Argentina/Catamarca',
+    'America/Cordoba': 'America/Argentina/Cordoba',
+    'America/Jujuy': 'America/Argentina/Jujuy',
+    'America/Mendoza': 'America/Argentina/Mendoza',
+    'America/Indianapolis': 'America/Indiana/Indianapolis',
+    'America/Louisville': 'America/Kentucky/Louisville',
+    'America/Coral_Harbour': 'America/Atikokan',
+    'America/Godthab': 'America/Nuuk',
+    'Asia/Calcutta': 'Asia/Kolkata',
+    'Asia/Katmandu': 'Asia/Kathmandu',
+    'Asia/Saigon': 'Asia/Ho_Chi_Minh',
+    'Asia/Rangoon': 'Asia/Yangon',
+    'Atlantic/Faeroe': 'Atlantic/Faroe',
+    'Europe/Kiev': 'Europe/Kyiv',
+    'Pacific/Enderbury': 'Pacific/Kanton',
+    'Pacific/Ponape': 'Pacific/Pohnpei',
+    'Pacific/Truk': 'Pacific/Chuuk'
+}
+
+/**
+ * The names of the time zones (read once)
+ */
+let zoneNames: string[] | undefined
+
+/**
+ * The names of the time zones the runtime supports, by their current IANA names: the time zones of the places Intl lists
+ * (renamed as the IANA database names them now), UTC and the fixed offsets Etc/GMT-14…Etc/GMT+12, which Intl does not list
  */
 export function ZoneNames(): string[] {
-    return Intl.supportedValuesOf('timeZone')
+    if (!zoneNames) {
+        const names: Set<string> = new Set()
+        for (const zone of Intl.supportedValuesOf('timeZone')) {
+            const renamed: string | undefined = RENAMED_ZONES[zone]
+            names.add(renamed && isZone(renamed) ? renamed : zone)
+        }
+        const fixed: string[] = ['UTC']
+        //The offset 0 is UTC
+        for (let offset: number = -14; offset <= 12; offset++) if (offset) fixed.push(`Etc/GMT${offset < 0 ? offset : `+${offset}`}`)
+        for (const zone of fixed) if (isZone(zone)) names.add(zone)
+        zoneNames = [...names].sort()
+    }
+    return [...zoneNames]
 }
 
 /**
