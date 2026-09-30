@@ -41,6 +41,7 @@
   },
   "files": [
     "dist",
+    "!dist/*/tests",
     "*.md",
     "LICENSE",
     "package.json",
