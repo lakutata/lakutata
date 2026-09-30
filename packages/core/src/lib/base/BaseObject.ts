@@ -25,17 +25,17 @@ import {ObjectDestroyedException} from '../../exceptions/ObjectDestroyedExceptio
 /**
  * Internal init function symbol
  */
-export const __init: symbol = Symbol('__init')
+export const __init: unique symbol = Symbol('__init')
 
 /**
  * Internal destroy function symbol
  */
-export const __destroy: symbol = Symbol('__destroy')
+export const __destroy: unique symbol = Symbol('__destroy')
 
 /**
  * Symbol of the method that makes a destroyed object ready to be initialized again (reload)
  */
-export const __revive: symbol = Symbol('__revive')
+export const __revive: unique symbol = Symbol('__revive')
 
 /**
  * Anonymous ID symbol, the default id value if object's id not defined in runtime
