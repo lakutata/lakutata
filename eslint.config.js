@@ -35,7 +35,7 @@ export default defineConfig([
             }],
             //The parameters kept for a signature start with an underscore, the variables of a destructuring may only
             //leave their properties out of its rest
-            '@typescript-eslint/no-unused-vars': ['warn', {
+            '@typescript-eslint/no-unused-vars': ['error', {
                 argsIgnorePattern: '^_',
                 varsIgnorePattern: '^_',
                 caughtErrors: 'none',
