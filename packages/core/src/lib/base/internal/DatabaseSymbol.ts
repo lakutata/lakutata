@@ -1,1 +1,0 @@
-export const DatabaseSymbol: symbol = Symbol('INTERNAL_DATABASE')

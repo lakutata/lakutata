@@ -21,7 +21,6 @@ import {IsolationLevel} from 'typeorm/driver/types/IsolationLevel.js'
 import {Provider} from '@lakutata/core'
 import {EntitySchema, type MixedList} from 'typeorm'
 import {As} from '@lakutata/utils/helper'
-import {DatabaseSymbol} from '@lakutata/core/internal'
 
 /**
  * Build database provider connection options
@@ -41,8 +40,6 @@ export const BuildDatabaseOptions: (options: DataSourceOptions) => {
  */
 @Transient()
 export class Database extends Provider {
-
-    public static databaseSymbol: symbol = DatabaseSymbol
 
     /**
      * Lazy loader of the migration generator provider, used by Application when MIGRATION_GENERATE is set

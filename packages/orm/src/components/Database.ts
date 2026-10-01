@@ -20,7 +20,6 @@ import {SelectQueryBuilder} from 'typeorm/query-builder/SelectQueryBuilder.js'
 import {ReplicationMode} from 'typeorm/driver/types/ReplicationMode.js'
 import {QueryResultCache} from 'typeorm/cache/QueryResultCache.js'
 import {IsolationLevel} from 'typeorm/driver/types/IsolationLevel.js'
-import {DatabaseSymbol} from '@lakutata/core/internal'
 
 /**
  * Build database connection options
@@ -40,8 +39,6 @@ export const BuildDatabaseOptions: (options: DataSourceOptions) => {
  */
 @Singleton()
 export class Database extends Component {
-
-    public static databaseSymbol: symbol = DatabaseSymbol
 
     /**
      * Lazy loader of the migration generator provider, used by Application when MIGRATION_GENERATE is set

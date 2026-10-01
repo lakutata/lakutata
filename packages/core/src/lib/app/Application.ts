@@ -15,7 +15,6 @@ import {existsSync} from 'node:fs'
 import {As} from '@lakutata/utils/helper/As'
 import {EventEmitter} from '../base/EventEmitter.js'
 import {BootstrapOption} from '../../options/ModuleOptions.js'
-import {DatabaseSymbol} from '../base/internal/DatabaseSymbol.js'
 import {DeclareApplicationClass, MarkApplicationLaunched} from './ApplicationLaunch.js'
 
 //The handlers are method signatures, so a handler may declare the logger implementation it expects (such as Logger)
@@ -263,8 +262,8 @@ export class Application extends Module {
                     this.eventEmitter.removeAllListeners(ApplicationState.UncaughtException)
                     this.eventEmitter.removeAllListeners(ApplicationState.FatalException)
                     const migrationTargetDir: string = process.env[env]!
-                    //Database classes (provided by the orm package) are recognized by their databaseSymbol marker
-                    //and carry their own lazy migration generator, so core never references the orm package.
+                    //The classes generating migrations (the Database classes of the orm package) are recognized by their
+                    //static migrationGenerator, a lazy loader of their generator, so core never references the orm package.
                     interface MigrationTarget {
                         dataSourceName: string
                         dataSourceOptions: Record<string, any>
@@ -274,7 +273,7 @@ export class Application extends Module {
                         const migrationTargets: MigrationTarget[] = []
                         for (const name in input) {
                             const objectClass: any = input[name]?.class
-                            if (objectClass && objectClass.databaseSymbol && objectClass.databaseSymbol === DatabaseSymbol) {
+                            if (typeof objectClass?.migrationGenerator === 'function') {
                                 const dataSourceOptions: Record<string, any> = input[name].options
                                 if (!dataSourceOptions) continue
                                 Reflect.set(dataSourceOptions, 'dataSourceName', name)
