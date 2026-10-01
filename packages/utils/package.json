@@ -58,9 +58,6 @@
     "compile": "npm run rebuild",
     "test:unit": "npm run compile && node --test \"dist/esm/tests/*.spec.js\""
   },
-  "dependencies": {
-    "simple-statistics": "7.8.8"
-  },
   "engines": {
     "node": ">=22"
   },

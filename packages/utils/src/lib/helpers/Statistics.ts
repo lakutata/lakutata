@@ -54,7 +54,7 @@ import {
     quantileRank,
     quickselect,
     subtractFromMean
-} from 'simple-statistics'
+} from './internal/SimpleStatistics.js'
 
 export class Statistics {
 
@@ -373,7 +373,7 @@ export class Statistics {
      * @param trials
      * @param probability
      */
-    public static binomialDistribution(trials: number, probability: number): number[] {
+    public static binomialDistribution(trials: number, probability: number): number[] | undefined {
         return binomialDistribution(trials, probability)
     }
 
@@ -382,7 +382,7 @@ export class Statistics {
      * The Poisson Distribution is characterized by the strictly positive mean arrival or occurrence rate, λ.
      * @param lambda
      */
-    public static poissonDistribution(lambda: number): number[] {
+    public static poissonDistribution(lambda: number): number[] | undefined {
         return poissonDistribution(lambda)
     }
 
@@ -539,7 +539,7 @@ export class Statistics {
      * @param data
      * @param nClasses
      */
-    public static jenks(data: number[], nClasses: number): number[] {
+    public static jenks(data: number[], nClasses: number): number[] | null {
         return jenks(data, nClasses)
     }
 
