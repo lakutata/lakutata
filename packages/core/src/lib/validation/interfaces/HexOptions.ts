@@ -3,7 +3,7 @@ export interface HexOptions {
      * hex decoded representation must be byte aligned.
      * @default false
      */
-    byteAligned?: boolean;
+    byteAligned?: boolean
     /**
      * controls whether the prefix `0x` or `0X` is allowed (or required) on hex strings.
      * When `true`, the prefix must be provided.
@@ -12,5 +12,5 @@ export interface HexOptions {
      *
      * @default false
      */
-    prefix?: boolean | 'optional';
+    prefix?: boolean | 'optional'
 }

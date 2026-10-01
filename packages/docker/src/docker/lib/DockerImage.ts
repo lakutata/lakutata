@@ -96,7 +96,7 @@ export class DockerImage extends Provider {
                 exposePortMap.set(port, portType)
             })
             exposePortMap.forEach((portType: {
-                tcp: boolean;
+                tcp: boolean
                 udp: boolean
             }, port: number) => exposePorts.push({port: port, ...portType}))
         }

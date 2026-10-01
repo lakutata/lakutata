@@ -1,4 +1,4 @@
 export interface LanguageMessageTemplate {
-    source: string;
-    rendered: string;
+    source: string
+    rendered: string
 }

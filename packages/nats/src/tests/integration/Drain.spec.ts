@@ -14,7 +14,7 @@ import {
 
 class SlowController extends Controller {
     @ServiceAction({cmd: 'slow'})
-    public async slow(inp: {cmd: string; value: number}): Promise<{done: number}> {
+    public async slow(inp: {cmd: string, value: number}): Promise<{done: number}> {
         await Delay(250) //Simulate processing time
         return {done: inp.value}
     }

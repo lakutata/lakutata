@@ -5,5 +5,5 @@ export interface CompileOptions {
      * If false, the schema is always compiled using the current version and if older schema components are found, an
      * error is thrown.
      */
-    legacy: boolean;
+    legacy: boolean
 }

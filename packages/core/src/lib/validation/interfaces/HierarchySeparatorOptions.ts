@@ -4,5 +4,5 @@ export interface HierarchySeparatorOptions {
      *
      * @default '.'
      */
-    separator?: string | false;
+    separator?: string | false
 }

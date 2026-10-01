@@ -6,5 +6,5 @@ export interface ArrayUniqueOptions extends HierarchySeparatorOptions {
      *
      * @default false
      */
-    ignoreUndefined?: boolean;
+    ignoreUndefined?: boolean
 }

@@ -49,15 +49,15 @@ export namespace UnitOfTime {
 export type TimeInput = Time | Date | string | number | (number | string)[] | null
 
 export type TimeObject = {
-    years: number;
+    years: number
     /* One digit */
-    months: number;
+    months: number
     /* Day of the month */
-    date: number;
-    hours: number;
-    minutes: number;
-    seconds: number;
-    milliseconds: number;
+    date: number
+    hours: number
+    minutes: number
+    seconds: number
+    milliseconds: number
 }
 
 /**

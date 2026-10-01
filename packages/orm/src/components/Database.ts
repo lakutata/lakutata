@@ -25,7 +25,7 @@ import {IsolationLevel} from 'typeorm/driver/types/IsolationLevel.js'
  * @constructor
  */
 export const BuildDatabaseOptions: (options: DataSourceOptions) => {
-    class: typeof Database,
+    class: typeof Database
     options: DataSourceOptions
 } = (options: DataSourceOptions) => ({
     class: Database,

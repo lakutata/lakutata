@@ -4,9 +4,9 @@ export interface SwitchCases {
     /**
      * the required condition schema type.
      */
-    is: SchemaLike;
+    is: SchemaLike
     /**
      * the alternative schema type if the condition is true.
      */
-    then: SchemaLike;
+    then: SchemaLike
 }

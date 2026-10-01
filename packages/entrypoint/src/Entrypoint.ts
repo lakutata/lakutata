@@ -103,7 +103,7 @@ export interface ActionGroupInfo<T extends BaseActionInfo> {
 }
 
 export interface EntrypointActions<T extends BaseActionInfo> {
-    readonly groups: ActionGroupInfo<T>[],
+    readonly groups: ActionGroupInfo<T>[]
     readonly actions: T[]
 }
 

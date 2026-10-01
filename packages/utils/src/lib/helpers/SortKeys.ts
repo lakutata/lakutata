@@ -10,8 +10,8 @@ function isPlainObject(value: any): boolean {
  * Sort keys options
  */
 export interface SortKeysOptions {
-    deep?: boolean;
-    compare?: (a: string, b: string) => number;
+    deep?: boolean
+    compare?: (a: string, b: string) => number
 }
 
 /**

@@ -6,5 +6,5 @@ export interface Base64Options extends Pick<DataUriOptions, 'paddingRequired'> {
      *
      * @default false
      */
-    urlSafe?: boolean;
+    urlSafe?: boolean
 }

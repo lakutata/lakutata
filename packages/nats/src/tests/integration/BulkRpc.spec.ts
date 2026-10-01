@@ -18,17 +18,17 @@ const BIG = 1.5 * 1024 * 1024
 
 class BulkController extends Controller {
     @ServiceAction({cmd: 'echo'})
-    public async echo(inp: {cmd: string; value: number}): Promise<{echoed: number}> {
+    public async echo(inp: {cmd: string, value: number}): Promise<{echoed: number}> {
         return {echoed: inp.value}
     }
 
     @ServiceAction({cmd: 'bigResponse'})
-    public async bigResponse(inp: {cmd: string; size: number}): Promise<{data: string}> {
+    public async bigResponse(inp: {cmd: string, size: number}): Promise<{data: string}> {
         return {data: 'x'.repeat(inp.size)}
     }
 
     @ServiceAction({cmd: 'bigEcho'})
-    public async bigEcho(inp: {cmd: string; data: string}): Promise<{len: number}> {
+    public async bigEcho(inp: {cmd: string, data: string}): Promise<{len: number}> {
         return {len: inp.data.length}
     }
 }

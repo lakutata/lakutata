@@ -15,7 +15,7 @@ export interface ArraySchema<TSchema = any[]> extends AnySchema<TSchema> {
      * the array item being tested, not the value of the `ref` target.
      * `options.min` and `options.max` limit the number of matching items (by default at least one, no maximum).
      */
-    has(schema: SchemaLike, options?: { min?: number, max?: number }): this;
+    has(schema: SchemaLike, options?: { min?: number, max?: number }): this
 
     // /**
     //  * List the types allowed for the array values.
@@ -39,29 +39,29 @@ export interface ArraySchema<TSchema = any[]> extends AnySchema<TSchema> {
      *
      * @param type - a schema object to validate each array item against.
      */
-    items<A>(a: SchemaLikeWithoutArray<A>): ArraySchema<A[]>;
+    items<A>(a: SchemaLikeWithoutArray<A>): ArraySchema<A[]>
     items<A, B>(
         a: SchemaLikeWithoutArray<A>,
         b: SchemaLikeWithoutArray<B>
-    ): ArraySchema<(A | B)[]>;
+    ): ArraySchema<(A | B)[]>
     items<A, B, C>(
         a: SchemaLikeWithoutArray<A>,
         b: SchemaLikeWithoutArray<B>,
         c: SchemaLikeWithoutArray<C>
-    ): ArraySchema<(A | B | C)[]>;
+    ): ArraySchema<(A | B | C)[]>
     items<A, B, C, D>(
         a: SchemaLikeWithoutArray<A>,
         b: SchemaLikeWithoutArray<B>,
         c: SchemaLikeWithoutArray<C>,
         d: SchemaLikeWithoutArray<D>
-    ): ArraySchema<(A | B | C | D)[]>;
+    ): ArraySchema<(A | B | C | D)[]>
     items<A, B, C, D, E>(
         a: SchemaLikeWithoutArray<A>,
         b: SchemaLikeWithoutArray<B>,
         c: SchemaLikeWithoutArray<C>,
         d: SchemaLikeWithoutArray<D>,
         e: SchemaLikeWithoutArray<E>
-    ): ArraySchema<(A | B | C | D | E)[]>;
+    ): ArraySchema<(A | B | C | D | E)[]>
     items<A, B, C, D, E, F>(
         a: SchemaLikeWithoutArray<A>,
         b: SchemaLikeWithoutArray<B>,
@@ -69,7 +69,7 @@ export interface ArraySchema<TSchema = any[]> extends AnySchema<TSchema> {
         d: SchemaLikeWithoutArray<D>,
         e: SchemaLikeWithoutArray<E>,
         f: SchemaLikeWithoutArray<F>
-    ): ArraySchema<(A | B | C | D | E | F)[]>;
+    ): ArraySchema<(A | B | C | D | E | F)[]>
     items<
         TItems,
         TTItems extends SchemaLikeWithoutArray<TItems>[] = SchemaLikeWithoutArray<TItems>[]
@@ -79,22 +79,22 @@ export interface ArraySchema<TSchema = any[]> extends AnySchema<TSchema> {
         {
             [I in keyof TTItems]: UnwrapSchemaLikeWithoutArray<TTItems[I]>;
         }[number][]
-    >;
+    >
 
     /**
      * Specifies the exact number of items in the array.
      */
-    length(limit: number | Reference): this;
+    length(limit: number | Reference): this
 
     /**
      * Specifies the maximum number of items in the array.
      */
-    max(limit: number | Reference): this;
+    max(limit: number | Reference): this
 
     /**
      * Specifies the minimum number of items in the array.
      */
-    min(limit: number | Reference): this;
+    min(limit: number | Reference): this
 
     /**
      * Lists the types in sequence order for the array values where:
@@ -103,24 +103,24 @@ export interface ArraySchema<TSchema = any[]> extends AnySchema<TSchema> {
      * Errors will contain the number of items that didn't match.
      * Any unmatched item having a label will be mentioned explicitly.
      */
-    ordered(...types: SchemaLikeWithoutArray[]): this;
+    ordered(...types: SchemaLikeWithoutArray[]): this
 
     /**
      * Allow single values to be checked against rules as if it were provided as an array.
      * enabled can be used with a falsy value to go back to the default behavior.
      */
-    single(enabled?: any): this;
+    single(enabled?: any): this
 
     /**
      * Sorts the array by given order.
      */
-    sort(options?: ArraySortOptions): this;
+    sort(options?: ArraySortOptions): this
 
     /**
      * Allow this array to be sparse.
      * enabled can be used with a falsy value to go back to the default behavior.
      */
-    sparse(enabled?: any): this;
+    sparse(enabled?: any): this
 
     /**
      * Requires the array values to be unique.
@@ -129,5 +129,5 @@ export interface ArraySchema<TSchema = any[]> extends AnySchema<TSchema> {
      * Be aware that a deep equality is performed on elements of the array having a type of object,
      * a performance penalty is to be expected for this kind of operation.
      */
-    unique(comparator?: string | ComparatorFunction, options?: ArrayUniqueOptions): this;
+    unique(comparator?: string | ComparatorFunction, options?: ArrayUniqueOptions): this
 }

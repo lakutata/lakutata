@@ -22,7 +22,7 @@ import {
  */
 class EchoController extends Controller {
     @ServiceAction({cmd: 'echo'})
-    public async echo(inp: {cmd: string; value: number}): Promise<{echoed: number}> {
+    public async echo(inp: {cmd: string, value: number}): Promise<{echoed: number}> {
         return {echoed: inp.value}
     }
 }

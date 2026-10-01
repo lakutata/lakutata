@@ -9,7 +9,7 @@ export interface ValidationOptions extends BaseValidationOptions {
      *
      * @default {}
      */
-    messages?: LanguageMessages;
+    messages?: LanguageMessages
 
     /**
      * target name

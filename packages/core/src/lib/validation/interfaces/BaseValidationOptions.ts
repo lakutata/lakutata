@@ -8,81 +8,81 @@ export interface BaseValidationOptions {
      *
      * @default true
      */
-    abortEarly?: boolean;
+    abortEarly?: boolean
     /**
      * when true, allows object to contain unknown keys which are ignored.
      *
      * @default false
      */
-    allowUnknown?: boolean;
+    allowUnknown?: boolean
     /**
      * when true, return artifacts alongside the value.
      *
      * @default false
      */
-    artifacts?: boolean;
+    artifacts?: boolean
     /**
      * when true, schema caching is enabled (for schemas with explicit caching rules).
      *
      * @default false
      */
-    cache?: boolean;
+    cache?: boolean
     /**
      * provides an external data set to be used in references
      */
-    context?: Context;
+    context?: Context
     /**
      * when true, attempts to cast values to the required types (e.g. a string to a number).
      *
      * @default true
      */
-    convert?: boolean;
+    convert?: boolean
     /**
      * sets the string format used when converting dates to strings in error messages and casting.
      *
      * @default 'iso'
      */
-    dateFormat?: 'date' | 'iso' | 'string' | 'time' | 'utc';
+    dateFormat?: 'date' | 'iso' | 'string' | 'time' | 'utc'
     /**
      * when true, valid results and throw errors are decorated with a debug property which includes an array of the validation steps used to generate the returned result.
      *
      * @default false
      */
-    debug?: boolean;
+    debug?: boolean
     /**
      * error formatting settings.
      */
-    errors?: ErrorFormattingOptions;
+    errors?: ErrorFormattingOptions
     /**
      * if false, the external rules set with `any.external()` are ignored, which is required to ignore any external validations in synchronous mode (or an exception is thrown).
      *
      * @default true
      */
-    externals?: boolean;
+    externals?: boolean
     /**
      * when true, do not apply default values.
      *
      * @default false
      */
-    noDefaults?: boolean;
+    noDefaults?: boolean
     /**
      * when true, inputs are shallow cloned to include non-enumerable properties.
      *
      * @default false
      */
-    nonEnumerables?: boolean;
+    nonEnumerables?: boolean
     /**
      * sets the default presence requirements. Supported modes: 'optional', 'required', and 'forbidden'.
      *
      * @default 'optional'
      */
-    presence?: PresenceMode;
+    presence?: PresenceMode
     /**
      * when true, ignores unknown keys with a function value.
      *
      * @default false
      */
-    skipFunctions?: boolean;
+    skipFunctions?: boolean
     /**
      * remove unknown elements from objects and arrays.
      * - when true, all unknown elements will be removed
@@ -91,5 +91,5 @@ export interface BaseValidationOptions {
      *
      * @default false
      */
-    stripUnknown?: boolean | { arrays?: boolean; objects?: boolean };
+    stripUnknown?: boolean | { arrays?: boolean, objects?: boolean }
 }

@@ -4,5 +4,5 @@ export interface DataUriOptions {
      *
      * @default true
      */
-    paddingRequired?: boolean;
+    paddingRequired?: boolean
 }

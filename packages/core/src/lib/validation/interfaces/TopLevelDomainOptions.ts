@@ -4,9 +4,9 @@ export interface TopLevelDomainOptions {
      * - `false` to allow any TLD not listed in the `deny` list, if present.
      * - A `Set` or array of the allowed TLDs. Cannot be used together with `deny`.
      */
-    allow?: Set<string> | string[] | boolean;
+    allow?: Set<string> | string[] | boolean
     /**
      * - A `Set` or array of the forbidden TLDs. Cannot be used together with a custom `allow` list.
      */
-    deny?: Set<string> | string[];
+    deny?: Set<string> | string[]
 }

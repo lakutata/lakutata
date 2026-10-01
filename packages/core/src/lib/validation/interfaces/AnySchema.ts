@@ -21,29 +21,29 @@ import {ValidationErrorFunction} from '../types/ValidationErrorFunction.js'
 //The type parameter of the public API (DTO.Any<T>()), kept for the code giving it
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export interface AnySchema<TSchema = any> {
-    type?: Types | undefined;
+    type?: Types | undefined
 
     /**
      * Whitelists a value
      */
-    allow(...values: any[]): this;
+    allow(...values: any[]): this
 
     /**
      * Requires the value to also match every schema (their errors are reported, the value is kept).
      */
-    allOf(...schemas: SchemaLike[]): this;
+    allOf(...schemas: SchemaLike[]): this
 
     /**
      * Assign target alteration options to a schema that are applied when `any.tailor()` is called.
      * @param targets - an object where each key is a target name, and each value is a function that takes an schema and returns an schema.
      */
-    alter(targets: Record<string, (schema: this) => Schema>): this;
+    alter(targets: Record<string, (schema: this) => Schema>): this
 
     /**
      * Assigns the schema an artifact id which is included in the validation result if the rule passed validation.
      * @param id - any value other than undefined which will be returned as-is in the result artifacts map.
      */
-    artifact(id: any): this;
+    artifact(id: any): this
 
     /**
      * By default, some VLD methods to function properly need to rely on the VLD instance they are attached to because
@@ -51,28 +51,28 @@ export interface AnySchema<TSchema = any> {
      * So `VLD.string()` works but if you extract the function from it and call `string()` it won't.
      * `bind()` creates a new VLD instance where all the functions relying on `this` are bound to the VLD instance.
      */
-    bind(): this;
+    bind(): this
 
     /**
      * Adds caching to the schema which will attempt to cache the validation results (success and failures) of incoming inputs.
      * If no cache is passed, a default cache is provisioned by using `cache.provision()` internally.
      */
-    cache(cache?: Cache): this;
+    cache(cache?: Cache): this
 
     /**
      * Casts the validated value to the specified type.
      */
-    cast(to: 'map' | 'number' | 'set' | 'string'): this;
+    cast(to: 'map' | 'number' | 'set' | 'string'): this
 
     /**
      * Returns a new type that is the result of adding the rules of one type to another.
      */
-    concat(schema: this): this;
+    concat(schema: this): this
 
     /**
      * Adds a custom validation function.
      */
-    custom(fn: CustomValidator, description?: string): this;
+    custom(fn: CustomValidator, description?: string): this
 
     /**
      * Sets a default value if the original value is `undefined` where:
@@ -90,33 +90,33 @@ export interface AnySchema<TSchema = any> {
      * Note that if value is an object, any changes to the object after `default()` is called will change the
      *  reference and any future assignment.
      */
-    default(value?: BasicType | Reference | ((parent: any, helpers: CustomHelpers) => BasicType | Reference)): this;
+    default(value?: BasicType | Reference | ((parent: any, helpers: CustomHelpers) => BasicType | Reference)): this
 
     /**
      * Returns a plain object representing the schema's rules and properties
      */
-    describe(): Description;
+    describe(): Description
 
     /**
      * Annotates the key
      */
-    description(desc: string): this;
+    description(desc: string): this
 
     /**
      * Disallows values.
      */
-    disallow(...values: any[]): this;
+    disallow(...values: any[]): this
 
     /**
      * Considers anything that matches the schema to be empty (undefined).
      * @param schema - any object or schema to match. An undefined schema unsets that rule.
      */
-    empty(schema?: SchemaLike): this;
+    empty(schema?: SchemaLike): this
 
     /**
      * Adds the provided values into the allowed whitelist and marks them as the only valid values allowed.
      */
-    equal(...values: any[]): this;
+    equal(...values: any[]): this
 
     /**
      * Overrides the default validation error with a custom error if the rule fails where:
@@ -136,17 +136,17 @@ export interface AnySchema<TSchema = any> {
      * override, that error will be returned and the override will be ignored (unless the `abortEarly`
      * option has been set to `false`).
      */
-    error(err: Error | ValidationErrorFunction): this;
+    error(err: Error | ValidationErrorFunction): this
 
     /**
      * Annotates the key with an example value, must be valid.
      */
-    example(value: any, options?: { override: boolean }): this;
+    example(value: any, options?: { override: boolean }): this
 
     /**
      * Marks a key as required which will not allow undefined as value. All keys are optional by default.
      */
-    exist(): this;
+    exist(): this
 
     /**
      * Adds an external validation rule.
@@ -155,14 +155,14 @@ export interface AnySchema<TSchema = any> {
      * This means that any changes made to the value by the external rules are not available to any other validation rules during the non-external validation phase.
      * If schema validation failed, no external validation rules are called.
      */
-    external(method: ExternalValidationFunction, description?: string): this;
+    external(method: ExternalValidationFunction, description?: string): this
 
     /**
      * Returns a sub-schema based on a path of object keys or schema ids.
      *
      * @param path - a dot `.` separated path string or a pre-split array of path keys. The keys must match the sub-schema id or object key (if no id was explicitly set).
      */
-    extract(path: string | string[]): Schema;
+    extract(path: string | string[]): Schema
 
     /**
      * Sets a failover value if the original value fails passing validation.
@@ -175,12 +175,12 @@ export interface AnySchema<TSchema = any> {
      * Using a function with a single argument performs some internal cloning which has a performance impact.
      * If you do not need access to the context, define the function without any arguments.
      */
-    failover(value: any): this;
+    failover(value: any): this
 
     /**
      * Marks a key as forbidden which will not allow any value except undefined. Used to explicitly forbid keys.
      */
-    forbidden(): this;
+    forbidden(): this
 
     /**
      * Returns a new schema where each of the path keys listed have been modified.
@@ -188,19 +188,19 @@ export interface AnySchema<TSchema = any> {
      * @param key - an array of key strings, a single key string, or an array of arrays of pre-split key strings.
      * @param adjuster - a function which must return a modified schema.
      */
-    fork(key: string | string[] | string[][], adjuster: SchemaFunction): this;
+    fork(key: string | string[] | string[][], adjuster: SchemaFunction): this
 
     /**
      * Sets a schema id for reaching into the schema via `any.extract()`.
      * If no id is set, the schema id defaults to the object key it is associated with.
      * If the schema is used in an array or alternatives type and no id is set, the schema in unreachable.
      */
-    id(name?: string): this;
+    id(name?: string): this
 
     /**
      * Disallows values.
      */
-    invalid(...values: any[]): this;
+    invalid(...values: any[]): this
 
     /**
      * Same as `rule({ keep: true })`.
@@ -208,12 +208,12 @@ export interface AnySchema<TSchema = any> {
      * Note that `keep()` will terminate the current ruleset and cannot be followed by another rule option.
      * Use `rule()` to apply multiple rule options.
      */
-    keep(): this;
+    keep(): this
 
     /**
      * Overrides the key name in error messages.
      */
-    label(name: string): this;
+    label(name: string): this
 
     /**
      * Same as `rule({ message })`.
@@ -221,70 +221,70 @@ export interface AnySchema<TSchema = any> {
      * Note that `message()` will terminate the current ruleset and cannot be followed by another rule option.
      * Use `rule()` to apply multiple rule options.
      */
-    message(message: string): this;
+    message(message: string): this
 
     /**
      * Same as `any.prefs({ messages })`.
      * Note that while `any.message()` applies only to the last rule or ruleset, `any.messages()` applies to the entire schema.
      */
-    messages(messages: LanguageMessages): this;
+    messages(messages: LanguageMessages): this
 
     /**
      * Attaches metadata to the key.
      */
-    meta(meta: object): this;
+    meta(meta: object): this
 
     /**
      * Disallows values.
      */
-    not(...values: any[]): this;
+    not(...values: any[]): this
 
     /**
      * Annotates the key
      */
-    note(...notes: string[]): this;
+    note(...notes: string[]): this
 
     /**
      * Requires the validated value to match of the provided `any.allow()` values.
      * It has not effect when called together with `any.valid()` since it already sets the requirements.
      * When used with `any.allow()` it converts it to an `any.valid()`.
      */
-    only(): this;
+    only(): this
 
     /**
      * Marks a key as optional which will allow undefined as values. Used to annotate the schema for readability as all keys are optional by default.
      */
-    optional(): this;
+    optional(): this
 
     /**
      * Overrides the global validate() options for the current key and any sub-key.
      */
-    options(options: ValidationOptions): this;
+    options(options: ValidationOptions): this
 
     /**
      * Overrides the global validate() options for the current key and any sub-key.
      */
-    prefs(options: ValidationOptions): this;
+    prefs(options: ValidationOptions): this
 
     /**
      * Overrides the global validate() options for the current key and any sub-key.
      */
-    preferences(options: ValidationOptions): this;
+    preferences(options: ValidationOptions): this
 
     /**
      * Sets the presence mode for the schema.
      */
-    presence(mode: PresenceMode): this;
+    presence(mode: PresenceMode): this
 
     /**
      * Outputs the original untouched value instead of the casted value.
      */
-    raw(enabled?: boolean): this;
+    raw(enabled?: boolean): this
 
     /**
      * Marks a key as required which will not allow undefined as value. All keys are optional by default.
      */
-    required(): this;
+    required(): this
 
     /**
      * Applies a set of rule options to the current ruleset or last rule added.
@@ -298,50 +298,50 @@ export interface AnySchema<TSchema = any> {
      * internal implementation (e.g. `valid()`).
      * In those cases, use the `any.messages()` method to override the error codes for the errors you want to customize.
      */
-    rule(options: RuleOptions): this;
+    rule(options: RuleOptions): this
 
     /**
      * Registers a schema to be used by descendants of the current schema in named link references.
      */
-    shared(ref: Schema): this;
+    shared(ref: Schema): this
 
     /**
      * Sets the options.convert options to false which prevent type casting for the current key and any child keys.
      */
-    strict(isStrict?: boolean): this;
+    strict(isStrict?: boolean): this
 
     /**
      * Marks a key to be removed from a resulting object or array after validation. Used to sanitize output.
      * @param [enabled=true] - if true, the value is stripped, otherwise the validated value is retained. Defaults to true.
      */
-    strip(enabled?: boolean): this;
+    strip(enabled?: boolean): this
 
     /**
      * Annotates the key
      */
-    tag(...tags: string[]): this;
+    tag(...tags: string[]): this
 
     /**
      * Applies any assigned target alterations to a copy of the schema that were applied via `any.alter()`.
      */
-    tailor(targets: string | string[]): Schema;
+    tailor(targets: string | string[]): Schema
 
     /**
      * Annotates the key with an unit name.
      */
-    unit(name: string): this;
+    unit(name: string): this
 
     /**
      * Adds the provided values into the allowed whitelist and marks them as the only valid values allowed.
      */
-    valid(...values: any[]): this;
+    valid(...values: any[]): this
 
     /**
      * Same as `rule({ warn: true })`.
      * Note that `warn()` will terminate the current ruleset and cannot be followed by another rule option.
      * Use `rule()` to apply multiple rule options.
      */
-    warn(): this;
+    warn(): this
 
     /**
      * Generates a warning.
@@ -349,16 +349,16 @@ export interface AnySchema<TSchema = any> {
      * Warnings are reported separately from errors alongside the result value via the warning key (i.e. `{ value, warning }`).
      * Warning are always included when calling `any.validate()`.
      */
-    warning(code: string, context: Context): this;
+    warning(code: string, context: Context): this
 
     /**
      * Converts the type into an alternatives type where the conditions are merged into the type definition where:
      */
-    when(ref: string | Reference, options: WhenOptions | WhenOptions[]): this;
+    when(ref: string | Reference, options: WhenOptions | WhenOptions[]): this
 
     /**
      * Converts the type into an alternatives type where the conditions are merged into the type definition where:
      */
-    when(ref: Schema, options: WhenSchemaOptions): this;
+    when(ref: Schema, options: WhenSchemaOptions): this
 }
 

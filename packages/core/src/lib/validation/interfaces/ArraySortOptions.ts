@@ -4,6 +4,6 @@ export interface ArraySortOptions {
     /**
      * @default 'ascending'
      */
-    order?: 'ascending' | 'descending';
-    by?: string | Reference;
+    order?: 'ascending' | 'descending'
+    by?: string | Reference
 }

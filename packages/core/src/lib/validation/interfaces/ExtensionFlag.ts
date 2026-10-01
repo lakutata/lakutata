@@ -1,4 +1,4 @@
 export interface ExtensionFlag {
-    setter?: string;
-    default?: any;
+    setter?: string
+    default?: any
 }

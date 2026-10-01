@@ -8,12 +8,12 @@ export interface DateSchema<TSchema = Date> extends AnySchema<TSchema> {
      * allowing to explicitly ensure a date is either in the past or in the future.
      * It can also be a reference to another field.
      */
-    greater(date: 'now' | Date | number | string | Reference): this;
+    greater(date: 'now' | Date | number | string | Reference): this
 
     /**
      * Requires the string value to be in valid ISO 8601 date format.
      */
-    iso(): this;
+    iso(): this
 
     /**
      * Specifies that the value must be less than date.
@@ -21,7 +21,7 @@ export interface DateSchema<TSchema = Date> extends AnySchema<TSchema> {
      * allowing to explicitly ensure a date is either in the past or in the future.
      * It can also be a reference to another field.
      */
-    less(date: 'now' | Date | number | string | Reference): this;
+    less(date: 'now' | Date | number | string | Reference): this
 
     /**
      * Specifies the oldest date allowed.
@@ -29,7 +29,7 @@ export interface DateSchema<TSchema = Date> extends AnySchema<TSchema> {
      * allowing to explicitly ensure a date is either in the past or in the future.
      * It can also be a reference to another field.
      */
-    min(date: 'now' | Date | number | string | Reference): this;
+    min(date: 'now' | Date | number | string | Reference): this
 
     /**
      * Specifies the latest date allowed.
@@ -37,11 +37,11 @@ export interface DateSchema<TSchema = Date> extends AnySchema<TSchema> {
      * allowing to explicitly ensure a date is either in the past or in the future.
      * It can also be a reference to another field.
      */
-    max(date: 'now' | Date | number | string | Reference): this;
+    max(date: 'now' | Date | number | string | Reference): this
 
     /**
      * Requires the value to be a timestamp interval from Unix Time.
      * @param type - the type of timestamp (allowed values are unix or javascript [default])
      */
-    timestamp(type?: 'javascript' | 'unix'): this;
+    timestamp(type?: 'javascript' | 'unix'): this
 }

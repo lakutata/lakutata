@@ -12,7 +12,7 @@ import {
     NatsBulkException
 } from '../../exports/Nats.js'
 
-const cases: Array<{Cls: new (msg?: string) => any; errno: string; message: string; statusCode: number}> = [
+const cases: Array<{Cls: new (msg?: string) => any, errno: string, message: string, statusCode: number}> = [
     {Cls: NatsBadRequestException, errno: 'E_NATS_BAD_REQUEST', message: 'Bad Request', statusCode: 400},
     {Cls: NatsForbiddenException, errno: 'E_NATS_FORBIDDEN', message: 'Forbidden', statusCode: 403},
     {Cls: NatsNotFoundException, errno: 'E_NATS_NOT_FOUND', message: 'Subject Not Found', statusCode: 404},

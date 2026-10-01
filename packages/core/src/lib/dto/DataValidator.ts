@@ -26,7 +26,7 @@ import {IsXML} from '@lakutata/utils/IsXML'
 import {ErrorReport} from '../validation/interfaces/ErrorReport.js'
 
 //Self-implemented (replaces the `cron-validator` package dependency).
-type CronOptions = { seconds?: boolean; allowBlankDay?: boolean; allowSevenAsSunday?: boolean; alias?: boolean }
+type CronOptions = { seconds?: boolean, allowBlankDay?: boolean, allowSevenAsSunday?: boolean, alias?: boolean }
 const _isValidField = (field: string, min: number, max: number, allowBlank: boolean): boolean => {
     if (field === '*' || (allowBlank && field === '?')) return true
     if (field.startsWith('@')) return true

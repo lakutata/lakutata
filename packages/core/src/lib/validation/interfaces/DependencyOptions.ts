@@ -6,5 +6,5 @@ export     interface DependencyOptions extends HierarchySeparatorOptions {
      *
      * @default (resolved) => resolved !== undefined
      */
-    isPresent?: (resolved: any) => boolean;
+    isPresent?: (resolved: any) => boolean
 }

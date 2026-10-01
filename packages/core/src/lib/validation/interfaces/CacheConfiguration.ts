@@ -6,12 +6,12 @@ export interface CacheProvisionOptions {
      *
      * @default 1000
      */
-    max: number;
+    max: number
 }
 
 export interface CacheConfiguration {
     /**
      * Provisions a simple LRU cache for caching simple inputs (`undefined`, `null`, strings, numbers, and booleans).
      */
-    provision(options?: CacheProvisionOptions): Cache;
+    provision(options?: CacheProvisionOptions): Cache
 }

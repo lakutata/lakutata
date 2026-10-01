@@ -7,42 +7,42 @@ import {State} from './State.js'
 import {ValidationOptions} from './ValidationOptions.js'
 
 export interface AddRuleOptions {
-    name: string;
+    name: string
     args?: {
-        [key: string]: any;
-    };
+        [key: string]: any
+    }
 }
 
 export interface GetRuleOptions {
-    args?: Record<string, any>;
-    method?: string;
-    name: string;
-    operator?: string;
+    args?: Record<string, any>
+    method?: string
+    name: string
+    operator?: string
 }
 
 export interface CreateErrorOptions {
-    flags?: boolean;
-    messages?: LanguageMessages;
+    flags?: boolean
+    messages?: LanguageMessages
 }
 
 export interface Err {
-    toString(): string;
+    toString(): string
 }
 
 export interface ModifyOptions {
-    each?: boolean;
-    once?: boolean;
-    ref?: boolean;
-    schema?: boolean;
+    each?: boolean
+    once?: boolean
+    ref?: boolean
+    schema?: boolean
 }
 
 export interface MutateRegisterOptions {
-    family?: any;
-    key?: any;
+    family?: any
+    key?: any
 }
 
 export interface SetFlagOptions {
-    clone: boolean;
+    clone: boolean
 }
 
 /**
@@ -52,76 +52,76 @@ export interface SchemaInternals {
     /**
      * Parent schema object.
      */
-    $_super: Schema;
+    $_super: Schema
 
     /**
      * Terms of current schema.
      */
-    $_terms: Record<string, any>;
+    $_terms: Record<string, any>
 
     /**
      * Adds a rule to current validation schema.
      */
-    $_addRule(rule: string | AddRuleOptions): Schema;
+    $_addRule(rule: string | AddRuleOptions): Schema
 
     /**
      * Internally compiles schema.
      */
-    $_compile(schema: SchemaLike, options?: CompileOptions): Schema;
+    $_compile(schema: SchemaLike, options?: CompileOptions): Schema
 
     /**
      * Creates a validation error object.
      */
-    $_createError(code: string, value: any, context: Context, state: State, prefs: ValidationOptions, options?: CreateErrorOptions): Err;
+    $_createError(code: string, value: any, context: Context, state: State, prefs: ValidationOptions, options?: CreateErrorOptions): Err
 
     /**
      * Get value from given flag.
      */
-    $_getFlag(name: string): any;
+    $_getFlag(name: string): any
 
     /**
      * Retrieve some rule configuration.
      */
-    $_getRule(name: string): GetRuleOptions | undefined;
+    $_getRule(name: string): GetRuleOptions | undefined
 
-    $_mapLabels(path: string | string[]): string;
+    $_mapLabels(path: string | string[]): string
 
     /**
      * Returns true if validations runs fine on given value.
      */
-    $_match(value: any, state: State, prefs: ValidationOptions): boolean;
+    $_match(value: any, state: State, prefs: ValidationOptions): boolean
 
-    $_modify(options?: ModifyOptions): Schema;
+    $_modify(options?: ModifyOptions): Schema
 
     /**
      * Resets current schema.
      */
-    $_mutateRebuild(): this;
+    $_mutateRebuild(): this
 
-    $_mutateRegister(schema: Schema, options?: MutateRegisterOptions): void;
+    $_mutateRegister(schema: Schema, options?: MutateRegisterOptions): void
 
     /**
      * Get value from given property.
      */
-    $_property(name: string): any;
+    $_property(name: string): any
 
     /**
      * Get schema at given path.
      */
-    $_reach(path: string[]): Schema;
+    $_reach(path: string[]): Schema
 
     /**
      * Get current schema root references.
      */
-    $_rootReferences(): any;
+    $_rootReferences(): any
 
     /**
      * Set flag to given value.
      */
-    $_setFlag(flag: string, value: any, options?: SetFlagOptions): void;
+    $_setFlag(flag: string, value: any, options?: SetFlagOptions): void
 
     /**
      * Runs internal validations against given value.
      */
-    $_validate(value: any, state: State, prefs: ValidationOptions): any;
+    $_validate(value: any, state: State, prefs: ValidationOptions): any
 }

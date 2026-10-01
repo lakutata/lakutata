@@ -6,31 +6,31 @@ export interface WhenOptions {
     /**
      * the required condition schema type.
      */
-    is?: SchemaLike;
+    is?: SchemaLike
 
     /**
      * the negative version of `is` (`then` and `otherwise` have reverse
      * roles).
      */
-    not?: SchemaLike;
+    not?: SchemaLike
 
     /**
      * the alternative schema type if the condition is true. Required if otherwise or switch are missing.
      */
-    then?: SchemaLike;
+    then?: SchemaLike
 
     /**
      * the alternative schema type if the condition is false. Required if then or switch are missing.
      */
-    otherwise?: SchemaLike;
+    otherwise?: SchemaLike
 
     /**
      * the list of cases. Required if then is missing.  Required if then or otherwise are missing.
      */
-    switch?: Array<SwitchCases | SwitchDefault>;
+    switch?: Array<SwitchCases | SwitchDefault>
 
     /**
      * whether to stop applying further conditions if the condition is true.
      */
-    break?: boolean;
+    break?: boolean
 }

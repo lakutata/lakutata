@@ -13,6 +13,6 @@ export type NetworkInfo = {
     reserved: boolean
     internal: boolean
     enableIPv6: boolean
-    IPAMConfigs: NetworkIPAMConfig[],
+    IPAMConfigs: NetworkIPAMConfig[]
     createdAt: Time
 }

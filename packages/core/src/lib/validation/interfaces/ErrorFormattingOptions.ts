@@ -6,11 +6,11 @@ export  interface ErrorFormattingOptions {
      *
      * @default false
      */
-    escapeHtml?: boolean;
+    escapeHtml?: boolean
     /**
      * defines the value used to set the label context variable.
      */
-    label?: 'path' | 'key' | false;
+    label?: 'path' | 'key' | false
     /**
      * The preferred language code for error messages.
      * The value is matched against keys at the root of the messages object, and then the error code as a child key of that.
@@ -19,20 +19,20 @@ export  interface ErrorFormattingOptions {
      * Note that references to the value are usually not what you want as they move around the value structure relative to where the error happens.
      * Instead, either use the global context, or the absolute value (e.g. `VLD.ref('/variable')`)
      */
-    language?: keyof LanguageMessages;
+    language?: keyof LanguageMessages
     /**
      * when false, skips rendering error templates. Useful when error messages are generated elsewhere to save processing time.
      *
      * @default true
      */
-    render?: boolean;
+    render?: boolean
     /**
      * when true, the main error will possess a stack trace, otherwise it will be disabled.
      * Defaults to false for performances reasons. Has no effect on platforms other than V8/node.js as it uses the Stack trace API.
      *
      * @default false
      */
-    stack?: boolean;
+    stack?: boolean
     /**
      * overrides the way values are wrapped (e.g. `[]` around arrays, `""` around labels).
      * Each key can be set to a string with one (same character before and after the value) or two characters (first character
@@ -44,7 +44,7 @@ export  interface ErrorFormattingOptions {
          *
          * @default '"'
          */
-        label?: string | false,
+        label?: string | false
 
         /**
          * the characters used around array values. Defaults to `'[]'`
@@ -59,5 +59,5 @@ export  interface ErrorFormattingOptions {
          * @default false
          */
         string?: string | false
-    };
+    }
 }

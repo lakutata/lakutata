@@ -1,11 +1,11 @@
 type Locale = string[] | string | false | undefined
 
 export interface SplitOptions {
-    separateNumbers?: boolean;
+    separateNumbers?: boolean
 }
 
 export interface NoCaseOptions extends SplitOptions {
-    locale?: Locale;
+    locale?: Locale
 }
 
 /**

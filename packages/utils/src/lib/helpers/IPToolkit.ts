@@ -5,14 +5,14 @@ export interface IPBinHex {
 }
 
 export interface IPv4SubNet {
-    cidrMask: number;
-    ipCount: number;
-    usableCount: number;
-    subnetMask: string;
-    firstHost: string,
-    lastHost: string,
-    networkAddress: string;
-    broadcastAddress: string;
+    cidrMask: number
+    ipCount: number
+    usableCount: number
+    subnetMask: string
+    firstHost: string
+    lastHost: string
+    networkAddress: string
+    broadcastAddress: string
 }
 
 export interface IPv6SubNet {
@@ -23,9 +23,9 @@ export interface IPv6SubNet {
 }
 
 export interface IPv6Result {
-    mapped: string;
-    expanded: string;
-    comperssed: string;
+    mapped: string
+    expanded: string
+    comperssed: string
 }
 
 class IPv4Range {
@@ -393,7 +393,7 @@ export class IPv4 {
     public static isPrivate(ip: string): boolean {
         if (!this.isValidIP(ip)) return false
 
-        const privateRanges: { start: string; end: string }[] = [
+        const privateRanges: { start: string, end: string }[] = [
             {start: '10.0.0.0', end: '10.255.255.255'},
             {start: '127.0.0.0', end: '127.255.255.255'},
             {start: '172.16.0.0', end: '172.31.255.255'},

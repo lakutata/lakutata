@@ -1,8 +1,8 @@
 export type ContainerStorageStats = {
-    read_count_normalized?: number;
-    read_size_bytes?: number;
-    write_count_normalized?: number;
-    write_size_bytes?: number;
+    read_count_normalized?: number
+    read_size_bytes?: number
+    write_count_normalized?: number
+    write_size_bytes?: number
 }
 
 export type ContainerNetworkStats = {
@@ -52,7 +52,7 @@ export type ContainerMemoryStats = {
         pgfault: number
         inactive_file: number
         total_pgpgin: number
-    };
+    }
     max_usage: number
     usage: number
     failcnt: number

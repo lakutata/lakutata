@@ -4,23 +4,23 @@ export interface RenameOptions {
      *
      * @default false
      */
-    alias?: boolean;
+    alias?: boolean
     /**
      * if true, allows renaming multiple keys to the same destination where the last rename wins.
      *
      * @default false
      */
-    multiple?: boolean;
+    multiple?: boolean
     /**
      * if true, allows renaming a key over an existing key.
      *
      * @default false
      */
-    override?: boolean;
+    override?: boolean
     /**
      * if true, skip renaming of a key if it's undefined.
      *
      * @default false
      */
-    ignoreUndefined?: boolean;
+    ignoreUndefined?: boolean
 }

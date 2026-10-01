@@ -5,7 +5,7 @@ import {JSONCodec, MessagePackCodec} from '../../exports/Nats.js'
 
 //Both codecs share the same invariants: both first sanitize via JSON and wrap in a [d] array,
 //So special values (undefined / Date / BigInt) must behave identically; only the binary format differs
-const codecs: Array<{name: string; make: () => Codec<any>}> = [
+const codecs: Array<{name: string, make: () => Codec<any>}> = [
     {name: 'MessagePackCodec', make: MessagePackCodec},
     {name: 'JSONCodec', make: JSONCodec}
 ]
