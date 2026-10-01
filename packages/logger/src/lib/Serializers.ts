@@ -47,9 +47,10 @@ function MessageWithCauses(error: any, seen: Set<unknown> = new Set(), skip: boo
     const cause: any = CauseOf(error)
     if (!cause) return message
     seen.add(error)
-    //A cause function (VError) already includes the message of its cause
-    const functionCause: boolean = typeof error.cause === 'function'
-    return message + (functionCause ? '' : ': ') + MessageWithCauses(cause, seen, functionCause)
+    //A cause function (VError) already includes the message of its cause, as an error wrapping a cause of the same
+    //message (an exception keeping the original error)
+    const included: boolean = typeof error.cause === 'function' || (!skip && !seen.has(cause) && message === cause.message)
+    return message + (included ? '' : ': ') + MessageWithCauses(cause, seen, included)
 }
 
 /**
