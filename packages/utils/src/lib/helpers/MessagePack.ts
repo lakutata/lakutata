@@ -1,4 +1,12 @@
-import {encode, decode} from '@msgpack/msgpack'
+import {Encoder} from './internal/msgpack/Encoder.js'
+import {Decoder} from './internal/msgpack/Decoder.js'
+
+/**
+ * The encoder and the decoder, reused (a reentrant use creates another one)
+ */
+const encoder: Encoder = new Encoder()
+
+const decoder: Decoder = new Decoder()
 
 export class MessagePack {
     /**
@@ -6,7 +14,7 @@ export class MessagePack {
      * @param value
      */
     public static encode(value: any): Uint8Array {
-        return encode(value, {useBigInt64: true, ignoreUndefined: true})
+        return encoder.encode(value)
     }
 
     /**
@@ -14,7 +22,7 @@ export class MessagePack {
      * @param buffer
      */
     public static decode(buffer: ArrayLike<number> | ArrayBufferView | ArrayBufferLike): any {
-        return decode(buffer, {useBigInt64: true})
+        return decoder.decode(buffer)
     }
 
     /**
