@@ -206,6 +206,16 @@ describe('Channels', (): void => {
         await assert.rejects(Create({unknown: {channel: 'unknown', start: (): void => undefined}}), InvalidEntrypointAdapterException)
     })
 
+    it('accept the adapters and the 2.x callbacks as options, not the misspelled channels nor the other values', (): void => {
+        const adapter: EntrypointAdapter = {channel: 'nats', start: (): void => undefined}
+        assert.ok(Entrypoint.acceptsOption('nats', adapter))
+        assert.ok(Entrypoint.acceptsOption('nats', [adapter, adapter]))
+        assert.ok(Entrypoint.acceptsOption('service', BuildServiceEntrypoint((): void => undefined)))
+        assert.ok(!Entrypoint.acceptsOption('htpp', BuildServiceEntrypoint((): void => undefined)))
+        assert.ok(!Entrypoint.acceptsOption('nats', [adapter, 1]))
+        assert.ok(!Entrypoint.acceptsOption('timeout', 1000))
+    })
+
     it('wait for the requests in progress when stopping, and abort them after the timeout', async (): Promise<void> => {
         const adapter = TestAdapter()
         const {container} = await Create({test: adapter})

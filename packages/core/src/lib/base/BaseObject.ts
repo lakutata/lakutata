@@ -185,6 +185,18 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
+     * Whether the class accepts an option which is not one of its configurable properties (read by
+     * getConfigurableRecords()): the modules check the options of the objects they declare and warn of the options
+     * the classes do not accept. Override it in the classes which read options without configurable properties
+     * @param name
+     * @param value
+     */
+    public static acceptsOption(name: string, value: unknown): boolean {
+        DevNull(name, value)
+        return false
+    }
+
+    /**
      * Get instance's class name
      */
     public get className(): string {

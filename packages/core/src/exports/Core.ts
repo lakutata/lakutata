@@ -65,6 +65,7 @@ export {LifetimeLockedException} from '../exceptions/di/LifetimeLockedException.
 export {
     OverridableObjectTargetConfigNotFoundException
 } from '../exceptions/di/OverridableObjectTargetConfigNotFoundException.js'
+export {InvalidObjectOptionsException} from '../exceptions/di/InvalidObjectOptionsException.js'
 export {InvalidMethodAcceptException} from '../exceptions/dto/InvalidMethodAcceptException.js'
 export {InvalidMethodReturnException} from '../exceptions/dto/InvalidMethodReturnException.js'
 export {InvalidValueException} from '../exceptions/dto/InvalidValueException.js'

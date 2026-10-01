@@ -58,4 +58,12 @@ export class ModuleOptions extends DTO {
             .default([])
     )
     public bootstrap?: BootstrapOption[]
+
+    /**
+     * Check the options of the declared objects when the module initializes, before any of them is created (default
+     * true): an invalid value of a configurable property fails the initialization, an option which is not a
+     * configurable property is warned of
+     */
+    @Expect(DTO.Boolean().optional())
+    public checkOptions?: boolean
 }

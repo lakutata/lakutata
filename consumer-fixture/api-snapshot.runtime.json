@@ -16,6 +16,7 @@
     "InvalidAssistantFunctionTypeException",
     "InvalidMethodAcceptException",
     "InvalidMethodReturnException",
+    "InvalidObjectOptionsException",
     "InvalidObjectTypeException",
     "InvalidValueException",
     "LifetimeLockedException",

@@ -60,6 +60,11 @@ Dependency Injection (DI) is a core mechanism in Lakutata, with related decorato
   }
   ```
 - **Explanation**: The `path` property retrieves its value from the application configuration, defined in `Application.run()` (e.g., via a `path` field).
+- **Startup check**: When a module initializes, it checks the options of every object it declares (components, providers and objects), before any of them is created, so a mistake shows up at startup even for an object which is never used:
+  - a value which does not match the schema of its `@Configurable()` property fails the startup with an `InvalidObjectOptionsException` listing every invalid option;
+  - an option which is not a `@Configurable()` property of the class is ignored and warned of, with the configurable properties of the class (a misspelled option name).
+
+  A class which reads options without configurable properties (through `getConfigurableRecords()`) overrides the static `acceptsOption(name, value)` to accept them without a warning. The values validated by external (asynchronous) rules are validated when the object is created. The check is disabled with `checkOptions: false` in the options of the application or of the module.
 
 ### 2.3 `@Transient()`
 - **Function**: Defines the lifecycle of a class as transient, meaning a new instance is created each time the object is requested.

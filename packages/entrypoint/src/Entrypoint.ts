@@ -194,6 +194,16 @@ const LEGACY_CHANNELS: Set<string> = new Set(['cli', 'http', 'service'])
 @Singleton()
 export class Entrypoint extends Component {
 
+    /**
+     * The options of the channels (not configurable properties): the adapters, and the callbacks of 2.x
+     * @param name
+     * @param value
+     */
+    public static acceptsOption(name: string, value: unknown): boolean {
+        const items: unknown[] = Array.isArray(value) ? value : [value]
+        return items.every((item: unknown): boolean => IsEntrypointAdapter(item) || (typeof item === 'function' && LEGACY_CHANNELS.has(name)))
+    }
+
     protected readonly accessControl: typeof AccessControl = AccessControl
 
     /**

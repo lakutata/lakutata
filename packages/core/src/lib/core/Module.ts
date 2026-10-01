@@ -12,6 +12,7 @@ import {As} from '@lakutata/utils/As'
 import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
 import {DefineObjectType, ObjectType} from '../base/internal/ObjectType.js'
 import {NonceStr} from '@lakutata/utils/NonceStr'
+import {CheckObjectOptions} from '../base/internal/ObjectOptionsCheck.js'
 
 export const MODULE_INITIALIZED: string = `_$.MODULE.INITIALIZED_${NonceStr()}`
 export const MODULE_INITIALIZE_ERROR: string = `_$.MODULE.INITIALIZE_ERROR_${NonceStr()}`
@@ -39,6 +40,7 @@ export class Module extends Component {
         const result = new this.ConfigLoader(this, options, loadOptions)
         result.bootstrap.forEach(value => this.#bootstrap.push(value))
         this.#objects = result.loadOptions
+        this.#checkOptions = (options.checkOptions ?? this.options.checkOptions) !== false
         return options
     })
     protected options: ModuleOptions = {
@@ -68,6 +70,12 @@ export class Module extends Component {
     #bootstrap: BootstrapOption[] = []
 
     /**
+     * Whether the options of the objects are checked before they are loaded
+     * @private
+     */
+    #checkOptions: boolean = true
+
+    /**
      * Constructor
      * @param cradleProxy
      */
@@ -88,6 +96,7 @@ export class Module extends Component {
                     ...hooks,
                     async (): Promise<void> => {
                         //Load objects stage
+                        if (this.#checkOptions) CheckObjectOptions(this.#objects)
                         await this.container.load(this.#objects)
                     },
                     async (): Promise<void> => {
