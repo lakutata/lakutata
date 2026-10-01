@@ -7,6 +7,11 @@
 import type {IncomingMessage} from 'node:http'
 import type {Duplex} from 'node:stream'
 import {DockerConnection, type DockerConnectionOptions} from './DockerConnection.js'
+import {type ContainerCreateResponse} from './types/ContainerCreateResponse.js'
+import {type ContainerStopQuery} from './types/ContainerStopQuery.js'
+import {type IdResponse} from './types/IdResponse.js'
+import {type NetworkCreateResponse} from './types/NetworkCreateResponse.js'
+import {type RepositoryTag} from '../docker/types/RepositoryTag.js'
 
 /**
  * The status codes of the requests: the successes, and the reasons of the failures
@@ -112,7 +117,7 @@ export class DockerClient {
         return await this.connection.stream({method: 'GET', path: `/images/${name}/get`, statusCodes: {200: true, ...SERVER_ERROR}})
     }
 
-    public async tagImage(name: string, query: { repo: string, tag?: string }): Promise<void> {
+    public async tagImage(name: string, query: RepositoryTag): Promise<void> {
         await this.connection.request({method: 'POST', path: `/images/${name}/tag`, query: query, statusCodes: {200: true, 201: true, 400: 'bad parameter', ...NO_SUCH_IMAGE, 409: 'conflict', ...SERVER_ERROR}})
     }
 
@@ -145,7 +150,7 @@ export class DockerClient {
      * @param body its configuration
      * @param query name, platform
      */
-    public async createContainer(body: Record<string, unknown>, query?: { name?: string, platform?: string }): Promise<{ Id: string, Warnings?: string[] }> {
+    public async createContainer(body: Record<string, unknown>, query?: { name?: string, platform?: string }): Promise<ContainerCreateResponse> {
         return await this.connection.request({method: 'POST', path: '/containers/create', query: query, body: body, statusCodes: {200: true, 201: true, 400: 'bad parameter', ...NO_SUCH_CONTAINER, 406: 'impossible to attach', ...SERVER_ERROR}})
     }
 
@@ -157,11 +162,11 @@ export class DockerClient {
         await this.connection.request({method: 'POST', path: `/containers/${id}/start`, statusCodes: {...OK, 304: 'container already started', ...NO_SUCH_CONTAINER, ...SERVER_ERROR}, signal: signal})
     }
 
-    public async stopContainer(id: string, query?: { t?: number, signal?: string }, signal?: AbortSignal): Promise<void> {
+    public async stopContainer(id: string, query?: ContainerStopQuery, signal?: AbortSignal): Promise<void> {
         await this.connection.request({method: 'POST', path: `/containers/${id}/stop`, query: query, statusCodes: {...OK, 304: 'container already stopped', ...NO_SUCH_CONTAINER, ...SERVER_ERROR}, signal: signal})
     }
 
-    public async restartContainer(id: string, query?: { t?: number, signal?: string }, signal?: AbortSignal): Promise<void> {
+    public async restartContainer(id: string, query?: ContainerStopQuery, signal?: AbortSignal): Promise<void> {
         await this.connection.request({method: 'POST', path: `/containers/${id}/restart`, query: query, statusCodes: {...OK, ...NO_SUCH_CONTAINER, ...SERVER_ERROR}, signal: signal})
     }
 
@@ -190,7 +195,7 @@ export class DockerClient {
      * @param id
      * @param query repo, tag, comment, author, pause, changes
      */
-    public async commitContainer(id: string, query?: Record<string, unknown>): Promise<{ Id: string }> {
+    public async commitContainer(id: string, query?: Record<string, unknown>): Promise<IdResponse> {
         return await this.connection.request({method: 'POST', path: '/commit', query: {...query, container: id}, statusCodes: {200: true, 201: true, ...NO_SUCH_CONTAINER, ...SERVER_ERROR}})
     }
 
@@ -225,7 +230,7 @@ export class DockerClient {
      * @param id
      * @param body Cmd, AttachStdin, AttachStdout, AttachStderr, Tty, ConsoleSize...
      */
-    public async createExec(id: string, body: Record<string, unknown>): Promise<{ Id: string }> {
+    public async createExec(id: string, body: Record<string, unknown>): Promise<IdResponse> {
         return await this.connection.request({method: 'POST', path: `/containers/${id}/exec`, body: body, statusCodes: {200: true, 201: true, ...NO_SUCH_CONTAINER, 409: 'container stopped/paused', ...SERVER_ERROR}})
     }
 
@@ -256,7 +261,7 @@ export class DockerClient {
         return await this.connection.request({method: 'GET', path: '/networks', query: query, statusCodes: {200: true, 400: 'bad parameter', ...SERVER_ERROR}, signal: signal})
     }
 
-    public async createNetwork(body: Record<string, unknown>): Promise<{ Id: string, Warning?: string }> {
+    public async createNetwork(body: Record<string, unknown>): Promise<NetworkCreateResponse> {
         return await this.connection.request({method: 'POST', path: '/networks/create', body: body, statusCodes: {200: true, 201: true, 404: 'driver not found', ...SERVER_ERROR}})
     }
 

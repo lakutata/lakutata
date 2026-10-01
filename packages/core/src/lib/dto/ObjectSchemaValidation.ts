@@ -14,6 +14,7 @@ import {ObjectParentConstructors} from '@lakutata/utils/ObjectParentConstructors
 import {ObjectPrototype} from '@lakutata/utils/ObjectPrototype'
 import {IsSymbol} from '@lakutata/utils/IsSymbol'
 import {As} from '@lakutata/utils/As'
+import {type CachedSchema} from './CachedSchema.js'
 
 export type ObjectPropertySchemaMap = Map<string, Schema>
 
@@ -42,15 +43,15 @@ export function InvalidateDTOSchemas(): void {
  * @param build
  * @constructor
  */
-export function GetCachedDTOSchema<T>(cache: WeakMap<Function, { revision: number, value: T }>, target: Function, build: () => T): T {
-    const cached: { revision: number, value: T } | undefined = cache.get(target)
+export function GetCachedDTOSchema<T>(cache: WeakMap<Function, CachedSchema<T>>, target: Function, build: () => T): T {
+    const cached: CachedSchema<T> | undefined = cache.get(target)
     if (cached && cached.revision === schemaRevision) return cached.value
     const value: T = build()
     cache.set(target, {revision: schemaRevision, value: value})
     return value
 }
 
-const objectSchemaCache: WeakMap<Function, { revision: number, value: ObjectSchema }> = new WeakMap()
+const objectSchemaCache: WeakMap<Function, CachedSchema<ObjectSchema>> = new WeakMap()
 
 /**
  * Define DTO

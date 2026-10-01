@@ -5,6 +5,7 @@ import type {DockerClient} from '../../client/DockerClient.js'
 import {ContainerTTYConsoleSizeOptions} from '../options/container/ContainerTTYConsoleSizeOptions.js'
 import {Accept} from '@lakutata/core/decorator/dto'
 import {Logger} from '@lakutata/logger'
+import {type IdResponse} from '../../client/types/IdResponse.js'
 
 @Transient()
 export class DockerContainerTTY extends Provider {
@@ -33,7 +34,7 @@ export class DockerContainerTTY extends Provider {
      * @protected
      */
     protected async init(): Promise<void> {
-        const exec: { Id: string } = await this.getClient().createExec(this.containerId, {
+        const exec: IdResponse = await this.getClient().createExec(this.containerId, {
             AttachStderr: true,
             AttachStdin: true,
             AttachStdout: true,

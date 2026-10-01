@@ -21,6 +21,8 @@ import {toJsonSchema, type FromJsonSchemaOptions, type ToJsonSchemaOptions} from
 import {importObject, type ImportedObject} from '../validation/engine/json-schema/import.js'
 import {SchemaConversionException} from '../validation/exceptions/SchemaConversionException.js'
 import {JSONSchema} from '../../types/JSONSchema.js'
+import {type CachedSchema} from './CachedSchema.js'
+import {type KeysChild} from '../validation/engine/schema/types/keys.js'
 
 /**
  * Get DTO's object schema
@@ -37,17 +39,17 @@ function getObjectSchema<ClassPrototype extends DTO>(target: ClassPrototype): Sc
 /**
  * Schemas validating DTO instances (without description), per DTO class
  */
-const instanceSchemaCache: WeakMap<Function, { revision: number, value: Schema }> = new WeakMap()
+const instanceSchemaCache: WeakMap<Function, CachedSchema<Schema>> = new WeakMap()
 
 /**
  * Schemas returned by DTO.Schema(), per DTO class
  */
-const classSchemaCache: WeakMap<Function, { revision: number, value: ObjectSchema }> = new WeakMap()
+const classSchemaCache: WeakMap<Function, CachedSchema<ObjectSchema>> = new WeakMap()
 
 /**
  * The schemas validating a single property, per DTO class (null: the whole object is validated)
  */
-const propertySchemaCache: WeakMap<Function, { revision: number, value: Map<string, Schema | null> }> = new WeakMap()
+const propertySchemaCache: WeakMap<Function, CachedSchema<Map<string, Schema | null>>> = new WeakMap()
 
 /**
  * The flags of an object schema which do not constrain its properties together
@@ -69,7 +71,7 @@ function arePropertiesIndependent(objectSchema: Base): boolean {
     for (const [flag, value] of Object.entries(objectSchema._flags)) {
         if (!PROPERTY_INDEPENDENT_FLAGS.includes(flag) || (flag === 'unknown' && typeof value === 'object')) return false
     }
-    const keys: { key: string, schema: Base }[] = (terms.keys || []) as { key: string, schema: Base }[]
+    const keys: KeysChild[] = (terms.keys || []) as KeysChild[]
     //A property referring to other properties (or referred to) is validated with them
     return keys.every(({schema}: { schema: Base }): boolean => !schema.$_rootReferences().length)
 }
@@ -87,7 +89,7 @@ function getPropertySchema<U extends DTO>(instance: U, propertyKey: string): Sch
     schema = null
     const objectSchema: Base = As<Base>(getObjectSchema(instance))
     if (arePropertiesIndependent(objectSchema)) {
-        const child: { key: string, schema: Base } | undefined = ((objectSchema.$_terms.keys || []) as { key: string, schema: Base }[]).find(({key}: { key: string }): boolean => key === propertyKey)
+        const child: KeysChild | undefined = ((objectSchema.$_terms.keys || []) as KeysChild[]).find(({key}: { key: string }): boolean => key === propertyKey)
         if (child) {
             const propertyObjectSchema: Base = As<Base>(VLD.object({[propertyKey]: child.schema}))
             schema = As<Schema>(objectSchema._preferences ? propertyObjectSchema.prefs(objectSchema._preferences) : propertyObjectSchema)
@@ -130,13 +132,22 @@ function restoreArray(array: unknown[], snapshot: unknown[]): void {
 }
 
 /**
+ * The own property of an object before it is replaced: whether it existed, its value, and the length of a function
+ */
+type PropertyState = {
+    had: boolean
+    value: any
+    length?: number
+}
+
+/**
  * Restore a property of an object after a rejected change: its previous value, or its absence (and the length of an
  * array)
  * @param target
  * @param prop
  * @param state
  */
-function restoreProperty(target: any, prop: string | symbol, state: { had: boolean, value: any, length?: number }): void {
+function restoreProperty(target: any, prop: string | symbol, state: PropertyState): void {
     if (state.had) {
         Reflect.set(target, prop, state.value)
     } else {
@@ -150,7 +161,7 @@ function restoreProperty(target: any, prop: string | symbol, state: { had: boole
  * @param target
  * @param prop
  */
-function propertyState(target: any, prop: string | symbol): { had: boolean, value: any, length?: number } {
+function propertyState(target: any, prop: string | symbol): PropertyState {
     return {
         had: Object.prototype.hasOwnProperty.call(target, prop),
         value: Reflect.get(target, prop),
@@ -188,7 +199,7 @@ function dynamicProxyProperty(target: any, prop: string | symbol, receiver: any,
     }
     return new Proxy(propertyValue, {
         set(target: any, p: string | symbol, value: any, receiver: any): boolean {
-            const state: { had: boolean, value: any, length?: number } = propertyState(target, p)
+            const state: PropertyState = propertyState(target, p)
             try {
                 const isSuccess: boolean = Reflect.set(target, p, value, receiver)
                 validateFn()
@@ -202,7 +213,7 @@ function dynamicProxyProperty(target: any, prop: string | symbol, receiver: any,
             return dynamicProxyProperty(target, p, receiver, validateFn)
         },
         deleteProperty: (target: any, prop: string | symbol): boolean => {
-            const state: { had: boolean, value: any, length?: number } = propertyState(target, prop)
+            const state: PropertyState = propertyState(target, prop)
             try {
                 const isSuccess: boolean = Reflect.deleteProperty(target, prop)
                 validateFn()

@@ -3,6 +3,7 @@ import path from 'node:path'
 import {Run} from '../Processes.js'
 import {Warn} from '../Output.js'
 import {DEPENDENCY_FIELDS, type JSONFile, type Workspace, type WorkspacePackage} from './Workspace.js'
+import {type ProcessResult} from '../../types/ProcessResult.js'
 
 const VERSION: RegExp = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/
 
@@ -132,7 +133,7 @@ export async function ApplyVersion(workspace: Workspace, plan: VersionPlan, opti
         {file: 'pnpm-lock.yaml', command: 'pnpm', args: ['install', '--lockfile-only', '--ignore-scripts']}
     ].find((candidate): boolean => existsSync(path.join(workspace.root, candidate.file)))
     if (lock) {
-        const result = await Run(lock.command, lock.args, workspace.root).catch((error: Error): { code: number, output: string } => ({code: 1, output: error.message}))
+        const result = await Run(lock.command, lock.args, workspace.root).catch((error: Error): ProcessResult => ({code: 1, output: error.message}))
         if (result.code === 0) files.push(path.join(workspace.root, lock.file))
         else Warn(`The lock file ${lock.file} is not updated (run ${lock.command} install): ${result.output.trim().split('\n').slice(-3).join(' ')}`)
     } else if (existsSync(path.join(workspace.root, 'yarn.lock'))) {

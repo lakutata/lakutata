@@ -31,6 +31,9 @@ import {ContainerExecOptions} from '../options/container/ContainerExecOptions.js
 import {ContainerExportDirectoryOptions} from '../options/container/ContainerExportDirectoryOptions.js'
 import {pipeline} from 'stream/promises'
 import {createWriteStream} from 'node:fs'
+import {type DeviceMapping} from '../../client/types/DeviceMapping.js'
+import {type IdResponse} from '../../client/types/IdResponse.js'
+import {type PortBinding} from '../../client/types/PortBinding.js'
 
 @Transient()
 export class DockerContainer extends Provider {
@@ -166,7 +169,7 @@ export class DockerContainer extends Provider {
                     const portInfo: string[] = portWithType.split('/')
                     const port: number = parseInt(portInfo[0])
                     const type: 'tcp' | 'udp' = As<'tcp' | 'udp'>(portInfo[1].toLowerCase())
-                    inspectInfo.NetworkSettings.Ports[portWithType]?.forEach((hostBinding: { HostPort: string }) => {
+                    inspectInfo.NetworkSettings.Ports[portWithType]?.forEach((hostBinding: PortBinding) => {
                         containerIpAddresses.forEach((containerIpAddress: string) => {
                             const portMapKey: string = `${containerIpAddress}_${port}_${type}`
                             if (!portMap.has(portMapKey)) portMap.set(portMapKey, [])
@@ -201,11 +204,7 @@ export class DockerContainer extends Provider {
                 }
             }
             this.binds = binds
-            this.devices = inspectInfo.HostConfig.Devices ? As<{
-                PathOnHost: string
-                PathInContainer: string
-                CgroupPermissions: string
-            }[]>(inspectInfo.HostConfig.Devices).map(device => ({
+            this.devices = inspectInfo.HostConfig.Devices ? As<DeviceMapping[]>(inspectInfo.HostConfig.Devices).map(device => ({
                 hostPath: device.PathOnHost,
                 containerPath: device.PathInContainer,
                 cgroupPermissions: device.CgroupPermissions
@@ -366,7 +365,7 @@ export class DockerContainer extends Provider {
             repo = parseResult.repo
             tag = parseResult.tag
         }
-        const commitResult: { Id: string } = await this.getClient().commitContainer(this.id, {
+        const commitResult: IdResponse = await this.getClient().commitContainer(this.id, {
             repo: repo,
             tag: tag,
             pause: options.pauseBeforeCommitting !== undefined ? options.pauseBeforeCommitting : true
@@ -424,7 +423,7 @@ export class DockerContainer extends Provider {
      */
     @Accept(ContainerExecOptions.required())
     public async exec(options: ContainerExecOptions): Promise<string> {
-        const exec: { Id: string } = await this.getClient().createExec(this.id, {
+        const exec: IdResponse = await this.getClient().createExec(this.id, {
             Cmd: Array.isArray(options.cmd) ? options.cmd : [options.cmd],
             AttachStdout: true,
             AttachStderr: true

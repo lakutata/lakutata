@@ -1,5 +1,6 @@
 import {spawn} from 'node:child_process'
 import {LaunchEnvironment} from './Environment.js'
+import {type ProcessResult} from '../types/ProcessResult.js'
 
 /**
  * The package managers
@@ -23,8 +24,8 @@ export function DetectPackageManager(): PackageManager {
  * @param cwd
  * @return the exit code and the output
  */
-export function Run(command: string, args: string[], cwd: string): Promise<{ code: number, output: string }> {
-    return new Promise((resolve: (result: { code: number, output: string }) => void, reject: (error: Error) => void): void => {
+export function Run(command: string, args: string[], cwd: string): Promise<ProcessResult> {
+    return new Promise((resolve: (result: ProcessResult) => void, reject: (error: Error) => void): void => {
         //The package managers are scripts on Windows
         const child = spawn(command, args, {cwd: cwd, shell: process.platform === 'win32', env: LaunchEnvironment})
         let output: string = ''

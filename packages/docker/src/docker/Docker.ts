@@ -32,6 +32,9 @@ import {PackBuildContext} from '../client/BuildContext.js'
 import {BuildKitProgress, DecodeBuildKitStatus} from '../client/BuildKitProgress.js'
 import {FollowProgress} from '../client/DockerStreams.js'
 import {ParseBaseImages} from './lib/ParseBaseImages.js'
+import {type DeviceMapping} from '../client/types/DeviceMapping.js'
+import {type IdResponse} from '../client/types/IdResponse.js'
+import {type PortBinding} from '../client/types/PortBinding.js'
 
 @Singleton()
 export class Docker extends Component {
@@ -397,7 +400,7 @@ export class Docker extends Component {
         //The platform is optional: the one of the image by default
         const platform: string | undefined = typeof platformOrOptions === 'string' ? platformOrOptions : undefined
         const options: ContainerSettingOptions = typeof platformOrOptions === 'string' ? settingOptions ?? {} : platformOrOptions
-        const portBindingMap: Map<string, { HostPort: string }[]> = new Map()
+        const portBindingMap: Map<string, PortBinding[]> = new Map()
         options.ports?.forEach(port => {
             const portBindingMapKey: string = `${port.port}/${port.type}`
             if (!portBindingMap.has(portBindingMapKey)) portBindingMap.set(portBindingMapKey, [])
@@ -407,17 +410,13 @@ export class Docker extends Component {
             })
             portBindingMap.set(portBindingMapKey, hostPorts)
         })
-        const portBindings: Record<string, ({ HostPort: string }[]) | null> = {}
-        portBindingMap.forEach((hostPorts: { HostPort: string }[], portWithType: string) => {
+        const portBindings: Record<string, PortBinding[] | null> = {}
+        portBindingMap.forEach((hostPorts: PortBinding[], portWithType: string) => {
             portBindings[portWithType] = hostPorts.length ? hostPorts : null
         })
         const binds: string[] = []
         options.binds?.forEach((bind: ContainerBind) => binds.push(`${bind.hostPath}:${bind.containerPath}:${bind.rw ? 'rw' : 'ro'}`))
-        const devices: {
-            PathOnHost: string
-            PathInContainer: string
-            CgroupPermissions: string
-        }[] = []
+        const devices: DeviceMapping[] = []
         options.devices?.forEach(device => devices.push({
             PathOnHost: device.hostPath,
             PathInContainer: device.containerPath,
@@ -435,7 +434,7 @@ export class Docker extends Component {
                 }
         })
         const containerEnvRecord: Record<string, string> = options.env ? options.env : {}
-        const rawContainer: { Id: string } = await this.#client.createContainer({
+        const rawContainer: IdResponse = await this.#client.createContainer({
             Image: imageId,
             Hostname: options.hostname,
             Tty: options.tty,
@@ -471,7 +470,7 @@ export class Docker extends Component {
      */
     @Accept(NetworkCreateOptions.required())
     public async createNetwork(options: NetworkCreateOptions): Promise<NetworkInfo> {
-        const network: { Id: string } = await this.#client.createNetwork({
+        const network: IdResponse = await this.#client.createNetwork({
             Name: options.name,
             Driver: options.driver,
             Internal: options.internal,

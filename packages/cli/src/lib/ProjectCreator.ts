@@ -7,6 +7,7 @@ import {type PreparedTemplate, TemplateCatalog, type TemplateSource} from './Tem
 import {type PackageManager, Run} from './Processes.js'
 import {Done, Step, Warn} from './Output.js'
 import {FrameworkVersion} from './Versions.js'
+import {type ProcessResult} from '../types/ProcessResult.js'
 
 /**
  * What a project is created with
@@ -162,7 +163,7 @@ export class ProjectCreator extends Component {
         Done('Project information filled')
         if (plan.packageManager !== 'none') {
             Step(`Installing the dependencies with ${plan.packageManager}`)
-            let result: { code: number, output: string }
+            let result: ProcessResult
             try {
                 result = await Run(plan.packageManager, ['install'], plan.directory)
             } catch (error: unknown) {
