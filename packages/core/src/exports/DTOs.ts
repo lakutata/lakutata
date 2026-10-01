@@ -3,6 +3,7 @@ import 'reflect-metadata'
 export * from '../dto/PaginationSearchDTO.js'
 export * from '../dto/PaginationResultDTO.js'
 export * from '../dto/Paginator.js'
+export * from '../lib/dto/FlexibleDTO.js'
 /**
  * Validation exceptions
  */

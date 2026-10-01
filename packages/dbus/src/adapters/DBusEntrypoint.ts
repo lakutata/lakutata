@@ -1,5 +1,6 @@
 import EventEmitter from 'node:events'
-import {FlexibleDTO, GetMethodReturnSchema} from '@lakutata/core/internal'
+import {FlexibleDTO} from '@lakutata/core/dtos'
+import {GetMethodReturnSchema} from '@lakutata/core/internal'
 import type {IBaseObjectConstructor, Schema} from '@lakutata/core'
 import type {ChannelActionInfo, ChannelRuntime, Controller, EntrypointAdapter, MiddlewareDefinition} from '@lakutata/entrypoint'
 import {DBusSignedValue, LocalInterface, LocalObject, LocalService, RequestNameFlags, RequestNameResultCode} from 'dbus-sdk'

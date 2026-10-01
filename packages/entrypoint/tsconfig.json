@@ -59,6 +59,9 @@
       ],
       "@lakutata/utils/helper/*": [
         "../utils/dist/types/lib/helpers/*"
+      ],
+      "@lakutata/core/dtos": [
+        "../core/dist/types/exports/DTOs"
       ]
     }
   },

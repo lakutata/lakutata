@@ -62,6 +62,9 @@
       ],
       "@lakutata/entrypoint/adapter/express": [
         "../entrypoint/dist/types/exports/ExpressAdapter"
+      ],
+      "@lakutata/core/dtos": [
+        "../core/dist/types/exports/DTOs"
       ]
     }
   },

@@ -206,6 +206,7 @@
     "useContainer"
   ],
   "lakutata/dtos": [
+    "FlexibleDTO",
     "PaginationResultDTO",
     "PaginationSearchDTO",
     "Paginator",

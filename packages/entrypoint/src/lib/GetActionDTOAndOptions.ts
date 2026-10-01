@@ -1,6 +1,6 @@
 import {DTO} from '@lakutata/core'
 import {ActionOptions} from './ActionOptions.js'
-import {FlexibleDTO} from '@lakutata/core/internal'
+import {FlexibleDTO} from '@lakutata/core/dtos'
 
 /**
  * Get action's DTO and options from decorator
