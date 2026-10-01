@@ -194,7 +194,7 @@ const LEGACY_CHANNELS: Set<string> = new Set(['cli', 'http', 'service'])
 @Singleton()
 export class Entrypoint extends Component {
 
-    protected readonly accessControl: IBaseObjectConstructor<AccessControl> = AccessControl
+    protected readonly accessControl: typeof AccessControl = AccessControl
 
     /**
      * Controllers

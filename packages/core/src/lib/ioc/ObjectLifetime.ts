@@ -33,7 +33,7 @@ export function GetObjectLifetimeLocked<ClassConstructor extends IConstructor>(t
  */
 export function SetObjectLifetime<ClassConstructor extends IConstructor>(target: ClassConstructor, lifetime: LifetimeType, lock: boolean = false): ClassConstructor {
     //A locked lifetime can be declared again, but never changed
-    if (GetObjectLifetimeLocked(target) && GetObjectLifetime(target) !== lifetime) throw new LifetimeLockedException('[{0}] Object lifecycle settings cannot be applied because the parent object lifecycle of the current operation object is locked', [target.className])
+    if (GetObjectLifetimeLocked(target) && GetObjectLifetime(target) !== lifetime) throw new LifetimeLockedException('[{0}] Object lifecycle settings cannot be applied because the parent object lifecycle of the current operation object is locked', [target.name])
     if (lock) Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_LIFETIME_LOCK, true, target)
     Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_LIFETIME, lifetime, target)
     return target
