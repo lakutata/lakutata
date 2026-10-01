@@ -48,7 +48,6 @@ const LAYERS = [
     ['dto', 4, 'model'],
     //L5 - built-in components & providers (independent of each other)
     ['components/ConsoleLogger.ts', 5, 'logger'],
-    ['components/monitor', 5, 'monitor'],
     //L6 - application
     ['lib/app', 6, 'app'],
     //L7 - public barrels & tests

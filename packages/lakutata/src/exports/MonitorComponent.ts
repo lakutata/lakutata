@@ -1,1 +1,1 @@
-export * from '@lakutata/core/com/monitor'
+export * from '@lakutata/monitor'

@@ -26,16 +26,6 @@
         "default": "./dist/cjs/exports/DTOs.js"
       }
     },
-    "./com/monitor": {
-      "import": {
-        "types": "./dist/types/exports/MonitorComponent.d.ts",
-        "default": "./dist/esm/exports/MonitorComponent.js"
-      },
-      "require": {
-        "types": "./dist/cjs/exports/MonitorComponent.d.ts",
-        "default": "./dist/cjs/exports/MonitorComponent.js"
-      }
-    },
     "./com/logger": {
       "import": {
         "types": "./dist/types/exports/LoggerComponent.d.ts",
@@ -95,8 +85,7 @@
   "dependencies": {
     "@lakutata/utils": "2.0.126",
     "glob": "13.0.0",
-    "reflect-metadata": "0.2.2",
-    "simple-statistics": "7.8.8"
+    "reflect-metadata": "0.2.2"
   },
   "engines": {
     "node": ">=22"

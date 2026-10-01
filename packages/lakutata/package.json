@@ -293,6 +293,7 @@
     "@lakutata/cache": "2.0.126",
     "@lakutata/docker": "2.0.126",
     "@lakutata/orm": "2.0.126",
+    "@lakutata/monitor": "2.0.126",
     "@lakutata/utils": "2.0.126",
     "@lakutata/security": "2.0.126"
   },

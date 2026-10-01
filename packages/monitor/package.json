@@ -1,0 +1,44 @@
+{
+  "name": "@lakutata/monitor",
+  "version": "2.0.126",
+  "description": "The monitors of the lakutata framework: the CPU, the memory, the event loop and the HTTP requests of the process, on the histograms of Node.js.",
+  "type": "module",
+  "main": "./dist/cjs/exports/Monitor.js",
+  "types": "./dist/cjs/exports/Monitor.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/types/exports/Monitor.d.ts",
+        "default": "./dist/esm/exports/Monitor.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/Monitor.d.ts",
+        "default": "./dist/cjs/exports/Monitor.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "clean": "shx rm -rf ./dist",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:cjs-pkg": "node -e \"require('node:fs').writeFileSync('dist/cjs/package.json',JSON.stringify({type:'commonjs'}))\"",
+    "build:js": "npm run build:cjs && npm run build:esm && npm run build:cjs-pkg",
+    "rebuild": "npm run clean && npm run build:js",
+    "compile": "npm run rebuild",
+    "test:unit": "npm run compile && node --test \"dist/esm/tests/*.spec.js\""
+  },
+  "peerDependencies": {
+    "@lakutata/core": "2.0.126"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "dist",
+    "!dist/*/tests",
+    "*.md",
+    "LICENSE",
+    "package.json"
+  ]
+}

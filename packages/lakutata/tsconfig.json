@@ -51,8 +51,8 @@
             "@lakutata/docker": [
                 "../docker/dist/types/exports/Docker"
             ],
-            "@lakutata/core/com/monitor": [
-                "../core/dist/types/exports/MonitorComponent"
+            "@lakutata/monitor": [
+                "../monitor/dist/types/exports/Monitor"
             ],
             "@lakutata/core/com/logger": [
                 "../core/dist/types/exports/LoggerComponent"

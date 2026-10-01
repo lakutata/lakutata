@@ -1,5 +1,9 @@
 export interface IHttpRequestMonitorStatistics {
     /**
+     * Number of HTTP requests received
+     */
+    count: number
+    /**
      * Minimum HTTP request duration (ms)
      */
     min: number
