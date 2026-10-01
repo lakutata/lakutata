@@ -85,6 +85,11 @@ export class ModuleConfigLoader {
             overridableObjectOptions[OBJECT_ID] = id
             if (overridableObjectOptions.class) {
                 overridableObjectOptions.class = this.validateObjectType(objectType, overridableObjectOptions.class, id)
+                //An object declared with its class replaces the preset object of the same name
+                for (const loadOptions of this.$presetLoadOptionsSet) {
+                    if (typeof loadOptions === 'string' || loadOptions instanceof BaseObject) continue
+                    if (id === loadOptions[OBJECT_ID]) this.$presetLoadOptionsSet.delete(loadOptions)
+                }
                 return this.$loadOptions.push(As<LoadObjectOptions>(overridableObjectOptions)) ? void (0) : void (0)
             }
             for (const loadOptions of this.$presetLoadOptionsSet) {

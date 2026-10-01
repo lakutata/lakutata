@@ -12,6 +12,7 @@ import {ModuleConfigLoader} from '../../lib/base/internal/ModuleConfigLoader.js'
 import {InvalidObjectTypeException} from '../../exceptions/InvalidObjectTypeException.js'
 import {Scoped, Singleton, Transient} from '../../decorators/di/Lifetime.js'
 import {Inject} from '../../decorators/di/Inject.js'
+import {OBJECT_ID} from '../../options/LoadObjectOptions.js'
 
 const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -415,6 +416,21 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         await root.destroy()
         assert.deepStrictEqual(seen, [false])
         assert.ok(scoped.destroyed)
+    })
+
+    await it('an object declared with its class replaces the preset object of the same name, its options are added otherwise', async (): Promise<void> => {
+        class PresetComponent extends Component {
+        }
+
+        const preset = [{[OBJECT_ID]: 'replaced', class: PresetComponent}, {[OBJECT_ID]: 'kept', class: PresetComponent, value: 1}]
+        const loader: ModuleConfigLoader = new ModuleConfigLoader({} as Module, {
+            components: {replaced: {class: InnerComponent}, kept: {value: 2}}
+        }, preset)
+        const loaded = loader.loadOptions.map((options: any) => ({id: options[OBJECT_ID], class: options.class, value: options.value}))
+        assert.deepStrictEqual(loaded, [
+            {id: 'replaced', class: InnerComponent, value: undefined},
+            {id: 'kept', class: PresetComponent, value: 2}
+        ])
     })
 
     await it('a component declared as a provider is rejected with the configuration it belongs to', async (): Promise<void> => {
