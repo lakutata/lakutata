@@ -9,7 +9,7 @@ import {Module} from '@lakutata/core'
 import {ActionDetails, ActionPatternMap, BindControllerToComponent, GetComponentControllerActionMap} from './lib/ControllerEntrypoint.js'
 import {Controller} from './lib/Controller.js'
 import {As} from '@lakutata/utils/helper'
-import {CloneDeep, GetConfigurableRecordsFromInstance, RegisterTeardownHook, WhenApplicationLaunched} from '@lakutata/core/internal'
+import {CloneDeep, RegisterTeardownHook, WhenApplicationLaunched} from '@lakutata/core/internal'
 import {JSONSchema} from '@lakutata/core'
 import {Container} from '@lakutata/core'
 import {DevNull} from '@lakutata/utils/helper'
@@ -334,7 +334,7 @@ export class Entrypoint extends Component {
      * @protected
      */
     protected configuredAdapters(): EntrypointAdapter<any>[] {
-        const records: Record<string, unknown> = GetConfigurableRecordsFromInstance(this)
+        const records: Record<string, unknown> = this.getConfigurableRecords()
         const adapters: EntrypointAdapter<any>[] = []
         for (const [key, value] of Object.entries(records)) {
             if (ENTRYPOINT_OPTIONS.has(key) || value === undefined || value === null) continue

@@ -313,6 +313,15 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
+     * The options the object was created with, as they were given: the values of its configurable properties before
+     * their validation, and the options which are not configurable properties
+     * @protected
+     */
+    protected getConfigurableRecords(): Record<string, any> {
+        return {...GetConfigurableRecordsFromInstance(this)}
+    }
+
+    /**
      * Get current object's parent
      * @protected
      */

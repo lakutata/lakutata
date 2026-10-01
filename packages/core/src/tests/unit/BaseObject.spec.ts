@@ -5,6 +5,8 @@ import {Container} from '../../lib/core/Container.js'
 import {MethodNotFoundException} from '../../exceptions/MethodNotFoundException.js'
 import {IsPromiseLike} from '@lakutata/utils/helper/IsPromiseLike'
 import {OBJECT_ID} from '../../options/LoadObjectOptions.js'
+import {Configurable} from '../../decorators/di/Configurable.js'
+import {DTO} from '../../lib/dto/DTO.js'
 
 let initialized: boolean = false
 let destroyed: boolean = false
@@ -33,6 +35,16 @@ class TestObject extends BaseObject {
 }
 
 class TestObjectRegisteredInRootContainer extends BaseObject {
+}
+
+class ConfiguredObject extends BaseObject {
+
+    @Configurable(DTO.Number().optional().default(80))
+    public readonly port: number
+
+    public records(): Record<string, any> {
+        return this.getConfigurableRecords()
+    }
 }
 
 await describe('BaseObject Test', async function (): Promise<void> {
@@ -76,6 +88,13 @@ await describe('BaseObject Test', async function (): Promise<void> {
     })
     await it('get object should access its parent container', async (): Promise<void> => {
         await assert.doesNotReject(() => instance.getTestObjectInRootContainer())
+    })
+    await it('gets the options the object was created with, as they were given', async (): Promise<void> => {
+        const configured: ConfiguredObject = await rootContainer.build(ConfiguredObject, {channel: 'http'})
+        assert.strictEqual(configured.port, 80)
+        assert.deepStrictEqual(configured.records(), {channel: 'http'})
+        configured.records().channel = 'cli'
+        assert.deepStrictEqual(configured.records(), {channel: 'http'})
     })
     await it('protect async destroy method invoked', async (): Promise<void> => {
         await rootContainer.destroy()
