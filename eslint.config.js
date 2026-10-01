@@ -15,9 +15,24 @@ export default defineConfig([
         languageOptions: {
             ecmaVersion: 'latest',
             sourceType: 'module',
-            globals: globals.node
+            globals: globals.node,
+            //The type information of the files, from the tsconfig.json of their package
+            parserOptions: {
+                projectService: true,
+                tsconfigRootDir: import.meta.dirname
+            }
         },
         rules: {
+            //A promise is awaited, returned or handled: a rejection nothing handles ends the process
+            '@typescript-eslint/no-floating-promises': ['error', {
+                allowForKnownSafeCalls: [{
+                    from: 'package',
+                    package: 'node:test',
+                    name: ['describe', 'it', 'test', 'suite', 'before', 'after', 'beforeEach', 'afterEach', 'skip', 'todo', 'only']
+                }]
+            }],
+            '@typescript-eslint/no-misused-promises': 'error',
+            '@typescript-eslint/await-thenable': 'error',
             //The style: single quotes (other quotes only to avoid escaping), no semicolons, no trailing commas
             '@stylistic/quotes': ['error', 'single', {avoidEscape: true, allowTemplateLiterals: 'always'}],
             '@stylistic/semi': ['error', 'never'],
@@ -72,6 +87,11 @@ export default defineConfig([
                 'ts-expect-error': 'allow-with-description'
             }]
         }
+    },
+    {
+        //The templates of the projects are not in the TypeScript projects of the packages
+        files: ['packages/template-*/template/**'],
+        ...tseslint.configs.disableTypeChecked
     },
     {
         //The test suites of the validation engine are ported from joi as they are
