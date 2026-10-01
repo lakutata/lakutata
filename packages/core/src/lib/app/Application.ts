@@ -230,21 +230,33 @@ export class Application extends Module {
      */
     protected static launch(): typeof Application {
         if (this.launchTimeout) clearTimeout(this.launchTimeout)
-        this.launchTimeout = setTimeout(async () => {
-            process
-                .on('uncaughtException', async (error: Error) => {
-                    if (this.eventEmitter.listenerCount(ApplicationState.UncaughtException))
-                        return this.eventEmitter.emit(ApplicationState.UncaughtException, error)
-                    const logger: ILogger = await this.getLogger()
-                    return logger.warn(new Error('UncaughtException', {cause: error}))
-                })
-            try {
-                Reflect.set(this, 'appInstance', await this.launchApplication())
-            } catch (e: any) {
-                this.processFatalException(e)
-            }
+        this.launchTimeout = setTimeout((): void => {
+            process.on('uncaughtException', (error: Error): void => void this.processUncaughtException(error))
+            this.launchApplication()
+                .then((app: Application): unknown => Reflect.set(this, 'appInstance', app))
+                .catch((e: any): void => this.processFatalException(e))
         })
         return this
+    }
+
+    /**
+     * Process uncaught exception: the handlers of onUncaughtException(), or the logger (the console when the logger
+     * cannot be got)
+     * @param error
+     * @protected
+     */
+    protected static async processUncaughtException(error: Error): Promise<void> {
+        if (this.eventEmitter.listenerCount(ApplicationState.UncaughtException)) {
+            this.eventEmitter.emit(ApplicationState.UncaughtException, error)
+            return
+        }
+        const exception: Error = new Error('UncaughtException', {cause: error})
+        try {
+            const logger: ILogger = await this.getLogger()
+            logger.warn(exception)
+        } catch (e) {
+            console.error(exception, e)
+        }
     }
 
     /**
