@@ -254,6 +254,10 @@ await describe('DTO Test', async function (): Promise<void> {
         LateFieldDTO.description('described later')
         assert.equal(As<{ description?: string }>(LateFieldDTO.Schema().describe().flags)?.description, 'described later')
     })
+    await it('HttpDocument() accepts the HTML and the XML documents only', async (): Promise<void> => {
+        for (const document of ['<html><body>x</body></html>', '<?xml version="1.0"?><a/>', '<a><b>x</b></a>']) assert.equal(DTO.isValid(document, DTO.HttpDocument()), true, document)
+        for (const value of ['plain text', '{"json": true}', '<note><to></note>']) assert.equal(DTO.isValid(value, DTO.HttpDocument()), false, value)
+    })
 })
 
 function As<T>(value: unknown): T {

@@ -1,17 +1,10 @@
-import {XMLValidator} from 'fast-xml-parser'
+import {ValidateXML} from './internal/XMLValidator.js'
 
 /**
- * Whether string is XML
+ * Whether a string is a well formed XML document
  * @param string
  * @constructor
  */
 export function IsXML(string: string): boolean {
-    try {
-        XMLValidator.validate(string, {
-            allowBooleanAttributes: true
-        })
-        return true
-    } catch (e) {
-        return false
-    }
+    return typeof string === 'string' && ValidateXML(string)
 }
