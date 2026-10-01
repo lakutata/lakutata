@@ -220,6 +220,7 @@
   "lakutata/helper": [
     "ArrayToSet",
     "As",
+    "CloneDeep",
     "ConvertArrayLikeToIterable",
     "ConvertArrayLikeToStream",
     "Delay",

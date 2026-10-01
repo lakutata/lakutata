@@ -73,6 +73,7 @@
     "!dist/*/tests",
     "*.md",
     "LICENSE",
-    "package.json"
+    "package.json",
+    "THIRD_PARTY_NOTICES.md"
   ]
 }
