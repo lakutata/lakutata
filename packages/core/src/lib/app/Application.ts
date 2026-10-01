@@ -6,7 +6,7 @@ import {Alias} from '../core/Alias.js'
 import {GetAppId, GetAppName, GetBasicInfo} from '../foundation/BasicInfo.js'
 import {SetDestroyErrorReporter} from '../foundation/DestroyErrorReporter.js'
 import {ILogger} from '../../interfaces/ILogger.js'
-import {GetDefaultComponentClass, GetDefaultComponents} from './ApplicationDefaults.js'
+import {ConsoleLogger} from '../../components/ConsoleLogger.js'
 import {Accept} from '../../decorators/dto/Accept.js'
 import {DTO} from '../dto/DTO.js'
 import {mkdirSync} from 'fs'
@@ -14,7 +14,7 @@ import path from 'node:path'
 import {existsSync} from 'node:fs'
 import {As} from '@lakutata/utils/helper/As'
 import {EventEmitter} from '../base/EventEmitter.js'
-import {BootstrapOption} from '../../options/ModuleOptions.js'
+import {BootstrapOption, ModuleOptions} from '../../options/ModuleOptions.js'
 import {DeclareApplicationClass, MarkApplicationLaunched} from './ApplicationLaunch.js'
 
 //The handlers are method signatures, so a handler may declare the logger implementation it expects (such as Logger)
@@ -91,11 +91,52 @@ export class Application extends Module {
     protected static launchTimeout: NodeJS.Timeout
 
     /**
-     * Get logger
+     * The options preset for the applications, see preset()
+     * @protected
+     */
+    protected static readonly presetOptions: ModuleOptions = {}
+
+    /**
+     * The logger of the applications without "log" component
+     * @private
+     */
+    static #consoleLogger: Promise<ILogger> | undefined
+
+    /**
+     * Preset the options of the applications, before they run: the preset objects are loaded first and the objects of
+     * the same name given to run() replace them, the preset bootstrap runs first. The packages assembling the framework
+     * preset their components (such as the Logger and the Entrypoint of lakutata). Each call adds to the preset: its
+     * components, providers and named objects replace the preset ones of the same name
+     * @param options
+     */
+    public static preset(options: ModuleOptions): typeof Application {
+        const preset: ModuleOptions = this.presetOptions
+        if (options.components) Reflect.set(preset, 'components', {...preset.components, ...options.components})
+        if (options.providers) Reflect.set(preset, 'providers', {...preset.providers, ...options.providers})
+        if (options.objects) Reflect.set(preset, 'objects', {
+            named: {...preset.objects?.named, ...options.objects.named},
+            anonymous: [...(preset.objects?.anonymous ?? []), ...(options.objects.anonymous ?? [])]
+        })
+        if (options.bootstrap) Reflect.set(preset, 'bootstrap', [...new Set([...(preset.bootstrap ?? []), ...options.bootstrap])])
+        return this
+    }
+
+    /**
+     * Get logger: the "log" component of the application, or the console when there is no application or no "log"
+     * component
      * @protected
      */
     protected static async getLogger(): Promise<ILogger> {
-        return this.appInstance ? As<ILogger>(await this.appInstance.getObject('log')) : As<ILogger>(await new Container().set(GetDefaultComponentClass('log')!))
+        return this.appInstance ? await this.appInstance.getLogger() : await this.getConsoleLogger()
+    }
+
+    /**
+     * The console logger, created once
+     * @protected
+     */
+    protected static getConsoleLogger(): Promise<ILogger> {
+        if (!this.#consoleLogger) this.#consoleLogger = new Container().set(ConsoleLogger)
+        return this.#consoleLogger
     }
 
     /**
@@ -129,7 +170,7 @@ export class Application extends Module {
      * @param handler
      */
     public static onLaunched(handler: LaunchedHandler): typeof Application {
-        this.eventEmitter.once(ApplicationState.Launched, async (app: Application) => handler(app, As<ILogger>(await app.getObject('log'))))
+        this.eventEmitter.once(ApplicationState.Launched, async (app: Application) => handler(app, await app.getLogger()))
         return this.launch()
     }
 
@@ -138,7 +179,7 @@ export class Application extends Module {
      * @param handler
      */
     public static onDone(handler: DoneHandler): typeof Application {
-        this.eventEmitter.once(ApplicationState.Done, async (app: Application) => handler(app, As<ILogger>(await app.getObject('log'))))
+        this.eventEmitter.once(ApplicationState.Done, async (app: Application) => handler(app, await app.getLogger()))
         return this.launch()
     }
 
@@ -322,7 +363,7 @@ export class Application extends Module {
                         }
                         launchedCallbackRemover.bind(As<Application>(target))()
                         //Errors raised by cascaded destruction are reported through the application logger
-                        const logger: ILogger = As<ILogger>(await target.getObject('log'))
+                        const logger: ILogger = await As<Application>(target).getLogger()
                         SetDestroyErrorReporter((error: Error): void => logger.warn(error, 'An error occurred while destroying an object'))
                         MarkApplicationLaunched(target)
                         this.eventEmitter.emit(ApplicationState.Launched, As<Application>(target))
@@ -349,9 +390,28 @@ export class Application extends Module {
      * Application embed options
      * @protected
      */
-    protected options: Partial<ApplicationOptions> = {
-        components: GetDefaultComponents(),
-        bootstrap: ['log']
+    protected options: Partial<ApplicationOptions> = Application.copyPresetOptions()
+
+    /**
+     * A copy of the preset options, for an application
+     * @protected
+     */
+    protected static copyPresetOptions(): ModuleOptions {
+        const preset: ModuleOptions = Application.presetOptions
+        return {
+            ...(preset.components ? {components: {...preset.components}} : {}),
+            ...(preset.providers ? {providers: {...preset.providers}} : {}),
+            ...(preset.objects ? {objects: {named: {...preset.objects.named}, anonymous: [...(preset.objects.anonymous ?? [])]}} : {}),
+            bootstrap: [...(preset.bootstrap ?? [])]
+        }
+    }
+
+    /**
+     * The logger of the application: its "log" component, or the console when it has none
+     * @protected
+     */
+    protected async getLogger(): Promise<ILogger> {
+        return this.container.has('log') ? As<ILogger>(await this.getObject('log')) : await Application.getConsoleLogger()
     }
 
     /**

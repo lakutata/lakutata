@@ -2,14 +2,13 @@ import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {PassThrough} from 'node:stream'
 import {Application, Component} from '@lakutata/core'
-import {SetDefaultComponent} from '@lakutata/core/internal'
 import {BuildEntrypoints, Controller, Entrypoint} from '../exports/Entrypoint.js'
 import {CLIAction} from '../exports/CTRLDecorators.js'
 import {CommanderCLIEntrypoint} from '../exports/CommanderAdapter.js'
 import {ExpressHTTPEntrypoint} from '../exports/ExpressAdapter.js'
 
 //The entrypoint is a default component of the lakutata package, not of the core
-SetDefaultComponent('entrypoint', {class: Entrypoint})
+Application.preset({components: {entrypoint: {class: Entrypoint}}})
 
 const trace: string[] = []
 

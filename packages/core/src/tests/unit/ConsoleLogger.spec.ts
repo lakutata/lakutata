@@ -2,7 +2,6 @@ import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {Container} from '../../lib/core/Container.js'
 import {ConsoleLogger} from '../../components/ConsoleLogger.js'
-import {GetDefaultComponents, SetDefaultComponent} from '../../lib/app/ApplicationDefaults.js'
 
 /**
  * Capture the lines written to stdout and stderr
@@ -39,18 +38,5 @@ describe('ConsoleLogger', (): void => {
         assert.match(lines[0], /^out \[.+] INFO \(.+\): hello world\n$/)
         assert.match(lines[1], /^err \[.+] WARN \(.+\): with object \{ id: 1 }\n$/)
         assert.match(lines[2], /^err \[.+] ERROR \(.+\): Error: failure\n/)
-    })
-
-    it('is the default logger of the applications', (): void => {
-        assert.strictEqual(GetDefaultComponents().log.class, ConsoleLogger)
-        //The registered options are copied for each application
-        const components: Record<string, { class: unknown }> = GetDefaultComponents()
-        components.log.class = undefined
-        assert.strictEqual(GetDefaultComponents().log.class, ConsoleLogger)
-        class OtherLogger extends ConsoleLogger {
-        }
-        SetDefaultComponent('log', {class: OtherLogger})
-        assert.strictEqual(GetDefaultComponents().log.class, OtherLogger)
-        SetDefaultComponent('log', {class: ConsoleLogger})
     })
 })

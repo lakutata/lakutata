@@ -1,10 +1,9 @@
 import {describe} from 'node:test'
 import {Application, ApplicationOptions} from '@lakutata/core'
-import {SetDefaultComponent} from '@lakutata/core/internal'
 import {Entrypoint} from '@lakutata/entrypoint'
 
 //The applications of the tests dispatch with the Entrypoint component (as the applications of the lakutata package)
-SetDefaultComponent('entrypoint', {class: Entrypoint})
+Application.preset({components: {entrypoint: {class: Entrypoint}}})
 
 /**
  * The NATS server of the integration tests (docker-compose.test.yml), they are skipped without it
