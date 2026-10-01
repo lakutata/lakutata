@@ -18,6 +18,8 @@ import {Description} from './Description.js'
 import {RuleOptions} from './RuleOptions.js'
 import {ValidationErrorFunction} from '../types/ValidationErrorFunction.js'
 
+//The type parameter of the public API (DTO.Any<T>()), kept for the code giving it
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export interface AnySchema<TSchema = any> {
     type?: Types | undefined;
 

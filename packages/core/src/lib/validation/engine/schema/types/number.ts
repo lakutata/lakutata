@@ -350,7 +350,7 @@ const NumberType: NumberSchema = Any.extend<NumberSchema>({
     cast: {
         string: {
             from: (value: unknown): boolean => typeof value === 'number',
-            to(value: unknown, helpers: ValidationHelpers<NumberSchema>): unknown {
+            to(value: unknown): unknown {
                 return (value as number).toString()
             }
         }

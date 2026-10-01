@@ -1,12 +1,10 @@
 import {
     FunctionReturning,
-    IDependencyInjectionContainer,
-    ResolveOptions
+    IDependencyInjectionContainer
 } from './DependencyInjectionContainer.js'
 import {DependencyInjectionTypeError} from './Errors.js'
 import {Lifetime, type LifetimeType} from './Lifetime.js'
 import {isFunction, uniq} from './Utils.js'
-import {DI_CONTAINER_INJECT_PROPERTIES} from '../../constants/DIMetadataKey.js'
 
 /**
  * RESOLVER symbol can be used by modules loaded by
@@ -214,21 +212,6 @@ export function asClass<T = object>(
             resolve
         })
     )
-}
-
-/**
- * Resolves to the specified registration. Marked as leak-safe since the alias target is what should
- * be checked for lifetime leaks.
- */
-export function aliasTo<T>(
-    name: Parameters<IDependencyInjectionContainer['resolve']>[0]
-): Resolver<T> {
-    return {
-        resolve(container) {
-            return container.resolve(name)
-        },
-        isLeakSafe: true
-    }
 }
 
 /**

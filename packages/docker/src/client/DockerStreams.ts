@@ -2,7 +2,7 @@
  * The streams of the Docker Engine API, rewritten from docker-modem (Copyright Pedro Dias, Apache License 2.0, see
  * THIRD_PARTY_NOTICES.md): the multiplexed output of the containers without TTY, and the JSON lines of the progresses
  */
-import {Readable, Transform, type TransformCallback} from 'node:stream'
+import {Transform, type TransformCallback} from 'node:stream'
 
 /**
  * The stream of a frame of a multiplexed output
@@ -109,12 +109,4 @@ export async function FollowProgress<T = Record<string, any>>(input: NodeJS.Read
         input.once('error', reject)
     })
     return objects
-}
-
-/**
- * A readable stream of a buffer
- * @param buffer
- */
-export function BufferStream(buffer: Buffer): Readable {
-    return Readable.from([buffer])
 }

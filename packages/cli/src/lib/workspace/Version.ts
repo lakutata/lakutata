@@ -4,11 +4,6 @@ import {Run} from '../Processes.js'
 import {Warn} from '../Output.js'
 import {DEPENDENCY_FIELDS, type JSONFile, type Workspace, type WorkspacePackage} from './Workspace.js'
 
-/**
- * How a version is bumped
- */
-export type VersionBump = 'major' | 'minor' | 'patch' | 'premajor' | 'preminor' | 'prepatch' | 'prerelease'
-
 const VERSION: RegExp = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/
 
 /**

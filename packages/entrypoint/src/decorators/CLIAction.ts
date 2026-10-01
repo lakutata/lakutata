@@ -10,7 +10,7 @@ import {CLIContext} from '../context/CLIContext.js'
  * @param command
  * @constructor
  */
-export function CLIAction<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(command: string): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
+export function CLIAction<ClassPrototype extends Controller, Method>(command: string): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
 /**
  * Method Decorator
  * @param command
@@ -24,7 +24,7 @@ export function CLIAction<ClassPrototype extends Controller, Method, DTOConstruc
  * @param actionOptions
  * @constructor
  */
-export function CLIAction<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(command: string, actionOptions: ActionOptions<CLIContext>): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
+export function CLIAction<ClassPrototype extends Controller, Method>(command: string, actionOptions: ActionOptions<CLIContext>): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
 /**
  * Method Decorator
  * @param command

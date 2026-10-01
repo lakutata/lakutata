@@ -117,13 +117,13 @@ const BooleanType: BooleanSchema = Any.extend<BooleanSchema>({
     cast: {
         number: {
             from: isBool,
-            to(value: unknown, helpers: ValidationHelpers<BooleanSchema>): unknown {
+            to(value: unknown): unknown {
                 return value ? 1 : 0
             }
         },
         string: {
             from: isBool,
-            to(value: unknown, helpers: ValidationHelpers<BooleanSchema>): unknown {
+            to(value: unknown): unknown {
                 return value ? 'true' : 'false'
             }
         }

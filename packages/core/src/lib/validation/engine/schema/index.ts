@@ -8,7 +8,6 @@ import {SchemaValidationException} from '../../exceptions/SchemaValidationExcept
 import * as Cache from './cache.js'
 import * as Common from './common.js'
 import * as Compile from './compile.js'
-import * as Errors from './errors.js'
 import * as Extend from './extend.js'
 import type {LazySchemas} from './lazy.js'
 import * as Manifest from './manifest.js'

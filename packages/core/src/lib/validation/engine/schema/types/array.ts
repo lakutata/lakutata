@@ -437,7 +437,7 @@ const ArrayType: ArraySchema = Any.extend<ArraySchema>({
                 }
                 return this.$_addRule(rule)
             },
-            validate(input: unknown, {state, error, schema}: ValidationHelpers<ArraySchema>, {comparator: raw, options}: Record<string, unknown>, rule: SchemaRule): unknown {
+            validate(input: unknown, {state, error}: ValidationHelpers<ArraySchema>, {comparator: raw, options}: Record<string, unknown>, rule: SchemaRule): unknown {
                 const value: unknown[] = input as unknown[]
                 const comparator: UniqueComparator | undefined = rule.comparator as UniqueComparator | undefined
                 const path: string[] | undefined = rule.path as string[] | undefined
@@ -514,7 +514,7 @@ const ArrayType: ArraySchema = Any.extend<ArraySchema>({
     cast: {
         set: {
             from: Array.isArray,
-            to(value: unknown, helpers: ValidationHelpers<ArraySchema>): unknown {
+            to(value: unknown): unknown {
                 return new Set(value as unknown[])
             }
         }

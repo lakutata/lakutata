@@ -88,7 +88,7 @@ const BinaryType: BinarySchema = Any.extend<BinarySchema>({
     cast: {
         string: {
             from: (value: unknown): boolean => Buffer.isBuffer(value),
-            to(value: unknown, helpers: ValidationHelpers<BinarySchema>): unknown {
+            to(value: unknown): unknown {
                 return (value as Buffer).toString()
             }
         }

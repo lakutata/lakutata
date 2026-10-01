@@ -459,10 +459,10 @@ export class JsonSchemaParser {
 
     /**
      * Makes a schema with a null type nullable (OpenAPI 3.0), and replaces the type lists where types are lists
-     * @param fieldSchema
-     * @param fieldDefn
+     * @param _fieldSchema
+     * @param _fieldDefn
      */
-    protected _addNullTypeIfNullable(fieldSchema: JsonSchema, fieldDefn: SchemaSpec): void {
+    protected _addNullTypeIfNullable(_fieldSchema: JsonSchema, _fieldDefn: SchemaSpec): void {
         //The null type is added by _setValues() (lakutata): JSON Schema has type lists
     }
 
@@ -919,9 +919,9 @@ export class JsonSchemaParser {
 
     /**
      * The format of a number schema (JSON Schema has no number formats)
-     * @param rules
+     * @param _rules
      */
-    protected _getNumberFormat(rules: SpecRule[]): string | undefined {
+    protected _getNumberFormat(_rules: SpecRule[]): string | undefined {
         return undefined
     }
 
@@ -1426,9 +1426,9 @@ export class JsonSchemaParser {
 
     /**
      * Intended to be overridden by child parsers. By default no meta key will be is considered "known".
-     * @param key
+     * @param _key
      */
-    protected _isKnownMetaKey(key: string): boolean {
+    protected _isKnownMetaKey(_key: string): boolean {
         return false
     }
 }

@@ -46,12 +46,12 @@ export class JsonDraft04SchemaParser extends JsonSchemaParser {
         return '#/definitions'
     }
 
-    protected _setContains(schema: JsonSchema, contains: JsonSchema, options: { min?: number, max?: number }): void {
+    protected _setContains(_schema: JsonSchema, _contains: JsonSchema, _options: { min?: number, max?: number }): void {
         //Draft 04 has no contains
         this._inexact()
     }
 
-    protected _setPropertyNames(schema: JsonSchema, names: JsonSchema): void {
+    protected _setPropertyNames(_schema: JsonSchema, _names: JsonSchema): void {
         //Draft 04 has no propertyNames
         this._inexact()
     }

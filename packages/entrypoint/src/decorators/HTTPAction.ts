@@ -11,7 +11,7 @@ import {HTTPContext} from '../context/HTTPContext.js'
  * @param method
  * @constructor
  */
-export function HTTPAction<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(route: string, method: string): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
+export function HTTPAction<ClassPrototype extends Controller, Method>(route: string, method: string): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
 /**
  * Method Decorator
  * @param route
@@ -27,7 +27,7 @@ export function HTTPAction<ClassPrototype extends Controller, Method, DTOConstru
  * @param actionOptions
  * @constructor
  */
-export function HTTPAction<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(route: string, method: string, actionOptions: ActionOptions<HTTPContext>): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
+export function HTTPAction<ClassPrototype extends Controller, Method>(route: string, method: string, actionOptions: ActionOptions<HTTPContext>): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
 /**
  * Method Decorator
  * @param route
@@ -43,7 +43,7 @@ export function HTTPAction<ClassPrototype extends Controller, Method, DTOConstru
  * @param methods
  * @constructor
  */
-export function HTTPAction<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(route: string, methods: string[]): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
+export function HTTPAction<ClassPrototype extends Controller, Method>(route: string, methods: string[]): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
 /**
  * Method Decorator
  * @param route
@@ -59,7 +59,7 @@ export function HTTPAction<ClassPrototype extends Controller, Method, DTOConstru
  * @param actionOptions
  * @constructor
  */
-export function HTTPAction<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(route: string, methods: string[], actionOptions: ActionOptions<HTTPContext>): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
+export function HTTPAction<ClassPrototype extends Controller, Method>(route: string, methods: string[], actionOptions: ActionOptions<HTTPContext>): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
 /**
  * Method Decorator
  * @param route

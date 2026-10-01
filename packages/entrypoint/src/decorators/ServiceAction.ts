@@ -1,7 +1,6 @@
 import {Controller, type ControllerProperty} from '../lib/Controller.js'
 import {MethodDecorator, ActionPattern, DTO} from '@lakutata/core'
 import {RegisterServiceAction} from '../lib/ControllerEntrypoint.js'
-import {FlexibleDTO} from '@lakutata/core/dtos'
 import {GetActionDTOAndOptions} from '../lib/GetActionDTOAndOptions.js'
 import {ActionOptions} from '../lib/ActionOptions.js'
 import {ServiceContext} from '../context/ServiceContext.js'
@@ -11,7 +10,7 @@ import {ServiceContext} from '../context/ServiceContext.js'
  * @param pattern
  * @constructor
  */
-export function ServiceAction<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(pattern: ActionPattern): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
+export function ServiceAction<ClassPrototype extends Controller, Method>(pattern: ActionPattern): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
 /**
  * Method Decorator
  * @param pattern
@@ -25,7 +24,7 @@ export function ServiceAction<ClassPrototype extends Controller, Method, DTOCons
  * @param actionOptions
  * @constructor
  */
-export function ServiceAction<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(pattern: ActionPattern, actionOptions: ActionOptions<ServiceContext>): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
+export function ServiceAction<ClassPrototype extends Controller, Method>(pattern: ActionPattern, actionOptions: ActionOptions<ServiceContext>): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
 /**
  * Method Decorator
  * @param pattern

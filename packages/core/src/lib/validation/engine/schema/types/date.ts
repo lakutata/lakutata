@@ -132,7 +132,7 @@ const DateType: DateSchema = Any.extend<DateSchema>({
     cast: {
         number: {
             from: isDate,
-            to(value: unknown, helpers: ValidationHelpers<DateSchema>): unknown {
+            to(value: unknown): unknown {
                 return (value as Date).getTime()
             }
         },

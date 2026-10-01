@@ -4,9 +4,9 @@ import {HTTPAction} from '../HTTPAction.js'
 import {ActionOptions} from '../../lib/ActionOptions.js'
 import {HTTPContext} from '../../context/HTTPContext.js'
 
-export function OPTIONS<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(r: string): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
+export function OPTIONS<ClassPrototype extends Controller, Method>(r: string): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
 export function OPTIONS<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(r: string, dtoConstructor: DTOConstructor): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
-export function OPTIONS<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(r: string, actionOptions: ActionOptions<HTTPContext>): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
+export function OPTIONS<ClassPrototype extends Controller, Method>(r: string, actionOptions: ActionOptions<HTTPContext>): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
 export function OPTIONS<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(r: string, dtoConstructor: DTOConstructor, actionOptions: ActionOptions<HTTPContext>): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
 export function OPTIONS<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(r: string, dtoConstructorOrOptions?: DTOConstructor | ActionOptions<HTTPContext>, options?: ActionOptions<HTTPContext>): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>> {
     return HTTPAction<ClassPrototype, Method, DTOConstructor>(r, 'options', <any>dtoConstructorOrOptions, <any>options)

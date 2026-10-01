@@ -10,6 +10,7 @@ import type {AnySchema} from '../types/any.js'
  * The bigint schema
  * @typeParam T the validated value type (kept for compatibility with the upstream type, which is generic)
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export interface BigIntSchema<T = bigint> extends AnySchema {
     greater(limit: bigint | Ref.Ref): this
     less(limit: bigint | Ref.Ref): this
@@ -28,9 +29,9 @@ type Helpers = ValidationHelpers<BigIntSchema>
 
 /**
  * The bigint extension of the root object
- * @param engine
+ * @param _engine the root object (extend() requires the factories of the extensions to take it)
  */
-export const bigintExtension = (engine: Root): Extension<BigIntSchema> => ({
+export const bigintExtension = (_engine: Root): Extension<BigIntSchema> => ({
     type: 'bigint',
     messages: {
         'bigint.base': '{{#label}} must be a bigint',
