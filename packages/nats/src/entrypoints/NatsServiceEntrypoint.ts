@@ -1,10 +1,7 @@
 import type {Subscription} from 'nats'
 import {Application} from '@lakutata/core'
-import {ServiceContext} from '@lakutata/entrypoint'
-import type {EntrypointAdapter} from '@lakutata/entrypoint'
-import {ServiceChannel, ServiceResponseCodec} from '@lakutata/entrypoint/channel'
-import type {ChannelRuntime, ServiceResponse} from '@lakutata/entrypoint/channel'
-import type {MiddlewareDefinition} from '@lakutata/entrypoint'
+import {ServiceContext, type EntrypointAdapter, type MiddlewareDefinition} from '@lakutata/entrypoint'
+import {ServiceChannel, ServiceResponseCodec, type ChannelRuntime, type ServiceResponse} from '@lakutata/entrypoint/channel'
 import type {NATS} from '../components/NATS.js'
 
 export type NatsServiceEntrypointOptions = {

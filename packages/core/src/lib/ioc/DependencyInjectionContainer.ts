@@ -251,7 +251,7 @@ export function createContainer<T extends object = any>(
 
 function createContainerInternal<
     T extends object = any,
-    U extends object = any,
+    U extends object = any
 >(
     options: ContainerOptions,
     parentContainer?: IDependencyInjectionContainer<U>,
@@ -686,6 +686,8 @@ function createContainerInternal<
             require:
                 options!.require ||
                 function (uri) {
+                    //The synchronous loading of the CommonJS modules (awilix)
+                    // eslint-disable-next-line @typescript-eslint/no-require-imports
                     return require(uri)
                 },
             listModules,

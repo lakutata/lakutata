@@ -253,8 +253,6 @@ const ArrayType: ArraySchema = Any.extend<ArraySchema>({
                             value[i] = res.value
                             isValid = true
                             fastSplice(requireds, j)
-                            --j
-                            --jl
                             if (!schema._flags.sparse &&
                                 res.value === undefined) {
                                 errors.push(error('array.sparse', {key, path, pos: i, value: undefined}, state.localize(path)))

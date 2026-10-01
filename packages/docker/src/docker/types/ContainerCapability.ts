@@ -276,5 +276,5 @@ export enum ContainerCapability {
      * Trigger something that will wake up the system (set CLOCK_REALTIME_ALARM and CLOCK_BOOTTIME_ALARM timers).
      * (since Linux 3.0)
      */
-    WAKE_ALARM = 'WAKE_ALARM',
+    WAKE_ALARM = 'WAKE_ALARM'
 }

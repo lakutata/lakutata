@@ -2,9 +2,8 @@
  * The generation of the migrations, rewritten from the command migration:generate of TypeORM (Copyright (c) 2015-2025
  * TypeORM, MIT License, see THIRD_PARTY_NOTICES.md)
  */
-import {Provider} from '@lakutata/core'
-import {Configurable} from '@lakutata/core/decorator/di'
-import {DTO} from '@lakutata/core'
+import {Provider, DTO, Application} from '@lakutata/core'
+import {Configurable, Transient} from '@lakutata/core/decorator/di'
 import {type DataSourceOptions} from 'typeorm/data-source/DataSourceOptions.js'
 import path from 'path'
 import {readFileSync} from 'fs'
@@ -15,8 +14,6 @@ import {camelCase} from 'typeorm/util/StringUtils.js'
 import {PlatformTools} from 'typeorm/platform/PlatformTools.js'
 import {CommandUtils} from 'typeorm/commands/CommandUtils.js'
 import ansi from 'ansis'
-import {Transient} from '@lakutata/core/decorator/di'
-import {Application} from '@lakutata/core'
 
 @Transient()
 export class GenerateMigration extends Provider {

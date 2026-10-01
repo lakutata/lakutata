@@ -1,11 +1,9 @@
 import {after, before, it} from 'node:test'
 import {expect} from '../support/Expect.js'
-import {describeNats as describe} from '../support/App.js'
+import {describeNats as describe, destroyApp, runApp, ensureNats, stopNats} from '../support/App.js'
 import {Application} from '@lakutata/core'
 import {Delay} from '@lakutata/utils'
 import {buildNatsClientOptions, JSONCodec, NATS} from '../../exports/Nats.js'
-import {destroyApp, runApp} from '../support/App.js'
-import {ensureNats, stopNats} from '../support/App.js'
 
 /**
  * Transport layer: explicit codec selection, queue load balancing, subscribe iterator mode.

@@ -919,6 +919,8 @@ describe('clone()', () => {
         const error = new Error('blam')
 
         const origStructuredClone = structuredClone
+        let cloned
+        /* eslint-disable no-global-assign -- the test replaces structuredClone (as the upstream test) */
         try {
             structuredClone = function (obj) {
 
@@ -930,11 +932,12 @@ describe('clone()', () => {
                 return clone
             }
 
-            var cloned = Utils.clone(error)
+            cloned = Utils.clone(error)
         }
         finally {
             structuredClone = origStructuredClone
         }
+        /* eslint-enable no-global-assign */
 
         expect(cloned).to.be.instanceOf(Error)
         expect(cloned).to.equal(error)

@@ -1,5 +1,4 @@
-import {Container, Provider} from '@lakutata/core'
-import type {IBaseObjectConstructor} from '@lakutata/core'
+import {Container, Provider, type IBaseObjectConstructor} from '@lakutata/core'
 import {IsSubclassOf} from '@lakutata/utils'
 import type {CLIContext} from '../context/CLIContext.js'
 import type {HTTPContext} from '../context/HTTPContext.js'

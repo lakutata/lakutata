@@ -1,7 +1,6 @@
 import {Application, type JSONSchema} from '@lakutata/core'
 import type {ChannelActionInfo, ChannelRuntime} from '@lakutata/entrypoint'
-import {McpServer, ProtocolError, ProtocolErrorCode, ResourceTemplate} from '@modelcontextprotocol/server'
-import type {CallToolResult, GetPromptResult, ReadResourceResult, ServerContext, StandardSchemaWithJSON, Variables} from '@modelcontextprotocol/server'
+import {McpServer, ProtocolError, ProtocolErrorCode, ResourceTemplate, type CallToolResult, type GetPromptResult, type ReadResourceResult, type ServerContext, type StandardSchemaWithJSON, type Variables} from '@modelcontextprotocol/server'
 import {MCPAuthInfo, MCPContext, MCPRequestKind} from '../context/MCPContext.js'
 import type {MCPMetadata} from './Metadata.js'
 import {ErrorMessage, ToErrorResult, ToPromptResult, ToResourceResult, ToToolResult} from './Results.js'

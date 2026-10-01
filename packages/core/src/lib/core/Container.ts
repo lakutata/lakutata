@@ -226,7 +226,6 @@ export class Container {
         delete configurableRecords.id
         delete configurableRecords.class
         SetConfigurableRecords(options.class, id, configurableRecords)
-        // @ts-ignore
         pair[id] = this.#createResolver(options.class)
         return pair
     }

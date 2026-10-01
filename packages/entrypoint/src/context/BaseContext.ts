@@ -1,7 +1,5 @@
-import {DTO} from '@lakutata/core'
-import {Expect} from '@lakutata/core/decorator/dto'
-import {IndexSignature} from '@lakutata/core/decorator/dto'
-import type {ActionPattern} from '@lakutata/core'
+import {DTO, type ActionPattern} from '@lakutata/core'
+import {Expect, IndexSignature} from '@lakutata/core/decorator/dto'
 
 /**
  * Context types

@@ -359,7 +359,7 @@ const KeysType: KeysSchema = Any.extend<KeysSchema>({
                     //Allow none
                     obj.$_terms.keys = new Keys()
                 } else {
-                    obj.$_terms.keys = obj.$_terms.keys ? obj.$_terms.keys.filter((child: KeysChild): boolean => !schema.hasOwnProperty(child.key)) as Keys : new Keys()
+                    obj.$_terms.keys = obj.$_terms.keys ? obj.$_terms.keys.filter((child: KeysChild): boolean => !Object.hasOwn(schema, child.key)) as Keys : new Keys()
                     for (const key in schema) {
                         Common.tryWithPath((): number => (obj.$_terms.keys as Keys).push({key, schema: this.$_compile(schema[key])}), key)
                     }

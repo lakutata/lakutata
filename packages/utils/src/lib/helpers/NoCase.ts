@@ -1,4 +1,4 @@
-type Locale = string[] | string | false | undefined;
+type Locale = string[] | string | false | undefined
 
 export interface SplitOptions {
     separateNumbers?: boolean;

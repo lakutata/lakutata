@@ -22,7 +22,6 @@ class ConfiguredProvider extends Provider {
 
 await describe('IoC Test', async function (): Promise<void> {
     await it('isClass() recognizes classes and constructor functions only', async (): Promise<void> => {
-        // eslint-disable-next-line @typescript-eslint/no-extraneous-class
         class Plain {
         }
 
@@ -53,7 +52,6 @@ await describe('IoC Test', async function (): Promise<void> {
     })
 
     await it('IsSubclassOf() gives the same result as DTO.Class() validation', async (): Promise<void> => {
-        // eslint-disable-next-line @typescript-eslint/no-extraneous-class
         class Unrelated {
         }
 

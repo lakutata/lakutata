@@ -70,7 +70,7 @@ export class Shadow {
         const parent: ShadowNode | undefined = reach(this._values, parents, {iterables: true}) as ShadowNode | undefined
         if (node) {
             //Like upstream: overriding with a node expects the parent node to exist
-            ;(parent as ShadowNode).set(own, node)
+            (parent as ShadowNode).set(own, node)
             return
         }
         if (parent) parent.delete(own)

@@ -255,7 +255,6 @@ export class DataValidator {
      * @constructor
      */
     public static Alternatives<TSchema = any>(...types: SchemaLike[]): AlternativesSchema<TSchema> {
-        //@ts-ignore
         return VLD.alternatives<TSchema>(...types).strict(true)
     }
 

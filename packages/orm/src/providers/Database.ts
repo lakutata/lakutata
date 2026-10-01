@@ -1,5 +1,4 @@
-import {Configurable} from '@lakutata/core/decorator/di'
-import {Transient} from '@lakutata/core/decorator/di'
+import {Configurable, Transient} from '@lakutata/core/decorator/di'
 import {type DataSourceOptions} from 'typeorm/data-source/DataSourceOptions.js'
 import {DataSource} from 'typeorm/data-source/DataSource.js'
 import {Driver} from 'typeorm/driver/Driver.js'

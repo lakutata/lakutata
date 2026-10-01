@@ -1,6 +1,5 @@
 import {Controller, type ControllerProperty} from '../../lib/Controller.js'
-import {DTO} from '@lakutata/core'
-import {MethodDecorator} from '@lakutata/core'
+import {DTO, MethodDecorator} from '@lakutata/core'
 import {HTTPAction} from '../HTTPAction.js'
 import {ActionOptions} from '../../lib/ActionOptions.js'
 import {HTTPContext} from '../../context/HTTPContext.js'

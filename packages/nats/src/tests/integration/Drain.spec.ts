@@ -1,6 +1,6 @@
 import {after, before, it} from 'node:test'
 import {expect} from '../support/Expect.js'
-import {describeNats as describe} from '../support/App.js'
+import {describeNats as describe, destroyApp, runApp, ensureNats, stopNats} from '../support/App.js'
 import {Application} from '@lakutata/core'
 import {BuildEntrypoints, Controller} from '@lakutata/entrypoint'
 import {ServiceAction} from '@lakutata/entrypoint/decorator/ctrl'
@@ -11,8 +11,6 @@ import {
     ServiceProxy,
     SetupNatsServiceEntrypoint
 } from '../../exports/Nats.js'
-import {destroyApp, runApp} from '../support/App.js'
-import {ensureNats, stopNats} from '../support/App.js'
 
 class SlowController extends Controller {
     @ServiceAction({cmd: 'slow'})

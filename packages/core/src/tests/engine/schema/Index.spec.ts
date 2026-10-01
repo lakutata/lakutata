@@ -320,7 +320,7 @@ describe('Engine', () => {
         const obj = {}
 
         const value = schema.validate(obj).value
-        expect(value.hasOwnProperty('a')).to.equal(false)
+        expect(Object.hasOwn(value, 'a')).to.equal(false)
     })
 
     it('invalidates pre and post convert value', () => {

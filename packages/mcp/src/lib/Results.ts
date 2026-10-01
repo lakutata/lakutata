@@ -2,8 +2,7 @@ import {readFile} from 'node:fs/promises'
 import path from 'node:path'
 import type {Readable} from 'node:stream'
 import {EventsResult, FileResult, StatusResult} from '@lakutata/entrypoint'
-import {isCallToolResult} from '@modelcontextprotocol/server'
-import type {CallToolResult, ContentBlock, GetPromptResult, PromptMessage, ReadResourceResult} from '@modelcontextprotocol/server'
+import {isCallToolResult, type CallToolResult, type ContentBlock, type GetPromptResult, type PromptMessage, type ReadResourceResult} from '@modelcontextprotocol/server'
 
 /**
  * JSON with the big integers as strings

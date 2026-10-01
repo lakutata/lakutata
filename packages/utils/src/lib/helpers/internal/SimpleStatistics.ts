@@ -611,6 +611,8 @@ export function gamma(n: number): number {
     return seriesCoefficient * seriesExpansion
 }
 
+//The coefficients as simple-statistics publishes them, with more digits than a number keeps
+/* eslint-disable no-loss-of-precision */
 const GAMMALN_COEFFICIENTS: number[] = [
     0.99999999999999709182, 57.156235665862923517, -59.597960355475491248,
     14.136097974741747174, -0.49191381609762019978, 0.33994649984811888699e-4,
@@ -620,6 +622,7 @@ const GAMMALN_COEFFICIENTS: number[] = [
     0.84418223983852743293e-4, -0.2619083840158140867e-4,
     0.36899182659531622704e-5
 ]
+/* eslint-enable no-loss-of-precision */
 
 const GAMMALN_G: number = 607 / 128
 

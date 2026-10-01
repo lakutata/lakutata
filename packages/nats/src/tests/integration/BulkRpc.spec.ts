@@ -1,6 +1,6 @@
 import {after, before, it} from 'node:test'
 import {expect} from '../support/Expect.js'
-import {describeNats as describe} from '../support/App.js'
+import {describeNats as describe, destroyApp, runApp, ensureNats, stopNats} from '../support/App.js'
 import {Application} from '@lakutata/core'
 import {BuildEntrypoints, Controller} from '@lakutata/entrypoint'
 import {ServiceAction} from '@lakutata/entrypoint/decorator/ctrl'
@@ -12,8 +12,6 @@ import {
     ServiceProxy,
     SetupNatsServiceEntrypoint
 } from '../../exports/Nats.js'
-import {destroyApp, runApp} from '../support/App.js'
-import {ensureNats, stopNats} from '../support/App.js'
 
 //1.5MB: larger than max_payload (default 1MB), so a successful transfer proves it went through the Object Store rather than directly
 const BIG = 1.5 * 1024 * 1024

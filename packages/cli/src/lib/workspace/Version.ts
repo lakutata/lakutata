@@ -21,7 +21,7 @@ export function NextVersion(current: string, bump: string, preid?: string): stri
     if (VERSION.test(bump)) return bump
     const matched: RegExpExecArray | null = VERSION.exec(current)
     if (!matched) throw new Error(`The current version "${current}" is not a version`)
-    let [major, minor, patch] = [Number(matched[1]), Number(matched[2]), Number(matched[3])]
+    const [major, minor, patch] = [Number(matched[1]), Number(matched[2]), Number(matched[3])]
     const prerelease: string | undefined = matched[4]
     const pre = (): string => preid ? `${preid}.0` : '0'
     switch (bump) {

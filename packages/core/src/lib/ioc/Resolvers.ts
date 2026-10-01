@@ -8,9 +8,6 @@ import {Lifetime, type LifetimeType} from './Lifetime.js'
 import {isFunction, uniq} from './Utils.js'
 import {DI_CONTAINER_INJECT_PROPERTIES} from '../../constants/DIMetadataKey.js'
 
-// We parse the signature of any `Function`, so we want to allow `Function` types.
-/* eslint-disable @typescript-eslint/ban-types */
-
 /**
  * RESOLVER symbol can be used by modules loaded by
  * `loadModules` to configure their lifetime, injection mode, etc.

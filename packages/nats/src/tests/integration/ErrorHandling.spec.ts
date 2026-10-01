@@ -1,6 +1,6 @@
 import {after, before, it} from 'node:test'
 import {expect} from '../support/Expect.js'
-import {describeNats as describe} from '../support/App.js'
+import {describeNats as describe, destroyApp, runApp, ensureNats, stopNats} from '../support/App.js'
 import {Application} from '@lakutata/core'
 import {BuildEntrypoints, Controller} from '@lakutata/entrypoint'
 import {ServiceAction} from '@lakutata/entrypoint/decorator/ctrl'
@@ -15,8 +15,6 @@ import {
     ServiceProxy,
     SetupNatsServiceEntrypoint
 } from '../../exports/Nats.js'
-import {destroyApp, runApp} from '../support/App.js'
-import {ensureNats, stopNats} from '../support/App.js'
 
 //A deliberately failing codec: encode always produces bad msgpack bytes (declares a 1-item array with no data, so the server decode throws),
 //decode always throws; used to simulate inbound decode failures caused by cross-language/incompatible clients

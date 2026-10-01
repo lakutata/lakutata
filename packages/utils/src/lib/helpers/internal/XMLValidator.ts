@@ -10,6 +10,8 @@ const NAME_START_CHAR: string = ':A-Za-z_\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\
 
 const NAME_CHAR: string = NAME_START_CHAR + '\\-.\\d\\u00B7\\u0300-\\u036F\\u203F-\\u2040'
 
+//The ranges of code points of the XML names, the joiners (U+200C-U+200D) and the combining marks included
+// eslint-disable-next-line no-misleading-character-class
 const NAME: RegExp = new RegExp('^[' + NAME_START_CHAR + '][' + NAME_CHAR + ']*$')
 
 /**

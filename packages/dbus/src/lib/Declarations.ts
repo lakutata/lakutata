@@ -1,5 +1,4 @@
-import {DTO} from '@lakutata/core'
-import type {Schema} from '@lakutata/core'
+import {DTO, type Schema} from '@lakutata/core'
 import {CheckInterfaceName, CheckMemberName, CheckPathTemplate} from './Names.js'
 import {SchemaSignature} from './Signature.js'
 

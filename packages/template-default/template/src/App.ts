@@ -1,5 +1,4 @@
-import {Application} from 'lakutata'
-import type {ILogger} from 'lakutata'
+import {Application, type ILogger} from 'lakutata'
 import {Config} from './config/Config.js'
 
 Application

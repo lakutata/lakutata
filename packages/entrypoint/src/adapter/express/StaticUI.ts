@@ -1,5 +1,4 @@
-import express from 'express'
-import type {NextFunction, Request, RequestHandler, Response} from 'express'
+import express, {type NextFunction, type Request, type RequestHandler, type Response} from 'express'
 import path from 'node:path'
 
 export type StaticUIOptions = {

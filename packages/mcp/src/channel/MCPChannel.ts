@@ -1,8 +1,6 @@
 import type {ActionPattern} from '@lakutata/core'
-import {ControllerActionNotFoundException} from '@lakutata/entrypoint'
-import type {BaseContext, EntrypointAdapter} from '@lakutata/entrypoint'
-import {DefineChannel, GetChannel, HasChannel} from '@lakutata/entrypoint/channel'
-import type {ChannelDefinition, ChannelEntry, ChannelMatch, ChannelMatcher} from '@lakutata/entrypoint/channel'
+import {ControllerActionNotFoundException, type BaseContext, type EntrypointAdapter} from '@lakutata/entrypoint'
+import {DefineChannel, GetChannel, HasChannel, type ChannelDefinition, type ChannelEntry, type ChannelMatch, type ChannelMatcher} from '@lakutata/entrypoint/channel'
 import {MCP_CONTEXT_TYPE, MCPContext, type MCPRequestKind} from '../context/MCPContext.js'
 import {GetMCPMetadata} from '../lib/Metadata.js'
 

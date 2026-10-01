@@ -1,5 +1,4 @@
-import {DTO} from '@lakutata/core'
-import type {ActionPattern} from '@lakutata/core'
+import {DTO, type ActionPattern} from '@lakutata/core'
 import {Expect, IndexSignature} from '@lakutata/core/decorator/dto'
 import {InvalidPrefixException} from '../exceptions/InvalidPrefixException.js'
 

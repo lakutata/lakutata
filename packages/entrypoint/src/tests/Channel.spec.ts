@@ -1,7 +1,6 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
-import {Component, Container, DTO} from '@lakutata/core'
-import type {ActionPattern} from '@lakutata/core'
+import {Component, Container, DTO, type ActionPattern} from '@lakutata/core'
 import {Expect, Return} from '@lakutata/core/decorator/dto'
 import {Autoload, Singleton} from '@lakutata/core/decorator/di'
 import {

@@ -221,7 +221,7 @@ describe('Trace', () => {
             expect(tracer.report(__filename)).to.equal([
                 {
                     filename: __filename,
-                    line: lineOf("schema.validate({ a: 5, b: 6 })", 0),
+                    line: lineOf('schema.validate({ a: 5, b: 6 })', 0),
                     message: 'Schema missing tests for a.@empty:max (always pass)',
                     severity: 'error',
                     missing: [
@@ -273,7 +273,7 @@ describe('Trace', () => {
             expect(tracer.report(__filename)).to.equal([
                 {
                     filename: __filename,
-                    line: lineOf("schema.validate([true])", 0),
+                    line: lineOf('schema.validate([true])', 0),
                     severity: 'error',
                     message: 'Schema missing tests for items (always pass), @items[1] (never reached)',
                     missing: [
@@ -411,7 +411,7 @@ describe('Trace', () => {
             expect(tracer.report(__filename)).to.equal([
                 {
                     filename: __filename,
-                    line: lineOf("const schema = Engine.string().tracer()", 0),
+                    line: lineOf('const schema = Engine.string().tracer()', 0),
                     message: 'Schema missing tests for pattern (always pass), max (always error), min (never used)',
                     missing: [
                         {
@@ -449,7 +449,7 @@ describe('Trace', () => {
             expect(tracer.report(__filename)).to.equal([
                 {
                     filename: __filename,
-                    line: lineOf("const schema = Engine.any().concat(base).tracer()", 0),
+                    line: lineOf('const schema = Engine.any().concat(base).tracer()', 0),
                     message: 'Schema missing tests for pattern (always pass), max (always error), min (never used)',
                     missing: [
                         {
@@ -487,7 +487,7 @@ describe('Trace', () => {
             expect(tracer.report(__filename)).to.equal([
                 {
                     filename: __filename,
-                    line: lineOf(".tracer()", 1),
+                    line: lineOf('.tracer()', 1),
                     message: 'Schema missing tests for pattern (always pass), max (always error), min (never used)',
                     missing: [
                         {

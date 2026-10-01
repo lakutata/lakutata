@@ -23,4 +23,4 @@ export type Schema<P = any> =
     | ObjectSchema<P>
     | StringSchema<P>
     | LinkSchema<P>
-    | SymbolSchema<P>;
+    | SymbolSchema<P>

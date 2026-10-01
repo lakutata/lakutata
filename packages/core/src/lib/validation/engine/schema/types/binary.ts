@@ -36,6 +36,7 @@ const BinaryType: BinarySchema = Any.extend<BinarySchema>({
                     //A serialized buffer ({type: 'Buffer', data: [...]}) is accepted by Buffer.from() too
                     return {value: Buffer.from(value as string, schema._flags.encoding)}
                 } catch {
+                    //Not a value of the encoding: the value is validated as it is
                 }
             }
         }

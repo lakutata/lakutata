@@ -9,8 +9,7 @@ import {
     InvokeOpts,
     ServiceBasicInfo
 } from 'dbus-sdk'
-import {Component, DTO} from '@lakutata/core'
-import type {ProviderOptions, ProviderOptionsBuilder} from '@lakutata/core'
+import {Component, DTO, type ProviderOptions, type ProviderOptionsBuilder} from '@lakutata/core'
 import type {DBusClientOptions} from '../lib/DBusClientOptions.js'
 import {Configurable} from '@lakutata/core/decorator/di'
 

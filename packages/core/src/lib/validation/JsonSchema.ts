@@ -9,9 +9,11 @@ import {
     JsonDraft202012SchemaParser,
     JsonSchemaParser,
     OpenApi31SchemaParser,
-    OpenApiSchemaParser
+    OpenApiSchemaParser,
+    type Definitions,
+    type JsonSchema as ParsedSchema,
+    type SchemaSpec
 } from './engine/json-schema/index.js'
-import type {Definitions, JsonSchema as ParsedSchema, SchemaSpec} from './engine/json-schema/index.js'
 import {fromJsonSchema as importJsonSchema} from './engine/json-schema/import.js'
 
 /**

@@ -868,7 +868,7 @@ export class JsonSchemaParser {
      * @param key
      */
     protected _isKnownKey(spec: SchemaSpec, key: string): boolean {
-        if (((spec[this.childrenFieldName] || {}) as object).hasOwnProperty(key)) return true
+        if (Object.hasOwn((spec[this.childrenFieldName] || {}) as object, key)) return true
         return _.some(spec.patterns, (patternObj: NonNullable<SchemaSpec['patterns']>[number]): boolean => {
             const pattern: Pattern | null = toPattern(patternObj.regex)
             return !pattern || new RegExp(pattern.source, 'u').test(key)

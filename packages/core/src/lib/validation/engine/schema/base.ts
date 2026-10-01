@@ -402,7 +402,7 @@ export class Base implements SchemaInternals {
                 assert(!item.otherwise || item.otherwise.type === 'any' || item.otherwise.type === obj.type, 'Cannot combine', obj.type, 'with', item.otherwise && item.otherwise.type)
             }
         }
-        ;(obj.$_terms.whens as unknown[]).push(when)
+        (obj.$_terms.whens as unknown[]).push(when)
         return obj.$_mutateRebuild()
     }
 
@@ -513,7 +513,7 @@ export class Base implements SchemaInternals {
     }
 
     public isAsync(): boolean {
-        if (Boolean((this.$_terms.externals as ExternalTerm[] | null | undefined)?.length)) return true
+        if ((this.$_terms.externals as ExternalTerm[] | null | undefined)?.length) return true
         if (this.$_terms.whens) {
             for (const when of this.$_terms.whens as WhenTerm[]) {
                 if (when.then?.isAsync()) return true

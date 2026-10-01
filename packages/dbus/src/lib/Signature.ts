@@ -1,5 +1,4 @@
-import {DTO} from '@lakutata/core'
-import type {Schema} from '@lakutata/core'
+import {DTO, type Schema} from '@lakutata/core'
 
 /**
  * The DBus signature of the values of a schema: an object is a dictionary of variants,

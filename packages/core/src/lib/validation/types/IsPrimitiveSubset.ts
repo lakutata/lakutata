@@ -13,4 +13,4 @@ export type IsPrimitiveSubset<T> =
                             ? true
                             : [T] extends [undefined]
                                 ? true
-                                : false;
+                                : false

@@ -119,7 +119,7 @@ export function BuildRecord(level: number, bindings: LogBindings, args: unknown[
     }
     const time: number = Date.now()
     let line: string = `{"level":${level},"time":${time}${bindings.json}`
-    let log: Record<string, unknown> | undefined = parse ? {level: level, time: time, pid: process.pid, hostname: HOSTNAME, name: bindings.name} : undefined
+    const log: Record<string, unknown> | undefined = parse ? {level: level, time: time, pid: process.pid, hostname: HOSTNAME, name: bindings.name} : undefined
     for (const key in object) {
         let value: unknown = object[key]
         if (!Object.prototype.hasOwnProperty.call(object, key) || value === undefined) continue

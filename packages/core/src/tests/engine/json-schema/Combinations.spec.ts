@@ -11,7 +11,7 @@ describe('combo', function () {
 
     it('1 item array', function () {
 
-        var out = combo(['a'])
+        const out = combo(['a'])
 
         assert.deepEqual(out, [['a']])
 
@@ -19,20 +19,20 @@ describe('combo', function () {
 
     it('2 item array', function () {
 
-        var out = combo(['a', 'b'])
+        const out = combo(['a', 'b'])
 
         assert.deepEqual(out, [['a'], ['b'], ['a', 'b']])
 
     })
 
     it('3 item array', function () {
-        var out = combo(['a', 'b', 'c'])
+        const out = combo(['a', 'b', 'c'])
 
         assert.deepEqual(out, [['a'], ['b'], ['c'], ['a', 'b'], ['a', 'c'], ['b', 'c'], ['a', 'b', 'c']])
     })
 
     it('4 item array with min 2 and max 3 elements', function () {
-        var out = combo(['a', 'b', 'c', 'd'], 2, 3)
+        const out = combo(['a', 'b', 'c', 'd'], 2, 3)
 
         assert.deepEqual(out, [['a', 'b'], ['a', 'c'], ['a', 'd'], ['b', 'c'], ['b', 'd'], ['c', 'd'], ['a', 'b', 'c'], ['a', 'b', 'd'], ['a', 'c', 'd'], ['b', 'c', 'd']])
     })

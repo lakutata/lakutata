@@ -1,14 +1,14 @@
-import {createServer} from 'node:http'
-import type {IncomingMessage, Server, ServerOptions, ServerResponse} from 'node:http'
+import {createServer, type IncomingMessage, type Server, type ServerOptions, type ServerResponse} from 'node:http'
 import type {ChannelRuntime, EntrypointAdapter, MiddlewareDefinition} from '@lakutata/entrypoint'
 import {
     createMcpHandler,
     hostHeaderValidationResponse,
     localhostAllowedHostnames,
     localhostAllowedOrigins,
-    originValidationResponse
+    originValidationResponse,
+    type McpHttpHandler,
+    type ServerEventBus
 } from '@modelcontextprotocol/server'
-import type {McpHttpHandler, ServerEventBus} from '@modelcontextprotocol/server'
 import {MCPChannel} from '../channel/MCPChannel.js'
 import type {MCPAuthInfo, MCPContext} from '../context/MCPContext.js'
 import {BuildMCPServer, type MCPServerInfo} from '../lib/MCPServer.js'

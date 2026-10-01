@@ -1,5 +1,4 @@
-import {BaseObject} from '@lakutata/core'
-import type {ActionPattern} from '@lakutata/core'
+import {BaseObject, type ActionPattern} from '@lakutata/core'
 import {BaseContext, ContextType} from '../context/BaseContext.js'
 import {Configurable} from '@lakutata/core/decorator/di'
 import {CLIActionInfo, HTTPActionInfo, ServiceActionInfo} from '../Entrypoint.js'

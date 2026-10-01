@@ -1526,7 +1526,9 @@ describe('extension', () => {
                     try {
                         return { value: SafeJson.parse(value) }
                     }
-                    catch { }
+                    catch {
+                        //Not JSON: the value is validated as it is
+                    }
                 }
             }
         })
@@ -1575,7 +1577,9 @@ describe('extension', () => {
                     try {
                         return { value: SafeJson.parse(value) }
                     }
-                    catch { }
+                    catch {
+                        //Not JSON: the value is validated as it is
+                    }
                 }
             }
         })

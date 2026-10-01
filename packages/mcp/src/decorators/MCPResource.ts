@@ -1,5 +1,4 @@
-import {DTO} from '@lakutata/core'
-import type {MethodDecorator} from '@lakutata/core'
+import {DTO, type MethodDecorator} from '@lakutata/core'
 import type {Controller} from '@lakutata/entrypoint'
 import type {ActionOptions} from '@lakutata/entrypoint/channel'
 import type {MCPContext} from '../context/MCPContext.js'

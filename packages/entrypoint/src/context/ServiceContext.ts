@@ -1,7 +1,6 @@
-import {DTO} from '@lakutata/core'
+import {DTO, type ActionPattern} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
 import {BaseContext, type ContextParams, ContextType} from './BaseContext.js'
-import {type ActionPattern} from '@lakutata/core'
 
 export class ServiceContext<T extends Record<string, any> = {}> extends BaseContext<T> {
 

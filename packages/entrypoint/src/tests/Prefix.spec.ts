@@ -1,7 +1,6 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
-import {Container} from '@lakutata/core'
-import type {IBaseObjectConstructor} from '@lakutata/core'
+import {Container, type IBaseObjectConstructor} from '@lakutata/core'
 import {
     BuildCLIEntrypoint,
     BuildEntrypoints,

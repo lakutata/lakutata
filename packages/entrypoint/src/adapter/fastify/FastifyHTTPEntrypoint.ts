@@ -1,5 +1,4 @@
-import Fastify from 'fastify'
-import type {FastifyInstance, FastifyReply, FastifyRequest, FastifyServerOptions, HTTPMethods} from 'fastify'
+import Fastify, {type FastifyInstance, type FastifyReply, type FastifyRequest, type FastifyServerOptions, type HTTPMethods} from 'fastify'
 import {createReadStream} from 'node:fs'
 import type {Server} from 'node:http'
 import path from 'node:path'

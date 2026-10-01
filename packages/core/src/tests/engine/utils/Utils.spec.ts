@@ -900,7 +900,7 @@ describe('deepEqual()', () => {
 
         const compare = function () {
 
-            expect(Utils.deepEqual([], arguments)).to.be.false()            // eslint-disable-line prefer-rest-params
+            expect(Utils.deepEqual([], arguments)).to.be.false()
         }
 
         compare()
@@ -910,12 +910,12 @@ describe('deepEqual()', () => {
 
         const compare = function () {
 
-            const arg1 = arguments                                         // eslint-disable-line prefer-rest-params
+            const arg1 = arguments
 
             const inner = function () {
 
                 // callee is not supported in strict mode, was previously false becuse callee was different
-                expect(Utils.deepEqual(arg1, arguments)).to.be.true()       // eslint-disable-line prefer-rest-params
+                expect(Utils.deepEqual(arg1, arguments)).to.be.true()
             }
 
             inner()
@@ -1169,19 +1169,16 @@ describe('deepEqual()', () => {
 
     it('compares string objects', () => {
 
-        /* eslint-disable no-new-wrappers */
         expect(Utils.deepEqual(new String('a'), new String('a'))).to.be.true()
         expect(Utils.deepEqual(new String('a'), new String('b'))).to.be.false()
         expect(Utils.deepEqual(new String(''), {}, { prototype: false })).to.be.false()
         expect(Utils.deepEqual({}, new String(''), { prototype: false })).to.be.false()
         expect(Utils.deepEqual(new String('a'), 'a', { prototype: false })).to.be.false()
         expect(Utils.deepEqual('a', new String('a'), { prototype: false })).to.be.false()
-        /* eslint-enable no-new-wrappers */
     })
 
     it('compares number objects', () => {
 
-        /* eslint-disable no-new-wrappers */
         expect(Utils.deepEqual(new Number(1), new Number(1))).to.be.true()
         expect(Utils.deepEqual(new Number(1), new Number(2))).to.be.false()
         expect(Utils.deepEqual(new Number(+0), new Number(-0))).to.be.false()
@@ -1190,19 +1187,16 @@ describe('deepEqual()', () => {
         expect(Utils.deepEqual({}, new Number(0), { prototype: false })).to.be.false()
         expect(Utils.deepEqual(new Number(1), 1, { prototype: false })).to.be.false()
         expect(Utils.deepEqual(1, new Number(1), { prototype: false })).to.be.false()
-        /* eslint-enable no-new-wrappers */
     })
 
     it('compares boolean objects', () => {
 
-        /* eslint-disable no-new-wrappers */
         expect(Utils.deepEqual(new Boolean(true), new Boolean(true))).to.be.true()
         expect(Utils.deepEqual(new Boolean(true), new Boolean(false))).to.be.false()
         expect(Utils.deepEqual(new Boolean(false), {}, { prototype: false })).to.be.false()
         expect(Utils.deepEqual({}, new Boolean(false), { prototype: false })).to.be.false()
         expect(Utils.deepEqual(new Boolean(true), true, { prototype: false })).to.be.false()
         expect(Utils.deepEqual(true, new Boolean(true), { prototype: false })).to.be.false()
-        /* eslint-enable no-new-wrappers */
     })
 
     it('compares objects', () => {

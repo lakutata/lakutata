@@ -8,6 +8,7 @@
 // is non-empty without guessing whether each symbol is a type or a value. The
 // named pins below additionally guard the most-used public symbols from being
 // dropped or retyped.
+/* eslint-disable no-duplicate-imports -- each subpath is imported as a namespace and by its pinned symbols */
 import type * as root from 'lakutata'
 import type * as orm from 'lakutata/orm'
 import type * as dtos from 'lakutata/dtos'

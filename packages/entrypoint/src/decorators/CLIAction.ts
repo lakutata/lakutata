@@ -1,7 +1,6 @@
 import {Controller, type ControllerProperty} from '../lib/Controller.js'
-import {MethodDecorator} from '@lakutata/core'
+import {MethodDecorator, DTO} from '@lakutata/core'
 import {RegisterCLIAction} from '../lib/ControllerEntrypoint.js'
-import {DTO} from '@lakutata/core'
 import {ActionOptions} from '../lib/ActionOptions.js'
 import {GetActionDTOAndOptions} from '../lib/GetActionDTOAndOptions.js'
 import {CLIContext} from '../context/CLIContext.js'

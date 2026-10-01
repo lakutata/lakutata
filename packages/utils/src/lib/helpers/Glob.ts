@@ -373,7 +373,7 @@ async function AnswerAsync(request: FileSystemRequest): Promise<unknown> {
 export async function Glob(pattern: string | string[], options: GlobOptions = {}): Promise<string[]> {
     const {walks, results} = Prepare(pattern, options)
     for (const walk of walks) {
-        let answer: unknown = undefined
+        let answer: unknown
         for (let request: IteratorResult<FileSystemRequest, void> = walk.next(); !request.done; request = walk.next(answer)) answer = await AnswerAsync(request.value)
     }
     return results()
@@ -388,7 +388,7 @@ export async function Glob(pattern: string | string[], options: GlobOptions = {}
 export function GlobSync(pattern: string | string[], options: GlobOptions = {}): string[] {
     const {walks, results} = Prepare(pattern, options)
     for (const walk of walks) {
-        let answer: unknown = undefined
+        let answer: unknown
         for (let request: IteratorResult<FileSystemRequest, void> = walk.next(); !request.done; request = walk.next(answer)) answer = AnswerSync(request.value)
     }
     return results()

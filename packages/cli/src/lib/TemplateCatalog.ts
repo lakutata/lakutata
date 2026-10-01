@@ -159,8 +159,6 @@ export class TemplateCatalog extends Component {
         //An official template has the major version of the tool
         const wanted: string | number | undefined = source.version ?? (source.official ? ToolMajor() : undefined)
         let pkg: PackageVersion | undefined
-        let archive: Buffer
-        let version: string
         try {
             pkg = await ResolvePackage(source.package, wanted)
         } catch (error: unknown) {
@@ -174,8 +172,8 @@ export class TemplateCatalog extends Component {
             const names: string = source.official ? `, the templates are: ${(await this.list()).map((info: TemplateInfo): string => info.name).join(', ')}` : ''
             throw new Error(`The template ${source.official ? `"${source.package.replace('@lakutata/template-', '')}" ` : ''}does not exist (${source.package} is not on ${Settings.registry})${names}`)
         }
-        archive = await DownloadPackage(pkg)
-        version = pkg.version
+        const archive: Buffer = await DownloadPackage(pkg)
+        const version: string = pkg.version
         await ExtractTarGz(archive, work, Under('package'))
         return `${source.package}@${version}`
     }

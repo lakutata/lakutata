@@ -7,7 +7,7 @@
  */
 export class AssertError extends Error {
 
-    public name: 'AssertError' = 'AssertError'
+    public name = 'AssertError' as const
 
     constructor(message?: string, ctor?: Function) {
         super(message || 'Unknown error')

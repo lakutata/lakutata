@@ -1,5 +1,4 @@
-import {Application} from 'lakutata'
-import type {ILogger} from 'lakutata'
+import {Application, type ILogger} from 'lakutata'
 import electron from 'electron'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'

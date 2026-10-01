@@ -166,7 +166,7 @@ export class ProjectCreator extends Component {
             try {
                 result = await Run(plan.packageManager, ['install'], plan.directory)
             } catch (error: unknown) {
-                throw new Error(`${plan.packageManager} cannot be run: ${(error as Error).message}`)
+                throw new Error(`${plan.packageManager} cannot be run: ${(error as Error).message}`, {cause: error})
             }
             if (result.code !== 0) throw new Error(`${plan.packageManager} install failed:\n${result.output.trim().split('\n').slice(-20).join('\n')}`)
             Done('Dependencies installed')
