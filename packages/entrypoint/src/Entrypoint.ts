@@ -163,6 +163,14 @@ type InflightRequest = {
 }
 
 /**
+ * The promises of the requests in progress (a request is in progress before its promise is created)
+ * @param requests
+ */
+function Promises(requests: Iterable<InflightRequest>): Promise<unknown>[] {
+    return [...requests].map((request: InflightRequest): Promise<unknown> | undefined => request.promise).filter((promise: Promise<unknown> | undefined): promise is Promise<unknown> => !!promise)
+}
+
+/**
  * A started adapter
  */
 type StartedAdapter = {
@@ -507,12 +515,12 @@ export class Entrypoint extends Component {
         const timeout: Promise<void> = new Promise((resolve: () => void): void => {
             timer = setTimeout(resolve, this.shutdownTimeout)
         })
-        await Promise.race([Promise.allSettled([...started.inflight].map((request: InflightRequest): Promise<unknown> | undefined => request.promise)), timeout])
+        await Promise.race([Promise.allSettled(Promises(started.inflight)), timeout])
         clearTimeout(timer)
         const pending: InflightRequest[] = [...started.inflight]
         pending.forEach((request: InflightRequest): void => request.abortController.abort(new EntrypointStoppedException('The entrypoint stopped before the request completed')))
         //The aborted requests settle at once
-        await Promise.allSettled(pending.map((request: InflightRequest): Promise<unknown> | undefined => request.promise))
+        await Promise.allSettled(Promises(pending))
     }
 
     /**

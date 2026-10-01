@@ -703,7 +703,7 @@ function createContainerInternal<
                 ) as Promise<LoadModulesResult>
             ).then(() => container)
         } else {
-            realLoadModules(_loadModulesDeps, globPatterns, opts)
+            realLoadModules(_loadModulesDeps, globPatterns, opts as LoadModulesOptions<false>)
             return container
         }
     }

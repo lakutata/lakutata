@@ -138,7 +138,8 @@ export function ScheduleEntrypoint(options: ScheduleEntrypointOptions = {}): Ent
             }
 
             //The runs begin once the application launched: its objects and the other adapters are ready
-            runtime.ready.then((): void => {
+            //Only resolved, fire() reports the errors of the runs
+            void runtime.ready.then((): void => {
                 if (stopped) return
                 for (const action of runtime.actions) {
                     states.set(action, {running: 0, runs: 0})

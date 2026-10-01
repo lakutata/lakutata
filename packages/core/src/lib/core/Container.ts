@@ -284,7 +284,7 @@ export class Container {
         options.forEach((value: string | LoadObjectOptions | IBaseObjectConstructor): void => {
             if (typeof value === 'string') {
                 //glob
-                buildNameAndRegistrationPairFromGlobPromises.push(new Promise<NameAndRegistrationPair<T>>((resolve, reject) => this.buildNameAndRegistrationPairFromGlob<T>(value).then(resolve).catch(reject)))
+                buildNameAndRegistrationPairFromGlobPromises.push(this.buildNameAndRegistrationPairFromGlob<T>(value))
             } else if (isClass(As<any>(value))) {
                 const loadObjectOptions: LoadObjectOptions = {class: As<typeof BaseObject>(value)}
                 pair = {...pair, ...this.buildNameAndRegistrationPairFromOptions(loadObjectOptions)}

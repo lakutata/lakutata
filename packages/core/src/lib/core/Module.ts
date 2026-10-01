@@ -90,7 +90,8 @@ export class Module extends Component {
      */
     protected async [__init](...hooks: (() => Promise<void>)[]): Promise<void> {
         //Use setImmediate here for init module instance first, then sub objects can use @Inject decorator get current module
-        setImmediate(async (): Promise<void> => {
+        //The initialization reports its errors (MODULE_INITIALIZE_ERROR)
+        setImmediate((): void => void (async (): Promise<void> => {
             try {
                 await super[__init](
                     ...hooks,
@@ -116,7 +117,7 @@ export class Module extends Component {
             } catch (e) {
                 this.emit(MODULE_INITIALIZE_ERROR, e)
             }
-        })
+        })())
     }
 
     /**

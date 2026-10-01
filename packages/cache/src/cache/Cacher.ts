@@ -73,8 +73,11 @@ function FirstDefined<T>(promises: Promise<T | undefined>[]): Promise<T | undefi
         let remaining: number = promises.length
         if (!remaining) return resolve(undefined)
         for (const promise of promises) {
+            //A rejected promise gives no value
             promise.then((value: T | undefined): void => {
                 if (value !== undefined) return resolve(value)
+                if (!--remaining) resolve(undefined)
+            }, (): void => {
                 if (!--remaining) resolve(undefined)
             })
         }

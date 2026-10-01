@@ -76,7 +76,7 @@ Application
                             })
                         })
                     })
-                    fastify.listen({port: 3000, host: '0.0.0.0'})
+                    fastify.listen({port: 3000, host: '0.0.0.0'}).catch((error: Error): void => console.error(error))
                     onDestroy(async () => {
                         await fastify.close()
                     })
@@ -125,7 +125,7 @@ Application
                     server.attach(httpServer)
                     httpServer.listen(3001, '0.0.0.0')
                     onDestroy(async () => {
-                        server.close()
+                        await server.close()
                     })
                 })
             }),

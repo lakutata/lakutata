@@ -7,7 +7,8 @@ import {DevNull} from './DevNull.js'
  * @constructor
  */
 export function GraceExit(exitCode: number, ...functions: (() => any)[]): void {
-    setImmediate(async (): Promise<void> => {
+    //The errors of the functions are ignored
+    setImmediate((): void => void (async (): Promise<void> => {
         for (const func of functions) {
             try {
                 await func()
@@ -16,5 +17,5 @@ export function GraceExit(exitCode: number, ...functions: (() => any)[]): void {
             }
         }
         process.exit(exitCode)
-    })
+    })())
 }

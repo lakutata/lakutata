@@ -106,9 +106,9 @@ export class Docker extends Component {
      */
     protected async init(): Promise<void> {
         await Promise.all([
-            new Promise((resolve, reject) => this.container.register(DockerImage).then(resolve).catch(reject)),
-            new Promise((resolve, reject) => this.container.register(DockerContainer).then(resolve).catch(reject)),
-            new Promise((resolve, reject) => this.container.register(DockerContainerTTY).then(resolve).catch(reject))
+            this.container.register(DockerImage),
+            this.container.register(DockerContainer),
+            this.container.register(DockerContainerTTY)
         ])
         //Without a socket nor a host, the Docker of the environment (DOCKER_HOST, the socket of Docker Desktop or of the
         //system, the named pipe of Windows)
@@ -364,7 +364,7 @@ export class Docker extends Component {
     public async listContainers(): Promise<DockerContainer[]> {
         try {
             const rawContainers: Record<string, any>[] = await this.#client.listContainers({all: true}, this.#abortController.signal)
-            return await Promise.all(rawContainers.map((containerInfo: Record<string, any>) => new Promise<DockerContainer>((resolve, reject) => this.getContainer(containerInfo.Id).then(resolve).catch(reject))))
+            return await Promise.all(rawContainers.map((containerInfo: Record<string, any>): Promise<DockerContainer> => this.getContainer(containerInfo.Id)))
         } catch (e) {
             if (!IsAbortError(e)) throw e
             return []

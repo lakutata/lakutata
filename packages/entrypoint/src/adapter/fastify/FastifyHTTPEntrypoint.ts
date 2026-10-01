@@ -294,7 +294,8 @@ export function FastifyHTTPEntrypoint(options: FastifyHTTPEntrypointOptions = {}
             fastify.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
                 const responded: Promise<void> = new Promise((resolve: () => void): void => void reply.raw.once('close', resolve))
                 responding.add(responded)
-                responded.then((): unknown => responding.delete(responded))
+                //Only resolved
+                void responded.then((): unknown => responding.delete(responded))
             })
             //While the adapter stops, the connections are closed once their response is sent
             fastify.addHook('onResponse', async (): Promise<void> => {
