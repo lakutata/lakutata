@@ -155,6 +155,26 @@ describe('error handling / crash protection / reply guard', (): void => {
         expect(await self.invoke({cmd: 'echo', value: 7}, 5000)).toEqual({echoed: 7})
     })
 
+    it('iterator mode: the subscription fails -> the error is emitted, no crash, subsequent RPCs work', async (): Promise<void> => {
+        const errors: Error[] = []
+        const listener = (error: Error): number => errors.push(error)
+        nats.on('error', listener)
+        try {
+            const subscription = nats.subscribe('iter.fail.subject', (): void => undefined, {iterator: true})
+            //The iteration starts later: the subscription fails as nats.js ends it on an error (a permissions violation)
+            Reflect.set(subscription, Symbol.asyncIterator, (): AsyncIterator<never> => ({
+                next: async (): Promise<never> => {
+                    throw new Error('subscription failed')
+                }
+            }))
+            await Delay(100)
+            expect(errors.map((error: Error): string => error.message)).toEqual(['subscription failed'])
+            expect(await self.invoke({cmd: 'echo', value: 8}, 5000)).toEqual({echoed: 8})
+        } finally {
+            nats.off('error', listener)
+        }
+    })
+
     it('reply guard: for messages without reply, the callback return value is not sent and the message is received normally', async (): Promise<void> => {
         const got: Promise<any> = new Promise<any>((resolve): void => {
             nats.subscribe('noreply.subject', (data: any): {should: string} => {

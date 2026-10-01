@@ -418,19 +418,26 @@ export class NATS extends Component {
             }
         }
         if (subscribeOptions?.iterator) {
-            setImmediate(async () => {
-                for await (const msg of subscription) {
-                    await handleMessage(msg)
+            //An error of the subscription (a permissions violation, a connection error) ends the iteration: it is reported
+            const consume = async (): Promise<void> => {
+                try {
+                    for await (const msg of subscription) {
+                        await handleMessage(msg)
+                    }
+                } catch (e: any) {
+                    this.emitError(e)
                 }
-            })
+            }
+            setImmediate((): void => void consume())
         } else {
-            subscription.callback = async (err: Error | null, msg: Msg): Promise<void> => {
+            //handleMessage() reports the errors of the messages
+            subscription.callback = (err: Error | null, msg: Msg): void => {
                 //nats.js calls back with (err, {}) on a subscription error, the empty message cannot be handled: the error is reported
                 if (err) {
                     this.emitError(err)
                     return
                 }
-                await handleMessage(msg)
+                void handleMessage(msg)
             }
         }
         return subscription
