@@ -81,6 +81,24 @@ class Reloadable extends Component {
     }
 }
 
+class GracefulHolder extends Component {
+    public static failing: boolean = false
+
+    protected async init(): Promise<void> {
+        await this.buildObject(Leaf)
+        events.push('GracefulHolder.init')
+    }
+
+    protected async beforeDestroy(): Promise<void> {
+        events.push('GracefulHolder.beforeDestroy')
+        if (GracefulHolder.failing) throw new Error('beforeDestroy failed')
+    }
+
+    protected async destroy(): Promise<void> {
+        events.push('GracefulHolder.destroy')
+    }
+}
+
 class SlowInit extends BaseObject {
     public static instance: SlowInit
 
@@ -416,6 +434,65 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         await root.destroy()
         assert.deepStrictEqual(seen, [false])
         assert.ok(scoped.destroyed)
+    })
+
+    await it('beforeDestroy() runs once, before the objects created by the object are destroyed (dispose)', async (): Promise<void> => {
+        const root: Container = new Container()
+        await root.load([GracefulHolder])
+        const holder: GracefulHolder = await root.get(GracefulHolder)
+        events.length = 0
+        await holder.dispose()
+        await holder.dispose()
+        assert.deepStrictEqual(events, ['GracefulHolder.beforeDestroy', 'Leaf.destroy', 'GracefulHolder.destroy'])
+        await root.destroy()
+    })
+
+    await it('beforeDestroy() runs once, before the objects created by the object are destroyed (teardown of its owner)', async (): Promise<void> => {
+        const root: Container = new Container()
+        await root.load([GracefulHolder])
+        await root.get(GracefulHolder)
+        events.length = 0
+        await root.destroy()
+        assert.deepStrictEqual(events, ['GracefulHolder.beforeDestroy', 'Leaf.destroy', 'GracefulHolder.destroy'])
+    })
+
+    await it('a failing beforeDestroy() does not stop the teardown: dispose() throws its error, the teardown of the owner reports it', async (): Promise<void> => {
+        GracefulHolder.failing = true
+        try {
+            const root: Container = new Container()
+            await root.load([GracefulHolder])
+            const holder: GracefulHolder = await root.get(GracefulHolder)
+            events.length = 0
+            await assert.rejects(holder.dispose(), /beforeDestroy failed/)
+            assert.deepStrictEqual(events, ['GracefulHolder.beforeDestroy', 'Leaf.destroy', 'GracefulHolder.destroy'])
+            await root.destroy()
+            const reported: Error[] = []
+            SetDestroyErrorReporter((error: Error): void => void reported.push(error))
+            const other: Container = new Container()
+            await other.load([GracefulHolder])
+            await other.get(GracefulHolder)
+            events.length = 0
+            await other.destroy()
+            assert.deepStrictEqual(events, ['GracefulHolder.beforeDestroy', 'Leaf.destroy', 'GracefulHolder.destroy'])
+            assert.ok(reported.some((error: Error): boolean => /beforeDestroy failed/.test(error.message)))
+        } finally {
+            GracefulHolder.failing = false
+            SetDestroyErrorReporter()
+        }
+    })
+
+    await it('beforeDestroy() runs again after a reload', async (): Promise<void> => {
+        const root: Container = new Container()
+        await root.load([GracefulHolder])
+        const holder: GracefulHolder = await root.get(GracefulHolder)
+        events.length = 0
+        await holder.reload()
+        await holder.dispose()
+        assert.deepStrictEqual(events, [
+            'GracefulHolder.beforeDestroy', 'Leaf.destroy', 'GracefulHolder.destroy', 'GracefulHolder.init',
+            'GracefulHolder.beforeDestroy', 'Leaf.destroy', 'GracefulHolder.destroy'
+        ])
+        await root.destroy()
     })
 
     await it('an object declared with its class replaces the preset object of the same name, its options are added otherwise', async (): Promise<void> => {

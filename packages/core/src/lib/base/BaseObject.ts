@@ -1,7 +1,7 @@
 import {AsyncConstructor} from './async-constructor/AsyncConstructor.js'
 import {Transient} from '../../decorators/di/Lifetime.js'
 import {MethodNotFoundException} from '../../exceptions/MethodNotFoundException.js'
-import {Container, containerSymbol} from '../core/Container.js'
+import {Container, containerSymbol, RegisterTeardownHook} from '../core/Container.js'
 import {randomUUID} from 'node:crypto'
 import {GetConfigurableRecordsFromInstance, GetIdFromInstance, GetRegistrationNameFromInstance} from './internal/ConfigurableRecordsInjection.js'
 import {GetObjectConfigurableProperties} from './internal/ObjectConfiguration.js'
@@ -69,6 +69,8 @@ export class BaseObject extends AsyncConstructor {
     #state: ObjectState = 'constructing'
 
     #destroying: Promise<void> | undefined
+
+    #beforeDestroying: Promise<void> | undefined
 
     /**
      * Throw if current object has been destroyed
@@ -156,6 +158,19 @@ export class BaseObject extends AsyncConstructor {
         })
         this.#container = new Container(cradleProxy[containerSymbol], this)
         SetObjectContainerGetter(this, this.#container)
+        //The teardown of the container may start before the teardown of the object (the teardown of its owner destroys
+        //the containers of the objects first), so beforeDestroy() runs when the teardown of the container starts
+        if (this.beforeDestroy !== BaseObject.prototype.beforeDestroy) {
+            RegisterTeardownHook(this.#container, (): Promise<void> => this.#beforeDestroying ? Promise.resolve() : this.#runBeforeDestroy())
+        }
+    }
+
+    /**
+     * Run beforeDestroy() once for a teardown
+     * @private
+     */
+    #runBeforeDestroy(): Promise<void> {
+        return this.#beforeDestroying ??= (async (): Promise<void> => await this.beforeDestroy())()
     }
 
     /**
@@ -209,6 +224,7 @@ export class BaseObject extends AsyncConstructor {
         if (this.#state !== 'destroyed') return
         this.#container.revive()
         this.#destroying = undefined
+        this.#beforeDestroying = undefined
         this.#injectionApplied = false
         this.#state = 'constructing'
     }
@@ -225,6 +241,17 @@ export class BaseObject extends AsyncConstructor {
         this.#state = 'destroying'
         this.#destroying = (async (): Promise<void> => {
             const errors: unknown[] = []
+            //The object stops its work while the objects it created are still alive (unless the teardown of its
+            //container already did it, then its errors were reported)
+            if (this.#beforeDestroying) {
+                await this.#beforeDestroying.catch(DevNull)
+            } else {
+                try {
+                    await this.#runBeforeDestroy()
+                } catch (e) {
+                    errors.push(e)
+                }
+            }
             //Destroy internal container, objects created by current object are destroyed first (errors are reported by container)
             await this.#container.destroy()
             //Execute hooks
@@ -257,7 +284,16 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
-     * Destroyer
+     * Called when the teardown of the object starts, before the objects it created are destroyed (as the parent first
+     * beforeDestroy of a Vue component): the object stops its work, such as receiving requests, while the objects it
+     * uses are still alive. Called once per teardown, whatever starts it
+     * @protected
+     */
+    protected async beforeDestroy(): Promise<void> {
+    }
+
+    /**
+     * Destroyer, called once the objects created by the object are destroyed
      * @protected
      */
     protected async destroy(): Promise<void> {

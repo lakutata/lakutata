@@ -9,7 +9,7 @@ import {Module} from '@lakutata/core'
 import {ActionDetails, ActionPatternMap, BindControllerToComponent, GetComponentControllerActionMap} from './lib/ControllerEntrypoint.js'
 import {Controller} from './lib/Controller.js'
 import {As} from '@lakutata/utils/helper'
-import {CloneDeep, RegisterTeardownHook, WhenApplicationLaunched} from '@lakutata/core/internal'
+import {CloneDeep, WhenApplicationLaunched} from '@lakutata/core/internal'
 import {JSONSchema} from '@lakutata/core'
 import {Container} from '@lakutata/core'
 import {DevNull} from '@lakutata/utils/helper'
@@ -247,8 +247,6 @@ export class Entrypoint extends Component {
 
     #stopping?: Promise<void>
 
-    #unregisterTeardown?: () => void
-
     #resolveReady: () => void = (): void => undefined
 
     /**
@@ -281,8 +279,6 @@ export class Entrypoint extends Component {
         this.#channels.forEach((state: ChannelState): void => state.entries.forEach((entry: ActionEntry): void => addMiddlewareClasses(entry.middlewares)))
         adapters.forEach((adapter: EntrypointAdapter<any>): void => addMiddlewareClasses(ValidateMiddlewares(adapter.middlewares ?? [])))
         await Promise.all([...middlewareClasses].map((middlewareClass: IBaseObjectConstructor<Middleware>): Promise<void> => this.container.register(middlewareClass)))
-        //The adapters stop before the container destroys the scopes of the requests in progress
-        this.#unregisterTeardown = RegisterTeardownHook(this.container, (): Promise<void> => this.stopAdapters())
         for (const adapter of adapters) await this.startAdapter(adapter)
         //Without an application (a bare container), the entrypoint is ready once its adapters started
         const launched: Promise<void> | undefined = WhenApplicationLaunched(this)
@@ -294,11 +290,11 @@ export class Entrypoint extends Component {
     }
 
     /**
-     * Destroyer: stop the adapters (in reverse order) and wait for their requests in progress
+     * Stop the adapters (in reverse order) and wait for their requests in progress, before the scopes of the requests
+     * in progress and the controllers are destroyed
      * @protected
      */
-    protected async destroy(): Promise<void> {
-        this.#unregisterTeardown?.()
+    protected async beforeDestroy(): Promise<void> {
         await this.stopAdapters()
     }
 
