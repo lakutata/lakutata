@@ -1,6 +1,7 @@
 import {DTO} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
 import {BaseContext} from '@lakutata/entrypoint'
+import {type DBusContextParams} from '../types/DBusContextParams.js'
 
 /**
  * The type of the DBus contexts
@@ -30,12 +31,7 @@ export class DBusContext<T extends Record<string, any> = {}> extends BaseContext
     @Expect(DTO.String().required())
     public readonly member: string
 
-    constructor(params: {
-        readonly path: string
-        readonly interface: string
-        readonly member: string
-        readonly data: Record<string, any>
-    }) {
+    constructor(params: DBusContextParams) {
         super(params)
     }
 }

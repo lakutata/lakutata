@@ -1,6 +1,7 @@
 import {DTO, type ActionPattern} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
 import {BaseContext, type ContextParams, ContextType} from './BaseContext.js'
+import {type ServiceContextParams} from '../types/ServiceContextParams.js'
 
 export class ServiceContext<T extends Record<string, any> = {}> extends BaseContext<T> {
 
@@ -10,9 +11,7 @@ export class ServiceContext<T extends Record<string, any> = {}> extends BaseCont
     @Expect(DTO.Object().pattern(DTO.String(), DTO.Any()).required())
     public input: ActionPattern<T>
 
-    constructor(params: ContextParams<{
-        readonly data: ActionPattern
-    }>) {
+    constructor(params: ContextParams<ServiceContextParams>) {
         params = {...params, input: {...params.data}}
         super(params)
     }

@@ -1,12 +1,11 @@
+import {type RepositoryTag} from '../types/RepositoryTag.js'
+
 /**
  * Parse repository tag
  * @param input
  * @constructor
  */
-export function ParseRepositoryTag(input: string): {
-    repo: string
-    tag?: string
-} {
+export function ParseRepositoryTag(input: string): RepositoryTag {
     let separatorPos: number
     const digestPos: number = input.indexOf('@')
     const colonPos: number = input.lastIndexOf(':')

@@ -20,6 +20,7 @@ import {IsolationLevel} from 'typeorm/driver/types/IsolationLevel.js'
 import {Provider} from '@lakutata/core'
 import {EntitySchema, type MixedList} from 'typeorm'
 import {As} from '@lakutata/utils'
+import {type MigrationRunOptions} from '../types/MigrationRunOptions.js'
 
 /**
  * Build database provider connection options
@@ -162,10 +163,7 @@ export class Database extends Provider {
      * Can be used only after connection to the database is established.
      * @param options
      */
-    public async runMigrations(options?: {
-        transaction?: 'all' | 'none' | 'each'
-        fake?: boolean
-    }): Promise<Migration[]> {
+    public async runMigrations(options?: MigrationRunOptions): Promise<Migration[]> {
         return await this.datasource.runMigrations(options)
     }
 
@@ -174,10 +172,7 @@ export class Database extends Provider {
      * Can be used only after connection to the database is established.
      * @param options
      */
-    public async undoLastMigration(options?: {
-        transaction?: 'all' | 'none' | 'each'
-        fake?: boolean
-    }): Promise<void> {
+    public async undoLastMigration(options?: MigrationRunOptions): Promise<void> {
         return await this.datasource.undoLastMigration(options)
     }
 

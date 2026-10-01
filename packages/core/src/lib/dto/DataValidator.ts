@@ -26,7 +26,6 @@ import {IsXML} from '@lakutata/utils/IsXML'
 import {ErrorReport} from '../validation/interfaces/ErrorReport.js'
 
 //Self-implemented (replaces the `cron-validator` package dependency).
-type CronOptions = { seconds?: boolean, allowBlankDay?: boolean, allowSevenAsSunday?: boolean, alias?: boolean }
 const _isValidField = (field: string, min: number, max: number, allowBlank: boolean): boolean => {
     if (field === '*' || (allowBlank && field === '?')) return true
     if (field.startsWith('@')) return true
@@ -58,6 +57,7 @@ import {Reference} from '../validation/interfaces/Reference.js'
 import {LinkSchema} from '../validation/interfaces/LinkSchema.js'
 import {BigIntSchema} from '../validation/interfaces/BigIntSchema.js'
 import {pure} from '../validation/engine/schema/fastpath.js'
+import {type CronOptions} from '../../types/CronOptions.js'
 
 export class DataValidator {
 
@@ -213,12 +213,7 @@ export class DataValidator {
      * Cron表达式验证器
      * @constructor
      */
-    public static Cron<TSchema = string>(options?: {
-        alias?: boolean
-        seconds?: boolean
-        allowBlankDay?: boolean
-        allowSevenAsSunday?: boolean
-    }): StringSchema<TSchema> {
+    public static Cron<TSchema = string>(options?: CronOptions): StringSchema<TSchema> {
         return this.String<TSchema>().custom(pure((value: TSchema, helpers: CustomHelpers) => {
             options = options ? options : {}
             options.alias = options.alias !== undefined ? options.alias : false

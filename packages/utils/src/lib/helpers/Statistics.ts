@@ -55,6 +55,7 @@ import {
     quickselect,
     subtractFromMean
 } from './internal/SimpleStatistics.js'
+import {type LinearRegression} from '../../types/LinearRegression.js'
 
 export class Statistics {
 
@@ -304,7 +305,7 @@ export class Statistics {
      * Simple linear regression is a simple way to find a fitted line between a set of coordinates. This algorithm finds the slope and y-intercept of a regression line using the least sum of squares.
      * @param data
      */
-    public static linearRegression(data: [number[], number[]]): { m: number, b: number } {
+    public static linearRegression(data: [number[], number[]]): LinearRegression {
         return linearRegression(data)
     }
 
@@ -312,7 +313,7 @@ export class Statistics {
      * Given the output of linearRegression: an object with m and b values indicating slope and intercept, respectively, generate a line function that translates x values into y values.
      * @param mb
      */
-    public static linearRegressionLine(mb: { m: number, b: number }): (x: number) => number {
+    public static linearRegressionLine(mb: LinearRegression): (x: number) => number {
         return linearRegressionLine(mb)
     }
 

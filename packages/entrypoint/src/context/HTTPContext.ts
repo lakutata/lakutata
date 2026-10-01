@@ -2,6 +2,7 @@ import {DTO} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
 import {BaseContext, type ContextParams, ContextType} from './BaseContext.js'
 import {IncomingMessage, ServerResponse} from 'node:http'
+import {type HTTPContextParams} from '../types/HTTPContextParams.js'
 
 export class HTTPContext<T extends Record<string, any> = {}> extends BaseContext<T> {
 
@@ -20,13 +21,7 @@ export class HTTPContext<T extends Record<string, any> = {}> extends BaseContext
     @Expect(DTO.InstanceOf(ServerResponse))
     public readonly response: ServerResponse
 
-    constructor(params: ContextParams<{
-        readonly route: string
-        readonly method: string
-        readonly request: IncomingMessage
-        readonly response: ServerResponse
-        readonly data: Record<string, any>
-    }>) {
+    constructor(params: ContextParams<HTTPContextParams>) {
         super(params)
     }
 }

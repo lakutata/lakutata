@@ -1,6 +1,7 @@
 import {BaseContext, type ContextParams, ContextType} from './BaseContext.js'
 import {Expect} from '@lakutata/core/decorator/dto'
 import {DTO} from '@lakutata/core'
+import {type ScheduleContextParams} from '../types/ScheduleContextParams.js'
 
 export class ScheduleContext<T extends Record<string, any> = {}> extends BaseContext<T> {
     @Expect(DTO.String().valid(ContextType.SCHEDULE).default(ContextType.SCHEDULE))
@@ -24,12 +25,7 @@ export class ScheduleContext<T extends Record<string, any> = {}> extends BaseCon
     @Expect(DTO.Number().integer().min(1).required())
     public readonly run: number
 
-    constructor(params: ContextParams<{
-        readonly schedule: string
-        readonly scheduledAt: Date
-        readonly run: number
-        readonly data: Record<string, any>
-    }>) {
+    constructor(params: ContextParams<ScheduleContextParams>) {
         super(params)
     }
 }

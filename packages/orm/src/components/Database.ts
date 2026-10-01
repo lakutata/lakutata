@@ -18,6 +18,7 @@ import {SelectQueryBuilder} from 'typeorm/query-builder/SelectQueryBuilder.js'
 import {ReplicationMode} from 'typeorm/driver/types/ReplicationMode.js'
 import {QueryResultCache} from 'typeorm/cache/QueryResultCache.js'
 import {IsolationLevel} from 'typeorm/driver/types/IsolationLevel.js'
+import {type MigrationRunOptions} from '../types/MigrationRunOptions.js'
 
 /**
  * Build database connection options
@@ -148,10 +149,7 @@ export class Database extends Component {
      * Can be used only after connection to the database is established.
      * @param options
      */
-    public async runMigrations(options?: {
-        transaction?: 'all' | 'none' | 'each'
-        fake?: boolean
-    }): Promise<Migration[]> {
+    public async runMigrations(options?: MigrationRunOptions): Promise<Migration[]> {
         return await this.datasource.runMigrations(options)
     }
 
@@ -160,10 +158,7 @@ export class Database extends Component {
      * Can be used only after connection to the database is established.
      * @param options
      */
-    public async undoLastMigration(options?: {
-        transaction?: 'all' | 'none' | 'each'
-        fake?: boolean
-    }): Promise<void> {
+    public async undoLastMigration(options?: MigrationRunOptions): Promise<void> {
         return await this.datasource.undoLastMigration(options)
     }
 

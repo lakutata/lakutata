@@ -1,3 +1,5 @@
+import {type LinearRegression} from '../../../types/LinearRegression.js'
+
 /**
  * Derived from src of simple-statistics 7.8.8 (ISC, see THIRD_PARTY_NOTICES.md): the functions used by Statistics
  */
@@ -454,7 +456,7 @@ export function approxEqual(actual: number, expected: number, tolerance: number 
     return relativeError(actual, expected) <= tolerance
 }
 
-export function linearRegression(data: number[][]): { m: number, b: number } {
+export function linearRegression(data: number[][]): LinearRegression {
     let m: number
     let b: number
     const dataLength: number = data.length
@@ -480,7 +482,7 @@ export function linearRegression(data: number[][]): { m: number, b: number } {
     return {m: m, b: b}
 }
 
-export function linearRegressionLine(mb: { m: number, b: number }): (x: number) => number {
+export function linearRegressionLine(mb: LinearRegression): (x: number) => number {
     return (x: number): number => mb.b + mb.m * x
 }
 

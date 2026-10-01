@@ -1,6 +1,7 @@
 //The DBus channel: the controllers served as the interfaces of the DBus objects
 export {DBusChannel} from '../channel/DBusChannel.js'
 export {DBusContext, DBUS_CONTEXT_TYPE} from '../context/DBusContext.js'
+export {type DBusContextParams} from '../types/DBusContextParams.js'
 export {DBusInterface, type DBusInterfaceOptions} from '../decorators/DBusInterface.js'
 export {DBusMethod, type DBusMethodOptions} from '../decorators/DBusMethod.js'
 export {

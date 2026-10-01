@@ -1,3 +1,5 @@
+import {type ErrorDescription} from '../types/ErrorDescription.js'
+
 /**
  * The HTTP status of an error: the first client error (4xx) of its causes, its own status, or 500
  * (a validation failure is wrapped in an exception whose cause is the 400 validation error)
@@ -16,7 +18,7 @@ export function StatusOfError(error: unknown): number {
  * The error number and message of an error
  * @param error
  */
-export function DescribeError(error: unknown): { errno: string | number, errMsg: string } {
+export function DescribeError(error: unknown): ErrorDescription {
     const described: any = error ?? {}
     return {
         errno: described.errno ?? described.code ?? 'E_UNKNOWN',

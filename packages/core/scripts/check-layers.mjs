@@ -36,6 +36,7 @@ const LAYERS = [
     ['lib/validation', 2, 'validation'],
     //L3 - DTO: schema based validation of objects, properties and methods
     ['lib/dto', 3, 'dto'],
+    ['types/CronOptions.ts', 3, 'dto'],
     ['decorators/dto', 3, 'dto'],
     //L4 - object model
     ['lib/base', 4, 'model'],

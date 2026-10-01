@@ -21,6 +21,7 @@ export * from '../docker/interfaces/IDockerSSHConnectionOptions.js'
  * Types
  */
 export * from '../docker/types/ContainerBind.js'
+export * from '../docker/types/RepositoryTag.js'
 export * from '../docker/types/ContainerCapability.js'
 export * from '../docker/types/ContainerConfig.js'
 export * from '../docker/types/ContainerDevice.js'

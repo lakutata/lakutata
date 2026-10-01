@@ -1,5 +1,6 @@
 export {MCPChannel} from '../channel/MCPChannel.js'
 export {MCPContext, MCP_CONTEXT_TYPE, type MCPAuthInfo, type MCPRequestKind} from '../context/MCPContext.js'
+export {type MCPContextParams} from '../types/MCPContextParams.js'
 export {MCPTool, type MCPToolOptions} from '../decorators/MCPTool.js'
 export {MCPResource, type MCPResourceOptions} from '../decorators/MCPResource.js'
 export {MCPPrompt, type MCPPromptOptions} from '../decorators/MCPPrompt.js'

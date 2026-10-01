@@ -1,5 +1,6 @@
 import {DTO} from '../lib/dto/DTO.js'
 import {Expect} from '../decorators/dto/Expect.js'
+import {type PaginationMeta} from '../types/PaginationMeta.js'
 
 export class PaginationResultDTO<T = any, U = T[]> extends DTO {
     @Expect(DTO.Array(DTO.Any()).required())
@@ -11,10 +12,5 @@ export class PaginationResultDTO<T = any, U = T[]> extends DTO {
         limit: DTO.Number().integer().positive().allow(0).required(),
         offset: DTO.Number().integer().positive().allow(0).required()
     }).required())
-    public meta: {
-        count: number
-        total: number
-        limit: number
-        offset: number
-    }
+    public meta: PaginationMeta
 }

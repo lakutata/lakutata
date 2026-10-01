@@ -35,6 +35,10 @@ export {CLIContext} from './context/CLIContext.js'
 export {HTTPContext} from './context/HTTPContext.js'
 export {ServiceContext} from './context/ServiceContext.js'
 export {ScheduleContext} from './context/ScheduleContext.js'
+export {type HTTPContextParams} from './types/HTTPContextParams.js'
+export {type CLIContextParams} from './types/CLIContextParams.js'
+export {type ServiceContextParams} from './types/ServiceContextParams.js'
+export {type ScheduleContextParams} from './types/ScheduleContextParams.js'
 
 export type CLIEntrypoint = (module: Module, cliMap: CLIMap, handler: CLIEntrypointHandler, registerDestroy: EntrypointDestroyerRegistrar) => void
 export type HTTPEntrypoint = (module: Module, routeMap: HTTPRouteMap, handler: HTTPEntrypointHandler, registerDestroy: EntrypointDestroyerRegistrar) => void

@@ -1,6 +1,7 @@
 import {DTO} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
 import {BaseContext} from '@lakutata/entrypoint'
+import {type MCPContextParams} from '../types/MCPContextParams.js'
 
 /**
  * The type of the MCP contexts
@@ -64,15 +65,7 @@ export class MCPContext<T extends Record<string, any> = {}> extends BaseContext<
     @Expect(DTO.Function().required())
     public readonly progress: (progress: number, total?: number, message?: string) => Promise<void>
 
-    constructor(params: {
-        readonly kind: MCPRequestKind
-        readonly name: string
-        readonly uri?: string
-        readonly data: Record<string, any>
-        readonly sessionId?: string
-        readonly authInfo?: MCPAuthInfo
-        readonly progress: (progress: number, total?: number, message?: string) => Promise<void>
-    }) {
+    constructor(params: MCPContextParams) {
         super(params)
     }
 }
