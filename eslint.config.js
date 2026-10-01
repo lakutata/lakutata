@@ -33,11 +33,13 @@ export default defineConfig([
                 'ts-nocheck': true,
                 'ts-expect-error': 'allow-with-description'
             }],
-            //The parameters kept for a signature start with an underscore
+            //The parameters kept for a signature start with an underscore, the variables of a destructuring may only
+            //leave their properties out of its rest
             '@typescript-eslint/no-unused-vars': ['warn', {
                 argsIgnorePattern: '^_',
                 varsIgnorePattern: '^_',
-                caughtErrors: 'none'
+                caughtErrors: 'none',
+                ignoreRestSiblings: true
             }],
             //The framework relies on these constructs
             'prefer-spread': 'off',
@@ -64,6 +66,13 @@ export default defineConfig([
                 'ts-nocheck': false,
                 'ts-expect-error': 'allow-with-description'
             }]
+        }
+    },
+    {
+        //The test suites of the validation engine are ported from joi as they are
+        files: ['packages/core/src/tests/engine/**/*.ts'],
+        rules: {
+            '@typescript-eslint/no-unused-vars': 'off'
         }
     },
     {
