@@ -15,7 +15,6 @@ export enum ObjectType {
     Unknown = 'Unknown',
     Object = 'Object',
     Provider = 'Provider',
-    Controller = 'Controller',
     Component = 'Component',
     Module = 'Module'
 }

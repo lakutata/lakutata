@@ -24,7 +24,6 @@ import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js
 import {LifetimeType} from '../ioc/Lifetime.js'
 import {ReportDestroyError} from '../foundation/DestroyErrorReporter.js'
 import {ThrowWarning} from '../foundation/ThrowWarning.js'
-import {GetObjectType, ObjectType} from '../base/internal/ObjectType.js'
 import {IsSubclassOf} from '@lakutata/utils/helper/IsSubclassOf'
 import {ObjectDestroyedException} from '../../exceptions/ObjectDestroyedException.js'
 import {As} from '@lakutata/utils/helper/As'
@@ -50,11 +49,6 @@ export function RegisterTeardownHook(container: Container, hook: () => Promise<v
     hooks.add(hook)
     return (): void => void hooks!.delete(hook)
 }
-
-/**
- * Resolver property holding the class of a registration
- */
-const registeredClassSymbol: symbol = Symbol('LAKUTATA.DI.REGISTERED_CLASS.SYMBOL')
 
 export class Container {
 
@@ -123,14 +117,12 @@ export class Container {
     }
 
     /**
-     * Create the resolver of a registration, remembering the registered class
+     * Create the resolver of a registration
      * @param target
      * @private
      */
     #createResolver(target: IBaseObjectConstructor): BuildResolver<any> & DisposableResolver<any> {
-        const resolver: BuildResolver<any> & DisposableResolver<any> = asClass(target, As<BuildResolverOptions<any>>(this.buildResolverOptions(target)))
-        Reflect.set(resolver, registeredClassSymbol, target)
-        return resolver
+        return asClass(target, As<BuildResolverOptions<any>>(this.buildResolverOptions(target)))
     }
 
     /**
@@ -347,6 +339,36 @@ export class Container {
      */
     public async get<T extends BaseObject>(nameOrConstructor: string | symbol | IBaseObjectConstructor<T>, configurableRecords?: Record<string, any>): Promise<T>
     public async get<T extends BaseObject>(inp: string | symbol | IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
+        return await this.#get(inp, configurableRecords, false)
+    }
+
+    /**
+     * Get the shared instance of a registered object (the instance of the container, or of the request scope for a
+     * scoped object), created with the configuration if it does not exist yet. Unlike get(), a scoped object requested
+     * with a configuration is not a new instance owned by the requester: the creator of a scope uses it to provide an
+     * object configured for the request, which the objects of the request then share
+     * @param constructor
+     * @param configurableRecords
+     */
+    public async getShared<T extends BaseObject>(constructor: IBaseObjectConstructor<T>, configurableRecords?: Record<string, any>): Promise<T>
+    /**
+     * Get the shared instance of a registered object via string or symbol
+     * @param name
+     * @param configurableRecords
+     */
+    public async getShared<T extends BaseObject>(name: string | symbol, configurableRecords?: Record<string, any>): Promise<T>
+    public async getShared<T extends BaseObject>(inp: string | symbol | IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
+        return await this.#get(inp, configurableRecords, true)
+    }
+
+    /**
+     * Get a registered object
+     * @param inp
+     * @param configurableRecords
+     * @param shared whether a scoped object requested with a configuration is the shared instance
+     * @private
+     */
+    async #get<T extends BaseObject>(inp: string | symbol | IBaseObjectConstructor<T>, configurableRecords: Record<string, any>, shared: boolean): Promise<T> {
         const registrationName: string | symbol = typeof inp === 'function' ? ConstructorSymbol(inp) : inp
         this.#assertNotDestroyed()
         if (!this.#dic.hasRegistration(registrationName) && typeof inp === 'function' && GetObjectIsAutoload(As<typeof BaseObject>(inp))) {
@@ -362,14 +384,11 @@ export class Container {
         const registration: Resolver<any> | null = this.#dic.getRegistration(registrationName)
         const lifetime: LifetimeType | undefined = registration?.lifetime
         //A scoped object requested with its own configuration is a new instance owned by the requester, it is not cached,
-        //so it never replaces the instance shared within the request (a controller keeps its per-request instance)
-        if (registration && lifetime === 'SCOPED' && !IsEmptyObject(configurableRecords)) {
-            const registeredClass: IBaseObjectConstructor | undefined = Reflect.get(registration, registeredClassSymbol)
-            if (!registeredClass || GetObjectType(registeredClass) !== ObjectType.Controller) {
-                const configured: T = await this.processResolved(this.#dic.build<T>(registration), registrationName, configurableRecords)
-                AppendObjectWeakRefs(this.#dic, configured)
-                return configured
-            }
+        //so it never replaces the instance shared within the request (unless the shared instance is requested)
+        if (!shared && registration && lifetime === 'SCOPED' && !IsEmptyObject(configurableRecords)) {
+            const configured: T = await this.processResolved(this.#dic.build<T>(registration), registrationName, configurableRecords)
+            AppendObjectWeakRefs(this.#dic, configured)
+            return configured
         }
         let resolver: Container = this
         if (lifetime === 'SINGLETON') {

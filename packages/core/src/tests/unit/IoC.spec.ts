@@ -6,8 +6,6 @@ import {Container} from '../../lib/core/Container.js'
 import {IsSubclassOf} from '@lakutata/utils/helper/IsSubclassOf'
 import {DTO} from '../../lib/dto/DTO.js'
 import {Provider} from '../../lib/core/Provider.js'
-import {DefineObjectType, ObjectType} from '../../lib/base/internal/ObjectType.js'
-import {Scoped} from '../../decorators/di/Lifetime.js'
 import {Configurable} from '../../decorators/di/Configurable.js'
 import {listModules, type ModuleDescriptor} from '../../lib/ioc/ListModules.js'
 import {mkdtempSync, mkdirSync, rmSync, writeFileSync} from 'node:fs'
@@ -18,14 +16,6 @@ class SubObject extends BaseObject {
 }
 
 class ConfiguredProvider extends Provider {
-    @Configurable(DTO.Any())
-    public readonly context: unknown
-}
-
-//A controller (from the entrypoint package) is recognized by its object type
-@Scoped(true)
-@DefineObjectType(ObjectType.Controller)
-class MarkedController extends Provider {
     @Configurable(DTO.Any())
     public readonly context: unknown
 }
@@ -75,16 +65,21 @@ await describe('IoC Test', async function (): Promise<void> {
         assert.equal(IsSubclassOf(undefined, BaseObject), false)
     })
 
-    await it('a configured scoped object is owned by its requester, except a controller', async (): Promise<void> => {
+    await it('a configured scoped object is owned by its requester, unless the shared instance is requested', async (): Promise<void> => {
         const root: Container = new Container()
-        await root.load([ConfiguredProvider, MarkedController])
+        await root.load([ConfiguredProvider])
         const scope: Container = root.createScope()
         const first: ConfiguredProvider = await scope.get(ConfiguredProvider, {context: 1})
         assert.notEqual(await scope.get(ConfiguredProvider, {context: 2}), first)
-        //A controller keeps its instance within the request
-        const controller: MarkedController = await scope.get(MarkedController, {context: 1})
-        assert.equal(await scope.get(MarkedController, {context: 2}), controller)
-        assert.equal(controller.context, 1)
+        //The creator of the scope provides the instance shared within the request, configured for it
+        const shared: ConfiguredProvider = await scope.getShared(ConfiguredProvider, {context: 3})
+        assert.notEqual(shared, first)
+        assert.equal(shared.context, 3)
+        assert.equal(await scope.get(ConfiguredProvider), shared)
+        assert.equal(await scope.getShared(ConfiguredProvider, {context: 4}), shared)
+        //Another request has its own shared instance
+        const other: Container = root.createScope()
+        assert.equal((await other.getShared(ConfiguredProvider, {context: 5})).context, 5)
         await root.destroy()
     })
 

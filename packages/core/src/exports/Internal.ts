@@ -3,7 +3,6 @@
  */
 export {GetAppId, GetAppName} from '../lib/foundation/BasicInfo.js'
 export {SetDefaultComponent, type DefaultComponentOptions} from '../lib/app/ApplicationDefaults.js'
-export {ObjectType, DefineObjectType} from '../lib/base/internal/ObjectType.js'
 export {FlexibleDTO} from '../lib/dto/FlexibleDTO.js'
 export {clone as CloneDeep} from '../lib/validation/engine/utils/clone.js'
 export {RegisterTeardownHook} from '../lib/core/Container.js'

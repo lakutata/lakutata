@@ -523,7 +523,8 @@ export class Entrypoint extends Component {
      */
     protected async runAction(details: ActionDetails, invocation: ActionInvocation): Promise<unknown> {
         const {context, container, params} = invocation
-        const controller: Controller = await container.get(details.constructor, {context: context})
+        //The controller of the request, shared by the objects of the request
+        const controller: Controller = await container.getShared(details.constructor, {context: context})
         //The parameters of the address take precedence over the data of the request
         const data: Record<string, any> = params && Object.keys(params).length ? {...context.data, ...params} : context.data
         //The input is detached from the context, whose values are proxies validating their changes

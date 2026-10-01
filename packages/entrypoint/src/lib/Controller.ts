@@ -1,5 +1,4 @@
 import {Provider} from '@lakutata/core'
-import {DefineObjectType, ObjectType} from '@lakutata/core/internal'
 import {Scoped} from '@lakutata/core/decorator/di'
 import {CLIContext} from '../context/CLIContext.js'
 import {HTTPContext} from '../context/HTTPContext.js'
@@ -17,7 +16,6 @@ export type ControllerProperty<ClassPrototype extends Controller> = Exclude<keyo
  * Controller base class
  */
 @Scoped(true)
-@DefineObjectType(ObjectType.Controller)
 export class Controller extends Provider {
 
     /**
