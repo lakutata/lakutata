@@ -2,7 +2,8 @@
  * Derived from src/validator.js and src/util.js of fast-xml-parser 4.5.3 (MIT, see THIRD_PARTY_NOTICES.md): its
  * validation with the boolean attributes allowed and no unpaired tag, giving whether the document is valid (the
  * errors, their messages and their positions are not computed). Fixed: a self closing root element closes the root, so
- * a text or an element after it is invalid (the upstream accepts them)
+ * a text or an element after it is invalid (the upstream accepts them), and an XML declaration is invalid anywhere but at
+ * the start of the document (the upstream detects it before the first element only)
  */
 
 const NAME_START_CHAR: string = ':A-Za-z_\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD'
@@ -244,8 +245,9 @@ export function ValidateXML(xml: string): boolean {
                         i = ReadCommentAndCDATA(xml, i + 1)
                         continue
                     } else if (xml[i + 1] === '?') {
-                        //As upstream, from the "?": its target includes the "?", a misplaced declaration is not detected here
-                        i = ReadProcessingInstruction(xml, i + 1)
+                        //From the target, as at the top level (the upstream reads it from the "?", so a misplaced XML
+                        //declaration in an element or after the root is not detected)
+                        i = ReadProcessingInstruction(xml, i + 2)
                         if (i === INVALID) return false
                     } else {
                         break

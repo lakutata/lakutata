@@ -12,12 +12,15 @@ function Upstream(xml: string): boolean {
 }
 
 /**
- * The upstream accepts a text or an element after a self closing root element (<a/>text): the port does not. The
- * reference is the upstream on the document with its self closing tags written as an opening and a closing tag, which
- * the upstream validates correctly
+ * The validation with the bugs of the upstream fixed, from the upstream:
+ * - it accepts a text or an element after a self closing root element (<a/>text): the reference is the upstream on the
+ *   document with its self closing tags written as an opening and a closing tag, which it validates correctly
+ * - it detects an XML declaration out of the start of the document before the first element only: the reference
+ *   rejects the XML declarations after it
  * @param xml
  */
 function Reference(xml: string): boolean {
+    if (/<\?xml[ ?]/.test(xml.substring(xml.indexOf('<', xml.indexOf('<') + 1)))) return false
     return Upstream(xml.replace(/<([^\s<>/!?"'=]+)((?:\s(?:[^<>"']|"[^"]*"|'[^']*')*?)?)\/>/g, '<$1$2></$1>'))
 }
 
@@ -53,7 +56,8 @@ describe('IsXML', (): void => {
             '<?xml version="1.0" encoding="UTF-8"?>\n<note lang="en"><to>Tove</to><body>a &amp; b &#65; &#x41;</body></note>',
             '<a checked x=\'1\'><![CDATA[<not a tag>]]><!-- comment --></a>',
             '<!DOCTYPE note [<!ELEMENT note (#PCDATA)>]><note>x</note>',
-            '﻿<a/>'
+            '﻿<a/>',
+            '<a><?xml-stylesheet href="style.css"?><?pi data?></a>'
         ]) assert.strictEqual(IsXML(xml), true, xml)
     })
 
@@ -61,13 +65,13 @@ describe('IsXML', (): void => {
         for (const xml of [
             '', 'not xml at all', '{"json": true}', '<a><b></a>', '<a>', '</a>', '<a></a><b></b>', '<a></a>text',
             '<a x="1"y="2"/>', '<a x=/>', '<a x="1" x="2"/>', '<1a/>', '<a>&;</a>', '<a>&#xZ;</a>', '<a x="1/>',
-            '<a/>text', '<a/><b/>', '<a x="1"/><b></b>',
+            '<a/>text', '<a/><b/>', '<a x="1"/><b></b>', '<a><?xml version="1.0"?></a>', '<a></a><?xml version="1.0"?>',
             '      <?xml version="1.0"?><a/>'
         ]) assert.strictEqual(IsXML(xml), false, xml)
         assert.strictEqual(IsXML(undefined as unknown as string), false)
     })
 
-    it('validates as the upstream validator, a self closing root element closing the root', (): void => {
+    it('validates as the upstream validator, with its bugs fixed', (): void => {
         const random: () => number = Random(20261001)
         let valid: number = 0
         //The documents the fix changes: the upstream accepts them
