@@ -19,6 +19,8 @@ import {As} from '@lakutata/utils/helper/As'
 import {DevNull} from '@lakutata/utils/helper/DevNull'
 import {DefineObjectType, GetObjectType, ObjectType, RegisterBaseObject} from './internal/ObjectType.js'
 import {Module} from '../core/Module.js'
+import {WhenApplicationLaunched} from './internal/ApplicationLaunch.js'
+import {ReportLaunchedError} from '../foundation/LifecycleErrorReporter.js'
 import {DependencyInjectionException} from '../../exceptions/di/DependencyInjectionException.js'
 import {ObjectDestroyedException} from '../../exceptions/ObjectDestroyedException.js'
 
@@ -71,6 +73,8 @@ export class BaseObject extends AsyncConstructor {
     #destroying: Promise<void> | undefined
 
     #beforeDestroying: Promise<void> | undefined
+
+    #launchedToken: number = 0
 
     /**
      * Throw if current object has been destroyed
@@ -213,6 +217,25 @@ export class BaseObject extends AsyncConstructor {
         //A teardown which happened during the initialization wins, the object never becomes ready
         this.#assertNotDestroyed()
         this.#state = 'ready'
+        if (this.launched !== BaseObject.prototype.launched) this.#scheduleLaunched()
+    }
+
+    /**
+     * Call launched() once the application of the object has launched, or right after the initialization when it has
+     * launched already or when there is no application; only for the last initialization of a ready object
+     * @private
+     */
+    #scheduleLaunched(): void {
+        const token: number = ++this.#launchedToken
+        const run = (): void => {
+            if (token !== this.#launchedToken || this.#state !== 'ready') return
+            try {
+                Promise.resolve(this.launched()).catch((error: unknown): void => ReportLaunchedError(error, this.className))
+            } catch (error) {
+                ReportLaunchedError(error, this.className)
+            }
+        }
+        void (WhenApplicationLaunched(this) ?? Promise.resolve()).then(run)
     }
 
     /**
@@ -281,6 +304,17 @@ export class BaseObject extends AsyncConstructor {
      */
     protected async init(): Promise<void> {
         //To be override in child class
+    }
+
+    /**
+     * Called once the application the object belongs to has launched (its objects are created and its bootstrap ran),
+     * as the mounted hook of a Vue component: the object starts the work which needs the whole application. An object
+     * created once the application has launched, or without application (in a bare container), is called right after
+     * its initialization; an object destroyed before is not called, a reloaded object is called again. Its errors are
+     * reported (through the logger of the application), they do not stop the application
+     * @protected
+     */
+    protected async launched(): Promise<void> {
     }
 
     /**

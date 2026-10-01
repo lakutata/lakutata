@@ -47,9 +47,6 @@
       ],
       "@lakutata/core/com/logger": [
         "../core/dist/types/exports/LoggerComponent"
-      ],
-      "@lakutata/core/internal": [
-        "../core/dist/types/exports/Internal"
       ]
     }
   },

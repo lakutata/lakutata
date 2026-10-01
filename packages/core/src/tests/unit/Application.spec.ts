@@ -84,6 +84,31 @@ Application.run({id: 'test', name: 'Test', components: {log: {class: OtherLogger
         assert.deepStrictEqual(result, {identity: ['test', 'Test'], logger: 'OtherLogger', log: 'OtherLogger', service: true, bootstrapped: []})
     })
 
+    it('call launched() once the application has launched, right after the initialization of the objects created then, not for the objects destroyed before', (): void => {
+        const {status, result, output} = RunApplication(`
+const order = []
+class Early extends Component { async launched() { order.push('early launched') } }
+class Late extends Component { async launched() { order.push('late launched') } }
+class Gone extends Component { async launched() { order.push('gone launched') } }
+Application.run({
+    id: 'test', name: 'Test',
+    components: {early: {class: Early}, late: {class: Late}, gone: {class: Gone}},
+    bootstrap: ['early', async (app) => {
+        await (await app.getObject('gone')).dispose()
+        order.push('bootstrap done')
+    }]
+}).onLaunched(async (app) => {
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    order.push('get late')
+    await app.getObject('late')
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    console.log('RESULT ' + JSON.stringify(order))
+    app.exit(0)
+})`)
+        assert.strictEqual(status, 0, output)
+        assert.deepStrictEqual(result, ['bootstrap done', 'early launched', 'get late', 'late launched'])
+    })
+
     it('add each preset to the previous ones', (): void => {
         const {status, result, output} = RunApplication(`
 const first = async () => bootstrapped.push('first')

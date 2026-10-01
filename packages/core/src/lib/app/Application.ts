@@ -4,7 +4,7 @@ import {ApplicationConfigLoader} from './ApplicationConfigLoader.js'
 import {ApplicationOptions} from '../../options/ApplicationOptions.js'
 import {Alias} from '../core/Alias.js'
 import {GetAppId, GetAppName, GetBasicInfo} from '../foundation/BasicInfo.js'
-import {SetDestroyErrorReporter} from '../foundation/DestroyErrorReporter.js'
+import {SetLifecycleErrorReporter} from '../foundation/LifecycleErrorReporter.js'
 import {ILogger} from '../../interfaces/ILogger.js'
 import {ConsoleLogger} from '../../components/ConsoleLogger.js'
 import {Accept} from '../../decorators/dto/Accept.js'
@@ -15,7 +15,7 @@ import {existsSync} from 'node:fs'
 import {As} from '@lakutata/utils/helper/As'
 import {EventEmitter} from '../base/EventEmitter.js'
 import {BootstrapOption, ModuleOptions} from '../../options/ModuleOptions.js'
-import {DeclareApplicationClass, MarkApplicationLaunched} from './ApplicationLaunch.js'
+import {DeclareApplicationClass, MarkApplicationLaunched} from '../base/internal/ApplicationLaunch.js'
 
 //The handlers are method signatures, so a handler may declare the logger implementation it expects (such as Logger)
 /**
@@ -362,9 +362,9 @@ export class Application extends Module {
                             As<BootstrapOption[]>(Reflect.getOwnMetadata('#bootstrap', this))?.pop()
                         }
                         launchedCallbackRemover.bind(As<Application>(target))()
-                        //Errors raised by cascaded destruction are reported through the application logger
+                        //The errors of the lifecycle of the objects (cascaded destruction, launched hooks) are reported through the application logger
                         const logger: ILogger = await As<Application>(target).getLogger()
-                        SetDestroyErrorReporter((error: Error): void => logger.warn(error, 'An error occurred while destroying an object'))
+                        SetLifecycleErrorReporter((error: Error, message: string): void => logger.warn(error, message))
                         MarkApplicationLaunched(target)
                         this.eventEmitter.emit(ApplicationState.Launched, As<Application>(target))
                     })

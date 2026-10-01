@@ -9,7 +9,6 @@ import {Module} from '@lakutata/core'
 import {ActionDetails, ActionPatternMap, BindControllerToComponent, GetComponentControllerActionMap} from './lib/ControllerEntrypoint.js'
 import {Controller} from './lib/Controller.js'
 import {As} from '@lakutata/utils/helper'
-import {WhenApplicationLaunched} from '@lakutata/core/internal'
 import {CloneDeep} from '@lakutata/utils/helper'
 import {JSONSchema} from '@lakutata/core'
 import {Container} from '@lakutata/core'
@@ -282,13 +281,15 @@ export class Entrypoint extends Component {
         adapters.forEach((adapter: EntrypointAdapter<any>): void => addMiddlewareClasses(ValidateMiddlewares(adapter.middlewares ?? [])))
         await Promise.all([...middlewareClasses].map((middlewareClass: IBaseObjectConstructor<Middleware>): Promise<void> => this.container.register(middlewareClass)))
         for (const adapter of adapters) await this.startAdapter(adapter)
-        //Without an application (a bare container), the entrypoint is ready once its adapters started
-        const launched: Promise<void> | undefined = WhenApplicationLaunched(this)
-        if (launched) {
-            launched.then((): void => this.#resolveReady())
-        } else {
-            this.#resolveReady()
-        }
+    }
+
+    /**
+     * The entrypoint is ready once the application has launched (once its adapters started without application, in a
+     * bare container)
+     * @protected
+     */
+    protected async launched(): Promise<void> {
+        this.#resolveReady()
     }
 
     /**

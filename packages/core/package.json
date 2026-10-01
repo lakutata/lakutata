@@ -76,16 +76,6 @@
         "default": "./dist/cjs/exports/DTODecorators.js"
       }
     },
-    "./internal": {
-      "import": {
-        "types": "./dist/types/exports/Internal.d.ts",
-        "default": "./dist/esm/exports/Internal.js"
-      },
-      "require": {
-        "types": "./dist/cjs/exports/Internal.d.ts",
-        "default": "./dist/cjs/exports/Internal.js"
-      }
-    },
     "./tsconfig.json": "./tsconfig.base.json",
     "./package.json": "./package.json"
   },

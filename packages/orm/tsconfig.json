@@ -45,9 +45,6 @@
       "@lakutata/utils/helper": [
         "../utils/dist/types/exports/Helpers"
       ],
-      "@lakutata/core/internal": [
-        "../core/dist/types/exports/Internal"
-      ],
       "@lakutata/utils": [
         "../utils/dist/types/exports/Utils"
       ],
