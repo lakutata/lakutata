@@ -208,6 +208,7 @@
   "lakutata/dtos": [
     "PaginationResultDTO",
     "PaginationSearchDTO",
+    "Paginator",
     "SchemaConversionException",
     "SchemaDefinitionException",
     "SchemaException",

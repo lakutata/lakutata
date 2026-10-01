@@ -1,5 +1,5 @@
 import {Codec} from 'nats'
-import {MessagePack} from '@lakutata/core/helper'
+import {MessagePack} from '@lakutata/utils/helper'
 
 export function MessagePackCodec(): Codec<any> {
     return {

@@ -27,8 +27,8 @@ import {ThrowWarning} from '../foundation/ThrowWarning.js'
 import {GetObjectType, ObjectType} from '../base/internal/ObjectType.js'
 import {IsSubclassOf} from '../helpers/internal/IsSubclassOf.js'
 import {ObjectDestroyedException} from '../../exceptions/ObjectDestroyedException.js'
-import {As} from '../helpers/As.js'
-import {IsEmptyObject} from '../helpers/IsEmptyObject.js'
+import {As} from '@lakutata/utils/helper/As'
+import {IsEmptyObject} from '@lakutata/utils/helper/IsEmptyObject'
 import {AppendObjectWeakRefs, ClearObjectWeakRefs, GetObjectWeakRefs} from '../ioc/ObjectWeakRefs.js'
 
 export const containerSymbol: symbol = Symbol('LAKUTATA.DI.CONTAINER.SYMBOL')

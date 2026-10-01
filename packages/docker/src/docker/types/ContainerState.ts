@@ -1,4 +1,4 @@
-import {Time} from '@lakutata/utils'
+import {Time} from '@lakutata/utils/time'
 
 export type ContainerState = {
     status: 'created' | 'running' | 'paused' | 'restarting' | 'removing' | 'exited' | 'dead'

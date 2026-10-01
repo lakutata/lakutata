@@ -20,7 +20,7 @@ import {QueryResultCache} from 'typeorm/cache/QueryResultCache.js'
 import {IsolationLevel} from 'typeorm/driver/types/IsolationLevel.js'
 import {Provider} from '@lakutata/core'
 import {EntitySchema, type MixedList} from 'typeorm'
-import {As} from '@lakutata/core/helper'
+import {As} from '@lakutata/utils/helper'
 import {DatabaseSymbol} from '@lakutata/core/internal'
 
 /**

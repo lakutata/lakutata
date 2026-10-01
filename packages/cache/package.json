@@ -31,6 +31,7 @@
   },
   "peerDependencies": {
     "@lakutata/core": "2.0.126",
+    "@lakutata/utils": "2.0.126",
     "memjs": "^1.3.2",
     "mongodb": ">=6.0.0",
     "mysql2": "^3.0.0",

@@ -8,4 +8,4 @@ SetDefaultComponent('log', {class: Logger})
 SetDefaultComponent('entrypoint', {class: Entrypoint})
 
 export * from '@lakutata/core'
-export {Time} from '@lakutata/utils'
+export {Time} from '@lakutata/utils/time'

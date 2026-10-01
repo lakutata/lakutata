@@ -26,16 +26,6 @@
         "default": "./dist/cjs/exports/DTOs.js"
       }
     },
-    "./helper": {
-      "import": {
-        "types": "./dist/types/exports/Helpers.d.ts",
-        "default": "./dist/esm/exports/Helpers.js"
-      },
-      "require": {
-        "types": "./dist/cjs/exports/Helpers.d.ts",
-        "default": "./dist/cjs/exports/Helpers.js"
-      }
-    },
     "./com/monitor": {
       "import": {
         "types": "./dist/types/exports/MonitorComponent.d.ts",
@@ -113,10 +103,8 @@
     "test:engine-types": "node scripts/check-engine-types.mjs"
   },
   "dependencies": {
-    "@msgpack/msgpack": "^3.1.3",
-    "fast-xml-parser": "4.5.3",
+    "@lakutata/utils": "2.0.126",
     "glob": "13.0.0",
-    "path-scurry": "^2.0.0",
     "reflect-metadata": "0.2.2",
     "simple-statistics": "7.8.8"
   },

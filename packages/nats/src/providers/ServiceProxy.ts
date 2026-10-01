@@ -1,6 +1,6 @@
 import {ActionPattern, Application, Component, ComponentOptionsBuilder, DTO} from '@lakutata/core'
 import {Configurable, Inject} from '@lakutata/core/decorator/di'
-import {Delay} from '@lakutata/core/helper'
+import {Delay} from '@lakutata/utils/helper'
 import {NATS} from '../components/NATS.js'
 import {ServiceResponseCodec} from '@lakutata/entrypoint/channel'
 import {NatsNoRespondersAvailableException} from '../exceptions/NatsNoRespondersAvailableException.js'

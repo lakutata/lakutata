@@ -1,4 +1,4 @@
-import {MD5} from '@lakutata/core/helper'
+import {MD5} from '@lakutata/utils/helper'
 import * as querystring from 'node:querystring'
 
 export interface ServiceEventData {

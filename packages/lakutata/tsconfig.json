@@ -42,8 +42,8 @@
             "@lakutata/core/dtos": [
                 "../core/dist/types/exports/DTOs"
             ],
-            "@lakutata/core/helper": [
-                "../core/dist/types/exports/Helpers"
+            "@lakutata/utils/helper": [
+                "../utils/dist/types/exports/Helpers"
             ],
             "@lakutata/core/internal": [
                 "../core/dist/types/exports/Internal"
@@ -110,6 +110,12 @@
             ],
             "@lakutata/orm/provider/database": [
                 "../orm/dist/types/exports/DatabaseProvider"
+            ],
+            "@lakutata/utils/time": [
+                "../utils/dist/types/exports/Time"
+            ],
+            "@lakutata/utils/helper/*": [
+                "../utils/dist/types/lib/helpers/*"
             ]
         }
     },

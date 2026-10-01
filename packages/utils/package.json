@@ -1,7 +1,7 @@
 {
   "name": "@lakutata/utils",
   "version": "2.0.126",
-  "description": "Utilities of the lakutata framework (Time).",
+  "description": "Utilities of the lakutata framework: Time and the helpers.",
   "type": "module",
   "main": "./dist/cjs/exports/Utils.js",
   "types": "./dist/cjs/exports/Utils.d.ts",
@@ -16,6 +16,36 @@
         "default": "./dist/cjs/exports/Utils.js"
       }
     },
+    "./time": {
+      "import": {
+        "types": "./dist/types/exports/Time.d.ts",
+        "default": "./dist/esm/exports/Time.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/Time.d.ts",
+        "default": "./dist/cjs/exports/Time.js"
+      }
+    },
+    "./helper": {
+      "import": {
+        "types": "./dist/types/exports/Helpers.d.ts",
+        "default": "./dist/esm/exports/Helpers.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/Helpers.d.ts",
+        "default": "./dist/cjs/exports/Helpers.js"
+      }
+    },
+    "./helper/*": {
+      "import": {
+        "types": "./dist/types/lib/helpers/*.d.ts",
+        "default": "./dist/esm/lib/helpers/*.js"
+      },
+      "require": {
+        "types": "./dist/cjs/lib/helpers/*.d.ts",
+        "default": "./dist/cjs/lib/helpers/*.js"
+      }
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -27,6 +57,13 @@
     "rebuild": "npm run clean && npm run build:js",
     "compile": "npm run rebuild",
     "test:unit": "npm run compile && node --test \"dist/esm/tests/*.spec.js\""
+  },
+  "dependencies": {
+    "@msgpack/msgpack": "^3.1.3",
+    "fast-xml-parser": "4.5.3",
+    "glob": "13.0.0",
+    "path-scurry": "^2.0.0",
+    "simple-statistics": "7.8.8"
   },
   "engines": {
     "node": ">=22"

@@ -34,6 +34,7 @@
   },
   "peerDependencies": {
     "@lakutata/core": "2.0.126",
+    "@lakutata/utils": "2.0.126",
     "@lakutata/entrypoint": "2.0.126"
   },
   "engines": {

@@ -3,8 +3,8 @@ import {
     DI_TARGET_CONSTRUCTOR_AUTOLOAD,
     DI_TARGET_CONSTRUCTOR_INJECTS
 } from '../../../constants/DIMetadataKey.js'
-import {ObjectConstructor} from '../../helpers/ObjectConstructor.js'
-import {ObjectParentConstructors} from '../../helpers/ObjectParentConstructors.js'
+import {ObjectConstructor} from '@lakutata/utils/helper/ObjectConstructor'
+import {ObjectParentConstructors} from '@lakutata/utils/helper/ObjectParentConstructors'
 import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
 
 

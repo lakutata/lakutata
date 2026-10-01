@@ -5,7 +5,7 @@ import {InvalidMethodAcceptException} from '../../exceptions/dto/InvalidMethodAc
 import {InvalidMethodReturnException} from '../../exceptions/dto/InvalidMethodReturnException.js'
 import {Schema} from '../validation/types/Schema.js'
 import {ArraySchema} from '../validation/interfaces/ArraySchema.js'
-import {As} from '../helpers/As.js'
+import {As} from '@lakutata/utils/helper/As'
 import {WithCause} from '../helpers/internal/WithCause.js'
 
 /**

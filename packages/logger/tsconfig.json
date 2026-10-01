@@ -42,8 +42,8 @@
       "@lakutata/core/decorator/di": [
         "../core/dist/types/exports/DIDecorators"
       ],
-      "@lakutata/core/helper": [
-        "../core/dist/types/exports/Helpers"
+      "@lakutata/utils/helper": [
+        "../utils/dist/types/exports/Helpers"
       ],
       "@lakutata/core/com/logger": [
         "../core/dist/types/exports/LoggerComponent"

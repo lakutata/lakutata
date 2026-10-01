@@ -2,7 +2,7 @@ import {after, before, it} from 'node:test'
 import {expect} from '../support/Expect.js'
 import {describeNats as describe} from '../support/App.js'
 import {Application} from '@lakutata/core'
-import {Delay} from '@lakutata/core/helper'
+import {Delay} from '@lakutata/utils/helper'
 import {
     buildNatsClientOptions,
     NATS,

@@ -1,5 +1,5 @@
 import {ActionPattern} from '@lakutata/core'
-import {SortArray} from '@lakutata/core/helper'
+import {SortArray} from '@lakutata/utils/helper'
 
 function PatternToArrayPair(pattern: ActionPattern | any): any {
     switch (typeof pattern) {

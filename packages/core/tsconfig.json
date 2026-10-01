@@ -33,7 +33,21 @@
     "skipLibCheck": true,
     "allowArbitraryExtensions": true,
     "isolatedModules": true,
-    "declarationMap": true
+    "declarationMap": true,
+    "paths": {
+      "@lakutata/utils": [
+        "../utils/dist/types/exports/Utils"
+      ],
+      "@lakutata/utils/time": [
+        "../utils/dist/types/exports/Time"
+      ],
+      "@lakutata/utils/helper": [
+        "../utils/dist/types/exports/Helpers"
+      ],
+      "@lakutata/utils/helper/*": [
+        "../utils/dist/types/lib/helpers/*"
+      ]
+    }
   },
   "exclude": [
     "node_modules",

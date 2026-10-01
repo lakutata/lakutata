@@ -1,4 +1,4 @@
-import {As} from '../helpers/As.js'
+import {As} from '@lakutata/utils/helper/As'
 
 /**
  * The application class, declared by the application module (it cannot be imported here without a cycle)

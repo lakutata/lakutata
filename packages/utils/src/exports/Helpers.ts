@@ -1,5 +1,3 @@
-import 'reflect-metadata'
-
 export * from '../lib/helpers/ArrayToSet.js'
 export * from '../lib/helpers/As.js'
 export * from '../lib/helpers/Delay.js'
@@ -53,5 +51,4 @@ export * from '../lib/helpers/URLBuilder.js'
 export * from '../lib/helpers/Statistics.js'
 export * from '../lib/helpers/UUID.js'
 export * from '../lib/helpers/ObjectPath.js'
-export * from '../dto/Paginator.js'
 export * from '../lib/helpers/MessagePack.js'

@@ -1,4 +1,4 @@
-import {As} from '../helpers/As.js'
+import {As} from '@lakutata/utils/helper/As'
 
 const OWR_SYMBOL: symbol = Symbol('OWR')//Object Weak Ref
 const OFR_SYMBOL: symbol = Symbol('OFR')//Object Finalization Registry

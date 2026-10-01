@@ -65,7 +65,8 @@
     "reflect-metadata": "0.2.2"
   },
   "peerDependencies": {
-    "@lakutata/core": "2.0.126"
+    "@lakutata/core": "2.0.126",
+    "@lakutata/utils": "2.0.126"
   },
   "engines": {
     "node": ">=22"

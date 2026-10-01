@@ -22,7 +22,7 @@ import {
 } from './Resolvers.js'
 import {isClass, nameValueToObject} from './Utils.js'
 import {GetObjectLifetime} from './ObjectLifetime.js'
-import {As} from '../helpers/As.js'
+import {As} from '@lakutata/utils/helper/As'
 import {AppendObjectWeakRefs} from './ObjectWeakRefs.js'
 
 /**
