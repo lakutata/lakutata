@@ -39,6 +39,7 @@
     "ajv-formats": "3.0.1",
     "commander": "^15.0.0",
     "compression": "^1.8.1",
+    "cron-validator": "1.4.0",
     "electron": "^44.5.1",
     "electron-builder": "^26.15.3",
     "eslint": "10.11.0",

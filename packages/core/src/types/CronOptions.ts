@@ -18,4 +18,8 @@ export type CronOptions = {
      * Allow 7 as Sunday in the field of the day of the week
      */
     allowSevenAsSunday?: boolean
+    /**
+     * Allow the nth day of the week of the month in the field of the day of the week (1#2: the second Monday)
+     */
+    allowNthWeekdayOfMonth?: boolean
 }

@@ -25,39 +25,13 @@ import {IsHtml} from '@lakutata/utils/IsHtml'
 import {IsXML} from '@lakutata/utils/IsXML'
 import {ErrorReport} from '../validation/interfaces/ErrorReport.js'
 
-//Self-implemented (replaces the `cron-validator` package dependency).
-const _isValidField = (field: string, min: number, max: number, allowBlank: boolean): boolean => {
-    if (field === '*' || (allowBlank && field === '?')) return true
-    if (field.startsWith('@')) return true
-    const [base, stepStr] = field.split('/')
-    const step = stepStr ? parseInt(stepStr, 10) : 1
-    if (isNaN(step) || step < 1) return false
-    if (base === '*') return true
-    for (const part of base.split(',')) {
-        if (part.includes('-')) {
-            const [a, b] = part.split('-').map(Number)
-            if (isNaN(a) || isNaN(b) || a < min || b > max || a > b) return false
-        } else {
-            const n = parseInt(part, 10)
-            if (isNaN(n) || n < min || n > max) return false
-        }
-    }
-    return true
-}
-function isValidCron(cron: string, opts?: CronOptions): boolean {
-    const parts = cron.trim().split(/\s+/)
-    const hasSeconds = opts?.seconds ?? false
-    const maxSun = opts?.allowSevenAsSunday ? 7 : 6
-    const ranges = hasSeconds ? [[0,59],[0,59],[0,23],[1,31],[1,12],[0,maxSun]] : [[0,59],[0,23],[1,31],[1,12],[0,maxSun]]
-    if (parts.length !== ranges.length) return false
-    return parts.every((p, i) => _isValidField(p, ranges[i][0], ranges[i][1], !!opts?.allowBlankDay))
-}
 import {ReferenceOptions} from '../validation/interfaces/ReferenceOptions.js'
 import {Reference} from '../validation/interfaces/Reference.js'
 import {LinkSchema} from '../validation/interfaces/LinkSchema.js'
 import {BigIntSchema} from '../validation/interfaces/BigIntSchema.js'
 import {pure} from '../validation/engine/schema/fastpath.js'
 import {type CronOptions} from '../../types/CronOptions.js'
+import {IsValidCron} from './internal/CronValidator.js'
 
 export class DataValidator {
 
@@ -214,13 +188,17 @@ export class DataValidator {
      * @constructor
      */
     public static Cron<TSchema = string>(options?: CronOptions): StringSchema<TSchema> {
+        //The defaults of 2.x for the options not given (undefined): the seconds allowed, "?" for a day, 7 as Sunday; the
+        //options given are left unchanged
+        const cronOptions: CronOptions = {
+            ...options,
+            alias: options?.alias !== undefined ? options.alias : false,
+            seconds: options?.seconds !== undefined ? options.seconds : true,
+            allowBlankDay: options?.allowBlankDay !== undefined ? options.allowBlankDay : true,
+            allowSevenAsSunday: options?.allowSevenAsSunday !== undefined ? options.allowSevenAsSunday : true
+        }
         return this.String<TSchema>().custom(pure((value: TSchema, helpers: CustomHelpers) => {
-            options = options ? options : {}
-            options.alias = options.alias !== undefined ? options.alias : false
-            options.seconds = options.seconds !== undefined ? options.seconds : true
-            options.allowBlankDay = options.allowBlankDay !== undefined ? options.allowBlankDay : true
-            options.allowSevenAsSunday = options.allowSevenAsSunday !== undefined ? options.allowSevenAsSunday : true
-            if (typeof value === 'string' && isValidCron(value, options)) return value
+            if (typeof value === 'string' && IsValidCron(value, cronOptions)) return value
             return helpers.error('any.invalid')
         }), 'Cron Validation')
     }
