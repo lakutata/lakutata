@@ -9,5 +9,8 @@
     "noEmit": true,
     "skipLibCheck": true
   },
-  "include": ["consumer.types.ts"]
+  "include": [
+    "consumer.types.ts",
+    "type-safety.ts"
+  ]
 }
