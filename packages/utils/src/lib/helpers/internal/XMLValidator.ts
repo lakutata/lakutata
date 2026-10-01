@@ -1,7 +1,8 @@
 /**
  * Derived from src/validator.js and src/util.js of fast-xml-parser 4.5.3 (MIT, see THIRD_PARTY_NOTICES.md): its
  * validation with the boolean attributes allowed and no unpaired tag, giving whether the document is valid (the
- * errors, their messages and their positions are not computed)
+ * errors, their messages and their positions are not computed). Fixed: a self closing root element closes the root, so
+ * a text or an element after it is invalid (the upstream accepts them)
  */
 
 const NAME_START_CHAR: string = ':A-Za-z_\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD'
@@ -220,6 +221,10 @@ export function ValidateXML(xml: string): boolean {
                 //A self closing tag
                 attributes = attributes.substring(0, attributes.length - 1)
                 if (!ValidateAttributes(attributes)) return false
+                //A second root element (the upstream does not check it for a self closing tag)
+                if (reachedRoot) return false
+                //A self closing root element is the whole root (the upstream accepts anything after it)
+                if (tags.length === 0) reachedRoot = true
                 tagFound = true
             } else if (closingTag) {
                 if (!read.tagClosed || attributes.trim().length > 0 || tags.length === 0) return false

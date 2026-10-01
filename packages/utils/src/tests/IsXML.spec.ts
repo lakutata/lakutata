@@ -12,6 +12,16 @@ function Upstream(xml: string): boolean {
 }
 
 /**
+ * The upstream accepts a text or an element after a self closing root element (<a/>text): the port does not. The
+ * reference is the upstream on the document with its self closing tags written as an opening and a closing tag, which
+ * the upstream validates correctly
+ * @param xml
+ */
+function Reference(xml: string): boolean {
+    return Upstream(xml.replace(/<([^\s<>/!?"'=]+)((?:\s(?:[^<>"']|"[^"]*"|'[^']*')*?)?)\/>/g, '<$1$2></$1>'))
+}
+
+/**
  * A pseudo random generator with a seed (mulberry32), so the generated documents are the same on every run
  * @param seed
  */
@@ -51,23 +61,28 @@ describe('IsXML', (): void => {
         for (const xml of [
             '', 'not xml at all', '{"json": true}', '<a><b></a>', '<a>', '</a>', '<a></a><b></b>', '<a></a>text',
             '<a x="1"y="2"/>', '<a x=/>', '<a x="1" x="2"/>', '<1a/>', '<a>&;</a>', '<a>&#xZ;</a>', '<a x="1/>',
+            '<a/>text', '<a/><b/>', '<a x="1"/><b></b>',
             '      <?xml version="1.0"?><a/>'
         ]) assert.strictEqual(IsXML(xml), false, xml)
         assert.strictEqual(IsXML(undefined as unknown as string), false)
     })
 
-    it('validates as the upstream validator', (): void => {
+    it('validates as the upstream validator, a self closing root element closing the root', (): void => {
         const random: () => number = Random(20261001)
         let valid: number = 0
+        //The documents the fix changes: the upstream accepts them
+        let fixed: number = 0
         for (let run: number = 0; run < 20000; run++) {
             const length: number = 1 + Math.floor(random() * 12)
             let xml: string = ''
             for (let piece: number = 0; piece < length; piece++) xml += PIECES[Math.floor(random() * PIECES.length)]
-            const expected: boolean = Upstream(xml)
+            const expected: boolean = Reference(xml)
             if (expected) valid++
+            if (expected !== Upstream(xml)) fixed++
             assert.strictEqual(IsXML(xml), expected, JSON.stringify(xml))
         }
         //The generated documents are valid and invalid
         assert.ok(valid > 100, `${valid} valid documents`)
+        assert.ok(fixed > 0, `${fixed} documents changed by the fix`)
     })
 })

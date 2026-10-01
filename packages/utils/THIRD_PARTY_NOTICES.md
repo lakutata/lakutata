@@ -30,7 +30,8 @@ The validation of the XML documents of `IsXML`: `src/lib/helpers/internal/XMLVal
 `src/util.js`.
 
 Modifications: rewritten in TypeScript, with the boolean attributes allowed and no unpaired tag, giving whether the
-document is valid without computing the errors and their positions.
+document is valid without computing the errors and their positions; a self closing root element closes the root (a
+text or an element after it is invalid).
 
 MIT License
 
