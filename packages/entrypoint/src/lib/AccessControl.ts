@@ -18,7 +18,7 @@ import {IBaseObjectConstructor} from '@lakutata/core'
 import {DTO} from '@lakutata/core'
 import {FunctionSchema} from '@lakutata/core'
 import {As} from '@lakutata/utils/helper'
-import {IsSubclassOf} from '@lakutata/core/internal'
+import {IsSubclassOf} from '@lakutata/utils/helper'
 
 export class AccessControl extends BaseObject {
 
