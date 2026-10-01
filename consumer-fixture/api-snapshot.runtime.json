@@ -228,6 +228,7 @@
     "GetObjectNestingDepth",
     "GetObjectPropertyPaths",
     "Glob",
+    "GlobSync",
     "GraceExit",
     "HexToIEEE754",
     "HexToSigned",

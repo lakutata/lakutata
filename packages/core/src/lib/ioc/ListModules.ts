@@ -1,4 +1,4 @@
-import {globSync} from 'glob'
+import {GlobSync} from '@lakutata/utils/helper/Glob'
 import * as path from 'path'
 import {flatten} from './Utils.js'
 import {BuildResolverOptions, type ResolverOptions} from './Resolvers.js'
@@ -37,7 +37,7 @@ export type GlobWithOptions =
  * @param options
  */
 function defaultGlob(pattern: string, options: { cwd: string }): string[] {
-    return globSync(pattern, {cwd: options.cwd, nodir: true, follow: true})
+    return GlobSync(pattern, {cwd: options.cwd, nodir: true, follow: true})
 }
 
 // Regex to extract the module name.

@@ -84,7 +84,6 @@
   },
   "dependencies": {
     "@lakutata/utils": "2.0.126",
-    "glob": "13.0.0",
     "reflect-metadata": "0.2.2"
   },
   "engines": {
