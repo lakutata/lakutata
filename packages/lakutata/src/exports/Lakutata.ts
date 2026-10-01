@@ -1,4 +1,3 @@
-import 'reflect-metadata'
 import {Application} from '@lakutata/core'
 import {Logger} from '@lakutata/logger'
 import {Entrypoint} from '@lakutata/entrypoint'
