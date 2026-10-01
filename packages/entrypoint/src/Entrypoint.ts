@@ -15,6 +15,7 @@ import {JSONSchema} from '@lakutata/core'
 import {Container} from '@lakutata/core'
 import {DevNull} from '@lakutata/utils/helper'
 import {DTO} from '@lakutata/core'
+import {GetMethodReturnSchema} from '@lakutata/core/decorator/dto'
 import {Singleton} from '@lakutata/core/decorator/di'
 import type {BaseObject, IBaseObjectConstructor} from '@lakutata/core'
 import {DuplicateActionNameException} from './exceptions/DuplicateActionNameException.js'
@@ -408,7 +409,7 @@ export class Entrypoint extends Component {
             entries.push({
                 details: details,
                 info: info,
-                address: {...info, address: details.pattern, dto: details.dtoConstructor},
+                address: {...info, address: details.pattern, dto: details.dtoConstructor, returnSchema: GetMethodReturnSchema(details.constructor.prototype, As<string | symbol>(details.method))},
                 middlewares: [
                     ...GetClassMiddlewares(details.constructor),
                     ...details.middlewares,

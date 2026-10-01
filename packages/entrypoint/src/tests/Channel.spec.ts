@@ -2,7 +2,7 @@ import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {Component, Container, DTO} from '@lakutata/core'
 import type {ActionPattern} from '@lakutata/core'
-import {Expect} from '@lakutata/core/decorator/dto'
+import {Expect, Return} from '@lakutata/core/decorator/dto'
 import {Autoload, Singleton} from '@lakutata/core/decorator/di'
 import {
     ActionInvocation,
@@ -121,6 +121,7 @@ class DeviceController extends Controller {
 
     @TestAction('/{sn}', DeviceDTO)
     @ServiceAction({act: 'device'}, DeviceDTO)
+    @Return(DeviceDTO)
     public async device(input: DeviceDTO): Promise<DeviceDTO> {
         trace.push('action')
         return input
@@ -164,6 +165,9 @@ describe('Channels', (): void => {
         const adapter = TestAdapter()
         const {container} = await Create({test: adapter})
         const action: ChannelActionInfo = adapter.runtime!.actions[0]
+        //The schema of the result declared with @Return, given to the channels
+        assert.ok(action.returnSchema)
+        assert.strictEqual(adapter.runtime!.actions[1].returnSchema, undefined)
         assert.deepStrictEqual(await adapter.runtime!.dispatchTo(action, new TestContext({path: 'direct', data: {sn: 'data'}}), {params: {sn: 'param'}}), {sn: 'param'})
         await container.destroy()
     })

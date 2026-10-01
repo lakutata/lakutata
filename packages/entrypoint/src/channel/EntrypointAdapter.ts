@@ -1,4 +1,4 @@
-import type {ActionPattern, BaseObject, DTO, IBaseObjectConstructor, JSONSchema, Module} from '@lakutata/core'
+import type {ActionPattern, BaseObject, DTO, IBaseObjectConstructor, JSONSchema, Module, Schema} from '@lakutata/core'
 import type {Controller} from '../lib/Controller.js'
 import type {BaseContext} from '../context/BaseContext.js'
 import type {BaseActionInfo} from '../Entrypoint.js'
@@ -32,6 +32,10 @@ export type ChannelActionInfo = BaseActionInfo & Record<string, unknown> & {
      * The DTO of the input of the action
      */
     readonly dto: typeof DTO
+    /**
+     * The schema of the result of the action, declared with @Return (undefined without it)
+     */
+    readonly returnSchema: Schema | undefined
 }
 
 /**

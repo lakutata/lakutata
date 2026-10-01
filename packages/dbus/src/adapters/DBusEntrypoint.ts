@@ -1,8 +1,6 @@
 import EventEmitter from 'node:events'
 import {FlexibleDTO} from '@lakutata/core/dtos'
-import {GetMethodReturnSchema} from '@lakutata/core/internal'
-import type {IBaseObjectConstructor, Schema} from '@lakutata/core'
-import type {ChannelActionInfo, ChannelRuntime, Controller, EntrypointAdapter, MiddlewareDefinition} from '@lakutata/entrypoint'
+import type {ChannelActionInfo, ChannelRuntime, EntrypointAdapter, MiddlewareDefinition} from '@lakutata/entrypoint'
 import {DBusSignedValue, LocalInterface, LocalObject, LocalService, RequestNameFlags, RequestNameResultCode} from 'dbus-sdk'
 import type {ConnectOpts} from 'dbus-sdk'
 import {DBusChannel} from '../channel/DBusChannel.js'
@@ -125,14 +123,11 @@ export function DBusEntrypoint(options: DBusEntrypointOptions): EntrypointAdapte
 
     /**
      * The signature of the result of a method: its returns option, or the schema of @Return
-     * @param runtime
      * @param action
      */
-    const resultSignature = (runtime: ChannelRuntime<DBusContext>, action: ChannelActionInfo): string | undefined => {
+    const resultSignature = (action: ChannelActionInfo): string | undefined => {
         if (action.address.returns !== undefined) return action.address.returns
-        const controller: IBaseObjectConstructor<Controller> | undefined = runtime.controllers.find((candidate: IBaseObjectConstructor<Controller>): boolean => candidate.name === action.controller)
-        const schema: Schema | undefined = controller ? GetMethodReturnSchema(controller.prototype, action.method) : undefined
-        return schema ? SchemaSignature(schema) : undefined
+        return action.returnSchema ? SchemaSignature(action.returnSchema) : undefined
     }
 
     return {
@@ -157,7 +152,7 @@ export function DBusEntrypoint(options: DBusEntrypointOptions): EntrypointAdapte
             const buildInterface = (path: string, name: string, served: { declaration?: DBusInterfaceDeclaration, methods: ChannelActionInfo[] }, variables: Record<string, string>, object: ExportedObject): LocalInterface => {
                 const localInterface: LocalInterface = new LocalInterface(name)
                 for (const action of served.methods) {
-                    const returns: string | undefined = resultSignature(runtime, action)
+                    const returns: string | undefined = resultSignature(action)
                     const hasInput: boolean = action.dto !== FlexibleDTO
                     localInterface.defineMethod({
                         name: action.address.member,

@@ -467,6 +467,7 @@
   "lakutata/decorator/dto": [
     "Accept",
     "Expect",
+    "GetMethodReturnSchema",
     "IndexSignature",
     "Return"
   ],
