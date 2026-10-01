@@ -1,7 +1,6 @@
-import {Component, DTO} from '@lakutata/core'
+import {Application, Component, DTO} from '@lakutata/core'
 import {Configurable, Singleton} from '@lakutata/core/decorator/di'
 import type {ILogger} from '@lakutata/core/com/logger'
-import {GetAppName} from '@lakutata/core/internal'
 import {Stream} from 'node:stream'
 import {Bindings, BuildRecord, LEVELS, LogBindings, LogRecord} from './lib/Record.js'
 import {Pretty} from './lib/Pretty.js'
@@ -75,7 +74,7 @@ export class Logger extends Component implements ILogger {
      */
     protected async init(): Promise<void> {
         this.#threshold = LEVELS[this.level]
-        this.#bindings = Bindings(GetAppName())
+        this.#bindings = Bindings(Application.appName)
         this.#outputs = this.destinations.map((stream: NodeJS.WritableStream): Output => ({
             destination: new Destination(stream, this.sync),
             palette: this.pretty ? (stream === process.stdout && this.colorize ? COLOR_PALETTE : PLAIN_PALETTE) : undefined

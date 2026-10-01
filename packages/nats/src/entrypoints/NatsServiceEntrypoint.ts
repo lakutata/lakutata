@@ -1,5 +1,5 @@
 import type {Subscription} from 'nats'
-import {GetAppId} from '@lakutata/core/internal'
+import {Application} from '@lakutata/core'
 import {ServiceContext} from '@lakutata/entrypoint'
 import type {EntrypointAdapter} from '@lakutata/entrypoint'
 import {ServiceChannel, ServiceResponseCodec} from '@lakutata/entrypoint/channel'
@@ -41,7 +41,7 @@ export function NatsServiceEntrypoint(natsComponentName: string, options: NatsSe
         middlewares: options.middlewares,
         start: async (runtime: ChannelRuntime<ServiceContext>): Promise<void> => {
             const nats: NATS = await runtime.module.getObject<NATS>(natsComponentName)
-            const subject: string = options.subject ?? GetAppId()
+            const subject: string = options.subject ?? Application.appId
             subscription = nats.subscribe(subject, async (payload: Record<string, unknown>): Promise<ServiceResponse> => {
                 try {
                     return ServiceResponseCodec.encode(await runtime.dispatch(new ServiceContext({data: payload})), false)

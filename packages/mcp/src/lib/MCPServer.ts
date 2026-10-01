@@ -1,5 +1,4 @@
-import type {JSONSchema} from '@lakutata/core'
-import {GetAppName} from '@lakutata/core/internal'
+import {Application, type JSONSchema} from '@lakutata/core'
 import type {ChannelActionInfo, ChannelRuntime} from '@lakutata/entrypoint'
 import {McpServer, ProtocolError, ProtocolErrorCode, ResourceTemplate} from '@modelcontextprotocol/server'
 import type {CallToolResult, GetPromptResult, ReadResourceResult, ServerContext, StandardSchemaWithJSON, Variables} from '@modelcontextprotocol/server'
@@ -174,7 +173,7 @@ function RegisterPrompt(server: McpServer, runtime: ChannelRuntime<MCPContext>, 
  */
 export function BuildMCPServer(runtime: ChannelRuntime<MCPContext>, info: MCPServerInfo = {}, subscriptions?: Set<string>): McpServer {
     const server: McpServer = new McpServer({
-        name: info.serverName ?? GetAppName() ?? 'lakutata',
+        name: info.serverName ?? Application.appName ?? 'lakutata',
         version: info.serverVersion ?? '1.0.0'
     }, {instructions: info.instructions})
     for (const action of runtime.actions) {

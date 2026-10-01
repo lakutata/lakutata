@@ -422,6 +422,20 @@ export class Application extends Module {
     }
 
     /**
+     * The ID of the application, available before the application is created ("Unknown" until its options are loaded)
+     */
+    public static get appId(): string {
+        return GetAppId()
+    }
+
+    /**
+     * The name of the application, available before the application is created ("Unknown" until its options are loaded)
+     */
+    public static get appName(): string {
+        return GetAppName()
+    }
+
+    /**
      * Get application's ID
      */
     public get appId(): string {

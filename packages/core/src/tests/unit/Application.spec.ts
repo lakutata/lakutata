@@ -48,6 +48,7 @@ const PRINT: string = `
 .onLaunched(async (app, logger) => {
     const has = async (name) => app.getObject(name).then(() => true, () => false)
     console.log('RESULT ' + JSON.stringify({
+        identity: [Application.appId, Application.appName],
         logger: logger.constructor.name,
         log: await has('log') ? (await app.getObject('log')).constructor.name : null,
         service: await has('service'),
@@ -61,7 +62,7 @@ describe('The applications', (): void => {
     it('have no preset object: they log to the console without "log" component', (): void => {
         const {status, result, output} = RunApplication(`Application.run({id: 'test', name: 'Test'})${PRINT}`)
         assert.strictEqual(status, 0, output)
-        assert.deepStrictEqual(result, {logger: 'ConsoleLogger', log: null, service: false, bootstrapped: []})
+        assert.deepStrictEqual(result, {identity: ['test', 'Test'], logger: 'ConsoleLogger', log: null, service: false, bootstrapped: []})
     })
 
     it('load the preset objects, and run the preset bootstrap first', (): void => {
@@ -72,7 +73,7 @@ Application.preset({
 })
 Application.run({id: 'test', name: 'Test', bootstrap: [async () => bootstrapped.push('run')]})${PRINT}`)
         assert.strictEqual(status, 0, output)
-        assert.deepStrictEqual(result, {logger: 'MemoryLogger', log: 'MemoryLogger', service: true, bootstrapped: ['preset', 'run']})
+        assert.deepStrictEqual(result, {identity: ['test', 'Test'], logger: 'MemoryLogger', log: 'MemoryLogger', service: true, bootstrapped: ['preset', 'run']})
     })
 
     it('replace the preset objects by the objects of the same name given to run, or add their options', (): void => {
@@ -80,7 +81,7 @@ Application.run({id: 'test', name: 'Test', bootstrap: [async () => bootstrapped.
 Application.preset({components: {log: {class: MemoryLogger}, service: {class: Service}}})
 Application.run({id: 'test', name: 'Test', components: {log: {class: OtherLogger}, service: {}}})${PRINT}`)
         assert.strictEqual(status, 0, output)
-        assert.deepStrictEqual(result, {logger: 'OtherLogger', log: 'OtherLogger', service: true, bootstrapped: []})
+        assert.deepStrictEqual(result, {identity: ['test', 'Test'], logger: 'OtherLogger', log: 'OtherLogger', service: true, bootstrapped: []})
     })
 
     it('add each preset to the previous ones', (): void => {
@@ -90,6 +91,6 @@ Application.preset({components: {log: {class: MemoryLogger}}, bootstrap: [first]
 Application.preset({components: {log: {class: OtherLogger}, service: {class: Service}}, bootstrap: [first, async () => bootstrapped.push('second')]})
 Application.run({id: 'test', name: 'Test'})${PRINT}`)
         assert.strictEqual(status, 0, output)
-        assert.deepStrictEqual(result, {logger: 'OtherLogger', log: 'OtherLogger', service: true, bootstrapped: ['first', 'second']})
+        assert.deepStrictEqual(result, {identity: ['test', 'Test'], logger: 'OtherLogger', log: 'OtherLogger', service: true, bootstrapped: ['first', 'second']})
     })
 })
