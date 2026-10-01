@@ -1,5 +1,4 @@
 import {Component} from '@lakutata/core'
-import {Time} from '@lakutata/utils/Time'
 import {Inject} from '@lakutata/core/decorator/di'
 import type {Logger} from '@lakutata/logger'
 

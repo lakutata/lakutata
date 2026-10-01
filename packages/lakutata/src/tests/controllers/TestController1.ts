@@ -1,11 +1,8 @@
-import {Controller, ContextType, HTTPContext} from '@lakutata/entrypoint'
+import {Controller, ContextType} from '@lakutata/entrypoint'
 import {Inject} from '@lakutata/core/decorator/di'
 import {CLIAction, HTTPAction, ServiceAction, GET} from '@lakutata/entrypoint/decorator/ctrl'
 import {DTO, type ActionPattern} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
-import {As} from '@lakutata/utils'
-import {isProxy} from 'node:util/types'
-import {Time} from '@lakutata/utils/Time'
 import {Logger} from '@lakutata/logger'
 import {Application} from '../../exports/Lakutata.js'
 import {After} from '@lakutata/core/decorator/asst'
@@ -50,7 +47,7 @@ export class TestController1 extends Controller {
     @After(async function (result) {
         console.log(this.context, 'result:', result)
     })
-    public async test(inp) {
+    public async test() {
         // setImmediate(()=>{
         //     this.app.reload()
         // })
@@ -58,7 +55,7 @@ export class TestController1 extends Controller {
     }
 
     @HTTPAction('/test1', ['GET', 'POST'])
-    public async test2(inp) {
+    public async test2() {
         return 'oh!!'
     }
 
@@ -71,7 +68,7 @@ export class TestController1 extends Controller {
         // allow: async function (this: TestController1, inp: ActionPattern<TestDTO>) {
         //     return true
         // }
-        rule: async function (this: TestController1, context, input: ActionPattern) {
+        rule: async function (this: TestController1) {
             // console.log(context)
             console.log('this from rule handler')
             return true

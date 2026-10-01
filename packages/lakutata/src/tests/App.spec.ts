@@ -2,9 +2,9 @@ import {Application} from '../exports/Lakutata.js'
 import {TestComponent} from './components/TestComponent.js'
 import {TestProvider} from './providers/TestProvider.js'
 import {TestController1} from './controllers/TestController1.js'
-import {HTTPContext, CLIContext, ServiceContext, BuildCLIEntrypoint, BuildEntrypoints, BuildHTTPEntrypoint, BuildServiceEntrypoint, Entrypoint, AccessControl} from '@lakutata/entrypoint'
+import {HTTPContext, CLIContext, ServiceContext, BuildCLIEntrypoint, BuildEntrypoints, BuildHTTPEntrypoint, BuildServiceEntrypoint, Entrypoint} from '@lakutata/entrypoint'
 import Fastify from 'fastify'
-import {As, DevNull, MD5, SHA1, SHA256, Glob, MessagePack} from '@lakutata/utils'
+import {As, DevNull, MessagePack} from '@lakutata/utils'
 import {Command} from 'commander'
 import {createInterface} from 'node:readline'
 import {Server as SocketIOServer} from 'socket.io'
@@ -20,9 +20,6 @@ import {DataObjectDTO} from './dto/DataObjectDTO.js'
 import {DTO} from '@lakutata/core'
 import {BuildDatabaseOptions, Database} from '@lakutata/orm/com/database'
 import {TestEntity} from './entities/TestEntity.js'
-import {glob} from 'glob'
-import {Expect} from '@lakutata/core/decorator/dto'
-import {DateObjectDTO} from './dto/DateObjectDTO.js'
 import {TestProvider4} from './providers/TestProvider4.js'
 
 Application
@@ -192,7 +189,7 @@ Application
         // console.log('SHA1(\'test\').toString():', SHA1('test').toString('base64'))
         // console.log('SHA256(\'test\').toString():', SHA256('test').toString('base64'))
 
-        const testProvider: TestProvider3 = await app.getObject('testProvider3')
+        await app.getObject<TestProvider3>('testProvider3')
         const ph: PasswordHash = await app.getObject('passwordHash')
         const hashed: string = await ph.hash('test123')
         const invalid: boolean = await ph.validate('test1234', hashed)
@@ -250,9 +247,9 @@ Application
         console.log('2:', DataObjectDTO.validate(testModel))
         console.log('3:', DataObjectDTO.validate(testModel))
 
-        const testObj = DataObjectDTO.validate(testModel)
+        DataObjectDTO.validate(testModel)
 
-        const docker = await app.getObject<Docker>('docker')
+        await app.getObject<Docker>('docker')
 
         const tp4=await app.getObject<TestProvider4>('tp4')
 
@@ -282,7 +279,7 @@ Application
     .onDone(async (app, log) => {
         log.info('Application %s done', app.appName)
     })
-    .onFatalException((error, log) => {
+    .onFatalException((error) => {
         // log.error('Application error: %s', error.message)
         console.error(error)
         return 100

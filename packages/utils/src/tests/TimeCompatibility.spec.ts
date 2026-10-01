@@ -4,7 +4,6 @@
  */
 // @ts-nocheck
 import {describe, it} from 'node:test'
-import assert from 'node:assert'
 import moment from 'moment-timezone'
 import {Time} from '../exports/Utils.js'
 
@@ -81,7 +80,8 @@ describe('Time compatibility with moment', () => {
             const kinds = {}
             for (const failure of failures) {
                 const kind = failure.replace(/^\S+ \S+ /, '').split(':')[0].replace(/-?[\d.]+/g, 'n')
-                kinds[failure] = failure
+                //The first failure of each kind
+                kinds[kind] ??= failure
             }
             throw new Error(`${failures.length} differences:\n${Object.values(kinds).slice(0, 40).join('\n')}`)
         }
