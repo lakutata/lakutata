@@ -23,6 +23,11 @@ export default defineConfig([
             '@stylistic/semi': ['error', 'never'],
             '@stylistic/comma-dangle': ['error', 'never'],
             '@stylistic/no-extra-semi': 'error',
+            //The members of the types: one per line without delimiter, or on one line separated by commas
+            '@stylistic/member-delimiter-style': ['error', {
+                multiline: {delimiter: 'none'},
+                singleline: {delimiter: 'comma', requireLast: false}
+            }],
             //A destructuring is const when all its variables are
             'prefer-const': ['error', {destructuring: 'all'}],
             //An import of a module per file (the type imports inline: import {type A, B})
