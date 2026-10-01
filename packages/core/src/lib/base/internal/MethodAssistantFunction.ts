@@ -1,6 +1,6 @@
 import {isAsyncFunction} from 'node:util/types'
 import {InvalidAssistantFunctionTypeException} from '../../../exceptions/InvalidAssistantFunctionTypeException.js'
-import {As} from '@lakutata/utils/helper/As'
+import {As} from '@lakutata/utils/As'
 
 const ASST_BEFORE_FUNC_SET: symbol = Symbol('ASST.BEFORE.FUNC.SET')
 const ASST_AFTER_FUNC_SET: symbol = Symbol('ASST.AFTER.FUNC.SET')

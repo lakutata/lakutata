@@ -6,7 +6,7 @@ import {
     SetObjectInjectItem
 } from '../../lib/base/internal/ObjectInjection.js'
 import {isClass} from '../../lib/ioc/Utils.js'
-import {As} from '@lakutata/utils/helper/As'
+import {As} from '@lakutata/utils/As'
 
 /**
  *

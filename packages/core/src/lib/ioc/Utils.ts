@@ -1,6 +1,6 @@
 import {Constructor} from './Resolvers.js'
-import {IsSymbol} from '@lakutata/utils/helper/IsSymbol'
-import {As} from '@lakutata/utils/helper/As'
+import {IsSymbol} from '@lakutata/utils/IsSymbol'
+import {As} from '@lakutata/utils/As'
 
 /**
  * Quick flatten utility to flatten a 2-dimensional array.

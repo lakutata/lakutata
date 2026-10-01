@@ -4,7 +4,7 @@ import {DTO} from '../../lib/dto/DTO.js'
 import {Expect} from '../../decorators/dto/Expect.js'
 import {Accept} from '../../decorators/dto/Accept.js'
 import {Return} from '../../decorators/dto/Return.js'
-import {DevNull} from '@lakutata/utils/helper/DevNull'
+import {DevNull} from '@lakutata/utils/DevNull'
 import {IndexSignature} from '../../decorators/dto/IndexSignature.js'
 
 class CachedParentDTO extends DTO {

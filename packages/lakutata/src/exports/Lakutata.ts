@@ -12,4 +12,4 @@ Application.preset({
 })
 
 export * from '@lakutata/core'
-export {Time} from '@lakutata/utils/time'
+export {Time} from '@lakutata/utils/Time'

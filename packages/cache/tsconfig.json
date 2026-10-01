@@ -45,16 +45,13 @@
       "@lakutata/core/decorator/dto": [
         "../core/dist/types/exports/DTODecorators"
       ],
-      "@lakutata/utils/helper": [
-        "../utils/dist/types/exports/Helpers"
-      ],
       "@lakutata/utils": [
         "../utils/dist/types/exports/Utils"
       ],
-      "@lakutata/utils/time": [
-        "../utils/dist/types/exports/Time"
+      "@lakutata/utils/Time": [
+        "../utils/dist/types/lib/Time"
       ],
-      "@lakutata/utils/helper/*": [
+      "@lakutata/utils/*": [
         "../utils/dist/types/lib/helpers/*"
       ]
     }

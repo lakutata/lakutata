@@ -1,6 +1,6 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
-import {CloneDeep} from '../exports/Helpers.js'
+import {CloneDeep} from '../exports/Utils.js'
 
 class Point {
     constructor(public x: number, public y: number) {

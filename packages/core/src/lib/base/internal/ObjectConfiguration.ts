@@ -2,9 +2,9 @@ import {BaseObject} from '../BaseObject.js'
 import {DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES} from '../../../constants/DIMetadataKey.js'
 import {DTO} from '../../dto/DTO.js'
 import {Schema} from '../../validation/types/Schema.js'
-import {ObjectConstructor} from '@lakutata/utils/helper/ObjectConstructor'
-import {ObjectParentConstructors} from '@lakutata/utils/helper/ObjectParentConstructors'
-import {As} from '@lakutata/utils/helper/As'
+import {ObjectConstructor} from '@lakutata/utils/ObjectConstructor'
+import {ObjectParentConstructors} from '@lakutata/utils/ObjectParentConstructors'
+import {As} from '@lakutata/utils/As'
 
 export type ObjectConfigurablePropertyMap<DataType = any> = Map<string | symbol, {
     schema: Schema<DataType>

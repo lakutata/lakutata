@@ -17,8 +17,8 @@ import {AccessControlRule, AccessControlRuleHandler} from './AccessControlRule.j
 import {IBaseObjectConstructor} from '@lakutata/core'
 import {DTO} from '@lakutata/core'
 import {FunctionSchema} from '@lakutata/core'
-import {As} from '@lakutata/utils/helper'
-import {IsSubclassOf} from '@lakutata/utils/helper'
+import {As} from '@lakutata/utils'
+import {IsSubclassOf} from '@lakutata/utils'
 
 export class AccessControl extends BaseObject {
 

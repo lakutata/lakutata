@@ -42,11 +42,17 @@
       "@lakutata/core/decorator/di": [
         "../core/dist/types/exports/DIDecorators"
       ],
-      "@lakutata/utils/helper": [
-        "../utils/dist/types/exports/Helpers"
-      ],
       "@lakutata/core/com/logger": [
         "../core/dist/types/exports/LoggerComponent"
+      ],
+      "@lakutata/utils": [
+        "../utils/dist/types/exports/Utils"
+      ],
+      "@lakutata/utils/Time": [
+        "../utils/dist/types/lib/Time"
+      ],
+      "@lakutata/utils/*": [
+        "../utils/dist/types/lib/helpers/*"
       ]
     }
   },

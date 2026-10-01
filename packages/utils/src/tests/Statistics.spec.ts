@@ -2,7 +2,7 @@ import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import * as Upstream from 'simple-statistics'
 import * as Port from '../lib/helpers/internal/SimpleStatistics.js'
-import {Statistics} from '../exports/Helpers.js'
+import {Statistics} from '../exports/Utils.js'
 
 /**
  * A pseudo random generator with a seed (mulberry32)

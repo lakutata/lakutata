@@ -4,7 +4,7 @@ import {mkdir, mkdtemp, rm, symlink, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {glob as UpstreamGlob, globSync as UpstreamGlobSync} from 'glob'
-import {Glob, GlobSync, type GlobOptions} from '../exports/Helpers.js'
+import {Glob, GlobSync, type GlobOptions} from '../exports/Utils.js'
 
 /**
  * The files of the tree of the tests

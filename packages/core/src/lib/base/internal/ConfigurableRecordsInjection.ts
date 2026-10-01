@@ -2,7 +2,7 @@ import {BaseObject} from '../BaseObject.js'
 import {DI_TARGET_ID} from '../../../constants/DIMetadataKey.js'
 import {ConstructorSymbol} from '../../ioc/ConstructorSymbol.js'
 import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
-import {As} from '@lakutata/utils/helper/As'
+import {As} from '@lakutata/utils/As'
 
 /**
  * Set configurable records to target constructor with its registration name

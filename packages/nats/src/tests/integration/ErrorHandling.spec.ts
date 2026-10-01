@@ -4,7 +4,7 @@ import {describeNats as describe} from '../support/App.js'
 import {Application} from '@lakutata/core'
 import {BuildEntrypoints, Controller} from '@lakutata/entrypoint'
 import {ServiceAction} from '@lakutata/entrypoint/decorator/ctrl'
-import {Delay} from '@lakutata/utils/helper'
+import {Delay} from '@lakutata/utils'
 import {Codec} from 'nats'
 import {
     buildNatsClientOptions,

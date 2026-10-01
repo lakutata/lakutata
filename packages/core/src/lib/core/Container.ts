@@ -24,10 +24,10 @@ import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js
 import {LifetimeType} from '../ioc/Lifetime.js'
 import {ReportDestroyError} from '../foundation/LifecycleErrorReporter.js'
 import {ThrowWarning} from '../foundation/ThrowWarning.js'
-import {IsSubclassOf} from '@lakutata/utils/helper/IsSubclassOf'
+import {IsSubclassOf} from '@lakutata/utils/IsSubclassOf'
 import {ObjectDestroyedException} from '../../exceptions/ObjectDestroyedException.js'
-import {As} from '@lakutata/utils/helper/As'
-import {IsEmptyObject} from '@lakutata/utils/helper/IsEmptyObject'
+import {As} from '@lakutata/utils/As'
+import {IsEmptyObject} from '@lakutata/utils/IsEmptyObject'
 import {AppendObjectWeakRefs, ClearObjectWeakRefs, GetObjectWeakRefs} from '../ioc/ObjectWeakRefs.js'
 
 export const containerSymbol: symbol = Symbol('LAKUTATA.DI.CONTAINER.SYMBOL')

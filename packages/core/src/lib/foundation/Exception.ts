@@ -1,8 +1,8 @@
 import {GetAppId, GetAppName} from './BasicInfo.js'
-import {Templating} from '@lakutata/utils/helper/Templating'
-import {As} from '@lakutata/utils/helper/As'
+import {Templating} from '@lakutata/utils/Templating'
+import {As} from '@lakutata/utils/As'
 import {CamelCase} from '../helpers/internal/CamelCase.js'
-import {DevNull} from '@lakutata/utils/helper/DevNull'
+import {DevNull} from '@lakutata/utils/DevNull'
 
 //Self-implemented (replaces the `format` package dependency).
 //Handles both {N} positional and %s/%d/%j/%o printf-style placeholders.

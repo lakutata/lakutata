@@ -1,7 +1,7 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {XMLValidator} from 'fast-xml-parser'
-import {IsXML} from '../exports/Helpers.js'
+import {IsXML} from '../exports/Utils.js'
 
 /**
  * The validation of the upstream (fast-xml-parser 4.5.3), the reference of the port

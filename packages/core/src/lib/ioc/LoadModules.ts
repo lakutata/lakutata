@@ -11,7 +11,7 @@ import {
 } from './Resolvers.js'
 import {isClass, isFunction} from './Utils.js'
 import {CamelCase} from '../helpers/internal/CamelCase.js'
-import {As} from '@lakutata/utils/helper/As'
+import {As} from '@lakutata/utils/As'
 
 /**
  * Metadata of the module as well as the loaded module itself.

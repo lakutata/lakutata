@@ -1,4 +1,4 @@
-import {IsPromiseLike} from '@lakutata/utils/helper/IsPromiseLike'
+import {IsPromiseLike} from '@lakutata/utils/IsPromiseLike'
 
 export function AppendAsyncConstructor<T, U extends any[]>(target: T, asyncConstructor: (...args: U) => PromiseLike<void>, args?: U): void {
     async function applyAsyncConstructor(): Promise<T> {

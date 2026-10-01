@@ -1,7 +1,7 @@
 import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
 import {ClassDecorator} from '../../../types/ClassDecorator.js'
-import {ObjectParentConstructors} from '@lakutata/utils/helper/ObjectParentConstructors'
-import {IsSubclassOf} from '@lakutata/utils/helper/IsSubclassOf'
+import {ObjectParentConstructors} from '@lakutata/utils/ObjectParentConstructors'
+import {IsSubclassOf} from '@lakutata/utils/IsSubclassOf'
 
 /**
  * Internal unique symbol

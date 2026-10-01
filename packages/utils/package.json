@@ -16,27 +16,18 @@
         "default": "./dist/cjs/exports/Utils.js"
       }
     },
-    "./time": {
+    "./Time": {
       "import": {
-        "types": "./dist/types/exports/Time.d.ts",
-        "default": "./dist/esm/exports/Time.js"
+        "types": "./dist/types/lib/Time.d.ts",
+        "default": "./dist/esm/lib/Time.js"
       },
       "require": {
-        "types": "./dist/cjs/exports/Time.d.ts",
-        "default": "./dist/cjs/exports/Time.js"
+        "types": "./dist/cjs/lib/Time.d.ts",
+        "default": "./dist/cjs/lib/Time.js"
       }
     },
-    "./helper": {
-      "import": {
-        "types": "./dist/types/exports/Helpers.d.ts",
-        "default": "./dist/esm/exports/Helpers.js"
-      },
-      "require": {
-        "types": "./dist/cjs/exports/Helpers.d.ts",
-        "default": "./dist/cjs/exports/Helpers.js"
-      }
-    },
-    "./helper/*": {
+    "./internal/*": null,
+    "./*": {
       "import": {
         "types": "./dist/types/lib/helpers/*.d.ts",
         "default": "./dist/esm/lib/helpers/*.js"

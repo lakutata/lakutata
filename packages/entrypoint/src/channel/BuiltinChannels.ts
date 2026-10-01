@@ -1,5 +1,5 @@
 import type {ActionPattern} from '@lakutata/core'
-import {GetObjectPropertyPaths, UniqueArray} from '@lakutata/utils/helper'
+import {GetObjectPropertyPaths, UniqueArray} from '@lakutata/utils'
 import {ChannelDefinition, ChannelEntry, ChannelMatch, ChannelMatcher, DefineChannel} from './Channel.js'
 import {PatternManager} from '../lib/pattern/PatternManager.js'
 import {StringifyPattern} from '../lib/StringifyPattern.js'

@@ -1,7 +1,7 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {decode as UpstreamDecode, encode as UpstreamEncode, ExtData as UpstreamExtData} from '@msgpack/msgpack'
-import {MessagePack} from '../exports/Helpers.js'
+import {MessagePack} from '../exports/Utils.js'
 
 /**
  * A pseudo random generator with a seed (mulberry32)

@@ -1,4 +1,4 @@
-import {As} from '@lakutata/utils/helper/As'
+import {As} from '@lakutata/utils/As'
 import {ThrowWarning} from './ThrowWarning.js'
 
 type BasicInfo = {

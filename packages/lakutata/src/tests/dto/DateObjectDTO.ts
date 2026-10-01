@@ -1,6 +1,6 @@
 import {DTO} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
-import {Time} from '@lakutata/utils/time'
+import {Time} from '@lakutata/utils/Time'
 
 export class DateObjectDTO extends DTO {
     @Expect(DTO.Date().strict(false).optional().default(() => new Time().subtract(7, 'days').toDate()))

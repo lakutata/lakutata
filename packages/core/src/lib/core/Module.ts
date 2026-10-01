@@ -8,10 +8,10 @@ import {ModuleConfigLoader} from '../base/internal/ModuleConfigLoader.js'
 import {isAsyncFunction} from 'node:util/types'
 import {Configurable} from '../../decorators/di/Configurable.js'
 import {LoadObjectOptions} from '../../options/LoadObjectOptions.js'
-import {As} from '@lakutata/utils/helper/As'
+import {As} from '@lakutata/utils/As'
 import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
 import {DefineObjectType, ObjectType} from '../base/internal/ObjectType.js'
-import {NonceStr} from '@lakutata/utils/helper/NonceStr'
+import {NonceStr} from '@lakutata/utils/NonceStr'
 
 export const MODULE_INITIALIZED: string = `_$.MODULE.INITIALIZED_${NonceStr()}`
 export const MODULE_INITIALIZE_ERROR: string = `_$.MODULE.INITIALIZE_ERROR_${NonceStr()}`

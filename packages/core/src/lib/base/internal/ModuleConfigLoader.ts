@@ -9,12 +9,12 @@ import {OverridableObjectOptions} from '../../../options/OverridableObjectOption
 import {
     OverridableObjectTargetConfigNotFoundException
 } from '../../../exceptions/di/OverridableObjectTargetConfigNotFoundException.js'
-import {As} from '@lakutata/utils/helper/As'
+import {As} from '@lakutata/utils/As'
 import {GetObjectType, ObjectType} from './ObjectType.js'
 import {InvalidObjectTypeException} from '../../../exceptions/InvalidObjectTypeException.js'
 import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
-import {ArrayToSet} from '@lakutata/utils/helper/ArrayToSet'
-import {SetToArray} from '@lakutata/utils/helper/SetToArray'
+import {ArrayToSet} from '@lakutata/utils/ArrayToSet'
+import {SetToArray} from '@lakutata/utils/SetToArray'
 
 /**
  * Module configurations loader

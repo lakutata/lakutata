@@ -45,9 +45,6 @@
       "@lakutata/core/decorator/dto": [
         "../core/dist/types/exports/DTODecorators"
       ],
-      "@lakutata/utils/helper": [
-        "../utils/dist/types/exports/Helpers"
-      ],
       "@lakutata/entrypoint": [
         "../entrypoint/dist/types/exports/Entrypoint"
       ],
@@ -59,6 +56,15 @@
       ],
       "@lakutata/entrypoint/adapter/express": [
         "../entrypoint/dist/types/exports/ExpressAdapter"
+      ],
+      "@lakutata/utils": [
+        "../utils/dist/types/exports/Utils"
+      ],
+      "@lakutata/utils/Time": [
+        "../utils/dist/types/lib/Time"
+      ],
+      "@lakutata/utils/*": [
+        "../utils/dist/types/lib/helpers/*"
       ]
     }
   },

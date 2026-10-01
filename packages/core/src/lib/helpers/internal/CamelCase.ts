@@ -1,4 +1,4 @@
-import {NoCaseOptions, Split, ToLower, ToUpper} from '@lakutata/utils/helper/NoCase'
+import {NoCaseOptions, Split, ToLower, ToUpper} from '@lakutata/utils/NoCase'
 
 export type {NoCaseOptions}
 

@@ -42,9 +42,6 @@
             "@lakutata/core/dtos": [
                 "../core/dist/types/exports/DTOs"
             ],
-            "@lakutata/utils/helper": [
-                "../utils/dist/types/exports/Helpers"
-            ],
             "@lakutata/cache": [
                 "../cache/dist/types/exports/Cache"
             ],
@@ -62,6 +59,12 @@
             ],
             "@lakutata/utils": [
                 "../utils/dist/types/exports/Utils"
+            ],
+            "@lakutata/utils/Time": [
+                "../utils/dist/types/lib/Time"
+            ],
+            "@lakutata/utils/*": [
+                "../utils/dist/types/lib/helpers/*"
             ],
             "@lakutata/core/decorator/asst": [
                 "../core/dist/types/exports/ASSTDecorators"
@@ -107,12 +110,6 @@
             ],
             "@lakutata/orm/provider/database": [
                 "../orm/dist/types/exports/DatabaseProvider"
-            ],
-            "@lakutata/utils/time": [
-                "../utils/dist/types/exports/Time"
-            ],
-            "@lakutata/utils/helper/*": [
-                "../utils/dist/types/lib/helpers/*"
             ]
         }
     },

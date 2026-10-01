@@ -1,4 +1,4 @@
-import {GlobSync} from '@lakutata/utils/helper/Glob'
+import {GlobSync} from '@lakutata/utils/Glob'
 import * as path from 'path'
 import {flatten} from './Utils.js'
 import {BuildResolverOptions, type ResolverOptions} from './Resolvers.js'

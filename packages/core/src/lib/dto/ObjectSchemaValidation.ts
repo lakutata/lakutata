@@ -9,11 +9,11 @@ import {DataValidator} from './DataValidator.js'
 import {Schema} from '../validation/types/Schema.js'
 import {ObjectSchema} from '../validation/interfaces/ObjectSchema.js'
 import {SchemaMap} from '../validation/types/SchemaMap.js'
-import {ObjectConstructor} from '@lakutata/utils/helper/ObjectConstructor'
-import {ObjectParentConstructors} from '@lakutata/utils/helper/ObjectParentConstructors'
-import {ObjectPrototype} from '@lakutata/utils/helper/ObjectPrototype'
-import {IsSymbol} from '@lakutata/utils/helper/IsSymbol'
-import {As} from '@lakutata/utils/helper/As'
+import {ObjectConstructor} from '@lakutata/utils/ObjectConstructor'
+import {ObjectParentConstructors} from '@lakutata/utils/ObjectParentConstructors'
+import {ObjectPrototype} from '@lakutata/utils/ObjectPrototype'
+import {IsSymbol} from '@lakutata/utils/IsSymbol'
+import {As} from '@lakutata/utils/As'
 
 export type ObjectPropertySchemaMap = Map<string, Schema>
 
