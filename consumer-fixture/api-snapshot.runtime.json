@@ -217,7 +217,7 @@
     "fromJsonSchema",
     "toJsonSchema"
   ],
-  "lakutata/helper": [
+  "lakutata/utils": [
     "ArrayToSet",
     "As",
     "CloneDeep",
@@ -263,7 +263,6 @@
     "ObjectPath",
     "ObjectPrototype",
     "ObjectToMap",
-    "Paginator",
     "RandomString",
     "SHA1",
     "SHA256",
@@ -275,6 +274,7 @@
     "Split",
     "Statistics",
     "Templating",
+    "Time",
     "ToLower",
     "ToUpper",
     "URLBuilder",

@@ -34,14 +34,14 @@
         "default": "./dist/cjs/exports/DTOs.js"
       }
     },
-    "./helper": {
+    "./utils": {
       "import": {
-        "types": "./dist/types/exports/Helpers.d.ts",
-        "default": "./dist/esm/exports/Helpers.js"
+        "types": "./dist/types/exports/Utils.d.ts",
+        "default": "./dist/esm/exports/Utils.js"
       },
       "require": {
-        "types": "./dist/cjs/exports/Helpers.d.ts",
-        "default": "./dist/cjs/exports/Helpers.js"
+        "types": "./dist/cjs/exports/Utils.d.ts",
+        "default": "./dist/cjs/exports/Utils.js"
       }
     },
     "./com/docker": {

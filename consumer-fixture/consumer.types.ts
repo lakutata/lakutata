@@ -11,7 +11,7 @@
 import type * as root from 'lakutata'
 import type * as orm from 'lakutata/orm'
 import type * as dtos from 'lakutata/dtos'
-import type * as helper from 'lakutata/helper'
+import type * as utils from 'lakutata/utils'
 import type * as docker from 'lakutata/com/docker'
 import type * as database from 'lakutata/com/database'
 import type * as cacher from 'lakutata/com/cacher'
@@ -31,7 +31,7 @@ import type * as ormDec from 'lakutata/decorator/orm'
 export type _root = typeof root
 export type _orm = typeof orm
 export type _dtos = typeof dtos
-export type _helper = typeof helper
+export type _utils = typeof utils
 export type _docker = typeof docker
 export type _database = typeof database
 export type _cacher = typeof cacher
