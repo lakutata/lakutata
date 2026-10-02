@@ -4,6 +4,9 @@ import {BaseObject} from '../../lib/base/BaseObject.js'
 import {Component} from '../../lib/core/Component.js'
 import {Container} from '../../lib/core/Container.js'
 import {Inject} from '../../decorators/di/Inject.js'
+import {Configurable} from '../../decorators/di/Configurable.js'
+import {DTO} from '../../lib/dto/DTO.js'
+import {CheckObjectOptions} from '../../lib/base/internal/ObjectOptionsCheck.js'
 import {OBJECT_ID} from '../../options/LoadObjectOptions.js'
 
 /**
@@ -99,6 +102,54 @@ class Initialized extends Base {
 }
 
 /**
+ * Injects the cache
+ */
+class InjectedCache extends Component {
+    @Inject('missing')
+    public readonly cache: any
+}
+
+/**
+ * Configures the cache its parent injects: nothing is injected (the object injected by the parent is not registered)
+ */
+class ConfiguredCache extends InjectedCache {
+    @Configurable(DTO.String().optional().default('memory'))
+    public readonly cache: any
+}
+
+/**
+ * Injects the cache again
+ */
+class InjectedAgainCache extends ConfiguredCache {
+    @Inject('alpha')
+    public readonly cache: any
+}
+
+/**
+ * Configures the cache
+ */
+class ConfigurableCache extends Component {
+    @Configurable(DTO.String().optional().default('memory'))
+    public readonly cache: any
+}
+
+/**
+ * Injects the cache its parent configures: the injection is not replaced by the default of the parent
+ */
+class InjectingCache extends ConfigurableCache {
+    @Inject('alpha')
+    public readonly cache: any
+}
+
+/**
+ * Configures the cache again
+ */
+class ConfiguredAgainCache extends InjectingCache {
+    @Configurable(DTO.Number().optional().default(3))
+    public readonly cache: any
+}
+
+/**
  * Create a component of a container holding the dependencies
  * @param target
  */
@@ -143,5 +194,30 @@ describe('The injections of the subclasses', (): void => {
 
     it('win over the initializer of the property', async (): Promise<void> => {
         assert.deepStrictEqual(kinds(await Create(Initialized)), ['Alpha', 'Beta', 'Alpha'])
+    })
+
+    it('declared again as configurable properties are configured only, and the configurable properties declared again as injections are injected only', async (): Promise<void> => {
+        //The parent injects, the subclass configures: nothing injected
+        assert.strictEqual((await Create(ConfiguredCache)).cache, 'memory')
+        const configured: ConfiguredCache = await new Container().set(ConfiguredCache as any, {cache: 'redis'}) as ConfiguredCache
+        assert.strictEqual(configured.cache, 'redis')
+        await assert.rejects(Create(InjectedCache), /Unable to inject value for property cache/)
+        //The parent configures, the subclass injects: the injection is kept
+        assert.ok((await Create(InjectingCache)).cache instanceof Alpha)
+        assert.strictEqual((await Create(ConfigurableCache)).cache, 'memory')
+        //Declared again over several levels: the closest declaration
+        assert.ok((await Create(InjectedAgainCache)).cache instanceof Alpha)
+        assert.strictEqual((await Create(ConfiguredAgainCache)).cache, 3)
+        //The startup check knows the configurable properties only
+        const warnings: string[] = []
+        const onWarning = (warning: Error): number => warnings.push(warning.message)
+        const printers: NodeJS.WarningListener[] = process.listeners('warning')
+        process.removeAllListeners('warning')
+        process.on('warning', onWarning)
+        CheckObjectOptions([{class: InjectingCache, cache: 'redis'} as any, {class: ConfiguredCache, cache: 'redis'} as any])
+        process.off('warning', onWarning)
+        printers.forEach((printer: NodeJS.WarningListener): unknown => process.on('warning', printer))
+        assert.deepStrictEqual(warnings, ['The option "cache" of InjectingCache is not a configurable property, it is ignored (its configurable properties: maxListeners)'])
+        assert.throws((): void => CheckObjectOptions([{class: ConfiguredAgainCache, cache: 'redis'} as any]), /"cache" must be a number/)
     })
 })

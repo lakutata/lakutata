@@ -4,7 +4,7 @@ import {
     DI_TARGET_CONSTRUCTOR_INJECTS
 } from '../../../constants/DIMetadataKey.js'
 import {ObjectConstructor} from '@lakutata/utils/ObjectConstructor'
-import {ObjectParentConstructors} from '@lakutata/utils/ObjectParentConstructors'
+import {MergedDeclarations, OwnDeclarations, REMOVED} from './MemberDeclarations.js'
 import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
 
 
@@ -27,44 +27,30 @@ export type ObjectInjectionMap = Map<string | symbol, {
  * @constructor
  */
 export function SetObjectInjectItem<ClassPrototype extends BaseObject>(target: ClassPrototype, propertyKey: string | symbol, name: string | symbol | Function, transform: InjectionTransformFunction): void {
-    let objectInjectionMap: ObjectInjectionMap
-    if (Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_INJECTS, ObjectConstructor(target))) {
-        objectInjectionMap = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_INJECTS, ObjectConstructor(target))
-    } else {
-        objectInjectionMap = new Map()
-        const parentObjectInjectionMaps: (typeof objectInjectionMap)[] = []
-        ObjectParentConstructors(ObjectConstructor(target)).forEach((parentConstructor: Function): void => {
-            if (Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_INJECTS, parentConstructor))
-                parentObjectInjectionMaps.unshift(Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_INJECTS, parentConstructor))
-        })
-        parentObjectInjectionMaps.forEach((parentObjectInjectionMap: typeof objectInjectionMap): void =>
-            parentObjectInjectionMap.forEach((value, key: typeof propertyKey) => objectInjectionMap.set(key, value)))
-    }
-    objectInjectionMap.set(propertyKey, {
+    OwnDeclarations(DI_TARGET_CONSTRUCTOR_INJECTS, ObjectConstructor(target)).set(propertyKey, {
         name: name,
         transform: transform
     })
-    Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_INJECTS, objectInjectionMap, ObjectConstructor(target))
 }
 
 /**
- * Get object inject items by its prototype
+ * Remove the injection of a property of the parents of a class: the class declares the property otherwise
+ * @param target
+ * @param propertyKey
+ * @constructor
+ */
+export function RemoveObjectInjectItem<ClassPrototype extends BaseObject>(target: ClassPrototype, propertyKey: string | symbol): void {
+    OwnDeclarations(DI_TARGET_CONSTRUCTOR_INJECTS, ObjectConstructor(target)).set(propertyKey, REMOVED)
+}
+
+/**
+ * Get object inject items by its prototype: the ones of the class and of its parents, the closest declaration of a
+ * property winning
  * @param target
  * @constructor
  */
 export function GetObjectInjectItemsByPrototype<ClassPrototype extends BaseObject>(target: ClassPrototype): ObjectInjectionMap {
-    const objectInjectionMap: ObjectInjectionMap = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_INJECTS, ObjectConstructor(target)) || new Map()
-    ObjectParentConstructors(ObjectConstructor(target)).forEach((parentConstructor: Function): void => {
-        if (Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_INJECTS, parentConstructor)) {
-            const parentObjectInjectionMap: ObjectInjectionMap = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_INJECTS, parentConstructor)
-            parentObjectInjectionMap.forEach((value, key) => {
-                if (objectInjectionMap.has(key)) return
-                objectInjectionMap.set(key, value)
-            })
-        }
-    })
-    if (objectInjectionMap) return objectInjectionMap
-    return new Map()
+    return MergedDeclarations(DI_TARGET_CONSTRUCTOR_INJECTS, ObjectConstructor(target))
 }
 
 /**

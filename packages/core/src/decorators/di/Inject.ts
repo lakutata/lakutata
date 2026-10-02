@@ -7,6 +7,7 @@ import {
 } from '../../lib/base/internal/ObjectInjection.js'
 import {isClass} from '../../lib/ioc/Utils.js'
 import {As} from '@lakutata/utils/As'
+import {RemoveObjectConfigurableProperty} from '../../lib/base/internal/ObjectConfiguration.js'
 
 /**
  *
@@ -53,6 +54,8 @@ export function Inject<ClassPrototype extends BaseObject>(nameOrTransform?: Inje
             }
         }
         //A class is kept as it is: the container resolves it by its constructor symbol, and autoloads it when it is marked so
-        return SetObjectInjectItem(target, propertyKey, injectionName, injectionTransform)
+        SetObjectInjectItem(target, propertyKey, injectionName, injectionTransform)
+        //The property is injected, not configured: a configurable property of the parents is removed
+        RemoveObjectConfigurableProperty(target, propertyKey)
     }
 }
