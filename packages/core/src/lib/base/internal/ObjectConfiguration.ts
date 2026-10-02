@@ -25,7 +25,8 @@ export function SetObjectConfigurableProperty<ClassPrototype extends BaseObject,
         objectConfigurablePropertyMap = Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, ObjectConstructor(target))
     } else {
         objectConfigurablePropertyMap = new Map()
-        ObjectParentConstructors(ObjectConstructor(target)).forEach((parentConstructor: Function): void => {
+        //From the farthest parent: the closest declaration of a property wins
+        ObjectParentConstructors(ObjectConstructor(target)).reverse().forEach((parentConstructor: Function): void => {
             if (Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, parentConstructor))
                 As<ObjectConfigurablePropertyMap<DataType>>(Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, parentConstructor)).forEach((value, key) => objectConfigurablePropertyMap.set(key, value))
         })
@@ -44,7 +45,8 @@ export function SetObjectConfigurableProperty<ClassPrototype extends BaseObject,
  */
 export function GetObjectConfigurableProperties<ClassPrototype extends BaseObject>(target: ClassPrototype): ObjectConfigurablePropertyMap {
     const objectConfigurablePropertyMap: ObjectConfigurablePropertyMap = new Map()
-    ObjectParentConstructors(ObjectConstructor(target)).forEach((parentConstructor: Function): void => {
+    //From the farthest parent: the closest declaration of a property wins
+    ObjectParentConstructors(ObjectConstructor(target)).reverse().forEach((parentConstructor: Function): void => {
         if (Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, parentConstructor))
             As<ObjectConfigurablePropertyMap>(Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, parentConstructor)).forEach((value, key) => objectConfigurablePropertyMap.set(key, value))
     })

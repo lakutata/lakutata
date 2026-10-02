@@ -98,7 +98,8 @@ function ValidateActionPatternDefinition(actionPattern: ActionPattern): ActionPa
 function GetInternalControllerActionPatternMap(channel: string, target: IBaseObjectConstructor<Controller>): InternalActionPatternMap {
     const key: string = ChannelActionsKey(channel)
     const internalActionPatternMap: InternalActionPatternMap = new Map()
-    ObjectParentConstructors(target).forEach(parentConstructor => {
+    //From the farthest parent: the closest declaration of an action wins
+    ObjectParentConstructors(target).reverse().forEach(parentConstructor => {
         const parentActionPatternMap: InternalActionPatternMap = Reflect.getOwnMetadata(key, parentConstructor) || new Map()
         parentActionPatternMap.forEach((value: InternalActionPatternMapValue, hash: string) => internalActionPatternMap.set(hash, value))
     })
