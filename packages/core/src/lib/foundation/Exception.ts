@@ -1,26 +1,47 @@
+import {format as utilFormat} from 'node:util'
 import {GetAppId, GetAppName} from './BasicInfo.js'
 import {Templating} from '@lakutata/utils/Templating'
 import {As} from '@lakutata/utils/As'
 import {CamelCase} from '../helpers/internal/CamelCase.js'
 import {DevNull} from '@lakutata/utils/DevNull'
 
-//Self-implemented (replaces the `format` package dependency).
-//Handles both {N} positional and %s/%d/%j/%o printf-style placeholders.
+/**
+ * The placeholders of util.format() consuming an argument
+ */
+const PLACEHOLDERS: string = 'sdifjoOc'
+
+/**
+ * Format the placeholders of a message as util.format() of Node.js (%s, %d, %i, %f, %j, %o, %O, %c, %%): an unknown
+ * placeholder, a placeholder without argument and a % alone are kept; the arguments left are not appended (they are
+ * the data of the templates too); a placeholder its argument cannot be formatted by (%j of a bigint) is kept, the
+ * creation of an exception never throws
+ * @param template
+ * @param args
+ */
 function format(template: string, ...args: any[]): string {
-    let result: string = template.replace(/\{(\d+)\}/g, (_m, n) => {
-        const i: number = parseInt(n, 10)
-        return i < args.length ? String(args[i]) : ''
-    })
-    let idx: number = 0
-    result = result.replace(/%(s|d|j|o|%)/g, (match, spec) => {
-        if (spec === '%') return '%'
-        if (idx >= args.length) return match
-        const val: any = args[idx++]
-        if (spec === 's') return String(val)
-        if (spec === 'd') return String(Number(val))
-        return JSON.stringify(val)
-    })
-    return result
+    if (!args.length) return template
+    let result: string = ''
+    let lastPosition: number = 0
+    let argument: number = 0
+    for (let i: number = 0; i < template.length - 1; i++) {
+        if (template[i] !== '%') continue
+        const placeholder: string = template[++i]
+        if (argument < args.length && PLACEHOLDERS.includes(placeholder)) {
+            let formatted: string
+            try {
+                formatted = placeholder === 'c' ? '' : utilFormat(`%${placeholder}`, args[argument])
+            } catch {
+                formatted = `%${placeholder}`
+            }
+            result += template.slice(lastPosition, i - 1) + formatted
+            argument++
+            lastPosition = i + 1
+        } else if (placeholder === '%') {
+            result += template.slice(lastPosition, i)
+            lastPosition = i + 1
+        }
+    }
+    return result + template.slice(lastPosition)
 }
 
 /**
