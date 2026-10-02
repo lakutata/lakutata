@@ -70,7 +70,7 @@
     "socket.io-client": "^4.8.4",
     "sort-array": "5.1.1",
     "sqlite3": "5.1.7",
-    "typescript": "5.9.3",
+    "typescript": "6.0.3",
     "typescript-eslint": "8.71.0",
     "unset-value": "2.0.1",
     "url-parse": "1.5.10",
