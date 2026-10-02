@@ -74,6 +74,8 @@ describe('Cacher', (): void => {
         await cacher.set('a', 1)
         await cacher.del('a')
         await cacher.clear()
+        //The listeners of on() are called after the emitting (as 2.x)
+        await new Promise((resolve: (value?: unknown) => void): unknown => setImmediate(resolve))
         assert.deepStrictEqual(events, ['set:a', 'del:a', 'clear'])
         await container.destroy()
     })

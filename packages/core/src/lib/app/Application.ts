@@ -13,7 +13,7 @@ import {mkdirSync} from 'fs'
 import path from 'node:path'
 import {existsSync} from 'node:fs'
 import {As} from '@lakutata/utils/As'
-import {EventEmitter} from '../base/EventEmitter.js'
+import {SynchronousEventEmitter} from '../base/EventEmitter.js'
 import {BootstrapOption, ModuleOptions} from '../../options/ModuleOptions.js'
 import {DeclareApplicationClass, MarkApplicationLaunched} from '../base/internal/ApplicationLaunch.js'
 
@@ -54,7 +54,7 @@ export class Application extends Module {
      * Event emitter
      * @protected
      */
-    protected static readonly eventEmitter: EventEmitter = new EventEmitter()
+    protected static readonly eventEmitter: SynchronousEventEmitter = new SynchronousEventEmitter()
 
     /**
      * Application instance, if the application boot failed, the property will be undefined

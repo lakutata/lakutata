@@ -43,6 +43,7 @@
     "electron": "^44.5.1",
     "electron-builder": "^26.15.3",
     "eslint": "10.11.0",
+    "eventemitter2": "6.4.9",
     "express": "^5.2.1",
     "fast-xml-parser": "4.5.3",
     "fastify": "^5.12.5",
