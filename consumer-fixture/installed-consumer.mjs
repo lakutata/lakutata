@@ -150,6 +150,21 @@ Check('an ESM application extending lakutata/tsconfig.json compiles and runs', (
     CompileAndRun(Project('esm', {name: 'esm-app', private: true, type: 'module'}, EXTENDED, SOURCE))
 })
 
+Check('an ESM application extending lakutata/tsconfig.json imports JSON (with its import attributes)', () => {
+    const source = `import {Application} from 'lakutata'
+import type {ILogger} from 'lakutata'
+import messages from './messages.json' with {type: 'json'}
+
+Application.run({id: 'installed.json', name: messages.name}).onLaunched((app: Application, log: ILogger): void => {
+    log.info(app.appName)
+    app.exit(0)
+})
+`
+    const project = Project('esm-json', {name: 'esm-json-app', private: true, type: 'module'}, EXTENDED, source)
+    writeFileSync(path.join(project, 'src', 'messages.json'), JSON.stringify({name: 'Installed'}))
+    CompileAndRun(project)
+})
+
 Check('a CommonJS application extending lakutata/tsconfig.json compiles and runs', () => {
     CompileAndRun(Project('cjs', {name: 'cjs-app', private: true}, EXTENDED, SOURCE))
 })
