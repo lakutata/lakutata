@@ -40,9 +40,10 @@ export {type CLIContextParams} from './types/CLIContextParams.js'
 export {type ServiceContextParams} from './types/ServiceContextParams.js'
 export {type ScheduleContextParams} from './types/ScheduleContextParams.js'
 
-export type CLIEntrypoint = (module: Module, cliMap: CLIMap, handler: CLIEntrypointHandler, registerDestroy: EntrypointDestroyerRegistrar) => void
-export type HTTPEntrypoint = (module: Module, routeMap: HTTPRouteMap, handler: HTTPEntrypointHandler, registerDestroy: EntrypointDestroyerRegistrar) => void
-export type ServiceEntrypoint = (module: Module, handler: ServiceEntrypointHandler, registerDestroy: EntrypointDestroyerRegistrar) => void
+//The builders of the entrypoints of lakutata 2.x: their result is ignored, a promise awaited (an asynchronous builder)
+export type CLIEntrypoint = (module: Module, cliMap: CLIMap, handler: CLIEntrypointHandler, registerDestroy: EntrypointDestroyerRegistrar) => unknown
+export type HTTPEntrypoint = (module: Module, routeMap: HTTPRouteMap, handler: HTTPEntrypointHandler, registerDestroy: EntrypointDestroyerRegistrar) => unknown
+export type ServiceEntrypoint = (module: Module, handler: ServiceEntrypointHandler, registerDestroy: EntrypointDestroyerRegistrar) => unknown
 
 export type CLIMap = Map<string, JSONSchema>
 export type HTTPRouteMap<HTTPMethods = string> = Map<string, Set<HTTPMethods>>
@@ -377,7 +378,8 @@ export class Entrypoint extends Component {
         const registerDestroy: EntrypointDestroyerRegistrar = (destroyer: EntrypointDestroyer): unknown => destroyers.push(destroyer)
         return {
             channel: channel,
-            start: (runtime: ChannelRuntime<any>): void => {
+            //An asynchronous builder (async (module, routeMap, handler) => …) is awaited
+            start: (runtime: ChannelRuntime<any>): void | Promise<void> => {
                 const handler = (context: BaseContext, abortController?: AbortController): Promise<unknown> => runtime.dispatch(context, {signal: abortController?.signal})
                 switch (channel) {
                     case 'http': {
