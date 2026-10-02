@@ -9,13 +9,14 @@ import {CHECK_PREFIX, type CheckResult} from './support/Scenario.js'
  * The scenarios: applications composing the packages through the public paths of lakutata (its barrels), one per
  * process, each one running its checks once launched. The scenarios needing a service are skipped without it
  */
-const SCENARIOS: { file: string, title: string, electron?: boolean, skip?: string | false }[] = [
+const SCENARIOS: { file: string, title: string, electron?: boolean, output?: RegExp, skip?: string | false }[] = [
     {file: 'Service', title: 'a service of the 3.0 adapters (Express with its user interface, Fastify, Socket.IO, Commander, Electron IPC, schedule) and of the components (database, cache, logger, password hash)'},
     {file: 'Legacy', title: 'an application of the entrypoints of lakutata 2.x (BuildHTTPEntrypoint with Express, BuildServiceEntrypoint, BuildCLIEntrypoint)'},
     {
         file: 'Electron',
-        title: 'an Electron application: its windows invoke the actions over IPC (Electron of the repository)',
+        title: 'an Electron application as the ones of the templates: its windows invoke the actions over IPC, it ends with its main window (Electron of the repository)',
         electron: true,
+        output: /DONE the application ended with its window/,
         skip: process.platform === 'linux' && !process.env.DISPLAY ? 'no display (xvfb-run)' : false
     },
     {file: 'Docker', title: 'the Docker component', skip: process.env.LAKUTATA_DOCKER ? false : 'LAKUTATA_DOCKER is not set (the Docker engine of the machine)'}
@@ -54,6 +55,7 @@ describe('The integration of the packages', (): void => {
                 })
             }
             assert.strictEqual(result.code, 0, `The scenario exited with the code ${result.code}:\n${result.output}`)
+            if (scenario.output) assert.match(result.output, scenario.output)
         })
     }
 })

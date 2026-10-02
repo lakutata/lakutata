@@ -26,8 +26,10 @@ export type Check = (name: string, fn: () => unknown | Promise<unknown>) => Prom
  * code 1 when a check failed): an application runs once per process, its scenario is a script run by Integration.spec
  * @param app
  * @param checks
+ * @param end how the application ends once its checks passed (it exits with the code 0 by default; an Electron
+ * application ends with its window)
  */
-export async function RunChecks(app: Application, checks: (check: Check) => Promise<void>): Promise<void> {
+export async function RunChecks(app: Application, checks: (check: Check) => Promise<void>, end: () => unknown = (): void => app.exit(0)): Promise<void> {
     let failed: boolean = false
     const tell = (result: CheckResult): void => {
         if (!result.ok) failed = true
@@ -46,7 +48,8 @@ export async function RunChecks(app: Application, checks: (check: Check) => Prom
     } catch (error) {
         tell({name: 'the scenario runs to its end', ok: false, error: (error as Error)?.stack ?? String(error)})
     }
-    app.exit(failed ? 1 : 0)
+    if (failed) return app.exit(1)
+    end()
 }
 
 /**

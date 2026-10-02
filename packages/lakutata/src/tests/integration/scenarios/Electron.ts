@@ -1,28 +1,101 @@
 import assert from 'node:assert'
-import {mkdtempSync, writeFileSync} from 'node:fs'
+import {mkdirSync, mkdtempSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import electron from 'electron'
-import {Application, DTO} from '../../../exports/Lakutata.js'
+import electron, {type BrowserWindow} from 'electron'
+import {Application, Component, DTO} from '../../../exports/Lakutata.js'
 import {BuildEntrypoints, Controller, type ActionInvocation, type Next, type ServiceContext} from '../../../exports/EntrypointComponent.js'
 import {ElectronIPCServiceEntrypoint, IPCEventOfContext} from '../../../exports/ElectronAdapter.js'
 import {ServiceAction} from '../../../exports/CTRLDecorators.js'
+import {Configurable, Inject} from '../../../exports/DIDecorators.js'
 import {Expect} from '../../../exports/DTODecorators.js'
 import {RunChecks} from '../support/Scenario.js'
 
 /**
- * The main process of Electron: its windows are renderers isolated from Node.js, invoking the actions through the
- * preload script, as the Electron templates do (run by Integration.spec with the Electron of the repository)
+ * An Electron application built as the Electron templates build theirs: the main process runs the application, its
+ * window is a component loading the built renderer, isolated from Node.js, which invokes the actions through the
+ * preload script; the application ends with its window. Run by Integration.spec with the Electron of the repository
  */
-const {app: electronApp, BrowserWindow, ipcMain} = electron
 
-class EchoDTO extends DTO {
-    @Expect(DTO.Number().required())
-    public value: number
+/**
+ * The directory of the main process: the preload script and the built renderer, whose page invokes an action once loaded
+ */
+const directory: string = mkdtempSync(path.join(tmpdir(), 'lakutata-electron-'))
+writeFileSync(path.join(directory, 'preload.cjs'), 'const {contextBridge, ipcRenderer} = require(\'electron\')\ncontextBridge.exposeInMainWorld(\'lakutata\', {invoke: (data) => ipcRenderer.invoke(\'lakutata:service\', data)})\n')
+mkdirSync(path.join(directory, 'renderer'))
+writeFileSync(path.join(directory, 'renderer', 'index.html'), [
+    '<!doctype html><title>renderer</title><p id="result">pending</p>',
+    '<script>window.lakutata.invoke({cmd: \'greet\', name: \'renderer\'}).then((response) => document.getElementById(\'result\').textContent = JSON.stringify(response))</script>'
+].join('\n'))
+
+/**
+ * A window of the application, as the MainWindow of the templates: created once Electron is ready, destroyed with
+ * the application; the main window ends the application when it is closed
+ */
+class MainWindow extends Component {
+    @Inject(Application)
+    protected readonly app: Application
+
+    @Configurable(DTO.Number().optional().default(800))
+    protected readonly width: number
+
+    @Configurable(DTO.Number().optional().default(600))
+    protected readonly height: number
+
+    /**
+     * The directory of the main process, where the preload script and the built renderer are
+     */
+    @Configurable(DTO.String().required())
+    protected readonly directory: string
+
+    /**
+     * Whether the application ends with this window
+     */
+    @Configurable(DTO.Boolean().optional().default(true))
+    protected readonly main: boolean
+
+    #window: BrowserWindow | undefined
+
+    /**
+     * The window (for the checks)
+     */
+    public get window(): BrowserWindow {
+        return this.#window!
+    }
+
+    protected async init(): Promise<void> {
+        const {app, BrowserWindow} = (await import('electron')).default
+        await app.whenReady()
+        const window: BrowserWindow = new BrowserWindow({
+            width: this.width,
+            height: this.height,
+            title: this.app.appName,
+            show: false,
+            webPreferences: {
+                preload: path.join(this.directory, 'preload.cjs'),
+                contextIsolation: true,
+                nodeIntegration: false,
+                sandbox: true
+            }
+        })
+        this.#window = window
+        //The application ends with its main window
+        if (this.main) window.once('closed', (): void => this.app.exit(0))
+        await window.loadFile(path.join(this.directory, 'renderer', 'index.html'))
+    }
+
+    protected async destroy(): Promise<void> {
+        if (this.#window && !this.#window.isDestroyed()) this.#window.destroy()
+    }
+}
+
+class GreetDTO extends DTO {
+    @Expect(DTO.String().required())
+    public name: string
 }
 
 /**
- * The signals of the actions waiting, aborted when their renderer is destroyed
+ * The signals of the actions, aborted when their renderer is destroyed
  */
 const signals: AbortSignal[] = []
 
@@ -31,12 +104,12 @@ async function RecordSignals(invocation: ActionInvocation, next: Next): Promise<
     return await next()
 }
 
-class RendererController extends Controller {
-    @ServiceAction({cmd: 'echo'}, EchoDTO)
-    public async echo(input: EchoDTO): Promise<{ value: number, renderer: number }> {
+class GreetController extends Controller {
+    @ServiceAction({cmd: 'greet'}, GreetDTO)
+    public async greet(input: GreetDTO): Promise<{ greeting: string, renderer: number }> {
         //The renderer invoking the action
         const sender: { id: number } = IPCEventOfContext(this.context as ServiceContext)!.sender as unknown as { id: number }
-        return {value: input.value, renderer: sender.id}
+        return {greeting: `Hello, ${input.name}`, renderer: sender.id}
     }
 
     @ServiceAction({cmd: 'wait'})
@@ -47,34 +120,18 @@ class RendererController extends Controller {
 }
 
 /**
- * Start the application once Electron is ready: the main script does not await it at its top level (its ready event
- * waits for the evaluation of the main script)
+ * Invoke an action from the page of a window, as its code does
+ * @param window
+ * @param data
  */
-async function Main(): Promise<void> {
+function Invoke(window: BrowserWindow, data: Record<string, unknown>): Promise<any> {
+    return window.webContents.executeJavaScript(`window.lakutata.invoke(${JSON.stringify(data)})`)
+}
 
-    //The preload script exposing the invocations to the renderers, as the one of the templates
-    const directory: string = mkdtempSync(path.join(tmpdir(), 'lakutata-electron-'))
-    const preload: string = path.join(directory, 'preload.cjs')
-    writeFileSync(preload, 'const {contextBridge, ipcRenderer} = require(\'electron\')\ncontextBridge.exposeInMainWorld(\'lakutata\', {invoke: (data) => ipcRenderer.invoke(\'lakutata:service\', data)})\n')
-
-    /**
-     * A window of the application, hidden
-     */
-    async function Window(): Promise<electron.BrowserWindow> {
-        const window: electron.BrowserWindow = new BrowserWindow({show: false, webPreferences: {preload: preload, contextIsolation: true, sandbox: true, nodeIntegration: false}})
-        await window.loadURL('data:text/html,<!doctype html><title>renderer</title>')
-        return window
-    }
-
-    /**
-     * Invoke an action from the page of a window, as its code does
-     * @param window
-     * @param data
-     */
-    function Invoke(window: electron.BrowserWindow, data: Record<string, unknown>): Promise<any> {
-        return window.webContents.executeJavaScript(`window.lakutata.invoke(${JSON.stringify(data)})`)
-    }
-
+//One instance of the application, as the templates
+if (!electron.app.requestSingleInstanceLock()) {
+    electron.app.exit(0)
+} else {
     Application
         .run(() => ({
             id: 'integration.electron',
@@ -82,55 +139,70 @@ async function Main(): Promise<void> {
             components: {
                 log: {level: 'warn'},
                 entrypoint: BuildEntrypoints({
-                    controllers: [RendererController],
+                    controllers: [GreetController],
                     middlewares: [RecordSignals],
-                    service: ElectronIPCServiceEntrypoint({ipcMain: ipcMain})
-                })
+                    service: ElectronIPCServiceEntrypoint()
+                }),
+                window: {class: MainWindow, directory: directory},
+                panel: {class: MainWindow, directory: directory, main: false, width: 400}
             },
-            bootstrap: ['entrypoint']
+            //The actions are served before the windows load the renderer
+            bootstrap: ['entrypoint', 'window', 'panel']
         }))
-        .onLaunched((app: Application): Promise<void> => RunChecks(app, async (check): Promise<void> => {
-            const [first, second] = [await Window(), await Window()]
+        .onLaunched((app: Application): Promise<void> => {
+            let main: BrowserWindow
+            return RunChecks(app, async (check): Promise<void> => {
+                main = (await app.getObject<MainWindow>('window')).window
+                const panel: BrowserWindow = (await app.getObject<MainWindow>('panel')).window
 
-            await check('the page of a window invokes an action through the preload script (isolated, sandboxed)', async (): Promise<void> => {
-                assert.deepStrictEqual(await Invoke(first, {cmd: 'echo', value: 3}), {success: true, error: null, payload: {value: 3, renderer: first.webContents.id}})
-            })
+                await check('the windows are the components of the application, configured', (): void => {
+                    assert.deepStrictEqual(main.getSize(), [800, 600])
+                    assert.strictEqual(panel.getSize()[0], 400)
+                    assert.strictEqual(main.getTitle(), 'renderer')
+                })
 
-            await check('each window is the renderer of its invocations', async (): Promise<void> => {
-                assert.strictEqual((await Invoke(second, {cmd: 'echo', value: 4})).payload.renderer, second.webContents.id)
-                assert.notStrictEqual(first.webContents.id, second.webContents.id)
-            })
+                await check('the page of the built renderer invokes an action through the preload script once loaded', async (): Promise<void> => {
+                    let text: string = 'pending'
+                    for (let attempt: number = 0; attempt < 50 && text === 'pending'; attempt++) {
+                        text = await main.webContents.executeJavaScript('document.getElementById(\'result\').textContent')
+                        if (text === 'pending') await new Promise((resolve: (value?: unknown) => void): unknown => setTimeout(resolve, 50))
+                    }
+                    assert.deepStrictEqual(JSON.parse(text), {success: true, error: null, payload: {greeting: 'Hello, renderer', renderer: main.webContents.id}})
+                })
 
-            await check('the invocations of the renderers are validated by the DTO of the action', async (): Promise<void> => {
-                const invalid = await Invoke(first, {cmd: 'echo', value: 'three'})
-                assert.strictEqual(invalid.success, false)
-                assert.strictEqual(invalid.error.errno, 'E_INVALID_VALUE')
-                const unknown = await Invoke(first, {cmd: 'remove'})
-                assert.strictEqual(unknown.success, false)
-            })
+                await check('each window is the renderer of its invocations', async (): Promise<void> => {
+                    assert.strictEqual((await Invoke(panel, {cmd: 'greet', name: 'panel'})).payload.renderer, panel.webContents.id)
+                    assert.notStrictEqual(main.webContents.id, panel.webContents.id)
+                })
 
-            await check('the pages reach the invocations only, not Node.js', async (): Promise<void> => {
-                assert.strictEqual(await first.webContents.executeJavaScript('[typeof require, typeof process, typeof window.lakutata.invoke].join()'), 'undefined,undefined,function')
-            })
+                await check('the invocations of the renderers are validated by the DTO of the action', async (): Promise<void> => {
+                    const invalid = await Invoke(main, {cmd: 'greet', name: 3})
+                    assert.strictEqual(invalid.success, false)
+                    assert.strictEqual(invalid.error.errno, 'E_INVALID_VALUE')
+                    assert.strictEqual((await Invoke(main, {cmd: 'remove'})).success, false)
+                })
 
-            await check('closing a window aborts the actions it invoked', async (): Promise<void> => {
-                const before: number = signals.length
-                void Invoke(second, {cmd: 'wait'}).catch((): undefined => undefined)
-                for (let attempt: number = 0; attempt < 50 && signals.length === before; attempt++) await new Promise((resolve: (value?: unknown) => void): unknown => setTimeout(resolve, 20))
-                const signal: AbortSignal = signals.at(-1)!
-                assert.strictEqual(signal.aborted, false)
-                second.destroy()
-                for (let attempt: number = 0; attempt < 50 && !signal.aborted; attempt++) await new Promise((resolve: (value?: unknown) => void): unknown => setTimeout(resolve, 20))
-                assert.strictEqual(signal.aborted, true)
-                //The other window still invokes
-                assert.strictEqual((await Invoke(first, {cmd: 'echo', value: 5})).payload.value, 5)
-            })
-            first.destroy()
-        }))
-        .onFatalException((error: Error): number => {
+                await check('the pages reach the invocations only, not Node.js', async (): Promise<void> => {
+                    assert.strictEqual(await main.webContents.executeJavaScript('[typeof require, typeof process, typeof window.lakutata.invoke].join()'), 'undefined,undefined,function')
+                })
+
+                await check('closing a window aborts the actions it invoked, the application keeps running', async (): Promise<void> => {
+                    const before: number = signals.length
+                    void Invoke(panel, {cmd: 'wait'}).catch((): undefined => undefined)
+                    for (let attempt: number = 0; attempt < 50 && signals.length === before; attempt++) await new Promise((resolve: (value?: unknown) => void): unknown => setTimeout(resolve, 20))
+                    const signal: AbortSignal = signals.at(-1)!
+                    assert.strictEqual(signal.aborted, false)
+                    panel.close()
+                    for (let attempt: number = 0; attempt < 50 && !signal.aborted; attempt++) await new Promise((resolve: (value?: unknown) => void): unknown => setTimeout(resolve, 20))
+                    assert.strictEqual(signal.aborted, true)
+                    assert.strictEqual((await Invoke(main, {cmd: 'greet', name: 'again'})).payload.greeting, 'Hello, again')
+                })
+            }, (): void => main.close())
+        })
+        //The application ended by its window is done (told to Integration.spec)
+        .onDone((): void => console.log('DONE the application ended with its window'))
+        .onFatalException((error: Error): void => {
             console.error(error)
-            return 1
+            electron.app.exit(1)
         })
 }
-
-void electronApp.whenReady().then(Main)
