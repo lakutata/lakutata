@@ -21,7 +21,7 @@ const SCENARIOS: { file: string, title: string, electron?: boolean, output?: Reg
     },
     {file: 'Data', title: 'the data: pagination (PaginationSearchDTO, Paginator), FlexibleDTO, the results validated, JSON Schema, the timezone'},
     {file: 'Security', title: 'the security: HMAC (a webhook middleware), the Crypt and Mac providers with their keys rotated, the encryptions by key and by password, the password hashes'},
-    {file: 'I18n', title: 'the i18n: the messages of the languages in the directory of an alias, a request answered in its language (Accept-Language), the fallbacks'},
+    {file: 'I18n', title: 'the i18n: the messages of the languages in the directory of an alias, the requests of HTTP, Socket.IO and the command line answered in their languages, their validation errors too'},
     {file: 'Objects', title: 'the objects: the aliases, the lifetimes in the requests, a database provider, a module, @Autoload, @Before and @After, a Logger component, the monitors'},
     {
         file: 'Shutdown',

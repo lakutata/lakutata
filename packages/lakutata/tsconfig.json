@@ -50,6 +50,9 @@
             "@lakutata/i18n": [
                 "../i18n/dist/types/exports/I18n"
             ],
+            "@lakutata/i18n/middleware": [
+                "../i18n/dist/types/exports/I18nMiddleware"
+            ],
             "@lakutata/monitor": [
                 "../monitor/dist/types/exports/Monitor"
             ],

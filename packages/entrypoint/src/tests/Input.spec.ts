@@ -1,7 +1,7 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {types} from 'node:util'
-import {Container, DTO} from '@lakutata/core'
+import {Container, DTO, RegisterValidationMessages} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
 import {
     BuildEntrypoints,
@@ -44,6 +44,18 @@ class InputDTO extends DTO {
 
 let received: InputDTO
 
+class NamedDTO extends DTO {
+    @Expect(DTO.String().required())
+    public name: string
+}
+
+class NamedController extends Controller {
+    @ServiceAction({act: 'named'}, NamedDTO)
+    public async named(input: NamedDTO): Promise<string> {
+        return `Hello, ${input.name}`
+    }
+}
+
 class InputController extends Controller {
     @ServiceAction({act: 'input'}, InputDTO)
     public async input(input: InputDTO): Promise<string> {
@@ -85,6 +97,22 @@ describe('Action input', (): void => {
         //The changes of the action do not reach the context
         assert.deepStrictEqual(JSON.parse(JSON.stringify(context.data.meta)), {nested: {deep: [1, {a: 2}]}})
         assert.deepStrictEqual(JSON.parse(JSON.stringify(context.data.list)), [1, [2, 3], {b: 4}])
+        await container.destroy()
+    })
+
+    it('is validated in the language of its request, its errors in it', async (): Promise<void> => {
+        RegisterValidationMessages('zh-CN', {'any.required': '{{#label}} 为必填项'})
+        let handler: ServiceEntrypointHandler
+        const container: Container = new Container()
+        await container.set(Entrypoint, BuildEntrypoints({
+            controllers: [NamedController],
+            service: BuildServiceEntrypoint((module, serviceHandler): unknown => handler = serviceHandler)
+        }))
+        await assert.rejects(handler!(new ServiceContext({data: {act: 'named'}, locale: 'zh-CN'})), /"name" 为必填项/)
+        //Without a language, or in a language without messages: the default messages
+        await assert.rejects(handler!(new ServiceContext({data: {act: 'named'}})), /"name" is required/)
+        await assert.rejects(handler!(new ServiceContext({data: {act: 'named'}, locale: 'fr'})), /"name" is required/)
+        assert.strictEqual(await handler!(new ServiceContext({data: {act: 'named', name: 'Ada'}, locale: 'zh-CN'})), 'Hello, Ada')
         await container.destroy()
     })
 })

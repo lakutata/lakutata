@@ -1,11 +1,12 @@
 import path from 'node:path'
-import {Component, DTO, type ComponentOptions, type ComponentOptionsBuilder} from '@lakutata/core'
+import {Component, DTO, RegisterValidationMessages, type ComponentOptions, type ComponentOptionsBuilder} from '@lakutata/core'
 import {Configurable} from '@lakutata/core/decorator/di'
 import type {I18nOptions} from './interfaces/I18nOptions.js'
 import {FlattenMessages, LoadDirectory, MergeMessages, type Catalogs, type NestedMessages} from './lib/Catalog.js'
 import {FallbackChain, NegotiateLocale, NormalizeLocale} from './lib/Locale.js'
 import {FormatMessage, ParseMessage, type FormatContext, type MessagePart} from './lib/MessageFormat.js'
-import {Translator} from './Translator.js'
+import {LocaleTranslator} from './lib/LocaleTranslator.js'
+import type {ITranslator} from './interfaces/ITranslator.js'
 import type {MessageKey, MessageParams} from './types/I18nMessages.js'
 import {I18nCatalogException} from './exceptions/I18nCatalogException.js'
 import {I18nMissingKeyException} from './exceptions/I18nMissingKeyException.js'
@@ -73,6 +74,25 @@ export class I18n extends Component {
         this.#supported = this.locales
             ? this.locales.map((locale: string): string => this.locale(locale, 'locales'))
             : [...new Set([this.#default, ...[...this.#catalogs.keys()].sort()])]
+        this.registerValidationMessages()
+    }
+
+    /**
+     * Register the messages of the validation errors of the languages (their keys validation.<code>: validation.any.required),
+     * each language with the ones of the languages it falls back to
+     */
+    protected registerValidationMessages(): void {
+        const prefix: string = 'validation.'
+        for (const locale of new Set([...this.#supported, ...this.#catalogs.keys()])) {
+            const messages: Record<string, string> = {}
+            //The languages it falls back to first, its own messages replacing theirs
+            for (const tag of FallbackChain(locale, this.#fallbacks, this.#default).reverse()) {
+                this.#catalogs.get(tag)?.forEach((message: string, key: string): void => {
+                    if (key.startsWith(prefix)) messages[key.slice(prefix.length)] = message
+                })
+            }
+            if (Object.keys(messages).length) RegisterValidationMessages(locale, messages)
+        }
     }
 
     /**
@@ -229,7 +249,7 @@ export class I18n extends Component {
      * The translator of a language: its messages without giving the language each time
      * @param locale
      */
-    public translator(locale: string): Translator {
-        return new Translator(this, NormalizeLocale(locale) ?? this.#default)
+    public translator(locale: string): ITranslator {
+        return new LocaleTranslator(this, NormalizeLocale(locale) ?? this.#default)
     }
 }

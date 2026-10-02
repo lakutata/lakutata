@@ -1,54 +1,54 @@
+import {DTO, Provider} from '@lakutata/core'
+import {Autoload, Configurable, Scoped} from '@lakutata/core/decorator/di'
 import type {I18n} from './I18n.js'
+import type {ITranslator} from './interfaces/ITranslator.js'
 import type {MessageKey, MessageParams} from './types/I18nMessages.js'
+import {I18nTranslatorException} from './exceptions/I18nTranslatorException.js'
 
 /**
- * The messages of one language: a request is translated by the translator of its language
+ * The messages of the language of a request: the I18n middleware gives it to the request, its objects inject it
+ * (@Inject(Translator))
  */
-export class Translator {
-    constructor(protected readonly i18n: I18n, public readonly locale: string) {
+@Scoped()
+@Autoload()
+export class Translator extends Provider implements ITranslator {
+    @Configurable(DTO.String().optional())
+    public readonly locale: string
+
+    @Configurable(DTO.Any().optional())
+    protected readonly i18n?: I18n
+
+    #translator?: ITranslator
+
+    protected async init(): Promise<void> {
+        if (this.i18n && this.locale) this.#translator = this.i18n.translator(this.locale)
     }
 
     /**
-     * The message of a key, formatted with its arguments
-     * @param key
-     * @param params
+     * The translator of the language of the request
      */
+    protected get translator(): ITranslator {
+        if (!this.#translator) throw new I18nTranslatorException('The translator of a request is given by the I18nMiddleware of its entrypoint: BuildEntrypoints({middlewares: [I18nMiddleware]})')
+        return this.#translator
+    }
+
     public t<K extends MessageKey>(key: K, params?: MessageParams<K>): string {
-        return this.i18n.t(key, params, this.locale)
+        return this.translator.t(key, params)
     }
 
-    /**
-     * Whether a key has a message (in the language or the ones it falls back to)
-     * @param key
-     */
     public has(key: string): boolean {
-        return this.i18n.has(key, this.locale)
+        return this.translator.has(key)
     }
 
-    /**
-     * Format a message of ICU MessageFormat which is not in the catalogs
-     * @param message
-     * @param params
-     */
     public format(message: string, params?: Record<string, unknown>): string {
-        return this.i18n.format(message, params, this.locale)
+        return this.translator.format(message, params)
     }
 
-    /**
-     * A number in the language
-     * @param value
-     * @param options
-     */
     public number(value: number | bigint, options?: Intl.NumberFormatOptions): string {
-        return new Intl.NumberFormat(this.locale, options).format(value)
+        return this.translator.number(value, options)
     }
 
-    /**
-     * A date (and its time) in the language, in the time zone of the configuration
-     * @param value
-     * @param options
-     */
     public date(value: Date | number, options?: Intl.DateTimeFormatOptions): string {
-        return new Intl.DateTimeFormat(this.locale, {timeZone: this.i18n.getTimeZone(), ...options}).format(value)
+        return this.translator.date(value, options)
     }
 }

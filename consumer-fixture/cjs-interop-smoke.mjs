@@ -82,6 +82,7 @@ await check('tar-stream pack (build context)', () => { TarPack().finalize() })
 await check('CJS @lakutata/i18n parses and formats', () => {
     const {ParseMessage, I18n} = requireCJS('../packages/i18n/dist/cjs/exports/I18n.js')
     if (typeof I18n !== 'function' || ParseMessage('{n, plural, other {# items}}').length !== 1) throw new Error('I18n missing')
+    if (typeof requireCJS('../packages/i18n/dist/cjs/exports/I18nMiddleware.js').I18nMiddleware !== 'function') throw new Error('I18nMiddleware missing')
 })
 
 if (failures.length) {

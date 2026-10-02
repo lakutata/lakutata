@@ -32,7 +32,9 @@
     "OverridableObjectOptions",
     "OverridableObjectTargetConfigNotFoundException",
     "Provider",
-    "Time"
+    "RegisterValidationMessages",
+    "Time",
+    "ValidationLanguages"
   ],
   "lakutata/orm": [
     "AbstractLogger",
@@ -353,8 +355,11 @@
     "I18n",
     "I18nCatalogException",
     "I18nMessageSyntaxException",
+    "I18nMiddleware",
     "I18nMissingKeyException",
     "I18nMissingParameterException",
+    "I18nTranslatorException",
+    "LocaleTranslator",
     "MessageArguments",
     "NegotiateLocale",
     "NormalizeLocale",

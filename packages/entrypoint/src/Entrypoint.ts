@@ -542,9 +542,26 @@ export class Entrypoint extends Component {
         //The parameters of the address take precedence over the data of the request
         const data: Record<string, any> = params && Object.keys(params).length ? {...context.data, ...params} : context.data
         //The input is detached from the context, whose values are proxies validating their changes
-        const input: Record<string, any> = CloneDeep(await details.dtoConstructor.validateAsync(data))
+        const input: Record<string, any> = CloneDeep(await this.validateInput(details.dtoConstructor, data, context.locale))
         await this.runAccessControl(this.rules, container, As(context), input, details)
         return await controller.getMethod(As(details.method))(input)
+    }
+
+    /**
+     * Validate the input of an action; an invalid input of a request with its language is validated again in it, its
+     * error in the language (a valid input is validated once, the settings of its validation unchanged)
+     * @param dtoConstructor
+     * @param data
+     * @param locale
+     * @protected
+     */
+    protected async validateInput(dtoConstructor: typeof DTO, data: Record<string, any>, locale?: string): Promise<Record<string, any>> {
+        try {
+            return await dtoConstructor.validateAsync(data)
+        } catch (error) {
+            if (!locale) throw error
+            return await dtoConstructor.validateAsync(data, {errors: {language: locale}})
+        }
     }
 
     /**

@@ -25,6 +25,10 @@ export class BaseContext<T extends Record<string, any> = {}> extends DTO {
     @Expect(DTO.Object().pattern(DTO.String(), DTO.Any()).required())
     public data: ActionPattern<T>
 
+    //The language of the request (given by the i18n middleware): the errors of the validation of its input are in it
+    @Expect(DTO.String().optional())
+    public locale?: string
+
     constructor(params: ContextParams) {
         super(params)
     }

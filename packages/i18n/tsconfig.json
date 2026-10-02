@@ -39,6 +39,9 @@
       ],
       "@lakutata/core/decorator/di": [
         "../core/dist/types/exports/DIDecorators"
+      ],
+      "@lakutata/entrypoint": [
+        "../entrypoint/dist/types/exports/Entrypoint"
       ]
     }
   },
