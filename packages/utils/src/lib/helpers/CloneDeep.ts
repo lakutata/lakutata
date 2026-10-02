@@ -1,6 +1,8 @@
 /**
  * Derived from lib/clone.js of @hapi/hoek 11.0.7 (BSD-3-Clause, see THIRD_PARTY_NOTICES.md): its deep clone with the
- * default options, without the shallow paths and the options
+ * default options, without the shallow paths and the options. The binary data (typed arrays, data views, array
+ * buffers) and the boxed primitives are cloned by their constructors (the upstream cloned them as objects without
+ * their data)
  */
 
 /**
@@ -61,6 +63,31 @@ function CloneBase(value: object, builtIn: object): object {
 }
 
 /**
+ * The clone of binary data or of a boxed primitive, with the prototype of the value; undefined for the other values
+ * @param value
+ */
+function CloneData(value: object): object | undefined {
+    let clone: object
+    if (value instanceof ArrayBuffer) {
+        clone = value.slice(0)
+    } else if (typeof SharedArrayBuffer !== 'undefined' && value instanceof SharedArrayBuffer) {
+        clone = value.slice(0)
+    } else if (value instanceof DataView) {
+        clone = new DataView(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength))
+    } else if (ArrayBuffer.isView(value)) {
+        //A typed array: its elements in a buffer of their own, by the built-in constructor of its type
+        const TypedArray: new (source: ArrayLike<unknown>) => object = (globalThis as any)[Object.prototype.toString.call(value).slice(8, -1)]
+        clone = new TypedArray(value as unknown as ArrayLike<unknown>)
+    } else if (value instanceof Number || value instanceof String || value instanceof Boolean || (typeof BigInt !== 'undefined' && value instanceof BigInt) || value instanceof Symbol) {
+        clone = Object(value.valueOf())
+    } else {
+        return undefined
+    }
+    if (Object.getPrototypeOf(clone) !== Object.getPrototypeOf(value)) Object.setPrototypeOf(clone, Object.getPrototypeOf(value))
+    return clone
+}
+
+/**
  * Clone a value
  * @param value
  * @param seen the clones of the objects already cloned
@@ -68,6 +95,13 @@ function CloneBase(value: object, builtIn: object): object {
 function CloneValue(value: unknown, seen: Map<unknown, unknown>): unknown {
     if (typeof value !== 'object' || value === null) return value
     if (seen.has(value)) return seen.get(value)
+    if (!(value instanceof Buffer)) {
+        const data: object | undefined = CloneData(value)
+        if (data) {
+            seen.set(value, data)
+            return data
+        }
+    }
     const builtIn: object = BuiltInPrototype(value)
     switch (builtIn) {
         case Buffer.prototype:

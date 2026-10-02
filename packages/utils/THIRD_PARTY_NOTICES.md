@@ -8,7 +8,8 @@ modified; the original copyright notices and license terms are reproduced here a
 The deep clone of `CloneDeep`: `src/lib/helpers/CloneDeep.ts`, from `lib/clone.js`.
 
 Modifications: rewritten in TypeScript, with the default options of the upstream clone only (the prototypes and the
-symbol properties are kept, no shallow paths).
+symbol properties are kept, no shallow paths); the binary data (typed arrays, data views, array buffers) and the boxed
+primitives are cloned by their constructors.
 
 Copyright (c) 2011-2022, Project contributors
 Copyright (c) 2011-2020, Sideway Inc

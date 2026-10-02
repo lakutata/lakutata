@@ -99,4 +99,31 @@ describe('CloneDeep', (): void => {
         assert.deepStrictEqual(writes, [])
         assert.deepStrictEqual(structuredClone(clone), {nested: {list: [1, 2, 3], other: true}, date: new Date(5)})
     })
+
+    it('clones the binary data and the boxed primitives with their data', (): void => {
+        const bytes: Uint8Array = new Uint8Array([1, 2, 3])
+        const floats: Float64Array = new Float64Array([1.5, -2])
+        const view: Uint16Array = new Uint16Array(new Uint8Array([0, 0, 1, 0, 2, 0, 9, 9]).buffer, 2, 2)
+        const buffer: ArrayBuffer = new Uint8Array([7, 8]).buffer
+        const dataView: DataView = new DataView(new Uint8Array([5, 6, 7]).buffer, 1, 2)
+        class Bytes extends Uint8Array {
+        }
+        const subclass: Bytes = new Bytes([4, 5])
+        const clone = CloneDeep({bytes: bytes, floats: floats, view: view, buffer: buffer, dataView: dataView, subclass: subclass, text: new String('s'), number: new Number(5), flag: new Boolean(false)})
+        assert.deepStrictEqual(Array.from(clone.bytes), [1, 2, 3])
+        assert.ok(clone.bytes instanceof Uint8Array && clone.bytes !== bytes && clone.bytes.buffer !== bytes.buffer)
+        assert.deepStrictEqual(Array.from(clone.floats), [1.5, -2])
+        //A view keeps its elements only
+        assert.deepStrictEqual(Array.from(clone.view), [1, 2])
+        assert.deepStrictEqual(Array.from(new Uint8Array(clone.buffer)), [7, 8])
+        assert.ok(clone.buffer !== buffer)
+        assert.deepStrictEqual([clone.dataView.getUint8(0), clone.dataView.getUint8(1), clone.dataView.byteLength], [6, 7, 2])
+        assert.ok(clone.subclass instanceof Bytes)
+        assert.deepStrictEqual(Array.from(clone.subclass), [4, 5])
+        assert.deepStrictEqual([clone.text.valueOf(), clone.number.valueOf(), clone.flag.valueOf()], ['s', 5, false])
+        assert.ok(clone.text instanceof String)
+        //The clone is independent
+        clone.bytes[0] = 99
+        assert.strictEqual(bytes[0], 1)
+    })
 })
