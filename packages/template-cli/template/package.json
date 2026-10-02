@@ -31,7 +31,7 @@
   "devDependencies": {
     "@lakutata/cli": "^{$LAKUTATA_VERSION}",
     "@types/node": "^22.0.0",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.3"
   },
   "engines": {
     "node": ">=22"
