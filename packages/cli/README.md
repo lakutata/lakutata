@@ -146,24 +146,35 @@ anymore: sign them before distributing them.
 
 ## Migrations
 
-### `lakutata migration generate`
+### `lakutata migration <action>`
 
-Generate the migrations of the databases of the application: the script of the package building and starting the
-application (`dev` by default) is run with the environment variable `MIGRATION_GENERATE`, the application compares the
-entities of its Database components and providers with their databases, writes the migrations of the changes into the
-directory (`src/migrations` by default, one file `<timestamp>-<name of the database>.ts` per database changed) and
-exits. It is `cross-env MIGRATION_GENERATE=./src/migrations npm run dev` of the projects of lakutata 2.x, without
-`cross-env`. The migrations are then compiled with the application and given to the options of its databases
-(`migrations: [...]`, run when the database connects with `migrationsRun: true`).
+The migrations of the databases of the application (its Database components and providers): `generate`, `run`, `revert`
+and `show` run the script of the package building and starting the application (`dev` by default) with an environment
+variable (`MIGRATION_GENERATE`, `MIGRATION_RUN`, `MIGRATION_REVERT`, `MIGRATION_SHOW`): the application connects its
+databases with their options, without synchronizing their schemas nor running their migrations, does the command,
+tells what it did and exits, without starting its components nor its entrypoints. `create` writes a file.
+
+| Action | |
+|---|---|
+| `generate` | the migrations of the changes of the entities: the application compares them with its databases and writes the migrations into the directory, one file `<timestamp>-<name of the database>.ts` per database changed (`cross-env MIGRATION_GENERATE=./src/migrations npm run dev` of lakutata 2.x); without change, nothing is generated and the command fails |
+| `create <name>` | an empty migration, written by hand (`up` and `down`): `<timestamp>-<name>.ts`, its class `<Name><timestamp>` |
+| `show` | the migrations of the options of the databases, run `[X]` or pending `[ ]` |
+| `run` | the pending migrations (`up`) |
+| `revert` | the last migration run (`down`), one at a time; the application having several databases, `--database` is required |
 
 | Option | |
 |---|---|
-| `--dir <directory>` | the directory of the migrations, relative to the package, `src/migrations` by default |
+| `--dir <directory>` | the directory of the migrations, relative to the package, `src/migrations` by default (`generate`, `create`) |
 | `--script <script>` | the script building and starting the application, `dev` by default |
 | `--package <name>` | the package of the workspace of the application, run from the workspace (the current directory by default) |
+| `--database <name>` | the database: the name of its Database component or provider, all by default (`MIGRATION_DATABASE`) |
+| `--transaction <mode>` | the transactions of the migrations run or reverted: `all` (one, by default), `each` or `none` (`MIGRATION_TRANSACTION`) |
+| `--fake` | mark the migrations as run or reverted without executing them (`MIGRATION_FAKE`) |
 
-Without change of the schema, nothing is generated and the command fails; an application without Database component or
-provider generates nothing.
+The migrations are compiled with the application and given to the options of their database (`migrations: [...]`,
+run when it connects with `migrationsRun: true`). The commands fail (exit code 1) when the application has no database
+(but `generate`, which generates nothing), when the database given is not one of the application, and when a migration
+fails.
 
 ## Environment
 

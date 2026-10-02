@@ -13,6 +13,10 @@
     "start": "node build/App.js",
     "dev": "npm run build && node build/App.js",
     "migration:generate": "lakutata migration generate",
+    "migration:create": "lakutata migration create",
+    "migration:run": "lakutata migration run",
+    "migration:revert": "lakutata migration revert",
+    "migration:show": "lakutata migration show",
     "test": "npm run build && node --test \"build/tests/**/*.spec.js\""
   },
   "dependencies": {

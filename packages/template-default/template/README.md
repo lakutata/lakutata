@@ -17,10 +17,19 @@ npm start       # start the compiled application
 
 ## Database migrations
 
-`npm run migration:generate` generates the migrations of the databases of the application (`lakutata migration generate`):
-the application is built and started with `MIGRATION_GENERATE`, it compares the entities of its Database components and
-providers with their databases, and writes the migrations of the changes into `src/migrations`. The migrations are
-compiled with the application and given to the options of the databases, run when they connect:
+```bash
+npm run migration:generate              # the migrations of the changes of the entities of the databases
+npm run migration:create -- seed-users  # an empty migration, written by hand
+npm run migration:show                  # the migrations run [X] and pending [ ]
+npm run migration:run                   # run the pending migrations
+npm run migration:revert                # revert the last migration run
+```
+
+The commands (`lakutata migration <action>`) build and start the application, which connects its databases with their
+options (without synchronizing their schemas), does the command and exits; `-- --database <name>` selects a database
+(required to revert when there are several), `-- --fake` marks the migrations as run or reverted without executing
+them. The migrations are written into `src/migrations`, compiled with the application and given to the options of the
+databases, run when they connect:
 
 ```typescript
 import {BuildDatabaseOptions} from 'lakutata/com/database'

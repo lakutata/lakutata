@@ -6,6 +6,7 @@ import {createRequire} from 'node:module'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
+import {stripVTControlCharacters} from 'node:util'
 
 /**
  * The root of the repository
@@ -27,7 +28,7 @@ function Run(command: string, args: string[], cwd: string): Promise<{ code: numb
         //The tests of the project run on their own, not as tests nested in the running ones
         const {NODE_TEST_CONTEXT, ...env} = process.env
         void NODE_TEST_CONTEXT
-        execFile(command, args, {cwd: cwd, env: {...env, LAKUTATA_CACHE_DIR: path.join(work, 'cache'), NEXT_TELEMETRY_DISABLED: '1'}}, (error: ExecFileException | null, stdout: string, stderr: string): void => resolve({code: error ? (typeof error.code === 'number' ? error.code : 1) : 0, output: `${stdout}${stderr}`}))
+        execFile(command, args, {cwd: cwd, env: {...env, LAKUTATA_CACHE_DIR: path.join(work, 'cache'), NEXT_TELEMETRY_DISABLED: '1'}}, (error: ExecFileException | null, stdout: string, stderr: string): void => resolve({code: error ? (typeof error.code === 'number' ? error.code : 1) : 0, output: stripVTControlCharacters(`${stdout}${stderr}`)}))
     })
 }
 
@@ -225,9 +226,30 @@ describe('The templates of the repository', (): void => {
         assert.match(migrations[0], /^\d+-db\.ts$/)
         assert.match(generated.output, /Migrations generated: packages\/app\/src\/migrations\/\d+-db\.ts/)
         assert.match(readFileSync(path.join(project, 'packages', 'app', 'src', 'migrations', migrations[0]), 'utf8'), /CREATE TABLE "order"/)
+        //The migration given to the options of the database: shown, run, reverted by the scripts of the workspace
+        const timestamp: string = migrations[0].split('-')[0]
+        writeFileSync(config, readFileSync(config, 'utf8')
+            .replace('import {EntitySchema} from \'lakutata/orm\'\n', `import {EntitySchema} from 'lakutata/orm'\nimport {Migrations${timestamp}} from '../migrations/${timestamp}-db.js'\n`)
+            .replace('entities: [Order]})', `entities: [Order], migrations: [Migrations${timestamp}]})`))
+        const shown = await Run('npm', ['run', 'migration:show'], project)
+        assert.strictEqual(shown.code, 0, shown.output)
+        assert.match(shown.output, new RegExp(`\\[db\\] \\[ \\] Migrations${timestamp}\\n\\[db\\] 1 pending migration`))
+        const ran = await Run('npm', ['run', 'migration:run'], project)
+        assert.strictEqual(ran.code, 0, ran.output)
+        assert.match(ran.output, new RegExp(`\\[db\\] Migration Migrations${timestamp} has been run`))
+        assert.match((await Run('npm', ['run', 'migration:show'], project)).output, new RegExp(`\\[X\\] Migrations${timestamp}\\n\\[db\\] No pending migration`))
+        const reverted = await Run('npm', ['run', 'migration:revert'], project)
+        assert.strictEqual(reverted.code, 0, reverted.output)
+        assert.match(reverted.output, new RegExp(`\\[db\\] Migration Migrations${timestamp} has been reverted`))
+        //An empty migration, compiled with the service
+        const created = await Run('npm', ['run', 'migration:create', '--', 'seed-orders'], project)
+        assert.strictEqual(created.code, 0, created.output)
+        assert.match(created.output, /Migration created: packages\/app\/src\/migrations\/\d+-seed-orders\.ts/)
         const rebuilt = await Run(process.execPath, [CLI, 'run', 'rebuild'], project)
         assert.strictEqual(rebuilt.code, 0, rebuilt.output)
-        assert.ok(existsSync(path.join(project, 'packages', 'app', 'build', 'migrations', migrations[0].replace(/\.ts$/, '.js'))))
+        const compiled: string[] = readdirSync(path.join(project, 'packages', 'app', 'build', 'migrations'))
+        assert.ok(compiled.includes(migrations[0].replace(/\.ts$/, '.js')))
+        assert.ok(compiled.some((file: string): boolean => /^\d+-seed-orders\.js$/.test(file)))
     })
 
     it('creates a React web application whose workspace builds the ui then the app, which serves it', async (): Promise<void> => {
