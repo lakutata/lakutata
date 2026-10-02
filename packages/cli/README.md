@@ -243,6 +243,28 @@ run when it connects with `migrationsRun: true`). The commands fail (exit code 1
 (but `generate`, which generates nothing), when the database given is not one of the application, and when a migration
 fails.
 
+## Languages
+
+### `lakutata i18n <action> [locale]`
+
+The messages of the languages of the application (`lakutata/com/i18n`), in a directory (`--dir`, `locales` by
+default; several separated by commas): a file by language (`zh-CN.json`) or a directory by language (`zh-CN/`).
+
+- `lakutata i18n check`: checks the messages of the languages against the ones of the default language (`--default`,
+  `en` by default), and fails on their errors:
+  - errors: a syntax error of ICU MessageFormat, a key the default language does not have, an argument the default
+    message does not have (missing when the message is formatted), a validation message of an unknown code or with the
+    variables of another code;
+  - warnings: a message missing (the one of a fallback is given), an argument of the default message not used, a
+    message the same as the default one (not translated yet). `--strict` fails on them too, for the CI.
+- `lakutata i18n types`: declares the keys of the messages of the default language and their arguments
+  (`--out`, `src/i18n.d.ts` by default): a key misspelled or an argument missing is then an error of the compilation.
+  `--module @lakutata/i18n` declares them for the applications importing `@lakutata/i18n` rather than
+  `lakutata/com/i18n`.
+- `lakutata i18n add <locale>`: adds a language, made of the messages of the default language, as a file or a directory
+  as the default language has (its validation messages left: the language has its built-in ones). They are to be
+  translated; `check` tells the ones which are not.
+
 ## Environment
 
 | Variable | |

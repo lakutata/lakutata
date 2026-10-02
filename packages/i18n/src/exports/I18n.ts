@@ -7,7 +7,8 @@ export * from '../i18n/interfaces/ITranslator.js'
 
 export * from '../i18n/types/I18nMessages.js'
 
-export {type NestedMessages} from '../i18n/lib/Catalog.js'
+export {type Catalogs, type NestedMessages} from '../i18n/lib/Catalog.js'
+export {CheckCatalogs, GenerateMessageTypes, LoadCatalogs, type CatalogIssue} from '../i18n/lib/CatalogTools.js'
 export {EnvironmentLocales, FallbackChain, NegotiateLocale, NormalizeLocale, ParseAcceptLanguage} from '../i18n/lib/Locale.js'
 export {MessageArguments, ParseMessage, type MessagePart} from '../i18n/lib/MessageFormat.js'
 

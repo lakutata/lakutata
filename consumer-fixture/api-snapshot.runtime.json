@@ -354,8 +354,10 @@
   ],
   "lakutata/com/i18n": [
     "BuildI18nOptions",
+    "CheckCatalogs",
     "EnvironmentLocales",
     "FallbackChain",
+    "GenerateMessageTypes",
     "I18n",
     "I18nCatalogException",
     "I18nMessageSyntaxException",
@@ -363,6 +365,7 @@
     "I18nMissingKeyException",
     "I18nMissingParameterException",
     "I18nTranslatorException",
+    "LoadCatalogs",
     "LocaleTranslator",
     "MessageArguments",
     "NegotiateLocale",
