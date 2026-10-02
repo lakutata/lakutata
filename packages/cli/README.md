@@ -100,12 +100,48 @@ Then `npm install` links it.
   Node-API is stable across the versions of Node.js and Electron: the same addon runs in both without being rebuilt.
   The addon is built into `build/Release` (`npm run build:native`, and when the package is installed), loaded by
   node-gyp-build from `src/index.ts`, compiled into `dist`; the C++ ones are built for the Macs with Intel and with Apple
-  silicon in one file. `binding.gyp`, `CMakeLists.txt` and `build.rs` show in their comments how the libraries and the
-  options of the build are given: the libraries of the system, pkg-config, the static libraries of the package, the
-  dynamic libraries shipped with the addon (copied next to it, found there by its rpath), the standard of C++, the
-  options of each platform; a library built by its own Makefile is built before by a script (`build:deps`).
+  silicon in one file. `lakutata native` links their libraries; `binding.gyp` and `CMakeLists.txt` also show in their
+  comments how the libraries and the options of the build are given: the libraries of the system, pkg-config, the
+  static libraries of the package, the dynamic libraries shipped with the addon (copied next to it, found there by its
+  rpath), the standard of C++, the options of each platform; a library built by its own Makefile is built before by a
+  script (`build:deps`).
   `lakutata bundle` and `lakutata executable` ship the addon with the application, its dynamic libraries too. Building
   it needs a C++ toolchain (with CMake for `cmake`), or Rust for `rust`.
+
+### `lakutata native <action> <value>`
+
+Change the build of the native addon of the current directory, found by its build file (`binding.gyp`,
+`CMakeLists.txt`, `Cargo.toml`): its text is edited in place, its comments and its layout kept; the sources of the
+addon are not changed. A change already made changes nothing.
+
+- `lakutata native link <library>`: link a library:
+  - a library of the system: `lakutata native link pcap` (`ws2_32` with `--platform win`);
+  - `--pkg-config`: a library found by pkg-config (`lakutata native link libpcap --pkg-config`; not on Windows);
+  - `--framework`: a framework of macOS (`lakutata native link CoreFoundation --framework`);
+  - a file of the package: a static library (`deps/lib/libfoo.a`; `foo.lib` on Windows) is linked into the addon; a
+    dynamic one (`deps/lib/libfoo.dylib`, `libfoo.so`, `foo.dll` with its import library `foo.lib`) is copied next to
+    the addon and found there at run time by its rpath (`@loader_path` on macOS, `$ORIGIN` on Linux). On macOS, its
+    install name must be `@rpath/libfoo.dylib` (`install_name_tool -id`): the command tells it otherwise;
+  - `--crate`: a crate of a Rust addon (`cargo add`).
+- `lakutata native include <directory>`: a directory of headers (C++).
+- `lakutata native define <NAME[=value]>`: a definition of the preprocessor (C++).
+
+`--platform mac|linux|win` makes the change for one platform (the files of the libraries give theirs: `.dylib` macOS,
+`.so` Linux, `.dll` and `.lib` Windows, `.a` every platform but Windows); `--target <name>` names the target changed
+when the build file has several. What is written, by build system:
+
+| | gyp | CMake | Rust |
+|---|---|---|---|
+| File | `binding.gyp`, or the `.gypi` it includes declaring the target | `CMakeLists.txt` | `.cargo/config.toml` (`[env]`), read by `build.rs` |
+| Library | `libraries` | `target_link_libraries` | `rustc-link-lib` |
+| pkg-config | `<!@(pkg-config ...)` | `pkg_check_modules(... IMPORTED_TARGET ...)` | the `-sys` crates |
+| Framework | `xcode_settings.OTHER_LDFLAGS` | `-framework` in `if(APPLE)` | `rustc-link-lib=framework=` |
+| Dynamic library | `copies`, the rpath | `BUILD_RPATH`, a `POST_BUILD` copy | `rustc-cdylib-link-arg`, a `postbuild:native` copy |
+| Headers, definitions | `include_dirs`, `defines` | `target_include_directories`, `target_compile_definitions` | none (crates) |
+| Platform | `conditions` (`OS=="mac"`) | `if(APPLE)`, `if(WIN32)`, `if(CMAKE_SYSTEM_NAME STREQUAL "Linux")` | `LAKUTATA_NATIVE_MACOS`, `_LINUX`, `_WINDOWS`, `_UNIX` |
+
+The Rust libraries are given to `build.rs` (by `lakutata add --native rust`), which gives them to cargo for the addon
+only: the flags of rustc would be given to every crate it builds.
 
 ### `lakutata list`
 

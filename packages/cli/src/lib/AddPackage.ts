@@ -153,6 +153,7 @@ function GypFiles(target: string): Files {
         # The headers of the addon and of its libraries: 'deps/include'
       ],
       'libraries': [
+        # The libraries of the addon (lakutata native link writes them, or by hand):
         # A library of the system: '-lpcap' (Linux, macOS), 'ws2_32.lib' (Windows, in its condition below)
         # A static library of the package: '<(module_root_dir)/deps/lib/libfoo.a'
         # A library found by pkg-config: '<!@(pkg-config --libs libpcap)' (its headers in include_dirs:
@@ -235,7 +236,7 @@ if(MSVC)
 endif()
 target_link_libraries(\${PROJECT_NAME} \${CMAKE_JS_LIB})
 
-# The libraries of the addon:
+# The libraries of the addon (lakutata native link writes them, or by hand):
 # - a library of the system: target_link_libraries(\${PROJECT_NAME} pcap) (Windows: ws2_32)
 # - a library found by pkg-config:
 #     find_package(PkgConfig REQUIRED)
@@ -289,12 +290,36 @@ napi-build = "2"
 lto = true
 strip = "symbols"
 `,
-        'build.rs': `fn main() {
+        'build.rs': `use std::env;
+use std::path::Path;
+
+fn main() {
     napi_build::setup();
-    // The native libraries of the addon (beside its crates): a library of the system, a static library of the package
-    // println!("cargo:rustc-link-lib=pcap");
-    // println!("cargo:rustc-link-search=native=deps/lib");
-    // println!("cargo:rustc-link-lib=static=foo");
+    // The native libraries of the addon (beside its crates), given by lakutata native link in .cargo/config.toml: the
+    // directives of cargo of every platform (LAKUTATA_NATIVE) and of one (LAKUTATA_NATIVE_MACOS, LAKUTATA_NATIVE_LINUX,
+    // LAKUTATA_NATIVE_WINDOWS, LAKUTATA_NATIVE_UNIX), separated by ";", their directories relative to the package
+    let root = env::var("CARGO_MANIFEST_DIR").unwrap();
+    let mut keys = vec![String::from("LAKUTATA_NATIVE")];
+    for cfg in ["CARGO_CFG_TARGET_OS", "CARGO_CFG_TARGET_FAMILY"] {
+        for value in env::var(cfg).unwrap_or_default().split(',').filter(|value| !value.is_empty()) {
+            let key = format!("LAKUTATA_NATIVE_{}", value.to_uppercase());
+            if !keys.contains(&key) {
+                keys.push(key);
+            }
+        }
+    }
+    for key in keys {
+        println!("cargo:rerun-if-env-changed={}", key);
+        for directive in env::var(&key).unwrap_or_default().split(';').map(str::trim).filter(|directive| !directive.is_empty()) {
+            match directive.strip_prefix("rustc-link-search=") {
+                Some(search) => {
+                    let (kind, directory) = search.split_once('=').unwrap_or(("all", search));
+                    println!("cargo:rustc-link-search={}={}", kind, Path::new(&root).join(directory).display());
+                }
+                None => println!("cargo:{}", directive),
+            }
+        }
+    }
 }
 `,
         'rust/lib.rs': `use napi_derive::napi;
@@ -355,7 +380,7 @@ at run time by its rpath). The headers of Node.js need C++20 (\`CMAKE_CXX_STANDA
     rust: `Rust with [napi-rs](https://napi.rs), built by cargo (\`Cargo.toml\`, \`build.rs\`, \`rust/lib.rs\`).
 
 The libraries of the addon are crates (\`Cargo.toml\`), their native libraries built and linked by cargo; the other
-native libraries are linked by \`build.rs\`, whose comments show how. The addon is built for the platform and the
+native libraries are linked by \`build.rs\`, given by \`lakutata native link\`. The addon is built for the platform and the
 architecture of the machine (\`rustup target add\` builds the other ones).`
 }
 

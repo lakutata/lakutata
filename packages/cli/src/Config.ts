@@ -5,6 +5,7 @@ import {CommandLineController} from './controllers/CommandLineController.js'
 import {WorkspaceController} from './controllers/WorkspaceController.js'
 import {PackController} from './controllers/PackController.js'
 import {MigrationController} from './controllers/MigrationController.js'
+import {NativeController} from './controllers/NativeController.js'
 import {ToolPackage} from './lib/Versions.js'
 
 /**
@@ -17,7 +18,7 @@ export function Config(): ApplicationOptions {
         name: 'lakutata-cli',
         components: {
             entrypoint: BuildEntrypoints({
-                controllers: [CommandLineController, WorkspaceController, PackController, MigrationController],
+                controllers: [CommandLineController, WorkspaceController, PackController, MigrationController, NativeController],
                 cli: CommanderCLIEntrypoint({bin: 'lakutata', description: tool.description, version: tool.version})
             })
         },

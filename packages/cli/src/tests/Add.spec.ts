@@ -1,77 +1,12 @@
 import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
-import {execFile, execFileSync, type ExecFileException} from 'node:child_process'
-import {cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync} from 'node:fs'
+import {execFileSync} from 'node:child_process'
+import {existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import {fileURLToPath} from 'node:url'
-import {stripVTControlCharacters} from 'node:util'
-
-const CLI: string = fileURLToPath(new URL('../CLIApp.js', import.meta.url))
-const ROOT: string = path.resolve(fileURLToPath(new URL('.', import.meta.url)), '../../../../..')
-
-/**
- * Whether a command runs on the machine
- * @param command
- */
-function Has(command: string): boolean {
-    try {
-        execFileSync(command, ['--version'], {stdio: 'ignore'})
-        return true
-    } catch {
-        return false
-    }
-}
-
-/**
- * The toolchains of the build systems of the native addons (a C++ compiler, CMake, cargo); Windows needs the Visual
- * Studio Build Tools, not checked here
- */
-const TOOLCHAINS: Record<string, boolean> = {
-    gyp: process.platform !== 'win32' && Has('c++'),
-    cmake: process.platform !== 'win32' && Has('c++') && Has('cmake'),
-    rust: Has('cargo')
-}
+import {CLI, Run, TOOLCHAINS, Workspace} from './support/Workspace.js'
 
 let work: string
-
-/**
- * Run a command
- * @param command
- * @param args
- * @param cwd
- */
-function Run(command: string, args: string[], cwd: string): Promise<{ code: number, output: string }> {
-    return new Promise((resolve: (result: { code: number, output: string }) => void): void => {
-        const {NODE_TEST_CONTEXT, ...env} = process.env
-        void NODE_TEST_CONTEXT
-        execFile(command, args, {cwd: cwd, env: {...env, npm_config_user_agent: ''}, timeout: 300000}, (error: ExecFileException | null, stdout: string, stderr: string): void => resolve({
-            code: error ? (typeof error.code === 'number' ? error.code : 1) : 0,
-            output: stripVTControlCharacters(`${stdout}${stderr}`)
-        }))
-    })
-}
-
-/**
- * A workspace of version 1.2.3 with a package app, the tools of the repository linked in its node_modules (as npm
- * install would)
- * @param name
- */
-function Workspace(name: string): string {
-    const root: string = path.join(work, name)
-    mkdirSync(path.join(root, 'packages', 'app'), {recursive: true})
-    writeFileSync(path.join(root, 'package.json'), JSON.stringify({name: name, version: '1.2.3', private: true, workspaces: ['packages/*']}, null, 2))
-    writeFileSync(path.join(root, 'packages', 'app', 'package.json'), JSON.stringify({name: 'app', version: '1.2.3', type: 'module', main: 'build/App.js', dependencies: {lakutata: '^3.0.0'}}, null, 2))
-    mkdirSync(path.join(root, 'node_modules', '.bin'), {recursive: true})
-    mkdirSync(path.join(root, 'node_modules', '@types'), {recursive: true})
-    mkdirSync(path.join(root, 'node_modules', '@napi-rs'), {recursive: true})
-    for (const module of ['typescript', 'node-gyp-build', 'node-gyp', 'cmake-js', '@napi-rs/cli', '@types/node']) symlinkSync(path.join(ROOT, 'node_modules', module), path.join(root, 'node_modules', module), 'dir')
-    //Copied, as installed: gyp includes its targets by paths relative to the package
-    cpSync(path.join(ROOT, 'node_modules', 'node-addon-api'), path.join(root, 'node_modules', 'node-addon-api'), {recursive: true})
-    for (const bin of ['tsc', 'node-gyp', 'node-gyp-build', 'cmake-js', 'napi']) symlinkSync(path.join(ROOT, 'node_modules', '.bin', bin), path.join(root, 'node_modules', '.bin', bin))
-    symlinkSync(CLI, path.join(root, 'node_modules', '.bin', 'lakutata'))
-    return root
-}
 
 describe('lakutata add', (): void => {
     before((): void => {
@@ -82,7 +17,7 @@ describe('lakutata add', (): void => {
     after((): void => rmSync(work, {recursive: true, force: true}))
 
     it('adds a TypeScript package of the version of the workspace, a dependency of a package, which builds and passes its tests', async (): Promise<void> => {
-        const root: string = Workspace('library')
+        const root: string = Workspace(work, 'library')
         const added = await Run(process.execPath, [CLI, 'add', 'greeting', '--to', 'app'], root)
         assert.strictEqual(added.code, 0, added.output)
         assert.match(added.output, /Package greeting 1\.2\.3 added: packages\/greeting/)
@@ -102,7 +37,7 @@ describe('lakutata add', (): void => {
 
     for (const build of ['gyp', 'cmake', 'rust']) {
         it(`adds a native addon built by ${build}, called from its TypeScript, its errors thrown in JavaScript, bundled with an application`, {skip: TOOLCHAINS[build] ? false : `no toolchain of ${build}`}, async (): Promise<void> => {
-            const root: string = Workspace(`native-${build}`)
+            const root: string = Workspace(work, `native-${build}`)
             const added = await Run(process.execPath, [CLI, 'add', '@acme/capture', ...(build === 'gyp' ? ['--native'] : ['--native', build]), '--to', 'app'], root)
             assert.strictEqual(added.code, 0, added.output)
             assert.match(added.output, new RegExp(`Native addon \\(${build}\\) @acme/capture 1\\.2\\.3 added: packages/capture`))
@@ -141,7 +76,7 @@ describe('lakutata add', (): void => {
     }
 
     it('links a dynamic library shipped with a gyp addon as its comments show, found next to it once bundled', {skip: TOOLCHAINS.gyp && process.platform !== 'win32' ? false : 'no C++ toolchain'}, async (): Promise<void> => {
-        const root: string = Workspace('dynamic')
+        const root: string = Workspace(work, 'dynamic')
         assert.strictEqual((await Run(process.execPath, [CLI, 'add', 'suffixed', '--native'], root)).code, 0)
         const directory: string = path.join(root, 'packages', 'suffixed')
         //The dynamic library of the package, found through the rpath of the addons
@@ -183,7 +118,7 @@ describe('lakutata add', (): void => {
     })
 
     it('refuses an invalid name, a name taken, an unknown dependent, and a directory outside of a workspace', async (): Promise<void> => {
-        const root: string = Workspace('refused')
+        const root: string = Workspace(work, 'refused')
         const invalid = await Run(process.execPath, [CLI, 'add', 'Capital Name'], root)
         assert.notStrictEqual(invalid.code, 0)
         assert.match(invalid.output, /is not a name of package/)
