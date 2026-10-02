@@ -9,6 +9,7 @@ import {BuildEntrypoints, BuildHTTPEntrypoint, Controller} from 'lakutata/com/en
 import {BuildDatabaseOptions} from 'lakutata/com/database'
 import {Logger} from 'lakutata/com/logger'
 import {Expect} from 'lakutata/decorator/dto'
+import {BuildI18nOptions, type I18n} from 'lakutata/com/i18n'
 
 class MyComponent extends Component {
     public hello(): string {
@@ -103,3 +104,21 @@ BuildEntrypoints({controllers: [MyController], http: 123})
 BuildEntrypoints({controllers: [MyController], rules: [123]})
 // @ts-expect-error E20 an option of the entrypoint misspelled
 BuildEntrypoints({controllers: [MyController], controlers: [MyController]})
+
+//The keys of the messages declared by the application: a key misspelled, an argument missing or of another type
+declare module 'lakutata/com/i18n' {
+    interface I18nMessages {
+        'order.count': { count: number }
+    }
+}
+declare const i18n: I18n
+i18n.t('order.count', {count: 1}, 'zh-CN')
+i18n.translator('zh-CN').t('order.count', {count: 2})
+// @ts-expect-error E21 a key of the messages misspelled
+i18n.t('order.cuont', {count: 1})
+// @ts-expect-error E22 an argument of a message missing
+i18n.translator('zh-CN').t('order.count', {})
+// @ts-expect-error E23 an argument of a message of another type
+i18n.t('order.count', {count: 'many'})
+// @ts-expect-error E24 an option of the i18n component misspelled
+BuildI18nOptions({directroy: '@locales'})

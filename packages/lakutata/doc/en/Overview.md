@@ -37,6 +37,7 @@ Lakutata's functionality is categorized by domain and purpose, allowing develope
 - **Docker Component**: A built-in client of the Docker Engine API for Docker image, container and network management.
 - **Logger Component**: Based on Pino, offering high-performance logging capabilities.
 - **Database Provider**: Encapsulates database connection logic for simplified configuration and usage.
+- **[I18n Component](I18n.md)**: The messages of each language by their keys (ICU MessageFormat), the languages negotiated and falling back.
 
 ### 5. Tools & Utilities
 - **Helper Functions**: Provides commonly used utility functions and classes to streamline development.

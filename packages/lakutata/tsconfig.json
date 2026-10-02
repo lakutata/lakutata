@@ -47,6 +47,9 @@
             "@lakutata/docker": [
                 "../docker/dist/types/exports/Docker"
             ],
+            "@lakutata/i18n": [
+                "../i18n/dist/types/exports/I18n"
+            ],
             "@lakutata/monitor": [
                 "../monitor/dist/types/exports/Monitor"
             ],

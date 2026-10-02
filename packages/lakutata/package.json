@@ -74,6 +74,16 @@
         "default": "./dist/cjs/exports/CacherComponent.js"
       }
     },
+    "./com/i18n": {
+      "import": {
+        "types": "./dist/types/exports/I18nComponent.d.ts",
+        "default": "./dist/esm/exports/I18nComponent.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/I18nComponent.d.ts",
+        "default": "./dist/cjs/exports/I18nComponent.js"
+      }
+    },
     "./com/monitor": {
       "import": {
         "types": "./dist/types/exports/MonitorComponent.d.ts",
@@ -293,6 +303,7 @@
     "@lakutata/cache": "2.0.126",
     "@lakutata/docker": "2.0.126",
     "@lakutata/orm": "2.0.126",
+    "@lakutata/i18n": "2.0.126",
     "@lakutata/monitor": "2.0.126",
     "@lakutata/utils": "2.0.126",
     "@lakutata/security": "2.0.126"

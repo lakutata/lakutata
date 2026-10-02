@@ -346,6 +346,22 @@
     "HttpRequestMonitor",
     "MemoryMonitor"
   ],
+  "lakutata/com/i18n": [
+    "BuildI18nOptions",
+    "EnvironmentLocales",
+    "FallbackChain",
+    "I18n",
+    "I18nCatalogException",
+    "I18nMessageSyntaxException",
+    "I18nMissingKeyException",
+    "I18nMissingParameterException",
+    "MessageArguments",
+    "NegotiateLocale",
+    "NormalizeLocale",
+    "ParseAcceptLanguage",
+    "ParseMessage",
+    "Translator"
+  ],
   "lakutata/com/entrypoint": [
     "AccessControl",
     "AccessControlRule",

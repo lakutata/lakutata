@@ -78,6 +78,12 @@ await check('@lakutata/docker loads under ESM', () => {
 const {pack: TarPack} = await import('tar-stream')
 await check('tar-stream pack (build context)', () => { TarPack().finalize() })
 
+// @lakutata/i18n: its CJS build formats with Intl
+await check('CJS @lakutata/i18n parses and formats', () => {
+    const {ParseMessage, I18n} = requireCJS('../packages/i18n/dist/cjs/exports/I18n.js')
+    if (typeof I18n !== 'function' || ParseMessage('{n, plural, other {# items}}').length !== 1) throw new Error('I18n missing')
+})
+
 if (failures.length) {
     console.error('\nCJS-INTEROP FAILURES (' + failures.length + '):\n' + failures.join('\n'))
     process.exit(1)
