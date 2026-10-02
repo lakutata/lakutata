@@ -86,6 +86,57 @@ Dependency Injection (DI) is a core mechanism in Lakutata, with related decorato
   ```
 - **Explanation**: Each request for `TestProvider` results in a new instance returned by the IoC container, rather than a shared singleton.
 
+### 2.4 Properties of Subclasses
+- **Inheritance**: a subclass inherits the `@Inject()` and `@Configurable()` properties of its parents. A subclass declaring a property again replaces the declaration of its parents, whatever its decorator: the closest declaration wins (a property injected by the parent and declared again with `@Configurable()` is configured only, and the opposite).
+- **The type of a property**: TypeScript lets a subclass narrow the type of a property it declares again (a `MemoryStore` for a `Store`), never replace it by another type: `string` for `number` fails with `TS2416` (`Property 'port' in type 'BrokenServer' is not assignable to the same property in base type 'PlainServer'`), and no compiler option disables it. A parent whose subclasses may replace the type of a property declares it with a type parameter:
+  - the parent declares the type parameter on the class, named after the property and ending in `Type` (`StoreType` for `store`), with a constraint (`extends Store`): the parent uses the property as its constraint, and its subclasses replace it by compatible types only; and with a default (`= Store`): a subclass which does not replace it extends the parent without type argument;
+  - a subclass gives the type in its `extends` clause, and declares the property again only to change its decorator.
+- **Example**:
+  ```typescript
+  import { Component, DTO } from 'lakutata';
+  import { Configurable, Inject } from 'lakutata/decorator/di';
+
+  export interface Store {
+    get(key: string): Promise<unknown>;
+  }
+
+  export interface MemoryStore extends Store {
+    clear(): void;
+  }
+
+  export class Repository<StoreType extends Store = Store> extends Component {
+    @Inject('store')
+    protected readonly store: StoreType;
+
+    public async find(key: string): Promise<unknown> {
+      return await this.store.get(key);
+    }
+  }
+
+  // The type of the parent: the store is a Store
+  export class RemoteRepository extends Repository {
+  }
+
+  // Another type: the store is a MemoryStore, injected as the parent declares it
+  export class MemoryRepository extends Repository<MemoryStore> {
+    public reset(): void {
+      this.store.clear();
+    }
+  }
+
+  export class Server<PortType extends number | string = number> extends Component {
+    @Configurable(DTO.Number().integer().min(1).optional().default(80))
+    protected readonly port: PortType;
+  }
+
+  // Another type and another schema: the port is a name
+  export class NamedPortServer extends Server<string> {
+    @Configurable(DTO.String().valid('auto', 'http', 'https').optional().default('auto'))
+    protected readonly port: string;
+  }
+  ```
+- **Explanation**: in `MemoryRepository`, the IDE completes `this.store` as a `MemoryStore`, and in `Repository` as a `Store`. Without the type parameter in its parent, a subclass can only silence the error with `// @ts-expect-error` on the property, while the methods of the parent still use the property with its former type.
+
 ## 3. Controller Behavior Decorators
 
 Controllers (`Controller`) in Lakutata use decorators to define behaviors for handling HTTP requests, CLI commands, or service messages. These decorators specify routes, commands, or message patterns.

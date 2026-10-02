@@ -86,6 +86,57 @@
   ```
 - **说明**：每次请求 `TestProvider` 时，IoC 容器都会返回一个新实例，而不是共享的单例。
 
+### 2.4 子类的属性
+- **继承**：子类继承父类的 `@Inject()` 和 `@Configurable()` 属性。子类重新声明某个属性时，会取代父类对它的声明，不论使用的是哪种装饰器，以最近一层的声明为准（父类注入的属性，在子类里用 `@Configurable()` 重新声明后，只按配置处理，不再注入；反之亦然）。
+- **属性的类型**：TypeScript 允许子类在重新声明属性时把类型改窄（例如把 `Store` 改成 `MemoryStore`），但不允许换成其他类型：把 `number` 换成 `string` 会报 `TS2416`（`Property 'port' in type 'BrokenServer' is not assignable to the same property in base type 'PlainServer'`），而且没有任何编译选项可以关闭这个检查。如果父类允许子类替换某个属性的类型，就用泛型参数来声明这个属性：
+  - 父类在类上声明泛型参数，按属性命名并以 `Type` 结尾（属性 `store` 对应 `StoreType`）。加上约束（`extends Store`）：父类可以按约束的类型使用这个属性，子类也只能换成兼容的类型。再加上默认类型（`= Store`）：不需要替换类型的子类，继承时不用填写类型参数；
+  - 子类在 `extends` 处填入具体类型。只有需要更换装饰器时，才在子类里重新声明这个属性。
+- **示例**：
+  ```typescript
+  import { Component, DTO } from 'lakutata';
+  import { Configurable, Inject } from 'lakutata/decorator/di';
+
+  export interface Store {
+    get(key: string): Promise<unknown>;
+  }
+
+  export interface MemoryStore extends Store {
+    clear(): void;
+  }
+
+  export class Repository<StoreType extends Store = Store> extends Component {
+    @Inject('store')
+    protected readonly store: StoreType;
+
+    public async find(key: string): Promise<unknown> {
+      return await this.store.get(key);
+    }
+  }
+
+  // 沿用父类的类型：store 是 Store
+  export class RemoteRepository extends Repository {
+  }
+
+  // 换成其他类型：store 是 MemoryStore，仍按父类的声明注入
+  export class MemoryRepository extends Repository<MemoryStore> {
+    public reset(): void {
+      this.store.clear();
+    }
+  }
+
+  export class Server<PortType extends number | string = number> extends Component {
+    @Configurable(DTO.Number().integer().min(1).optional().default(80))
+    protected readonly port: PortType;
+  }
+
+  // 换成其他类型和其他 schema：port 是一个名称
+  export class NamedPortServer extends Server<string> {
+    @Configurable(DTO.String().valid('auto', 'http', 'https').optional().default('auto'))
+    protected readonly port: string;
+  }
+  ```
+- **说明**：在 `MemoryRepository` 里，IDE 会把 `this.store` 当作 `MemoryStore` 来补全；在 `Repository` 里则当作 `Store`。如果父类没有声明泛型参数，子类只能在属性上用 `// @ts-expect-error` 压制这个错误，而父类的方法仍会按原来的类型使用这个属性。
+
 ## 3. 控制器行为装饰器
 
 Lakutata 中的控制器（`Controller`）使用装饰器来定义处理 HTTP 请求、CLI 命令或服务消息的行为。这些装饰器指定路由、命令或消息模式。
