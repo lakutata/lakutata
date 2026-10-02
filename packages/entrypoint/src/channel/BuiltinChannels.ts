@@ -10,6 +10,7 @@ import type {CLIContext} from '../context/CLIContext.js'
 import type {ServiceContext} from '../context/ServiceContext.js'
 import type {ScheduleContext} from '../context/ScheduleContext.js'
 import {ControllerActionNotFoundException} from '../exceptions/ControllerActionNotFoundException.js'
+import {UnsetValue} from '../lib/UnsetValue.js'
 
 /**
  * A lookup by exact key, falling back to the glob patterns
@@ -31,24 +32,6 @@ function ExactMatcher(entries: ChannelEntry[], key: (pattern: ActionPattern) => 
             return entry ? {entry: entry} : undefined
         }
     }
-}
-
-/**
- * Remove a property path from an object
- * @param obj
- * @param path
- */
-function Unset(obj: Record<string, any>, path: string): boolean {
-    const keys: string[] = path.split('.')
-    let current: any = obj
-    for (let i: number = 0; i < keys.length - 1; i++) {
-        if (current[keys[i]] === undefined) return false
-        current = current[keys[i]]
-    }
-    const lastKey: string = keys[keys.length - 1]
-    if (current[lastKey] === undefined) return false
-    delete current[lastKey]
-    return true
 }
 
 /**
@@ -113,14 +96,14 @@ export const ServiceChannel: ChannelDefinition = DefineChannel({
     //The keys of the pattern are not a part of the action input
     prepare: (entry: ChannelEntry, context: BaseContext): void => {
         const patternPaths: string[] = GetObjectPropertyPaths(entry.details.pattern)
-        patternPaths.forEach((path: string): unknown => Unset(context.data, path))
+        patternPaths.forEach((path: string): unknown => UnsetValue(context.data, path))
         const checkPatternPaths: string[] = UniqueArray(patternPaths
             .map((path: string): string => path.substring(0, path.lastIndexOf('.')))
             .filter((path: string): boolean => !!path))
         checkPatternPaths.forEach((path: string): void => {
             let target: ActionPattern = context.data
             path.split('.').forEach((key: string): unknown => target = target[key] ? target[key] : undefined)
-            if (target && !Object.keys(target).length) Unset(context.data, path)
+            if (target && !Object.keys(target).length) UnsetValue(context.data, path)
         })
     },
     notFound: (): Error => new ControllerActionNotFoundException('Controller action not found')
