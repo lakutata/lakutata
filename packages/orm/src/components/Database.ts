@@ -44,6 +44,12 @@ export class Database extends Component {
      */
     public static migrationGenerator = async (): Promise<typeof Provider> => (await import('../providers/migration/GenerateMigration.js')).GenerateMigration
 
+    /**
+     * Lazy loader of the provider running, reverting or showing the migrations, used by Application when MIGRATION_RUN,
+     * MIGRATION_REVERT or MIGRATION_SHOW is set
+     */
+    public static migrationExecutor = async (): Promise<typeof Provider> => (await import('../providers/migration/ExecuteMigration.js')).ExecuteMigration
+
     #datasource: DataSource
 
     /**

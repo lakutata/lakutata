@@ -4,6 +4,7 @@ import {spawnSync, type SpawnSyncReturns} from 'node:child_process'
 import {mkdir, mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
+import {stripVTControlCharacters} from 'node:util'
 import {Container} from '@lakutata/core'
 import {BaseEntity, DataSource, EntitySchema, type MigrationInterface, type QueryRunner} from '../exports/ORM.js'
 import {Column, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn} from '../exports/ORMDecorators.js'
@@ -195,6 +196,100 @@ describe('The ORM', (): void => {
             assert.strictEqual(await database.showMigrations(), true)
             await container.destroy()
         })
+    })
+
+    describe('The commands of the migrations (MIGRATION_RUN, MIGRATION_REVERT, MIGRATION_SHOW)', (): void => {
+
+        /**
+         * Start an application whose databases (SQLite files of the directory) have the migrations of the notes and the
+         * tags, with the environment of a command
+         * @param directory
+         * @param env
+         * @param options the names of the databases, a migration failing
+         */
+        function command(directory: string, env: Record<string, string>, options: { databases?: string[], failing?: boolean } = {}): SpawnSyncReturns<string> {
+            const databases: string[] = options.databases ?? ['db']
+            const script: string = [
+                `import {Application} from '${import.meta.resolve('@lakutata/core')}'`,
+                `import {BuildDatabaseOptions} from '${new URL('../exports/DatabaseComponent.js', import.meta.url)}'`,
+                'class CreateNote1700000000000 { name = \'CreateNote1700000000000\'; async up(q) { await q.query(\'CREATE TABLE "note" ("id" integer PRIMARY KEY)\') } async down(q) { await q.query(\'DROP TABLE "note"\') } }',
+                `class CreateTag1700000000001 { name = 'CreateTag1700000000001'; async up(q) { ${options.failing ? 'throw new Error(\'the tag fails\')' : 'await q.query(\'CREATE TABLE "tag" ("id" integer PRIMARY KEY)\')'} } async down(q) { await q.query('DROP TABLE "tag"') } }`,
+                `const components = Object.fromEntries(${JSON.stringify(databases)}.map((name) => [name, BuildDatabaseOptions({type: 'sqlite', database: name + '.db', migrations: [CreateNote1700000000000, CreateTag1700000000001]})]))`,
+                'Application.run({id: \'migration.test\', name: \'MigrationTest\', components: components})'
+            ].join('\n')
+            const base: NodeJS.ProcessEnv = Object.fromEntries(Object.entries(process.env).filter(([name]): boolean => !name.toUpperCase().startsWith('MIGRATION_')))
+            const result: SpawnSyncReturns<string> = spawnSync(process.execPath, ['--input-type=module', '-e', script], {cwd: directory, env: {...base, ...env}, encoding: 'utf8', timeout: 60000})
+            //The messages without their colors
+            return {...result, stdout: stripVTControlCharacters(result.stdout), stderr: stripVTControlCharacters(result.stderr)}
+        }
+
+        /**
+         * The tables of a SQLite database file
+         * @param file
+         */
+        async function tablesOf(file: string): Promise<string[]> {
+            const dataSource: DataSource = await new DataSource({type: 'sqlite', database: file}).initialize()
+            try {
+                return await Tables(dataSource)
+            } finally {
+                await dataSource.destroy()
+            }
+        }
+
+        it('shows, runs and reverts the migrations of the database', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+            const shown: SpawnSyncReturns<string> = command(directory, {MIGRATION_SHOW: '1'})
+            assert.strictEqual(shown.status, 0, shown.stderr)
+            assert.match(shown.stdout, /\[db\] \[ \] CreateNote1700000000000\n\[db\] \[ \] CreateTag1700000000001\n\[db\] 2 pending migrations/)
+            const ran: SpawnSyncReturns<string> = command(directory, {MIGRATION_RUN: '1'})
+            assert.strictEqual(ran.status, 0, ran.stderr)
+            assert.match(ran.stdout, /Migration CreateNote1700000000000 has been run\n.*Migration CreateTag1700000000001 has been run/)
+            assert.deepStrictEqual(await tablesOf(path.join(directory, 'db.db')), ['note', 'tag'])
+            assert.match(command(directory, {MIGRATION_RUN: '1'}).stdout, /\[db\] No pending migration/)
+            assert.match(command(directory, {MIGRATION_SHOW: 'true'}).stdout, /\[X\] CreateNote1700000000000\n.*\[X\] CreateTag1700000000001\n.*No pending migration/)
+            //The last migration reverted, one at a time
+            const reverted: SpawnSyncReturns<string> = command(directory, {MIGRATION_REVERT: '1'})
+            assert.strictEqual(reverted.status, 0, reverted.stderr)
+            assert.match(reverted.stdout, /\[db\] Migration CreateTag1700000000001 has been reverted/)
+            assert.deepStrictEqual(await tablesOf(path.join(directory, 'db.db')), ['note'])
+            assert.match(command(directory, {MIGRATION_SHOW: '1'}).stdout, /\[X\] CreateNote1700000000000\n.*\[ \] CreateTag1700000000001\n.*1 pending migration\n/)
+            //Marked as reverted without being executed: the table kept
+            assert.match(command(directory, {MIGRATION_REVERT: '1', MIGRATION_FAKE: '1'}).stdout, /Migration CreateNote1700000000000 has been marked as reverted/)
+            assert.deepStrictEqual(await tablesOf(path.join(directory, 'db.db')), ['note'])
+            assert.match(command(directory, {MIGRATION_REVERT: '1'}).stdout, /\[db\] No migration to revert/)
+        }))
+
+        it('runs the migrations of every database, reverts the one selected', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+            const databases: string[] = ['main', 'audit']
+            const ran: SpawnSyncReturns<string> = command(directory, {MIGRATION_RUN: '1', MIGRATION_TRANSACTION: 'each'}, {databases: databases})
+            assert.strictEqual(ran.status, 0, ran.stderr)
+            assert.match(ran.stdout, /\[main\] Migration CreateTag1700000000001 has been run/)
+            assert.match(ran.stdout, /\[audit\] Migration CreateTag1700000000001 has been run/)
+            //Several databases: the one reverted is selected
+            const ambiguous: SpawnSyncReturns<string> = command(directory, {MIGRATION_REVERT: '1'}, {databases: databases})
+            assert.strictEqual(ambiguous.status, 1)
+            assert.match(ambiguous.stderr, /several databases \(main, audit\): MIGRATION_DATABASE selects the one/)
+            const reverted: SpawnSyncReturns<string> = command(directory, {MIGRATION_REVERT: '1', MIGRATION_DATABASE: 'audit'}, {databases: databases})
+            assert.strictEqual(reverted.status, 0, reverted.stderr)
+            assert.deepStrictEqual(await tablesOf(path.join(directory, 'audit.db')), ['note'])
+            assert.deepStrictEqual(await tablesOf(path.join(directory, 'main.db')), ['note', 'tag'])
+            const unknown: SpawnSyncReturns<string> = command(directory, {MIGRATION_SHOW: '1', MIGRATION_DATABASE: 'logs'}, {databases: databases})
+            assert.strictEqual(unknown.status, 1)
+            assert.match(unknown.stderr, /The application has no database logs \(main, audit\)/)
+        }))
+
+        it('fails when a migration fails, without database, and with an invalid transaction mode', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+            const failed: SpawnSyncReturns<string> = command(directory, {MIGRATION_RUN: '1'}, {failing: true})
+            assert.strictEqual(failed.status, 1)
+            assert.match(failed.stderr, /\[db\] The migrations could not be run:[\s\S]*the tag fails/)
+            //The migrations are run in one transaction by default: none kept
+            assert.deepStrictEqual(await tablesOf(path.join(directory, 'db.db')), [])
+            const none: SpawnSyncReturns<string> = command(directory, {MIGRATION_SHOW: '1'}, {databases: []})
+            assert.strictEqual(none.status, 1)
+            assert.match(none.stderr, /The application has no Database component or provider/)
+            const invalid: SpawnSyncReturns<string> = command(directory, {MIGRATION_RUN: '1', MIGRATION_TRANSACTION: 'some'})
+            assert.notStrictEqual(invalid.status, 0, invalid.stderr + invalid.stdout)
+            assert.match(invalid.stderr, /MIGRATION_TRANSACTION is all, none or each, not "some"/)
+        }))
     })
 
     describe('The generation of the migrations', (): void => {

@@ -14,6 +14,7 @@ import path from 'node:path'
 import {existsSync} from 'node:fs'
 import {As} from '@lakutata/utils/As'
 import {SynchronousEventEmitter} from '../base/EventEmitter.js'
+import {type MigrationCommand, ReadMigrationCommand} from './MigrationCommand.js'
 import {BootstrapOption, ModuleOptions} from '../../options/ModuleOptions.js'
 import {DeclareApplicationClass, MarkApplicationLaunched} from '../base/internal/ApplicationLaunch.js'
 
@@ -306,61 +307,78 @@ export class Application extends Module {
             })
         })
         const options: ApplicationOptions = typeof this.launchOptions === 'object' ? this.launchOptions : await this.launchOptions()
-        //Generate database migrations
-        for (const env in process.env) {
-            switch (env.toUpperCase()) {
-                case 'MIGRATION_GENERATE': {
-                    this.eventEmitter.removeAllListeners(ApplicationState.Launched)
-                    this.eventEmitter.removeAllListeners(ApplicationState.Done)
-                    this.eventEmitter.removeAllListeners(ApplicationState.UncaughtException)
-                    this.eventEmitter.removeAllListeners(ApplicationState.FatalException)
-                    const migrationTargetDir: string = process.env[env]!
-                    //The classes generating migrations (the Database classes of the orm package) are recognized by their
-                    //static migrationGenerator, a lazy loader of their generator, so core never references the orm package.
-                    interface MigrationTarget {
-                        dataSourceName: string
-                        dataSourceOptions: Record<string, any>
-                        migrationGenerator: () => Promise<any>
-                    }
-                    const getMigrationTargets: (input: Record<string, any>) => MigrationTarget[] = (input: Record<string, any>) => {
-                        const migrationTargets: MigrationTarget[] = []
-                        for (const name in input) {
-                            const objectClass: any = input[name]?.class
-                            if (typeof objectClass?.migrationGenerator === 'function') {
-                                const dataSourceOptions: Record<string, any> = input[name].options
-                                if (!dataSourceOptions) continue
-                                Reflect.set(dataSourceOptions, 'dataSourceName', name)
-                                migrationTargets.push({
-                                    dataSourceName: name,
-                                    dataSourceOptions: dataSourceOptions,
-                                    migrationGenerator: objectClass.migrationGenerator
-                                })
-                            }
-                        }
-                        return migrationTargets
-                    }
-                    const migrationTargets: MigrationTarget[] = [
-                        ...(options.components ? getMigrationTargets(options.components) : []),
-                        ...(options.providers ? getMigrationTargets(options.providers) : [])
-                    ]
-                    if (!migrationTargets.length) process.exit(0)
-                    options.bootstrap = []
-                    for (let index: number = 0; index < migrationTargets.length; index++) {
-                        const migrationTarget: MigrationTarget = migrationTargets[index]
-                        const migrationProviderName: string = `GenerateMigration${index}${Date.now()}`
-                        if (!options.providers) options.providers = {}
-                        options.providers[migrationProviderName] = {
-                            class: await migrationTarget.migrationGenerator(),
-                            path: migrationTargetDir,
-                            outputJs: false,
-                            exitProcess: index === migrationTargets.length - 1,
-                            dataSourceName: migrationTarget.dataSourceName,
-                            dataSource: migrationTarget.dataSourceOptions
-                        }
-                        options.bootstrap!.push(migrationProviderName)
+        //The commands of the migrations of the databases: the application connects its databases, does the command and exits
+        let migrationCommand: MigrationCommand | undefined
+        try {
+            migrationCommand = ReadMigrationCommand(process.env)
+        } catch (error) {
+            //A command of the migrations fails with the code 1, the tools running it know it
+            console.error((error as Error).message)
+            process.exit(1)
+        }
+        if (migrationCommand) {
+            this.eventEmitter.removeAllListeners(ApplicationState.Launched)
+            this.eventEmitter.removeAllListeners(ApplicationState.Done)
+            this.eventEmitter.removeAllListeners(ApplicationState.UncaughtException)
+            this.eventEmitter.removeAllListeners(ApplicationState.FatalException)
+            //The classes of the databases (the Database classes of the orm package) are recognized by the static lazy
+            //loaders of their providers (migrationGenerator, migrationExecutor), so core never references the orm package.
+            const loaderName: 'migrationGenerator' | 'migrationExecutor' = migrationCommand.action === 'generate' ? 'migrationGenerator' : 'migrationExecutor'
+            interface MigrationTarget {
+                dataSourceName: string
+                dataSourceOptions: Record<string, any>
+                loader: () => Promise<any>
+            }
+            const getMigrationTargets: (input: Record<string, any>) => MigrationTarget[] = (input: Record<string, any>) => {
+                const migrationTargets: MigrationTarget[] = []
+                for (const name in input) {
+                    const objectClass: any = input[name]?.class
+                    if (typeof objectClass?.[loaderName] === 'function') {
+                        const dataSourceOptions: Record<string, any> = input[name].options
+                        if (!dataSourceOptions) continue
+                        Reflect.set(dataSourceOptions, 'dataSourceName', name)
+                        migrationTargets.push({dataSourceName: name, dataSourceOptions: dataSourceOptions, loader: objectClass[loaderName]})
                     }
                 }
-                    break
+                return migrationTargets
+            }
+            let migrationTargets: MigrationTarget[] = [
+                ...(options.components ? getMigrationTargets(options.components) : []),
+                ...(options.providers ? getMigrationTargets(options.providers) : [])
+            ]
+            const names: string = migrationTargets.map((target: MigrationTarget): string => target.dataSourceName).join(', ')
+            if (migrationCommand.database) {
+                migrationTargets = migrationTargets.filter((target: MigrationTarget): boolean => target.dataSourceName === migrationCommand.database)
+                if (!migrationTargets.length) {
+                    console.error(`The application has no database ${migrationCommand.database} (${names || 'no Database component or provider'})`)
+                    process.exit(1)
+                }
+            }
+            if (!migrationTargets.length) {
+                //Nothing to generate; the other commands need a database
+                if (migrationCommand.action === 'generate') process.exit(0)
+                console.error('The application has no Database component or provider')
+                process.exit(1)
+            }
+            if (migrationCommand.action === 'revert' && migrationTargets.length > 1) {
+                console.error(`The application has several databases (${names}): MIGRATION_DATABASE selects the one whose last migration is reverted`)
+                process.exit(1)
+            }
+            options.bootstrap = []
+            if (!options.providers) options.providers = {}
+            for (let index: number = 0; index < migrationTargets.length; index++) {
+                const migrationTarget: MigrationTarget = migrationTargets[index]
+                const migrationProviderName: string = `Migration${index}${Date.now()}`
+                const common: Record<string, any> = {
+                    class: await migrationTarget.loader(),
+                    exitProcess: index === migrationTargets.length - 1,
+                    dataSourceName: migrationTarget.dataSourceName,
+                    dataSource: migrationTarget.dataSourceOptions
+                }
+                options.providers[migrationProviderName] = migrationCommand.action === 'generate'
+                    ? {...common, path: migrationCommand.path, outputJs: false}
+                    : {...common, action: migrationCommand.action, transaction: migrationCommand.transaction, fake: migrationCommand.fake}
+                options.bootstrap.push(migrationProviderName)
             }
         }
         const rootContainer: Container = new Container()

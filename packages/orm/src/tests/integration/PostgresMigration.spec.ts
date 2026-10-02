@@ -5,6 +5,7 @@ import {mkdir, mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {pathToFileURL} from 'node:url'
+import {stripVTControlCharacters} from 'node:util'
 import ts from 'typescript'
 import {Container} from '@lakutata/core'
 import {DataSource} from '../../exports/ORM.js'
@@ -146,5 +147,44 @@ describe('The migrations of a PostgreSQL database', {skip: SERVER ? false : 'POS
         await connected(async (database: Database): Promise<void> => {
             assert.deepStrictEqual(await columns(database), ['id', 'name', 'sn'])
         })
+    })
+
+    it('shows, reverts and runs the migrations with the commands of the application (MIGRATION_SHOW, MIGRATION_REVERT, MIGRATION_RUN)', async (): Promise<void> => {
+        await migrations()
+        const files: string[] = (await readdir(path.join(project, 'migrations'))).filter((file: string): boolean => file.endsWith('.mjs')).sort()
+        /**
+         * Start the application with its migrations, with the environment of a command
+         * @param env
+         */
+        const command = (env: Record<string, string>): SpawnSyncReturns<string> => {
+            const result: SpawnSyncReturns<string> = spawnSync(process.execPath, ['--input-type=module', '-e', [
+                `import {Application} from '${import.meta.resolve('@lakutata/core')}'`,
+                `import {BuildDatabaseOptions} from '${new URL('../../exports/DatabaseComponent.js', import.meta.url)}'`,
+                ...files.map((file: string, index: number): string => `import * as migration${index} from '${pathToFileURL(path.join(project, 'migrations', file)).href}'`),
+                `const migrations = [${files.map((_file: string, index: number): string => `...Object.values(migration${index})`).join(', ')}]`,
+                `Application.run({id: 'migration.test', name: 'MigrationTest', components: {db: BuildDatabaseOptions({...${JSON.stringify(options())}, migrations: migrations})}})`
+            ].join('\n')], {cwd: project, env: {...process.env, ...env}, encoding: 'utf8', timeout: 60000})
+            return {...result, stdout: stripVTControlCharacters(result.stdout), stderr: stripVTControlCharacters(result.stderr)}
+        }
+        const shown: SpawnSyncReturns<string> = command({MIGRATION_SHOW: '1'})
+        assert.strictEqual(shown.status, 0, shown.stderr)
+        assert.match(shown.stdout, /\[db\] \[X\] Migrations\d+\n\[db\] \[X\] Migrations\d+\n\[db\] No pending migration/)
+        const reverted: SpawnSyncReturns<string> = command({MIGRATION_REVERT: '1'})
+        assert.strictEqual(reverted.status, 0, reverted.stderr)
+        assert.match(reverted.stdout, /\[db\] Migration Migrations\d+ has been reverted/)
+        const check = async (expected: string[]): Promise<void> => {
+            const container: Container = new Container()
+            try {
+                assert.deepStrictEqual(await columns(await container.set(Database, {options: options()})), expected)
+            } finally {
+                await container.destroy()
+            }
+        }
+        await check(['id', 'sn'])
+        assert.match(command({MIGRATION_SHOW: '1'}).stdout, /\[ \] Migrations\d+\n\[db\] 1 pending migration\n/)
+        const ran: SpawnSyncReturns<string> = command({MIGRATION_RUN: '1'})
+        assert.strictEqual(ran.status, 0, ran.stderr)
+        assert.match(ran.stdout, /\[db\] Migration Migrations\d+ has been run/)
+        await check(['id', 'name', 'sn'])
     })
 })
