@@ -113,6 +113,7 @@ export class TestController1 extends Controller {
 - **退出信号**：收到 `SIGTERM`（`docker stop`、Kubernetes 滚动更新、systemd 停止服务）或 `SIGINT`（Ctrl+C）时，应用会优雅退出：先执行 `onDone`，此时应用仍然完全可用（它的第三个参数说明退出原因：收到信号时是 `{code: 0, signal: 'SIGTERM'}`，调用 `app.exit(code)` 时是 `{code}`）；然后各入口停止接收新请求并等待正在处理的请求完成，各对象被销毁，最后以退出码 0 退出。如果再次收到信号（比如退出过程卡住了），或者信号是在应用启动期间收到的，进程会立即以 128 + 信号编号退出（`SIGTERM` 为 143，`SIGINT` 为 130）。应用选项 `shutdownSignals` 可以指定其他信号（如 `['SIGTERM', 'SIGINT', 'SIGHUP']`），设为 `false` 则由应用自己处理信号。
 - **启动失败**：应用无法启动时（对象初始化失败、选项不合法等），由 `onFatalException` 的处理函数决定退出码（没有返回退出码时为 1）。没有注册处理函数时，框架记录错误后以退出码 1 退出，和 Node.js 处理未捕获异常的方式一致，这样运行它的工具（Docker 的重启策略、Kubernetes、systemd、CI）都能知道启动失败了；已经创建的对象（正在监听的服务、数据库连接等）也不会让进程继续挂着。
 - **环境变量支持**：通过 `Application.env()` 方法设置环境变量，可在整个应用中访问。
+- **运行模式**：`app.mode()` 返回 `'development'` 或 `'production'`。环境变量会覆盖代码里的配置，同一份构建产物可以在不同模式下运行：依次看环境变量 `MODE`（lakutata 自己的变量）、`NODE_ENV`，然后是应用选项 `mode`，都没有时为 `development`。不是这两个值的 `MODE` 会发出警告并被忽略，不是这两个值的 `NODE_ENV`（如测试工具设置的 `test`）会被跳过。确定的模式会同时写回 `MODE` 和 `NODE_ENV`，所以第三方库读到的也是同一个模式。环境变量可以来自系统、`Application.env({MODE: 'production'})`，或者 Bun 自动读取的 `.env` 文件。
 
 ### 使用示例
 以下是基于 `App.spec.ts` 的应用入口点配置和启动示例：

@@ -31,12 +31,12 @@ export class ApplicationOptions extends ModuleOptions {
     public readonly timezone?: string | 'auto'
 
     /**
-     * runtime environment (development or production, default value is development)
+     * runtime environment (development or production) when the environment gives none: the MODE environment
+     * variable, then NODE_ENV, override it; development by default
      */
     @Expect(DTO.String()
         .valid('development', 'production')
-        .optional()
-        .default('development'))
+        .optional())
     public readonly mode?: 'development' | 'production'
 
     /**
