@@ -336,4 +336,25 @@ describe('EventEmitter', (): void => {
         const output: string = execFileSync(process.execPath, ['--input-type=module', '-e', script], {cwd: new URL('.', import.meta.url), encoding: 'utf8'})
         assert.deepStrictEqual(JSON.parse(output), ['true', 'true', 'upstream', 'ported'])
     })
+
+    it('warns of a possible memory leak as eventemitter2: above 10 listeners without options, 0 for no warning', async (): Promise<void> => {
+        const {EventEmitter2: PortedEventEmitter2} = await import('../../lib/base/internal/EventEmitter2.js')
+        const warned = async (create: () => any, setup?: (emitter: any) => void): Promise<number> => {
+            const warnings: string[] = []
+            const listener = (warning: Error): number => warnings.push(warning.message)
+            process.on('warning', listener)
+            const emitter: any = create()
+            setup?.(emitter)
+            for (let index: number = 0; index < 12; index++) emitter.on('x', (): undefined => undefined)
+            await flush()
+            process.off('warning', listener)
+            return warnings.length
+        }
+        for (const setup of [undefined, (emitter: any): void => emitter.setMaxListeners(0), (emitter: any): void => emitter.setMaxListeners(20)]) {
+            assert.strictEqual(await warned((): any => new PortedEventEmitter2(), setup), await warned((): any => new UpstreamEventEmitter2(), setup))
+            assert.strictEqual(await warned((): any => new PortedEventEmitter2({wildcard: true}), setup), await warned((): any => new UpstreamEventEmitter2({wildcard: true}), setup))
+        }
+        assert.strictEqual(new PortedEventEmitter2().getMaxListeners(), new UpstreamEventEmitter2().getMaxListeners())
+        assert.strictEqual(PortedEventEmitter2.defaultMaxListeners, (UpstreamEventEmitter2 as any).defaultMaxListeners)
+    })
 })

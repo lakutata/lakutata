@@ -85,6 +85,24 @@ function Node(): TreeNode {
 
 export class EventEmitter2 {
 
+    /**
+     * The number of the listeners of an event above which a possible memory leak is warned of, for the emitters not
+     * given one (10; 0 for no warning)
+     */
+    public static get defaultMaxListeners(): number {
+        return EventEmitter2.prototype._maxListeners!
+    }
+
+    public static set defaultMaxListeners(n: number) {
+        if (typeof n !== 'number' || n < 0 || Number.isNaN(n)) throw TypeError('n must be a non-negative number')
+        EventEmitter2.prototype._maxListeners = n
+    }
+
+    static {
+        //Like upstream: the default of the emitters not given a number of listeners, on the prototype
+        EventEmitter2.prototype._maxListeners = 10
+    }
+
     public delimiter: string = '.'
 
     /**
