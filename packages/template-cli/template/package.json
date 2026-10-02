@@ -16,7 +16,7 @@
   ],
   "scripts": {
     "clean": "lakutata clean build dist",
-    "compile": "node -e \"require('node:fs').rmSync('build', {recursive: true, force: true})\" && tsc",
+    "compile": "lakutata clean && tsc",
     "start": "node build/App.js",
     "test": "npm run compile && node --test \"build/tests/**/*.spec.js\"",
     "build": "npm run compile && lakutata executable",
