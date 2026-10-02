@@ -5,6 +5,8 @@ import {Provider} from './Provider.js'
 import {DefineObjectType, ObjectType} from '../base/internal/ObjectType.js'
 import {GetObjectContainer} from '../base/internal/ObjectContainer.js'
 import {Container} from './Container.js'
+import {Configurable} from '../../decorators/di/Configurable.js'
+import {DTO} from '../dto/DTO.js'
 
 /**
  * Component base class
@@ -18,6 +20,18 @@ export class Component extends Provider {
      * @private
      */
     #eventEmitter: EventEmitter = new EventEmitter()
+
+    /**
+     * The number of the listeners of an event above which a possible memory leak is warned of (11 by default, 0 for
+     * no warning); the listeners are never limited. A subclass gives its own default by an initializer
+     * (protected readonly maxListeners: number = 0)
+     * @protected
+     */
+    @Configurable(DTO.Number().integer().min(0).optional().default(11), function (this: Component, maxListeners: number): number {
+        this.setMaxListeners(maxListeners)
+        return maxListeners
+    })
+    protected readonly maxListeners: number
 
     /**
      * Internal initializer

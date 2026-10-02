@@ -35,12 +35,15 @@ export class Module extends Component {
      * @protected
      */
     @Configurable(ModuleOptions.optional().default({}).options({stripUnknown: false}), function (this: Module, options: ModuleOptions) {
+        //The options of the module (its initializer) with the options configured over them: without configuration, the
+        //value is the initializer, which is not merged twice
+        const configured: ModuleOptions = this.getConfigurableRecords().options !== undefined ? options : {}
         const {bootstrap, loadOptions} = new this.ConfigLoader(this, this.options)
         bootstrap.forEach(value => this.#bootstrap.push(value))
-        const result = new this.ConfigLoader(this, options, loadOptions)
+        const result = new this.ConfigLoader(this, configured, loadOptions)
         result.bootstrap.forEach(value => this.#bootstrap.push(value))
         this.#objects = result.loadOptions
-        this.#checkOptions = (options.checkOptions ?? this.options.checkOptions) !== false
+        this.#checkOptions = (configured.checkOptions ?? this.options.checkOptions) !== false
         return options
     })
     protected options: ModuleOptions = {

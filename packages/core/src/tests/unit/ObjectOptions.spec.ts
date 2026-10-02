@@ -108,9 +108,9 @@ describe('The check of the options of the declared objects', (): void => {
         assert.strictEqual(error, undefined)
         assert.deepStrictEqual(warnings, [
             //The anonymous objects are declared first
-            'The option "other" of Channels is not a configurable property, it is ignored (it has no configurable property)',
-            'The option "levle" of "service" (Service) is not a configurable property, it is ignored (its configurable properties: debug, level, port)',
-            'The option "chanel" of "channels" (Channels) is not a configurable property, it is ignored (it has no configurable property)'
+            'The option "other" of Channels is not a configurable property, it is ignored (its configurable properties: maxListeners)',
+            'The option "levle" of "service" (Service) is not a configurable property, it is ignored (its configurable properties: debug, level, maxListeners, port)',
+            'The option "chanel" of "channels" (Channels) is not a configurable property, it is ignored (its configurable properties: maxListeners)'
         ])
         assert.strictEqual((await module.getObject<Service>('service')).level, 'info')
     })

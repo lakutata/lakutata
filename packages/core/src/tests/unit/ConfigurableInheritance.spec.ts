@@ -49,10 +49,42 @@ class SecureServer extends NamedPortServer {
 }
 
 /**
+ * Declares nothing: the declarations of its parent, not of its grandparent
+ */
+class PlainNamedPortServer extends NamedPortServer {
+}
+
+/**
  * A sibling of NamedPortServer declaring the port otherwise
  */
 class RangedServer extends Server {
     @Configurable(DTO.Number().integer().min(1000).max(2000).optional().default(1500))
+    public readonly port: number
+}
+
+class InitializedOnly extends Component {
+    @Configurable(DTO.Number().optional())
+    public readonly count: number = 5
+}
+
+class InitializedPort extends Server {
+    public readonly port: number = 8443
+}
+
+class ReinitializedPort extends InitializedPort {
+    public readonly port: number = 9443
+}
+
+class InitializedNamedPort extends NamedPortServer {
+    public readonly port: any = 'https'
+}
+
+class InvalidInitializer extends Server {
+    public readonly port: number = 0
+}
+
+class RedeclaredWithoutInitializer extends InitializedPort {
+    @Configurable(DTO.Number().integer().min(1).optional().default(1))
     public readonly port: number
 }
 
@@ -64,7 +96,7 @@ describe('The configurable properties of the subclasses', (): void => {
 
     it('are inherited: the values, the defaults, the transforms and the validation of the parent', async (): Promise<void> => {
         const server: InheritingServer = await Create(InheritingServer, {host: 'example.com', port: 8080})
-        assert.deepStrictEqual([server.host, server.port, server.label], ['example.com', 8080, 'server'])
+        assert.deepStrictEqual([server.host, server.port, server.label], ['example.com', 8080, 'initializer'])
         const defaults: InheritingServer = await Create(InheritingServer)
         assert.deepStrictEqual([defaults.host, defaults.port], ['localhost', 80])
         await assert.rejects(Create(InheritingServer, {port: 'auto'}), /"port" must be a number/)
@@ -84,20 +116,36 @@ describe('The configurable properties of the subclasses', (): void => {
 
     it('declared again over several levels take the closest declaration, the siblings do not share theirs', async (): Promise<void> => {
         const secure: SecureServer = await Create(SecureServer, {host: 'secure.example.com'})
-        assert.deepStrictEqual([secure.host, secure.port, secure.label], ['secure.example.com', 'https', 'server'])
+        assert.deepStrictEqual([secure.host, secure.port, secure.label], ['secure.example.com', 'https', 'initializer'])
         await assert.rejects(Create(SecureServer, {host: 'secure.example.com', port: 'http'}), /"port" must be \[https\]/)
         //The host is required by the grandchild only
         await assert.rejects(Create(SecureServer), /"host" is required/)
         assert.strictEqual((await Create(NamedPortServer)).host, 'localhost')
+        //A subclass declaring nothing takes the declaration of its parent, not the one of its grandparent (2.x took it)
+        assert.strictEqual((await Create(PlainNamedPortServer, {port: 'http'})).port, 'HTTP')
+        await assert.rejects(Create(PlainNamedPortServer, {port: 8080}), /"port" must be one of/)
         //The siblings
         assert.strictEqual((await Create(RangedServer)).port, 1500)
         await assert.rejects(Create(RangedServer, {port: 80}), /"port" must be greater than or equal to 1000/)
         assert.strictEqual((await Create(NamedPortServer, {port: 'https'})).port, 'HTTPS')
     })
 
-    it('given a value or a default win over the initializer of the property', async (): Promise<void> => {
-        assert.strictEqual((await Create(Server)).label, 'server')
+    it('take the value configured, else the initializer of the property, else the default of the schema', async (): Promise<void> => {
+        //The initializer over the default of the schema
+        assert.strictEqual((await Create(Server)).label, 'initializer')
         assert.strictEqual((await Create(InheritingServer, {label: 'given'})).label, 'given')
+        //Without default in the schema, the initializer is kept (it was replaced by undefined)
+        assert.strictEqual((await Create(InitializedOnly)).count, 5)
+        assert.strictEqual((await Create(InitializedOnly, {count: 6})).count, 6)
+        //The initializer of a subclass over the default of the parent, the initializer of a subclass over the one of the parent
+        assert.strictEqual((await Create(InitializedPort)).port, 8443)
+        assert.strictEqual((await Create(InitializedPort, {port: 9000})).port, 9000)
+        assert.strictEqual((await Create(ReinitializedPort)).port, 9443)
+        //The initializer is validated and transformed as a configured value
+        assert.strictEqual((await Create(InitializedNamedPort)).port, 'HTTPS')
+        await assert.rejects(Create(InvalidInitializer), /"port" must be greater than or equal to 1/)
+        //A subclass declaring the property again without initializer keeps the initializer of its parent
+        assert.strictEqual((await Create(RedeclaredWithoutInitializer)).port, 8443)
     })
 
     it('are checked at the startup with the declarations of the subclass', (): void => {
@@ -106,5 +154,27 @@ describe('The configurable properties of the subclasses', (): void => {
         assert.throws((): void => CheckObjectOptions([declare(NamedPortServer, {port: 8080})]), (error: Error): boolean => error instanceof InvalidObjectOptionsException && /"port" must be one of/.test(error.message))
         assert.throws((): void => CheckObjectOptions([declare(Server, {port: 'http'})]), /"port" must be a number/)
         assert.throws((): void => CheckObjectOptions([declare(RangedServer, {port: 80})]), /greater than or equal to 1000/)
+    })
+
+    it('give the components a configurable maximum of listeners: 11, configured, or the initializer of a subclass', async (): Promise<void> => {
+        class QuietComponent extends Component {
+            protected readonly maxListeners: number = 0
+        }
+
+        const listeners = (component: Component): number => component.getMaxListeners()
+        assert.strictEqual(listeners(await Create(Component)), 11)
+        assert.strictEqual(listeners(await Create(Component, {maxListeners: 50})), 50)
+        assert.strictEqual(listeners(await Create(QuietComponent)), 0)
+        assert.strictEqual(listeners(await Create(QuietComponent, {maxListeners: 3})), 3)
+        await assert.rejects(Create(Component, {maxListeners: -1}), /"maxListeners" must be greater than or equal to 0/)
+        //No warning without a maximum
+        const warnings: string[] = []
+        const onWarning = (warning: Error): number => warnings.push(warning.name)
+        process.on('warning', onWarning)
+        const quiet: QuietComponent = await Create(QuietComponent)
+        for (let index: number = 0; index < 20; index++) quiet.on('event', (): undefined => undefined)
+        await new Promise((resolve: (value?: unknown) => void): unknown => setImmediate(resolve))
+        process.off('warning', onWarning)
+        assert.deepStrictEqual(warnings, [])
     })
 })

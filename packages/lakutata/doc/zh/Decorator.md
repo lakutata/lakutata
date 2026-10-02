@@ -60,6 +60,8 @@
   }
   ```
 - **说明**：`path` 属性从应用配置中获取值，该配置在 `Application.run()` 中定义（如通过 `path` 字段）。
+- **取值**：优先使用配置里给的值，其次是属性的初始值（`protected readonly port: number = 8080`），最后是 schema 的默认值（`DTO.Number().default(80)`）。初始值会和配置值一样经过校验和转换；子类可以用自己的初始值给出自己的默认值。在子类中，以最近一层的声明为准。
+- **`maxListeners`**：所有组件都有这个可配置属性（默认 11），表示同一个事件的监听器超过多少个时给出可能内存泄漏的警告（0 表示不警告；监听器数量从不受限制）。组件可以用 `protected readonly maxListeners: number = 0` 设置自己的默认值，也可以在配置里设置：`{class: MyComponent, maxListeners: 0}`。
 - **启动检查**：模块初始化时，会在创建任何对象之前检查它声明的所有对象（组件、提供者和对象）的选项，所以即使某个对象从未被使用，配置错误也会在启动时暴露：
   - 不符合 `@Configurable()` 属性 schema 的值会导致启动失败，抛出 `InvalidObjectOptionsException`，并列出所有不合法的选项；
   - 不是该类 `@Configurable()` 属性的选项会被忽略并给出警告，警告中列出该类的可配置属性（用于发现拼错的选项名）。

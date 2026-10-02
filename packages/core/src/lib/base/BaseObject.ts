@@ -85,7 +85,8 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
-     * Load configurable records
+     * Load configurable records: the value of a configurable property is the value configured, else the initializer of
+     * the property (its value once constructed), else the default of its schema; validated and transformed
      * @private
      */
     async #loadConfigurableRecords(): Promise<void> {
@@ -93,8 +94,10 @@ export class BaseObject extends AsyncConstructor {
         const setConfigurableValuePromises: Promise<void>[] = []
         GetObjectConfigurableProperties(this).forEach((schemaAndFn, propertyKey): void => {
             if (IsSymbol(propertyKey)) return
+            const configured: unknown = configurableRecords[As<string>(propertyKey)]
+            const value: unknown = configured !== undefined ? configured : this[propertyKey]
             setConfigurableValuePromises.push(new Promise<void>((resolve, reject): void => {
-                DTO.validateAsync(configurableRecords[As<string>(propertyKey)], schemaAndFn.schema, {targetName: propertyKey}).then(validatedValue => {
+                DTO.validateAsync(value, schemaAndFn.schema, {targetName: propertyKey}).then(validatedValue => {
                     return Promise.resolve(schemaAndFn.fn.bind(this)(validatedValue)).then(propertyValue => {
                         this[propertyKey] = propertyValue
                         return resolve()

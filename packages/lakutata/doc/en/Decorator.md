@@ -60,6 +60,8 @@ Dependency Injection (DI) is a core mechanism in Lakutata, with related decorato
   }
   ```
 - **Explanation**: The `path` property retrieves its value from the application configuration, defined in `Application.run()` (e.g., via a `path` field).
+- **Value**: the value configured for the property, else its initializer (`protected readonly port: number = 8080`), else the default of its schema (`DTO.Number().default(80)`). The initializer is validated and transformed like a configured value, and a subclass gives its own default with its own initializer. In subclasses the closest declaration of a property wins.
+- **`maxListeners`**: every component has this configurable property (11 by default): the number of listeners of one event above which a possible memory leak is warned of (0 for no warning; the listeners are never limited). A component sets its own default with `protected readonly maxListeners: number = 0`, or the configuration sets it: `{class: MyComponent, maxListeners: 0}`.
 - **Startup check**: When a module initializes, it checks the options of every object it declares (components, providers and objects), before any of them is created, so a mistake shows up at startup even for an object which is never used:
   - a value which does not match the schema of its `@Configurable()` property fails the startup with an `InvalidObjectOptionsException` listing every invalid option;
   - an option which is not a `@Configurable()` property of the class is ignored and warned of, with the configurable properties of the class (a misspelled option name).
