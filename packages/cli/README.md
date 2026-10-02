@@ -23,13 +23,20 @@ and the project is created once it is confirmed (`--yes` skips the confirmation)
 | `--path <directory>` | the directory the project directory is created in, the current one by default |
 | `--init` | create the project in the directory itself (it may exist and not be empty) |
 | `--description`, `--author`, `--license` | the information of the application |
+| `--with <features>` | the optional features of the template enabled, separated by commas (`lakutata templates` lists them): `i18n`. In a terminal without `--with`, they are chosen |
 | `--package-manager <npm\|pnpm\|yarn\|none>` | the package manager installing the dependencies, the one running the tool by default |
 | `--no-git` | do not initialize a git repository |
 | `--yes` | create the project without confirmation |
 
 ```bash
 lakutata create --name my-service --template service --package-manager pnpm --yes
+lakutata create --name my-service --template service --with i18n --yes
 ```
+
+The official templates have the feature `i18n`: the messages of the application in several languages
+(`lakutata/com/i18n`), in `src/locales` (`en.json`, `zh-CN.json`), bundled with the code; each request answered in its
+language (the language of the environment for the command line tools and the Electron applications), its validation
+errors too; the scripts `i18n:check` and `i18n:types`.
 
 ### `lakutata templates`
 
@@ -44,6 +51,18 @@ A template package has its files in its `template/` directory. The npm packages 
 name: `_gitignore`, `_npmrc`… are renamed `.gitignore`, `.npmrc`… when the project is created. The text files are filled
 with the information of the project: `{$APP_NAME}`, `{$APP_ID}`, `{$APP_DESC}`, `{$APP_AUTHOR}`, `{$APP_LICENSE}` and
 `{$LAKUTATA_VERSION}` (the version of the framework).
+
+A template has optional features, which `lakutata create --with <features>` enables (or the user chooses in a terminal):
+
+- they are declared by the `package.json` of the template package, their names and their descriptions:
+  `"lakutata": {"template": "default", "features": {"i18n": "The messages in several languages"}}`;
+- the files of a feature are in `features/<name>/`, beside `template/` (published with it, in the `files` of the
+  package): they are added to the project when the feature is enabled; a JSON file the project has is merged into its
+  one (the scripts of `package.json`, the options of `tsconfig.json`);
+- the files of the template have the blocks of the features, the lines between `//@if <feature>` and `//@end` (or
+  `//@else`; `//@if !<feature>` when the feature is not enabled), kept when the feature is enabled and removed
+  otherwise; the lines of the markers are removed. The markers are comments of their languages: `//@if i18n`,
+  `#@if i18n`, `<!--@if i18n-->`, `/*@if i18n*/`.
 
 ### `lakutata info`
 

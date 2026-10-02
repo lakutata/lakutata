@@ -3,6 +3,11 @@ import {BuildEntrypoints} from 'lakutata/com/entrypoint'
 import {ElectronIPCServiceEntrypoint, type IPCMain} from 'lakutata/adapter/electron'
 import {MainWindow} from '../components/MainWindow.js'
 import {ExampleController} from '../controllers/ExampleController.js'
+//@if i18n
+import {BuildI18nOptions, I18nMiddleware} from 'lakutata/com/i18n'
+import en from '../locales/en.json' with {type: 'json'}
+import zhCN from '../locales/zh-CN.json' with {type: 'json'}
+//@end
 
 export type ConfigOptions = {
     /**
@@ -34,8 +39,16 @@ export function Config(options: ConfigOptions = {}): ApplicationOptions {
         name: '{$APP_NAME}',
         mode: options.mode ?? 'development',
         components: {
+            //@if i18n
+            //The messages of the languages (src/locales), bundled with the code; created by the first request
+            i18n: BuildI18nOptions({messages: {'en': en, 'zh-CN': zhCN}}),
+            //@end
             entrypoint: BuildEntrypoints({
                 controllers: [ExampleController],
+                //@if i18n
+                //The messages in the language of its environment (LANG)
+                middlewares: [I18nMiddleware],
+                //@end
                 //The renderer invokes the actions over IPC: window.lakutata.invoke({cmd: 'greet', name: 'you'})
                 service: ElectronIPCServiceEntrypoint({ipcMain: options.ipcMain})
             }),

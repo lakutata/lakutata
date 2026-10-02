@@ -6,7 +6,7 @@ import {CreateProjectDTO} from '../dtos/CreateProjectDTO.js'
 import {ListTemplatesDTO} from '../dtos/ListTemplatesDTO.js'
 import {CleanDTO} from '../dtos/CleanDTO.js'
 import {Clean, OutputDirectories, type CleanResult} from '../lib/Clean.js'
-import {TemplateCatalog, type TemplateInfo, type TemplateSource} from '../lib/TemplateCatalog.js'
+import {TemplateCatalog, type PreparedTemplate, type TemplateInfo, type TemplateSource} from '../lib/TemplateCatalog.js'
 import {ProjectCreator, type ProjectPlan} from '../lib/ProjectCreator.js'
 import {DetectPackageManager} from '../lib/Processes.js'
 import {Done, Styled, Table} from '../lib/Output.js'
@@ -32,6 +32,44 @@ export class CommandLineController extends Controller {
         const template: TemplateSource = await this.catalog.resolve(input.template)
         const directory: string = input.init ? path.resolve(input.path) : path.resolve(input.path, input.name)
         await this.creator.checkDirectory(directory, input.init)
+        const prepared: PreparedTemplate = await this.creator.prepare(template)
+        try {
+            return await this.createFrom(input, template, prepared, directory)
+        } finally {
+            await prepared.cleanup()
+        }
+    }
+
+    /**
+     * The features of the template enabled: the ones of --with, or the ones chosen in a terminal
+     * @param input
+     * @param template
+     */
+    protected async features(input: CreateProjectDTO, template: PreparedTemplate): Promise<string[]> {
+        const available: string[] = Object.keys(template.features)
+        if (input.with !== undefined) {
+            const features: string[] = [...new Set(input.with.split(',').map((feature: string): string => feature.trim()).filter(Boolean))]
+            const unknown: string[] = features.filter((feature: string): boolean => !available.includes(feature))
+            if (unknown.length) throw new Error(`The template has no feature ${unknown.join(', ')} (${available.length ? `its features: ${available.join(', ')}` : 'it has no feature'})`)
+            return features
+        }
+        if (!available.length || !Interactive() || input.yes) return []
+        const {checkbox} = await import('@inquirer/prompts')
+        return await checkbox({
+            message: 'The features of the project',
+            choices: available.map((feature: string): { name: string, value: string } => ({name: `${feature}: ${template.features[feature]}`, value: feature}))
+        })
+    }
+
+    /**
+     * Create a project from its template
+     * @param input
+     * @param template
+     * @param prepared
+     * @param directory
+     */
+    protected async createFrom(input: CreateProjectDTO, template: TemplateSource, prepared: PreparedTemplate, directory: string): Promise<string> {
+        const features: string[] = await this.features(input, prepared)
         const plan: ProjectPlan = {
             name: input.name,
             id: input.id ?? input.name.toLowerCase(),
@@ -42,7 +80,8 @@ export class CommandLineController extends Controller {
             directory: directory,
             init: input.init,
             packageManager: input.packageManager ?? DetectPackageManager(),
-            git: input.git
+            git: input.git,
+            features: features
         }
         process.stdout.write(Table([
             ['Name', plan.name],
@@ -51,6 +90,7 @@ export class CommandLineController extends Controller {
             ['Author', plan.author || '-'],
             ['License', plan.license],
             ['Template', input.template],
+            ...(Object.keys(prepared.features).length ? [['Features', features.length ? features.join(', ') : 'none'] as [string, string]] : []),
             ['Directory', directory],
             ['Dependencies', plan.packageManager === 'none' ? 'not installed' : `installed with ${plan.packageManager}`],
             ['Git', plan.git ? 'initialized' : 'not initialized']
@@ -59,7 +99,7 @@ export class CommandLineController extends Controller {
             const {confirm} = await import('@inquirer/prompts')
             if (!await confirm({message: 'Create the project?', default: true})) return 'The project is not created'
         }
-        await this.creator.create(plan)
+        await this.creator.create(plan, prepared)
         //The path of the project from the current directory, or its absolute path when it is elsewhere
         const relative: string = path.relative(process.cwd(), directory)
         const location: string = !relative || relative.startsWith('..') ? directory : relative
@@ -69,8 +109,9 @@ export class CommandLineController extends Controller {
     @CLIAction('templates', ListTemplatesDTO, {description: 'List the project templates'})
     public async templates(input: ListTemplatesDTO): Promise<string> {
         const templates: TemplateInfo[] = await this.catalog.list(input.refresh)
-        return `${Table(templates.map((template: TemplateInfo): [string, string] => [template.name, template.description]), 'The templates (lakutata create --template <name>)')}
+        return `${Table(templates.map((template: TemplateInfo): [string, string] => [template.name, `${template.description}${template.features?.length ? ` (features: ${template.features.join(', ')})` : ''}`]), 'The templates (lakutata create --template <name>)')}
 Other templates: --template npm:<package>, github:<owner>/<repo>, or a directory
+The features of a template are enabled by lakutata create --with <features>
 `
     }
 

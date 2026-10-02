@@ -23,4 +23,11 @@ describe('{$APP_NAME}', (): void => {
         const response: Response = await fetch(`http://127.0.0.1:${PORT}/example?name=you`)
         assert.deepStrictEqual(await response.json(), {message: 'Hello, you!'})
     })
+    //@if i18n
+
+    it('greets in the language of the request', async (): Promise<void> => {
+        const response: Response = await fetch(`http://127.0.0.1:${PORT}/example?name=you`, {headers: {'Accept-Language': 'zh-CN,zh;q=0.9'}})
+        assert.deepStrictEqual(await response.json(), {message: '你好，you！'})
+    })
+    //@end
 })

@@ -94,6 +94,15 @@ export default defineConfig([
         ...tseslint.configs.disableTypeChecked
     },
     {
+        //The blocks of the features of the templates (//@if <feature> … //@else … //@end) are alternatives of the same
+        //code: a project created has one of them
+        files: ['packages/template-*/template/**'],
+        rules: {
+            'no-duplicate-imports': 'off',
+            'no-useless-assignment': 'off'
+        }
+    },
+    {
         //The test suites of the validation engine are ported from joi as they are
         files: ['packages/core/src/tests/engine/**/*.ts'],
         rules: {

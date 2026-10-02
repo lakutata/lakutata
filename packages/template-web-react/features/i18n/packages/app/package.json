@@ -1,0 +1,6 @@
+{
+  "scripts": {
+    "i18n:check": "lakutata i18n check --dir src/locales",
+    "i18n:types": "lakutata i18n types --dir src/locales"
+  }
+}

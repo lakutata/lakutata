@@ -27,6 +27,10 @@ describe('{$APP_NAME}', (): void => {
     let app: Application
 
     before(async (): Promise<void> => {
+        //@if i18n
+        //The actions answer in the language of the environment: English for the tests
+        process.env.LC_ALL = 'en_US.UTF-8'
+        //@end
         app = await new Promise<Application>((resolve: (app: Application) => void): void => {
             Application.run(Config({window: false, ipcMain: ipcMain})).onLaunched((launched: Application): void => resolve(launched))
         })
@@ -40,6 +44,17 @@ describe('{$APP_NAME}', (): void => {
         assert.deepStrictEqual(await Invoke({cmd: 'greet', name: 'you'}), {success: true, error: null, payload: {message: 'Hello, you!'}})
     })
 
+    //@if i18n
+    it('serves the actions in the language of the environment', async (): Promise<void> => {
+        process.env.LC_ALL = 'zh_CN.UTF-8'
+        try {
+            assert.deepStrictEqual(await Invoke({cmd: 'greet', name: 'you'}), {success: true, error: null, payload: {message: '你好，you！'}})
+        } finally {
+            process.env.LC_ALL = 'en_US.UTF-8'
+        }
+    })
+
+    //@end
     it('refuses an invalid input', async (): Promise<void> => {
         const response = await Invoke({cmd: 'greet'})
         assert.strictEqual(response.success, false)

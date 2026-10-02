@@ -1,3 +1,4 @@
+import {existsSync} from 'node:fs'
 import {cp, readdir, readFile, rename, stat, writeFile} from 'node:fs/promises'
 import path from 'node:path'
 import {Component} from 'lakutata'
@@ -6,6 +7,7 @@ import {Templating} from 'lakutata/utils'
 import {type PreparedTemplate, TemplateCatalog, type TemplateSource} from './TemplateCatalog.js'
 import {type PackageManager, Run} from './Processes.js'
 import {Done, Step, Warn} from './Output.js'
+import {ApplyFeatureBlocks, ApplyFeatureFiles, ProjectPath} from './TemplateFeatures.js'
 import {FrameworkVersion} from './Versions.js'
 import {type ProcessResult} from '../types/ProcessResult.js'
 
@@ -29,12 +31,11 @@ export type ProjectPlan = {
     init: boolean
     packageManager: PackageManager | 'none'
     git: boolean
+    /**
+     * The optional features of the template enabled
+     */
+    features: string[]
 }
-
-/**
- * The files the npm packages cannot hold under their name, kept as "_<name>" in the templates
- */
-const DOTFILES: string[] = ['gitignore', 'npmrc', 'npmignore', 'gitattributes', 'editorconfig', 'dockerignore', 'nvmrc', 'env', 'eslintrc.json', 'prettierrc']
 
 /**
  * The directories of a template which are not copied
@@ -107,51 +108,56 @@ export class ProjectCreator extends Component {
         })
         const files: string[] = []
         for (const file of await ListFiles(directory)) {
-            const name: string = path.basename(file)
             //"_gitignore" becomes ".gitignore"
-            if (name.startsWith('_') && DOTFILES.includes(name.slice(1))) {
-                const renamed: string = path.join(path.dirname(file), `.${name.slice(1)}`)
-                await rename(path.join(directory, file), path.join(directory, renamed))
-                files.push(renamed)
-            } else {
-                files.push(file)
-            }
+            const renamed: string = ProjectPath(file)
+            if (renamed !== file) await rename(path.join(directory, file), path.join(directory, renamed))
+            files.push(renamed)
         }
         return files
     }
 
     /**
-     * Fill the information of the project into the files of the template ({$APP_NAME}…)
+     * Fill the information of the project into the files of the template ({$APP_NAME}…), the blocks of the features
+     * kept or removed
      * @param directory
      * @param files
      * @param fields
+     * @param features the features enabled
      */
-    protected async fill(directory: string, files: string[], fields: Record<string, string>): Promise<void> {
+    protected async fill(directory: string, files: string[], fields: Record<string, string>, features: Set<string>): Promise<void> {
         for (const file of files) {
             const target: string = path.join(directory, file)
             const content: Buffer = await readFile(target)
             if (!IsText(content)) continue
             const raw: string = content.toString('utf8')
-            const filled: string = Templating(raw, fields, {ignoreMissing: true})
+            const filled: string = Templating(ApplyFeatureBlocks(raw, features, file), fields, {ignoreMissing: true})
             if (filled !== raw) await writeFile(target, filled)
         }
     }
 
     /**
-     * Create a project
-     * @param plan
+     * Get the files of a template
+     * @param source
      */
-    public async create(plan: ProjectPlan): Promise<void> {
-        await this.checkDirectory(plan.directory, plan.init)
+    public async prepare(source: TemplateSource): Promise<PreparedTemplate> {
         Step('Getting the template')
-        const template: PreparedTemplate = await this.catalog.prepare(plan.template)
-        let files: string[]
-        try {
-            files = await this.copy(template, plan.directory)
-        } finally {
-            await template.cleanup()
+        return await this.catalog.prepare(source)
+    }
+
+    /**
+     * Create a project from its template (prepared, its cleanup done by the caller)
+     * @param plan
+     * @param template
+     */
+    public async create(plan: ProjectPlan, template: PreparedTemplate): Promise<void> {
+        await this.checkDirectory(plan.directory, plan.init)
+        const files: string[] = await this.copy(template, plan.directory)
+        for (const feature of plan.features) {
+            if (!(feature in template.features)) throw new Error(`The template has no feature ${feature}`)
+            const directory: string = path.join(template.featuresDirectory, feature)
+            if (existsSync(directory)) files.push(...await ApplyFeatureFiles(directory, plan.directory))
         }
-        Done(`Template ${template.label} copied (${files.length} files)`)
+        Done(`Template ${template.label} copied (${files.length} files${plan.features.length ? `, with ${plan.features.join(', ')}` : ''})`)
         await this.fill(plan.directory, files, {
             $APP_NAME: plan.name,
             $APP_ID: plan.id,
@@ -159,7 +165,7 @@ export class ProjectCreator extends Component {
             $APP_AUTHOR: plan.author,
             $APP_LICENSE: plan.license,
             $LAKUTATA_VERSION: FrameworkVersion()
-        })
+        }, new Set(plan.features))
         Done('Project information filled')
         if (plan.packageManager !== 'none') {
             Step(`Installing the dependencies with ${plan.packageManager}`)

@@ -28,6 +28,15 @@ describe('{$APP_NAME}', (): void => {
         const response: Response = await fetch(`http://127.0.0.1:${PORT}/api/example?name=you`, {headers: {Authorization: 'Bearer test-token'}})
         assert.deepStrictEqual(await response.json(), {errno: null, errMsg: null, data: {message: 'Hello, you!'}})
     })
+    //@if i18n
+
+    it('greets in the language of the request, its validation errors too', async (): Promise<void> => {
+        const headers: Record<string, string> = {'Authorization': 'Bearer test-token', 'Accept-Language': 'zh-CN,zh;q=0.9'}
+        assert.deepStrictEqual(await (await fetch(`http://127.0.0.1:${PORT}/api/example?name=you`, {headers: headers})).json(), {errno: null, errMsg: null, data: {message: '你好，you！'}})
+        const invalid = await (await fetch(`http://127.0.0.1:${PORT}/api/example?name=`, {headers: headers})).json() as { errMsg: string }
+        assert.strictEqual(invalid.errMsg, '"name" 不能为空')
+    })
+    //@end
 
     it('serves the pages of the application', async (): Promise<void> => {
         for (const page of ['/', '/some/route']) {

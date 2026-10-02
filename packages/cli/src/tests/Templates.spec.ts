@@ -74,9 +74,10 @@ function LinkWorkspace(project: string, names: string[]): void {
  * Create a project from a template of the repository
  * @param template
  * @param name
+ * @param features the features of the template enabled
  */
-async function Create(template: string, name: string): Promise<string> {
-    const created = await Run(process.execPath, [CLI, 'create', '--name', name, '--template', path.join(ROOT, 'packages', `template-${template}`), '--package-manager', 'none', '--no-git', '--yes'], work)
+async function Create(template: string, name: string, features: string[] = []): Promise<string> {
+    const created = await Run(process.execPath, [CLI, 'create', '--name', name, '--template', path.join(ROOT, 'packages', `template-${template}`), ...(features.length ? ['--with', features.join(',')] : []), '--package-manager', 'none', '--no-git', '--yes'], work)
     assert.strictEqual(created.code, 0, created.output)
     const project: string = path.join(work, name)
     assert.ok(existsSync(path.join(project, '.gitignore')))
@@ -151,6 +152,11 @@ describe('The templates of the repository', (): void => {
                 }
                 assert.strictEqual(other, service, `${file} of ${template} differs from the one of service`)
             }
+            //The files of their features too
+            const features: string = path.join(ROOT, 'packages', 'template-service', 'features')
+            for (const file of readdirSync(features, {recursive: true, withFileTypes: true}).filter((entry): boolean => entry.isFile()).map((entry): string => path.relative(features, path.join(entry.parentPath, entry.name)))) {
+                assert.strictEqual(readFileSync(path.join(ROOT, 'packages', `template-${template}`, 'features', file), 'utf8'), readFileSync(path.join(features, file), 'utf8'), `features/${file} of ${template} differs from the one of service`)
+            }
         }
     })
 
@@ -166,6 +172,54 @@ describe('The templates of the repository', (): void => {
         assert.deepStrictEqual(files(vue), files(react))
         for (const file of files(react)) assert.strictEqual(readFileSync(path.join(vue, file), 'utf8'), readFileSync(path.join(react, file), 'utf8'), `${file} of electron-vue differs from the one of electron-react`)
         assert.strictEqual(readFileSync(path.join(vue, 'packages', 'ui', 'src', 'lakutata.ts'), 'utf8'), readFileSync(path.join(react, 'packages', 'ui', 'src', 'lakutata.ts'), 'utf8'))
+        const [reactFeatures, vueFeatures] = [react, vue].map((directory: string): string => path.join(directory, '..', 'features'))
+        assert.deepStrictEqual(files(vueFeatures), files(reactFeatures))
+        for (const file of files(reactFeatures)) assert.strictEqual(readFileSync(path.join(vueFeatures, file), 'utf8'), readFileSync(path.join(reactFeatures, file), 'utf8'), `features/${file} of electron-vue differs`)
+    })
+
+    it('creates the projects with the i18n feature: their requests answered in their languages, the messages checked and bundled', async (): Promise<void> => {
+        //An HTTP application
+        const demo: string = await Create('default', 'Polyglot', ['i18n'])
+        assert.ok(existsSync(path.join(demo, 'src', 'locales', 'zh-CN.json')))
+        assert.strictEqual(JSON.parse(readFileSync(path.join(demo, 'tsconfig.json'), 'utf8')).compilerOptions.resolveJsonModule, true)
+        assert.doesNotMatch(readFileSync(path.join(demo, 'src', 'config', 'Config.ts'), 'utf8'), /@if|@end/)
+        Install(demo, ['express', '@types/express', '@types/node'])
+        const tested = await Run('npm', ['test'], demo)
+        assert.strictEqual(tested.code, 0, tested.output)
+        assert.match(tested.output, /pass 2/)
+        const checked = await Run('npm', ['run', 'i18n:check'], demo)
+        assert.strictEqual(checked.code, 0, checked.output)
+        assert.match(checked.output, /2 languages \(en, zh-CN\), 0 errors, 0 warnings/)
+        //A command line tool, in the language of its environment, its messages bundled
+        const tool: string = await Create('cli', 'Babel', ['i18n'])
+        Install(tool, ['@types/node'])
+        const toolTested = await Run('npm', ['test'], tool)
+        assert.strictEqual(toolTested.code, 0, toolTested.output)
+        assert.match(toolTested.output, /pass 5/)
+        const toolBundled = await Run('npm', ['run', 'bundle'], tool)
+        assert.strictEqual(toolBundled.code, 0, toolBundled.output)
+        const bundled = await new Promise<string>((resolve: (output: string) => void): void => {
+            execFile(process.execPath, [path.join(tool, 'dist', 'babel.cjs'), 'greet', '--name', 'bundle'], {cwd: work, env: {...process.env, LC_ALL: 'zh_CN.UTF-8'}}, (error: ExecFileException | null, stdout: string): void => resolve(stdout.trim()))
+        })
+        assert.strictEqual(bundled, '你好，bundle！')
+        //A service, its validation errors in the language of the request
+        const service: string = await Create('service', 'Tower', ['i18n'])
+        Install(service, ['express', 'compression', '@types/express', '@types/compression', '@types/node'])
+        const serviceBuilt = await Run(process.execPath, [CLI, 'run', 'rebuild'], service)
+        assert.strictEqual(serviceBuilt.code, 0, serviceBuilt.output)
+        const serviceTested = await Run(process.execPath, [CLI, 'run', 'test'], service)
+        assert.strictEqual(serviceTested.code, 0, serviceTested.output)
+        assert.match(serviceTested.output, /pass 4/)
+        //An Electron application, its actions in the language of the environment
+        const desktop: string = await Create('electron-vue', 'Lingo', ['i18n'])
+        Install(desktop, ['@types/node', 'electron', 'vite', '@vitejs/plugin-vue', 'vue'])
+        LinkWorkspace(desktop, ['ui', 'app'])
+        symlinkSync(path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'), path.join(desktop, 'node_modules', '.bin', 'vite'))
+        const desktopBuilt = await Run(process.execPath, [CLI, 'run', 'rebuild', '--concurrency', '1'], desktop)
+        assert.strictEqual(desktopBuilt.code, 0, desktopBuilt.output)
+        const desktopTested = await Run(process.execPath, [CLI, 'run', 'test'], desktop)
+        assert.strictEqual(desktopTested.code, 0, desktopTested.output)
+        assert.match(desktopTested.output, /pass 4/)
     })
 
     it('creates a project from the default template which builds and passes its tests with the framework of the repository', async (): Promise<void> => {

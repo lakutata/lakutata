@@ -8,6 +8,11 @@ import path from 'node:path'
 import {Authenticate} from '../middlewares/Authenticate.js'
 import {ExampleController} from '../controllers/ExampleController.js'
 import {HealthController} from '../controllers/HealthController.js'
+//@if i18n
+import {BuildI18nOptions, I18nMiddleware} from 'lakutata/com/i18n'
+import en from '../locales/en.json' with {type: 'json'}
+import zhCN from '../locales/zh-CN.json' with {type: 'json'}
+//@end
 
 /**
  * The directory of the built application of the ui package, undefined before it is built (in development, Vite serves it)
@@ -31,8 +36,16 @@ export function Config(port: number = Number(process.env.PORT ?? 8080)): Applica
         name: '{$APP_NAME}',
         mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
         components: {
+            //@if i18n
+            //The messages of the languages (src/locales), bundled with the code; created by the first request
+            i18n: BuildI18nOptions({messages: {'en': en, 'zh-CN': zhCN}}),
+            //@end
             entrypoint: BuildEntrypoints({
                 controllers: [HealthController, ExampleController],
+                //@if i18n
+                //The messages in the language of each request: ?lang=, the cookie lang, Accept-Language
+                middlewares: [I18nMiddleware],
+                //@end
                 http: ExpressHTTPEntrypoint({
                     port: port,
                     //The results and the errors are {errno, errMsg, data}, with the status 200

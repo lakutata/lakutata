@@ -9,10 +9,14 @@
   "license": "MIT",
   "files": [
     "template",
+    "features",
     "README.md",
     "LICENSE"
   ],
   "lakutata": {
-    "template": "default"
+    "template": "default",
+    "features": {
+      "i18n": "The messages in several languages (lakutata/com/i18n): src/locales, the language of each request"
+    }
   }
 }

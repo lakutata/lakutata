@@ -29,6 +29,9 @@ export class CreateProjectDTO extends DTO {
     @Expect(DTO.String().valid('npm', 'pnpm', 'yarn', 'none').optional().description('The package manager installing the dependencies, the one running the tool by default ("none" does not install them)'))
     public packageManager?: 'npm' | 'pnpm' | 'yarn' | 'none'
 
+    @Expect(DTO.String().optional().description('The optional features of the template enabled, separated by commas (lakutata templates lists them): i18n'))
+    public with?: string
+
     @Expect(DTO.Boolean().optional().default(true).description('Initialize a git repository'))
     public git: boolean
 

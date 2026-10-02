@@ -9,6 +9,7 @@ import {Warn} from './Output.js'
 import {CachedPackage, DownloadPackage, MajorManifest, type PackageVersion, ResolvePackage} from './Registry.js'
 import {ExtractTarGz, Under} from './Tar.js'
 import {ToolMajor} from './Versions.js'
+import {ReadTemplateFeatures} from './TemplateFeatures.js'
 
 /**
  * An official template
@@ -17,6 +18,10 @@ export type TemplateInfo = {
     name: string
     description: string
     package: string
+    /**
+     * The names of its optional features
+     */
+    features?: string[]
 }
 
 /**
@@ -40,6 +45,14 @@ export type PreparedTemplate = {
      */
     root: string
     /**
+     * The optional features of the template: their names and their descriptions
+     */
+    features: Record<string, string>
+    /**
+     * The directory of the files of the features (features/<name>), beside the files of the template
+     */
+    featuresDirectory: string
+    /**
      * Remove the downloaded files
      */
     cleanup(): Promise<void>
@@ -60,15 +73,15 @@ const CATALOG_PACKAGE: string = '@lakutata/templates'
  * The official templates known when the tool was released, when the catalog cannot be fetched
  */
 const BUILTIN_TEMPLATES: TemplateInfo[] = [
-    {name: 'default', description: 'A minimal application serving HTTP actions', package: '@lakutata/template-default'},
-    {name: 'cli', description: 'A command line tool built into executables which run without Node.js', package: '@lakutata/template-cli'},
-    {name: 'service', description: 'An HTTP API deployed as a Docker image', package: '@lakutata/template-service'},
-    {name: 'web-react', description: 'An HTTP API serving a React single-page application (Vite)', package: '@lakutata/template-web-react'},
-    {name: 'web-next', description: 'An HTTP API serving a Next.js application from the same process', package: '@lakutata/template-web-next'},
-    {name: 'web-vue', description: 'An HTTP API serving a Vue single-page application (Vite)', package: '@lakutata/template-web-vue'},
-    {name: 'web-nuxt', description: 'An HTTP API serving a Nuxt application from the same process', package: '@lakutata/template-web-nuxt'},
-    {name: 'electron-react', description: 'A desktop application: Electron, its main process serving a React renderer over IPC', package: '@lakutata/template-electron-react'},
-    {name: 'electron-vue', description: 'A desktop application: Electron, its main process serving a Vue renderer over IPC', package: '@lakutata/template-electron-vue'}
+    {name: 'default', description: 'A minimal application serving HTTP actions', package: '@lakutata/template-default', features: ['i18n']},
+    {name: 'cli', description: 'A command line tool built into executables which run without Node.js', package: '@lakutata/template-cli', features: ['i18n']},
+    {name: 'service', description: 'An HTTP API deployed as a Docker image', package: '@lakutata/template-service', features: ['i18n']},
+    {name: 'web-react', description: 'An HTTP API serving a React single-page application (Vite)', package: '@lakutata/template-web-react', features: ['i18n']},
+    {name: 'web-next', description: 'An HTTP API serving a Next.js application from the same process', package: '@lakutata/template-web-next', features: ['i18n']},
+    {name: 'web-vue', description: 'An HTTP API serving a Vue single-page application (Vite)', package: '@lakutata/template-web-vue', features: ['i18n']},
+    {name: 'web-nuxt', description: 'An HTTP API serving a Nuxt application from the same process', package: '@lakutata/template-web-nuxt', features: ['i18n']},
+    {name: 'electron-react', description: 'A desktop application: Electron, its main process serving a React renderer over IPC', package: '@lakutata/template-electron-react', features: ['i18n']},
+    {name: 'electron-vue', description: 'A desktop application: Electron, its main process serving a Vue renderer over IPC', package: '@lakutata/template-electron-vue', features: ['i18n']}
 ]
 
 /**
@@ -179,13 +192,30 @@ export class TemplateCatalog extends Component {
     }
 
     /**
+     * A template ready: a template package has its files in template/ and the ones of its features in features/ (its
+     * package.json declaring them), the other sources are the template
+     * @param directory
+     * @param label
+     * @param cleanup
+     */
+    protected async prepared(directory: string, label: string, cleanup: () => Promise<void>): Promise<PreparedTemplate> {
+        const packaged: boolean = existsSync(path.join(directory, 'template'))
+        return {
+            label: label,
+            root: packaged ? path.join(directory, 'template') : directory,
+            features: packaged ? await ReadTemplateFeatures(directory) : {},
+            featuresDirectory: path.join(directory, 'features'),
+            cleanup: cleanup
+        }
+    }
+
+    /**
      * Get the files of a template
      * @param source
      */
     public async prepare(source: TemplateSource): Promise<PreparedTemplate> {
         if (source.kind === 'local') {
-            const root: string = existsSync(path.join(source.directory, 'template')) ? path.join(source.directory, 'template') : source.directory
-            return {label: source.directory, root: root, cleanup: async (): Promise<void> => undefined}
+            return await this.prepared(source.directory, source.directory, async (): Promise<void> => undefined)
         }
         const work: string = await mkdtemp(path.join(os.tmpdir(), 'lakutata-template-'))
         const cleanup = async (): Promise<void> => rm(work, {recursive: true, force: true})
@@ -201,9 +231,7 @@ export class TemplateCatalog extends Component {
                 await ExtractTarGz(Buffer.from(await response.arrayBuffer()), work, Under(1))
                 label = `github:${source.repository}${source.ref ? `#${source.ref}` : ''}`
             }
-            //A template package has its files in template/, the other sources are the template
-            const root: string = existsSync(path.join(work, 'template')) ? path.join(work, 'template') : work
-            return {label: label, root: root, cleanup: cleanup}
+            return await this.prepared(work, label, cleanup)
         } catch (error: unknown) {
             await cleanup()
             throw error
