@@ -14,6 +14,7 @@
     "test:layers": "npm run test:layers -w @lakutata/core",
     "test:engine-types": "npm run test:engine-types -w @lakutata/core",
     "test:dispatch": "npm run compile -w @lakutata/utils && npm run compile -w @lakutata/core && npm run compile -w @lakutata/logger && npm run compile -w @lakutata/entrypoint && npm run compile -w @lakutata/nats && npm run compile -w @lakutata/security && npm run compile -w @lakutata/cache && npm run compile -w @lakutata/docker && npm run compile -w @lakutata/orm && npm run compile -w @lakutata/monitor && npm run test:dispatch -w packages/lakutata",
+    "test:integration": "npm run compile -w @lakutata/utils && npm run compile -w @lakutata/core && npm run compile -w @lakutata/logger && npm run compile -w @lakutata/entrypoint && npm run compile -w @lakutata/nats && npm run compile -w @lakutata/security && npm run compile -w @lakutata/cache && npm run compile -w @lakutata/docker && npm run compile -w @lakutata/orm && npm run compile -w @lakutata/monitor && npm run test:integration -w packages/lakutata",
     "test:types": "npm run build && tsc --noEmit -p consumer-fixture/tsconfig.json",
     "test:api-surface": "npm run build && node consumer-fixture/api-snapshot.mjs",
     "test:cjs-interop": "node consumer-fixture/cjs-interop-smoke.mjs",
