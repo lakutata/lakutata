@@ -1,103 +1,118 @@
-import {createHash, randomUUID, getRandomValues} from 'node:crypto'
+import {
+    MAX,
+    NIL,
+    parse,
+    stringify,
+    v1,
+    v3,
+    v4,
+    v5,
+    v6,
+    validate,
+    version,
+    type UUIDTypes,
+    type Version1Options as UUIDVersion1Options,
+    type Version4Options as UUIDVersion4Options,
+    type Version6Options as UUIDVersion6Options
+} from './internal/Uuid.js'
 
-//Self-implemented UUID on node:crypto (replaces the `uuid` package dependency).
-//RFC 4122 + RFC 9562. v4 uses crypto.randomUUID(); v3/v5 use createHash; v1/v6 use timestamp + random.
-
-const GREGORIAN_EPOCH_MS = -12219292800000n //1582-10-15 in JS epoch ms (negative)
-
-const parseUUID = (uuid: string): Buffer => {
-    return Buffer.from(uuid.replace(/-/g, ''), 'hex')
+export {
+    type UUIDVersion1Options,
+    type UUIDVersion4Options,
+    type UUIDVersion6Options,
+    type UUIDTypes
 }
 
-const formatUUID = (bytes: Uint8Array): string => {
-    const h = Buffer.from(bytes).toString('hex')
-    return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20, 32)}`
-}
-
-const namespaceUUID = (name: string | Uint8Array, namespace: string, version: 3 | 5): string => {
-    const nsBytes = parseUUID(namespace)
-    const nameBytes = typeof name === 'string' ? Buffer.from(name) : Buffer.from(name)
-    const hash = createHash(version === 3 ? 'md5' : 'sha1').update(nsBytes).update(nameBytes).digest()
-    hash[6] = (hash[6] & 0x0f) | (version << 4)
-    hash[8] = (hash[8] & 0x3f) | 0x80
-    return formatUUID(hash.subarray(0, 16))
-}
-
-let v1ClockSeq = 0
-let v1LastMS = 0n
-
-const uuidV1 = (): string => {
-    const now = BigInt(Date.now()) - GREGORIAN_EPOCH_MS
-    const ts100ns = now * 10000n + BigInt((performance.now() % 1) * 10000 | 0)
-    if (ts100ns <= v1LastMS) v1ClockSeq = (v1ClockSeq + 1) & 0x3fff
-    v1LastMS = ts100ns
-    const ts = ts100ns.toString(16).padStart(16, '0')
-    const timeLow = ts.slice(8, 16)
-    const timeMid = ts.slice(4, 8)
-    const timeHi = (parseInt(ts.slice(0, 4), 16) & 0x0fff | 0x1000).toString(16).padStart(4, '0')
-    const clockSeq = ((v1ClockSeq & 0x3fff) | 0x8000).toString(16).padStart(4, '0')
-    const nodeBytes = new Uint8Array(6)
-    getRandomValues(nodeBytes)
-    nodeBytes[0] |= 0x01
-    return `${timeLow}-${timeMid}-${timeHi}-${clockSeq}-${Buffer.from(nodeBytes).toString('hex')}`
-}
-
-const uuidV6 = (): string => {
-    const now = BigInt(Date.now()) - GREGORIAN_EPOCH_MS
-    const ts100ns = now * 10000n + BigInt((performance.now() % 1) * 10000 | 0)
-    if (ts100ns <= v1LastMS) v1ClockSeq = (v1ClockSeq + 1) & 0x3fff
-    v1LastMS = ts100ns
-    const ts = ts100ns.toString(16).padStart(16, '0')
-    const timeHigh = ts.slice(0, 8)
-    const timeMid = ts.slice(8, 12)
-    const timeLow = (parseInt(ts.slice(12, 16), 16) & 0x0fff | 0x6000).toString(16).padStart(4, '0')
-    const clockSeq = ((v1ClockSeq & 0x3fff) | 0x8000).toString(16).padStart(4, '0')
-    const nodeBytes = new Uint8Array(6)
-    getRandomValues(nodeBytes)
-    nodeBytes[0] |= 0x01
-    return `${timeHigh}-${timeMid}-${timeLow}-${clockSeq}-${Buffer.from(nodeBytes).toString('hex')}`
-}
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-6][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-
+/**
+ * The UUIDs (the uuid package of 2.x): their generation (v1, v3, v4, v5, v6), parsing, stringifying and validation
+ */
 export class UUID {
 
-    public static readonly NIL: string = '00000000-0000-0000-0000-000000000000'
-    public static readonly MAX: string = 'ffffffff-ffff-ffff-ffff-ffffffffffff'
+    /**
+     * The nil UUID (all zeros)
+     */
+    public static readonly NIL: string = NIL
 
+    /**
+     * The max UUID (all ones)
+     */
+    public static readonly MAX: string = MAX
+
+    /**
+     * The bytes of a UUID
+     * @param uuid
+     */
     public static parse(uuid: string): Uint8Array {
-        return parseUUID(uuid)
+        return parse(uuid)
     }
 
-    public static stringify(arr: Uint8Array, offset: number = 0): string {
-        return formatUUID(arr.subarray(offset, offset + 16))
+    /**
+     * The UUID of 16 bytes
+     * @param arr
+     * @param offset
+     */
+    public static stringify(arr: Uint8Array, offset?: number): string {
+        return stringify(arr, offset)
     }
 
-    public static v1(): string {
-        return uuidV1()
+    /**
+     * An RFC version 1 (timestamp) UUID
+     */
+    public static v1(options?: UUIDVersion1Options, buf?: undefined, offset?: number): string
+    public static v1<Buf extends Uint8Array = Uint8Array>(options: UUIDVersion1Options | undefined, buf: Buf, offset?: number): Buf
+    public static v1(options?: UUIDVersion1Options, buf?: any, offset?: number): any {
+        return v1(options, buf, offset)
     }
 
-    public static v3(value: string | Uint8Array, namespace: string): string {
-        return namespaceUUID(value, namespace, 3)
+    /**
+     * An RFC version 3 (namespace w/ MD5) UUID
+     */
+    public static v3(value: string | Uint8Array, namespace: UUIDTypes, buf?: undefined, offset?: number): string
+    public static v3<TBuf extends Uint8Array = Uint8Array>(value: string | Uint8Array, namespace: UUIDTypes, buf: TBuf, offset?: number): TBuf
+    public static v3(value: string | Uint8Array, namespace: UUIDTypes, buf?: any, offset?: number): any {
+        return v3(value, namespace, buf, offset)
     }
 
-    public static v4(): string {
-        return randomUUID()
+    /**
+     * An RFC version 4 (random) UUID
+     */
+    public static v4(options?: UUIDVersion4Options, buf?: undefined, offset?: number): string
+    public static v4<TBuf extends Uint8Array = Uint8Array>(options: UUIDVersion4Options | undefined, buf: TBuf, offset?: number): TBuf
+    public static v4(options?: UUIDVersion4Options, buf?: any, offset?: number): any {
+        return v4(options, buf, offset)
     }
 
-    public static v5(value: string | Uint8Array, namespace: string): string {
-        return namespaceUUID(value, namespace, 5)
+    /**
+     * An RFC version 5 (namespace w/ SHA-1) UUID
+     */
+    public static v5(value: string | Uint8Array, namespace: UUIDTypes, buf?: undefined, offset?: number): string
+    public static v5<TBuf extends Uint8Array = Uint8Array>(value: string | Uint8Array, namespace: UUIDTypes, buf: TBuf, offset?: number): TBuf
+    public static v5(value: string | Uint8Array, namespace: UUIDTypes, buf?: any, offset?: number): any {
+        return v5(value, namespace, buf, offset)
     }
 
-    public static v6(): string {
-        return uuidV6()
+    /**
+     * An RFC version 6 (timestamp, reordered) UUID
+     */
+    public static v6(options?: UUIDVersion6Options, buf?: undefined, offset?: number): string
+    public static v6<TBuf extends Uint8Array = Uint8Array>(options: UUIDVersion6Options | undefined, buf: TBuf, offset?: number): TBuf
+    public static v6(options: UUIDVersion6Options | undefined, buf: any, offset?: number): any {
+        return v6(options, buf, offset)
     }
 
+    /**
+     * Whether a string is a UUID (the nil and max UUIDs included)
+     * @param uuid
+     */
     public static validate(uuid: string): boolean {
-        return UUID_REGEX.test(uuid)
+        return validate(uuid)
     }
 
+    /**
+     * The version of a UUID (throws for an invalid UUID)
+     * @param uuid
+     */
     public static version(uuid: string): number {
-        return parseInt(uuid.charAt(14), 16)
+        return version(uuid)
     }
 }
