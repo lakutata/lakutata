@@ -91,14 +91,21 @@ Add a package to the workspace: `packages/<name>` (without its scope), of the ve
 Then `npm install` links it.
 
 - `lakutata add greeting`: a TypeScript package (`src/index.ts` compiled into `build`, its declarations emitted).
-- `lakutata add @acme/capture --native`: a native addon. Its C++ (`cpp/binding.cc`) uses
-  [node-addon-api](https://github.com/nodejs/node-addon-api): Node-API is stable across the versions of Node.js and
-  Electron, so the same addon runs in both without being rebuilt. `binding.gyp` builds it with the C++ exceptions
-  (thrown in JavaScript as errors) on every platform, for the Macs with Intel and with Apple silicon in one file;
-  node-gyp builds it into `build/Release` (`npm run build:native`, and when the package is installed), node-gyp-build
-  loads it from `src/index.ts`, compiled into `dist`. `lakutata bundle` and `lakutata executable` ship it with the
-  application. Building it needs Python and a C++ toolchain (the Xcode command line tools on macOS, build-essential on
-  Linux, the Visual Studio Build Tools on Windows).
+- `lakutata add @acme/capture --native [gyp|cmake|rust]`: a native addon, by its build system:
+  - `gyp` (by default): C++ with [node-addon-api](https://github.com/nodejs/node-addon-api), built by node-gyp from
+    `binding.gyp`;
+  - `cmake`: C++ with node-addon-api, built by [cmake-js](https://github.com/cmake-js/cmake-js) from `CMakeLists.txt`;
+  - `rust`: Rust with [napi-rs](https://napi.rs), built by cargo (`Cargo.toml`, `build.rs`, `rust/lib.rs`).
+
+  Node-API is stable across the versions of Node.js and Electron: the same addon runs in both without being rebuilt.
+  The addon is built into `build/Release` (`npm run build:native`, and when the package is installed), loaded by
+  node-gyp-build from `src/index.ts`, compiled into `dist`; the C++ ones are built for the Macs with Intel and with Apple
+  silicon in one file. `binding.gyp`, `CMakeLists.txt` and `build.rs` show in their comments how the libraries and the
+  options of the build are given: the libraries of the system, pkg-config, the static libraries of the package, the
+  dynamic libraries shipped with the addon (copied next to it, found there by its rpath), the standard of C++, the
+  options of each platform; a library built by its own Makefile is built before by a script (`build:deps`).
+  `lakutata bundle` and `lakutata executable` ship the addon with the application, its dynamic libraries too. Building
+  it needs a C++ toolchain (with CMake for `cmake`), or Rust for `rust`.
 
 ### `lakutata list`
 
