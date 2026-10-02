@@ -3,6 +3,8 @@ import {Controller} from 'lakutata/com/entrypoint'
 import {CLIAction} from 'lakutata/decorator/ctrl'
 import {RunScriptDTO} from '../dtos/RunScriptDTO.js'
 import {VersionDTO} from '../dtos/VersionDTO.js'
+import {AddPackageDTO} from '../dtos/AddPackageDTO.js'
+import {AddPackage, type AddPackageResult} from '../lib/AddPackage.js'
 import {Done, Styled, Table} from '../lib/Output.js'
 import {Workspace, type WorkspacePackage} from '../lib/workspace/Workspace.js'
 import {RunScript, type RunResult} from '../lib/workspace/Run.js'
@@ -33,6 +35,14 @@ export class WorkspaceController extends Controller {
         }
         const files: string[] = await ApplyVersion(workspace, plan, {preid: input.preid, git: input.git})
         Done(`Version ${plan.to} given (${files.map((file: string): string => path.relative(workspace.root, file)).join(', ')})${input.git ? `, committed and tagged v${plan.to}` : ''}`)
+        return undefined
+    }
+
+    @CLIAction('add <name>', AddPackageDTO, {description: 'Add a package to the workspace (packages/<name>): TypeScript, or a native addon with --native'})
+    public async add(input: AddPackageDTO): Promise<undefined> {
+        const result: AddPackageResult = await AddPackage({name: input.name, native: input.native, to: input.to})
+        Done(`${input.native ? 'Native addon' : 'Package'} ${input.name} ${result.version} added: ${path.relative(process.cwd(), result.directory) || '.'} (${result.files.join(', ')})${result.to ? `, a dependency of ${result.to}` : ''}`)
+        process.stdout.write(`Next: npm install (links the package${input.native ? ', builds the addon' : ''}), then npm run rebuild -w ${input.name}\n`)
         return undefined
     }
 

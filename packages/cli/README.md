@@ -84,6 +84,22 @@ versions a range matches its version only) and the lock file (`npm ci` fails oth
 the one of `lerna.json` when there is one, of the root `package.json` otherwise. `--git` commits the changes and tags
 them `v<version>`; `--yes` gives the version without confirmation.
 
+### `lakutata add <name>`
+
+Add a package to the workspace: `packages/<name>` (without its scope), of the version of the workspace, with its
+`clean`, `build`, `rebuild` and `test` scripts and a test; `--to <package>` makes a package of the workspace depend on it.
+Then `npm install` links it.
+
+- `lakutata add greeting`: a TypeScript package (`src/index.ts` compiled into `build`, its declarations emitted).
+- `lakutata add @acme/capture --native`: a native addon. Its C++ (`cpp/binding.cc`) uses
+  [node-addon-api](https://github.com/nodejs/node-addon-api): Node-API is stable across the versions of Node.js and
+  Electron, so the same addon runs in both without being rebuilt. `binding.gyp` builds it with the C++ exceptions
+  (thrown in JavaScript as errors) on every platform, for the Macs with Intel and with Apple silicon in one file;
+  node-gyp builds it into `build/Release` (`npm run build:native`, and when the package is installed), node-gyp-build
+  loads it from `src/index.ts`, compiled into `dist`. `lakutata bundle` and `lakutata executable` ship it with the
+  application. Building it needs Python and a C++ toolchain (the Xcode command line tools on macOS, build-essential on
+  Linux, the Visual Studio Build Tools on Windows).
+
 ### `lakutata list`
 
 List the packages, their versions and the packages they depend on.
