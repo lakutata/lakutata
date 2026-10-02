@@ -5,7 +5,7 @@ import {mkdir, mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {Container} from '@lakutata/core'
-import {BaseEntity, DataSource, EntitySchema} from '../exports/ORM.js'
+import {BaseEntity, DataSource, EntitySchema, type MigrationInterface, type QueryRunner} from '../exports/ORM.js'
 import {Column, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn} from '../exports/ORMDecorators.js'
 import {BuildDatabaseOptions, Database} from '../exports/DatabaseComponent.js'
 import {BuildDatabaseOptions as BuildDatabaseProviderOptions, Database as DatabaseProvider} from '../exports/DatabaseProvider.js'
@@ -43,6 +43,53 @@ const Note: EntitySchema = new EntitySchema({
         title: {type: String}
     }
 })
+
+/**
+ * The migrations of the tests: the table of the notes, then the table of the tags
+ */
+class CreateNote1700000000000 implements MigrationInterface {
+    public name: string = 'CreateNote1700000000000'
+
+    public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query('CREATE TABLE "note" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL)')
+    }
+
+    public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query('DROP TABLE "note"')
+    }
+}
+
+class CreateTag1700000000001 implements MigrationInterface {
+    public name: string = 'CreateTag1700000000001'
+
+    public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query('CREATE TABLE "tag" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar NOT NULL)')
+    }
+
+    public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query('DROP TABLE "tag"')
+    }
+}
+
+const MIGRATIONS: Function[] = [CreateNote1700000000000, CreateTag1700000000001]
+
+/**
+ * The tables of a database, but the table of the migrations
+ * @param database
+ */
+async function Tables(database: { query<T>(query: string): Promise<T> }): Promise<string[]> {
+    const rows: { name: string }[] = await database.query('SELECT name FROM sqlite_master WHERE type = \'table\' AND name NOT IN (\'migrations\', \'sqlite_sequence\') ORDER BY name')
+    return rows.map((row: { name: string }): string => row.name)
+}
+
+/**
+ * The names of the migrations executed
+ * @param database
+ */
+async function Executed(database: { query<T>(query: string): Promise<T> }): Promise<string[]> {
+    const rows: { name: string }[] = await database.query('SELECT name FROM migrations ORDER BY id')
+    return rows.map((row: { name: string }): string => row.name)
+}
 
 /**
  * Run a test in a temporary directory
@@ -100,6 +147,54 @@ describe('The ORM', (): void => {
         await database.getRepository('note').save({title: 'a'})
         assert.strictEqual(await database.getRepository('note').count(), 1)
         await container.destroy()
+    })
+
+    describe('The execution of the migrations', (): void => {
+
+        it('runs the pending migrations when the database connects (migrationsRun), once', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+            const options = {type: 'sqlite' as const, database: path.join(directory, 'app.db'), synchronize: false, migrationsRun: true, migrations: MIGRATIONS}
+            const container: Container = new Container()
+            const database: Database = await container.set(Database, {options: options})
+            assert.deepStrictEqual(await Tables(database), ['note', 'tag'])
+            assert.deepStrictEqual(await Executed(database), ['CreateNote1700000000000', 'CreateTag1700000000001'])
+            await database.query('INSERT INTO note (title) VALUES (\'kept\')')
+            await container.destroy()
+            //Connected again: nothing pending, the data kept
+            const again: Container = new Container()
+            const reconnected: Database = await again.set(Database, {options: options})
+            assert.deepStrictEqual(await Executed(reconnected), ['CreateNote1700000000000', 'CreateTag1700000000001'])
+            assert.deepStrictEqual(await reconnected.query('SELECT title FROM note'), [{title: 'kept'}])
+            await again.destroy()
+        }))
+
+        it('lists, runs and reverts the migrations in the code', async (): Promise<void> => {
+            const container: Container = new Container()
+            const database: Database = await container.set(Database, {options: {type: 'sqlite', database: ':memory:', migrations: MIGRATIONS}})
+            //Pending migrations
+            assert.strictEqual(await database.showMigrations(), true)
+            assert.deepStrictEqual((await database.runMigrations()).map((migration): string => migration.name), ['CreateNote1700000000000', 'CreateTag1700000000001'])
+            assert.strictEqual(await database.showMigrations(), false)
+            assert.deepStrictEqual(await Tables(database), ['note', 'tag'])
+            //The last migration reverted, then run again in its own transaction
+            await database.undoLastMigration()
+            assert.deepStrictEqual(await Tables(database), ['note'])
+            assert.deepStrictEqual(await Executed(database), ['CreateNote1700000000000'])
+            assert.deepStrictEqual((await database.runMigrations({transaction: 'each'})).map((migration): string => migration.name), ['CreateTag1700000000001'])
+            assert.deepStrictEqual(await Tables(database), ['note', 'tag'])
+            //Nothing pending: nothing run
+            assert.deepStrictEqual(await database.runMigrations(), [])
+            await container.destroy()
+        })
+
+        it('runs the migrations of the Database provider as the ones of the component', async (): Promise<void> => {
+            const container: Container = new Container()
+            const database: DatabaseProvider = await container.set(DatabaseProvider, {options: {type: 'sqlite', database: ':memory:', migrationsRun: true, migrations: MIGRATIONS}})
+            assert.deepStrictEqual(await Tables(database), ['note', 'tag'])
+            await database.undoLastMigration()
+            assert.deepStrictEqual(await Tables(database), ['note'])
+            assert.strictEqual(await database.showMigrations(), true)
+            await container.destroy()
+        })
     })
 
     describe('The generation of the migrations', (): void => {

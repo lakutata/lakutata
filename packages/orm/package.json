@@ -56,7 +56,8 @@
     "build:js": "npm run build:cjs && npm run build:esm && npm run build:cjs-pkg",
     "rebuild": "npm run clean && npm run build:js",
     "compile": "npm run rebuild",
-    "test:unit": "npm run compile && node --test \"dist/esm/tests/*.spec.js\""
+    "test:unit": "npm run compile && node --test \"dist/esm/tests/*.spec.js\"",
+    "test:integration": "npm run compile && node --test --test-concurrency=1 \"dist/esm/tests/integration/*.spec.js\""
   },
   "dependencies": {
     "typeorm": "0.3.31",

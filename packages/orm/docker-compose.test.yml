@@ -1,0 +1,8 @@
+# The PostgreSQL server of the integration tests:
+# docker compose -f docker-compose.test.yml up -d && POSTGRES_URL=postgres://postgres:lakutata@127.0.0.1:15432 npm run test:integration
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: lakutata
+    ports: ['15432:5432']
