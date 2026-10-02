@@ -9,6 +9,7 @@
     "build": "lakutata run rebuild",
     "test": "lakutata run test",
     "dev": "lakutata run build:server && lakutata run dev",
+    "migration:generate": "lakutata migration generate --package app",
     "start": "npm start -w app",
     "version:patch": "lakutata version patch --yes",
     "docker:build": "docker buildx build --tag {$APP_ID}:$npm_package_version --load .",

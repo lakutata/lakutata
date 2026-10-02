@@ -12,6 +12,7 @@
     "build": "npm run clean && tsc",
     "start": "node build/App.js",
     "dev": "npm run build && node build/App.js",
+    "migration:generate": "lakutata migration generate",
     "test": "npm run build && node --test \"build/tests/**/*.spec.js\""
   },
   "dependencies": {
@@ -19,6 +20,7 @@
     "lakutata": "^{$LAKUTATA_VERSION}"
   },
   "devDependencies": {
+    "@lakutata/cli": "^{$LAKUTATA_VERSION}",
     "@types/express": "^5.0.6",
     "@types/node": "^22.0.0",
     "typescript": "^6.0.3"
