@@ -2,7 +2,7 @@ import {format as utilFormat} from 'node:util'
 import {GetAppId, GetAppName} from './BasicInfo.js'
 import {Templating} from '@lakutata/utils/Templating'
 import {As} from '@lakutata/utils/As'
-import {CamelCase} from '../helpers/internal/CamelCase.js'
+import {CamelCase} from '@lakutata/utils/CamelCase'
 import {DevNull} from '@lakutata/utils/DevNull'
 
 /**

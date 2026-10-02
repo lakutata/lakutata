@@ -6,7 +6,7 @@ import {access} from 'node:fs/promises'
  * @param path
  * @constructor
  */
-export async function IsExists(path: PathLike): Promise<boolean> {
+export async function PathExists(path: PathLike): Promise<boolean> {
     try {
         await access(path, constants.F_OK)
         return true

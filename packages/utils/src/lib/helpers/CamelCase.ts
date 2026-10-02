@@ -1,9 +1,9 @@
-import {NoCaseOptions, Split, ToLower, ToUpper} from '@lakutata/utils/NoCase'
-
-export type {NoCaseOptions}
+import {type NoCaseOptions} from './NoCase.js'
+import {Split, ToLower, ToUpper} from './internal/CaseWords.js'
 
 /**
- * Came case handler
+ * Convert any string into a camel case string (the words of NoCase, the first one in lower case, the others
+ * capitalized, a digit starting a word prefixed by _)
  * @param input
  * @param options
  * @constructor

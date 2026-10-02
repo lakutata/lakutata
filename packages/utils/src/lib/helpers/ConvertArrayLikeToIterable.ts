@@ -1,8 +1,8 @@
 /**
  * Convert array-like input to iterable
- * @param inp
+ * @param input
  * @constructor
  */
-export function* ConvertArrayLikeToIterable(inp: string | Buffer | NodeJS.TypedArray): Generator {
-    for (let i: number = 0; i < inp.length; i++) yield inp[i]
+export function* ConvertArrayLikeToIterable(input: string | Buffer | NodeJS.TypedArray): Generator {
+    for (let i: number = 0; i < input.length; i++) yield input[i]
 }

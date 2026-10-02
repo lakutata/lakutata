@@ -10,7 +10,7 @@ import {
     asFunction
 } from './Resolvers.js'
 import {isClass, isFunction} from './Utils.js'
-import {CamelCase} from '../helpers/internal/CamelCase.js'
+import {CamelCase} from '@lakutata/utils/CamelCase'
 import {As} from '@lakutata/utils/As'
 
 /**

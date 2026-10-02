@@ -4,7 +4,7 @@ export interface IPBinHex {
     binary: string
 }
 
-export interface IPv4SubNet {
+export interface IPv4Subnet {
     cidrMask: number
     ipCount: number
     usableCount: number
@@ -15,7 +15,7 @@ export interface IPv4SubNet {
     broadcastAddress: string
 }
 
-export interface IPv6SubNet {
+export interface IPv6Subnet {
     ipCount: bigint
     lastHost: string
     firstHost: string
@@ -325,7 +325,7 @@ export class IPv4 {
     public static isCIDR(cidr: string): boolean {
         if (typeof cidr !== 'string') return false
 
-        const subnet: IPv4SubNet | false = this.parseCIDR(cidr)
+        const subnet: IPv4Subnet | false = this.parseCIDR(cidr)
         return typeof subnet === 'object' ? true : false
     }
 
@@ -368,7 +368,7 @@ export class IPv4 {
      * ```
      */
     public static contains(cidr: string, ip: string): boolean {
-        const subnet: IPv4SubNet | false = this.parseCIDR(cidr)
+        const subnet: IPv4Subnet | false = this.parseCIDR(cidr)
         if (typeof subnet !== 'object' || !this.isValidIP(ip)) return false
 
         const {cidrMask, firstHost, lastHost, networkAddress, broadcastAddress} = subnet
@@ -456,7 +456,7 @@ export class IPv4 {
      * // }
      * ```
      */
-    public static parseCIDR(cidr: string): IPv4SubNet | false {
+    public static parseCIDR(cidr: string): IPv4Subnet | false {
         if (typeof cidr !== 'string') return false
 
         const [ip, mask] = cidr.split('/')
@@ -469,7 +469,7 @@ export class IPv4 {
         const networkIP: number = +mask ? ((longIP >> length) << length) >>> 0 : 0
         const broadcastIP: number = (networkIP | ipCount - 1) >>> 0
 
-        const cidrInfo: IPv4SubNet = {
+        const cidrInfo: IPv4Subnet = {
             ipCount,
             cidrMask: +mask,
             usableCount: +mask < 31 ? ipCount - 2 : ipCount,
@@ -502,7 +502,7 @@ export class IPv4 {
 
         const _cidrs: any[] = []
         for (const cidr of cidrs) {
-            const subnet: IPv4SubNet | false = this.parseCIDR(cidr)
+            const subnet: IPv4Subnet | false = this.parseCIDR(cidr)
             if (typeof subnet === 'object') _cidrs.push({
                 cidr,
                 networkAddress: subnet.networkAddress || subnet.firstHost
@@ -542,11 +542,11 @@ export class IPv4 {
      * // }
      * ```
      */
-    public static parseSubnet(ip: string, mask: string): IPv4SubNet | false {
+    public static parseSubnet(ip: string, mask: string): IPv4Subnet | false {
         if (!this.isValidIP(ip) || !this.isValidMask(mask)) return false
 
         const length: number | false = this.toMaskLength(mask)
-        const cidrInfo: IPv4SubNet | false = this.parseCIDR(`${ip}/${length}`)
+        const cidrInfo: IPv4Subnet | false = this.parseCIDR(`${ip}/${length}`)
         return cidrInfo
     }
 
@@ -762,7 +762,7 @@ export class IPv6 {
      * contains('2001:db8::1/128', '2001:db8::11')    // false
      */
     public static contains(cidr: string, ip: string): boolean {
-        const subnet: IPv6SubNet | false = this.parseCIDR(cidr)
+        const subnet: IPv6Subnet | false = this.parseCIDR(cidr)
         if (typeof subnet !== 'object' || !this.isValidIP(ip)) return false
 
         const {lastHost, firstHost} = subnet
@@ -842,7 +842,7 @@ export class IPv6 {
     public static isCIDR(cidr: string): boolean {
         if (typeof cidr !== 'string') return false
 
-        const subnet: IPv6SubNet | false = this.parseCIDR(cidr)
+        const subnet: IPv6Subnet | false = this.parseCIDR(cidr)
         return typeof subnet === 'object' ? true : false
     }
 
@@ -863,7 +863,7 @@ export class IPv6 {
 
         const _cidrs: any[] = []
         for (const cidr of cidrs) {
-            const subnet: IPv6SubNet | false = this.parseCIDR(cidr)
+            const subnet: IPv6Subnet | false = this.parseCIDR(cidr)
             if (typeof subnet === 'object') _cidrs.push({cidr, firstHost: subnet.firstHost})
         }
 
@@ -962,7 +962,7 @@ export class IPv6 {
      * // }
      * ```
      */
-    public static parseCIDR(cidr: string): IPv6SubNet | false {
+    public static parseCIDR(cidr: string): IPv6Subnet | false {
         if (typeof cidr !== 'string') return false
         const [ip, mask] = cidr.split('/')
         if (ip === undefined || mask === undefined || mask === '') return false
@@ -974,7 +974,7 @@ export class IPv6 {
         const networkIP: bigint = (longIP >> length) << length
         const firstHost: string = this.long2ip(networkIP) as string
         const lastHost: string = this.long2ip(networkIP | ipCount - 1n) as string
-        const cidrInfo: IPv6SubNet = {
+        const cidrInfo: IPv6Subnet = {
             ipCount,
             firstHost,
             lastHost,

@@ -21,7 +21,7 @@ import {FunctionSchema} from '../validation/interfaces/FunctionSchema.js'
 import {BinarySchema} from '../validation/interfaces/BinarySchema.js'
 import {As} from '@lakutata/utils/As'
 import {IsGlobString} from '@lakutata/utils/IsGlobString'
-import {IsHtml} from '@lakutata/utils/IsHtml'
+import {IsHTML} from '@lakutata/utils/IsHTML'
 import {IsXML} from '@lakutata/utils/IsXML'
 import {ErrorReport} from '../validation/interfaces/ErrorReport.js'
 
@@ -209,7 +209,7 @@ export class DataValidator {
      */
     public static HttpDocument<TSchema = string>(): StringSchema<TSchema> {
         return this.String<TSchema>().custom(pure((value: TSchema, helpers: CustomHelpers) => {
-            if (typeof value === 'string' && (IsHtml(value) || IsXML(value))) return value
+            if (typeof value === 'string' && (IsHTML(value) || IsXML(value))) return value
             return helpers.error('any.invalid')
         }), 'HttpDocument Validation')
     }

@@ -1,12 +1,12 @@
 import {DevNull} from './DevNull.js'
 
 /**
- * Terminate program graceful
+ * Terminate the program gracefully, after the functions given
  * @param exitCode
  * @param functions
  * @constructor
  */
-export function GraceExit(exitCode: number, ...functions: (() => any)[]): void {
+export function GracefulExit(exitCode: number, ...functions: (() => any)[]): void {
     //The errors of the functions are ignored
     setImmediate((): void => void (async (): Promise<void> => {
         for (const func of functions) {

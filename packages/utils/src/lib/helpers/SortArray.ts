@@ -3,7 +3,7 @@
  * THIRD_PARTY_NOTICES.md): the sorting of 2.x, in place
  */
 
-export interface SortOptions<Computed> {
+export interface SortArrayOptions<Computed> {
     by?: string | string[]
     order?: string | string[]
     customOrders?: { [key: string]: any }
@@ -15,7 +15,7 @@ export interface SortOptions<Computed> {
 /**
  * The options of sort-array, with their defaults
  */
-type SortArrayOptions = {
+type SortSettings = {
     by?: any
     order?: any
     customOrders: Record<string, any>
@@ -48,7 +48,7 @@ function IsDefinedValue(input: any): boolean {
  * The comparison of the items of sort-array
  * @param options
  */
-function CompareFunction(options: SortArrayOptions): (xIn: any, yIn: any, byIndex?: number) => number {
+function CompareFunction(options: SortSettings): (xIn: any, yIn: any, byIndex?: number) => number {
     const by: any[] = Arrayify(options.by)
     const order: any[] = Arrayify(options.order)
     const {customOrders, computed} = options
@@ -97,26 +97,26 @@ function CompareFunction(options: SortArrayOptions): (xIn: any, yIn: any, byInde
 
 /**
  * Sort an array in place (sort-array)
- * @param arr
+ * @param array
  * @param options
  */
-function Sort<T>(arr: T[], options: Partial<SortArrayOptions> = {}): T[] {
-    const settings: SortArrayOptions = Object.assign({computed: {}, customOrders: {}, nullRank: 1, undefinedRank: 1, nanRank: 1}, options)
+function Sort<T>(array: T[], options: Partial<SortSettings> = {}): T[] {
+    const settings: SortSettings = Object.assign({computed: {}, customOrders: {}, nullRank: 1, undefinedRank: 1, nanRank: 1}, options)
     //The comparison is called with two arguments (the byIndex of the first property)
     const compare: (xIn: any, yIn: any, byIndex?: number) => number = CompareFunction(settings)
-    arr.sort((x: T, y: T): number => compare(x, y))
-    return arr
+    array.sort((x: T, y: T): number => compare(x, y))
+    return array
 }
 
 /**
  * Sort an array in place, and return it. With one set of options, by its properties, order and computed fields (an
  * ascending order without options); with several, by the properties of the sets, each one in the order given by the
  * set alone
- * @param arr
+ * @param array
  * @param options
  * @constructor
  */
-export function SortArray<T = any>(arr: T[], ...options: SortOptions<T>[]): T[] {
+export function SortArray<T = any>(array: T[], ...options: SortArrayOptions<T>[]): T[] {
     if (options.length < 2) {
         let sortOptions: { [key: string]: any } = {order: 'asc'}
         if (options.length) sortOptions = Object.assign(sortOptions, {
@@ -124,19 +124,19 @@ export function SortArray<T = any>(arr: T[], ...options: SortOptions<T>[]): T[] 
             order: options[0].order,
             computed: options[0].computed
         })
-        return Sort(arr, sortOptions)
+        return Sort(array, sortOptions)
     }
     const sortsOptions: { [key: string]: any } = {
         by: [],
         order: [],
         customOrders: {}
     }
-    options.forEach((opt: SortOptions<T>): void => {
+    options.forEach((opt: SortArrayOptions<T>): void => {
         if (!opt.by) return
         const field: string = opt.by as any
         sortsOptions.by.push(field)
         sortsOptions.order.push(field)
-        sortsOptions.customOrders[field] = SortArray(arr, opt).map((value: any): any => value[field])
+        sortsOptions.customOrders[field] = SortArray(array, opt).map((value: any): any => value[field])
     })
-    return Sort(arr, sortsOptions)
+    return Sort(array, sortsOptions)
 }

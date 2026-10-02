@@ -5,11 +5,11 @@ const basic: RegExp = /\s?<!doctype html>|(<html\b[^>]*>|<body\b[^>]*>|<x-[^>]+>
 const full: RegExp = new RegExp(HTML_TAGS.map((tag: string) => `<${tag}\\b[^>]*>`).join('|'), 'i')
 
 /**
- * Whether string is html
- * @param string
+ * Whether a string is HTML
+ * @param value
  * @constructor
  */
-export function IsHtml(string: string): boolean {
-    string = string.trim().slice(0, 1000)
-    return basic.test(string) || full.test(string)
+export function IsHTML(value: string): boolean {
+    const head: string = value.trim().slice(0, 1000)
+    return basic.test(head) || full.test(head)
 }

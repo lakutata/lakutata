@@ -2,21 +2,21 @@ import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {inspect} from 'node:util'
 import upstreamSortArray from 'sort-array'
-import {SortArray, type SortOptions} from '../exports/Utils.js'
+import {SortArray, type SortArrayOptions} from '../exports/Utils.js'
 
 /**
  * The SortArray of 2.x, on sort-array
  * @param arr
  * @param options
  */
-function UpstreamSortArray<T = any>(arr: T[], ...options: SortOptions<T>[]): T[] {
+function UpstreamSortArray<T = any>(arr: T[], ...options: SortArrayOptions<T>[]): T[] {
     if (options.length < 2) {
         let sortOptions: { [key: string]: any } = {order: 'asc'}
         if (options.length) sortOptions = Object.assign(sortOptions, {by: options[0].by, order: options[0].order, computed: options[0].computed})
         return (upstreamSortArray as any)(arr, sortOptions)
     }
     const sortsOptions: { [key: string]: any } = {by: [], order: [], customOrders: {}}
-    options.forEach((opt: SortOptions<T>): void => {
+    options.forEach((opt: SortArrayOptions<T>): void => {
         if (opt.by) {
             const field: string = opt.by as any
             sortsOptions.by.push(field)
@@ -63,7 +63,7 @@ function RandomArray(): unknown[] {
 /**
  * Random options
  */
-function Options(): SortOptions<any> {
+function Options(): SortArrayOptions<any> {
     const options: Record<string, unknown> = {}
     if (random() < 0.7) options.by = pick(['a', 'b', 'c', ['a', 'b'], ['b', 'c', 'a'], 'computedA', 'missing', ''])
     if (random() < 0.7) options.order = pick(['asc', 'desc', 'custom', 'a', ['asc', 'desc'], ['desc', 'custom'], 'unknown', undefined])
@@ -71,7 +71,7 @@ function Options(): SortOptions<any> {
     if (random() < 0.4) options.customOrders = {custom: ['z', 'x', 3, 1, null], a: [2, 1, 3]}
     if (random() < 0.3) options.nullRank = pick([-1, 1])
     if (random() < 0.3) options.undefinedRank = pick([-1, 1])
-    return options as SortOptions<any>
+    return options as SortArrayOptions<any>
 }
 
 /**
@@ -80,7 +80,7 @@ function Options(): SortOptions<any> {
  * @param input
  * @param options
  */
-function Outcome(sort: (arr: unknown[], ...options: SortOptions<any>[]) => unknown[], input: unknown[], options: SortOptions<any>[]): string {
+function Outcome(sort: (arr: unknown[], ...options: SortArrayOptions<any>[]) => unknown[], input: unknown[], options: SortArrayOptions<any>[]): string {
     const arr: unknown[] = input.slice()
     try {
         const result: unknown[] = sort(arr, ...options)
@@ -96,7 +96,7 @@ describe('SortArray', (): void => {
         const counts: Record<string, number> = {sorted: 0, error: 0}
         for (let run: number = 0; run < 10000; run++) {
             const input: unknown[] = RandomArray()
-            const options: SortOptions<any>[] = Array.from({length: pick([0, 1, 1, 1, 2, 3])}, Options)
+            const options: SortArrayOptions<any>[] = Array.from({length: pick([0, 1, 1, 1, 2, 3])}, Options)
             const expected: string = Outcome(UpstreamSortArray, input, options)
             assert.strictEqual(Outcome(SortArray, input, options), expected, `${inspect(input)} ${inspect(options, {depth: 3})}`)
             counts[expected.startsWith('{ error') ? 'error' : 'sorted']++

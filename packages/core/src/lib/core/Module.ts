@@ -11,11 +11,11 @@ import {LoadObjectOptions} from '../../options/LoadObjectOptions.js'
 import {As} from '@lakutata/utils/As'
 import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
 import {DefineObjectType, ObjectType} from '../base/internal/ObjectType.js'
-import {NonceStr} from '@lakutata/utils/NonceStr'
+import {NonceString} from '@lakutata/utils/NonceString'
 import {CheckObjectOptions} from '../base/internal/ObjectOptionsCheck.js'
 
-export const MODULE_INITIALIZED: string = `_$.MODULE.INITIALIZED_${NonceStr()}`
-export const MODULE_INITIALIZE_ERROR: string = `_$.MODULE.INITIALIZE_ERROR_${NonceStr()}`
+export const MODULE_INITIALIZED: string = `_$.MODULE.INITIALIZED_${NonceString()}`
+export const MODULE_INITIALIZE_ERROR: string = `_$.MODULE.INITIALIZE_ERROR_${NonceString()}`
 
 /**
  * Module base class
