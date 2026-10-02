@@ -25,7 +25,7 @@ export interface IPv6Subnet {
 export interface IPv6Result {
     mapped: string
     expanded: string
-    comperssed: string
+    compressed: string
 }
 
 class IPv4Range {
@@ -640,7 +640,7 @@ export class IPv4 {
      * toIPv6Format('192.168.1.1')
      * // {
      * //   mapped: '::ffff:192.168.1.1',
-     * //   comperssed: "::ffff:c0a8:101"
+     * //   compressed: "::ffff:c0a8:101"
      * //   expanded: '0000:0000:0000:0000:0000:ffff:c0a8:0101',
      * // }
      * ```
@@ -651,7 +651,7 @@ export class IPv4 {
         const ipv4: string = this.long2ip(longIP) as string
         return {
             mapped: `::ffff:${ipv4}`,
-            comperssed: IPv6.compressedForm(`::ffff:${ipv4}`) as string,
+            compressed: IPv6.compressedForm(`::ffff:${ipv4}`) as string,
             expanded: IPv6.expandedForm(`::ffff:${ipv4}`) as string
         }
     }

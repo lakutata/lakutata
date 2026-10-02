@@ -9,7 +9,7 @@ import {
     ServiceContext
 } from '../Entrypoint.js'
 import {Configurable} from '@lakutata/core/decorator/di'
-import {AccessDenyException} from '../exceptions/AccessDenyException.js'
+import {AccessDeniedException} from '../exceptions/AccessDeniedException.js'
 import {ActionDetails} from './ControllerEntrypoint.js'
 import {AccessControlRule, AccessControlRuleHandler} from './AccessControlRule.js'
 import {As, IsSubclassOf} from '@lakutata/utils'
@@ -137,7 +137,7 @@ export class AccessControl extends BaseObject {
         }
         return [
             allowed,
-            allowed ? undefined : (exception ? exception : new AccessDenyException())
+            allowed ? undefined : (exception ? exception : new AccessDeniedException())
         ]
     }
 }

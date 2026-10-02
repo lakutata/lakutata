@@ -37,7 +37,7 @@ export type OnSetEventData = {
     error?: Error
 }
 
-export type OnDelEventData = {
+export type OnDeleteEventData = {
     key: string
     error?: Error
 }
@@ -393,7 +393,7 @@ export class Cacher extends Component {
     }
 
     public on(event: 'set', listener: (data: OnSetEventData) => void): this
-    public on(event: 'del', listener: (data: OnDelEventData) => void): this
+    public on(event: 'del', listener: (data: OnDeleteEventData) => void): this
     public on(event: 'clear', listener: (error?: Error) => void): this
     public on(event: 'refresh', listener: (data: OnRefreshEventData) => void): this
     public on(event: 'error', listener: (error: Error) => void): this

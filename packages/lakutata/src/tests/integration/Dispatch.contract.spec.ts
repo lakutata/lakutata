@@ -17,7 +17,7 @@ import {DTO, Provider} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
 import {Inject} from '@lakutata/core/decorator/di'
 import {ServiceAction} from '@lakutata/entrypoint/decorator/ctrl'
-import {Controller, ServiceContext, BuildEntrypoints, BuildServiceEntrypoint, Entrypoint, AccessControlRule, AccessDenyException, ContextType} from '@lakutata/entrypoint'
+import {Controller, ServiceContext, BuildEntrypoints, BuildServiceEntrypoint, Entrypoint, AccessControlRule, AccessDeniedException, ContextType} from '@lakutata/entrypoint'
 import {Logger} from '@lakutata/logger'
 
 class ProbeDTO extends DTO {
@@ -196,9 +196,9 @@ Application
             await settleTeardown()
             assert.equal(Tracked.destroyed, 1, 'request scope must be destroyed when the controller fails with AbortController')
 
-            //An ACL guarded action denied by a rule rejects with AccessDenyException;
+            //An ACL guarded action denied by a rule rejects with AccessDeniedException;
             //actions without ACL are not affected by the rules.
-            await assert.rejects(serviceHandler(new ServiceContext({data: {act: 'guarded'}})), AccessDenyException)
+            await assert.rejects(serviceHandler(new ServiceContext({data: {act: 'guarded'}})), AccessDeniedException)
 
             //An already aborted request is not executed at all.
             slowExecuted = false

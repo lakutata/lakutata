@@ -349,7 +349,7 @@
   "lakutata/com/entrypoint": [
     "AccessControl",
     "AccessControlRule",
-    "AccessDenyException",
+    "AccessDeniedException",
     "ActionResult",
     "BaseContext",
     "BuildCLIEntrypoint",
