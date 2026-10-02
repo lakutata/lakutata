@@ -1,0 +1,179 @@
+{
+  "cli": {
+    "description": "lakutata 框架的命令列工具：從範本建立專案，執行工作區各套件的指令碼並管理版本，打包應用程式並產生可執行檔。",
+    "commands": {
+      "create": {
+        "description": "從範本建立一個 lakutata 專案",
+        "options": {
+          "name": "應用程式的名稱",
+          "id": "應用程式的 ID（套件名稱），預設為名稱的小寫形式",
+          "template": "範本：官方範本的名稱（lakutata templates 會列出）、npm:<套件名稱>、github:<擁有者>/<儲存庫> 或一個目錄",
+          "path": "在哪個目錄下建立專案目錄",
+          "init": "直接在該目錄中建立專案，目錄可以已存在且非空",
+          "description": "應用程式的描述",
+          "author": "應用程式的作者",
+          "license": "應用程式的授權條款",
+          "packageManager": "安裝相依套件使用的套件管理器，預設是執行本工具的那個（none 表示不安裝）",
+          "with": "啟用範本的可選功能，多個用逗號分隔（lakutata templates 會列出）：i18n",
+          "git": "初始化 git 儲存庫",
+          "yes": "不經確認直接建立專案"
+        }
+      },
+      "templates": {
+        "description": "列出專案範本",
+        "options": {
+          "refresh": "重新取得範本目錄，即使已有快取"
+        }
+      },
+      "clean": {
+        "description": "刪除目前目錄所在套件下的路徑，在各平台上都可用（預設是其 tsconfig.json 的 outDir）",
+        "arguments": {
+          "paths": "要刪除的路徑，相對於套件（預設是其 tsconfig.json 的 outDir 和 declarationDir）"
+        }
+      },
+      "info": {
+        "description": "顯示本工具和框架的版本"
+      },
+      "run": {
+        "description": "依相依關係的順序在工作區的各套件中執行一個指令碼",
+        "arguments": {
+          "script": "要執行的指令碼，在擁有它的套件中執行"
+        },
+        "options": {
+          "concurrency": "同時執行的套件數（預設是處理器數量）",
+          "bail": "遇到第一個失敗就停止",
+          "parallel": "所有套件同時執行，不等待它們的相依套件（開發伺服器、監看程序）",
+          "scope": "要執行的套件，依名稱（可使用 * 萬用字元）"
+        }
+      },
+      "version": {
+        "description": "為工作區的各套件設定下一個版本，並更新它們之間的相依關係",
+        "arguments": {
+          "bump": "major、minor、patch、premajor、preminor、prepatch、prerelease，或一個版本號"
+        },
+        "options": {
+          "preid": "預先發行版本的識別碼（如 beta）",
+          "git": "提交這些修改並打上標籤 v<版本>",
+          "yes": "不經確認直接設定版本"
+        }
+      },
+      "add": {
+        "description": "向工作區新增一個套件（packages/<名稱>）：TypeScript 套件，或用 --native [gyp|cmake|rust] 新增原生外掛",
+        "arguments": {
+          "name": "套件的名稱（工作區的 packages/<名稱>）"
+        },
+        "options": {
+          "native": "原生外掛，依建置系統：gyp（C++，node-gyp，預設）、cmake（C++，cmake-js）或 rust（napi-rs）",
+          "to": "相依於它的工作區套件"
+        }
+      },
+      "list": {
+        "description": "列出工作區的套件"
+      },
+      "bundle": {
+        "description": "把編譯後的應用程式及其相依套件打包成一個由 node 執行的檔案",
+        "options": {
+          "entry": "應用程式編譯後的入口（預設是 package.json 的 main）",
+          "outfile": "打包輸出的檔案（預設 dist/<名稱>.cjs）",
+          "minify": "壓縮打包結果",
+          "external": "不打包進去的模組，執行時從旁邊的 node_modules 載入（原生外掛會自動處理）"
+        }
+      },
+      "executable": {
+        "description": "為目前平台產生編譯後應用程式的可執行檔，無需安裝 Node.js 即可執行",
+        "options": {
+          "entry": "應用程式編譯後的入口（預設是 package.json 的 main）",
+          "outdir": "可執行檔所在的目錄（預設 dist）",
+          "minify": "壓縮嵌入可執行檔的打包結果",
+          "external": "不打包進去的模組（它們不在可執行檔中，而是從旁邊的 node_modules 載入）"
+        }
+      },
+      "migration": {
+        "description": "產生、建立、執行、復原或檢視應用程式資料庫的遷移",
+        "arguments": {
+          "action": "generate：根據實體的變化產生遷移；create <名稱>：建立空遷移；run：執行待執行的遷移；revert：復原最近執行的遷移；show：檢視已執行和待執行的遷移",
+          "name": "要建立的遷移的名稱（create）"
+        },
+        "options": {
+          "dir": "遷移所在的目錄，相對於套件（generate、create）",
+          "script": "建置並啟動應用程式的套件指令碼（generate、run、revert、show）",
+          "package": "應用程式所在的工作區套件（預設是目前目錄）",
+          "database": "資料庫：其 Database 元件或提供者的名稱（預設全部；應用程式有多個資料庫時，復原必須指定）",
+          "transaction": "執行或復原遷移的交易方式：all（一個交易，預設）、each（每個遷移一個）或 none",
+          "fake": "只標記遷移為已執行或已復原，不實際執行"
+        }
+      },
+      "native": {
+        "description": "修改目前目錄原生外掛的建置（binding.gyp、CMakeLists.txt、Cargo.toml）：連結程式庫、新增標頭檔目錄、定義巨集",
+        "arguments": {
+          "action": "link：連結一個程式庫；include：新增標頭檔目錄；define：定義巨集（NAME 或 NAME=value）",
+          "value": "程式庫（系統程式庫，或套件內的檔案：.a .lib .so .dylib .dll）、目錄或巨集"
+        },
+        "options": {
+          "platform": "修改所針對的平台（預設是程式庫檔案所屬的平台，否則為所有平台）",
+          "pkgConfig": "該程式庫是 pkg-config 的套件",
+          "framework": "該程式庫是 macOS 的 framework",
+          "crate": "該程式庫是一個 crate（Rust 外掛，使用 cargo add）",
+          "target": "要修改的建置目標（預設是唯一的那個）"
+        }
+      },
+      "i18n": {
+        "description": "檢查各語言的翻譯、宣告鍵名的型別，或新增一種語言",
+        "arguments": {
+          "action": "check：檢查各語言翻譯的問題；types：宣告訊息的鍵名及其參數的型別；add <語言>：以預設語言的訊息為範本新增一種語言",
+          "locale": "要新增的語言（add）：zh-CN、ja、pt-BR"
+        },
+        "options": {
+          "dir": "翻譯所在的目錄：每種語言一個檔案（zh-CN.json）或一個目錄（zh-CN/）；多個目錄用逗號分隔",
+          "default": "預設語言：檢查其他語言時的基準，產生型別宣告和新語言時的來源",
+          "out": "型別宣告檔案（types）",
+          "module": "應用程式匯入 i18n 的模組（types）：lakutata/com/i18n 或 @lakutata/i18n",
+          "strict": "警告也視為檢查失敗（check）"
+        }
+      }
+    },
+    "help": {
+      "usage": "用法：",
+      "arguments": "參數：",
+      "options": "選項：",
+      "commands": "命令：",
+      "helpOption": "顯示命令的說明",
+      "helpCommand": "顯示命令的說明",
+      "versionOption": "顯示版本號",
+      "default": "預設：{value}",
+      "choices": "可選：{choices}",
+      "negate": "關閉 {flag}",
+      "hints": "（{hints}）",
+      "separator": "，"
+    },
+    "prompt": {
+      "json": "不是 JSON 物件"
+    },
+    "prompts": {
+      "features": "專案的功能",
+      "create": "建立這個專案嗎？",
+      "notCreated": "專案未建立",
+      "version": "設定這個版本嗎？",
+      "notVersioned": "版本未修改"
+    },
+    "plan": {
+      "title": "專案",
+      "name": "名稱",
+      "id": "ID",
+      "description": "描述",
+      "author": "作者",
+      "license": "授權條款",
+      "template": "範本",
+      "features": "功能",
+      "none": "無",
+      "directory": "目錄",
+      "dependencies": "相依套件",
+      "notInstalled": "不安裝",
+      "installed": "用 {manager} 安裝",
+      "git": "Git",
+      "initialized": "初始化",
+      "notInitialized": "不初始化",
+      "version": "版本 {from} → {to}"
+    }
+  }
+}

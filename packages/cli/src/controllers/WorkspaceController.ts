@@ -9,11 +9,20 @@ import {Done, Styled, Table} from '../lib/Output.js'
 import {Workspace, type WorkspacePackage} from '../lib/workspace/Workspace.js'
 import {RunScript, type RunResult} from '../lib/workspace/Run.js'
 import {ApplyVersion, PlanVersion, type VersionPlan} from '../lib/workspace/Version.js'
+import {Inject} from 'lakutata/decorator/di'
+import {Translator} from 'lakutata/com/i18n'
+import {Say} from '../lib/Language.js'
 
 /**
  * The commands of the workspaces: the packages of a project (app, ui, proxy…) built in the order of their dependencies, and given a same version
  */
 export class WorkspaceController extends Controller {
+
+    /**
+     * The prompts in the language of the user
+     */
+    @Inject(Translator)
+    protected readonly i18n: Translator
 
     @CLIAction('run <script>', RunScriptDTO, {description: 'Run a script in the packages of the workspace, in the order of their dependencies'})
     public async run(input: RunScriptDTO): Promise<string | undefined> {
@@ -28,10 +37,10 @@ export class WorkspaceController extends Controller {
     public async version(input: VersionDTO): Promise<string | undefined> {
         const workspace: Workspace = await Workspace.find()
         const plan: VersionPlan = PlanVersion(workspace, input.bump, input.preid)
-        process.stdout.write(Table(plan.packages.map(({name, from}): [string, string] => [name, `${from ?? '-'} → ${plan.to}`]), `Version ${plan.from} → ${Styled('green', plan.to)}`))
+        process.stdout.write(Table(plan.packages.map(({name, from}): [string, string] => [name, `${from ?? '-'} → ${plan.to}`]), Say(this.i18n, 'plan.version', 'Version {from} → {to}', {from: plan.from, to: Styled('green', plan.to)})))
         if (process.stdin.isTTY && process.stdout.isTTY && !input.yes) {
             const {confirm} = await import('@inquirer/prompts')
-            if (!await confirm({message: 'Give this version?', default: true})) return 'The version is not changed'
+            if (!await confirm({message: Say(this.i18n, 'prompts.version', 'Give this version?'), default: true})) return Say(this.i18n, 'prompts.notVersioned', 'The version is not changed')
         }
         const files: string[] = await ApplyVersion(workspace, plan, {preid: input.preid, git: input.git})
         Done(`Version ${plan.to} given (${files.map((file: string): string => path.relative(workspace.root, file)).join(', ')})${input.git ? `, committed and tagged v${plan.to}` : ''}`)

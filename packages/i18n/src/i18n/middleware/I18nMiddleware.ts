@@ -3,7 +3,7 @@ import {Inject} from '@lakutata/core/decorator/di'
 import {ContextType, Middleware, type ActionInvocation, type BaseContext, type HTTPContext, type Next} from '@lakutata/entrypoint'
 import type {I18n} from '../I18n.js'
 import {Translator} from '../Translator.js'
-import {EnvironmentLocales, NormalizeLocale, ParseAcceptLanguage} from '../lib/Locale.js'
+import {NormalizeLocale, ParseAcceptLanguage, ProcessLocales} from '../lib/Locale.js'
 
 /**
  * The headers and the query of a Socket.IO connection (its handshake)
@@ -33,6 +33,12 @@ export class I18nMiddleware extends Middleware {
      */
     protected readonly cookie: string = 'lang'
 
+    /**
+     * The environment variable giving the language of the command line and of Electron before the ones of the
+     * environment (LAKUTATA_LANG), none by default
+     */
+    protected readonly environmentVariable?: string
+
     public async handle(invocation: ActionInvocation, next: Next): Promise<unknown> {
         const context: BaseContext = invocation.context
         const locale: string = this.i18n.negotiate(this.requested(context))
@@ -46,7 +52,8 @@ export class I18nMiddleware extends Middleware {
      * The languages a request asks for, preferred first:
      * - HTTP: the query parameter, the cookie, Accept-Language;
      * - Socket.IO: the query parameter, the cookie and Accept-Language of its connection;
-     * - the command line and Electron: the environment (LC_ALL, LC_MESSAGES, LANG), the language of the process;
+     * - the command line and Electron: the environment variable of the middleware, the environment (LC_ALL,
+     *   LC_MESSAGES, LANG), the language of the process;
      * - the schedules: none (the default language)
      * @param context
      */
@@ -60,7 +67,7 @@ export class I18nMiddleware extends Middleware {
             if (handshake) return this.fromHeaders(handshake.query?.[this.queryParameter], handshake.headers ?? {})
         }
         if (context.type === ContextType.CLI || context.type === ContextType.SERVICE) {
-            return [...EnvironmentLocales(process.env), new Intl.DateTimeFormat().resolvedOptions().locale]
+            return ProcessLocales(this.environmentVariable)
         }
         return []
     }

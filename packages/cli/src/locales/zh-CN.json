@@ -1,0 +1,179 @@
+{
+  "cli": {
+    "description": "lakutata 框架的命令行工具：从模板创建项目，运行工作区各包的脚本并管理版本，打包应用并生成可执行文件。",
+    "commands": {
+      "create": {
+        "description": "从模板创建一个 lakutata 项目",
+        "options": {
+          "name": "应用的名称",
+          "id": "应用的 ID（包名），默认是名称的小写形式",
+          "template": "模板：官方模板的名称（lakutata templates 会列出）、npm:<包名>、github:<所有者>/<仓库> 或一个目录",
+          "path": "在哪个目录下创建项目目录",
+          "init": "直接在该目录中创建项目，目录可以已存在且非空",
+          "description": "应用的描述",
+          "author": "应用的作者",
+          "license": "应用的许可证",
+          "packageManager": "安装依赖使用的包管理器，默认是运行本工具的那个（none 表示不安装）",
+          "with": "启用模板的可选功能，多个用逗号分隔（lakutata templates 会列出）：i18n",
+          "git": "初始化 git 仓库",
+          "yes": "不经确认直接创建项目"
+        }
+      },
+      "templates": {
+        "description": "列出项目模板",
+        "options": {
+          "refresh": "重新获取模板目录，即使已有缓存"
+        }
+      },
+      "clean": {
+        "description": "删除当前目录所在包下的路径，在各平台上都可用（默认是其 tsconfig.json 的 outDir）",
+        "arguments": {
+          "paths": "要删除的路径，相对于包（默认是其 tsconfig.json 的 outDir 和 declarationDir）"
+        }
+      },
+      "info": {
+        "description": "显示本工具和框架的版本"
+      },
+      "run": {
+        "description": "按依赖顺序在工作区的各包中运行一个脚本",
+        "arguments": {
+          "script": "要运行的脚本，在拥有它的包中运行"
+        },
+        "options": {
+          "concurrency": "同时运行的包数（默认是处理器数量）",
+          "bail": "遇到第一个失败就停止",
+          "parallel": "所有包同时运行，不等待它们的依赖（开发服务器、监视进程）",
+          "scope": "要运行的包，按名称（可使用 * 通配符）"
+        }
+      },
+      "version": {
+        "description": "为工作区的各包设置下一个版本，并更新它们之间的依赖",
+        "arguments": {
+          "bump": "major、minor、patch、premajor、preminor、prepatch、prerelease，或一个版本号"
+        },
+        "options": {
+          "preid": "预发布版本的标识（如 beta）",
+          "git": "提交这些修改并打上标签 v<版本>",
+          "yes": "不经确认直接设置版本"
+        }
+      },
+      "add": {
+        "description": "向工作区添加一个包（packages/<名称>）：TypeScript 包，或用 --native [gyp|cmake|rust] 添加原生插件",
+        "arguments": {
+          "name": "包的名称（工作区的 packages/<名称>）"
+        },
+        "options": {
+          "native": "原生插件，按构建系统：gyp（C++，node-gyp，默认）、cmake（C++，cmake-js）或 rust（napi-rs）",
+          "to": "依赖它的工作区包"
+        }
+      },
+      "list": {
+        "description": "列出工作区的包"
+      },
+      "bundle": {
+        "description": "把编译后的应用及其依赖打包成一个由 node 运行的文件",
+        "options": {
+          "entry": "应用编译后的入口（默认是 package.json 的 main）",
+          "outfile": "打包输出的文件（默认 dist/<名称>.cjs）",
+          "minify": "压缩打包结果",
+          "external": "不打进包里的模块，运行时从旁边的 node_modules 加载（原生插件会自动处理）"
+        }
+      },
+      "executable": {
+        "description": "为当前平台生成编译后应用的可执行文件，无需安装 Node.js 即可运行",
+        "options": {
+          "entry": "应用编译后的入口（默认是 package.json 的 main）",
+          "outdir": "可执行文件所在的目录（默认 dist）",
+          "minify": "压缩嵌入可执行文件的包",
+          "external": "不打进包里的模块（它们不在可执行文件中，而是从旁边的 node_modules 加载）"
+        }
+      },
+      "migration": {
+        "description": "生成、创建、执行、回滚或查看应用数据库的迁移",
+        "arguments": {
+          "action": "generate：根据实体的变化生成迁移；create <名称>：创建空迁移；run：执行待执行的迁移；revert：回滚最近执行的迁移；show：查看已执行和待执行的迁移",
+          "name": "要创建的迁移的名称（create）"
+        },
+        "options": {
+          "dir": "迁移所在的目录，相对于包（generate、create）",
+          "script": "构建并启动应用的包脚本（generate、run、revert、show）",
+          "package": "应用所在的工作区包（默认是当前目录）",
+          "database": "数据库：其 Database 组件或提供者的名称（默认全部；应用有多个数据库时，回滚必须指定）",
+          "transaction": "执行或回滚迁移的事务方式：all（一个事务，默认）、each（每个迁移一个）或 none",
+          "fake": "只标记迁移为已执行或已回滚，不实际执行"
+        }
+      },
+      "native": {
+        "description": "修改当前目录原生插件的构建（binding.gyp、CMakeLists.txt、Cargo.toml）：链接库、添加头文件目录、定义宏",
+        "arguments": {
+          "action": "link：链接一个库；include：添加头文件目录；define：定义宏（NAME 或 NAME=value）",
+          "value": "库（系统库，或包内的文件：.a .lib .so .dylib .dll）、目录或宏"
+        },
+        "options": {
+          "platform": "修改所针对的平台（默认是库文件所属的平台，否则为所有平台）",
+          "pkgConfig": "该库是 pkg-config 的包",
+          "framework": "该库是 macOS 的 framework",
+          "crate": "该库是一个 crate（Rust 插件，使用 cargo add）",
+          "target": "要修改的构建目标（默认是唯一的那个）"
+        }
+      },
+      "i18n": {
+        "description": "检查各语言的翻译、声明键名的类型，或添加一种语言",
+        "arguments": {
+          "action": "check：检查各语言翻译的问题；types：声明消息的键名及其参数的类型；add <语言>：以默认语言的消息为模板添加一种语言",
+          "locale": "要添加的语言（add）：zh-CN、ja、pt-BR"
+        },
+        "options": {
+          "dir": "翻译所在的目录：每种语言一个文件（zh-CN.json）或一个目录（zh-CN/）；多个目录用逗号分隔",
+          "default": "默认语言：检查其他语言时的基准，生成类型声明和新语言时的来源",
+          "out": "类型声明文件（types）",
+          "module": "应用引入 i18n 的模块（types）：lakutata/com/i18n 或 @lakutata/i18n",
+          "strict": "警告也视为检查失败（check）"
+        }
+      }
+    },
+    "help": {
+      "usage": "用法：",
+      "arguments": "参数：",
+      "options": "选项：",
+      "commands": "命令：",
+      "helpOption": "显示命令的帮助",
+      "helpCommand": "显示命令的帮助",
+      "versionOption": "显示版本号",
+      "default": "默认：{value}",
+      "choices": "可选：{choices}",
+      "negate": "关闭 {flag}",
+      "hints": "（{hints}）",
+      "separator": "，"
+    },
+    "prompt": {
+      "json": "不是 JSON 对象"
+    },
+    "prompts": {
+      "features": "项目的功能",
+      "create": "创建这个项目吗？",
+      "notCreated": "项目未创建",
+      "version": "设置这个版本吗？",
+      "notVersioned": "版本未修改"
+    },
+    "plan": {
+      "title": "项目",
+      "name": "名称",
+      "id": "ID",
+      "description": "描述",
+      "author": "作者",
+      "license": "许可证",
+      "template": "模板",
+      "features": "功能",
+      "none": "无",
+      "directory": "目录",
+      "dependencies": "依赖",
+      "notInstalled": "不安装",
+      "installed": "用 {manager} 安装",
+      "git": "Git",
+      "initialized": "初始化",
+      "notInitialized": "不初始化",
+      "version": "版本 {from} → {to}"
+    }
+  }
+}

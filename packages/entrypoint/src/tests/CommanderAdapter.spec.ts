@@ -5,7 +5,7 @@ import {Container, DTO, Exception} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
 import {BuildEntrypoints, Controller, Entrypoint, Result} from '../exports/Entrypoint.js'
 import {CLIAction, Prefix} from '../exports/CTRLDecorators.js'
-import {CommanderCLIEntrypoint, CommanderCLIEntrypointOptions} from '../exports/CommanderAdapter.js'
+import {CommanderCLIEntrypoint, CommanderCLIEntrypointOptions, type CLIText} from '../exports/CommanderAdapter.js'
 
 class DeviceDTO extends DTO {
     @Expect(DTO.String().required().description('The serial number'))
@@ -117,6 +117,55 @@ class ToolController extends Controller {
     public async login(input: LoginDTO): Promise<LoginDTO> {
         return input
     }
+}
+
+class GreetDTO extends DTO {
+    @Expect(DTO.String().required().description('Who is greeted'))
+    public name: string
+
+    @Expect(DTO.String().required().description('The title'))
+    public title: string
+
+    @Expect(DTO.Number().integer().optional().default(1).description('How many times'))
+    public times: number
+
+    @Expect(DTO.Boolean().optional().default(true).description('Greet politely'))
+    public polite: boolean
+
+    @Expect(DTO.String().valid('en', 'zh').optional().description('The language'))
+    public language?: string
+}
+
+class GreetController extends Controller {
+    @CLIAction('greet <name>', GreetDTO, {description: 'Greet someone'})
+    public async greet(input: GreetDTO): Promise<string> {
+        return `${input.title} ${input.name}`
+    }
+}
+
+/**
+ * The Chinese texts of the help and of the prompts, by their keys
+ */
+const CHINESE: Record<string, string> = {
+    'description': '示例工具',
+    'commands.greet.description': '问候某人',
+    'commands.greet.arguments.name': '被问候的人',
+    'commands.greet.options.title': '称呼',
+    'commands.greet.options.times': '次数',
+    'commands.greet.options.polite': '礼貌地问候',
+    'commands.greet.options.language': '语言：问候所用的语言，可以是英文或中文，默认按照环境变量中的语言来确定，没有设置时使用英文',
+    'help.usage': '用法：',
+    'help.arguments': '参数：',
+    'help.options': '选项：',
+    'help.commands': '命令：',
+    'help.helpOption': '显示命令的帮助',
+    'help.helpCommand': '显示命令的帮助',
+    'help.versionOption': '显示版本号',
+    'help.default': '默认：{value}',
+    'help.choices': '可选：{choices}',
+    'help.negate': '关闭 {flag}',
+    'help.hints': '（{hints}）',
+    'help.separator': '，'
 }
 
 type Run = { code: number | undefined, stdout: string, stderr: string }
@@ -236,6 +285,67 @@ describe('Commander adapter', (): void => {
         assert.match(none.stderr, /Usage: tool/)
         //The application keeps running
         assert.strictEqual((await Run([], {noCommand: 'ignore'}, 200)).code, undefined)
+    })
+
+    it('gives the help in the language of the user, the names of the commands and options kept', async (): Promise<void> => {
+        const asked: string[] = []
+        const translate = (): (text: CLIText) => string => (text: CLIText): string => {
+            asked.push(text.key)
+            return (CHINESE[text.key] ?? text.text).replace(/\{(\w+)\}/g, (all: string, name: string): string => text.params?.[name] ?? all)
+        }
+        const run = async (argv: string[]): Promise<string> => {
+            const stdout = Collector()
+            const container: Container = new Container()
+            await container.set(Entrypoint, BuildEntrypoints({
+                controllers: [GreetController],
+                cli: CommanderCLIEntrypoint({bin: 'tool', version: '1.2.3', description: 'A sample tool', interactive: false, translate: translate, argv: argv, stdout: stdout, stderr: stdout, exit: (): undefined => undefined})
+            }))
+            await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 300))
+            await container.destroy()
+            return stdout.text()
+        }
+        const program: string = await run(['--help'])
+        for (const pattern of [/用法： tool \[options\] \[command\]/, /示例工具/, /选项：/, /-V, --version\s+显示版本号/, /-h, --help\s+显示命令的帮助/, /命令：/, /greet \[options\] <name>\s+问候某人/, /help \[command\]\s+显示命令的帮助/]) assert.match(program, pattern)
+        const command: string = await run(['greet', '--help'])
+        for (const text of ['用法： tool greet [options] <name>', '问候某人', '参数：', 'name ', '被问候的人', '--title <value>', '称呼', '--times <value>', '次数（默认：1）', '--polite', '礼貌地问候（默认：true）', '--no-polite', '关闭 --polite', '--language <value>', '没有设置时使用英文（可选："en", "zh"）']) assert.ok(command.includes(text), `${text}\n${command}`)
+        assert.doesNotMatch(command, /Usage|Options|default:|display help/)
+        //The wide characters take two columns: the lines are wrapped to the width of the help (80 columns)
+        assert.ok(command.split('\n').every((line: string): boolean => [...line].reduce((width: number, character: string): number => width + (/[\u3000-\u9fff\uff00-\uffef]/.test(character) ? 2 : 1), 0) <= 80), command)
+        assert.ok(['description', 'commands.greet.description', 'commands.greet.arguments.name', 'commands.greet.options.title', 'help.negate'].every((key: string): boolean => asked.includes(key)), asked.join(', '))
+        //Without the translation: the English texts
+        const english: string = await (async (): Promise<string> => {
+            const stdout = Collector()
+            const container: Container = new Container()
+            await container.set(Entrypoint, BuildEntrypoints({controllers: [GreetController], cli: CommanderCLIEntrypoint({bin: 'tool', interactive: false, argv: ['greet', '--help'], stdout: stdout, stderr: stdout, exit: (): undefined => undefined})}))
+            await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 300))
+            await container.destroy()
+            return stdout.text()
+        })()
+        for (const text of ['Usage: tool greet [options] <name>', 'Greet someone', 'Who is greeted', 'How many times (default: 1)', 'Turn off --polite', 'display help for command']) assert.ok(english.includes(text), `${text}\n${english}`)
+    })
+
+    it('prompts in the language of the user', async (): Promise<void> => {
+        const stdin: PassThrough = new PassThrough()
+        const stdout = Collector()
+        const typing: Promise<void> = (async (): Promise<void> => {
+            await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 200))
+            stdin.write('Dr.\r')
+        })()
+        let exited: (code: number) => void
+        const code: Promise<number> = new Promise((resolve: (code: number) => void): void => {
+            exited = resolve
+        })
+        const container: Container = new Container()
+        await container.set(Entrypoint, BuildEntrypoints({
+            controllers: [GreetController],
+            cli: CommanderCLIEntrypoint({argv: ['greet', 'Ada'], interactive: true, translate: () => (text: CLIText): string => CHINESE[text.key] ?? text.text, stdin: stdin, stdout: stdout, stderr: process.stderr, exit: (value: number): void => exited(value)})
+        }))
+        await typing
+        const result: number | undefined = await Promise.race([code, new Promise<undefined>((resolve: (value?: undefined) => void): unknown => setTimeout(resolve, 1000))])
+        await container.destroy()
+        assert.strictEqual(result, 0)
+        assert.match(stdout.text(), /称呼 \(title\)/)
+        assert.match(stdout.text(), /Dr\. Ada/)
     })
 
     it('prompts for the missing required options', async (): Promise<void> => {

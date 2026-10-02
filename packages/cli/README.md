@@ -284,6 +284,13 @@ default; several separated by commas): a file by language (`zh-CN.json`) or a di
   as the default language has (its validation messages left: the language has its built-in ones). They are to be
   translated; `check` tells the ones which are not.
 
+## The language of the tool
+
+The help of the tool (the descriptions of its commands and of their options) and its prompts are in English, Chinese
+(Simplified, `zh-CN`) or Chinese (Traditional, `zh-TW`): the language of `LAKUTATA_LANG` (`LAKUTATA_LANG=zh-CN`), then
+of the environment (`LC_ALL`, `LC_MESSAGES`, `LANG`), then of the system; English otherwise. The names of the commands
+and of the options, the results and the errors are in English.
+
 ## Environment
 
 | Variable | |
@@ -291,6 +298,7 @@ default; several separated by commas): a file by language (`zh-CN.json`) or a di
 | `LAKUTATA_NPM_REGISTRY` | the npm registry of the templates (`npm_config_registry`, or `https://registry.npmjs.org`) |
 | `LAKUTATA_GITHUB_DOWNLOAD` | a mirror of GitHub for the `github:` templates (`https://github.com`) |
 | `LAKUTATA_CACHE_DIR` | the directory of the cache (`$XDG_CACHE_HOME/lakutata`, or `~/.cache/lakutata`) |
+| `LAKUTATA_LANG` | the language of the help and of the prompts of the tool (`zh-CN`, `zh-TW`, `en`), the one of the environment by default |
 
 The tool is itself a lakutata application: its commands are the CLI actions of a controller, served by the commander
 adapter of the entrypoint.

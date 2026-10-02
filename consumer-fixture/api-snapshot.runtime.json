@@ -355,6 +355,7 @@
   "lakutata/com/i18n": [
     "BuildI18nOptions",
     "CheckCatalogs",
+    "CommanderTranslator",
     "EnvironmentLocales",
     "FallbackChain",
     "GenerateMessageTypes",

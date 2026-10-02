@@ -2,6 +2,7 @@ import path from 'node:path'
 import {Controller} from 'lakutata/com/entrypoint'
 import {CLIAction} from 'lakutata/decorator/ctrl'
 import {Inject} from 'lakutata/decorator/di'
+import {Translator} from 'lakutata/com/i18n'
 import {CreateProjectDTO} from '../dtos/CreateProjectDTO.js'
 import {ListTemplatesDTO} from '../dtos/ListTemplatesDTO.js'
 import {CleanDTO} from '../dtos/CleanDTO.js'
@@ -11,6 +12,7 @@ import {ProjectCreator, type ProjectPlan} from '../lib/ProjectCreator.js'
 import {DetectPackageManager} from '../lib/Processes.js'
 import {Done, Styled, Table} from '../lib/Output.js'
 import {FrameworkVersion, LatestVersion, ProjectFrameworkVersion, ToolPackage} from '../lib/Versions.js'
+import {Say} from '../lib/Language.js'
 
 /**
  * Whether the tool runs in a terminal, where it asks the questions
@@ -26,6 +28,12 @@ export class CommandLineController extends Controller {
 
     @Inject(ProjectCreator)
     protected readonly creator: ProjectCreator
+
+    /**
+     * The prompts in the language of the user
+     */
+    @Inject(Translator)
+    protected readonly i18n: Translator
 
     @CLIAction('create', CreateProjectDTO, {description: 'Create a lakutata project from a template'})
     public async create(input: CreateProjectDTO): Promise<string> {
@@ -56,7 +64,7 @@ export class CommandLineController extends Controller {
         if (!available.length || !Interactive() || input.yes) return []
         const {checkbox} = await import('@inquirer/prompts')
         return await checkbox({
-            message: 'The features of the project',
+            message: Say(this.i18n, 'prompts.features', 'The features of the project'),
             choices: available.map((feature: string): { name: string, value: string } => ({name: `${feature}: ${template.features[feature]}`, value: feature}))
         })
     }
@@ -83,21 +91,22 @@ export class CommandLineController extends Controller {
             git: input.git,
             features: features
         }
+        const say = (key: string, text: string, params?: Record<string, string>): string => Say(this.i18n, key, text, params)
         process.stdout.write(Table([
-            ['Name', plan.name],
-            ['ID', plan.id],
-            ['Description', plan.description || '-'],
-            ['Author', plan.author || '-'],
-            ['License', plan.license],
-            ['Template', input.template],
-            ...(Object.keys(prepared.features).length ? [['Features', features.length ? features.join(', ') : 'none'] as [string, string]] : []),
-            ['Directory', directory],
-            ['Dependencies', plan.packageManager === 'none' ? 'not installed' : `installed with ${plan.packageManager}`],
-            ['Git', plan.git ? 'initialized' : 'not initialized']
-        ], 'The project'))
+            [say('plan.name', 'Name'), plan.name],
+            [say('plan.id', 'ID'), plan.id],
+            [say('plan.description', 'Description'), plan.description || '-'],
+            [say('plan.author', 'Author'), plan.author || '-'],
+            [say('plan.license', 'License'), plan.license],
+            [say('plan.template', 'Template'), input.template],
+            ...(Object.keys(prepared.features).length ? [[say('plan.features', 'Features'), features.length ? features.join(', ') : say('plan.none', 'none')] as [string, string]] : []),
+            [say('plan.directory', 'Directory'), directory],
+            [say('plan.dependencies', 'Dependencies'), plan.packageManager === 'none' ? say('plan.notInstalled', 'not installed') : say('plan.installed', 'installed with {manager}', {manager: plan.packageManager})],
+            [say('plan.git', 'Git'), plan.git ? say('plan.initialized', 'initialized') : say('plan.notInitialized', 'not initialized')]
+        ], say('plan.title', 'The project')))
         if (Interactive() && !input.yes) {
             const {confirm} = await import('@inquirer/prompts')
-            if (!await confirm({message: 'Create the project?', default: true})) return 'The project is not created'
+            if (!await confirm({message: say('prompts.create', 'Create the project?'), default: true})) return say('prompts.notCreated', 'The project is not created')
         }
         await this.creator.create(plan, prepared)
         //The path of the project from the current directory, or its absolute path when it is elsewhere

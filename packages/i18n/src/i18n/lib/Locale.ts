@@ -54,6 +54,17 @@ export function EnvironmentLocales(environment: NodeJS.ProcessEnv = process.env)
 }
 
 /**
+ * The languages of the process, preferred first: the one of an environment variable of the application
+ * (LAKUTATA_LANG), the ones of the environment (EnvironmentLocales), the language of the process (of its ICU)
+ * @param variable the environment variable of the application
+ * @param environment
+ */
+export function ProcessLocales(variable?: string, environment: NodeJS.ProcessEnv = process.env): string[] {
+    const own: string | undefined = variable ? NormalizeLocale(environment[variable] ?? '') : undefined
+    return Unique([...(own ? [own] : []), ...EnvironmentLocales(environment), new Intl.DateTimeFormat().resolvedOptions().locale])
+}
+
+/**
  * The language among the supported ones for the requested ones, preferred first: the same tag, the language of the
  * requested one supported alone (en-GB → en), a tag of the same language (en-GB → en-US, in the order of the supported
  * ones); the default one when none matches

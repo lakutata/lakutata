@@ -45,6 +45,9 @@
       ],
       "@lakutata/entrypoint": [
         "../entrypoint/dist/types/exports/Entrypoint"
+      ],
+      "@lakutata/entrypoint/adapter/commander": [
+        "../entrypoint/dist/types/exports/CommanderAdapter"
       ]
     }
   },

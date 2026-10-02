@@ -69,8 +69,10 @@ function Validator(dto: typeof DTO, property: string): (value: unknown) => Promi
  * @param action
  * @param data
  * @param streams
+ * @param describe the description of a property in the language of the user
+ * @param say the text of the prompts in the language of the user
  */
-export async function Prompt(action: ChannelActionInfo, data: Record<string, unknown>, streams: PromptStreams): Promise<void> {
+export async function Prompt(action: ChannelActionInfo, data: Record<string, unknown>, streams: PromptStreams, describe: (property: string) => string | undefined = (property: string): string | undefined => (action.jsonSchema as { properties?: Record<string, PropertySchema> }).properties?.[property]?.description, say: (key: string, text: string) => string = (key: string, text: string): string => text): Promise<void> {
     const schema: { properties?: Record<string, PropertySchema>, required?: string[] } = action.jsonSchema as any
     const missing: string[] = (schema.required ?? []).filter((property: string): boolean => data[property] === undefined && schema.properties?.[property]?.default === undefined)
     if (!missing.length) return
@@ -81,7 +83,7 @@ export async function Prompt(action: ChannelActionInfo, data: Record<string, unk
         const output: PassThrough = new PassThrough()
         output.pipe(streams.output, {end: false})
         try {
-            data[property] = await Ask(inquirer, action, property, schema.properties?.[property] ?? {}, {input: streams.input, output: output, signal: streams.signal})
+            data[property] = await Ask(inquirer, action, property, schema.properties?.[property] ?? {}, {input: streams.input, output: output, signal: streams.signal}, describe(property), say)
         } finally {
             output.unpipe(streams.output)
         }
@@ -95,9 +97,11 @@ export async function Prompt(action: ChannelActionInfo, data: Record<string, unk
  * @param property
  * @param propertySchema
  * @param context
+ * @param description the description of the property in the language of the user
+ * @param say the text of the prompts in the language of the user
  */
-async function Ask(inquirer: any, action: ChannelActionInfo, property: string, propertySchema: PropertySchema, context: PromptStreams): Promise<unknown> {
-    const message: string = propertySchema.description ? `${propertySchema.description} (${property})` : property
+async function Ask(inquirer: any, action: ChannelActionInfo, property: string, propertySchema: PropertySchema, context: PromptStreams, description: string | undefined, say: (key: string, text: string) => string): Promise<unknown> {
+    const message: string = description ? `${description} (${property})` : property
     const validate: (value: unknown) => Promise<true | string> = Validator(action.dto, property)
     const type: string | undefined = TypeOf(propertySchema)
     const choices = (values: unknown[]): { name: string, value: unknown }[] => values.map((value: unknown): { name: string, value: unknown } => ({name: String(value), value: value}))
@@ -119,7 +123,7 @@ async function Ask(inquirer: any, action: ChannelActionInfo, property: string, p
             try {
                 return await validate(parse(value))
             } catch {
-                return 'Not a JSON object'
+                return say('prompt.json', 'Not a JSON object')
             }
         }
     }, context))

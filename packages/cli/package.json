@@ -11,7 +11,7 @@
     "build:js": "tsc -p tsconfig.esm.json && node -e \"require('node:fs').chmodSync('dist/esm/CLIApp.js',0o755)\"",
     "rebuild": "npm run clean && npm run build:js",
     "compile": "npm run rebuild",
-    "test:unit": "npm run compile && node --test \"dist/esm/tests/*.spec.js\""
+    "test:unit": "npm run compile && node --import ./dist/esm/tests/support/English.js --test \"dist/esm/tests/*.spec.js\""
   },
   "dependencies": {
     "@inquirer/prompts": "^8.7.2",
