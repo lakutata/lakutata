@@ -31,6 +31,10 @@ class DeviceDTO extends DTO {
 
     @Expect(DTO.String().optional())
     public deviceName?: string
+
+    //A flag or a value: --link, --link wifi
+    @Expect(DTO.Alternatives(DTO.Boolean(), DTO.String().valid('wifi', 'cable')).optional())
+    public link?: boolean | 'wifi' | 'cable'
 }
 
 class LoginDTO extends DTO {
@@ -158,6 +162,17 @@ describe('Commander adapter', (): void => {
         assert.deepStrictEqual(JSON.parse(run.stdout), {sn: 'A1', retries: 5, verify: false, force: true, mode: 'safe', ports: [80, 443], labels: {site: 'north'}, deviceName: 'Pump'})
         //The defaults come from the DTO
         assert.deepStrictEqual(JSON.parse((await Run(['device:add', '--sn', 'A2'])).stdout), {sn: 'A2', retries: 3, verify: true})
+    })
+
+    it('gives the flags of a boolean or a value an optional value', async (): Promise<void> => {
+        assert.strictEqual(JSON.parse((await Run(['device:add', '--sn', 'A3'])).stdout).link, undefined)
+        assert.strictEqual(JSON.parse((await Run(['device:add', '--sn', 'A3', '--link'])).stdout).link, true)
+        assert.strictEqual(JSON.parse((await Run(['device:add', '--link', 'cable', '--sn', 'A3'])).stdout).link, 'cable')
+        const invalid: Run = await Run(['device:add', '--sn', 'A3', '--link', 'radio'])
+        assert.notStrictEqual(invalid.code, 0)
+        assert.match(invalid.stderr, /Allowed choices are "wifi", "cable"/)
+        const help: Run = await Run(['device:add', '--help'])
+        assert.match(help.stdout, /--link \[value\][\s\S]*choices: "wifi", "cable"/)
     })
 
     it('writes the results', async (): Promise<void> => {

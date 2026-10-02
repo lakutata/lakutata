@@ -147,11 +147,18 @@ function ParseValue(schema: PropertySchema, value: string): unknown {
  */
 function PropertyOption(property: string, schema: PropertySchema, mandatory: boolean): Option[] {
     const flag: string = `--${KebabCase(property)}`
+    //A boolean or a value (DTO.Alternatives(DTO.Boolean(), …)): a flag taking an optional value
+    const alternatives: PropertySchema[] = Array.isArray(schema.anyOf) ? schema.anyOf as PropertySchema[] : []
+    const valued: PropertySchema | undefined = alternatives.some((alternative: PropertySchema): boolean => TypeOf(alternative) === 'boolean')
+        ? alternatives.find((alternative: PropertySchema): boolean => TypeOf(alternative) !== 'boolean')
+        : undefined
     const hints: string[] = []
-    const choices: unknown[] | undefined = schema.enum ?? schema.items?.enum
+    const choices: unknown[] | undefined = schema.enum ?? schema.items?.enum ?? valued?.enum
     if (choices) hints.push(`choices: ${choices.map((choice: unknown): string => JSON.stringify(choice)).join(', ')}`)
     if (schema.default !== undefined) hints.push(`default: ${JSON.stringify(schema.default)}`)
     const description: string = [schema.description ?? '', hints.length ? `(${hints.join(', ')})` : ''].filter((part: string): boolean => !!part).join(' ')
+    //--flag gives true, --flag <value> the value
+    if (valued) return [new Option(`${flag} [value]`, description).argParser((value: string): unknown => ParseValue(valued, value))]
     const type: string | undefined = TypeOf(schema)
     if (type === 'boolean') {
         const options: Option[] = [new Option(flag, description)]
