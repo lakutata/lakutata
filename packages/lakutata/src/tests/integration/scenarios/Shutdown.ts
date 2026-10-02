@@ -2,7 +2,7 @@ import assert from 'node:assert'
 import {mkdtempSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import {Application, Component} from '../../../exports/Lakutata.js'
+import {Application, Component, type ApplicationExitReason} from '../../../exports/Lakutata.js'
 import {BuildEntrypoints, Controller} from '../../../exports/EntrypointComponent.js'
 import {ExpressHTTPEntrypoint, JSONEnvelope} from '../../../exports/ExpressAdapter.js'
 import {GET} from '../../../exports/CTRLDecorators.js'
@@ -76,7 +76,7 @@ Application
             }, 50)
         }, 100)
     }))
-    .onDone((): void => console.log('DONE the application is done'))
+    .onDone((_app: Application, _logger: unknown, reason: ApplicationExitReason): void => console.log(`DONE the application is done ${JSON.stringify(reason)}`))
     .onFatalException((error: Error): number => {
         console.error(error)
         return 1

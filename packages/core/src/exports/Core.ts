@@ -11,6 +11,7 @@ export {Provider} from '../lib/core/Provider.js'
 export {Component} from '../lib/core/Component.js'
 export {Module} from '../lib/core/Module.js'
 export {Application} from '../lib/app/Application.js'
+export {type ApplicationExitReason} from '../types/ApplicationExitReason.js'
 
 /**
  * Validation types

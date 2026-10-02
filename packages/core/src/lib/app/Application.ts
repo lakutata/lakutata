@@ -16,6 +16,7 @@ import {constants} from 'node:os'
 import {As} from '@lakutata/utils/As'
 import {SynchronousEventEmitter} from '../base/EventEmitter.js'
 import {type MigrationCommand, ReadMigrationCommand} from './MigrationCommand.js'
+import {type ApplicationExitReason} from '../../types/ApplicationExitReason.js'
 import {BootstrapOption, ModuleOptions} from '../../options/ModuleOptions.js'
 import {DeclareApplicationClass, MarkApplicationLaunched} from '../base/internal/ApplicationLaunch.js'
 
@@ -27,7 +28,7 @@ export type LaunchedHandler = { handler(app: Application, logger: ILogger): void
 /**
  * On application done event handler
  */
-export type DoneHandler = { handler(app: Application, logger: ILogger): void | Promise<void> }['handler']
+export type DoneHandler = { handler(app: Application, logger: ILogger, reason: ApplicationExitReason): void | Promise<void> }['handler']
 /**
  * On process uncaught exception event handler
  */
@@ -177,11 +178,12 @@ export class Application extends Module {
     }
 
     /**
-     * Application execution completed successfully
+     * The application exits: its handler runs before the entrypoints stop and the objects are destroyed, the application
+     * still working; it is given why the application exits (its exit code, the signal ending it)
      * @param handler
      */
     public static onDone(handler: DoneHandler): typeof Application {
-        this.eventEmitter.once(ApplicationState.Done, async (app: Application) => handler(app, await app.getLogger()))
+        this.eventEmitter.once(ApplicationState.Done, async (app: Application, reason: ApplicationExitReason) => handler(app, await app.getLogger(), reason))
         return this.launch()
     }
 
@@ -298,7 +300,8 @@ export class Application extends Module {
                 const code: number = 128 + (constants.signals[signal] ?? 0)
                 if (ending || !this.appInstance) return process.exit(code)
                 ending = true
-                this.appInstance.exit(0)
+                //The exit of the application, ended by the signal
+                this.eventEmitter.emit('exit', this.appInstance, 0, signal)
             })
         }
     }
@@ -308,10 +311,11 @@ export class Application extends Module {
      * @protected
      */
     protected static async launchApplication(): Promise<Application> {
-        this.eventEmitter.once('exit', async (app: Application, exitCode: number) => {
+        this.eventEmitter.once('exit', async (app: Application, exitCode: number, signal?: NodeJS.Signals) => {
             try {
-                //Emit onDone event request
-                await this.eventEmitter.emitRequest(ApplicationState.Done, app)
+                //The done handler, told why the application exits
+                const reason: ApplicationExitReason = signal ? {code: exitCode ? exitCode : 0, signal: signal} : {code: exitCode ? exitCode : 0}
+                await this.eventEmitter.emitRequest(ApplicationState.Done, app, reason)
                 await rootContainer.destroy()
                 process.exit(exitCode ? exitCode : 0)
             } catch (e) {
@@ -424,6 +428,8 @@ export class Application extends Module {
                         const logger: ILogger = await As<Application>(target).getLogger()
                         SetLifecycleErrorReporter((error: Error, message: string): void => logger.warn(error, message))
                         MarkApplicationLaunched(target)
+                        //The application launched is the one the signals end (its launched handlers may receive them)
+                        Reflect.set(this, 'appInstance', target)
                         this.eventEmitter.emit(ApplicationState.Launched, As<Application>(target))
                     })
                     rootContainer

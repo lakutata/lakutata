@@ -197,13 +197,14 @@ class Keeper extends Component {
 }
 Application.run({id: 'signals.app', name: 'SignalsApp', components: {keeper: {class: Keeper}}, bootstrap: ['keeper']${options}})
     .onLaunched(() => console.log('READY'))
-    .onDone(() => console.log('DONE'))`
+    .onDone((app, logger, reason) => console.log('DONE ' + JSON.stringify(reason)))`
 
         it('end gracefully on SIGTERM and SIGINT: the objects destroyed, done, the code 0', async (): Promise<void> => {
             for (const signal of ['SIGTERM', 'SIGINT'] as NodeJS.Signals[]) {
                 const run = await Signal(APPLICATION(), [signal])
                 assert.strictEqual(run.code, 0, `${signal}: ${run.output}`)
-                assert.match(run.output, /DONE[\s\S]*DESTROYED keeper/, signal)
+                //The done handler is told the signal, before the objects are destroyed
+                assert.match(run.output, new RegExp(`DONE \\{"code":0,"signal":"${signal}"\\}[\\s\\S]*DESTROYED keeper`), signal)
             }
         })
 
@@ -212,6 +213,15 @@ Application.run({id: 'signals.app', name: 'SignalsApp', components: {keeper: {cl
             assert.strictEqual(run.code, 143, run.output)
             assert.match(run.output, /DESTROYED keeper/)
             assert.strictEqual((await Signal(APPLICATION('', true), ['SIGINT', 'SIGINT'])).code, 130)
+        })
+
+        it('tell the done handler the exit code given to exit(), without signal', (): void => {
+            const run = RunApplication(`
+Application.run({id: 'exit.app', name: 'ExitApp'})
+    .onLaunched((app) => app.exit(3))
+    .onDone((app, logger, reason) => console.log('DONE ' + JSON.stringify(reason)))`)
+            assert.strictEqual(run.status, 3, run.output)
+            assert.match(run.output, /DONE \{"code":3\}/)
         })
 
         it('end at once on a signal received while the application launches', async (): Promise<void> => {

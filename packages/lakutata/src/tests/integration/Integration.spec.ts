@@ -25,7 +25,7 @@ const SCENARIOS: { file: string, title: string, electron?: boolean, output?: Reg
     {
         file: 'Shutdown',
         title: 'the shutdown on SIGTERM: a request running completes with its database, the requests coming are refused, the objects are destroyed',
-        output: [/SLOW \{"errno":null,"errMsg":null,"data":\[\{"done":1\}\]\}/, /NEW refused/, /DESTROYED recorder/, /DONE the application is done/]
+        output: [/SLOW \{"errno":null,"errMsg":null,"data":\[\{"done":1\}\]\}/, /NEW refused/, /DESTROYED recorder/, /DONE the application is done \{"code":0,"signal":"SIGTERM"\}/]
     },
     {file: 'PostgreSQL', title: 'PostgreSQL: the cache stored in a table of PostgreSQL (as oims), a database of uuids', skip: process.env.POSTGRES_URL ? false : 'POSTGRES_URL is not set (packages/orm/docker-compose.test.yml)'},
     {file: 'Docker', title: 'the Docker component', skip: process.env.LAKUTATA_DOCKER ? false : 'LAKUTATA_DOCKER is not set (the Docker engine of the machine)'}
