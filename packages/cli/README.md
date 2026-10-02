@@ -144,6 +144,27 @@ glibc version of the Linux prebuilt addons).
 The executables of macOS are signed ad hoc. The ones of Windows keep the signature of `node.exe`, which does not match
 anymore: sign them before distributing them.
 
+## Migrations
+
+### `lakutata migration generate`
+
+Generate the migrations of the databases of the application: the script of the package building and starting the
+application (`dev` by default) is run with the environment variable `MIGRATION_GENERATE`, the application compares the
+entities of its Database components and providers with their databases, writes the migrations of the changes into the
+directory (`src/migrations` by default, one file `<timestamp>-<name of the database>.ts` per database changed) and
+exits. It is `cross-env MIGRATION_GENERATE=./src/migrations npm run dev` of the projects of lakutata 2.x, without
+`cross-env`. The migrations are then compiled with the application and given to the options of its databases
+(`migrations: [...]`, run when the database connects with `migrationsRun: true`).
+
+| Option | |
+|---|---|
+| `--dir <directory>` | the directory of the migrations, relative to the package, `src/migrations` by default |
+| `--script <script>` | the script building and starting the application, `dev` by default |
+| `--package <name>` | the package of the workspace of the application, run from the workspace (the current directory by default) |
+
+Without change of the schema, nothing is generated and the command fails; an application without Database component or
+provider generates nothing.
+
 ## Environment
 
 | Variable | |
