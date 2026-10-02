@@ -92,6 +92,10 @@ await describe('IoC Test', async function (): Promise<void> {
             assert.deepEqual(names(relative), ['First', 'Second'], 'directories are not matched')
             assert.ok(relative.every((module: ModuleDescriptor): boolean => path.isAbsolute(module.path) && module.path.startsWith(dir)))
             assert.deepEqual(names(listModules(path.join(dir, '*.js'))), ['First', 'Second'], 'absolute pattern')
+            //Case sensitive on every platform, as the fast-glob lookup of 2.x
+            writeFileSync(path.join(dir, 'Third.JS'), '')
+            assert.deepEqual(names(listModules('*.js', {cwd: dir})), ['First', 'Second'], 'the case of the extension')
+            assert.deepEqual(names(listModules('*.JS', {cwd: dir})), ['Third'])
         } finally {
             rmSync(dir, {recursive: true, force: true})
         }

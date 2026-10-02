@@ -32,12 +32,13 @@ export type GlobWithOptions =
     | [string, BuildResolverOptions<any> | LifetimeType]
 
 /**
- * Default glob: matches files only and follows symbolic links, like the previous fast-glob based lookup
+ * Default glob: matches files only, follows symbolic links and matches the case, like the fast-glob lookup of 2.x
+ * (case sensitive on every platform)
  * @param pattern
  * @param options
  */
 function defaultGlob(pattern: string, options: { cwd: string }): string[] {
-    return GlobSync(pattern, {cwd: options.cwd, nodir: true, follow: true})
+    return GlobSync(pattern, {cwd: options.cwd, nodir: true, follow: true, nocase: false})
 }
 
 // Regex to extract the module name.
