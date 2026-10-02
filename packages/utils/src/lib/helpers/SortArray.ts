@@ -1,4 +1,7 @@
-//Self-implemented on Array.prototype.sort (replaces the `sort-array` package dependency).
+/**
+ * Derived from index.js of sort-array 5.1.1, of array-back 6.2.3 and of typical 7.3.0 (MIT, see
+ * THIRD_PARTY_NOTICES.md): the sorting of 2.x, in place
+ */
 
 export interface SortOptions<Computed> {
     by?: string | string[]
@@ -9,68 +12,131 @@ export interface SortOptions<Computed> {
     undefinedRank?: -1 | 1
 }
 
-const compare = (a: any, b: any, dir: number, nullRank: number, undefRank: number): number => {
-    if (a === null) return b === null ? 0 : nullRank * dir
-    if (b === null) return -nullRank * dir
-    if (a === undefined) return b === undefined ? 0 : undefRank * dir
-    if (b === undefined) return -undefRank * dir
-    if (a < b) return -dir
-    if (a > b) return dir
-    return 0
+/**
+ * The options of sort-array, with their defaults
+ */
+type SortArrayOptions = {
+    by?: any
+    order?: any
+    customOrders: Record<string, any>
+    computed: Record<string, (item: any) => any>
+    nullRank: number
+    undefinedRank: number
+    nanRank: number
 }
 
 /**
- * Sort array
+ * An array of a value (array-back)
+ * @param input
+ */
+function Arrayify(input: any): any[] {
+    if (Array.isArray(input)) return input
+    if (input === undefined) return []
+    if ((typeof input === 'object' && input !== null && typeof input.length === 'number') || input instanceof Set) return Array.from(input)
+    return [input]
+}
+
+/**
+ * Not undefined, null nor NaN (typical)
+ * @param input
+ */
+function IsDefinedValue(input: any): boolean {
+    return input !== undefined && input !== null && !Number.isNaN(input)
+}
+
+/**
+ * The comparison of the items of sort-array
+ * @param options
+ */
+function CompareFunction(options: SortArrayOptions): (xIn: any, yIn: any, byIndex?: number) => number {
+    const by: any[] = Arrayify(options.by)
+    const order: any[] = Arrayify(options.order)
+    const {customOrders, computed} = options
+    const compare = (xIn: any, yIn: any, byIndex: number = 0): number => {
+        const currOrder: any = order[byIndex] || 'asc'
+        if (!(currOrder === 'asc' || currOrder === 'desc' || customOrders[currOrder])) return 0
+        let result: number
+        let x: any
+        let y: any
+        if (by.length) {
+            x = xIn[by[byIndex]] !== undefined ? xIn[by[byIndex]] : computed[by[byIndex]] && computed[by[byIndex]](xIn)
+            y = yIn[by[byIndex]] !== undefined ? yIn[by[byIndex]] : computed[by[byIndex]] && computed[by[byIndex]](yIn)
+        } else {
+            x = xIn
+            y = yIn
+        }
+        if (customOrders && customOrders[currOrder]) {
+            result = customOrders[currOrder].indexOf(x) - customOrders[currOrder].indexOf(y)
+        } else if (x === y) {
+            result = 0
+        } else if (x === null && y === undefined) {
+            result = currOrder === 'asc' ? 1 : currOrder === 'desc' ? -1 : 0
+        } else if (x === undefined && y === null) {
+            result = currOrder === 'asc' ? -1 : currOrder === 'desc' ? 1 : 0
+        } else if (x === null && IsDefinedValue(y)) {
+            result = options.nullRank
+        } else if (x === undefined && IsDefinedValue(y)) {
+            result = options.undefinedRank
+        } else if (Number.isNaN(x) && IsDefinedValue(y)) {
+            result = options.nanRank
+        } else if (y === null && IsDefinedValue(x)) {
+            result = -options.nullRank
+        } else if (y === undefined && IsDefinedValue(x)) {
+            result = -options.undefinedRank
+        } else if (Number.isNaN(y) && IsDefinedValue(x)) {
+            result = -options.nanRank
+        } else {
+            result = x < y ? -1 : x > y ? 1 : 0
+            if (currOrder === 'desc') result = result * -1
+        }
+        if (result === 0 && by[byIndex + 1] !== undefined) result = compare(xIn, yIn, byIndex + 1)
+        return result
+    }
+    return compare
+}
+
+/**
+ * Sort an array in place (sort-array)
+ * @param arr
+ * @param options
+ */
+function Sort<T>(arr: T[], options: Partial<SortArrayOptions> = {}): T[] {
+    const settings: SortArrayOptions = Object.assign({computed: {}, customOrders: {}, nullRank: 1, undefinedRank: 1, nanRank: 1}, options)
+    //The comparison is called with two arguments (the byIndex of the first property)
+    const compare: (xIn: any, yIn: any, byIndex?: number) => number = CompareFunction(settings)
+    arr.sort((x: T, y: T): number => compare(x, y))
+    return arr
+}
+
+/**
+ * Sort an array in place, and return it. With one set of options, by its properties, order and computed fields (an
+ * ascending order without options); with several, by the properties of the sets, each one in the order given by the
+ * set alone
  * @param arr
  * @param options
  * @constructor
  */
 export function SortArray<T = any>(arr: T[], ...options: SortOptions<T>[]): T[] {
-    const result: T[] = [...arr]
     if (options.length < 2) {
-        const opt = options[0] || {}
-        const by: string[] = opt.by ? (Array.isArray(opt.by) ? opt.by : [opt.by]) : []
-        const orderRaw = opt.order || 'asc'
-        const orders: string[] = Array.isArray(orderRaw) ? orderRaw : [orderRaw]
-        const nullRank = opt.nullRank ?? 1
-        const undefRank = opt.undefinedRank ?? 1
-        const dirs: number[] = by.length
-            ? by.map((_, i) => (orders[i] === 'desc' ? -1 : 1))
-            : [(orders[0] === 'desc' ? -1 : 1)]
-        return result.sort((a: any, b: any): number => {
-            for (let i = 0; i < (by.length || 1); i++) {
-                const key = by[i]
-                const dir = dirs[i] ?? dirs[0]
-                const av = key ? (opt.computed?.[key] ? opt.computed[key](a) : a[key]) : a
-                const bv = key ? (opt.computed?.[key] ? opt.computed[key](b) : b[key]) : b
-                const cmp = compare(av, bv, dir, nullRank, undefRank)
-                if (cmp !== 0) return cmp
-            }
-            return 0
+        let sortOptions: { [key: string]: any } = {order: 'asc'}
+        if (options.length) sortOptions = Object.assign(sortOptions, {
+            by: options[0].by,
+            order: options[0].order,
+            computed: options[0].computed
         })
-    } else {
-        const sortsBy: string[] = []
-        const sortsOrder: string[] = []
-        const customOrders: Record<string, any> = {}
-        options.forEach((opt: SortOptions<T>): void => {
-            if (opt.by) {
-                const field: string = opt.by as any
-                sortsBy.push(field)
-                sortsOrder.push((Array.isArray(opt.order) ? opt.order[0] : opt.order) || 'asc')
-                customOrders[field] = SortArray(arr, opt).map((v: any): any => v[field])
-            }
-        })
-        const dirs = sortsBy.map((_, i) => (sortsOrder[i] === 'desc' ? -1 : 1))
-        return result.sort((a: any, b: any): number => {
-            for (let i = 0; i < sortsBy.length; i++) {
-                const field = sortsBy[i]
-                const co = customOrders[field]
-                const ai = co.indexOf(a[field])
-                const bi = co.indexOf(b[field])
-                const cmp = compare(ai, bi, dirs[i], 1, 1)
-                if (cmp !== 0) return cmp
-            }
-            return 0
-        })
+        return Sort(arr, sortOptions)
     }
+    const sortsOptions: { [key: string]: any } = {
+        by: [],
+        order: [],
+        customOrders: {}
+    }
+    options.forEach((opt: SortOptions<T>): void => {
+        if (!opt.by) return
+        const field: string = opt.by as any
+        sortsOptions.by.push(field)
+        sortsOptions.order.push(field)
+        sortsOptions.customOrders[field] = SortArray(arr, opt).map((value: any): any => value[field])
+    })
+    return Sort(arr, sortsOptions)
 }

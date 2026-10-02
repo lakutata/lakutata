@@ -67,6 +67,7 @@
     "simple-statistics": "7.8.8",
     "socket.io": "^4.8.4",
     "socket.io-client": "^4.8.4",
+    "sort-array": "5.1.1",
     "sqlite3": "5.1.7",
     "typescript": "5.9.3",
     "typescript-eslint": "8.71.0",
