@@ -1,6 +1,6 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
-import {spawnSync, type SpawnSyncReturns} from 'node:child_process'
+import {spawn, spawnSync, type SpawnSyncReturns} from 'node:child_process'
 import path from 'node:path'
 
 /**
@@ -149,6 +149,96 @@ const application = Application.run({
             const handled = RunApplication(`${FAILING}.onFatalException((error, logger) => console.log('HANDLED ' + error.message))`)
             assert.strictEqual(handled.status, 1, handled.output)
             assert.match(handled.output, /HANDLED the database is down/)
+        })
+    })
+
+    describe('ending on the signals', (): void => {
+        /**
+         * Start an application in a new process; once it printed READY (or once it started when its launch is
+         * awaited), send it the signals, one by one
+         * @param script
+         * @param signals
+         * @param ready the line telling when to send the signals
+         */
+        function Signal(script: string, signals: NodeJS.Signals[], ready: string = 'READY'): Promise<{ code: number | null, signal: NodeJS.Signals | null, output: string }> {
+            return new Promise((resolve): void => {
+                const child = spawn(process.execPath, ['--input-type=module', '-e', CLASSES + script], {cwd: PACKAGE_DIRECTORY})
+                let output: string = ''
+                let sent: boolean = false
+                const timeout: NodeJS.Timeout = setTimeout((): unknown => child.kill('SIGKILL'), 20000)
+                const read = (chunk: Buffer): void => {
+                    output += chunk.toString()
+                    if (sent || !output.includes(ready)) return
+                    sent = true
+                    signals.forEach((signal: NodeJS.Signals, index: number): unknown => setTimeout((): unknown => child.kill(signal), index * 200))
+                }
+                child.stdout.on('data', read)
+                child.stderr.on('data', read)
+                child.once('close', (code: number | null, signal: NodeJS.Signals | null): void => {
+                    clearTimeout(timeout)
+                    resolve({code: code, signal: signal, output: output})
+                })
+            })
+        }
+
+        /**
+         * An application kept alive, its component telling its destruction (hanging when asked), done when it ends
+         * @param options the options of the application
+         * @param hang the destruction of the component never ends
+         */
+        const APPLICATION = (options: string = '', hang: boolean = false): string => `
+class Keeper extends Component {
+    async init() { this.timer = setInterval(() => undefined, 1000) }
+    async destroy() {
+        console.log('DESTROYED keeper')
+        //Hanging, the process kept alive by its timer
+        ${hang ? 'await new Promise(() => undefined)' : 'clearInterval(this.timer)'}
+    }
+}
+Application.run({id: 'signals.app', name: 'SignalsApp', components: {keeper: {class: Keeper}}, bootstrap: ['keeper']${options}})
+    .onLaunched(() => console.log('READY'))
+    .onDone(() => console.log('DONE'))`
+
+        it('end gracefully on SIGTERM and SIGINT: the objects destroyed, done, the code 0', async (): Promise<void> => {
+            for (const signal of ['SIGTERM', 'SIGINT'] as NodeJS.Signals[]) {
+                const run = await Signal(APPLICATION(), [signal])
+                assert.strictEqual(run.code, 0, `${signal}: ${run.output}`)
+                assert.match(run.output, /DONE[\s\S]*DESTROYED keeper/, signal)
+            }
+        })
+
+        it('end at once on a second signal, the shutdown hanging, with the code 128 + the number of the signal', async (): Promise<void> => {
+            const run = await Signal(APPLICATION('', true), ['SIGTERM', 'SIGTERM'])
+            assert.strictEqual(run.code, 143, run.output)
+            assert.match(run.output, /DESTROYED keeper/)
+            assert.strictEqual((await Signal(APPLICATION('', true), ['SIGINT', 'SIGINT'])).code, 130)
+        })
+
+        it('end at once on a signal received while the application launches', async (): Promise<void> => {
+            const run = await Signal(`
+class Slow extends Component {
+    async init() {
+        console.log('LAUNCHING')
+        await new Promise((resolve) => setTimeout(resolve, 10000))
+    }
+}
+Application.run({id: 'signals.app', name: 'SignalsApp', components: {slow: {class: Slow}}, bootstrap: ['slow']}).onLaunched(() => console.log('READY'))`, ['SIGTERM'], 'LAUNCHING')
+            assert.strictEqual(run.code, 143, run.output)
+            assert.doesNotMatch(run.output, /READY/)
+        })
+
+        it('listen to the signals given, or to none', async (): Promise<void> => {
+            const custom = await Signal(APPLICATION(`, shutdownSignals: ['SIGUSR2']`), ['SIGUSR2'])
+            assert.strictEqual(custom.code, 0, custom.output)
+            assert.match(custom.output, /DONE/)
+            //Not listened: Node.js ends the process at once, nothing destroyed
+            const none = await Signal(APPLICATION(', shutdownSignals: false'), ['SIGTERM'])
+            assert.strictEqual(none.signal, 'SIGTERM', none.output)
+            assert.doesNotMatch(none.output, /DESTROYED|DONE/)
+            //The signals which cannot be caught are rejected
+            const invalid = RunApplication(`Application.run({id: 'signals.app', name: 'SignalsApp', shutdownSignals: ['SIGKILL']})`)
+            assert.strictEqual(invalid.status, 1, invalid.output)
+            assert.match(invalid.output, /shutdownSignals/)
         })
     })
 })

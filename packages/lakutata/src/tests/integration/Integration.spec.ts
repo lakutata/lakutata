@@ -24,7 +24,7 @@ const SCENARIOS: { file: string, title: string, electron?: boolean, output?: Reg
     {file: 'Objects', title: 'the objects: the aliases, the lifetimes in the requests, a database provider, a module, @Autoload, @Before and @After, a Logger component, the monitors'},
     {
         file: 'Shutdown',
-        title: 'the shutdown: a request running completes with its database, the requests coming are refused, the objects are destroyed',
+        title: 'the shutdown on SIGTERM: a request running completes with its database, the requests coming are refused, the objects are destroyed',
         output: [/SLOW \{"errno":null,"errMsg":null,"data":\[\{"done":1\}\]\}/, /NEW refused/, /DESTROYED recorder/, /DONE the application is done/]
     },
     {file: 'PostgreSQL', title: 'PostgreSQL: the cache stored in a table of PostgreSQL (as oims), a database of uuids', skip: process.env.POSTGRES_URL ? false : 'POSTGRES_URL is not set (packages/orm/docker-compose.test.yml)'},

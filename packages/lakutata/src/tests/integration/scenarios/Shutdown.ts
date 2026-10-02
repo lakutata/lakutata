@@ -61,13 +61,13 @@ Application
             assert.strictEqual(((await (await fetch(url('/fast'))).json()) as { data: string }).data, 'fast')
         })
     }, (): void => {
-        //The application exits while a request runs, then a request comes (told to Integration.spec)
+        //The process receives SIGTERM (docker stop) while a request runs, then a request comes (told to Integration.spec)
         fetch(url('/slow')).then((response: Response): Promise<unknown> => response.json()).then(
             (body: unknown): void => console.log(`SLOW ${JSON.stringify(body)}`),
             (error: Error): void => console.log(`SLOW failed: ${error.message}`)
         )
         setTimeout((): void => {
-            app.exit(0)
+            process.kill(process.pid, 'SIGTERM')
             setTimeout((): void => {
                 fetch(url('/fast')).then((response: Response): Promise<unknown> => response.json()).then(
                     (body: unknown): void => console.log(`NEW served ${JSON.stringify(body)}`),

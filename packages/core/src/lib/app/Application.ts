@@ -12,6 +12,7 @@ import {DTO} from '../dto/DTO.js'
 import {mkdirSync} from 'fs'
 import path from 'node:path'
 import {existsSync} from 'node:fs'
+import {constants} from 'node:os'
 import {As} from '@lakutata/utils/As'
 import {SynchronousEventEmitter} from '../base/EventEmitter.js'
 import {type MigrationCommand, ReadMigrationCommand} from './MigrationCommand.js'
@@ -284,6 +285,25 @@ export class Application extends Module {
     }
 
     /**
+     * End the application gracefully on the signals: its exit (the requests running complete, the objects destroyed, the
+     * done handler, the code 0); a second signal, or a signal received while it launches, ends the process at once with
+     * the code 128 + the number of the signal
+     * @param signals
+     * @protected
+     */
+    protected static listenShutdownSignals(signals: NodeJS.Signals[]): void {
+        let ending: boolean = false
+        for (const signal of signals) {
+            process.on(signal, (): void => {
+                const code: number = 128 + (constants.signals[signal] ?? 0)
+                if (ending || !this.appInstance) return process.exit(code)
+                ending = true
+                this.appInstance.exit(0)
+            })
+        }
+    }
+
+    /**
      * Internal launch application process
      * @protected
      */
@@ -393,6 +413,7 @@ export class Application extends Module {
             ApplicationOptions
                 .validateAsync(options)
                 .then((applicationOptions: ApplicationOptions) => {
+                    if (applicationOptions.shutdownSignals) this.listenShutdownSignals(applicationOptions.shutdownSignals)
                     applicationOptions.bootstrap?.push(async (target: Module) => {
                         const launchedCallbackRemover = function (this: Application) {
                             this.options.bootstrap?.pop()
