@@ -118,4 +118,37 @@ Application.run({id: 'test', name: 'Test'})${PRINT}`)
         assert.strictEqual(status, 0, output)
         assert.deepStrictEqual(result, {identity: ['test', 'Test'], logger: 'OtherLogger', log: 'OtherLogger', service: true, bootstrapped: ['first', 'second']})
     })
+
+    describe('failing to launch', (): void => {
+        /**
+         * An application whose component kept alive is created, then its component failing
+         */
+        const FAILING: string = `
+class Keeper extends Component {
+    async init() { this.timer = setInterval(() => undefined, 1000) }
+}
+class Failing extends Component {
+    async init() { throw new Error('the database is down') }
+}
+const application = Application.run({
+    id: 'failing.app',
+    name: 'FailingApp',
+    components: {keeper: {class: Keeper}, failing: {class: Failing}},
+    bootstrap: ['keeper', 'failing']
+})`
+
+        it('exit with the code 1 without handler, the error logged, though objects keep the process alive', (): void => {
+            const run = RunApplication(FAILING)
+            assert.strictEqual(run.status, 1, run.output)
+            assert.match(run.output, /FatalException/)
+            assert.match(run.output, /the database is down/)
+        })
+
+        it('exit with the code of the handler, 1 when it gives none', (): void => {
+            assert.strictEqual(RunApplication(`${FAILING}.onFatalException(() => 3)`).status, 3)
+            const handled = RunApplication(`${FAILING}.onFatalException((error, logger) => console.log('HANDLED ' + error.message))`)
+            assert.strictEqual(handled.status, 1, handled.output)
+            assert.match(handled.output, /HANDLED the database is down/)
+        })
+    })
 })

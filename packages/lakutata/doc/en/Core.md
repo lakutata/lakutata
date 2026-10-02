@@ -110,6 +110,7 @@ export class TestController1 extends Controller {
     - **CLI Entry Point**: For command-line interactions, developers can opt for Commander.js or other CLI tools, simply connecting the command handling logic with Lakutata’s `CLIContext`.
     - **Service Entry Point**: For real-time communication or other service scenarios, developers can select Socket.IO or other communication libraries, integrating with Lakutata’s `ServiceContext`.
 - **Lifecycle Management**: Provides hooks like `onLaunched`, `onDone`, and `onFatalException` for executing custom logic during application startup, completion, or error scenarios.
+- **Launch failure**: When the application cannot launch (an object failing to initialize, invalid options), the handler of `onFatalException` gives the exit code (1 when it returns none). Without handler, the error is logged and the application exits with the code 1, as Node.js on an uncaught exception, so the tools running it (Docker restart policies, Kubernetes, systemd, CI) know it failed; the objects already created (a server listening, a connection) do not keep it running.
 - **Environment Variable Support**: Sets environment variables via the `Application.env()` method, accessible throughout the application.
 
 ### Usage Example

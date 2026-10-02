@@ -261,17 +261,24 @@ export class Application extends Module {
     }
 
     /**
-     * Process fatal exception
+     * Process fatal exception: the handler of onFatalException(), or the logger (the console when the logger cannot be
+     * got), then the application exits with the code 1 (as Node.js on an uncaught exception): it cannot run, and the
+     * objects already created (a server listening, a connection) would keep the process alive
      * @param error
      * @protected
      */
     protected static processFatalException(error: Error): void {
         if (!this.eventEmitter.listenerCount(ApplicationState.FatalException)) {
-            return process.nextTick(async () => {
-                const logger: ILogger = await this.getLogger()
-                logger.error(new Error('FatalException', {cause: error}))
+            return process.nextTick(async (): Promise<never> => {
+                const exception: Error = new Error('FatalException', {cause: error})
+                try {
+                    const logger: ILogger = await this.getLogger()
+                    logger.error(exception)
+                } catch (e) {
+                    console.error(exception, e)
+                }
+                return process.exit(1)
             })
-
         }
         this.eventEmitter.emit(ApplicationState.FatalException, error)
     }

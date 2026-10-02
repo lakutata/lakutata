@@ -110,6 +110,7 @@ export class TestController1 extends Controller {
   - **CLI 入口点**：用于命令行交互，开发者可以选择 Commander.js 或其他 CLI 工具，只需将命令处理逻辑与 Lakutata 的 `CLIContext` 连接。
   - **服务入口点**：用于实时通信或其他服务场景，开发者可以选择 Socket.IO 或其他通信库，与 Lakutata 的 `ServiceContext` 集成。
 - **生命周期管理**：提供 `onLaunched`、`onDone` 和 `onFatalException` 等钩子，用于在应用启动、完成或错误场景下执行自定义逻辑。
+- **启动失败**：应用无法启动时（对象初始化失败、选项不合法等），由 `onFatalException` 的处理函数决定退出码（没有返回退出码时为 1）。没有注册处理函数时，框架记录错误后以退出码 1 退出，和 Node.js 处理未捕获异常的方式一致，这样运行它的工具（Docker 的重启策略、Kubernetes、systemd、CI）都能知道启动失败了；已经创建的对象（正在监听的服务、数据库连接等）也不会让进程继续挂着。
 - **环境变量支持**：通过 `Application.env()` 方法设置环境变量，可在整个应用中访问。
 
 ### 使用示例
