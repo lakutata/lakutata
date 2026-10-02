@@ -3,6 +3,7 @@ import type {Base} from './engine/schema/base.js'
 import type {Preferences} from './engine/schema/model.js'
 import type {ValidationResult as EngineValidationResult} from './engine/schema/validator.js'
 import {extendBigInt} from './engine/schema/extensions/bigint.js'
+import {CurrentValidationLanguage} from './ValidationLanguage.js'
 import {AnySchema} from './interfaces/AnySchema.js'
 import {ArraySchema} from './interfaces/ArraySchema.js'
 import {BooleanSchema} from './interfaces/BooleanSchema.js'
@@ -400,6 +401,23 @@ class ValidateMethods {
      * @param options
      */
     public validate<T = any>(data: T, schema: Schema, options: ValidationOptions = {}): T {
+        try {
+            return this.validateIn(data, schema, options)
+        } catch (error) {
+            //An invalid value of the code running in a language: validated again in it, for its errors
+            const language: string | undefined = InLanguage(options)
+            if (!language) throw error
+            return this.validateIn(data, schema, {...options, errors: {...As<Record<string, unknown>>(options).errors as object, language: language}} as ValidationOptions)
+        }
+    }
+
+    /**
+     * Validates a value using the schema and options (in the language of the options)
+     * @param data
+     * @param schema
+     * @param options
+     */
+    protected validateIn<T = any>(data: T, schema: Schema, options: ValidationOptions): T {
         options = mergeOptions(options)
         let error: Error | undefined
         let value: T
@@ -423,6 +441,23 @@ class ValidateMethods {
      * @param options
      */
     public async validateAsync<T = any>(data: T, schema: Schema, options: ValidationOptions = {}): Promise<T> {
+        try {
+            return await this.validateAsyncIn(data, schema, options)
+        } catch (error) {
+            //An invalid value of the code running in a language: validated again in it, for its errors
+            const language: string | undefined = InLanguage(options)
+            if (!language) throw error
+            return await this.validateAsyncIn(data, schema, {...options, errors: {...As<Record<string, unknown>>(options).errors as object, language: language}} as ValidationOptions)
+        }
+    }
+
+    /**
+     * Validates a value using the schema and options (in the language of the options)
+     * @param data
+     * @param schema
+     * @param options
+     */
+    protected async validateAsyncIn<T = any>(data: T, schema: Schema, options: ValidationOptions): Promise<T> {
         options = mergeOptions(options)
         try {
             if (options.targetName) {
@@ -438,6 +473,16 @@ class ValidateMethods {
             throw WithCause(new InvalidValueException((e as Error).message), e)
         }
     }
+}
+
+/**
+ * The language a validation is validated again in when its value is invalid: the one of the code running, unless the
+ * validation gives its own
+ * @param options
+ */
+function InLanguage(options: ValidationOptions): string | undefined {
+    const language: string | undefined = CurrentValidationLanguage()
+    return language && !(As<{ errors?: { language?: unknown } }>(options).errors?.language) ? language : undefined
 }
 
 export const VLD: ValidateAPI = As<ValidateAPI>(extendBigInt(Engine))

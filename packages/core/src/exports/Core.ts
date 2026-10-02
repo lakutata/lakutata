@@ -3,7 +3,7 @@ import 'reflect-metadata'
 /**
  * Core
  */
-export {Exception} from '../lib/foundation/Exception.js'
+export {Exception, ExceptionParams} from '../lib/foundation/Exception.js'
 export {DTO} from '../lib/dto/DTO.js'
 export {Container} from '../lib/core/Container.js'
 export {BaseObject} from '../lib/base/BaseObject.js'
@@ -32,6 +32,7 @@ export {type Schema} from '../lib/validation/types/Schema.js'
 export {type CronOptions} from '../types/CronOptions.js'
 export {type SchemaFunction} from '../lib/validation/types/SchemaFunction.js'
 export {type ValidationOptions} from '../lib/validation/interfaces/ValidationOptions.js'
+export {CurrentValidationLanguage, RunInValidationLanguage} from '../lib/validation/ValidationLanguage.js'
 export {BUILT_IN_VALIDATION_LANGUAGES, BuiltInValidationLanguage, DefaultValidationMessages, LoadValidationMessages, RegisterValidationMessages, ValidationLanguages} from '../lib/validation/ValidationMessages.js'
 export {type SchemaLike} from '../lib/validation/types/SchemaLike.js'
 export {type NoNestedArrays} from '../lib/validation/types/NoNestedArrays.js'

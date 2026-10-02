@@ -2,6 +2,9 @@ import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {DTO} from '../../lib/dto/DTO.js'
 import {Expect} from '../../decorators/dto/Expect.js'
+import {Accept} from '../../decorators/dto/Accept.js'
+import {RunInValidationLanguage, CurrentValidationLanguage} from '../../lib/validation/ValidationLanguage.js'
+import {Exception, ExceptionParams} from '../../lib/foundation/Exception.js'
 import {BUILT_IN_VALIDATION_LANGUAGES, BuiltInValidationLanguage, DefaultValidationMessages, LoadValidationMessages, RegisterValidationMessages, ValidationLanguages} from '../../lib/validation/ValidationMessages.js'
 
 class OrderDTO extends DTO {
@@ -127,5 +130,75 @@ describe('The built-in messages of the validation errors', (): void => {
             ['en', 'en'], ['en-GB', 'en'], ['sw', undefined], ['', undefined]
         ]
         for (const [language, builtIn] of cases) assert.strictEqual(BuiltInValidationLanguage(language), builtIn, language)
+    })
+})
+
+class Orders {
+    @Accept(DTO.Number().max(100).required())
+    public async take(amount: number): Promise<number> {
+        return amount
+    }
+
+    @Accept(DTO.String().required())
+    public label(name: string): string {
+        return name
+    }
+}
+
+/**
+ * The message of an error
+ * @param fn
+ */
+async function Failure(fn: () => unknown): Promise<string> {
+    try {
+        await fn()
+    } catch (error) {
+        return (error as Error).message
+    }
+    throw new Error('no error')
+}
+
+describe('The language of the validations of the code running', (): void => {
+    it('gives the errors of every validation in the language, the valid values unchanged', async (): Promise<void> => {
+        RegisterValidationMessages('ja', {'any.required': '{{#label}} は必須です', 'number.max': '{{#label}} は {{#limit}} 以下にしてください'})
+        const orders: Orders = new Orders()
+        assert.strictEqual(CurrentValidationLanguage(), undefined)
+        await RunInValidationLanguage('ja', async (): Promise<void> => {
+            assert.strictEqual(CurrentValidationLanguage(), 'ja')
+            //An explicit validation, a validation of the arguments of a method (async, sync), a nested asynchronous call
+            assert.strictEqual(await Failure((): Promise<unknown> => OrderDTO.validateAsync({amount: 1})), '"customer" は必須です')
+            assert.strictEqual(await Failure((): unknown => OrderDTO.validate({amount: 1})), '"customer" は必須です')
+            assert.match(await Failure((): Promise<unknown> => orders.take(101)), /は 100 以下にしてください/)
+            const english: string = await Failure((): unknown => RunInValidationLanguage('en', (): unknown => orders.label(1 as unknown as string)))
+            const japanese: string = await Failure((): unknown => orders.label(1 as unknown as string))
+            assert.match(english, /must be a string/)
+            assert.ok(japanese !== english && /^Method \[label\]/.test(japanese), japanese)
+            await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 1))
+            assert.strictEqual(await Failure((): Promise<unknown> => OrderDTO.validateAsync({amount: 1})), '"customer" は必須です')
+            //The language given by the validation, the valid values
+            assert.strictEqual(await Failure((): Promise<unknown> => OrderDTO.validateAsync({amount: 1}, {errors: {language: 'en'}})), '"customer" is required')
+            assert.strictEqual(await orders.take(5), 5)
+            assert.deepStrictEqual({...await OrderDTO.validateAsync({customer: 'Ada', amount: 1})}, {customer: 'Ada', amount: 1})
+        })
+        //Out of it: the default messages
+        assert.strictEqual(await Failure((): Promise<unknown> => OrderDTO.validateAsync({amount: 1})), '"customer" is required')
+    })
+})
+
+class OrderNotFoundException extends Exception {
+    public errno: string = 'E_ORDER_NOT_FOUND'
+}
+
+describe('The parameters of the exceptions', (): void => {
+    it('are kept for the translations of their messages, not as properties', (): void => {
+        const named: OrderNotFoundException = new OrderNotFoundException('Order {id} not found', {id: 7})
+        assert.strictEqual(named.message, 'Order 7 not found')
+        assert.deepStrictEqual(ExceptionParams(named), {id: 7})
+        assert.deepStrictEqual(ExceptionParams(new OrderNotFoundException('Order {0} of {1}', 7, 'ada')), [7, 'ada'])
+        assert.deepStrictEqual(ExceptionParams(new OrderNotFoundException('Order %s not found', 7)), [7])
+        assert.strictEqual(ExceptionParams(new OrderNotFoundException('Order not found')), undefined)
+        //Not in the properties of the error sent
+        assert.ok(!Object.keys(named).some((key: string): boolean => key.includes('PARAMS')))
+        assert.ok(!JSON.stringify(named).includes('"id"'))
     })
 })

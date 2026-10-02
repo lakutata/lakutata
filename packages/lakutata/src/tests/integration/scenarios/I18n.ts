@@ -3,14 +3,14 @@ import {mkdirSync, mkdtempSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {io, type Socket} from 'socket.io-client'
-import {Application, DTO, Provider} from '../../../exports/Lakutata.js'
+import {Application, DTO, Exception, Provider} from '../../../exports/Lakutata.js'
 import {BuildEntrypoints, Controller} from '../../../exports/EntrypointComponent.js'
 import {ExpressHTTPEntrypoint, JSONEnvelope} from '../../../exports/ExpressAdapter.js'
 import {SocketIOServiceEntrypoint} from '../../../exports/SocketIOAdapter.js'
 import {CommanderCLIEntrypoint} from '../../../exports/CommanderAdapter.js'
 import {CLIAction, GET, POST, ServiceAction} from '../../../exports/CTRLDecorators.js'
 import {Autoload, Inject, Scoped} from '../../../exports/DIDecorators.js'
-import {Expect} from '../../../exports/DTODecorators.js'
+import {Accept, Expect} from '../../../exports/DTODecorators.js'
 import {BuildI18nOptions, I18n, I18nMiddleware, I18nMissingKeyException, Translator} from '../../../exports/I18nComponent.js'
 import {FreePort, MemoryStream, RunChecks} from '../support/Scenario.js'
 
@@ -26,7 +26,8 @@ writeFileSync(path.join(locales, 'en.json'), JSON.stringify({
 }))
 writeFileSync(path.join(locales, 'zh-CN.json'), JSON.stringify({
     order: {count: '{count, plural, =0 {还没有订单} other {共 # 个订单}}', total: '合计：{total, number, currency}', created: '已为 {customer} 创建订单'},
-    validation: {any: {required: '{{#label}} 为必填项'}}
+    validation: {any: {required: '{{#label}} 为必填项'}},
+    errors: {E_ORDER_NOT_FOUND: '订单 {id} 不存在'}
 }))
 mkdirSync(path.join(locales, 'zh-TW'))
 writeFileSync(path.join(locales, 'zh-TW', 'order.json'), JSON.stringify({count: '{count, plural, other {共 # 筆訂單}}'}))
@@ -35,6 +36,22 @@ writeFileSync(path.join(locales, 'zh-TW', 'order.json'), JSON.stringify({count: 
 delete process.env.LC_ALL
 delete process.env.LC_MESSAGES
 process.env.LANG = 'zh_TW.UTF-8'
+
+class OrderNotFoundException extends Exception {
+    public errno: string = 'E_ORDER_NOT_FOUND'
+}
+
+/**
+ * The discounts, their arguments validated
+ */
+@Scoped()
+@Autoload()
+class Discounts extends Provider {
+    @Accept(DTO.Number().max(50).required())
+    public async rate(percent: number): Promise<number> {
+        return percent / 100
+    }
+}
 
 class CreateOrderDTO extends DTO {
     @Expect(DTO.String().required())
@@ -60,6 +77,19 @@ class OrderController extends Controller {
 
     @Inject(Receipt)
     protected readonly receipt: Receipt
+
+    @Inject(Discounts)
+    protected readonly discounts: Discounts
+
+    @GET('/order/:id')
+    public async find(input: { id: string }): Promise<string> {
+        throw new OrderNotFoundException('Order {id} not found', {id: input.id})
+    }
+
+    @GET('/discounts/:percent')
+    public async discount(input: { percent: string }): Promise<number> {
+        return await this.discounts.rate(Number(input.percent))
+    }
 
     @GET('/orders/count')
     @CLIAction('count-orders')
@@ -134,6 +164,17 @@ Application
             assert.strictEqual((await request('/orders', {'accept-language': 'zh-TW'}, {})).errMsg, '"customer" 為必填欄位')
             assert.strictEqual((await request('/orders', {'accept-language': 'en'}, {})).errMsg, '"customer" is required')
             assert.strictEqual((await request('/orders', {'accept-language': 'zh-CN'}, {customer: '小明'})).data, '已为 小明 创建订单')
+        })
+
+        await check('the exceptions and the validations of the methods are in the language of the request', async (): Promise<void> => {
+            const chinese = await request('/order/7', {'accept-language': 'zh-CN'}) as { data: unknown, errMsg: string, errno?: string }
+            assert.strictEqual(chinese.errMsg, '订单 7 不存在')
+            assert.strictEqual(chinese.errno, 'E_ORDER_NOT_FOUND')
+            assert.strictEqual((await request('/order/7', {'accept-language': 'en'})).errMsg, 'Order 7 not found')
+            //The arguments of a method of a provider (@Accept): the built-in messages of the language
+            assert.match((await request('/discounts/60', {'accept-language': 'zh-CN'})).errMsg ?? '', /不能大于 50|必须小于或等于 50/)
+            assert.match((await request('/discounts/60', {'accept-language': 'en'})).errMsg ?? '', /must be less than or equal to 50/)
+            assert.strictEqual((await request('/discounts/20', {'accept-language': 'zh-CN'})).data, 0.2)
         })
 
         await check('a Socket.IO request is answered in the language of its connection', async (): Promise<void> => {

@@ -45,6 +45,21 @@ function format(template: string, ...args: any[]): string {
 }
 
 /**
+ * The parameters of the template of the message of an exception
+ */
+const PARAMS: unique symbol = Symbol('EXCEPTION.PARAMS')
+
+/**
+ * The parameters of the template of the message of an exception (new XxxException('Order {id} not found', {id: 1})):
+ * an object, the arguments given one by one, undefined without parameter. The translations of the messages format
+ * them
+ * @param exception
+ */
+export function ExceptionParams(exception: Error): Record<string, unknown> | unknown[] | undefined {
+    return (exception as unknown as Record<symbol, Record<string, unknown> | unknown[] | undefined>)[PARAMS]
+}
+
+/**
  * 异常抽象类
  */
 export abstract class Exception extends Error {
@@ -64,6 +79,8 @@ export abstract class Exception extends Error {
         if (b.length) {
             const template: string = a as string
             const templatingArgs: unknown[] | Record<string, any> = b.length > 1 ? b : b[0]
+            //Kept for the translations of the message, not an enumerable property (the errors sent are not changed)
+            Object.defineProperty(this, PARAMS, {value: b.length > 1 || typeof b[0] !== 'object' || b[0] === null ? b : b[0], enumerable: false})
             try {
                 this.message = Templating(template, templatingArgs, {ignoreMissing: true})
             } catch (e) {

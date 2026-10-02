@@ -1,4 +1,5 @@
 import type {IncomingMessage} from 'node:http'
+import {Exception, ExceptionParams, RunInValidationLanguage} from '@lakutata/core'
 import {Inject} from '@lakutata/core/decorator/di'
 import {ContextType, Middleware, type ActionInvocation, type BaseContext, type HTTPContext, type Next} from '@lakutata/entrypoint'
 import type {I18n} from '../I18n.js'
@@ -15,9 +16,9 @@ type Handshake = {
 
 /**
  * The language of each request: negotiated from the languages the request asks for, it is the language of the
- * Translator of the request and of the errors of the validation of its input. The I18n component it uses is the
- * object "i18n"; a subclass changes it, the names of the query parameter and of the cookie, or the languages asked for
- * (requested())
+ * Translator of the request, of the errors of its validations, and of the messages of the exceptions it throws which
+ * have one (errors.<errno>). The I18n component it uses is the object "i18n"; a subclass changes it, the names of the
+ * query parameter and of the cookie, or the languages asked for (requested())
  */
 export class I18nMiddleware extends Middleware {
     @Inject('i18n')
@@ -44,8 +45,39 @@ export class I18nMiddleware extends Middleware {
         const locale: string = this.i18n.negotiate(this.requested(context))
         context.locale = locale
         //The translator of the request, shared by its objects
-        await invocation.container.getShared(Translator, {locale: locale, i18n: this.i18n})
-        return await next()
+        const translator: Translator = await invocation.container.getShared(Translator, {locale: locale, i18n: this.i18n})
+        //Its validations in its language
+        return await RunInValidationLanguage(locale, async (): Promise<unknown> => {
+            try {
+                return await next()
+            } catch (error) {
+                throw this.translate(error, translator)
+            }
+        })
+    }
+
+    /**
+     * An exception thrown by a request, its message in the language of the request: the message of its errno
+     * (errors.E_ORDER_NOT_FOUND), formatted with the parameters of its template ({id}, or {0} for the ones given one by
+     * one); the exceptions without a message, and the ones whose message cannot be formatted, as they are
+     * @param error
+     * @param translator
+     */
+    protected translate(error: unknown, translator: Translator): unknown {
+        if (!(error instanceof Exception) || error.errno === undefined || error.errno === null) return error
+        const key: string = `errors.${error.errno}`
+        if (!translator.has(key)) return error
+        const params: Record<string, unknown> | unknown[] | undefined = ExceptionParams(error)
+        let message: string
+        try {
+            message = translator.t(key, Array.isArray(params) ? Object.fromEntries(params.map((value: unknown, index: number): [string, unknown] => [String(index), value])) : params ?? {})
+        } catch (failure) {
+            process.emitWarning(`The message ${key} of ${error.name} cannot be formatted: ${(failure as Error).message}`, 'I18nWarning')
+            return error
+        }
+        error.message = message
+        Reflect.set(error, 'errMsg', message)
+        return error
     }
 
     /**
