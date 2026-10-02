@@ -127,9 +127,11 @@ Application
             assert.deepStrictEqual((await request('/orders/count', {'accept-language': 'fr-FR,fr;q=0.9'})).data, {locale: 'en', message: '1,200 orders', total: 'Total: CN¥9.50', shared: true})
         })
 
-        await check('the errors of the validation are in the language of the request, falling back', async (): Promise<void> => {
+        await check('the errors of the validation are in the language of the request: the messages of the application, the built-in ones', async (): Promise<void> => {
+            //The message of the application replaces the built-in one of zh-CN
             assert.strictEqual((await request('/orders', {'accept-language': 'zh-CN'}, {})).errMsg, '"customer" 为必填项')
-            assert.strictEqual((await request('/orders', {'accept-language': 'zh-TW'}, {})).errMsg, '"customer" 为必填项')
+            //zh-TW: its built-in messages
+            assert.strictEqual((await request('/orders', {'accept-language': 'zh-TW'}, {})).errMsg, '"customer" 為必填欄位')
             assert.strictEqual((await request('/orders', {'accept-language': 'en'}, {})).errMsg, '"customer" is required')
             assert.strictEqual((await request('/orders', {'accept-language': 'zh-CN'}, {customer: '小明'})).data, '已为 小明 创建订单')
         })
@@ -140,7 +142,7 @@ Application
                 const counted = await socket.timeout(5000).emitWithAck('message', {act: 'count'})
                 assert.deepStrictEqual(counted.payload, {locale: 'zh-TW', message: '共 1,200 筆訂單', total: '合计：CN¥9.50', shared: true})
                 const invalid = await socket.timeout(5000).emitWithAck('message', {act: 'create'})
-                assert.strictEqual(invalid.error.message, '"customer" 为必填项')
+                assert.strictEqual(invalid.error.message, '"customer" 為必填欄位')
             } finally {
                 socket.disconnect()
             }

@@ -40,6 +40,9 @@
       "@lakutata/core/decorator/di": [
         "../core/dist/types/exports/DIDecorators"
       ],
+      "@lakutata/core/decorator/dto": [
+        "../core/dist/types/exports/DTODecorators"
+      ],
       "@lakutata/entrypoint": [
         "../entrypoint/dist/types/exports/Entrypoint"
       ]

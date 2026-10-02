@@ -1,5 +1,5 @@
 import path from 'node:path'
-import {Component, DTO, RegisterValidationMessages, type ComponentOptions, type ComponentOptionsBuilder} from '@lakutata/core'
+import {Component, DTO, LoadValidationMessages, RegisterValidationMessages, type ComponentOptions, type ComponentOptionsBuilder} from '@lakutata/core'
 import {Configurable} from '@lakutata/core/decorator/di'
 import type {I18nOptions} from './interfaces/I18nOptions.js'
 import {FlattenMessages, LoadDirectory, MergeMessages, type Catalogs, type NestedMessages} from './lib/Catalog.js'
@@ -20,7 +20,8 @@ export const BuildI18nOptions: ComponentOptionsBuilder<I18nOptions> = (options?:
     messages: options?.messages,
     missing: options?.missing,
     currency: options?.currency,
-    timeZone: options?.timeZone
+    timeZone: options?.timeZone,
+    validationMessages: options?.validationMessages
 })
 
 /**
@@ -51,6 +52,9 @@ export class I18n extends Component {
     @Configurable(DTO.String().optional())
     protected readonly timeZone?: string
 
+    @Configurable(DTO.Boolean().optional().default(true))
+    protected readonly validationMessages: boolean
+
     readonly #catalogs: Catalogs = new Map()
 
     readonly #parsed: Map<string, MessagePart[]> = new Map()
@@ -74,19 +78,25 @@ export class I18n extends Component {
         this.#supported = this.locales
             ? this.locales.map((locale: string): string => this.locale(locale, 'locales'))
             : [...new Set([this.#default, ...[...this.#catalogs.keys()].sort()])]
-        this.registerValidationMessages()
+        await this.registerValidationMessages()
     }
 
     /**
-     * Register the messages of the validation errors of the languages (their keys validation.<code>: validation.any.required),
+     * Register the messages of the validation errors of the languages: the built-in ones of the languages (unless
+     * validationMessages is false), then the ones of the messages (their keys validation.<code>: validation.any.required);
      * each language with the ones of the languages it falls back to
      */
-    protected registerValidationMessages(): void {
+    protected async registerValidationMessages(): Promise<void> {
         const prefix: string = 'validation.'
+        const builtIns: Map<string, Record<string, string> | undefined> = new Map()
         for (const locale of new Set([...this.#supported, ...this.#catalogs.keys()])) {
             const messages: Record<string, string> = {}
             //The languages it falls back to first, its own messages replacing theirs
             for (const tag of FallbackChain(locale, this.#fallbacks, this.#default).reverse()) {
+                if (this.validationMessages) {
+                    if (!builtIns.has(tag)) builtIns.set(tag, await LoadValidationMessages(tag))
+                    Object.assign(messages, builtIns.get(tag))
+                }
                 this.#catalogs.get(tag)?.forEach((message: string, key: string): void => {
                     if (key.startsWith(prefix)) messages[key.slice(prefix.length)] = message
                 })

@@ -35,4 +35,10 @@ export interface I18nOptions {
      * The time zone of the dates and the times (IANA: Asia/Shanghai); the one of the process by default
      */
     timeZone?: string
+    /**
+     * Whether the built-in messages of the validation errors of the supported languages are registered (true by
+     * default): the errors of the validation of the requests are in their languages. The messages of the languages
+     * (validation.<code>) replace them
+     */
+    validationMessages?: boolean
 }
