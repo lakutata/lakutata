@@ -68,7 +68,10 @@ export class ModuleConfigLoader {
         //The objects declared in the wrong configuration name the configuration they belong to
         const expected: string = expectObjectType.toLowerCase()
         const actual: string = objectType.toLowerCase()
-        const hint: string = objectType === ObjectType.Component || objectType === ObjectType.Provider ? `, declare it in the ${actual}s configuration` : ''
+        const hint: string = objectType === ObjectType.Component || objectType === ObjectType.Provider
+            ? `, declare it in the ${actual}s configuration`
+            //The modules are objects: objects: {named: {<id>: {class: <Module>}}}
+            : objectType === ObjectType.Module ? ', declare it in the objects configuration (objects.named)' : ''
         throw new InvalidObjectTypeException('{0} configuration only accepts object declarations of {1} types: "{2}" ({3}) is a {4}{5}', [expectObjectType, expected, id ?? target.name, target.name, actual, hint])
     }
 

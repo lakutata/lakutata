@@ -563,4 +563,12 @@ await describe('Lifecycle Test', async function (): Promise<void> {
             return true
         })
     })
+
+    await it('a module declared as a component is rejected with the configuration of the modules', async (): Promise<void> => {
+        assert.throws((): unknown => new ModuleConfigLoader({} as Module, {components: {accounting: {class: TestModule}}}), (error: Error): boolean => {
+            assert.ok(error instanceof InvalidObjectTypeException)
+            assert.strictEqual(error.message, 'Component configuration only accepts object declarations of component types: "accounting" (TestModule) is a module, declare it in the objects configuration (objects.named)')
+            return true
+        })
+    })
 })
