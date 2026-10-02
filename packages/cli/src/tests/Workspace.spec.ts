@@ -153,7 +153,7 @@ describe('The workspace commands', (): void => {
 
     it('gives the packages the next version and updates the dependencies between them and the lock file', async (): Promise<void> => {
         SicService()
-        execFileSync('npm', ['install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund', '--offline'], {cwd: root, stdio: 'ignore'})
+        execFileSync('npm', ['install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund', '--prefer-offline'], {cwd: root, stdio: 'ignore'})
         const result = await Run(['version', 'patch', '--yes'])
         assert.strictEqual(result.code, 0, result.stderr)
         assert.match(result.stdout, /Version 0\.0\.16 → 0\.0\.17/)

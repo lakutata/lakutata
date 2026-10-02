@@ -92,7 +92,7 @@ describe('lakutata add', (): void => {
             .replace("      'libraries': [\n", "      'libraries': [\n        '-L<(module_root_dir)/deps/lib', '-lsuffix',\n")
             .replace("      # 'copies': [{'destination': '<(PRODUCT_DIR)', 'files': ['<(module_root_dir)/deps/lib/libfoo.so']}],", `      'copies': [{'destination': '<(PRODUCT_DIR)', 'files': ['<(module_root_dir)/deps/lib/${library}']}],`)
             .replace("              '-arch x86_64', '-arch arm64',\n", "              '-arch x86_64', '-arch arm64',\n              '-Wl,-rpath,@loader_path',\n")
-            .replace("          'ldflags': [\n", "          'ldflags': [\n            \"-Wl,-rpath,'$$ORIGIN'\",\n")
+            .replace("          'ldflags': [\n", (): string => "          'ldflags': [\n            \"-Wl,-rpath,'$$ORIGIN'\",\n")
         assert.notStrictEqual(uncommented, gyp)
         writeFileSync(path.join(directory, 'binding.gyp'), uncommented)
         const cpp: string = readFileSync(path.join(directory, 'cpp', 'binding.cc'), 'utf8')

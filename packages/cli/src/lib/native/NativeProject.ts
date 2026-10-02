@@ -230,7 +230,10 @@ async function ChangeGyp(directory: string, change: NativeChange, library: Libra
     } else if (library?.kind === 'static') {
         add('libraries', [module(library.file)])
     } else if (library?.kind === 'dynamic') {
-        add('libraries', [module(library.platform === 'win' ? ImportLibrary(directory, library) : library.file)])
+        //Linux: by its name (-l:libfoo.so), not its path, which the addon would need (a library without its soname)
+        add('libraries', library.platform === 'linux'
+            ? [`-L${module(path.posix.dirname(library.file))}`, `-l:${path.posix.basename(library.file)}`]
+            : [module(library.platform === 'win' ? ImportLibrary(directory, library) : library.file)])
         //Copied next to the addon, found there at run time
         const scope: GypDict = scoped()
         const copies: GypNode | undefined = GypDocument.get(scope, 'copies')
