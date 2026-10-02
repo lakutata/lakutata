@@ -4,10 +4,12 @@ import {CLIAction} from 'lakutata/decorator/ctrl'
 import {Inject} from 'lakutata/decorator/di'
 import {CreateProjectDTO} from '../dtos/CreateProjectDTO.js'
 import {ListTemplatesDTO} from '../dtos/ListTemplatesDTO.js'
+import {CleanDTO} from '../dtos/CleanDTO.js'
+import {Clean, OutputDirectories, type CleanResult} from '../lib/Clean.js'
 import {TemplateCatalog, type TemplateInfo, type TemplateSource} from '../lib/TemplateCatalog.js'
 import {ProjectCreator, type ProjectPlan} from '../lib/ProjectCreator.js'
 import {DetectPackageManager} from '../lib/Processes.js'
-import {Styled, Table} from '../lib/Output.js'
+import {Done, Styled, Table} from '../lib/Output.js'
 import {FrameworkVersion, LatestVersion, ProjectFrameworkVersion, ToolPackage} from '../lib/Versions.js'
 
 /**
@@ -70,6 +72,15 @@ export class CommandLineController extends Controller {
         return `${Table(templates.map((template: TemplateInfo): [string, string] => [template.name, template.description]), 'The templates (lakutata create --template <name>)')}
 Other templates: --template npm:<package>, github:<owner>/<repo>, or a directory
 `
+    }
+
+    @CLIAction('clean [paths...]', CleanDTO, {description: 'Remove paths of the package of the current directory, on every platform (the outDir of its tsconfig.json by default)'})
+    public async clean(input: CleanDTO): Promise<undefined> {
+        const directory: string = process.cwd()
+        const paths: string[] = input.paths?.length ? input.paths : await OutputDirectories(directory)
+        const result: CleanResult = await Clean(directory, paths)
+        Done(result.removed.length ? `Removed ${result.removed.join(', ')}` : `Nothing to remove (${result.missing.join(', ')})`)
+        return undefined
     }
 
     @CLIAction('info', {description: 'Show the versions of the tool and of the framework'})

@@ -15,14 +15,13 @@
     "!build/tests"
   ],
   "scripts": {
-    "clean": "node -e \"for (const d of ['build', 'dist']) require('node:fs').rmSync(d, {recursive: true, force: true})\"",
+    "clean": "lakutata clean build dist",
     "compile": "node -e \"require('node:fs').rmSync('build', {recursive: true, force: true})\" && tsc",
     "start": "node build/App.js",
     "test": "npm run compile && node --test \"build/tests/**/*.spec.js\"",
     "build": "npm run compile && lakutata executable",
     "bundle": "npm run compile && lakutata bundle"
   },
-
   "dependencies": {
     "@inquirer/prompts": "^8.7.2",
     "commander": "^15.0.0",

@@ -6,7 +6,7 @@
   "main": "server/build/index.js",
   "types": "server/build/index.d.ts",
   "scripts": {
-    "clean": "node -e \"for (const d of ['.next', 'server/build']) require('node:fs').rmSync(d, {recursive: true, force: true})\"",
+    "clean": "lakutata clean .next server/build",
     "build:server": "tsc -p server",
     "build": "next build && npm run build:server",
     "rebuild": "npm run clean && npm run build"

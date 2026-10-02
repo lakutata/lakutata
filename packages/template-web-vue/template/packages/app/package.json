@@ -8,7 +8,7 @@
   "type": "module",
   "main": "build/App.js",
   "scripts": {
-    "clean": "node -e \"require('node:fs').rmSync('build', {recursive: true, force: true})\"",
+    "clean": "lakutata clean",
     "build": "tsc",
     "rebuild": "npm run clean && npm run build",
     "dev": "npm run rebuild && node build/App.js",

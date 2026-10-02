@@ -6,7 +6,7 @@
   "main": "server/index.js",
   "types": "server/index.d.ts",
   "scripts": {
-    "clean": "node -e \"for (const d of ['.nuxt', '.output']) require('node:fs').rmSync(d, {recursive: true, force: true})\"",
+    "clean": "lakutata clean .nuxt .output",
     "build": "nuxt build",
     "rebuild": "npm run clean && npm run build",
     "dev": "nuxt dev --port 3000",

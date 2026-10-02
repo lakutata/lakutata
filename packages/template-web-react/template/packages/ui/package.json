@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "clean": "node -e \"require('node:fs').rmSync('dist', {recursive: true, force: true})\"",
+    "clean": "lakutata clean dist",
     "build": "vite build",
     "rebuild": "npm run clean && npm run build",
     "dev": "vite",

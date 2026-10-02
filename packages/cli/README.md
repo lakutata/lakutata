@@ -50,6 +50,14 @@ with the information of the project: `{$APP_NAME}`, `{$APP_ID}`, `{$APP_DESC}`, 
 Show the versions of the tool, of the framework (and their latest versions), of Node.js, and of the framework of the
 project of the current directory.
 
+### `lakutata clean [paths...]`
+
+Remove paths of the package of the current directory, on every platform (as `rm -rf`, without `shx` or `rimraf`):
+`lakutata clean build dist`. Without paths, the output directories of its `tsconfig.json` are removed (`outDir`, and
+`declarationDir` when it has one, read through the configurations it extends): `"clean": "lakutata clean"`. A missing
+path is skipped; the paths outside of the package, the package itself, `src`, `node_modules`, `.git` and `package.json`
+are never removed. In a workspace, `lakutata run clean` runs the `clean` script of each package.
+
 ## Workspaces
 
 The projects made of several packages (`app`, `ui`, `proxy`…) are npm workspaces (the `workspaces` of the root

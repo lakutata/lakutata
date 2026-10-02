@@ -7,7 +7,7 @@
     "lakutata": "./dist/esm/CLIApp.js"
   },
   "scripts": {
-    "clean": "shx rm -rf ./dist",
+    "clean": "node -e \"require('node:fs').rmSync('dist', {recursive: true, force: true})\"",
     "build:js": "tsc -p tsconfig.esm.json && node -e \"require('node:fs').chmodSync('dist/esm/CLIApp.js',0o755)\"",
     "rebuild": "npm run clean && npm run build:js",
     "compile": "npm run rebuild",
