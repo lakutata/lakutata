@@ -112,8 +112,8 @@ async function Create(template: string, name: string, features: string[] = []): 
  * @param project
  * @param args the application
  */
-async function ElectronPage(project: string, args: string[]): Promise<string> {
-    const electron: string = createRequire(import.meta.url)(path.join(ROOT, 'node_modules', 'electron'))
+async function ElectronPage(project: string, args: string[], executable?: string): Promise<string> {
+    const electron: string = executable ?? createRequire(import.meta.url)(path.join(ROOT, 'node_modules', 'electron'))
     const port: number = 9300 + Math.floor(Math.random() * 500)
     const {NODE_TEST_CONTEXT, ...env} = process.env
     void NODE_TEST_CONTEXT
@@ -526,11 +526,11 @@ describe('The templates of the repository', (): void => {
         ['electron-react', 'Desk', 'App.tsx', ['vite', '@vitejs/plugin-react', 'react', 'react-dom', '@types/react', '@types/react-dom']],
         ['electron-vue', 'Pad', 'App.vue', ['vite', '@vitejs/plugin-vue', 'vue']]
     ] as [string, string, string, string[]][]) {
-        it(`creates an Electron application (${template}) whose main process serves its renderer over IPC, and assembles it`, async (): Promise<void> => {
+        it(`creates an Electron application (${template}) whose main process serves its renderer over IPC, and packages it`, async (): Promise<void> => {
             const project: string = await Create(template, name)
             assert.doesNotMatch(readFileSync(path.join(project, 'packages', 'ui', 'src', ui), 'utf8'), /\{\$APP_/)
             assert.ok(existsSync(path.join(project, '.dockerignore')))
-            Install(project, ['@types/node', 'electron', ...names], path.join(ROOT, 'node_modules', 'typescript'))
+            Install(project, ['@types/node', 'electron', 'electron-builder', ...names], path.join(ROOT, 'node_modules', 'typescript'))
             LinkWorkspace(project, ['ui', 'app'])
             LinkCommand(path.join(project, 'node_modules', '.bin'), 'vite', path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'))
             const built = await Run(process.execPath, [CLI, 'run', 'rebuild', '--concurrency', '1'], project)
@@ -546,14 +546,21 @@ describe('The templates of the repository', (): void => {
                 ? await Run(process.execPath, ['-e', `require(${JSON.stringify(path.join(ROOT, 'node_modules', 'vue-tsc'))}).run(${JSON.stringify(path.join(typescript, 'lib', 'tsc.js'))})`, 'vue-tsc', '--noEmit', '-p', path.join(project, 'packages', 'ui')], project)
                 : await Run(process.execPath, [path.join(typescript, 'bin', 'tsc'), '-p', path.join(project, 'packages', 'ui')], project)
             assert.strictEqual(checked.code, 0, checked.output)
-            //The application packaged by electron-builder: the main process bundled, the preload script, the renderer
-            const assembled = await Run(process.execPath, ['scripts/assemble.mjs'], project)
-            assert.strictEqual(assembled.code, 0, assembled.output)
-            for (const file of ['main.cjs', 'preload.cjs', 'package.json', path.join('renderer', 'index.html')]) assert.ok(existsSync(path.join(project, 'release', 'app', file)), file)
-            assert.strictEqual(JSON.parse(readFileSync(path.join(project, 'release', 'app', 'package.json'), 'utf8')).main, 'main.cjs')
+            //Packaged by lakutata installer (electron-builder, unpacked): the main process bundled in its archive, the
+            //preload script and the renderer in its resources
+            const app: string = path.join(project, 'packages', 'app')
+            const packaged = await Run(process.execPath, [CLI, 'installer', '--target', 'dir'], app)
+            assert.strictEqual(packaged.code, 0, packaged.output)
+            assert.match(packaged.output, /Electron v\d+/)
+            const archive: string | undefined = readdirSync(path.join(app, 'dist', 'installer'), {recursive: true, withFileTypes: true})
+                .find((entry): boolean => entry.name === 'app.asar')?.parentPath
+            assert.ok(archive, 'app.asar')
+            for (const file of ['preload.cjs', path.join('renderer', 'index.html')]) assert.ok(existsSync(path.join(archive, 'main.resources', file)), file)
             //Started (where Electron can open its window): the page shows the result of the action, isolated from Node.js
-            if (process.platform === 'darwin' && existsSync(path.join(ROOT, 'node_modules', 'electron', 'dist'))) {
-                assert.match(await ElectronPage(project, ['release/app']), new RegExp(`Hello, ${name}! \\| isolated: true`))
+            if (process.platform === 'darwin') {
+                const bundle: string = path.resolve(archive, '..', '..')
+                const executable: string = path.join(bundle, 'Contents', 'MacOS', readdirSync(path.join(bundle, 'Contents', 'MacOS'))[0])
+                assert.match(await ElectronPage(project, [], executable), new RegExp(`Hello, ${name}! \\| isolated: true`))
             }
         })
     }

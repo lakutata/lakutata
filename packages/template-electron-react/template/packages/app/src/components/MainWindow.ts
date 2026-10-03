@@ -21,7 +21,7 @@ export class MainWindow extends Component {
     protected readonly height: number
 
     /**
-     * The directory of the main process, where the preload script and the built renderer are
+     * The directory of the preload script and of the built renderer (the resources of the packaged application)
      */
     @Configurable(DTO.String().optional())
     protected readonly directory?: string
@@ -35,7 +35,7 @@ export class MainWindow extends Component {
     #window: BrowserWindow | undefined
 
     /**
-     * The index.html of the built renderer: next to the main process once packaged, in the ui package otherwise
+     * The index.html of the built renderer: in the resources of the packaged application, in the ui package otherwise
      */
     protected rendererFile(): string {
         const packaged: string = path.join(this.directory ?? '', 'renderer', 'index.html')

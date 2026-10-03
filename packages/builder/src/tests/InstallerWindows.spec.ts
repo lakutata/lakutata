@@ -1,11 +1,12 @@
 import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
 import {execSync, spawnSync} from 'node:child_process'
-import {existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync} from 'node:fs'
+import {createRequire} from 'node:module'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {BuildInstaller} from '../index.js'
-import {WriteServiceFixture} from './support/Fixture.js'
+import {WriteElectronFixture, WriteServiceFixture} from './support/Fixture.js'
 
 /**
  * The installers of Windows are installed on the machine running the tests (Windows, as an administrator): their
@@ -102,6 +103,16 @@ describe('The installers of Windows', {skip: !INSTALL && 'LAKUTATA_WINDOWS_INSTA
             mkdirSync(path.join(out, version), {recursive: true})
             await BuildInstaller({project: fixture, targets: ['nsis', 'msi', 'zip'], outdir: path.join(out, version)})
         }
+        //The installers of NSIS of the two versions of the Electron application (electron-builder)
+        const desk: string = path.join(work, 'desk')
+        const require = createRequire(import.meta.url)
+        WriteElectronFixture(desk, {electron: require('electron/package.json').version, builder: require('electron-builder/package.json').version})
+        execSync('npm install --no-audit --no-fund', {cwd: desk, stdio: 'ignore'})
+        for (const version of ['1.0.0', '1.0.1']) {
+            const manifest = JSON.parse(readFileSync(path.join(desk, 'package.json'), 'utf8'))
+            writeFileSync(path.join(desk, 'package.json'), JSON.stringify({...manifest, version: version}))
+            await BuildInstaller({project: desk, outdir: path.join(out, 'desk', version)})
+        }
     })
 
     after((): void => {
@@ -161,4 +172,31 @@ describe('The installers of Windows', {skip: !INSTALL && 'LAKUTATA_WINDOWS_INSTA
             assert.match(readFileSync(path.join(DATA_DIRECTORY, 'hello-service.env'), 'utf8'), /GREETING="Bonjour"/)
         })
     }
+
+    it('installs the Electron application by its installer of NSIS (electron-builder), upgrades and removes it, running its scripts', async (): Promise<void> => {
+        const log: string = 'C:\\ProgramData\\hello-desk-hooks.log'
+        rmSync(log, {force: true})
+        //Installed for its user (the one-click installer of electron-builder)
+        const directory: string = path.join(process.env.LOCALAPPDATA!, 'Programs', 'hello-desk')
+        const setup = (version: string): string => path.join(out, 'desk', version, readdirSync(path.join(out, 'desk', version)).find((name: string): boolean => name.endsWith(`${version}.exe`))!)
+        const run = (file: string): string => PowerShell(`$p = Start-Process -FilePath '${file}' -ArgumentList '/S' -Wait -PassThru; $p.ExitCode`)
+        const hooks = (): string[] => existsSync(log) ? readFileSync(log, 'utf8').split(/\r?\n/).filter(Boolean) : []
+        const line = (hook: string, action: string, files: boolean): string => `${hook} ${action} ${files ? 'files' : 'nofiles'} ${directory}`
+        assert.strictEqual(run(setup('1.0.0')), '0')
+        assert.deepStrictEqual(hooks(), [line('preinstall', 'install', false), line('postinstall', 'install', true)])
+        assert.strictEqual(readFileSync(path.join(directory, 'resources', 'main.resources', 'texts', 'hello.txt'), 'utf8'), 'Hello')
+        //Its executables extracted (the ones of ARM64 too)
+        assert.ok(existsSync(path.join(directory, 'Hello Desk.exe')))
+        assert.ok(existsSync(path.join(directory, 'ffmpeg.dll')))
+        //The upgrade runs the uninstaller of the version it replaces, which runs no script
+        assert.strictEqual(run(setup('1.0.1')), '0')
+        const upgraded: string[] = [line('preinstall', 'install', false), line('postinstall', 'install', true), line('preinstall', 'upgrade', true), line('postinstall', 'upgrade', true)]
+        assert.deepStrictEqual(hooks(), upgraded)
+        //Removed: the preremove script (the uninstaller ends with the removal of the files: no postremove one)
+        assert.strictEqual(run(path.join(directory, 'Uninstall Hello Desk.exe')), '0')
+        for (let attempt = 0; attempt < 60 && (hooks().length < upgraded.length + 1 || existsSync(path.join(directory, 'Hello Desk.exe'))); attempt++) await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 500))
+        assert.deepStrictEqual(hooks(), [...upgraded, line('preremove', 'remove', true)])
+        assert.ok(!existsSync(path.join(directory, 'Hello Desk.exe')))
+        rmSync(log, {force: true})
+    })
 })

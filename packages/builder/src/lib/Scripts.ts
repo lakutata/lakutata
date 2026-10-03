@@ -63,6 +63,14 @@ export type PlatformScripts = {
 const ARCHIVES: string[] = ['tar.gz', 'zip']
 
 /**
+ * The moments the installers of lakutata run the scripts at: all of them, but the archives
+ * @param target
+ */
+function LakutataHooks(target: string): readonly InstallerHook[] {
+    return ARCHIVES.includes(target) ? [] : INSTALLER_HOOKS
+}
+
+/**
  * A script of the project, read
  * @param project
  * @param file
@@ -98,14 +106,17 @@ function Hooks(project: string, scripts: unknown, where: string, windows: boolea
 /**
  * The scripts of the installers made on a platform: the ones of the platform (lakutata.installer.<platform>.scripts),
  * replaced by the ones of each installer (lakutata.installer.<platform>.<installer>.scripts), the native ones of the
- * packages of Linux (nativeScripts), the file of NSIS included by its installer (win.nsis.include)
+ * packages of Linux (nativeScripts), the file of NSIS included by its installer (win.nsis.include). The ones an
+ * installer does not run are told (warnings)
  * @param project
  * @param platform its name in the configuration: linux, mac or win
  * @param config its configuration
  * @param targets the installers made
  * @param warnings
+ * @param hooks the moments each installer runs the scripts at (the installers of lakutata by default)
+ * @param native whether the packages of Linux run native scripts (the ones of lakutata)
  */
-export function ResolveScripts(project: string, platform: 'linux' | 'mac' | 'win', config: PlatformScripts | undefined, targets: string[], warnings: string[]): Record<string, TargetScripts> {
+export function ResolveScripts(project: string, platform: 'linux' | 'mac' | 'win', config: PlatformScripts | undefined, targets: string[], warnings: string[], hooks: (target: string) => readonly InstallerHook[] = LakutataHooks, native: boolean = true): Record<string, TargetScripts> {
     const windows: boolean = platform === 'win'
     const where: string = `lakutata.installer.${platform}`
     const common: Partial<Record<InstallerHook, ScriptFile>> = Hooks(project, config?.scripts, `${where}.scripts`, windows)
@@ -117,12 +128,12 @@ export function ResolveScripts(project: string, platform: 'linux' | 'mac' | 'win
         const own = (options ?? {}) as { scripts?: unknown, nativeScripts?: unknown, include?: unknown }
         const scripts: TargetScripts = {hooks: {...common, ...Hooks(project, own.scripts, `${where}.${target}.scripts`, windows)}, native: {}}
         if (own.nativeScripts !== undefined) {
-            if (platform !== 'linux' || ARCHIVES.includes(target)) throw new Error(`${where}.${target}.nativeScripts: the native scripts are the ones of the packages of Linux (deb, rpm, apk, archlinux)`)
+            if (!native || platform !== 'linux' || ARCHIVES.includes(target)) throw new Error(`${where}.${target}.nativeScripts: the native scripts are the ones of the packages of Linux lakutata makes (deb, rpm, apk, archlinux), not the ones of Electron`)
             if (!own.nativeScripts || typeof own.nativeScripts !== 'object' || Array.isArray(own.nativeScripts)) throw new Error(`${where}.${target}.nativeScripts must be {"<script>": "<file>"}`)
             //The upgrades of deb and rpm run their scripts of the installation and of the removal
-            const hooks: readonly string[] = target === 'apk' || target === 'archlinux' ? NATIVE_HOOKS : INSTALLER_HOOKS
+            const names: readonly string[] = target === 'apk' || target === 'archlinux' ? NATIVE_HOOKS : INSTALLER_HOOKS
             for (const [hook, file] of Object.entries(own.nativeScripts)) {
-                if (!hooks.includes(hook)) throw new Error(`${where}.${target}.nativeScripts.${hook} is not a script of ${target} (${hooks.join(', ')})`)
+                if (!names.includes(hook)) throw new Error(`${where}.${target}.nativeScripts.${hook} is not a script of ${target} (${names.join(', ')})`)
                 scripts.native[hook as NativeHook] = Read(project, file, `${where}.${target}.nativeScripts.${hook}`)
             }
         }
@@ -131,10 +142,14 @@ export function ResolveScripts(project: string, platform: 'linux' | 'mac' | 'win
             if (typeof own.include === 'string' && !/\.nsh$/i.test(own.include)) throw new Error(`${where}.nsis.include (${own.include}) must be a file of NSIS (.nsh)`)
             scripts.include = Read(project, own.include, `${where}.nsis.include`)
         }
-        if (ARCHIVES.includes(target) && Object.keys(scripts.hooks).length) unrun.push(target)
+        //The ones the installer does not run
+        const run: readonly InstallerHook[] = hooks(target)
+        const skipped: InstallerHook[] = INSTALLER_HOOKS.filter((hook: InstallerHook): boolean => !!scripts.hooks[hook] && !run.includes(hook))
+        for (const hook of skipped) delete scripts.hooks[hook]
+        if (skipped.length) unrun.push(`${target} (${skipped.join(', ')})`)
         resolved[target] = scripts
     }
-    if (unrun.length) warnings.push(`The scripts of the installers are not run by the archives (${unrun.join(', ')}): their users copy them`)
+    if (unrun.length) warnings.push(`Some scripts of the application are not run by their installers: ${unrun.join(', ')}`)
     return resolved
 }
 
@@ -158,6 +173,25 @@ export function EmbeddedShell(script: ScriptFile, prefix: string, args: string):
         `cat > "$lakutata_script" <<'${tag}'`,
         ...content.endsWith('\n') ? content.slice(0, -1).split('\n') : content.split('\n'),
         tag,
+        `LAKUTATA_INSTALL_DIR='${prefix.replace(/'/g, `'\\''`)}' ${interpreter} "$lakutata_script" ${args} || { lakutata_status=$?; rm -f "$lakutata_script"; exit $lakutata_status; }`,
+        'rm -f "$lakutata_script"'
+    ]
+}
+
+/**
+ * The lines of sh running a script encoded in them (base64): the scripts of the packages of electron-builder are
+ * templates, which replace their ${...}
+ * @param script
+ * @param prefix the directory of the application (LAKUTATA_INSTALL_DIR)
+ * @param args the arguments given to it (sh)
+ */
+export function EncodedShell(script: ScriptFile, prefix: string, args: string): string[] {
+    const first: string = script.content.split('\n', 1)[0]
+    const interpreter: string = first.startsWith('#!') ? first.slice(2).trim() : '/bin/sh'
+    return [
+        `# ${script.file}`,
+        'lakutata_script="$(mktemp)"',
+        `printf '%s' '${Buffer.from(script.content.replace(/\r\n/g, '\n'), 'utf8').toString('base64')}' | base64 -d > "$lakutata_script"`,
         `LAKUTATA_INSTALL_DIR='${prefix.replace(/'/g, `'\\''`)}' ${interpreter} "$lakutata_script" ${args} || { lakutata_status=$?; rm -f "$lakutata_script"; exit $lakutata_status; }`,
         'rm -f "$lakutata_script"'
     ]

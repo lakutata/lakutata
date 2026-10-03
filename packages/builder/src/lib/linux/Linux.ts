@@ -235,7 +235,7 @@ function ServiceScripts(plan: InstallerPlan, target: LinuxTarget): { before: Par
  * @param target
  * @param hook
  */
-function Action(target: Exclude<LinuxTarget, 'tar.gz'>, hook: NativeHook): string {
+export function Action(target: Exclude<LinuxTarget, 'tar.gz'>, hook: NativeHook): string {
     switch (target) {
         case 'deb':
             return {

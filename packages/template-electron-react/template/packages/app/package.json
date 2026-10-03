@@ -1,6 +1,10 @@
 {
   "name": "app",
+  "productName": "{$APP_NAME}",
   "version": "0.0.1",
+  "description": "{$APP_DESC}",
+  "author": "{$APP_AUTHOR}",
+  "license": "{$APP_LICENSE}",
   "private": true,
   "type": "module",
   "main": "build/App.js",
@@ -11,10 +15,62 @@
     "dev": "npm run rebuild && electron build/App.js --renderer=http://localhost:5173",
     "start": "electron build/App.js",
     "test": "node --test \"build/tests/**/*.spec.js\"",
-    "bundle": "lakutata bundle --outfile ../../release/app/main.cjs --external electron"
+    "installer": "lakutata installer"
   },
   "dependencies": {
     "lakutata": "^{$LAKUTATA_VERSION}",
     "ui": "^0.0.1"
+  },
+  "lakutata": {
+    "resources": [
+      {
+        "from": "../ui/dist",
+        "to": "renderer"
+      },
+      {
+        "from": "build/preload.cjs",
+        "to": "preload.cjs"
+      }
+    ],
+    "installer": {
+      "runtime": "electron",
+      "appId": "{$APP_ID}",
+      "linux": {
+        "targets": [
+          "deb"
+        ]
+      },
+      "mac": {
+        "targets": [
+          "dmg"
+        ]
+      },
+      "win": {
+        "targets": [
+          "nsis",
+          "portable"
+        ]
+      },
+      "electron": {
+        "linux": {
+          "category": "Utility",
+          "syncDesktopName": true
+        },
+        "deb": {
+          "depends": [
+            "libgtk-3-0",
+            "libnotify4",
+            "libnss3",
+            "libxss1",
+            "libxtst6",
+            "xdg-utils",
+            "libatspi2.0-0",
+            "libuuid1",
+            "libsecret-1-0",
+            "libasound2"
+          ]
+        }
+      }
+    }
   }
 }

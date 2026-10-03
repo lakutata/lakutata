@@ -2,6 +2,7 @@ import {readFile, mkdtemp, mkdir, rm} from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import {ProgramName} from './Bundle.js'
+import {BuildElectronInstaller} from './electron/Electron.js'
 import {BuildExecutable, type ExecutableResult} from './Executable.js'
 import {Libc} from './Platform.js'
 import {ResolveScripts, type InstallerScripts, type NativeScripts, type PlatformScripts, type TargetScripts} from './Scripts.js'
@@ -69,9 +70,14 @@ export type InstallerConfig = {
     license?: string
     vendor?: string
     /**
-     * The runtime of the executable: node (by default) or bun
+     * The runtime of the executable: node (by default) or bun; electron for the Electron applications, whose installers
+     * are made by electron-builder
      */
-    runtime?: 'node' | 'bun'
+    runtime?: 'node' | 'bun' | 'electron'
+    /**
+     * The configuration of electron-builder of an Electron application, merged over the one made from lakutata.installer
+     */
+    electron?: Record<string, unknown>
     /**
      * Whether the program is in the PATH of the system (/usr/bin/<program>), by default
      */
@@ -242,6 +248,7 @@ export async function BuildInstaller(options: InstallerOptions): Promise<Install
     const project: string = path.resolve(options.project)
     const manifest: Record<string, any> = JSON.parse(await readFile(path.join(project, 'package.json'), 'utf8'))
     const config: InstallerConfig = Config(manifest)
+    if (config.runtime === 'electron') return BuildElectronInstaller(project, manifest, config, options)
     const mac: boolean = process.platform === 'darwin'
     const windows: boolean = process.platform === 'win32'
     if (process.platform !== 'linux' && !mac && !windows) throw new Error(`The installers of ${process.platform} are not supported: the ones of Linux are made on Linux, the ones of macOS on macOS, the ones of Windows on Windows`)
@@ -288,7 +295,7 @@ export async function BuildInstaller(options: InstallerOptions): Promise<Install
             entry: options.entry,
             minify: options.minify,
             external: options.external,
-            runtime: config.runtime,
+            runtime: config.runtime as 'node' | 'bun' | undefined,
             layout: 'directory',
             outdir: path.join(work, 'stage')
         })

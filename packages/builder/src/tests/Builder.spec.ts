@@ -109,7 +109,7 @@ console.log(require('./words.js') + ' ' + require('node:fs').readFileSync(requir
             lakutata: {installer: {mac: {scripts: {preinstall: 'scripts/preinstall.sh', postinstall: 'scripts/preinstall.sh', preremove: 'scripts/preremove.sh', postremove: 'scripts/postremove.sh'}, pkg: {scripts: {postinstall: 'scripts/postinstall.sh'}}}}}
         }))
         const result = await BuildInstaller({project: project})
-        assert.ok(result.warnings.includes('The scripts of the installers are not run by the archives (tar.gz): their users copy them'), result.warnings.join('\n'))
+        assert.ok(result.warnings.includes('Some scripts of the application are not run by their installers: tar.gz (preinstall, postinstall, preremove, postremove)'), result.warnings.join('\n'))
         const expanded: string = path.join(project, 'expanded-scripts')
         rmSync(expanded, {recursive: true, force: true})
         execFileSync('pkgutil', ['--expand-full', result.files[0].file, expanded])

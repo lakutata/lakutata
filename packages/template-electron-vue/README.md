@@ -2,7 +2,7 @@
 
 The Electron template of the [lakutata](https://github.com/lakutata/lakutata) projects with Vue: the main process is a
 lakutata application serving the actions of its controllers over IPC to the renderer (Vue, Vite), isolated from Node.js;
-the application is packaged by electron-builder, for Linux in a container of the architecture (`npm run cross`).
+the application is packaged by `lakutata installer` (electron-builder), for Linux in Docker (`npm run installer:linux`).
 
 ```bash
 npx @lakutata/cli create --name my-app --template electron-vue

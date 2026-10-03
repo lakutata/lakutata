@@ -173,8 +173,8 @@ function Consumer() {
 }
 
 /**
- * The deb of an Electron template packaged for linux/arm64 in a container (npm run cross), from the registry: installed
- * in a clean Debian, started in a virtual display, its page read with the DevTools protocol
+ * The deb of an Electron template packaged for linux/arm64 in a container (Dockerfile.installer, npm run installer:linux),
+ * from the registry: installed in a clean Debian, started in a virtual display, its page read with the DevTools protocol
  * @param template
  * @param project
  */
@@ -182,21 +182,22 @@ function Cross(template, project) {
     Step(`The cross build of ${template}: linux/arm64`)
     writeFileSync(path.join(project, '.npmrc'), `registry=${REGISTRY}\n`)
     let started = Date.now()
-    const packaged = spawnSync('node', ['scripts/cross.mjs', 'linux/arm64'], {cwd: project, stdio: 'inherit'}).status === 0
-    const debs = packaged && existsSync(path.join(project, 'release', 'cross', 'arm64')) ? readdirSync(path.join(project, 'release', 'cross', 'arm64')).filter(file => file.endsWith('.deb')) : []
+    const output = path.join(project, 'dist', 'installer', 'arm64')
+    const packaged = spawnSync('docker', ['buildx', 'build', '--platform', 'linux/arm64', '--add-host=host.docker.internal:host-gateway', '--file', 'Dockerfile.installer', '--output', `type=local,dest=${output}`, '.'], {cwd: project, stdio: 'inherit'}).status === 0
+    const debs = packaged && existsSync(output) ? readdirSync(output).filter(file => file.endsWith('.deb')) : []
     results.push(`${debs.length === 1 ? 'PASS' : 'FAIL'} ${template}: cross build of the deb (${Math.round((Date.now() - started) / 1000)}s)`)
     if (debs.length !== 1) return
     started = Date.now()
-    const output = spawnSync('docker', [
+    const run = spawnSync('docker', [
         'run', '--rm', '--platform', 'linux/arm64',
-        '-v', `${path.join(project, 'release', 'cross', 'arm64')}:/deb:ro`,
+        '-v', `${output}:/deb:ro`,
         '-v', `${HERE}:/verify:ro`,
         'node:22-trixie', 'sh', '/verify/electron-deb.sh', `/deb/${debs[0]}`
     ], {encoding: 'utf8'})
     //The output of the application (the pulls of the image are on stderr)
-    console.log(output.stdout.trim().split('\n').slice(-15).join('\n'))
-    if (output.status !== 0) console.log(output.stderr.trim().split('\n').slice(-15).join('\n'))
-    const shown = /PAGE: .*Hello, verify-/.test(output.stdout) && /isolated: true/.test(output.stdout)
+    console.log(run.stdout.trim().split('\n').slice(-15).join('\n'))
+    if (run.status !== 0) console.log(run.stderr.trim().split('\n').slice(-15).join('\n'))
+    const shown = /PAGE: .*Hello, verify-/.test(run.stdout) && /isolated: true/.test(run.stdout)
     results.push(`${shown ? 'PASS' : 'FAIL'} ${template}: the deb installed and started, its page shown (${Math.round((Date.now() - started) / 1000)}s)`)
 }
 
@@ -207,7 +208,7 @@ function Cross(template, project) {
 async function Images() {
     for (const template of options.templates.split(/\s+/)) {
         const project = path.join(work, 'projects', `verify-${template}`)
-        if (template.startsWith('electron-') && existsSync(path.join(project, 'scripts', 'cross.mjs'))) {
+        if (template.startsWith('electron-') && existsSync(path.join(project, 'Dockerfile.installer'))) {
             Cross(template, project)
             continue
         }

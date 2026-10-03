@@ -14,8 +14,8 @@
     "test": "lakutata run test",
     "dev": "lakutata run dev --parallel",
     "start": "npm start -w app",
-    "package": "npm run build && node scripts/assemble.mjs && electron-builder",
-    "cross": "node scripts/cross.mjs",
+    "installer": "npm run build && npm run installer -w app",
+    "installer:linux": "docker buildx build --file Dockerfile.installer --output type=local,dest=dist/installer .",
     "version:patch": "lakutata version patch --yes"
   },
   "devDependencies": {

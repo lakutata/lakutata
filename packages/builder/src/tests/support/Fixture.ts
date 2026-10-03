@@ -71,3 +71,39 @@ process.on('SIGTERM', () => process.exit(0))
         }
     }))
 }
+
+/**
+ * The Electron application of the tests of the installers (Hello Desk): a main process quitting once ready, a resource,
+ * and the scripts of the installers writing what they are run with to a log (/tmp/hello-desk-hooks.log, the
+ * hello-desk-hooks.log of ProgramData): what the installer does, whether the application is installed, its directory
+ * @param fixture its directory
+ * @param versions the versions of electron and of electron-builder
+ * @param dependencies its other dependencies (the builder)
+ */
+export function WriteElectronFixture(fixture: string, versions: { electron: string, builder: string }, dependencies: Record<string, string> = {}): void {
+    const file = (name: string, content: string): void => {
+        mkdirSync(path.dirname(path.join(fixture, name)), {recursive: true})
+        writeFileSync(path.join(fixture, name), content)
+    }
+    file('build/index.js', `const {app} = require('electron')\napp.whenReady().then(() => app.quit())\n`)
+    file('assets/hello.txt', 'Hello')
+    for (const hook of ['preinstall', 'postinstall', 'preremove', 'postremove']) {
+        file(`scripts/${hook}.sh`, `#!/bin/sh\nif [ -n "$(find "$LAKUTATA_INSTALL_DIR" -type f 2>/dev/null | head -n 1)" ]; then files=files; else files=nofiles; fi\necho "${hook} $1 $files $LAKUTATA_INSTALL_DIR \${LAKUTATA_INSTALL_DIR:+kept}" >> /tmp/hello-desk-hooks.log\n`)
+        file(`scripts/${hook}.ps1`, `$files = if (Get-ChildItem $env:LAKUTATA_INSTALL_DIR -ErrorAction SilentlyContinue) { 'files' } else { 'nofiles' }\r\nAdd-Content -Path (Join-Path $env:ProgramData 'hello-desk-hooks.log') -Value "${hook} $($args[0]) $files $env:LAKUTATA_INSTALL_DIR"\r\n`)
+    }
+    const scripts = (extension: string): Record<string, string> => Object.fromEntries(['preinstall', 'postinstall', 'preremove', 'postremove'].map((hook: string): [string, string] => [hook, `scripts/${hook}.${extension}`]))
+    file('package.json', JSON.stringify({
+        name: 'hello-desk', productName: 'Hello Desk', version: '1.0.0', description: 'Says hello', author: 'Acme <ops@acme.test>', license: 'MIT',
+        homepage: 'https://acme.test', main: 'build/index.js',
+        devDependencies: {...dependencies, 'electron': versions.electron, 'electron-builder': versions.builder},
+        lakutata: {
+            resources: [{from: 'assets', to: 'texts'}],
+            installer: {
+                runtime: 'electron', appId: 'test.acme.desk',
+                linux: {targets: ['deb', 'rpm'], scripts: scripts('sh')},
+                mac: {targets: ['pkg'], scripts: scripts('sh')},
+                win: {targets: ['nsis'], scripts: scripts('ps1')}
+            }
+        }
+    }))
+}

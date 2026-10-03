@@ -26,6 +26,14 @@
     "esbuild": "^0.28.2",
     "postject": "^1.0.0-alpha.6"
   },
+  "peerDependencies": {
+    "electron-builder": ">=26.0.0"
+  },
+  "peerDependenciesMeta": {
+    "electron-builder": {
+      "optional": true
+    }
+  },
   "engines": {
     "node": ">=22.12"
   },

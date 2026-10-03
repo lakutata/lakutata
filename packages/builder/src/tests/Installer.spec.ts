@@ -1,11 +1,12 @@
 import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
 import {execFileSync, spawnSync} from 'node:child_process'
-import {mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync} from 'node:fs'
+import {cpSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync} from 'node:fs'
+import {createRequire} from 'node:module'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {WriteServiceFixture} from './support/Fixture.js'
+import {WriteElectronFixture, WriteServiceFixture} from './support/Fixture.js'
 
 /**
  * The installers are made and installed in containers (Docker): the packages of the systems of the glibc on Debian,
@@ -125,6 +126,22 @@ done
         const alpine: string = build.replace('npm install', `node -e "const p = require('/w/package.json'); p.lakutata.installer.runtime = 'bun'; p.devDependencies = {bun: '1.4.2'}; require('fs').writeFileSync('/w/package.json', JSON.stringify(p))"
 npm install`)
         Must('docker', ['run', ...PLATFORM_ARGS, '--rm', '-i', '-v', `${fixture}:/fixture:ro`, '-v', `${out}:/out`, 'node:24-alpine', 'sh', '-s', '--', 'apk'], `apk add --no-cache python3 make g++ >/dev/null\n${alpine}`)
+        //The packages of the Electron application (electron-builder), its packages of fpm made by the fpm of the system
+        const desk: string = path.join(work, 'desk')
+        const require = createRequire(import.meta.url)
+        WriteElectronFixture(desk, {electron: require('electron/package.json').version, builder: require('electron-builder/package.json').version}, {'@lakutata/builder': `file:./${tarball}`})
+        cpSync(path.join(fixture, tarball), path.join(desk, tarball))
+        Must('docker', ['run', ...PLATFORM_ARGS, '--rm', '-i', '-v', `${desk}:/desk:ro`, '-v', `${out}:/out`, 'node:24-bookworm', 'sh', '-s'], `set -e
+apt-get update -qq && apt-get install -y -qq --no-install-recommends ruby ruby-dev rpm build-essential >/dev/null 2>&1
+gem install fpm --no-document >/dev/null 2>&1
+export USE_SYSTEM_FPM=true
+cp -R /desk /w && cd /w
+npm install --no-audit --no-fund >/dev/null 2>&1
+for version in 1.0.0 1.0.1; do
+    node -e "const p = require('/w/package.json'); p.version = process.argv[1]; require('fs').writeFileSync('/w/package.json', JSON.stringify(p))" $version
+    node -e "import('@lakutata/builder').then(b => b.BuildInstaller({project: '/w', outdir: '/out/desk/' + require('/w/package.json').version}))" >/dev/null
+done
+`)
         refused = Must('docker', ['run', ...PLATFORM_ARGS, '--rm', '-i', '-v', `${fixture}:/fixture:ro`, 'node:24-alpine', 'sh', '-s'], `apk add --no-cache python3 make g++ >/dev/null
 cp -R /fixture /w && cd /w && npm install --no-audit --no-fund >/dev/null 2>&1
 node -e "import('@lakutata/builder').then(b => b.BuildInstaller({project: '/w', targets: ['apk']})).then(() => console.log('made'), error => console.log(error.message))"
@@ -132,7 +149,7 @@ node -e "import('@lakutata/builder').then(b => b.BuildInstaller({project: '/w', 
     })
 
     after((): void => {
-        spawnSync('docker', ['rm', '-f', 'lakutata-installer-debian', 'lakutata-installer-fedora', 'lakutata-installer-alpine', 'lakutata-installer-archlinux'])
+        spawnSync('docker', ['rm', '-f', 'lakutata-installer-debian', 'lakutata-installer-fedora', 'lakutata-installer-alpine', 'lakutata-installer-archlinux', 'lakutata-installer-desk-debian', 'lakutata-installer-desk-fedora'])
         //Kept to look at them (LAKUTATA_KEEP=1)
         if (process.env.LAKUTATA_KEEP !== '1') rmSync(work, {recursive: true, force: true})
         else console.log(`The packages: ${out}`)
@@ -201,6 +218,32 @@ node -e "import('@lakutata/builder').then(b => b.BuildInstaller({project: '/w', 
             assert.deepStrictEqual(Hooks(container), [...own(INSTALLED), ...own(UPGRADED), ...REMOVED])
             assert.notStrictEqual(spawnSync('docker', ['exec', container, 'systemctl', 'is-active', 'hello-service'], {encoding: 'utf8'}).stdout.trim(), 'active')
             assert.strictEqual(Exec(container, 'ls /opt/hello-service /usr/bin/hello /usr/lib/systemd/system/hello-service.service 2>/dev/null | wc -l').trim(), '0')
+            spawnSync('docker', ['rm', '-f', container])
+        })
+    }
+
+    for (const system of ['debian', 'fedora'] as const) {
+        it(`installs on ${system} the Electron application (electron-builder), upgrades and removes it, running its scripts`, (): void => {
+            const container: string = `lakutata-installer-desk-${system}`
+            spawnSync('docker', ['rm', '-f', container])
+            Must('docker', ['run', ...PLATFORM_ARGS, '-d', '--name', container, '-v', `${out}:/out:ro`, system === 'debian' ? 'debian:12' : 'fedora:41', 'sleep', 'infinity'])
+            const install = (version: string): string => Exec(container, system === 'debian'
+                ? `apt-get update -qq >/dev/null && apt-get install -y -qq /out/desk/${version}/hello-desk_${version}_*.deb >/dev/null 2>&1`
+                : `dnf install -y -q /out/desk/${version}/hello-desk-${version}.*.rpm >/dev/null 2>&1`)
+            const hooks = (): string[] => Exec(container, 'cat /tmp/hello-desk-hooks.log 2>/dev/null || true').split('\n').filter(Boolean)
+            //Its ${...} are the ones of the script, not the ones of the templates of electron-builder
+            const line = (hook: string, action: string, files: boolean): string => `${hook} ${action} ${files ? 'files' : 'nofiles'} /opt/Hello Desk kept`
+            install('1.0.0')
+            assert.deepStrictEqual(hooks(), [line('preinstall', 'install', false), line('postinstall', 'install', true)])
+            //What the script of electron-builder does: the program in the PATH, the sandbox of Chromium
+            assert.match(Exec(container, 'readlink -f /usr/bin/hello-desk'), /^\/opt\/Hello Desk\/hello-desk\n$/)
+            assert.match(Exec(container, 'stat -c %a "/opt/Hello Desk/chrome-sandbox"'), /^(4755|755)\n$/)
+            assert.strictEqual(Exec(container, 'cat "/opt/Hello Desk/resources/main.resources/texts/hello.txt"'), 'Hello')
+            install('1.0.1')
+            assert.deepStrictEqual(hooks(), [line('preinstall', 'install', false), line('postinstall', 'install', true), line('preinstall', 'upgrade', true), line('postinstall', 'upgrade', true)])
+            Exec(container, system === 'debian' ? 'apt-get remove -y -qq hello-desk >/dev/null 2>&1' : 'dnf remove -y -q hello-desk >/dev/null 2>&1')
+            assert.deepStrictEqual(hooks(), [line('preinstall', 'install', false), line('postinstall', 'install', true), line('preinstall', 'upgrade', true), line('postinstall', 'upgrade', true), line('preremove', 'remove', true), line('postremove', 'remove', false)])
+            assert.strictEqual(Exec(container, 'ls /usr/bin/hello-desk 2>/dev/null | wc -l').trim(), '0')
             spawnSync('docker', ['rm', '-f', container])
         })
     }

@@ -281,13 +281,14 @@ They are configured by the `lakutata.installer` of the `package.json`:
 | `appId` | the identifier of the application (reverse DNS, `com.acme.app`), its name by default: the identifier of the package of macOS and the label of its service, the key of its uninstaller and of its upgrades on Windows |
 | `productName` | the name shown to the users (the installers, the programs of Windows), its name by default |
 | `description`, `maintainer`, `homepage`, `license`, `vendor` | the ones of the `package.json` by default (the maintainer is its author) |
-| `runtime` | the runtime of the executable: `node` (by default) or `bun` |
+| `runtime` | the runtime of the executable: `node` (by default) or `bun`; `electron` for an Electron application (below) |
 | `addToPath` | the program in the PATH (`/usr/bin/<program>`, the PATH of the machine on Windows), by default |
 | `service` | `true` or the options of the service (below), none by default |
 | `linux.targets` | `deb`, `rpm`, `archlinux`, `tar.gz` on the systems of the glibc (`deb`, `rpm`, `tar.gz` by default), `apk`, `tar.gz` on Alpine (musl) |
 | `linux.depends`, `linux.recommends`, `linux.section`, `linux.priority` | the packages of the system it needs, recommends, its section and priority (deb) |
 | `mac.targets` | `pkg`, `tar.gz` (both by default) |
 | `win.targets` | `nsis`, `msi`, `zip` (all by default) |
+| `electron` | the configuration of electron-builder of an Electron application, merged over the one made from these options |
 
 The packages of Linux are made by nFPM (downloaded once into the cache of lakutata, `LAKUTATA_NFPM` gives another one),
 in `dist/installer` (`--outdir`): the application is installed in `/opt/<name>`, the C++ library of the runtime is a
@@ -368,6 +369,25 @@ rpm the number of the versions, apk and pacman their upgrade scripts): the insta
   (`.nsh`) included by the installer of NSIS, whose macros are inserted: `customHeader`, `customInit`, `customInstall` (at
   the end of the installation), `customUnInit`, `customUnInstall` (at the start of the removal).
 - The archives (`tar.gz`, `zip`) run none.
+
+The installers of an Electron application (`"runtime": "electron"`) are made by electron-builder (a dependency of the
+project): its main process bundled with its dependencies (Electron left out) in the archive of the application, its
+native addons and its resources (`lakutata.resources`: its renderer, its preload script, read from `ResourcesPath()`)
+next to it, in the resources of Electron. Its installers are the targets of electron-builder (`deb` on Linux, `dmg` on
+macOS, `nsis` on Windows by default: `linux.targets`, `mac.targets`, `win.targets`); `name`, `appId`, `productName`, its
+description, maintainer, homepage and license are given to electron-builder, `electron` gives the rest (its icons, its
+file associations, its signature, its updates…). It is not a service. Its scripts are run by:
+
+| Installer | Scripts |
+|---|---|
+| `deb`, `rpm` (the packages of fpm) | all (embedded after the scripts of electron-builder) |
+| `pkg` (macOS) | `preinstall`, `postinstall` (an application of macOS is removed by its user) |
+| `nsis` (Windows) | `preinstall`, `postinstall`, `preremove` (its uninstaller ends with the removal of the files); the file of NSIS of `win.nsis.include` defines the other macros |
+| the others (`AppImage`, `dmg`, `portable`, `msi`…) | none |
+
+The packages of fpm made on Linux arm64 need the fpm of the system (`gem install fpm`, `USE_SYSTEM_FPM=true`): the one
+electron-builder downloads is the one of x64. On Windows arm64, the installers of NSIS filter the executables by the BCJ
+filter (`ELECTRON_BUILDER_7Z_FILTER`): the ARM64 one, which 7-Zip chooses, is not extracted by them.
 
 | Command option | |
 |---|---|

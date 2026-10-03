@@ -2,10 +2,11 @@ import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
 import {execFileSync, spawn, spawnSync} from 'node:child_process'
 import {existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync} from 'node:fs'
+import {createRequire} from 'node:module'
 import {homedir, tmpdir} from 'node:os'
 import path from 'node:path'
 import {BuildInstaller} from '../index.js'
-import {WriteServiceFixture} from './support/Fixture.js'
+import {WriteElectronFixture, WriteServiceFixture} from './support/Fixture.js'
 
 /**
  * The installers of macOS are installed in a virtual machine of macOS (tart): their installation runs as root, their
@@ -81,6 +82,18 @@ describe('The installers of macOS', {skip: (process.platform !== 'darwin' || pro
             mkdirSync(path.join(out, version), {recursive: true})
             await BuildInstaller({project: fixture, targets: ['pkg'], outdir: path.join(out, version)})
         }
+        //The packages of the two versions of the Electron application (electron-builder), the Electron of Apple silicon
+        if (!TRANSLATED) {
+            const desk: string = path.join(work, 'desk')
+            const require = createRequire(import.meta.url)
+            WriteElectronFixture(desk, {electron: require('electron/package.json').version, builder: require('electron-builder/package.json').version})
+            execFileSync('npm', ['install', '--no-audit', '--no-fund'], {cwd: desk, stdio: 'ignore'})
+            for (const version of ['1.0.0', '1.0.1']) {
+                const manifest = JSON.parse(readFileSync(path.join(desk, 'package.json'), 'utf8'))
+                writeFileSync(path.join(desk, 'package.json'), JSON.stringify({...manifest, version: version}))
+                await BuildInstaller({project: desk, outdir: path.join(out, 'desk', version)})
+            }
+        }
         //A virtual machine of its own, the packages shared with it
         spawnSync(...Tart(['delete', VM]))
         execFileSync(...Tart(['clone', IMAGE, VM]))
@@ -126,5 +139,19 @@ describe('The installers of macOS', {skip: (process.platform !== 'darwin' || pro
         assert.notStrictEqual(spawnSync(...Tart(['exec', VM, 'curl', '-sf', 'http://127.0.0.1:18080/'])).status, 0)
         assert.strictEqual(Exec('ls /usr/local/lib/hello-service /usr/local/bin/hello /Library/LaunchDaemons/test.acme.hello.plist 2>/dev/null | wc -l').trim(), '0')
         assert.notStrictEqual(spawnSync(...Tart(['exec', VM, 'pkgutil', '--pkg-info', 'test.acme.hello'])).status, 0)
+    })
+
+    it('installs the Electron application by its pkg package (electron-builder) and upgrades it, running its scripts', {skip: TRANSLATED && 'the Electron of Apple silicon'}, (): void => {
+        const shared: string = '/Volumes/My Shared Files/out/desk'
+        const install = (version: string): string => Exec(`sudo installer -pkg "${shared}/${version}/$(ls "${shared}/${version}" | grep '\\.pkg$')" -target /`)
+        const hooks = (): string[] => Exec('cat /tmp/hello-desk-hooks.log 2>/dev/null || true').split('\n').filter(Boolean)
+        const line = (hook: string, action: string, files: boolean): string => `${hook} ${action} ${files ? 'files' : 'nofiles'} /Applications/Hello Desk.app kept`
+        install('1.0.0')
+        //Its resources next to its archive; the ${...} of the scripts are theirs
+        assert.strictEqual(Exec('cat "/Applications/Hello Desk.app/Contents/Resources/main.resources/texts/hello.txt"'), 'Hello')
+        assert.deepStrictEqual(hooks(), [line('preinstall', 'install', false), line('postinstall', 'install', true)])
+        install('1.0.1')
+        assert.deepStrictEqual(hooks(), [line('preinstall', 'install', false), line('postinstall', 'install', true), line('preinstall', 'upgrade', true), line('postinstall', 'upgrade', true)])
+        assert.match(Exec('defaults read "/Applications/Hello Desk.app/Contents/Info" CFBundleShortVersionString'), /^1\.0\.1/)
     })
 })

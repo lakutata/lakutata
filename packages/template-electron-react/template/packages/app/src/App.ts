@@ -1,14 +1,14 @@
-import {Application, type ILogger} from 'lakutata'
+import {Application, ResourcesPath, type ILogger} from 'lakutata'
 import electron from 'electron'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {Config} from './config/Config.js'
 
 /**
- * The directory of the main process (build/ in development, the packaged application): the preload script and the
- * built renderer are next to it
+ * The directory of the preload script and of the built renderer: the resources of the packaged application
+ * (lakutata.resources), the directory of the main process in development (build/, the renderer of the ui package)
  */
-const directory: string = path.dirname(fileURLToPath(import.meta.url))
+const directory: string = ResourcesPath() ?? path.dirname(fileURLToPath(import.meta.url))
 
 /**
  * The URL of the renderer in development (--renderer=<url>, the dev server of Vite)
