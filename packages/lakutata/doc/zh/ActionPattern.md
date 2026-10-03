@@ -97,7 +97,8 @@ Lakutata 提供了三个 Action 装饰器，用于将控制器方法注册为特
 #### 2.2.4 服务动作的客户端与推送事件
 带客户端的服务适配器会把请求所属客户端的 ID 放进请求的 context，即 `ServiceContext.clientId`：
 `ElectronIPCServiceEntrypoint` 中每个窗口页面是一个客户端；`SocketIOServiceEntrypoint` 中每个 socket 是一个客户端，
-连接时可以通过 `auth.id` 或 `id` 请求头指定自己的 ID。入口组件可以按客户端 ID 推送事件（ID 可以保存下来，之后随时推送），
+连接时可以通过 `auth.id` 或 `id` 请求头指定自己的 ID；`HTTPServiceEntrypoint` 中，客户端的请求（`POST /`）和事件流
+（`GET /events`）通过 `id` 请求头（事件流也可以用 `id` 查询参数）指定客户端 ID。入口组件可以按客户端 ID 推送事件（ID 可以保存下来，之后随时推送），
 也可以广播给所有客户端：
 
 ```typescript
@@ -115,7 +116,7 @@ export class TaskController extends Controller {
 ```
 
 Electron 的渲染进程通过 `window.ipc.on(事件, 监听器)` 接收（见 Electron 模板），socket 通过 `socket.on(事件, 监听器)`
-接收。窗口页面在重新加载或窗口关闭之前，一直是同一个客户端。
+接收，HTTP 客户端通过 `GET /events` 的 SSE 事件流接收（`EventSource`、curl、Postman）。窗口页面在重新加载或窗口关闭之前，一直是同一个客户端。
 
 ### 2.3 模式管理器 (PatternManager)
 `PatternManager` 是 Lakutata 中处理服务操作模式匹配的核心组件，基于 `Patrun` 库实现。

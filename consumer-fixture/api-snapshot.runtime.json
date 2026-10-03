@@ -401,6 +401,8 @@
     "EventsResult",
     "FileResult",
     "HTTPContext",
+    "HTTPRequestOfContext",
+    "HTTPServiceEntrypoint",
     "InvalidChannelException",
     "InvalidEntrypointAdapterException",
     "InvalidMiddlewareException",
