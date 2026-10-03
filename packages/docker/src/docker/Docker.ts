@@ -13,7 +13,7 @@ import {DockerImageBuildException} from './exceptions/DockerImageBuildException.
 import {IDockerKeyObject} from './interfaces/IDockerKeyObject.js'
 import {ImageImportOptions} from './options/image/ImageImportOptions.js'
 import {DockerImageImportException} from './exceptions/DockerImageImportException.js'
-import {Extract, extract as tarExtract, Headers} from 'tar-stream'
+import {Extract, extract as tarExtract, type Header} from 'tar-stream'
 import {createReadStream} from 'node:fs'
 import {PassThrough} from 'node:stream'
 import {NetworkCreateOptions} from './options/network/NetworkCreateOptions.js'
@@ -309,10 +309,11 @@ export class Docker extends Component {
         const tarExtractor: Extract = tarExtract()
         let manifestImageId: string | undefined
         tarExtractor
-            .on('entry', (header: Headers, stream: PassThrough, next: Function) => {
+            //The types of tar-stream are its own (3.2): the stream of the entry is the one of streamx
+            .on('entry', (header: Header, stream, next): void => {
                 if (header.name === 'manifest.json') {
                     const chunks: Buffer[] = []
-                    stream.on('data', (chunk: Buffer): unknown => chunks.push(chunk))
+                    stream.on('data', (chunk: unknown): unknown => chunks.push(chunk as Buffer))
                     stream.once('end', (): void => {
                         try {
                             const manifestObject: Record<string, any> = JSON.parse(Buffer.concat(chunks).toString())[0]

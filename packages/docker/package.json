@@ -30,7 +30,7 @@
     "test:docker": "npm run compile && DOCKER_TEST=1 node --test --test-concurrency=1 \"dist/esm/tests/engine/*.spec.js\""
   },
   "dependencies": {
-    "tar-stream": "3.1.7"
+    "tar-stream": "3.2.2"
   },
   "peerDependencies": {
     "@lakutata/core": "2.0.126",

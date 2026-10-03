@@ -182,7 +182,7 @@ describe('The client of the Docker Engine API', (): void => {
                 entries.push(`${header.type} ${header.name}${header.linkname ? ` -> ${header.linkname}` : ''}`)
                 content.on('end', next).resume()
             })
-            await new Promise((resolve: (value: unknown) => void, reject: (error: Error) => void): void => {
+            await new Promise<void>((resolve: () => void, reject: (error: Error) => void): void => {
                 extractor.once('finish', resolve).once('error', reject)
                 extractor.end(gunzipSync(archive))
             })
