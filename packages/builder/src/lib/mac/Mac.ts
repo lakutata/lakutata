@@ -138,8 +138,11 @@ function PostInstall(plan: InstallerPlan, service: Service): string {
         //Read by the user of the service
         `chown root:${root ? 'wheel' : user} ${paths.environment}`,
         `chmod 640 ${paths.environment}`,
-        //Loaded again: started (RunAtLoad), or stopped by the upgrade
+        //Loaded again: started (RunAtLoad), or stopped by the upgrade; bootout returns before the job of the version
+        //replaced is unloaded (the application ending gracefully, ExitTimeOut): bootstrap fails until it is
         `launchctl bootout system/${plan.appId} 2>/dev/null || true`,
+        'waited=0',
+        `while launchctl print system/${plan.appId} >/dev/null 2>&1 && [ "$waited" -lt 70 ]; do sleep 0.5; waited=$((waited + 1)); done`,
         `launchctl bootstrap system ${paths.daemon}`,
         ''
     ].join('\n')
