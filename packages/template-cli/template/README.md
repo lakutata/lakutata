@@ -39,10 +39,12 @@ it.
 ## The installers
 
 `npm run installer` makes the installers of the platform it runs on (`lakutata installer`, configured by the
-`lakutata.installer` of `package.json`) in `dist/installer`: on Linux, the deb, rpm and tar.gz packages installing the
-tool in `/opt/{$APP_ID}`, its command `{$APP_ID}` in the PATH. `npm run installer:linux` makes them in Docker
-(`Dockerfile.installer`) on any platform; `--platform linux/amd64` makes the ones of another architecture. On macOS, the pkg package installs it in `/usr/local/lib/{$APP_ID}`, its command in `/usr/local/bin`
-(`sudo /usr/local/lib/{$APP_ID}/uninstall` removes it).
+`lakutata.installer` of `package.json`) in `dist/installer`, the command `{$APP_ID}` in the PATH:
+
+- Linux: the deb, rpm and tar.gz packages installing the tool in `/opt/{$APP_ID}`; `npm run installer:linux` makes them in
+  Docker (`Dockerfile.installer`) on any platform, `--platform linux/amd64` the ones of another architecture.
+- macOS: the pkg package installing it in `/usr/local/lib/{$APP_ID}` (`sudo /usr/local/lib/{$APP_ID}/uninstall` removes it).
+- Windows: the installer of NSIS and the package of Windows Installer (msi) installing it in `C:\Program Files\{$APP_ID}`.
 
 <!-- @end -->
 ## The other platforms

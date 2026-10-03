@@ -24,12 +24,18 @@ The results are `{errno, errMsg, data}`, the errors too (with the status 200). T
 ## The installers
 
 `npm run installer` makes the installers of the platform it runs on (`lakutata installer`, configured by the
-`lakutata.installer` of `packages/app/package.json`) in `packages/app/dist/installer`: on Linux, the deb, rpm and tar.gz
-packages installing the application in `/opt/{$APP_ID}`, its command `{$APP_ID}` in the PATH, and its service (systemd)
-started at the start of the system. Its environment is `/etc/{$APP_ID}/{$APP_ID}.env` (`PORT`, `MODE`…, kept by the
-upgrades: `systemctl restart {$APP_ID}` after changing it), its data `/var/lib/{$APP_ID}`. `npm run installer:linux`
-makes them in Docker (`Dockerfile.installer`, in `dist/installer`) on any platform. On macOS, the pkg package installs it in `/usr/local/lib/{$APP_ID}`, its service run by
-launchd (its environment `/usr/local/etc/{$APP_ID}/{$APP_ID}.env`; `sudo /usr/local/lib/{$APP_ID}/uninstall` removes it).
+`lakutata.installer` of `packages/app/package.json`) in `packages/app/dist/installer`: the application, its command
+`{$APP_ID}` in the PATH, and its service started at the start of the system, with its environment (`PORT`, `MODE`…, kept by
+the upgrades) and its data:
+
+- Linux: the deb, rpm and tar.gz packages; the application in `/opt/{$APP_ID}`, its service run by systemd, its environment
+  `/etc/{$APP_ID}/{$APP_ID}.env` (`systemctl restart {$APP_ID}` after changing it), its data `/var/lib/{$APP_ID}`.
+  `npm run installer:linux` makes them in Docker (`Dockerfile.installer`, in `dist/installer`) on any platform.
+- macOS: the pkg package; the application in `/usr/local/lib/{$APP_ID}`, its service run by launchd, its environment
+  `/usr/local/etc/{$APP_ID}/{$APP_ID}.env` (`sudo /usr/local/lib/{$APP_ID}/uninstall` removes it).
+- Windows: the installer of NSIS and the package of Windows Installer (msi); the application in
+  `C:\Program Files\{$APP_ID}`, its service run by WinSW, its environment `C:\ProgramData\{$APP_ID}\{$APP_ID}.env`
+  (`Restart-Service {$APP_ID}` after changing it).
 
 <!-- @end -->
 ## Database migrations

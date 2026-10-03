@@ -2,7 +2,7 @@ import {DTO} from 'lakutata'
 import {Expect} from 'lakutata/decorator/dto'
 
 export class InstallerDTO extends DTO {
-    @Expect(DTO.Array(DTO.String()).optional().description('The installers made: deb, rpm, apk, archlinux, tar.gz on Linux (the lakutata.installer of the package.json by default)'))
+    @Expect(DTO.Array(DTO.String()).optional().description('The installers made: deb, rpm, apk, archlinux, tar.gz on Linux, pkg, tar.gz on macOS, nsis, msi, zip on Windows (the lakutata.installer of the package.json by default)'))
     public target?: string[]
 
     @Expect(DTO.String().optional().description('The directory of the installers (dist/installer by default)'))

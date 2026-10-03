@@ -278,14 +278,16 @@ They are configured by the `lakutata.installer` of the `package.json`:
 | Option | |
 |---|---|
 | `name` | the name of the package (lower case), the one of the program by default |
-| `appId` | the identifier of the application (reverse DNS, `com.acme.app`), its name by default: the identifier of the package of macOS and the label of its service |
+| `appId` | the identifier of the application (reverse DNS, `com.acme.app`), its name by default: the identifier of the package of macOS and the label of its service, the key of its uninstaller and of its upgrades on Windows |
+| `productName` | the name shown to the users (the installers, the programs of Windows), its name by default |
 | `description`, `maintainer`, `homepage`, `license`, `vendor` | the ones of the `package.json` by default (the maintainer is its author) |
 | `runtime` | the runtime of the executable: `node` (by default) or `bun` |
-| `addToPath` | the program in the PATH (`/usr/bin/<program>`), by default |
+| `addToPath` | the program in the PATH (`/usr/bin/<program>`, the PATH of the machine on Windows), by default |
 | `service` | `true` or the options of the service (below), none by default |
 | `linux.targets` | `deb`, `rpm`, `archlinux`, `tar.gz` on the systems of the glibc (`deb`, `rpm`, `tar.gz` by default), `apk`, `tar.gz` on Alpine (musl) |
 | `linux.depends`, `linux.recommends`, `linux.section`, `linux.priority` | the packages of the system it needs, recommends, its section and priority (deb) |
 | `mac.targets` | `pkg`, `tar.gz` (both by default) |
+| `win.targets` | `nsis`, `msi`, `zip` (all by default) |
 
 The packages of Linux are made by nFPM (downloaded once into the cache of lakutata, `LAKUTATA_NFPM` gives another one),
 in `dist/installer` (`--outdir`): the application is installed in `/opt/<name>`, the C++ library of the runtime is a
@@ -298,21 +300,33 @@ The installers of macOS are made by its tools (`pkgbuild`, `productbuild`): the 
 `sudo /usr/local/lib/<name>/uninstall` removes it. They are signed ad hoc (the Developer ID signature and the
 notarization, which the distribution out of the machines of the organization needs, are not made yet).
 
+The installers of Windows are made on Windows: the installer of NSIS (`<name>-<version>-<arch>-setup.exe`) and the
+package of Windows Installer (`.msi`, made by WiX, for the deployments of the organizations) install the application in
+`C:\Program Files\<name>`, its data in `C:\ProgramData\<name>`; they are removed as the programs of Windows. Their tools
+are downloaded once into the cache of lakutata (NSIS 3, WiX 3, WinSW; `LAKUTATA_NSIS`, `LAKUTATA_WIX`, `LAKUTATA_WINSW`
+give other ones). The executables keep the signature of Node.js, which does not match anymore: sign them (signtool)
+before distributing them.
+
 The service runs the application at the start of the system: systemd (`/usr/lib/systemd/system/<service>.service`),
-OpenRC on Alpine (`/etc/init.d/<service>`), or launchd on macOS (`/Library/LaunchDaemons/<appId>.plist`). It is started by
-the installation, restarted by the upgrades, stopped and disabled before the removal.
+OpenRC on Alpine (`/etc/init.d/<service>`), launchd on macOS (`/Library/LaunchDaemons/<appId>.plist`), or WinSW on Windows
+(`<name>-service.exe` next to the application, a service of Windows: `Restart-Service <service>`). It is started by the
+installation, restarted by the upgrades, stopped and disabled before the removal.
 
 | Service option | |
 |---|---|
 | `name`, `description` | the ones of the package by default |
 | `args` | the arguments of the application |
-| `env` | its environment (`MODE=production` by default), written to `/etc/<name>/<name>.env` (`/usr/local/etc/<name>/<name>.env` on macOS), which the administrators change (kept by the upgrades) |
-| `user` | its user: a system user named after the package by default (`_<name>` on macOS, hidden), created by the installation, or `root` |
+| `env` | its environment (`MODE=production` by default), written to `/etc/<name>/<name>.env` (`/usr/local/etc/<name>/<name>.env` on macOS, `C:\ProgramData\<name>\<name>.env` on Windows), which the administrators change (kept by the upgrades) |
+| `user` | its user: a system user named after the package by default (`_<name>` on macOS, hidden), created by the installation, or `root`; on Windows its virtual account by default (`NT SERVICE\<service>`), `LocalService`, `NetworkService` or `LocalSystem` |
 | `restart` | `on-failure` (by default), `always` or `no` |
 | `autoStart` | enabled and started by the installation, by default |
 
-Its working directory is `/var/lib/<name>` (`/usr/local/var/lib/<name>` on macOS, its log `/usr/local/var/log/<name>.log`),
-owned by its user (its data). `SIGTERM` ends it gracefully.
+Its working directory is `/var/lib/<name>` (`/usr/local/var/lib/<name>` on macOS, its log `/usr/local/var/log/<name>.log`;
+`C:\ProgramData\<name>` on Windows, its logs in `logs`), owned by its user (its data). `SIGTERM` ends it gracefully (on
+Windows, the stop of the service: Ctrl+C, `SIGINT` for Node.js).
+
+The executables load the environment file given by the `LAKUTATA_ENV_FILE` environment variable before the application
+starts (the service of Windows, whose wrapper has none): its lines `NAME=value` or `NAME="value"`, its comments (`#`).
 
 | Command option | |
 |---|---|

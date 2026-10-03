@@ -8,3 +8,5 @@ export {NativeCollector, PackNativeTree, WriteNativeTree, type NativeFile, type 
 export {BuildInstaller, type InstallerConfig, type InstallerOptions, type InstallerResult, type ServiceOptions} from './lib/Installer.js'
 export {LINUX_TARGETS, type LinuxTarget} from './lib/linux/Linux.js'
 export {Libc} from './lib/Platform.js'
+export {WINDOWS_TARGETS, type WindowsTarget} from './lib/win/Windows.js'
+export {MAC_TARGETS, type MacTarget} from './lib/mac/Mac.js'

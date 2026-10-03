@@ -18,7 +18,7 @@ export function WriteServiceFixture(fixture: string, dependencies: Record<string
     file('addon/addon.c', `#include <node_api.h>
 static napi_value Arch(napi_env env, napi_callback_info info) {
     napi_value result;
-#if defined(__aarch64__)
+#if defined(__aarch64__) || defined(_M_ARM64)
     napi_create_string_utf8(env, "arm64", NAPI_AUTO_LENGTH, &result);
 #else
     napi_create_string_utf8(env, "x64", NAPI_AUTO_LENGTH, &result);

@@ -6,6 +6,7 @@ import {BuildExecutable, type ExecutableResult} from './Executable.js'
 import {Libc} from './Platform.js'
 import {BuildLinuxPackages, LINUX_TARGETS, type LinuxTarget} from './linux/Linux.js'
 import {BuildMacPackages, MAC_TARGETS, type MacTarget} from './mac/Mac.js'
+import {BuildWindowsPackages, WINDOWS_TARGETS, type WindowsTarget} from './win/Windows.js'
 
 /**
  * The service an installer registers (systemd, OpenRC): the application runs at the start of the system
@@ -26,7 +27,8 @@ export type ServiceOptions = {
      */
     env?: Record<string, string>
     /**
-     * The user running it: a system user named after the package by default (created by the installer), or root
+     * The user running it: a system user named after the package by default (created by the installer), or root; on
+     * Windows, its virtual account by default (NT SERVICE\<service>), LocalService, NetworkService or LocalSystem
      */
     user?: string
     /**
@@ -50,9 +52,13 @@ export type InstallerConfig = {
     name?: string
     /**
      * The identifier of the application (reverse DNS: com.acme.app), its name by default: the identifier of the package
-     * of macOS and the label of its service (launchd)
+     * of macOS and the label of its service (launchd), the key of its uninstaller and of its upgrades on Windows
      */
     appId?: string
+    /**
+     * The name of the application shown to the users (the installers, the programs of Windows), its name by default
+     */
+    productName?: string
     /**
      * The description, the maintainer, the home page and the license: the ones of the package.json by default
      */
@@ -92,6 +98,12 @@ export type InstallerConfig = {
          * The installers: pkg and tar.gz by default
          */
         targets?: MacTarget[]
+    }
+    win?: {
+        /**
+         * The installers: nsis, msi and zip by default
+         */
+        targets?: WindowsTarget[]
     }
 }
 
@@ -136,6 +148,7 @@ export type InstallerPlan = {
      */
     name: string
     appId: string
+    productName: string
     program: string
     version: string
     description: string
@@ -197,12 +210,20 @@ export async function BuildInstaller(options: InstallerOptions): Promise<Install
     const manifest: Record<string, any> = JSON.parse(await readFile(path.join(project, 'package.json'), 'utf8'))
     const config: InstallerConfig = Config(manifest)
     const mac: boolean = process.platform === 'darwin'
-    if (process.platform !== 'linux' && !mac) throw new Error(`The installers of ${process.platform} are not supported yet: the ones of Linux are made on Linux, the ones of macOS on macOS`)
+    const windows: boolean = process.platform === 'win32'
+    if (process.platform !== 'linux' && !mac && !windows) throw new Error(`The installers of ${process.platform} are not supported: the ones of Linux are made on Linux, the ones of macOS on macOS, the ones of Windows on Windows`)
     const libc: 'glibc' | 'musl' | undefined = Libc()
-    const targets: string[] = options.targets?.length ? options.targets : mac ? config.mac?.targets ?? ['pkg', 'tar.gz'] : config.linux?.targets ?? (libc === 'glibc' ? ['deb', 'rpm', 'tar.gz'] : ['apk', 'tar.gz'])
+    const targets: string[] = options.targets?.length ? options.targets
+        : mac ? config.mac?.targets ?? ['pkg', 'tar.gz']
+            : windows ? config.win?.targets ?? ['nsis', 'msi', 'zip']
+                : config.linux?.targets ?? (libc === 'glibc' ? ['deb', 'rpm', 'tar.gz'] : ['apk', 'tar.gz'])
     for (const target of targets) {
         if (mac) {
             if (!MAC_TARGETS.includes(target as MacTarget)) throw new Error(`The installer ${target} is not one of macOS (${MAC_TARGETS.join(', ')})`)
+            continue
+        }
+        if (windows) {
+            if (!WINDOWS_TARGETS.includes(target as WindowsTarget)) throw new Error(`The installer ${target} is not one of Windows (${WINDOWS_TARGETS.join(', ')})`)
             continue
         }
         if (!LINUX_TARGETS.includes(target as LinuxTarget)) throw new Error(`The installer ${target} is not one of Linux (${LINUX_TARGETS.join(', ')})`)
@@ -240,6 +261,7 @@ export async function BuildInstaller(options: InstallerOptions): Promise<Install
         const plan: InstallerPlan = {
             name: name,
             appId: appId,
+            productName: config.productName ?? (typeof manifest.productName === 'string' ? manifest.productName : name),
             program: program,
             version: version,
             description: config.description ?? manifest.description ?? name,
@@ -257,17 +279,19 @@ export async function BuildInstaller(options: InstallerOptions): Promise<Install
                 description: service.description ?? config.description ?? manifest.description ?? name,
                 args: service.args ?? [],
                 env: {MODE: 'production', ...service.env},
-                //The users of the services of macOS are hidden by their names (_www)
-                user: service.user ?? (mac ? `_${name}` : name),
+                //The users of the services of macOS are hidden by their names (_www), the ones of Windows are virtual
+                user: service.user ?? (mac ? `_${name}` : windows ? `NT SERVICE\\${service.name ?? name}` : name),
                 restart: service.restart ?? 'on-failure',
                 autoStart: service.autoStart ?? true
             },
             directory: executable.directory!,
-            prefix: mac ? `/usr/local/lib/${name}` : `/opt/${name}`
+            prefix: mac ? `/usr/local/lib/${name}` : windows ? `C:\\Program Files\\${name}` : `/opt/${name}`
         }
         const outdir: string = path.resolve(project, options.outdir ?? path.join('dist', 'installer'))
         await mkdir(outdir, {recursive: true})
-        const files = mac ? await BuildMacPackages(plan, targets as MacTarget[], path.join(work, 'mac'), outdir) : await BuildLinuxPackages(plan, targets as LinuxTarget[], path.join(work, 'linux'), outdir)
+        const files = mac ? await BuildMacPackages(plan, targets as MacTarget[], path.join(work, 'mac'), outdir)
+            : windows ? await BuildWindowsPackages(plan, targets as WindowsTarget[], path.join(work, 'win'), outdir)
+                : await BuildLinuxPackages(plan, targets as LinuxTarget[], path.join(work, 'linux'), outdir)
         return {name: name, version: version, files: files, executable: executable, warnings: warnings}
     } finally {
         await rm(work, {recursive: true, force: true})

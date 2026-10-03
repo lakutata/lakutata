@@ -93,7 +93,7 @@
       "installer": {
         "description": "为当前平台生成编译后应用的安装包：安装可执行文件、原生插件和资源，把程序加入 PATH，并注册系统服务",
         "options": {
-          "target": "要生成的安装包：Linux 上为 deb、rpm、apk、archlinux、tar.gz（默认取 package.json 的 lakutata.installer）",
+          "target": "要生成的安装包：Linux 上为 deb、rpm、apk、archlinux、tar.gz，macOS 上为 pkg、tar.gz，Windows 上为 nsis、msi、zip（默认取 package.json 的 lakutata.installer）",
           "outdir": "安装包所在的目录（默认 dist/installer）",
           "entry": "应用编译后的入口（默认是 package.json 的 main）",
           "minify": "压缩嵌入可执行文件的包",

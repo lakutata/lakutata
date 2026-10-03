@@ -213,7 +213,7 @@ describe('The templates of the repository', (): void => {
         assert.deepStrictEqual(manifest.lakutata, {installer: {linux: {targets: ['deb', 'rpm', 'tar.gz']}}})
         assert.ok(existsSync(path.join(tool, 'Dockerfile.installer')) && existsSync(path.join(tool, '.dockerignore')))
         const readme: string = readFileSync(path.join(tool, 'README.md'), 'utf8')
-        assert.match(readme, /## The installers\n[\s\S]*its command `shipper` in the PATH/)
+        assert.match(readme, /## The installers\n[\s\S]*the command `shipper` in the PATH/)
         assert.doesNotMatch(readme, /@if|@end/)
         //The workspaces: the app installed after the project, its service registered, its resources kept
         for (const [template, name] of [['service', 'Depot'], ['web-react', 'Kiosk'], ['web-vue', 'Booth']] as const) {

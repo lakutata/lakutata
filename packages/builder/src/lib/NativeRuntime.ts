@@ -161,12 +161,33 @@ export function LakutataNativeRequire(nodeRequire: NodeJS.Require, config: Nativ
 }
 
 /**
+ * Load the environment file of the application into its environment, before it starts: the file given by
+ * LAKUTATA_ENV_FILE (the services of Windows, whose wrapper has none), its lines NAME=value or NAME="value" (the
+ * quoted values with their \\ escapes, as the installers write them), its comments (#). Its source is written at the top
+ * of the bundle: it uses nothing but its argument and the modules of node
+ * @param nodeRequire
+ */
+export function LakutataEnvironmentFile(nodeRequire: NodeJS.Require): void {
+    const file: string | undefined = process.env.LAKUTATA_ENV_FILE
+    if (!file) return
+    const fs: typeof import('node:fs') = nodeRequire('node:fs')
+    if (!fs.existsSync(file)) return
+    for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
+        const matched: RegExpExecArray | null = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line)
+        if (!matched || line.trimStart().startsWith('#')) continue
+        const raw: string = matched[2]
+        process.env[matched[1]] = raw.startsWith('"') && raw.endsWith('"') && raw.length > 1 ? raw.slice(1, -1).replace(/\\(.)/g, '$1') : raw
+    }
+}
+
+/**
  * The source given to the top of every bundle: it is packed (IsPackaged of lakutata), its resources are in a directory
- * next to it, or in the resources of a packaged Electron application (outside of its archive)
+ * next to it, or in the resources of a packaged Electron application (outside of its archive); its environment file is
+ * loaded (LAKUTATA_ENV_FILE)
  * @param directory the directory of the resources, relative to the bundle
  */
 export function PackagedBanner(directory: string): string {
-    return `globalThis[Symbol.for(${JSON.stringify(PACKAGED)})]={resources:function(){var p=require('node:path'),l=p.join(__dirname,${JSON.stringify(directory)}),r=process.resourcesPath;return require('node:fs').existsSync(l)||!r?l:p.join(r,${JSON.stringify(directory)})}};\n`
+    return `globalThis[Symbol.for(${JSON.stringify(PACKAGED)})]={resources:function(){var p=require('node:path'),l=p.join(__dirname,${JSON.stringify(directory)}),r=process.resourcesPath;return require('node:fs').existsSync(l)||!r?l:p.join(r,${JSON.stringify(directory)})}};(${LakutataEnvironmentFile.toString()})(require);\n`
 }
 
 /**
