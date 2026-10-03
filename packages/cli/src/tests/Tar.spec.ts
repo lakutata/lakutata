@@ -25,7 +25,8 @@ describe('Tar', (): void => {
         const files: string[] = await ExtractTarGz(readFileSync(archive), target, Under(1))
         assert.deepStrictEqual(files.sort(), [long, 'package.json', 'run.sh'].sort())
         assert.strictEqual(readFileSync(path.join(target, long), 'utf8'), 'long')
-        assert.ok(statSync(path.join(target, 'run.sh')).mode & 0o100)
+        //The modes of POSIX (Windows has none)
+        if (process.platform !== 'win32') assert.ok(statSync(path.join(target, 'run.sh')).mode & 0o100)
         rmSync(work, {recursive: true, force: true})
     })
 

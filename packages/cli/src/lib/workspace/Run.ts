@@ -1,6 +1,6 @@
-import {spawn} from 'node:child_process'
 import os from 'node:os'
 import {LaunchEnvironment} from '../Environment.js'
+import {SpawnCommand} from '../Processes.js'
 import {Styled, Warn} from '../Output.js'
 import {MatchName, type Workspace, type WorkspacePackage} from './Workspace.js'
 
@@ -44,7 +44,7 @@ const COLORS = ['cyan', 'magenta', 'yellow', 'green', 'blue', 'red'] as const
  */
 function RunPackageScript(pkg: WorkspacePackage, script: string, args: string[], prefix: string): Promise<number> {
     return new Promise((resolve: (code: number) => void): void => {
-        const child = spawn('npm', ['run', script, ...(args.length ? ['--', ...args] : [])], {cwd: pkg.directory, shell: process.platform === 'win32', env: LaunchEnvironment})
+        const child = SpawnCommand('npm', ['run', script, ...(args.length ? ['--', ...args] : [])], {cwd: pkg.directory, env: LaunchEnvironment})
         const forward = (stream: NodeJS.ReadableStream, target: NodeJS.WritableStream): void => {
             let pending: string = ''
             stream.on('data', (chunk: Buffer): void => {
@@ -56,8 +56,9 @@ function RunPackageScript(pkg: WorkspacePackage, script: string, args: string[],
                 if (pending) target.write(`${prefix} ${pending}\n`)
             })
         }
-        forward(child.stdout, process.stdout)
-        forward(child.stderr, process.stderr)
+        //Piped (the default stdio)
+        forward(child.stdout!, process.stdout)
+        forward(child.stderr!, process.stderr)
         child.once('error', (error: Error): void => {
             process.stderr.write(`${prefix} ${error.message}\n`)
             resolve(1)

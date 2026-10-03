@@ -6,7 +6,7 @@ import {createRequire} from 'node:module'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {stripVTControlCharacters} from 'node:util'
+import {LinkCommand, RunCommand} from './support/Workspace.js'
 
 /**
  * The root of the repository
@@ -24,12 +24,10 @@ const work: string = mkdtempSync(path.join(tmpdir(), 'lakutata-templates-'))
  * @param cwd
  */
 function Run(command: string, args: string[], cwd: string): Promise<{ code: number, output: string }> {
-    return new Promise((resolve: (result: { code: number, output: string }) => void): void => {
-        //The tests of the project run on their own, not as tests nested in the running ones
-        const {NODE_TEST_CONTEXT, ...env} = process.env
-        void NODE_TEST_CONTEXT
-        execFile(command, args, {cwd: cwd, env: {...env, LAKUTATA_CACHE_DIR: path.join(work, 'cache'), NEXT_TELEMETRY_DISABLED: '1'}}, (error: ExecFileException | null, stdout: string, stderr: string): void => resolve({code: error ? (typeof error.code === 'number' ? error.code : 1) : 0, output: stripVTControlCharacters(`${stdout}${stderr}`)}))
-    })
+    //The tests of the project run on their own, not as tests nested in the running ones
+    const {NODE_TEST_CONTEXT, ...env} = process.env
+    void NODE_TEST_CONTEXT
+    return RunCommand(command, args, cwd, {...env, LAKUTATA_CACHE_DIR: path.join(work, 'cache'), NEXT_TELEMETRY_DISABLED: '1'}, 1800000)
 }
 
 /**
@@ -57,8 +55,8 @@ function Install(project: string, names: string[], typescript: string = path.joi
     for (const name of names) Link(project, name, path.join(ROOT, 'node_modules', name))
     //The commands of the scripts
     mkdirSync(path.join(project, 'node_modules', '.bin'), {recursive: true})
-    symlinkSync(path.join(typescript, 'bin', 'tsc'), path.join(project, 'node_modules', '.bin', 'tsc'))
-    symlinkSync(CLI, path.join(project, 'node_modules', '.bin', 'lakutata'))
+    LinkCommand(path.join(project, 'node_modules', '.bin'), 'tsc', path.join(typescript, 'bin', 'tsc'))
+    LinkCommand(path.join(project, 'node_modules', '.bin'), 'lakutata', CLI)
 }
 
 /**
@@ -274,7 +272,7 @@ describe('The templates of the repository', (): void => {
         const desktop: string = await Create('electron-vue', 'Lingo', ['i18n'])
         Install(desktop, ['@types/node', 'electron', 'vite', '@vitejs/plugin-vue', 'vue'])
         LinkWorkspace(desktop, ['ui', 'app'])
-        symlinkSync(path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'), path.join(desktop, 'node_modules', '.bin', 'vite'))
+        LinkCommand(path.join(desktop, 'node_modules', '.bin'), 'vite', path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'))
         const desktopBuilt = await Run(process.execPath, [CLI, 'run', 'rebuild', '--concurrency', '1'], desktop)
         assert.strictEqual(desktopBuilt.code, 0, desktopBuilt.output)
         const desktopTested = await Run(process.execPath, [CLI, 'run', 'test'], desktop)
@@ -338,7 +336,7 @@ describe('The templates of the repository', (): void => {
         const migrations: string[] = readdirSync(path.join(project, 'packages', 'app', 'src', 'migrations'))
         assert.strictEqual(migrations.length, 1, generated.output)
         assert.match(migrations[0], /^\d+-db\.ts$/)
-        assert.match(generated.output, /Migrations generated: packages\/app\/src\/migrations\/\d+-db\.ts/)
+        assert.match(generated.output, /Migrations generated: packages[\\/]app[\\/]src[\\/]migrations[\\/]\d+-db\.ts/)
         assert.match(readFileSync(path.join(project, 'packages', 'app', 'src', 'migrations', migrations[0]), 'utf8'), /CREATE TABLE "order"/)
         //The migration given to the options of the database: shown, run, reverted by the scripts of the workspace
         const timestamp: string = migrations[0].split('-')[0]
@@ -358,7 +356,7 @@ describe('The templates of the repository', (): void => {
         //An empty migration, compiled with the service
         const created = await Run('npm', ['run', 'migration:create', '--', 'seed-orders'], project)
         assert.strictEqual(created.code, 0, created.output)
-        assert.match(created.output, /Migration created: packages\/app\/src\/migrations\/\d+-seed-orders\.ts/)
+        assert.match(created.output, /Migration created: packages[\\/]app[\\/]src[\\/]migrations[\\/]\d+-seed-orders\.ts/)
         const rebuilt = await Run(process.execPath, [CLI, 'run', 'rebuild'], project)
         assert.strictEqual(rebuilt.code, 0, rebuilt.output)
         const compiled: string[] = readdirSync(path.join(project, 'packages', 'app', 'build', 'migrations'))
@@ -371,7 +369,7 @@ describe('The templates of the repository', (): void => {
         assert.doesNotMatch(readFileSync(path.join(project, 'packages', 'ui', 'src', 'App.tsx'), 'utf8'), /\{\$APP_/)
         Install(project, ['express', 'compression', '@types/express', '@types/compression', '@types/node', 'vite', '@vitejs/plugin-react', 'react', 'react-dom', '@types/react', '@types/react-dom'])
         LinkWorkspace(project, ['ui'])
-        symlinkSync(path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'), path.join(project, 'node_modules', '.bin', 'vite'))
+        LinkCommand(path.join(project, 'node_modules', '.bin'), 'vite', path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'))
         const built = await Run(process.execPath, [CLI, 'run', 'rebuild', '--concurrency', '1'], project)
         assert.strictEqual(built.code, 0, built.output)
         assert.ok(existsSync(path.join(project, 'packages', 'ui', 'dist', 'index.html')))
@@ -393,7 +391,7 @@ describe('The templates of the repository', (): void => {
         assert.doesNotMatch(readFileSync(path.join(project, 'packages', 'ui', 'app', 'page.tsx'), 'utf8'), /\{\$APP_/)
         Install(project, ['express', 'compression', '@types/express', '@types/compression', '@types/node', 'next', 'react', 'react-dom', '@types/react', '@types/react-dom'], path.join(ROOT, 'node_modules', 'typescript'))
         LinkWorkspace(project, ['ui'])
-        symlinkSync(path.join(ROOT, 'node_modules', 'next', 'dist', 'bin', 'next'), path.join(project, 'node_modules', '.bin', 'next'))
+        LinkCommand(path.join(project, 'node_modules', '.bin'), 'next', path.join(ROOT, 'node_modules', 'next', 'dist', 'bin', 'next'))
         //The dependencies are linked to the repository, outside of the project: turbopack resolves them from the root of the filesystem
         //(an installed project has them in its node_modules)
         const nextConfig: string = path.join(project, 'packages', 'ui', 'next.config.ts')
@@ -411,7 +409,7 @@ describe('The templates of the repository', (): void => {
         assert.doesNotMatch(readFileSync(path.join(project, 'packages', 'ui', 'src', 'App.vue'), 'utf8'), /\{\$APP_/)
         Install(project, ['express', 'compression', '@types/express', '@types/compression', '@types/node', 'vite', '@vitejs/plugin-vue', 'vue'])
         LinkWorkspace(project, ['ui'])
-        symlinkSync(path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'), path.join(project, 'node_modules', '.bin', 'vite'))
+        LinkCommand(path.join(project, 'node_modules', '.bin'), 'vite', path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'))
         const built = await Run(process.execPath, [CLI, 'run', 'rebuild', '--concurrency', '1'], project)
         assert.strictEqual(built.code, 0, built.output)
         assert.ok(existsSync(path.join(project, 'packages', 'ui', 'dist', 'index.html')))
@@ -432,7 +430,7 @@ describe('The templates of the repository', (): void => {
         assert.doesNotMatch(readFileSync(path.join(project, 'packages', 'ui', 'app', 'app.vue'), 'utf8'), /\{\$APP_/)
         Install(project, ['express', 'compression', '@types/express', '@types/compression', '@types/node', 'nuxt', 'vue'])
         LinkWorkspace(project, ['ui'])
-        symlinkSync(path.join(ROOT, 'node_modules', 'nuxt', 'bin', 'nuxt.mjs'), path.join(project, 'node_modules', '.bin', 'nuxt'))
+        LinkCommand(path.join(project, 'node_modules', '.bin'), 'nuxt', path.join(ROOT, 'node_modules', 'nuxt', 'bin', 'nuxt.mjs'))
         const built = await Run(process.execPath, [CLI, 'run', 'rebuild', '--concurrency', '1'], project)
         assert.strictEqual(built.code, 0, built.output)
         assert.ok(existsSync(path.join(project, 'packages', 'ui', '.output', 'server', 'index.mjs')))
@@ -455,7 +453,7 @@ describe('The templates of the repository', (): void => {
             assert.ok(existsSync(path.join(project, '.dockerignore')))
             Install(project, ['@types/node', 'electron', ...names], path.join(ROOT, 'node_modules', 'typescript'))
             LinkWorkspace(project, ['ui', 'app'])
-            symlinkSync(path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'), path.join(project, 'node_modules', '.bin', 'vite'))
+            LinkCommand(path.join(project, 'node_modules', '.bin'), 'vite', path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'))
             const built = await Run(process.execPath, [CLI, 'run', 'rebuild', '--concurrency', '1'], project)
             assert.strictEqual(built.code, 0, built.output)
             assert.ok(existsSync(path.join(project, 'packages', 'app', 'build', 'preload.cjs')))

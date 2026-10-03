@@ -1,6 +1,6 @@
 import {afterEach, beforeEach, describe, it} from 'node:test'
 import assert from 'node:assert'
-import {execFile, execFileSync, type ExecFileException, spawnSync} from 'node:child_process'
+import {execFile, execFileSync, type ExecFileException, execSync, spawnSync} from 'node:child_process'
 import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
@@ -93,7 +93,7 @@ describe('The workspace commands', (): void => {
         const listed = await Run(['list'], path.join(root, 'packages', 'app'))
         assert.strictEqual(listed.code, 0, listed.stderr)
         assert.match(listed.stdout, /5 packages, version 0\.0\.16/)
-        assert.match(listed.stdout, /@x\/sic\s+0\.0\.16\s+packages\/proxy\s+→ app, ui/)
+        assert.match(listed.stdout, /@x\/sic\s+0\.0\.16\s+packages[\\/]proxy\s+→ app, ui/)
     })
 
     it('runs a script in the order of the dependencies, the independent packages at the same time', async (): Promise<void> => {
@@ -153,7 +153,8 @@ describe('The workspace commands', (): void => {
 
     it('gives the packages the next version and updates the dependencies between them and the lock file', async (): Promise<void> => {
         SicService()
-        execFileSync('npm', ['install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund', '--prefer-offline'], {cwd: root, stdio: 'ignore'})
+        //npm.cmd on Windows, run by the shell
+        execSync('npm install --package-lock-only --ignore-scripts --no-audit --no-fund --prefer-offline', {cwd: root, stdio: 'ignore'})
         const result = await Run(['version', 'patch', '--yes'])
         assert.strictEqual(result.code, 0, result.stderr)
         assert.match(result.stdout, /Version 0\.0\.16 → 0\.0\.17/)

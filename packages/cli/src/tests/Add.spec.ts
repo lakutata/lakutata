@@ -20,7 +20,7 @@ describe('lakutata add', (): void => {
         const root: string = Workspace(work, 'library')
         const added = await Run(process.execPath, [CLI, 'add', 'greeting', '--to', 'app'], root)
         assert.strictEqual(added.code, 0, added.output)
-        assert.match(added.output, /Package greeting 1\.2\.3 added: packages\/greeting/)
+        assert.match(added.output, /Package greeting 1\.2\.3 added: packages[\\/]greeting/)
         assert.match(added.output, /a dependency of app/)
         const manifest = JSON.parse(readFileSync(path.join(root, 'packages', 'greeting', 'package.json'), 'utf8'))
         assert.strictEqual(manifest.version, '1.2.3')

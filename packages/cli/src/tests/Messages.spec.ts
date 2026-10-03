@@ -71,7 +71,7 @@ describe('The messages of the tool', (): void => {
 
     it('give the help in the language of the user', async (): Promise<void> => {
         const help = async (language: Record<string, string>, ...args: string[]): Promise<string> => {
-            const {code, output} = await Run('env', [...Object.entries(language).map(([name, value]: [string, string]): string => `${name}=${value}`), process.execPath, CLI, ...args, '--help'], process.cwd())
+            const {code, output} = await Run(process.execPath, [CLI, ...args, '--help'], process.cwd(), language)
             assert.strictEqual(code, 0, output)
             return output
         }
@@ -79,9 +79,10 @@ describe('The messages of the tool', (): void => {
         for (const text of ['用法： lakutata create [options]', '从模板创建一个 lakutata 项目', '选项：', '--name <value>', '应用的名称', '--with <value>', '启用模板的可选功能', '--no-git', '关闭 --git', '（默认：', '显示命令的帮助']) assert.ok(chinese.includes(text), `${text}\n${chinese}`)
         const traditional: string = await help({LAKUTATA_LANG: 'zh-TW'}, 'create')
         assert.ok(traditional.includes('從範本建立一個 lakutata 專案'), traditional)
-        //The language of the environment without LAKUTATA_LANG; a language without messages is English
+        //The language of the environment without LAKUTATA_LANG; a language without messages is the next one of the
+        //environment (LANG here: the language of the system on Windows, which has none)
         assert.ok((await help({LAKUTATA_LANG: '', LC_ALL: 'zh_TW.UTF-8'})).includes('命令：'))
-        const english: string = await help({LAKUTATA_LANG: 'fr'}, 'create')
+        const english: string = await help({LAKUTATA_LANG: 'fr', LC_ALL: '', LANG: 'en_US.UTF-8'}, 'create')
         assert.ok(english.includes('Usage: lakutata create [options]') && english.includes('Create a lakutata project from a template'), english)
     })
 })

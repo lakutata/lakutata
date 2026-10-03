@@ -109,7 +109,7 @@ describe('The migrations', (): void => {
         assert.strictEqual(created.code, 0, created.stderr + created.stdout)
         const [file] = readdirSync(path.join(project, 'src', 'migrations'))
         assert.match(file, /^\d+-seed-users\.ts$/)
-        assert.match(created.stdout, /Migration created: src\/migrations\/\d+-seed-users\.ts/)
+        assert.match(created.stdout, /Migration created: src[\\/]migrations[\\/]\d+-seed-users\.ts/)
         const timestamp: string = file.split('-')[0]
         const migration: string = readFileSync(path.join(project, 'src', 'migrations', file), 'utf8')
         assert.match(migration, /^import \{ MigrationInterface, QueryRunner \} from "lakutata\/orm";/)

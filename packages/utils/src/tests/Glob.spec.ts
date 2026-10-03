@@ -86,9 +86,11 @@ describe('Glob', (): void => {
             await symlink(path.join(tree, 'real'), path.join(tree, 'linked'), 'dir')
             //A cycle: real/sub/back -> real
             await symlink(path.join(tree, 'real'), path.join(tree, 'real/sub/back'), 'dir')
-            assert.deepStrictEqual(GlobSync('**/*.js', {cwd: tree, nodir: true}), ['real/sub/module.js'])
-            assert.deepStrictEqual(GlobSync('**/*.js', {cwd: tree, nodir: true, follow: true}), ['linked/sub/module.js', 'real/sub/module.js'])
-            assert.deepStrictEqual(GlobSync('linked/*/*.js', {cwd: tree}), ['linked/sub/module.js'])
+            //The paths of the results are the ones of the platform (backslashes on Windows)
+            const posix = (files: string[]): string[] => files.map((file: string): string => file.split(path.sep).join('/'))
+            assert.deepStrictEqual(posix(GlobSync('**/*.js', {cwd: tree, nodir: true})), ['real/sub/module.js'])
+            assert.deepStrictEqual(posix(GlobSync('**/*.js', {cwd: tree, nodir: true, follow: true})), ['linked/sub/module.js', 'real/sub/module.js'])
+            assert.deepStrictEqual(posix(GlobSync('linked/*/*.js', {cwd: tree})), ['linked/sub/module.js'])
         } finally {
             await rm(tree, {recursive: true, force: true})
         }
