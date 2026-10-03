@@ -4,7 +4,7 @@ import {execFileSync} from 'node:child_process'
 import {existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import {CLI, Run, TOOLCHAINS, Workspace} from './support/Workspace.js'
+import {CLI, Run, TOOLCHAINS, VisualCpp, Workspace} from './support/Workspace.js'
 
 let work: string
 
@@ -40,7 +40,7 @@ describe('lakutata add', (): void => {
             const root: string = Workspace(work, `native-${build}`)
             const added = await Run(process.execPath, [CLI, 'add', '@acme/capture', ...(build === 'gyp' ? ['--native'] : ['--native', build]), '--to', 'app'], root)
             assert.strictEqual(added.code, 0, added.output)
-            assert.match(added.output, new RegExp(`Native addon \\(${build}\\) @acme/capture 1\\.2\\.3 added: packages/capture`))
+            assert.match(added.output, new RegExp(`Native addon \\(${build}\\) @acme/capture 1\\.2\\.3 added: packages[\\\\/]capture`))
             const directory: string = path.join(root, 'packages', 'capture')
             const buildFiles: Record<string, string[]> = {gyp: ['binding.gyp', 'cpp/binding.cc'], cmake: ['CMakeLists.txt', 'cpp/binding.cc'], rust: ['Cargo.toml', 'build.rs', 'rust/lib.rs']}
             for (const file of [...buildFiles[build], 'src/index.ts', 'src/tests/index.spec.ts', 'tsconfig.json', 'README.md']) assert.ok(existsSync(path.join(directory, file)), file)
@@ -75,20 +75,29 @@ describe('lakutata add', (): void => {
         })
     }
 
-    it('links a dynamic library shipped with a gyp addon as its comments show, found next to it once bundled', {skip: TOOLCHAINS.gyp && process.platform !== 'win32' ? false : 'no C++ toolchain'}, async (): Promise<void> => {
+    it('links a dynamic library shipped with a gyp addon as its comments show, found next to it once bundled', {skip: TOOLCHAINS.gyp ? false : 'no C++ toolchain'}, async (): Promise<void> => {
         const root: string = Workspace(work, 'dynamic')
         assert.strictEqual((await Run(process.execPath, [CLI, 'add', 'suffixed', '--native'], root)).code, 0)
         const directory: string = path.join(root, 'packages', 'suffixed')
-        //The dynamic library of the package, found through the rpath of the addons
-        const library: string = process.platform === 'darwin' ? 'libsuffix.dylib' : 'libsuffix.so'
-        mkdirSync(path.join(directory, 'deps', 'lib'), {recursive: true})
-        writeFileSync(path.join(directory, 'deps', 'suffix.cc'), 'extern "C" const char *suffix() { return " (from a dynamic library)"; }\n')
-        execFileSync('c++', process.platform === 'darwin'
-            ? ['-dynamiclib', '-arch', 'x86_64', '-arch', 'arm64', '-install_name', `@rpath/${library}`, '-o', path.join(directory, 'deps', 'lib', library), path.join(directory, 'deps', 'suffix.cc')]
-            : ['-shared', '-fPIC', '-o', path.join(directory, 'deps', 'lib', library), path.join(directory, 'deps', 'suffix.cc')])
+        //The dynamic library of the package, found through the rpath of the addons (next to them on Windows)
+        const windows: boolean = process.platform === 'win32'
+        const library: string = process.platform === 'darwin' ? 'libsuffix.dylib' : windows ? 'suffix.dll' : 'libsuffix.so'
+        const lib: string = path.join(directory, 'deps', 'lib')
+        mkdirSync(lib, {recursive: true})
+        writeFileSync(path.join(directory, 'deps', 'suffix.cc'), `extern "C" ${windows ? '__declspec(dllexport) ' : ''}const char *suffix() { return " (from a dynamic library)"; }\n`)
+        if (windows) {
+            //The DLL and its import library
+            VisualCpp([`cl /nologo /LD /Fe"${path.join(lib, library)}" "${path.join(directory, 'deps', 'suffix.cc')}" /link /IMPLIB:"${path.join(lib, 'suffix.lib')}"`])
+        } else {
+            execFileSync('c++', process.platform === 'darwin'
+                ? ['-dynamiclib', '-arch', 'x86_64', '-arch', 'arm64', '-install_name', `@rpath/${library}`, '-o', path.join(lib, library), path.join(directory, 'deps', 'suffix.cc')]
+                : ['-shared', '-fPIC', '-o', path.join(lib, library), path.join(directory, 'deps', 'suffix.cc')])
+        }
         //The examples of binding.gyp, uncommented
         const gyp: string = readFileSync(path.join(directory, 'binding.gyp'), 'utf8')
-        const uncommented: string = gyp
+        const uncommented: string = windows ? gyp
+            .replace("            # A DLL shipped with the addon (deps/lib/foo.dll): its import library '<(module_root_dir)/deps/lib/foo.lib',\n", "            '<(module_root_dir)/deps/lib/suffix.lib',\n")
+            .replace("          # 'copies': [{'destination': '<(PRODUCT_DIR)', 'files': ['<(module_root_dir)/deps/lib/foo.dll']}]", `          'copies': [{'destination': '<(PRODUCT_DIR)', 'files': ['<(module_root_dir)/deps/lib/${library}']}]`) : gyp
             .replace("      'libraries': [\n", "      'libraries': [\n        '-L<(module_root_dir)/deps/lib', '-lsuffix',\n")
             .replace("      # 'copies': [{'destination': '<(PRODUCT_DIR)', 'files': ['<(module_root_dir)/deps/lib/libfoo.so']}],", `      'copies': [{'destination': '<(PRODUCT_DIR)', 'files': ['<(module_root_dir)/deps/lib/${library}']}],`)
             .replace("              '-arch x86_64', '-arch arm64',\n", "              '-arch x86_64', '-arch arm64',\n              '-Wl,-rpath,@loader_path',\n")

@@ -191,7 +191,11 @@ function GypFiles(target: string): Files {
           },
           'libraries': [
             # A library of the system: 'ws2_32.lib', 'iphlpapi.lib'
-          ]
+            # A static library of the package: '<(module_root_dir)/deps/lib/foo.lib'
+            # A DLL shipped with the addon (deps/lib/foo.dll): its import library '<(module_root_dir)/deps/lib/foo.lib',
+            #   the DLL copied next to the addon (copies below), where Windows finds it at run time
+          ],
+          # 'copies': [{'destination': '<(PRODUCT_DIR)', 'files': ['<(module_root_dir)/deps/lib/foo.dll']}]
         }]
       ]
     }
@@ -245,12 +249,15 @@ target_link_libraries(\${PROJECT_NAME} \${CMAKE_JS_LIB})
 #     target_link_libraries(\${PROJECT_NAME} \${PCAP_LIBRARIES})
 # - a package of CMake: find_package(ZLIB REQUIRED) then target_link_libraries(\${PROJECT_NAME} ZLIB::ZLIB)
 # - a static library of the package: target_link_libraries(\${PROJECT_NAME} \${CMAKE_SOURCE_DIR}/deps/lib/libfoo.a)
+#     (Windows: deps/lib/foo.lib)
 # - a library built from its sources (its own CMakeLists.txt): add_subdirectory(deps/foo) then
 #     target_link_libraries(\${PROJECT_NAME} foo)
 # - a dynamic library shipped with the addon (deps/lib), copied next to it and found there at run time:
 #     target_link_libraries(\${PROJECT_NAME} \${CMAKE_SOURCE_DIR}/deps/lib/libfoo.so)
 #     set_target_properties(\${PROJECT_NAME} PROPERTIES BUILD_RPATH "$<IF:$<PLATFORM_ID:Darwin>,@loader_path,$ORIGIN>")
 #     add_custom_command(TARGET \${PROJECT_NAME} POST_BUILD COMMAND \${CMAKE_COMMAND} -E copy \${CMAKE_SOURCE_DIR}/deps/lib/libfoo.so $<TARGET_FILE_DIR:\${PROJECT_NAME}>)
+#   (Windows: the DLL linked by its import library, deps/lib/foo.lib, and copied next to the addon, where Windows finds
+#   it; no rpath)
 
 # The import library of Node.js on Windows
 if(MSVC AND CMAKE_JS_NODELIB_DEF AND CMAKE_JS_NODELIB_TARGET)

@@ -1,4 +1,4 @@
-import {execFileSync} from 'node:child_process'
+import {execFileSync, execSync} from 'node:child_process'
 import {cpSync, existsSync, mkdirSync, symlinkSync, writeFileSync} from 'node:fs'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
@@ -22,12 +22,36 @@ export function Has(command: string): boolean {
 }
 
 /**
- * The toolchains of the build systems of the native addons (a C++ compiler, CMake, cargo); Windows needs the Visual
- * Studio Build Tools, not checked here
+ * Whether a C++ compiler is installed: the one of the Visual Studio Build Tools on Windows (its C++ tools, found by
+ * vswhere)
+ */
+function Cpp(): boolean {
+    if (process.platform !== 'win32') return Has('c++')
+    const vswhere: string = path.join(process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)', 'Microsoft Visual Studio', 'Installer', 'vswhere.exe')
+    try {
+        return execFileSync(vswhere, ['-products', '*', '-requiresAny', '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64', 'Microsoft.VisualStudio.Component.VC.Tools.ARM64', '-property', 'installationPath']).toString().trim() !== ''
+    } catch {
+        return false
+    }
+}
+
+/**
+ * Run the C compiler of Visual Studio (cl, lib) in its environment (vcvarsall, the architecture of node)
+ * @param commands
+ */
+export function VisualCpp(commands: string[]): void {
+    const vswhere: string = path.join(process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)', 'Microsoft Visual Studio', 'Installer', 'vswhere.exe')
+    const installation: string = execFileSync(vswhere, ['-latest', '-products', '*', '-property', 'installationPath']).toString().trim()
+    const vcvars: string = path.join(installation, 'VC', 'Auxiliary', 'Build', 'vcvarsall.bat')
+    execSync(`"${vcvars}" ${process.arch === 'arm64' ? 'arm64' : 'x64'} >nul && ${commands.join(' && ')}`, {stdio: 'pipe'})
+}
+
+/**
+ * The toolchains of the build systems of the native addons (a C++ compiler, CMake, cargo)
  */
 export const TOOLCHAINS: Record<string, boolean> = {
-    gyp: process.platform !== 'win32' && Has('c++'),
-    cmake: process.platform !== 'win32' && Has('c++') && Has('cmake'),
+    gyp: Cpp(),
+    cmake: Cpp() && Has('cmake'),
     rust: Has('cargo')
 }
 
