@@ -8,7 +8,7 @@
   "scripts": {
     "clean": "lakutata clean .next server/build",
     "build:server": "tsc -p server",
-    "build": "next build && npm run build:server",
+    "build": "next build && npm run build:server && node server/build/standalone.js",
     "rebuild": "npm run clean && npm run build"
   },
   "dependencies": {

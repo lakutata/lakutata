@@ -1,7 +1,7 @@
 import {after, describe, it} from 'node:test'
 import assert from 'node:assert'
 import {execFile, type ExecFileException, execSync, spawn} from 'node:child_process'
-import {existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync} from 'node:fs'
+import {constants, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
@@ -40,6 +40,29 @@ function Link(project: string, name: string, target: string): void {
     const link: string = path.join(project, 'node_modules', name)
     mkdirSync(path.dirname(link), {recursive: true})
     symlinkSync(target, link, 'dir')
+}
+
+/**
+ * Copy packages of the repository and the dependencies they load into a project (cloned where the file system can): the
+ * builds which trace the files they load (the standalone build of next) take the ones of the project, not the ones its
+ * links lead to
+ * @param project
+ * @param names
+ */
+function Copy(project: string, names: string[]): void {
+    const copied: Set<string> = new Set()
+    const copy = (name: string): void => {
+        const source: string = path.join(ROOT, 'node_modules', name)
+        if (copied.has(name) || !existsSync(source)) return
+        copied.add(name)
+        cpSync(source, path.join(project, 'node_modules', name), {recursive: true, verbatimSymlinks: true, mode: constants.COPYFILE_FICLONE})
+        const manifest = JSON.parse(readFileSync(path.join(source, 'package.json'), 'utf8')) as { dependencies?: Record<string, string>, optionalDependencies?: Record<string, string> }
+        //The ones in its own node_modules are copied with it
+        for (const dependency of Object.keys({...manifest.dependencies, ...manifest.optionalDependencies})) {
+            if (!existsSync(path.join(source, 'node_modules', dependency))) copy(dependency)
+        }
+    }
+    for (const name of names) copy(name)
 }
 
 /**
@@ -200,7 +223,7 @@ describe('The templates of the repository', (): void => {
                 }
                 assert.strictEqual(other, service, `${file} of ${template} differs from the one of service`)
             }
-            //The files of the features they have too (Next.js is not packed into executables: no installer)
+            //The files of the features they have too
             const features: string = path.join(ROOT, 'packages', 'template-service', 'features')
             const declared: string[] = Object.keys(JSON.parse(readFileSync(path.join(ROOT, 'packages', `template-${template}`, 'package.json'), 'utf8')).lakutata.features)
             for (const file of readdirSync(features, {recursive: true, withFileTypes: true}).filter((entry): boolean => entry.isFile()).map((entry): string => path.relative(features, path.join(entry.parentPath, entry.name))).filter((file: string): boolean => declared.includes(file.split(path.sep)[0]))) {
@@ -238,7 +261,7 @@ describe('The templates of the repository', (): void => {
         assert.match(readme, /## The installers\n[\s\S]*the command `shipper` in the PATH/)
         assert.doesNotMatch(readme, /@if|@end/)
         //The workspaces: the app installed after the project, its service registered, its resources kept
-        for (const [template, name] of [['service', 'Depot'], ['web-react', 'Kiosk'], ['web-vue', 'Booth'], ['web-nuxt', 'Stall']] as const) {
+        for (const [template, name] of [['service', 'Depot'], ['web-react', 'Kiosk'], ['web-vue', 'Booth'], ['web-nuxt', 'Stall'], ['web-next', 'Shop']] as const) {
             const project: string = await Create(template, name, ['installer'])
             const id: string = name.toLowerCase()
             const root = JSON.parse(readFileSync(path.join(project, 'package.json'), 'utf8'))
@@ -247,7 +270,7 @@ describe('The templates of the repository', (): void => {
             const app = JSON.parse(readFileSync(path.join(project, 'packages', 'app', 'package.json'), 'utf8'))
             assert.deepStrictEqual(app.bin, {[id]: 'build/App.js'})
             assert.deepStrictEqual(app.lakutata.installer, {name: id, service: {env: {PORT: '8080'}}, linux: {targets: ['deb', 'rpm', 'tar.gz']}})
-            if (template !== 'service') assert.deepStrictEqual(app.lakutata.resources, [{from: template === 'web-nuxt' ? '../ui/.output' : '../ui/dist', to: 'ui'}])
+            if (template !== 'service') assert.deepStrictEqual(app.lakutata.resources, [{from: {'web-nuxt': '../ui/.output', 'web-next': '../ui/.next/standalone'}[template as string] ?? '../ui/dist', to: 'ui'}])
             assert.match(readFileSync(path.join(project, 'Dockerfile.installer'), 'utf8'), /npm run installer -w app -- --outdir \/installer/)
             assert.match(readFileSync(path.join(project, 'README.md'), 'utf8'), new RegExp(`/etc/${id}/${id}\\.env`))
         }
@@ -411,20 +434,35 @@ describe('The templates of the repository', (): void => {
     it('creates a Next.js web application whose workspace builds the ui then the app, which renders its pages', async (): Promise<void> => {
         const project: string = await Create('web-next', 'Console')
         assert.doesNotMatch(readFileSync(path.join(project, 'packages', 'ui', 'app', 'page.tsx'), 'utf8'), /\{\$APP_/)
-        Install(project, ['express', 'compression', '@types/express', '@types/compression', '@types/node', 'next', 'react', 'react-dom', '@types/react', '@types/react-dom'], path.join(ROOT, 'node_modules', 'typescript'))
+        Install(project, ['express', 'compression', '@types/express', '@types/compression', '@types/node', '@types/react', '@types/react-dom'], path.join(ROOT, 'node_modules', 'typescript'))
+        //In the project, as installed: the standalone build has next and what it loads
+        Copy(project, ['next', 'react', 'react-dom'])
         LinkWorkspace(project, ['ui'])
-        LinkCommand(path.join(project, 'node_modules', '.bin'), 'next', path.join(ROOT, 'node_modules', 'next', 'dist', 'bin', 'next'))
-        //The dependencies are linked to the repository, outside of the project: turbopack resolves them from the root of the filesystem
-        //(an installed project has them in its node_modules)
+        LinkCommand(path.join(project, 'node_modules', '.bin'), 'next', path.join(project, 'node_modules', 'next', 'dist', 'bin', 'next'))
+        //The root of the project is the one of the workspace: the project has no lock file, which next finds it by (its real
+        //path, the one next compares)
         const nextConfig: string = path.join(project, 'packages', 'ui', 'next.config.ts')
-        writeFileSync(nextConfig, readFileSync(nextConfig, 'utf8').replace('const nextConfig: NextConfig = {}', `const nextConfig: NextConfig = {turbopack: {root: ${JSON.stringify(path.parse(project).root)}}}`))
+        const root: string = JSON.stringify(realpathSync(project))
+        writeFileSync(nextConfig, readFileSync(nextConfig, 'utf8').replace(`{output: 'standalone'}`, `{output: 'standalone', outputFileTracingRoot: ${root}, turbopack: {root: ${root}}}`))
         const built = await Run(process.execPath, [CLI, 'run', 'rebuild', '--concurrency', '1'], project)
         assert.strictEqual(built.code, 0, built.output)
         assert.ok(existsSync(path.join(project, 'packages', 'ui', '.next')))
         assert.ok(existsSync(path.join(project, 'packages', 'ui', 'server', 'build', 'index.js')))
+        //The standalone build, completed: its application is the one of the workspace
+        assert.deepStrictEqual(JSON.parse(readFileSync(path.join(project, 'packages', 'ui', '.next', 'standalone', 'ui.json'), 'utf8')), {dir: path.join('packages', 'ui')})
+        assert.ok(existsSync(path.join(project, 'packages', 'ui', '.next', 'standalone', 'packages', 'ui', '.next', 'static')))
+        assert.ok(existsSync(path.join(project, 'packages', 'ui', '.next', 'standalone', 'node_modules', 'next', 'package.json')))
         const tested = await Run(process.execPath, [CLI, 'run', 'test'], project)
         assert.strictEqual(tested.code, 0, tested.output)
         assert.match(tested.output, /pass 4/)
+        //Packed into an executable (in a directory, in one file, of Bun), it renders its pages by the standalone build of
+        //its resources, and serves their files
+        const scripts = (html: string): string[] => [...html.matchAll(/src="(\/_next\/static\/[^"]+\.js)"/g)].map((matched: RegExpMatchArray): string => matched[1])
+        for (const options of [['--layout', 'directory'], [], ...BUN ? [['--runtime', 'bun']] : []]) {
+            const page: string = await ServeFromExecutable(project, scripts, options)
+            assert.match(page, /<title>Console<\/title>/, options.join(' '))
+            assert.ok(scripts(page).length, page)
+        }
     })
     it('creates a Vue web application whose workspace builds the ui then the app, which serves it', async (): Promise<void> => {
         const project: string = await Create('web-vue', 'Studio')

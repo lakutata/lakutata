@@ -24,5 +24,13 @@
   "devDependencies": {
     "@types/compression": "^1.8.1",
     "@types/express": "^5.0.6"
+  },
+  "lakutata": {
+    "resources": [
+      {
+        "from": "../ui/.next/standalone",
+        "to": "ui"
+      }
+    ]
   }
 }

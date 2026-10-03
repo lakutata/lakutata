@@ -1,7 +1,8 @@
-import type {ApplicationOptions} from 'lakutata'
+import {ResourcesPath, type ApplicationOptions} from 'lakutata'
 import {BuildEntrypoints} from 'lakutata/com/entrypoint'
 import {ExpressHTTPEntrypoint, JSONEnvelope} from 'lakutata/adapter/express'
 import compression from 'compression'
+import path from 'node:path'
 import renderUI, {type UIHandler} from 'ui'
 import {Authenticate} from '../middlewares/Authenticate.js'
 import {ExampleController} from '../controllers/ExampleController.js'
@@ -17,8 +18,10 @@ import zhCN from '../locales/zh-CN.json' with {type: 'json'}
  * @param port the port of the HTTP server, the PORT environment variable or 8080 by default
  */
 export function Config(port: number = Number(process.env.PORT ?? 8080)): ApplicationOptions {
+    //The standalone build of next of the ui package is in the resources of the application packed (lakutata.resources)
+    const resources: string | undefined = ResourcesPath()
     //The pages are compiled on demand in development, served from the build of next in production
-    const ui: UIHandler = renderUI({dev: process.env.NODE_ENV !== 'production'})
+    const ui: UIHandler = renderUI({dev: process.env.NODE_ENV !== 'production', standalone: resources && path.join(resources, 'ui')})
     return {
         id: '{$APP_ID}',
         name: '{$APP_NAME}',

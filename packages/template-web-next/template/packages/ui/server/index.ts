@@ -1,5 +1,8 @@
-import nextModule from 'next'
+import type nextModule from 'next'
+import {readFileSync} from 'node:fs'
 import type {IncomingMessage, Server, ServerResponse} from 'node:http'
+import {createRequire} from 'node:module'
+import path from 'node:path'
 import type {Duplex} from 'node:stream'
 import {fileURLToPath} from 'node:url'
 
@@ -8,6 +11,11 @@ export type RenderOptions = {
      * Compile the pages on demand, with the hot reload (development)
      */
     dev?: boolean
+    /**
+     * The standalone build of next (.next/standalone, made by npm run build): the one in the resources of the application
+     * packed (lakutata executable), which has next and what it loads; the ui package (and its next) by default
+     */
+    standalone?: string
 }
 
 /**
@@ -22,16 +30,28 @@ export type UIHandler = ((request: IncomingMessage, response: ServerResponse, ne
 }
 
 /**
- * The function creating a Next.js server: next is a CommonJS module, its default export is the function
+ * The directory of the Next.js application: the one of the standalone build (written in its ui.json by
+ * server/standalone.ts), or the ui package
+ * @param options
  */
-const createNextServer: typeof nextModule.default = (nextModule as unknown as { default?: typeof nextModule.default }).default ?? (nextModule as unknown as typeof nextModule.default)
+function Directory(options: RenderOptions): string {
+    if (!options.standalone) return fileURLToPath(new URL('../../', import.meta.url))
+    const {dir} = JSON.parse(readFileSync(path.join(options.standalone, 'ui.json'), 'utf8')) as { dir: string }
+    return path.join(options.standalone, dir)
+}
 
 /**
  * The Next.js application of the ui package, served by the service
  * @param options
  */
 export default function renderUI(options: RenderOptions = {}): UIHandler {
-    const application = createNextServer({dev: options.dev ?? false, dir: fileURLToPath(new URL('../../', import.meta.url))})
+    const dir: string = Directory(options)
+    //Required from the application: the one of the standalone build is not bundled with the service
+    const createNextServer = createRequire(path.join(dir, 'package.json'))('next') as typeof nextModule.default
+    //The configuration of the standalone build is the one it was built with (next.config.ts is not in it)
+    const conf = options.standalone ? JSON.parse(readFileSync(path.join(dir, '.next', 'required-server-files.json'), 'utf8')).config : undefined
+    if (conf) process.env.__NEXT_PRIVATE_STANDALONE_CONFIG = JSON.stringify(conf)
+    const application = createNextServer({dev: !options.standalone && (options.dev ?? false), dir: dir, conf: conf})
     //Prepared once: in development it compiles, on the path of a request the first one would time out
     const prepared: Promise<void> = application.prepare()
     const handle = application.getRequestHandler()
