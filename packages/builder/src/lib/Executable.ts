@@ -3,6 +3,7 @@ import {chmod, copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile} from 'no
 import {createRequire} from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
+import {Libc} from './Platform.js'
 import {Run} from './Processes.js'
 import {BundleProject, ProgramName, type BundleOptions, type BundleResult} from './Bundle.js'
 import {PackNativeTree} from './Native.js'
@@ -206,6 +207,8 @@ export async function BuildExecutable(options: ExecutableOptions): Promise<Execu
             native: directory ? 'directory' : 'embedded',
             directories: {native: path.join(target, 'native'), resources: path.join(target, 'resources')}
         })
+        //The executables of Node.js do not load the native addons on musl (postject rewrites their symbols): the ones of Bun do
+        if (!bun && Libc() === 'musl' && bundle.native?.files.some((file): boolean => file.path.endsWith('.node'))) throw new Error('The executables of Node.js do not load native addons on musl (Alpine): make the executable with Bun (--runtime bun, or "runtime": "bun" of lakutata.installer)')
         const file: string = path.join(target, process.platform === 'win32' ? `${bundle.name}.exe` : bundle.name)
         await rm(file, {force: true})
         //The native tree and the resources of the layout directory are not embedded

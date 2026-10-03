@@ -259,6 +259,59 @@ glibc version of the Linux prebuilt addons).
 The executables of macOS are signed ad hoc. The ones of Windows made by Node.js keep the signature of `node.exe`, which
 does not match anymore: sign them before distributing them.
 
+### `lakutata installer`
+
+Make the installers of the application for the platform it runs on (as electron-builder): its executable in a directory
+(`lakutata executable --layout directory`) installed with its native addons and its resources, its program in the PATH,
+its service registered. The installers of the other platforms are made on them (the ones of Linux in a container).
+They are configured by the `lakutata.installer` of the `package.json`:
+
+```json
+"lakutata": {
+  "installer": {
+    "service": {"env": {"PORT": "8080"}},
+    "linux": {"targets": ["deb", "rpm", "tar.gz"], "depends": []}
+  }
+}
+```
+
+| Option | |
+|---|---|
+| `name` | the name of the package (lower case), the one of the program by default |
+| `description`, `maintainer`, `homepage`, `license`, `vendor` | the ones of the `package.json` by default (the maintainer is its author) |
+| `runtime` | the runtime of the executable: `node` (by default) or `bun` |
+| `addToPath` | the program in the PATH (`/usr/bin/<program>`), by default |
+| `service` | `true` or the options of the service (below), none by default |
+| `linux.targets` | `deb`, `rpm`, `archlinux`, `tar.gz` on the systems of the glibc (`deb`, `rpm`, `tar.gz` by default), `apk`, `tar.gz` on Alpine (musl) |
+| `linux.depends`, `linux.recommends`, `linux.section`, `linux.priority` | the packages of the system it needs, recommends, its section and priority (deb) |
+
+The packages of Linux are made by nFPM (downloaded once into the cache of lakutata, `LAKUTATA_NFPM` gives another one),
+in `dist/installer` (`--outdir`): the application is installed in `/opt/<name>`, the C++ library of the runtime is a
+dependency. The executables link the C library of the system they are made on: the packages of the systems of the glibc
+are made on one of them, the `apk` packages on Alpine, with Bun (`"runtime": "bun"`) when the application has native
+addons: the executables of Node.js do not load them on musl.
+
+The service runs the application at the start of the system: systemd (`/usr/lib/systemd/system/<service>.service`), or
+OpenRC on Alpine (`/etc/init.d/<service>`). It is started by the installation, restarted by the upgrades, stopped and
+disabled before the removal.
+
+| Service option | |
+|---|---|
+| `name`, `description` | the ones of the package by default |
+| `args` | the arguments of the application |
+| `env` | its environment (`MODE=production` by default), written to `/etc/<name>/<name>.env`, which the administrators change (kept by the upgrades) |
+| `user` | its user: a system user named after the package by default (created by the installation), or `root` |
+| `restart` | `on-failure` (by default), `always` or `no` |
+| `autoStart` | enabled and started by the installation, by default |
+
+Its working directory is `/var/lib/<name>`, owned by its user (its data). `SIGTERM` ends it gracefully.
+
+| Command option | |
+|---|---|
+| `--target <targets...>` | the installers made, the ones of the configuration by default |
+| `--outdir <directory>` | the directory of the installers, `dist/installer` by default |
+| `--entry`, `--no-minify`, `--external` | as `lakutata bundle` |
+
 ## Migrations
 
 ### `lakutata migration <action>`

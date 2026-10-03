@@ -5,3 +5,6 @@
 export {BundleProject, ProgramName, ResourceFiles, type BundleOptions, type BundleResult, type ResourceDeclaration} from './lib/Bundle.js'
 export {BuildExecutable, type ExecutableOptions, type ExecutableResult} from './lib/Executable.js'
 export {NativeCollector, PackNativeTree, WriteNativeTree, type NativeFile, type NativeIndex, type NativeLink, type NativeTree} from './lib/Native.js'
+export {BuildInstaller, type InstallerConfig, type InstallerOptions, type InstallerResult, type ServiceOptions} from './lib/Installer.js'
+export {LINUX_TARGETS, type LinuxTarget} from './lib/linux/Linux.js'
+export {Libc} from './lib/Platform.js'

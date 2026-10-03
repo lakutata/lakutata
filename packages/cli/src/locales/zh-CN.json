@@ -90,6 +90,16 @@
           "layout": "单个文件，原生插件和资源嵌入其中（file，默认）；或一个目录：可执行文件及其旁边的原生插件和资源（directory）"
         }
       },
+      "installer": {
+        "description": "为当前平台生成编译后应用的安装包：安装可执行文件、原生插件和资源，把程序加入 PATH，并注册系统服务",
+        "options": {
+          "target": "要生成的安装包：Linux 上为 deb、rpm、apk、archlinux、tar.gz（默认取 package.json 的 lakutata.installer）",
+          "outdir": "安装包所在的目录（默认 dist/installer）",
+          "entry": "应用编译后的入口（默认是 package.json 的 main）",
+          "minify": "压缩嵌入可执行文件的包",
+          "external": "不打进包里的模块"
+        }
+      },
       "migration": {
         "description": "生成、创建、执行、回滚或查看应用数据库的迁移",
         "arguments": {

@@ -3,7 +3,8 @@ import {Controller} from 'lakutata/com/entrypoint'
 import {CLIAction} from 'lakutata/decorator/ctrl'
 import {BundleDTO} from '../dtos/BundleDTO.js'
 import {ExecutableDTO} from '../dtos/ExecutableDTO.js'
-import type {BundleResult, ExecutableResult} from '@lakutata/builder'
+import {InstallerDTO} from '../dtos/InstallerDTO.js'
+import type {BundleResult, ExecutableResult, InstallerResult} from '@lakutata/builder'
 import {LoadBuilder} from '../lib/Builder.js'
 import {Done, Step, Warn} from '../lib/Output.js'
 
@@ -41,6 +42,18 @@ export class PackController extends Controller {
         for (const warning of result.warnings) Warn(warning)
         if (result.directory) Done(`${path.relative(process.cwd(), result.directory)}: the executable and what it loads, distributed together`)
         Done(`${path.relative(process.cwd(), result.file)} (${result.platform}, ${Megabytes(result.size)})`)
+        return undefined
+    }
+
+    @CLIAction('installer', InstallerDTO, {description: 'Make the installers of the compiled application for this platform: its executable, its native addons and its resources installed, its program in the PATH, its service registered'})
+    public async installer(input: InstallerDTO): Promise<undefined> {
+        const {BuildInstaller} = await LoadBuilder(process.cwd())
+        const result: InstallerResult = await BuildInstaller({project: process.cwd(), targets: input.target, outdir: input.outdir, entry: input.entry, minify: input.minify, external: input.external})
+        Step(`${result.executable.runtime} embedded`)
+        if (result.executable.native.length) Step(`Native addons: ${result.executable.native.join(', ')}`)
+        if (result.executable.resources.length) Step(`Resources: ${result.executable.resources.join(', ')}`)
+        for (const warning of result.warnings) Warn(warning)
+        for (const file of result.files) Done(`${path.relative(process.cwd(), file.file)} (${file.target}, ${Megabytes(file.size)})`)
         return undefined
     }
 }

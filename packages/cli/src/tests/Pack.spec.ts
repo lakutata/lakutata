@@ -205,6 +205,12 @@ Application.run({
         assert.ok(!existsSync(cache))
     })
 
+    it('makes the installers of Linux on Linux (the ones of the other platforms come later)', {skip: process.platform === 'linux' && 'Linux makes its installers (the Docker tests of the builder)'}, async (): Promise<void> => {
+        const refused = await Run(process.execPath, [CLI, 'installer'])
+        assert.notStrictEqual(refused.code, 0)
+        assert.match(refused.output, new RegExp(`The installers of ${process.platform} are not supported yet`))
+    })
+
     it('tells to install Bun when it is not installed', async (): Promise<void> => {
         const refused = await Run(process.execPath, [CLI, 'executable', '--runtime', 'bun'], {PATH: ''})
         assert.notStrictEqual(refused.code, 0)
