@@ -24,7 +24,8 @@
   },
   "dependencies": {
     "esbuild": "^0.28.2",
-    "postject": "^1.0.0-alpha.6"
+    "postject": "^1.0.0-alpha.6",
+    "resedit": "^1.7.2"
   },
   "peerDependencies": {
     "electron-builder": ">=26.0.0"

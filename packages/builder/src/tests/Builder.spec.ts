@@ -4,7 +4,9 @@ import {execFileSync} from 'node:child_process'
 import {lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
+import {deflateSync} from 'node:zlib'
 import {BuildExecutable, BuildInstaller, BundleProject, ProgramName} from '../index.js'
+import {ApplicationIcon, DecodePng, EncodePng, IcnsFile, IcoFile, ICO_SIZES, Resize, type Image} from '../lib/Icons.js'
 
 describe('The builder of the applications', (): void => {
 
@@ -126,6 +128,94 @@ console.log(require('./words.js') + ' ' + require('node:fs').readFileSync(requir
         assert.deepStrictEqual(readFileSync(log, 'utf8').trim().split('\n'), ['preinstall install /usr/local/lib/reader bash', 'postinstall install /usr/local/lib/reader bash'])
         //The removal runs its scripts (its uninstall script, as root)
         assert.match(readFileSync(uninstall, 'utf8'), /# scripts\/preremove\.sh\n[\s\S]*echo "preremove \$1 \$LAKUTATA_INSTALL_DIR \$\{BASH_VERSION:\+bash\}" >> "\$HOOKS_LOG" # it's 'quoted'\n[\s\S]*\/bin\/bash "\$lakutata_script" remove/)
+    })
+
+    it('reads the PNG images of every kind: gray, palette, transparent colors, 16 bits', (): void => {
+        //A PNG of rows already filtered (filter None)
+        const png = (width: number, height: number, depth: number, type: number, rows: Buffer[], chunks: [string, Buffer][] = []): Buffer => {
+            const header: Buffer = Buffer.alloc(13)
+            header.writeUInt32BE(width, 0)
+            header.writeUInt32BE(height, 4)
+            header[8] = depth
+            header[9] = type
+            //A chunk, its CRC left empty (not checked by the decoder)
+            const chunk = (name: string, data: Buffer): Buffer => {
+                const length: Buffer = Buffer.alloc(4)
+                length.writeUInt32BE(data.length)
+                return Buffer.concat([length, Buffer.from(name, 'latin1'), data, Buffer.alloc(4)])
+            }
+            const data: Buffer = deflateSync(Buffer.concat(rows.map((row: Buffer): Buffer => Buffer.concat([Buffer.from([0]), row]))))
+            return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', header), ...chunks.map(([name, value]): Buffer => chunk(name, value)), chunk('IDAT', data), chunk('IEND', Buffer.alloc(0))])
+        }
+        const pixel = (image: Image, x: number, y: number): number[] => [...image.pixels.subarray((y * image.width + x) * 4, (y * image.width + x) * 4 + 4)]
+        //Gray of 8 bits, its black transparent (tRNS)
+        const gray: Image = DecodePng(png(2, 1, 8, 0, [Buffer.from([0, 200])], [['tRNS', Buffer.from([0, 0])]]))
+        assert.deepStrictEqual([pixel(gray, 0, 0), pixel(gray, 1, 0)], [[0, 0, 0, 0], [200, 200, 200, 255]])
+        //A palette of 4 bits, its second color half transparent
+        const palette: Image = DecodePng(png(3, 1, 4, 3, [Buffer.from([0x01, 0x20])], [['PLTE', Buffer.from([255, 0, 0, 0, 255, 0, 0, 0, 255])], ['tRNS', Buffer.from([255, 128])]]))
+        assert.deepStrictEqual([pixel(palette, 0, 0), pixel(palette, 1, 0), pixel(palette, 2, 0)], [[255, 0, 0, 255], [0, 255, 0, 128], [0, 0, 255, 255]])
+        //Gray of 2 bits, scaled to 8 bits
+        assert.deepStrictEqual(pixel(DecodePng(png(1, 1, 2, 0, [Buffer.from([0xc0])])), 0, 0), [255, 255, 255, 255])
+        //RGB of 16 bits
+        assert.deepStrictEqual(pixel(DecodePng(png(1, 1, 16, 2, [Buffer.from([0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc])])), 0, 0), [0x12, 0x56, 0x9a, 255])
+        //RGBA, encoded and decoded
+        const image: Image = {width: 2, height: 2, pixels: Buffer.from([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16])}
+        assert.deepStrictEqual(DecodePng(EncodePng(image)), image)
+        assert.throws((): unknown => DecodePng(Buffer.from('GIF89a'), 'logo.gif'), /logo\.gif is not a PNG image/)
+    })
+
+    it('makes the icons of each platform from an image: resized, their transparent edges keeping their colors', (): void => {
+        //A red square on a transparent background
+        const size: number = 512
+        const pixels: Buffer = Buffer.alloc(size * size * 4)
+        for (let y = 128; y < 384; y++) for (let x = 128; x < 384; x++) pixels.set([255, 0, 0, 255], (y * size + x) * 4)
+        const image: Image = {width: size, height: size, pixels: pixels}
+        const small: Image = Resize(image, 16)
+        assert.deepStrictEqual([...small.pixels.subarray((8 * 16 + 8) * 4, (8 * 16 + 8) * 4 + 4)], [255, 0, 0, 255])
+        assert.deepStrictEqual([...small.pixels.subarray(0, 4)], [0, 0, 0, 0])
+        //The pixels covering the edge are red, half transparent (not darkened)
+        const edge: Image = Resize(image, 3)
+        assert.deepStrictEqual([...edge.pixels.subarray(0, 3)], [255, 0, 0])
+        assert.ok(edge.pixels[3] > 0 && edge.pixels[3] < 255)
+        //Windows: its sizes, the bitmaps (BITMAPINFOHEADER) and the PNG of 256
+        const ico: Buffer = IcoFile(image)
+        assert.strictEqual(ico.readUInt16LE(2), 1)
+        assert.strictEqual(ico.readUInt16LE(4), ICO_SIZES.length)
+        ICO_SIZES.forEach((iconSize: number, index: number): void => {
+            const entry: number = 6 + index * 16
+            assert.strictEqual(ico[entry], iconSize >= 256 ? 0 : iconSize)
+            const data: Buffer = ico.subarray(ico.readUInt32LE(entry + 12), ico.readUInt32LE(entry + 12) + ico.readUInt32LE(entry + 8))
+            if (iconSize >= 256) assert.strictEqual(DecodePng(data).width, 256)
+            else assert.deepStrictEqual([data.readUInt32LE(0), data.readInt32LE(4), data.readInt32LE(8)], [40, iconSize, iconSize * 2])
+        })
+        //macOS: its sizes, but the ones larger than the image (1024)
+        const icns: Buffer = IcnsFile(image)
+        assert.strictEqual(icns.toString('latin1', 0, 4), 'icns')
+        assert.strictEqual(icns.readUInt32BE(4), icns.length)
+        const types: string[] = []
+        for (let offset = 8; offset < icns.length; offset += icns.readUInt32BE(offset + 4)) types.push(icns.toString('latin1', offset, offset + 4))
+        assert.deepStrictEqual(types, ['icp4', 'icp5', 'ic11', 'icp6', 'ic12', 'ic07', 'ic08', 'ic13', 'ic09', 'ic14'])
+        if (process.platform === 'darwin') {
+            //Read by the tools of macOS
+            writeFileSync(path.join(project, 'icon.icns'), icns)
+            writeFileSync(path.join(project, 'icon.ico'), ico)
+            execFileSync('iconutil', ['-c', 'iconset', path.join(project, 'icon.icns'), '-o', path.join(project, 'icon.iconset')])
+            const iconset: string[] = readdirSync(path.join(project, 'icon.iconset'))
+            for (const name of ['icon_16x16.png', 'icon_16x16@2x.png', 'icon_32x32@2x.png', 'icon_128x128.png', 'icon_256x256@2x.png', 'icon_512x512.png']) assert.ok(iconset.includes(name), `${name}: ${iconset.join(', ')}`)
+            assert.match(execFileSync('sips', ['-g', 'pixelWidth', path.join(project, 'icon.ico')]).toString(), /pixelWidth: 256/)
+        }
+    })
+
+    it('checks the icon of the application: a square PNG image, 256 pixels at least', (): void => {
+        const icon = (file: string, image?: Image): Record<string, any> => {
+            if (image) writeFileSync(path.join(project, file), EncodePng(image))
+            return {lakutata: {icon: file}}
+        }
+        assert.strictEqual(ApplicationIcon(project, {}), undefined)
+        assert.throws((): unknown => ApplicationIcon(project, icon('missing.png')), /The icon of the application missing\.png \(lakutata\.icon\) does not exist/)
+        assert.throws((): unknown => ApplicationIcon(project, icon('wide.png', {width: 512, height: 256, pixels: Buffer.alloc(512 * 256 * 4)})), /must be square \(it is 512x256\)/)
+        assert.throws((): unknown => ApplicationIcon(project, icon('small.png', {width: 128, height: 128, pixels: Buffer.alloc(128 * 128 * 4)})), /must be 256 pixels at least \(it is 128\)/)
+        assert.strictEqual(ApplicationIcon(project, icon('logo.png', {width: 256, height: 256, pixels: Buffer.alloc(256 * 256 * 4)}))!.image.width, 256)
     })
 
     it('tells to build a resource which does not exist', async (): Promise<void> => {

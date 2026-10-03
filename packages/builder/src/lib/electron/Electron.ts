@@ -5,6 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import {BundleProject, type BundleResult} from '../Bundle.js'
 import type {ExecutableResult} from '../Executable.js'
+import {ApplicationIcon, IcnsFile, IcoFile, WriteLinuxIcons} from '../Icons.js'
 import type {InstallerConfig, InstallerOptions, InstallerResult} from '../Installer.js'
 import {Action} from '../linux/Linux.js'
 import {EmbeddedShell, EncodedShell, INSTALLER_HOOKS, ResolveScripts, type InstallerHook, type PlatformScripts, type ScriptFile, type TargetScripts} from '../Scripts.js'
@@ -264,6 +265,24 @@ export async function BuildElectronInstaller(project: string, manifest: Record<s
                 if (include) own.nsis = {include: include}
             }
         }
+        //The icon of the application, in the formats of the platform: icns (macOS), ico (Windows), the PNG of each size (Linux)
+        const appIcon = ApplicationIcon(project, manifest)
+        const icons: Record<string, unknown> = {}
+        if (appIcon) {
+            const directory: string = path.join(work, 'icons')
+            await mkdir(directory, {recursive: true})
+            if (platform === 'mac') {
+                if (appIcon.image.width < 1024) warnings.push(`The icon of the application ${path.relative(project, appIcon.file)} is ${appIcon.image.width} pixels: 1024 make the icons of the Retina screens of macOS`)
+                await writeFile(path.join(directory, 'icon.icns'), IcnsFile(appIcon.image))
+                icons.mac = {icon: path.join(directory, 'icon.icns')}
+            } else if (platform === 'win') {
+                await writeFile(path.join(directory, 'icon.ico'), IcoFile(appIcon.image))
+                icons.win = {icon: path.join(directory, 'icon.ico')}
+            } else {
+                await WriteLinuxIcons(appIcon.image, path.join(directory, 'linux'))
+                icons.linux = {icon: path.join(directory, 'linux')}
+            }
+        }
         const electronDist: string = path.join(electron, 'dist')
         const generated: Record<string, unknown> = {
             appId: appId,
@@ -282,6 +301,8 @@ export async function BuildElectronInstaller(project: string, manifest: Record<s
             ...platform === 'linux' ? {linux: {maintainer: maintainer, ...config.vendor ? {vendor: config.vendor} : {}}} : {},
             ...own
         }
+        //Their own configurations (the one of Linux has its maintainer)
+        for (const [key, value] of Object.entries(icons)) generated[key] = {...generated[key] as Record<string, unknown>, ...value as Record<string, unknown>}
         const electronConfig: unknown = config.electron ?? {}
         if (!electronConfig || typeof electronConfig !== 'object' || Array.isArray(electronConfig)) throw new Error('The configuration of electron-builder (lakutata.installer.electron) must be an object')
         for (const target of Object.keys(own)) {

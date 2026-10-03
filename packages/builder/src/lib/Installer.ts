@@ -1,9 +1,10 @@
-import {readFile, mkdtemp, mkdir, rm} from 'node:fs/promises'
+import {readFile, mkdtemp, mkdir, rm, writeFile} from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import {ProgramName} from './Bundle.js'
 import {BuildElectronInstaller} from './electron/Electron.js'
 import {BuildExecutable, type ExecutableResult} from './Executable.js'
+import {ApplicationIcon, IcoFile} from './Icons.js'
 import {Libc} from './Platform.js'
 import {ResolveScripts, type InstallerScripts, type NativeScripts, type PlatformScripts, type TargetScripts} from './Scripts.js'
 import {BuildLinuxPackages, LINUX_TARGETS, type LinuxTarget} from './linux/Linux.js'
@@ -212,6 +213,11 @@ export type InstallerPlan = {
      * The scripts of the application each installer runs
      */
     scripts: Record<string, TargetScripts>
+    /**
+     * The icon of the installers of Windows and of their application (ico), made from the icon of the application
+     * (lakutata.icon), none without it
+     */
+    icon?: string
 }
 
 /**
@@ -288,8 +294,15 @@ export async function BuildInstaller(options: InstallerOptions): Promise<Install
     if (service?.name !== undefined && !/^[A-Za-z0-9_.@-]+$/.test(service.name)) throw new Error(`The name of the service "${service.name}" must be letters, digits, "_", ".", "@" and "-"`)
     const platform: 'linux' | 'mac' | 'win' = mac ? 'mac' : windows ? 'win' : 'linux'
     const scripts: Record<string, TargetScripts> = ResolveScripts(project, platform, config[platform] as PlatformScripts | undefined, targets, warnings)
+    const application = ApplicationIcon(project, manifest)
     const work: string = await mkdtemp(path.join(os.tmpdir(), 'lakutata-installer-'))
     try {
+        //The icon of the installers of Windows (the executable has it too)
+        let icon: string | undefined
+        if (windows && application) {
+            icon = path.join(work, 'icon.ico')
+            await writeFile(icon, IcoFile(application.image))
+        }
         const executable: ExecutableResult = await BuildExecutable({
             project: project,
             entry: options.entry,
@@ -328,7 +341,8 @@ export async function BuildInstaller(options: InstallerOptions): Promise<Install
             },
             directory: executable.directory!,
             prefix: mac ? `/usr/local/lib/${name}` : windows ? `C:\\Program Files\\${name}` : `/opt/${name}`,
-            scripts: scripts
+            scripts: scripts,
+            icon: icon
         }
         const outdir: string = path.resolve(project, options.outdir ?? path.join('dist', 'installer'))
         await mkdir(outdir, {recursive: true})

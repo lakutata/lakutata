@@ -208,6 +208,8 @@ function NsisScript(plan: InstallerPlan, stage: string, file: string, scripts: {
         '!include "x64.nsh"',
         `Name ${string(plan.productName)}`,
         `OutFile ${string(file)}`,
+        //The icon of the application
+        ...plan.icon ? [`Icon ${string(plan.icon)}`, `UninstallIcon ${string(plan.icon)}`] : [],
         `InstallDir ${variables(`$PROGRAMFILES64\\${plan.name}`)}`,
         'RequestExecutionLevel admin',
         'SetCompressor /SOLID lzma',
@@ -391,6 +393,8 @@ function WixSource(plan: InstallerPlan, stage: string, serviceDirectory: string,
         `    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" Description="${Xml(plan.description)}"/>`,
         '    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is installed."/>',
         '    <MediaTemplate EmbedCab="yes"/>',
+        //The icon of the application in the programs of Windows
+        ...plan.icon ? [`    <Icon Id="ProductIcon.ico" SourceFile="${Xml(plan.icon)}"/>`, '    <Property Id="ARPPRODUCTICON" Value="ProductIcon.ico"/>'] : [],
         `    <Property Id="ARPINSTALLLOCATION" Value="[INSTALLDIR]"/>`,
         '    <Directory Id="TARGETDIR" Name="SourceDir">',
         '      <Directory Id="ProgramFiles64Folder">',

@@ -6,6 +6,7 @@ import path from 'node:path'
 import {Libc} from './Platform.js'
 import {Run} from './Processes.js'
 import {BundleProject, ProgramName, type BundleOptions, type BundleResult} from './Bundle.js'
+import {ApplicationIcon, IcoFile, SetExecutableIcon} from './Icons.js'
 import {PackNativeTree} from './Native.js'
 import {BUN_NATIVE_ASSETS, NATIVE_DATA_ASSET, NATIVE_INDEX_ASSET} from './NativeRuntime.js'
 
@@ -108,13 +109,25 @@ async function FindBun(project: string): Promise<{ command: string, version: str
 }
 
 /**
+ * Write the icon of the application (ico) into the work directory
+ * @param work
+ * @param icon
+ */
+async function WriteIcon(work: string, icon: Buffer): Promise<string> {
+    const file: string = path.join(work, 'icon.ico')
+    await writeFile(file, icon)
+    return file
+}
+
+/**
  * Embed a bundle in the Node.js binary running the tool (the single executable applications of Node.js)
  * @param bundle
  * @param work
  * @param file
  * @param warnings
+ * @param icon the icon of the application (ico, Windows)
  */
-async function EmbedInNode(bundle: BundleResult, work: string, file: string, warnings: string[]): Promise<string> {
+async function EmbedInNode(bundle: BundleResult, work: string, file: string, warnings: string[], icon?: Buffer): Promise<string> {
     const assets: Record<string, string> = {}
     if (bundle.native) {
         //The files of the native packages, extracted by the executable at its first run
@@ -138,6 +151,8 @@ async function EmbedInNode(bundle: BundleResult, work: string, file: string, war
     await Must(process.execPath, ['--experimental-sea-config', 'sea-config.json'], work)
     const {inject} = await import('postject')
     await copyFile(process.execPath, file)
+    //The icon of the application replaces the one of node.exe, before the bundle is embedded
+    if (icon) await SetExecutableIcon(file, icon)
     //The signature of macOS is removed before the binary is changed, then made again (ad hoc)
     if (process.platform === 'darwin') await Must('codesign', ['--remove-signature', file], work)
     await Quiet((): Promise<void> => inject(file, 'NODE_SEA_BLOB', readFileSync(blob), {sentinelFuse: SEA_FUSE, machoSegmentName: process.platform === 'darwin' ? 'NODE_SEA' : undefined}))
@@ -156,8 +171,9 @@ async function EmbedInNode(bundle: BundleResult, work: string, file: string, war
  * @param bundle
  * @param work
  * @param file
+ * @param icon the icon of the application (ico, Windows)
  */
-async function CompileWithBun(bun: { command: string, version: string }, bundle: BundleResult, work: string, file: string): Promise<string> {
+async function CompileWithBun(bun: { command: string, version: string }, bundle: BundleResult, work: string, file: string, icon?: Buffer): Promise<string> {
     let entry: string = bundle.outfile
     if (bundle.native) {
         const {index, data} = PackNativeTree(bundle.native)
@@ -176,7 +192,9 @@ async function CompileWithBun(bun: { command: string, version: string }, bundle:
         'build', entry, '--compile', '--outfile', file,
         //Compiled to the bytecode of JavaScriptCore: it starts without parsing the bundle
         '--bytecode',
-        '--compile-autoload-package-json', '--no-compile-autoload-dotenv', '--no-compile-autoload-bunfig'
+        '--compile-autoload-package-json', '--no-compile-autoload-dotenv', '--no-compile-autoload-bunfig',
+        //The icon of the application (Windows)
+        ...icon ? [`--windows-icon=${await WriteIcon(work, icon)}`] : []
     ], work)
     return `Bun ${bun.version}`
 }
@@ -198,7 +216,8 @@ export async function BuildExecutable(options: ExecutableOptions): Promise<Execu
         const directory: boolean = options.layout === 'directory'
         //The directory of the executable: dist/<name>, its native tree and its resources written there (the links of
         //the tree are the ones of their directory), the one of the executable alone otherwise
-        const target: string = directory ? path.join(outdir, ProgramName(JSON.parse(await readFile(path.join(project, 'package.json'), 'utf8')))) : outdir
+        const manifest: Record<string, any> = JSON.parse(await readFile(path.join(project, 'package.json'), 'utf8'))
+        const target: string = directory ? path.join(outdir, ProgramName(manifest)) : outdir
         if (directory) await rm(target, {recursive: true, force: true})
         await mkdir(target, {recursive: true})
         const bundle: BundleResult = await BundleProject({
@@ -218,7 +237,10 @@ export async function BuildExecutable(options: ExecutableOptions): Promise<Execu
         const made: string = path.join(work, 'executable', path.basename(file))
         await mkdir(path.dirname(made), {recursive: true})
         const warnings: string[] = []
-        const runtime: string = bun ? await CompileWithBun(bun, embedded, work, made) : await EmbedInNode(embedded, work, made, warnings)
+        //The icon of the application: the one of the executables of Windows (the ones of macOS and Linux have none)
+        const application = ApplicationIcon(project, manifest)
+        const icon: Buffer | undefined = application && process.platform === 'win32' ? IcoFile(application.image) : undefined
+        const runtime: string = bun ? await CompileWithBun(bun, embedded, work, made, icon) : await EmbedInNode(embedded, work, made, warnings, icon)
         await copyFile(made, file)
         await chmod(file, 0o755)
         return {

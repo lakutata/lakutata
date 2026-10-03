@@ -1,5 +1,16 @@
 import {mkdirSync, writeFileSync} from 'node:fs'
 import path from 'node:path'
+import {EncodePng} from '../../lib/Icons.js'
+
+/**
+ * The icon of the applications of the tests: a red disc on a transparent background, 256 pixels
+ */
+function Icon(): Buffer {
+    const size: number = 256
+    const pixels: Buffer = Buffer.alloc(size * size * 4)
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if ((x - 128) ** 2 + (y - 128) ** 2 < 100 ** 2) pixels.set([220, 40, 40, 255], (y * size + x) * 4)
+    return EncodePng({width: size, height: size, pixels: pixels})
+}
 
 /**
  * The application of the tests of the installers: a service answering what it runs with (its environment, its user, its
@@ -35,6 +46,7 @@ NAPI_MODULE_INIT() {
     file('addon/index.js', `module.exports = require(require('node:path').join(__dirname, 'build', 'Release', 'addon.node'))`)
     //A service answering what it runs with, and a command
     file('assets/hello.txt', 'Hello')
+    writeFileSync(path.join(fixture, 'icon.png'), Icon())
     //Named as the chunks of Turbopack: the installers take the characters of the globs as they are
     file('assets/[root-of-the-server]__chunk.js', 'chunk')
     file('build/index.js', `const http = require('node:http'), fs = require('node:fs'), path = require('node:path'), os = require('node:os')
@@ -61,6 +73,7 @@ process.on('SIGTERM', () => process.exit(0))
         main: 'build/index.js', bin: {hello: 'build/index.js'},
         dependencies: {...dependencies, 'hello-addon': 'file:./addon'},
         lakutata: {
+            icon: 'icon.png',
             resources: [{from: 'assets', to: 'texts'}],
             installer: {
                 name: 'hello-service', appId: 'test.acme.hello', service: {env: {GREETING: 'Hi', PORT: '18080'}},
@@ -89,6 +102,7 @@ export function WriteElectronFixture(fixture: string, versions: { electron: stri
     }
     file('build/index.js', `const {app} = require('electron')\napp.whenReady().then(() => app.quit())\n`)
     file('assets/hello.txt', 'Hello')
+    writeFileSync(path.join(fixture, 'icon.png'), Icon())
     for (const hook of ['preinstall', 'postinstall', 'preremove', 'postremove']) {
         file(`scripts/${hook}.sh`, `#!/bin/sh\nif [ -n "$(find "$LAKUTATA_INSTALL_DIR" -type f 2>/dev/null | head -n 1)" ]; then files=files; else files=nofiles; fi\necho "${hook} $1 $files $LAKUTATA_INSTALL_DIR \${LAKUTATA_INSTALL_DIR:+kept}" >> /tmp/hello-desk-hooks.log\n`)
         file(`scripts/${hook}.ps1`, `$files = if (Get-ChildItem $env:LAKUTATA_INSTALL_DIR -ErrorAction SilentlyContinue) { 'files' } else { 'nofiles' }\r\nAdd-Content -Path (Join-Path $env:ProgramData 'hello-desk-hooks.log') -Value "${hook} $($args[0]) $files $env:LAKUTATA_INSTALL_DIR"\r\n`)
@@ -99,6 +113,7 @@ export function WriteElectronFixture(fixture: string, versions: { electron: stri
         homepage: 'https://acme.test', main: 'build/index.js',
         devDependencies: {...dependencies, 'electron': versions.electron, 'electron-builder': versions.builder},
         lakutata: {
+            icon: 'icon.png',
             resources: [{from: 'assets', to: 'texts'}],
             installer: {
                 runtime: 'electron', appId: 'test.acme.desk',

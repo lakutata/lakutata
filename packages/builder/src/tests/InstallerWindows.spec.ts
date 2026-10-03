@@ -6,6 +6,7 @@ import {createRequire} from 'node:module'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {BuildInstaller} from '../index.js'
+import {ICO_SIZES} from '../lib/Icons.js'
 import {WriteElectronFixture, WriteServiceFixture} from './support/Fixture.js'
 
 /**
@@ -16,6 +17,16 @@ const INSTALL: boolean = process.platform === 'win32' && process.env.LAKUTATA_WI
 
 const INSTALL_DIRECTORY: string = 'C:\\Program Files\\hello-service'
 const DATA_DIRECTORY: string = 'C:\\ProgramData\\hello-service'
+
+/**
+ * The sizes of the icons of an executable (its icon groups)
+ * @param file
+ */
+async function IconSizes(file: string): Promise<number[]> {
+    const {NtExecutable, NtExecutableResource, Resource} = await import('resedit')
+    const resource = NtExecutableResource.from(NtExecutable.from(readFileSync(file), {ignoreCert: true}))
+    return [...new Set(Resource.IconGroupEntry.fromEntries(resource.entries).flatMap((group): number[] => group.icons.map((icon): number => icon.width || 256)))].sort((a: number, b: number): number => a - b)
+}
 
 /**
  * The log the scripts of the application write to
@@ -146,6 +157,11 @@ describe('The installers of Windows', {skip: !INSTALL && 'LAKUTATA_WINDOWS_INSTA
             assert.deepStrictEqual(answer, {greeting: 'Hi', mode: 'production', user: 'hello-service', cwd: DATA_DIRECTORY, text: 'Hello', arch: process.arch})
             const service: string = PowerShell(`$s = Get-CimInstance Win32_Service -Filter "Name='hello-service'"; "$($s.State) $($s.StartMode) $($s.StartName)"`)
             assert.strictEqual(service, 'Running Auto NT SERVICE\\hello-service')
+            //The icon of the application: the one of its program, of its installer, of the programs of Windows
+            assert.deepStrictEqual(await IconSizes(path.join(INSTALL_DIRECTORY, 'hello.exe')), ICO_SIZES)
+            if (kind === 'nsis') assert.deepStrictEqual(await IconSizes(installer('1.0.0')), ICO_SIZES)
+            //The products of Windows Installer: their icon (ARPPRODUCTICON) is the one of their programs
+            else assert.match(PowerShell(`(Get-ItemProperty 'HKLM:\\Software\\Classes\\Installer\\Products\\*' | Where-Object { $_.ProductName -eq 'hello-service' }).ProductIcon`), /ProductIcon\.ico$/i)
             //Its resources named as the chunks of Turbopack
             assert.strictEqual(readFileSync(path.join(INSTALL_DIRECTORY, 'resources', 'texts', '[root-of-the-server]__chunk.js'), 'utf8'), 'chunk')
             //The program in the PATH of the machine
@@ -187,8 +203,9 @@ describe('The installers of Windows', {skip: !INSTALL && 'LAKUTATA_WINDOWS_INSTA
         assert.strictEqual(run(setup('1.0.0')), '0')
         assert.deepStrictEqual(hooks(), [line('preinstall', 'install', false), line('postinstall', 'install', true)])
         assert.strictEqual(readFileSync(path.join(directory, 'resources', 'main.resources', 'texts', 'hello.txt'), 'utf8'), 'Hello')
-        //Its executables extracted (the ones of ARM64 too)
+        //Its executables extracted (the ones of ARM64 too), their icon the one of the application
         assert.ok(existsSync(path.join(directory, 'Hello Desk.exe')))
+        assert.deepStrictEqual(await IconSizes(path.join(directory, 'Hello Desk.exe')), ICO_SIZES)
         assert.ok(existsSync(path.join(directory, 'ffmpeg.dll')))
         //The upgrade runs the uninstaller of the version it replaces, which runs no script
         assert.strictEqual(run(setup('1.0.1')), '0')

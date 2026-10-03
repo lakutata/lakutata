@@ -150,6 +150,9 @@ describe('The installers of macOS', {skip: (process.platform !== 'darwin' || pro
         install('1.0.0')
         //Its resources next to its archive; the ${...} of the scripts are theirs
         assert.strictEqual(Exec('cat "/Applications/Hello Desk.app/Contents/Resources/main.resources/texts/hello.txt"'), 'Hello')
+        //The icon of the application (icns)
+        assert.strictEqual(Exec('defaults read "/Applications/Hello Desk.app/Contents/Info" CFBundleIconFile').trim(), 'icon.icns')
+        assert.strictEqual(Exec('head -c 4 "/Applications/Hello Desk.app/Contents/Resources/icon.icns"'), 'icns')
         assert.deepStrictEqual(hooks(), [line('preinstall', 'install', false), line('postinstall', 'install', true)])
         install('1.0.1')
         assert.deepStrictEqual(hooks(), [line('preinstall', 'install', false), line('postinstall', 'install', true), line('preinstall', 'upgrade', true), line('postinstall', 'upgrade', true)])

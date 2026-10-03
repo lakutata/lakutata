@@ -240,6 +240,8 @@ node -e "import('@lakutata/builder').then(b => b.BuildInstaller({project: '/w', 
             //What the script of electron-builder does: the program in the PATH, the sandbox of Chromium
             assert.match(Exec(container, 'readlink -f /usr/bin/hello-desk'), /^\/opt\/Hello Desk\/hello-desk\n$/)
             assert.match(Exec(container, 'stat -c %a "/opt/Hello Desk/chrome-sandbox"'), /^(4755|755)\n$/)
+            //The icons of the application, in its sizes
+            assert.strictEqual(Exec(container, 'ls /usr/share/icons/hicolor/256x256/apps/hello-desk.png /usr/share/icons/hicolor/16x16/apps/hello-desk.png | wc -l').trim(), '2')
             assert.strictEqual(Exec(container, 'cat "/opt/Hello Desk/resources/main.resources/texts/hello.txt"'), 'Hello')
             install('1.0.1')
             assert.deepStrictEqual(hooks(), [line('preinstall', 'install', false), line('postinstall', 'install', true), line('preinstall', 'upgrade', true), line('postinstall', 'upgrade', true)])
