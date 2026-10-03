@@ -440,8 +440,10 @@
     "SocketOfContext"
   ],
   "lakutata/adapter/electron": [
+    "BroadcastToRenderers",
     "ElectronIPCServiceEntrypoint",
-    "IPCEventOfContext"
+    "IPCEventOfContext",
+    "NotifyRenderer"
   ],
   "lakutata/com/logger": [
     "Logger"

@@ -5,7 +5,7 @@ import {Container, DTO} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
 import {ActionInvocation, BuildEntrypoints, Controller, Entrypoint, MiddlewareHandler, Next, ServiceContext} from '../exports/Entrypoint.js'
 import {ServiceAction} from '../exports/CTRLDecorators.js'
-import {ElectronIPCServiceEntrypoint, IPCEventOfContext, IPCMain} from '../exports/ElectronAdapter.js'
+import {BroadcastToRenderers, ElectronIPCServiceEntrypoint, IPCEventOfContext, IPCMain, NotifyRenderer} from '../exports/ElectronAdapter.js'
 
 /**
  * The ipcMain of the tests: the handlers are invoked as by the renderers
@@ -20,6 +20,25 @@ class FakeIPCMain implements IPCMain {
 
     public removeHandler(channel: string): void {
         this.handlers.delete(channel)
+    }
+
+    public readonly listeners: Map<string, (event: any, ...args: any[]) => void> = new Map()
+
+    public on(channel: string, listener: (event: any, ...args: any[]) => void): void {
+        this.listeners.set(channel, listener)
+    }
+
+    public removeAllListeners(channel: string): void {
+        this.listeners.delete(channel)
+    }
+
+    /**
+     * Send to a channel as a renderer
+     * @param channel
+     * @param sender
+     */
+    public send(channel: string, sender: EventEmitter): void {
+        this.listeners.get(channel)?.({sender: sender})
     }
 
     /**
@@ -49,6 +68,12 @@ class EchoController extends Controller {
         return {value: input.value, renderer: (IPCEventOfContext(this.context as ServiceContext)?.sender as any)?.id}
     }
 
+    @ServiceAction({cmd: 'push'})
+    public async push(): Promise<number> {
+        NotifyRenderer(this.context as ServiceContext, 'progress', 1, 'a')
+        return BroadcastToRenderers('broadcast', 'all')
+    }
+
     @ServiceAction({cmd: 'slow'})
     public async slow(): Promise<string> {
         await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 150))
@@ -60,8 +85,9 @@ class EchoController extends Controller {
  * A renderer
  * @param id
  */
-function Renderer(id: number): EventEmitter {
-    return Object.assign(new EventEmitter(), {id: id})
+function Renderer(id: number): EventEmitter & { received: unknown[][] } {
+    const received: unknown[][] = []
+    return Object.assign(new EventEmitter(), {id: id, received: received, send: (...args: unknown[]): unknown => received.push(args)})
 }
 
 /**
@@ -108,6 +134,25 @@ describe('Electron adapter', (): void => {
         assert.ok(signals.at(-1)!.aborted)
         await pending
         await container.destroy()
+    })
+
+    it('pushes the events to the renderer of a request, and to the renderers subscribed to them', async (): Promise<void> => {
+        const ipcMain: FakeIPCMain = new FakeIPCMain()
+        const container: Container = await Start(ipcMain)
+        const [first, second, other] = [Renderer(1), Renderer(2), Renderer(3)]
+        ipcMain.send('lakutata:service:subscribe', first)
+        ipcMain.send('lakutata:service:subscribe', second)
+        //Subscribed once
+        ipcMain.send('lakutata:service:subscribe', second)
+        assert.deepStrictEqual(await ipcMain.invoke('lakutata:service', other, {cmd: 'push'}), {success: true, error: null, payload: 2})
+        assert.deepStrictEqual(other.received, [['lakutata:service:event', 'progress', [1, 'a']]])
+        assert.deepStrictEqual([first.received, second.received], [[['lakutata:service:event', 'broadcast', ['all']]], [['lakutata:service:event', 'broadcast', ['all']]]])
+        //The destroyed renderers are not subscribed anymore
+        first.emit('destroyed')
+        assert.strictEqual(BroadcastToRenderers('broadcast'), 1)
+        await container.destroy()
+        assert.strictEqual(ipcMain.listeners.size, 0)
+        assert.strictEqual(BroadcastToRenderers('broadcast'), 0)
     })
 
     it('stops gracefully', async (): Promise<void> => {
