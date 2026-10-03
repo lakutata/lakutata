@@ -100,6 +100,11 @@ describe('The installers of macOS', {skip: (process.platform !== 'darwin' || pro
         const shared: string = '/Volumes/My Shared Files/out'
         const install = (version: string): string => Exec(`sudo installer -pkg "${shared}/${version}/hello-service-${version}-${process.arch}.pkg" -target /`)
         install('1.0.0')
+        //The scripts of the application: what the installer does, whether the files are installed, their directory
+        const hooks = (): string[] => Exec('cat /tmp/hello-hooks.log 2>/dev/null || true').split('\n').filter(Boolean)
+        const installed: string[] = ['preinstall install nofiles /usr/local/lib/hello-service', 'postinstall install files /usr/local/lib/hello-service']
+        const upgraded: string[] = ['preinstall upgrade files /usr/local/lib/hello-service', 'postinstall upgrade files /usr/local/lib/hello-service']
+        assert.deepStrictEqual(hooks(), installed)
         //Started by the installation, as its hidden user, in its directory, with its environment, its resources and its addon
         const answer = JSON.parse(await Until('curl -sf http://127.0.0.1:18080/'))
         assert.deepStrictEqual({...answer, arch: undefined}, {greeting: 'Hi', mode: 'production', user: '_hello-service', cwd: '/usr/local/var/lib/hello-service', text: 'Hello', arch: undefined})
@@ -114,8 +119,10 @@ describe('The installers of macOS', {skip: (process.platform !== 'darwin' || pro
         install('1.0.1')
         assert.strictEqual(JSON.parse(await Until('curl -sf http://127.0.0.1:18080/')).greeting, 'Bonjour')
         assert.match(Exec('pkgutil --pkg-info test.acme.hello'), /version: 1\.0\.1/)
+        assert.deepStrictEqual(hooks(), [...installed, ...upgraded])
         //Removed, it is stopped, its files removed
         Exec('sudo /usr/local/lib/hello-service/uninstall')
+        assert.deepStrictEqual(hooks(), [...installed, ...upgraded, 'preremove remove files /usr/local/lib/hello-service', 'postremove remove nofiles /usr/local/lib/hello-service'])
         assert.notStrictEqual(spawnSync(...Tart(['exec', VM, 'curl', '-sf', 'http://127.0.0.1:18080/'])).status, 0)
         assert.strictEqual(Exec('ls /usr/local/lib/hello-service /usr/local/bin/hello /Library/LaunchDaemons/test.acme.hello.plist 2>/dev/null | wc -l').trim(), '0')
         assert.notStrictEqual(spawnSync(...Tart(['exec', VM, 'pkgutil', '--pkg-info', 'test.acme.hello'])).status, 0)

@@ -3,6 +3,7 @@ import path from 'node:path'
 import {ArchiveDirectory} from '../Archive.js'
 import {Run} from '../Processes.js'
 import type {InstallerPlan} from '../Installer.js'
+import {EmbeddedShell, type InstallerHook, type ScriptFile} from '../Scripts.js'
 
 /**
  * The installers of macOS: the package of its installer, and the archive of the directory of the executable
@@ -93,19 +94,68 @@ ${service.user === 'root' ? '' : `    <key>UserName</key>
 }
 
 /**
+ * The scripts of the application the package runs
+ * @param plan
+ */
+function Hooks(plan: InstallerPlan): Partial<Record<InstallerHook, ScriptFile>> {
+    return plan.scripts.pkg?.hooks ?? {}
+}
+
+/**
+ * The file the preinstall script writes what the installation does to (install or upgrade), read by the postinstall
+ * script: in the temporary directory of the installation (INSTALLER_TEMP), given to both
+ */
+const ACTION_FILE: string = '"$INSTALLER_TEMP/lakutata-action"'
+
+/**
+ * The script run before the installation (and the upgrades), when the application has scripts: what the installation
+ * does (an upgrade replaces the program installed), the preinstall script of the application
+ * @param plan
+ */
+function PreInstall(plan: InstallerPlan): string {
+    const hooks = Hooks(plan)
+    return [
+        '#!/bin/sh',
+        'set -e',
+        `if [ -e ${DoubleQuoted(`${plan.prefix}/${plan.program}`)} ]; then lakutata_action=upgrade; else lakutata_action=install; fi`,
+        `if [ -n "$INSTALLER_TEMP" ]; then echo "$lakutata_action" > ${ACTION_FILE}; fi`,
+        ...hooks.preinstall ? EmbeddedShell(hooks.preinstall, plan.prefix, '"$lakutata_action"') : [],
+        ''
+    ].join('\n')
+}
+
+/**
  * The script run after the installation (and the upgrades): the user of the service created (hidden, its identifier a
  * free one of the system users), its directories, its environment file written once (the administrators change it),
- * the service loaded again
+ * the postinstall script of the application, the service loaded again
+ * @param plan
+ */
+function PostInstall(plan: InstallerPlan): string {
+    const service: Service | undefined = plan.service
+    const hooks = Hooks(plan)
+    return [
+        '#!/bin/sh',
+        'set -e',
+        ...service ? ServiceInstallation(plan, service) : [],
+        ...hooks.postinstall ? [
+            `lakutata_action="$(cat ${ACTION_FILE} 2>/dev/null || echo install)"`,
+            ...EmbeddedShell(hooks.postinstall, plan.prefix, '"$lakutata_action"')
+        ] : [],
+        ...service ? ServiceStart(plan) : [],
+        ''
+    ].join('\n')
+}
+
+/**
+ * The installation of the service: its hidden user, its directories, its environment file
  * @param plan
  * @param service
  */
-function PostInstall(plan: InstallerPlan, service: Service): string {
+function ServiceInstallation(plan: InstallerPlan, service: Service): string[] {
     const paths = Paths(plan)
     const user: string = service.user
     const root: boolean = user === 'root'
     return [
-        '#!/bin/sh',
-        'set -e',
         ...root ? [] : [
             `if ! dscl . -read /Users/${user} >/dev/null 2>&1; then`,
             '    taken="$(dscl . -list /Users UniqueID | awk \'{print $2}\') $(dscl . -list /Groups PrimaryGroupID | awk \'{print $2}\')"',
@@ -137,32 +187,45 @@ function PostInstall(plan: InstallerPlan, service: Service): string {
         'fi',
         //Read by the user of the service
         `chown root:${root ? 'wheel' : user} ${paths.environment}`,
-        `chmod 640 ${paths.environment}`,
+        `chmod 640 ${paths.environment}`
+    ]
+}
+
+/**
+ * The service loaded again: started (RunAtLoad), or stopped by the upgrade
+ * @param plan
+ */
+function ServiceStart(plan: InstallerPlan): string[] {
+    const paths = Paths(plan)
+    return [
         //Loaded again: started (RunAtLoad), or stopped by the upgrade; bootout returns before the job of the version
         //replaced is unloaded (the application ending gracefully, ExitTimeOut): bootstrap fails until it is
         `launchctl bootout system/${plan.appId} 2>/dev/null || true`,
         'waited=0',
         `while launchctl print system/${plan.appId} >/dev/null 2>&1 && [ "$waited" -lt 70 ]; do sleep 0.5; waited=$((waited + 1)); done`,
-        `launchctl bootstrap system ${paths.daemon}`,
-        ''
-    ].join('\n')
+        `launchctl bootstrap system ${paths.daemon}`
+    ]
 }
 
 /**
- * The script removing the application (the packages of macOS are not removed by the system): its service stopped, its
- * files removed, its data, its environment and its user kept
+ * The script removing the application (the packages of macOS are not removed by the system): its service stopped, the
+ * preremove script of the application, its files removed, the postremove script of the application; its data, its
+ * environment and its user kept
  * @param plan
  */
 function Uninstall(plan: InstallerPlan): string {
     const paths = Paths(plan)
+    const hooks = Hooks(plan)
     return [
         '#!/bin/sh',
         'set -e',
         `[ "$(id -u)" = 0 ] || { echo "Remove ${plan.name} as root: sudo $0"; exit 1; }`,
         ...plan.service ? [`launchctl bootout system/${plan.appId} 2>/dev/null || true`, `rm -f ${paths.daemon}`] : [],
+        ...hooks.preremove ? EmbeddedShell(hooks.preremove, plan.prefix, 'remove') : [],
         ...plan.addToPath ? [`rm -f /usr/local/bin/${plan.program}`] : [],
         `rm -rf ${plan.prefix}`,
         `pkgutil --forget ${plan.appId} >/dev/null 2>&1 || true`,
+        ...hooks.postremove ? EmbeddedShell(hooks.postremove, plan.prefix, 'remove') : [],
         `echo "${plan.name} removed${plan.service ? `, its data (${paths.data}), its environment (${paths.environment}) and its user (${plan.service.user}) kept` : ''}"`,
         ''
     ].join('\n')
@@ -201,7 +264,14 @@ export async function BuildMacPackages(plan: InstallerPlan, targets: MacTarget[]
         if (plan.service) {
             await mkdir(path.join(root, 'Library', 'LaunchDaemons'), {recursive: true})
             await writeFile(path.join(root, 'Library', 'LaunchDaemons', `${plan.appId}.plist`), LaunchDaemon(plan, plan.service), {mode: 0o644})
-            await writeFile(path.join(scripts, 'postinstall'), PostInstall(plan, plan.service))
+        }
+        const hooks = Hooks(plan)
+        if (hooks.preinstall || hooks.postinstall) {
+            await writeFile(path.join(scripts, 'preinstall'), PreInstall(plan))
+            await chmod(path.join(scripts, 'preinstall'), 0o755)
+        }
+        if (plan.service || hooks.postinstall) {
+            await writeFile(path.join(scripts, 'postinstall'), PostInstall(plan))
             await chmod(path.join(scripts, 'postinstall'), 0o755)
         }
         const component: string = path.join(work, `${plan.name}-component.pkg`)

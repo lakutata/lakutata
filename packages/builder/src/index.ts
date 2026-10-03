@@ -7,6 +7,7 @@ export {BuildExecutable, type ExecutableOptions, type ExecutableResult} from './
 export {NativeCollector, PackNativeTree, WriteNativeTree, type NativeFile, type NativeIndex, type NativeLink, type NativeTree} from './lib/Native.js'
 export {BuildInstaller, type InstallerConfig, type InstallerOptions, type InstallerResult, type ServiceOptions} from './lib/Installer.js'
 export {LINUX_TARGETS, type LinuxTarget} from './lib/linux/Linux.js'
+export {INSTALLER_HOOKS, NATIVE_HOOKS, type InstallerHook, type InstallerScripts, type NativeHook, type NativeScripts} from './lib/Scripts.js'
 export {Libc} from './lib/Platform.js'
 export {WINDOWS_TARGETS, type WindowsTarget} from './lib/win/Windows.js'
 export {MAC_TARGETS, type MacTarget} from './lib/mac/Mac.js'

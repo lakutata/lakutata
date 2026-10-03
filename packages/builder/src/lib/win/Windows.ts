@@ -5,6 +5,7 @@ import path from 'node:path'
 import {Run} from '../Processes.js'
 import {EnsureTool} from '../Tools.js'
 import type {InstallerPlan} from '../Installer.js'
+import type {InstallerHook, ScriptFile, TargetScripts} from '../Scripts.js'
 
 /**
  * The installers of Windows: the installer of NSIS (.exe), the package of Windows Installer (.msi), the zip archive of
@@ -114,7 +115,7 @@ function ServiceConfiguration(plan: InstallerPlan, service: Service): string {
 
 /**
  * The script of the installer of NSIS (Windows PowerShell): install (the data, the environment file written once, the
- * PATH, the service registered and started), stop (the service of the version replaced), uninstall
+ * PATH, the service registered), start (the service), stop (the service of the version replaced), uninstall
  * @param plan
  */
 function InstallerScript(plan: InstallerPlan): string {
@@ -122,7 +123,7 @@ function InstallerScript(plan: InstallerPlan): string {
     const account = service && Account(service)
     const quote = (value: string): string => `'${value.replace(/'/g, "''")}'`
     return [
-        '# The installation of the application by its installer (NSIS): install, stop (before an upgrade), uninstall',
+        '# The installation of the application by its installer (NSIS): install, start, stop (before an upgrade), uninstall',
         'param([string]$Action, [string]$InstallDir)',
         '$ErrorActionPreference = \'Stop\'',
         `$data = Join-Path $env:ProgramData ${quote(plan.name)}`,
@@ -141,9 +142,11 @@ function InstallerScript(plan: InstallerPlan): string {
         ] : [],
         ...service ? [
             '    Invoke-Wrapper install',
-            ...account ? [`    icacls $data /grant ${quote(`${account.domain}\\${account.user}:(OI)(CI)M`)} /T /Q | Out-Null`] : [],
-            ...service.autoStart ? ['    Invoke-Wrapper start'] : []
+            ...account ? [`    icacls $data /grant ${quote(`${account.domain}\\${account.user}:(OI)(CI)M`)} /T /Q | Out-Null`] : []
         ] : [],
+        //After the postinstall script of the application
+        '} elseif ($Action -eq \'start\') {',
+        ...service?.autoStart ? ['    Invoke-Wrapper start'] : [],
         '} else {',
         ...service ? ['    try { Invoke-Wrapper stop; Invoke-Wrapper uninstall } catch { }'] : [],
         ...plan.addToPath ? [
@@ -168,17 +171,37 @@ function NumericVersion(version: string): string {
 
 /**
  * The script of NSIS of the installer: its files in Program Files, its uninstaller registered, its script run (the
- * service of the version it replaces stopped first, its files being replaced)
+ * service of the version it replaces stopped first, its files being replaced); the scripts of the application run from
+ * its temporary directory (the preinstall one before its files are installed, the postinstall one before the service
+ * starts, the preremove one once it is stopped, the postremove one once the files are removed), the macros of the file
+ * of NSIS it includes inserted
  * @param plan
  * @param stage the files it installs
  * @param file
+ * @param scripts the scripts of the application (written with the mark of UTF-8, which Windows PowerShell reads them by)
  */
-function NsisScript(plan: InstallerPlan, stage: string, file: string): string {
+function NsisScript(plan: InstallerPlan, stage: string, file: string, scripts: { hooks: Partial<Record<InstallerHook, string>>, include?: string }): string {
     const uninstallKey: string = `Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${plan.appId}`
     //A text given (its $ are not variables of NSIS), a path of NSIS (its variables: $INSTDIR)
     const string = (value: string): string => `"${value.replace(/\$/g, '$$$$').replace(/"/g, '$\\"')}"`
     const variables = (value: string): string => `"${value.replace(/"/g, '$\\"')}"`
     const script = (action: string): string => `nsExec::ExecToLog 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\\installer.ps1" -Action ${action} -InstallDir "$INSTDIR"'`
+    //A script of the application, extracted to the temporary directory of the installer, given what it does ($R9)
+    const hook = (name: InstallerHook): string[] => {
+        const source: string | undefined = scripts.hooks[name]
+        return source ? [
+            `  ; The ${name} script of the application`,
+            '  InitPluginsDir',
+            `  File ${variables(`/oname=$PLUGINSDIR\\${name}.ps1`)} ${string(source)}`,
+            `  nsExec::ExecToLog 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\\${name}.ps1" $R9'`,
+            '  Pop $0',
+            '  StrCmp $0 "0" +2',
+            `  Abort "The ${name} script failed ($0)"`
+        ] : []
+    }
+    const macro = (name: string): string[] => scripts.include ? [`  !ifmacrodef ${name}`, `    !insertmacro ${name}`, '  !endif'] : []
+    //The directory of the application, given to its scripts
+    const environment: string = '  System::Call \'Kernel32::SetEnvironmentVariable(t "LAKUTATA_INSTALL_DIR", t "$INSTDIR")i\''
     return [
         'Unicode true',
         'ManifestDPIAware true',
@@ -196,19 +219,28 @@ function NsisScript(plan: InstallerPlan, stage: string, file: string): string {
         `VIAddVersionKey "FileVersion" ${string(plan.version)}`,
         `VIAddVersionKey "FileDescription" ${string(plan.description)}`,
         `VIAddVersionKey "CompanyName" ${string(plan.vendor ?? plan.maintainer)}`,
+        ...scripts.include ? ['', '; The file of NSIS of the application (win.nsis.include)', `!include ${string(scripts.include)}`, ...macro('customHeader').map((line: string): string => line.trim())] : [],
         '',
         '; The 64-bit registry and system (the installer is a 32-bit program)',
         'Function .onInit',
         '  SetRegView 64',
         '  ${DisableX64FSRedirection}',
+        ...macro('customInit'),
         'FunctionEnd',
         'Function un.onInit',
         '  SetRegView 64',
         '  ${DisableX64FSRedirection}',
+        ...macro('customUnInit'),
         'FunctionEnd',
         '',
         'Section "Install"',
         '  SetShellVarContext all',
+        environment,
+        '  ; An upgrade replaces the application installed',
+        '  StrCpy $R9 "install"',
+        '  IfFileExists "$INSTDIR\\installer.ps1" 0 +2',
+        '  StrCpy $R9 "upgrade"',
+        ...hook('preinstall'),
         '  ; The service of the version replaced is stopped: its files are replaced',
         '  IfFileExists "$INSTDIR\\installer.ps1" 0 +3',
         `  ${script('stop')}`,
@@ -229,13 +261,23 @@ function NsisScript(plan: InstallerPlan, stage: string, file: string): string {
         '  Pop $0',
         '  StrCmp $0 "0" +2',
         '  Abort "The installation failed ($0)"',
+        ...hook('postinstall'),
+        `  ${script('start')}`,
+        '  Pop $0',
+        ...macro('customInstall'),
         'SectionEnd',
         '',
         'Section "Uninstall"',
+        '  SetShellVarContext all',
+        environment,
+        '  StrCpy $R9 "remove"',
+        ...macro('customUnInstall'),
         `  ${script('uninstall')}`,
         '  Pop $0',
+        ...hook('preremove'),
         '  RMDir /r "$INSTDIR"',
         `  DeleteRegKey HKLM ${string(uninstallKey)}`,
+        ...hook('postremove'),
         'SectionEnd',
         ''
     ].join('\r\n')
@@ -256,6 +298,59 @@ function NamedUuid(name: string): string {
 }
 
 /**
+ * The moments of Windows Installer the scripts of the application are run at (deferred, as the system): the preinstall
+ * one before the files are installed (an upgrade has removed the version it replaces), the postinstall one before the
+ * services start, the preremove one once they are stopped, the postremove one once the files are removed; not the ones
+ * of the removal of the version an upgrade replaces
+ */
+const MSI_HOOKS: Record<InstallerHook, { id: string, at: string, condition: string }> = {
+    preinstall: {id: 'LakutataPreinstall', at: 'Before="InstallFiles"', condition: 'NOT REMOVE'},
+    postinstall: {id: 'LakutataPostinstall', at: 'Before="StartServices"', condition: 'NOT REMOVE'},
+    preremove: {id: 'LakutataPreremove', at: 'After="StopServices"', condition: 'REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE'},
+    postremove: {id: 'LakutataPostremove', at: 'After="RemoveFiles"', condition: 'REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE'}
+}
+
+/**
+ * The longest command line of Windows
+ */
+const COMMAND_LINE_LIMIT: number = 32000
+
+/**
+ * The command running a script of the application from Windows Installer (a formatted text of it: its brackets are
+ * escaped, but the ones of its properties): the script, embedded, written to a temporary file and run by Windows
+ * PowerShell as the installer of NSIS runs it (given what it does, the directory of the application)
+ * @param script
+ * @param action
+ */
+function MsiCommand(script: ScriptFile, action: string): string {
+    const encoded: string = Buffer.from(script.content, 'utf8').toString('base64')
+    const formatted = (text: string): string => text.replace(/[[\]]/g, (bracket: string): string => bracket === '[' ? '[\\[]' : '[\\]]')
+    const command: string = `"[System64Folder]WindowsPowerShell\\v1.0\\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$env:LAKUTATA_INSTALL_DIR='[INSTALLDIR]'.TrimEnd('\\'); ${formatted(`$f = [IO.Path]::Combine([IO.Path]::GetTempPath(), [Guid]::NewGuid().ToString() + '.ps1'); [IO.File]::WriteAllText($f, [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encoded}')), (New-Object Text.UTF8Encoding $true)); & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $f ${action}; $c = $LASTEXITCODE; Remove-Item -Force $f; exit $c`)}"`
+    if (command.length > COMMAND_LINE_LIMIT) throw new Error(`The script ${script.file} is too long for Windows Installer, which runs it by a command line: make it shorter (the one it embeds is ${command.length} characters long, ${COMMAND_LINE_LIMIT} at most)`)
+    return command
+}
+
+/**
+ * The custom actions of Windows Installer running the scripts of the application: the command of each (install or
+ * upgrade: an upgrade has found the version it replaces), and when it is run
+ * @param hooks
+ */
+function MsiScripts(hooks: Partial<Record<InstallerHook, ScriptFile>>): { actions: string[], sequence: string[] } {
+    const actions: string[] = []
+    const sequence: string[] = []
+    for (const [hook, script] of Object.entries(hooks) as [InstallerHook, ScriptFile][]) {
+        const {id, at, condition} = MSI_HOOKS[hook]
+        const variants: [string, string, string][] = hook === 'preinstall' || hook === 'postinstall'
+            ? [['Install', 'install', `${condition} AND NOT WIX_UPGRADE_DETECTED`], ['Upgrade', 'upgrade', `${condition} AND WIX_UPGRADE_DETECTED`]]
+            : [['Remove', 'remove', condition]]
+        for (const [name, action, when] of variants) actions.push(`    <SetProperty Id="${id}" Action="Set${id}${name}" Value="${Xml(MsiCommand(script, action))}" Before="${id}" Sequence="execute">${Xml(when)}</SetProperty>`)
+        actions.push(`    <CustomAction Id="${id}" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred" Return="check" Impersonate="no"/>`)
+        sequence.push(`      <Custom Action="${id}" ${at}>${Xml(condition)}</Custom>`)
+    }
+    return {actions: actions, sequence: sequence}
+}
+
+/**
  * The source of WiX of the package: its files (a component each, their directories), its service (WinSW) installed,
  * started, stopped and removed by Windows Installer, its PATH, its data in ProgramData (its environment file kept by
  * the upgrades and the removals), the versions replaced by the upgrades
@@ -265,6 +360,7 @@ function NamedUuid(name: string): string {
  * @param environment the environment file
  */
 function WixSource(plan: InstallerPlan, stage: string, serviceDirectory: string, environment: string | undefined): string {
+    const scripts = MsiScripts(plan.scripts.msi?.hooks ?? {})
     const id = (prefix: string, value: string): string => `${prefix}${createHash('sha1').update(value).digest('hex').slice(0, 30)}`
     const components: string[] = []
     const directory = (absolute: string, relative: string, depth: number): string[] => {
@@ -325,11 +421,15 @@ function WixSource(plan: InstallerPlan, stage: string, serviceDirectory: string,
             ...account ? [
                 //The data of the service written by its account, once it exists (the service installed), before it starts
                 `    <SetProperty Id="GrantData" Value="&quot;[System64Folder]icacls.exe&quot; &quot;[DATADIR].&quot; /grant &quot;${Xml(`${account.domain}\\${account.user}`)}:(OI)(CI)M&quot; /T /Q" Before="GrantData" Sequence="execute"/>`,
-                '    <CustomAction Id="GrantData" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred" Return="check" Impersonate="no"/>',
-                '    <InstallExecuteSequence>',
-                '      <Custom Action="GrantData" After="InstallServices">NOT REMOVE</Custom>',
-                '    </InstallExecuteSequence>'
+                '    <CustomAction Id="GrantData" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred" Return="check" Impersonate="no"/>'
             ] : []
+        ] : [],
+        ...scripts.actions,
+        ...account || scripts.sequence.length ? [
+            '    <InstallExecuteSequence>',
+            ...account ? ['      <Custom Action="GrantData" After="InstallServices">NOT REMOVE</Custom>'] : [],
+            ...scripts.sequence,
+            '    </InstallExecuteSequence>'
         ] : [],
         '    <Feature Id="Application" Level="1">',
         ...components.map((component: string): string => `      <ComponentRef Id="${component}"/>`),
@@ -400,10 +500,25 @@ export async function BuildWindowsPackages(plan: InstallerPlan, targets: Windows
             if (service) for (const name of readdirSync(serviceDirectory).filter((name: string): boolean => !name.endsWith('.env'))) await copyFile(path.join(serviceDirectory, name), path.join(stage, name))
             //Windows PowerShell reads the scripts of UTF-8 by their mark
             await writeFile(path.join(stage, 'installer.ps1'), `\ufeff${InstallerScript(plan)}`)
+            //The scripts of the application, extracted by the installer when it runs them
+            const own: TargetScripts | undefined = plan.scripts.nsis
+            const hooks: Partial<Record<InstallerHook, string>> = {}
+            const directory: string = path.join(work, 'nsis-scripts')
+            await rm(directory, {recursive: true, force: true})
+            await mkdir(directory, {recursive: true})
+            for (const [hook, script] of Object.entries(own?.hooks ?? {}) as [InstallerHook, ScriptFile][]) {
+                hooks[hook] = path.join(directory, `${hook}.ps1`)
+                await writeFile(hooks[hook], `\ufeff${script.content}`)
+            }
+            let include: string | undefined
+            if (own?.include) {
+                include = path.join(directory, 'include.nsh')
+                await writeFile(include, own.include.content)
+            }
             const file: string = path.join(outdir, `${plan.name}-${plan.version}-${Arch()}-setup.exe`)
             await rm(file, {force: true})
             const script: string = path.join(work, 'installer.nsi')
-            await writeFile(script, `\ufeff${NsisScript(plan, stage, file)}`)
+            await writeFile(script, `\ufeff${NsisScript(plan, stage, file, {hooks: hooks, include: include})}`)
             await Must(await EnsureTool('nsis'), ['/V2', '/INPUTCHARSET', 'UTF8', script], work, 'The installer of NSIS')
             files.push({target: target, file: file, size: (await stat(file)).size})
             continue

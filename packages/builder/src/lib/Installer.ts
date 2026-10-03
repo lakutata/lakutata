@@ -4,6 +4,7 @@ import path from 'node:path'
 import {ProgramName} from './Bundle.js'
 import {BuildExecutable, type ExecutableResult} from './Executable.js'
 import {Libc} from './Platform.js'
+import {ResolveScripts, type InstallerScripts, type NativeScripts, type PlatformScripts, type TargetScripts} from './Scripts.js'
 import {BuildLinuxPackages, LINUX_TARGETS, type LinuxTarget} from './linux/Linux.js'
 import {BuildMacPackages, MAC_TARGETS, type MacTarget} from './mac/Mac.js'
 import {BuildWindowsPackages, WINDOWS_TARGETS, type WindowsTarget} from './win/Windows.js'
@@ -92,18 +93,46 @@ export type InstallerConfig = {
         recommends?: string[]
         section?: string
         priority?: string
+        /**
+         * The scripts the packages run (sh), given install, upgrade or remove
+         */
+        scripts?: InstallerScripts
+        /**
+         * The ones of each package, replacing them; its native scripts, run as nFPM gives them to the package (with its
+         * own arguments)
+         */
+        deb?: { scripts?: InstallerScripts, nativeScripts?: NativeScripts }
+        rpm?: { scripts?: InstallerScripts, nativeScripts?: NativeScripts }
+        apk?: { scripts?: InstallerScripts, nativeScripts?: NativeScripts }
+        archlinux?: { scripts?: InstallerScripts, nativeScripts?: NativeScripts }
     }
     mac?: {
         /**
          * The installers: pkg and tar.gz by default
          */
         targets?: MacTarget[]
+        /**
+         * The scripts the package runs (sh), given install, upgrade or remove (the removal is the one of its uninstall
+         * script)
+         */
+        scripts?: InstallerScripts
+        pkg?: { scripts?: InstallerScripts }
     }
     win?: {
         /**
          * The installers: nsis, msi and zip by default
          */
         targets?: WindowsTarget[]
+        /**
+         * The scripts the installers run (PowerShell, .ps1), given install, upgrade or remove
+         */
+        scripts?: InstallerScripts
+        /**
+         * The ones of the installer of NSIS, replacing them; the file of NSIS it includes (.nsh), its macros inserted
+         * (customHeader, customInit, customInstall, customUnInit, customUnInstall)
+         */
+        nsis?: { scripts?: InstallerScripts, include?: string }
+        msi?: { scripts?: InstallerScripts }
     }
 }
 
@@ -173,6 +202,10 @@ export type InstallerPlan = {
      * Where it is installed (/opt/<name> on Linux, /usr/local/lib/<name> on macOS)
      */
     prefix: string
+    /**
+     * The scripts of the application each installer runs
+     */
+    scripts: Record<string, TargetScripts>
 }
 
 /**
@@ -246,6 +279,8 @@ export async function BuildInstaller(options: InstallerOptions): Promise<Install
     if (!/^[A-Za-z0-9][A-Za-z0-9.-]*$/.test(appId)) throw new Error(`The identifier of the application "${appId}" must be letters, digits, "." and "-" (lakutata.installer.appId)`)
     const service: ServiceOptions | undefined = config.service === true ? {} : config.service || undefined
     if (service?.name !== undefined && !/^[A-Za-z0-9_.@-]+$/.test(service.name)) throw new Error(`The name of the service "${service.name}" must be letters, digits, "_", ".", "@" and "-"`)
+    const platform: 'linux' | 'mac' | 'win' = mac ? 'mac' : windows ? 'win' : 'linux'
+    const scripts: Record<string, TargetScripts> = ResolveScripts(project, platform, config[platform] as PlatformScripts | undefined, targets, warnings)
     const work: string = await mkdtemp(path.join(os.tmpdir(), 'lakutata-installer-'))
     try {
         const executable: ExecutableResult = await BuildExecutable({
@@ -285,7 +320,8 @@ export async function BuildInstaller(options: InstallerOptions): Promise<Install
                 autoStart: service.autoStart ?? true
             },
             directory: executable.directory!,
-            prefix: mac ? `/usr/local/lib/${name}` : windows ? `C:\\Program Files\\${name}` : `/opt/${name}`
+            prefix: mac ? `/usr/local/lib/${name}` : windows ? `C:\\Program Files\\${name}` : `/opt/${name}`,
+            scripts: scripts
         }
         const outdir: string = path.resolve(project, options.outdir ?? path.join('dist', 'installer'))
         await mkdir(outdir, {recursive: true})

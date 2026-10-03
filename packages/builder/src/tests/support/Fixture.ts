@@ -45,13 +45,29 @@ if (process.argv[2] === 'hello') {
 http.createServer((request, response) => response.end(JSON.stringify({greeting: process.env.GREETING, mode: process.env.MODE, user: os.userInfo().username, cwd: process.cwd(), text: text(), arch: addon.arch()}))).listen(Number(process.env.PORT))
 process.on('SIGTERM', () => process.exit(0))
 `)
+    //The scripts of the installers, writing what they are run with to a log (/tmp/hello-hooks.log, the hello-hooks.log of
+    //ProgramData): what the installer does, whether the files of the application are installed, their directory
+    for (const hook of ['preinstall', 'postinstall', 'preremove', 'postremove', 'rpm-postinstall']) {
+        file(`scripts/${hook}.sh`, `#!/bin/sh\nif [ -e "$LAKUTATA_INSTALL_DIR/hello" ]; then files=files; else files=nofiles; fi\necho "${hook} $1 $files $LAKUTATA_INSTALL_DIR" >> /tmp/hello-hooks.log\n`)
+        file(`scripts/${hook}.ps1`, `$files = if (Test-Path (Join-Path $env:LAKUTATA_INSTALL_DIR 'hello.exe')) { 'files' } else { 'nofiles' }\r\nAdd-Content -Path (Join-Path $env:ProgramData 'hello-hooks.log') -Value "${hook} $($args[0]) $files $env:LAKUTATA_INSTALL_DIR"\r\n`)
+    }
+    file('scripts/deb-native-postinstall.sh', '#!/bin/sh\necho "native-postinstall $1" >> /tmp/hello-hooks.log\n')
+    file('scripts/custom.nsh', `!macro customInstall\r\n  nsExec::Exec 'cmd.exe /d /c echo customInstall>>"%ProgramData%\\hello-hooks.log"'\r\n  Pop $0\r\n!macroend\r\n`)
+    const scripts = (extension: string): Record<string, string> => Object.fromEntries(['preinstall', 'postinstall', 'preremove', 'postremove'].map((hook: string): [string, string] => [hook, `scripts/${hook}.${extension}`]))
     file('package.json', JSON.stringify({
         name: '@acme/hello', version: '1.0.0', description: 'Says hello', author: 'Acme <ops@acme.test>', license: 'MIT',
         main: 'build/index.js', bin: {hello: 'build/index.js'},
         dependencies: {...dependencies, 'hello-addon': 'file:./addon'},
         lakutata: {
             resources: [{from: 'assets', to: 'texts'}],
-            installer: {name: 'hello-service', appId: 'test.acme.hello', service: {env: {GREETING: 'Hi', PORT: '18080'}}}
+            installer: {
+                name: 'hello-service', appId: 'test.acme.hello', service: {env: {GREETING: 'Hi', PORT: '18080'}},
+                //The ones of the platforms, the ones of a package replacing them, the native ones of a package, the file
+                //of NSIS included
+                linux: {scripts: scripts('sh'), rpm: {scripts: {postinstall: 'scripts/rpm-postinstall.sh'}}, deb: {nativeScripts: {postinstall: 'scripts/deb-native-postinstall.sh'}}},
+                mac: {scripts: scripts('sh')},
+                win: {scripts: scripts('ps1'), nsis: {include: 'scripts/custom.nsh'}}
+            }
         }
     }))
 }

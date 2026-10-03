@@ -1,7 +1,7 @@
 import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
 import {execSync, spawnSync} from 'node:child_process'
-import {mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {BuildInstaller} from '../index.js'
@@ -15,6 +15,19 @@ const INSTALL: boolean = process.platform === 'win32' && process.env.LAKUTATA_WI
 
 const INSTALL_DIRECTORY: string = 'C:\\Program Files\\hello-service'
 const DATA_DIRECTORY: string = 'C:\\ProgramData\\hello-service'
+
+/**
+ * The log the scripts of the application write to
+ */
+const HOOKS_LOG: string = 'C:\\ProgramData\\hello-hooks.log'
+
+/**
+ * What the scripts of the application were run with: the moment, what the installer does, whether the files of the
+ * application are installed, their directory
+ */
+function Hooks(): string[] {
+    return existsSync(HOOKS_LOG) ? readFileSync(HOOKS_LOG, 'utf8').split(/\r?\n/).filter(Boolean) : []
+}
 
 /**
  * Run a script of PowerShell, its output given back; it must succeed
@@ -44,6 +57,7 @@ function RemoveInstalled(): void {
         ` elseif (Test-Path '${INSTALL_DIRECTORY}\\uninstall.exe') { Start-Process '${INSTALL_DIRECTORY}\\uninstall.exe' -ArgumentList '/S' -Wait; Start-Sleep 3 }`
     ].join('; ')])
     rmSync(DATA_DIRECTORY, {recursive: true, force: true, maxRetries: 5})
+    rmSync(HOOKS_LOG, {force: true})
 }
 
 /**
@@ -108,6 +122,13 @@ describe('The installers of Windows', {skip: !INSTALL && 'LAKUTATA_WINDOWS_INSTA
                 ? `$p = Start-Process -FilePath '${installer(version)}' -ArgumentList '/S' -Wait -PassThru; $p.ExitCode`
                 : `$p = Start-Process -FilePath msiexec.exe -ArgumentList '/i', '"${installer(version)}"', '/qn', '/norestart' -Wait -PassThru; $p.ExitCode`)
             assert.strictEqual(install('1.0.0'), '0')
+            //The scripts of the application (the macro of the file of NSIS included after them); the upgrades of Windows
+            //Installer remove the version they replace first
+            const line = (hook: string, action: string, files: boolean): string => `${hook} ${action} ${files ? 'files' : 'nofiles'} ${INSTALL_DIRECTORY}`
+            const custom: string[] = kind === 'nsis' ? ['customInstall'] : []
+            const installed: string[] = [line('preinstall', 'install', false), line('postinstall', 'install', true), ...custom]
+            const upgraded: string[] = [line('preinstall', 'upgrade', kind === 'nsis'), line('postinstall', 'upgrade', true), ...custom]
+            assert.deepStrictEqual(Hooks(), installed)
             //Started by the installation, as its virtual account, in its directory, with its environment, its resources
             //and its addon
             const answer = await Answer()
@@ -124,6 +145,7 @@ describe('The installers of Windows', {skip: !INSTALL && 'LAKUTATA_WINDOWS_INSTA
             assert.strictEqual(install('1.0.1'), '0')
             assert.strictEqual((await Answer()).greeting, 'Bonjour')
             assert.strictEqual(InstalledVersion(), '1.0.1')
+            assert.deepStrictEqual(Hooks(), [...installed, ...upgraded])
             //Removed: its service, its files and its PATH removed, its data and its environment kept
             assert.strictEqual(PowerShell(kind === 'nsis'
                 ? `$p = Start-Process -FilePath '${INSTALL_DIRECTORY}\\uninstall.exe' -ArgumentList '/S' -Wait -PassThru; $p.ExitCode`
@@ -131,6 +153,8 @@ describe('The installers of Windows', {skip: !INSTALL && 'LAKUTATA_WINDOWS_INSTA
             //The uninstaller of NSIS ends while its copy removes the files
             for (let attempt = 0; attempt < 30 && PowerShell(`Test-Path '${INSTALL_DIRECTORY}'`) === 'True'; attempt++) await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 500))
             assert.strictEqual(PowerShell(`Test-Path '${INSTALL_DIRECTORY}'`), 'False')
+            for (let attempt = 0; attempt < 30 && Hooks().length < installed.length + upgraded.length + 2; attempt++) await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 500))
+            assert.deepStrictEqual(Hooks(), [...installed, ...upgraded, line('preremove', 'remove', true), line('postremove', 'remove', false)])
             assert.strictEqual(PowerShell(`[bool](Get-Service hello-service -ErrorAction SilentlyContinue)`), 'False')
             assert.ok(!MachinePath().includes(INSTALL_DIRECTORY))
             assert.strictEqual(InstalledVersion(), '')

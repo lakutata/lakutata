@@ -5,6 +5,7 @@ import {ArchiveDirectory} from '../Archive.js'
 import {Run} from '../Processes.js'
 import {EnsureTool} from '../Tools.js'
 import type {InstallerPlan} from '../Installer.js'
+import {EmbeddedShell, INSTALLER_HOOKS, NATIVE_HOOKS, type InstallerHook, type NativeHook, type ScriptFile, type TargetScripts} from '../Scripts.js'
 
 /**
  * The packages of Linux: the ones of nFPM, and the archive of the directory of the executable
@@ -168,20 +169,20 @@ function OpenRCScript(plan: InstallerPlan, service: Service): string {
 }
 
 /**
- * The scripts of a package: the user of the service created before the installation; the service enabled and started
- * after it, restarted by the upgrades, stopped and disabled before the removal
+ * The parts of the scripts of a package managing the service: its user created before the installation; the service
+ * enabled and started after it, restarted by the upgrades, stopped and disabled before the removal. The ones run before
+ * the scripts of the application (its user, the service stopped), and the ones run after them (the service started)
  * @param plan
  * @param target
  */
-function Scripts(plan: InstallerPlan, target: LinuxTarget): Record<string, string> {
+function ServiceScripts(plan: InstallerPlan, target: LinuxTarget): { before: Partial<Record<NativeHook, string[]>>, after: Partial<Record<NativeHook, string[]>> } {
     const service: Service | undefined = plan.service
-    if (!service) return {}
+    const before: Partial<Record<NativeHook, string[]>> = {}
+    const after: Partial<Record<NativeHook, string[]>> = {}
+    if (!service) return {before: before, after: after}
     const unit: string = `${service.name}.service`
-    const scripts: Record<string, string> = {}
     if (service.user !== 'root') {
-        scripts.preinstall = [
-            '#!/bin/sh',
-            'set -e',
+        before.preinstall = [
             `if ! id -u ${service.user} >/dev/null 2>&1; then`,
             '    if command -v useradd >/dev/null 2>&1; then',
             `        useradd --system --user-group --home-dir /var/lib/${plan.name} --no-create-home --shell "$(command -v nologin || echo /bin/false)" ${service.user}`,
@@ -189,53 +190,93 @@ function Scripts(plan: InstallerPlan, target: LinuxTarget): Record<string, strin
             `        addgroup -S ${service.user} 2>/dev/null || true`,
             `        adduser -S -D -H -h /var/lib/${plan.name} -s /sbin/nologin -G ${service.user} ${service.user}`,
             '    fi',
-            'fi',
-            ''
-        ].join('\n')
+            'fi'
+        ]
     }
     if (target === 'apk') {
-        scripts.postinstall = [
-            '#!/bin/sh',
+        after.postinstall = [
             'if command -v rc-update >/dev/null 2>&1; then',
             ...service.autoStart ? [`    rc-update add ${service.name} default`, `    [ -d /run/openrc ] && rc-service ${service.name} start || true`] : ['    true'],
-            'fi',
-            ''
-        ].join('\n')
-        scripts.postupgrade = ['#!/bin/sh', `[ -d /run/openrc ] && rc-service --ifstarted ${service.name} restart || true`, ''].join('\n')
-        scripts.preremove = [
-            '#!/bin/sh',
+            'fi'
+        ]
+        after.postupgrade = [`[ -d /run/openrc ] && rc-service --ifstarted ${service.name} restart || true`]
+        before.preremove = [
             'if command -v rc-update >/dev/null 2>&1; then',
             `    [ -d /run/openrc ] && rc-service --ifstarted ${service.name} stop || true`,
             `    rc-update del ${service.name} default 2>/dev/null || true`,
-            'fi',
-            ''
-        ].join('\n')
-        return scripts
+            'fi'
+        ]
+        return {before: before, after: after}
     }
     //systemd: the upgrades restart the service (deb: postinst configure, rpm: %post 2, pacman: post_upgrade)
-    scripts.postinstall = [
-        '#!/bin/sh',
-        'set -e',
+    after.postinstall = [
         'if [ -d /run/systemd/system ]; then',
         '    systemctl daemon-reload',
         ...service.autoStart ? [`    systemctl enable ${unit}`, `    systemctl restart ${unit}`] : [`    systemctl try-restart ${unit}`],
-        'fi',
-        ''
-    ].join('\n')
+        'fi'
+    ]
     //Not before an upgrade (deb: prerm upgrade, rpm: %preun 1)
-    scripts.preremove = [
-        '#!/bin/sh',
-        'set -e',
+    before.preremove = [
         'case "$1" in',
-        '    upgrade|failed-upgrade|1) exit 0 ;;',
-        'esac',
-        'if [ -d /run/systemd/system ]; then',
-        `    systemctl disable --now ${unit} || true`,
-        'fi',
-        ''
-    ].join('\n')
-    scripts.postremove = ['#!/bin/sh', 'if [ -d /run/systemd/system ]; then', '    systemctl daemon-reload || true', 'fi', ''].join('\n')
-    if (target === 'archlinux') scripts.postupgrade = scripts.postinstall
+        '    upgrade|failed-upgrade|1) ;;',
+        `    *) if [ -d /run/systemd/system ]; then systemctl disable --now ${unit} || true; fi ;;`,
+        'esac'
+    ]
+    before.postremove = ['if [ -d /run/systemd/system ]; then', '    systemctl daemon-reload || true', 'fi']
+    if (target === 'archlinux') after.postupgrade = after.postinstall
+    return {before: before, after: after}
+}
+
+/**
+ * What a script of a package does, as the scripts of the application are given it (lakutata_action: install, upgrade,
+ * remove, or none), from the arguments of its package manager: the upgrades of deb and rpm run their scripts of the
+ * installation (deb: preinst upgrade, postinst configure <version replaced>; rpm: $1 > 1) and their scripts of the
+ * removal of the version replaced (which run none); the ones of apk and pacman run their own scripts
+ * @param target
+ * @param hook
+ */
+function Action(target: Exclude<LinuxTarget, 'tar.gz'>, hook: NativeHook): string {
+    switch (target) {
+        case 'deb':
+            return {
+                preinstall: 'case "$1" in install) lakutata_action=install ;; upgrade) lakutata_action=upgrade ;; *) lakutata_action= ;; esac',
+                postinstall: 'if [ "$1" = configure ]; then if [ -n "$2" ]; then lakutata_action=upgrade; else lakutata_action=install; fi; else lakutata_action=; fi',
+                preremove: 'if [ "$1" = remove ]; then lakutata_action=remove; else lakutata_action=; fi',
+                postremove: 'if [ "$1" = remove ]; then lakutata_action=remove; else lakutata_action=; fi'
+            }[hook as InstallerHook]
+        case 'rpm':
+            return hook === 'preinstall' || hook === 'postinstall'
+                ? 'if [ "$1" -gt 1 ] 2>/dev/null; then lakutata_action=upgrade; else lakutata_action=install; fi'
+                : 'if [ "$1" = 0 ]; then lakutata_action=remove; else lakutata_action=; fi'
+        default:
+            return `lakutata_action=${hook.endsWith('upgrade') ? 'upgrade' : hook.endsWith('install') ? 'install' : 'remove'}`
+    }
+}
+
+/**
+ * The scripts of a package: the parts managing the service, the scripts of the application (run before the service is
+ * started, after it is stopped), and its native ones, given the arguments of the package manager
+ * @param plan
+ * @param target
+ */
+function Scripts(plan: InstallerPlan, target: Exclude<LinuxTarget, 'tar.gz'>): Partial<Record<NativeHook, string>> {
+    const service = ServiceScripts(plan, target)
+    const user: TargetScripts = plan.scripts[target] ?? {hooks: {}, native: {}}
+    const hooks: readonly NativeHook[] = target === 'apk' || target === 'archlinux' ? NATIVE_HOOKS : INSTALLER_HOOKS
+    const scripts: Partial<Record<NativeHook, string>> = {}
+    for (const hook of hooks) {
+        //The script of the application of the moment: the upgrades of apk and pacman run the ones of the installation
+        const application: ScriptFile | undefined = user.hooks[(hook === 'preupgrade' ? 'preinstall' : hook === 'postupgrade' ? 'postinstall' : hook) as InstallerHook]
+        const native: ScriptFile | undefined = user.native[hook]
+        const lines: string[] = [
+            ...service.before[hook] ?? [],
+            //Not indented: the lines of the script are the ones of its file
+            ...application ? [Action(target, hook), 'if [ -n "$lakutata_action" ]; then', ...EmbeddedShell(application, plan.prefix, '"$lakutata_action"'), 'fi'] : [],
+            ...native ? EmbeddedShell(native, plan.prefix, '"$@"') : [],
+            ...service.after[hook] ?? []
+        ]
+        if (lines.length) scripts[hook] = ['#!/bin/sh', 'set -e', ...lines, ''].join('\n')
+    }
     return scripts
 }
 
@@ -271,14 +312,14 @@ export async function BuildLinuxPackages(plan: InstallerPlan, targets: LinuxTarg
                 contents.push({src: path.join(directory, 'unit'), dst: `/usr/lib/systemd/system/${service.name}.service`, file_info: {mode: 0o644}})
             }
         }
-        const scripts: Record<string, string> = Scripts(plan, target)
+        const scripts: Partial<Record<NativeHook, string>> = Scripts(plan, target)
         const common: Record<string, string> = {}
         const specific: Record<string, string> = {}
-        for (const [name, content] of Object.entries(scripts)) {
+        for (const [name, content] of Object.entries(scripts) as [NativeHook, string][]) {
             const file: string = path.join(directory, name)
             await writeFile(file, content, {mode: 0o755})
             //The upgrades of apk and pacman are their own scripts
-            if (name === 'postupgrade') specific[name] = file
+            if (name === 'preupgrade' || name === 'postupgrade') specific[name] = file
             else common[name] = file
         }
         const config: Record<string, unknown> = {

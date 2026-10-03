@@ -83,6 +83,51 @@ console.log(require('./words.js') + ' ' + require('node:fs').readFileSync(requir
         assert.strictEqual(execFileSync(path.join(payload, 'usr', 'local', 'lib', 'reader', 'read'), [], {cwd: tmpdir(), env: {PATH: ''}}).toString().trim(), 'read Hello')
     })
 
+    it('checks the scripts of the installers: their moments, their files, the installers running them', async (): Promise<void> => {
+        const platform: string = process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'win' : 'linux'
+        const installer = (config: Record<string, unknown>): void => Write('package.json', JSON.stringify({name: 'reader', version: '1.0.0', main: 'build/index.js', lakutata: {installer: {[platform]: config}}}))
+        installer({scripts: {afterinstall: 'scripts/after.sh'}})
+        await assert.rejects(BuildInstaller({project: project}), new RegExp(`The script lakutata\\.installer\\.${platform}\\.scripts\\.afterinstall is not one of preinstall, postinstall, preremove, postremove`))
+        installer({scripts: {postinstall: 'scripts/missing.ps1'}})
+        await assert.rejects(BuildInstaller({project: project}), /\(scripts\/missing\.ps1\) does not exist/)
+        if (platform !== 'linux') {
+            installer({[platform === 'mac' ? 'pkg' : 'msi']: {nativeScripts: {postinstall: 'scripts/missing.sh'}}})
+            await assert.rejects(BuildInstaller({project: project, targets: [platform === 'mac' ? 'pkg' : 'msi']}), /the native scripts are the ones of the packages of Linux/)
+        }
+        if (platform === 'win') {
+            Write('scripts/postinstall.sh', 'true')
+            installer({scripts: {postinstall: 'scripts/postinstall.sh'}})
+            await assert.rejects(BuildInstaller({project: project}), /must be a script of PowerShell \(\.ps1\)/)
+        }
+    })
+
+    it('runs the scripts of the application from the package of macOS: given what it does, the directory of the application', {skip: process.platform !== 'darwin' && 'made on macOS'}, async (): Promise<void> => {
+        //Run by their interpreters, their lines as they are written
+        for (const hook of ['preinstall', 'postinstall', 'preremove', 'postremove']) Write(`scripts/${hook}.sh`, `#!/bin/bash\necho "${hook} $1 $LAKUTATA_INSTALL_DIR \${BASH_VERSION:+bash}" >> "$HOOKS_LOG" # it's 'quoted'\n`)
+        Write('package.json', JSON.stringify({
+            name: 'reader', version: '1.0.0', main: 'build/index.js',
+            lakutata: {installer: {mac: {scripts: {preinstall: 'scripts/preinstall.sh', postinstall: 'scripts/preinstall.sh', preremove: 'scripts/preremove.sh', postremove: 'scripts/postremove.sh'}, pkg: {scripts: {postinstall: 'scripts/postinstall.sh'}}}}}
+        }))
+        const result = await BuildInstaller({project: project})
+        assert.ok(result.warnings.includes('The scripts of the installers are not run by the archives (tar.gz): their users copy them'), result.warnings.join('\n'))
+        const expanded: string = path.join(project, 'expanded-scripts')
+        rmSync(expanded, {recursive: true, force: true})
+        execFileSync('pkgutil', ['--expand-full', result.files[0].file, expanded])
+        const component: string = path.join(expanded, readdirSync(expanded).find((name: string): boolean => name.endsWith('.pkg'))!)
+        const uninstall: string = path.join(component, 'Payload', 'usr', 'local', 'lib', 'reader', 'uninstall')
+        for (const script of [path.join(component, 'Scripts', 'preinstall'), path.join(component, 'Scripts', 'postinstall'), uninstall]) execFileSync('sh', ['-n', script])
+        //The installation (no service: run as the user): the preinstall script tells the postinstall one what it does
+        const log: string = path.join(project, 'hooks.log')
+        const temporary: string = mkdtempSync(path.join(tmpdir(), 'lakutata-installer-temp-'))
+        const env = {...process.env, HOOKS_LOG: log, INSTALLER_TEMP: temporary}
+        for (const script of ['preinstall', 'postinstall']) execFileSync(path.join(component, 'Scripts', script), [], {env: env})
+        rmSync(temporary, {recursive: true, force: true})
+        //The postinstall script of the package replaces the one of the platform
+        assert.deepStrictEqual(readFileSync(log, 'utf8').trim().split('\n'), ['preinstall install /usr/local/lib/reader bash', 'postinstall install /usr/local/lib/reader bash'])
+        //The removal runs its scripts (its uninstall script, as root)
+        assert.match(readFileSync(uninstall, 'utf8'), /# scripts\/preremove\.sh\n[\s\S]*echo "preremove \$1 \$LAKUTATA_INSTALL_DIR \$\{BASH_VERSION:\+bash\}" >> "\$HOOKS_LOG" # it's 'quoted'\n[\s\S]*\/bin\/bash "\$lakutata_script" remove/)
+    })
+
     it('tells to build a resource which does not exist', async (): Promise<void> => {
         Write('package.json', JSON.stringify({name: 'missing', version: '1.0.0', main: 'build/index.js', lakutata: {resources: [{from: 'ui/dist', to: 'ui'}]}}))
         await assert.rejects(BundleProject({project: project}), /The resource ui\/dist does not exist: build it first/)

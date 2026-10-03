@@ -328,6 +328,47 @@ Windows, the stop of the service: Ctrl+C, `SIGINT` for Node.js).
 The executables load the environment file given by the `LAKUTATA_ENV_FILE` environment variable before the application
 starts (the service of Windows, whose wrapper has none): its lines `NAME=value` or `NAME="value"`, its comments (`#`).
 
+The installers run the scripts of the application (files of the project), as the ones of electron-builder: the ones of a
+platform, which its installers run, replaced by the ones of an installer (a moment each), the native ones of a package of
+Linux, the file of NSIS included by its installer:
+
+```json
+"installer": {
+  "linux": {
+    "scripts": {"preinstall": "build/linux/preinstall.sh", "postinstall": "build/linux/postinstall.sh", "preremove": "build/linux/preremove.sh", "postremove": "build/linux/postremove.sh"},
+    "rpm": {"scripts": {"postinstall": "build/linux/rpm-postinstall.sh"}},
+    "deb": {"nativeScripts": {"postinstall": "build/linux/postinst.sh"}}
+  },
+  "mac": {"scripts": {"postinstall": "build/mac/postinstall.sh"}},
+  "win": {"scripts": {"postinstall": "build/win/postinstall.ps1"}, "nsis": {"include": "build/win/installer.nsh"}}
+}
+```
+
+| Script | |
+|---|---|
+| `preinstall` | before the files of the application are installed (on Windows Installer, an upgrade has removed the version it replaces) |
+| `postinstall` | after they are installed, before the service is started (on an upgrade, the one of the version replaced may still run) |
+| `preremove` | before the removal, once the service is stopped |
+| `postremove` | after the files are removed |
+
+They are given what the installer does: `install` or `upgrade` (`preinstall`, `postinstall`), `remove` (`preremove`,
+`postremove`; an upgrade runs no removal script), as their first argument (`$1`, `$args[0]` in PowerShell), and the
+directory of the application (`LAKUTATA_INSTALL_DIR`). They run as root (as the system on Windows). Their failure is the
+one of the installation (or of the removal). Each package manager tells it in its own way (dpkg `configure <version>`,
+rpm the number of the versions, apk and pacman their upgrade scripts): the installers translate them.
+
+- Linux (`linux.scripts`, `linux.<deb|rpm|apk|archlinux>.scripts`): scripts run by the interpreter of their first line
+  (`#!/bin/sh` by default), embedded in the scripts of the packages. `linux.<package>.nativeScripts` are run as the
+  package manager runs the scripts of the package, with its own arguments (`preinstall`, `postinstall`, `preremove`,
+  `postremove`; `preupgrade`, `postupgrade` for apk and archlinux).
+- macOS (`mac.scripts`, `mac.pkg.scripts`): sh scripts as on Linux; the removal ones are run by the `uninstall` script of
+  the application (the packages of macOS are not removed by the system).
+- Windows (`win.scripts`, `win.<nsis|msi>.scripts`): scripts of PowerShell (`.ps1`, run by Windows PowerShell; Windows
+  Installer runs them by a command line, which they must fit in: about 23 KB each). `win.nsis.include` is a file of NSIS
+  (`.nsh`) included by the installer of NSIS, whose macros are inserted: `customHeader`, `customInit`, `customInstall` (at
+  the end of the installation), `customUnInit`, `customUnInstall` (at the start of the removal).
+- The archives (`tar.gz`, `zip`) run none.
+
 | Command option | |
 |---|---|
 | `--target <targets...>` | the installers made, the ones of the configuration by default |
