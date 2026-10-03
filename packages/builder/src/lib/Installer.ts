@@ -5,6 +5,7 @@ import {ProgramName} from './Bundle.js'
 import {BuildExecutable, type ExecutableResult} from './Executable.js'
 import {Libc} from './Platform.js'
 import {BuildLinuxPackages, LINUX_TARGETS, type LinuxTarget} from './linux/Linux.js'
+import {BuildMacPackages, MAC_TARGETS, type MacTarget} from './mac/Mac.js'
 
 /**
  * The service an installer registers (systemd, OpenRC): the application runs at the start of the system
@@ -48,6 +49,11 @@ export type InstallerConfig = {
      */
     name?: string
     /**
+     * The identifier of the application (reverse DNS: com.acme.app), its name by default: the identifier of the package
+     * of macOS and the label of its service (launchd)
+     */
+    appId?: string
+    /**
      * The description, the maintainer, the home page and the license: the ones of the package.json by default
      */
     description?: string
@@ -80,6 +86,12 @@ export type InstallerConfig = {
         recommends?: string[]
         section?: string
         priority?: string
+    }
+    mac?: {
+        /**
+         * The installers: pkg and tar.gz by default
+         */
+        targets?: MacTarget[]
     }
 }
 
@@ -120,9 +132,10 @@ export type InstallerResult = {
  */
 export type InstallerPlan = {
     /**
-     * The name of the package, of the program, the version
+     * The name of the package, its identifier, the name of the program, the version
      */
     name: string
+    appId: string
     program: string
     version: string
     description: string
@@ -144,7 +157,7 @@ export type InstallerPlan = {
      */
     directory: string
     /**
-     * Where it is installed (/opt/<name>)
+     * Where it is installed (/opt/<name> on Linux, /usr/local/lib/<name> on macOS)
      */
     prefix: string
 }
@@ -175,17 +188,23 @@ function Config(manifest: Record<string, any>): InstallerConfig {
 /**
  * Make the installers of the application for the platform it is made on (the installers of the other platforms are
  * made on them, as its executables): its executable in a directory, with its native addons and its resources, installed
- * in /opt/<name>, its program in the PATH, its service registered
+ * in /opt/<name> (Linux) or /usr/local/lib/<name> (macOS), its program in the PATH, its service registered (systemd,
+ * OpenRC, launchd)
  * @param options
  */
 export async function BuildInstaller(options: InstallerOptions): Promise<InstallerResult> {
     const project: string = path.resolve(options.project)
     const manifest: Record<string, any> = JSON.parse(await readFile(path.join(project, 'package.json'), 'utf8'))
     const config: InstallerConfig = Config(manifest)
-    if (process.platform !== 'linux') throw new Error(`The installers of ${process.platform} are not supported yet: the ones of Linux are made on Linux`)
+    const mac: boolean = process.platform === 'darwin'
+    if (process.platform !== 'linux' && !mac) throw new Error(`The installers of ${process.platform} are not supported yet: the ones of Linux are made on Linux, the ones of macOS on macOS`)
     const libc: 'glibc' | 'musl' | undefined = Libc()
-    const targets: string[] = options.targets?.length ? options.targets : config.linux?.targets ?? (libc === 'glibc' ? ['deb', 'rpm', 'tar.gz'] : ['apk', 'tar.gz'])
+    const targets: string[] = options.targets?.length ? options.targets : mac ? config.mac?.targets ?? ['pkg', 'tar.gz'] : config.linux?.targets ?? (libc === 'glibc' ? ['deb', 'rpm', 'tar.gz'] : ['apk', 'tar.gz'])
     for (const target of targets) {
+        if (mac) {
+            if (!MAC_TARGETS.includes(target as MacTarget)) throw new Error(`The installer ${target} is not one of macOS (${MAC_TARGETS.join(', ')})`)
+            continue
+        }
         if (!LINUX_TARGETS.includes(target as LinuxTarget)) throw new Error(`The installer ${target} is not one of Linux (${LINUX_TARGETS.join(', ')})`)
         //The executable links the C library of the system it is made on
         if (target === 'apk' && libc !== 'musl') throw new Error('The apk packages are made on Alpine (musl): the executables made on the systems of the glibc do not run there')
@@ -202,6 +221,8 @@ export async function BuildInstaller(options: InstallerOptions): Promise<Install
         maintainer = name
         warnings.push(`The packages have no maintainer: give it (the author of the package.json, or lakutata.installer.maintainer)`)
     }
+    const appId: string = config.appId ?? name
+    if (!/^[A-Za-z0-9][A-Za-z0-9.-]*$/.test(appId)) throw new Error(`The identifier of the application "${appId}" must be letters, digits, "." and "-" (lakutata.installer.appId)`)
     const service: ServiceOptions | undefined = config.service === true ? {} : config.service || undefined
     if (service?.name !== undefined && !/^[A-Za-z0-9_.@-]+$/.test(service.name)) throw new Error(`The name of the service "${service.name}" must be letters, digits, "_", ".", "@" and "-"`)
     const work: string = await mkdtemp(path.join(os.tmpdir(), 'lakutata-installer-'))
@@ -218,6 +239,7 @@ export async function BuildInstaller(options: InstallerOptions): Promise<Install
         warnings.push(...executable.warnings)
         const plan: InstallerPlan = {
             name: name,
+            appId: appId,
             program: program,
             version: version,
             description: config.description ?? manifest.description ?? name,
@@ -235,16 +257,17 @@ export async function BuildInstaller(options: InstallerOptions): Promise<Install
                 description: service.description ?? config.description ?? manifest.description ?? name,
                 args: service.args ?? [],
                 env: {MODE: 'production', ...service.env},
-                user: service.user ?? name,
+                //The users of the services of macOS are hidden by their names (_www)
+                user: service.user ?? (mac ? `_${name}` : name),
                 restart: service.restart ?? 'on-failure',
                 autoStart: service.autoStart ?? true
             },
             directory: executable.directory!,
-            prefix: `/opt/${name}`
+            prefix: mac ? `/usr/local/lib/${name}` : `/opt/${name}`
         }
         const outdir: string = path.resolve(project, options.outdir ?? path.join('dist', 'installer'))
         await mkdir(outdir, {recursive: true})
-        const files = await BuildLinuxPackages(plan, targets as LinuxTarget[], path.join(work, 'linux'), outdir)
+        const files = mac ? await BuildMacPackages(plan, targets as MacTarget[], path.join(work, 'mac'), outdir) : await BuildLinuxPackages(plan, targets as LinuxTarget[], path.join(work, 'linux'), outdir)
         return {name: name, version: version, files: files, executable: executable, warnings: warnings}
     } finally {
         await rm(work, {recursive: true, force: true})

@@ -1,6 +1,7 @@
 import {lstatSync, readdirSync, readlinkSync} from 'node:fs'
-import {stat, mkdir, writeFile, rm, cp} from 'node:fs/promises'
+import {stat, mkdir, writeFile, rm} from 'node:fs/promises'
 import path from 'node:path'
+import {ArchiveDirectory} from '../Archive.js'
 import {Run} from '../Processes.js'
 import {EnsureTool} from '../Tools.js'
 import type {InstallerPlan} from '../Installer.js'
@@ -252,14 +253,7 @@ export async function BuildLinuxPackages(plan: InstallerPlan, targets: LinuxTarg
     const service: Service | undefined = plan.service
     for (const target of targets) {
         if (target === 'tar.gz') {
-            //The directory of the executable, named after the package and its version
-            const base: string = `${plan.name}-${plan.version}-linux-${Arch()}`
-            await rm(path.join(work, base), {recursive: true, force: true})
-            await cp(plan.directory, path.join(work, base), {recursive: true, verbatimSymlinks: true})
-            const file: string = path.join(outdir, `${base}.tar.gz`)
-            const archived = await Run('tar', ['-czf', file, base], work)
-            if (archived.code !== 0) throw new Error(`The tar.gz archive cannot be made: ${archived.output.trim()}`)
-            files.push({target: target, file: file, size: (await stat(file)).size})
+            files.push(await ArchiveDirectory(plan, Arch(), work, outdir))
             continue
         }
         const directory: string = path.join(work, target)

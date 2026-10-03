@@ -278,12 +278,14 @@ They are configured by the `lakutata.installer` of the `package.json`:
 | Option | |
 |---|---|
 | `name` | the name of the package (lower case), the one of the program by default |
+| `appId` | the identifier of the application (reverse DNS, `com.acme.app`), its name by default: the identifier of the package of macOS and the label of its service |
 | `description`, `maintainer`, `homepage`, `license`, `vendor` | the ones of the `package.json` by default (the maintainer is its author) |
 | `runtime` | the runtime of the executable: `node` (by default) or `bun` |
 | `addToPath` | the program in the PATH (`/usr/bin/<program>`), by default |
 | `service` | `true` or the options of the service (below), none by default |
 | `linux.targets` | `deb`, `rpm`, `archlinux`, `tar.gz` on the systems of the glibc (`deb`, `rpm`, `tar.gz` by default), `apk`, `tar.gz` on Alpine (musl) |
 | `linux.depends`, `linux.recommends`, `linux.section`, `linux.priority` | the packages of the system it needs, recommends, its section and priority (deb) |
+| `mac.targets` | `pkg`, `tar.gz` (both by default) |
 
 The packages of Linux are made by nFPM (downloaded once into the cache of lakutata, `LAKUTATA_NFPM` gives another one),
 in `dist/installer` (`--outdir`): the application is installed in `/opt/<name>`, the C++ library of the runtime is a
@@ -291,20 +293,26 @@ dependency. The executables link the C library of the system they are made on: t
 are made on one of them, the `apk` packages on Alpine, with Bun (`"runtime": "bun"`) when the application has native
 addons: the executables of Node.js do not load them on musl.
 
-The service runs the application at the start of the system: systemd (`/usr/lib/systemd/system/<service>.service`), or
-OpenRC on Alpine (`/etc/init.d/<service>`). It is started by the installation, restarted by the upgrades, stopped and
-disabled before the removal.
+The installers of macOS are made by its tools (`pkgbuild`, `productbuild`): the `pkg` package installs the application in
+`/usr/local/lib/<name>`, its program in `/usr/local/bin`; the packages of macOS are not removed by the system:
+`sudo /usr/local/lib/<name>/uninstall` removes it. They are signed ad hoc (the Developer ID signature and the
+notarization, which the distribution out of the machines of the organization needs, are not made yet).
+
+The service runs the application at the start of the system: systemd (`/usr/lib/systemd/system/<service>.service`),
+OpenRC on Alpine (`/etc/init.d/<service>`), or launchd on macOS (`/Library/LaunchDaemons/<appId>.plist`). It is started by
+the installation, restarted by the upgrades, stopped and disabled before the removal.
 
 | Service option | |
 |---|---|
 | `name`, `description` | the ones of the package by default |
 | `args` | the arguments of the application |
-| `env` | its environment (`MODE=production` by default), written to `/etc/<name>/<name>.env`, which the administrators change (kept by the upgrades) |
-| `user` | its user: a system user named after the package by default (created by the installation), or `root` |
+| `env` | its environment (`MODE=production` by default), written to `/etc/<name>/<name>.env` (`/usr/local/etc/<name>/<name>.env` on macOS), which the administrators change (kept by the upgrades) |
+| `user` | its user: a system user named after the package by default (`_<name>` on macOS, hidden), created by the installation, or `root` |
 | `restart` | `on-failure` (by default), `always` or `no` |
 | `autoStart` | enabled and started by the installation, by default |
 
-Its working directory is `/var/lib/<name>`, owned by its user (its data). `SIGTERM` ends it gracefully.
+Its working directory is `/var/lib/<name>` (`/usr/local/var/lib/<name>` on macOS, its log `/usr/local/var/log/<name>.log`),
+owned by its user (its data). `SIGTERM` ends it gracefully.
 
 | Command option | |
 |---|---|

@@ -18,7 +18,8 @@
     "rebuild": "npm run clean && npm run build:js",
     "compile": "npm run rebuild",
     "test:unit": "npm run compile && node --test \"dist/esm/tests/*.spec.js\"",
-    "test:installer": "npm run compile && LAKUTATA_DOCKER=1 node --test dist/esm/tests/Installer.spec.js"
+    "test:installer": "npm run compile && LAKUTATA_DOCKER=1 node --test dist/esm/tests/Installer.spec.js",
+    "test:installer:mac": "npm run compile && LAKUTATA_TART=1 node --test dist/esm/tests/InstallerMac.spec.js"
   },
   "dependencies": {
     "esbuild": "^0.28.2",

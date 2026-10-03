@@ -205,10 +205,11 @@ Application.run({
         assert.ok(!existsSync(cache))
     })
 
-    it('makes the installers of Linux on Linux (the ones of the other platforms come later)', {skip: process.platform === 'linux' && 'Linux makes its installers (the Docker tests of the builder)'}, async (): Promise<void> => {
-        const refused = await Run(process.execPath, [CLI, 'installer'])
-        assert.notStrictEqual(refused.code, 0)
-        assert.match(refused.output, new RegExp(`The installers of ${process.platform} are not supported yet`))
+    it('makes the installers of macOS on macOS', {skip: process.platform !== 'darwin' && 'the installers of Linux are tested in containers (the Docker tests of the builder)'}, async (): Promise<void> => {
+        const made = await Run(process.execPath, [CLI, 'installer', '--outdir', 'installers'])
+        assert.strictEqual(made.code, 0, made.output)
+        assert.deepStrictEqual(readdirSync(path.join(project, 'installers')).sort(), [`greet-1.0.0-${process.arch}.pkg`, `greet-1.0.0-darwin-${process.arch}.tar.gz`])
+        assert.match(made.output, /Resources: texts/)
     })
 
     it('tells to install Bun when it is not installed', async (): Promise<void> => {
