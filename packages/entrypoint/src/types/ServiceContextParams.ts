@@ -5,4 +5,8 @@ import {type ActionPattern} from '@lakutata/core'
  */
 export type ServiceContextParams = {
     readonly data: ActionPattern
+    /**
+     * The client of the request, which the events are pushed to (Entrypoint.notify)
+     */
+    readonly clientId?: string
 }

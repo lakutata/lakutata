@@ -5,7 +5,10 @@ import {Container, DTO} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
 import {ActionInvocation, BuildEntrypoints, Controller, Entrypoint, MiddlewareHandler, Next, ServiceContext} from '../exports/Entrypoint.js'
 import {ServiceAction} from '../exports/CTRLDecorators.js'
-import {BroadcastToRenderers, ElectronIPCServiceEntrypoint, IPCEventOfContext, IPCMain, NotifyRenderer} from '../exports/ElectronAdapter.js'
+import {ElectronIPCServiceEntrypoint, IPCEventOfContext, IPCMain} from '../exports/ElectronAdapter.js'
+import {SocketIOServiceEntrypoint} from '../exports/SocketIOAdapter.js'
+import type {AddressInfo} from 'node:net'
+import {io as Connect, type Socket as ClientSocket} from 'socket.io-client'
 
 /**
  * The ipcMain of the tests: the handlers are invoked as by the renderers
@@ -33,24 +36,26 @@ class FakeIPCMain implements IPCMain {
     }
 
     /**
-     * Send to a channel as a renderer
+     * Send to a channel as the page of a renderer
      * @param channel
-     * @param sender
+     * @param page its web contents, its process and its frame
+     * @param args
      */
-    public send(channel: string, sender: EventEmitter): void {
-        this.listeners.get(channel)?.({sender: sender})
+    public send(channel: string, page: Page, ...args: unknown[]): void {
+        this.listeners.get(channel)?.(PageEvent(page), ...args)
     }
 
     /**
      * Invoke a channel as a renderer
      * @param channel
-     * @param sender the web contents of the renderer
+     * @param sender the web contents of the renderer, or a page of it
      * @param data
+     * @param clientId
      */
-    public async invoke(channel: string, sender: EventEmitter, data: unknown): Promise<any> {
+    public async invoke(channel: string, sender: EventEmitter | Page, data: unknown, clientId?: string): Promise<any> {
         const handler = this.handlers.get(channel)
         if (!handler) throw new Error(`No handler registered for '${channel}'`)
-        return await handler({sender: sender}, data)
+        return await handler(sender instanceof EventEmitter ? {sender: sender} : PageEvent(sender), data, clientId)
     }
 }
 
@@ -68,10 +73,9 @@ class EchoController extends Controller {
         return {value: input.value, renderer: (IPCEventOfContext(this.context as ServiceContext)?.sender as any)?.id}
     }
 
-    @ServiceAction({cmd: 'push'})
-    public async push(): Promise<number> {
-        NotifyRenderer(this.context as ServiceContext, 'progress', 1, 'a')
-        return BroadcastToRenderers('broadcast', 'all')
+    @ServiceAction({cmd: 'whoami'})
+    public async whoami(): Promise<string | undefined> {
+        return (this.context as ServiceContext).clientId
     }
 
     @ServiceAction({cmd: 'slow'})
@@ -87,7 +91,20 @@ class EchoController extends Controller {
  */
 function Renderer(id: number): EventEmitter & { received: unknown[][] } {
     const received: unknown[][] = []
-    return Object.assign(new EventEmitter(), {id: id, received: received, send: (...args: unknown[]): unknown => received.push(args)})
+    return Object.assign(new EventEmitter(), {id: id, received: received, sendToFrame: (...args: unknown[]): unknown => received.push(args)})
+}
+
+/**
+ * A page of a renderer: its web contents, the process of the renderer and its frame in it
+ */
+type Page = { renderer: EventEmitter, processId: number, frameId: number }
+
+/**
+ * The event of the IPC sent by a page (of the main frame of its window)
+ * @param page
+ */
+function PageEvent(page: Page): Record<string, unknown> {
+    return {sender: page.renderer, processId: page.processId, frameId: page.frameId, senderFrame: {parent: null}}
 }
 
 /**
@@ -136,23 +153,65 @@ describe('Electron adapter', (): void => {
         await container.destroy()
     })
 
-    it('pushes the events to the renderer of a request, and to the renderers subscribed to them', async (): Promise<void> => {
+    it('pushes the events to the pages by their client ids, to every page, as long as they are loaded', async (): Promise<void> => {
         const ipcMain: FakeIPCMain = new FakeIPCMain()
         const container: Container = await Start(ipcMain)
-        const [first, second, other] = [Renderer(1), Renderer(2), Renderer(3)]
-        ipcMain.send('lakutata:service:subscribe', first)
-        ipcMain.send('lakutata:service:subscribe', second)
-        //Subscribed once
-        ipcMain.send('lakutata:service:subscribe', second)
-        assert.deepStrictEqual(await ipcMain.invoke('lakutata:service', other, {cmd: 'push'}), {success: true, error: null, payload: 2})
-        assert.deepStrictEqual(other.received, [['lakutata:service:event', 'progress', [1, 'a']]])
-        assert.deepStrictEqual([first.received, second.received], [[['lakutata:service:event', 'broadcast', ['all']]], [['lakutata:service:event', 'broadcast', ['all']]]])
-        //The destroyed renderers are not subscribed anymore
-        first.emit('destroyed')
-        assert.strictEqual(BroadcastToRenderers('broadcast'), 1)
+        const entrypoint: Entrypoint = await container.get(Entrypoint)
+        //Two windows: the main frames of their renderers have the same id (the ones of the frames are the ones of their process)
+        const [first, second] = [Renderer(1), Renderer(2)]
+        const one: Page = {renderer: first, processId: 5, frameId: 1}
+        const two: Page = {renderer: second, processId: 6, frameId: 1}
+        ipcMain.send('lakutata:service:subscribe', one, 'one')
+        ipcMain.send('lakutata:service:subscribe', two, 'two')
+        //The client of the requests of a page
+        assert.deepStrictEqual(await ipcMain.invoke('lakutata:service', one, {cmd: 'whoami'}, 'one'), {success: true, error: null, payload: 'one'})
+        assert.strictEqual(entrypoint.notify('one', 'progress', 1, 'a'), true)
+        assert.deepStrictEqual(first.received, [[[5, 1], 'lakutata:service:event', 'progress', [1, 'a']]])
+        assert.deepStrictEqual(second.received, [])
+        assert.strictEqual(entrypoint.broadcast('all'), 2)
+        assert.deepStrictEqual(second.received, [[[6, 1], 'lakutata:service:event', 'all', []]])
+        //The page loaded again: a new client, the one of the page replaced
+        ipcMain.send('lakutata:service:subscribe', {renderer: first, processId: 5, frameId: 8}, 'three')
+        assert.strictEqual(entrypoint.notify('one', 'progress'), false)
+        assert.strictEqual(entrypoint.notify('three', 'progress'), true)
+        assert.deepStrictEqual(first.received.at(-1), [[5, 8], 'lakutata:service:event', 'progress', []])
+        //A destroyed window has no client
+        second.emit('destroyed')
+        assert.strictEqual(entrypoint.notify('two', 'progress'), false)
+        assert.strictEqual(entrypoint.broadcast('all'), 1)
+        //The requests without client id
+        assert.deepStrictEqual(await ipcMain.invoke('lakutata:service', Renderer(4), {cmd: 'whoami'}), {success: true, error: null, payload: undefined})
         await container.destroy()
         assert.strictEqual(ipcMain.listeners.size, 0)
-        assert.strictEqual(BroadcastToRenderers('broadcast'), 0)
+    })
+
+    it('pushes the events to the clients of the windows and of the sockets (the tools of the development)', async (): Promise<void> => {
+        const ipcMain: FakeIPCMain = new FakeIPCMain()
+        let port: number = 0
+        const container: Container = new Container()
+        await container.set(Entrypoint, BuildEntrypoints({
+            controllers: [EchoController],
+            service: [
+                ElectronIPCServiceEntrypoint({ipcMain: ipcMain}),
+                SocketIOServiceEntrypoint({port: 0, host: '127.0.0.1', event: 'request', listening: (io, server): void => {
+                    port = (server!.address() as AddressInfo).port
+                }})
+            ]
+        }))
+        const entrypoint: Entrypoint = await container.get(Entrypoint)
+        const window: EventEmitter & { received: unknown[][] } = Renderer(1)
+        ipcMain.send('lakutata:service:subscribe', {renderer: window, processId: 5, frameId: 1}, 'window')
+        const tool: ClientSocket = Connect(`http://127.0.0.1:${port}`, {transports: ['websocket'], reconnection: false, extraHeaders: {id: 'postman'}})
+        await new Promise<void>((resolve: () => void): unknown => tool.once('connect', resolve))
+        assert.strictEqual((await tool.emitWithAck('request', {cmd: 'whoami'})).payload, 'postman')
+        const pushed: Promise<unknown[]> = new Promise((resolve: (args: unknown[]) => void): unknown => tool.once('done', (...args: unknown[]): void => resolve(args)))
+        assert.strictEqual(entrypoint.notify('postman', 'done', 1), true)
+        assert.deepStrictEqual(await pushed, [1])
+        assert.strictEqual(entrypoint.notify('window', 'done', 2), true)
+        assert.deepStrictEqual(window.received, [[[5, 1], 'lakutata:service:event', 'done', [2]]])
+        assert.strictEqual(entrypoint.broadcast('all'), 2)
+        tool.disconnect()
+        await container.destroy()
     })
 
     it('stops gracefully', async (): Promise<void> => {

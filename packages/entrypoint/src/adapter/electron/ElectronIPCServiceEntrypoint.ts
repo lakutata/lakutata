@@ -13,14 +13,18 @@ export type IPCSender = {
     off?(event: 'destroyed', listener: () => void): unknown
     removeListener?(event: 'destroyed', listener: () => void): unknown
     send?(channel: string, ...args: unknown[]): void
+    sendToFrame?(frame: [number, number], channel: string, ...args: unknown[]): void
     isDestroyed?(): boolean
 }
 
 /**
- * The event of an invocation: its sender is the web contents of the renderer
+ * The event of an invocation: its sender is the web contents of the renderer, its frame the one of the page invoking
  */
 export type IPCInvokeEvent = {
     readonly sender: IPCSender
+    readonly processId?: number
+    readonly frameId?: number
+    readonly senderFrame?: { readonly parent?: unknown } | null
 }
 
 /**
@@ -34,10 +38,14 @@ export type IPCMain = {
 }
 
 /**
- * The renderers subscribed to the events of each adapter started (by their event channel): the ones the events are
- * broadcast to
+ * A client of the adapter: a page of a renderer, which gives its id when it subscribes to the events and when it invokes
  */
-const SUBSCRIBERS: Map<string, Set<IPCSender>> = new Map()
+type IPCClient = {
+    sender: IPCSender
+    //Its frame: the process of its renderer, its id in it (the ids of the frames are the ones of their process)
+    frame?: [number, number]
+    main: boolean
+}
 
 export type ElectronIPCServiceEntrypointOptions = {
     /**
@@ -45,8 +53,9 @@ export type ElectronIPCServiceEntrypointOptions = {
      */
     name?: string
     /**
-     * The IPC channel of the requests, "lakutata:service" by default; the events pushed to the renderers are sent on
-     * "<channel>:event", the renderers subscribe to them on "<channel>:subscribe"
+     * The IPC channel of the requests, "lakutata:service" by default (ipcRenderer.invoke(channel, data, clientId)); the
+     * events pushed to the renderers (Entrypoint.notify, broadcast) are sent on "<channel>:event", the renderers
+     * subscribe to them by sending their id on "<channel>:subscribe"
      */
     channel?: string
     /**
@@ -68,40 +77,6 @@ export function IPCEventOfContext<Event extends IPCInvokeEvent = IPCInvokeEvent>
 }
 
 /**
- * Push an event to the renderer of the request of a context (a service action served by Electron): the listeners of
- * the event in the renderer (window.ipc.on) are given its arguments
- * @param context
- * @param event
- * @param args
- * @returns whether it was sent (the renderer exists)
- */
-export function NotifyRenderer(context: ServiceContext, event: string, ...args: unknown[]): boolean {
-    const sender: IPCSender | undefined = IPCEventOfContext(context)?.sender
-    const channel: string | undefined = (context as ServiceContext & { ipcEventChannel?: string }).ipcEventChannel
-    if (!sender?.send || !channel || sender.isDestroyed?.()) return false
-    sender.send(channel, event, args)
-    return true
-}
-
-/**
- * Push an event to every renderer subscribed to the events (the windows whose window.ipc is loaded)
- * @param event
- * @param args
- * @returns the number of the renderers it was sent to
- */
-export function BroadcastToRenderers(event: string, ...args: unknown[]): number {
-    let sent: number = 0
-    for (const [channel, senders] of SUBSCRIBERS) {
-        for (const sender of senders) {
-            if (!sender.send || sender.isDestroyed?.()) continue
-            sender.send(channel, event, args)
-            sent++
-        }
-    }
-    return sent
-}
-
-/**
  * The ipcMain of the main process of Electron
  */
 async function LoadIPCMain(): Promise<IPCMain> {
@@ -120,9 +95,10 @@ async function LoadIPCMain(): Promise<IPCMain> {
 
 /**
  * The service entrypoint served over the IPC of Electron: the renderers invoke the channel with the pattern and the input of an action,
- * ipcRenderer.invoke('lakutata:service', {cmd: 'echo', …}), and receive its response encoded as {success, error, payload} (ServiceResponseCodec).
- * The main process pushes events to them (NotifyRenderer, BroadcastToRenderers) on 'lakutata:service:event', which they
- * subscribe to by sending 'lakutata:service:subscribe'
+ * ipcRenderer.invoke('lakutata:service', {cmd: 'echo', …}, clientId), and receive its response encoded as {success, error, payload}
+ * (ServiceResponseCodec). Each page is a client (the id it gives, the clientId of the contexts of its requests): the
+ * main process pushes events to it (Entrypoint.notify, broadcast) on 'lakutata:service:event', which it subscribes to by
+ * sending its id on 'lakutata:service:subscribe'
  * @param options
  */
 export function ElectronIPCServiceEntrypoint(options: ElectronIPCServiceEntrypointOptions = {}): EntrypointAdapter<ServiceContext> {
@@ -131,6 +107,52 @@ export function ElectronIPCServiceEntrypoint(options: ElectronIPCServiceEntrypoi
     const subscribeChannel: string = `${channel}:subscribe`
     let ipcMain: IPCMain | undefined
     let stopping: boolean = false
+    //The clients by their ids, the renderers whose destruction removes their clients
+    const clients: Map<string, IPCClient> = new Map()
+    const watched: WeakSet<IPCSender> = new WeakSet()
+
+    /**
+     * Register the client of a page, by the id it gives (the one of the page loaded: a page loaded again in the main
+     * frame of its window replaces its client); undefined without id
+     * @param event
+     * @param clientId
+     */
+    const register = (event: IPCInvokeEvent, clientId: unknown): string | undefined => {
+        if (typeof clientId !== 'string' || !clientId || clientId.length > 200) return undefined
+        if (clients.get(clientId)?.sender === event.sender) return clientId
+        const frame: [number, number] | undefined = event.processId !== undefined && event.frameId !== undefined ? [event.processId, event.frameId] : undefined
+        const main: boolean = !event.senderFrame?.parent
+        for (const [id, client] of clients) {
+            const sameFrame: boolean = !!frame && !!client.frame && client.frame[0] === frame[0] && client.frame[1] === frame[1]
+            if (client.sender === event.sender && (sameFrame || (main && client.main))) clients.delete(id)
+        }
+        clients.set(clientId, {sender: event.sender, frame: frame, main: main})
+        if (!watched.has(event.sender)) {
+            watched.add(event.sender)
+            event.sender.once('destroyed', (): void => {
+                for (const [id, client] of clients) if (client.sender === event.sender) clients.delete(id)
+            })
+        }
+        return clientId
+    }
+
+    /**
+     * Send an event to a client, in its frame
+     * @param clientId
+     * @param client
+     * @param event
+     * @param args
+     */
+    const send = (clientId: string, client: IPCClient, event: string, args: unknown[]): boolean => {
+        if (client.sender.isDestroyed?.()) {
+            clients.delete(clientId)
+            return false
+        }
+        if (client.frame && client.sender.sendToFrame) client.sender.sendToFrame(client.frame, eventChannel, event, args)
+        else if (client.sender.send) client.sender.send(eventChannel, event, args)
+        else return false
+        return true
+    }
 
     return {
         channel: 'service',
@@ -139,22 +161,15 @@ export function ElectronIPCServiceEntrypoint(options: ElectronIPCServiceEntrypoi
         middlewares: options.middlewares,
         start: async (runtime: ChannelRuntime<ServiceContext>): Promise<void> => {
             ipcMain = options.ipcMain ?? await LoadIPCMain()
-            //The renderers subscribed to the events, until they are destroyed
-            const subscribers: Set<IPCSender> = new Set()
-            SUBSCRIBERS.set(eventChannel, subscribers)
-            ipcMain.on?.(subscribeChannel, (event: IPCInvokeEvent): void => {
-                if (subscribers.has(event.sender)) return
-                subscribers.add(event.sender)
-                event.sender.once('destroyed', (): unknown => subscribers.delete(event.sender))
-            })
-            ipcMain.handle(channel, async (event: IPCInvokeEvent, data: unknown): Promise<ServiceResponse> => {
+            ipcMain.on?.(subscribeChannel, (event: IPCInvokeEvent, clientId: unknown): unknown => register(event, clientId))
+            ipcMain.handle(channel, async (event: IPCInvokeEvent, data: unknown, clientId: unknown): Promise<ServiceResponse> => {
                 if (stopping) return ServiceResponseCodec.encodeError(new EntrypointStoppedException('The entrypoint is stopping'))
                 //The request is aborted when its renderer is destroyed
                 const request: AbortController = new AbortController()
                 const abort = (): void => request.abort()
                 event.sender.once('destroyed', abort)
                 try {
-                    const context: ServiceContext = new ServiceContext({data: data && typeof data === 'object' ? data as Record<string, unknown> : {}, event: event, ipcEventChannel: eventChannel})
+                    const context: ServiceContext = new ServiceContext({data: data && typeof data === 'object' ? data as Record<string, unknown> : {}, event: event, clientId: register(event, clientId)})
                     return ServiceResponseCodec.encode(await runtime.dispatch(context, {signal: request.signal}), false)
                 } catch (error: unknown) {
                     return ServiceResponseCodec.encodeError(error)
@@ -170,7 +185,16 @@ export function ElectronIPCServiceEntrypoint(options: ElectronIPCServiceEntrypoi
         close: (): void => {
             ipcMain?.removeHandler(channel)
             ipcMain?.removeAllListeners?.(subscribeChannel)
-            SUBSCRIBERS.delete(eventChannel)
+            clients.clear()
+        },
+        notify: (clientId: string, event: string, args: unknown[]): boolean => {
+            const client: IPCClient | undefined = clients.get(clientId)
+            return !!client && send(clientId, client, event, args)
+        },
+        broadcast: (event: string, args: unknown[]): number => {
+            let sent: number = 0
+            for (const [clientId, client] of [...clients]) if (send(clientId, client, event, args)) sent++
+            return sent
         }
     }
 }

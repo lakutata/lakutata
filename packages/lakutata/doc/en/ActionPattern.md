@@ -94,6 +94,29 @@ The `@ServiceAction` decorator is used to register controller methods as entry p
   ```
     - **Explanation**: The `createUser` method is registered as the entry point for the `{ action: 'createUser', module: 'user' }` pattern, suitable for inter-service calls, and uses `UserDTO` to validate data.
 
+#### 2.2.4 The clients of the service actions and their events
+The service adapters with clients (`ElectronIPCServiceEntrypoint`: each page of a window; `SocketIOServiceEntrypoint`:
+each socket, its id given when it connects by its `auth.id` or its `id` header) give the id of the client of a request to
+its context, `ServiceContext.clientId`. The entrypoint component pushes events to the clients by their ids, kept as long
+as needed, or to every client:
+
+```typescript
+export class TaskController extends Controller {
+    @Inject('entrypoint')
+    protected readonly entrypoint: Entrypoint
+
+    @ServiceAction({cmd: 'start'})
+    public async start(): Promise<void> {
+        const clientId = (this.context as ServiceContext).clientId!
+        setTimeout(() => this.entrypoint.notify(clientId, 'done', {task: 1}), 1000)
+        this.entrypoint.broadcast('started', {task: 1})
+    }
+}
+```
+
+The renderers of Electron listen to them with `window.ipc.on(event, listener)` (the Electron templates), the sockets
+with `socket.on(event, listener)`. A page of a window is a client until it is loaded again or its window is closed.
+
 ### 2.3 Pattern Manager (PatternManager)
 `PatternManager` is the core component in Lakutata for handling pattern matching in service operations, implemented based on the `Patrun` library.
 

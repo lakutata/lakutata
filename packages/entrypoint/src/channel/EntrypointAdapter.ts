@@ -122,6 +122,23 @@ export interface EntrypointAdapter<Context extends BaseContext = BaseContext> {
      * Release the resources (connections, servers) once the requests in progress ended or were aborted
      */
     close?(): void | Promise<void>
+
+    /**
+     * Push an event to a client of the adapter (the renderer of a window, a socket), its arguments given to its listeners
+     * @param clientId the one of the contexts of its requests (ServiceContext.clientId)
+     * @param event
+     * @param args
+     * @returns whether the adapter has the client
+     */
+    notify?(clientId: string, event: string, args: unknown[]): boolean
+
+    /**
+     * Push an event to every client of the adapter
+     * @param event
+     * @param args
+     * @returns the number of the clients
+     */
+    broadcast?(event: string, args: unknown[]): number
 }
 
 /**

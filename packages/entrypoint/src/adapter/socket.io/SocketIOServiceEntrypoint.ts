@@ -60,8 +60,21 @@ export function SocketOfContext(context: ServiceContext): Socket | undefined {
 }
 
 /**
+ * The id of the client of a socket: the one it gives when it connects (its auth.id, its id header, its id query), its
+ * own id otherwise
+ * @param socket
+ */
+function ClientId(socket: Socket): string {
+    const given: unknown = socket.handshake.auth?.id ?? socket.handshake.headers.id ?? socket.handshake.query.id
+    const id: unknown = Array.isArray(given) ? given[0] : given
+    return typeof id === 'string' && id && id.length <= 200 ? id : socket.id
+}
+
+/**
  * The service entrypoint served by socket.io: a request is an event whose data is the pattern and the input of an action,
- * its acknowledgement is the response of the action, encoded as {success, error, payload} (ServiceResponseCodec)
+ * its acknowledgement is the response of the action, encoded as {success, error, payload} (ServiceResponseCodec). Each
+ * socket is the one of a client (the id it gives when it connects, the clientId of the contexts of its requests): the
+ * events pushed to it (Entrypoint.notify, broadcast) are emitted to it
  * @param options
  */
 export function SocketIOServiceEntrypoint(options: SocketIOServiceEntrypointOptions = {}): EntrypointAdapter<ServiceContext> {
@@ -72,6 +85,8 @@ export function SocketIOServiceEntrypoint(options: SocketIOServiceEntrypointOpti
     let sharedServer: boolean = false
     let stopping: boolean = false
     let onConnection: ((socket: Socket) => void) | undefined
+    //The sockets of each client (a client may connect several times)
+    const clients: Map<string, Set<Socket>> = new Map()
 
     return {
         channel: 'service',
@@ -91,9 +106,16 @@ export function SocketIOServiceEntrypoint(options: SocketIOServiceEntrypointOpti
             }
             namespace = io.of(options.namespace ?? '/')
             onConnection = (socket: Socket): void => {
+                const clientId: string = ClientId(socket)
+                if (!clients.has(clientId)) clients.set(clientId, new Set())
+                clients.get(clientId)!.add(socket)
                 //The requests of a socket in progress, aborted when it disconnects
                 const requests: Set<AbortController> = new Set()
-                socket.once('disconnect', (): void => requests.forEach((request: AbortController): void => request.abort()))
+                socket.once('disconnect', (): void => {
+                    requests.forEach((request: AbortController): void => request.abort())
+                    clients.get(clientId)?.delete(socket)
+                    if (!clients.get(clientId)?.size) clients.delete(clientId)
+                })
                 socket.on(event, async (data: unknown, acknowledge?: unknown): Promise<void> => {
                     const reply = (response: ServiceResponse): void => {
                         if (typeof acknowledge === 'function') acknowledge(response)
@@ -102,7 +124,7 @@ export function SocketIOServiceEntrypoint(options: SocketIOServiceEntrypointOpti
                     const request: AbortController = new AbortController()
                     requests.add(request)
                     try {
-                        const context: ServiceContext = new ServiceContext({data: data && typeof data === 'object' ? data as Record<string, unknown> : {}, socket: socket})
+                        const context: ServiceContext = new ServiceContext({data: data && typeof data === 'object' ? data as Record<string, unknown> : {}, socket: socket, clientId: clientId})
                         reply(ServiceResponseCodec.encode(await runtime.dispatch(context, {signal: request.signal}), false))
                     } catch (error: unknown) {
                         reply(ServiceResponseCodec.encodeError(error))
@@ -127,7 +149,18 @@ export function SocketIOServiceEntrypoint(options: SocketIOServiceEntrypointOpti
             //The new requests are refused, the requests in progress end
             stopping = true
         },
+        notify: (clientId: string, name: string, args: unknown[]): boolean => {
+            const sockets: Set<Socket> | undefined = clients.get(clientId)
+            sockets?.forEach((socket: Socket): unknown => socket.emit(name, ...args))
+            return !!sockets?.size
+        },
+        broadcast: (name: string, args: unknown[]): number => {
+            if (!namespace) return 0
+            namespace.emit(name, ...args)
+            return clients.size
+        },
         close: async (): Promise<void> => {
+            clients.clear()
             if (namespace && onConnection) namespace.off('connection', onConnection)
             if (!io || options.io) return
             if (sharedServer) {

@@ -2,7 +2,7 @@ import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import type {AddressInfo} from 'node:net'
 import type {Server} from 'node:http'
-import {io as Connect, type Socket as ClientSocket} from 'socket.io-client'
+import {io as Connect, type ManagerOptions, type Socket as ClientSocket, type SocketOptions} from 'socket.io-client'
 import {Container, DTO} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
 import {ActionInvocation, BuildEntrypoints, Controller, Entrypoint, MiddlewareHandler, Next, ServiceContext} from '../exports/Entrypoint.js'
@@ -29,6 +29,11 @@ class EchoController extends Controller {
     @ServiceAction({cmd: 'fire'}, EchoDTO)
     public async fire(input: EchoDTO): Promise<void> {
         fired.push(input.value)
+    }
+
+    @ServiceAction({cmd: 'whoami'})
+    public async whoami(): Promise<string | undefined> {
+        return (this.context as ServiceContext).clientId
     }
 
     @ServiceAction({cmd: 'slow'})
@@ -70,8 +75,8 @@ async function Start(options: SocketIOServiceEntrypointOptions = {}, entrypointO
  * A connected client
  * @param url
  */
-async function Client(url: string): Promise<ClientSocket> {
-    const client: ClientSocket = Connect(url, {transports: ['websocket'], reconnection: false})
+async function Client(url: string, options: Partial<ManagerOptions & SocketOptions> = {}): Promise<ClientSocket> {
+    const client: ClientSocket = Connect(url, {transports: ['websocket'], reconnection: false, ...options})
     await new Promise<void>((resolve: () => void, reject: (error: Error) => void): void => {
         client.once('connect', resolve).once('connect_error', reject)
     })
@@ -88,6 +93,34 @@ function Request(client: ClientSocket, data: unknown): Promise<any> {
 }
 
 describe('Socket.IO adapter', (): void => {
+
+    it('pushes the events to the clients by their ids (given when they connect), to every client', async (): Promise<void> => {
+        const {url, container} = await Start()
+        const entrypoint: Entrypoint = await container.get(Entrypoint)
+        //Its id given by its auth, by its header (Postman), its own one otherwise
+        const desk: ClientSocket = await Client(url, {auth: {id: 'desk'}})
+        const tool: ClientSocket = await Client(url, {extraHeaders: {id: 'postman'}})
+        const anonymous: ClientSocket = await Client(url)
+        const whoami = (client: ClientSocket): Promise<any> => client.emitWithAck('message', {cmd: 'whoami'})
+        assert.strictEqual((await whoami(desk)).payload, 'desk')
+        assert.strictEqual((await whoami(tool)).payload, 'postman')
+        assert.strictEqual((await whoami(anonymous)).payload, anonymous.id)
+        const received = (client: ClientSocket, event: string): Promise<unknown[]> => new Promise((resolve: (args: unknown[]) => void): unknown => client.once(event, (...args: unknown[]): void => resolve(args)))
+        const progress: Promise<unknown[]> = received(desk, 'progress')
+        assert.strictEqual(entrypoint.notify('desk', 'progress', 1, 'a'), true)
+        assert.deepStrictEqual(await progress, [1, 'a'])
+        assert.strictEqual(entrypoint.notify('nobody', 'progress'), false)
+        const all: Promise<unknown[][]> = Promise.all([desk, tool, anonymous].map((client: ClientSocket): Promise<unknown[]> => received(client, 'all')))
+        assert.strictEqual(entrypoint.broadcast('all', 2), 3)
+        assert.deepStrictEqual(await all, [[2], [2], [2]])
+        //A disconnected client has no socket
+        desk.disconnect()
+        await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 100))
+        assert.strictEqual(entrypoint.notify('desk', 'progress'), false)
+        tool.disconnect()
+        anonymous.disconnect()
+        await container.destroy()
+    })
 
     it('answers the requests with the responses of the actions', async (): Promise<void> => {
         const {url, container} = await Start()

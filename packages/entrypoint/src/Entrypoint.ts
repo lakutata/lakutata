@@ -725,6 +725,32 @@ export class Entrypoint extends Component {
         if (!allowed) throw exception
     }
 
+    /**
+     * Push an event to a client of the adapters which have clients (the renderer of a window of Electron, a socket of
+     * socket.io), its arguments given to its listeners: the client of a service action is its context.clientId
+     * @param clientId
+     * @param event
+     * @param args
+     * @returns whether a client has it
+     */
+    public notify(clientId: string, event: string, ...args: unknown[]): boolean {
+        let notified: boolean = false
+        for (const {adapter} of this.#started) if (adapter.notify?.(clientId, event, args)) notified = true
+        return notified
+    }
+
+    /**
+     * Push an event to every client of the adapters which have clients
+     * @param event
+     * @param args
+     * @returns the number of the clients
+     */
+    public broadcast(event: string, ...args: unknown[]): number {
+        let clients: number = 0
+        for (const {adapter} of this.#started) clients += adapter.broadcast?.(event, args) ?? 0
+        return clients
+    }
+
     public getHttpActionGroups(): Record<string, string> {
         return this.httpActionGroups
     }

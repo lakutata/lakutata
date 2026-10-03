@@ -1,1 +1,1 @@
-export {BroadcastToRenderers, ElectronIPCServiceEntrypoint, IPCEventOfContext, NotifyRenderer, type ElectronIPCServiceEntrypointOptions, type IPCMain, type IPCInvokeEvent, type IPCSender} from '../adapter/electron/ElectronIPCServiceEntrypoint.js'
+export {ElectronIPCServiceEntrypoint, IPCEventOfContext, type ElectronIPCServiceEntrypointOptions, type IPCMain, type IPCInvokeEvent, type IPCSender} from '../adapter/electron/ElectronIPCServiceEntrypoint.js'
