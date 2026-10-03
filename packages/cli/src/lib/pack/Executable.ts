@@ -111,7 +111,8 @@ async function EmbedInNode(bundle: BundleResult, work: string, file: string): Pr
         main: bundle.outfile,
         output: blob,
         disableExperimentalSEAWarning: true,
-        useCodeCache: false,
+        //The code cache of V8, made by the Node.js embedded: the bundle is not compiled again at start
+        useCodeCache: true,
         useSnapshot: false,
         assets: assets
     }))

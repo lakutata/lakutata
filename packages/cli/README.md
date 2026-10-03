@@ -213,7 +213,8 @@ the application itself (`require('./x.node')`, `createRequire(import.meta.url)('
 
 Make the executable of the application for the platform it runs on, which runs without Node.js installed: the bundle
 embedded in the Node.js binary running the tool (the single executable applications of Node.js), `dist/<name>`
-(`dist/<name>.exe` on Windows). The Node.js embedded is the version running the tool.
+(`dist/<name>.exe` on Windows), with the code cache of the bundle (V8). The Node.js embedded is the version running the
+tool.
 
 With `--runtime bun`, the bundle is compiled by Bun (`bun build --compile --bytecode`, its bytecode is not parsed at
 start) instead: the Bun of the project (the `bun`
