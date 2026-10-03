@@ -1,6 +1,6 @@
 import {after, describe, it} from 'node:test'
 import assert from 'node:assert'
-import {execFile, type ExecFileException, spawn} from 'node:child_process'
+import {execFile, type ExecFileException, execSync, spawn} from 'node:child_process'
 import {existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
 import {tmpdir} from 'node:os'
@@ -124,22 +124,44 @@ async function ElectronPage(project: string, args: string[]): Promise<string> {
 }
 
 /**
+ * Whether Bun is installed, which makes the executables of --runtime bun
+ */
+const BUN: boolean = ((): boolean => {
+    try {
+        execSync('bun --version', {stdio: 'ignore'})
+        return true
+    } catch {
+        return false
+    }
+})()
+
+/**
  * Make the executable of the app package of a web application in a directory, and run it from elsewhere: the page it
  * serves (its ui, a resource of the executable)
  * @param project
  */
-async function ServeFromExecutable(project: string): Promise<string> {
-    const made = await Run(process.execPath, [CLI, 'executable', '--layout', 'directory'], path.join(project, 'packages', 'app'))
+async function ServeFromExecutable(project: string, assets: (page: string) => string[] = (): string[] => [], options: string[] = ['--layout', 'directory']): Promise<string> {
+    const outdir: string = `dist-${options.join('').replace(/\W+/g, '-')}`
+    const made = await Run(process.execPath, [CLI, 'executable', ...options, '--outdir', outdir], path.join(project, 'packages', 'app'))
     assert.strictEqual(made.code, 0, made.output)
-    assert.match(made.output, /Resources next to the executable: ui/)
-    const executable: string = path.join(project, 'packages', 'app', 'dist', 'app', process.platform === 'win32' ? 'app.exe' : 'app')
+    const directory: boolean = options.includes('directory')
+    assert.match(made.output, directory ? /Resources next to the executable: ui/ : /Resources embedded, extracted at the first run: ui/)
+    const executable: string = path.join(project, 'packages', 'app', outdir, ...directory ? ['app'] : [], process.platform === 'win32' ? 'app.exe' : 'app')
     const port: number = 20000 + Math.floor(Math.random() * 5000)
-    const child = spawn(executable, [], {cwd: tmpdir(), env: {...process.env, PORT: String(port), NODE_ENV: 'production'}, stdio: 'ignore'})
+    const child = spawn(executable, [], {cwd: tmpdir(), env: {...process.env, PORT: String(port), NODE_ENV: 'production', LAKUTATA_NATIVE_DIR: path.join(project, `${outdir}-cache`)}, stdio: 'ignore'})
     try {
         for (let attempt = 0; attempt < 200; attempt++) {
             try {
                 const response: Response = await fetch(`http://127.0.0.1:${port}/`, {headers: {accept: 'text/html'}})
-                if (response.ok) return await response.text()
+                if (!response.ok) continue
+                const page: string = await response.text()
+                //The files the page loads, served too
+                for (const asset of assets(page)) {
+                    const loaded: Response = await fetch(`http://127.0.0.1:${port}${asset}`)
+                    assert.strictEqual(loaded.status, 200, asset)
+                    assert.ok((await loaded.text()).length > 0, asset)
+                }
+                return page
             } catch {
                 //Not listening yet
             }
@@ -178,7 +200,7 @@ describe('The templates of the repository', (): void => {
                 }
                 assert.strictEqual(other, service, `${file} of ${template} differs from the one of service`)
             }
-            //The files of the features they have too (Next.js and Nuxt are not packed into executables: no installer)
+            //The files of the features they have too (Next.js is not packed into executables: no installer)
             const features: string = path.join(ROOT, 'packages', 'template-service', 'features')
             const declared: string[] = Object.keys(JSON.parse(readFileSync(path.join(ROOT, 'packages', `template-${template}`, 'package.json'), 'utf8')).lakutata.features)
             for (const file of readdirSync(features, {recursive: true, withFileTypes: true}).filter((entry): boolean => entry.isFile()).map((entry): string => path.relative(features, path.join(entry.parentPath, entry.name))).filter((file: string): boolean => declared.includes(file.split(path.sep)[0]))) {
@@ -216,7 +238,7 @@ describe('The templates of the repository', (): void => {
         assert.match(readme, /## The installers\n[\s\S]*the command `shipper` in the PATH/)
         assert.doesNotMatch(readme, /@if|@end/)
         //The workspaces: the app installed after the project, its service registered, its resources kept
-        for (const [template, name] of [['service', 'Depot'], ['web-react', 'Kiosk'], ['web-vue', 'Booth']] as const) {
+        for (const [template, name] of [['service', 'Depot'], ['web-react', 'Kiosk'], ['web-vue', 'Booth'], ['web-nuxt', 'Stall']] as const) {
             const project: string = await Create(template, name, ['installer'])
             const id: string = name.toLowerCase()
             const root = JSON.parse(readFileSync(path.join(project, 'package.json'), 'utf8'))
@@ -225,7 +247,7 @@ describe('The templates of the repository', (): void => {
             const app = JSON.parse(readFileSync(path.join(project, 'packages', 'app', 'package.json'), 'utf8'))
             assert.deepStrictEqual(app.bin, {[id]: 'build/App.js'})
             assert.deepStrictEqual(app.lakutata.installer, {name: id, service: {env: {PORT: '8080'}}, linux: {targets: ['deb', 'rpm', 'tar.gz']}})
-            if (template !== 'service') assert.deepStrictEqual(app.lakutata.resources, [{from: '../ui/dist', to: 'ui'}])
+            if (template !== 'service') assert.deepStrictEqual(app.lakutata.resources, [{from: template === 'web-nuxt' ? '../ui/.output' : '../ui/dist', to: 'ui'}])
             assert.match(readFileSync(path.join(project, 'Dockerfile.installer'), 'utf8'), /npm run installer -w app -- --outdir \/installer/)
             assert.match(readFileSync(path.join(project, 'README.md'), 'utf8'), new RegExp(`/etc/${id}/${id}\\.env`))
         }
@@ -437,6 +459,15 @@ describe('The templates of the repository', (): void => {
         const tested = await Run(process.execPath, [CLI, 'run', 'test'], project)
         assert.strictEqual(tested.code, 0, tested.output)
         assert.match(tested.output, /pass 4/)
+        //Packed into an executable (in a directory, in one file, of Bun), it renders its pages by the build of Nitro of its
+        //resources, and serves their files
+        const scripts = (html: string): string[] => [...html.matchAll(/src="(\/_nuxt\/[^"]+\.js)"/g)].map((matched: RegExpMatchArray): string => matched[1])
+        for (const options of [['--layout', 'directory'], [], ...BUN ? [['--runtime', 'bun']] : []]) {
+            const page: string = await ServeFromExecutable(project, scripts, options)
+            assert.match(page, /<h1>Board<\/h1>/, options.join(' '))
+            assert.match(page, /data-ssr="true"/)
+            assert.ok(scripts(page).length, page)
+        }
         //The ui is type checked as nuxt typecheck does, with the TypeScript of the template
         const vueTsc: string = `require(${JSON.stringify(path.join(ROOT, 'node_modules', 'vue-tsc'))}).run(${JSON.stringify(path.join(ROOT, 'node_modules', 'typescript', 'lib', 'tsc.js'))})`
         const checked = await Run(process.execPath, ['-e', vueTsc, 'vue-tsc', '-b', '--noEmit'], path.join(project, 'packages', 'ui'))

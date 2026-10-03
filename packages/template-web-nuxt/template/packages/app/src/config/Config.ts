@@ -1,7 +1,8 @@
-import type {ApplicationOptions} from 'lakutata'
+import {ResourcesPath, type ApplicationOptions} from 'lakutata'
 import {BuildEntrypoints} from 'lakutata/com/entrypoint'
 import {ExpressHTTPEntrypoint, JSONEnvelope} from 'lakutata/adapter/express'
 import compression from 'compression'
+import path from 'node:path'
 import renderUI from 'ui'
 import {Authenticate} from '../middlewares/Authenticate.js'
 import {ExampleController} from '../controllers/ExampleController.js'
@@ -17,6 +18,8 @@ import zhCN from '../locales/zh-CN.json' with {type: 'json'}
  * @param port the port of the HTTP server, the PORT environment variable or 8080 by default
  */
 export function Config(port: number = Number(process.env.PORT ?? 8080)): ApplicationOptions {
+    //The build of Nitro of the ui package is in the resources of the application packed (lakutata.resources)
+    const resources: string | undefined = ResourcesPath()
     return {
         id: '{$APP_ID}',
         name: '{$APP_NAME}',
@@ -41,7 +44,8 @@ export function Config(port: number = Number(process.env.PORT ?? 8080)): Applica
                     middlewares: [Authenticate],
                     before: (app): void => void app.use(compression()),
                     //The paths outside of the actions are the pages of the Nuxt application, once it is built (in development, nuxt dev serves them)
-                    fallback: renderUI()
+                    //The pages of the Nuxt application: the paths outside of the actions
+                    fallback: renderUI({output: resources && path.join(resources, 'ui')})
                 })
             })
         },

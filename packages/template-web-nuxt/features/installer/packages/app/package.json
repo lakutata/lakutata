@@ -1,0 +1,25 @@
+{
+  "bin": {
+    "{$APP_ID}": "build/App.js"
+  },
+  "scripts": {
+    "installer": "lakutata installer"
+  },
+  "lakutata": {
+    "installer": {
+      "name": "{$APP_ID}",
+      "service": {
+        "env": {
+          "PORT": "8080"
+        }
+      },
+      "linux": {
+        "targets": [
+          "deb",
+          "rpm",
+          "tar.gz"
+        ]
+      }
+    }
+  }
+}
