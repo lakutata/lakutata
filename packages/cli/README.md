@@ -209,6 +209,17 @@ files by paths which cannot be followed (`require(path.join(__dirname, name))`) 
 maps, the TypeScript sources and the documentation of the packages are left out. The addons of
 the application itself (`require('./x.node')`, `createRequire(import.meta.url)('./x.node')`) are there too.
 
+The resources of the application, the files it reads at run time (the built pages of a web application, templates,
+data), are declared by the `lakutata.resources` of its `package.json`, as the `extraResources` of electron-builder:
+
+```json
+"lakutata": {"resources": [{"from": "../ui/dist", "to": "ui"}]}
+```
+
+`from` is a file or a directory of the project, `to` its path in the resources: `dist/<name>.resources/`, distributed
+with the bundle. The application finds them by `ResourcesPath()` of lakutata (`undefined` when it does not run packed,
+`IsPackaged()` tells it).
+
 ### `lakutata executable`
 
 Make the executable of the application for the platform it runs on, which runs without Node.js installed: the bundle
@@ -233,12 +244,13 @@ linux/arm64`, as the cross builds of the templates).
 |---|---|
 | `--outdir <directory>` | the directory of the executable, `dist` by default |
 | `--runtime <node\|bun>` | the runtime embedded: `node` (by default) or `bun` |
+| `--layout <file\|directory>` | one file (by default), or a directory: `dist/<name>/` holding the executable, its native addons (`native/`) and its resources (`resources/`), loaded from there without extraction (the installers, the images) |
 | `--entry`, `--no-minify`, `--external` | as `lakutata bundle` |
 
-The native addons are embedded in the executable: at its first run, it extracts them into its cache directory
-(`~/.cache/<name>`, `~/Library/Caches/<name>` on macOS, `%LOCALAPPDATA%\<name>\Cache` on Windows, or `LAKUTATA_NATIVE_DIR`;
-the temporary directory when it cannot be written), in a directory named after their content: the next runs load them
-from there, the versions of the program do not share it. The addons need the system libraries they were built for (the
+The native addons and the resources are embedded in the executable (`--layout file`): at its first run, it extracts them
+into its cache directory (`~/.cache/<name>`, `~/Library/Caches/<name>` on macOS, `%LOCALAPPDATA%\<name>\Cache` on Windows,
+or `LAKUTATA_NATIVE_DIR`; the temporary directory when it cannot be written), in a directory named after their content:
+the next runs load them from there, the versions of the program do not share it. The addons need the system libraries they were built for (the
 glibc version of the Linux prebuilt addons).
 
 The executables of macOS are signed ad hoc. The ones of Windows made by Node.js keep the signature of `node.exe`, which

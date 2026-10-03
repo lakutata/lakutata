@@ -1,8 +1,8 @@
-import {existsSync} from 'node:fs'
-import {chmod, mkdir, readFile, rm, stat, writeFile} from 'node:fs/promises'
+import {existsSync, readdirSync, statSync} from 'node:fs'
+import {chmod, cp, mkdir, readFile, rm, stat, writeFile} from 'node:fs/promises'
 import path from 'node:path'
-import {NativeCollector, type NativeTree, WriteNativeTree} from './Native.js'
-import {NativeBanner} from './NativeRuntime.js'
+import {HashNativeTree, NativeCollector, type NativeFile, type NativeTree, WriteNativeTree} from './Native.js'
+import {EMBEDDED_RESOURCES, NativeBanner, PackagedBanner} from './NativeRuntime.js'
 
 /**
  * The application bundled into one file
@@ -37,6 +37,20 @@ export type BundleOptions = {
      * The runtime running the bundle: node (by default), or bun (the executables of Bun, which bundle it again)
      */
     runtime?: 'node' | 'bun'
+    /**
+     * The directories of the native tree and of the resources (when they are not embedded), next to the bundle by
+     * default (<name>.native and <name>.resources): the bundle loads them by their names from its directory
+     */
+    directories?: { native?: string, resources?: string }
+}
+
+/**
+ * A resource of the application, declared by the "lakutata.resources" of its package.json (as the extraResources of
+ * electron-builder): a file or a directory of the project, and its path in the resources
+ */
+export type ResourceDeclaration = {
+    from: string
+    to: string
 }
 
 export type BundleResult = {
@@ -55,6 +69,11 @@ export type BundleResult = {
      * The directory of the native tree next to the bundle
      */
     nativeDirectory?: string
+    /**
+     * The resources of the application (their paths in the resources), and their directory next to the bundle
+     */
+    resources: string[]
+    resourcesDirectory?: string
 }
 
 /**
@@ -80,6 +99,33 @@ const IMPORT_META_URL: string = '__lakutataImportMetaUrl'
  * the modules of node and the ones of a node_modules next to the executable (the ones left out of the bundle)
  */
 const BUN_PRELUDE: string = 'var __filename=process.execPath,__dirname=process.getBuiltinModule(\'node:path\').dirname(__filename),require=typeof require===\'function\'?require:process.getBuiltinModule(\'node:module\').createRequire(__filename);'
+
+/**
+ * The files of the resources of an application, declared by the "lakutata.resources" of its package.json: their paths in
+ * the resources ("/" separated) and their sources
+ * @param project
+ * @param manifest
+ */
+export function ResourceFiles(project: string, manifest: Record<string, any>): { declared: string[], files: NativeFile[] } {
+    const declarations: unknown = manifest.lakutata?.resources
+    if (declarations === undefined) return {declared: [], files: []}
+    const valid = (declaration: any): declaration is ResourceDeclaration => typeof declaration?.from === 'string' && typeof declaration?.to === 'string' &&
+        !!declaration.to && !path.isAbsolute(declaration.to) && !declaration.to.split(/[\\/]/).includes('..')
+    if (!Array.isArray(declarations) || !declarations.every(valid)) throw new Error('The resources of the application (lakutata.resources of its package.json) must be [{"from": "<file or directory of the project>", "to": "<its path in the resources>"}]')
+    const files: NativeFile[] = []
+    for (const {from, to} of declarations) {
+        const source: string = path.resolve(project, from)
+        if (!existsSync(source)) throw new Error(`The resource ${from} does not exist: build it first`)
+        const target: string = to.split(/[\\/]/).filter(Boolean).join('/')
+        const walk = (file: string, at: string): void => {
+            const stats = statSync(file)
+            if (stats.isDirectory()) for (const entry of readdirSync(file)) walk(path.join(file, entry), `${at}/${entry}`)
+            else if (stats.isFile()) files.push({path: at, source: file, mode: stats.mode & 0o777})
+        }
+        walk(source, target)
+    }
+    return {declared: declarations.map(({to}): string => to), files: files}
+}
 
 /**
  * The code with a code before it, after its hashbang
@@ -139,14 +185,32 @@ export async function BundleProject(options: BundleOptions): Promise<BundleResul
         throw new Error(`The bundle failed:\n  ${messages.length ? messages.join('\n  ') : error.message}${hint}`)
     })
     let code: string = result.outputFiles[0].text
-    const native: NativeTree | undefined = await collector.collect()
-    const nativeDirectory: string = path.join(path.dirname(outfile), `${path.basename(outfile, path.extname(outfile))}.native`)
+    const embedded: boolean = options.native === 'embedded'
+    let native: NativeTree | undefined = await collector.collect()
+    const resources = ResourceFiles(project, manifest)
+    const base: string = path.basename(outfile, path.extname(outfile))
+    const nativeDirectory: string = path.resolve(path.dirname(outfile), options.directories?.native ?? `${base}.native`)
+    const resourcesDirectory: string = path.resolve(path.dirname(outfile), options.directories?.resources ?? `${base}.resources`)
     await rm(nativeDirectory, {recursive: true, force: true})
+    await rm(resourcesDirectory, {recursive: true, force: true})
+    //The resources of an executable are extracted with its native tree
+    if (embedded && resources.files.length) {
+        const files: NativeFile[] = [...native?.files ?? [], ...resources.files.map((file: NativeFile): NativeFile => ({...file, path: `${EMBEDDED_RESOURCES}/${file.path}`}))]
+        native = {modules: native?.modules ?? [], files: files, links: native?.links ?? [], hash: HashNativeTree(files, native?.links ?? [])}
+    }
     if (native) {
         //The require loading the native packages is the first code, after the hashbang
-        code = Prepend(code, NativeBanner({name: name, hash: native.hash, directory: path.basename(nativeDirectory), modules: native.modules}))
-        if ((options.native ?? 'directory') === 'directory') await WriteNativeTree(native, nativeDirectory)
+        code = Prepend(code, NativeBanner({name: name, hash: native.hash, directory: path.basename(nativeDirectory), modules: native.modules, embedded: embedded}))
+        if (!embedded) await WriteNativeTree(native, nativeDirectory)
     }
+    if (!embedded) {
+        for (const file of resources.files) {
+            const target: string = path.join(resourcesDirectory, ...file.path.split('/'))
+            await mkdir(path.dirname(target), {recursive: true})
+            await cp(file.source, target)
+        }
+    }
+    code = Prepend(code, PackagedBanner(path.basename(resourcesDirectory)))
     //Before the require of the native tree, which loads the modules of node by it
     if (options.runtime === 'bun') code = Prepend(code, BUN_PRELUDE)
     await mkdir(path.dirname(outfile), {recursive: true})
@@ -158,6 +222,8 @@ export async function BundleProject(options: BundleOptions): Promise<BundleResul
         outfile: outfile,
         size: (await stat(outfile)).size,
         native: native,
-        nativeDirectory: native && (options.native ?? 'directory') === 'directory' ? nativeDirectory : undefined
+        nativeDirectory: native && !embedded ? nativeDirectory : undefined,
+        resources: resources.declared,
+        resourcesDirectory: resources.files.length && !embedded ? resourcesDirectory : undefined
     }
 }

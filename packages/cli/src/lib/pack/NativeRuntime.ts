@@ -19,7 +19,22 @@ export type NativeRuntimeConfig = {
      * The packages loaded from the tree
      */
     modules: string[]
+    /**
+     * Whether the tree is embedded in an executable, extracted at its first run (with the resources of the application,
+     * in its .lakutata/resources), or a directory next to the bundle
+     */
+    embedded: boolean
 }
+
+/**
+ * The global symbol of the packed applications giving the directory of their resources (ResourcesPath of lakutata)
+ */
+export const PACKAGED: string = 'lakutata.packaged'
+
+/**
+ * The directory of the resources of the embedded trees
+ */
+export const EMBEDDED_RESOURCES: string = '.lakutata/resources'
 
 /**
  * The asset of the executables holding the files of the native tree (gzipped), and the one of its index
@@ -106,7 +121,7 @@ export function LakutataNativeRequire(nodeRequire: NodeJS.Require, config: Nativ
 
     const locate = (): string => {
         if (root) return root
-        if (bun || sea?.isSea()) {
+        if (config.embedded) {
             try {
                 root = extract(cacheDirectory())
             } catch (error) {
@@ -140,7 +155,18 @@ export function LakutataNativeRequire(nodeRequire: NodeJS.Require, config: Nativ
         process.dlopen(addon as NodeJS.Module, path.join(locate(), ...key.split('/')))
         return addon.exports
     }
+    //The resources of an executable are extracted with the tree (PACKAGED, EMBEDDED_RESOURCES)
+    if (config.embedded) (globalThis as Record<symbol, unknown>)[Symbol.for('lakutata.packaged')] = {resources: (): string => path.join(locate(), '.lakutata', 'resources')}
     return require
+}
+
+/**
+ * The source given to the top of every bundle: it is packed (IsPackaged of lakutata), its resources are in a directory
+ * next to it, or in the resources of a packaged Electron application (outside of its archive)
+ * @param directory the directory of the resources, relative to the bundle
+ */
+export function PackagedBanner(directory: string): string {
+    return `globalThis[Symbol.for(${JSON.stringify(PACKAGED)})]={resources:function(){var p=require('node:path'),l=p.join(__dirname,${JSON.stringify(directory)}),r=process.resourcesPath;return require('node:fs').existsSync(l)||!r?l:p.join(r,${JSON.stringify(directory)})}};\n`
 }
 
 /**

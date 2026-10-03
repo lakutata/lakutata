@@ -125,6 +125,34 @@ async function ElectronPage(project: string, args: string[]): Promise<string> {
     return text
 }
 
+/**
+ * Make the executable of the app package of a web application in a directory, and run it from elsewhere: the page it
+ * serves (its ui, a resource of the executable)
+ * @param project
+ */
+async function ServeFromExecutable(project: string): Promise<string> {
+    const made = await Run(process.execPath, [CLI, 'executable', '--layout', 'directory'], path.join(project, 'packages', 'app'))
+    assert.strictEqual(made.code, 0, made.output)
+    assert.match(made.output, /Resources next to the executable: ui/)
+    const executable: string = path.join(project, 'packages', 'app', 'dist', 'app', process.platform === 'win32' ? 'app.exe' : 'app')
+    const port: number = 20000 + Math.floor(Math.random() * 5000)
+    const child = spawn(executable, [], {cwd: tmpdir(), env: {...process.env, PORT: String(port), NODE_ENV: 'production'}, stdio: 'ignore'})
+    try {
+        for (let attempt = 0; attempt < 200; attempt++) {
+            try {
+                const response: Response = await fetch(`http://127.0.0.1:${port}/`, {headers: {accept: 'text/html'}})
+                if (response.ok) return await response.text()
+            } catch {
+                //Not listening yet
+            }
+            await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 50))
+        }
+        throw new Error('The executable does not serve its page')
+    } finally {
+        child.kill('SIGTERM')
+    }
+}
+
 describe('The templates of the repository', (): void => {
 
     after((): void => rmSync(work, {recursive: true, force: true}))
@@ -323,6 +351,9 @@ describe('The templates of the repository', (): void => {
         //The ui is type checked with the TypeScript of the template (vite does not check the types)
         const checked = await Run(process.execPath, [path.join(ROOT, 'node_modules', 'typescript', 'bin', 'tsc'), '-p', path.join(project, 'packages', 'ui')], project)
         assert.strictEqual(checked.code, 0, checked.output)
+        //Packed into an executable, it serves its ui from its resources
+        const page: string = await ServeFromExecutable(project)
+        assert.strictEqual(page, readFileSync(path.join(project, 'packages', 'ui', 'dist', 'index.html'), 'utf8'))
     })
 
     it('creates a Next.js web application whose workspace builds the ui then the app, which renders its pages', async (): Promise<void> => {
@@ -359,6 +390,9 @@ describe('The templates of the repository', (): void => {
         const vueTsc: string = `require(${JSON.stringify(path.join(ROOT, 'node_modules', 'vue-tsc'))}).run(${JSON.stringify(path.join(ROOT, 'node_modules', 'typescript', 'lib', 'tsc.js'))})`
         const checked = await Run(process.execPath, ['-e', vueTsc, 'vue-tsc', '--noEmit', '-p', path.join(project, 'packages', 'ui')], project)
         assert.strictEqual(checked.code, 0, checked.output)
+        //Packed into an executable, it serves its ui from its resources
+        const page: string = await ServeFromExecutable(project)
+        assert.strictEqual(page, readFileSync(path.join(project, 'packages', 'ui', 'dist', 'index.html'), 'utf8'))
     })
 
     it('creates a Nuxt web application whose workspace builds the ui then the app, which renders its pages', async (): Promise<void> => {

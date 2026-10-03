@@ -16,4 +16,7 @@ export class ExecutableDTO extends DTO {
 
     @Expect(DTO.String().valid('node', 'bun').optional().default('node').description('The runtime embedded in the executable: node (the single executable applications of Node.js, by default) or bun (Bun, installed in the project or on the system)'))
     public runtime: 'node' | 'bun'
+
+    @Expect(DTO.String().valid('file', 'directory').optional().default('file').description('One file, its native addons and its resources embedded (file, by default), or a directory: the executable and its native addons and resources next to it (directory)'))
+    public layout: 'file' | 'directory'
 }

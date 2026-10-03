@@ -24,6 +24,7 @@
     "InvalidObjectOptionsException",
     "InvalidObjectTypeException",
     "InvalidValueException",
+    "IsPackaged",
     "LifetimeLockedException",
     "LoadAnonymousObjectOptions",
     "LoadNamedObjectOptions",
@@ -39,6 +40,7 @@
     "OverridableObjectTargetConfigNotFoundException",
     "Provider",
     "RegisterValidationMessages",
+    "ResourcesPath",
     "RunInValidationLanguage",
     "Time",
     "ValidationLanguages"

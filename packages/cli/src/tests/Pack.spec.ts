@@ -55,16 +55,21 @@ describe('The packing of an application', (): void => {
     before(async (): Promise<void> => {
         project = mkdtempSync(path.join(tmpdir(), 'lakutata-pack-'))
         //A command line application: an action with its DTO, the injection of a component and import.meta.url
-        Write('package.json', JSON.stringify({name: '@acme/greeter', version: '1.0.0', type: 'module', main: 'build/App.js', bin: {greet: 'build/App.js'}}))
+        Write('package.json', JSON.stringify({name: '@acme/greeter', version: '1.0.0', type: 'module', main: 'build/App.js', bin: {greet: 'build/App.js'}, lakutata: {resources: [{from: 'assets', to: 'texts'}]}}))
+        //Its resources
+        Write('assets/greeting.txt', 'Hi')
+        Write('assets/nested/farewell.txt', 'Bye')
         Write('tsconfig.json', JSON.stringify({compilerOptions: {target: 'ES2022', module: 'Node16', moduleResolution: 'Node16', outDir: 'build', rootDir: 'src', strict: true, experimentalDecorators: true, emitDecoratorMetadata: true, strictPropertyInitialization: false, skipLibCheck: true, types: ['node']}, include: ['src']}))
         Write('src/App.ts', `#!/usr/bin/env node
-import {Application, Component, DTO} from 'lakutata'
+import {Application, Component, DTO, IsPackaged, ResourcesPath} from 'lakutata'
 import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
 import {CommanderCLIEntrypoint} from 'lakutata/adapter/commander'
 import {CLIAction} from 'lakutata/decorator/ctrl'
 import {Inject} from 'lakutata/decorator/di'
 import {Expect} from 'lakutata/decorator/dto'
 import {fileURLToPath} from 'node:url'
+import {readFileSync} from 'node:fs'
+import path from 'node:path'
 
 class Greeting extends Component {
     public say(name: string): string {
@@ -89,6 +94,13 @@ class GreetController extends Controller {
     @CLIAction('where')
     public async where(): Promise<string> {
         return fileURLToPath(import.meta.url)
+    }
+
+    @CLIAction('resource')
+    public async resource(): Promise<string> {
+        if (!IsPackaged()) return 'unpackaged'
+        const texts: string = path.join(ResourcesPath()!, 'texts')
+        return 'packaged ' + readFileSync(path.join(texts, 'greeting.txt'), 'utf8') + ' ' + readFileSync(path.join(texts, 'nested', 'farewell.txt'), 'utf8')
     }
 
     @CLIAction('mode')
@@ -133,6 +145,12 @@ Application.run({
         assert.strictEqual(greeted.output.trim(), 'Hello, bundle!')
         const where = await Run(process.execPath, [moved, 'where'])
         assert.strictEqual(where.output.trim(), realpathSync(moved))
+        //Its resources next to it, moved with it
+        assert.strictEqual(readFileSync(path.join(project, 'dist', 'greet.resources', 'texts', 'nested', 'farewell.txt'), 'utf8'), 'Bye')
+        cpSync(path.join(project, 'dist', 'greet.resources'), path.join(project, 'moved', 'greet.resources'), {recursive: true})
+        assert.strictEqual((await Run(process.execPath, [moved, 'resource'])).output.trim(), 'packaged Hi Bye')
+        //Not packed
+        assert.strictEqual((await Run(process.execPath, ['build/App.js', 'resource'])).output.trim(), 'unpackaged')
     })
 
     it('makes the executable of this platform, which runs without Node.js', async (): Promise<void> => {
@@ -143,6 +161,9 @@ Application.run({
         const greeted = await Run(executable, ['greet', '--name', 'executable'], {PATH: ''})
         assert.strictEqual(greeted.code, 0, greeted.output)
         assert.strictEqual(greeted.output.trim(), 'Hello, executable!')
+        //Its resources embedded, extracted at its first run
+        assert.match(made.output, /Resources embedded, extracted at the first run: texts/)
+        assert.strictEqual((await Run(executable, ['resource'], {PATH: '', LAKUTATA_NATIVE_DIR: path.join(project, 'extracted')})).output.trim(), 'packaged Hi Bye')
         //The executables of the other platforms are made on them
         const refused = await Run(process.execPath, [CLI, 'executable', '--target', 'linux-x64'])
         assert.notStrictEqual(refused.code, 0)
@@ -157,6 +178,7 @@ Application.run({
         const greeted = await Run(executable, ['greet', '--name', 'bun'], {PATH: ''})
         assert.strictEqual(greeted.code, 0, greeted.output)
         assert.strictEqual(greeted.output.trim(), 'Hello, bun!')
+        assert.strictEqual((await Run(executable, ['resource'], {PATH: '', LAKUTATA_NATIVE_DIR: path.join(project, 'extracted-bun')})).output.trim(), 'packaged Hi Bye')
         //Its file is the executable, as in the executables of Node.js
         assert.strictEqual(realpathSync((await Run(executable, ['where'], {PATH: ''})).output.trim()), realpathSync(executable))
         //Bun replaces process.env.NODE_ENV with the mode of its build: the mode is the one of the environment, for the
@@ -167,6 +189,20 @@ Application.run({
         //It does not load the .env of the directory it runs in (Bun does by default)
         writeFileSync(path.join(project, 'bun', '.env'), 'MODE=production\n')
         assert.strictEqual((await Run(executable, ['mode'], {PATH: '', MODE: undefined, NODE_ENV: undefined}, path.join(project, 'bun'))).output.trim(), 'development development')
+    })
+
+    it('makes the executable in a directory, its resources next to it', async (): Promise<void> => {
+        const made = await Run(process.execPath, [CLI, 'executable', '--layout', 'directory', '--outdir', 'layouts'])
+        assert.strictEqual(made.code, 0, made.output)
+        assert.match(made.output, /Resources next to the executable: texts/)
+        const directory: string = path.join(project, 'layouts', 'greet')
+        assert.deepStrictEqual(readdirSync(directory).sort(), [process.platform === 'win32' ? 'greet.exe' : 'greet', 'resources'])
+        //Moved, it runs without extracting anything
+        const moved: string = path.join(project, 'installed', 'greet')
+        cpSync(directory, moved, {recursive: true})
+        const cache: string = path.join(project, 'not-extracted')
+        assert.strictEqual((await Run(path.join(moved, 'greet'), ['resource'], {PATH: '', LAKUTATA_NATIVE_DIR: cache})).output.trim(), 'packaged Hi Bye')
+        assert.ok(!existsSync(cache))
     })
 
     it('tells to install Bun when it is not installed', async (): Promise<void> => {
@@ -444,6 +480,22 @@ void (async () => {
         assert.ok(existsSync(path.join(cache, 'native', readdirSync(path.join(cache, 'native'))[0], '.complete')))
         assert.match((await RunNative(executable, [], {LAKUTATA_NATIVE_DIR: cache, PATH: ''}, directory)).output.trim(), EXPECTED)
     })
+
+    for (const runtime of ['node', 'bun'] as const) {
+        it(`makes the executable of ${runtime} in a directory, which loads its native packages next to it`, {skip: runtime === 'bun' && !BUN && 'Bun is not installed'}, async (): Promise<void> => {
+            const made = await RunNative(process.execPath, [CLI, 'executable', '--runtime', runtime, '--layout', 'directory', '--outdir', `layout-${runtime}`])
+            assert.strictEqual(made.code, 0, made.output)
+            assert.match(made.output, /Native addons next to the executable: cpu-info, native-sub, sharp, sqlite3/)
+            const directory: string = path.join(native, `layout-${runtime}`, 'natapp')
+            assert.deepStrictEqual(readdirSync(directory).sort(), ['native', process.platform === 'win32' ? 'natapp.exe' : 'natapp'].sort())
+            //Moved (installed), it runs without extracting anything
+            const installed: string = path.join(path.dirname(native), `installed-${runtime}`)
+            cpSync(directory, installed, {recursive: true, verbatimSymlinks: true})
+            const cache: string = path.join(path.dirname(native), `not-extracted-${runtime}`)
+            assert.match((await RunNative(path.join(installed, 'natapp'), [], {LAKUTATA_NATIVE_DIR: cache, PATH: ''}, path.dirname(native))).output.trim(), EXPECTED)
+            assert.ok(!existsSync(cache))
+        })
+    }
 
     it('tells to await in a function instead of at the top level', async (): Promise<void> => {
         const entry: string = path.join(native, 'build', 'Await.js')

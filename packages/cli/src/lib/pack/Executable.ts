@@ -1,19 +1,25 @@
 import {existsSync, readFileSync} from 'node:fs'
-import {copyFile, mkdir, mkdtemp, rm, stat, writeFile} from 'node:fs/promises'
+import {chmod, copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile} from 'node:fs/promises'
 import {createRequire} from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 import {Run} from '../Processes.js'
 import {Warn} from '../Output.js'
-import {BundleProject, type BundleOptions, type BundleResult} from './Bundle.js'
+import {BundleProject, ProgramName, type BundleOptions, type BundleResult} from './Bundle.js'
 import {PackNativeTree} from './Native.js'
 import {BUN_NATIVE_ASSETS, NATIVE_DATA_ASSET, NATIVE_INDEX_ASSET} from './NativeRuntime.js'
 
-export type ExecutableOptions = Omit<BundleOptions, 'outfile' | 'native'> & {
+export type ExecutableOptions = Omit<BundleOptions, 'outfile' | 'native' | 'directories'> & {
     /**
      * The directory of the executable, dist by default
      */
     outdir?: string
+    /**
+     * One file, its native tree and its resources embedded, extracted at its first run (by default); or a directory, the
+     * executable and its native tree (native) and its resources (resources) next to it, loaded from there (the
+     * installers, the images)
+     */
+    layout?: 'file' | 'directory'
 }
 
 export type ExecutableResult = {
@@ -25,9 +31,17 @@ export type ExecutableResult = {
     platform: string
     size: number
     /**
-     * The packages of native addons embedded, extracted at the first run
+     * The packages of native addons embedded, extracted at the first run, or next to the executable
      */
     native: string[]
+    /**
+     * The resources of the application (their paths in the resources)
+     */
+    resources: string[]
+    /**
+     * The directory of the executable, its native tree and its resources (the layout directory)
+     */
+    directory?: string
     /**
      * The runtime embedded in the executable, and its version ("Node.js v24.11.1", "Bun 1.4.2")
      */
@@ -176,17 +190,37 @@ export async function BuildExecutable(options: ExecutableOptions): Promise<Execu
     const bun: { command: string, version: string } | undefined = options.runtime === 'bun' ? await FindBun(project) : undefined
     const work: string = await mkdtemp(path.join(os.tmpdir(), 'lakutata-executable-'))
     try {
-        const bundle: BundleResult = await BundleProject({...options, outfile: path.join(work, 'main.cjs'), native: 'embedded'})
-        await mkdir(outdir, {recursive: true})
-        const file: string = path.join(outdir, process.platform === 'win32' ? `${bundle.name}.exe` : bundle.name)
+        const directory: boolean = options.layout === 'directory'
+        //The directory of the executable: dist/<name>, its native tree and its resources written there (the links of
+        //the tree are the ones of their directory), the one of the executable alone otherwise
+        const target: string = directory ? path.join(outdir, ProgramName(JSON.parse(await readFile(path.join(project, 'package.json'), 'utf8')))) : outdir
+        if (directory) await rm(target, {recursive: true, force: true})
+        await mkdir(target, {recursive: true})
+        const bundle: BundleResult = await BundleProject({
+            ...options,
+            outfile: path.join(work, 'main.cjs'),
+            native: directory ? 'directory' : 'embedded',
+            directories: {native: path.join(target, 'native'), resources: path.join(target, 'resources')}
+        })
+        const file: string = path.join(target, process.platform === 'win32' ? `${bundle.name}.exe` : bundle.name)
         await rm(file, {force: true})
-        const runtime: string = bun ? await CompileWithBun(bun, bundle, work, file) : await EmbedInNode(bundle, work, file)
+        //The native tree and the resources of the layout directory are not embedded
+        const embedded: BundleResult = directory ? {...bundle, native: undefined} : bundle
+        //Made and signed aside: codesign takes a directory holding "resources" for a bundle of macOS (its file system
+        //ignores the case), whose signature it writes beside the executable (_CodeSignature)
+        const made: string = path.join(work, 'executable', path.basename(file))
+        await mkdir(path.dirname(made), {recursive: true})
+        const runtime: string = bun ? await CompileWithBun(bun, embedded, work, made) : await EmbedInNode(embedded, work, made)
+        await copyFile(made, file)
+        await chmod(file, 0o755)
         return {
             name: bundle.name,
             file: file,
             platform: `${process.platform === 'win32' ? 'win' : process.platform}-${process.arch}`,
             size: (await stat(file)).size,
             native: bundle.native?.modules ?? [],
+            resources: bundle.resources,
+            directory: directory ? target : undefined,
             runtime: runtime
         }
     } finally {

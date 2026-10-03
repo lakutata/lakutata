@@ -1,4 +1,4 @@
-import type {ApplicationOptions} from 'lakutata'
+import {ResourcesPath, type ApplicationOptions} from 'lakutata'
 import {BuildEntrypoints} from 'lakutata/com/entrypoint'
 import {ExpressHTTPEntrypoint, JSONEnvelope, StaticUI} from 'lakutata/adapter/express'
 import compression from 'compression'
@@ -15,11 +15,14 @@ import zhCN from '../locales/zh-CN.json' with {type: 'json'}
 //@end
 
 /**
- * The directory of the built application of the ui package, undefined before it is built (in development, Vite serves it)
+ * The directory of the built application of the ui package, undefined before it is built (in development, Vite serves it):
+ * in the resources of the packed application (lakutata bundle, lakutata executable: the "lakutata.resources" of its
+ * package.json), else in the ui package
  */
 function UIDirectory(): string | undefined {
+    const resources: string | undefined = ResourcesPath()
     try {
-        const directory: string = path.join(path.dirname(createRequire(import.meta.url).resolve('ui/package.json')), 'dist')
+        const directory: string = resources ? path.join(resources, 'ui') : path.join(path.dirname(createRequire(import.meta.url).resolve('ui/package.json')), 'dist')
         return existsSync(path.join(directory, 'index.html')) ? directory : undefined
     } catch {
         return undefined

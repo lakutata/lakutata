@@ -474,11 +474,20 @@ export class NativeCollector {
             //The packages the application loads, where node finds them from the root of the tree
             ...[...this.externals].filter(([name, {root}]): boolean => store(root) !== `node_modules/${name}`).map(([name, {root}]): NativeLink => ({path: `node_modules/${name}`, target: store(root)}))
         ]
-        const hash = createHash('sha256')
-        for (const file of files) hash.update(`${file.path}\0${file.mode}\0`).update(readFileSync(file.source))
-        for (const link of treeLinks) hash.update(`${link.path}\0${link.target}\0`)
-        return {modules: [...this.externals.keys()].sort(), files: files, links: treeLinks, hash: hash.digest('hex').slice(0, 16)}
+        return {modules: [...this.externals.keys()].sort(), files: files, links: treeLinks, hash: HashNativeTree(files, treeLinks)}
     }
+}
+
+/**
+ * The hash of a native tree, which names the directory it is extracted into: its files and their content, its links
+ * @param files
+ * @param links
+ */
+export function HashNativeTree(files: NativeFile[], links: NativeLink[]): string {
+    const hash = createHash('sha256')
+    for (const file of files) hash.update(`${file.path}\0${file.mode}\0`).update(readFileSync(file.source))
+    for (const link of links) hash.update(`${link.path}\0${link.target}\0`)
+    return hash.digest('hex').slice(0, 16)
 }
 
 /**
