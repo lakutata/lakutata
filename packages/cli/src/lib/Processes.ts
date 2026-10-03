@@ -1,4 +1,5 @@
-import {spawn} from 'node:child_process'
+import {type ChildProcess, spawn, type SpawnOptions} from 'node:child_process'
+import path from 'node:path'
 import {LaunchEnvironment} from './Environment.js'
 import {type ProcessResult} from '../types/ProcessResult.js'
 
@@ -18,6 +19,28 @@ export function DetectPackageManager(): PackageManager {
 }
 
 /**
+ * An argument of a command run by cmd.exe (Windows): quoted as the programs read their arguments
+ * @param arg
+ */
+function Quoted(arg: string): string {
+    if (/^[\w\-.:/\\=@,+]+$/.test(arg)) return arg
+    return `"${arg.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, '$1$1')}"`
+}
+
+/**
+ * Spawn a command: on Windows, the commands found in the PATH by their names (the package managers, the commands of npm:
+ * npm.cmd, bun.cmd) are scripts, run by cmd.exe with their arguments quoted; the executables given by their paths (the
+ * ones of spaces: C:\Program Files\nodejs\node.exe) are run as they are
+ * @param command
+ * @param args
+ * @param options
+ */
+export function SpawnCommand(command: string, args: string[], options: SpawnOptions): ChildProcess {
+    if (process.platform === 'win32' && !path.isAbsolute(command)) return spawn([command, ...args].map(Quoted).join(' '), {...options, shell: true})
+    return spawn(command, args, options)
+}
+
+/**
  * Run a command, its output is given back
  * @param command
  * @param args
@@ -26,11 +49,11 @@ export function DetectPackageManager(): PackageManager {
  */
 export function Run(command: string, args: string[], cwd: string): Promise<ProcessResult> {
     return new Promise((resolve: (result: ProcessResult) => void, reject: (error: Error) => void): void => {
-        //The package managers are scripts on Windows
-        const child = spawn(command, args, {cwd: cwd, shell: process.platform === 'win32', env: LaunchEnvironment})
+        const child = SpawnCommand(command, args, {cwd: cwd, env: LaunchEnvironment})
         let output: string = ''
-        child.stdout.on('data', (chunk: Buffer): unknown => output += chunk.toString())
-        child.stderr.on('data', (chunk: Buffer): unknown => output += chunk.toString())
+        //Piped (the default stdio)
+        child.stdout!.on('data', (chunk: Buffer): unknown => output += chunk.toString())
+        child.stderr!.on('data', (chunk: Buffer): unknown => output += chunk.toString())
         child.once('error', reject)
         child.once('close', (code: number | null): void => resolve({code: code ?? 1, output: output}))
     })

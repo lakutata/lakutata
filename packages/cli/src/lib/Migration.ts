@@ -1,9 +1,9 @@
-import {spawn} from 'node:child_process'
 import {existsSync} from 'node:fs'
 import {mkdir, readdir, readFile, writeFile} from 'node:fs/promises'
 import path from 'node:path'
 import {CamelCase} from 'lakutata/utils'
 import {LaunchEnvironment} from './Environment.js'
+import {SpawnCommand} from './Processes.js'
 
 /**
  * The application of a package, started by its script
@@ -84,9 +84,8 @@ async function StartApplication(application: MigrationApplication, env: Record<s
     const base: NodeJS.ProcessEnv = Object.fromEntries(Object.entries(LaunchEnvironment).filter(([name]): boolean => !name.toUpperCase().startsWith('MIGRATION_')))
     return await new Promise((resolve: (code: number) => void, reject: (error: Error) => void): void => {
         //The output of the application is the one of the command; the package managers are scripts on Windows
-        const child = spawn('npm', ['run', application.script], {
+        const child = SpawnCommand('npm', ['run', application.script], {
             cwd: application.directory,
-            shell: process.platform === 'win32',
             stdio: 'inherit',
             env: {...base, ...env, ...(application.database ? {MIGRATION_DATABASE: application.database} : {})}
         })
