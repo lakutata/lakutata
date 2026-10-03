@@ -79,7 +79,7 @@ const container = await containerd.createContainer({
     binds: [{hostPath: '/data/worker', containerPath: '/data'}],
     tmpfs: [{containerPath: '/tmp', size: 16 * 1024 * 1024}],
     devices: [{hostPath: '/dev/ttyUSB0'}],
-    network: 'host',          //或 none：只有回环接口
+    network: 'host',          //或 none：只有回环接口；CNI 网络见下文
     memoryLimit: 128 * 1024 * 1024,
     cpus: 0.5,
     restartPolicy: 'always'   //由 containerd 的 restart monitor 维持，应用未运行时也有效
@@ -108,7 +108,34 @@ await containerd.listContainers({app: 'web'})  //按标签
 - `privileged`、`capabilities` / `capabilitiesDrop`、`readonlyRootfs`、`pidMode: 'host'`、`ipcMode: 'host'`、
   `sysctls`、`extraHosts`、`dns`、`shmSize`、`pidsLimit`、`cpuSet`、`OOMKillDisable` 与 Docker 的同名选项含义相同。
 
-## 4. 其他架构的平台
+## 4. 网络
+
+除了宿主机网络（默认）与 `none`，容器还可以加入 CNI 网络：`bridge`（nerdctl 的默认网络，`nerdctl0`，`10.4.0.0/24`，
+在有容器使用时自动创建）以及自行创建的网络。网络配置与 nerdctl 的格式相同（`/etc/cni/net.d/nerdctl-<name>.conflist`），
+因此 nerdctl 与组件可以共用这些网络。需要安装 CNI 插件（`/opt/cni/bin`、`/usr/lib/cni` 或 `/usr/libexec/cni`，可通过
+`cniPath` 选项指定）以及 iptables。
+
+```typescript
+const network = await containerd.createNetwork({name: 'backend', subnet: '10.4.10.0/24'}) //或自动选择 10.4.0.0/16 中空闲的子网
+await containerd.createNetwork({name: 'lan', driver: 'macvlan', parent: 'eth0', subnet: '192.168.1.0/24', gateway: '192.168.1.1', ipRange: '192.168.1.192/27'})
+
+const web = await containerd.createContainer({
+    image: 'nginx:alpine',
+    networks: [{networkName: 'bridge'}, {networkName: 'backend', ip: '10.4.10.5'}], //eth0, eth1
+    ports: [{port: 80, hostPorts: [8080]}]                                          //发布在第一个网络上
+})
+await web.start()
+web.networks //[{networkName: 'bridge', interface: 'eth0', ip: '10.4.0.2', gateway: '10.4.0.1', mac…}, …]
+web.ports    //[{host: '0.0.0.0', port: 80, type: 'tcp', hostPorts: [8080]}]
+
+await containerd.listNetworks()
+await containerd.removeNetwork('backend') //仍有容器使用时会被拒绝
+```
+
+与 nerdctl 一样，容器的网络由其钩子（由 runc 执行）配置：在任务创建时加入网络，在任务停止时删除网络。containerd 按
+restart 策略重启容器时、设备重启之后，即使应用没有运行也是如此。容器每次启动时分配地址，并写入其 `/etc/hosts`。
+
+## 5. 其他架构的平台
 
 `containerd.supportedPlatforms()` 返回本机可运行的平台：本机自身的平台，以及注册在 `binfmt_misc` 中的模拟器
 （QEMU、Rosetta）的平台。模拟器按条目中的 ELF 机器类型识别，与条目名称无关。注册了对应模拟器后即可运行其他平台的容器：
@@ -118,7 +145,7 @@ await containerd.pullImage({image: 'alpine:3.20', platform: 'linux/amd64'})
 const container = await containerd.createContainer({image: 'alpine:3.20', platform: 'linux/amd64', cmd: ['uname', '-m']})
 ```
 
-## 5. 事件
+## 6. 事件
 
 ```typescript
 const abort = new AbortController()
@@ -127,15 +154,15 @@ for await (const event of containerd.events(abort.signal)) {
 }
 ```
 
-## 6. 异常
+## 7. 异常
 
 `ContainerdConnectionException`、`ContainerdImageNotFoundException`、`ContainerdImagePullException`、
 `ContainerdImagePushException`、`ContainerdImageImportException`、`ContainerdImageExportException`、
 `ContainerdPlatformException`（镜像没有该平台的清单）、`ContainerdContainerNotFoundException`、
-`ContainerdContainerNameConflictException`、`ContainerdContainerStateException`（正在运行、未运行、已暂停）。
+`ContainerdContainerNameConflictException`、`ContainerdContainerStateException`（正在运行、未运行、已暂停）、
+`ContainerdNetworkNotFoundException`、`ContainerdNetworkConflictException`（网络已存在、子网与其他网络重叠、或仍有容器使用）。
 
-## 7. 当前版本的限制
+## 8. 当前版本的限制
 
-- 网络只支持宿主机网络与 none；CNI 网络（网桥）与端口发布将在后续版本提供。
 - 暂不支持构建镜像（后续通过本地或远程的 BuildKit 提供），也暂不支持 Compose 项目。
 - 容器运行时没有 seccomp 配置，日志不带时间戳。

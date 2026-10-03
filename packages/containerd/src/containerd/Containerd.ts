@@ -6,6 +6,7 @@ import {ImageStore} from '../client/ImageStore.js'
 import {ContainerStore, type ContainerMount} from '../client/ContainerStore.js'
 import {FormatPlatform, ParsePlatform, SupportedPlatforms, type Platform} from '../client/Platforms.js'
 import {ParseReference} from '../client/Reference.js'
+import {DEFAULT_NETWORK, NetworkStore, type CNINetwork, type PortMapping} from '../client/Networks.js'
 import type {RegistryCredentials, RegistryOptions} from '../client/Registry.js'
 import type {Message} from '../client/Protobuf.js'
 import {ContainerdImage} from './lib/ContainerdImage.js'
@@ -21,6 +22,10 @@ import {ContainerdImagePullException} from './exceptions/ContainerdImagePullExce
 import {ContainerdImageImportException} from './exceptions/ContainerdImageImportException.js'
 import {ContainerdImageExportException} from './exceptions/ContainerdImageExportException.js'
 import {ContainerdContainerNotFoundException} from './exceptions/ContainerdContainerNotFoundException.js'
+import {ContainerdNetworkNotFoundException} from './exceptions/ContainerdNetworkNotFoundException.js'
+import {ContainerdNetworkConflictException} from './exceptions/ContainerdNetworkConflictException.js'
+import {NetworkCreateOptions} from './options/network/NetworkCreateOptions.js'
+import type {ContainerdNetworkInfo} from './types/ContainerdNetworkInfo.js'
 
 /**
  * The containerd component: the images (pulled from the registries for any platform, pushed, imported, exported) and
@@ -74,6 +79,18 @@ export class Containerd extends Component {
     protected readonly logMaxSize: number
 
     /**
+     * The directory of the configurations of the networks of CNI
+     */
+    @Configurable(DTO.String().optional().default('/etc/cni/net.d'))
+    protected readonly cniConfigPath: string
+
+    /**
+     * The directories of the plugins of CNI (the ones which exist are used)
+     */
+    @Configurable(DTO.Array(DTO.String()).optional().default(['/opt/cni/bin', '/usr/lib/cni', '/usr/libexec/cni']))
+    protected readonly cniPath: string[]
+
+    /**
      * The credentials of the registries, by their names (docker.io, registry.example.com:5000)
      */
     @Configurable(DTO.Object().pattern(DTO.String(), DTO.Object({
@@ -94,6 +111,8 @@ export class Containerd extends Component {
     #images: ImageStore
 
     #containers: ContainerStore
+
+    #networks: NetworkStore
 
     #platforms: string[]
 
@@ -116,7 +135,8 @@ export class Containerd extends Component {
             throw new ContainerdConnectionException(`Cannot connect to containerd (${this.socketPath}): ${e.message}`)
         }
         this.#images = new ImageStore(this.#client, this.snapshotter)
-        this.#containers = new ContainerStore(this.#client, this.#images, {
+        this.#networks = new NetworkStore(this.cniConfigPath, this.cniPath)
+        this.#containers = new ContainerStore(this.#client, this.#images, this.#networks, {
             snapshotter: this.snapshotter,
             runtime: this.runtime,
             cgroupManager: this.cgroupManager,
@@ -267,6 +287,88 @@ export class Containerd extends Component {
         }
     }
 
+    /** Containerd Network Operations **/
+
+    /**
+     * The information of a network
+     * @param network
+     * @protected
+     */
+    protected networkInfo(network: CNINetwork): ContainerdNetworkInfo {
+        const main: Record<string, any> = network.plugins[0] ?? {}
+        return {
+            id: network.id,
+            name: network.name,
+            driver: network.driver,
+            reserved: !network.managed || network.labels['nerdctl/default-network'] === 'true',
+            internal: network.driver === 'bridge' && main.isGateway === false && main.ipMasq === false,
+            subnets: network.subnets,
+            gateways: network.gateways,
+            labels: network.labels,
+            file: network.file
+        }
+    }
+
+    /**
+     * List networks: host, none, and the ones of CNI (the default one of nerdctl, bridge, created once a container asks
+     * it)
+     */
+    public async listNetworks(): Promise<ContainerdNetworkInfo[]> {
+        const system: ContainerdNetworkInfo[] = ['host', 'none'].map((name: string): ContainerdNetworkInfo => ({id: name, name: name, driver: name, reserved: true, internal: name === 'none', subnets: [], gateways: [], labels: {}}))
+        return [...system, ...(await this.#networks.list()).map((network: CNINetwork): ContainerdNetworkInfo => this.networkInfo(network))]
+    }
+
+    /**
+     * Get network
+     * @param nameOrId its name, its identifier or a prefix of it
+     */
+    @Accept(DTO.String().required())
+    public async getNetwork(nameOrId: string): Promise<ContainerdNetworkInfo> {
+        if (nameOrId === 'host' || nameOrId === 'none') return (await this.listNetworks()).find((network: ContainerdNetworkInfo): boolean => network.name === nameOrId)!
+        const network: CNINetwork | undefined = await this.#networks.get(nameOrId)
+        if (!network) throw new ContainerdNetworkNotFoundException(`The network ${nameOrId} does not exist`)
+        return this.networkInfo(network)
+    }
+
+    /**
+     * Create a network of CNI (its configuration list nerdctl-<name>.conflist, the one of nerdctl network create)
+     * @param options
+     */
+    @Accept(NetworkCreateOptions.required())
+    public async createNetwork(options: NetworkCreateOptions): Promise<ContainerdNetworkInfo> {
+        try {
+            return this.networkInfo(await this.#networks.create(options))
+        } catch (error: unknown) {
+            if ((error as { code?: unknown }).code === 'CONFLICT') throw new ContainerdNetworkConflictException((error as Error).message)
+            throw error
+        }
+    }
+
+    /**
+     * Remove a network (one of nerdctl, which no container uses)
+     * @param nameOrId
+     */
+    @Accept(DTO.String().required())
+    public async removeNetwork(nameOrId: string): Promise<void> {
+        const network: CNINetwork | undefined = nameOrId === DEFAULT_NETWORK ? (await this.#networks.list()).find((item: CNINetwork): boolean => item.name === nameOrId) : await this.#networks.get(nameOrId)
+        if (!network) throw new ContainerdNetworkNotFoundException(`The network ${nameOrId} does not exist`)
+        const users: string[] = (await this.#containers.list())
+            .filter((record: Message): boolean => {
+                try {
+                    return (JSON.parse(record.labels?.['nerdctl/networks'] ?? '[]') as string[]).includes(network.name)
+                } catch {
+                    return false
+                }
+            })
+            .map((record: Message): string => ContainerStore.Name(record))
+        if (users.length) throw new ContainerdNetworkConflictException(`The network ${network.name} is used by the containers ${users.join(', ')}`)
+        try {
+            await this.#networks.remove(network)
+        } catch (error: unknown) {
+            throw new ContainerdNetworkConflictException((error as Error).message)
+        }
+    }
+
     /** Containerd Container Operations **/
 
     /**
@@ -313,6 +415,7 @@ export class Containerd extends Component {
             ...(options.binds ?? []).map((bind): ContainerMount => ({type: 'bind', source: bind.hostPath, target: bind.containerPath, readonly: bind.rw === false, options: bind.propagation ? [bind.propagation] : undefined})),
             ...(options.tmpfs ?? []).map((tmpfs): ContainerMount => ({type: 'tmpfs', target: tmpfs.containerPath, options: [...tmpfs.size ? [`size=${tmpfs.size}`] : [], ...tmpfs.mode ? [`mode=${tmpfs.mode}`] : []]}))
         ]
+        const ports: PortMapping[] = (options.ports ?? []).flatMap((port): PortMapping[] => port.hostPorts.map((hostPort: number): PortMapping => ({hostPort: hostPort, containerPort: port.port, protocol: port.type ?? 'tcp', hostIP: port.hostIP})))
         let record: Message
         try {
             record = await this.#containers.create({
@@ -332,7 +435,8 @@ export class Containerd extends Component {
                 capDrop: options.capabilitiesDrop,
                 mounts: mounts,
                 devices: (options.devices ?? []).map(device => ({hostPath: device.hostPath, containerPath: device.containerPath, permissions: device.cgroupPermissions})),
-                network: options.network,
+                network: options.networks?.length ? options.networks.map((network): { name: string, ip?: string } => ({name: network.networkName, ip: network.ip || undefined})) : options.network,
+                ports: ports,
                 pidHost: options.pidMode === 'host',
                 ipcHost: options.ipcMode === 'host',
                 cgroupns: options.cgroupns,

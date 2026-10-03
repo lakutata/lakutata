@@ -108,7 +108,7 @@ export type SpecOptions = {
     /**
      * The network: the one of the host, or a namespace of its own (only its loopback, or the path of the one prepared)
      */
-    network: { mode: 'host' } | { mode: 'none' } | { mode: 'path', path: string }
+    network: { mode: 'host' } | { mode: 'none' } | { mode: 'path', path: string } | { mode: 'cni' }
     pidHost?: boolean
     ipcHost?: boolean
     /**
@@ -132,6 +132,10 @@ export type SpecOptions = {
     shmSize?: number
     rlimits?: { type: string, hard: number, soft: number }[]
     annotations?: Record<string, string>
+    /**
+     * The hooks of the runtime (createRuntime, poststop…)
+     */
+    hooks?: Record<string, { path: string, args?: string[], env?: string[], timeout?: number }[]>
 }
 
 /**
@@ -169,7 +173,7 @@ export function GenerateSpec(options: SpecOptions): Record<string, any> {
     if (!options.pidHost) namespaces.push({type: 'pid'})
     if (!options.ipcHost) namespaces.push({type: 'ipc'})
     if (options.cgroupNamespace) namespaces.push({type: 'cgroup'})
-    if (options.network.mode === 'none') namespaces.push({type: 'network'})
+    if (options.network.mode === 'none' || options.network.mode === 'cni') namespaces.push({type: 'network'})
     if (options.network.mode === 'path') namespaces.push({type: 'network', path: options.network.path})
     const mounts: SpecMount[] = [
         {destination: '/proc', type: 'proc', source: 'proc', options: ['nosuid', 'noexec', 'nodev']},
@@ -224,6 +228,7 @@ export function GenerateSpec(options: SpecOptions): Record<string, any> {
         root: {path: 'rootfs', readonly: !!options.readonlyRootfs},
         hostname: options.hostname,
         mounts: mounts,
+        ...options.hooks ? {hooks: options.hooks} : {},
         annotations: options.annotations ?? {},
         linux: {
             resources: resources,

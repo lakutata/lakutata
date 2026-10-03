@@ -123,11 +123,31 @@ export class ContainerCreateOptions extends DTO {
     public devices?: ContainerdDevice[]
 
     /**
-     * The network of the container: the one of the host, or none (its loopback only)
+     * The network of the container without networks of CNI: the one of the host, or none (its loopback only)
      * @default 'host'
      */
     @Expect(DTO.String().valid('host', 'none').optional().default('host'))
     public network?: 'host' | 'none'
+
+    /**
+     * The networks of CNI of the container (bridge: the default one of nerdctl), its address on them
+     */
+    @Expect(DTO.Array(DTO.Object({
+        networkName: DTO.String().required(),
+        ip: DTO.String().allow('').ip({version: 'ipv4'}).optional()
+    })).optional())
+    public networks?: { networkName: string, ip?: string }[]
+
+    /**
+     * The ports of the container published on the host (on its first network of CNI)
+     */
+    @Expect(DTO.Array(DTO.Object({
+        port: DTO.Number().port().required(),
+        type: DTO.String().valid('tcp', 'udp', 'sctp').optional().default('tcp'),
+        hostPorts: DTO.Array(DTO.Number().port()).min(1).required(),
+        hostIP: DTO.String().ip().optional()
+    })).optional())
+    public ports?: { port: number, type?: 'tcp' | 'udp' | 'sctp', hostPorts: number[], hostIP?: string }[]
 
     /**
      * The PID namespace of the host

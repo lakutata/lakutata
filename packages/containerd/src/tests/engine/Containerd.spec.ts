@@ -1,5 +1,7 @@
 import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
+import {spawnSync} from 'node:child_process'
+import {existsSync} from 'node:fs'
 import {mkdtemp, readFile, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
@@ -13,7 +15,10 @@ import {
     ContainerdContainerStateException,
     ContainerdImage,
     ContainerdImageNotFoundException,
+    ContainerdNetworkConflictException,
+    ContainerdNetworkNotFoundException,
     ContainerdPlatformException,
+    type ContainerdNetworkInfo,
     type ContainerdEvent,
     type ContainerdProgress
 } from '../../exports/Containerd.js'
@@ -69,6 +74,7 @@ describe('The containerd component with the containerd of the machine', {skip: !
         if (containerd) {
             for (const container of await containerd.listContainers()) await container.remove({force: true})
             for (const image of await containerd.listImages()) await image.remove()
+            for (const network of await containerd.listNetworks()) if (network.name.startsWith('lakutata-test')) await containerd.removeNetwork(network.name)
         }
         await app?.dispose()
         await rm(directory, {recursive: true, force: true})
@@ -240,6 +246,69 @@ describe('The containerd component with the containerd of the machine', {skip: !
             await container.remove()
         } finally {
             await registry.remove({force: true})
+        }
+    })
+
+    it('connects the containers to the networks of CNI and publishes their ports', async (): Promise<void> => {
+        const server: string[] = ['sh', '-c', 'while true; do printf "HTTP/1.0 200 OK\\r\\n\\r\\n$(hostname)\\n" | nc -l -p 80 >/dev/null; done']
+        const web: ContainerdContainer = await containerd.createContainer({image: ALPINE, name: 'lakutata-test-web', networks: [{networkName: 'bridge'}], ports: [{port: 80, hostPorts: [18080, 18081]}], cmd: server})
+        try {
+            assert.deepStrictEqual(web.networkNames, ['bridge'])
+            assert.deepStrictEqual(web.ports, [{host: '0.0.0.0', port: 80, type: 'tcp', hostPorts: [18080, 18081]}])
+            assert.deepStrictEqual(web.networks.map((network): string => network.ip), [''])
+            await web.start()
+            const [network] = web.networks
+            assert.strictEqual(network.networkName, 'bridge')
+            assert.strictEqual(network.interface, 'eth0')
+            assert.match(network.ip, /^10\.4\.0\.\d+$/)
+            assert.strictEqual(network.gateway, '10.4.0.1')
+            assert.match(network.mac, /^[0-9a-f]{2}(:[0-9a-f]{2}){5}$/)
+            assert.strictEqual(web.hostname, web.id.slice(0, 12))
+            assert.strictEqual((await containerd.getNetwork('bridge')).reserved, true)
+            let answer: string = ''
+            for (let attempt = 0; attempt < 20 && !answer; attempt++) {
+                answer = await fetch('http://127.0.0.1:18081/').then((response: Response): Promise<string> => response.text(), async (): Promise<string> => {
+                    await sleep(200)
+                    return ''
+                })
+            }
+            assert.strictEqual(answer.trim(), web.hostname)
+            //Its own network: its address in its /etc/hosts
+            assert.match((await web.exec({cmd: 'cat /etc/hosts'})).stdout, new RegExp(`${network.ip.replace(/\./g, '\\.')}\t${web.hostname}`))
+            //A network created: the containers of the network reach each other, the ones of the other network do not
+            const created: ContainerdNetworkInfo = await containerd.createNetwork({name: 'lakutata-test-net', subnet: '10.4.200.0/24', labels: {test: 'yes'}})
+            assert.deepStrictEqual([created.driver, created.subnets, created.gateways, created.labels, created.reserved], ['bridge', ['10.4.200.0/24'], ['10.4.200.1'], {test: 'yes'}, false])
+            await assert.rejects(containerd.createNetwork({name: 'lakutata-test-net'}), ContainerdNetworkConflictException)
+            await assert.rejects(containerd.createContainer({image: ALPINE, networks: [{networkName: 'lakutata-test-none'}]}), ContainerdNetworkNotFoundException)
+            const backend: ContainerdContainer = await containerd.createContainer({image: ALPINE, name: 'lakutata-test-backend', networks: [{networkName: 'lakutata-test-net', ip: '10.4.200.50'}], cmd: server})
+            const client: ContainerdContainer = await containerd.createContainer({image: ALPINE, name: 'lakutata-test-client', networks: [{networkName: 'lakutata-test-net'}, {networkName: 'bridge'}], cmd: ['sleep', '600']})
+            try {
+                await backend.start()
+                await client.start()
+                assert.strictEqual(backend.networks[0].ip, '10.4.200.50')
+                assert.deepStrictEqual(client.networks.map((item): string => `${item.networkName}:${item.interface}`), ['lakutata-test-net:eth0', 'bridge:eth1'])
+                assert.strictEqual((await client.exec({cmd: 'wget -qO- -T 5 http://10.4.200.50/'})).stdout.trim(), backend.hostname)
+                assert.strictEqual((await client.exec({cmd: `wget -qO- -T 5 http://${network.ip}/`})).stdout.trim(), web.hostname)
+                assert.notStrictEqual((await web.exec({cmd: 'wget -qO- -T 2 http://10.4.200.50/'})).exitCode, 0)
+                await assert.rejects(containerd.removeNetwork('lakutata-test-net'), ContainerdNetworkConflictException)
+            } finally {
+                await backend.remove({force: true})
+                await client.remove({force: true})
+            }
+            const bridge: string = `br-${created.id.slice(0, 12)}`
+            assert.ok(existsSync(`/sys/class/net/${bridge}`))
+            await containerd.removeNetwork('lakutata-test-net')
+            await assert.rejects(containerd.getNetwork('lakutata-test-net'), ContainerdNetworkNotFoundException)
+            //Its bridge and the rules of its firewall removed (with the ip command of the system)
+            if (spawnSync('ip', ['-V']).error === undefined) assert.ok(!existsSync(`/sys/class/net/${bridge}`))
+            assert.ok(!spawnSync('iptables', ['-S'], {encoding: 'utf8'}).stdout.includes(bridge))
+            //Stopped: its address released, given again at its start
+            await web.stop({timeout: 1})
+            assert.strictEqual(web.networks[0].ip, '')
+            await web.start()
+            assert.match(web.networks[0].ip, /^10\.4\.0\.\d+$/)
+        } finally {
+            await web.remove({force: true})
         }
     })
 

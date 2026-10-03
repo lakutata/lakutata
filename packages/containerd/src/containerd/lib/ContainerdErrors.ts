@@ -2,6 +2,7 @@ import {ContainerdImageNotFoundException} from '../exceptions/ContainerdImageNot
 import {ContainerdPlatformException} from '../exceptions/ContainerdPlatformException.js'
 import {ContainerdContainerNameConflictException} from '../exceptions/ContainerdContainerNameConflictException.js'
 import {ContainerdContainerStateException} from '../exceptions/ContainerdContainerStateException.js'
+import {ContainerdNetworkNotFoundException} from '../exceptions/ContainerdNetworkNotFoundException.js'
 
 /**
  * The exception of an error of the client (by its code), or the one given
@@ -17,6 +18,8 @@ export function ContainerdError(error: unknown, fallback?: new (message: string)
             return new ContainerdPlatformException(message)
         case 'CONFLICT':
             return new ContainerdContainerNameConflictException(message)
+        case 'NETWORK_NOT_FOUND':
+            return new ContainerdNetworkNotFoundException(message)
         case 'RUNNING':
         case 'NOT_RUNNING':
         case 'PAUSED':

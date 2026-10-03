@@ -12,6 +12,7 @@ import {Encode, type Message} from './Protobuf.js'
 import {FormatPlatform, HostPlatform, type Platform} from './Platforms.js'
 import {ChainIds, ImageStore, type ResolvedImage} from './ImageStore.js'
 import {ProcessFifo} from './Fifo.js'
+import {DEFAULT_NETWORK, NetworkStore, type CNINetwork, type ContainerNetworkInterface, type PortMapping} from './Networks.js'
 import {ResolveUser, type ProcessUser} from './Rootfs.js'
 import {ExecProcessSpec, GenerateSpec, type SpecDevice, type SpecMount} from './Spec.js'
 
@@ -26,6 +27,7 @@ export const ContainerLabels = {
     LOG_URI: 'nerdctl/log-uri',
     STATE_DIR: 'nerdctl/state-dir',
     NETWORKS: 'nerdctl/networks',
+    PORTS: 'nerdctl/ports',
     MOUNTS: 'nerdctl/mounts',
     STOP_SIGNAL: 'io.containerd.image.config.stop-signal',
     RESTART_POLICY: 'containerd.io/restart.policy',
@@ -101,7 +103,15 @@ export type ContainerCreateOptions = {
     capDrop?: string[]
     mounts?: ContainerMount[]
     devices?: ContainerDeviceMapping[]
-    network?: 'host' | 'none'
+    /**
+     * The network of the container: the one of the host, none (its loopback only), or networks of CNI (bridge, the
+     * default one of nerdctl), with their addresses
+     */
+    network?: 'host' | 'none' | { name: string, ip?: string }[]
+    /**
+     * The ports published on the host (on its first network of CNI)
+     */
+    ports?: PortMapping[]
     pidHost?: boolean
     ipcHost?: boolean
     /**
@@ -159,6 +169,20 @@ type StoredState = {
 }
 
 /**
+ * The resolv.conf of a container: the one of the host, without its local name servers on its own network (the ones of
+ * Google when it has no other one, as Docker does)
+ * @param content
+ * @param ownNetwork
+ */
+export function ResolvConf(content: string, ownNetwork: boolean): string {
+    if (!ownNetwork) return content
+    const lines: string[] = content.split('\n').filter((line: string): boolean => !/^\s*nameserver\s+(127\.|::1\s*$)/.test(line))
+    while (lines.length && !lines[lines.length - 1].trim()) lines.pop()
+    if (!lines.some((line: string): boolean => /^\s*nameserver\s+/.test(line))) lines.push('nameserver 8.8.8.8', 'nameserver 8.8.4.4')
+    return lines.join('\n') + '\n'
+}
+
+/**
  * The number of a signal (SIGTERM, TERM, 15)
  * @param signal
  */
@@ -178,7 +202,34 @@ export function SignalNumber(signal: string | number): number {
  */
 export class ContainerStore {
 
-    constructor(protected readonly client: ContainerdClient, protected readonly images: ImageStore, public readonly options: ContainerStoreOptions) {
+    constructor(protected readonly client: ContainerdClient, protected readonly images: ImageStore, protected readonly networks: NetworkStore, public readonly options: ContainerStoreOptions) {
+    }
+
+    /**
+     * The networks of CNI of a container
+     * @param network
+     * @protected
+     */
+    protected async cniNetworks(network: ContainerCreateOptions['network']): Promise<{ network: CNINetwork, ip?: string }[]> {
+        if (!Array.isArray(network)) return []
+        if (!network.length) throw new Error('The networks of the container are empty')
+        const networks: { network: CNINetwork, ip?: string }[] = []
+        for (const item of network) {
+            if (item.name === 'host' || item.name === 'none') throw new Error(`The network ${item.name} is not one of CNI: give it alone`)
+            const found: CNINetwork | undefined = await this.networks.get(item.name)
+            if (!found) throw Object.assign(new Error(`The network ${item.name} does not exist`), {code: 'NETWORK_NOT_FOUND'})
+            if (networks.some((known): boolean => known.network.name === found.name)) throw new Error(`The network ${found.name} is given twice`)
+            networks.push({network: found, ip: item.ip})
+        }
+        return networks
+    }
+
+    /**
+     * The interfaces of a container on its networks of CNI (their addresses while it runs)
+     * @param container
+     */
+    public async interfaces(container: Message): Promise<ContainerNetworkInterface[]> {
+        return await this.networks.interfaces(this.stateDir(container.id))
     }
 
     /**
@@ -295,7 +346,10 @@ export class ContainerStore {
         const name: string = options.name ?? `${resolved.name.split('/').pop()!.split(/[:@]/)[0].replace(/[^a-zA-Z0-9_.-]/g, '')}-${id.slice(0, 5)}`
         if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(name)) throw new Error(`The name of a container "${name}" is not valid ([a-zA-Z0-9][a-zA-Z0-9_.-]*)`)
         if ((await this.client.listContainers([`labels."${ContainerLabels.NAME}"==${name}`])).length) throw Object.assign(new Error(`The name ${name} is used by another container`), {code: 'CONFLICT'})
-        const network: 'host' | 'none' = options.network ?? 'host'
+        const network: 'host' | 'none' | 'cni' = Array.isArray(options.network) ? 'cni' : options.network ?? 'host'
+        const cniNetworks: { network: CNINetwork, ip?: string }[] = await this.cniNetworks(options.network)
+        const ports: PortMapping[] = options.ports ?? []
+        if (ports.length && network !== 'cni') throw new Error(`The ports of a container are published on its networks of CNI (${DEFAULT_NETWORK}), not on the network ${network}`)
         const hostname: string = options.hostname ?? (network === 'host' ? osHostname() : id.slice(0, 12))
         const lease: string = await this.client.createLease()
         const stateDir: string = this.stateDir(id)
@@ -316,11 +370,12 @@ export class ContainerStore {
             await mkdir(stateDir, {recursive: true})
             const hostHosts: string = network === 'host' ? await readFile('/etc/hosts', 'utf8').catch((): string => '') : ''
             const hosts: string[] = [hostHosts.trimEnd() || '127.0.0.1\tlocalhost localhost.localdomain\n::1\tlocalhost localhost.localdomain ip6-localhost ip6-loopback']
-            if (network !== 'host') hosts.push(`127.0.0.1\t${hostname}`)
+            if (network === 'none') hosts.push(`127.0.0.1\t${hostname}`)
             for (const [host, address] of Object.entries(options.extraHosts ?? {})) hosts.push(`${address}\t${host}`)
+            //The hosts of the networks of CNI: the address of the container added by its hook
+            await writeFile(path.join(stateDir, 'hosts.base'), hosts.join('\n') + '\n')
             await writeFile(path.join(stateDir, 'hosts'), hosts.join('\n') + '\n')
-            const resolv: string = options.dns?.length ? options.dns.map((server: string): string => `nameserver ${server}`).join('\n') + '\n' : await readFile('/etc/resolv.conf', 'utf8').catch((): string => '')
-            await writeFile(path.join(stateDir, 'resolv.conf'), resolv)
+            await writeFile(path.join(stateDir, 'resolv.conf'), options.dns?.length ? options.dns.map((server: string): string => `nameserver ${server}`).join('\n') + '\n' : ResolvConf(await readFile('/etc/resolv.conf', 'utf8').catch((): string => ''), network !== 'host'))
             await writeFile(path.join(stateDir, 'hostname'), hostname + '\n')
             await writeFile(this.logFile(id), '')
             const specMounts: SpecMount[] = [
@@ -340,6 +395,16 @@ export class ContainerStore {
             }
             const devices: SpecDevice[] = []
             for (const device of options.devices ?? []) devices.push(...await this.devices(device))
+            let hooks: Record<string, { path: string, args: string[], timeout: number }[]> | undefined
+            if (network === 'cni') {
+                if (!this.networks.pluginDirectories().length) throw new Error(`The plugins of CNI are not installed (${this.networks.cniPath.join(', ')})`)
+                await this.networks.render(stateDir, id, cniNetworks, ports)
+                const hook: string = path.join(stateDir, 'network', 'hook.sh')
+                hooks = {
+                    createRuntime: [{path: '/bin/sh', args: ['sh', hook, 'add', stateDir], timeout: 120}],
+                    poststop: [{path: '/bin/sh', args: ['sh', hook, 'del', stateDir], timeout: 120}]
+                }
+            }
             const spec: Record<string, any> = GenerateSpec({
                 id: id,
                 namespace: this.client.namespace,
@@ -358,6 +423,7 @@ export class ContainerStore {
                 mounts: specMounts,
                 devices: devices,
                 network: {mode: network},
+                hooks: hooks,
                 pidHost: options.pidHost,
                 ipcHost: options.ipcHost,
                 cgroupNamespace: (options.cgroupns ?? 'private') === 'private' && existsSync('/sys/fs/cgroup/cgroup.controllers'),
@@ -381,7 +447,8 @@ export class ContainerStore {
                 [ContainerLabels.PLATFORM]: FormatPlatform(resolved.platform),
                 [ContainerLabels.LOG_URI]: logUri,
                 [ContainerLabels.STATE_DIR]: stateDir,
-                [ContainerLabels.NETWORKS]: JSON.stringify([network]),
+                [ContainerLabels.NETWORKS]: JSON.stringify(network === 'cni' ? cniNetworks.map((item): string => item.network.name) : [network]),
+                [ContainerLabels.PORTS]: JSON.stringify(ports.map((port: PortMapping): object => ({HostPort: port.hostPort, ContainerPort: port.containerPort, Protocol: port.protocol, HostIP: port.hostIP || '0.0.0.0'}))),
                 [ContainerLabels.MOUNTS]: JSON.stringify((options.mounts ?? []).map((mount: ContainerMount): object => ({Type: mount.type ?? 'bind', Source: mount.source ?? '', Destination: mount.target, RW: !mount.readonly})))
             }
             const stopSignal: string | undefined = options.stopSignal ?? resolved.config.config?.StopSignal
@@ -603,6 +670,8 @@ export class ContainerStore {
             await this.waitExit(container.id, 10000)
         }
         if (task) await this.client.deleteTask(container.id).catch((): undefined => undefined)
+        //The networks its hook did not delete
+        await this.networks.teardown(this.stateDir(container.id))
         await this.client.deleteContainer(container.id)
         await this.client.removeSnapshot(container.snapshotter || this.options.snapshotter, container.snapshotKey || container.id)
         await rm(this.stateDir(container.id), {recursive: true, force: true})

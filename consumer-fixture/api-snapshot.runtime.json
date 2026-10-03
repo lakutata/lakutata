@@ -312,12 +312,15 @@
     "ContainerdImageNotFoundException",
     "ContainerdImagePullException",
     "ContainerdImagePushException",
+    "ContainerdNetworkConflictException",
+    "ContainerdNetworkNotFoundException",
     "ContainerdPlatformException",
     "ContainerdRegistryAuthOptions",
     "ImageExportOptions",
     "ImageImportOptions",
     "ImagePullOptions",
-    "ImagePushOptions"
+    "ImagePushOptions",
+    "NetworkCreateOptions"
   ],
   "lakutata/com/docker": [
     "BuildDockerConnectionOptions",

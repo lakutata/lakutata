@@ -11,6 +11,9 @@ import {type ContainerdImage} from './ContainerdImage.js'
 import type {ContainerdContainerState} from '../types/ContainerdContainerState.js'
 import type {ContainerdRestartPolicy} from '../types/ContainerdRestartPolicy.js'
 import type {ContainerdExecResult} from '../types/ContainerdExecResult.js'
+import type {ContainerdContainerNetwork} from '../types/ContainerdContainerNetwork.js'
+import type {ContainerdContainerPort} from '../types/ContainerdContainerPort.js'
+import type {ContainerNetworkInterface} from '../../client/Networks.js'
 import {ContainerStopOptions} from '../options/container/ContainerStopOptions.js'
 import {ContainerKillOptions} from '../options/container/ContainerKillOptions.js'
 import {ContainerRemoveOptions} from '../options/container/ContainerRemoveOptions.js'
@@ -59,6 +62,21 @@ export class ContainerdContainer extends Provider {
 
     public state: ContainerdContainerState
 
+    /**
+     * Its networks: host, none, or the ones of CNI
+     */
+    public networkNames: string[]
+
+    /**
+     * Its interfaces on its networks of CNI (their addresses while it runs)
+     */
+    public networks: ContainerdContainerNetwork[]
+
+    /**
+     * Its ports published on the host
+     */
+    public ports: ContainerdContainerPort[]
+
     public createdAt: Time
 
     /**
@@ -98,6 +116,33 @@ export class ContainerdContainer extends Provider {
         this.platform = this.labels[ContainerLabels.PLATFORM] ?? ''
         this.restartPolicy = (this.labels[ContainerLabels.RESTART_POLICY] ?? 'no') as ContainerdRestartPolicy
         this.createdAt = new Time(record.createdAt ? Number(record.createdAt.seconds ?? 0) * 1000 : Date.now())
+        try {
+            this.networkNames = JSON.parse(this.labels[ContainerLabels.NETWORKS] ?? '[]')
+        } catch {
+            this.networkNames = []
+        }
+        this.networks = (await this.getStore().interfaces(record)).map((item: ContainerNetworkInterface): ContainerdContainerNetwork => ({
+            networkName: item.network,
+            interface: item.interface,
+            mac: item.mac ?? '',
+            ip: item.ip ?? '',
+            gateway: item.gateway ?? '',
+            ipPrefixLen: item.prefixLength ?? 0,
+            ipv6: item.ipv6 ?? '',
+            ipv6Gateway: item.ipv6Gateway ?? ''
+        }))
+        const ports: Map<string, ContainerdContainerPort> = new Map()
+        try {
+            for (const port of JSON.parse(this.labels[ContainerLabels.PORTS] ?? '[]') as { HostPort: number, ContainerPort: number, Protocol: 'tcp' | 'udp' | 'sctp', HostIP: string }[]) {
+                const key: string = `${port.HostIP}/${port.ContainerPort}/${port.Protocol}`
+                const known: ContainerdContainerPort = ports.get(key) ?? {host: port.HostIP, port: port.ContainerPort, type: port.Protocol, hostPorts: []}
+                known.hostPorts.push(port.HostPort)
+                ports.set(key, known)
+            }
+        } catch {
+            //Not the labels of nerdctl
+        }
+        this.ports = [...ports.values()]
         const state: ContainerRuntimeState = await this.getStore().state(record)
         this.state = {
             status: state.status,

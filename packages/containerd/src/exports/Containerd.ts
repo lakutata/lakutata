@@ -8,10 +8,13 @@ export * from '../containerd/lib/ContainerdImage.js'
  * Types
  */
 export * from '../containerd/types/ContainerdBind.js'
+export * from '../containerd/types/ContainerdContainerNetwork.js'
+export * from '../containerd/types/ContainerdContainerPort.js'
 export * from '../containerd/types/ContainerdContainerState.js'
 export * from '../containerd/types/ContainerdDevice.js'
 export * from '../containerd/types/ContainerdExecResult.js'
 export * from '../containerd/types/ContainerdImageConfig.js'
+export * from '../containerd/types/ContainerdNetworkInfo.js'
 export * from '../containerd/types/ContainerdProgressCallback.js'
 export * from '../containerd/types/ContainerdRestartPolicy.js'
 export * from '../containerd/types/ContainerdTmpfs.js'
@@ -30,6 +33,7 @@ export * from '../containerd/options/image/ImageExportOptions.js'
 export * from '../containerd/options/image/ImageImportOptions.js'
 export * from '../containerd/options/image/ImagePullOptions.js'
 export * from '../containerd/options/image/ImagePushOptions.js'
+export * from '../containerd/options/network/NetworkCreateOptions.js'
 /**
  * Exceptions
  */
@@ -42,4 +46,6 @@ export * from '../containerd/exceptions/ContainerdImageImportException.js'
 export * from '../containerd/exceptions/ContainerdImageNotFoundException.js'
 export * from '../containerd/exceptions/ContainerdImagePullException.js'
 export * from '../containerd/exceptions/ContainerdImagePushException.js'
+export * from '../containerd/exceptions/ContainerdNetworkConflictException.js'
+export * from '../containerd/exceptions/ContainerdNetworkNotFoundException.js'
 export * from '../containerd/exceptions/ContainerdPlatformException.js'

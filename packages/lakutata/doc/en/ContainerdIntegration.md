@@ -80,7 +80,7 @@ const container = await containerd.createContainer({
     binds: [{hostPath: '/data/worker', containerPath: '/data'}],
     tmpfs: [{containerPath: '/tmp', size: 16 * 1024 * 1024}],
     devices: [{hostPath: '/dev/ttyUSB0'}],
-    network: 'host',          //or none: its loopback only
+    network: 'host',          //or none: its loopback only; networks of CNI: see below
     memoryLimit: 128 * 1024 * 1024,
     cpus: 0.5,
     restartPolicy: 'always'   //kept by the restart monitor of containerd, even when the application is not running
@@ -110,7 +110,36 @@ await containerd.listContainers({app: 'web'})  //by labels
 - `privileged`, `capabilities` / `capabilitiesDrop`, `readonlyRootfs`, `pidMode: 'host'`, `ipcMode: 'host'`, `sysctls`,
   `extraHosts`, `dns`, `shmSize`, `pidsLimit`, `cpuSet`, `OOMKillDisable` are the options of Docker of the same names.
 
-## 4. Platforms of other architectures
+## 4. Networks
+
+Besides the network of the host (the default) and `none`, the containers join the networks of CNI: `bridge` (the
+default one of nerdctl, `nerdctl0`, `10.4.0.0/24`, created once a container asks it) and the networks created. Their
+configurations are the ones of nerdctl (`/etc/cni/net.d/nerdctl-<name>.conflist`), so nerdctl and the component share
+them. The plugins of CNI must be installed (`/opt/cni/bin`, `/usr/lib/cni` or `/usr/libexec/cni`, the `cniPath` option),
+with iptables.
+
+```typescript
+const network = await containerd.createNetwork({name: 'backend', subnet: '10.4.10.0/24'}) //or a free subnet of 10.4.0.0/16
+await containerd.createNetwork({name: 'lan', driver: 'macvlan', parent: 'eth0', subnet: '192.168.1.0/24', gateway: '192.168.1.1', ipRange: '192.168.1.192/27'})
+
+const web = await containerd.createContainer({
+    image: 'nginx:alpine',
+    networks: [{networkName: 'bridge'}, {networkName: 'backend', ip: '10.4.10.5'}], //eth0, eth1
+    ports: [{port: 80, hostPorts: [8080]}]                                          //on its first network
+})
+await web.start()
+web.networks //[{networkName: 'bridge', interface: 'eth0', ip: '10.4.0.2', gateway: '10.4.0.1', mac…}, …]
+web.ports    //[{host: '0.0.0.0', port: 80, type: 'tcp', hostPorts: [8080]}]
+
+await containerd.listNetworks()
+await containerd.removeNetwork('backend') //refused while a container uses it
+```
+
+The networks of a container are set up by its hooks (run by runc), as nerdctl does: they are added when its task is
+created and deleted when it stops, also when containerd restarts it by its restart policy, after a reboot, without the
+application. Its address is given at each start, and written in its `/etc/hosts`.
+
+## 5. Platforms of other architectures
 
 `containerd.supportedPlatforms()` gives the platforms the machine runs: its own one, and the ones of the emulators
 registered in `binfmt_misc` (QEMU, Rosetta), detected by the ELF machine of their entries whatever their names. A
@@ -121,7 +150,7 @@ await containerd.pullImage({image: 'alpine:3.20', platform: 'linux/amd64'})
 const container = await containerd.createContainer({image: 'alpine:3.20', platform: 'linux/amd64', cmd: ['uname', '-m']})
 ```
 
-## 5. Events
+## 6. Events
 
 ```typescript
 const abort = new AbortController()
@@ -130,15 +159,16 @@ for await (const event of containerd.events(abort.signal)) {
 }
 ```
 
-## 6. Exceptions
+## 7. Exceptions
 
 `ContainerdConnectionException`, `ContainerdImageNotFoundException`, `ContainerdImagePullException`,
 `ContainerdImagePushException`, `ContainerdImageImportException`, `ContainerdImageExportException`,
 `ContainerdPlatformException` (the image has no manifest of the platform), `ContainerdContainerNotFoundException`,
-`ContainerdContainerNameConflictException`, `ContainerdContainerStateException` (running, not running, paused).
+`ContainerdContainerNameConflictException`, `ContainerdContainerStateException` (running, not running, paused),
+`ContainerdNetworkNotFoundException`, `ContainerdNetworkConflictException` (the network exists, its subnet overlaps
+another one, or a container uses it).
 
-## 7. Limits of this version
+## 8. Limits of this version
 
-- The networks are the one of the host and none; the networks of CNI (bridges) and the ports published come next.
 - The images are not built yet (BuildKit, local or remote, comes next), nor the projects of Compose.
 - The containers run without seccomp profile, and their logs have no timestamps.
