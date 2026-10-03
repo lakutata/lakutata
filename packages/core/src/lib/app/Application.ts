@@ -19,6 +19,7 @@ import {type MigrationCommand, ReadMigrationCommand} from './MigrationCommand.js
 import {type ApplicationExitReason} from '../../types/ApplicationExitReason.js'
 import {BootstrapOption, ModuleOptions} from '../../options/ModuleOptions.js'
 import {DeclareApplicationClass, MarkApplicationLaunched} from '../base/internal/ApplicationLaunch.js'
+import {EndProcess, IsEnding} from '../foundation/EndProcess.js'
 
 //The handlers are method signatures, so a handler may declare the logger implementation it expects (such as Logger)
 /**
@@ -208,7 +209,7 @@ export class Application extends Module {
             const logger: ILogger = await this.getLogger()
             let exitCode: number | undefined | void = await handler(error, logger)
             if (typeof exitCode !== 'number') exitCode = 1
-            return process.exit(exitCode)
+            return EndProcess(exitCode)
         })
         return this.launch()
     }
@@ -271,8 +272,10 @@ export class Application extends Module {
      * @protected
      */
     protected static processFatalException(error: Error): void {
+        //The errors of the code still running once the application is destroyed (it is ending)
+        if (IsEnding()) return
         if (!this.eventEmitter.listenerCount(ApplicationState.FatalException)) {
-            return process.nextTick(async (): Promise<never> => {
+            return process.nextTick(async (): Promise<void> => {
                 const exception: Error = new Error('FatalException', {cause: error})
                 try {
                     const logger: ILogger = await this.getLogger()
@@ -280,7 +283,7 @@ export class Application extends Module {
                 } catch (e) {
                     console.error(exception, e)
                 }
-                return process.exit(1)
+                return EndProcess(1)
             })
         }
         this.eventEmitter.emit(ApplicationState.FatalException, error)
@@ -317,9 +320,9 @@ export class Application extends Module {
                 const reason: ApplicationExitReason = signal ? {code: exitCode ? exitCode : 0, signal: signal} : {code: exitCode ? exitCode : 0}
                 await this.eventEmitter.emitRequest(ApplicationState.Done, app, reason)
                 await rootContainer.destroy()
-                process.exit(exitCode ? exitCode : 0)
+                EndProcess(exitCode ? exitCode : 0)
             } catch (e) {
-                process.exit(1)
+                EndProcess(1)
             }
         })
         this.environmentVariableMap.forEach((value, key) => process.env[key] = value)

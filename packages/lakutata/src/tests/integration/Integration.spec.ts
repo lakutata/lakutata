@@ -26,6 +26,8 @@ const SCENARIOS: { file: string, title: string, electron?: boolean, output?: Reg
     {
         file: 'Shutdown',
         title: 'the shutdown on SIGTERM: a request running completes with its database, the requests coming are refused, the objects are destroyed',
+        //Windows has no signals of POSIX: Node.js ends the processes it sends them at once
+        skip: process.platform === 'win32' ? 'Windows has no signals of POSIX' : false,
         output: [/SLOW \{"errno":null,"errMsg":null,"data":\[\{"done":1\}\]\}/, /NEW refused/, /DESTROYED recorder/, /DONE the application is done \{"code":0,"signal":"SIGTERM"\}/]
     },
     {file: 'PostgreSQL', title: 'PostgreSQL: the cache stored in a table of PostgreSQL (as oims), a database of uuids', skip: process.env.POSTGRES_URL ? false : 'POSTGRES_URL is not set (packages/orm/docker-compose.test.yml)'},

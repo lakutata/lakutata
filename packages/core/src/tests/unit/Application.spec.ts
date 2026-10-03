@@ -9,6 +9,11 @@ import path from 'node:path'
 const PACKAGE_DIRECTORY: string = path.resolve(import.meta.dirname, '../../../..')
 
 /**
+ * Windows has no signals of POSIX: Node.js ends the processes it sends them (SIGTERM) at once
+ */
+const POSIX_SIGNALS: string | false = process.platform === 'win32' && 'Windows has no signals of POSIX: the process is ended at once'
+
+/**
  * The classes of the applications of the tests: loggers keeping their messages, and a component
  */
 const CLASSES: string = `
@@ -199,7 +204,7 @@ Application.run({id: 'signals.app', name: 'SignalsApp', components: {keeper: {cl
     .onLaunched(() => console.log('READY'))
     .onDone((app, logger, reason) => console.log('DONE ' + JSON.stringify(reason)))`
 
-        it('end gracefully on SIGTERM and SIGINT: the objects destroyed, done, the code 0', async (): Promise<void> => {
+        it('end gracefully on SIGTERM and SIGINT: the objects destroyed, done, the code 0', {skip: POSIX_SIGNALS}, async (): Promise<void> => {
             for (const signal of ['SIGTERM', 'SIGINT'] as NodeJS.Signals[]) {
                 const run = await Signal(APPLICATION(), [signal])
                 assert.strictEqual(run.code, 0, `${signal}: ${run.output}`)
@@ -208,7 +213,7 @@ Application.run({id: 'signals.app', name: 'SignalsApp', components: {keeper: {cl
             }
         })
 
-        it('end at once on a second signal, the shutdown hanging, with the code 128 + the number of the signal', async (): Promise<void> => {
+        it('end at once on a second signal, the shutdown hanging, with the code 128 + the number of the signal', {skip: POSIX_SIGNALS}, async (): Promise<void> => {
             const run = await Signal(APPLICATION('', true), ['SIGTERM', 'SIGTERM'])
             assert.strictEqual(run.code, 143, run.output)
             assert.match(run.output, /DESTROYED keeper/)
@@ -224,7 +229,21 @@ Application.run({id: 'exit.app', name: 'ExitApp'})
             assert.match(run.output, /DONE \{"code":3\}/)
         })
 
-        it('end at once on a signal received while the application launches', async (): Promise<void> => {
+        it('exit by itself once its objects are destroyed, else after a moment, with the code given to exit()', (): void => {
+            //Ended by process.exit at once, node crashes on Windows while the connections of fetch close
+            const started: number = Date.now()
+            const kept = RunApplication(`
+Application.run({id: 'exit.app', name: 'ExitApp'})
+    .onLaunched((app) => {
+        //An object of the application keeping the process running
+        setInterval(() => undefined, 1000)
+        app.exit(4)
+    })`)
+            assert.strictEqual(kept.status, 4, kept.output)
+            assert.ok(Date.now() - started < 5000, `${Date.now() - started} ms`)
+        })
+
+        it('end at once on a signal received while the application launches', {skip: POSIX_SIGNALS}, async (): Promise<void> => {
             const run = await Signal(`
 class Slow extends Component {
     async init() {
@@ -237,7 +256,7 @@ Application.run({id: 'signals.app', name: 'SignalsApp', components: {slow: {clas
             assert.doesNotMatch(run.output, /READY/)
         })
 
-        it('listen to the signals given, or to none', async (): Promise<void> => {
+        it('listen to the signals given, or to none', {skip: POSIX_SIGNALS}, async (): Promise<void> => {
             const custom = await Signal(APPLICATION(`, shutdownSignals: ['SIGUSR2']`), ['SIGUSR2'])
             assert.strictEqual(custom.code, 0, custom.output)
             assert.match(custom.output, /DONE/)
