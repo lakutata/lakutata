@@ -35,6 +35,7 @@ Lakutata 的功能按领域和用途分类，开发者可根据需求选择使�
 
 ### 4. 组件与服务
 - **Docker 组件**：内置 Docker Engine API 客户端，用于 Docker 镜像、容器和网络的管理。
+- **containerd 组件**：内置 containerd API 客户端，用于在只运行 containerd、没有 Docker 的机器（嵌入式 Linux 设备）上管理镜像与容器。
 - **日志器组件**：基于 Pino，提供高性能的日志记录功能。
 - **数据库提供者**：封装数据库连接逻辑，简化配置和使用。
 - **[国际化组件](I18n.md)**：按键名管理各语言的消息（ICU MessageFormat），处理语言的协商与回退。

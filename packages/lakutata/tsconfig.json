@@ -44,6 +44,9 @@
             "@lakutata/cache": [
                 "../cache/dist/types/exports/Cache"
             ],
+            "@lakutata/containerd": [
+                "../containerd/dist/types/exports/Containerd"
+            ],
             "@lakutata/docker": [
                 "../docker/dist/types/exports/Docker"
             ],

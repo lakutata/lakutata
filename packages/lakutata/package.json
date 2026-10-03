@@ -44,6 +44,16 @@
         "default": "./dist/cjs/exports/Utils.js"
       }
     },
+    "./com/containerd": {
+      "import": {
+        "types": "./dist/types/exports/ContainerdComponent.d.ts",
+        "default": "./dist/esm/exports/ContainerdComponent.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/ContainerdComponent.d.ts",
+        "default": "./dist/cjs/exports/ContainerdComponent.js"
+      }
+    },
     "./com/docker": {
       "import": {
         "types": "./dist/types/exports/DockerComponent.d.ts",
@@ -301,6 +311,7 @@
     "@lakutata/logger": "2.0.126",
     "@lakutata/entrypoint": "2.0.126",
     "@lakutata/cache": "2.0.126",
+    "@lakutata/containerd": "2.0.126",
     "@lakutata/docker": "2.0.126",
     "@lakutata/orm": "2.0.126",
     "@lakutata/i18n": "2.0.126",

@@ -1,0 +1,750 @@
+import {randomBytes} from 'node:crypto'
+import {constants as osConstants, hostname as osHostname} from 'node:os'
+import {copyFile, mkdir, open, readdir, readFile, rm, stat, truncate, writeFile} from 'node:fs/promises'
+import {existsSync, type BigIntStats} from 'node:fs'
+import path from 'node:path'
+import {Readable} from 'node:stream'
+import {setTimeout as sleep} from 'node:timers/promises'
+import {ContainerdClient, IsGRPCError, PROCESS_TYPE_URL, SPEC_TYPE_URL, TimestampDate, type SnapshotMount} from './ContainerdClient.js'
+import {GRPCStatus} from './GRPC.js'
+import * as M from './Messages.js'
+import {Encode, type Message} from './Protobuf.js'
+import {FormatPlatform, HostPlatform, type Platform} from './Platforms.js'
+import {ChainIds, ImageStore, type ResolvedImage} from './ImageStore.js'
+import {ProcessFifo} from './Fifo.js'
+import {ResolveUser, type ProcessUser} from './Rootfs.js'
+import {ExecProcessSpec, GenerateSpec, type SpecDevice, type SpecMount} from './Spec.js'
+
+/**
+ * The labels of the containers: the ones of nerdctl (nerdctl ps, nerdctl logs know them), the ones of the restart
+ * monitor of containerd
+ */
+export const ContainerLabels = {
+    NAME: 'nerdctl/name',
+    HOSTNAME: 'nerdctl/hostname',
+    PLATFORM: 'nerdctl/platform',
+    LOG_URI: 'nerdctl/log-uri',
+    STATE_DIR: 'nerdctl/state-dir',
+    NETWORKS: 'nerdctl/networks',
+    MOUNTS: 'nerdctl/mounts',
+    STOP_SIGNAL: 'io.containerd.image.config.stop-signal',
+    RESTART_POLICY: 'containerd.io/restart.policy',
+    RESTART_STATUS: 'containerd.io/restart.status',
+    RESTART_LOG_URI: 'containerd.io/restart.loguri'
+} as const
+
+/**
+ * The restart policies of the containers (the ones of the restart monitor of containerd): no, always,
+ * unless-stopped, on-failure (on-failure:N, N restarts at most)
+ */
+export type RestartPolicy = 'no' | 'always' | 'unless-stopped' | 'on-failure' | `on-failure:${number}`
+
+/**
+ * The statuses of the containers
+ */
+export type ContainerStatus = 'created' | 'running' | 'paused' | 'pausing' | 'restarting' | 'exited' | 'unknown'
+
+/**
+ * The state of a container: its task (its process), its last exit
+ */
+export type ContainerRuntimeState = {
+    status: ContainerStatus
+    running: boolean
+    paused: boolean
+    pid: number
+    exitCode: number
+    startedAt: Date | null
+    finishedAt: Date | null
+}
+
+/**
+ * A mount of a container: a directory or a file of the host (bind), a tmpfs
+ */
+export type ContainerMount = {
+    type?: 'bind' | 'tmpfs'
+    source?: string
+    target: string
+    readonly?: boolean
+    /**
+     * The options of the mount (size=64m for a tmpfs, the propagation of a bind: rshared…)
+     */
+    options?: string[]
+}
+
+/**
+ * A device of the host given to a container
+ */
+export type ContainerDeviceMapping = {
+    hostPath: string
+    containerPath?: string
+    permissions?: string
+}
+
+/**
+ * The options of the creation of a container
+ */
+export type ContainerCreateOptions = {
+    image: string
+    name?: string
+    platform?: Platform
+    hostname?: string
+    cmd?: string[]
+    entrypoint?: string[]
+    env?: Record<string, string>
+    workingDir?: string
+    user?: string
+    labels?: Record<string, string>
+    terminal?: boolean
+    privileged?: boolean
+    readonlyRootfs?: boolean
+    capAdd?: string[]
+    capDrop?: string[]
+    mounts?: ContainerMount[]
+    devices?: ContainerDeviceMapping[]
+    network?: 'host' | 'none'
+    pidHost?: boolean
+    ipcHost?: boolean
+    /**
+     * The cgroup namespace: a private one (on cgroup v2), or the one of the host
+     */
+    cgroupns?: 'private' | 'host'
+    memory?: number
+    memorySwap?: number
+    cpus?: number
+    cpuShares?: number
+    cpuset?: string
+    pidsLimit?: number
+    oomKillDisable?: boolean
+    sysctls?: Record<string, string>
+    shmSize?: number
+    restart?: RestartPolicy
+    stopSignal?: string
+    extraHosts?: Record<string, string>
+    dns?: string[]
+}
+
+/**
+ * The options of the store of the containers
+ */
+export type ContainerStoreOptions = {
+    snapshotter: string
+    runtime: string
+    cgroupManager: 'cgroupfs' | 'systemd'
+    /**
+     * The directory of the states of the containers (their logs, their hosts, resolv.conf and hostname)
+     */
+    dataRoot: string
+    /**
+     * The size of the logs of a container rotated (once): 0 never
+     */
+    logMaxSize: number
+}
+
+/**
+ * The result of an execution in a container
+ */
+export type ExecResult = {
+    exitCode: number
+    stdout: string
+    stderr: string
+}
+
+/**
+ * The state of a container written by the store (its last exit, its task deleted)
+ */
+type StoredState = {
+    startedAt?: string
+    finishedAt?: string
+    exitCode?: number
+}
+
+/**
+ * The number of a signal (SIGTERM, TERM, 15)
+ * @param signal
+ */
+export function SignalNumber(signal: string | number): number {
+    if (typeof signal === 'number') return signal
+    if (/^\d+$/.test(signal)) return Number(signal)
+    const name: string = signal.toUpperCase().startsWith('SIG') ? signal.toUpperCase() : `SIG${signal.toUpperCase()}`
+    const number: number | undefined = (osConstants.signals as Record<string, number>)[name]
+    if (number === undefined) throw new Error(`The signal ${signal} is unknown`)
+    return number
+}
+
+/**
+ * The containers of containerd: created from the images (their specifications of OCI, their snapshots), their tasks
+ * started, stopped, executed in; their logs written by the shims of containerd (file://), kept by the restart monitor
+ * of containerd as their restart policies ask
+ */
+export class ContainerStore {
+
+    constructor(protected readonly client: ContainerdClient, protected readonly images: ImageStore, public readonly options: ContainerStoreOptions) {
+    }
+
+    /**
+     * The directory of the state of a container
+     * @param id
+     */
+    public stateDir(id: string): string {
+        return path.join(this.options.dataRoot, 'containers', this.client.namespace, id)
+    }
+
+    /**
+     * The file of the logs of a container
+     * @param id
+     */
+    public logFile(id: string): string {
+        return path.join(this.stateDir(id), `${id}.log`)
+    }
+
+    /**
+     * The state written of a container
+     * @param id
+     */
+    protected async readState(id: string): Promise<StoredState> {
+        try {
+            return JSON.parse(await readFile(path.join(this.stateDir(id), 'state.json'), 'utf8')) as StoredState
+        } catch {
+            return {}
+        }
+    }
+
+    protected async writeState(id: string, state: StoredState): Promise<void> {
+        await mkdir(this.stateDir(id), {recursive: true})
+        await writeFile(path.join(this.stateDir(id), 'state.json'), JSON.stringify({...await this.readState(id), ...state}))
+    }
+
+    /**
+     * Find a container: by its identifier, by its name, by a prefix of its identifier (only one)
+     * @param idOrName
+     */
+    public async find(idOrName: string): Promise<Message | undefined> {
+        const byId: Message | undefined = await this.client.getContainer(idOrName)
+        if (byId) return byId
+        const byName: Message[] = await this.client.listContainers([`labels."${ContainerLabels.NAME}"==${idOrName}`])
+        if (byName.length) return byName[0]
+        if (!/^[0-9a-f]{3,}$/.test(idOrName)) return undefined
+        const byPrefix: Message[] = (await this.client.listContainers()).filter((container: Message): boolean => container.id.startsWith(idOrName))
+        if (byPrefix.length > 1) throw new Error(`The prefix ${idOrName} names ${byPrefix.length} containers`)
+        return byPrefix[0]
+    }
+
+    /**
+     * The containers
+     * @param filters the filters of containerd (labels."app"==web)
+     */
+    public async list(filters: string[] = []): Promise<Message[]> {
+        return await this.client.listContainers(filters)
+    }
+
+    /**
+     * The devices of a host path (a device, or the ones of a directory)
+     * @param mapping
+     */
+    protected async devices(mapping: ContainerDeviceMapping): Promise<SpecDevice[]> {
+        const stats: BigIntStats = await stat(mapping.hostPath, {bigint: true})
+        const containerPath: string = mapping.containerPath ?? mapping.hostPath
+        if (stats.isDirectory()) {
+            const devices: SpecDevice[] = []
+            for (const entry of await readdir(mapping.hostPath)) {
+                devices.push(...await this.devices({hostPath: path.join(mapping.hostPath, entry), containerPath: path.posix.join(containerPath, entry), permissions: mapping.permissions}).catch((): SpecDevice[] => []))
+            }
+            return devices
+        }
+        if (!stats.isCharacterDevice() && !stats.isBlockDevice()) throw new Error(`${mapping.hostPath} is not a device`)
+        const rdev: bigint = stats.rdev
+        const major: number = Number(((rdev >> 8n) & 0xfffn) | ((rdev >> 32n) & ~0xfffn))
+        const minor: number = Number((rdev & 0xffn) | ((rdev >> 12n) & ~0xffn))
+        return [{
+            path: mapping.hostPath,
+            containerPath: containerPath,
+            type: stats.isCharacterDevice() ? 'c' : 'b',
+            major: major,
+            minor: minor,
+            fileMode: Number(stats.mode & 0o777n),
+            uid: Number(stats.uid),
+            gid: Number(stats.gid),
+            permissions: mapping.permissions ?? 'rwm'
+        }]
+    }
+
+    /**
+     * The arguments of the process of a container: its entrypoint and its command, as Docker composes them
+     * @param resolved
+     * @param options
+     */
+    protected args(resolved: ResolvedImage, options: ContainerCreateOptions): string[] {
+        const config = resolved.config.config ?? {}
+        const entrypoint: string[] = options.entrypoint ?? config.Entrypoint ?? []
+        //An entrypoint given resets the command of the image
+        const cmd: string[] = options.cmd ?? (options.entrypoint ? [] : config.Cmd ?? [])
+        const args: string[] = [...entrypoint.filter((part: string, index: number): boolean => !(index === 0 && part === '' && entrypoint.length === 1)), ...cmd]
+        if (!args.length) throw new Error(`The image ${resolved.name} has no command: give the command of the container`)
+        return args
+    }
+
+    /**
+     * Create a container of an image: its snapshot (its root file system, the image unpacked), its specification, its
+     * state directory (its hosts, resolv.conf, hostname, logs)
+     * @param options
+     */
+    public async create(options: ContainerCreateOptions): Promise<Message> {
+        const platform: Platform = options.platform ?? HostPlatform()
+        const resolved: ResolvedImage = await this.images.resolve(options.image, platform)
+        const id: string = randomBytes(32).toString('hex')
+        const name: string = options.name ?? `${resolved.name.split('/').pop()!.split(/[:@]/)[0].replace(/[^a-zA-Z0-9_.-]/g, '')}-${id.slice(0, 5)}`
+        if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(name)) throw new Error(`The name of a container "${name}" is not valid ([a-zA-Z0-9][a-zA-Z0-9_.-]*)`)
+        if ((await this.client.listContainers([`labels."${ContainerLabels.NAME}"==${name}`])).length) throw Object.assign(new Error(`The name ${name} is used by another container`), {code: 'CONFLICT'})
+        const network: 'host' | 'none' = options.network ?? 'host'
+        const hostname: string = options.hostname ?? (network === 'host' ? osHostname() : id.slice(0, 12))
+        const lease: string = await this.client.createLease()
+        const stateDir: string = this.stateDir(id)
+        try {
+            const chain: string[] = ChainIds(resolved.config.rootfs?.diff_ids ?? [])
+            const parent: string = chain[chain.length - 1] ?? ''
+            if (parent && !(await this.client.statSnapshot(this.options.snapshotter, parent))) await this.images.unpack(resolved.manifest, lease)
+            const mounts: SnapshotMount[] = await this.client.prepareSnapshot(this.options.snapshotter, id, parent, {}, lease)
+            const user: ProcessUser = await ResolveUser(mounts, options.user ?? resolved.config.config?.User)
+            //The environment: the one of the image, PATH, HOSTNAME, HOME, the one given
+            const env: Map<string, string> = new Map([['PATH', '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin']])
+            for (const entry of resolved.config.config?.Env ?? []) env.set(entry.split('=')[0], entry.slice(entry.indexOf('=') + 1))
+            env.set('HOSTNAME', hostname)
+            if (!env.has('HOME')) env.set('HOME', user.home)
+            for (const [key, value] of Object.entries(options.env ?? {})) env.set(key, value)
+            if (options.terminal && !env.has('TERM')) env.set('TERM', 'xterm')
+            //The files of the network of the container
+            await mkdir(stateDir, {recursive: true})
+            const hostHosts: string = network === 'host' ? await readFile('/etc/hosts', 'utf8').catch((): string => '') : ''
+            const hosts: string[] = [hostHosts.trimEnd() || '127.0.0.1\tlocalhost localhost.localdomain\n::1\tlocalhost localhost.localdomain ip6-localhost ip6-loopback']
+            if (network !== 'host') hosts.push(`127.0.0.1\t${hostname}`)
+            for (const [host, address] of Object.entries(options.extraHosts ?? {})) hosts.push(`${address}\t${host}`)
+            await writeFile(path.join(stateDir, 'hosts'), hosts.join('\n') + '\n')
+            const resolv: string = options.dns?.length ? options.dns.map((server: string): string => `nameserver ${server}`).join('\n') + '\n' : await readFile('/etc/resolv.conf', 'utf8').catch((): string => '')
+            await writeFile(path.join(stateDir, 'resolv.conf'), resolv)
+            await writeFile(path.join(stateDir, 'hostname'), hostname + '\n')
+            await writeFile(this.logFile(id), '')
+            const specMounts: SpecMount[] = [
+                {source: path.join(stateDir, 'hosts'), destination: '/etc/hosts', options: ['bind', 'rprivate']},
+                {source: path.join(stateDir, 'resolv.conf'), destination: '/etc/resolv.conf', options: ['bind', 'rprivate']},
+                {source: path.join(stateDir, 'hostname'), destination: '/etc/hostname', options: ['bind', 'rprivate']}
+            ]
+            for (const mount of options.mounts ?? []) {
+                if (mount.type === 'tmpfs') {
+                    specMounts.push({type: 'tmpfs', source: 'tmpfs', destination: mount.target, options: ['nosuid', 'nodev', 'noexec', ...mount.options ?? [], ...mount.readonly ? ['ro'] : []]})
+                } else {
+                    if (!mount.source) throw new Error(`The bind mount of ${mount.target} has no source`)
+                    const source: string = path.resolve(mount.source)
+                    await mkdir(source, {recursive: true}).catch((): undefined => undefined)
+                    specMounts.push({type: 'bind', source: source, destination: mount.target, options: ['rbind', ...mount.options?.length ? mount.options : ['rprivate'], mount.readonly ? 'ro' : 'rw']})
+                }
+            }
+            const devices: SpecDevice[] = []
+            for (const device of options.devices ?? []) devices.push(...await this.devices(device))
+            const spec: Record<string, any> = GenerateSpec({
+                id: id,
+                namespace: this.client.namespace,
+                args: this.args(resolved, options),
+                env: [...env].map(([key, value]): string => `${key}=${value}`),
+                cwd: options.workingDir ?? resolved.config.config?.WorkingDir ?? '/',
+                uid: user.uid,
+                gid: user.gid,
+                additionalGids: user.additionalGids,
+                hostname: hostname,
+                terminal: options.terminal,
+                privileged: options.privileged,
+                readonlyRootfs: options.readonlyRootfs,
+                capAdd: options.capAdd,
+                capDrop: options.capDrop,
+                mounts: specMounts,
+                devices: devices,
+                network: {mode: network},
+                pidHost: options.pidHost,
+                ipcHost: options.ipcHost,
+                cgroupNamespace: (options.cgroupns ?? 'private') === 'private' && existsSync('/sys/fs/cgroup/cgroup.controllers'),
+                cgroupsPath: this.options.cgroupManager === 'systemd' ? `system.slice:lakutata:${id}` : `/${this.client.namespace}/${id}`,
+                memory: options.memory,
+                memorySwap: options.memorySwap,
+                cpuQuota: options.cpus ? Math.round(options.cpus * 100000) : undefined,
+                cpuShares: options.cpuShares,
+                cpuset: options.cpuset,
+                pidsLimit: options.pidsLimit,
+                oomKillDisable: options.oomKillDisable,
+                sysctls: options.sysctls,
+                shmSize: options.shmSize
+            })
+            const logUri: string = `file://${this.logFile(id)}`
+            const labels: Record<string, string> = {
+                ...resolved.config.config?.Labels ?? {},
+                ...options.labels ?? {},
+                [ContainerLabels.NAME]: name,
+                [ContainerLabels.HOSTNAME]: hostname,
+                [ContainerLabels.PLATFORM]: FormatPlatform(resolved.platform),
+                [ContainerLabels.LOG_URI]: logUri,
+                [ContainerLabels.STATE_DIR]: stateDir,
+                [ContainerLabels.NETWORKS]: JSON.stringify([network]),
+                [ContainerLabels.MOUNTS]: JSON.stringify((options.mounts ?? []).map((mount: ContainerMount): object => ({Type: mount.type ?? 'bind', Source: mount.source ?? '', Destination: mount.target, RW: !mount.readonly})))
+            }
+            const stopSignal: string | undefined = options.stopSignal ?? resolved.config.config?.StopSignal
+            if (stopSignal) labels[ContainerLabels.STOP_SIGNAL] = stopSignal
+            if (options.restart && options.restart !== 'no') {
+                labels[ContainerLabels.RESTART_POLICY] = options.restart
+                labels[ContainerLabels.RESTART_LOG_URI] = logUri
+                labels[ContainerLabels.RESTART_STATUS] = 'stopped'
+            }
+            const runtime: Message = {name: this.options.runtime}
+            if (this.options.cgroupManager === 'systemd') runtime.options = {typeUrl: 'containerd.runc.v1.Options', value: Encode(M.RuncOptions, {systemdCgroup: true})}
+            return await this.client.createContainer({
+                id: id,
+                labels: labels,
+                image: resolved.name,
+                runtime: runtime,
+                spec: ContainerdClient.Json(SPEC_TYPE_URL, spec),
+                snapshotter: this.options.snapshotter,
+                snapshotKey: id
+            }, lease)
+        } catch (error: unknown) {
+            await this.client.removeSnapshot(this.options.snapshotter, id).catch((): undefined => undefined)
+            await rm(stateDir, {recursive: true, force: true})
+            throw error
+        } finally {
+            await this.client.deleteLease(lease)
+        }
+    }
+
+    /**
+     * The state of a container: the one of its task, its last exit when it has none
+     * @param container
+     */
+    public async state(container: Message): Promise<ContainerRuntimeState> {
+        const stored: StoredState = await this.readState(container.id)
+        const task: Message | undefined = await this.client.getTask(container.id)
+        const restarting: boolean = container.labels?.[ContainerLabels.RESTART_STATUS] === 'running'
+        const state: ContainerRuntimeState = {
+            status: 'created',
+            running: false,
+            paused: false,
+            pid: 0,
+            exitCode: stored.exitCode ?? 0,
+            startedAt: stored.startedAt ? new Date(stored.startedAt) : null,
+            finishedAt: stored.finishedAt ? new Date(stored.finishedAt) : null
+        }
+        if (!task) {
+            state.status = stored.startedAt ? 'exited' : 'created'
+            //Its restart monitor recreates its task
+            if (restarting && stored.startedAt) state.status = 'restarting'
+            return state
+        }
+        state.pid = task.pid ?? 0
+        switch (task.status) {
+            case M.ProcessStatus.RUNNING:
+                state.status = 'running'
+                state.running = true
+                break
+            case M.ProcessStatus.PAUSED:
+                state.status = 'paused'
+                state.paused = true
+                break
+            case M.ProcessStatus.PAUSING:
+                state.status = 'pausing'
+                break
+            case M.ProcessStatus.STOPPED:
+                state.status = restarting ? 'restarting' : 'exited'
+                state.exitCode = task.exitStatus ?? 0
+                state.finishedAt = TimestampDate(task.exitedAt) ?? state.finishedAt
+                break
+            case M.ProcessStatus.CREATED:
+                state.status = 'created'
+                break
+            default:
+                state.status = 'unknown'
+        }
+        return state
+    }
+
+    /**
+     * Rotate the logs of a container once they are larger than the size of the options: copied to the file .1, the
+     * file truncated (the shim writes to its end)
+     * @param id
+     */
+    public async rotateLogs(id: string): Promise<void> {
+        if (!this.options.logMaxSize) return
+        const file: string = this.logFile(id)
+        const size: number = (await stat(file).catch((): undefined => undefined))?.size ?? 0
+        if (size <= this.options.logMaxSize) return
+        await copyFile(file, `${file}.1`)
+        await truncate(file, 0)
+    }
+
+    /**
+     * Delete the task of a container (stopped), its exit kept
+     * @param id
+     */
+    protected async deleteTask(id: string): Promise<void> {
+        const deleted: Message | undefined = await this.client.deleteTask(id).catch(async (error: unknown): Promise<Message | undefined> => {
+            //A task still running (a stop of its restart monitor meanwhile): killed
+            if (!IsGRPCError(error, GRPCStatus.FAILED_PRECONDITION)) throw error
+            await this.client.kill(id, SignalNumber('SIGKILL'), {all: true}).catch((): undefined => undefined)
+            await this.client.wait(id).catch((): undefined => undefined)
+            return await this.client.deleteTask(id)
+        })
+        if (deleted) await this.writeState(id, {exitCode: deleted.exitStatus ?? 0, finishedAt: (TimestampDate(deleted.exitedAt) ?? new Date()).toISOString()})
+    }
+
+    /**
+     * Set the labels of a container
+     * @param container
+     * @param labels
+     */
+    protected async label(container: Message, labels: Record<string, string>): Promise<void> {
+        await this.client.updateContainer({id: container.id, labels: labels}, Object.keys(labels).map((key: string): string => `labels.${key}`))
+    }
+
+    /**
+     * Start a container: a new task of its snapshot (the one of its previous run deleted), its output written to its
+     * logs
+     * @param container
+     */
+    public async start(container: Message): Promise<number> {
+        const task: Message | undefined = await this.client.getTask(container.id)
+        if (task?.status === M.ProcessStatus.RUNNING) return task.pid
+        if (task?.status === M.ProcessStatus.PAUSED) throw Object.assign(new Error(`The container ${container.id} is paused: resume it`), {code: 'PAUSED'})
+        if (task) await this.deleteTask(container.id)
+        await this.rotateLogs(container.id)
+        const logUri: string = container.labels?.[ContainerLabels.LOG_URI] ?? `file://${this.logFile(container.id)}`
+        await mkdir(path.dirname(this.logFile(container.id)), {recursive: true})
+        const rootfs: SnapshotMount[] = await this.client.snapshotMounts(container.snapshotter || this.options.snapshotter, container.snapshotKey || container.id)
+        await this.client.createTask({containerId: container.id, rootfs: rootfs, stdout: logUri, stderr: logUri})
+        try {
+            const pid: number = await this.client.startTask(container.id)
+            await this.writeState(container.id, {startedAt: new Date().toISOString(), finishedAt: undefined, exitCode: undefined})
+            if (container.labels?.[ContainerLabels.RESTART_POLICY]) await this.label(container, {[ContainerLabels.RESTART_STATUS]: 'running'})
+            return pid
+        } catch (error: unknown) {
+            await this.client.deleteTask(container.id).catch((): undefined => undefined)
+            throw error
+        }
+    }
+
+    /**
+     * Wait for the task of a container to exit, at most a time
+     * @param id
+     * @param timeout milliseconds
+     */
+    protected async waitExit(id: string, timeout: number): Promise<boolean> {
+        const abort: AbortController = new AbortController()
+        const timer: NodeJS.Timeout = setTimeout((): void => abort.abort(), timeout)
+        try {
+            await this.client.wait(id, '', abort.signal)
+            return true
+        } catch (error: unknown) {
+            if (abort.signal.aborted) return false
+            if (IsGRPCError(error, GRPCStatus.NOT_FOUND)) return true
+            throw error
+        } finally {
+            clearTimeout(timer)
+        }
+    }
+
+    /**
+     * Stop a container: its stop signal (SIGTERM, the one of its image) sent, then SIGKILL to all its processes after a
+     * time; its task deleted, its restart monitor told not to restart it
+     * @param container
+     * @param options
+     */
+    public async stop(container: Message, options: { timeout?: number, signal?: string | number } = {}): Promise<void> {
+        if (container.labels?.[ContainerLabels.RESTART_POLICY]) await this.label(container, {[ContainerLabels.RESTART_STATUS]: 'stopped'})
+        const task: Message | undefined = await this.client.getTask(container.id)
+        if (!task) return
+        if (task.status === M.ProcessStatus.PAUSED) await this.client.resume(container.id)
+        if (task.status === M.ProcessStatus.RUNNING || task.status === M.ProcessStatus.PAUSED) {
+            const signal: number = SignalNumber(options.signal ?? container.labels?.[ContainerLabels.STOP_SIGNAL] ?? 'SIGTERM')
+            await this.client.kill(container.id, signal).catch((error: unknown): void => {
+                if (!IsGRPCError(error, GRPCStatus.NOT_FOUND)) throw error
+            })
+            if (!(await this.waitExit(container.id, (options.timeout ?? 10) * 1000))) {
+                await this.client.kill(container.id, SignalNumber('SIGKILL'), {all: true}).catch((): undefined => undefined)
+                await this.waitExit(container.id, 10000)
+            }
+        }
+        await this.deleteTask(container.id)
+    }
+
+    /**
+     * Send a signal to a container (its main process, or all its processes)
+     * @param container
+     * @param signal
+     * @param all
+     */
+    public async kill(container: Message, signal: string | number = 'SIGKILL', all: boolean = false): Promise<void> {
+        if (SignalNumber(signal) === SignalNumber('SIGKILL') && container.labels?.[ContainerLabels.RESTART_POLICY]) await this.label(container, {[ContainerLabels.RESTART_STATUS]: 'stopped'})
+        await this.client.kill(container.id, SignalNumber(signal), {all: all})
+    }
+
+    public async pause(container: Message): Promise<void> {
+        await this.client.pause(container.id)
+    }
+
+    public async resume(container: Message): Promise<void> {
+        await this.client.resume(container.id)
+    }
+
+    /**
+     * Remove a container: its task (a running one only when forced), its snapshot, its state directory
+     * @param container
+     * @param force
+     */
+    public async remove(container: Message, force: boolean = false): Promise<void> {
+        const task: Message | undefined = await this.client.getTask(container.id)
+        if (task && task.status !== M.ProcessStatus.STOPPED && task.status !== M.ProcessStatus.CREATED) {
+            if (!force) throw Object.assign(new Error(`The container ${ContainerStore.Name(container)} is running: stop it or remove it by force`), {code: 'RUNNING'})
+            if (container.labels?.[ContainerLabels.RESTART_POLICY]) await this.label(container, {[ContainerLabels.RESTART_STATUS]: 'stopped'})
+            if (task.status === M.ProcessStatus.PAUSED) await this.client.resume(container.id).catch((): undefined => undefined)
+            await this.client.kill(container.id, SignalNumber('SIGKILL'), {all: true}).catch((): undefined => undefined)
+            await this.waitExit(container.id, 10000)
+        }
+        if (task) await this.client.deleteTask(container.id).catch((): undefined => undefined)
+        await this.client.deleteContainer(container.id)
+        await this.client.removeSnapshot(container.snapshotter || this.options.snapshotter, container.snapshotKey || container.id)
+        await rm(this.stateDir(container.id), {recursive: true, force: true})
+    }
+
+    /**
+     * Execute a command in a running container, its output captured: its standard output and its error apart (FIFOs,
+     * mkfifo of the system), or together in its standard output without mkfifo (the files of the shim)
+     * @param container
+     * @param options
+     */
+    public async exec(container: Message, options: { cmd: string[], env?: Record<string, string>, workingDir?: string, user?: string, stdin?: string | Buffer, timeout?: number }): Promise<ExecResult> {
+        const task: Message | undefined = await this.client.getTask(container.id)
+        if (task?.status !== M.ProcessStatus.RUNNING) throw Object.assign(new Error(`The container ${ContainerStore.Name(container)} is not running`), {code: 'NOT_RUNNING'})
+        const spec: Record<string, any> = ContainerdClient.FromJson(container.spec) ?? {}
+        let user: ProcessUser | undefined
+        if (options.user) user = await ResolveUser(await this.client.snapshotMounts(container.snapshotter || this.options.snapshotter, container.snapshotKey || container.id), options.user)
+        const process: Record<string, any> = ExecProcessSpec(spec, {
+            args: options.cmd,
+            env: Object.entries(options.env ?? {}).map(([key, value]): string => `${key}=${value}`),
+            cwd: options.workingDir,
+            uid: user?.uid,
+            gid: user?.gid,
+            additionalGids: user?.additionalGids
+        })
+        const execId: string = `exec-${randomBytes(8).toString('hex')}`
+        const directory: string = path.join(this.stateDir(container.id), 'exec')
+        await mkdir(directory, {recursive: true})
+        const files: string[] = []
+        const fifos: ProcessFifo[] = []
+        const fifo: boolean = ProcessFifo.Supported()
+        if (!fifo && options.stdin !== undefined) throw new Error('The standard input of an execution needs mkfifo')
+        try {
+            let stdout: ProcessFifo | undefined, stderr: ProcessFifo | undefined, stdin: ProcessFifo | undefined
+            let request: Message
+            if (fifo) {
+                stdout = ProcessFifo.Create(path.join(directory, `${execId}-stdout`), 'read')
+                stderr = ProcessFifo.Create(path.join(directory, `${execId}-stderr`), 'read')
+                fifos.push(stdout, stderr)
+                if (options.stdin !== undefined) fifos.push(stdin = ProcessFifo.Create(path.join(directory, `${execId}-stdin`), 'write'))
+                request = {stdout: stdout.path, stderr: stderr.path, stdin: stdin?.path ?? ''}
+            } else {
+                const output: string = path.join(directory, `${execId}.log`)
+                files.push(output)
+                await writeFile(output, '')
+                request = {stdout: `file://${output}`, stderr: `file://${output}`}
+            }
+            files.push(...fifos.map((item: ProcessFifo): string => item.path))
+            await this.client.exec({containerId: container.id, execId: execId, ...request, spec: ContainerdClient.Json(PROCESS_TYPE_URL, process)})
+            const waiting: Promise<{ exitStatus: number }> = this.client.wait(container.id, execId)
+            waiting.catch((): undefined => undefined)
+            await this.client.startTask(container.id, execId)
+            const read = (item: ProcessFifo | undefined): Promise<string> => {
+                if (!item) return Promise.resolve('')
+                const socket = item.open()
+                const chunks: Buffer[] = []
+                return new Promise((resolve: (value: string) => void): void => {
+                    socket.on('data', (chunk: Buffer): unknown => chunks.push(chunk))
+                    socket.on('error', (): void => resolve(Buffer.concat(chunks).toString('utf8')))
+                    socket.on('end', (): void => resolve(Buffer.concat(chunks).toString('utf8')))
+                })
+            }
+            const outputs: Promise<[string, string]> = Promise.all([read(stdout), read(stderr)])
+            if (stdin) {
+                //Written and closed, then the writer of the shim closed (CloseIO): the end of the input once read
+                const writer = stdin.open()
+                await new Promise<void>((resolve: () => void): void => void writer.end(options.stdin ?? '', (): void => resolve()))
+                await this.client.closeIO(container.id, execId).catch((): undefined => undefined)
+            }
+            const timer: NodeJS.Timeout | undefined = options.timeout ? setTimeout((): void => {
+                this.client.kill(container.id, SignalNumber('SIGKILL'), {execId: execId}).catch((): undefined => undefined)
+            }, options.timeout) : undefined
+            try {
+                const {exitStatus} = await waiting
+                if (!fifo) return {exitCode: exitStatus, stdout: await readFile(files[0], 'utf8'), stderr: ''}
+                const [out, err] = await outputs
+                return {exitCode: exitStatus, stdout: out, stderr: err}
+            } finally {
+                clearTimeout(timer)
+            }
+        } finally {
+            fifos.forEach((item: ProcessFifo): void => item.close())
+            await this.client.deleteProcess(container.id, execId).catch((): undefined => undefined)
+            for (const file of files) await rm(file, {force: true})
+        }
+    }
+
+    /**
+     * The logs of a container: its last lines, followed while it runs (until the signal aborts)
+     * @param container
+     * @param options
+     */
+    public logs(container: Message, options: { tail?: number, follow?: boolean, signal?: AbortSignal } = {}): Readable {
+        const file: string = this.logFile(container.id)
+        const store: ContainerStore = this
+        return Readable.from((async function* (): AsyncGenerator<Buffer> {
+            let content: Buffer = Buffer.concat([await readFile(`${file}.1`).catch((): Buffer => Buffer.alloc(0)), await readFile(file).catch((): Buffer => Buffer.alloc(0))])
+            let offset: number = (await stat(file).catch((): undefined => undefined))?.size ?? 0
+            if (options.tail !== undefined && options.tail >= 0) {
+                let end: number = content.length
+                if (content[end - 1] === 0x0a) end--
+                let start: number = end
+                for (let lines = 0; start > 0; start--) {
+                    if (content[start - 1] === 0x0a && ++lines >= options.tail) break
+                }
+                content = options.tail === 0 ? Buffer.alloc(0) : content.subarray(start)
+            }
+            if (content.length) yield content
+            if (!options.follow) return
+            let idle: number = 0
+            while (!options.signal?.aborted) {
+                const size: number = (await stat(file).catch((): undefined => undefined))?.size ?? 0
+                //Rotated: read from its start
+                if (size < offset) offset = 0
+                if (size > offset) {
+                    const handle = await open(file, 'r')
+                    try {
+                        const buffer: Buffer = Buffer.alloc(size - offset)
+                        await handle.read(buffer, 0, buffer.length, offset)
+                        offset = size
+                        yield buffer
+                    } finally {
+                        await handle.close()
+                    }
+                    continue
+                }
+                //Every second, whether it still runs
+                if (++idle % 4 === 0) {
+                    const task: Message | undefined = await store.client.getTask(container.id)
+                    //Stopped, and not restarted by its restart monitor
+                    if ((!task || task.status === M.ProcessStatus.STOPPED) && (await store.client.getContainer(container.id))?.labels?.[ContainerLabels.RESTART_STATUS] !== 'running') break
+                }
+                await sleep(250, undefined, {signal: options.signal}).catch((): undefined => undefined)
+            }
+        })())
+    }
+
+    /**
+     * The name of a container
+     * @param container
+     */
+    public static Name(container: Message): string {
+        return container.labels?.[ContainerLabels.NAME] ?? container.id
+    }
+}

@@ -78,6 +78,15 @@ await check('@lakutata/docker loads under ESM', () => {
 const {pack: TarPack} = await import('tar-stream')
 await check('tar-stream pack (build context)', () => { TarPack().finalize() })
 
+// @lakutata/containerd — the client of the API of containerd (gRPC over HTTP/2) is integrated
+await check('CJS @lakutata/containerd loads', () => {
+    if (typeof requireCJS('../packages/containerd/dist/cjs/exports/Containerd.js').Containerd !== 'function') throw new Error('Containerd missing')
+})
+const containerdPackage = await import('../packages/containerd/dist/esm/exports/Containerd.js')
+await check('@lakutata/containerd loads under ESM', () => {
+    if (typeof containerdPackage.Containerd !== 'function') throw new Error('Containerd missing')
+})
+
 // @lakutata/i18n: its CJS build formats with Intl
 await check('CJS @lakutata/i18n parses and formats', () => {
     const {ParseMessage, I18n} = requireCJS('../packages/i18n/dist/cjs/exports/I18n.js')
