@@ -21,11 +21,25 @@ const IMAGE: string = process.env.LAKUTATA_TART_IMAGE ?? 'ghcr.io/cirruslabs/mac
 const VM: string = 'lakutata-installer-mac'
 
 /**
+ * Whether node runs by Rosetta (the node of Intel on Apple silicon): its processes run the universal programs as the
+ * ones of Intel, tart (and the toolchain) are run natively
+ */
+const TRANSLATED: boolean = process.platform === 'darwin' && execFileSync('sysctl', ['-in', 'sysctl.proc_translated']).toString().trim() === '1'
+
+/**
+ * The command running tart with its arguments, natively
+ * @param args
+ */
+function Tart(args: string[]): [string, string[]] {
+    return TRANSLATED ? ['arch', ['-arm64', TART, ...args]] : [TART, args]
+}
+
+/**
  * Run a command in the virtual machine, its output given back; it must succeed
  * @param script
  */
 function Exec(script: string): string {
-    const result = spawnSync(TART, ['exec', VM, 'sh', '-c', script], {encoding: 'utf8'})
+    const result = spawnSync(...Tart(['exec', VM, 'sh', '-c', script]), {encoding: 'utf8'})
     if (result.status !== 0) throw new Error(`${script} failed (${result.status}):\n${result.stdout}${result.stderr}`)
     return result.stdout
 }
@@ -37,7 +51,7 @@ function Exec(script: string): string {
 async function Until(script: string): Promise<string> {
     let last: string = ''
     for (let attempt = 0; attempt < 120; attempt++) {
-        const result = spawnSync(TART, ['exec', VM, 'sh', '-c', script], {encoding: 'utf8'})
+        const result = spawnSync(...Tart(['exec', VM, 'sh', '-c', script]), {encoding: 'utf8'})
         if (result.status === 0) return result.stdout
         last = `${result.stdout}${result.stderr}`
         await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 1000))
@@ -56,7 +70,10 @@ describe('The installers of macOS', {skip: (process.platform !== 'darwin' || pro
         out = path.join(work, 'out')
         const fixture: string = path.join(work, 'fixture')
         WriteServiceFixture(fixture)
-        execFileSync('npm', ['install', '--no-audit', '--no-fund'], {cwd: fixture, stdio: 'ignore'})
+        //The addon built for the architecture of the node running the tests: for Intel on Apple silicon (the node of
+        //Intel run by Rosetta), cross-compiled by the native toolchain (the processes of Rosetta run the universal ones
+        //of Intel, which the tools of Apple silicon do not load)
+        execFileSync(TRANSLATED ? 'arch' : 'npm', [...TRANSLATED ? ['-arm64', 'npm'] : [], 'install', '--no-audit', '--no-fund'], {cwd: fixture, stdio: 'ignore', env: {...process.env, npm_config_arch: process.arch}})
         //The packages of the two versions (the upgrades)
         for (const version of ['1.0.0', '1.0.1']) {
             const manifest = JSON.parse(readFileSync(path.join(fixture, 'package.json'), 'utf8'))
@@ -65,15 +82,17 @@ describe('The installers of macOS', {skip: (process.platform !== 'darwin' || pro
             await BuildInstaller({project: fixture, targets: ['pkg'], outdir: path.join(out, version)})
         }
         //A virtual machine of its own, the packages shared with it
-        spawnSync(TART, ['delete', VM])
-        execFileSync(TART, ['clone', IMAGE, VM])
-        spawn(TART, ['run', VM, '--no-graphics', `--dir=out:${out}:ro`], {stdio: 'ignore', detached: true}).unref()
+        spawnSync(...Tart(['delete', VM]))
+        execFileSync(...Tart(['clone', IMAGE, VM]))
+        spawn(...Tart(['run', VM, '--no-graphics', `--dir=out:${out}:ro`]), {stdio: 'ignore', detached: true}).unref()
         await Until('true')
+        //The executables of Intel run by Rosetta on the virtual machine of Apple silicon
+        if (process.arch === 'x64' && Exec('uname -m').trim() === 'arm64') Exec('sudo softwareupdate --install-rosetta --agree-to-license >/dev/null 2>&1')
     })
 
     after((): void => {
-        spawnSync(TART, ['stop', VM])
-        spawnSync(TART, ['delete', VM])
+        spawnSync(...Tart(['stop', VM]))
+        spawnSync(...Tart(['delete', VM]))
         rmSync(work, {recursive: true, force: true})
     })
 
@@ -97,8 +116,8 @@ describe('The installers of macOS', {skip: (process.platform !== 'darwin' || pro
         assert.match(Exec('pkgutil --pkg-info test.acme.hello'), /version: 1\.0\.1/)
         //Removed, it is stopped, its files removed
         Exec('sudo /usr/local/lib/hello-service/uninstall')
-        assert.notStrictEqual(spawnSync(TART, ['exec', VM, 'curl', '-sf', 'http://127.0.0.1:18080/']).status, 0)
+        assert.notStrictEqual(spawnSync(...Tart(['exec', VM, 'curl', '-sf', 'http://127.0.0.1:18080/'])).status, 0)
         assert.strictEqual(Exec('ls /usr/local/lib/hello-service /usr/local/bin/hello /Library/LaunchDaemons/test.acme.hello.plist 2>/dev/null | wc -l').trim(), '0')
-        assert.notStrictEqual(spawnSync(TART, ['exec', VM, 'pkgutil', '--pkg-info', 'test.acme.hello']).status, 0)
+        assert.notStrictEqual(spawnSync(...Tart(['exec', VM, 'pkgutil', '--pkg-info', 'test.acme.hello'])).status, 0)
     })
 })

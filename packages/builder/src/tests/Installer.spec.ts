@@ -14,6 +14,13 @@ import {WriteServiceFixture} from './support/Fixture.js'
 const DOCKER: boolean = process.env.LAKUTATA_DOCKER === '1'
 
 /**
+ * The platform of the containers (LAKUTATA_DOCKER_PLATFORM: linux/amd64 on the Macs of Apple silicon, by Rosetta), the
+ * one of the machine by default
+ */
+const PLATFORM: string | undefined = process.env.LAKUTATA_DOCKER_PLATFORM
+const PLATFORM_ARGS: string[] = PLATFORM ? ['--platform', PLATFORM] : []
+
+/**
  * The directory of the builder package
  */
 const BUILDER: string = fileURLToPath(new URL('../../../', import.meta.url))
@@ -46,8 +53,8 @@ function Exec(container: string, script: string): string {
  * @param dockerfile
  */
 function Image(name: string, dockerfile: string): string {
-    const tag: string = `lakutata-test-${name}`
-    Must('docker', ['build', '-q', '-t', tag, '-'], dockerfile)
+    const tag: string = `lakutata-test-${name}${PLATFORM ? `-${PLATFORM.replace(/\//g, '-')}` : ''}`
+    Must('docker', ['build', ...PLATFORM_ARGS, '-q', '-t', tag, '-'], dockerfile)
     return tag
 }
 
@@ -58,13 +65,19 @@ function Image(name: string, dockerfile: string): string {
  */
 async function Until(container: string, script: string): Promise<string> {
     let last: string = ''
-    for (let attempt = 0; attempt < 60; attempt++) {
+    //Longer on the platforms emulated (Rosetta)
+    for (let attempt = 0; attempt < (PLATFORM ? 240 : 60); attempt++) {
         const result = spawnSync('docker', ['exec', '-i', container, 'sh', '-s'], {input: script, encoding: 'utf8'})
         if (result.status === 0) return result.stdout
         last = `${result.stdout}${result.stderr}`
         await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 500))
     }
-    throw new Error(`${script} did not succeed:\n${last}`)
+    //The state of the service, and its log
+    const service = spawnSync('docker', ['exec', '-i', container, 'sh', '-s'], {
+        input: '(systemctl status hello-service --no-pager; journalctl -u hello-service --no-pager | tail -30) 2>&1 || (rc-service hello-service status; tail -30 /var/log/hello-service.log) 2>&1',
+        encoding: 'utf8'
+    })
+    throw new Error(`${script} did not succeed:\n${last}\n${service.stdout}${service.stderr}`)
 }
 
 describe('The installers of Linux', {skip: !DOCKER && 'LAKUTATA_DOCKER=1 runs them in containers'}, (): void => {
@@ -92,12 +105,12 @@ for version in 1.0.0 1.0.1; do
     node -e "import('@lakutata/builder').then(b => b.BuildInstaller({project: '/w', targets: process.argv.slice(1), outdir: '/out/' + require('/w/package.json').version}))" "$@"
 done
 `
-        Must('docker', ['run', '--rm', '-i', '-v', `${fixture}:/fixture:ro`, '-v', `${out}:/out`, 'node:24-bookworm', 'sh', '-s', '--', 'deb', 'rpm', 'archlinux', 'tar.gz'], build)
+        Must('docker', ['run', ...PLATFORM_ARGS, '--rm', '-i', '-v', `${fixture}:/fixture:ro`, '-v', `${out}:/out`, 'node:24-bookworm', 'sh', '-s', '--', 'deb', 'rpm', 'archlinux', 'tar.gz'], build)
         //On Alpine (musl), the executables of Node.js do not load native addons: the ones of Bun do
         const alpine: string = build.replace('npm install', `node -e "const p = require('/w/package.json'); p.lakutata.installer.runtime = 'bun'; p.devDependencies = {bun: '1.4.2'}; require('fs').writeFileSync('/w/package.json', JSON.stringify(p))"
 npm install`)
-        Must('docker', ['run', '--rm', '-i', '-v', `${fixture}:/fixture:ro`, '-v', `${out}:/out`, 'node:24-alpine', 'sh', '-s', '--', 'apk'], `apk add --no-cache python3 make g++ >/dev/null\n${alpine}`)
-        refused = Must('docker', ['run', '--rm', '-i', '-v', `${fixture}:/fixture:ro`, 'node:24-alpine', 'sh', '-s'], `apk add --no-cache python3 make g++ >/dev/null
+        Must('docker', ['run', ...PLATFORM_ARGS, '--rm', '-i', '-v', `${fixture}:/fixture:ro`, '-v', `${out}:/out`, 'node:24-alpine', 'sh', '-s', '--', 'apk'], `apk add --no-cache python3 make g++ >/dev/null\n${alpine}`)
+        refused = Must('docker', ['run', ...PLATFORM_ARGS, '--rm', '-i', '-v', `${fixture}:/fixture:ro`, 'node:24-alpine', 'sh', '-s'], `apk add --no-cache python3 make g++ >/dev/null
 cp -R /fixture /w && cd /w && npm install --no-audit --no-fund >/dev/null 2>&1
 node -e "import('@lakutata/builder').then(b => b.BuildInstaller({project: '/w', targets: ['apk']})).then(() => console.log('made'), error => console.log(error.message))"
 `)
@@ -115,7 +128,7 @@ node -e "import('@lakutata/builder').then(b => b.BuildInstaller({project: '/w', 
     })
 
     it('makes the packages of each system, named as they name them', (): void => {
-        const arch: string = execFileSync('uname', ['-m']).toString().trim() === 'arm64' ? 'arm64' : 'amd64'
+        const arch: string = (PLATFORM ? PLATFORM.endsWith('arm64') : execFileSync('uname', ['-m']).toString().trim() === 'arm64') ? 'arm64' : 'amd64'
         const rpm: string = arch === 'arm64' ? 'aarch64' : 'x86_64'
         assert.deepStrictEqual(readdirSync(path.join(out, '1.0.0')).sort(), [
             `hello-service-1.0.0-1-${rpm}.pkg.tar.zst`,
@@ -132,13 +145,14 @@ node -e "import('@lakutata/builder').then(b => b.BuildInstaller({project: '/w', 
     })
 
     for (const system of ['debian', 'fedora'] as const) {
-        it(`installs on ${system} the program and its service (systemd), upgrades and removes them`, async (): Promise<void> => {
+        //The systemd of Fedora does not run its services on the platforms emulated (Rosetta): its bus is not connected
+        it(`installs on ${system} the program and its service (systemd), upgrades and removes them`, {skip: system === 'fedora' && PLATFORM === 'linux/amd64' && process.arch === 'arm64' && 'the systemd of Fedora does not run under Rosetta'}, async (): Promise<void> => {
             const image: string = system === 'debian'
                 ? Image('debian-systemd', 'FROM debian:12\nRUN apt-get update -qq && apt-get install -y -qq systemd systemd-sysv curl >/dev/null && rm -rf /var/lib/apt/lists/*\nCMD ["/sbin/init"]\n')
                 : Image('fedora-systemd', 'FROM fedora:41\nRUN dnf install -y -q systemd curl >/dev/null && dnf clean all\nCMD ["/usr/sbin/init"]\n')
             const container: string = `lakutata-installer-${system}`
             spawnSync('docker', ['rm', '-f', container])
-            Must('docker', ['run', '-d', '--name', container, '--privileged', '--cgroupns=host', '-v', '/sys/fs/cgroup:/sys/fs/cgroup:rw', '-v', `${out}:/out:ro`, image])
+            Must('docker', ['run', ...PLATFORM_ARGS, '-d', '--name', container, '--privileged', '--cgroupns=host', '-v', '/sys/fs/cgroup:/sys/fs/cgroup:rw', '-v', `${out}:/out:ro`, image])
             await Until(container, 'systemctl is-system-running --wait >/dev/null 2>&1 || systemctl is-system-running | grep -q degraded')
             const install = (version: string): string => system === 'debian'
                 ? `apt-get install -y -qq /out/${version}/hello-service_${version}_*.deb >/dev/null`
@@ -172,7 +186,7 @@ node -e "import('@lakutata/builder').then(b => b.BuildInstaller({project: '/w', 
         const container: string = 'lakutata-installer-alpine'
         spawnSync('docker', ['rm', '-f', container])
         //An init reaping the processes (OpenRC waits for its supervisor to end), as on the systems
-        Must('docker', ['run', '-d', '--init', '--name', container, '-v', `${out}:/out:ro`, image])
+        Must('docker', ['run', ...PLATFORM_ARGS, '-d', '--init', '--name', container, '-v', `${out}:/out:ro`, image])
         Exec(container, 'openrc default >/dev/null 2>&1 || true')
         Exec(container, 'apk add --allow-untrusted -q /out/1.0.0/hello-service-1.0.0-r0.*.apk')
         const answer = JSON.parse(await Until(container, 'curl -sf http://127.0.0.1:18080/'))
