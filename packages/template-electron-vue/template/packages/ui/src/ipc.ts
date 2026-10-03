@@ -18,8 +18,8 @@ declare global {
          * The transport of the IPC, given by the preload script of the window of the application
          */
         ipcBridge?: {
-            invoke<T>(data: Record<string, unknown>): Promise<ServiceResponse<T>>
-            subscribe(listener: (event: string, args: unknown[]) => void): void
+            invoke<T>(data: Record<string, unknown>, clientId: string): Promise<ServiceResponse<T>>
+            subscribe(clientId: string, listener: (event: string, args: unknown[]) => void): void
         }
         /**
          * The IPC of the main process
@@ -35,10 +35,16 @@ declare global {
  */
 export class IPC {
 
+    /**
+     * The id of the page, a client of the main process (the clientId of the contexts of its requests, which the events
+     * are pushed to): a new one each time the page is loaded
+     */
+    public readonly id: string = crypto.randomUUID()
+
     readonly #listeners: Map<string, Listener[]> = new Map()
 
     constructor() {
-        window.ipcBridge?.subscribe((event: string, args: unknown[]): void => {
+        window.ipcBridge?.subscribe(this.id, (event: string, args: unknown[]): void => {
             for (const listener of [...this.#listeners.get(event) ?? []]) listener(...args)
         })
     }
@@ -49,7 +55,7 @@ export class IPC {
      */
     public async invoke<T = any>(data: Record<string, unknown>): Promise<T> {
         if (!window.ipcBridge) throw new Error('The actions are invoked in the window of the application (npm run dev)')
-        const response: ServiceResponse<T> = await window.ipcBridge.invoke<T>(data)
+        const response: ServiceResponse<T> = await window.ipcBridge.invoke<T>(data, this.id)
         if (!response.success) throw Object.assign(new Error(response.error?.message ?? 'The action failed'), response.error)
         return response.payload
     }

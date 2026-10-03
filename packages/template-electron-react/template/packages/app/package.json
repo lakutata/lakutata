@@ -20,7 +20,8 @@
   "dependencies": {
     "lakutata": "^{$LAKUTATA_VERSION}",
     "ui": "^0.0.1",
-    "resources": "^0.0.1"
+    "resources": "^0.0.1",
+    "socket.io": "^4.8.4"
   },
   "lakutata": {
     "icon": "../resources/logo.png",

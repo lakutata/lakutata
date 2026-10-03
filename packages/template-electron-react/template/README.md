@@ -25,9 +25,14 @@ npm run version:patch  # give the packages their next version
 
 A new action: a method of a controller of `packages/app/src/controllers` decorated by `@ServiceAction({cmd: 'name'}, DTO)`,
 invoked by the renderer with `window.ipc.invoke({cmd: 'name', ...input})`: its input is validated by its DTO, its result is
-given back, its errors are thrown in the renderer (with their `errno`). The main process pushes events to the renderer of
-a request, `NotifyRenderer(this.context, 'event', ...args)`, or to every window, `BroadcastToRenderers('event', ...args)`
-(`lakutata/adapter/electron`).
+given back, its errors are thrown in the renderer (with their `errno`). Each page is a client of the main process: its id
+is the `clientId` of the context of its requests, which the entrypoint pushes events to, `this.entrypoint.notify(clientId,
+'event', ...args)` (the id may be kept to push them later), or to every client, `this.entrypoint.broadcast('event',
+...args)`.
+
+In development (not packaged), the actions are also served by socket.io on the port `SOCKET_PORT` (9000 by default), for
+the tools such as Postman: the event `request` with `{cmd: 'greet', name: 'you'}`, acknowledged by the response; the id
+of the client in the `id` header of the connection, which receives the events pushed to it.
 
 ## The packaging
 

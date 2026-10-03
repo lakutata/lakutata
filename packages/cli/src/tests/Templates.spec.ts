@@ -339,7 +339,7 @@ describe('The templates of the repository', (): void => {
         assert.match(serviceTested.output, /pass 4/)
         //An Electron application, its actions in the language of the environment
         const desktop: string = await Create('electron-vue', 'Lingo', ['i18n'])
-        Install(desktop, ['@types/node', 'electron', 'vite', '@vitejs/plugin-vue', 'vue'])
+        Install(desktop, ['@types/node', 'electron', 'socket.io', 'vite', '@vitejs/plugin-vue', 'vue'])
         LinkWorkspace(desktop, ['ui', 'app'])
         LinkCommand(path.join(desktop, 'node_modules', '.bin'), 'vite', path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'))
         const desktopBuilt = await Run(process.execPath, [CLI, 'run', 'rebuild', '--concurrency', '1'], desktop)
@@ -548,7 +548,7 @@ describe('The templates of the repository', (): void => {
             const project: string = await Create(template, name)
             assert.doesNotMatch(readFileSync(path.join(project, 'packages', 'ui', 'src', ui), 'utf8'), /\{\$APP_/)
             assert.ok(existsSync(path.join(project, '.dockerignore')))
-            Install(project, ['@types/node', 'electron', 'electron-builder', ...names], path.join(ROOT, 'node_modules', 'typescript'))
+            Install(project, ['@types/node', 'electron', 'electron-builder', 'socket.io', ...names], path.join(ROOT, 'node_modules', 'typescript'))
             LinkWorkspace(project, ['ui', 'app'])
             LinkCommand(path.join(project, 'node_modules', '.bin'), 'vite', path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'))
             const built = await Run(process.execPath, [CLI, 'run', 'rebuild', '--concurrency', '1'], project)

@@ -8,9 +8,12 @@ import {Config} from '../config/Config.js'
  * The ipcMain of the tests: the actions are invoked as the renderer invokes them, without Electron
  */
 const handlers: Map<string, (event: unknown, data: unknown) => Promise<unknown>> = new Map()
+const listeners: Map<string, (event: unknown, clientId: string) => void> = new Map()
 const ipcMain: IPCMain = {
     handle: (channel: string, listener: (event: unknown, data: unknown) => Promise<unknown>): unknown => handlers.set(channel, listener),
-    removeHandler: (channel: string): unknown => handlers.delete(channel)
+    removeHandler: (channel: string): unknown => handlers.delete(channel),
+    on: (channel: string, listener: (event: unknown, clientId: string) => void): unknown => listeners.set(channel, listener),
+    removeAllListeners: (channel: string): unknown => listeners.delete(channel)
 }
 //The web contents of the renderer: the events pushed to it
 const received: unknown[][] = []
@@ -21,7 +24,7 @@ const sender = {once: (): void => undefined, off: (): void => undefined, send: (
  * @param data
  */
 function Invoke(data: Record<string, unknown>): Promise<any> {
-    return handlers.get('lakutata:service')!({sender: sender}, data)
+    return (handlers.get('lakutata:service') as (event: unknown, data: unknown, clientId: string) => Promise<unknown>)({sender: sender}, data, 'page')
 }
 
 describe('{$APP_NAME}', (): void => {
@@ -58,6 +61,8 @@ describe('{$APP_NAME}', (): void => {
 
     //@end
     it('pushes its events to the renderer', async (): Promise<void> => {
+        //The page subscribed to the events
+        listeners.get('lakutata:service:subscribe')!({sender: sender}, 'page')
         received.length = 0
         await Invoke({cmd: 'greet', name: 'you'})
         assert.deepStrictEqual(received, [['lakutata:service:event', 'greeted', ['you']]])

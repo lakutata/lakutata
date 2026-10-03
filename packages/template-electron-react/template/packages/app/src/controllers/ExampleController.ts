@@ -1,13 +1,18 @@
-import {Controller, type ServiceContext} from 'lakutata/com/entrypoint'
-import {NotifyRenderer} from 'lakutata/adapter/electron'
+import {Controller, Entrypoint, type ServiceContext} from 'lakutata/com/entrypoint'
 import {ServiceAction} from 'lakutata/decorator/ctrl'
+import {Inject} from 'lakutata/decorator/di'
 import {GreetDTO} from '../dtos/GreetDTO.js'
 //@if i18n
-import {Inject} from 'lakutata/decorator/di'
 import {Translator} from 'lakutata/com/i18n'
 //@end
 
 export class ExampleController extends Controller {
+
+    /**
+     * Pushes the events to the clients: the windows (window.ipc.on), the sockets in development
+     */
+    @Inject('entrypoint')
+    protected readonly entrypoint: Entrypoint
     //@if i18n
 
     /**
@@ -23,9 +28,10 @@ export class ExampleController extends Controller {
      */
     @ServiceAction({cmd: 'greet'}, GreetDTO)
     public async greet(input: GreetDTO): Promise<{ message: string }> {
-        //An event pushed to the renderer of the request (window.ipc.on('greeted', listener)); BroadcastToRenderers pushes
-        //one to every window
-        NotifyRenderer(this.context as ServiceContext, 'greeted', input.name)
+        //An event pushed to the client of the request (window.ipc.on('greeted', listener)), whose id may be kept to push
+        //it events later; this.entrypoint.broadcast pushes one to every client
+        const clientId: string | undefined = (this.context as ServiceContext).clientId
+        if (clientId) this.entrypoint.notify(clientId, 'greeted', input.name)
         //@if i18n
         return {message: this.i18n.t('greeting.hello', {name: input.name})}
         //@else
