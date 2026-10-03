@@ -180,9 +180,10 @@ describe('The templates of the repository', (): void => {
                 }
                 assert.strictEqual(other, service, `${file} of ${template} differs from the one of service`)
             }
-            //The files of their features too
+            //The files of the features they have too (Next.js and Nuxt are not packed into executables: no installer)
             const features: string = path.join(ROOT, 'packages', 'template-service', 'features')
-            for (const file of readdirSync(features, {recursive: true, withFileTypes: true}).filter((entry): boolean => entry.isFile()).map((entry): string => path.relative(features, path.join(entry.parentPath, entry.name)))) {
+            const declared: string[] = Object.keys(JSON.parse(readFileSync(path.join(ROOT, 'packages', `template-${template}`, 'package.json'), 'utf8')).lakutata.features)
+            for (const file of readdirSync(features, {recursive: true, withFileTypes: true}).filter((entry): boolean => entry.isFile()).map((entry): string => path.relative(features, path.join(entry.parentPath, entry.name))).filter((file: string): boolean => declared.includes(file.split(path.sep)[0]))) {
                 assert.strictEqual(readFileSync(path.join(ROOT, 'packages', `template-${template}`, 'features', file), 'utf8'), readFileSync(path.join(features, file), 'utf8'), `features/${file} of ${template} differs from the one of service`)
             }
         }
@@ -203,6 +204,37 @@ describe('The templates of the repository', (): void => {
         const [reactFeatures, vueFeatures] = [react, vue].map((directory: string): string => path.join(directory, '..', 'features'))
         assert.deepStrictEqual(files(vueFeatures), files(reactFeatures))
         for (const file of files(reactFeatures)) assert.strictEqual(readFileSync(path.join(vueFeatures, file), 'utf8'), readFileSync(path.join(reactFeatures, file), 'utf8'), `features/${file} of electron-vue differs`)
+    })
+
+    it('creates the projects with the installer feature: their installers configured, their scripts and their Dockerfile written', async (): Promise<void> => {
+        //A command line tool: its program in the PATH, without service
+        const tool: string = await Create('cli', 'Shipper', ['installer'])
+        const manifest = JSON.parse(readFileSync(path.join(tool, 'package.json'), 'utf8'))
+        assert.strictEqual(manifest.scripts.installer, 'npm run compile && lakutata installer')
+        assert.match(manifest.scripts['installer:linux'], /^docker buildx build --file Dockerfile\.installer --output type=local,dest=dist\/installer \.$/)
+        assert.deepStrictEqual(manifest.lakutata, {installer: {linux: {targets: ['deb', 'rpm', 'tar.gz']}}})
+        assert.ok(existsSync(path.join(tool, 'Dockerfile.installer')) && existsSync(path.join(tool, '.dockerignore')))
+        const readme: string = readFileSync(path.join(tool, 'README.md'), 'utf8')
+        assert.match(readme, /## The installers\n[\s\S]*its command `shipper` in the PATH/)
+        assert.doesNotMatch(readme, /@if|@end/)
+        //The workspaces: the app installed after the project, its service registered, its resources kept
+        for (const [template, name] of [['service', 'Depot'], ['web-react', 'Kiosk'], ['web-vue', 'Booth']] as const) {
+            const project: string = await Create(template, name, ['installer'])
+            const id: string = name.toLowerCase()
+            const root = JSON.parse(readFileSync(path.join(project, 'package.json'), 'utf8'))
+            assert.strictEqual(root.scripts.installer, 'npm run build && npm run installer -w app')
+            assert.strictEqual(root.devDependencies['@lakutata/builder'], root.devDependencies['@lakutata/cli'])
+            const app = JSON.parse(readFileSync(path.join(project, 'packages', 'app', 'package.json'), 'utf8'))
+            assert.deepStrictEqual(app.bin, {[id]: 'build/App.js'})
+            assert.deepStrictEqual(app.lakutata.installer, {name: id, service: {env: {PORT: '8080'}}, linux: {targets: ['deb', 'rpm', 'tar.gz']}})
+            if (template !== 'service') assert.deepStrictEqual(app.lakutata.resources, [{from: '../ui/dist', to: 'ui'}])
+            assert.match(readFileSync(path.join(project, 'Dockerfile.installer'), 'utf8'), /npm run installer -w app -- --outdir \/installer/)
+            assert.match(readFileSync(path.join(project, 'README.md'), 'utf8'), new RegExp(`/etc/${id}/${id}\\.env`))
+        }
+        //Without the feature, none of it
+        const plain: string = await Create('cli', 'Plain')
+        assert.ok(!existsSync(path.join(plain, 'Dockerfile.installer')))
+        assert.doesNotMatch(readFileSync(path.join(plain, 'README.md'), 'utf8'), /installer/)
     })
 
     it('creates the projects with the i18n feature: their requests answered in their languages, the messages checked and bundled', async (): Promise<void> => {

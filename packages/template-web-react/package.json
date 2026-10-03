@@ -16,7 +16,8 @@
   "lakutata": {
     "template": "web-react",
     "features": {
-      "i18n": "The messages in several languages (lakutata/com/i18n): src/locales, the language of each request"
+      "i18n": "The messages in several languages (lakutata/com/i18n): src/locales, the language of each request",
+      "installer": "The installers of the application (lakutata installer): deb, rpm and tar.gz on Linux (npm run installer:linux in Docker), pkg and tar.gz on macOS, its service registered (systemd, launchd), its program in the PATH"
     }
   }
 }

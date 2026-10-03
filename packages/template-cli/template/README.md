@@ -35,6 +35,16 @@ it.
 - The executables of macOS are signed ad hoc. The executables of Windows keep the signature of Node.js, which does not
   match anymore: sign them before distributing them.
 
+<!-- @if installer -->
+## The installers
+
+`npm run installer` makes the installers of the platform it runs on (`lakutata installer`, configured by the
+`lakutata.installer` of `package.json`) in `dist/installer`: on Linux, the deb, rpm and tar.gz packages installing the
+tool in `/opt/{$APP_ID}`, its command `{$APP_ID}` in the PATH. `npm run installer:linux` makes them in Docker
+(`Dockerfile.installer`) on any platform; `--platform linux/amd64` makes the ones of another architecture. On macOS, the pkg package installs it in `/usr/local/lib/{$APP_ID}`, its command in `/usr/local/bin`
+(`sudo /usr/local/lib/{$APP_ID}/uninstall` removes it).
+
+<!-- @end -->
 ## The other platforms
 
 `npm run build` makes the executable of the platform it runs on: the executables of the other platforms are made on them
