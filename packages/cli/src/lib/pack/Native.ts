@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto'
 import {existsSync, lstatSync, readdirSync, readFileSync, realpathSync, statSync, type Stats} from 'node:fs'
 import {mkdir, readFile, rm, symlink, writeFile} from 'node:fs/promises'
-import {isBuiltin} from 'node:module'
+import {createRequire, isBuiltin} from 'node:module'
 import path from 'node:path'
 import {gzipSync} from 'node:zlib'
 import type {Plugin, PluginBuild} from 'esbuild'
@@ -318,6 +318,8 @@ export class NativeCollector {
                 entryPoints: [...current.entries],
                 bundle: true,
                 write: false,
+                //Not written: a package loaded by several of its files is several entries, which need a directory
+                outdir: path.join(current.root, '.lakutata-trace'),
                 metafile: true,
                 platform: 'node',
                 format: 'cjs',
@@ -343,6 +345,25 @@ export class NativeCollector {
             for (const input of Object.keys(result.metafile!.inputs)) {
                 const dependency: string | undefined = this.packageRoot(realpathSync(path.resolve(input)))
                 if (dependency && dependency !== this.project) included.add(dependency)
+            }
+            //The packages it declares which its code names: the ones it loads by requires esbuild does not follow
+            //(createRequire(import.meta.url)('node-gyp-build')), not the ones installing it (node-gyp, prebuild-install)
+            const sources: string = Object.keys(result.metafile!.inputs)
+                .map((input: string): string => realpathSync(path.resolve(input)))
+                .filter((file: string): boolean => this.packageRoot(file) === current.root && /\.[cm]?[jt]s$/.test(file))
+                .map((file: string): string => readFileSync(file, 'utf8'))
+                .join('\n')
+            for (const dependency of this.dependencies(current.root)) {
+                if (dependency.root === this.project || included.has(dependency.root)) continue
+                if (!new RegExp(`(['"\`])${dependency.name.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}\\1`).test(sources)) continue
+                let entry: string | undefined
+                try {
+                    entry = createRequire(path.join(current.root, 'package.json')).resolve(dependency.name)
+                } catch {
+                    //A package without a CommonJS entry: kept as a whole
+                }
+                if (entry && !isBuiltin(entry)) pending.push({root: dependency.root, entries: new Set([realpathSync(entry)])})
+                else included.add(dependency.root)
             }
         }
         //The packages of the shared libraries (the addons of the platform packages, the libraries they are linked with)

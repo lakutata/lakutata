@@ -140,10 +140,48 @@ Application.run({
 /**
  * The packages of native addons of the repository the tests use (dependencies of its other packages)
  */
-const NATIVE_PACKAGES: string[] = ['sqlite3', 'sharp', 'cpu-features/build/Release/cpufeatures.node']
+const NATIVE_PACKAGES: string[] = ['sqlite3', 'sharp']
 const missing: string | undefined = NATIVE_PACKAGES.find((name: string): boolean => !existsSync(path.join(ROOT, 'node_modules', name)))
 
-describe('The packing of an application with native addons', {skip: missing && `${missing} is not installed in the repository`}, (): void => {
+/**
+ * Build the addon of the tests (Node-API, in C): its getCPUInfo() gives the architecture of the machine. Undefined
+ * without the toolchain of node-gyp
+ */
+function BuildAddon(): string | undefined {
+    const directory: string = mkdtempSync(path.join(tmpdir(), 'lakutata-addon-'))
+    writeFileSync(path.join(directory, 'binding.gyp'), JSON.stringify({targets: [{target_name: 'cpuinfo', sources: ['addon.c']}]}))
+    writeFileSync(path.join(directory, 'addon.c'), `#include <node_api.h>
+
+static napi_value GetCPUInfo(napi_env env, napi_callback_info info) {
+    napi_value result, arch;
+    napi_create_object(env, &result);
+#if defined(__aarch64__) || defined(_M_ARM64)
+    napi_create_string_utf8(env, "arm64", NAPI_AUTO_LENGTH, &arch);
+#else
+    napi_create_string_utf8(env, "x64", NAPI_AUTO_LENGTH, &arch);
+#endif
+    napi_set_named_property(env, result, "arch", arch);
+    return result;
+}
+
+NAPI_MODULE_INIT() {
+    napi_value function;
+    napi_create_function(env, "getCPUInfo", NAPI_AUTO_LENGTH, GetCPUInfo, NULL, &function);
+    napi_set_named_property(env, exports, "getCPUInfo", function);
+    return exports;
+}
+`)
+    try {
+        execFileSync(process.execPath, [path.join(ROOT, 'node_modules', 'node-gyp', 'bin', 'node-gyp.js'), 'rebuild'], {cwd: directory, stdio: 'ignore'})
+        return path.join(directory, 'build', 'Release', 'cpuinfo.node')
+    } catch {
+        return undefined
+    }
+}
+
+const ADDON: string | undefined = missing ? undefined : BuildAddon()
+
+describe('The packing of an application with native addons', {skip: missing ? `${missing} is not installed in the repository` : !ADDON && 'the addon of the tests cannot be built (node-gyp, a C toolchain)'}, (): void => {
 
     let native: string
 
@@ -168,7 +206,12 @@ describe('The packing of an application with native addons', {skip: missing && `
     before((): void => {
         native = mkdtempSync(path.join(tmpdir(), 'lakutata-native-'))
         const app: string = path.join(native, 'app')
-        const addon: string = path.join(ROOT, 'node_modules', 'cpu-features', 'build', 'Release', 'cpufeatures.node')
+        const addon: string = ADDON!
+        //A package loading its addon by its path (as cpu-features)
+        mkdirSync(path.join(native, 'cpu-info', 'build', 'Release'), {recursive: true})
+        writeFileSync(path.join(native, 'cpu-info', 'package.json'), JSON.stringify({name: 'cpu-info', version: '1.0.0', main: 'index.js'}))
+        writeFileSync(path.join(native, 'cpu-info', 'index.js'), `module.exports = () => require('./build/Release/cpuinfo.node').getCPUInfo()`)
+        writeFileSync(path.join(native, 'cpu-info', 'build', 'Release', 'cpuinfo.node'), readFileSync(addon))
         //A package of the workspace with its addon (built), an addon of the application itself
         mkdirSync(path.join(native, 'sub', 'build', 'Release'), {recursive: true})
         writeFileSync(path.join(native, 'sub', 'package.json'), JSON.stringify({name: 'native-sub', version: '1.0.0', main: 'index.js'}))
@@ -177,12 +220,12 @@ describe('The packing of an application with native addons', {skip: missing && `
         mkdirSync(path.join(app, 'native'), {recursive: true})
         writeFileSync(path.join(app, 'native', 'local.node'), readFileSync(addon))
         //The addons loaded by bindings (sqlite3), by a platform package linked with a library (sharp), by their path
-        //(cpu-features, a module of V8), imported and dynamically imported by an ES module
+        //(cpu-info), imported and dynamically imported by an ES module
         mkdirSync(path.join(app, 'build'))
         writeFileSync(path.join(app, 'package.json'), JSON.stringify({name: 'natapp', version: '1.0.0', type: 'module', main: 'build/App.js'}))
         writeFileSync(path.join(app, 'build', 'App.js'), `#!/usr/bin/env node
 import sqlite3 from 'sqlite3'
-import cpu from 'cpu-features'
+import cpu from 'cpu-info'
 import sub from 'native-sub'
 import {createRequire} from 'node:module'
 const local = createRequire(import.meta.url)('../native/local.node')
@@ -197,9 +240,10 @@ void (async () => {
 })()
 `)
         mkdirSync(path.join(app, 'node_modules', '@img'), {recursive: true})
-        for (const name of ['sqlite3', 'sharp', 'cpu-features']) symlinkSync(path.join(ROOT, 'node_modules', name), path.join(app, 'node_modules', name), 'dir')
+        for (const name of ['sqlite3', 'sharp']) symlinkSync(path.join(ROOT, 'node_modules', name), path.join(app, 'node_modules', name), 'dir')
         for (const name of readdirSync(path.join(ROOT, 'node_modules', '@img'))) symlinkSync(path.join(ROOT, 'node_modules', '@img', name), path.join(app, 'node_modules', '@img', name), 'dir')
         symlinkSync(path.join(native, 'sub'), path.join(app, 'node_modules', 'native-sub'), 'dir')
+        symlinkSync(path.join(native, 'cpu-info'), path.join(app, 'node_modules', 'cpu-info'), 'dir')
         native = app
     })
 
@@ -213,11 +257,11 @@ void (async () => {
     it('bundles the application, its native packages next to it', async (): Promise<void> => {
         const bundled = await RunNative(process.execPath, [CLI, 'bundle'])
         assert.strictEqual(bundled.code, 0, bundled.output)
-        assert.match(bundled.output, /the native addons \(cpu-features, native-sub, sharp, sqlite3\)/)
+        assert.match(bundled.output, /the native addons \(cpu-info, native-sub, sharp, sqlite3\)/)
         //The packages needed at run time only: not the ones installing sqlite3 (prebuild-install, node-gyp)
         const tree: string = path.join(native, 'dist', 'natapp.native')
         const packages: string[] = readdirSync(path.join(tree, 'node_modules'))
-        assert.deepStrictEqual(packages.sort(), ['cpu-features', 'native-sub', 'sharp', 'sqlite3'])
+        assert.deepStrictEqual(packages.sort(), ['cpu-info', 'native-sub', 'sharp', 'sqlite3'])
         const stored: string = execFileSync('find', ['-L', tree, '-name', 'package.json']).toString()
         assert.match(stored, /bindings\/package\.json/)
         assert.match(stored, /sharp-libvips-/)
@@ -248,10 +292,43 @@ void (async () => {
         assert.strictEqual((await RunNative(process.execPath, [path.join(moved, 'installed.cjs')], {}, moved)).output.trim(), 'sqlite 2')
     })
 
+    it('bundles a native package loaded by several of its files, with the package it loads its addon by (createRequire)', async (): Promise<void> => {
+        //As TypeORM imported by its files one by one, and the addons of lakutata add --native loading node-gyp-build by
+        //createRequire, which esbuild does not follow
+        const directory: string = path.join(path.dirname(native), 'computed')
+        const file = (name: string, content: string | Buffer): void => {
+            mkdirSync(path.dirname(path.join(directory, name)), {recursive: true})
+            writeFileSync(path.join(directory, name), content)
+        }
+        //Finds the addon of a package at run time, as node-gyp-build does
+        file('node_modules/gyp-loader/package.json', JSON.stringify({name: 'gyp-loader', version: '1.0.0', main: 'index.js'}))
+        file('node_modules/gyp-loader/index.js', `module.exports = (directory) => require(require('node:path').join(directory, 'build', 'Release', 'addon.node'))`)
+        //The packages installing it are not loaded at run time
+        file('node_modules/gyp-builder/package.json', JSON.stringify({name: 'gyp-builder', version: '1.0.0', main: 'index.js'}))
+        file('node_modules/gyp-builder/index.js', '')
+        file('node_modules/addon-pkg/package.json', JSON.stringify({name: 'addon-pkg', version: '1.0.0', main: 'a.js', scripts: {install: 'gyp-builder'}, dependencies: {'gyp-loader': '1.0.0', 'gyp-builder': '1.0.0'}}))
+        file('node_modules/addon-pkg/binding.js', `module.exports = require('node:module').createRequire(__filename)('gyp-loader')(__dirname)`)
+        file('node_modules/addon-pkg/a.js', `module.exports = () => 'a ' + require('./binding.js').getCPUInfo().arch`)
+        file('node_modules/addon-pkg/b.js', `module.exports = () => 'b ' + require('./binding.js').getCPUInfo().arch`)
+        file('node_modules/addon-pkg/build/Release/addon.node', readFileSync(ADDON!))
+        file('package.json', JSON.stringify({name: 'computed', version: '1.0.0', main: 'index.js', dependencies: {'addon-pkg': '1.0.0'}}))
+        file('index.js', `console.log(require('addon-pkg/a.js')() + ' | ' + require('addon-pkg/b.js')())`)
+        const expected: RegExp = /^a \w+ \| b \w+$/
+        assert.match((await RunNative(process.execPath, ['index.js'], {}, directory)).output.trim(), expected)
+        const bundled = await RunNative(process.execPath, [CLI, 'bundle'], {}, directory)
+        assert.strictEqual(bundled.code, 0, bundled.output)
+        assert.deepStrictEqual(readdirSync(path.join(directory, 'dist', 'computed.native', 'node_modules')).sort(), ['addon-pkg', 'gyp-loader'])
+        //Moved, the project removed
+        const moved: string = path.join(path.dirname(native), 'computed-moved')
+        cpSync(path.join(directory, 'dist'), moved, {recursive: true})
+        rmSync(directory, {recursive: true, force: true})
+        assert.match((await RunNative(process.execPath, [path.join(moved, 'computed.cjs')], {}, moved)).output.trim(), expected)
+    })
+
     it('makes an executable which extracts its native packages once into its cache directory', async (): Promise<void> => {
         const made = await RunNative(process.execPath, [CLI, 'executable', '--outdir', 'bin'])
         assert.strictEqual(made.code, 0, made.output)
-        assert.match(made.output, /Native addons embedded, extracted at the first run: cpu-features, native-sub, sharp, sqlite3/)
+        assert.match(made.output, /Native addons embedded, extracted at the first run: cpu-info, native-sub, sharp, sqlite3/)
         const directory: string = path.join(path.dirname(native), 'elsewhere')
         mkdirSync(directory)
         const executable: string = path.join(directory, 'natapp')
