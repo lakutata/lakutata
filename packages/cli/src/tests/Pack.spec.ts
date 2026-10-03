@@ -370,6 +370,48 @@ void (async () => {
         assert.match((await RunNative(process.execPath, [path.join(moved, 'computed.cjs')], {}, moved)).output.trim(), expected)
     })
 
+    it('keeps in the tree the files of the packages loaded at run time', async (): Promise<void> => {
+        const directory: string = path.join(path.dirname(native), 'slim')
+        const file = (name: string, content: string | Buffer): void => {
+            mkdirSync(path.dirname(path.join(directory, name)), {recursive: true})
+            writeFileSync(path.join(directory, name), content)
+        }
+        //A package with its addon: all its files (it finds its addon by a computed path), but its types, its maps, its docs
+        file('node_modules/addon-pkg/package.json', JSON.stringify({name: 'addon-pkg', version: '1.0.0', main: 'index.js'}))
+        file('node_modules/addon-pkg/index.js', `module.exports = require(require('node:path').join(__dirname, 'build', 'Release', 'addon.node'))`)
+        file('node_modules/addon-pkg/other.js', '')
+        file('node_modules/addon-pkg/index.d.ts', '')
+        file('node_modules/addon-pkg/build/Release/addon.node', readFileSync(ADDON!))
+        //A package of JavaScript loading it: the files it loads (traced), and its other files (the data it reads)
+        file('node_modules/lib-pkg/package.json', JSON.stringify({name: 'lib-pkg', version: '1.0.0', main: 'index.js', dependencies: {'addon-pkg': '1.0.0'}}))
+        file('node_modules/lib-pkg/index.js', `const used = require('./used.js')\nconst data = require('node:fs').readFileSync(require('node:path').join(__dirname, 'data.txt'), 'utf8')\nmodule.exports = () => used + ' ' + data + ' ' + require('addon-pkg').getCPUInfo().arch`)
+        file('node_modules/lib-pkg/used.js', `module.exports = 'used'`)
+        file('node_modules/lib-pkg/unused.js', `module.exports = 'unused'`)
+        file('node_modules/lib-pkg/browser/index.js', '')
+        file('node_modules/lib-pkg/data.txt', 'data')
+        for (const unused of ['index.d.ts', 'index.js.map', 'README.md', 'src/index.ts']) file(`node_modules/lib-pkg/${unused}`, '')
+        //A package loading its files by paths esbuild cannot follow: all its files
+        file('node_modules/self-pkg/package.json', JSON.stringify({name: 'self-pkg', version: '1.0.0', main: 'index.js', dependencies: {'addon-pkg': '1.0.0'}}))
+        file('node_modules/self-pkg/index.js', `const name = 'dynamic'\nmodule.exports = () => require(require('node:path').join(__dirname, name + '.js')) + ' ' + require('addon-pkg').getCPUInfo().arch`)
+        file('node_modules/self-pkg/dynamic.js', `module.exports = 'dynamic'`)
+        file('package.json', JSON.stringify({name: 'slim', version: '1.0.0', main: 'index.js'}))
+        file('index.js', `console.log(require('lib-pkg')() + ' | ' + require('self-pkg')())`)
+        const expected: RegExp = /^used data \w+ \| dynamic \w+$/
+        assert.match((await RunNative(process.execPath, ['index.js'], {}, directory)).output.trim(), expected)
+        const bundled = await RunNative(process.execPath, [CLI, 'bundle'], {}, directory)
+        assert.strictEqual(bundled.code, 0, bundled.output)
+        const tree: string = path.join(directory, 'dist', 'slim.native', 'node_modules')
+        const files = (name: string): string[] => execFileSync('find', ['.', '-type', 'f'], {cwd: path.join(tree, name)}).toString().trim().split('\n').map((file: string): string => file.slice(2)).sort()
+        assert.deepStrictEqual(files('addon-pkg'), ['build/Release/addon.node', 'index.js', 'other.js', 'package.json'])
+        assert.deepStrictEqual(files('lib-pkg'), ['data.txt', 'index.js', 'package.json', 'used.js'])
+        assert.deepStrictEqual(files('self-pkg'), ['dynamic.js', 'index.js', 'package.json'])
+        //Moved, the project removed
+        const moved: string = path.join(path.dirname(native), 'slim-moved')
+        cpSync(path.join(directory, 'dist'), moved, {recursive: true})
+        rmSync(directory, {recursive: true, force: true})
+        assert.match((await RunNative(process.execPath, [path.join(moved, 'slim.cjs')], {}, moved)).output.trim(), expected)
+    })
+
     it('makes an executable which extracts its native packages once into its cache directory', async (): Promise<void> => {
         const made = await RunNative(process.execPath, [CLI, 'executable', '--outdir', 'bin'])
         assert.strictEqual(made.code, 0, made.output)

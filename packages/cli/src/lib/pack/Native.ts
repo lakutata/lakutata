@@ -4,7 +4,7 @@ import {mkdir, readFile, rm, symlink, writeFile} from 'node:fs/promises'
 import {createRequire, isBuiltin} from 'node:module'
 import path from 'node:path'
 import {gzipSync} from 'node:zlib'
-import type {Plugin, PluginBuild} from 'esbuild'
+import type {BuildResult, Plugin, PluginBuild} from 'esbuild'
 
 /**
  * A file of the native tree: its path in the tree ("/" separated) and where it is read
@@ -60,6 +60,22 @@ const ADDON: RegExp = /\.node$/
 const LIBRARY: RegExp = /\.(node|dylib|dll|so)$|\.so\.\d+(\.\d+)*$/
 
 const RESOLVING: string = 'lakutataNativeResolving'
+
+/**
+ * The files of the packages node never loads: their types, their source maps, their sources in TypeScript, their
+ * documentation
+ */
+const UNUSED: RegExp = /\.(d\.[cm]?ts|[cm]?ts|map|md|markdown)$/i
+
+/**
+ * The JavaScript files, which a package keeps when they are loaded (traced)
+ */
+const SCRIPT: RegExp = /\.[cm]?js$/
+
+/**
+ * A require esbuild cannot follow loading a file of its package by its path (require(path.join(__dirname, name)))
+ */
+const OWN_FILE: RegExp = /__dirname|__filename|import\.meta|['"`]\.\.?\//
 
 /**
  * The require of an ES module, createRequire(import.meta.url): in the bundle, it is the require of the bundle
@@ -144,9 +160,21 @@ export class NativeCollector {
     protected readonly addons: Map<string, string> = new Map()
 
     /**
-     * @param project the directory of the project, whose files are bundled
+     * The files of the packages of the tree which are loaded, by package (traced)
      */
-    constructor(protected readonly project: string) {
+    protected readonly loaded: Map<string, Set<string>> = new Map()
+
+    /**
+     * The packages of the tree kept as a whole: the ones which are not traced, the ones loading their files by paths
+     * esbuild cannot follow
+     */
+    protected readonly whole: Set<string> = new Set()
+
+    /**
+     * @param project the directory of the project, whose files are bundled
+     * @param runtime the runtime loading the tree: Bun resolves the packages with its condition (bun) first
+     */
+    constructor(protected readonly project: string, protected readonly runtime: 'node' | 'bun' = 'node') {
         this.project = realpathSync(project)
     }
 
@@ -271,6 +299,11 @@ export class NativeCollector {
                         if (!name) throw new Error(`${args.importer} loads ${args.path} of the native package ${this.package(root)!.name} by its path: load it by its name`)
                         const external = this.externals.get(name) ?? {root: root, entries: new Set<string>()}
                         external.entries.add(file)
+                        //The bundle is CommonJS: the require of the run loads the file of the require condition
+                        if (args.kind !== 'require-call') {
+                            const required: string | undefined = await this.resolve(build, {...args, kind: 'require-call'})
+                            if (required) external.entries.add(required)
+                        }
                         this.externals.set(name, external)
                         return {path: args.path, external: true}
                     }
@@ -314,7 +347,8 @@ export class NativeCollector {
             if (traced.has(key)) continue
             traced.add(key)
             included.add(current.root)
-            const result = await build({
+            //A package esbuild cannot trace (a glob of its requires matching nothing) is kept as a whole
+            const result: BuildResult<{ metafile: true }> | undefined = await build({
                 entryPoints: [...current.entries],
                 bundle: true,
                 write: false,
@@ -323,7 +357,12 @@ export class NativeCollector {
                 metafile: true,
                 platform: 'node',
                 format: 'cjs',
+                conditions: this.runtime === 'bun' ? ['bun'] : [],
                 logLevel: 'silent',
+                //The addons are loaded at run time (the paths of their globs may match nothing: sharp built from its sources)
+                external: ['*.node'],
+                //Reported in the node_modules too: the requires it cannot follow
+                logOverride: {'unsupported-require-call': 'warning'},
                 plugins: [{
                     name: 'lakutata-native-trace',
                     setup: (trace: PluginBuild): void => {
@@ -341,15 +380,25 @@ export class NativeCollector {
                         })
                     }
                 }]
-            })
-            for (const input of Object.keys(result.metafile!.inputs)) {
-                const dependency: string | undefined = this.packageRoot(realpathSync(path.resolve(input)))
-                if (dependency && dependency !== this.project) included.add(dependency)
+            }).catch((): undefined => undefined)
+            if (!result) this.whole.add(current.root)
+            for (const input of Object.keys(result?.metafile.inputs ?? {})) {
+                const file: string = realpathSync(path.resolve(input))
+                const dependency: string | undefined = this.packageRoot(file)
+                if (!dependency || dependency === this.project) continue
+                included.add(dependency)
+                const files: Set<string> = this.loaded.get(dependency) ?? new Set()
+                this.loaded.set(dependency, files.add(file))
+            }
+            //The packages loading their files by paths esbuild cannot follow are kept as a whole
+            for (const warning of result?.warnings ?? []) {
+                if (!warning.location || !OWN_FILE.test(warning.location.lineText.slice(warning.location.column, warning.location.column + 200))) continue
+                const dependency: string | undefined = this.packageRoot(realpathSync(path.resolve(warning.location.file)))
+                if (dependency) this.whole.add(dependency)
             }
             //The packages it declares which its code names: the ones it loads by requires esbuild does not follow
             //(createRequire(import.meta.url)('node-gyp-build')), not the ones installing it (node-gyp, prebuild-install)
-            const sources: string = Object.keys(result.metafile!.inputs)
-                .map((input: string): string => realpathSync(path.resolve(input)))
+            const sources: string = (result ? Object.keys(result.metafile.inputs).map((input: string): string => realpathSync(path.resolve(input))) : PackageFiles(current.root))
                 .filter((file: string): boolean => this.packageRoot(file) === current.root && /\.[cm]?[jt]s$/.test(file))
                 .map((file: string): string => readFileSync(file, 'utf8'))
                 .join('\n')
@@ -363,7 +412,10 @@ export class NativeCollector {
                     //A package without a CommonJS entry: kept as a whole
                 }
                 if (entry && !isBuiltin(entry)) pending.push({root: dependency.root, entries: new Set([realpathSync(entry)])})
-                else included.add(dependency.root)
+                else {
+                    included.add(dependency.root)
+                    this.whole.add(dependency.root)
+                }
             }
         }
         //The packages of the shared libraries (the addons of the platform packages, the libraries they are linked with)
@@ -376,6 +428,19 @@ export class NativeCollector {
                 }
             }
         }
+    }
+
+    /**
+     * The files of a package of the tree which are loaded at run time, without the ones node never loads (UNUSED): the
+     * packages of shared libraries (which find their addons by computed paths), and the ones kept as a whole, have all
+     * their files; the others have the JavaScript files they load (traced) and all their other files (the data they read)
+     * @param root
+     */
+    protected packageFiles(root: string): string[] {
+        const files: string[] = PackageFiles(root).filter((file: string): boolean => !UNUSED.test(file))
+        const loaded: Set<string> | undefined = this.loaded.get(root)
+        if (!loaded || this.whole.has(root) || this.package(root)?.libraries) return files
+        return files.filter((file: string): boolean => !SCRIPT.test(file) || loaded.has(file))
     }
 
     /**
@@ -401,7 +466,7 @@ export class NativeCollector {
         const store = (location: string): string => path.relative(base, location).split(path.sep).join('/')
         const files: NativeFile[] = []
         for (const root of [...included].sort()) {
-            for (const file of PackageFiles(root)) files.push({path: store(file), source: file, mode: statSync(file).mode & 0o777})
+            for (const file of this.packageFiles(root)) files.push({path: store(file), source: file, mode: statSync(file).mode & 0o777})
         }
         for (const [key, file] of this.addons) files.push({path: key, source: file, mode: statSync(file).mode & 0o777})
         const treeLinks: NativeLink[] = [

@@ -128,8 +128,8 @@ async function EmbedInNode(bundle: BundleResult, work: string, file: string): Pr
 }
 
 /**
- * Compile a bundle into an executable of Bun: the files of the native tree are embedded beside it, the executable gives
- * their paths to the require of the bundle (BUN_NATIVE_ASSETS). As the executables of Node.js, it loads neither the .env
+ * Compile a bundle into an executable of Bun, in bytecode: the files of the native tree are embedded beside it, the
+ * executable gives their paths to the require of the bundle (BUN_NATIVE_ASSETS). As the executables of Node.js, it loads neither the .env
  * nor the bunfig.toml of the directory it runs in; it reads the package.json of the packages it loads from the disk (the
  * native tree, the modules left out)
  * @param bun
@@ -148,11 +148,14 @@ async function CompileWithBun(bun: { command: string, version: string }, bundle:
             `import data from './native.gz' with {type: 'file'}`,
             `import index from './native.json' with {type: 'file'}`,
             `globalThis[Symbol.for(${JSON.stringify(BUN_NATIVE_ASSETS)})] = {data, index}`,
-            `await import(${JSON.stringify(`./${path.basename(bundle.outfile)}`)})`
+            //Not imported: the bytecode of Bun is the one of CommonJS modules, without top-level await
+            `require(${JSON.stringify(`./${path.basename(bundle.outfile)}`)})`
         ].join('\n'))
     }
     await Must(bun.command, [
         'build', entry, '--compile', '--outfile', file,
+        //Compiled to the bytecode of JavaScriptCore: it starts without parsing the bundle
+        '--bytecode',
         '--compile-autoload-package-json', '--no-compile-autoload-dotenv', '--no-compile-autoload-bunfig'
     ], work)
     return `Bun ${bun.version}`

@@ -107,7 +107,7 @@ export async function BundleProject(options: BundleOptions): Promise<BundleResul
     const entry: string = path.resolve(project, options.entry ?? manifest.main ?? 'build/App.js')
     if (!existsSync(entry)) throw new Error(`The entry ${path.relative(process.cwd(), entry) || entry} does not exist: build the project first`)
     const outfile: string = path.resolve(project, options.outfile ?? path.join('dist', `${name}.cjs`))
-    const collector: NativeCollector = new NativeCollector(project)
+    const collector: NativeCollector = new NativeCollector(project, options.runtime)
     //esbuild is loaded by the commands which need it
     const {build} = await import('esbuild')
     const result = await build({

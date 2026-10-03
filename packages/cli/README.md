@@ -202,7 +202,11 @@ without top-level `await` (await in an async function).
 The native addons (`.node` files) cannot be bundled: their packages are found while the application is bundled (the
 packages holding addons, and the packages loading them with computed paths, such as sharp) and left out of the bundle,
 with what they load at run time (the JavaScript they require, the packages of the shared libraries linked with their
-addons, such as libvips), laid out as in `node_modules`: `dist/<name>.native/`, distributed with the bundle. The addons of
+addons, such as libvips), laid out as in `node_modules`: `dist/<name>.native/`, distributed with the bundle. The tree
+holds the files loaded at run time: the packages of the addons and of the shared libraries have all their files, the
+other packages the JavaScript they load (traced) and their other files (the data they read), the packages loading their
+files by paths which cannot be followed (`require(path.join(__dirname, name))`) all their files; the types, the source
+maps, the TypeScript sources and the documentation of the packages are left out. The addons of
 the application itself (`require('./x.node')`, `createRequire(import.meta.url)('./x.node')`) are there too.
 
 ### `lakutata executable`
@@ -211,7 +215,8 @@ Make the executable of the application for the platform it runs on, which runs w
 embedded in the Node.js binary running the tool (the single executable applications of Node.js), `dist/<name>`
 (`dist/<name>.exe` on Windows). The Node.js embedded is the version running the tool.
 
-With `--runtime bun`, the bundle is compiled by Bun (`bun build --compile`) instead: the Bun of the project (the `bun`
+With `--runtime bun`, the bundle is compiled by Bun (`bun build --compile --bytecode`, its bytecode is not parsed at
+start) instead: the Bun of the project (the `bun`
 package of npm, `npm install --save-dev bun`), else the one of the system. Its executables are smaller, start faster and
 use less memory; the runtime is Bun's (JavaScriptCore, its implementation of the APIs of Node.js). The bundle and its
 native addons are the ones of the executables of Node.js, which do not change for it. As them, the executables of Bun do
