@@ -28,9 +28,16 @@ export const NATIVE_DATA_ASSET: string = 'lakutata-native'
 export const NATIVE_INDEX_ASSET: string = 'lakutata-native.json'
 
 /**
+ * The global symbol of the executables of Bun giving the files of the native tree they embed: {data, index}, their paths
+ * in the executable
+ */
+export const BUN_NATIVE_ASSETS: string = 'lakutata.native'
+
+/**
  * The require of a bundle having native addons, which loads the native packages from the native tree: next to the bundle,
  * or, in an executable, extracted from its assets once into the cache directory of the program (a directory named after
- * the hash of the tree: the versions of the program do not share it). The other modules are loaded by the require of node.
+ * the hash of the tree: the versions of the program do not share it). The assets are the ones of a single executable
+ * application of Node.js, or the files embedded in an executable of Bun. The other modules are loaded by the require of node.
  * Its source is written at the top of the bundle: it uses nothing but its arguments and the modules of node
  * @param nodeRequire
  * @param config
@@ -46,6 +53,9 @@ export function LakutataNativeRequire(nodeRequire: NodeJS.Require, config: Nativ
     } catch {
         sea = undefined
     }
+    //The files of the tree embedded in an executable of Bun (BUN_NATIVE_ASSETS)
+    const bun: { data: string, index: string } | undefined = (globalThis as Record<symbol, any>)[Symbol.for('lakutata.native')]
+    const asset = (name: 'data' | 'index'): Buffer => bun ? fs.readFileSync(bun[name]) : Buffer.from(sea!.getAsset(name === 'data' ? 'lakutata-native' : 'lakutata-native.json'))
     const modules: Set<string> = new Set(config.modules)
     let root: string | undefined
     let treeRequire: NodeJS.Require | undefined
@@ -64,8 +74,8 @@ export function LakutataNativeRequire(nodeRequire: NodeJS.Require, config: Nativ
     const extract = (base: string): string => {
         const directory: string = path.join(base, 'native', config.hash)
         if (fs.existsSync(path.join(directory, '.complete'))) return directory
-        const index: { files: { path: string, offset: number, size: number, mode: number }[], links: { path: string, target: string }[] } = JSON.parse(sea!.getAsset('lakutata-native.json', 'utf8'))
-        const data: Buffer = nodeRequire('node:zlib').gunzipSync(Buffer.from(sea!.getAsset('lakutata-native')))
+        const index: { files: { path: string, offset: number, size: number, mode: number }[], links: { path: string, target: string }[] } = JSON.parse(asset('index').toString('utf8'))
+        const data: Buffer = nodeRequire('node:zlib').gunzipSync(asset('data'))
         const temporary: string = `${directory}.${process.pid}.${Date.now()}`
         const local = (root: string, file: string): string => path.join(root, ...file.split('/'))
         try {
@@ -96,7 +106,7 @@ export function LakutataNativeRequire(nodeRequire: NodeJS.Require, config: Nativ
 
     const locate = (): string => {
         if (root) return root
-        if (sea?.isSea()) {
+        if (bun || sea?.isSea()) {
             try {
                 root = extract(cacheDirectory())
             } catch (error) {

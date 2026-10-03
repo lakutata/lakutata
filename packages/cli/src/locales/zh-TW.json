@@ -85,7 +85,8 @@
           "entry": "應用程式編譯後的入口（預設是 package.json 的 main）",
           "outdir": "可執行檔所在的目錄（預設 dist）",
           "minify": "壓縮嵌入可執行檔的打包結果",
-          "external": "不打包進去的模組（它們不在可執行檔中，而是從旁邊的 node_modules 載入）"
+          "external": "不打包進去的模組（它們不在可執行檔中，而是從旁邊的 node_modules 載入）",
+          "runtime": "嵌入可執行檔的執行環境：node（Node.js 的單一可執行應用程式，預設）或 bun（Bun，安裝在專案中或系統上）"
         }
       },
       "migration": {

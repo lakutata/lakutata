@@ -85,7 +85,8 @@
           "entry": "应用编译后的入口（默认是 package.json 的 main）",
           "outdir": "可执行文件所在的目录（默认 dist）",
           "minify": "压缩嵌入可执行文件的包",
-          "external": "不打进包里的模块（它们不在可执行文件中，而是从旁边的 node_modules 加载）"
+          "external": "不打进包里的模块（它们不在可执行文件中，而是从旁边的 node_modules 加载）",
+          "runtime": "嵌入可执行文件的运行时：node（Node.js 的单可执行应用，默认）或 bun（Bun，安装在项目中或系统上）"
         }
       },
       "migration": {

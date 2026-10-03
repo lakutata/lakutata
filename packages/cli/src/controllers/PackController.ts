@@ -31,8 +31,8 @@ export class PackController extends Controller {
 
     @CLIAction('executable', ExecutableDTO, {description: 'Make the executable of the compiled application for this platform, which runs without Node.js installed'})
     public async executable(input: ExecutableDTO): Promise<undefined> {
-        Step(`Node.js ${process.version} embedded`)
-        const result: ExecutableResult = await BuildExecutable({project: process.cwd(), entry: input.entry, outdir: input.outdir, minify: input.minify, external: input.external})
+        const result: ExecutableResult = await BuildExecutable({project: process.cwd(), entry: input.entry, outdir: input.outdir, minify: input.minify, external: input.external, runtime: input.runtime})
+        Step(`${result.runtime} embedded`)
         if (result.native.length) Step(`Native addons embedded, extracted at the first run: ${result.native.join(', ')}`)
         Done(`${path.relative(process.cwd(), result.file)} (${result.platform}, ${Megabytes(result.size)})`)
         return undefined

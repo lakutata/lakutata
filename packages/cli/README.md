@@ -211,6 +211,13 @@ Make the executable of the application for the platform it runs on, which runs w
 embedded in the Node.js binary running the tool (the single executable applications of Node.js), `dist/<name>`
 (`dist/<name>.exe` on Windows). The Node.js embedded is the version running the tool.
 
+With `--runtime bun`, the bundle is compiled by Bun (`bun build --compile`) instead: the Bun of the project (the `bun`
+package of npm, `npm install --save-dev bun`), else the one of the system. Its executables are smaller, start faster and
+use less memory; the runtime is Bun's (JavaScriptCore, its implementation of the APIs of Node.js). The bundle and its
+native addons are the ones of the executables of Node.js, which do not change for it. As them, the executables of Bun do
+not load the `.env` and the `bunfig.toml` of the directory they run in (the application loads its `.env`), and the
+mode is the one of their run: Bun replaces `process.env.NODE_ENV` with the mode of its build, the bundle reads it.
+
 The executables of the other platforms are made on them, as the applications are built there: their native addons are
 built for them, and they are tried there. The CI gives the machines of the platforms (a matrix of the Linux, macOS and
 Windows runners); the Linux architectures are also made in a container of the architecture (`docker run --platform
@@ -219,6 +226,7 @@ linux/arm64`, as the cross builds of the templates).
 | Option | |
 |---|---|
 | `--outdir <directory>` | the directory of the executable, `dist` by default |
+| `--runtime <node\|bun>` | the runtime embedded: `node` (by default) or `bun` |
 | `--entry`, `--no-minify`, `--external` | as `lakutata bundle` |
 
 The native addons are embedded in the executable: at its first run, it extracts them into its cache directory
@@ -227,8 +235,8 @@ the temporary directory when it cannot be written), in a directory named after t
 from there, the versions of the program do not share it. The addons need the system libraries they were built for (the
 glibc version of the Linux prebuilt addons).
 
-The executables of macOS are signed ad hoc. The ones of Windows keep the signature of `node.exe`, which does not match
-anymore: sign them before distributing them.
+The executables of macOS are signed ad hoc. The ones of Windows made by Node.js keep the signature of `node.exe`, which
+does not match anymore: sign them before distributing them.
 
 ## Migrations
 

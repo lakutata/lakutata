@@ -33,6 +33,10 @@ export type BundleOptions = {
      * embed it)
      */
     native?: 'directory' | 'embedded'
+    /**
+     * The runtime running the bundle: node (by default), or bun (the executables of Bun, which bundle it again)
+     */
+    runtime?: 'node' | 'bun'
 }
 
 export type BundleResult = {
@@ -71,6 +75,23 @@ export function ProgramName(manifest: Record<string, any>): string {
 const IMPORT_META_URL: string = '__lakutataImportMetaUrl'
 
 /**
+ * The first code of a bundle embedded in an executable of Bun, which bundles it again into a function without the
+ * arguments of the CommonJS modules: its file is the executable (as in the executables of Node.js), its require loads
+ * the modules of node and the ones of a node_modules next to the executable (the ones left out of the bundle)
+ */
+const BUN_PRELUDE: string = 'var __filename=process.execPath,__dirname=process.getBuiltinModule(\'node:path\').dirname(__filename),require=typeof require===\'function\'?require:process.getBuiltinModule(\'node:module\').createRequire(__filename);'
+
+/**
+ * The code with a code before it, after its hashbang
+ * @param code
+ * @param first
+ */
+function Prepend(code: string, first: string): string {
+    const hashbang: RegExpExecArray | null = /^#![^\n]*\n/.exec(code)
+    return hashbang ? `${hashbang[0]}${first}${code.slice(hashbang[0].length)}` : `${first}${code}`
+}
+
+/**
  * Bundle the compiled application and its dependencies into one CommonJS file, run by node and embedded in the executables.
  * The sources are compiled by tsc first: the metadata of the decorators (the injections, the DTOs) are emitted by it.
  * The native addons cannot be bundled: their packages (and what they load) are gathered into a native tree, which the
@@ -104,7 +125,11 @@ export async function BundleProject(options: BundleOptions): Promise<BundleResul
         //The dynamic imports of the modules left out are requires (the require of the bundle loads the native ones)
         supported: {'dynamic-import': false},
         banner: {js: `var ${IMPORT_META_URL}=require('node:url').pathToFileURL(__filename).href;`},
-        define: {'import.meta.url': IMPORT_META_URL},
+        define: {
+            'import.meta.url': IMPORT_META_URL,
+            //Bun replaces process.env.NODE_ENV with the mode of its build: the one of the run is read
+            ...options.runtime === 'bun' ? {'process.env.NODE_ENV': 'globalThis.process.env.NODE_ENV'} : {}
+        },
         plugins: [collector.plugin()],
         logLevel: 'silent'
     }).catch((error: Error & { errors?: { text: string, location?: { file: string, line: number } }[] }): never => {
@@ -119,11 +144,11 @@ export async function BundleProject(options: BundleOptions): Promise<BundleResul
     await rm(nativeDirectory, {recursive: true, force: true})
     if (native) {
         //The require loading the native packages is the first code, after the hashbang
-        const banner: string = NativeBanner({name: name, hash: native.hash, directory: path.basename(nativeDirectory), modules: native.modules})
-        const hashbang: RegExpExecArray | null = /^#![^\n]*\n/.exec(code)
-        code = hashbang ? `${hashbang[0]}${banner}${code.slice(hashbang[0].length)}` : `${banner}${code}`
+        code = Prepend(code, NativeBanner({name: name, hash: native.hash, directory: path.basename(nativeDirectory), modules: native.modules}))
         if ((options.native ?? 'directory') === 'directory') await WriteNativeTree(native, nativeDirectory)
     }
+    //Before the require of the native tree, which loads the modules of node by it
+    if (options.runtime === 'bun') code = Prepend(code, BUN_PRELUDE)
     await mkdir(path.dirname(outfile), {recursive: true})
     await writeFile(outfile, code)
     await chmod(outfile, 0o755)

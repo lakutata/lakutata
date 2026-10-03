@@ -13,6 +13,18 @@ const ROOT: string = fileURLToPath(new URL('../../../../../', import.meta.url))
 
 const CLI: string = fileURLToPath(new URL('../CLIApp.js', import.meta.url))
 
+/**
+ * Whether Bun is installed, which makes the executables of --runtime bun
+ */
+const BUN: boolean = ((): boolean => {
+    try {
+        execFileSync('bun', ['--version'], {stdio: 'ignore'})
+        return true
+    } catch {
+        return false
+    }
+})()
+
 let project: string
 
 /**
@@ -20,10 +32,11 @@ let project: string
  * @param command
  * @param args
  * @param env
+ * @param cwd
  */
-function Run(command: string, args: string[], env: Record<string, string> = {}): Promise<{ code: number, output: string }> {
+function Run(command: string, args: string[], env: Record<string, string | undefined> = {}, cwd: string = project): Promise<{ code: number, output: string }> {
     return new Promise((resolve: (result: { code: number, output: string }) => void): void => {
-        execFile(command, args, {cwd: project, env: {...process.env, LAKUTATA_CACHE_DIR: path.join(project, 'cache'), ...env}, maxBuffer: 16 * 1024 * 1024}, (error: ExecFileException | null, stdout: string, stderr: string): void => resolve({code: error ? (typeof error.code === 'number' ? error.code : 1) : 0, output: `${stdout}${stderr}`}))
+        execFile(command, args, {cwd: cwd, env: {...process.env, LAKUTATA_CACHE_DIR: path.join(project, 'cache'), ...env}, maxBuffer: 16 * 1024 * 1024}, (error: ExecFileException | null, stdout: string, stderr: string): void => resolve({code: error ? (typeof error.code === 'number' ? error.code : 1) : 0, output: `${stdout}${stderr}`}))
     })
 }
 
@@ -77,6 +90,12 @@ class GreetController extends Controller {
     public async where(): Promise<string> {
         return fileURLToPath(import.meta.url)
     }
+
+    @CLIAction('mode')
+    public async mode(): Promise<string> {
+        //As the libraries read it (express)
+        return this.getModule().mode() + ' ' + process.env.NODE_ENV
+    }
 }
 
 Application.run({
@@ -128,6 +147,32 @@ Application.run({
         const refused = await Run(process.execPath, [CLI, 'executable', '--target', 'linux-x64'])
         assert.notStrictEqual(refused.code, 0)
         assert.match(refused.output, /--target/)
+    })
+
+    it('makes the executable of Bun, its mode the one of its run', {skip: !BUN && 'Bun is not installed'}, async (): Promise<void> => {
+        const made = await Run(process.execPath, [CLI, 'executable', '--runtime', 'bun', '--outdir', 'bun'])
+        assert.strictEqual(made.code, 0, made.output)
+        assert.match(made.output, /Bun \d+\.\d+\.\d+ embedded/)
+        const executable: string = path.join(project, 'bun', process.platform === 'win32' ? 'greet.exe' : 'greet')
+        const greeted = await Run(executable, ['greet', '--name', 'bun'], {PATH: ''})
+        assert.strictEqual(greeted.code, 0, greeted.output)
+        assert.strictEqual(greeted.output.trim(), 'Hello, bun!')
+        //Its file is the executable, as in the executables of Node.js
+        assert.strictEqual(realpathSync((await Run(executable, ['where'], {PATH: ''})).output.trim()), realpathSync(executable))
+        //Bun replaces process.env.NODE_ENV with the mode of its build: the mode is the one of the environment, for the
+        //application and for its libraries
+        assert.strictEqual((await Run(executable, ['mode'], {PATH: '', MODE: 'production', NODE_ENV: undefined})).output.trim(), 'production production')
+        assert.strictEqual((await Run(executable, ['mode'], {PATH: '', MODE: undefined, NODE_ENV: 'production'})).output.trim(), 'production production')
+        assert.strictEqual((await Run(executable, ['mode'], {PATH: '', MODE: undefined, NODE_ENV: undefined})).output.trim(), 'development development')
+        //It does not load the .env of the directory it runs in (Bun does by default)
+        writeFileSync(path.join(project, 'bun', '.env'), 'MODE=production\n')
+        assert.strictEqual((await Run(executable, ['mode'], {PATH: '', MODE: undefined, NODE_ENV: undefined}, path.join(project, 'bun'))).output.trim(), 'development development')
+    })
+
+    it('tells to install Bun when it is not installed', async (): Promise<void> => {
+        const refused = await Run(process.execPath, [CLI, 'executable', '--runtime', 'bun'], {PATH: ''})
+        assert.notStrictEqual(refused.code, 0)
+        assert.match(refused.output, /Bun is not installed: install it in the project \(npm install --save-dev bun\)/)
     })
 
     it('bundles an application without native addon as it is', (): void => {
@@ -341,6 +386,20 @@ void (async () => {
         assert.strictEqual(extracted.length, 1, extracted.join(', '))
         assert.ok(existsSync(path.join(cache, 'native', extracted[0], '.complete')))
         //Then it runs from the cache
+        assert.match((await RunNative(executable, [], {LAKUTATA_NATIVE_DIR: cache, PATH: ''}, directory)).output.trim(), EXPECTED)
+    })
+
+    it('makes an executable of Bun which extracts its native packages into its cache directory', {skip: !BUN && 'Bun is not installed'}, async (): Promise<void> => {
+        const made = await RunNative(process.execPath, [CLI, 'executable', '--runtime', 'bun', '--outdir', 'bun'])
+        assert.strictEqual(made.code, 0, made.output)
+        assert.match(made.output, /Native addons embedded, extracted at the first run: cpu-info, native-sub, sharp, sqlite3/)
+        const directory: string = path.join(path.dirname(native), 'bun-elsewhere')
+        mkdirSync(directory)
+        const executable: string = path.join(directory, 'natapp')
+        writeFileSync(executable, readFileSync(path.join(native, 'bun', 'natapp')), {mode: 0o755})
+        const cache: string = path.join(directory, 'cache')
+        assert.match((await RunNative(executable, [], {LAKUTATA_NATIVE_DIR: cache, PATH: ''}, directory)).output.trim(), EXPECTED)
+        assert.ok(existsSync(path.join(cache, 'native', readdirSync(path.join(cache, 'native'))[0], '.complete')))
         assert.match((await RunNative(executable, [], {LAKUTATA_NATIVE_DIR: cache, PATH: ''}, directory)).output.trim(), EXPECTED)
     })
 
