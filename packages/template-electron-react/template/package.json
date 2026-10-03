@@ -19,6 +19,7 @@
     "version:patch": "lakutata version patch --yes"
   },
   "devDependencies": {
+    "@lakutata/builder": "^{$LAKUTATA_VERSION}",
     "@lakutata/cli": "^{$LAKUTATA_VERSION}",
     "@types/node": "^22.0.0",
     "electron": "^44.5.1",

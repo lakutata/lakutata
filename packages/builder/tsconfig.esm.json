@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist/esm",
+    "declaration": true,
+    "declarationDir": "dist/types",
+    "declarationMap": false
+  },
+  "exclude": [
+    "node_modules",
+    "scripts",
+    "build",
+    "distro",
+    "dist",
+    "publish.mjs",
+    "rollup.mjs"
+  ]
+}

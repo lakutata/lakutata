@@ -3,9 +3,9 @@ import {Controller} from 'lakutata/com/entrypoint'
 import {CLIAction} from 'lakutata/decorator/ctrl'
 import {BundleDTO} from '../dtos/BundleDTO.js'
 import {ExecutableDTO} from '../dtos/ExecutableDTO.js'
-import {Done, Step} from '../lib/Output.js'
-import {BundleProject, type BundleResult} from '../lib/pack/Bundle.js'
-import {BuildExecutable, type ExecutableResult} from '../lib/pack/Executable.js'
+import type {BundleResult, ExecutableResult} from '@lakutata/builder'
+import {LoadBuilder} from '../lib/Builder.js'
+import {Done, Step, Warn} from '../lib/Output.js'
 
 /**
  * A size in megabytes
@@ -22,6 +22,7 @@ export class PackController extends Controller {
 
     @CLIAction('bundle', BundleDTO, {description: 'Bundle the compiled application and its dependencies into one file run by node'})
     public async bundle(input: BundleDTO): Promise<undefined> {
+        const {BundleProject} = await LoadBuilder(process.cwd())
         const result: BundleResult = await BundleProject({project: process.cwd(), entry: input.entry, outfile: input.outfile, minify: input.minify, external: input.external})
         Done(`${path.relative(process.cwd(), result.outfile)} (${Megabytes(result.size)}): node ${path.relative(process.cwd(), result.outfile)}`)
         //The native addons are next to the bundle, which is distributed with them
@@ -32,10 +33,12 @@ export class PackController extends Controller {
 
     @CLIAction('executable', ExecutableDTO, {description: 'Make the executable of the compiled application for this platform, which runs without Node.js installed'})
     public async executable(input: ExecutableDTO): Promise<undefined> {
+        const {BuildExecutable} = await LoadBuilder(process.cwd())
         const result: ExecutableResult = await BuildExecutable({project: process.cwd(), entry: input.entry, outdir: input.outdir, minify: input.minify, external: input.external, runtime: input.runtime, layout: input.layout})
         Step(`${result.runtime} embedded`)
         if (result.native.length) Step(result.directory ? `Native addons next to the executable: ${result.native.join(', ')}` : `Native addons embedded, extracted at the first run: ${result.native.join(', ')}`)
         if (result.resources.length) Step(result.directory ? `Resources next to the executable: ${result.resources.join(', ')}` : `Resources embedded, extracted at the first run: ${result.resources.join(', ')}`)
+        for (const warning of result.warnings) Warn(warning)
         if (result.directory) Done(`${path.relative(process.cwd(), result.directory)}: the executable and what it loads, distributed together`)
         Done(`${path.relative(process.cwd(), result.file)} (${result.platform}, ${Megabytes(result.size)})`)
         return undefined

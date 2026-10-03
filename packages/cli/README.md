@@ -180,7 +180,10 @@ to it.
 
 ## Bundles and executables
 
-The application of the current directory, compiled (`tsc`, which emits the metadata of the decorators), is packed:
+The application of the current directory, compiled (`tsc`, which emits the metadata of the decorators), is packed by
+`@lakutata/builder`: the one installed in the project (`npm install --save-dev @lakutata/builder`, as the templates
+packing their applications do), else the one installed with the tool. Its functions (`BundleProject`,
+`BuildExecutable`) pack the applications from the scripts too.
 
 ### `lakutata bundle`
 

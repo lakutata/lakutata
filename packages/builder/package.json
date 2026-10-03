@@ -1,0 +1,39 @@
+{
+  "name": "@lakutata/builder",
+  "version": "2.0.126",
+  "description": "The builder of the applications of the lakutata framework: their bundles, their executables (Node.js, Bun) with their native addons and their resources.",
+  "type": "module",
+  "main": "./dist/esm/index.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "default": "./dist/esm/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist', {recursive: true, force: true})\"",
+    "build:js": "tsc -p tsconfig.esm.json",
+    "rebuild": "npm run clean && npm run build:js",
+    "compile": "npm run rebuild",
+    "test:unit": "npm run compile && node --test \"dist/esm/tests/*.spec.js\""
+  },
+  "dependencies": {
+    "esbuild": "^0.28.2",
+    "postject": "^1.0.0-alpha.6"
+  },
+  "engines": {
+    "node": ">=22.12"
+  },
+  "license": "MIT",
+  "files": [
+    "dist/esm",
+    "!dist/esm/tests",
+    "dist/types",
+    "!dist/types/tests",
+    "*.md",
+    "LICENSE",
+    "package.json"
+  ]
+}

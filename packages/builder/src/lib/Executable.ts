@@ -3,8 +3,7 @@ import {chmod, copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile} from 'no
 import {createRequire} from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
-import {Run} from '../Processes.js'
-import {Warn} from '../Output.js'
+import {Run} from './Processes.js'
 import {BundleProject, ProgramName, type BundleOptions, type BundleResult} from './Bundle.js'
 import {PackNativeTree} from './Native.js'
 import {BUN_NATIVE_ASSETS, NATIVE_DATA_ASSET, NATIVE_INDEX_ASSET} from './NativeRuntime.js'
@@ -46,6 +45,10 @@ export type ExecutableResult = {
      * The runtime embedded in the executable, and its version ("Node.js v24.11.1", "Bun 1.4.2")
      */
     runtime: string
+    /**
+     * What to do before distributing the executable (sign it)
+     */
+    warnings: string[]
 }
 
 /**
@@ -108,8 +111,9 @@ async function FindBun(project: string): Promise<{ command: string, version: str
  * @param bundle
  * @param work
  * @param file
+ * @param warnings
  */
-async function EmbedInNode(bundle: BundleResult, work: string, file: string): Promise<string> {
+async function EmbedInNode(bundle: BundleResult, work: string, file: string, warnings: string[]): Promise<string> {
     const assets: Record<string, string> = {}
     if (bundle.native) {
         //The files of the native packages, extracted by the executable at its first run
@@ -138,7 +142,7 @@ async function EmbedInNode(bundle: BundleResult, work: string, file: string): Pr
     await Quiet((): Promise<void> => inject(file, 'NODE_SEA_BLOB', readFileSync(blob), {sentinelFuse: SEA_FUSE, machoSegmentName: process.platform === 'darwin' ? 'NODE_SEA' : undefined}))
     if (process.platform === 'darwin') await Must('codesign', ['--sign', '-', '--force', file], work)
     //The Authenticode signature of node.exe does not match the executable anymore
-    if (process.platform === 'win32') Warn(`${path.basename(file)} has the signature of Node.js, which is not valid anymore: sign it (signtool) before distributing it`)
+    if (process.platform === 'win32') warnings.push(`${path.basename(file)} has the signature of Node.js, which is not valid anymore: sign it (signtool) before distributing it`)
     return `Node.js ${process.version}`
 }
 
@@ -210,7 +214,8 @@ export async function BuildExecutable(options: ExecutableOptions): Promise<Execu
         //ignores the case), whose signature it writes beside the executable (_CodeSignature)
         const made: string = path.join(work, 'executable', path.basename(file))
         await mkdir(path.dirname(made), {recursive: true})
-        const runtime: string = bun ? await CompileWithBun(bun, embedded, work, made) : await EmbedInNode(embedded, work, made)
+        const warnings: string[] = []
+        const runtime: string = bun ? await CompileWithBun(bun, embedded, work, made) : await EmbedInNode(embedded, work, made, warnings)
         await copyFile(made, file)
         await chmod(file, 0o755)
         return {
@@ -221,7 +226,8 @@ export async function BuildExecutable(options: ExecutableOptions): Promise<Execu
             native: bundle.native?.modules ?? [],
             resources: bundle.resources,
             directory: directory ? target : undefined,
-            runtime: runtime
+            runtime: runtime,
+            warnings: warnings
         }
     } finally {
         await rm(work, {recursive: true, force: true})
