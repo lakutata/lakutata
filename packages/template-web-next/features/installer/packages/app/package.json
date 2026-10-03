@@ -6,6 +6,7 @@
     "package": "lakutata package installer"
   },
   "lakutata": {
+    "icon": "../resources/logo.png",
     "installer": {
       "name": "{$APP_ID}",
       "service": {

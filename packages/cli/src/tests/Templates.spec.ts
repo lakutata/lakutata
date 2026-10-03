@@ -1,6 +1,6 @@
 import {after, describe, it} from 'node:test'
 import assert from 'node:assert'
-import {execFile, type ExecFileException, execSync, spawn} from 'node:child_process'
+import {execFile, type ExecFileException, execFileSync, execSync, spawn} from 'node:child_process'
 import {constants, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
 import {tmpdir} from 'node:os'
@@ -120,7 +120,8 @@ async function ElectronPage(project: string, args: string[], executable?: string
     const child = spawn(electron, [`--remote-debugging-port=${port}`, ...args], {cwd: project, env: env, stdio: 'ignore'})
     let text: string = ''
     try {
-        for (let attempt: number = 0; attempt < 60 && !/Hello, /.test(text); attempt++) {
+        //Once the page shows the result of the action and the event the main process pushed
+        for (let attempt: number = 0; attempt < 60 && !/Pushed by the main process: /.test(text); attempt++) {
             await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 500))
             try {
                 const pages = await (await fetch(`http://127.0.0.1:${port}/json`)).json() as { type: string, webSocketDebuggerUrl: string }[]
@@ -253,7 +254,7 @@ describe('The templates of the repository', (): void => {
         const vue: string = path.join(ROOT, 'packages', 'template-electron-vue', 'template')
         assert.deepStrictEqual(files(vue), files(react))
         for (const file of files(react)) assert.strictEqual(readFileSync(path.join(vue, file), 'utf8'), readFileSync(path.join(react, file), 'utf8'), `${file} of electron-vue differs from the one of electron-react`)
-        assert.strictEqual(readFileSync(path.join(vue, 'packages', 'ui', 'src', 'lakutata.ts'), 'utf8'), readFileSync(path.join(react, 'packages', 'ui', 'src', 'lakutata.ts'), 'utf8'))
+        assert.strictEqual(readFileSync(path.join(vue, 'packages', 'ui', 'src', 'ipc.ts'), 'utf8'), readFileSync(path.join(react, 'packages', 'ui', 'src', 'ipc.ts'), 'utf8'))
         const [reactFeatures, vueFeatures] = [react, vue].map((directory: string): string => path.join(directory, '..', 'features'))
         assert.deepStrictEqual(files(vueFeatures), files(reactFeatures))
         for (const file of files(reactFeatures)) assert.strictEqual(readFileSync(path.join(vueFeatures, file), 'utf8'), readFileSync(path.join(reactFeatures, file), 'utf8'), `features/${file} of electron-vue differs`)
@@ -267,7 +268,8 @@ describe('The templates of the repository', (): void => {
         assert.match(manifest.scripts['package:linux'], /^docker buildx build --file Dockerfile\.installer --output type=local,dest=dist\/installer \.$/)
         const toolApp = JSON.parse(readFileSync(path.join(tool, 'packages', 'app', 'package.json'), 'utf8'))
         assert.strictEqual(toolApp.scripts.package, 'lakutata package installer')
-        assert.deepStrictEqual(toolApp.lakutata, {installer: {linux: {targets: ['deb', 'rpm', 'tar.gz']}}})
+        assert.deepStrictEqual(toolApp.lakutata, {icon: '../resources/logo.png', installer: {linux: {targets: ['deb', 'rpm', 'tar.gz']}}})
+        assert.ok(existsSync(path.join(tool, 'packages', 'resources', 'logo.png')))
         assert.ok(existsSync(path.join(tool, 'Dockerfile.installer')) && existsSync(path.join(tool, '.dockerignore')))
         assert.match(readFileSync(path.join(tool, 'Dockerfile.installer'), 'utf8'), /npm run package -w app -- --outdir \/installer/)
         const readme: string = readFileSync(path.join(tool, 'README.md'), 'utf8')
@@ -286,6 +288,9 @@ describe('The templates of the repository', (): void => {
             assert.deepStrictEqual(app.bin, {[id]: 'build/App.js'})
             assert.strictEqual(app.scripts.package, 'lakutata package installer')
             assert.deepStrictEqual(app.lakutata.installer, {name: id, service: {env: {PORT: '8080'}}, linux: {targets: ['deb', 'rpm', 'tar.gz']}})
+            //The icon of the application, in its resources package
+            assert.strictEqual(app.lakutata.icon, '../resources/logo.png')
+            assert.ok(readFileSync(path.join(project, 'packages', 'resources', 'logo.png')).subarray(1, 4).equals(Buffer.from('PNG')))
             if (template !== 'service') assert.deepStrictEqual(app.lakutata.resources, [{from: {'web-nuxt': '../ui/.output', 'web-next': '../ui/.next/standalone'}[template as string] ?? '../ui/dist', to: 'ui'}])
             assert.match(readFileSync(path.join(project, 'Dockerfile.installer'), 'utf8'), /npm run package -w app -- --outdir \/installer/)
             assert.match(readFileSync(path.join(project, 'README.md'), 'utf8'), new RegExp(`/etc/${id}/${id}\\.env`))
@@ -341,7 +346,7 @@ describe('The templates of the repository', (): void => {
         assert.strictEqual(desktopBuilt.code, 0, desktopBuilt.output)
         const desktopTested = await Run(process.execPath, [CLI, 'run', 'test'], desktop)
         assert.strictEqual(desktopTested.code, 0, desktopTested.output)
-        assert.match(desktopTested.output, /pass 4/)
+        assert.match(desktopTested.output, /pass 5/)
     })
 
     it('creates a project from the default template which builds and passes its tests with the framework of the repository', async (): Promise<void> => {
@@ -552,7 +557,7 @@ describe('The templates of the repository', (): void => {
             //The actions of the main process, served to the renderer over IPC (without Electron)
             const tested = await Run(process.execPath, [CLI, 'run', 'test'], project)
             assert.strictEqual(tested.code, 0, tested.output)
-            assert.match(tested.output, /pass 3/)
+            assert.match(tested.output, /pass 4/)
             //The renderer is type checked with the TypeScript of the template
             const typescript: string = path.join(ROOT, 'node_modules', 'typescript')
             const checked = template === 'electron-vue'
@@ -568,12 +573,19 @@ describe('The templates of the repository', (): void => {
             const archive: string | undefined = readdirSync(path.join(project, 'dist', 'installer'), {recursive: true, withFileTypes: true})
                 .find((entry): boolean => entry.name === 'app.asar')?.parentPath
             assert.ok(archive, 'app.asar')
-            for (const file of ['preload.cjs', path.join('renderer', 'index.html')]) assert.ok(existsSync(path.join(archive, 'main.resources', file)), file)
+            for (const file of ['preload.cjs', path.join('renderer', 'index.html'), 'logo.png']) assert.ok(existsSync(path.join(archive, 'main.resources', file)), file)
+            //The icon of the application, made from the one of its resources package
+            if (process.platform === 'darwin') {
+                assert.strictEqual(execFileSync('plutil', ['-extract', 'CFBundleIconFile', 'raw', path.join(archive, '..', 'Info.plist')]).toString().trim(), 'icon.icns')
+                const iconset: string = path.join(project, 'icon.iconset')
+                execFileSync('iconutil', ['-c', 'iconset', path.join(archive, 'icon.icns'), '-o', iconset])
+                assert.ok(existsSync(path.join(iconset, 'icon_512x512.png')))
+            }
             //Started (where Electron can open its window): the page shows the result of the action, isolated from Node.js
             if (process.platform === 'darwin') {
                 const bundle: string = path.resolve(archive, '..', '..')
                 const executable: string = path.join(bundle, 'Contents', 'MacOS', readdirSync(path.join(bundle, 'Contents', 'MacOS'))[0])
-                assert.match(await ElectronPage(project, [], executable), new RegExp(`Hello, ${name}! \\| isolated: true`))
+                assert.match(await ElectronPage(project, [], executable), new RegExp(`Hello, ${name}!\\s+Pushed by the main process: ${name} \\| isolated: true`))
             }
         })
     }

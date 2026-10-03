@@ -12,10 +12,12 @@ const ipcMain: IPCMain = {
     handle: (channel: string, listener: (event: unknown, data: unknown) => Promise<unknown>): unknown => handlers.set(channel, listener),
     removeHandler: (channel: string): unknown => handlers.delete(channel)
 }
-const sender = {once: (): void => undefined, off: (): void => undefined}
+//The web contents of the renderer: the events pushed to it
+const received: unknown[][] = []
+const sender = {once: (): void => undefined, off: (): void => undefined, send: (...args: unknown[]): unknown => received.push(args)}
 
 /**
- * Invoke an action as the renderer does (window.lakutata.invoke)
+ * Invoke an action as the renderer does (window.ipc.invoke)
  * @param data
  */
 function Invoke(data: Record<string, unknown>): Promise<any> {
@@ -55,6 +57,12 @@ describe('{$APP_NAME}', (): void => {
     })
 
     //@end
+    it('pushes its events to the renderer', async (): Promise<void> => {
+        received.length = 0
+        await Invoke({cmd: 'greet', name: 'you'})
+        assert.deepStrictEqual(received, [['lakutata:service:event', 'greeted', ['you']]])
+    })
+
     it('refuses an invalid input', async (): Promise<void> => {
         const response = await Invoke({cmd: 'greet'})
         assert.strictEqual(response.success, false)

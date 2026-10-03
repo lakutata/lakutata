@@ -19,9 +19,11 @@
   },
   "dependencies": {
     "lakutata": "^{$LAKUTATA_VERSION}",
-    "ui": "^0.0.1"
+    "ui": "^0.0.1",
+    "resources": "^0.0.1"
   },
   "lakutata": {
+    "icon": "../resources/logo.png",
     "resources": [
       {
         "from": "../ui/dist",
@@ -30,6 +32,10 @@
       {
         "from": "build/preload.cjs",
         "to": "preload.cjs"
+      },
+      {
+        "from": "../resources/logo.png",
+        "to": "logo.png"
       }
     ],
     "installer": {

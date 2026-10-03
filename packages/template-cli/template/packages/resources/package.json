@@ -1,0 +1,6 @@
+{
+  "name": "resources",
+  "version": "0.0.1",
+  "private": true,
+  "description": "The resources of the application: its icon (logo.png, lakutata.icon of the app package), made into the icons of each platform"
+}

@@ -6,9 +6,12 @@ A [lakutata](https://github.com/lakutata/lakutata) Electron application. The pro
 
 - `packages/app`: the main process, a lakutata application. Its controllers serve their `@ServiceAction` actions to the
   renderer over IPC (`ElectronIPCServiceEntrypoint`); `MainWindow` is its window;
-- `packages/ui`: the renderer, Vue built by Vite. It is isolated from Node.js and from Electron: it invokes the actions
-  of the main process through the preload script (`packages/app/src/preload.cts`), `Invoke('greet', {name: 'you'})`
-  (`packages/ui/src/lakutata.ts`).
+- `packages/ui`: the renderer, Vue built by Vite. It is isolated from Node.js and from Electron: `window.ipc`
+  (`packages/ui/src/ipc.ts`, through the preload script `packages/app/src/preload.cts`) invokes the actions of the main
+  process, `window.ipc.invoke({cmd: 'greet', name: 'you'})`, and listens to the events it pushes,
+  `window.ipc.on('greeted', listener)` (`once`, `off`);
+- `packages/resources`: the resources of the application, its icon (`logo.png`: the icons of its installers and of its
+  window).
 
 ```bash
 npm run dev            # the renderer served by Vite (hot reload) in the window of the application, with its DevTools
@@ -21,8 +24,10 @@ npm run version:patch  # give the packages their next version
 ```
 
 A new action: a method of a controller of `packages/app/src/controllers` decorated by `@ServiceAction({cmd: 'name'}, DTO)`,
-invoked by the renderer with `Invoke('name', input)`: its input is validated by its DTO, its result is given back, its
-errors are thrown in the renderer.
+invoked by the renderer with `window.ipc.invoke({cmd: 'name', ...input})`: its input is validated by its DTO, its result is
+given back, its errors are thrown in the renderer (with their `errno`). The main process pushes events to the renderer of
+a request, `NotifyRenderer(this.context, 'event', ...args)`, or to every window, `BroadcastToRenderers('event', ...args)`
+(`lakutata/adapter/electron`).
 
 ## The packaging
 

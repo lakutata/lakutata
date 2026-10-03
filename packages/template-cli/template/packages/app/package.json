@@ -27,5 +27,8 @@
     "@inquirer/prompts": "^8.7.2",
     "commander": "^15.0.0",
     "lakutata": "^{$LAKUTATA_VERSION}"
+  },
+  "lakutata": {
+    "icon": "../resources/logo.png"
   }
 }

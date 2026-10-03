@@ -1,3 +1,5 @@
+//window.ipc, before the components using it
+import './ipc'
 import {StrictMode} from 'react'
 import {createRoot} from 'react-dom/client'
 import {App} from './App'

@@ -49,7 +49,7 @@ export function Config(options: ConfigOptions = {}): ApplicationOptions {
                 //The messages in the language of its environment (LANG)
                 middlewares: [I18nMiddleware],
                 //@end
-                //The renderer invokes the actions over IPC: window.lakutata.invoke({cmd: 'greet', name: 'you'})
+                //The renderer invokes the actions over IPC: window.ipc.invoke({cmd: 'greet', name: 'you'})
                 service: ElectronIPCServiceEntrypoint({ipcMain: options.ipcMain})
             }),
             ...(options.window === false ? {} : {

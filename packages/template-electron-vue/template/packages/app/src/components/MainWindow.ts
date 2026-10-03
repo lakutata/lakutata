@@ -44,6 +44,16 @@ export class MainWindow extends Component {
     }
 
     /**
+     * The icon of the window (Windows, Linux: the windows of macOS show the one of the application): in the resources of
+     * the packaged application, in the resources package otherwise
+     */
+    protected iconFile(): string {
+        const packaged: string = path.join(this.directory ?? '', 'logo.png')
+        if (existsSync(packaged)) return packaged
+        return path.join(path.dirname(createRequire(import.meta.url).resolve('resources/package.json')), 'logo.png')
+    }
+
+    /**
      * Load the URL of the renderer in development: the dev server of Vite may start after the application
      * @param window
      * @param url
@@ -68,6 +78,7 @@ export class MainWindow extends Component {
             width: this.width,
             height: this.height,
             title: this.app.appName,
+            icon: this.iconFile(),
             show: false,
             webPreferences: {
                 preload: path.join(this.directory ?? '', 'preload.cjs'),
