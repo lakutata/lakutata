@@ -216,7 +216,8 @@ describe('The client of the Docker Engine API', (): void => {
         let version: Record<string, string> = {ApiVersion: '1.60', MinAPIVersion: '1.40'}
 
         before(async (): Promise<void> => {
-            socketPath = path.join(await mkdtemp(path.join(tmpdir(), 'lakutata-socket-')), 'docker.sock')
+            //A named pipe on Windows (as Docker Desktop: //./pipe/docker_engine), a socket elsewhere
+            socketPath = process.platform === 'win32' ? `\\\\.\\pipe\\lakutata-docker-${process.pid}-${Date.now()}` : path.join(await mkdtemp(path.join(tmpdir(), 'lakutata-socket-')), 'docker.sock')
             server = http.createServer((request: IncomingMessage, response: ServerResponse): void => {
                 requests.push(request)
                 const chunks: Buffer[] = []
@@ -241,7 +242,8 @@ describe('The client of the Docker Engine API', (): void => {
 
         after(async (): Promise<void> => {
             await new Promise((resolve: (value: unknown) => void): unknown => server.close(resolve))
-            await rm(path.dirname(socketPath), {recursive: true, force: true})
+            //The directory of the socket (a named pipe has none)
+            if (process.platform !== 'win32') await rm(path.dirname(socketPath), {recursive: true, force: true})
         })
 
         it('negotiates the API version: the newest one supported by the daemon and the client', async (): Promise<void> => {

@@ -66,7 +66,8 @@ export function PackBuildContext(options: BuildContextOptions): Gzip {
                 await new Promise<void>((resolve: () => void, reject: (error: Error) => void): unknown => archive.entry({...header, type: 'directory'}, (error?: Error | null): void => error ? reject(error) : resolve()))
                 for (const child of (await readdir(file)).sort()) await add(`${name}/${child}`)
             } else if (stats.isSymbolicLink()) {
-                const target: string = await readlink(file)
+                //The links of the images are the ones of Linux: "/" separated (readlink gives backslashes on Windows)
+                const target: string = (await readlink(file)).split(path.sep).join('/')
                 await new Promise<void>((resolve: () => void, reject: (error: Error) => void): unknown => archive.entry({...header, type: 'symlink', linkname: target}, (error?: Error | null): void => error ? reject(error) : resolve()))
             } else if (stats.isFile()) {
                 await pipeline(createReadStream(file), archive.entry({...header, type: 'file', size: stats.size}))
