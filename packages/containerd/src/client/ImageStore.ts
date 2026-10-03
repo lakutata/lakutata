@@ -142,7 +142,12 @@ function ConfigPlatform(config: ImageConfigFile): Platform {
  */
 export class ImageStore {
 
-    constructor(protected readonly client: ContainerdClient, public readonly snapshotter: string) {
+    /**
+     * @param client
+     * @param snapshotter
+     * @param temporary the directory of the archives extracted (a disk of the machine, not a small tmpfs)
+     */
+    constructor(protected readonly client: ContainerdClient, public readonly snapshotter: string, public readonly temporary: string = os.tmpdir()) {
     }
 
     /**
@@ -423,7 +428,8 @@ export class ImageStore {
      * @param options
      */
     public async import(source: string | NodeJS.ReadableStream, options: { name?: string, unpack?: boolean } = {}): Promise<string[]> {
-        const directory: string = await mkdtemp(path.join(os.tmpdir(), 'lakutata-containerd-import-'))
+        await mkdir(this.temporary, {recursive: true})
+        const directory: string = await mkdtemp(path.join(this.temporary, 'lakutata-containerd-import-'))
         const lease: string = await this.client.createLease()
         try {
             await this.extract(typeof source === 'string' ? createReadStream(source) : source, directory)

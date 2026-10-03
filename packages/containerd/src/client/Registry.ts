@@ -74,6 +74,46 @@ function Challenge(header: string): { scheme: string, params: Record<string, str
 }
 
 /**
+ * The basic authorization of credentials
+ * @param credentials
+ */
+function BasicAuthorization(credentials: RegistryCredentials | undefined): string | undefined {
+    return credentials?.username !== undefined ? `Basic ${Buffer.from(`${credentials.username}:${credentials.password ?? ''}`).toString('base64')}` : undefined
+}
+
+/**
+ * The token of a registry for scopes, from its token service (its realm): with the credentials (an identity token by
+ * OAuth2, a user and its password by the basic authentication), or anonymous
+ * @param params
+ * @param credentials
+ * @param signal
+ */
+export async function FetchRegistryToken(params: { realm: string, service?: string, scopes: string[] }, credentials?: RegistryCredentials, signal?: AbortSignal): Promise<{ token: string, expiresIn?: number, issuedAt?: number } | undefined> {
+    const url: URL = new URL(params.realm)
+    if (params.service) url.searchParams.set('service', params.service)
+    for (const scope of params.scopes) url.searchParams.append('scope', scope)
+    let response: Response
+    if (credentials?.identityToken) {
+        //The refresh token of the registries (Docker Hub, ECR…): OAuth2
+        response = await fetch(url.origin + url.pathname, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: new URLSearchParams({grant_type: 'refresh_token', refresh_token: credentials.identityToken, service: params.service ?? '', scope: params.scopes.join(' '), client_id: 'lakutata'}),
+            signal: signal
+        })
+    } else {
+        const basic: string | undefined = BasicAuthorization(credentials)
+        response = await fetch(url, {headers: basic ? {Authorization: basic} : {}, signal: signal})
+    }
+    if (!response.ok) throw new RegistryError(`The registry ${url.host} refuses the authentication (${response.status}): ${(await response.text()).slice(0, 200)}`, response.status)
+    const body = await response.json() as { token?: string, access_token?: string, expires_in?: number, issued_at?: string }
+    const token: string | undefined = body.token ?? body.access_token
+    if (!token) return undefined
+    const issued: number = body.issued_at ? Date.parse(body.issued_at) : NaN
+    return {token: token, expiresIn: body.expires_in, issuedAt: Number.isNaN(issued) ? undefined : Math.floor(issued / 1000)}
+}
+
+/**
  * An error of a registry
  */
 export class RegistryError extends Error {
@@ -118,28 +158,10 @@ export class RegistryClient {
     protected async authorize(challenge: string, scope: string): Promise<string | undefined> {
         const {scheme, params} = Challenge(challenge)
         const credentials: RegistryCredentials | undefined = this.credentials()
-        const basic: string | undefined = credentials?.username !== undefined ? `Basic ${Buffer.from(`${credentials.username}:${credentials.password ?? ''}`).toString('base64')}` : undefined
-        if (scheme === 'basic') return basic
+        if (scheme === 'basic') return BasicAuthorization(credentials)
         if (scheme !== 'bearer' || !params.realm) return undefined
-        const url: URL = new URL(params.realm)
-        if (params.service) url.searchParams.set('service', params.service)
-        url.searchParams.set('scope', scope)
-        let response: Response
-        if (credentials?.identityToken) {
-            //The refresh token of the registries (Docker Hub, ECR…): OAuth2
-            response = await fetch(url.origin + url.pathname, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                body: new URLSearchParams({grant_type: 'refresh_token', refresh_token: credentials.identityToken, service: params.service ?? '', scope: scope, client_id: 'lakutata'}),
-                signal: this.options.signal
-            })
-        } else {
-            response = await fetch(url, {headers: basic ? {Authorization: basic} : {}, signal: this.options.signal})
-        }
-        if (!response.ok) throw new RegistryError(`The registry ${this.reference.registry} refuses the authentication (${response.status}): ${(await response.text()).slice(0, 200)}`, response.status)
-        const body = await response.json() as { token?: string, access_token?: string }
-        const token: string | undefined = body.token ?? body.access_token
-        return token ? `Bearer ${token}` : undefined
+        const token = await FetchRegistryToken({realm: params.realm, service: params.service, scopes: [scope]}, credentials, this.options.signal)
+        return token ? `Bearer ${token.token}` : undefined
     }
 
     /**

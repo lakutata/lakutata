@@ -4,9 +4,14 @@ import {Accept} from '@lakutata/core/decorator/dto'
 import {ContainerdClient, type ContainerdEvent} from '../client/ContainerdClient.js'
 import {ImageStore} from '../client/ImageStore.js'
 import {ContainerStore, type ContainerMount} from '../client/ContainerStore.js'
-import {FormatPlatform, ParsePlatform, SupportedPlatforms, type Platform} from '../client/Platforms.js'
+import {FormatPlatform, HostPlatform, ParsePlatform, SupportedPlatforms, type Platform} from '../client/Platforms.js'
 import {ParseReference} from '../client/Reference.js'
 import {DEFAULT_NETWORK, NetworkStore, type CNINetwork, type PortMapping} from '../client/Networks.js'
+import {GRPCConnection} from '../client/GRPC.js'
+import {BuildKitBuild, BuildKitPlatforms, BuildKitVersion} from '../client/BuildKit.js'
+import {mkdir, rm} from 'node:fs/promises'
+import path from 'node:path'
+import {randomBytes} from 'node:crypto'
 import type {RegistryCredentials, RegistryOptions} from '../client/Registry.js'
 import type {Message} from '../client/Protobuf.js'
 import {ContainerdImage} from './lib/ContainerdImage.js'
@@ -25,6 +30,8 @@ import {ContainerdContainerNotFoundException} from './exceptions/ContainerdConta
 import {ContainerdNetworkNotFoundException} from './exceptions/ContainerdNetworkNotFoundException.js'
 import {ContainerdNetworkConflictException} from './exceptions/ContainerdNetworkConflictException.js'
 import {NetworkCreateOptions} from './options/network/NetworkCreateOptions.js'
+import {ImageBuildOptions} from './options/image/ImageBuildOptions.js'
+import {ContainerdImageBuildException} from './exceptions/ContainerdImageBuildException.js'
 import type {ContainerdNetworkInfo} from './types/ContainerdNetworkInfo.js'
 
 /**
@@ -91,6 +98,24 @@ export class Containerd extends Component {
     protected readonly cniPath: string[]
 
     /**
+     * The address of BuildKit building the images: its socket (unix:///run/buildkit/buildkitd.sock), or a remote one
+     * (tcp://host:1234)
+     */
+    @Configurable(DTO.String().pattern(/^(\/|unix:\/\/\/|tcp:\/\/)/).optional().default('unix:///run/buildkit/buildkitd.sock'))
+    protected readonly buildkitAddress: string
+
+    /**
+     * The TLS of a remote BuildKit: the authority of its certificate, the certificate and the key of the client (PEM)
+     */
+    @Configurable(DTO.Object({
+        ca: DTO.Alternatives(DTO.String(), DTO.Binary()).optional(),
+        cert: DTO.Alternatives(DTO.String(), DTO.Binary()).optional(),
+        key: DTO.Alternatives(DTO.String(), DTO.Binary()).optional(),
+        servername: DTO.String().optional()
+    }).optional())
+    protected readonly buildkitTLS?: { ca?: string | Buffer, cert?: string | Buffer, key?: string | Buffer, servername?: string }
+
+    /**
      * The credentials of the registries, by their names (docker.io, registry.example.com:5000)
      */
     @Configurable(DTO.Object().pattern(DTO.String(), DTO.Object({
@@ -114,6 +139,8 @@ export class Containerd extends Component {
 
     #networks: NetworkStore
 
+    #buildkit: GRPCConnection
+
     #platforms: string[]
 
     readonly #abortController: AbortController = new AbortController()
@@ -134,7 +161,8 @@ export class Containerd extends Component {
         } catch (e: any) {
             throw new ContainerdConnectionException(`Cannot connect to containerd (${this.socketPath}): ${e.message}`)
         }
-        this.#images = new ImageStore(this.#client, this.snapshotter)
+        this.#images = new ImageStore(this.#client, this.snapshotter, path.join(this.dataRoot, 'tmp'))
+        this.#buildkit = new GRPCConnection(this.buildkitAddress, this.buildkitTLS)
         this.#networks = new NetworkStore(this.cniConfigPath, this.cniPath)
         this.#containers = new ContainerStore(this.#client, this.#images, this.#networks, {
             snapshotter: this.snapshotter,
@@ -153,6 +181,7 @@ export class Containerd extends Component {
     protected async destroy(): Promise<void> {
         this.#abortController.abort()
         this.#client?.close()
+        this.#buildkit?.close()
     }
 
     /**
@@ -256,6 +285,68 @@ export class Containerd extends Component {
             throw ContainerdError(error, ContainerdImagePullException)
         }
         return await this.getImage(name)
+    }
+
+    /**
+     * The version of BuildKit
+     */
+    public async buildkitVersion(): Promise<{ package: string, version: string, revision: string }> {
+        try {
+            return await BuildKitVersion(this.#buildkit)
+        } catch (error: unknown) {
+            throw new ContainerdImageBuildException(`Cannot connect to BuildKit (${this.buildkitAddress}): ${(error as Error).message}`)
+        }
+    }
+
+    /**
+     * The platforms BuildKit builds (its workers, the emulators of its machine)
+     */
+    public async buildkitPlatforms(): Promise<string[]> {
+        try {
+            return (await BuildKitPlatforms(this.#buildkit)).map(FormatPlatform)
+        } catch (error: unknown) {
+            throw new ContainerdImageBuildException(`Cannot connect to BuildKit (${this.buildkitAddress}): ${(error as Error).message}`)
+        }
+    }
+
+    /**
+     * Build an image with BuildKit (local or remote): its context and its Dockerfile sent by the session of BuildKit,
+     * the image imported into containerd (and pushed)
+     * @param options
+     */
+    @Accept(ImageBuildOptions.required())
+    public async buildImage(options: ImageBuildOptions): Promise<ContainerdImage> {
+        const name: string = ParseReference(options.repoTag).name
+        const platforms: Platform[] = options.platform ? (Array.isArray(options.platform) ? options.platform : [options.platform]).map(ParsePlatform) : [HostPlatform()]
+        const temporary: string = path.join(this.dataRoot, 'tmp')
+        await mkdir(temporary, {recursive: true})
+        const archive: string = path.join(temporary, `lakutata-build-${randomBytes(8).toString('hex')}.tar`)
+        const registry: RegistryOptions = this.registryOptions(options.repoTag, options.auth)
+        try {
+            await BuildKitBuild(this.#buildkit, {
+                context: options.workdir,
+                dockerfile: options.dockerfile,
+                target: options.target || undefined,
+                buildArgs: options.buildargs,
+                labels: options.labels,
+                platforms: platforms,
+                noCache: options.nocache,
+                pull: options.pull,
+                name: name,
+                output: archive,
+                credentials: (host: string): RegistryCredentials | undefined => registry.credentials?.[host],
+                progress: options.outputCallback,
+                signal: this.#abortController.signal
+            })
+            await this.#images.import(archive, {name: name})
+        } catch (error: unknown) {
+            throw new ContainerdImageBuildException((error as Error).message)
+        } finally {
+            await rm(archive, {force: true})
+        }
+        const image: ContainerdImage = await this.getImage(name)
+        if (options.push) await image.push({auth: options.auth})
+        return image
     }
 
     /**

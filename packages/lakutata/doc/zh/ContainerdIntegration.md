@@ -135,7 +135,31 @@ await containerd.removeNetwork('backend') //仍有容器使用时会被拒绝
 与 nerdctl 一样，容器的网络由其钩子（由 runc 执行）配置：在任务创建时加入网络，在任务停止时删除网络。containerd 按
 restart 策略重启容器时、设备重启之后，即使应用没有运行也是如此。容器每次启动时分配地址，并写入其 `/etc/hosts`。
 
-## 5. 其他架构的平台
+## 5. 构建镜像
+
+镜像由 [BuildKit](https://github.com/moby/buildkit) 构建：可以是本机的 `buildkitd`（通过其 socket，默认
+`buildkitAddress: 'unix:///run/buildkit/buildkitd.sock'`，使用 containerd 或 runc worker），也可以是远程的
+`buildkitd`（`tcp://builder:1234`，可配合 `buildkitTLS: {ca, cert, key}`）。组件像 `docker buildx` 一样，通过 BuildKit
+的 session 发送构建上下文（排除 `.dockerignore` 中的文件）与 Dockerfile，并把构建出的镜像导入 containerd：
+
+```typescript
+const image = await containerd.buildImage({
+    workdir: '/srv/app',                  //构建上下文
+    dockerfile: 'docker/App.Dockerfile',  //默认为 Dockerfile
+    repoTag: 'registry.example.com/team/app:1.0',
+    buildargs: {NODE_ENV: 'production'},
+    platform: ['linux/arm64', 'linux/amd64'], //默认为本机平台
+    push: true,                               //构建完成后推送到镜像仓库
+    outputCallback: line => console.log(line) //#3 [2/3] RUN npm ci …
+})
+await containerd.buildkitVersion()
+await containerd.buildkitPlatforms() //其 worker 可构建的平台
+```
+
+远程 BuildKit 默认为本机的平台构建镜像，也可以构建它所在机器的模拟器所支持的平台。基础镜像所在镜像仓库的凭据使用组件的配置
+（或 `auth` 选项）。
+
+## 6. 其他架构的平台
 
 `containerd.supportedPlatforms()` 返回本机可运行的平台：本机自身的平台，以及注册在 `binfmt_misc` 中的模拟器
 （QEMU、Rosetta）的平台。模拟器按条目中的 ELF 机器类型识别，与条目名称无关。注册了对应模拟器后即可运行其他平台的容器：
@@ -145,7 +169,7 @@ await containerd.pullImage({image: 'alpine:3.20', platform: 'linux/amd64'})
 const container = await containerd.createContainer({image: 'alpine:3.20', platform: 'linux/amd64', cmd: ['uname', '-m']})
 ```
 
-## 6. 事件
+## 7. 事件
 
 ```typescript
 const abort = new AbortController()
@@ -154,15 +178,15 @@ for await (const event of containerd.events(abort.signal)) {
 }
 ```
 
-## 7. 异常
+## 8. 异常
 
 `ContainerdConnectionException`、`ContainerdImageNotFoundException`、`ContainerdImagePullException`、
 `ContainerdImagePushException`、`ContainerdImageImportException`、`ContainerdImageExportException`、
-`ContainerdPlatformException`（镜像没有该平台的清单）、`ContainerdContainerNotFoundException`、
+`ContainerdImageBuildException`（无法连接 BuildKit，或构建失败）、`ContainerdPlatformException`（镜像没有该平台的清单）、`ContainerdContainerNotFoundException`、
 `ContainerdContainerNameConflictException`、`ContainerdContainerStateException`（正在运行、未运行、已暂停）、
 `ContainerdNetworkNotFoundException`、`ContainerdNetworkConflictException`（网络已存在、子网与其他网络重叠、或仍有容器使用）。
 
-## 8. 当前版本的限制
+## 9. 当前版本的限制
 
-- 暂不支持构建镜像（后续通过本地或远程的 BuildKit 提供），也暂不支持 Compose 项目。
+- 暂不支持 Compose 项目。
 - 容器运行时没有 seccomp 配置，日志不带时间戳。

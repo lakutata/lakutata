@@ -25,6 +25,80 @@ The labels of the containers (`nerdctl/name`, `nerdctl/hostname`, `nerdctl/platf
 
 Modifications: no code of nerdctl is included; its conventions are followed so that nerdctl lists the containers.
 
+## BuildKit 0.16
+
+Copyright The BuildKit Authors. Licensed under the Apache License, Version 2.0 (reproduced below).
+
+The messages of the API of BuildKit and of its session (their fields and their numbers, from its
+`api/services/control`, `session/filesync` and `session/auth` protobuf definitions): `src/client/BuildKitMessages.ts`;
+the session (the methods exposed by its headers, the connection of HTTP/2 in its stream) and the lines of the
+progress of the builds: `src/client/BuildKit.ts`.
+
+Modifications: no protobuf definitions are included; the messages are written as the schemas of the encoder of this
+package, with the fields this package uses only.
+
+## fsutil
+
+Copyright Tõnis Tiigi. Licensed under the MIT License (reproduced below).
+
+The protocol of the directories sent to BuildKit (its packets and its stats, the order of its walk, the modes of Go):
+`src/client/BuildKit.ts`, `src/client/BuildKitMessages.ts`.
+
+```
+The MIT License (MIT)
+
+Copyright (c) 2017 Tõnis Tiigi
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit
+persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the
+Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+## @balena/dockerignore 1.0.2
+
+Copyright 2020 Balena Ltd. under the Apache License, Version 2.0 (reproduced below).
+Copyright 2018 Zeit Inc. under the MIT License (reproduced below).
+
+The rules of the `.dockerignore` files: `src/client/DockerIgnore.ts`.
+
+Modifications: rewritten in TypeScript; only the matching of the paths of a build context is kept.
+
+## The MIT License of Zeit Inc.
+
+```
+Copyright 2018 Zeit Inc.
+
+The MIT License (MIT)
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+```
+
+
 ## Apache License, Version 2.0
 
 ```

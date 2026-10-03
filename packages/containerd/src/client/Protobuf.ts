@@ -40,14 +40,15 @@ const enum WireType {
 const VARINTS: ReadonlySet<string> = new Set(['bool', 'int32', 'int64', 'uint32', 'uint64', 'enum'])
 
 /**
- * Write a varint: the numbers up to 2^53 (the sizes, the offsets), the negative ones as the ten bytes of their 64 bits
+ * Write a varint: the numbers up to 2^53 (the sizes, the offsets), the bigints on 64 bits (the times in nanoseconds), the
+ * negative ones as the ten bytes of their 64 bits
  * @param bytes
  * @param value
  */
-function WriteVarint(bytes: number[], value: number): void {
-    if (value < 0) {
+function WriteVarint(bytes: number[], value: number | bigint): void {
+    if (typeof value === 'bigint' || value < 0) {
         //Two's complement on 64 bits
-        let big: bigint = BigInt.asUintN(64, BigInt(Math.trunc(value)))
+        let big: bigint = BigInt.asUintN(64, typeof value === 'bigint' ? value : BigInt(Math.trunc(value)))
         while (big > 0x7fn) {
             bytes.push(Number(big & 0x7fn) | 0x80)
             big >>= 7n
@@ -105,7 +106,7 @@ function WriteValue(bytes: number[], field: Field, value: unknown): void {
     if (field.type === 'string') return WriteLength(bytes, field.no, Buffer.from(String(value), 'utf8'))
     if (field.type === 'bytes') return WriteLength(bytes, field.no, value instanceof Uint8Array ? value : Buffer.from(value as string))
     WriteVarint(bytes, field.no * 8 + WireType.VARINT)
-    WriteVarint(bytes, field.type === 'bool' ? (value ? 1 : 0) : Number(value))
+    WriteVarint(bytes, field.type === 'bool' ? (value ? 1 : 0) : typeof value === 'bigint' ? value : Number(value))
 }
 
 /**
@@ -144,7 +145,7 @@ export function Encode(schema: Schema, message: Message = {}): Uint8Array {
             if (typeof field.type === 'string' && VARINTS.has(field.type)) {
                 //Packed
                 const packed: number[] = []
-                for (const item of items) WriteVarint(packed, field.type === 'bool' ? (item ? 1 : 0) : Number(item))
+                for (const item of items) WriteVarint(packed, field.type === 'bool' ? (item ? 1 : 0) : typeof item === 'bigint' ? item : Number(item))
                 WriteLength(bytes, field.no, Uint8Array.from(packed))
             } else {
                 for (const item of items) WriteValue(bytes, field, item)

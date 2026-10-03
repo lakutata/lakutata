@@ -1,5 +1,7 @@
-import http2, {type ClientHttp2Session, type ClientHttp2Stream, type IncomingHttpHeaders, type IncomingHttpStatusHeader} from 'node:http2'
+import http2, {type ClientHttp2Session, type ClientHttp2Stream, type Http2Server, type IncomingHttpHeaders, type IncomingHttpStatusHeader, type ServerHttp2Stream} from 'node:http2'
 import net from 'node:net'
+import type {Duplex} from 'node:stream'
+import tls from 'node:tls'
 import {Decode, Encode, type Message, type Schema} from './Protobuf.js'
 
 /**
@@ -39,8 +41,21 @@ export class GRPCError extends Error {
  * The options of a call: its metadata (the namespace, the lease of containerd), its abort
  */
 export type CallOptions = {
-    metadata?: Record<string, string | undefined>
+    metadata?: Record<string, string | string[] | undefined>
     signal?: AbortSignal
+}
+
+/**
+ * The TLS of a connection over TCP: the authority of the server, the certificate of the client
+ */
+export type GRPCTLSOptions = {
+    ca?: string | Buffer
+    cert?: string | Buffer
+    key?: string | Buffer
+    /**
+     * The name of the server checked in its certificate (its host by default)
+     */
+    servername?: string
 }
 
 /**
@@ -163,8 +178,9 @@ class MessageQueue implements AsyncIterableIterator<Message> {
 }
 
 /**
- * A connection to a gRPC server listening on a unix socket (the one of containerd), over HTTP/2: its session is opened
- * at the first call, kept referenced while calls are in progress (it does not keep the process alive otherwise)
+ * A connection to a gRPC server over HTTP/2: on a unix socket (containerd, a local buildkitd: /path, unix:///path), or
+ * over TCP (a remote buildkitd: tcp://host:port, with TLS when its options are given); its session is opened at the
+ * first call, kept referenced while calls are in progress (it does not keep the process alive otherwise)
  */
 export class GRPCConnection {
 
@@ -172,7 +188,32 @@ export class GRPCConnection {
 
     #active: number = 0
 
-    constructor(public readonly socketPath: string) {
+    /**
+     * @param address the path of a unix socket, unix:///path or tcp://host:port
+     * @param tlsOptions
+     */
+    constructor(public readonly address: string, protected readonly tlsOptions?: GRPCTLSOptions) {
+        if (!address.startsWith('/') && !address.startsWith('unix://') && !address.startsWith('tcp://')) throw new Error(`The address ${address} is not a unix socket (/path, unix:///path) nor tcp://host:port`)
+    }
+
+    /**
+     * The path of the unix socket of the connection
+     */
+    public get socketPath(): string | undefined {
+        if (this.address.startsWith('/')) return this.address
+        return this.address.startsWith('unix://') ? this.address.slice('unix://'.length) : undefined
+    }
+
+    /**
+     * The socket of the session
+     */
+    protected connect(): Duplex {
+        const socketPath: string | undefined = this.socketPath
+        if (socketPath) return net.connect(socketPath)
+        const url: URL = new URL(this.address.replace(/^tcp:/, 'http:'))
+        const port: number = Number(url.port || (this.tlsOptions ? 443 : 80))
+        if (!this.tlsOptions) return net.connect(port, url.hostname)
+        return tls.connect({host: url.hostname, port: port, ca: this.tlsOptions.ca, cert: this.tlsOptions.cert, key: this.tlsOptions.key, servername: this.tlsOptions.servername ?? url.hostname, ALPNProtocols: ['h2']})
     }
 
     /**
@@ -180,7 +221,7 @@ export class GRPCConnection {
      */
     protected session(): ClientHttp2Session {
         if (this.#session && !this.#session.closed && !this.#session.destroyed) return this.#session
-        const session: ClientHttp2Session = http2.connect('http://localhost', {createConnection: (): net.Socket => net.connect(this.socketPath)})
+        const session: ClientHttp2Session = http2.connect(this.tlsOptions ? 'https://localhost' : 'http://localhost', {createConnection: (): Duplex => this.connect()})
         //The errors of the session are the ones of its streams
         session.on('error', (): void => undefined)
         session.unref()
@@ -194,7 +235,7 @@ export class GRPCConnection {
      * @param options
      */
     protected open(path: string, options: CallOptions): ClientHttp2Stream {
-        const metadata: Record<string, string> = {}
+        const metadata: Record<string, string | string[]> = {}
         for (const [name, value] of Object.entries(options.metadata ?? {})) if (value !== undefined) metadata[name] = value
         const session: ClientHttp2Session = this.session()
         const stream: ClientHttp2Stream = session.request({':method': 'POST', ':path': path, 'content-type': 'application/grpc', 'te': 'trailers', ...metadata})
@@ -314,5 +355,152 @@ export class GRPCConnection {
     public close(): void {
         this.#session?.close()
         this.#session = undefined
+    }
+}
+
+/**
+ * A call received by a gRPC server: its requests read, its responses sent, its status
+ */
+export class GRPCServerCall {
+
+    readonly #reader: FrameReader = new FrameReader()
+
+    #responded: boolean = false
+
+    #finished: boolean = false
+
+    constructor(public readonly stream: ServerHttp2Stream, public readonly headers: IncomingHttpHeaders) {
+        stream.on('error', (): void => undefined)
+    }
+
+    /**
+     * The path of its method
+     */
+    public get path(): string {
+        return String(this.headers[':path'])
+    }
+
+    /**
+     * The values of a header of its metadata (its repeated ones, the ones separated by commas)
+     * @param name
+     */
+    public metadata(name: string): string[] {
+        const value: string | string[] | undefined = this.headers[name.toLowerCase()]
+        if (value === undefined) return []
+        return (Array.isArray(value) ? value : [value]).flatMap((item: string): string[] => item.split(',')).map((item: string): string => {
+            try {
+                return decodeURIComponent(item.trim())
+            } catch {
+                return item.trim()
+            }
+        }).filter(Boolean)
+    }
+
+    /**
+     * Its requests
+     * @param schema
+     */
+    public async* requests(schema: Schema): AsyncGenerator<Message> {
+        //Left early (a unary request read), the stream is kept for the responses
+        for await (const chunk of this.stream.iterator({destroyOnReturn: false})) {
+            for (const data of this.#reader.push(chunk as Buffer)) yield Decode(schema, data)
+        }
+    }
+
+    /**
+     * Its request (of a unary method)
+     * @param schema
+     */
+    public async request(schema: Schema): Promise<Message> {
+        for await (const message of this.requests(schema)) return message
+        return {}
+    }
+
+    /**
+     * Send a response, once the stream takes more
+     * @param schema
+     * @param message
+     */
+    public async send(schema: Schema, message: Message): Promise<void> {
+        if (this.#finished || this.stream.destroyed) throw new GRPCError(GRPCStatus.CANCELLED, 'The call is closed', this.path)
+        this.respond()
+        if (!this.stream.write(Frame(schema, message))) {
+            await new Promise<void>((resolve: () => void): void => {
+                const done = (): void => {
+                    this.stream.off('drain', done).off('close', done)
+                    resolve()
+                }
+                this.stream.once('drain', done).once('close', done)
+            })
+        }
+    }
+
+    protected respond(): void {
+        if (this.#responded) return
+        this.#responded = true
+        this.stream.respond({':status': 200, 'content-type': 'application/grpc'}, {waitForTrailers: true})
+    }
+
+    /**
+     * End the call with its status
+     * @param code
+     * @param message
+     */
+    public finish(code: number = GRPCStatus.OK, message: string = ''): void {
+        if (this.#finished || this.stream.destroyed || this.stream.closed) return
+        this.#finished = true
+        this.respond()
+        this.stream.once('wantTrailers', (): void => {
+            this.stream.sendTrailers({'grpc-status': String(code), ...message ? {'grpc-message': encodeURIComponent(message)} : {}})
+        })
+        this.stream.end()
+    }
+}
+
+/**
+ * A gRPC server over a byte stream (the session of BuildKit, whose daemon calls the methods of its client): its methods
+ * by their paths
+ */
+export class GRPCServer {
+
+    readonly #server: Http2Server = http2.createServer()
+
+    readonly #methods: Map<string, (call: GRPCServerCall) => Promise<void>> = new Map()
+
+    constructor() {
+        this.#server.on('stream', (stream: ServerHttp2Stream, headers: IncomingHttpHeaders): void => {
+            const call: GRPCServerCall = new GRPCServerCall(stream, headers)
+            const method = this.#methods.get(call.path)
+            if (!method) return call.finish(GRPCStatus.UNIMPLEMENTED, `The method ${call.path} is not implemented`)
+            method(call).then((): void => call.finish(), (error: unknown): void => {
+                call.finish(error instanceof GRPCError ? error.code : GRPCStatus.UNKNOWN, (error as Error)?.message ?? String(error))
+            })
+        })
+        this.#server.on('sessionError', (): void => undefined)
+    }
+
+    /**
+     * The paths of its methods
+     */
+    public get methods(): string[] {
+        return [...this.#methods.keys()]
+    }
+
+    /**
+     * Add a method
+     * @param path
+     * @param handler its call ends with its result (an error is its status)
+     */
+    public method(path: string, handler: (call: GRPCServerCall) => Promise<void>): this {
+        this.#methods.set(path, handler)
+        return this
+    }
+
+    /**
+     * Serve a connection (HTTP/2 without TLS) given by a byte stream
+     * @param socket
+     */
+    public serve(socket: Duplex): void {
+        this.#server.emit('connection', socket)
     }
 }

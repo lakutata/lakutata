@@ -139,7 +139,32 @@ The networks of a container are set up by its hooks (run by runc), as nerdctl do
 created and deleted when it stops, also when containerd restarts it by its restart policy, after a reboot, without the
 application. Its address is given at each start, and written in its `/etc/hosts`.
 
-## 5. Platforms of other architectures
+## 5. Builds
+
+The images are built by [BuildKit](https://github.com/moby/buildkit): a `buildkitd` of the machine (its socket,
+`buildkitAddress: 'unix:///run/buildkit/buildkitd.sock'` by default, with its containerd or runc worker), or a remote
+one (`tcp://builder:1234`, with `buildkitTLS: {ca, cert, key}`). The component sends the context of the build (without
+the files its `.dockerignore` excludes) and the Dockerfile over the session of BuildKit, as `docker buildx` does, and
+imports the image built into containerd:
+
+```typescript
+const image = await containerd.buildImage({
+    workdir: '/srv/app',                  //the context
+    dockerfile: 'docker/App.Dockerfile',  //Dockerfile by default
+    repoTag: 'registry.example.com/team/app:1.0',
+    buildargs: {NODE_ENV: 'production'},
+    platform: ['linux/arm64', 'linux/amd64'], //the one of the machine by default
+    push: true,                               //pushed to its registry once built
+    outputCallback: line => console.log(line) //#3 [2/3] RUN npm ci …
+})
+await containerd.buildkitVersion()
+await containerd.buildkitPlatforms() //the platforms its workers build
+```
+
+A remote BuildKit builds for the machine (its platform by default), and the platforms it emulates with the emulators of
+its own machine. The credentials of the registries of the base images are the ones of the component (or of `auth`).
+
+## 6. Platforms of other architectures
 
 `containerd.supportedPlatforms()` gives the platforms the machine runs: its own one, and the ones of the emulators
 registered in `binfmt_misc` (QEMU, Rosetta), detected by the ELF machine of their entries whatever their names. A
@@ -150,7 +175,7 @@ await containerd.pullImage({image: 'alpine:3.20', platform: 'linux/amd64'})
 const container = await containerd.createContainer({image: 'alpine:3.20', platform: 'linux/amd64', cmd: ['uname', '-m']})
 ```
 
-## 6. Events
+## 7. Events
 
 ```typescript
 const abort = new AbortController()
@@ -159,16 +184,17 @@ for await (const event of containerd.events(abort.signal)) {
 }
 ```
 
-## 7. Exceptions
+## 8. Exceptions
 
 `ContainerdConnectionException`, `ContainerdImageNotFoundException`, `ContainerdImagePullException`,
 `ContainerdImagePushException`, `ContainerdImageImportException`, `ContainerdImageExportException`,
-`ContainerdPlatformException` (the image has no manifest of the platform), `ContainerdContainerNotFoundException`,
+`ContainerdImageBuildException` (BuildKit is not reachable, or the build failed), `ContainerdPlatformException` (the
+image has no manifest of the platform), `ContainerdContainerNotFoundException`,
 `ContainerdContainerNameConflictException`, `ContainerdContainerStateException` (running, not running, paused),
 `ContainerdNetworkNotFoundException`, `ContainerdNetworkConflictException` (the network exists, its subnet overlaps
 another one, or a container uses it).
 
-## 8. Limits of this version
+## 9. Limits of this version
 
-- The images are not built yet (BuildKit, local or remote, comes next), nor the projects of Compose.
+- The projects of Compose are not supported yet.
 - The containers run without seccomp profile, and their logs have no timestamps.

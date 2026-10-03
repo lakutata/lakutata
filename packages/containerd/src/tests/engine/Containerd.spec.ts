@@ -2,7 +2,7 @@ import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
 import {spawnSync} from 'node:child_process'
 import {existsSync} from 'node:fs'
-import {mkdtemp, readFile, rm} from 'node:fs/promises'
+import {mkdir, mkdtemp, readFile, rm, symlink, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {setTimeout as sleep} from 'node:timers/promises'
@@ -14,6 +14,7 @@ import {
     ContainerdContainerNotFoundException,
     ContainerdContainerStateException,
     ContainerdImage,
+    ContainerdImageBuildException,
     ContainerdImageNotFoundException,
     ContainerdNetworkConflictException,
     ContainerdNetworkNotFoundException,
@@ -35,6 +36,12 @@ const SOCKET: string = process.env.CONTAINERD_TEST_SOCKET || '/run/containerd/co
 const NAMESPACE: string = 'lakutata-test'
 
 const ALPINE: string = 'alpine:3.20'
+
+/**
+ * The addresses of the BuildKit daemons the builds are tested with (CONTAINERD_TEST_BUILDKIT, separated by commas: a
+ * local one, unix:///run/buildkit/buildkitd.sock, a remote one, tcp://host:1234)
+ */
+const BUILDKITS: string[] = (process.env.CONTAINERD_TEST_BUILDKIT ?? '').split(',').map((address: string): string => address.trim()).filter(Boolean)
 
 /**
  * The port of the registry run by the tests
@@ -60,7 +67,15 @@ describe('The containerd component with the containerd of the machine', {skip: !
                         namespace: NAMESPACE,
                         dataRoot: path.join(directory, 'data'),
                         insecureRegistries: [`localhost:${REGISTRY_PORT}`]
-                    }
+                    },
+                    //The components of the BuildKit daemons tested, and of one which is not there
+                    ...Object.fromEntries([...BUILDKITS, `unix://${path.join(directory, 'none.sock')}`].map((address: string, index: number): [string, object] => [`builder${index}`, {
+                        class: Containerd,
+                        socketPath: SOCKET,
+                        namespace: NAMESPACE,
+                        dataRoot: path.join(directory, 'data'),
+                        buildkitAddress: address
+                    }]))
                 },
                 bootstrap: ['containerd']
             })
@@ -310,6 +325,59 @@ describe('The containerd component with the containerd of the machine', {skip: !
         } finally {
             await web.remove({force: true})
         }
+    })
+
+    for (const [index, address] of BUILDKITS.entries()) {
+        it(`builds an image with the BuildKit of ${address}`, async (): Promise<void> => {
+            const builder: Containerd = await app.getObject<Containerd>(`builder${index}`)
+            const context: string = path.join(directory, 'context')
+            await rm(context, {recursive: true, force: true})
+            await mkdir(path.join(context, 'docker'), {recursive: true})
+            await writeFile(path.join(context, 'docker', 'App.Dockerfile'), `FROM ${ALPINE}\nARG GREETING\nCOPY . /app/\nRUN echo "$GREETING" > /app/greeting && ls /app > /app/files\nCMD ["sh", "-c", "cat /app/greeting /app/files /app/linked"]\n`)
+            await writeFile(path.join(context, 'data.txt'), 'data\n')
+            await writeFile(path.join(context, 'secret.txt'), 'secret\n')
+            await writeFile(path.join(context, '.dockerignore'), 'secret.txt\ndocker\n')
+            await symlink('data.txt', path.join(context, 'linked'))
+            const lines: string[] = []
+            const tag: string = `lakutata-test/built:${address.startsWith('tcp') ? 'remote' : 'local'}`
+            assert.match((await builder.buildkitVersion()).version, /^v\d/)
+            assert.ok((await builder.buildkitPlatforms()).length > 0)
+            const image: ContainerdImage = await builder.buildImage({
+                workdir: context,
+                dockerfile: 'docker/App.Dockerfile',
+                repoTag: tag,
+                buildargs: {GREETING: 'hello'},
+                labels: {built: 'yes'},
+                outputCallback: (line: string): unknown => lines.push(line)
+            })
+            assert.strictEqual(image.name, `docker.io/${tag}`)
+            assert.strictEqual(image.platform, FormatPlatform(HostPlatform()))
+            assert.strictEqual(image.config.labels.built, 'yes')
+            assert.ok(lines.some((line: string): boolean => line.includes('RUN echo')), lines.join('\n'))
+            const container: ContainerdContainer = await containerd.createContainer({image: tag})
+            try {
+                await container.start()
+                assert.strictEqual(await container.wait(), 0)
+                let output: string = ''
+                for await (const chunk of await container.logs({follow: false})) output += chunk
+                //The .dockerignore of the context: no secret.txt, no docker directory
+                assert.strictEqual(output, 'hello\ndata.txt\nfiles\ngreeting\nlinked\ndata\n')
+            } finally {
+                await container.remove({force: true})
+            }
+            //An image of several platforms: its index, its RUN run by the emulators of the machine of BuildKit
+            await writeFile(path.join(context, 'Dockerfile'), `FROM ${ALPINE}\nRUN uname -m > /arch\nCMD ["cat", "/arch"]\n`)
+            const multiple: ContainerdImage = await builder.buildImage({workdir: context, repoTag: 'lakutata-test/multiple:1', platform: ['linux/amd64', 'linux/arm64']})
+            assert.deepStrictEqual([...multiple.platforms].sort(), ['linux/amd64', 'linux/arm64/v8'])
+            //A build which fails: its error, its output
+            await writeFile(path.join(context, 'Dockerfile'), `FROM ${ALPINE}\nRUN echo failing && exit 3\n`)
+            await assert.rejects(builder.buildImage({workdir: context, repoTag: 'lakutata-test/failed:1'}), (error: unknown): boolean => error instanceof ContainerdImageBuildException && /exit code: 3/.test((error as Error).message))
+        })
+    }
+
+    it('fails the builds when BuildKit is not there', async (): Promise<void> => {
+        const builder: Containerd = await app.getObject<Containerd>(`builder${BUILDKITS.length}`)
+        await assert.rejects(builder.buildkitVersion(), ContainerdImageBuildException)
     })
 
     it('writes the state of the containers where its data root is', async (): Promise<void> => {
