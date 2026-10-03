@@ -1,4 +1,4 @@
-import {lstatSync, readdirSync, readlinkSync} from 'node:fs'
+import {copyFileSync, lstatSync, mkdirSync, readdirSync, readlinkSync} from 'node:fs'
 import {stat, mkdir, writeFile, rm} from 'node:fs/promises'
 import path from 'node:path'
 import {ArchiveDirectory} from '../Archive.js'
@@ -34,22 +34,30 @@ function Arch(): string {
 }
 
 /**
- * A path given to nFPM as its source: nFPM reads the sources as globs, their characters of the globs escaped (the
- * chunks of Turbopack are named [root-of-the-server]__…)
- * @param file
+ * The characters of the globs, which nFPM reads in the sources of the contents (the chunks of Turbopack are named
+ * [root-of-the-server]__…)
  */
-function Literal(file: string): string {
-    return file.replace(/[*?[\]{}\\]/g, '\\$&')
-}
+const GLOB_CHARACTERS: RegExp = /[*?[\]{}\\]/
 
 /**
  * The contents of a package installing a directory: its files, and its links as links (the links of the native tree,
- * which may point to their parents: nFPM does not keep them in the trees it reads)
+ * which may point to their parents: nFPM does not keep them in the trees it reads). The files named with the characters
+ * of the globs are given by copies named without them: nFPM reads its sources as globs, and installs the files their
+ * globs match into their destination as into a directory
  * @param directory
  * @param prefix where it is installed
+ * @param work where the copies are written
  */
-function Contents(directory: string, prefix: string): Record<string, unknown>[] {
+function Contents(directory: string, prefix: string, work: string): Record<string, unknown>[] {
     const contents: Record<string, unknown>[] = []
+    let copies: number = 0
+    const source = (file: string): string => {
+        if (!GLOB_CHARACTERS.test(file)) return file
+        const copy: string = path.join(work, 'literal', String(copies++))
+        mkdirSync(path.dirname(copy), {recursive: true})
+        copyFileSync(file, copy)
+        return copy
+    }
     const walk = (current: string, at: string): void => {
         for (const entry of readdirSync(current, {withFileTypes: true})) {
             const file: string = path.join(current, entry.name)
@@ -61,7 +69,7 @@ function Contents(directory: string, prefix: string): Record<string, unknown>[] 
                 contents.push({dst: target, type: 'dir', file_info: {mode: lstatSync(file).mode & 0o777}})
                 walk(file, target)
             }
-            else contents.push({src: Literal(file), dst: target, file_info: {mode: lstatSync(file).mode & 0o777}})
+            else contents.push({src: source(file), dst: target, file_info: {mode: lstatSync(file).mode & 0o777}})
         }
     }
     contents.push({dst: prefix, type: 'dir', file_info: {mode: 0o755}})
@@ -308,7 +316,7 @@ export async function BuildLinuxPackages(plan: InstallerPlan, targets: LinuxTarg
         }
         const directory: string = path.join(work, target)
         await mkdir(directory, {recursive: true})
-        const contents: Record<string, unknown>[] = Contents(plan.directory, plan.prefix)
+        const contents: Record<string, unknown>[] = Contents(plan.directory, plan.prefix, directory)
         if (plan.addToPath) contents.push({src: `${plan.prefix}/${plan.program}`, dst: `/usr/bin/${plan.program}`, type: 'symlink'})
         if (service) {
             await writeFile(path.join(directory, 'environment'), EnvironmentFile(service))
