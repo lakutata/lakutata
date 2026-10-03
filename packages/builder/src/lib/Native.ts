@@ -1,5 +1,5 @@
 import {createHash} from 'node:crypto'
-import {existsSync, lstatSync, readdirSync, readFileSync, realpathSync, statSync, type Stats} from 'node:fs'
+import {existsSync, readdirSync, readFileSync, realpathSync, statSync, type Stats} from 'node:fs'
 import {mkdir, readFile, rm, symlink, writeFile} from 'node:fs/promises'
 import {createRequire, isBuiltin} from 'node:module'
 import path from 'node:path'
@@ -126,16 +126,19 @@ function PackageFiles(directory: string): string[] {
 }
 
 /**
- * The directory both paths are in
- * @param a
- * @param b
+ * The directories node looks a package up in from a directory of the tree, the nearest first
+ * @param directory
+ * @param name
  */
-function CommonDirectory(a: string, b: string): string {
-    const left: string[] = a.split(path.sep)
-    const right: string[] = b.split(path.sep)
-    let index: number = 0
-    while (index < left.length && index < right.length && left[index] === right[index]) index++
-    return left.slice(0, index).join(path.sep) || path.sep
+function Lookups(directory: string, name: string): string[] {
+    const parts: string[] = directory.split('/')
+    const lookups: string[] = []
+    for (let index: number = parts.length; index >= 0; index--) {
+        const prefix: string[] = parts.slice(0, index)
+        if (prefix.at(-1) === 'node_modules') continue
+        lookups.push([...prefix, 'node_modules', name].join('/'))
+    }
+    return lookups
 }
 
 /**
@@ -169,6 +172,11 @@ export class NativeCollector {
      * esbuild cannot follow
      */
     protected readonly whole: Set<string> = new Set()
+
+    /**
+     * The packages each package of the tree requires, by their names (traced)
+     */
+    protected readonly required: Map<string, Map<string, string>> = new Map()
 
     /**
      * @param project the directory of the project, whose files are bundled
@@ -372,6 +380,10 @@ export class NativeCollector {
                             //The requires which cannot be followed (computed paths) are left to the run time
                             if (!file || ADDON.test(file)) return {path: args.path, external: true}
                             const dependency: string | undefined = this.packageRoot(file)
+                            //The package it requires by this name (the ones it does not declare too)
+                            const name: string | undefined = SpecifierPackage(args.path)
+                            const importer: string | undefined = args.importer ? this.packageRoot(realpathSync(args.importer)) : undefined
+                            if (name && importer && dependency && importer !== dependency) this.requires(importer).set(name, dependency)
                             if (dependency !== current.root && this.isNative(dependency)) {
                                 pending.push({root: dependency, entries: new Set([file])})
                                 return {path: args.path, external: true}
@@ -431,6 +443,57 @@ export class NativeCollector {
     }
 
     /**
+     * The packages a package requires, by their names
+     * @param root
+     */
+    protected requires(root: string): Map<string, string> {
+        const required: Map<string, string> = this.required.get(root) ?? new Map()
+        this.required.set(root, required)
+        return required
+    }
+
+    /**
+     * The layout of the packages of the tree, without links (as npm installs them, the tree is moved, copied, archived
+     * and installed as it is): the packages the application loads in node_modules, the packages each package requires
+     * (traced) or declares where node finds them from it: shared when node finds the same package, at the top when its
+     * name is free there, else in the node_modules of the package
+     * @param included the packages of the tree
+     * @return the packages by their directories in the tree
+     */
+    protected layout(included: Set<string>): Map<string, string> {
+        const placed: Map<string, string> = new Map()
+        const queue: string[] = []
+        const place = (directory: string, root: string): unknown => queue.push(placed.set(directory, root) && directory)
+        const drain = (): void => {
+            while (queue.length) {
+                const directory: string = queue.shift()!
+                const root: string = placed.get(directory)!
+                const needed: Map<string, string> = new Map(this.required.get(root))
+                for (const dependency of this.dependencies(root)) {
+                    if (included.has(dependency.root) && !needed.has(dependency.name)) needed.set(dependency.name, dependency.root)
+                }
+                for (const [name, dependency] of [...needed].sort(([a], [b]): number => a.localeCompare(b))) {
+                    if (dependency === root || !included.has(dependency)) continue
+                    const found: string | undefined = Lookups(directory, name).find((lookup: string): boolean => placed.has(lookup))
+                    if (found !== undefined && placed.get(found) === dependency) continue
+                    place(found === undefined ? `node_modules/${name}` : `${directory}/node_modules/${name}`, dependency)
+                }
+            }
+        }
+        for (const [name, {root}] of [...this.externals].sort(([a], [b]): number => a.localeCompare(b))) place(`node_modules/${name}`, root)
+        drain()
+        //The packages reached otherwise (by the libraries of a package): at the top
+        const reached: Set<string> = new Set(placed.values())
+        for (const root of [...included].sort()) {
+            const name: string | undefined = this.package(root)?.name
+            if (reached.has(root) || !name || placed.has(`node_modules/${name}`)) continue
+            place(`node_modules/${name}`, root)
+        }
+        drain()
+        return placed
+    }
+
+    /**
      * The files of a package of the tree which are loaded at run time, without the ones node never loads (UNUSED): the
      * packages of shared libraries (which find their addons by computed paths), and the ones kept as a whole, have all
      * their files; the others have the JavaScript files they load (traced) and all their other files (the data they read)
@@ -451,30 +514,12 @@ export class NativeCollector {
         const {build} = await import('esbuild')
         const included: Set<string> = new Set()
         for (const {root, entries} of this.externals.values()) await this.trace(build, root, entries, included)
-        //The links node follows from a package to its dependencies (pnpm, the workspaces)
-        const links: { lookup: string, root: string }[] = []
-        for (const root of included) {
-            for (const dependency of this.dependencies(root)) {
-                if (included.has(dependency.root) && lstatSync(dependency.lookup).isSymbolicLink()) links.push(dependency)
-            }
-        }
-        let base: string = [...included][0] ?? this.project
-        for (const location of [...included, ...links.map(({lookup}): string => lookup)]) base = CommonDirectory(base, location)
-        //The directory of the outermost node_modules: the packages keep the node_modules node looks them up in
-        const parts: string[] = base.split(path.sep)
-        if (parts.includes('node_modules')) base = parts.slice(0, parts.indexOf('node_modules')).join(path.sep) || path.sep
-        const store = (location: string): string => path.relative(base, location).split(path.sep).join('/')
         const files: NativeFile[] = []
-        for (const root of [...included].sort()) {
-            for (const file of this.packageFiles(root)) files.push({path: store(file), source: file, mode: statSync(file).mode & 0o777})
+        for (const [directory, root] of [...this.layout(included)].sort(([a], [b]): number => a.localeCompare(b))) {
+            for (const file of this.packageFiles(root)) files.push({path: `${directory}/${path.relative(root, file).split(path.sep).join('/')}`, source: file, mode: statSync(file).mode & 0o777})
         }
         for (const [key, file] of this.addons) files.push({path: key, source: file, mode: statSync(file).mode & 0o777})
-        const treeLinks: NativeLink[] = [
-            ...links.map(({lookup, root}): NativeLink => ({path: store(lookup), target: store(root)})),
-            //The packages the application loads, where node finds them from the root of the tree
-            ...[...this.externals].filter(([name, {root}]): boolean => store(root) !== `node_modules/${name}`).map(([name, {root}]): NativeLink => ({path: `node_modules/${name}`, target: store(root)}))
-        ]
-        return {modules: [...this.externals.keys()].sort(), files: files, links: treeLinks, hash: HashNativeTree(files, treeLinks)}
+        return {modules: [...this.externals.keys()].sort(), files: files, links: [], hash: HashNativeTree(files, [])}
     }
 }
 

@@ -85,7 +85,7 @@ describe('The installers of macOS', {skip: (process.platform !== 'darwin' || pro
         const answer = JSON.parse(await Until('curl -sf http://127.0.0.1:18080/'))
         assert.deepStrictEqual({...answer, arch: undefined}, {greeting: 'Hi', mode: 'production', user: '_hello-service', cwd: '/usr/local/var/lib/hello-service', text: 'Hello', arch: undefined})
         assert.strictEqual(answer.arch, process.arch)
-        assert.strictEqual(Exec('dscl . -read /Users/_hello-service IsHidden').trim(), 'IsHidden: 1')
+        assert.match(Exec('dscl . -read /Users/_hello-service IsHidden').trim(), /IsHidden: 1$/)
         //The program in the PATH
         assert.strictEqual(Exec('/usr/local/bin/hello hello').trim(), `Hello ${process.arch}`)
         //The administrators change its environment

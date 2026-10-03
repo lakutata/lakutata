@@ -1,7 +1,7 @@
 import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
-import {execFile, execFileSync, type ExecFileException} from 'node:child_process'
-import {cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync} from 'node:fs'
+import {execFile, execFileSync, type ExecFileException, execSync} from 'node:child_process'
+import {cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
@@ -18,7 +18,8 @@ const CLI: string = fileURLToPath(new URL('../CLIApp.js', import.meta.url))
  */
 const BUN: boolean = ((): boolean => {
     try {
-        execFileSync('bun', ['--version'], {stdio: 'ignore'})
+        //bun.cmd (npm) on Windows, run by cmd.exe
+        execSync('bun --version', {stdio: 'ignore'})
         return true
     } catch {
         return false
@@ -26,6 +27,35 @@ const BUN: boolean = ((): boolean => {
 })()
 
 let project: string
+
+/**
+ * The extension of the executables of the platform
+ */
+const EXE: string = process.platform === 'win32' ? '.exe' : ''
+
+/**
+ * The files of a directory (as find: its links followed with follow)
+ * @param directory
+ * @param follow
+ */
+function Files(directory: string, follow: boolean = false): string[] {
+    const files: string[] = []
+    for (const entry of readdirSync(directory, {withFileTypes: true})) {
+        const file: string = path.join(directory, entry.name)
+        const directoryEntry: boolean = entry.isDirectory() || (follow && entry.isSymbolicLink() && statSync(file).isDirectory())
+        if (directoryEntry) files.push(...Files(file, follow))
+        else if (entry.isFile()) files.push(file)
+    }
+    return files
+}
+
+/**
+ * The links of a directory (the junctions on Windows)
+ * @param directory
+ */
+function Links(directory: string): string[] {
+    return readdirSync(directory, {withFileTypes: true, recursive: true}).filter((entry): boolean => entry.isSymbolicLink()).map((entry): string => path.join(entry.parentPath, entry.name))
+}
 
 /**
  * Run a command
@@ -346,17 +376,20 @@ void (async () => {
         const bundled = await RunNative(process.execPath, [CLI, 'bundle'])
         assert.strictEqual(bundled.code, 0, bundled.output)
         assert.match(bundled.output, /the native addons \(cpu-info, native-sub, sharp, sqlite3\)/)
-        //The packages needed at run time only: not the ones installing sqlite3 (prebuild-install, node-gyp)
+        //The packages needed at run time only: not the ones installing sqlite3 (prebuild-install, node-gyp); laid out as npm
+        //lays them out, without links (the packages of the workspace, the ones linked to the repository are copied)
         const tree: string = path.join(native, 'dist', 'natapp.native')
         const packages: string[] = readdirSync(path.join(tree, 'node_modules'))
-        assert.deepStrictEqual(packages.sort(), ['cpu-info', 'native-sub', 'sharp', 'sqlite3'])
-        const stored: string = execFileSync('find', ['-L', tree, '-name', 'package.json']).toString()
+        for (const name of ['cpu-info', 'native-sub', 'sharp', 'sqlite3', 'bindings']) assert.ok(packages.includes(name), packages.join(', '))
+        assert.deepStrictEqual(Links(tree), [])
+        const stored: string = Files(tree).filter((file: string): boolean => path.basename(file) === 'package.json').map((file: string): string => file.split(path.sep).join('/')).join('\n')
         assert.match(stored, /bindings\/package\.json/)
-        assert.match(stored, /sharp-libvips-/)
+        //The libraries of sharp: libvips, its package (macOS, Linux) or with its addon (Windows)
+        assert.match(stored, process.platform === 'win32' ? /@img\/sharp-win32-/ : /sharp-libvips-/)
         assert.doesNotMatch(stored, /prebuild-install|node-gyp/)
         //Moved with its tree, it runs without the node_modules of the project
         const moved: string = path.join(path.dirname(native), 'moved')
-        cpSync(path.join(native, 'dist'), moved, {recursive: true, verbatimSymlinks: true})
+        cpSync(path.join(native, 'dist'), moved, {recursive: true})
         const ran = await RunNative(process.execPath, [path.join(moved, 'natapp.cjs')], {}, moved)
         assert.match(ran.output.trim(), EXPECTED)
     })
@@ -373,7 +406,7 @@ void (async () => {
         const tree: string = path.join(project, 'dist', 'installed.native')
         assert.ok(existsSync(path.join(tree, 'node_modules', 'sqlite3', 'package.json')))
         assert.ok(existsSync(path.join(tree, 'node_modules', 'bindings', 'package.json')))
-        assert.strictEqual(execFileSync('find', [tree, '-type', 'l']).toString().trim(), '')
+        assert.deepStrictEqual(Links(tree), [])
         const moved: string = path.join(path.dirname(native), 'installed-moved')
         cpSync(path.join(project, 'dist'), moved, {recursive: true})
         rmSync(project, {recursive: true, force: true})
@@ -444,7 +477,7 @@ void (async () => {
         const bundled = await RunNative(process.execPath, [CLI, 'bundle'], {}, directory)
         assert.strictEqual(bundled.code, 0, bundled.output)
         const tree: string = path.join(directory, 'dist', 'slim.native', 'node_modules')
-        const files = (name: string): string[] => execFileSync('find', ['.', '-type', 'f'], {cwd: path.join(tree, name)}).toString().trim().split('\n').map((file: string): string => file.slice(2)).sort()
+        const files = (name: string): string[] => Files(path.join(tree, name)).map((file: string): string => path.relative(path.join(tree, name), file).split(path.sep).join('/')).sort()
         assert.deepStrictEqual(files('addon-pkg'), ['build/Release/addon.node', 'index.js', 'other.js', 'package.json'])
         assert.deepStrictEqual(files('lib-pkg'), ['data.txt', 'index.js', 'package.json', 'used.js'])
         assert.deepStrictEqual(files('self-pkg'), ['dynamic.js', 'index.js', 'package.json'])
@@ -461,8 +494,8 @@ void (async () => {
         assert.match(made.output, /Native addons embedded, extracted at the first run: cpu-info, native-sub, sharp, sqlite3/)
         const directory: string = path.join(path.dirname(native), 'elsewhere')
         mkdirSync(directory)
-        const executable: string = path.join(directory, 'natapp')
-        writeFileSync(executable, readFileSync(path.join(native, 'bin', 'natapp')), {mode: 0o755})
+        const executable: string = path.join(directory, `natapp${EXE}`)
+        writeFileSync(executable, readFileSync(path.join(native, 'bin', `natapp${EXE}`)), {mode: 0o755})
         const cache: string = path.join(directory, 'cache')
         //The processes starting together extract it once
         const runs = await Promise.all([1, 2, 3, 4].map((): Promise<{ code: number, output: string }> => RunNative(executable, [], {LAKUTATA_NATIVE_DIR: cache, PATH: ''}, directory)))
@@ -480,8 +513,8 @@ void (async () => {
         assert.match(made.output, /Native addons embedded, extracted at the first run: cpu-info, native-sub, sharp, sqlite3/)
         const directory: string = path.join(path.dirname(native), 'bun-elsewhere')
         mkdirSync(directory)
-        const executable: string = path.join(directory, 'natapp')
-        writeFileSync(executable, readFileSync(path.join(native, 'bun', 'natapp')), {mode: 0o755})
+        const executable: string = path.join(directory, `natapp${EXE}`)
+        writeFileSync(executable, readFileSync(path.join(native, 'bun', `natapp${EXE}`)), {mode: 0o755})
         const cache: string = path.join(directory, 'cache')
         assert.match((await RunNative(executable, [], {LAKUTATA_NATIVE_DIR: cache, PATH: ''}, directory)).output.trim(), EXPECTED)
         assert.ok(existsSync(path.join(cache, 'native', readdirSync(path.join(cache, 'native'))[0], '.complete')))
@@ -497,7 +530,7 @@ void (async () => {
             assert.deepStrictEqual(readdirSync(directory).sort(), ['native', process.platform === 'win32' ? 'natapp.exe' : 'natapp'].sort())
             //Moved (installed), it runs without extracting anything
             const installed: string = path.join(path.dirname(native), `installed-${runtime}`)
-            cpSync(directory, installed, {recursive: true, verbatimSymlinks: true})
+            cpSync(directory, installed, {recursive: true})
             const cache: string = path.join(path.dirname(native), `not-extracted-${runtime}`)
             assert.match((await RunNative(path.join(installed, 'natapp'), [], {LAKUTATA_NATIVE_DIR: cache, PATH: ''}, path.dirname(native))).output.trim(), EXPECTED)
             assert.ok(!existsSync(cache))
