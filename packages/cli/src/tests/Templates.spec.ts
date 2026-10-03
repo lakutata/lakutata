@@ -6,6 +6,7 @@ import {createRequire} from 'node:module'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
+import {BUILTIN_TEMPLATES, type TemplateInfo} from '../lib/TemplateCatalog.js'
 import {LinkCommand, RunCommand} from './support/Workspace.js'
 
 /**
@@ -200,7 +201,16 @@ describe('The templates of the repository', (): void => {
 
     after((): void => rmSync(work, {recursive: true, force: true}))
 
-    it('keeps the files the templates share identical', (): void => {
+    it('keeps the catalogs of the templates (the one of the registry, the one of the tool) the ones of their packages', (): void => {
+        const catalog = JSON.parse(readFileSync(path.join(ROOT, 'packages', 'templates', 'package.json'), 'utf8')).lakutata.templates as TemplateInfo[]
+        assert.deepStrictEqual(BUILTIN_TEMPLATES, catalog)
+        for (const template of catalog) {
+            const manifest = JSON.parse(readFileSync(path.join(ROOT, 'packages', `template-${template.name}`, 'package.json'), 'utf8'))
+            assert.strictEqual(manifest.name, template.package)
+            assert.deepStrictEqual(template.features, Object.keys(manifest.lakutata.features ?? {}), template.name)
+        }
+    })
+        it('keeps the files the templates share identical', (): void => {
         //The service templates share their workspace and their app, the web ones serving their ui besides
         const shared: string[] = [
             'package.json', 'Dockerfile', '_dockerignore', '_gitignore',

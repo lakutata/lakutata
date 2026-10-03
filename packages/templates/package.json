@@ -25,7 +25,8 @@
         "description": "A command line tool built into executables which run without Node.js",
         "package": "@lakutata/template-cli",
         "features": [
-          "i18n"
+          "i18n",
+          "installer"
         ]
       },
       {
@@ -33,7 +34,8 @@
         "description": "An HTTP API deployed as a Docker image",
         "package": "@lakutata/template-service",
         "features": [
-          "i18n"
+          "i18n",
+          "installer"
         ]
       },
       {
@@ -41,7 +43,8 @@
         "description": "An HTTP API serving a React single-page application (Vite)",
         "package": "@lakutata/template-web-react",
         "features": [
-          "i18n"
+          "i18n",
+          "installer"
         ]
       },
       {
@@ -49,7 +52,8 @@
         "description": "An HTTP API serving a Next.js application from the same process",
         "package": "@lakutata/template-web-next",
         "features": [
-          "i18n"
+          "i18n",
+          "installer"
         ]
       },
       {
@@ -57,7 +61,8 @@
         "description": "An HTTP API serving a Vue single-page application (Vite)",
         "package": "@lakutata/template-web-vue",
         "features": [
-          "i18n"
+          "i18n",
+          "installer"
         ]
       },
       {
@@ -65,7 +70,8 @@
         "description": "An HTTP API serving a Nuxt application from the same process",
         "package": "@lakutata/template-web-nuxt",
         "features": [
-          "i18n"
+          "i18n",
+          "installer"
         ]
       },
       {

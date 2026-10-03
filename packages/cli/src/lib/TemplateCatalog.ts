@@ -72,14 +72,14 @@ const CATALOG_PACKAGE: string = '@lakutata/templates'
 /**
  * The official templates known when the tool was released, when the catalog cannot be fetched
  */
-const BUILTIN_TEMPLATES: TemplateInfo[] = [
+export const BUILTIN_TEMPLATES: TemplateInfo[] = [
     {name: 'default', description: 'A minimal application serving HTTP actions', package: '@lakutata/template-default', features: ['i18n']},
-    {name: 'cli', description: 'A command line tool built into executables which run without Node.js', package: '@lakutata/template-cli', features: ['i18n']},
-    {name: 'service', description: 'An HTTP API deployed as a Docker image', package: '@lakutata/template-service', features: ['i18n']},
-    {name: 'web-react', description: 'An HTTP API serving a React single-page application (Vite)', package: '@lakutata/template-web-react', features: ['i18n']},
-    {name: 'web-next', description: 'An HTTP API serving a Next.js application from the same process', package: '@lakutata/template-web-next', features: ['i18n']},
-    {name: 'web-vue', description: 'An HTTP API serving a Vue single-page application (Vite)', package: '@lakutata/template-web-vue', features: ['i18n']},
-    {name: 'web-nuxt', description: 'An HTTP API serving a Nuxt application from the same process', package: '@lakutata/template-web-nuxt', features: ['i18n']},
+    {name: 'cli', description: 'A command line tool built into executables which run without Node.js', package: '@lakutata/template-cli', features: ['i18n', 'installer']},
+    {name: 'service', description: 'An HTTP API deployed as a Docker image', package: '@lakutata/template-service', features: ['i18n', 'installer']},
+    {name: 'web-react', description: 'An HTTP API serving a React single-page application (Vite)', package: '@lakutata/template-web-react', features: ['i18n', 'installer']},
+    {name: 'web-next', description: 'An HTTP API serving a Next.js application from the same process', package: '@lakutata/template-web-next', features: ['i18n', 'installer']},
+    {name: 'web-vue', description: 'An HTTP API serving a Vue single-page application (Vite)', package: '@lakutata/template-web-vue', features: ['i18n', 'installer']},
+    {name: 'web-nuxt', description: 'An HTTP API serving a Nuxt application from the same process', package: '@lakutata/template-web-nuxt', features: ['i18n', 'installer']},
     {name: 'electron-react', description: 'A desktop application: Electron, its main process serving a React renderer over IPC', package: '@lakutata/template-electron-react', features: ['i18n']},
     {name: 'electron-vue', description: 'A desktop application: Electron, its main process serving a Vue renderer over IPC', package: '@lakutata/template-electron-vue', features: ['i18n']}
 ]
