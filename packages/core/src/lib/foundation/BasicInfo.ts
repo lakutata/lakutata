@@ -9,6 +9,15 @@ type BasicInfo = {
 }
 
 /**
+ * An environment variable, read by its computed name: the bundlers replace the reads of process.env.NODE_ENV with the
+ * mode of their build (Bun: "development"), the mode of the run would be lost
+ * @param name
+ */
+function Variable(name: string): string | undefined {
+    return process.env[name]
+}
+
+/**
  * A mode of the environment (development or production, in any case), undefined for the other values
  * @param value
  */
@@ -24,10 +33,17 @@ function ModeOf(value: string | undefined): 'development' | 'production' | undef
  * @param configured the mode of the options of the application
  */
 export function ResolveMode(configured?: 'development' | 'production'): 'development' | 'production' {
-    const mode: 'development' | 'production' | undefined = ModeOf(process.env.MODE)
+    const mode: 'development' | 'production' | undefined = ModeOf(Variable('MODE'))
     if (mode) return mode
-    if (process.env.MODE?.trim()) ThrowWarning(`The MODE environment variable "${process.env.MODE}" is not a mode (development, production), it is ignored`)
-    return ModeOf(process.env.NODE_ENV) ?? configured ?? 'development'
+    if (Variable('MODE')?.trim()) ThrowWarning(`The MODE environment variable "${Variable('MODE')}" is not a mode (development, production), it is ignored`)
+    return ModeOf(Variable('NODE_ENV')) ?? configured ?? 'development'
+}
+
+/**
+ * The mode of the application running: the one written to MODE and NODE_ENV when it launched, development otherwise
+ */
+export function CurrentMode(): 'development' | 'production' {
+    return ModeOf(Variable('MODE')) ?? ModeOf(Variable('NODE_ENV')) ?? 'development'
 }
 
 /**
@@ -99,6 +115,6 @@ export function GetBasicInfo(): BasicInfo {
         appId: GetAppId(),
         appName: GetAppName(),
         timezone: As<string>(process.env.TZ),
-        mode: process.env.NODE_ENV ? As<'development'>(process.env.NODE_ENV) : 'development'
+        mode: CurrentMode()
     }
 }

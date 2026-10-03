@@ -13,6 +13,7 @@ import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js
 import {DefineObjectType, ObjectType} from '../base/internal/ObjectType.js'
 import {NonceString} from '@lakutata/utils/NonceString'
 import {CheckObjectOptions} from '../base/internal/ObjectOptionsCheck.js'
+import {CurrentMode} from '../foundation/BasicInfo.js'
 
 export const MODULE_INITIALIZED: string = `_$.MODULE.INITIALIZED_${NonceString()}`
 export const MODULE_INITIALIZE_ERROR: string = `_$.MODULE.INITIALIZE_ERROR_${NonceString()}`
@@ -136,17 +137,7 @@ export class Module extends Component {
      * Get current runtime env is production or development
      */
     public mode(): 'development' | 'production' {
-        if (!process.env.NODE_ENV) process.env.NODE_ENV = 'development'
-        switch (process.env.NODE_ENV.toLowerCase()) {
-            case 'production':
-                return 'production'
-            case 'development':
-                return 'development'
-            default: {
-                process.env.NODE_ENV = 'development'
-                return 'development'
-            }
-        }
+        return CurrentMode()
     }
 
     /**

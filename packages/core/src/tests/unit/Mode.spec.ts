@@ -1,6 +1,8 @@
 import {afterEach, describe, it} from 'node:test'
 import assert from 'node:assert'
-import {ResolveMode, SetBasicInfo} from '../../lib/foundation/BasicInfo.js'
+import {execFileSync} from 'node:child_process'
+import {fileURLToPath} from 'node:url'
+import {CurrentMode, ResolveMode, SetBasicInfo} from '../../lib/foundation/BasicInfo.js'
 
 const original: NodeJS.ProcessEnv = {...process.env}
 
@@ -59,5 +61,28 @@ describe('The mode of the application', (): void => {
         assert.strictEqual(info.mode, 'production')
         assert.strictEqual(process.env.MODE, 'production')
         assert.strictEqual(process.env.NODE_ENV, 'production')
+    })
+
+    it('is given after the launch by CurrentMode, from MODE then NODE_ENV', (): void => {
+        Mode({MODE: 'production', NODE_ENV: 'development'})
+        assert.strictEqual(CurrentMode(), 'production')
+        Mode({NODE_ENV: 'production'})
+        assert.strictEqual(CurrentMode(), 'production')
+        Mode({NODE_ENV: 'test'})
+        assert.strictEqual(CurrentMode(), 'development')
+    })
+
+    it('is the one of the run in a bundle replacing process.env.NODE_ENV with the mode of its build (Bun)', async (): Promise<void> => {
+        const {build} = await import('esbuild')
+        const result = await build({
+            stdin: {contents: `import {CurrentMode, ResolveMode} from ${JSON.stringify(fileURLToPath(new URL('../../lib/foundation/BasicInfo.js', import.meta.url)))}\nconsole.log(ResolveMode(), CurrentMode())`, resolveDir: process.cwd()},
+            bundle: true, write: false, platform: 'node', format: 'esm', logLevel: 'silent',
+            //As Bun does when it bundles
+            define: {'process.env.NODE_ENV': '"development"'}
+        })
+        const run = (environment: Record<string, string>): string => execFileSync(process.execPath, ['--input-type=module', '-e', result.outputFiles[0].text], {env: {PATH: process.env.PATH ?? '', ...environment}}).toString().trim()
+        assert.strictEqual(run({NODE_ENV: 'production'}), 'production production')
+        assert.strictEqual(run({MODE: 'production'}), 'production production')
+        assert.strictEqual(run({}), 'development development')
     })
 })
