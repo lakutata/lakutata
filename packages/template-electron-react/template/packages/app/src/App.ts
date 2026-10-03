@@ -24,8 +24,8 @@ if (!electron.app.requestSingleInstanceLock()) {
             directory: directory,
             renderer: renderer,
             mode: electron.app.isPackaged ? 'production' : 'development',
-            //The actions served to the tools in development (Postman), not by the packaged application
-            socket: electron.app.isPackaged ? undefined : Number(process.env.SOCKET_PORT ?? 9000)
+            //The actions served to the tools in development (Postman, curl), not by the packaged application
+            devPort: electron.app.isPackaged ? undefined : Number(process.env.DEV_PORT ?? 9000)
         }))
         .onLaunched((app: Application, log: ILogger): void => log.info('%s started in %s mode', app.appName, app.mode()))
         .onFatalException((error: Error, log: ILogger): void => {

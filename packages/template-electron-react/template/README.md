@@ -30,9 +30,14 @@ is the `clientId` of the context of its requests, which the entrypoint pushes ev
 'event', ...args)` (the id may be kept to push them later), or to every client, `this.entrypoint.broadcast('event',
 ...args)`.
 
-In development (not packaged), the actions are also served by socket.io on the port `SOCKET_PORT` (9000 by default), for
-the tools such as Postman: the event `request` with `{cmd: 'greet', name: 'you'}`, acknowledged by the response; the id
-of the client in the `id` header of the connection, which receives the events pushed to it.
+In development (not packaged), the actions are also served over HTTP on the port `DEV_PORT` (9000 by default), for the
+tools such as Postman or curl: `POST /` with `{"cmd": "greet", "name": "you"}` answers the response of the action; the id
+of the client in the `id` header. `GET /events?id=<client>` streams the events pushed to the client (Server-Sent Events):
+
+```bash
+curl -N 'http://localhost:9000/events?id=me' &
+curl -X POST http://localhost:9000/ -H 'id: me' -H 'Content-Type: application/json' -d '{"cmd": "greet", "name": "you"}'
+```
 
 ## The packaging
 

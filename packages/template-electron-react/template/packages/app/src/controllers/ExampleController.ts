@@ -9,7 +9,7 @@ import {Translator} from 'lakutata/com/i18n'
 export class ExampleController extends Controller {
 
     /**
-     * Pushes the events to the clients: the windows (window.ipc.on), the sockets in development
+     * Pushes the events to the clients: the windows (window.ipc.on), the tools in development (GET /events)
      */
     @Inject('entrypoint')
     protected readonly entrypoint: Entrypoint

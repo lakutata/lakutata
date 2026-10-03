@@ -1,7 +1,6 @@
 import type {ApplicationOptions} from 'lakutata'
-import {BuildEntrypoints} from 'lakutata/com/entrypoint'
+import {BuildEntrypoints, HTTPServiceEntrypoint} from 'lakutata/com/entrypoint'
 import {ElectronIPCServiceEntrypoint, type IPCMain} from 'lakutata/adapter/electron'
-import {SocketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
 import {MainWindow} from '../components/MainWindow.js'
 import {ExampleController} from '../controllers/ExampleController.js'
 //@if i18n
@@ -29,10 +28,11 @@ export type ConfigOptions = {
      */
     ipcMain?: IPCMain
     /**
-     * The port of the socket.io entrypoint of the development, none by default: the actions invoked and their events
-     * received by the tools (Postman), the event "request" of the requests, the id of their client in the header id
+     * The port of the HTTP entrypoint of the development, none by default: the actions invoked by the tools (Postman,
+     * curl: POST / with their pattern and their input), the events pushed to them received (GET /events, Server-Sent
+     * Events), the id of their client in the header id (or the query id of the events)
      */
-    socket?: number
+    devPort?: number
 }
 
 /**
@@ -58,8 +58,7 @@ export function Config(options: ConfigOptions = {}): ApplicationOptions {
                 //The renderer invokes the actions over IPC: window.ipc.invoke({cmd: 'greet', name: 'you'})
                 service: [
                     ElectronIPCServiceEntrypoint({ipcMain: options.ipcMain}),
-                    //The event of the requests of the version 2
-                    ...options.socket === undefined ? [] : [SocketIOServiceEntrypoint({port: options.socket, event: 'request'})]
+                    ...options.devPort === undefined ? [] : [HTTPServiceEntrypoint({port: options.devPort})]
                 ]
             }),
             ...(options.window === false ? {} : {

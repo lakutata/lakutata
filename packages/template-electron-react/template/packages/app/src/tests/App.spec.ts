@@ -1,5 +1,6 @@
 import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
+import {createServer, type Server} from 'node:net'
 import {Application} from 'lakutata'
 import type {IPCMain} from 'lakutata/adapter/electron'
 import {Config} from '../config/Config.js'
@@ -27,17 +28,30 @@ function Invoke(data: Record<string, unknown>): Promise<any> {
     return (handlers.get('lakutata:service') as (event: unknown, data: unknown, clientId: string) => Promise<unknown>)({sender: sender}, data, 'page')
 }
 
+/**
+ * A free port, the one of the HTTP entrypoint of the development
+ */
+async function FreePort(): Promise<number> {
+    const server: Server = createServer()
+    await new Promise<void>((resolve: () => void): unknown => server.listen(0, '127.0.0.1', resolve))
+    const port: number = (server.address() as { port: number }).port
+    await new Promise<void>((resolve: () => void): unknown => server.close((): void => resolve()))
+    return port
+}
+
 describe('{$APP_NAME}', (): void => {
 
     let app: Application
+    let devPort: number
 
     before(async (): Promise<void> => {
         //@if i18n
         //The actions answer in the language of the environment: English for the tests
         process.env.LC_ALL = 'en_US.UTF-8'
         //@end
+        devPort = await FreePort()
         app = await new Promise<Application>((resolve: (app: Application) => void): void => {
-            Application.run(Config({window: false, ipcMain: ipcMain})).onLaunched((launched: Application): void => resolve(launched))
+            Application.run(Config({window: false, ipcMain: ipcMain, devPort: devPort})).onLaunched((launched: Application): void => resolve(launched))
         })
     })
 
@@ -66,6 +80,21 @@ describe('{$APP_NAME}', (): void => {
         received.length = 0
         await Invoke({cmd: 'greet', name: 'you'})
         assert.deepStrictEqual(received, [['lakutata:service:event', 'greeted', ['you']]])
+    })
+
+    it('serves the actions and their events to the tools of the development over HTTP', async (): Promise<void> => {
+        //The events of the client (Server-Sent Events): its id first
+        const events: Response = await fetch(`http://127.0.0.1:${devPort}/events?id=tool`)
+        const reader = events.body!.getReader()
+        let received: string = ''
+        const until = async (pattern: RegExp): Promise<void> => {
+            while (!pattern.test(received)) received += new TextDecoder().decode((await reader.read()).value)
+        }
+        await until(/event: client/)
+        const response: Response = await fetch(`http://127.0.0.1:${devPort}/`, {method: 'POST', headers: {'Content-Type': 'application/json', 'id': 'tool'}, body: JSON.stringify({cmd: 'greet', name: 'you'})})
+        assert.deepStrictEqual(await response.json(), {success: true, error: null, payload: {message: 'Hello, you!'}})
+        await until(/event: greeted\ndata: \["you"\]/)
+        await reader.cancel()
     })
 
     it('refuses an invalid input', async (): Promise<void> => {

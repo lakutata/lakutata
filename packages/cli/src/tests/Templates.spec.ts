@@ -339,14 +339,14 @@ describe('The templates of the repository', (): void => {
         assert.match(serviceTested.output, /pass 4/)
         //An Electron application, its actions in the language of the environment
         const desktop: string = await Create('electron-vue', 'Lingo', ['i18n'])
-        Install(desktop, ['@types/node', 'electron', 'socket.io', 'vite', '@vitejs/plugin-vue', 'vue'])
+        Install(desktop, ['@types/node', 'electron', 'vite', '@vitejs/plugin-vue', 'vue'])
         LinkWorkspace(desktop, ['ui', 'app'])
         LinkCommand(path.join(desktop, 'node_modules', '.bin'), 'vite', path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'))
         const desktopBuilt = await Run(process.execPath, [CLI, 'run', 'rebuild', '--concurrency', '1'], desktop)
         assert.strictEqual(desktopBuilt.code, 0, desktopBuilt.output)
         const desktopTested = await Run(process.execPath, [CLI, 'run', 'test'], desktop)
         assert.strictEqual(desktopTested.code, 0, desktopTested.output)
-        assert.match(desktopTested.output, /pass 5/)
+        assert.match(desktopTested.output, /pass 6/)
     })
 
     it('creates a project from the default template which builds and passes its tests with the framework of the repository', async (): Promise<void> => {
@@ -548,7 +548,7 @@ describe('The templates of the repository', (): void => {
             const project: string = await Create(template, name)
             assert.doesNotMatch(readFileSync(path.join(project, 'packages', 'ui', 'src', ui), 'utf8'), /\{\$APP_/)
             assert.ok(existsSync(path.join(project, '.dockerignore')))
-            Install(project, ['@types/node', 'electron', 'electron-builder', 'socket.io', ...names], path.join(ROOT, 'node_modules', 'typescript'))
+            Install(project, ['@types/node', 'electron', 'electron-builder', ...names], path.join(ROOT, 'node_modules', 'typescript'))
             LinkWorkspace(project, ['ui', 'app'])
             LinkCommand(path.join(project, 'node_modules', '.bin'), 'vite', path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'))
             const built = await Run(process.execPath, [CLI, 'run', 'rebuild', '--concurrency', '1'], project)
@@ -557,7 +557,7 @@ describe('The templates of the repository', (): void => {
             //The actions of the main process, served to the renderer over IPC (without Electron)
             const tested = await Run(process.execPath, [CLI, 'run', 'test'], project)
             assert.strictEqual(tested.code, 0, tested.output)
-            assert.match(tested.output, /pass 4/)
+            assert.match(tested.output, /pass 5/)
             //The renderer is type checked with the TypeScript of the template
             const typescript: string = path.join(ROOT, 'node_modules', 'typescript')
             const checked = template === 'electron-vue'
