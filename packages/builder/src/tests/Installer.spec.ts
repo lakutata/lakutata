@@ -201,6 +201,8 @@ node -e "import('@lakutata/builder').then(b => b.BuildInstaller({project: '/w', 
             assert.deepStrictEqual({...answer, arch: undefined}, {greeting: 'Hi', mode: 'production', user: 'hello-service', cwd: '/var/lib/hello-service', text: 'Hello', arch: undefined})
             assert.match(answer.arch, /^(arm64|x64)$/)
             assert.strictEqual(Exec(container, 'systemctl is-enabled hello-service').trim(), 'enabled')
+            //Its resources named as the chunks of Turbopack
+            assert.strictEqual(Exec(container, "cat '/opt/hello-service/resources/texts/[root-of-the-server]__chunk.js'"), 'chunk')
             //The program in the PATH
             assert.match(Exec(container, 'hello hello'), /^Hello (arm64|x64)\n$/)
             //The administrators change its environment
@@ -280,6 +282,7 @@ node -e "import('@lakutata/builder').then(b => b.BuildInstaller({project: '/w', 
         const answer = JSON.parse(await Until(container, 'curl -sf http://127.0.0.1:18080/'))
         assert.deepStrictEqual({...answer, arch: undefined}, {greeting: 'Hi', mode: 'production', user: 'hello-service', cwd: '/var/lib/hello-service', text: 'Hello', arch: undefined})
         assert.match(Exec(container, 'hello hello'), /^Hello (arm64|x64)\n$/)
+        assert.strictEqual(Exec(container, "cat '/opt/hello-service/resources/texts/[root-of-the-server]__chunk.js'"), 'chunk')
         Exec(container, `sed -i 's/^GREETING=.*/GREETING="Bonjour"/' /etc/hello-service/hello-service.env && rc-service hello-service restart >/dev/null 2>&1`)
         assert.strictEqual(JSON.parse(await Until(container, 'curl -sf http://127.0.0.1:18080/')).greeting, 'Bonjour')
         Exec(container, 'apk add --allow-untrusted -q /out/1.0.1/hello-service-1.0.1-r0.*.apk')

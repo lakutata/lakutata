@@ -35,6 +35,8 @@ NAPI_MODULE_INIT() {
     file('addon/index.js', `module.exports = require(require('node:path').join(__dirname, 'build', 'Release', 'addon.node'))`)
     //A service answering what it runs with, and a command
     file('assets/hello.txt', 'Hello')
+    //Named as the chunks of Turbopack: the installers take the characters of the globs as they are
+    file('assets/[root-of-the-server]__chunk.js', 'chunk')
     file('build/index.js', `const http = require('node:http'), fs = require('node:fs'), path = require('node:path'), os = require('node:os')
 const addon = require('hello-addon')
 const text = () => fs.readFileSync(path.join(globalThis[Symbol.for('lakutata.packaged')].resources(), 'texts', 'hello.txt'), 'utf8')

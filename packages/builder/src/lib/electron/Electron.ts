@@ -180,7 +180,7 @@ async function NsisInclude(scripts: TargetScripts, directory: string): Promise<s
 
 /**
  * Make the installers of an Electron application (lakutata.installer.runtime: electron) for the platform it is made on,
- * by electron-builder: its main process bundled with its dependencies (lakutata bundle), Electron left out; its native
+ * by electron-builder: its main process bundled with its dependencies (lakutata package bundle), Electron left out; its native
  * addons and its resources (lakutata.resources: its renderer, its preload script) next to its archive (app.asar), in the
  * resources of Electron. The configuration of electron-builder is made from lakutata.installer, lakutata.installer.electron
  * merged over it; the scripts of the application are run by its installers
@@ -233,13 +233,19 @@ export async function BuildElectronInstaller(project: string, manifest: Record<s
             directories: {native: path.join(work, 'main.native'), resources: path.join(work, 'main.resources')}
         })
         const maintainer: string = platform === 'linux' ? Maintainer(author, name, warnings) : author ?? name
+        //The packages of fpm need a homepage
+        let homepage: string | undefined = config.homepage ?? (typeof manifest.homepage === 'string' ? manifest.homepage : undefined)
+        if (!homepage && platform === 'linux') {
+            warnings.push('The packages of Linux need the homepage of the application (the homepage of the package.json, or lakutata.installer.homepage): NONE is given')
+            homepage = 'NONE'
+        }
         await writeFile(path.join(application, 'package.json'), `${JSON.stringify({
             name: name,
             productName: productName,
             version: version,
             description: description,
             author: maintainer,
-            homepage: config.homepage ?? manifest.homepage,
+            homepage: homepage,
             license: config.license ?? manifest.license,
             //The name of the windows on Linux, which associates them with the launcher of the application
             desktopName: `${name}.desktop`,

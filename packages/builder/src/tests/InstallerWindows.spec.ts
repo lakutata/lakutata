@@ -146,6 +146,8 @@ describe('The installers of Windows', {skip: !INSTALL && 'LAKUTATA_WINDOWS_INSTA
             assert.deepStrictEqual(answer, {greeting: 'Hi', mode: 'production', user: 'hello-service', cwd: DATA_DIRECTORY, text: 'Hello', arch: process.arch})
             const service: string = PowerShell(`$s = Get-CimInstance Win32_Service -Filter "Name='hello-service'"; "$($s.State) $($s.StartMode) $($s.StartName)"`)
             assert.strictEqual(service, 'Running Auto NT SERVICE\\hello-service')
+            //Its resources named as the chunks of Turbopack
+            assert.strictEqual(readFileSync(path.join(INSTALL_DIRECTORY, 'resources', 'texts', '[root-of-the-server]__chunk.js'), 'utf8'), 'chunk')
             //The program in the PATH of the machine
             assert.ok(MachinePath().includes(INSTALL_DIRECTORY), MachinePath().join(';'))
             assert.strictEqual(spawnSync('cmd.exe', ['/d', '/c', 'hello', 'hello'], {encoding: 'utf8', env: {...process.env, Path: MachinePath().join(';')}}).stdout.trim(), `Hello ${process.arch}`)
