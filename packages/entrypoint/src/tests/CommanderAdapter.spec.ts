@@ -143,6 +143,34 @@ class GreetController extends Controller {
     }
 }
 
+class PackDTO extends DTO {
+    @Expect(DTO.String().required().description('The name of the executable'))
+    public name: string
+
+    @Expect(DTO.Boolean().optional().default(false).description('Make it fast'))
+    public fast: boolean
+}
+
+/**
+ * The commands of a group (pack), and one of a group in a group (pack linux deb)
+ */
+class PackController extends Controller {
+    @CLIAction('pack exe <name>', PackDTO, {description: 'Pack an executable'})
+    public async exe(input: PackDTO): Promise<string> {
+        return `exe ${input.name}${input.fast ? ' fast' : ''}`
+    }
+
+    @CLIAction('pack bundle', {description: 'Pack a bundle'})
+    public async bundle(): Promise<string> {
+        return 'bundle'
+    }
+
+    @CLIAction('pack linux deb', {description: 'Pack a deb'})
+    public async deb(): Promise<string> {
+        return 'deb'
+    }
+}
+
 /**
  * The Chinese texts of the help and of the prompts, by their keys
  */
@@ -267,6 +295,50 @@ describe('Commander adapter', (): void => {
         assert.match(help.stdout, /Usage: tool sum \[options\] <label> <numbers\.\.\.>/)
         assert.match(help.stdout, /label\s+The label of the sum/)
         assert.doesNotMatch(help.stdout, /--label|--numbers/)
+    })
+
+    it('nests the commands in their groups, whose help lists them', async (): Promise<void> => {
+        const run = async (argv: string[], translate?: CommanderCLIEntrypointOptions['translate']): Promise<{ code: number | undefined, output: string }> => {
+            const stdout = Collector()
+            let code: number | undefined
+            const container: Container = new Container()
+            await container.set(Entrypoint, BuildEntrypoints({
+                controllers: [PackController],
+                cli: CommanderCLIEntrypoint({bin: 'tool', interactive: false, groups: {'pack': 'Pack the application', 'pack linux': 'Pack it for Linux'}, translate: translate, argv: argv, stdout: stdout, stderr: stdout, exit: (value: number): void => {
+                    code = value
+                }})
+            }))
+            await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 300))
+            await container.destroy()
+            return {code: code, output: stdout.text()}
+        }
+        assert.deepStrictEqual(await run(['pack', 'exe', 'tool', '--fast']), {code: 0, output: 'exe tool fast\n'})
+        assert.deepStrictEqual(await run(['pack', 'bundle']), {code: 0, output: 'bundle\n'})
+        assert.deepStrictEqual(await run(['pack', 'linux', 'deb']), {code: 0, output: 'deb\n'})
+        //The help of the program lists the group, the one of the group its commands
+        const program = await run(['--help'])
+        assert.match(program.output, /pack\s+Pack the application/)
+        assert.doesNotMatch(program.output, /exe|bundle/)
+        const group = await run(['pack', '--help'])
+        assert.match(group.output, /Usage: tool pack \[options\] \[command\]/)
+        assert.match(group.output, /Pack the application/)
+        assert.match(group.output, /exe \[options\] <name>\s+Pack an executable/)
+        assert.match(group.output, /bundle\s+Pack a bundle/)
+        assert.match(group.output, /linux\s+Pack it for Linux/)
+        const command = await run(['pack', 'exe', '--help'])
+        assert.match(command.output, /Usage: tool pack exe \[options\] <name>/)
+        assert.match(command.output, /--fast\s+Make it fast/)
+        assert.notStrictEqual((await run(['pack', 'unknown'])).code, 0)
+        //Their texts by the names of their groups and their own
+        const asked: string[] = []
+        const translated = await run(['pack', '--help'], (): (text: CLIText) => string => (text: CLIText): string => {
+            asked.push(text.key)
+            return {'commands.pack.description': '打包应用', 'commands.pack.exe.description': '打包可执行文件', 'help.helpCommand': '显示命令的帮助'}[text.key] ?? text.text
+        })
+        assert.match(translated.output, /打包应用/)
+        assert.match(translated.output, /exe \[options\] <name>\s+打包可执行文件/)
+        assert.match(translated.output, /help \[command\]\s+显示命令的帮助/)
+        assert.ok(['commands.pack.description', 'commands.pack.exe.description', 'commands.pack.exe.arguments.name', 'commands.pack.linux.description', 'commands.pack.linux.deb.description'].every((key: string): boolean => asked.includes(key)), asked.join(', '))
     })
 
     it('writes the help and the version', async (): Promise<void> => {

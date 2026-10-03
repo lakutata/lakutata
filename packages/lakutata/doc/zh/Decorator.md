@@ -197,6 +197,10 @@ Lakutata 中的控制器（`Controller`）使用装饰器来定义处理 HTTP �
   }
   ```
 - **说明**：`test3` 方法处理 `test3` 命令，并使用 `TestDTO` 验证输入参数。
+- **参数与命令组**：命令可以声明位置参数（`'copy <files...> [target]'`），按名字传给 DTO 中同名的属性。参数之前的单词中，
+  除最后一个外都是命令组：`@CLIAction('package exe <name>', ExeDTO)` 是命令组 `package` 下的命令 `exe`
+  （`tool package exe app`），`tool package --help` 会列出这个组的所有命令。命令组的说明由适配器的 `groups` 选项给出
+  （`CommanderCLIEntrypoint({groups: {package: '打包应用'}})`，翻译键为 `commands.package.description`）。
 
 ### 3.3 `@ServiceAction(pattern: object)`
 - **功能**：定义控制器方法以处理特定的服务消息模式。

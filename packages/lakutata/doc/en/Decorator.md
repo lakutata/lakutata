@@ -197,6 +197,11 @@ Controllers (`Controller`) in Lakutata use decorators to define behaviors for ha
   }
   ```
 - **Explanation**: The `test3` method handles the `test3` command and uses `TestDTO` to validate input arguments.
+- **Arguments and groups**: the command declares its positional arguments (`'copy <files...> [target]'`), given to the
+  properties of their names. Its words before them but the last are its groups: `@CLIAction('package exe <name>', ExeDTO)`
+  is the command `exe` of the group `package` (`tool package exe app`), and `tool package --help` lists the commands of the
+  group, described by the `groups` option of the adapter (`CommanderCLIEntrypoint({groups: {package: 'Package the
+  application'}})`, translated by the key `commands.package.description`).
 
 ### 3.3 `@ServiceAction(pattern: object)`
 - **Function**: Defines a controller method to handle specific service message patterns.

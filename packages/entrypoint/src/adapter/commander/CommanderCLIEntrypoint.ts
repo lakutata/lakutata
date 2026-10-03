@@ -53,6 +53,11 @@ export type CommanderCLIEntrypointOptions = {
      */
     description?: string
     /**
+     * The descriptions of the groups of commands: the first words of the nested commands ("package" of the command
+     * "package exe <file>"), whose help lists their commands (tool package --help)
+     */
+    groups?: Record<string, string>
+    /**
      * The version of the program, adds the -V, --version option
      */
     version?: string
@@ -349,14 +354,36 @@ export function CommanderCLIEntrypoint(options: CommanderCLIEntrypointOptions = 
             if (runtime.actions.length) program.helpCommand('help [command]', say('help.helpCommand', 'display help for command'))
         }
         if (options.description) program.description(say('description', options.description))
+        /**
+         * A group of commands, its help listing them
+         * @param parent
+         * @param group its name
+         * @param names the names of its groups and its own
+         */
+        const Group = (parent: Command, group: string, names: string[]): Command => {
+            const created: Command = parent.command(group)
+            const description: string | undefined = options.groups?.[names.join(' ')]
+            if (description) created.description(say(`commands.${names.join('.')}.description`, description))
+            if (options.translate) created.helpCommand('help [command]', say('help.helpCommand', 'display help for command'))
+            return created
+        }
         if (options.version) program.version(options.version, '-V, --version', say('help.versionOption', 'output the version number'))
         let code: number = 0
         for (const action of runtime.actions) {
             const schema: { properties?: Record<string, PropertySchema>, required?: string[] } = action.jsonSchema as any
             const required: Set<string> = new Set(schema.required ?? [])
-            //The command may declare positional arguments ("run <script>", "copy <files...> [target]"), given to the properties of their names
-            const command: Command = program.command(action.address.command).allowExcessArguments(false)
-            const name: string = command.name()
+            //The command may declare positional arguments ("run <script>", "copy <files...> [target]"), given to the properties of their names;
+            //its words before them but the last are its groups ("package exe <file>": the command exe of the group package)
+            const words: string[] = action.address.command.trim().split(/\s+/)
+            const first: number = words.findIndex((word: string): boolean => /^[<[]/.test(word))
+            const names: string[] = first < 0 ? words : words.slice(0, first)
+            let parent: Command = program
+            names.slice(0, -1).forEach((group: string, index: number): void => {
+                parent = parent.commands.find((existing: Command): boolean => existing.name() === group) ?? Group(parent, group, names.slice(0, index + 1))
+            })
+            const command: Command = parent.command([names.at(-1), ...words.slice(names.length)].join(' ')).allowExcessArguments(false)
+            //The key of its texts: the names of its groups and its own
+            const name: string = names.join('.')
             command.description(action.description ? say(`commands.${name}.description`, action.description) : action.name)
             const positional: string[] = command.registeredArguments.map((argument: Argument): string => argument.name())
             //The description of a property: the one of its argument or of its option
