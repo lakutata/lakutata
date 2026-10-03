@@ -13,7 +13,7 @@ export type RenderOptions = {
     dev?: boolean
     /**
      * The standalone build of next (.next/standalone, made by npm run build): the one in the resources of the application
-     * packed (lakutata executable), which has next and what it loads; the ui package (and its next) by default
+     * packed (lakutata package exe), which has next and what it loads; the ui package (and its next) by default
      */
     standalone?: string
 }

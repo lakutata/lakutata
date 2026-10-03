@@ -15,8 +15,8 @@ npm run dev            # the renderer served by Vite (hot reload) in the window 
 npm test               # the tests of the packages (the actions of the main process, without Electron)
 npm run build          # build the packages, in the order of their dependencies (ui, then app)
 npm start              # start the built application
-npm run installer      # the installers of this platform: packages/app/dist/installer (deb, dmg, nsis…)
-npm run installer:linux # the ones of Linux, in Docker (Dockerfile.installer): dist/installer
+npm run package:host      # the installers of this platform: dist/installer (deb, dmg, nsis…)
+npm run package:linux # the ones of Linux, in Docker (Dockerfile.installer): dist/installer
 npm run version:patch  # give the packages their next version
 ```
 
@@ -26,11 +26,11 @@ errors are thrown in the renderer.
 
 ## The packaging
 
-`npm run installer` builds the packages and makes the installers of the platform it runs on with `lakutata installer`
+`npm run package:host` builds the packages and makes the installers of the platform it runs on with `lakutata package installer`
 (electron-builder, configured by the `lakutata.installer` of `packages/app/package.json`): the main process bundled with
 its dependencies in the archive of the application, its native addons, the preload script and the built renderer (its
 `lakutata.resources`) next to it, in the resources of Electron. The installers of Windows are made on Windows, the ones of
-macOS on macOS, the ones of Linux on Linux: `npm run installer:linux` makes them in Docker on any platform
+macOS on macOS, the ones of Linux on Linux: `npm run package:linux` makes them in Docker on any platform
 (`Dockerfile.installer`, whose system libraries are the ones the native addons need: add yours; `docker buildx build
 --platform linux/amd64` makes the ones of another architecture).
 
@@ -46,7 +46,7 @@ macOS on macOS, the ones of Linux on Linux: `npm run installer:linux` makes them
 
 `electron` is the configuration of electron-builder (its icons, its file associations, its signature, its updates…),
 merged over the one made from `lakutata.installer`. The scripts of the installers (`scripts`, run by the deb and rpm
-packages, the pkg package of macOS and the installer of NSIS) are the ones of `lakutata installer` (its documentation in
+packages, the pkg package of macOS and the installer of NSIS) are the ones of `lakutata package installer` (its documentation in
 `@lakutata/cli`).
 
 The deb packages need the email of their maintainer: the `author` of `packages/app/package.json` is `"Name <email>"` (and

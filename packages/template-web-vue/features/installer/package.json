@@ -1,7 +1,7 @@
 {
   "scripts": {
-    "installer": "npm run build && npm run installer -w app",
-    "installer:linux": "docker buildx build --file Dockerfile.installer --output type=local,dest=dist/installer ."
+    "package:host": "npm run build && npm run package -w app -- --outdir ../../dist/installer",
+    "package:linux": "docker buildx build --file Dockerfile.installer --output type=local,dest=dist/installer ."
   },
   "devDependencies": {
     "@lakutata/builder": "^{$LAKUTATA_VERSION}"

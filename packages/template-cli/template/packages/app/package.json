@@ -1,0 +1,31 @@
+{
+  "name": "app",
+  "version": "0.0.1",
+  "description": "{$APP_DESC}",
+  "author": "{$APP_AUTHOR}",
+  "license": "{$APP_LICENSE}",
+  "private": true,
+  "type": "module",
+  "main": "build/App.js",
+  "bin": {
+    "{$APP_ID}": "build/App.js"
+  },
+  "files": [
+    "build",
+    "!build/tests"
+  ],
+  "scripts": {
+    "clean": "lakutata clean",
+    "build": "tsc",
+    "rebuild": "npm run clean && npm run build",
+    "start": "node build/App.js",
+    "test": "node --test \"build/tests/**/*.spec.js\"",
+    "package:bundle": "lakutata package bundle",
+    "package:exe": "lakutata package exe"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^8.7.2",
+    "commander": "^15.0.0",
+    "lakutata": "^{$LAKUTATA_VERSION}"
+  }
+}

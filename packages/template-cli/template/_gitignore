@@ -1,9 +1,13 @@
 node_modules
-/build
-/dist
+build
+dist
 *.log
-.env.local
-.env.*.local
+.env
+.env.*
 .DS_Store
 .idea
 .vscode
+.next
+next-env.d.ts
+.nuxt
+.output

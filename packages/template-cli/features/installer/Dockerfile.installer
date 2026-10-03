@@ -1,10 +1,10 @@
-# The installers of Linux (npm run installer:linux), made on Linux: the packages of the configuration (lakutata.installer
+# The installers of Linux (npm run package:linux), made on Linux: the packages of the configuration (lakutata.installer
 # of the package.json) in dist/installer. The ones of another architecture: docker buildx build --platform linux/amd64 ...
 # The apk packages are made on Alpine (node:22-alpine), with Bun when the application has native addons.
 FROM node:22-bookworm AS build
 WORKDIR /project
 COPY . .
-RUN (npm ci --no-audit --no-fund || npm install --no-audit --no-fund) && npm run installer -- --outdir /installer
+RUN (npm ci --no-audit --no-fund || npm install --no-audit --no-fund) && npm run build && npm run package -w app -- --outdir /installer
 
 FROM scratch
 COPY --from=build /installer /

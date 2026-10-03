@@ -1,4 +1,4 @@
-# The installers of Linux (npm run installer:linux), made on Linux by electron-builder: the packages of the configuration
+# The installers of Linux (npm run package:linux), made on Linux by electron-builder: the packages of the configuration
 # (lakutata.installer of packages/app/package.json) in dist/installer. The ones of another architecture: docker buildx
 # build --platform linux/amd64 ... The packages of fpm (deb, rpm) are made by the fpm of the system (the one electron-builder
 # downloads is the one of x64); add the system libraries your native addons need
@@ -10,7 +10,7 @@ RUN apt-get update \
 ENV USE_SYSTEM_FPM=true
 WORKDIR /project
 COPY . .
-RUN (npm ci --no-audit --no-fund || npm install --no-audit --no-fund) && npm run build && npm run installer -w app -- --outdir /installer \
+RUN (npm ci --no-audit --no-fund || npm install --no-audit --no-fund) && npm run build && npm run package -w app -- --outdir /installer \
     && mkdir /packages && find /installer -maxdepth 1 -type f ! -name '*.yml' ! -name '*.blockmap' -exec cp {} /packages \;
 
 FROM scratch

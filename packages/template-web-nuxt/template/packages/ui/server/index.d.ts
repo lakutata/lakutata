@@ -8,6 +8,6 @@ export type UIHandler = (request: IncomingMessage, response: ServerResponse, nex
 /**
  * The Nuxt application of the ui package, served by the service: undefined until it is built (in development, nuxt dev serves it)
  * @param options the build of Nitro: the one of the ui package by default, the one of the resources of the application
- * packed (lakutata executable)
+ * packed (lakutata package exe)
  */
 export default function renderUI(options?: { output?: string }): UIHandler | undefined

@@ -3,7 +3,7 @@
     "{$APP_ID}": "build/App.js"
   },
   "scripts": {
-    "installer": "lakutata installer"
+    "package": "lakutata package installer"
   },
   "lakutata": {
     "installer": {

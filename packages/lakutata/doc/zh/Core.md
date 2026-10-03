@@ -114,7 +114,7 @@ export class TestController1 extends Controller {
 - **启动失败**：应用无法启动时（对象初始化失败、选项不合法等），由 `onFatalException` 的处理函数决定退出码（没有返回退出码时为 1）。没有注册处理函数时，框架记录错误后以退出码 1 退出，和 Node.js 处理未捕获异常的方式一致，这样运行它的工具（Docker 的重启策略、Kubernetes、systemd、CI）都能知道启动失败了；已经创建的对象（正在监听的服务、数据库连接等）也不会让进程继续挂着。
 - **环境变量支持**：通过 `Application.env()` 方法设置环境变量，可在整个应用中访问。
 - **运行模式**：`app.mode()` 返回 `'development'` 或 `'production'`。环境变量会覆盖代码里的配置，同一份构建产物可以在不同模式下运行：依次看环境变量 `MODE`（lakutata 自己的变量）、`NODE_ENV`，然后是应用选项 `mode`，都没有时为 `development`。不是这两个值的 `MODE` 会发出警告并被忽略，不是这两个值的 `NODE_ENV`（如测试工具设置的 `test`）会被跳过。确定的模式会同时写回 `MODE` 和 `NODE_ENV`，所以第三方库读到的也是同一个模式。环境变量可以来自系统、`Application.env({MODE: 'production'})`，或者 Bun 自动读取的 `.env` 文件（指 `bun App.js` 这种运行方式；Bun 打包出的可执行文件不会读取它）。
-- **打包后的应用**：`IsPackaged()` 表示应用是否以打包形式运行（`lakutata bundle` 的打包产物或 `lakutata executable` 的可执行文件）。应用运行时要读取的资源文件（Web 应用构建好的前端页面、模板、数据等）在 `package.json` 的 `lakutata.resources` 里声明，写法和 electron-builder 的 `extraResources` 一样：`[{"from": "../ui/dist", "to": "ui"}]`。打包后，`ResourcesPath()` 返回资源所在的目录（在打包产物或可执行文件旁边，单文件可执行程序则是和原生插件一起解压出来的目录）；未打包时返回 `undefined`，由应用自己到构建目录里找：`const ui = ResourcesPath() ? path.join(ResourcesPath()!, 'ui') : uiBuildDirectory`。
+- **打包后的应用**：`IsPackaged()` 表示应用是否以打包形式运行（`lakutata package bundle` 的打包产物或 `lakutata package exe` 的可执行文件）。应用运行时要读取的资源文件（Web 应用构建好的前端页面、模板、数据等）在 `package.json` 的 `lakutata.resources` 里声明，写法和 electron-builder 的 `extraResources` 一样：`[{"from": "../ui/dist", "to": "ui"}]`。打包后，`ResourcesPath()` 返回资源所在的目录（在打包产物或可执行文件旁边，单文件可执行程序则是和原生插件一起解压出来的目录）；未打包时返回 `undefined`，由应用自己到构建目录里找：`const ui = ResourcesPath() ? path.join(ResourcesPath()!, 'ui') : uiBuildDirectory`。
 
 ### 使用示例
 以下是基于 `App.spec.ts` 的应用入口点配置和启动示例：

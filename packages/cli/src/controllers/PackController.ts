@@ -17,11 +17,12 @@ function Megabytes(size: number): string {
 }
 
 /**
- * The commands packing the application of the current directory: into one JavaScript file, or into an executable
+ * The commands packing the application of the current directory (lakutata package): into one JavaScript file, into an
+ * executable, or into its installers
  */
 export class PackController extends Controller {
 
-    @CLIAction('bundle', BundleDTO, {description: 'Bundle the compiled application and its dependencies into one file run by node'})
+    @CLIAction('package bundle', BundleDTO, {description: 'Bundle the compiled application and its dependencies into one file run by node'})
     public async bundle(input: BundleDTO): Promise<undefined> {
         const {BundleProject} = await LoadBuilder(process.cwd())
         const result: BundleResult = await BundleProject({project: process.cwd(), entry: input.entry, outfile: input.outfile, minify: input.minify, external: input.external})
@@ -32,7 +33,7 @@ export class PackController extends Controller {
         return undefined
     }
 
-    @CLIAction('executable', ExecutableDTO, {description: 'Make the executable of the compiled application for this platform, which runs without Node.js installed'})
+    @CLIAction('package exe', ExecutableDTO, {description: 'Make the executable of the compiled application for this platform, which runs without Node.js installed'})
     public async executable(input: ExecutableDTO): Promise<undefined> {
         const {BuildExecutable} = await LoadBuilder(process.cwd())
         const result: ExecutableResult = await BuildExecutable({project: process.cwd(), entry: input.entry, outdir: input.outdir, minify: input.minify, external: input.external, runtime: input.runtime, layout: input.layout})
@@ -45,7 +46,7 @@ export class PackController extends Controller {
         return undefined
     }
 
-    @CLIAction('installer', InstallerDTO, {description: 'Make the installers of the compiled application for this platform: its executable, its native addons and its resources installed, its program in the PATH, its service registered'})
+    @CLIAction('package installer', InstallerDTO, {description: 'Make the installers of the compiled application for this platform: its executable, its native addons and its resources installed, its program in the PATH, its service registered'})
     public async installer(input: InstallerDTO): Promise<undefined> {
         const {BuildInstaller} = await LoadBuilder(process.cwd())
         const result: InstallerResult = await BuildInstaller({project: process.cwd(), targets: input.target, outdir: input.outdir, entry: input.entry, minify: input.minify, external: input.external})

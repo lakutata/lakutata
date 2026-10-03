@@ -70,34 +70,37 @@
       "list": {
         "description": "列出工作區的套件"
       },
-      "bundle": {
-        "description": "把編譯後的應用程式及其相依套件打包成一個由 node 執行的檔案",
-        "options": {
-          "entry": "應用程式編譯後的入口（預設是 package.json 的 main）",
-          "outfile": "打包輸出的檔案（預設 dist/<名稱>.cjs）",
-          "minify": "壓縮打包結果",
-          "external": "不打包進去的模組，執行時從旁邊的 node_modules 載入（原生外掛會自動處理）"
-        }
-      },
-      "executable": {
-        "description": "為目前平台產生編譯後應用程式的可執行檔，無需安裝 Node.js 即可執行",
-        "options": {
-          "entry": "應用程式編譯後的入口（預設是 package.json 的 main）",
-          "outdir": "可執行檔所在的目錄（預設 dist）",
-          "minify": "壓縮嵌入可執行檔的打包結果",
-          "external": "不打包進去的模組（它們不在可執行檔中，而是從旁邊的 node_modules 載入）",
-          "runtime": "嵌入可執行檔的執行環境：node（Node.js 的單一可執行應用程式，預設）或 bun（Bun，安裝在專案中或系統上）",
-          "layout": "單一檔案，原生外掛程式和資源嵌入其中（file，預設）；或一個目錄：可執行檔及其旁邊的原生外掛程式和資源（directory）"
-        }
-      },
-      "installer": {
-        "description": "為目前平台產生編譯後應用程式的安裝套件：安裝可執行檔、原生外掛程式和資源，把程式加入 PATH，並註冊系統服務",
-        "options": {
-          "target": "要產生的安裝套件：Linux 上為 deb、rpm、apk、archlinux、tar.gz，macOS 上為 pkg、tar.gz，Windows 上為 nsis、msi、zip（預設取 package.json 的 lakutata.installer）",
-          "outdir": "安裝套件所在的目錄（預設 dist/installer）",
-          "entry": "應用程式編譯後的入口（預設是 package.json 的 main）",
-          "minify": "壓縮嵌入可執行檔的打包結果",
-          "external": "不打包進去的模組"
+      "package": {
+        "description": "打包編譯後的應用程式：打包成一個 JavaScript 檔案、可執行檔或安裝套件",
+        "bundle": {
+          "description": "把編譯後的應用程式及其相依套件打包成一個由 node 執行的檔案",
+          "options": {
+            "entry": "應用程式編譯後的入口（預設是 package.json 的 main）",
+            "outfile": "打包輸出的檔案（預設 dist/<名稱>.cjs）",
+            "minify": "壓縮打包結果",
+            "external": "不打包進去的模組，執行時從旁邊的 node_modules 載入（原生外掛會自動處理）"
+          }
+        },
+        "exe": {
+          "description": "為目前平台產生編譯後應用程式的可執行檔，無需安裝 Node.js 即可執行",
+          "options": {
+            "entry": "應用程式編譯後的入口（預設是 package.json 的 main）",
+            "outdir": "可執行檔所在的目錄（預設 dist）",
+            "minify": "壓縮嵌入可執行檔的打包結果",
+            "external": "不打包進去的模組（它們不在可執行檔中，而是從旁邊的 node_modules 載入）",
+            "runtime": "嵌入可執行檔的執行環境：node（Node.js 的單一可執行應用程式，預設）或 bun（Bun，安裝在專案中或系統上）",
+            "layout": "單一檔案，原生外掛程式和資源嵌入其中（file，預設）；或一個目錄：可執行檔及其旁邊的原生外掛程式和資源（directory）"
+          }
+        },
+        "installer": {
+          "description": "為目前平台產生編譯後應用程式的安裝套件：安裝可執行檔、原生外掛程式和資源，把程式加入 PATH，並註冊系統服務",
+          "options": {
+            "target": "要產生的安裝套件：Linux 上為 deb、rpm、apk、archlinux、tar.gz，macOS 上為 pkg、tar.gz，Windows 上為 nsis、msi、zip（預設取 package.json 的 lakutata.installer）",
+            "outdir": "安裝套件所在的目錄（預設 dist/installer）",
+            "entry": "應用程式編譯後的入口（預設是 package.json 的 main）",
+            "minify": "壓縮嵌入可執行檔的打包結果",
+            "external": "不打包進去的模組"
+          }
         }
       },
       "migration": {

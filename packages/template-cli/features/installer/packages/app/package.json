@@ -1,0 +1,16 @@
+{
+  "scripts": {
+    "package": "lakutata package installer"
+  },
+  "lakutata": {
+    "installer": {
+      "linux": {
+        "targets": [
+          "deb",
+          "rpm",
+          "tar.gz"
+        ]
+      }
+    }
+  }
+}

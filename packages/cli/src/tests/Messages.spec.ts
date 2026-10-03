@@ -5,7 +5,7 @@ import {Container} from 'lakutata'
 import {BuildEntrypoints, Entrypoint} from 'lakutata/com/entrypoint'
 import {CommanderCLIEntrypoint, type CLIText} from 'lakutata/adapter/commander'
 import {BuildI18nOptions, I18n} from 'lakutata/com/i18n'
-import {CONTROLLERS, MESSAGES} from '../Config.js'
+import {COMMAND_GROUPS, CONTROLLERS, MESSAGES} from '../Config.js'
 import {CLI, Run} from './support/Workspace.js'
 
 /**
@@ -32,7 +32,7 @@ async function HelpKeys(): Promise<Set<string>> {
         await container.set(Entrypoint, BuildEntrypoints({
             controllers: CONTROLLERS,
             cli: CommanderCLIEntrypoint({
-                bin: 'lakutata', description: 'The tool', version: '1.0.0', interactive: false, argv: argv, stdout: output, stderr: output, exit: (): undefined => undefined,
+                bin: 'lakutata', description: 'The tool', version: '1.0.0', groups: COMMAND_GROUPS, interactive: false, argv: argv, stdout: output, stderr: output, exit: (): undefined => undefined,
                 translate: () => (text: CLIText): string => {
                     keys.add(text.key)
                     return text.text

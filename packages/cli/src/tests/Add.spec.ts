@@ -66,7 +66,7 @@ describe('lakutata add', (): void => {
             const app: string = path.join(root, 'packages', 'app')
             mkdirSync(path.join(app, 'build'))
             writeFileSync(path.join(app, 'build', 'App.js'), 'import {Greet} from \'@acme/capture\'\nconsole.log(Greet(\'bundle\'))\n')
-            const bundled = await Run(process.execPath, [CLI, 'bundle'], app)
+            const bundled = await Run(process.execPath, [CLI, 'package', 'bundle'], app)
             assert.strictEqual(bundled.code, 0, bundled.output)
             assert.match(bundled.output, /the native addons \(@acme\/capture\)/)
             const ran = await Run(process.execPath, [path.join(app, 'dist', 'app.cjs')], tmpdir())
@@ -116,7 +116,7 @@ describe('lakutata add', (): void => {
         const app: string = path.join(root, 'packages', 'app')
         mkdirSync(path.join(app, 'build'))
         writeFileSync(path.join(app, 'build', 'App.js'), 'import {Greet} from \'suffixed\'\nconsole.log(Greet(\'bundle\'))\n')
-        const bundled = await Run(process.execPath, [CLI, 'bundle'], app)
+        const bundled = await Run(process.execPath, [CLI, 'package', 'bundle'], app)
         assert.strictEqual(bundled.code, 0, bundled.output)
         //The library of the package moved away: the bundle has its own
         rmSync(path.join(directory, 'deps'), {recursive: true})

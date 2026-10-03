@@ -166,7 +166,7 @@ const BUN: boolean = ((): boolean => {
  */
 async function ServeFromExecutable(project: string, assets: (page: string) => string[] = (): string[] => [], options: string[] = ['--layout', 'directory']): Promise<string> {
     const outdir: string = `dist-${options.join('').replace(/\W+/g, '-')}`
-    const made = await Run(process.execPath, [CLI, 'executable', ...options, '--outdir', outdir], path.join(project, 'packages', 'app'))
+    const made = await Run(process.execPath, [CLI, 'package', 'exe', ...options, '--outdir', outdir], path.join(project, 'packages', 'app'))
     assert.strictEqual(made.code, 0, made.output)
     const directory: boolean = options.includes('directory')
     assert.match(made.output, directory ? /Resources next to the executable: ui/ : /Resources embedded, extracted at the first run: ui/)
@@ -263,10 +263,13 @@ describe('The templates of the repository', (): void => {
         //A command line tool: its program in the PATH, without service
         const tool: string = await Create('cli', 'Shipper', ['installer'])
         const manifest = JSON.parse(readFileSync(path.join(tool, 'package.json'), 'utf8'))
-        assert.strictEqual(manifest.scripts.installer, 'npm run compile && lakutata installer')
-        assert.match(manifest.scripts['installer:linux'], /^docker buildx build --file Dockerfile\.installer --output type=local,dest=dist\/installer \.$/)
-        assert.deepStrictEqual(manifest.lakutata, {installer: {linux: {targets: ['deb', 'rpm', 'tar.gz']}}})
+        assert.strictEqual(manifest.scripts['package:host'], 'npm run build && npm run package -w app -- --outdir ../../dist/installer')
+        assert.match(manifest.scripts['package:linux'], /^docker buildx build --file Dockerfile\.installer --output type=local,dest=dist\/installer \.$/)
+        const toolApp = JSON.parse(readFileSync(path.join(tool, 'packages', 'app', 'package.json'), 'utf8'))
+        assert.strictEqual(toolApp.scripts.package, 'lakutata package installer')
+        assert.deepStrictEqual(toolApp.lakutata, {installer: {linux: {targets: ['deb', 'rpm', 'tar.gz']}}})
         assert.ok(existsSync(path.join(tool, 'Dockerfile.installer')) && existsSync(path.join(tool, '.dockerignore')))
+        assert.match(readFileSync(path.join(tool, 'Dockerfile.installer'), 'utf8'), /npm run package -w app -- --outdir \/installer/)
         const readme: string = readFileSync(path.join(tool, 'README.md'), 'utf8')
         assert.match(readme, /## The installers\n[\s\S]*the command `shipper` in the PATH/)
         assert.doesNotMatch(readme, /@if|@end/)
@@ -275,13 +278,16 @@ describe('The templates of the repository', (): void => {
             const project: string = await Create(template, name, ['installer'])
             const id: string = name.toLowerCase()
             const root = JSON.parse(readFileSync(path.join(project, 'package.json'), 'utf8'))
-            assert.strictEqual(root.scripts.installer, 'npm run build && npm run installer -w app')
+            //Their installers in the dist/installer of the workspace, as the ones of Linux (package:linux)
+            assert.strictEqual(root.scripts['package:host'], 'npm run build && npm run package -w app -- --outdir ../../dist/installer')
+            assert.match(root.scripts['package:linux'], /^docker buildx build --file Dockerfile\.installer --output type=local,dest=dist\/installer \.$/)
             assert.strictEqual(root.devDependencies['@lakutata/builder'], root.devDependencies['@lakutata/cli'])
             const app = JSON.parse(readFileSync(path.join(project, 'packages', 'app', 'package.json'), 'utf8'))
             assert.deepStrictEqual(app.bin, {[id]: 'build/App.js'})
+            assert.strictEqual(app.scripts.package, 'lakutata package installer')
             assert.deepStrictEqual(app.lakutata.installer, {name: id, service: {env: {PORT: '8080'}}, linux: {targets: ['deb', 'rpm', 'tar.gz']}})
             if (template !== 'service') assert.deepStrictEqual(app.lakutata.resources, [{from: {'web-nuxt': '../ui/.output', 'web-next': '../ui/.next/standalone'}[template as string] ?? '../ui/dist', to: 'ui'}])
-            assert.match(readFileSync(path.join(project, 'Dockerfile.installer'), 'utf8'), /npm run installer -w app -- --outdir \/installer/)
+            assert.match(readFileSync(path.join(project, 'Dockerfile.installer'), 'utf8'), /npm run package -w app -- --outdir \/installer/)
             assert.match(readFileSync(path.join(project, 'README.md'), 'utf8'), new RegExp(`/etc/${id}/${id}\\.env`))
         }
         //Without the feature, none of it
@@ -305,11 +311,14 @@ describe('The templates of the repository', (): void => {
         assert.match(checked.output, /2 languages \(en, zh-CN\), 0 errors, 0 warnings/)
         //A command line tool, in the language of its environment, its messages bundled
         const tool: string = await Create('cli', 'Babel', ['i18n'])
+        assert.ok(existsSync(path.join(tool, 'packages', 'app', 'src', 'locales', 'zh-CN.json')))
         Install(tool, ['@types/node'])
+        const toolBuilt = await Run('npm', ['run', 'build'], tool)
+        assert.strictEqual(toolBuilt.code, 0, toolBuilt.output)
         const toolTested = await Run('npm', ['test'], tool)
         assert.strictEqual(toolTested.code, 0, toolTested.output)
         assert.match(toolTested.output, /pass 5/)
-        const toolBundled = await Run('npm', ['run', 'bundle'], tool)
+        const toolBundled = await Run('npm', ['run', 'package:bundle'], tool)
         assert.strictEqual(toolBundled.code, 0, toolBundled.output)
         const bundled = await new Promise<string>((resolve: (output: string) => void): void => {
             execFile(process.execPath, [path.join(tool, 'dist', 'babel.cjs'), 'greet', '--name', 'bundle'], {cwd: work, env: {...process.env, LC_ALL: 'zh_CN.UTF-8'}}, (error: ExecFileException | null, stdout: string): void => resolve(stdout.trim()))
@@ -350,18 +359,22 @@ describe('The templates of the repository', (): void => {
 
     it('creates a command line tool which passes its tests, and is built into an executable and bundled', async (): Promise<void> => {
         const project: string = await Create('cli', 'Greeter')
-        assert.doesNotMatch(readFileSync(path.join(project, 'src', 'config', 'Config.ts'), 'utf8'), /\{\$APP_/)
-        assert.strictEqual(JSON.parse(readFileSync(path.join(project, 'package.json'), 'utf8')).bin.greeter, 'build/App.js')
+        //A workspace: the tool is its app package
+        assert.doesNotMatch(readFileSync(path.join(project, 'packages', 'app', 'src', 'config', 'Config.ts'), 'utf8'), /\{\$APP_/)
+        assert.strictEqual(JSON.parse(readFileSync(path.join(project, 'packages', 'app', 'package.json'), 'utf8')).bin.greeter, 'build/App.js')
+        assert.deepStrictEqual(JSON.parse(readFileSync(path.join(project, 'package.json'), 'utf8')).workspaces, ['packages/*'])
         Install(project, ['@types/node'])
+        const built = await Run('npm', ['run', 'build'], project)
+        assert.strictEqual(built.code, 0, built.output)
         const tested = await Run('npm', ['test'], project)
         assert.strictEqual(tested.code, 0, tested.output)
         assert.match(tested.output, /pass 4/)
         //The bundle and the executable have the dependencies and the version of the tool
-        const bundled = await Run('npm', ['run', 'bundle'], project)
+        const bundled = await Run('npm', ['run', 'package:bundle'], project)
         assert.strictEqual(bundled.code, 0, bundled.output)
         const bundle = await Run(process.execPath, [path.join(project, 'dist', 'greeter.cjs'), 'greet', '--name', 'bundle'], work)
         assert.strictEqual(bundle.output.trim(), 'Hello, bundle!')
-        const made = await Run('npm', ['run', 'build'], project)
+        const made = await Run('npm', ['run', 'package:exe'], project)
         assert.strictEqual(made.code, 0, made.output)
         const executable: string = path.join(project, 'dist', process.platform === 'win32' ? 'greeter.exe' : 'greeter')
         assert.strictEqual((await Run(executable, ['greet', '--name', 'executable', '--loud'], work)).output.trim(), 'HELLO, EXECUTABLE!')
@@ -546,13 +559,13 @@ describe('The templates of the repository', (): void => {
                 ? await Run(process.execPath, ['-e', `require(${JSON.stringify(path.join(ROOT, 'node_modules', 'vue-tsc'))}).run(${JSON.stringify(path.join(typescript, 'lib', 'tsc.js'))})`, 'vue-tsc', '--noEmit', '-p', path.join(project, 'packages', 'ui')], project)
                 : await Run(process.execPath, [path.join(typescript, 'bin', 'tsc'), '-p', path.join(project, 'packages', 'ui')], project)
             assert.strictEqual(checked.code, 0, checked.output)
-            //Packaged by lakutata installer (electron-builder, unpacked): the main process bundled in its archive, the
+            //Packaged by lakutata package installer (electron-builder, unpacked): the main process bundled in its archive, the
             //preload script and the renderer in its resources
-            const app: string = path.join(project, 'packages', 'app')
-            const packaged = await Run(process.execPath, [CLI, 'installer', '--target', 'dir'], app)
+            //By the installer script of the workspace: in its dist/installer
+            const packaged = await Run('npm', ['run', 'package:host', '--', '--target', 'dir'], project)
             assert.strictEqual(packaged.code, 0, packaged.output)
             assert.match(packaged.output, /Electron v\d+/)
-            const archive: string | undefined = readdirSync(path.join(app, 'dist', 'installer'), {recursive: true, withFileTypes: true})
+            const archive: string | undefined = readdirSync(path.join(project, 'dist', 'installer'), {recursive: true, withFileTypes: true})
                 .find((entry): boolean => entry.name === 'app.asar')?.parentPath
             assert.ok(archive, 'app.asar')
             for (const file of ['preload.cjs', path.join('renderer', 'index.html')]) assert.ok(existsSync(path.join(archive, 'main.resources', file)), file)

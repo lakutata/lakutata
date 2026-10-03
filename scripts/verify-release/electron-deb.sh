@@ -6,7 +6,7 @@ DEB="$1"
 apt-get update -qq > /dev/null
 apt-get install -y -qq --no-install-recommends "$DEB" xvfb xauth > /dev/null 2>&1 || apt-get install -y --no-install-recommends "$DEB" xvfb xauth
 PACKAGE="$(dpkg-deb -f "$DEB" Package)"
-EXECUTABLE="$(dpkg -L "$PACKAGE" | grep -E '^/opt/[^/]+/[^/]+$' | while read -r file; do [ -x "$file" ] && [ -f "$file" ] && case "$file" in *.so|*chrome-sandbox|*chrome_crashpad_handler) ;; *) echo "$file";; esac; done | head -n 1)"
+EXECUTABLE="$(dpkg -L "$PACKAGE" | grep -E '^/opt/[^/]+/[^/]+$' | while read -r file; do [ -x "$file" ] && [ -f "$file" ] && case "$file" in *.so|*.so.*|*chrome-sandbox|*chrome_crashpad_handler) ;; *) echo "$file";; esac; done | head -n 1)"
 echo "installed $PACKAGE: $EXECUTABLE"
 xvfb-run -a "$EXECUTABLE" --no-sandbox --remote-debugging-port=9222 > /tmp/app.log 2>&1 &
 node -e '

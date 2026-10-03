@@ -161,7 +161,7 @@ Application.run({
     after((): void => rmSync(project, {recursive: true, force: true}))
 
     it('bundles the application into one file which runs without its node_modules', async (): Promise<void> => {
-        const bundled = await Run(process.execPath, [CLI, 'bundle'])
+        const bundled = await Run(process.execPath, [CLI, 'package', 'bundle'])
         assert.strictEqual(bundled.code, 0, bundled.output)
         //Named after the bin of the package
         const bundle: string = path.join(project, 'dist', 'greet.cjs')
@@ -184,7 +184,7 @@ Application.run({
     })
 
     it('makes the executable of this platform, which runs without Node.js', async (): Promise<void> => {
-        const made = await Run(process.execPath, [CLI, 'executable', '--outdir', 'bin'])
+        const made = await Run(process.execPath, [CLI, 'package', 'exe', '--outdir', 'bin'])
         assert.strictEqual(made.code, 0, made.output)
         const executable: string = path.join(project, 'bin', process.platform === 'win32' ? 'greet.exe' : 'greet')
         assert.ok(existsSync(executable), made.output)
@@ -195,13 +195,13 @@ Application.run({
         assert.match(made.output, /Resources embedded, extracted at the first run: texts/)
         assert.strictEqual((await Run(executable, ['resource'], {PATH: '', LAKUTATA_NATIVE_DIR: path.join(project, 'extracted')})).output.trim(), 'packaged Hi Bye')
         //The executables of the other platforms are made on them
-        const refused = await Run(process.execPath, [CLI, 'executable', '--target', 'linux-x64'])
+        const refused = await Run(process.execPath, [CLI, 'package', 'exe', '--target', 'linux-x64'])
         assert.notStrictEqual(refused.code, 0)
         assert.match(refused.output, /--target/)
     })
 
     it('makes the executable of Bun, its mode the one of its run', {skip: !BUN && 'Bun is not installed'}, async (): Promise<void> => {
-        const made = await Run(process.execPath, [CLI, 'executable', '--runtime', 'bun', '--outdir', 'bun'])
+        const made = await Run(process.execPath, [CLI, 'package', 'exe', '--runtime', 'bun', '--outdir', 'bun'])
         assert.strictEqual(made.code, 0, made.output)
         assert.match(made.output, /Bun \d+\.\d+\.\d+ embedded/)
         const executable: string = path.join(project, 'bun', process.platform === 'win32' ? 'greet.exe' : 'greet')
@@ -222,7 +222,7 @@ Application.run({
     })
 
     it('makes the executable in a directory, its resources next to it', async (): Promise<void> => {
-        const made = await Run(process.execPath, [CLI, 'executable', '--layout', 'directory', '--outdir', 'layouts'])
+        const made = await Run(process.execPath, [CLI, 'package', 'exe', '--layout', 'directory', '--outdir', 'layouts'])
         assert.strictEqual(made.code, 0, made.output)
         assert.match(made.output, /Resources next to the executable: texts/)
         const directory: string = path.join(project, 'layouts', 'greet')
@@ -236,14 +236,14 @@ Application.run({
     })
 
     it('makes the installers of macOS on macOS', {skip: process.platform !== 'darwin' && 'the installers of Linux are tested in containers (the Docker tests of the builder)'}, async (): Promise<void> => {
-        const made = await Run(process.execPath, [CLI, 'installer', '--outdir', 'installers'])
+        const made = await Run(process.execPath, [CLI, 'package', 'installer', '--outdir', 'installers'])
         assert.strictEqual(made.code, 0, made.output)
         assert.deepStrictEqual(readdirSync(path.join(project, 'installers')).sort(), [`greet-1.0.0-${process.arch}.pkg`, `greet-1.0.0-darwin-${process.arch}.tar.gz`])
         assert.match(made.output, /Resources: texts/)
     })
 
     it('tells to install Bun when it is not installed', async (): Promise<void> => {
-        const refused = await Run(process.execPath, [CLI, 'executable', '--runtime', 'bun'], {PATH: ''})
+        const refused = await Run(process.execPath, [CLI, 'package', 'exe', '--runtime', 'bun'], {PATH: ''})
         assert.notStrictEqual(refused.code, 0)
         assert.match(refused.output, /Bun is not installed: install it in the project \(npm install --save-dev bun\)/)
     })
@@ -373,7 +373,7 @@ void (async () => {
     })
 
     it('bundles the application, its native packages next to it', async (): Promise<void> => {
-        const bundled = await RunNative(process.execPath, [CLI, 'bundle'])
+        const bundled = await RunNative(process.execPath, [CLI, 'package', 'bundle'])
         assert.strictEqual(bundled.code, 0, bundled.output)
         assert.match(bundled.output, /the native addons \(cpu-info, native-sub, sharp, sqlite3\)/)
         //The packages needed at run time only: not the ones installing sqlite3 (prebuild-install, node-gyp); laid out as npm
@@ -401,7 +401,7 @@ void (async () => {
         for (const name of ['sqlite3', 'bindings', 'file-uri-to-path']) cpSync(realpathSync(path.join(ROOT, 'node_modules', name)), path.join(project, 'node_modules', name), {recursive: true})
         writeFileSync(path.join(project, 'package.json'), JSON.stringify({name: 'installed', version: '1.0.0', main: 'index.js'}))
         writeFileSync(path.join(project, 'index.js'), `new (require('sqlite3').Database)(':memory:').get('select 1 + 1 as x', (error, row) => console.log('sqlite ' + (error ? error.message : row.x)))`)
-        const bundled = await RunNative(process.execPath, [CLI, 'bundle'], {}, project)
+        const bundled = await RunNative(process.execPath, [CLI, 'package', 'bundle'], {}, project)
         assert.strictEqual(bundled.code, 0, bundled.output)
         const tree: string = path.join(project, 'dist', 'installed.native')
         assert.ok(existsSync(path.join(tree, 'node_modules', 'sqlite3', 'package.json')))
@@ -436,7 +436,7 @@ void (async () => {
         file('index.js', `console.log(require('addon-pkg/a.js')() + ' | ' + require('addon-pkg/b.js')())`)
         const expected: RegExp = /^a \w+ \| b \w+$/
         assert.match((await RunNative(process.execPath, ['index.js'], {}, directory)).output.trim(), expected)
-        const bundled = await RunNative(process.execPath, [CLI, 'bundle'], {}, directory)
+        const bundled = await RunNative(process.execPath, [CLI, 'package', 'bundle'], {}, directory)
         assert.strictEqual(bundled.code, 0, bundled.output)
         assert.deepStrictEqual(readdirSync(path.join(directory, 'dist', 'computed.native', 'node_modules')).sort(), ['addon-pkg', 'gyp-loader'])
         //Moved, the project removed
@@ -474,7 +474,7 @@ void (async () => {
         file('index.js', `console.log(require('lib-pkg')() + ' | ' + require('self-pkg')())`)
         const expected: RegExp = /^used data \w+ \| dynamic \w+$/
         assert.match((await RunNative(process.execPath, ['index.js'], {}, directory)).output.trim(), expected)
-        const bundled = await RunNative(process.execPath, [CLI, 'bundle'], {}, directory)
+        const bundled = await RunNative(process.execPath, [CLI, 'package', 'bundle'], {}, directory)
         assert.strictEqual(bundled.code, 0, bundled.output)
         const tree: string = path.join(directory, 'dist', 'slim.native', 'node_modules')
         const files = (name: string): string[] => Files(path.join(tree, name)).map((file: string): string => path.relative(path.join(tree, name), file).split(path.sep).join('/')).sort()
@@ -489,7 +489,7 @@ void (async () => {
     })
 
     it('makes an executable which extracts its native packages once into its cache directory', async (): Promise<void> => {
-        const made = await RunNative(process.execPath, [CLI, 'executable', '--outdir', 'bin'])
+        const made = await RunNative(process.execPath, [CLI, 'package', 'exe', '--outdir', 'bin'])
         assert.strictEqual(made.code, 0, made.output)
         assert.match(made.output, /Native addons embedded, extracted at the first run: cpu-info, native-sub, sharp, sqlite3/)
         const directory: string = path.join(path.dirname(native), 'elsewhere')
@@ -508,7 +508,7 @@ void (async () => {
     })
 
     it('makes an executable of Bun which extracts its native packages into its cache directory', {skip: !BUN && 'Bun is not installed'}, async (): Promise<void> => {
-        const made = await RunNative(process.execPath, [CLI, 'executable', '--runtime', 'bun', '--outdir', 'bun'])
+        const made = await RunNative(process.execPath, [CLI, 'package', 'exe', '--runtime', 'bun', '--outdir', 'bun'])
         assert.strictEqual(made.code, 0, made.output)
         assert.match(made.output, /Native addons embedded, extracted at the first run: cpu-info, native-sub, sharp, sqlite3/)
         const directory: string = path.join(path.dirname(native), 'bun-elsewhere')
@@ -523,7 +523,7 @@ void (async () => {
 
     for (const runtime of ['node', 'bun'] as const) {
         it(`makes the executable of ${runtime} in a directory, which loads its native packages next to it`, {skip: runtime === 'bun' && !BUN && 'Bun is not installed'}, async (): Promise<void> => {
-            const made = await RunNative(process.execPath, [CLI, 'executable', '--runtime', runtime, '--layout', 'directory', '--outdir', `layout-${runtime}`])
+            const made = await RunNative(process.execPath, [CLI, 'package', 'exe', '--runtime', runtime, '--layout', 'directory', '--outdir', `layout-${runtime}`])
             assert.strictEqual(made.code, 0, made.output)
             assert.match(made.output, /Native addons next to the executable: cpu-info, native-sub, sharp, sqlite3/)
             const directory: string = path.join(native, `layout-${runtime}`, 'natapp')
@@ -540,7 +540,7 @@ void (async () => {
     it('tells to await in a function instead of at the top level', async (): Promise<void> => {
         const entry: string = path.join(native, 'build', 'Await.js')
         writeFileSync(entry, `console.log(await Promise.resolve(1))`)
-        const failed = await RunNative(process.execPath, [CLI, 'bundle', '--entry', entry])
+        const failed = await RunNative(process.execPath, [CLI, 'package', 'bundle', '--entry', entry])
         assert.strictEqual(failed.code, 1)
         assert.match(failed.output, /without top-level await: await in an async function/)
     })

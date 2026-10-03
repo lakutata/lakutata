@@ -14,8 +14,8 @@
     "test": "lakutata run test",
     "dev": "lakutata run dev --parallel",
     "start": "npm start -w app",
-    "installer": "npm run build && npm run installer -w app",
-    "installer:linux": "docker buildx build --file Dockerfile.installer --output type=local,dest=dist/installer .",
+    "package:host": "npm run build && npm run package -w app -- --outdir ../../dist/installer",
+    "package:linux": "docker buildx build --file Dockerfile.installer --output type=local,dest=dist/installer .",
     "version:patch": "lakutata version patch --yes"
   },
   "devDependencies": {

@@ -70,34 +70,37 @@
       "list": {
         "description": "列出工作区的包"
       },
-      "bundle": {
-        "description": "把编译后的应用及其依赖打包成一个由 node 运行的文件",
-        "options": {
-          "entry": "应用编译后的入口（默认是 package.json 的 main）",
-          "outfile": "打包输出的文件（默认 dist/<名称>.cjs）",
-          "minify": "压缩打包结果",
-          "external": "不打进包里的模块，运行时从旁边的 node_modules 加载（原生插件会自动处理）"
-        }
-      },
-      "executable": {
-        "description": "为当前平台生成编译后应用的可执行文件，无需安装 Node.js 即可运行",
-        "options": {
-          "entry": "应用编译后的入口（默认是 package.json 的 main）",
-          "outdir": "可执行文件所在的目录（默认 dist）",
-          "minify": "压缩嵌入可执行文件的包",
-          "external": "不打进包里的模块（它们不在可执行文件中，而是从旁边的 node_modules 加载）",
-          "runtime": "嵌入可执行文件的运行时：node（Node.js 的单可执行应用，默认）或 bun（Bun，安装在项目中或系统上）",
-          "layout": "单个文件，原生插件和资源嵌入其中（file，默认）；或一个目录：可执行文件及其旁边的原生插件和资源（directory）"
-        }
-      },
-      "installer": {
-        "description": "为当前平台生成编译后应用的安装包：安装可执行文件、原生插件和资源，把程序加入 PATH，并注册系统服务",
-        "options": {
-          "target": "要生成的安装包：Linux 上为 deb、rpm、apk、archlinux、tar.gz，macOS 上为 pkg、tar.gz，Windows 上为 nsis、msi、zip（默认取 package.json 的 lakutata.installer）",
-          "outdir": "安装包所在的目录（默认 dist/installer）",
-          "entry": "应用编译后的入口（默认是 package.json 的 main）",
-          "minify": "压缩嵌入可执行文件的包",
-          "external": "不打进包里的模块"
+      "package": {
+        "description": "打包编译后的应用：打包成一个 JavaScript 文件、可执行文件或安装包",
+        "bundle": {
+          "description": "把编译后的应用及其依赖打包成一个由 node 运行的文件",
+          "options": {
+            "entry": "应用编译后的入口（默认是 package.json 的 main）",
+            "outfile": "打包输出的文件（默认 dist/<名称>.cjs）",
+            "minify": "压缩打包结果",
+            "external": "不打进包里的模块，运行时从旁边的 node_modules 加载（原生插件会自动处理）"
+          }
+        },
+        "exe": {
+          "description": "为当前平台生成编译后应用的可执行文件，无需安装 Node.js 即可运行",
+          "options": {
+            "entry": "应用编译后的入口（默认是 package.json 的 main）",
+            "outdir": "可执行文件所在的目录（默认 dist）",
+            "minify": "压缩嵌入可执行文件的包",
+            "external": "不打进包里的模块（它们不在可执行文件中，而是从旁边的 node_modules 加载）",
+            "runtime": "嵌入可执行文件的运行时：node（Node.js 的单可执行应用，默认）或 bun（Bun，安装在项目中或系统上）",
+            "layout": "单个文件，原生插件和资源嵌入其中（file，默认）；或一个目录：可执行文件及其旁边的原生插件和资源（directory）"
+          }
+        },
+        "installer": {
+          "description": "为当前平台生成编译后应用的安装包：安装可执行文件、原生插件和资源，把程序加入 PATH，并注册系统服务",
+          "options": {
+            "target": "要生成的安装包：Linux 上为 deb、rpm、apk、archlinux、tar.gz，macOS 上为 pkg、tar.gz，Windows 上为 nsis、msi、zip（默认取 package.json 的 lakutata.installer）",
+            "outdir": "安装包所在的目录（默认 dist/installer）",
+            "entry": "应用编译后的入口（默认是 package.json 的 main）",
+            "minify": "压缩嵌入可执行文件的包",
+            "external": "不打进包里的模块"
+          }
         }
       },
       "migration": {

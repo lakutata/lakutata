@@ -11,7 +11,7 @@ const OUTPUT = fileURLToPath(new URL('../.output', import.meta.url))
 /**
  * The Nuxt application of the ui package, served by the service: undefined until it is built (in development, nuxt dev serves it)
  * @param {{output?: string}} [options] the build of Nitro: the one of the ui package by default, the one of the resources
- * of the application packed (lakutata executable)
+ * of the application packed (lakutata package exe)
  * @returns {((request: import('node:http').IncomingMessage, response: import('node:http').ServerResponse, next: (error?: unknown) => void) => void) | undefined}
  */
 export default function renderUI(options = {}) {

@@ -21,6 +21,13 @@ export const CONTROLLERS = [CommandLineController, WorkspaceController, PackCont
 /**
  * The messages of the tool in the languages besides English (its texts in the code): its help, its prompts
  */
+/**
+ * The groups of commands: lakutata package --help lists the commands of the group package
+ */
+export const COMMAND_GROUPS: Record<string, string> = {
+    package: 'Package the compiled application: into one JavaScript file, an executable or its installers'
+}
+
 export const MESSAGES = {'zh-CN': zhCN, 'zh-TW': zhTW}
 
 /**
@@ -37,7 +44,13 @@ export function Config(): ApplicationOptions {
             entrypoint: BuildEntrypoints({
                 controllers: CONTROLLERS,
                 middlewares: [LanguageMiddleware],
-                cli: CommanderCLIEntrypoint({bin: 'lakutata', description: tool.description, version: tool.version, translate: CommanderTranslator({environment: LANGUAGE_VARIABLE})})
+                cli: CommanderCLIEntrypoint({
+                    bin: 'lakutata',
+                    description: tool.description,
+                    version: tool.version,
+                    groups: COMMAND_GROUPS,
+                    translate: CommanderTranslator({environment: LANGUAGE_VARIABLE})
+                })
             })
         },
         bootstrap: ['entrypoint']

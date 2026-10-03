@@ -501,7 +501,7 @@ describe('${name}', (): void => {
 A native addon: ${NATIVE_GUIDES[build]}
 
 Node-API is stable across the versions of Node.js and Electron: the same addon runs in both without being rebuilt.
-\`lakutata bundle\` and \`lakutata executable\` ship it with the application.
+\`lakutata package bundle\` and \`lakutata package exe\` ship it with the application.
 
 \`\`\`bash
 npm run rebuild   # build the addon (build/Release) and compile the TypeScript (dist)

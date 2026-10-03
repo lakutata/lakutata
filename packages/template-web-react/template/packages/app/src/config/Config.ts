@@ -16,7 +16,7 @@ import zhCN from '../locales/zh-CN.json' with {type: 'json'}
 
 /**
  * The directory of the built application of the ui package, undefined before it is built (in development, Vite serves it):
- * in the resources of the packed application (lakutata bundle, lakutata executable: the "lakutata.resources" of its
+ * in the resources of the packed application (lakutata package bundle, lakutata package exe: the "lakutata.resources" of its
  * package.json), else in the ui package
  */
 function UIDirectory(): string | undefined {

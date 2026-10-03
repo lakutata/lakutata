@@ -23,14 +23,14 @@ The results are `{errno, errMsg, data}`, the errors too (with the status 200). T
 <!-- @if installer -->
 ## The installers
 
-`npm run installer` makes the installers of the platform it runs on (`lakutata installer`, configured by the
-`lakutata.installer` of `packages/app/package.json`) in `packages/app/dist/installer`: the application, its command
+`npm run package:host` makes the installers of the platform it runs on (`lakutata package installer`, configured by the
+`lakutata.installer` of `packages/app/package.json`) in `dist/installer`: the application, its command
 `{$APP_ID}` in the PATH, and its service started at the start of the system, with its environment (`PORT`, `MODE`…, kept by
 the upgrades) and its data:
 
 - Linux: the deb, rpm and tar.gz packages; the application in `/opt/{$APP_ID}`, its service run by systemd, its environment
   `/etc/{$APP_ID}/{$APP_ID}.env` (`systemctl restart {$APP_ID}` after changing it), its data `/var/lib/{$APP_ID}`.
-  `npm run installer:linux` makes them in Docker (`Dockerfile.installer`, in `dist/installer`) on any platform.
+  `npm run package:linux` makes them in Docker (`Dockerfile.installer`, in `dist/installer`) on any platform.
 - macOS: the pkg package; the application in `/usr/local/lib/{$APP_ID}`, its service run by launchd, its environment
   `/usr/local/etc/{$APP_ID}/{$APP_ID}.env` (`sudo /usr/local/lib/{$APP_ID}/uninstall` removes it).
 - Windows: the installer of NSIS and the package of Windows Installer (msi); the application in

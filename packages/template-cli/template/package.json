@@ -1,31 +1,17 @@
 {
-  "name": "{$APP_ID}",
+  "name": "{$APP_ID}-workspace",
   "version": "0.0.1",
-  "description": "{$APP_DESC}",
-  "author": "{$APP_AUTHOR}",
-  "license": "{$APP_LICENSE}",
   "private": true,
-  "type": "module",
-  "main": "build/App.js",
-  "bin": {
-    "{$APP_ID}": "build/App.js"
-  },
-  "files": [
-    "build",
-    "!build/tests"
+  "workspaces": [
+    "packages/*"
   ],
   "scripts": {
-    "clean": "lakutata clean build dist",
-    "compile": "lakutata clean && tsc",
-    "start": "node build/App.js",
-    "test": "npm run compile && node --test \"build/tests/**/*.spec.js\"",
-    "build": "npm run compile && lakutata executable",
-    "bundle": "npm run compile && lakutata bundle"
-  },
-  "dependencies": {
-    "@inquirer/prompts": "^8.7.2",
-    "commander": "^15.0.0",
-    "lakutata": "^{$LAKUTATA_VERSION}"
+    "build": "lakutata run rebuild",
+    "test": "lakutata run test",
+    "start": "npm start -w app",
+    "package:bundle": "npm run build && npm run package:bundle -w app -- --outfile ../../dist/{$APP_ID}.cjs",
+    "package:exe": "npm run build && npm run package:exe -w app -- --outdir ../../dist",
+    "version:patch": "lakutata version patch --yes"
   },
   "devDependencies": {
     "@lakutata/builder": "^{$LAKUTATA_VERSION}",

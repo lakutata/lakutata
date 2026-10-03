@@ -15,7 +15,7 @@ type Packaged = {
 }
 
 /**
- * Whether the application runs packed: bundled (lakutata bundle) or in an executable (lakutata executable)
+ * Whether the application runs packed: bundled (lakutata package bundle) or in an executable (lakutata package exe)
  */
 export function IsPackaged(): boolean {
     return !!(globalThis as Record<symbol, unknown>)[PACKAGED]

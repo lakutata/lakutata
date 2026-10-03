@@ -6,6 +6,8 @@ set -u
 
 TAG="${VERIFY_TAG:-verify}"
 TEMPLATES="${VERIFY_TEMPLATES:-default cli service web-react web-vue web-next web-nuxt electron-react electron-vue}"
+# The templates created with their installer feature (their Dockerfile.installer, made into packages by verify.mjs)
+INSTALLERS="${VERIFY_INSTALLERS:-cli service web-react web-vue web-next web-nuxt}"
 RESULTS=/work/results.txt
 LOGS=/work/logs
 PROJECTS=/work/projects
@@ -67,11 +69,15 @@ for template in $TEMPLATES; do
     name="verify-$template"
     directory="$PROJECTS/$name"
     rm -rf "$directory"
-    step "$template: create" npx -y "@lakutata/cli@$TAG" create --name "$name" --template "$template" --path "$PROJECTS" --yes || continue
+    features=""
+    case " $INSTALLERS " in *" $template "*) features="--with installer" ;; esac
+    # shellcheck disable=SC2086
+    step "$template: create" npx -y "@lakutata/cli@$TAG" create --name "$name" --template "$template" --path "$PROJECTS" $features --yes || continue
     step "$template: build" bash -c "cd '$directory' && npm run build"
     step "$template: test" bash -c "cd '$directory' && npm test"
     if [ "$template" = "cli" ]; then
         # The executable runs without node_modules and without Node.js
+        step "cli: package:exe" bash -c "cd '$directory' && npm run package:exe"
         step "cli: executable" expect "^Hello, executable!$" bash -c "cp '$directory/dist/$name' /tmp/ && cd / && env PATH= /tmp/$name greet --name executable"
     fi
 done

@@ -124,7 +124,7 @@ Then `npm install` links it.
   static libraries of the package, the dynamic libraries shipped with the addon (copied next to it, found there by its
   rpath), the standard of C++, the options of each platform; a library built by its own Makefile is built before by a
   script (`build:deps`).
-  `lakutata bundle` and `lakutata executable` ship the addon with the application, its dynamic libraries too. Building
+  `lakutata package bundle` and `lakutata package exe` ship the addon with the application, its dynamic libraries too. Building
   it needs a C++ toolchain (with CMake for `cmake`), or Rust for `rust`.
 
 ### `lakutata native <action> <value>`
@@ -185,7 +185,7 @@ The application of the current directory, compiled (`tsc`, which emits the metad
 packing their applications do), else the one installed with the tool. Its functions (`BundleProject`,
 `BuildExecutable`) pack the applications from the scripts too.
 
-### `lakutata bundle`
+### `lakutata package bundle`
 
 Bundle the application and its dependencies into one CommonJS file (esbuild), run by node without `node_modules`:
 `dist/<name>.cjs`, the name being the first `bin` of the `package.json`, or its name without its scope. The entry is the
@@ -223,7 +223,7 @@ data), are declared by the `lakutata.resources` of its `package.json`, as the `e
 with the bundle. The application finds them by `ResourcesPath()` of lakutata (`undefined` when it does not run packed,
 `IsPackaged()` tells it).
 
-### `lakutata executable`
+### `lakutata package exe`
 
 Make the executable of the application for the platform it runs on, which runs without Node.js installed: the bundle
 embedded in the Node.js binary running the tool (the single executable applications of Node.js), `dist/<name>`
@@ -248,7 +248,7 @@ linux/arm64`, as the cross builds of the templates).
 | `--outdir <directory>` | the directory of the executable, `dist` by default |
 | `--runtime <node\|bun>` | the runtime embedded: `node` (by default) or `bun` |
 | `--layout <file\|directory>` | one file (by default), or a directory: `dist/<name>/` holding the executable, its native addons (`native/`) and its resources (`resources/`), loaded from there without extraction (the installers, the images) |
-| `--entry`, `--no-minify`, `--external` | as `lakutata bundle` |
+| `--entry`, `--no-minify`, `--external` | as `lakutata package bundle` |
 
 The native addons and the resources are embedded in the executable (`--layout file`): at its first run, it extracts them
 into its cache directory (`~/.cache/<name>`, `~/Library/Caches/<name>` on macOS, `%LOCALAPPDATA%\<name>\Cache` on Windows,
@@ -259,10 +259,10 @@ glibc version of the Linux prebuilt addons).
 The executables of macOS are signed ad hoc. The ones of Windows made by Node.js keep the signature of `node.exe`, which
 does not match anymore: sign them before distributing them.
 
-### `lakutata installer`
+### `lakutata package installer`
 
 Make the installers of the application for the platform it runs on (as electron-builder): its executable in a directory
-(`lakutata executable --layout directory`) installed with its native addons and its resources, its program in the PATH,
+(`lakutata package exe --layout directory`) installed with its native addons and its resources, its program in the PATH,
 its service registered. The installers of the other platforms are made on them (the ones of Linux in a container).
 They are configured by the `lakutata.installer` of the `package.json`:
 
@@ -393,7 +393,7 @@ filter (`ELECTRON_BUILDER_7Z_FILTER`): the ARM64 one, which 7-Zip chooses, is no
 |---|---|
 | `--target <targets...>` | the installers made, the ones of the configuration by default |
 | `--outdir <directory>` | the directory of the installers, `dist/installer` by default |
-| `--entry`, `--no-minify`, `--external` | as `lakutata bundle` |
+| `--entry`, `--no-minify`, `--external` | as `lakutata package bundle` |
 
 ## Migrations
 

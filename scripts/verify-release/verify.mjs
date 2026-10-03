@@ -1,7 +1,8 @@
 // The verification of a release, before it is published: the packages are published to a local registry (verdaccio, in
 // Docker, the other packages coming from npmjs) with a prerelease version and a tag of their own, as a prerelease is
 // published; a clean node container then installs the tool from it, creates the projects of the templates, builds and
-// tests them (consumer.sh); the Docker images of the templates are built from the registry and run.
+// tests them (consumer.sh); the Docker images of the templates are built from the registry and run, the packages of Linux
+// of the templates (Dockerfile.installer) made from it and installed.
 // The repository is not changed: the versions are given to the packed packages.
 //
 // Run: node scripts/verify-release/verify.mjs [--version 3.0.0-verify.1] [--tag verify] [--templates "service cli"]
@@ -173,7 +174,7 @@ function Consumer() {
 }
 
 /**
- * The deb of an Electron template packaged for linux/arm64 in a container (Dockerfile.installer, npm run installer:linux),
+ * The deb of an Electron template packaged for linux/arm64 in a container (Dockerfile.installer, npm run package:linux),
  * from the registry: installed in a clean Debian, started in a virtual display, its page read with the DevTools protocol
  * @param template
  * @param project
@@ -202,8 +203,37 @@ function Cross(template, project) {
 }
 
 /**
- * The Docker images of the templates having a Dockerfile: built from the registry, then run; the cross builds of the
- * Electron templates
+ * The packages of Linux of a project created with the installer feature, made by its Dockerfile.installer from the
+ * registry: the deb installed in a clean Debian, its program run (the command of the cli template, the service of the
+ * others: its /health, its page)
+ * @param template
+ * @param project
+ */
+function Installers(template, project) {
+    Step(`The installers of ${template}: Dockerfile.installer`)
+    writeFileSync(path.join(project, '.npmrc'), `registry=${REGISTRY}\n`)
+    const output = path.join(project, 'dist', 'installer', 'linux')
+    let started = Date.now()
+    const built = spawnSync('docker', ['buildx', 'build', '--add-host=host.docker.internal:host-gateway', '--file', 'Dockerfile.installer', '--output', `type=local,dest=${output}`, '.'], {cwd: project, stdio: 'inherit'}).status === 0
+    const files = built && existsSync(output) ? readdirSync(output) : []
+    const made = ['.deb', '.rpm', '.tar.gz'].every(extension => files.some(file => file.endsWith(extension)))
+    results.push(`${made ? 'PASS' : 'FAIL'} ${template}: the packages of Linux (${files.join(', ') || 'none'}, ${Math.round((Date.now() - started) / 1000)}s)`)
+    const deb = files.find(file => file.endsWith('.deb'))
+    if (!deb) return
+    started = Date.now()
+    const kind = template === 'cli' ? 'cli' : 'service'
+    const run = spawnSync('docker', ['run', '--rm', '-v', `${output}:/packages:ro`, '-v', `${HERE}:/verify:ro`, 'debian:12', 'sh', '/verify/installer-deb.sh', `/packages/${deb}`, kind], {encoding: 'utf8'})
+    console.log(run.stdout.trim().split('\n').slice(-12).map(line => line.slice(0, 300)).join('\n'))
+    if (run.status !== 0) console.log(run.stderr.trim().split('\n').slice(-15).join('\n'))
+    const ran = kind === 'cli'
+        ? new RegExp(`OUTPUT: Hello, deb!`).test(run.stdout)
+        : /HEALTH: \S/.test(run.stdout) && (!template.startsWith('web-') || /PAGE: .*<(div id="(root|app|__nuxt)"|h1)/.test(run.stdout))
+    results.push(`${ran ? 'PASS' : 'FAIL'} ${template}: the deb installed, its program run (${Math.round((Date.now() - started) / 1000)}s)`)
+}
+
+/**
+ * The Docker images of the templates having a Dockerfile: built from the registry, then run; the packages of Linux of
+ * the templates created with their installer feature, the ones of the Electron templates
  */
 async function Images() {
     for (const template of options.templates.split(/\s+/)) {
@@ -212,6 +242,7 @@ async function Images() {
             Cross(template, project)
             continue
         }
+        if (existsSync(path.join(project, 'Dockerfile.installer'))) Installers(template, project)
         if (!existsSync(path.join(project, 'Dockerfile'))) continue
         const image = `lakutata-verify-${template}`
         Step(`The image of ${template}`)

@@ -1,7 +1,12 @@
 .git
 node_modules
-build
-dist
+**/node_modules
+**/build
 *.log
 .env
 .env.*
+**/.next
+**/.nuxt
+**/.output
+dist
+**/dist

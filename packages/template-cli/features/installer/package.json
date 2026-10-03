@@ -1,17 +1,6 @@
 {
   "scripts": {
-    "installer": "npm run compile && lakutata installer",
-    "installer:linux": "docker buildx build --file Dockerfile.installer --output type=local,dest=dist/installer ."
-  },
-  "lakutata": {
-    "installer": {
-      "linux": {
-        "targets": [
-          "deb",
-          "rpm",
-          "tar.gz"
-        ]
-      }
-    }
+    "package:host": "npm run build && npm run package -w app -- --outdir ../../dist/installer",
+    "package:linux": "docker buildx build --file Dockerfile.installer --output type=local,dest=dist/installer ."
   }
 }
