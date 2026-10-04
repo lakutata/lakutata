@@ -1,8 +1,24 @@
 import type {Schema} from '../lib/Protobuf.js'
 
 /**
- * The gRPC service of the service actions of a lakutata application (its service channel): the proto of the clients of
- * the other languages
+ * The `.proto` definition (proto3) of the gRPC service `lakutata.service.v1.Service` served by
+ * `GRPCServiceEntrypoint`: write it to a `.proto` file to generate the clients of the other languages (`protoc`,
+ * grpcio-tools), or give it to `grpcurl -proto`.
+ *
+ * - `Invoke(InvokeRequest) returns (InvokeResponse)`: `data` is the UTF-8 JSON of the action's pattern and input;
+ *   `success` tells the result (`payload`, the JSON of the action's result, empty for none) from the failure
+ *   (`error`, the JSON of the error's message, `errno` and other properties).
+ * - `Events(EventsRequest) returns (stream Event)`: the events pushed to the client, each with its name (`event`) and
+ *   the JSON array of its arguments (`args`); the first one is `client`, the client's id.
+ * - The client's id is the `id` metadata of its calls; the service has no reflection, so the clients need this proto.
+ * @example
+ * ```typescript
+ * import {writeFileSync} from 'node:fs'
+ * import {SERVICE_PROTO} from '@lakutata/grpc/service'
+ *
+ * //Then: grpcurl -plaintext -proto lakutata.proto -H 'id: cli-1' -d '{"data": "eyJjbWQiOiJvcmRlci5nZXQiLCJpZCI6MX0="}' localhost:50051 lakutata.service.v1.Service/Invoke
+ * writeFileSync('lakutata.proto', SERVICE_PROTO)
+ * ```
  */
 export const SERVICE_PROTO: string = `syntax = "proto3";
 
@@ -41,10 +57,17 @@ message Event {
 `
 
 /**
- * The paths of the methods of the service
+ * The gRPC method paths of the service `lakutata.service.v1.Service`, for the `GRPCConnection` calls and the
+ * `GRPCServer` methods.
  */
 export const SERVICE_METHODS = {
+    /**
+     * The unary method invoking an action.
+     */
     INVOKE: '/lakutata.service.v1.Service/Invoke',
+    /**
+     * The server streaming method of the events pushed to a client.
+     */
     EVENTS: '/lakutata.service.v1.Service/Events'
 } as const
 

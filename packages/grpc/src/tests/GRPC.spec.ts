@@ -6,7 +6,7 @@ import http2, {type IncomingHttpHeaders} from 'node:http2'
 import {gzipSync} from 'node:zlib'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import {Decode, Encode, GRPCConnection, GRPCError, GRPCServer, GRPCStatus, type GRPCServerCall, type Message, type Schema} from '../exports/GRPC.js'
+import {Decode, Encode, FormatGRPCTimeout, GRPCConnection, GRPCError, GRPCServer, GRPCStatus, ParseGRPCTimeout, type GRPCServerCall, type Message, type Schema} from '../exports/GRPC.js'
 import {CreateTestCertificates, OpenSSLAvailable, type TestCertificates} from './support/Certificates.js'
 
 const Text: Schema = {text: {no: 1, type: 'string'}, count: {no: 2, type: 'uint32'}}
@@ -39,6 +39,10 @@ describe('The gRPC client and server', (): void => {
                 await call.request(Text)
                 await call.send(Text, {text: call.metadata('x-values').join('|')})
             })
+            .method('/test.Echo/Binary', async (call: GRPCServerCall): Promise<void> => {
+                await call.request(Text)
+                await call.send(Text, {text: call.binaryMetadata('x-trace-bin').map((value: Buffer): string => value.toString('hex')).join('|')})
+            })
         port = (await server.listen({port: 0, host: '127.0.0.1'}) as AddressInfo).port
     })
 
@@ -50,6 +54,43 @@ describe('The gRPC client and server', (): void => {
     it('encodes and decodes the messages', (): void => {
         assert.deepStrictEqual(Decode(Text, Encode(Text, {text: 'héllo', count: 300})), {text: 'héllo', count: 300})
         assert.deepStrictEqual(Decode(Text, Encode(Text, {text: '', count: 0})), {})
+        //The 64-bit integers: numbers while safe, bigints beyond, signed or not
+        const Wide: Schema = {unsigned: {no: 1, type: 'uint64'}, signed: {no: 2, type: 'int64'}, small: {no: 3, type: 'uint64'}, negative: {no: 4, type: 'int64'}}
+        assert.deepStrictEqual(Decode(Wide, Encode(Wide, {unsigned: 2n ** 64n - 1n, signed: -(2n ** 62n), small: 42, negative: -1})), {unsigned: 2n ** 64n - 1n, signed: -(2n ** 62n), small: 42, negative: -1})
+        //A map value equal to its default: the default of its type
+        const Flags: Schema = {flags: {no: 1, type: 'bool', map: true}, blobs: {no: 2, type: 'bytes', map: true}}
+        assert.deepStrictEqual(Decode(Flags, Encode(Flags, {flags: {on: true, off: false}, blobs: {empty: Buffer.alloc(0)}})), {flags: {on: true, off: false}, blobs: {empty: Buffer.alloc(0)}})
+        //The timeouts in the largest unit fitting 8 digits
+        assert.strictEqual(FormatGRPCTimeout(1500), '1500m')
+        assert.strictEqual(FormatGRPCTimeout(30 * 24 * 3600 * 1000), '2592000S')
+        assert.strictEqual(FormatGRPCTimeout(10 * 365 * 24 * 3600 * 1000), '5256000M')
+        assert.strictEqual(ParseGRPCTimeout(FormatGRPCTimeout(10 * 365 * 24 * 3600 * 1000)), 10 * 365 * 24 * 3600 * 1000)
+    })
+
+    it('takes the addresses of host:port, refuses TLS over the unix sockets', async (): Promise<void> => {
+        const connection: GRPCConnection = new GRPCConnection(`127.0.0.1:${port}`)
+        try {
+            assert.strictEqual(connection.address, `tcp://127.0.0.1:${port}`)
+            assert.strictEqual((await connection.unary('/test.Echo/Unary', Text, {text: 'hi'}, Text)).text, 'hi!')
+        } finally {
+            connection.close()
+        }
+        assert.throws((): unknown => new GRPCConnection('/run/test.sock', {}), /TLS is not supported over the unix socket/)
+        assert.throws((): unknown => new GRPCConnection('nowhere'), /is not a unix socket/)
+    })
+
+    it('cancels a call whose signal is aborted already, keeps the long deadlines, reads the binary metadata', async (): Promise<void> => {
+        const connection: GRPCConnection = new GRPCConnection(`tcp://127.0.0.1:${port}`)
+        try {
+            await assert.rejects(connection.unary('/test.Echo/Unary', Text, {}, Text, {signal: AbortSignal.abort()}), (error: unknown): boolean => error instanceof GRPCError && error.code === GRPCStatus.CANCELLED)
+            //30 days: beyond the timers of Node.js
+            assert.strictEqual((await connection.unary('/test.Echo/Unary', Text, {text: 'later'}, Text, {timeout: 30 * 24 * 3600 * 1000})).text, 'later!')
+            assert.strictEqual((await connection.unary('/test.Echo/Binary', Text, {}, Text, {metadata: {'x-trace-bin': [Buffer.from([1, 2]).toString('base64'), Buffer.from([255]).toString('base64')]}})).text, '0102|ff')
+            //A request which is not a message of the schema
+            await assert.rejects(connection.unary('/test.Echo/Unary', {raw: {no: 2, type: 'bytes'}}, {raw: Buffer.from([0xff, 0xff])}, Text), (error: unknown): boolean => error instanceof GRPCError && error.code === GRPCStatus.INTERNAL)
+        } finally {
+            connection.close()
+        }
     })
 
     it('calls the unary methods, the server streams and the bidirectional streams over TCP', async (): Promise<void> => {

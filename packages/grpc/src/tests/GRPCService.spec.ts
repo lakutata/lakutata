@@ -107,6 +107,17 @@ describe('The service actions over gRPC', (): void => {
             proxy.off('orderChanged')
             for (let attempt = 0; attempt < 50 && entrypoint.notify('proxy-1', 'orderChanged'); attempt++) await new Promise((resolve): unknown => setTimeout(resolve, 20))
             assert.strictEqual(entrypoint.notify('proxy-1', 'orderChanged'), false)
+            //A once listener alone: its stream closed once it is called
+            const single: unknown[][] = []
+            proxy.once('shipped', (...args: unknown[]): unknown => single.push(args))
+            delivered = false
+            for (let attempt = 0; attempt < 50 && !delivered; attempt++) {
+                await new Promise((resolve): unknown => setTimeout(resolve, 20))
+                delivered = entrypoint.notify('proxy-1', 'shipped', 3)
+            }
+            for (let attempt = 0; attempt < 50 && entrypoint.notify('proxy-1', 'ping'); attempt++) await new Promise((resolve): unknown => setTimeout(resolve, 20))
+            assert.strictEqual(entrypoint.notify('proxy-1', 'ping'), false)
+            assert.deepStrictEqual(single, [[3]])
         } finally {
             await container.destroy()
         }

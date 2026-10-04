@@ -2,65 +2,155 @@ import {randomUUID} from 'node:crypto'
 import type {AddressInfo} from 'node:net'
 import {EntrypointStoppedException, ServiceContext, type EntrypointAdapter, type MiddlewareDefinition} from '@lakutata/entrypoint'
 import {ServiceChannel, ServiceResponseCodec, type ChannelRuntime, type ServiceResponse} from '@lakutata/entrypoint/channel'
-import {GRPCServer, type GRPCCompression, type GRPCServerCall, type GRPCServerTLSOptions} from '../lib/GRPC.js'
+import {GRPCError, GRPCServer, GRPCStatus, type GRPCCompression, type GRPCServerCall, type GRPCServerTLSOptions} from '../lib/GRPC.js'
 import type {Message} from '../lib/Protobuf.js'
 import {EventsRequest, FromJSONBytes, InvokeRequest, InvokeResponse, JSONBytes, SERVICE_METHODS, ServiceEvent} from './ServiceProto.js'
 
+/**
+ * The options of {@link GRPCServiceEntrypoint}: where its gRPC server listens, its TLS, its message size limit and
+ * compression, and its middlewares.
+ */
 export type GRPCServiceEntrypointOptions = {
     /**
-     * The adapter name
+     * The adapter's name, to tell it apart from the other adapters of the service channel.
      */
     name?: string
     /**
-     * The port of its server, 50051 by default (0 for a free one)
+     * The TCP port listened on; 0 for a free one (read it in `listening`).
+     * @default 50051
      */
     port?: number
     /**
-     * The host of its server, all the interfaces by default
+     * The host (interface address) listened on.
+     * @default all the interfaces
      */
     host?: string
     /**
-     * A unix socket listened on, instead of a port
+     * A unix socket path listened on, instead of `port` and `host`.
      */
     socketPath?: string
     /**
-     * Its TLS: its certificate and its key, the authority of the certificates of its clients (the ones without its
-     * certificate refused)
+     * The server's TLS: its certificate and key, and the certificate authority of the client certificates, which turns
+     * mutual TLS on (the clients without a certificate it signs are refused). Plain HTTP/2 (h2c) without it.
      */
     tls?: GRPCServerTLSOptions
     /**
-     * The largest request received in bytes (decompressed), 4 MB by default: a larger one is refused (RESOURCE_EXHAUSTED)
+     * The largest request received, in bytes, compressed or decompressed: a larger one fails its call with
+     * `RESOURCE_EXHAUSTED`, before it is received or while it is decompressed.
+     * @default 4194304 (4 MiB)
      */
     maxMessageSize?: number
     /**
-     * The compression of the responses (gzip, deflate) for the clients accepting it, none by default; the requests are
-     * received compressed or not
+     * The compression of the responses (`gzip`, `deflate`), used for the clients which accept it. The requests may be
+     * compressed with any of `identity`, `gzip` and `deflate` whatever this option.
+     * @default 'identity'
      */
     compression?: GRPCCompression
     /**
-     * The middlewares of the actions of this adapter, run after the global middlewares
+     * The middlewares run around the requests of this adapter, after the entrypoint's middlewares.
      */
     middlewares?: MiddlewareDefinition[]
     /**
-     * Run once the adapter listens, with its address (its port, its socket)
+     * Called once the server listens, with its address: an `AddressInfo` (its `port`) for TCP, the path for a unix
+     * socket. The entrypoint's start awaits it, and fails when it rejects.
      */
     listening?: (address: AddressInfo | string) => void | Promise<void>
 }
 
 /**
- * The call of gRPC of a context, in the service actions served by GRPCServiceEntrypoint: its metadata
- * @param context
+ * Get the gRPC call behind the context of a service request served by {@link GRPCServiceEntrypoint}: its metadata (the
+ * headers sent by the client), its deadline, its stream and its peer.
+ * @param context The service context of the request (`this.context` in a controller).
+ * @returns The gRPC call; `undefined` when the request came from another transport.
+ * @example
+ * ```typescript
+ * import {Controller, ServiceContext} from 'lakutata/com/entrypoint'
+ * import {ServiceAction} from 'lakutata/decorator/ctrl'
+ * import {GRPCCallOfContext} from '@lakutata/grpc/service'
+ * import type {GRPCServerCall} from '@lakutata/grpc'
+ *
+ * class OrderController extends Controller {
+ *     @ServiceAction({cmd: 'order.get'})
+ *     public async get(input: {id: number}): Promise<{id: number, tenant: string}> {
+ *         const call: GRPCServerCall | undefined = GRPCCallOfContext(this.context as ServiceContext)
+ *         //The metadata the gRPC client sent: grpcurl -H 'tenant: acme' ...
+ *         const tenant: string = call?.metadata('tenant')[0] ?? 'default'
+ *         console.log('Deadline', call?.deadline?.toISOString() ?? 'none')
+ *         return {id: input.id, tenant: tenant}
+ *     }
+ * }
+ * ```
  */
 export function GRPCCallOfContext(context: ServiceContext): GRPCServerCall | undefined {
     return (context as ServiceContext & { grpc?: GRPCServerCall }).grpc
 }
 
 /**
- * The service entrypoint served over gRPC (the service lakutata.service.v1.Service, SERVICE_PROTO): its Invoke is a
- * request of a service action (the JSON of its pattern and its input), answered as a service response (its result or
- * its error); its Events stream the events pushed to a client (Entrypoint.notify, broadcast), the id of a client in its
- * metadata "id"
- * @param options
+ * Create the service adapter serving an application's service actions (`@ServiceAction`) over gRPC, as the gRPC service
+ * `lakutata.service.v1.Service` defined by {@link SERVICE_PROTO}. Give it to the `service` option of the entrypoint
+ * (`BuildEntrypoints`); call it with {@link GRPCServiceProxy} from lakutata, or from any language with a client
+ * generated from `SERVICE_PROTO`.
+ *
+ * - `Invoke`: the request's `data` is the JSON of the action's pattern and input (`{"cmd": "order.get", "id": 1}`),
+ *   matched against the actions' patterns as over the other service transports. The response is the JSON of the
+ *   action's result (`payload`, absent for `undefined`) or of its error (`error`: its message, `errno` and other own
+ *   properties), with `success`. A failed action is a successful gRPC call with `success: false`; data which is not
+ *   JSON is answered as such a failure, and a JSON value which is not an object is handled as `{}`.
+ * - `Events`: a server stream of the events pushed to the client by `Entrypoint.notify()` and `broadcast()`. Its first
+ *   event is `client`, whose argument is the client's id: the `id` metadata of the stream, or a random UUID without it.
+ *   A client listens several times with several streams; `broadcast()` counts the client ids.
+ * - The client's id is the `id` metadata of its calls (`ServiceContext.clientId` in the actions); the whole call is
+ *   reachable with {@link GRPCCallOfContext}.
+ * - The action's signal is aborted when the client cancels the call or its deadline (`grpc-timeout`) passes; the call
+ *   then ends with `CANCELLED` or `DEADLINE_EXCEEDED`. A request over `maxMessageSize` ends with `RESOURCE_EXHAUSTED`.
+ * - Once the entrypoint stops, the new invocations are answered with an `EntrypointStoppedException` failure (the
+ *   invocations in progress complete); when it closes, the event streams end with `OK` and the server closes, cutting
+ *   the calls still running after 5 seconds.
+ * @param options The server's address, TLS, size limit, compression and middlewares; port 50051 on all the interfaces
+ * by default.
+ * @returns The service adapter.
+ * @example
+ * ```typescript
+ * import {Application, Component} from 'lakutata'
+ * import {BuildEntrypoints, Controller, Entrypoint, ServiceContext} from 'lakutata/com/entrypoint'
+ * import {ServiceAction} from 'lakutata/decorator/ctrl'
+ * import {Inject} from 'lakutata/decorator/di'
+ * import {GRPCServiceEntrypoint} from '@lakutata/grpc/service'
+ *
+ * class OrderController extends Controller {
+ *     @Inject('entrypoint')
+ *     protected readonly entrypoint: Entrypoint
+ *
+ *     //Invoke with {"cmd": "order.get", "id": 1}
+ *     @ServiceAction({cmd: 'order.get'})
+ *     public async get(input: {id: number}): Promise<{id: number, status: string}> {
+ *         return {id: input.id, status: 'paid'}
+ *     }
+ *
+ *     //The event pushed to the calling client's Events stream
+ *     @ServiceAction({cmd: 'order.watch'})
+ *     public async watch(input: {id: number}): Promise<boolean> {
+ *         const clientId: string | undefined = (this.context as ServiceContext).clientId
+ *         return clientId ? this.entrypoint.notify(clientId, 'orderChanged', {id: input.id, status: 'shipped'}) : false
+ *     }
+ * }
+ *
+ * Application.run(() => ({
+ *     id: 'orders.service',
+ *     name: 'Orders',
+ *     components: {
+ *         entrypoint: BuildEntrypoints({
+ *             controllers: [OrderController],
+ *             service: GRPCServiceEntrypoint({
+ *                 port: 50051,
+ *                 compression: 'gzip',
+ *                 listening: (address): void => console.log('gRPC service listening on', address)
+ *             })
+ *         })
+ *     },
+ *     bootstrap: ['entrypoint']
+ * }))
+ * ```
  */
 export function GRPCServiceEntrypoint(options: GRPCServiceEntrypointOptions = {}): EntrypointAdapter<ServiceContext> {
     let server: GRPCServer | undefined
@@ -108,6 +198,8 @@ export function GRPCServiceEntrypoint(options: GRPCServiceEntrypointOptions = {}
      */
     const listen = async (call: GRPCServerCall): Promise<void> => {
         await call.request(EventsRequest)
+        //No new stream while the entrypoint stops
+        if (stopping) throw new GRPCError(GRPCStatus.UNAVAILABLE, 'The entrypoint is stopping', call.path)
         const clientId: string = call.metadata('id')[0] ?? randomUUID()
         if (!clients.has(clientId)) clients.set(clientId, new Set())
         clients.get(clientId)!.add(call)
