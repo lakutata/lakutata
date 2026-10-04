@@ -53,7 +53,39 @@ await using scoped = await mutex.acquire('order:42')
 - **不可重入**：已被持有的锁，即使在同一进程中再次加锁，也会等待其释放。
 - **生命周期**：组件销毁（应用停止）时释放它持有的所有锁。
 
-## 3. 异常
+## 3. 同步执行的动作
+
+`@Synchronized` 让控制器的动作在持有锁的情况下执行：在输入通过 DTO 校验、访问控制通过之后加锁，执行完释放。同一把锁的请求在所有实例中
+（无论来自哪个通道）依次执行，不同锁的请求并行执行。
+
+```typescript
+class OrderController extends Controller {
+    @HTTPAction('/orders/:id/pay', 'POST', PayDTO)
+    @ServiceAction({cmd: 'order.pay'}, PayDTO)
+    @Synchronized('order:{id}')            //每个订单一把锁：{id} 取自校验后的输入
+    public async pay(input: PayDTO) { ... }
+
+    @Synchronized('search:reindex', {wait: false})     //已有请求在执行时立即失败（HTTP 409）
+    @Synchronized((input, context) => `export:${context.clientId}`, {timeout: 5000, mutex: 'locks'})
+}
+```
+
+请求被中止（客户端断开）时会停止等锁：控制器有 `this.signal`，此时会被中止，耗时的工作也可以据此停止。
+
+## 4. 互斥的定时任务
+
+声明了 `exclusive` 的定时任务，同一时刻只在一个实例中执行：每一轮由拿到锁的实例执行（使用名为 `mutex` 的组件，或 `exclusive: {mutex, key}`），
+其他实例跳过。间隔会对齐到整数倍（所有实例在同一时刻触发）；执行很快结束时，锁会保持到半个周期（最多 30 秒）后再释放，这样时钟稍慢的实例也会跳过。
+找不到锁组件时任务不会执行（并写入错误日志）。
+
+```typescript
+class ReportController extends Controller {
+    @Schedule({every: '5m', exclusive: true})
+    public async build(): Promise<void> { ... }
+}
+```
+
+## 5. 异常
 
 `MutexTimeoutException`（超时仍未拿到锁）、`MutexLostException`（`lock.signal` 中止的原因）、
 `MutexDriverException`（存储出错）、`MutexDriverNotFoundException`（未安装驱动所需的客户端）。

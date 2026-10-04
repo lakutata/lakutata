@@ -395,6 +395,7 @@
   "lakutata/com/mutex": [
     "FileMutexDriver",
     "FileMutexOptions",
+    "LockNameOf",
     "MemoryMutexDriver",
     "MemoryMutexOptions",
     "Mutex",
@@ -409,7 +410,8 @@
     "PostgresMutexDriver",
     "PostgresMutexOptions",
     "RedisMutexDriver",
-    "RedisMutexOptions"
+    "RedisMutexOptions",
+    "Synchronized"
   ],
   "lakutata/com/monitor": [
     "CpuMonitor",

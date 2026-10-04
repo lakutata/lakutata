@@ -56,7 +56,43 @@ await using scoped = await mutex.acquire('order:42')
 - **Not reentrant**: acquiring a lock held waits for its release, in the same process too.
 - **Lifecycle**: the locks of a component are released when it is destroyed (the application stopping).
 
-## 3. Exceptions
+## 3. Synchronized actions
+
+`@Synchronized` runs a controller action holding a lock, acquired once its input is validated and its access control
+passed, released after it: the requests of a same lock run one at a time in all the instances (whatever their channel),
+the other ones in parallel.
+
+```typescript
+class OrderController extends Controller {
+    @HTTPAction('/orders/:id/pay', 'POST', PayDTO)
+    @ServiceAction({cmd: 'order.pay'}, PayDTO)
+    @Synchronized('order:{id}')            //a lock per order: {id} is a field of the validated input
+    public async pay(input: PayDTO) { ... }
+
+    @Synchronized('search:reindex', {wait: false})     //another request running it: fails at once (HTTP 409)
+    @Synchronized((input, context) => `export:${context.clientId}`, {timeout: 5000, mutex: 'locks'})
+}
+```
+
+The wait for a lock stops when the request is aborted (its client gone): the controllers have `this.signal`, aborted
+then, for their own long works.
+
+## 4. Exclusive schedules
+
+A scheduled action declared `exclusive` runs in one instance of the application at a time: each of its runs by the
+instance acquiring its lock (the component `mutex`, or `exclusive: {mutex, key}`), the other ones skipping it. Its
+intervals are aligned on their multiples (the same times in every instance), and its lock is kept until half of its
+period (30 s at most) after a short run, so that the instances whose clocks are late skip it too. Without its component
+of the locks, it does not run (an error is written to the log).
+
+```typescript
+class ReportController extends Controller {
+    @Schedule({every: '5m', exclusive: true})
+    public async build(): Promise<void> { ... }
+}
+```
+
+## 5. Exceptions
 
 `MutexTimeoutException` (not acquired before the timeout), `MutexLostException` (the reason of `lock.signal`),
 `MutexDriverException` (the store failed), `MutexDriverNotFoundException` (the client of the driver is not installed).

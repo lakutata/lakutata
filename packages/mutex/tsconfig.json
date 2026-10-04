@@ -58,6 +58,9 @@
       ],
       "@lakutata/entrypoint": [
         "../entrypoint/dist/types/exports/Entrypoint"
+      ],
+      "@lakutata/entrypoint/decorator/ctrl": [
+        "../entrypoint/dist/types/exports/CTRLDecorators"
       ]
     }
   },
