@@ -156,6 +156,9 @@ await orders.invoke({cmd: 'order.get', id: 1})
 orders.on('orderChanged', (order) => {})
 ```
 
+The controllers have `this.signal`, aborted once their request is (its client gone, the deadline of a call of gRPC
+exceeded, the entrypoint stopping): the long works of the actions stop with it.
+
 ### 2.3 Pattern Manager (PatternManager)
 `PatternManager` is the core component in Lakutata for handling pattern matching in service operations, implemented based on the `Patrun` library.
 

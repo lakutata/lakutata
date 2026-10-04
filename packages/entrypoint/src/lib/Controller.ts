@@ -23,4 +23,12 @@ export class Controller extends Provider {
     //The context is created (and validated) by the entrypoint, only its type is checked here: a context of any channel
     @Configurable(DTO.InstanceOf(BaseContext).required())
     protected readonly context: CLIContext | HTTPContext | ServiceContext | BaseContext
+
+    /**
+     * Aborted once the request is: its client gone (the connection of HTTP closed, the call of gRPC cancelled), its
+     * deadline exceeded, or the entrypoint stopping; the long works of the actions should stop then
+     * @protected
+     */
+    @Configurable(DTO.InstanceOf(AbortSignal).optional())
+    protected readonly signal?: AbortSignal
 }

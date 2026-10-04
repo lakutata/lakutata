@@ -36,6 +36,13 @@ export type ScheduleOptions = ({
      * Also run once the application launched, false by default
      */
     immediate?: boolean
+    /**
+     * Run in one instance of the application at a time (the locks of a mutex component, @lakutata/mutex): each run by
+     * the instance acquiring its lock, the other ones skipping it; the intervals aligned on their multiples (the same
+     * times in every instance). true uses the component named "mutex"; key names the lock, the name of the action by
+     * default
+     */
+    exclusive?: boolean | { mutex?: string, key?: string }
 }
 
 /**
@@ -76,6 +83,10 @@ function ScheduleAddress(schedule: string | ScheduleOptions): Record<string, str
     }
     address.overlap = options.overlap === true
     address.immediate = options.immediate === true
+    if (options.exclusive) {
+        address.exclusive = (typeof options.exclusive === 'object' ? options.exclusive.mutex : undefined) ?? 'mutex'
+        if (typeof options.exclusive === 'object' && options.exclusive.key) address.exclusiveKey = options.exclusive.key
+    }
     address.key = `s${++keys}`
     return address
 }

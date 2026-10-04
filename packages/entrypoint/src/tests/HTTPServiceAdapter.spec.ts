@@ -6,6 +6,8 @@ import {Expect} from '@lakutata/core/decorator/dto'
 import {BuildEntrypoints, Controller, Entrypoint, HTTPRequestOfContext, HTTPServiceEntrypoint, type HTTPServiceEntrypointOptions, ServiceContext} from '../exports/Entrypoint.js'
 import {ServiceAction} from '../exports/CTRLDecorators.js'
 
+const abortedActions: string[] = []
+
 class EchoDTO extends DTO {
     @Expect(DTO.Number().required())
     public value: number
@@ -21,6 +23,16 @@ class EchoController extends Controller {
     @ServiceAction({cmd: 'whoami'})
     public async whoami(): Promise<string | undefined> {
         return (this.context as ServiceContext).clientId
+    }
+
+    @ServiceAction({cmd: 'wait'})
+    public async wait(): Promise<string> {
+        //Its signal aborted once its client is gone
+        await new Promise<void>((resolve: () => void): void => this.signal?.addEventListener('abort', (): void => {
+            abortedActions.push('wait')
+            resolve()
+        }))
+        return 'aborted'
     }
 
     @ServiceAction({cmd: 'slow'})
@@ -141,6 +153,21 @@ describe('HTTP service adapter', (): void => {
         assert.strictEqual(entrypoint.notify('postman', 'progress'), false)
         anonymous.close()
         await container.destroy()
+    })
+
+    it('aborts the signal of the controllers once their clients are gone', async (): Promise<void> => {
+        const {url, container} = await Start()
+        try {
+            const abort: AbortController = new AbortController()
+            const request: Promise<unknown> = fetch(url, {method: 'POST', body: JSON.stringify({cmd: 'wait'}), signal: abort.signal}).catch((): undefined => undefined)
+            await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 100))
+            abort.abort()
+            await request
+            for (let attempt = 0; attempt < 50 && !abortedActions.length; attempt++) await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 20))
+            assert.deepStrictEqual(abortedActions, ['wait'])
+        } finally {
+            await container.destroy()
+        }
     })
 
     it('stops gracefully, its streams closed', async (): Promise<void> => {

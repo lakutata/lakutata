@@ -1,6 +1,6 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
-import {Container} from '@lakutata/core'
+import {Component, Container} from '@lakutata/core'
 import {
     ActionInvocation,
     BuildEntrypoints,
@@ -188,4 +188,66 @@ describe('Schedule adapter', (): void => {
             void InvalidController
         }, /"25" is not a value from 0 to 23/)
     })
+
+    it('runs the exclusive actions in one instance at a time, their intervals aligned', async (): Promise<void> => {
+        const instances: Container[] = []
+        try {
+            for (let index = 0; index < 2; index++) {
+                const container: Container = new Container()
+                await container.setNamed('mutex', SharedLocks)
+                await container.set(Entrypoint, BuildEntrypoints({controllers: [ExclusiveController], schedule: ScheduleEntrypoint({onError: (): void => undefined})}))
+                instances.push(container)
+            }
+            exclusiveRuns.length = 0
+            await Sleep(700)
+        } finally {
+            for (const container of instances) await container.destroy()
+        }
+        const times: number[] = exclusiveRuns.map((date: Date): number => date.getTime())
+        assert.ok(times.length >= 5, `${times.length} runs`)
+        //Each run in one instance, at the multiples of the interval
+        assert.strictEqual(new Set(times).size, times.length, times.join())
+        assert.ok(times.every((time: number): boolean => time % 100 === 0), times.join())
+        assert.strictEqual(SharedLocks.held.size, 0)
+    })
+
+    it('does not run the exclusive actions without their component of the locks', async (): Promise<void> => {
+        const errors: unknown[] = []
+        const original = console.error
+        console.error = (...args: unknown[]): void => void errors.push(args)
+        const container: Container = new Container()
+        try {
+            await container.set(Entrypoint, BuildEntrypoints({controllers: [ExclusiveController], schedule: ScheduleEntrypoint()}))
+            exclusiveRuns.length = 0
+            await Sleep(300)
+        } finally {
+            console.error = original
+            await container.destroy()
+        }
+        assert.strictEqual(exclusiveRuns.length, 0)
+        assert.match(String((errors[0] as unknown[])[0]), /does not run: its component of the locks mutex is not there/)
+    })
 })
+
+const exclusiveRuns: Date[] = []
+
+/**
+ * The locks shared by the instances of the tests (a store of locks)
+ */
+class SharedLocks extends Component {
+    public static readonly held: Set<string> = new Set()
+
+    public async tryAcquire(name: string): Promise<{ release(): Promise<void> } | undefined> {
+        if (SharedLocks.held.has(name)) return undefined
+        SharedLocks.held.add(name)
+        return {release: async (): Promise<void> => void SharedLocks.held.delete(name)}
+    }
+}
+
+class ExclusiveController extends Controller {
+
+    @Schedule({every: 100, exclusive: true})
+    public async exclusive(): Promise<void> {
+        exclusiveRuns.push((this.context as ScheduleContext).scheduledAt)
+    }
+}

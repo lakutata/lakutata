@@ -151,6 +151,8 @@ await orders.invoke({cmd: 'order.get', id: 1})
 orders.on('orderChanged', (order) => {})
 ```
 
+控制器有 `this.signal`：请求被中止时（客户端断开、gRPC 调用的 deadline 到期、entrypoint 停止）会被中止，耗时的工作可以据此停止。
+
 ### 2.3 模式管理器 (PatternManager)
 `PatternManager` 是 Lakutata 中处理服务操作模式匹配的核心组件，基于 `Patrun` 库实现。
 
