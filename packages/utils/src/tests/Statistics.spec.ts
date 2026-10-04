@@ -75,7 +75,9 @@ const ARGUMENTS: Record<string, () => unknown[]> = {
     poissonDistribution: (): unknown[] => [pick([0, 1, 3.5, 10, -1])],
     chunk: (): unknown[] => [Numbers(), pick([1, 2, 3, 0, 1.5])],
     factorial: (): unknown[] => [pick([0, 1, 5, 10, 20, -1, 2.5])],
-    gamma: (): unknown[] => [pick([1, 5, 0, -1, 0.5, 2.5, -2.5, 10.1])],
+    //Not the fractions below 10: the upstream overflows the stack between 0 and 1, and is imprecise below 10 (see the
+    //fixes below)
+    gamma: (): unknown[] => [pick([1, 5, 0, -1, 10.1, 12.5, -10.5, 30.25])],
     gammaln: (): unknown[] => [pick([1, 5, 0, -1, 0.5, 2.5, 100])],
     approxEqual: (): unknown[] => [pick([0, 1, 1.00001, 2]), pick([0, 1, 2]), pick([undefined, 0.1, 0.0001])],
     combinations: (): unknown[] => [Numbers().slice(0, 6), pick([1, 2, 3])],
@@ -154,5 +156,35 @@ describe('Statistics', (): void => {
         assert.deepStrictEqual(Statistics.quickselect([5, 1, 4, 2, 3], 2), selected)
         assert.strictEqual(Statistics.jenks([1, 2], 3), null)
         assert.strictEqual(Statistics.binomialDistribution(-1, 0.5), undefined)
+    })
+
+    it('computes the gamma function of the fractions below 10 precisely, by the recurrence upward', (): void => {
+        const close = (actual: number, expected: number, precision: number): boolean => Math.abs(actual - expected) / Math.abs(expected) < precision
+        assert.ok(close(Statistics.gamma(0.5), Math.sqrt(Math.PI), 1e-9), String(Statistics.gamma(0.5)))
+        //gamma(0.25) = 3.625609908221908…, gamma(0.1) = 9.513507698668731…, gamma(0.999) = 1.000578…
+        assert.ok(close(Statistics.gamma(0.25), 3.625609908221908, 1e-9), String(Statistics.gamma(0.25)))
+        assert.ok(close(Statistics.gamma(0.1), 9.513507698668731, 1e-9), String(Statistics.gamma(0.1)))
+        assert.ok(close(Statistics.gamma(0.001), 999.4237724845955, 1e-9), String(Statistics.gamma(0.001)))
+        //gamma(1.1) = 0.9513507698668731… (the upstream gives 1.2128), gamma(1.5) = √π / 2, gamma(9.5) = 119292.46199…
+        assert.ok(close(Statistics.gamma(1.1), 0.9513507698668731, 1e-9), String(Statistics.gamma(1.1)))
+        assert.ok(close(Statistics.gamma(1.5), Math.sqrt(Math.PI) / 2, 1e-9), String(Statistics.gamma(1.5)))
+        assert.ok(close(Statistics.gamma(9.5), 119292.46199394888, 1e-9), String(Statistics.gamma(9.5)))
+        //The negative numbers by the reflection: gamma(-0.5) = -2√π, gamma(-2.5) = -0.9453087205…
+        assert.ok(close(Statistics.gamma(-0.5), -2 * Math.sqrt(Math.PI), 1e-9), String(Statistics.gamma(-0.5)))
+        assert.ok(close(Statistics.gamma(-2.5), -0.9453087204829419, 1e-9), String(Statistics.gamma(-2.5)))
+    })
+
+    it('lists the single empty combination of 0 items', (): void => {
+        assert.deepStrictEqual(Statistics.combinationsReplacement([1, 2, 3], 0), [[]])
+        assert.deepStrictEqual(Statistics.combinations([1, 2, 3], 0), [[]])
+        assert.deepStrictEqual(Statistics.combinationsReplacement([1, 2, 3], -1), [])
+        assert.deepStrictEqual(Statistics.combinationsReplacement([1, 2, 3], 1.5), [])
+        assert.deepStrictEqual(Statistics.combinationsReplacement([1, 2], 2), [[1, 1], [1, 2], [2, 2]])
+    })
+
+    it('fits the regression lines of lists of points', (): void => {
+        const points: [number, number][] = [[0, 1], [1, 3], [2, 5], [3, 7]]
+        assert.deepStrictEqual(Statistics.linearRegression(points), {m: 2, b: 1})
+        assert.strictEqual(Statistics.rSquared(points), 1)
     })
 })

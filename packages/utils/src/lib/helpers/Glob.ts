@@ -3,33 +3,49 @@ import {readdir, realpath, stat} from 'node:fs/promises'
 import path from 'node:path'
 import {CompileSegment, ExpandBraces, type GlobSegment} from './internal/GlobPattern.js'
 
+/**
+ * The options of {@link Glob} and {@link GlobSync}.
+ */
 export interface GlobOptions {
     /**
-     * The directory of the relative patterns and of the results, the current directory by default
+     * The directory the relative patterns are resolved from and the relative results are relative to; a relative `cwd`
+     * is resolved from the current directory.
+     * @default process.cwd()
      */
     cwd?: string
     /**
-     * Give absolute paths (the paths are relative to cwd by default, absolute for the absolute patterns)
+     * Give absolute paths. When `false`, the results of a relative pattern are relative to `cwd`, and the results of an
+     * absolute pattern are absolute.
+     * @default false
      */
     absolute?: boolean
     /**
-     * Match the names starting with a dot with the wildcards (a pattern starting with a dot always matches them)
+     * Let the wildcards (`*`, `**`, `?`, `[...]`) match the names starting with a dot. A pattern segment starting with
+     * a dot (`.config/*`) matches them anyway.
+     * @default false
      */
     dot?: boolean
     /**
-     * Give the files only, not the directories
+     * Give the files only (and the other entries which are not directories), not the directories.
+     * @default false
      */
     nodir?: boolean
     /**
-     * Follow the symbolic links of directories when expanding ** (the links in the other segments are followed)
+     * Follow the symbolic links to directories while expanding `**`; a link not followed is still matched by a trailing
+     * `**`. The links named by the other segments are always followed, and a link cycle is walked once.
+     * @default false
      */
     follow?: boolean
     /**
-     * The patterns of the paths excluded (relative to cwd, matching the names starting with a dot)
+     * The patterns of the paths to exclude from the results, matched against the paths relative to `cwd` with `/`
+     * separators (a leading `./` is dropped). They match the names starting with a dot, and `dir/**` excludes `dir`
+     * and everything under it. Excluded directories are still walked.
+     * @default none
      */
     ignore?: string | string[]
     /**
-     * Match case-insensitively, by default on macOS and Windows (their file systems usually are)
+     * Match the names case-insensitively.
+     * @default true on macOS and Windows (whose file systems usually are case-insensitive), false elsewhere
      */
     nocase?: boolean
 }
@@ -364,11 +380,29 @@ async function AnswerAsync(request: FileSystemRequest): Promise<unknown> {
 }
 
 /**
- * Find the paths matching patterns: *, ** (zero or more directories), ?, [...] ([!...] for the characters excluded),
- * {a,b} and {1..3}, and \ escaping a character. The results are sorted, without duplicate
- * @param pattern
- * @param options
- * @constructor
+ * Find the files and directories matching glob patterns. A pattern is made of segments separated by `/` on every
+ * platform (`\` is not a separator, it escapes the next character), with: `*` (any characters in a name), `**` alone
+ * in a segment (zero or more directories), `?` (one character), `[...]` (one of the characters, `[!...]` one not
+ * listed), `{a,b}` (alternatives) and `{1..3}` (ranges). A pattern ending with `/` matches the directories only; a
+ * pattern without wildcard gives its path when it exists. The names starting with a dot are only matched as
+ * `options.dot` says.
+ *
+ * The unreadable directories and the broken links are skipped silently: a pattern matching nothing gives `[]`, it
+ * never rejects for a path missing.
+ * @param pattern A pattern or several (their results are merged), relative to `options.cwd` or absolute; an empty
+ * array gives `[]`.
+ * @param options How the paths are matched and given, see {@link GlobOptions}.
+ * @returns A promise of the matching paths, sorted, without duplicates, normalized with the separators of the platform
+ * (`./src/*.ts` gives `src/a.ts`); `**` alone includes `.`, the base directory itself.
+ * @example
+ * ```typescript
+ * import {Glob} from 'lakutata/utils'
+ *
+ * //The TypeScript sources, without the tests
+ * const sources: string[] = await Glob('src/**\/*.ts', {ignore: 'src/tests/**'})
+ * console.log(sources)
+ * //['src/index.ts', 'src/lib/a.ts']
+ * ```
  */
 export async function Glob(pattern: string | string[], options: GlobOptions = {}): Promise<string[]> {
     const {walks, results} = Prepare(pattern, options)
@@ -380,10 +414,22 @@ export async function Glob(pattern: string | string[], options: GlobOptions = {}
 }
 
 /**
- * Find the paths matching patterns synchronously, see Glob()
- * @param pattern
- * @param options
- * @constructor
+ * Find the files and directories matching glob patterns synchronously, blocking the event loop while the file system
+ * is walked: the same patterns, options and results as {@link Glob}, for the startup code and the scripts.
+ * @param pattern A pattern or several (their results are merged), relative to `options.cwd` or absolute; an empty
+ * array gives `[]`.
+ * @param options How the paths are matched and given, see {@link GlobOptions}.
+ * @returns The matching paths, sorted, without duplicates; `[]` when nothing matches.
+ * @example
+ * ```typescript
+ * import path from 'node:path'
+ * import {GlobSync} from 'lakutata/utils'
+ *
+ * //The absolute paths of the JSON files of a directory, its hidden ones included
+ * const configs: string[] = GlobSync('*.json', {cwd: path.resolve('config'), absolute: true, dot: true})
+ * console.log(configs)
+ * //['/srv/app/config/.local.json', '/srv/app/config/default.json']
+ * ```
  */
 export function GlobSync(pattern: string | string[], options: GlobOptions = {}): string[] {
     const {walks, results} = Prepare(pattern, options)

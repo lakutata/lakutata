@@ -3,12 +3,44 @@
  * THIRD_PARTY_NOTICES.md): the sorting of 2.x, in place
  */
 
+/**
+ * How `SortArray` sorts: by which properties, in which order.
+ */
 export interface SortArrayOptions<Computed> {
+    /**
+     * The property to sort the items by, or several: the next one breaks the ties of the previous one. A name of
+     * `computed` sorts by that function's result. An item whose property is `undefined` (or missing) has the key
+     * `undefined` (see `undefinedRank`).
+     * @default none (the items themselves are compared)
+     */
     by?: string | string[]
+    /**
+     * The order: `'asc'`, `'desc'` or the name of a custom order of `customOrders`, or one per property of `by`. Any
+     * other value leaves the items unsorted.
+     * @default 'asc'
+     */
     order?: string | string[]
+    /**
+     * Named custom orders: a name, given in `order`, mapped to the list of the values in their order
+     * (`{order: 'priority', customOrders: {priority: ['high', 'medium', 'low']}}`). A value missing from the list goes
+     * before the values in it.
+     */
     customOrders?: { [key: string]: any }
+    /**
+     * Computed sort keys: a name used in `by` mapped to a function of the item returning its key. Used for an item
+     * whose property of that name is `undefined`.
+     */
     computed?: { [key: string]: (item: Computed) => number | string | boolean | bigint | symbol | null | undefined }
+    /**
+     * Where the `null` keys go, in both orders: `1` after the other values, `-1` before them.
+     * @default 1
+     */
     nullRank?: -1 | 1
+    /**
+     * Where the `undefined` keys go, in both orders: `1` after the other values, `-1` before them. An item which is
+     * itself `undefined` always goes last (`Array.prototype.sort` does not compare it).
+     * @default 1
+     */
     undefinedRank?: -1 | 1
 }
 
@@ -109,21 +141,46 @@ function Sort<T>(array: T[], options: Partial<SortSettings> = {}): T[] {
 }
 
 /**
- * Sort an array in place, and return it. With one set of options, by its properties, order and computed fields (an
- * ascending order without options); with several, by the properties of the sets, each one in the order given by the
- * set alone
- * @param array
- * @param options
- * @constructor
+ * Sort an array in place and return it (the same array, modified). The values are compared with `<` and `>`: the
+ * numbers numerically, the strings by UTF-16 code units (upper case before lower case: `'C'` before `'a'`; use
+ * `localeCompare` with `Array.prototype.sort` for a human order). The `null`, `NaN` and `undefined` keys go after the
+ * other values, in both orders, unless `nullRank` or `undefinedRank` puts them before.
+ *
+ * Without options, the items themselves are sorted ascending. With one set of options, by its `by` properties in its
+ * `order`, with its `computed` keys, `customOrders`, `nullRank` and `undefinedRank`. With several sets, each one names
+ * one property (`by`) and its order, the first set deciding first: an option set without `by` is skipped.
+ * @param array The array to sort; an empty array is returned as is.
+ * @param options The sort keys and orders: none, one set, or one set per property (see {@link SortArrayOptions}).
+ * @returns The array itself, sorted.
+ * @throws {TypeError} When sorting by a property of an item which is `null` or `undefined` (not an object).
+ * @example
+ * ```typescript
+ * import {SortArray} from 'lakutata/utils'
+ *
+ * type Person = {name: string, age: number}
+ *
+ * const people: Person[] = [{name: 'Bob', age: 30}, {name: 'Ada', age: 30}, {name: 'Cy', age: 20}]
+ * //The oldest first, by name among the same age
+ * SortArray(people, {by: ['age', 'name'], order: ['desc', 'asc']})
+ * console.log(people.map((person: Person): string => person.name))
+ * //['Ada', 'Bob', 'Cy']
+ * //A computed key: the length of the name
+ * SortArray(people, {by: 'length', computed: {length: (person: Person): number => person.name.length}})
+ * console.log(people.map((person: Person): string => person.name))
+ * //['Cy', 'Ada', 'Bob']
+ * console.log(SortArray([3, null, 1, 2]))
+ * //[1, 2, 3, null]
+ * ```
  */
 export function SortArray<T = any>(array: T[], ...options: SortArrayOptions<T>[]): T[] {
     if (options.length < 2) {
-        let sortOptions: { [key: string]: any } = {order: 'asc'}
-        if (options.length) sortOptions = Object.assign(sortOptions, {
-            by: options[0].by,
-            order: options[0].order,
-            computed: options[0].computed
-        })
+        const sortOptions: { [key: string]: any } = {order: 'asc'}
+        //The options given, the defaults of the sort kept for the others
+        if (options.length) {
+            for (const key of ['by', 'order', 'computed', 'customOrders', 'nullRank', 'undefinedRank'] as const) {
+                if (options[0][key] !== undefined) sortOptions[key] = options[0][key]
+            }
+        }
         return Sort(array, sortOptions)
     }
     const sortsOptions: { [key: string]: any } = {

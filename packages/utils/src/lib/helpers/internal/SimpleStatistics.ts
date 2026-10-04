@@ -1,7 +1,8 @@
 import {type LinearRegression} from '../../../types/LinearRegression.js'
 
 /**
- * Derived from src of simple-statistics 7.8.8 (ISC, see THIRD_PARTY_NOTICES.md): the functions used by Statistics
+ * Derived from src of simple-statistics 7.8.8 (ISC, see THIRD_PARTY_NOTICES.md): the functions used by Statistics, the
+ * gamma below 10 and the combinations of 0 items fixed
  */
 
 /**
@@ -597,6 +598,15 @@ export function factorial(n: number): number {
 
 export function gamma(n: number): number {
     if (Number.isInteger(n)) return n <= 0 ? Number.NaN : factorial(n - 1)
+    //The recurrence upward, gamma(n) = gamma(n + k) / (n (n + 1) … (n + k - 1)), up to 10 where the approximation is
+    //precise (the upstream approximates directly, 27% off at 1.1, and between 0 and 1 its reflection below calls
+    //gamma(1 - n), between 0 and 1 too, until the stack overflows)
+    if (n > 0 && n < 10) {
+        let product: number = 1
+        let shifted: number = n
+        while (shifted < 10) product *= shifted++
+        return gamma(shifted) / product
+    }
     n--
     //Reflection formula for the negative numbers
     if (n < 0) return Math.PI / (Math.sin(Math.PI * -n) * gamma(-n))
@@ -654,6 +664,8 @@ export function bisect(func: (x: any) => number, start: number, end: number, max
 }
 
 export function combinations<T>(x: T[], k: number): T[][] {
+    //The single empty combination (the upstream gives none)
+    if (k === 0) return [[]]
     const combinationList: T[][] = []
     for (let i: number = 0; i < x.length; i++) {
         if (k === 1) {
@@ -670,6 +682,10 @@ export function combinations<T>(x: T[], k: number): T[][] {
 }
 
 export function combinationsReplacement<T>(x: T[], k: number): T[][] {
+    //The single empty combination (the upstream recurses until the stack overflows)
+    if (k === 0) return [[]]
+    //A size which never reaches 1 would recurse without end
+    if (!Number.isInteger(k) || k < 0) return []
     const combinationList: T[][] = []
     for (let i: number = 0; i < x.length; i++) {
         if (k === 1) {

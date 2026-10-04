@@ -5,14 +5,19 @@ import upstreamSortArray from 'sort-array'
 import {SortArray, type SortArrayOptions} from '../exports/Utils.js'
 
 /**
- * The SortArray of 2.x, on sort-array
+ * The SortArray of 2.x, on sort-array, with the options of a set alone given to sort-array (2.x gave by, order and
+ * computed only, computed undefined when missing)
  * @param arr
  * @param options
  */
 function UpstreamSortArray<T = any>(arr: T[], ...options: SortArrayOptions<T>[]): T[] {
     if (options.length < 2) {
-        let sortOptions: { [key: string]: any } = {order: 'asc'}
-        if (options.length) sortOptions = Object.assign(sortOptions, {by: options[0].by, order: options[0].order, computed: options[0].computed})
+        const sortOptions: { [key: string]: any } = {order: 'asc'}
+        if (options.length) {
+            for (const key of ['by', 'order', 'computed', 'customOrders', 'nullRank', 'undefinedRank'] as const) {
+                if (options[0][key] !== undefined) sortOptions[key] = options[0][key]
+            }
+        }
         return (upstreamSortArray as any)(arr, sortOptions)
     }
     const sortsOptions: { [key: string]: any } = {by: [], order: [], customOrders: {}}
@@ -101,7 +106,7 @@ describe('SortArray', (): void => {
             assert.strictEqual(Outcome(SortArray, input, options), expected, `${inspect(input)} ${inspect(options, {depth: 3})}`)
             counts[expected.startsWith('{ error') ? 'error' : 'sorted']++
         }
-        //The errors are rare: an invalid order compares nothing (the custom orders of a set alone are not given)
+        //The errors are rare: the items which are not objects, sorted by a property
         assert.ok(counts.sorted > 5000 && counts.error > 5, JSON.stringify(counts))
     })
 
@@ -109,5 +114,25 @@ describe('SortArray', (): void => {
         const keys: string[] = ['b', 'a', 'B', '10', '9', 'é', '_x', 'act', 'Act', 'z1', 'z10', 'z2']
         const sorted: string[] = SortArray(keys.slice(), {order: 'asc'})
         assert.deepStrictEqual(sorted, (upstreamSortArray as any)(keys.slice(), {order: 'asc'}))
+    })
+
+    it('sorts by a property missing on some items without computed, as undefined', (): void => {
+        const items: { name?: string }[] = [{name: 'b'}, {}, {name: 'a'}]
+        assert.deepStrictEqual(SortArray(items, {by: 'name'}), [{name: 'a'}, {name: 'b'}, {}])
+        assert.deepStrictEqual(SortArray(items, {by: 'name', order: 'desc'}), [{name: 'b'}, {name: 'a'}, {}])
+    })
+
+    it('sorts by the custom orders, and puts the null and undefined values first with their ranks', (): void => {
+        type Task = { name: string, priority?: string | null }
+        const tasks: Task[] = [{name: 'a', priority: 'low'}, {name: 'b', priority: 'high'}, {name: 'c', priority: 'medium'}]
+        SortArray(tasks, {by: 'priority', order: 'rank', customOrders: {rank: ['high', 'medium', 'low']}})
+        assert.deepStrictEqual(tasks.map((task: Task): string => task.name), ['b', 'c', 'a'])
+        assert.deepStrictEqual(SortArray([3, null, 1, undefined, 2]), [1, 2, 3, null, undefined])
+        assert.deepStrictEqual(SortArray([3, null, 1, 2], {nullRank: -1}), [null, 1, 2, 3])
+        //An undefined item is not compared by Array.prototype.sort: it stays last
+        assert.deepStrictEqual(SortArray([3, undefined, 1, 2], {undefinedRank: -1, order: 'desc'}), [3, 2, 1, undefined])
+        const optional: Task[] = [{name: 'x', priority: 'b'}, {name: 'y'}, {name: 'z', priority: 'a'}]
+        SortArray(optional, {by: 'priority', undefinedRank: -1})
+        assert.deepStrictEqual(optional.map((task: Task): string => task.name), ['y', 'z', 'x'])
     })
 })

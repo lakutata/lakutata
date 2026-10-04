@@ -43,6 +43,30 @@ class UpstreamURLBuilder {
 const ATTRIBUTES: string[] = ['auth', 'hash', 'host', 'hostname', 'href', 'origin', 'password', 'pathname', 'port', 'protocol', 'query', 'slashes', 'username']
 
 /**
+ * A URL built by url-parse from attributes, as URLBuilder builds it: from a new URL each time, the protocol first (the
+ * default port depends on it), the host name and the port of the host unless they are given
+ * @param attributes
+ */
+function UpstreamBuild(attributes: URLAttributes): string {
+    const url: any = (UpstreamUrlParse as any)('')
+    const host: any = (UpstreamUrlParse as any)('')
+    if (attributes.host !== undefined) host.set('host', attributes.host)
+    const hostname: string | undefined = attributes.hostname !== undefined ? attributes.hostname : attributes.host !== undefined ? host.hostname : undefined
+    const port: string | number | undefined = attributes.port !== undefined ? attributes.port : attributes.host !== undefined ? host.port : undefined
+    if (attributes.protocol) url.set('protocol', attributes.protocol)
+    if (attributes.slashes !== undefined) url.slashes = attributes.slashes
+    if (attributes.auth) url.set('auth', attributes.auth)
+    if (attributes.username) url.set('username', attributes.username)
+    if (attributes.password) url.set('password', attributes.password)
+    if (hostname) url.set('hostname', hostname)
+    if (port !== undefined && port !== '') url.set('port', port)
+    if (attributes.pathname) url.set('pathname', attributes.pathname)
+    if (attributes.query) url.set('query', attributes.query)
+    if (attributes.hash) url.set('hash', attributes.hash)
+    return url.toString()
+}
+
+/**
  * A pseudo random generator with a seed (mulberry32)
  * @param seed
  */
@@ -105,14 +129,6 @@ function Attributes(): URLAttributes {
 }
 
 /**
- * The attributes of a built URL and its string
- * @param url
- */
-function Describe(url: any): Record<string, unknown> {
-    return {...Object.fromEntries(ATTRIBUTES.map((key: string): [string, unknown] => [key, url[key]])), string: url.toString()}
-}
-
-/**
  * The result or the error of a function
  * @param fn
  */
@@ -126,18 +142,63 @@ function Outcome(fn: () => unknown): { value?: unknown, error?: string } {
 
 describe('URLBuilder', (): void => {
 
-    it('parses as the URLBuilder of 2.x', (): void => {
+    it('parses as the URLBuilder of 2.x, and builds the URL parsed again as url-parse', (): void => {
+        //The attributes only: 2.x built the URL by changing the URL of its previous builds, and ignored slashes
+        const attributes = (url: any): Record<string, unknown> => Object.fromEntries(ATTRIBUTES.map((key: string): [string, unknown] => [key, url[key]]))
         for (let run: number = 0; run < 5000; run++) {
             const address: string = Address()
-            assert.deepStrictEqual(Outcome((): unknown => Describe(URLBuilder.parse(address))), Outcome((): unknown => Describe(UpstreamURLBuilder.parse(address))), JSON.stringify(address))
+            assert.deepStrictEqual(Outcome((): unknown => attributes(URLBuilder.parse(address))), Outcome((): unknown => attributes(UpstreamURLBuilder.parse(address))), JSON.stringify(address))
+            const parsed: URLAttributes = attributes(UpstreamURLBuilder.parse(address)) as URLAttributes
+            assert.strictEqual(URLBuilder.parse(address).toString(), UpstreamBuild(parsed), JSON.stringify(address))
         }
     })
 
-    it('builds the URLs as the URLBuilder of 2.x', (): void => {
+    it('builds the URLs as url-parse, the protocol first', (): void => {
         for (let run: number = 0; run < 5000; run++) {
             const attributes: URLAttributes = Attributes()
-            assert.deepStrictEqual(Outcome((): unknown => new URLBuilder(attributes).toString()), Outcome((): unknown => new UpstreamURLBuilder(attributes).toString()), JSON.stringify(attributes))
+            assert.deepStrictEqual(Outcome((): unknown => new URLBuilder(attributes).toString()), Outcome((): unknown => UpstreamBuild(attributes)), JSON.stringify(attributes))
         }
+    })
+
+    it('keeps the host, the host name and the port consistent', (): void => {
+        const url: URLBuilder = URLBuilder.parse('https://example.com:8080/a?b=1')
+        url.host = 'other.com:9090'
+        assert.deepStrictEqual([url.hostname, url.port, url.toString()], ['other.com', '9090', 'https://other.com:9090/a?b=1'])
+        url.hostname = 'third.com'
+        assert.deepStrictEqual([url.host, url.toString()], ['third.com:9090', 'https://third.com:9090/a?b=1'])
+        url.port = ''
+        assert.deepStrictEqual([url.host, url.toString()], ['third.com', 'https://third.com/a?b=1'])
+        url.host = 'fourth.com'
+        assert.deepStrictEqual([url.hostname, url.port], ['fourth.com', ''])
+        //The host name and the port given win over the host
+        assert.strictEqual(new URLBuilder({protocol: 'http', host: 'a.com:81', port: '82'}).toString(), 'http://a.com:82')
+    })
+
+    it('builds from the current attributes at each call', (): void => {
+        const url: URLBuilder = URLBuilder.parse('https://user:pw@example.com/a?b=1#top')
+        assert.strictEqual(url.toString(), 'https://user:pw@example.com/a?b=1#top')
+        url.hash = undefined
+        url.query = {}
+        url.username = ''
+        url.password = undefined
+        url.auth = undefined
+        assert.strictEqual(url.toString(), 'https://example.com/a')
+        url.pathname = '/b'
+        assert.strictEqual(url.toString(), 'https://example.com/b')
+    })
+
+    it('does not write the default port of the scheme', (): void => {
+        assert.strictEqual(new URLBuilder({protocol: 'https', hostname: 'a.com', port: '443'}).toString(), 'https://a.com')
+        assert.strictEqual(new URLBuilder({protocol: 'http:', hostname: 'a.com', port: '80'}).toString(), 'http://a.com')
+        assert.strictEqual(new URLBuilder({protocol: 'https', hostname: 'a.com', port: '80'}).toString(), 'https://a.com:80')
+        assert.strictEqual(new URLBuilder({protocol: 'redis', hostname: 'localhost', port: '6379', pathname: '0'}).toString(), 'redis://localhost:6379/0')
+    })
+
+    it('keeps href and origin as given, without building from them', (): void => {
+        const url: URLBuilder = URLBuilder.parse('https://example.com/a')
+        url.hostname = 'other.com'
+        assert.deepStrictEqual([url.href, url.origin, url.toString()], ['https://example.com/a', 'https://example.com', 'https://other.com/a'])
+        assert.strictEqual(new URLBuilder({href: 'https://ignored.com/', protocol: 'https', hostname: 'a.com'}).toString(), 'https://a.com')
     })
 
     it('parses, resolves and changes the URLs as url-parse', (): void => {

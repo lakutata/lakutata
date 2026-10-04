@@ -2,26 +2,81 @@ import {createHash, randomFillSync, randomUUID} from 'node:crypto'
 
 /**
  * Derived from dist-node of uuid 13.0.0 (MIT, see THIRD_PARTY_NOTICES.md): the UUIDs of 2.x (v1, v3, v4, v5, v6, their
- * parsing, stringifying and validation)
+ * parsing, stringifying and validation); v4 does not change the random bytes given, and v3, v5 and v6 check the buffer
+ * before writing into it
  */
 
+/**
+ * A UUID, as its string (`'6ba7b810-9dad-11d1-80b4-00c04fd430c8'`) or as its 16 bytes.
+ */
 export type UUIDTypes<TBuf extends Uint8Array = Uint8Array> = string | TBuf
 
+/**
+ * The options of a version 1 (time-based) UUID. Without options, the UUIDs of the process share a state: the
+ * timestamp is the current time, a counter keeps the UUIDs created in the same millisecond unique and ordered, and the
+ * node and clock sequence are random, drawn once. Given any option, the UUID is built from the options alone: the
+ * missing time is the current one, the missing node and clock sequence come from the random bytes, and two UUIDs
+ * created with the same options in the same millisecond may be equal.
+ */
 export type Version1Options = {
+    /**
+     * The node ID, its first 6 bytes (traditionally a MAC address).
+     * @default 6 random bytes
+     */
     node?: Uint8Array
+    /**
+     * The clock sequence, an integer from `0` to `0x3fff` (14 bits); a greater value overwrites the variant bits.
+     * @default random
+     */
     clockseq?: number
+    /**
+     * 16 random bytes (or more, fewer make the generation throw an `Error`), used for the node and the clock sequence
+     * when they are not given; it takes precedence over `rng`.
+     * @default bytes from the cryptographic random generator of Node.js
+     */
     random?: Uint8Array
+    /**
+     * A function returning 16 random bytes (or more), called when `random` is not given.
+     * @default the cryptographic random generator of Node.js
+     */
     rng?: () => Uint8Array
+    /**
+     * The time of the UUID, in milliseconds since the Unix epoch.
+     * @default Date.now()
+     */
     msecs?: number
+    /**
+     * The 100-nanosecond intervals added to `msecs`, an integer from `0` to `9999`.
+     * @default 0
+     */
     nsecs?: number
+    /**
+     * Internal: set by the version 6 generation, to draw a new node and clock sequence for each UUID. Do not set it.
+     */
     _v6?: boolean
 }
 
+/**
+ * The options of a version 4 (random) UUID. Without options, the UUID comes from `crypto.randomUUID()`.
+ */
 export type Version4Options = {
+    /**
+     * 16 random bytes (or more, fewer make the generation throw an `Error`) making the UUID, with its version and
+     * variant bits set (in a copy: the array is not changed); it takes precedence over `rng`.
+     * @default bytes from the cryptographic random generator of Node.js
+     */
     random?: Uint8Array
+    /**
+     * A function returning 16 random bytes (or more), called when `random` is not given.
+     * @default the cryptographic random generator of Node.js
+     */
     rng?: () => Uint8Array
 }
 
+/**
+ * The options of a version 6 UUID (version 1 with its timestamp ordered for sorting), the same as {@link
+ * Version1Options}. Unless given, the node and the clock sequence are random for each UUID.
+ */
 export type Version6Options = Version1Options
 
 export const NIL: string = '00000000-0000-0000-0000-000000000000'
@@ -188,6 +243,8 @@ function V35(version: number, hash: (bytes: Uint8Array) => Uint8Array, value: st
     bytes[8] = (bytes[8] & 0x3f) | 0x80
     if (buf) {
         offset = offset || 0
+        //Checked before writing (the upstream writes the bytes which fit)
+        if (offset < 0 || offset + 16 > buf.length) throw new RangeError(`UUID byte range ${offset}:${offset + 15} is out of buffer bounds`)
         for (let i: number = 0; i < 16; ++i) buf[offset + i] = bytes[i]
         return buf
     }
@@ -205,8 +262,10 @@ export function v5(value: string | Uint8Array, namespace: UUIDTypes, buf?: Uint8
 export function v4(options?: Version4Options, buf?: Uint8Array, offset?: number): any {
     if (!buf && !options) return randomUUID()
     options = options || {}
-    const rnds: Uint8Array = options.random ?? options.rng?.() ?? Rng()
-    if (rnds.length < 16) throw new Error('Random bytes length must be >= 16')
+    const source: Uint8Array = options.random ?? options.rng?.() ?? Rng()
+    if (source.length < 16) throw new Error('Random bytes length must be >= 16')
+    //A copy: the bytes of the caller are not changed (the upstream sets their version and variant bits)
+    const rnds: Uint8Array = source.slice(0, 16)
     rnds[6] = (rnds[6] & 0x0f) | 0x40
     rnds[8] = (rnds[8] & 0x3f) | 0x80
     if (buf) {
@@ -236,6 +295,8 @@ export function v6(options?: Version6Options, buf?: Uint8Array, offset?: number)
     let bytes: Uint8Array = v1({...options, _v6: true}, new Uint8Array(16))
     bytes = V1ToV6(bytes)
     if (buf) {
+        //Checked before writing (the upstream writes the bytes which fit)
+        if (offset < 0 || offset + 16 > buf.length) throw new RangeError(`UUID byte range ${offset}:${offset + 15} is out of buffer bounds`)
         for (let i: number = 0; i < 16; i++) buf[offset + i] = bytes[i]
         return buf
     }

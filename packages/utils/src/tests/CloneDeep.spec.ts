@@ -71,6 +71,53 @@ describe('CloneDeep', (): void => {
         assert.deepStrictEqual(clone.hidden, {h: 1})
         assert.strictEqual(Object.getOwnPropertyDescriptor(clone, 'hidden')!.enumerable, false)
         assert.strictEqual(clone.computed, 42)
+        //The getter is read: its value is a property of the clone
+        assert.strictEqual(Object.getOwnPropertyDescriptor(clone, 'computed')!.get, undefined)
+        assert.strictEqual(Object.getOwnPropertyDescriptor(clone, 'computed')!.enumerable, true)
+    })
+
+    it('clones the value read by a getter, and copies a setter alone', (): void => {
+        const nested: { v: number } = {v: 1}
+        const writes: number[] = []
+        const value: Record<string, any> = {
+            get nested(): { v: number } {
+                return nested
+            },
+            set sink(input: number) {
+                writes.push(input)
+            }
+        }
+        const clone: Record<string, any> = CloneDeep(value)
+        assert.deepStrictEqual(clone.nested, {v: 1})
+        assert.notStrictEqual(clone.nested, nested)
+        clone.sink = 3
+        assert.deepStrictEqual(writes, [3])
+    })
+
+    it('keeps the weak collections and the promises as they are', async (): Promise<void> => {
+        const weakMap: WeakMap<object, number> = new WeakMap([[{}, 1]])
+        const weakSet: WeakSet<object> = new WeakSet()
+        const promise: Promise<number> = Promise.resolve(5)
+        const clone: Record<string, any> = CloneDeep({weakMap: weakMap, weakSet: weakSet, promise: promise})
+        assert.strictEqual(clone.weakMap, weakMap)
+        assert.strictEqual(clone.weakSet, weakSet)
+        assert.strictEqual(clone.promise, promise)
+        assert.strictEqual(await clone.promise, 5)
+    })
+
+    it('clones the frozen, sealed and non-extensible objects as such', (): void => {
+        const frozen: { a: { b: number }, list: readonly number[] } = Object.freeze({a: {b: 1}, list: Object.freeze([1, 2])})
+        const clone: typeof frozen = CloneDeep(frozen)
+        assert.deepStrictEqual(clone, frozen)
+        assert.notStrictEqual(clone, frozen)
+        assert.ok(Object.isFrozen(clone) && Object.isFrozen(clone.list))
+        //The nested object was not frozen
+        assert.ok(!Object.isFrozen(clone.a))
+        assert.ok(Object.isSealed(CloneDeep(Object.seal({a: 1}))) && !Object.isFrozen(CloneDeep(Object.seal({a: 1}))))
+        assert.ok(!Object.isExtensible(CloneDeep(Object.preventExtensions({a: 1}))))
+        assert.ok(Object.isExtensible(CloneDeep({a: 1})))
+        //A frozen instance keeps its class
+        assert.ok(CloneDeep(Object.freeze(new Point(1, 2))) instanceof Point)
     })
 
     it('keeps the properties of the arrays', (): void => {

@@ -2,11 +2,23 @@ import {type NoCaseOptions} from './NoCase.js'
 import {Split, ToLower, ToUpper} from './internal/CaseWords.js'
 
 /**
- * Convert any string into a camel case string (the words of NoCase, the first one in lower case, the others
- * capitalized, a digit starting a word prefixed by _)
- * @param input
- * @param options
- * @constructor
+ * Convert a string of any case into camel case (`userId`). The words are found as {@link NoCase} finds them: split at
+ * the characters other than letters and digits (spaces, `_`, `-`, `.`…, which are dropped) and at the case changes
+ * (`fooBar`, `XMLHttp`). The first word is in lower case, the others are capitalized and in lower case; a word starting
+ * with a digit is prefixed with `_` (`version_2Beta`), so the words stay apart.
+ * @param input The string to convert; an empty string, or one without letters nor digits, gives `''`.
+ * @param options How the words are split and cased: `separateNumbers` also splits at the boundaries between letters and
+ * digits (`version2beta` is one word by default, `version_2Beta` with it); `locale` is the locale of the case
+ * conversions, the host's locale when `undefined` (a Turkish host lowers `I` to `ı`), and a locale-independent
+ * conversion when `false`.
+ * @returns The camel case string.
+ * @example
+ * ```typescript
+ * import {CamelCase} from 'lakutata/utils'
+ *
+ * console.log(CamelCase('user_id'), CamelCase('XMLHttpRequest'), CamelCase('version 2 beta', {locale: false}))
+ * //userId xmlHttpRequest version_2Beta
+ * ```
  */
 export function CamelCase(input: string, options?: NoCaseOptions): string {
     const lower = ToLower(options?.locale)

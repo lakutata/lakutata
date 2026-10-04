@@ -1,8 +1,29 @@
 /**
- * Is abort error
- * @param error
- * @constructor
+ * Tell whether an error is an abort error: the `DOMException` (or any error) named `AbortError`, which
+ * `AbortController.abort()` gives as its reason without argument and an aborted `fetch` rejects with, or an error of a
+ * Node.js API with the code `'ABORT_ERR'` (an aborted `node:timers/promises`, `node:fs/promises`, `node:child_process`,
+ * `events.once`…). The reason of `AbortSignal.timeout()`, a `TimeoutError`, is not an abort error.
+ * @param error The caught value, of any type.
+ * @returns `true` when `error.name` is `'AbortError'` or `error.code` is `'ABORT_ERR'`, `false` otherwise (`null` and
+ * `undefined` included).
+ * @example
+ * ```typescript
+ * import {setTimeout as sleep} from 'node:timers/promises'
+ * import {IsAbortError} from 'lakutata/utils'
+ *
+ * try {
+ *     await sleep(1000, undefined, {signal: AbortSignal.timeout(10)})
+ * } catch (error) {
+ *     console.log(IsAbortError(error))
+ *     //true
+ * }
+ * const controller: AbortController = new AbortController()
+ * controller.abort()
+ * console.log(IsAbortError(controller.signal.reason), IsAbortError(undefined))
+ * //true false
+ * ```
  */
 export function IsAbortError(error: Error | any): boolean {
-    return error.code === 'ABORT_ERR'
+    if (error === null || error === undefined) return false
+    return error.name === 'AbortError' || error.code === 'ABORT_ERR'
 }

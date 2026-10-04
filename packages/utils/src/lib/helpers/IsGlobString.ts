@@ -1,6 +1,6 @@
 /**
  * Derived from index.js of is-glob 4.0.3 and of is-extglob 2.1.1 (MIT, see THIRD_PARTY_NOTICES.md): the strict check of
- * 2.x
+ * 2.x, with the ? wildcard of Glob anywhere
  */
 
 const CHARS: Record<string, string> = {'{': '}', '(': ')', '[': ']'}
@@ -84,12 +84,26 @@ function StrictCheck(str: string): boolean {
 }
 
 /**
- * Whether a string is glob string or not
- * @param inp
- * @constructor
+ * Tell whether a string is a glob pattern rather than a literal path: whether it has an unescaped `*`, a closed
+ * bracket class (`[abc]`), a closed brace group (`{a,b}`), an extglob (`@(a|b)`, `!(a)`…), a regex-like group
+ * (`(a|b)`), a leading `!` (a negation), or an unescaped `?` (a wildcard of one character for {@link Glob}: `'a?b'`).
+ * A character escaped with `\` does not count.
+ * @param inp The string to test; an empty string or a value which is not a string gives `false`.
+ * @returns `true` when the string has glob syntax, `false` otherwise.
+ * @example
+ * ```typescript
+ * import {IsGlobString} from 'lakutata/utils'
+ *
+ * console.log(IsGlobString('src/**\/*.ts'), IsGlobString('src/{a,b}.ts'))
+ * //true true
+ * console.log(IsGlobString('src/index.ts'), IsGlobString('\\*.ts'), IsGlobString('a?b'))
+ * //false false true
+ * ```
  */
 export function IsGlobString(inp: string): boolean {
     if (typeof inp !== 'string' || inp === '') return false
     if (IsExtglob(inp)) return true
+    //The ? wildcard of Glob, wherever it is (the strict check only sees it after ], ., + or ))
+    if (inp.replace(/\\./g, '').includes('?')) return true
     return StrictCheck(inp)
 }

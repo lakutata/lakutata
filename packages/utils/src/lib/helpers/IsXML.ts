@@ -1,9 +1,19 @@
 import {ValidateXML} from './internal/XMLValidator.js'
 
 /**
- * Whether a string is a well formed XML document
- * @param string
- * @constructor
+ * Tell whether a string is a well-formed XML document: one root element, every tag closed and nested properly, with an
+ * optional XML declaration, comments and processing instructions; the spaces around the document are allowed. It is
+ * not validated against a schema or a DTD. An HTML5 page with void elements (`<br>`) is not well-formed XML, and
+ * neither is a fragment with several roots (`<a/><b/>`).
+ * @param string The string to test; a value which is not a string gives `false`.
+ * @returns `true` when the string is well-formed XML, `false` otherwise (an empty string included).
+ * @example
+ * ```typescript
+ * import {IsXML} from 'lakutata/utils'
+ *
+ * console.log(IsXML('<?xml version="1.0"?><note><to>Ann</to></note>'), IsXML('<a><b></a>'), IsXML('Hello'))
+ * //true false false
+ * ```
  */
 export function IsXML(string: string): boolean {
     return typeof string === 'string' && ValidateXML(string)

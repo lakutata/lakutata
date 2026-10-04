@@ -1,6 +1,8 @@
 /**
  * The Time API is compatible with the moment library (English locale, moment-timezone): the results are compared on
- * random instants of time zones with various offsets and transitions. Not type-checked.
+ * random instants of time zones with various offsets and transitions. Not type-checked. Except in the gaps of the
+ * transitions: a wall clock time skipped by a transition moves forward by the gap's length in Time (as moment parses
+ * it), while the setters and the arithmetic of moment move it forward or backward depending on the time they start from.
  */
 // @ts-nocheck
 import {describe, it} from 'node:test'
@@ -26,6 +28,31 @@ const GET_UNITS = ['year', 'quarter', 'month', 'week', 'isoWeek', 'day', 'date',
 
 function pair(instant, zone) {
     return [new Time(instant).timezone(zone), moment.tz(instant, zone)]
+}
+
+const WALL_CLOCK = 'YYYY-MM-DDTHH:mm:ss.SSS'
+
+//The wall clock of a result of moment parsed in its zone (a time skipped by a transition moves forward)
+function reparse(mom) {
+    return moment.tz(mom.format(WALL_CLOCK), WALL_CLOCK, true, mom.tz())
+}
+
+//Whether moment gives a wall clock time skipped by a transition (parsed, it moves)
+function inGap(mom) {
+    const parsed = reparse(mom)
+    return parsed.isValid() && parsed.format(WALL_CLOCK) !== mom.format(WALL_CLOCK)
+}
+
+//The instant of a result of moment, the wall clock times skipped by a transition moved forward by the gap's length
+function compatible(mom) {
+    return inGap(mom) ? reparse(mom).valueOf() : mom.valueOf()
+}
+
+//Whether the month differences of moment compute from a time in a gap (its anchors: the time plus whole months)
+function monthAnchorInGap(mom, other) {
+    const [a, b] = mom.date() < other.date() ? [other, mom] : [mom, other]
+    const whole = (b.year() - a.year()) * 12 + (b.month() - a.month())
+    return [whole - 1, whole, whole + 1].some((months) => inGap(a.clone().add(months, 'months')))
 }
 
 describe('Time compatibility with moment', () => {
@@ -55,20 +82,22 @@ describe('Time compatibility with moment', () => {
             check(`${label} daysInMonth`, [time.daysInMonth(), time.isLeapYear(), time.unix(), time.utcOffset()], [mom.daysInMonth(), mom.isLeapYear(), mom.unix(), mom.utcOffset()])
             for (const unit of GET_UNITS) check(`${label} get ${unit}`, time.get(unit), mom.get(unit))
             const unit = pick(UNITS)
-            check(`${label} startOf ${unit}`, time.startOf(unit).valueOf(), mom.clone().startOf(unit).valueOf())
-            check(`${label} endOf ${unit}`, time.endOf(unit).valueOf(), mom.clone().endOf(unit).valueOf())
+            check(`${label} startOf ${unit}`, time.startOf(unit).valueOf(), compatible(mom.clone().startOf(unit)))
+            check(`${label} endOf ${unit}`, time.endOf(unit).valueOf(), compatible(mom.clone().endOf(unit)))
             const addUnit = pick(ADD_UNITS)
             const amount = pick([1, -1, 2, 13, -25, 1.5, -2.5, 100, 0.4])
-            check(`${label} add ${amount} ${addUnit}`, time.add(amount, addUnit).valueOf(), mom.clone().add(amount, addUnit).valueOf())
-            check(`${label} subtract ${amount} ${addUnit}`, time.subtract(amount, addUnit).valueOf(), mom.clone().subtract(amount, addUnit).valueOf())
+            check(`${label} add ${amount} ${addUnit}`, time.add(amount, addUnit).valueOf(), compatible(mom.clone().add(amount, addUnit)))
+            check(`${label} subtract ${amount} ${addUnit}`, time.subtract(amount, addUnit).valueOf(), compatible(mom.clone().subtract(amount, addUnit)))
             const setUnit = pick(GET_UNITS)
             const value = pick([0, 1, 5, 12, 29, 31, 53, 59, 100, 2020, -1])
             const set = time.set(setUnit, value)
             //The time zone data of moment-timezone has no daylight saving time far in the future (the runtime data has)
-            if (set.year() < 2200) check(`${label} set ${setUnit} ${value}`, set.valueOf(), mom.clone().set(setUnit, value).valueOf())
+            if (set.year() < 2200) check(`${label} set ${setUnit} ${value}`, set.valueOf(), compatible(mom.clone().set(setUnit, value)))
             const diffUnit = pick([...UNITS.filter((u) => u !== 'isoWeek' && u !== 'date'), undefined])
-            check(`${label} diff ${diffUnit}`, time.diff(other, diffUnit), mom.diff(moment.tz(other, zone), diffUnit))
-            check(`${label} diff ${diffUnit} precise`, time.diff(other, diffUnit, true), mom.diff(moment.tz(other, zone), diffUnit, true))
+            if (!['year', 'quarter', 'month'].includes(diffUnit) || !monthAnchorInGap(mom, moment.tz(other, zone))) {
+                check(`${label} diff ${diffUnit}`, time.diff(other, diffUnit), mom.diff(moment.tz(other, zone), diffUnit))
+                check(`${label} diff ${diffUnit} precise`, time.diff(other, diffUnit, true), mom.diff(moment.tz(other, zone), diffUnit, true))
+            }
             const near = instant + pick([0, 1, -1, 60000, 3600000, 86400000, -86400000 * 3])
             for (const granularity of [undefined, pick(UNITS)]) {
                 check(`${label} compare ${granularity}`, [time.isSame(near, granularity), time.isBefore(near, granularity), time.isAfter(near, granularity), time.isSameOrBefore(near, granularity), time.isSameOrAfter(near, granularity)],

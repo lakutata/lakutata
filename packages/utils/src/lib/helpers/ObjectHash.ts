@@ -6,18 +6,74 @@ import {createHash, getHashes, type Hash} from 'node:crypto'
 
 type HashName = 'md5' | 'sha1' | 'sha224' | 'sha256' | 'sha384' | 'sha512' | 'ripemd160' | string
 
+/**
+ * The options of `ObjectHash`: the digest, and what the hash takes into account.
+ */
 export type ObjectHashOptions = {
+    /**
+     * How the digest is written: `'hex'`, `'base64'` or `'binary'` (a Latin-1 string). `'buffer'` is accepted too
+     * (returning a `Buffer` typed as a string). Ignored by the `'passthrough'` algorithm.
+     * @default 'hex'
+     */
     encoding?: 'hex' | 'binary' | 'base64' | undefined
+    /**
+     * The hash algorithm: a name of `crypto.getHashes()` (`'md5'`, `'sha1'`, `'sha256'`, `'sha512'`…), in any case, or
+     * `'passthrough'` to get the serialization itself (to see what the hash depends on).
+     * @default 'sha1'
+     */
     algorithm?: HashName | 'passthrough' | undefined
+    /**
+     * Leave out the object properties whose key it returns `true` for, at any depth (`(key) => key === 'updatedAt'`).
+     * @default none (every key counts)
+     */
     excludeKeys?: ((key: string) => boolean) | undefined
+    /**
+     * Whether only the keys count, not their values: two objects of the same shape get the same hash.
+     * @default false
+     */
     excludeValues?: boolean | undefined
+    /**
+     * Whether a value of an unsupported type (a `Promise`, a `WeakMap`, a `Blob`) is hashed as its type name only,
+     * instead of throwing.
+     * @default false
+     */
     ignoreUnknown?: boolean | undefined
+    /**
+     * Replace each value before it is hashed, at any depth (`(value) => value instanceof Date ? value.getTime() :
+     * value`).
+     * @default none
+     */
     replacer?: ((value: any) => any) | undefined
+    /**
+     * Whether a function's name counts, besides its source code.
+     * @default true
+     */
     respectFunctionNames?: boolean | undefined
+    /**
+     * Whether the properties of a function count (its static members).
+     * @default true
+     */
     respectFunctionProperties?: boolean | undefined
+    /**
+     * Whether an object's prototype and constructor count: with `false`, an instance and a plain object of the same
+     * properties get the same hash.
+     * @default true
+     */
     respectType?: boolean | undefined
+    /**
+     * Whether the order of the array items does not count (`[1, 2]` and `[2, 1]` get the same hash).
+     * @default false
+     */
     unorderedArrays?: boolean | undefined
+    /**
+     * Whether the order of the object keys does not count (`{a, b}` and `{b, a}` get the same hash).
+     * @default true
+     */
     unorderedObjects?: boolean | undefined
+    /**
+     * Whether the insertion order of the `Set` and `Map` entries does not count.
+     * @default true
+     */
     unorderedSets?: boolean | undefined
 }
 
@@ -303,10 +359,38 @@ class TypeHasher {
 }
 
 /**
- * Generate an object hash
- * @param value
- * @param options
- * @constructor
+ * Hash any value by its content: two values which are deeply equal get the same hash, whatever their identity or the
+ * order of their keys (a cache key, a change detection, a deduplication). The value is serialized with its types
+ * (`1` and `'1'` differ, and so do two classes with the same properties), then hashed.
+ *
+ * Supported: the primitives, plain objects and class instances (their own enumerable string keys; the symbol keys are
+ * ignored), arrays, `Date` (an invalid date too), `RegExp`, `Error` (its `toString()`), `Map` and `Set`, `URL`, the
+ * typed arrays, `ArrayBuffer`, `Buffer` and functions (their source code). A circular reference is hashed as a
+ * reference, not followed.
+ * @param value The value to hash; it must not be `undefined`.
+ * @param options The algorithm and the encoding of the digest, and what counts in the hash.
+ * @returns The digest, in hexadecimal by default (a SHA-1: 40 characters); the serialization with the `'passthrough'`
+ * algorithm.
+ * @throws {Error} When `value` is `undefined`, when the algorithm or the encoding is not supported, or when the value
+ * contains an unsupported type (a `Promise`, a `WeakMap`, a `Blob`…) without `ignoreUnknown`.
+ * @example
+ * ```typescript
+ * import {ObjectHash} from 'lakutata/utils'
+ *
+ * console.log(ObjectHash({a: 1, b: [1, 2]}) === ObjectHash({b: [1, 2], a: 1}))
+ * //true
+ * console.log(ObjectHash([1, 2]) === ObjectHash([2, 1]))
+ * //false
+ * console.log(ObjectHash([1, 2], {unorderedArrays: true}) === ObjectHash([2, 1], {unorderedArrays: true}))
+ * //true
+ * //A cache key ignoring the timestamps
+ * const key: string = ObjectHash({query: 'books', at: Date.now()}, {
+ *     algorithm: 'sha256',
+ *     excludeKeys: (name: string): boolean => name === 'at'
+ * })
+ * console.log(key.length)
+ * //64
+ * ```
  */
 export function ObjectHash(value: any, options?: ObjectHashOptions): string {
     const hashingOptions: HashingOptions = ApplyDefaults(value, options)

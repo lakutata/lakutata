@@ -1,10 +1,20 @@
 import {DevNull} from './DevNull.js'
 
 /**
- * Terminate the program gracefully, after the functions given
- * @param exitCode
- * @param functions
- * @constructor
+ * Exit the process once cleanup functions have run. The call returns at once; on the next turn of the event loop
+ * (`setImmediate`) the functions are called one after the other, each awaited before the next, then `process.exit()`
+ * is called with the exit code. An error thrown or a promise rejected by a function is ignored and the next function
+ * still runs; a function whose promise never settles keeps the process from exiting.
+ * @param exitCode The exit code of the process: `0` for a success, another integer for a failure.
+ * @param functions The cleanup functions, synchronous or asynchronous, in the order they run; none exits directly.
+ * @example
+ * ```typescript
+ * import {GracefulExit} from 'lakutata/utils'
+ *
+ * declare function closeDatabase(): Promise<void>
+ *
+ * process.once('SIGTERM', (): void => GracefulExit(0, closeDatabase, (): void => console.log('Bye')))
+ * ```
  */
 export function GracefulExit(exitCode: number, ...functions: (() => any)[]): void {
     //The errors of the functions are ignored

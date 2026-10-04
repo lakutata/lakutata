@@ -21,9 +21,22 @@ const reNative = RegExp('^' +
 )
 
 /**
- * Whether a function is native function or not
- * @param target
- * @constructor
+ * Tell whether a value is a native function, implemented by the JavaScript engine or Node.js rather than in
+ * JavaScript: its source, as `Function.prototype.toString` gives it, is `function name() { [native code] }`. The
+ * built-ins (`Math.max`, `Array`) are native, and so are all the bound functions (`fn.bind(null)`), whatever they bind:
+ * the runtime gives them the same source, so a bound function cannot be told apart reliably from a built-in. The
+ * functions, the arrow functions and the classes written in JavaScript are not. A function's own `toString` cannot
+ * fake the result. An object whose `Object.prototype.toString` tag ends with `Constructor` (`[object
+ * HTMLElementConstructor]`, a host object of some environments) is also native.
+ * @param target The value to test, of any type; a value which is neither a function nor an object gives `false`.
+ * @returns `true` when the value is a native function, `false` otherwise.
+ * @example
+ * ```typescript
+ * import {IsNativeFunction} from 'lakutata/utils'
+ *
+ * console.log(IsNativeFunction(Math.max), IsNativeFunction((): number => 1), IsNativeFunction(class Point {}))
+ * //true false false
+ * ```
  */
 export function IsNativeFunction(target: any): boolean {
     const type = typeof target

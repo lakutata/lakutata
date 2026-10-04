@@ -1,7 +1,8 @@
 /**
  * Derived from src/Encoder.ts of @msgpack/msgpack 3.1.3 (ISC, see THIRD_PARTY_NOTICES.md), with the options of
  * MessagePack: the bigints are encoded as int 64 (useBigInt64), the properties of undefined value are ignored
- * (ignoreUndefined), the dates are timestamps, the other options are the defaults
+ * (ignoreUndefined), the dates are timestamps, the other options are the defaults. Unlike the upstream, a bigint out of
+ * the 64-bit ranges is refused (not wrapped), a Map is encoded as a map of its entries and a Set as an array
  */
 import {EncodeTimestamp, EXT_TIMESTAMP, ExtData} from './Extension.js'
 import {Utf8Count, Utf8Encode} from './Utf8.js'
@@ -9,6 +10,10 @@ import {Utf8Count, Utf8Encode} from './Utf8.js'
 const MAX_DEPTH: number = 100
 
 const INITIAL_BUFFER_SIZE: number = 2048
+
+const MAX_UINT64: bigint = 2n ** 64n - 1n
+
+const MIN_INT64: bigint = -(2n ** 63n)
 
 export class Encoder {
 
@@ -113,6 +118,8 @@ export class Encoder {
     }
 
     protected encodeBigInt64(value: bigint): void {
+        //Written as is, it would wrap
+        if (value > MAX_UINT64 || value < MIN_INT64) throw new RangeError(`The bigint ${value} is out of the 64-bit ranges`)
         this.ensureBufferSizeToWrite(9)
         if (value >= BigInt(0)) {
             //uint 64
@@ -162,6 +169,10 @@ export class Encoder {
             this.encodeArray(value, depth)
         } else if (ArrayBuffer.isView(value)) {
             this.encodeBinary(value)
+        } else if (value instanceof Map) {
+            this.encodeMapEntries(value, depth)
+        } else if (value instanceof Set) {
+            this.encodeArray([...value], depth)
         } else if (typeof value === 'object') {
             this.encodeMap(value as Record<string, unknown>, depth)
         } else {
@@ -209,6 +220,36 @@ export class Encoder {
         //The properties of undefined value are ignored
         let size: number = 0
         for (const key of keys) if (value[key] !== undefined) size++
+        this.writeMapHeader(size)
+        for (const key of keys) {
+            const item: unknown = value[key]
+            if (item === undefined) continue
+            this.encodeString(key)
+            this.encodeValue(item, depth + 1)
+        }
+    }
+
+    /**
+     * A Map as a map of its entries, the entries of undefined value ignored; its keys are strings or numbers, the keys
+     * the decoder accepts
+     * @param value
+     * @param depth
+     */
+    protected encodeMapEntries(value: Map<unknown, unknown>, depth: number): void {
+        let size: number = 0
+        for (const [key, item] of value) {
+            if (typeof key !== 'string' && typeof key !== 'number') throw new Error(`The type of key must be string or number but ${typeof key}`)
+            if (item !== undefined) size++
+        }
+        this.writeMapHeader(size)
+        for (const [key, item] of value) {
+            if (item === undefined) continue
+            this.encodeValue(key, depth + 1)
+            this.encodeValue(item, depth + 1)
+        }
+    }
+
+    protected writeMapHeader(size: number): void {
         if (size < 16) {
             //fixmap
             this.writeU8(0x80 + size)
@@ -220,12 +261,6 @@ export class Encoder {
             this.writeU32(size)
         } else {
             throw new Error(`Too large map object: ${size}`)
-        }
-        for (const key of keys) {
-            const item: unknown = value[key]
-            if (item === undefined) continue
-            this.encodeString(key)
-            this.encodeValue(item, depth + 1)
         }
     }
 

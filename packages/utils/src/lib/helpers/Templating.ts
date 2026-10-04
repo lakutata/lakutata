@@ -18,7 +18,25 @@ function htmlEscape(strings: string | TemplateStringsArray, ...values: any[]): s
     return output
 }
 
+/**
+ * Thrown by `Templating` when a placeholder has no value (its value is `undefined`) and `ignoreMissing` is off. Its
+ * `name` is `'MissingValueError'`.
+ * @example
+ * ```typescript
+ * import {MissingValueError, Templating} from 'lakutata/utils'
+ *
+ * try {
+ *     Templating('Hello {user.name}', {user: {}})
+ * } catch (error) {
+ *     if (error instanceof MissingValueError) console.log(error.key, '|', error.message)
+ *     //user.name | Missing a value for the placeholder: user.name
+ * }
+ * ```
+ */
 export class MissingValueError extends Error {
+    /**
+     * The placeholder's key, as written in the template (`'user.name'`).
+     */
     public key: string
 
     constructor(key: string) {
@@ -28,11 +46,49 @@ export class MissingValueError extends Error {
     }
 }
 
+/**
+ * The options of `Templating`.
+ */
 export interface TemplatingOptions {
+    /**
+     * Whether a placeholder without value is left as is in the output (`{name}`), instead of throwing a
+     * `MissingValueError`.
+     * @default false
+     */
     ignoreMissing?: boolean
+    /**
+     * Transform each value before it is inserted: given the value found (`undefined` when missing) and the
+     * placeholder's key, it returns the value to insert. Returning `undefined` makes the placeholder missing.
+     * @default the value unchanged
+     */
     transform?: ({value, key}: { value: any, key: string }) => any
 }
 
+/**
+ * Fill a template's placeholders with the values of an object or an array. `{key}` inserts the value as is,
+ * `{{key}}` inserts it HTML-escaped (`&`, `"`, `'`, `<`, `>`). A key is an index (`{0}`) or a path of properties
+ * separated by dots (`{user.name}`); its words may contain letters, digits, `_`, `$` and `-`, and no spaces (`{ name }`
+ * is left as text). The values are converted with `String()`: `null` gives `'null'`, an object `'[object Object]'`;
+ * only `undefined` is missing.
+ * @param template The template.
+ * @param data The values, by key: an object or an array.
+ * @param options What to do with the missing values, and a transformation of the values.
+ * @returns The filled template.
+ * @throws {TypeError} When `template` is not a string, or `data` is not an object (`null` passes this check, and its
+ * placeholders are then missing).
+ * @throws {MissingValueError} When a placeholder has no value and `ignoreMissing` is off.
+ * @example
+ * ```typescript
+ * import {Templating} from 'lakutata/utils'
+ *
+ * console.log(Templating('Hello {user.name}, you have {count} messages', {user: {name: 'Ada'}, count: 3}))
+ * //Hello Ada, you have 3 messages
+ * console.log(Templating('<p>{{comment}}</p>', {comment: '<b>hi</b>'}))
+ * //<p>&lt;b&gt;hi&lt;/b&gt;</p>
+ * console.log(Templating('{0} and {1}, {missing}', ['tea', 'cake'], {ignoreMissing: true}))
+ * //tea and cake, {missing}
+ * ```
+ */
 export function Templating(template: string, data: object | any[], {
     ignoreMissing = false,
     transform = ({value}) => value

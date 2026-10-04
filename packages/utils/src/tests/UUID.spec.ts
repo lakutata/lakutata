@@ -36,6 +36,20 @@ function Outcome(fn: () => unknown): { value?: unknown, error?: string } {
 }
 
 /**
+ * The outcome of uuid, or the RangeError of a buffer too small: v3, v5 and v6 check it before writing (uuid writes
+ * the bytes which fit)
+ * @param fn
+ * @param buf
+ * @param offset
+ */
+function Checked(fn: () => unknown, buf: Uint8Array | undefined, offset: number | undefined): { value?: unknown, error?: string } {
+    const outcome: { value?: unknown, error?: string } = Outcome(fn)
+    const start: number = offset ?? 0
+    if (outcome.error === undefined && buf && (start < 0 || start + 16 > buf.length)) return {error: `RangeError: UUID byte range ${start}:${start + 15} is out of buffer bounds`}
+    return outcome
+}
+
+/**
  * A random string: UUIDs of every version (valid or not), the nil and max UUIDs, other strings
  */
 function Candidate(): unknown {
@@ -88,7 +102,7 @@ describe('UUID', (): void => {
                 const upstreamBuffer: Uint8Array | undefined = useBuffer ? new Uint8Array(size) : undefined
                 assert.deepStrictEqual(
                     Outcome((): unknown => (UUID as any)[generate]({...options}, portedBuffer, offset)),
-                    Outcome((): unknown => (upstream as any)[generate]({...options}, upstreamBuffer, offset)),
+                    Checked((): unknown => (upstream as any)[generate]({...options}, upstreamBuffer, offset), upstreamBuffer, offset),
                     `${generate} ${JSON.stringify(options, (_: string, value: unknown): unknown => value instanceof Uint8Array ? Array.from(value) : value)} ${offset}`
                 )
             }
@@ -97,9 +111,10 @@ describe('UUID', (): void => {
             for (const generate of ['v3', 'v5'] as const) {
                 const portedBuffer: Uint8Array | undefined = useBuffer ? new Uint8Array(20) : undefined
                 const upstreamBuffer: Uint8Array | undefined = useBuffer ? new Uint8Array(20) : undefined
+                const start: number | undefined = offset && offset > 0 ? offset : undefined
                 assert.deepStrictEqual(
-                    Outcome((): unknown => (UUID as any)[generate](name, namespace, portedBuffer, offset && offset > 0 ? offset : undefined)),
-                    Outcome((): unknown => (upstream as any)[generate](name, namespace, upstreamBuffer, offset && offset > 0 ? offset : undefined)),
+                    Outcome((): unknown => (UUID as any)[generate](name, namespace, portedBuffer, start)),
+                    Checked((): unknown => (upstream as any)[generate](name, namespace, upstreamBuffer, start), upstreamBuffer, start),
                     `${generate} ${String(name)} ${String(namespace)}`
                 )
             }
@@ -118,5 +133,27 @@ describe('UUID', (): void => {
         }
         //The v6 UUIDs sort by their time
         assert.deepStrictEqual([...generated.v6].sort(), generated.v6)
+    })
+
+    it('does not change the random bytes given to v4', (): void => {
+        const random: Uint8Array = Uint8Array.from({length: 16}, (_: unknown, index: number): number => index * 17)
+        const copy: Uint8Array = random.slice()
+        const uuid: string = UUID.v4({random: random})
+        assert.deepStrictEqual(random, copy)
+        assert.strictEqual(uuid, upstream.v4({random: copy.slice()}))
+        assert.strictEqual(UUID.version(uuid), 4)
+    })
+
+    it('checks the buffer before writing v3, v5 and v6 into it', (): void => {
+        for (const generate of [(buf: Uint8Array, offset: number): unknown => UUID.v3('a', UUID.NIL, buf, offset),
+            (buf: Uint8Array, offset: number): unknown => UUID.v5('a', UUID.NIL, buf, offset),
+            (buf: Uint8Array, offset: number): unknown => UUID.v6(undefined, buf, offset)]) {
+            const buf: Uint8Array = new Uint8Array(20)
+            assert.throws((): unknown => generate(buf, 10), RangeError)
+            assert.throws((): unknown => generate(new Uint8Array(15), 0), RangeError)
+            assert.deepStrictEqual(buf, new Uint8Array(20))
+            assert.strictEqual(generate(buf, 4), buf)
+            assert.notDeepStrictEqual(buf, new Uint8Array(20))
+        }
     })
 })

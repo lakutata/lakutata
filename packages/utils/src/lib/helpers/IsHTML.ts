@@ -5,11 +5,24 @@ const basic: RegExp = /\s?<!doctype html>|(<html\b[^>]*>|<body\b[^>]*>|<x-[^>]+>
 const full: RegExp = new RegExp(HTML_TAGS.map((tag: string) => `<${tag}\\b[^>]*>`).join('|'), 'i')
 
 /**
- * Whether a string is HTML
- * @param value
- * @constructor
+ * Tell whether a string looks like HTML: whether its first 1000 characters (after its leading and trailing spaces are
+ * trimmed) contain a `<!doctype html>`, or an opening tag of a standard HTML element (`<p>`, `<div class="a">`) or of a
+ * custom element named `x-…`. The markup is not validated (`'<p>'` alone is HTML, `'<foo>bar</foo>'` is not), and a tag
+ * anywhere in the head counts (`'text <b>bold</b>'` is HTML).
+ * @param value The string to test; a value which is not a string (`undefined`, a number) gives `false`.
+ * @returns `true` when an HTML tag is found, `false` otherwise.
+ * @example
+ * ```typescript
+ * import {IsHTML} from 'lakutata/utils'
+ *
+ * console.log(IsHTML('<!doctype html><html></html>'), IsHTML('<p>Hello</p>'))
+ * //true true
+ * console.log(IsHTML('<note>Hello</note>'), IsHTML('1 < 2'))
+ * //false false
+ * ```
  */
 export function IsHTML(value: string): boolean {
+    if (typeof value !== 'string') return false
     const head: string = value.trim().slice(0, 1000)
     return basic.test(head) || full.test(head)
 }

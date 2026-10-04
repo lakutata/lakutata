@@ -13,7 +13,16 @@ import {
 } from './time/Calendar.js'
 import {DEFAULT_FORMAT, DEFAULT_UTC_FORMAT, type FormatContext, FormatTime} from './time/Format.js'
 
+/**
+ * The units of time accepted by the `Time` methods, by their long name (`'day'`), plural (`'days'`) or short name
+ * (`'d'`). The long and plural names are also accepted in any case (`'Days'`); the short names are case-sensitive:
+ * `'M'` is the month and `'m'` the minute, `'D'` the day of the month (`'date'`) and `'d'` the day of the week
+ * (`'day'`).
+ */
 export namespace UnitOfTime {
+    /**
+     * The units of every operation: year, month, week, day, hour, minute, second, millisecond.
+     */
     export type Base = (
         'year' | 'years' | 'y' |
         'month' | 'months' | 'M' |
@@ -25,19 +34,52 @@ export namespace UnitOfTime {
         'millisecond' | 'milliseconds' | 'ms'
         )
 
+    /**
+     * The quarter: three months.
+     */
     export type _quarter = 'quarter' | 'quarters' | 'Q'
+
+    /**
+     * The ISO week: Monday to Sunday.
+     */
     export type _isoWeek = 'isoWeek' | 'isoWeeks' | 'W'
+
+    /**
+     * The day of the month.
+     */
     export type _date = 'date' | 'dates' | 'D'
+
+    /**
+     * The units of `add` and `subtract`.
+     */
     export type DurationConstructor = Base | _quarter
 
+    /**
+     * The units of a duration.
+     */
     export type DurationAs = Base
 
+    /**
+     * The units of `startOf`, `endOf` and the granularity of the comparisons (`isBefore`, `isSame`…); `null` is no unit
+     * (the exact instant).
+     */
     export type StartOf = Base | _quarter | _isoWeek | _date | null
 
+    /**
+     * The units of `diff`.
+     */
     export type Diff = Base | _quarter
 
+    /**
+     * The units of the fields of a time.
+     */
     export type MomentConstructor = Base | _date
 
+    /**
+     * The units of `get` and `set`: the base units, plus the quarter, the ISO week, the day of the month, the week year
+     * (`'weekYear'`, `'gg'`) and the ISO week year (`'isoWeekYear'`, `'GG'`), the day of the year (`'dayOfYear'`,
+     * `'DDD'`), and the days of the week (`'weekday'`, `'e'`: 0 is Sunday; `'isoWeekday'`, `'E'`: 1 is Monday).
+     */
     export type All = Base | _quarter | _isoWeek | _date |
         'weekYear' | 'weekYears' | 'gg' |
         'isoWeekYear' | 'isoWeekYears' | 'GG' |
@@ -46,17 +88,56 @@ export namespace UnitOfTime {
         'isoWeekday' | 'isoWeekdays' | 'E'
 }
 
+/**
+ * A time accepted by `new Time()` and the methods comparing times:
+ * - `null` (or nothing): now;
+ * - a `Time`: its instant and its time zone; a `Date`: its instant;
+ * - a number: milliseconds since the Unix epoch (the string of an integer or a decimal number too, `'1700000000000'`);
+ * - a string: a date as `Date` parses it. With `Z` or an offset (`'2024-03-01T07:30:00+08:00'`), or a zone name `Date`
+ *   knows (`'GMT'`, `'EST'`), it is that instant; without one (`'2024-03-01'`, `'2024-03-01 07:30'`, `'March 1, 2024
+ *   07:30'`), it is the wall clock in the time zone of the `Time` reading it: the default zone for `new Time()`, the
+ *   instance's zone for its comparisons and `diff`;
+ * - an array: the wall clock fields `[year, month, date, hours, minutes, seconds, milliseconds]`, in the same time zone
+ *   as a string without offset, the month from 0 (January) to 11; the missing leading fields are the current ones
+ *   (`[]` is today, `[undefined, 5]` June of this year), the missing trailing fields their smallest (`[2024]` is
+ *   January 1st 2024 at midnight); a field out of its range (`[2023, 1, 29]`) gives an invalid time.
+ *
+ * A wall clock time read in a time zone which skips it (02:30 when the clocks jump from 02:00 to 03:00) moves forward by
+ * the length of the gap (03:30); one which is repeated (the clocks turned back) is the earlier one.
+ */
 export type TimeInput = Time | Date | string | number | (number | string)[] | null
 
+/**
+ * The wall clock fields of a time in its time zone (`Time.toObject()`).
+ */
 export type TimeObject = {
+    /**
+     * The year (`2024`).
+     */
     years: number
-    /* One digit */
+    /**
+     * The month, from 0 (January) to 11 (December).
+     */
     months: number
-    /* Day of the month */
+    /**
+     * The day of the month, from 1 to 31.
+     */
     date: number
+    /**
+     * The hours, from 0 to 23.
+     */
     hours: number
+    /**
+     * The minutes, from 0 to 59.
+     */
     minutes: number
+    /**
+     * The seconds, from 0 to 59.
+     */
     seconds: number
+    /**
+     * The milliseconds, from 0 to 999.
+     */
     milliseconds: number
 }
 
@@ -106,26 +187,76 @@ function absFloor(value: number): number {
 }
 
 /**
- * The instant of a time string: a timestamp in milliseconds, or a date string
- * @param input
- * @throws RangeError when the string is not a time
+ * The instant of wall clock fields (local milliseconds) in a time zone. A wall clock time repeated by a transition (the
+ * clocks turned back) keeps the preferred offset when it has it, else is the earlier one; a wall clock time skipped by a
+ * transition (the clocks turned forward) moves forward by the length of the gap, as the 'compatible' disambiguation of
+ * Temporal and moment do, whatever the time it comes from
+ * @param zone
+ * @param local
+ * @param preferred the offset to keep (minutes), NaN for none
  */
-function parseTimeString(input: string): number {
-    const value: number = /^\s*$/.test(input) ? NaN : /^[+-]?\d+(\.\d+)?$/.test(input) ? new Date(parseFloat(input)).getTime() : new Date(input).getTime()
-    if (isNaN(value)) throw new RangeError(`Invalid time value: "${input}"`)
-    return value
+function localToInstant(zone: string, local: number, preferred: number = NaN): number {
+    if (isNaN(local)) return NaN
+    if (!isNaN(preferred) && OffsetAt(zone, local - preferred * 60000) === preferred) return local - preferred * 60000
+    //The offsets of the day before and of the day after: the ones around a transition
+    const before: number = OffsetAt(zone, local - 864e5)
+    const after: number = OffsetAt(zone, local + 864e5)
+    let earliest: number = NaN
+    for (const offset of before === after ? [before] : [before, after]) {
+        const instant: number = local - offset * 60000
+        if (OffsetAt(zone, instant) === offset && (isNaN(earliest) || instant < earliest)) earliest = instant
+    }
+    //In a gap, the offset before it: the wall clock moves forward by its length
+    return isNaN(earliest) ? local - before * 60000 : earliest
 }
 
 /**
- * The instant of wall clock fields of the time zone of the process ([year, month, date, hours, minutes, seconds,
- * milliseconds]: the leading missing fields are the current ones, the other missing fields are the smallest); fields out
- * of their range make an invalid time
- * @param input
+ * An ISO 8601 date, or date and time, without offset
  */
-function arrayToTime(input: (number | string)[]): number {
-    const fields: (number | undefined)[] = input.slice(0, 7).map((field: number | string): number => typeof field === 'number' ? field : parseInt(field, 10))
-    const now: Date = new Date()
-    const current: number[] = [now.getFullYear(), now.getMonth(), now.getDate()]
+const ISO_LOCAL: RegExp = /^\s*([+-]\d{6}|\d{4})-(\d{2})(?:-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:[.,](\d+))?)?)?)?\s*$/i
+
+/**
+ * A zone designator after a time (Z, an offset), or a zone name Date knows
+ */
+const ZONE_DESIGNATOR: RegExp = /\d:\d{2}(?::\d{2}(?:[.,]\d+)?)?\s*(?:[AP]M\s*)?(?:Z|[+-]\d{2}(?::?\d{2})?)\b|\b(?:GMT|UTC|UT|Z|[ECMP][SD]T)\b/i
+
+/**
+ * The instant of a time string: a timestamp in milliseconds, or a date string, read in a time zone without offset
+ * @param input
+ * @param zone
+ * @throws RangeError when the string is not a time
+ */
+function parseTimeString(input: string, zone: string): number {
+    if (/^[+-]?\d+(\.\d+)?$/.test(input)) return new Date(parseFloat(input)).getTime()
+    const parsed: Date = new Date(input)
+    if (/^\s*$/.test(input) || isNaN(parsed.getTime())) throw new RangeError(`Invalid time value: "${input}"`)
+    const iso: RegExpExecArray | null = ISO_LOCAL.exec(input)
+    if (iso) {
+        //Date reads a date alone in UTC, a date and time in the process's time zone: both in the zone instead
+        const [, year, month, date, hours, minutes, seconds, fraction] = iso
+        const milliseconds: number = fraction ? parseInt(fraction.padEnd(3, '0').slice(0, 3), 10) : 0
+        return localToInstant(zone, LocalMilliseconds(parseInt(year, 10), parseInt(month, 10) - 1, date ? parseInt(date, 10) : 1, hours ? parseInt(hours, 10) : 0, minutes ? parseInt(minutes, 10) : 0, seconds ? parseInt(seconds, 10) : 0, milliseconds))
+    }
+    if (ZONE_DESIGNATOR.test(input)) return parsed.getTime()
+    //Another format read by Date in the process's time zone: its wall clock in the zone instead
+    return localToInstant(zone, LocalMilliseconds(parsed.getFullYear(), parsed.getMonth(), parsed.getDate(), parsed.getHours(), parsed.getMinutes(), parsed.getSeconds(), parsed.getMilliseconds()))
+}
+
+/**
+ * The instant of wall clock fields in a time zone ([year, month, date, hours, minutes, seconds, milliseconds]: the
+ * leading missing fields are the current ones, the other missing fields are the smallest); fields out of their range
+ * make an invalid time
+ * @param input
+ * @param zone
+ */
+function arrayToTime(input: (number | string)[], zone: string): number {
+    const fields: (number | undefined)[] = input.slice(0, 7).map((field: number | string | undefined | null): number | undefined => {
+        if (field === undefined || field === null) return undefined
+        return typeof field === 'number' ? field : parseInt(field, 10)
+    })
+    const nowInstant: number = Date.now()
+    const now: Date = new Date(nowInstant + OffsetAt(zone, nowInstant) * 60000)
+    const current: number[] = [now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()]
     let i: number = 0
     for (; i < 3 && fields[i] === undefined; i++) fields[i] = current[i]
     for (; i < 7; i++) if (fields[i] === undefined) fields[i] = i === 2 ? 1 : 0
@@ -135,15 +266,53 @@ function arrayToTime(input: (number | string)[]): number {
         hours < 0 || hours > 24 || (hours === 24 && (minutes !== 0 || seconds !== 0 || milliseconds !== 0)) ||
         minutes < 0 || minutes > 59 || seconds < 0 || seconds > 59 || milliseconds < 0 || milliseconds > 999
     if (overflow) return NaN
-    const local: Date = new Date(2000, 0, 1)
-    local.setFullYear(year, month, date)
-    local.setHours(hours, minutes, seconds, milliseconds)
-    return local.getTime()
+    return localToInstant(zone, LocalMilliseconds(year, month, date, hours, minutes, seconds, milliseconds))
 }
 
 /**
- * Time class: a Date in a time zone. The methods returning a Time return a new instance (the instance they are called
- * on does not change); the Date methods are the ones of Date.
+ * The instant of a time input, its strings without offset and its arrays read in a time zone
+ * @param inp
+ * @param zone
+ */
+function inputToInstant(inp: TimeInput | undefined, zone: string): number {
+    if (inp === undefined || inp === null) return Date.now()
+    if (inp instanceof Date) return inp.getTime()
+    if (typeof inp === 'number') return inp
+    if (typeof inp === 'string') return parseTimeString(inp, zone)
+    if (Array.isArray(inp)) return arrayToTime(inp, zone)
+    return NaN
+}
+
+/**
+ * A date and time in a time zone, with the API of the moment library: reading and setting the wall clock fields in the
+ * zone (`hours()`, `date()`…), formatting (`format()`), the calendar arithmetic (`add()`, `startOf()`, `diff()`) and
+ * the comparisons (`isBefore()`…), across the daylight saving time changes. The time zone is an IANA name
+ * (`'Asia/Shanghai'`); a new time is in the default zone: the `TZ` environment variable, else the system's (an invalid
+ * `TZ` gives UTC, as for `Date`).
+ *
+ * A `Time` is immutable through its own methods: the setters and the arithmetic return a new instance, the time they
+ * are called on does not change. It extends `Date`, so it is accepted where a `Date` is (`toISOString()`, `toJSON()`
+ * and `getTime()` give the instant), but the methods inherited from `Date` (`getHours()`, `setHours()`…) read and
+ * modify the time in the process's time zone, not in the instance's, and the setters modify the instance: use the
+ * `Time` methods.
+ *
+ * An invalid time (an array field out of its range, `NaN`) does not throw: its `format()` gives `'Invalid date'` and
+ * its getters `NaN`. An invalid string throws a `RangeError`.
+ * @example
+ * ```typescript
+ * import {Time} from 'lakutata'
+ *
+ * const departure: Time = new Time('2024-03-09T12:00:00Z').timezone('America/New_York')
+ * console.log(departure.format(), departure.format('dddd, MMMM Do YYYY, h:mm A z'))
+ * //2024-03-09T07:00:00-05:00 Saturday, March 9th 2024, 7:00 AM EST
+ * //Across the daylight saving time change: a day keeps the wall clock, 24 hours do not
+ * console.log(departure.add(1, 'day').format(), departure.add(24, 'hours').format())
+ * //2024-03-10T07:00:00-04:00 2024-03-10T08:00:00-04:00
+ * console.log(departure.timezone('Asia/Shanghai').format('YYYY-MM-DD HH:mm'), departure.startOf('month').format())
+ * //2024-03-09 20:00 2024-03-01T00:00:00-05:00
+ * console.log(new Time('2024-03-31T00:00:00Z').diff('2024-01-15T00:00:00Z', 'months'))
+ * //2
+ * ```
  */
 export class Time extends Date {
 
@@ -162,56 +331,53 @@ export class Time extends Date {
     #offsetMinutes: number = NaN
 
     /**
-     * Constructor
-     * @param inp the time (default: now): a Time (its time zone too), a Date, a timestamp in milliseconds, a date string,
-     *  or the wall clock fields of the time zone of the process [year, month, date, hours, minutes, seconds, milliseconds]
+     * Create a time, in the default time zone (in the zone of `inp` when it is a `Time`). Call `timezone()` to get it
+     * in another zone.
+     * @param inp The time (see `TimeInput`): now when omitted or `null`, a `Time`, a `Date`, milliseconds since the
+     * epoch, a date string, or the wall clock fields; a string without offset and the fields are read in the default
+     * time zone.
+     * @throws {RangeError} When `inp` is a string which is not a date (`''`, `'tomorrow'`).
      */
     constructor(inp?: TimeInput) {
-        let zone: string | undefined
-        let value: number
-        if (inp === undefined || inp === null) {
-            value = Date.now()
-        } else if (inp instanceof Time) {
-            value = inp.getTime()
-            zone = inp.#zone
-        } else if (inp instanceof Date) {
-            value = inp.getTime()
-        } else if (typeof inp === 'number') {
-            value = inp
-        } else if (typeof inp === 'string') {
-            value = parseTimeString(inp)
-        } else if (Array.isArray(inp)) {
-            value = arrayToTime(inp)
-        } else {
-            value = NaN
-        }
-        super(value)
-        this.#zone = zone || DefaultZone()
+        const zone: string = inp instanceof Time ? inp.#zone : DefaultZone()
+        super(inputToInstant(inp, zone))
+        this.#zone = zone
     }
 
     /**
-     * Get all timezone names
+     * List the time zones of the runtime, by their current IANA names (`'Asia/Kolkata'`), plus `'UTC'` and the fixed
+     * offsets `'Etc/GMT-14'` to `'Etc/GMT+12'`, sorted. `timezone()` also accepts the former names not listed
+     * (`'Asia/Calcutta'`).
+     * @returns A new array of names.
      */
     public static timezones(): string[] {
         return ZoneNames()
     }
 
     /**
-     * Returns the maximum value for a given instance (farthest into the future)
-     * @param times
+     * Get the latest of several times.
+     * @param times The times to compare. The invalid times are ignored.
+     * @returns The latest valid time itself (not a copy), the first of the latest ones; the first time when all are
+     * invalid; a new time of now when none is given.
      */
     public static max(...times: Time[]): Time {
         if (!times.length) return new Time()
-        return times.reduce((max: Time, time: Time): Time => time.getTime() > max.getTime() ? time : max)
+        const valid: Time[] = times.filter((time: Time): boolean => !isNaN(time.getTime()))
+        if (!valid.length) return times[0]
+        return valid.reduce((max: Time, time: Time): Time => time.getTime() > max.getTime() ? time : max)
     }
 
     /**
-     * Returns the minimum value (most distant past) of the given instance
-     * @param times
+     * Get the earliest of several times.
+     * @param times The times to compare. The invalid times are ignored.
+     * @returns The earliest valid time itself (not a copy), the first of the earliest ones; the first time when all
+     * are invalid; a new time of now when none is given.
      */
     public static min(...times: Time[]): Time {
         if (!times.length) return new Time()
-        return times.reduce((min: Time, time: Time): Time => time.getTime() < min.getTime() ? time : min)
+        const valid: Time[] = times.filter((time: Time): boolean => !isNaN(time.getTime()))
+        if (!valid.length) return times[0]
+        return valid.reduce((min: Time, time: Time): Time => time.getTime() < min.getTime() ? time : min)
     }
 
     /**
@@ -226,14 +392,22 @@ export class Time extends Date {
     }
 
     /**
-     * A new time of wall clock fields (local milliseconds) in the time zone: the offset of the time zone at the instant
-     * they make with the current offset (at a transition, a wall clock time which does not exist moves forward)
+     * A new time of wall clock fields (local milliseconds) in the time zone, keeping the current offset when the wall
+     * clock time is repeated (see localToInstant)
      * @param local
      * @private
      */
     #atLocal(local: number): Time {
-        const offset: number = OffsetAt(this.#zone, local - this.#offset() * 60000)
-        return this.#at(local - offset * 60000)
+        return this.#at(localToInstant(this.#zone, local, this.#offset()))
+    }
+
+    /**
+     * The instant of a time input, its strings without offset and its arrays read in the time zone
+     * @param inp
+     * @private
+     */
+    #input(inp: TimeInput | undefined): number {
+        return inputToInstant(inp, this.#zone)
     }
 
     /**
@@ -296,7 +470,9 @@ export class Time extends Date {
     }
 
     /**
-     * Get time zone offset: the minutes from the time in the time zone to UTC, like Date (-480 for UTC+8)
+     * Get the offset of the time's zone as `Date` gives it: the minutes from the wall clock to UTC, so negative east of
+     * Greenwich (`-480` in UTC+8, `300` in New York in winter). It changes with the daylight saving time.
+     * @returns The offset in minutes; `NaN` for an invalid time.
      */
     public getTimezoneOffset(): number {
         const offset: number = this.#offset()
@@ -304,29 +480,46 @@ export class Time extends Date {
     }
 
     /**
-     * Get the offset of the time zone from UTC in minutes (480 for UTC+8)
+     * Get the offset of the time's zone from UTC at this instant, in minutes: positive east of Greenwich (`480` in
+     * UTC+8, `-300` in New York in winter, `-240` in summer).
+     * @returns The offset in minutes; `NaN` for an invalid time.
      */
     public utcOffset(): number {
         return this.#offset()
     }
 
     /**
-     * Get or set time zone
+     * Get the time zone's IANA name (`'Asia/Shanghai'`).
+     * @returns The name of the time zone.
      */
     public timezone(): string
+    /**
+     * Get the same instant in another time zone: the wall clock fields change, the instant does not.
+     * @param tz The IANA name of the time zone (`'America/New_York'`, `'UTC'`, `'Etc/GMT-8'`). An empty string is the
+     * default time zone (the `TZ` environment variable, else the system's).
+     * @returns A new time in that zone.
+     * @throws {RangeError} When the runtime does not know the time zone (`Invalid time zone: …`).
+     */
     public timezone(tz: string): Time
     public timezone(tz?: string): string | Time {
-        if (!tz) return this.#zone
-        AssertZone(tz)
+        if (tz === undefined || tz === null) return this.#zone
+        const zone: string = tz === '' ? DefaultZone() : tz
+        AssertZone(zone)
         const time: Time = new Time(this.getTime())
-        time.#zone = tz
+        time.#zone = zone
         return time
     }
 
     /**
-     * Get or set the number of milliseconds
+     * Get the milliseconds in the time's zone.
+     * @returns The milliseconds, from 0 to 999; `NaN` for an invalid time.
      */
     public milliseconds(): number
+    /**
+     * Set the milliseconds. A value out of 0 to 999 carries over to the seconds (`1500` is 1.5 seconds later than 0).
+     * @param value The new value; `NaN` leaves the time unchanged.
+     * @returns A new time; the time it is called on does not change.
+     */
     public milliseconds(value: number): Time
     public milliseconds(value?: number): number | Time {
         if (value === undefined) return this.#local().getUTCMilliseconds()
@@ -334,9 +527,15 @@ export class Time extends Date {
     }
 
     /**
-     * Get or set seconds
+     * Get the seconds in the time's zone.
+     * @returns The seconds, from 0 to 59; `NaN` for an invalid time.
      */
     public seconds(): number
+    /**
+     * Set the seconds. A value out of 0 to 59 carries over to the minutes.
+     * @param value The new value; `NaN` leaves the time unchanged.
+     * @returns A new time; the time it is called on does not change.
+     */
     public seconds(value: number): Time
     public seconds(value?: number): number | Time {
         if (value === undefined) return this.#local().getUTCSeconds()
@@ -344,9 +543,15 @@ export class Time extends Date {
     }
 
     /**
-     * Get or set minutes
+     * Get the minutes in the time's zone.
+     * @returns The minutes, from 0 to 59; `NaN` for an invalid time.
      */
     public minutes(): number
+    /**
+     * Set the minutes. A value out of 0 to 59 carries over to the hours.
+     * @param value The new value; `NaN` leaves the time unchanged.
+     * @returns A new time; the time it is called on does not change.
+     */
     public minutes(value: number): Time
     public minutes(value?: number): number | Time {
         if (value === undefined) return this.#local().getUTCMinutes()
@@ -354,9 +559,18 @@ export class Time extends Date {
     }
 
     /**
-     * Get or set the hour
+     * Get the hours in the time's zone.
+     * @returns The hours, from 0 to 23; `NaN` for an invalid time.
      */
     public hours(): number
+    /**
+     * Set the hours of the wall clock. A value out of 0 to 23 carries over to the days (`25` is 01:00 the next day).
+     * A wall clock time skipped by a daylight saving time change (02:30 when the clocks jump from 02:00 to 03:00) moves
+     * forward by the length of the gap (03:30), whatever the time it is set from; a repeated one (the clocks turned
+     * back) keeps the offset of the time when it can, else is the earlier one.
+     * @param value The new value; `NaN` leaves the time unchanged.
+     * @returns A new time; the time it is called on does not change.
+     */
     public hours(value: number): Time
     public hours(value?: number): number | Time {
         if (value === undefined) return this.#local().getUTCHours()
@@ -364,10 +578,16 @@ export class Time extends Date {
     }
 
     /**
-     * Get or set the day of the month
-     * Accepts numbers from 1 to 31. If out of range it will bubble up to months
+     * Get the day of the month in the time's zone.
+     * @returns The day of the month, from 1 to 31; `NaN` for an invalid time.
      */
     public date(): number
+    /**
+     * Set the day of the month. A value out of the month's days carries over to the months (`32` in January is February
+     * 1st, `0` the last day of the previous month).
+     * @param value The new value; `NaN` leaves the time unchanged.
+     * @returns A new time; the time it is called on does not change.
+     */
     public date(value: number): Time
     public date(value?: number): number | Time {
         if (value === undefined) return this.#local().getUTCDate()
@@ -385,9 +605,17 @@ export class Time extends Date {
     }
 
     /**
-     * Set to get or set the day of the week
+     * Get the day of the week (weeks starting on Sunday) in the time's zone.
+     * @returns The day of the week (weeks starting on Sunday), from 0 (Sunday) to 6 (Saturday); `NaN` for an invalid
+     * time.
      */
     public weekday(): number
+    /**
+     * Move to another day of the same week (Sunday to Saturday), keeping the wall clock time. A value out of 0 to 6
+     * moves to another week (`7` is the next Sunday, `-1` the previous Saturday).
+     * @param value The new value, from 0 (Sunday) to 6 (Saturday).
+     * @returns A new time; the time it is called on does not change.
+     */
     public weekday(value: number): Time
     public weekday(value?: number): number | Time {
         const weekday: number = (this.#local().getUTCDay() + 7 - LOCALE_WEEK.dow) % 7
@@ -395,9 +623,16 @@ export class Time extends Date {
     }
 
     /**
-     * Get or set the ISO day of the week, 1 is Monday, 7 is Sunday
+     * Get the ISO day of the week in the time's zone.
+     * @returns The ISO day of the week, from 1 (Monday) to 7 (Sunday); `NaN` for an invalid time.
      */
     public isoWeekday(): number
+    /**
+     * Move to another day of the same ISO week (Monday to Sunday), keeping the wall clock time. A value out of 1 to 7
+     * moves to another week (`8` is the next Monday).
+     * @param value The new value, from 1 (Monday) to 7 (Sunday).
+     * @returns A new time; the time it is called on does not change.
+     */
     public isoWeekday(value: number): Time
     public isoWeekday(value?: number): number | Time {
         const day: number = this.#day() as number
@@ -406,10 +641,16 @@ export class Time extends Date {
     }
 
     /**
-     * Get or set the day of the year
-     * Accepts numbers from 1 to 366. If out of range it will bubble up to the year
+     * Get the day of the year in the time's zone.
+     * @returns The day of the year, from 1 to 366; `NaN` for an invalid time.
      */
     public dayOfYear(): number
+    /**
+     * Move to another day of the year, keeping the wall clock time. A value out of the year's days carries over to the
+     * next or previous years.
+     * @param value The new value, from 1 to 366.
+     * @returns A new time; the time it is called on does not change.
+     */
     public dayOfYear(value: number): Time
     public dayOfYear(value?: number): number | Time {
         const dayOfYear: number = DayOfYear(this.#local().getTime())
@@ -417,9 +658,17 @@ export class Time extends Date {
     }
 
     /**
-     * Gets or sets the week of the year
+     * Get the week of the year (weeks starting on Sunday, week 1 holding January 1st) in the time's zone.
+     * @returns The week of the year (weeks starting on Sunday, week 1 holding January 1st), from 1 to 53; `NaN` for an
+     * invalid time.
      */
     public weeks(): number
+    /**
+     * Move to another week of the year, keeping the day of the week and the wall clock time (`weeks(w)` adds
+     * `w - weeks()` weeks).
+     * @param value The new value, from 1 to 53.
+     * @returns A new time; the time it is called on does not change.
+     */
     public weeks(value: number): Time
     public weeks(value?: number): number | Time {
         const week: number = WeekOfYear(this.#local().getTime(), LOCALE_WEEK).week
@@ -427,9 +676,17 @@ export class Time extends Date {
     }
 
     /**
-     * Gets or sets the ISO week of the year
+     * Get the ISO 8601 week of the year (weeks starting on Monday, week 1 holding the first Thursday) in the time's
+     * zone.
+     * @returns The ISO 8601 week of the year (weeks starting on Monday, week 1 holding the first Thursday), from 1 to
+     * 53; `NaN` for an invalid time.
      */
     public isoWeeks(): number
+    /**
+     * Move to another ISO week, keeping the day of the week and the wall clock time.
+     * @param value The new value, from 1 to 53.
+     * @returns A new time; the time it is called on does not change.
+     */
     public isoWeeks(value: number): Time
     public isoWeeks(value?: number): number | Time {
         const week: number = WeekOfYear(this.#local().getTime(), ISO_WEEK).week
@@ -437,10 +694,17 @@ export class Time extends Date {
     }
 
     /**
-     * Get or set the month
-     * Accepts numbers from 0 to 11. If out of range it will bubble up to the year
+     * Get the month in the time's zone.
+     * @returns The month, from 0 (January) to 11 (December); `NaN` for an invalid time.
      */
     public month(): number
+    /**
+     * Set the month, keeping the day of the month when it exists in it, else taking the month's last day (January 31st
+     * set to February gives February 29th in 2024). A value out of 0 to 11 carries over to the years (`12` is January
+     * of the next year).
+     * @param value The new value, from 0 (January) to 11 (December); `NaN` leaves the time unchanged.
+     * @returns A new time; the time it is called on does not change.
+     */
     public month(value: number): Time
     public month(value?: number): number | Time {
         if (value === undefined) return this.#local().getUTCMonth()
@@ -448,9 +712,16 @@ export class Time extends Date {
     }
 
     /**
-     * Gets or sets the quarter (1 to 4)
+     * Get the quarter in the time's zone.
+     * @returns The quarter, from 1 to 4; `NaN` for an invalid time.
      */
     public quarters(): number
+    /**
+     * Move to another quarter of the year, keeping the month's position in its quarter and the day of the month when it
+     * exists (May 15th set to quarter 1 gives February 15th).
+     * @param value The new value, from 1 to 4.
+     * @returns A new time; the time it is called on does not change.
+     */
     public quarters(value: number): Time
     public quarters(value?: number): number | Time {
         const month: number = this.#local().getUTCMonth()
@@ -458,10 +729,16 @@ export class Time extends Date {
     }
 
     /**
-     * Get or set the year
-     * Accepts numbers from -270,000 to 270,000
+     * Get the year in the time's zone.
+     * @returns The year, such as `2024`; `NaN` for an invalid time.
      */
     public year(): number
+    /**
+     * Set the year, keeping the month and the day; February 29th becomes February 28th in a year which is not a leap
+     * year.
+     * @param value The new value, within the range of `Date` (about ±270,000); `NaN` leaves the time unchanged.
+     * @returns A new time; the time it is called on does not change.
+     */
     public year(value: number): Time
     public year(value?: number): number | Time {
         if (value === undefined) return this.#local().getUTCFullYear()
@@ -488,40 +765,53 @@ export class Time extends Date {
     }
 
     /**
-     * Gets or sets the week of the year in ISO time
+     * Get the ISO 8601 week-numbering year: the year of the ISO week, which differs from the calendar year around
+     * January 1st (December 30th 2024 is in the week 1 of 2025).
+     * @returns The ISO week year; `NaN` for an invalid time.
      */
     public isoWeekYear(): number
+    /**
+     * Move to another ISO week year, keeping the ISO week (clamped to the weeks of that year), the day of the week and
+     * the wall clock time.
+     * @param value The ISO week year.
+     * @returns A new time; the time it is called on does not change.
+     */
     public isoWeekYear(value: number): Time
     public isoWeekYear(value?: number): number | Time {
         return this.#weekYear(ISO_WEEK, value)
     }
 
     /**
-     * Gets the number of weeks of the year (weeks starting on Sunday)
+     * Get the number of weeks of the time's year, the weeks starting on Sunday (see `weeks()`).
+     * @returns 52 or 53.
      */
     public weeksInYear(): number {
         return WeeksInYear(this.#local().getUTCFullYear(), LOCALE_WEEK)
     }
 
     /**
-     * Gets the number of ISO weeks of the year
+     * Get the number of ISO 8601 weeks of the time's calendar year.
+     * @returns 52 or 53.
      */
     public isoWeeksInYear(): number {
         return WeeksInYear(this.#local().getUTCFullYear(), ISO_WEEK)
     }
 
     /**
-     * Universal getter (Depends on input unit)
-     * @param unit
+     * Get a field by its unit: `get('hour')` is `hours()`, `get('D')` is `date()`, `get('day')` the day of the week (0
+     * is Sunday), `get('weekYear')` the year of the week (weeks starting on Sunday).
+     * @param unit The unit of the field (see `UnitOfTime.All`).
+     * @returns The field's value; `NaN` for a unit which is not one.
      */
     public get(unit: UnitOfTime.All): number {
         return this.#getSet(unit) as number
     }
 
     /**
-     * Universal setter (Depends on input unit)
-     * @param unit
-     * @param value
+     * Set a field by its unit: `set('hour', 8)` is `hours(8)`, `set('day', 1)` moves to the Monday of the week.
+     * @param unit The unit of the field (see `UnitOfTime.All`). A unit which is not one returns an unchanged copy.
+     * @param value The new value, with the rules of the field's setter.
+     * @returns A new time; the time it is called on does not change.
      */
     public set(unit: UnitOfTime.All, value: number): Time {
         return this.#getSet(unit, value) as Time
@@ -629,18 +919,26 @@ export class Time extends Date {
     }
 
     /**
-     * Increase time
-     * @param amount
-     * @param unit
+     * Add a duration. The years, quarters, months, weeks and days move the wall clock, keeping its time across a
+     * daylight saving time change (a day can last 23 or 25 hours), and a month without the day of the month takes its
+     * last day (January 31st plus a month is February 29th in 2024). The hours, minutes, seconds and milliseconds move
+     * the instant. A wall clock time skipped by a daylight saving time change (02:30 when the clocks jump from 02:00 to
+     * 03:00) moves forward by the length of the gap (03:30), whatever the time it comes from.
+     * @param amount The amount, negative to go back. The fractions of the months and the days are rounded half away
+     * from zero (`1.5` days is 2 days, `0.5` year is 6 months); the other units keep them (`1.5` hours is 90 minutes).
+     * @param unit The unit (see `UnitOfTime.DurationConstructor`). A unit which is not one returns an unchanged copy.
+     * @returns A new time; the time it is called on does not change.
      */
     public add(amount: number, unit: UnitOfTime.DurationConstructor): Time {
         return this.#addDuration(amount, unit, 1)
     }
 
     /**
-     * Minus time
-     * @param amount
-     * @param unit
+     * Subtract a duration: `subtract(n, unit)` is `add(-n, unit)` (see `add` for the daylight saving time changes and
+     * the month ends).
+     * @param amount The amount, negative to go forward.
+     * @param unit The unit (see `UnitOfTime.DurationConstructor`). A unit which is not one returns an unchanged copy.
+     * @returns A new time; the time it is called on does not change.
      */
     public subtract(amount: number, unit: UnitOfTime.DurationConstructor): Time {
         return this.#addDuration(amount, unit, -1)
@@ -686,8 +984,12 @@ export class Time extends Date {
     }
 
     /**
-     * Set to the start of a time unit
-     * @param unit
+     * Get the start of the unit holding the time, in its zone: `startOf('day')` is midnight (or the first time of the
+     * day when the clocks skip midnight), `startOf('week')` the Sunday, `startOf('isoWeek')` the Monday,
+     * `startOf('month')` the 1st, `startOf('hour')` the hour with zero minutes.
+     * @param unit The unit (see `UnitOfTime.StartOf`). `'millisecond'`, `null` or a unit which is not one returns an
+     * unchanged copy.
+     * @returns A new time; the time it is called on does not change.
      */
     public startOf(unit: UnitOfTime.StartOf): Time {
         const local: number | undefined = this.#boundary(unit, false)
@@ -695,8 +997,11 @@ export class Time extends Date {
     }
 
     /**
-     * Set to the end of the time unit
-     * @param unit
+     * Get the end of the unit holding the time, in its zone: its last millisecond (`endOf('day')` is 23:59:59.999,
+     * `endOf('month')` the last day of the month at 23:59:59.999).
+     * @param unit The unit (see `UnitOfTime.StartOf`). `'millisecond'`, `null` or a unit which is not one returns an
+     * unchanged copy.
+     * @returns A new time; the time it is called on does not change.
      */
     public endOf(unit: UnitOfTime.StartOf): Time {
         const local: number | undefined = this.#boundary(unit, true)
@@ -704,9 +1009,29 @@ export class Time extends Date {
     }
 
     /**
-     * Format output time string (default: YYYY-MM-DDTHH:mm:ssZ), with the format tokens of the moment library
+     * Format the time in its zone as ISO 8601 with its offset, to the second: `'2024-03-09T07:00:00-05:00'`, or
+     * `'2024-03-09T12:00:00Z'` at the offset zero.
+     * @returns The formatted time; `'Invalid date'` for an invalid time.
      */
     public format(): string
+    /**
+     * Format the time in its zone with the tokens of the moment library (in English):
+     * - year `YYYY` (2024), `YY` (24); quarter `Q`; month `M` (3), `MM` (03), `MMM` (Mar), `MMMM` (March), `Mo` (3rd);
+     * - day of the month `D`, `DD`, `Do` (9th); day of the year `DDD`, `DDDD`; day of the week `d` (0 is Sunday), `dd`
+     *   (Sa), `ddd` (Sat), `dddd` (Saturday), `E` (ISO, 1 is Monday); weeks `w`, `ww`, ISO weeks `W`, `WW`; week years
+     *   `gggg`, `GGGG`;
+     * - hours `H`, `HH` (0-23), `h`, `hh` (1-12), `k`, `kk` (1-24); `A` (AM/PM), `a` (am/pm); minutes `m`, `mm`;
+     *   seconds `s`, `ss`; fractions `S` to `SSSSSSSSS` (`SSS` the milliseconds);
+     * - offset `Z` (-05:00), `ZZ` (-0500); the zone's abbreviation `z` (EST, or GMT+8 where English has none); the
+     *   timestamp `X` (seconds), `x` (milliseconds);
+     * - the localized formats `LT` (7:00 AM), `LTS`, `L` (03/09/2024), `LL` (March 9, 2024), `LLL`, `LLLL`, and their
+     *   short forms `l`, `ll`, `lll`, `llll`.
+     *
+     * The text in brackets is kept as is (`[at]`, `[T]`); the other characters which are not tokens too.
+     * @param format The format (`'YYYY-MM-DD HH:mm:ss'`, `'dddd, MMMM Do YYYY'`); an empty string gives the default
+     * format.
+     * @returns The formatted time; `'Invalid date'` for an invalid time.
+     */
     public format(format: string): string
     public format(format?: string): string {
         const instant: number = this.getTime()
@@ -743,13 +1068,19 @@ export class Time extends Date {
     }
 
     /**
-     * Get time difference (truncated, unless precise)
-     * @param inp
-     * @param unit
-     * @param precise
+     * Get the time elapsed from another time to this one, in a unit: positive when this time is later. The months,
+     * quarters and years count calendar months (January 15th to March 15th is 2 months whatever their days); the days
+     * and weeks count the wall clock days in this time's zone (a 23-hour day across a daylight saving time change is
+     * one day); the hours, minutes, seconds and milliseconds count the elapsed time.
+     * @param inp The other time (see `TimeInput`); now when `null`.
+     * @param unit The unit (see `UnitOfTime.Diff`); milliseconds when omitted or not a unit.
+     * @param precise Whether the result keeps its fraction; by default it is truncated toward zero (`2.5` months gives
+     * `2`, `-2.5` gives `-2`).
+     * @returns The difference.
+     * @throws {RangeError} When `inp` is a string which is not a date.
      */
     public diff(inp: TimeInput, unit?: UnitOfTime.Diff, precise?: boolean): number {
-        const that: Time = this.#at(new Time(inp).getTime())
+        const that: Time = this.#at(this.#input(inp))
         const zoneDelta: number = (that.#offset() - this.#offset()) * 6e4
         const delta: number = this.getTime() - that.getTime()
         let output: number
@@ -785,14 +1116,16 @@ export class Time extends Date {
     }
 
     /**
-     * Outputs a Unix timestamp (number of seconds since the Unix epoch)
+     * Get the Unix timestamp: the whole seconds since the Unix epoch, rounded down (`-1.5` seconds gives `-2`).
+     * @returns The seconds; `NaN` for an invalid time.
      */
     public unix(): number {
         return Math.floor(this.getTime() / 1000)
     }
 
     /**
-     * Get the number of days in the current month
+     * Get the number of days of the time's month, in its zone.
+     * @returns 28 to 31.
      */
     public daysInMonth(): number {
         const local: Date = this.#local()
@@ -800,7 +1133,10 @@ export class Time extends Date {
     }
 
     /**
-     * This will return an array that reflects the parameters in new Date()
+     * Get the wall clock fields in the time's zone, in the order of the `Date` constructor. Passed back to `new
+     * Time()`, they are read in the default time zone: the instant differs when the zones differ; passed to a
+     * comparison of this time (`isSame(time.toArray())`), they are read in its zone.
+     * @returns `[year, month, date, hours, minutes, seconds, milliseconds]`, the month from 0 (January) to 11.
      */
     public toArray(): [number, number, number, number, number, number, number] {
         const local: Date = this.#local()
@@ -808,7 +1144,8 @@ export class Time extends Date {
     }
 
     /**
-     * Returns an object containing the year, month, day of the month, hour, minute, second, and millisecond
+     * Get the wall clock fields in the time's zone, by name.
+     * @returns The year, the month (from 0), the day of the month, the hours, minutes, seconds and milliseconds.
      */
     public toObject(): TimeObject {
         const [years, months, date, hours, minutes, seconds, milliseconds] = this.toArray()
@@ -816,14 +1153,16 @@ export class Time extends Date {
     }
 
     /**
-     * To string (like Fri Mar 01 2024 07:30:00 GMT+0800)
+     * Format the time in its zone as `Date` does, without the zone's name: `'Fri Mar 01 2024 07:30:00 GMT+0800'`.
+     * @returns The formatted time; `'Invalid date'` for an invalid time (`Date` gives `'Invalid Date'`).
      */
     public toString(): string {
         return this.format('ddd MMM DD YYYY HH:mm:ss [GMT]ZZ')
     }
 
     /**
-     * To time string, like Date (like 07:30:00 GMT+0800 (China Standard Time))
+     * Format the time of the day in its zone as `Date` does: `'07:30:00 GMT+0800 (China Standard Time)'`.
+     * @returns The formatted time; `'Invalid Date'` for an invalid time.
      */
     public toTimeString(): string {
         if (isNaN(this.getTime())) return 'Invalid Date'
@@ -831,76 +1170,101 @@ export class Time extends Date {
     }
 
     /**
-     * To date string
+     * Format the date in its zone as `Date` does: `'Fri Mar 01 2024'`.
+     * @returns The formatted date; `'Invalid date'` for an invalid time.
      */
     public toDateString(): string {
         return this.format('ddd MMM DD YYYY')
     }
 
     /**
-     * Convert current time object to Date object
+     * Convert the time into a plain `Date` of the same instant (a `Date` has no time zone: its local methods use the
+     * process's zone).
+     * @returns A new `Date`.
      */
     public toDate(): Date {
         return new Date(this.getTime())
     }
 
     /**
-     * Is current time before input time
-     * @param inp
-     * @param granularity
+     * Tell whether this time is before another one. With a granularity, the unit holding this time must end before the
+     * other time: `isBefore(other, 'day')` is `true` when this time's day is before the other's.
+     * @param inp The other time (see `TimeInput`); now when omitted or `null`.
+     * @param granularity The unit to compare at (see `UnitOfTime.StartOf`), in this time's zone; the exact instant when
+     * omitted, `null` or `'millisecond'`.
+     * @returns `true` when this time is before; `false` for an invalid time.
+     * @throws {RangeError} When `inp` is a string which is not a date.
      */
     public isBefore(inp?: TimeInput, granularity?: UnitOfTime.StartOf): boolean {
-        const input: number = new Time(inp).getTime()
+        const input: number = this.#input(inp)
         if (!normalizeUnit(granularity) || normalizeUnit(granularity) === 'millisecond') return this.getTime() < input
         return this.endOf(granularity!).getTime() < input
     }
 
     /**
-     * Is current time same with input time
-     * @param inp
-     * @param granularity
+     * Tell whether this time is the same as another one. With a granularity, whether the other time falls in the same
+     * unit: `isSame(other, 'day')` is the same calendar day in this time's zone.
+     * @param inp The other time (see `TimeInput`); now when omitted or `null`.
+     * @param granularity The unit to compare at (see `UnitOfTime.StartOf`), in this time's zone; the exact instant when
+     * omitted, `null` or `'millisecond'`.
+     * @returns `true` when they are the same; `false` for an invalid time.
+     * @throws {RangeError} When `inp` is a string which is not a date.
      */
     public isSame(inp?: TimeInput, granularity?: UnitOfTime.StartOf): boolean {
-        const input: number = new Time(inp).getTime()
+        const input: number = this.#input(inp)
         if (!normalizeUnit(granularity) || normalizeUnit(granularity) === 'millisecond') return this.getTime() === input
         return this.startOf(granularity!).getTime() <= input && input <= this.endOf(granularity!).getTime()
     }
 
     /**
-     * Is current time after input time
-     * @param inp
-     * @param granularity
+     * Tell whether this time is after another one. With a granularity, the unit holding this time must start after the
+     * other time: `isAfter(other, 'day')` is `true` when this time's day is after the other's.
+     * @param inp The other time (see `TimeInput`); now when omitted or `null`.
+     * @param granularity The unit to compare at (see `UnitOfTime.StartOf`), in this time's zone; the exact instant when
+     * omitted, `null` or `'millisecond'`.
+     * @returns `true` when this time is after; `false` for an invalid time.
+     * @throws {RangeError} When `inp` is a string which is not a date.
      */
     public isAfter(inp?: TimeInput, granularity?: UnitOfTime.StartOf): boolean {
-        const input: number = new Time(inp).getTime()
+        const input: number = this.#input(inp)
         if (!normalizeUnit(granularity) || normalizeUnit(granularity) === 'millisecond') return this.getTime() > input
         return input < this.startOf(granularity!).getTime()
     }
 
     /**
-     * Is current time same or before input time
-     * @param inp
-     * @param granularity
+     * Tell whether this time is the same as another one or before it (`isSame() || isBefore()`).
+     * @param inp The other time (see `TimeInput`); now when omitted or `null`.
+     * @param granularity The unit to compare at (see `UnitOfTime.StartOf`), in this time's zone; the exact instant when
+     * omitted, `null` or `'millisecond'`.
+     * @returns `true` when this time is the same or before.
+     * @throws {RangeError} When `inp` is a string which is not a date.
      */
     public isSameOrBefore(inp?: TimeInput, granularity?: UnitOfTime.StartOf): boolean {
         return this.isSame(inp, granularity) || this.isBefore(inp, granularity)
     }
 
     /**
-     * Is current time same or after input time
-     * @param inp
-     * @param granularity
+     * Tell whether this time is the same as another one or after it (`isSame() || isAfter()`).
+     * @param inp The other time (see `TimeInput`); now when omitted or `null`.
+     * @param granularity The unit to compare at (see `UnitOfTime.StartOf`), in this time's zone; the exact instant when
+     * omitted, `null` or `'millisecond'`.
+     * @returns `true` when this time is the same or after.
+     * @throws {RangeError} When `inp` is a string which is not a date.
      */
     public isSameOrAfter(inp?: TimeInput, granularity?: UnitOfTime.StartOf): boolean {
         return this.isSame(inp, granularity) || this.isAfter(inp, granularity)
     }
 
     /**
-     * Is current time between two input times
-     * @param a
-     * @param b
-     * @param granularity
-     * @param inclusivity
+     * Tell whether this time is between two others, excluding them by default.
+     * @param a The start (see `TimeInput`); now when `null`. It must be the earlier one: the times are not swapped.
+     * @param b The end (see `TimeInput`); now when `null`.
+     * @param granularity The unit to compare at (see `UnitOfTime.StartOf`), in this time's zone; the exact instant when
+     * omitted, `null` or `'millisecond'`.
+     * @param inclusivity Whether the start and the end are included: `'()'` (excluded, the default), `'[)'` (the start
+     * included), `'(]'` (the end included) or `'[]'` (both).
+     * @returns `true` when this time is between them.
+     * @throws {RangeError} When `a` or `b` is a string which is not a date.
      */
     public isBetween(a: TimeInput, b: TimeInput, granularity?: UnitOfTime.StartOf, inclusivity: '()' | '[)' | '(]' | '[]' = '()'): boolean {
         return (inclusivity[0] === '(' ? this.isAfter(a, granularity) : !this.isBefore(a, granularity)) &&
@@ -908,14 +1272,16 @@ export class Time extends Date {
     }
 
     /**
-     * Check current time instance is leap year
+     * Tell whether the time's year (in its zone) is a leap year.
+     * @returns `true` for a leap year.
      */
     public isLeapYear(): boolean {
         return IsLeapYear(this.#local().getUTCFullYear())
     }
 
     /**
-     * Clone a time instance (same time, same time zone)
+     * Copy the time: the same instant in the same time zone.
+     * @returns A new time.
      */
     public clone(): Time {
         return this.#at(this.getTime())

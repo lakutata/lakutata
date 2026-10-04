@@ -2,13 +2,19 @@
  * Derived from lib/clone.js of @hapi/hoek 11.0.7 (BSD-3-Clause, see THIRD_PARTY_NOTICES.md): its deep clone with the
  * default options, without the shallow paths and the options. The binary data (typed arrays, data views, array
  * buffers) and the boxed primitives are cloned by their constructors (the upstream cloned them as objects without
- * their data)
+ * their data); the weak collections and the promises are kept as they are, the frozen, sealed and non-extensible
+ * objects give clones as such, and the getters are read (the upstream copied them)
  */
 
 /**
  * The built-in types cloned by their own constructor
  */
-const SET_LIKE: Set<object> = new Set<object>([Set.prototype, Map.prototype, WeakSet.prototype, WeakMap.prototype])
+const SET_LIKE: Set<object> = new Set<object>([Set.prototype, Map.prototype])
+
+/**
+ * The built-in types kept as they are: their content cannot be read (the weak collections) or copied (the promises)
+ */
+const UNCLONABLE: Set<object> = new Set<object>([WeakSet.prototype, WeakMap.prototype, Promise.prototype])
 
 /**
  * The built-in prototype an object is based on
@@ -29,6 +35,8 @@ function BuiltInPrototype(value: object): object {
             return WeakMap.prototype
         case '[object WeakSet]':
             return WeakSet.prototype
+        case '[object Promise]':
+            return Promise.prototype
         case '[object URL]':
             return URL.prototype
     }
@@ -103,6 +111,7 @@ function CloneValue(value: unknown, seen: Map<unknown, unknown>): unknown {
         }
     }
     const builtIn: object = BuiltInPrototype(value)
+    if (UNCLONABLE.has(builtIn)) return value
     switch (builtIn) {
         case Buffer.prototype:
             return Buffer.from(value as Buffer)
@@ -132,7 +141,11 @@ function CloneValue(value: unknown, seen: Map<unknown, unknown>): unknown {
         //Already copied by structuredClone (see CloneBase)
         if (builtIn === Error.prototype && key === 'stack') continue
         const descriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(value, key)
-        if (descriptor && (descriptor.get || descriptor.set)) {
+        if (descriptor && descriptor.get) {
+            //The value read by the getter, cloned into a property of the same enumerability
+            Object.defineProperty(clone, key, {enumerable: descriptor.enumerable, writable: true, configurable: true, value: CloneValue(source[key], seen)})
+        } else if (descriptor && descriptor.set) {
+            //A setter alone has no value to read
             Object.defineProperty(clone, key, descriptor)
         } else if (descriptor && descriptor.enumerable) {
             (clone as Record<PropertyKey, unknown>)[key] = CloneValue(source[key], seen)
@@ -141,15 +154,44 @@ function CloneValue(value: unknown, seen: Map<unknown, unknown>): unknown {
             Object.defineProperty(clone, key, {enumerable: !descriptor, writable: true, configurable: true, value: CloneValue(source[key], seen)})
         }
     }
+    //Locked as the value, once filled
+    if (Object.isFrozen(value)) {
+        Object.freeze(clone)
+    } else if (Object.isSealed(value)) {
+        Object.seal(clone)
+    } else if (!Object.isExtensible(value)) {
+        Object.preventExtensions(clone)
+    }
     return clone
 }
 
 /**
- * Deep clone a value: the objects keep their prototype (the instances of the classes too), their symbol properties,
- * their accessors and their circular references; buffers, dates, regular expressions, URLs, maps, sets and errors are
- * cloned as such, and proxies are cloned as the objects they expose
- * @param value
- * @constructor
+ * Deep clone a value. The primitives (`undefined`, `null`, numbers, strings…) and the functions are returned as they
+ * are. The objects and arrays are copied with their prototype (a class instance stays an instance of its class), their
+ * symbol and non-enumerable properties, and their circular references (an object containing itself gives a clone
+ * containing the clone). An own getter is called: the clone has a data property holding the clone of the value it
+ * returns (a getter computed from the other properties no longer follows them); an own setter without getter is copied
+ * as it is. Buffers, typed arrays, array buffers, data views, dates, regular expressions, URLs, errors (with their
+ * stack), boxed primitives, maps and sets (their values cloned, the keys of the maps kept) are cloned as such, and a
+ * proxy is cloned as the object it exposes. A frozen, sealed or non-extensible object or array gives a clone frozen,
+ * sealed or non-extensible as well.
+ *
+ * Kept as they are, not cloned: a `WeakMap` or `WeakSet` (its entries cannot be enumerated), a `Promise` (its state
+ * cannot be copied), and an object whose prototype has a truthy `isImmutable` property. Not cloned faithfully: an
+ * object with internal slots not listed above gives an object of its prototype without its internal state, whose
+ * methods throw.
+ * @param value The value to clone, of any type.
+ * @returns The clone, of the value's type.
+ * @example
+ * ```typescript
+ * import {CloneDeep} from 'lakutata/utils'
+ *
+ * const settings: {retries: number, hosts: string[]} = {retries: 3, hosts: ['a', 'b']}
+ * const copy: {retries: number, hosts: string[]} = CloneDeep(settings)
+ * copy.hosts.push('c')
+ * console.log(settings.hosts, copy.hosts)
+ * //['a', 'b'] ['a', 'b', 'c']
+ * ```
  */
 export function CloneDeep<T>(value: T): T {
     return CloneValue(value, new Map()) as T

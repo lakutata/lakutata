@@ -1,9 +1,23 @@
 /**
- * Whether the value is a class which extends the base class (the base class itself is not its own subclass)
- * @description Same result as DTO.isValid(value, DTO.Class(base)), without building a validation schema
- * @param value
- * @param base
- * @constructor
+ * Tell whether a value is a class (or a constructor function) extending a base class, directly or not. The base class
+ * is not its own subclass, and an instance of the subclass is not a subclass. It gives the same result as
+ * `DTO.isValid(value, DTO.Class(base))`, without building a validation schema.
+ * @param value The value to test, of any type; a value which is not a function, or a function without `prototype` (an
+ * arrow function), gives `false`.
+ * @param base The base class.
+ * @returns `true` when `value` extends `base`, `false` otherwise.
+ * @throws {TypeError} When `base` is not callable or its `prototype` is not an object (`instanceof` rejects it), and
+ * `value` is a function with a `prototype`.
+ * @example
+ * ```typescript
+ * import {IsSubclassOf} from 'lakutata/utils'
+ *
+ * class Animal {}
+ * class Dog extends Animal {}
+ *
+ * console.log(IsSubclassOf(Dog, Animal), IsSubclassOf(Animal, Animal), IsSubclassOf(new Dog(), Animal))
+ * //true false false
+ * ```
  */
 export function IsSubclassOf(value: unknown, base: Function): boolean {
     return typeof value === 'function' && !!value.prototype && value.prototype instanceof base

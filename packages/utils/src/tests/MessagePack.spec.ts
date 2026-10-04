@@ -91,12 +91,27 @@ function Outcome(fn: () => unknown): { value?: unknown, error?: string } {
 
 const UPSTREAM_ENCODE_OPTIONS = {useBigInt64: true, ignoreUndefined: true} as const
 
+/**
+ * A value as MessagePack encodes it for @msgpack/msgpack, which encodes a Map or a Set as {}: a Map as an object of its
+ * entries, a Set as an array of its values
+ * @param value
+ */
+function Upstreamable(value: unknown): unknown {
+    if (value instanceof Map) return Object.fromEntries([...value].map(([key, item]: [unknown, unknown]): [unknown, unknown] => [key, Upstreamable(item)]))
+    if (value instanceof Set) return [...value].map(Upstreamable)
+    if (Array.isArray(value)) return value.map(Upstreamable)
+    if (value !== null && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+        return Object.fromEntries(Object.entries(value).map(([key, item]: [string, unknown]): [string, unknown] => [key, Upstreamable(item)]))
+    }
+    return value
+}
+
 describe('MessagePack', (): void => {
 
-    it('encodes and decodes as @msgpack/msgpack', (): void => {
+    it('encodes and decodes as @msgpack/msgpack, the maps as objects and the sets as arrays', (): void => {
         for (let run: number = 0; run < 1000; run++) {
             const value: unknown = RandomValue()
-            const expected: Uint8Array = UpstreamEncode(value, UPSTREAM_ENCODE_OPTIONS)
+            const expected: Uint8Array = UpstreamEncode(Upstreamable(value), UPSTREAM_ENCODE_OPTIONS)
             const encoded: Uint8Array = MessagePack.encode(value)
             assert.ok(Buffer.from(encoded).equals(Buffer.from(expected)), `encoding of run ${run}`)
             assert.deepStrictEqual(MessagePack.decode(expected), UpstreamDecode(expected, {useBigInt64: true}), `decoding of run ${run}`)
@@ -140,5 +155,25 @@ describe('MessagePack', (): void => {
         const decoded: { nested: Uint8Array } = MessagePack.decode(MessagePack.encode(value))
         assert.deepStrictEqual(MessagePack.decode(decoded.nested), {inner: [1, 2, 3]})
         assert.deepStrictEqual(MessagePack.parse(MessagePack.stringify({a: 1n, b: new Date(5)})), {a: 1n, b: new Date(5)})
+    })
+
+    it('refuses the bigints out of the 64-bit ranges instead of wrapping them', (): void => {
+        for (const value of [2n ** 64n - 1n, -(2n ** 63n), 0n]) assert.strictEqual(MessagePack.decode(MessagePack.encode(value)), value)
+        for (const value of [2n ** 64n, 2n ** 64n + 5n, -(2n ** 63n) - 1n]) {
+            assert.throws((): unknown => MessagePack.encode({nested: [value]}), RangeError, String(value))
+            assert.throws((): unknown => MessagePack.stringify(value), RangeError, String(value))
+        }
+    })
+
+    it('encodes a Map as a map of its entries and a Set as an array of its values', (): void => {
+        const value: Record<string, unknown> = {
+            map: new Map<string | number, unknown>([['a', 1], [2, new Set(['x', 'y'])], ['skipped', undefined]]),
+            set: new Set([1, new Map([['k', 'v']])]),
+            empty: [new Map(), new Set()]
+        }
+        assert.deepStrictEqual(MessagePack.decode(MessagePack.encode(value)), {map: {a: 1, 2: ['x', 'y']}, set: [1, {k: 'v'}], empty: [{}, []]})
+        //The keys the decoders accept only: strings and numbers
+        assert.throws((): unknown => MessagePack.encode(new Map([[{}, 1]])), /The type of key must be string or number/)
+        assert.throws((): unknown => MessagePack.encode(new Map([[true, 1]])), /The type of key must be string or number/)
     })
 })

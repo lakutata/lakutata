@@ -132,4 +132,111 @@ describe('Time', (): void => {
         //A Time keeps the time zone of the Time it is created from
         assert.strictEqual(new Time(new Time().timezone('Europe/Paris')).timezone(), 'Europe/Paris')
     })
+
+    it('moves a wall clock time skipped by a transition forward by the gap, whatever the time it comes from', (): void => {
+        const format: string = 'YYYY-MM-DD HH:mm Z'
+        //New York, 2024-03-10: 02:00 EST jumps to 03:00 EDT
+        const midnight: Time = new Time('2024-03-10T05:00:00Z').timezone('America/New_York')
+        const noon: Time = new Time('2024-03-10T16:00:00Z').timezone('America/New_York')
+        assert.strictEqual(midnight.hours(2).format(format), '2024-03-10 03:00 -04:00')
+        assert.strictEqual(noon.hours(2).format(format), '2024-03-10 03:00 -04:00')
+        assert.strictEqual(noon.hours(2).minutes(30).format(format), '2024-03-10 03:30 -04:00')
+        const before: Time = new Time('2024-03-09T07:30:00Z').timezone('America/New_York')
+        assert.strictEqual(before.format(format), '2024-03-09 02:30 -05:00')
+        assert.strictEqual(before.add(1, 'day').format(format), '2024-03-10 03:30 -04:00')
+        const after: Time = new Time('2024-03-11T06:30:00Z').timezone('America/New_York')
+        assert.strictEqual(after.subtract(1, 'day').format(format), '2024-03-10 03:30 -04:00')
+        assert.strictEqual(new Time('2024-02-10T07:30:00Z').timezone('America/New_York').add(1, 'month').format(format), '2024-03-10 03:30 -04:00')
+        assert.strictEqual(midnight.set('minute', 150).format(format), '2024-03-10 03:30 -04:00')
+        //Paris, 2024-03-31: 02:00 CET jumps to 03:00 CEST
+        const paris: Time = new Time('2024-03-30T01:15:00Z').timezone('Europe/Paris')
+        assert.strictEqual(paris.add(1, 'day').format(format), '2024-03-31 03:15 +02:00')
+        assert.strictEqual(new Time('2024-03-31T20:00:00Z').timezone('Europe/Paris').hours(2).format(format), '2024-03-31 03:00 +02:00')
+        assert.strictEqual(new Time('2024-03-31T00:00:00Z').timezone('Europe/Paris').startOf('day').hours(2).minutes(59).format(format), '2024-03-31 03:59 +02:00')
+    })
+
+    it('keeps the offset of a repeated wall clock time when it can, else takes the earlier one', (): void => {
+        const format: string = 'YYYY-MM-DD HH:mm Z'
+        //Paris, 2024-10-27: 03:00 CEST goes back to 02:00 CET
+        const morning: Time = new Time('2024-10-26T22:00:00Z').timezone('Europe/Paris')
+        const evening: Time = new Time('2024-10-27T19:00:00Z').timezone('Europe/Paris')
+        assert.strictEqual(morning.hours(2).minutes(30).format(format), '2024-10-27 02:30 +02:00')
+        assert.strictEqual(evening.hours(2).minutes(30).format(format), '2024-10-27 02:30 +01:00')
+        //From another day, the earlier: New York, 2024-11-03 01:30 EDT then EST
+        assert.strictEqual(new Time('2024-11-02T05:30:00Z').timezone('America/New_York').add(1, 'day').format(format), '2024-11-03 01:30 -04:00')
+        const second: Time = new Time('2024-11-03T06:45:00Z').timezone('America/New_York')
+        assert.strictEqual(second.format(format), '2024-11-03 01:45 -05:00')
+        assert.strictEqual(second.startOf('hour').format(format), '2024-11-03 01:00 -05:00')
+    })
+
+    it('reads the strings without offset and the arrays in the time zone of the instance', (): void => {
+        const time: Time = new Time('2024-03-09T12:00:00Z').timezone('America/New_York')
+        assert.strictEqual(time.isSame('2024-03-09T07:00:00'), true)
+        assert.strictEqual(time.isSame('2024-03-09 07:00'), true)
+        assert.strictEqual(time.isSame('March 9, 2024 07:00:00'), true)
+        assert.strictEqual(time.isSame([2024, 2, 9, 7]), true)
+        assert.strictEqual(time.isSame('2024-03-09', 'day'), true)
+        assert.strictEqual(time.isAfter('2024-03-09'), true)
+        assert.strictEqual(time.diff('2024-03-09', 'hours'), 7)
+        assert.strictEqual(time.diff('2024-03-09T07:00:00.000Z', 'hours'), 5)
+        //With an offset or a zone name, the instant
+        assert.strictEqual(time.isSame('2024-03-09T12:00:00Z'), true)
+        assert.strictEqual(time.isSame('2024-03-09T13:00:00+01:00'), true)
+        assert.strictEqual(time.isSame('Sat, 09 Mar 2024 12:00:00 GMT'), true)
+        assert.strictEqual(time.isSame('March 9, 2024 07:00:00 EST'), true)
+        assert.strictEqual(time.timezone('Asia/Tokyo').isSame('2024-03-09T21:00:00'), true)
+        //A time skipped by the transition moves forward
+        assert.strictEqual(time.add(1, 'day').hours(3).minutes(30).isSame('2024-03-10T02:30:00'), true)
+        assert.throws((): unknown => time.isSame('not a date'), RangeError)
+    })
+
+    it('reads the strings without offset and the arrays of new Time() in the default time zone', (): void => {
+        const tz: string | undefined = process.env.TZ
+        try {
+            process.env.TZ = 'Asia/Tokyo'
+            assert.strictEqual(new Time('2024-01-01').toISOString(), '2023-12-31T15:00:00.000Z')
+            assert.strictEqual(new Time('2024-01-01T09:00').toISOString(), '2024-01-01T00:00:00.000Z')
+            assert.strictEqual(new Time([2024, 0, 1, 9]).toISOString(), '2024-01-01T00:00:00.000Z')
+            assert.strictEqual(new Time('2024-01-01T09:00:00.5').valueOf(), Date.UTC(2024, 0, 1, 0, 0, 0, 500))
+            process.env.TZ = 'America/New_York'
+            //02:30 does not exist on 2024-03-10
+            assert.strictEqual(new Time('2024-03-10T02:30').format(), '2024-03-10T03:30:00-04:00')
+        } finally {
+            if (tz === undefined) {
+                delete process.env.TZ
+            } else {
+                process.env.TZ = tz
+            }
+        }
+    })
+
+    it('takes the missing leading fields of an array from now', (): void => {
+        const now: Time = new Time()
+        assert.ok(Math.abs(new Time(now.toArray()).valueOf() - now.valueOf()) < 1000)
+        const june: Time = new Time([undefined, 5] as unknown as number[])
+        assert.deepStrictEqual([june.year(), june.month(), june.date(), june.hours()], [new Time().year(), 5, 1, 0])
+        const today: Time = new Time([])
+        assert.deepStrictEqual([today.year(), today.month(), today.date(), today.hours(), today.minutes()], [new Time().year(), new Time().month(), new Time().date(), 0, 0])
+    })
+
+    it('gives the default time zone for an empty time zone name', (): void => {
+        const time: Time = new Time('2024-01-01T00:00:00Z').timezone('Asia/Shanghai')
+        const reset: Time = time.timezone('')
+        assert.ok(reset instanceof Time)
+        assert.strictEqual(reset.timezone(), new Time().timezone())
+        assert.strictEqual(reset.valueOf(), time.valueOf())
+    })
+
+    it('ignores the invalid times in max and min', (): void => {
+        const invalid: Time = new Time(NaN)
+        const early: Time = new Time('2024-01-01T00:00:00Z')
+        const late: Time = new Time('2024-06-01T00:00:00Z')
+        assert.strictEqual(Time.max(invalid, early, late), late)
+        assert.strictEqual(Time.min(invalid, late, early), early)
+        assert.strictEqual(Time.max(early, invalid), early)
+        assert.strictEqual(Time.min(late, invalid), late)
+        const other: Time = new Time(NaN)
+        assert.strictEqual(Time.max(invalid, other), invalid)
+        assert.strictEqual(Time.min(invalid, other), invalid)
+    })
 })
