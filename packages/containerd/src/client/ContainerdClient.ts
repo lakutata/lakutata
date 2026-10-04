@@ -1,7 +1,6 @@
 import {randomBytes} from 'node:crypto'
-import {GRPCConnection, GRPCError, GRPCStatus, type CallOptions} from './GRPC.js'
+import {GRPCConnection, GRPCError, GRPCStatus, type CallOptions, Decode, type Message, type Schema} from '@lakutata/grpc'
 import * as M from './Messages.js'
-import {Decode, type Message, type Schema} from './Protobuf.js'
 
 /**
  * A descriptor of content (OCI)

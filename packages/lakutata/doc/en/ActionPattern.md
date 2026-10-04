@@ -119,6 +119,38 @@ The renderers of Electron listen to them with `window.ipc.on(event, listener)` (
 with `socket.on(event, listener)`, the HTTP clients with the Server-Sent Events of `GET /events` (`EventSource`, curl,
 Postman). A page of a window is a client until it is loaded again or its window is closed.
 
+#### 2.2.5 JSON-RPC 2.0 and gRPC
+`JSONRPCServiceEntrypoint` (`lakutata/adapter/jsonrpc`) serves the service actions over JSON-RPC 2.0: the method and the
+params (by name) of a request are the pattern and the input of an action, `{"method": "order.get", "params": {"id": 1}}`
+being dispatched as `{method: 'order.get', id: 1}` (`methodField` names the field, `toPattern(method, params)` maps them
+to other patterns, `positionalParams` accepts the params by position). Its batches and notifications follow the
+specification; the errors are the ones of JSON-RPC: `-32601` (no action matches), `-32602` (the DTO refuses the input),
+`-32000` (the errors of the actions, the whole error as their `data`). Its transports: HTTP (`POST`), WebSocket (the
+package `ws`) and stdio (a child process, framed by lines or by `Content-Length` headers); the last two push the events
+of the clients as notifications (`{"method": event, "params": args}`).
+
+```typescript
+service: [
+    JSONRPCServiceEntrypoint({port: 4000, path: '/rpc'}),
+    JSONRPCServiceEntrypoint({transport: 'websocket', port: 4001}),
+    JSONRPCServiceEntrypoint({transport: 'stdio', framing: 'content-length'})
+]
+```
+
+`GRPCServiceEntrypoint` (`@lakutata/grpc/service`) serves them over gRPC: the service `lakutata.service.v1.Service`
+(`SERVICE_PROTO`, for the clients of the other languages) invokes an action with the JSON of its pattern and its input,
+and streams the events of a client (its metadata `id`). `GRPCServiceProxy` invokes the actions of a remote service and
+listens to its events, as the proxy of NATS does:
+
+```typescript
+service: GRPCServiceEntrypoint({port: 50051, tls: {cert, key}})
+
+components: {orders: BuildGRPCServiceProxy({address: 'orders.internal:50051'})}
+const orders = await app.getObject<GRPCServiceProxy>('orders')
+await orders.invoke({cmd: 'order.get', id: 1})
+orders.on('orderChanged', (order) => {})
+```
+
 ### 2.3 Pattern Manager (PatternManager)
 `PatternManager` is the core component in Lakutata for handling pattern matching in service operations, implemented based on the `Patrun` library.
 

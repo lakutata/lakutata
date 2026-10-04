@@ -5,10 +5,9 @@ import {lstat, mkdir, mkdtemp, rm, symlink, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {Duplex} from 'node:stream'
-import {GRPCConnection} from '../client/GRPC.js'
+import {GRPCConnection, Decode, Encode, type Message, type Schema} from '@lakutata/grpc'
 import {BuildKitSession, GoFileMode, PatternExpression, WalkDirectory, type SyncEntry} from '../client/BuildKit.js'
 import * as B from '../client/BuildKitMessages.js'
-import {Decode, Encode, type Message, type Schema} from '../client/Protobuf.js'
 
 function Frame(schema: Schema, message: Message): Buffer {
     const data: Uint8Array = Encode(schema, message)

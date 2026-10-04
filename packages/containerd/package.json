@@ -31,7 +31,8 @@
     "test:engines": "sh test-env/run.sh"
   },
   "dependencies": {
-    "tar-stream": "3.2.2"
+    "tar-stream": "3.2.2",
+    "@lakutata/grpc": "2.0.126"
   },
   "peerDependencies": {
     "@lakutata/core": "2.0.126",

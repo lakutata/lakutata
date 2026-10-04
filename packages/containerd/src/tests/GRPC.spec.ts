@@ -4,9 +4,8 @@ import http2, {type Http2Server, type ServerHttp2Stream, type IncomingHttpHeader
 import {mkdtemp, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import {GRPCConnection, GRPCError, GRPCStatus} from '../client/GRPC.js'
+import {GRPCConnection, GRPCError, GRPCStatus, Decode, Encode, type Message} from '@lakutata/grpc'
 import {ContainerdClient, IsGRPCError} from '../client/ContainerdClient.js'
-import {Decode, Encode, type Message} from '../client/Protobuf.js'
 import * as M from '../client/Messages.js'
 
 /**

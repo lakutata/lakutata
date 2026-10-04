@@ -118,6 +118,35 @@ export class TaskController extends Controller {
 Electron 的渲染进程通过 `window.ipc.on(事件, 监听器)` 接收（见 Electron 模板），socket 通过 `socket.on(事件, 监听器)`
 接收，HTTP 客户端通过 `GET /events` 的 SSE 事件流接收（`EventSource`、curl、Postman）。窗口页面在重新加载或窗口关闭之前，一直是同一个客户端。
 
+#### 2.2.5 JSON-RPC 2.0 与 gRPC
+`JSONRPCServiceEntrypoint`（`lakutata/adapter/jsonrpc`）通过 JSON-RPC 2.0 提供服务动作：请求的 method 与（按名称传入的）
+params 就是动作的模式与输入，`{"method": "order.get", "params": {"id": 1}}` 会按 `{method: 'order.get', id: 1}` 分发
+（`methodField` 指定字段名，`toPattern(method, params)` 可映射为其他模式，`positionalParams` 可接受按位置传入的参数）。
+批量请求与通知遵循规范；错误使用 JSON-RPC 的错误码：`-32601`（没有匹配的动作）、`-32602`（DTO 校验失败）、`-32000`
+（动作抛出的错误，完整的错误对象在 `data` 中）。支持三种传输：HTTP（`POST`）、WebSocket（需要 `ws` 包）、stdio（作为子进程，
+按行或按 `Content-Length` 头分帧）；后两种会把推送给客户端的事件作为通知发送（`{"method": 事件, "params": 参数}`）。
+
+```typescript
+service: [
+    JSONRPCServiceEntrypoint({port: 4000, path: '/rpc'}),
+    JSONRPCServiceEntrypoint({transport: 'websocket', port: 4001}),
+    JSONRPCServiceEntrypoint({transport: 'stdio', framing: 'content-length'})
+]
+```
+
+`GRPCServiceEntrypoint`（`@lakutata/grpc/service`）通过 gRPC 提供服务动作：服务 `lakutata.service.v1.Service`
+（`SERVICE_PROTO`，供其他语言生成客户端）用 JSON 形式的模式与输入调用动作，并按客户端（其 metadata `id`）推送事件。
+`GRPCServiceProxy` 与 NATS 的服务代理一样，调用远程服务的动作并监听其事件：
+
+```typescript
+service: GRPCServiceEntrypoint({port: 50051, tls: {cert, key}})
+
+components: {orders: BuildGRPCServiceProxy({address: 'orders.internal:50051'})}
+const orders = await app.getObject<GRPCServiceProxy>('orders')
+await orders.invoke({cmd: 'order.get', id: 1})
+orders.on('orderChanged', (order) => {})
+```
+
 ### 2.3 模式管理器 (PatternManager)
 `PatternManager` 是 Lakutata 中处理服务操作模式匹配的核心组件，基于 `Patrun` 库实现。
 

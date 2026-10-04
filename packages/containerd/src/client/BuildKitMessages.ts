@@ -1,4 +1,4 @@
-import type {Schema} from './Protobuf.js'
+import {type Schema} from '@lakutata/grpc'
 import {Timestamp} from './Messages.js'
 
 /*

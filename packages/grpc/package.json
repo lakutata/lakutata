@@ -1,0 +1,63 @@
+{
+  "name": "@lakutata/grpc",
+  "version": "2.0.126",
+  "description": "gRPC for the lakutata framework: its client and its server over HTTP/2 with a schema-driven protobuf codec (no native addon), and the service entrypoint and the service proxy of the service actions over gRPC.",
+  "type": "module",
+  "main": "./dist/cjs/exports/GRPC.js",
+  "types": "./dist/cjs/exports/GRPC.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/types/exports/GRPC.d.ts",
+        "default": "./dist/esm/exports/GRPC.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/GRPC.d.ts",
+        "default": "./dist/cjs/exports/GRPC.js"
+      }
+    },
+    "./service": {
+      "import": {
+        "types": "./dist/types/exports/GRPCService.d.ts",
+        "default": "./dist/esm/exports/GRPCService.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/GRPCService.d.ts",
+        "default": "./dist/cjs/exports/GRPCService.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist', {recursive: true, force: true})\"",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:cjs-pkg": "node -e \"require('node:fs').writeFileSync('dist/cjs/package.json',JSON.stringify({type:'commonjs'}))\"",
+    "build:js": "npm run build:cjs && npm run build:esm && npm run build:cjs-pkg",
+    "rebuild": "npm run clean && npm run build:js",
+    "compile": "npm run rebuild",
+    "test:unit": "npm run compile && node --test \"dist/esm/tests/*.spec.js\""
+  },
+  "peerDependencies": {
+    "@lakutata/core": "2.0.126",
+    "@lakutata/entrypoint": "2.0.126"
+  },
+  "peerDependenciesMeta": {
+    "@lakutata/core": {
+      "optional": true
+    },
+    "@lakutata/entrypoint": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "dist",
+    "!dist/*/tests",
+    "*.md",
+    "LICENSE",
+    "package.json"
+  ]
+}

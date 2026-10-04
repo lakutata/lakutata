@@ -1,4 +1,4 @@
-import type {Schema} from './Protobuf.js'
+import {type Schema} from '@lakutata/grpc'
 
 /*
  * The messages of the API of containerd (github.com/containerd/containerd, api/), the fields read and written: their

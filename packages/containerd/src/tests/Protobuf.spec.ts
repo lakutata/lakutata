@@ -1,6 +1,6 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
-import {Decode, Encode, type Schema} from '../client/Protobuf.js'
+import {Decode, Encode, type Schema} from '@lakutata/grpc'
 import * as M from '../client/Messages.js'
 
 describe('The protobuf codec of the messages of containerd', (): void => {

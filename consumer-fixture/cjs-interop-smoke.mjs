@@ -78,6 +78,12 @@ await check('@lakutata/docker loads under ESM', () => {
 const {pack: TarPack} = await import('tar-stream')
 await check('tar-stream pack (build context)', () => { TarPack().finalize() })
 
+// @lakutata/grpc — the gRPC over HTTP/2 of containerd, BuildKit and the service actions
+await check('CJS @lakutata/grpc loads', () => {
+    if (typeof requireCJS('../packages/grpc/dist/cjs/exports/GRPC.js').GRPCServer !== 'function') throw new Error('GRPCServer missing')
+    if (typeof requireCJS('../packages/grpc/dist/cjs/exports/GRPCService.js').GRPCServiceEntrypoint !== 'function') throw new Error('GRPCServiceEntrypoint missing')
+})
+
 // @lakutata/containerd — the client of the API of containerd (gRPC over HTTP/2) is integrated
 await check('CJS @lakutata/containerd loads', () => {
     if (typeof requireCJS('../packages/containerd/dist/cjs/exports/Containerd.js').Containerd !== 'function') throw new Error('Containerd missing')

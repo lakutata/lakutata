@@ -55,6 +55,9 @@
       ],
       "@lakutata/logger": [
         "../logger/dist/types/exports/Logger"
+      ],
+      "@lakutata/grpc": [
+        "../grpc/dist/types/exports/GRPC"
       ]
     }
   },

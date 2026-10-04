@@ -1,5 +1,5 @@
-import http2, {type ClientHttp2Session, type ClientHttp2Stream, type Http2Server, type IncomingHttpHeaders, type IncomingHttpStatusHeader, type ServerHttp2Stream} from 'node:http2'
-import net from 'node:net'
+import http2, {type ClientHttp2Session, type ClientHttp2Stream, type Http2SecureServer, type Http2Server, type Http2Session, type IncomingHttpHeaders, type IncomingHttpStatusHeader, type ServerHttp2Stream} from 'node:http2'
+import net, {type AddressInfo} from 'node:net'
 import type {Duplex} from 'node:stream'
 import tls from 'node:tls'
 import {Decode, Encode, type Message, type Schema} from './Protobuf.js'
@@ -463,11 +463,24 @@ export class GRPCServerCall {
  */
 export class GRPCServer {
 
-    readonly #server: Http2Server = http2.createServer()
+    readonly #server: Http2Server | Http2SecureServer
 
     readonly #methods: Map<string, (call: GRPCServerCall) => Promise<void>> = new Map()
 
-    constructor() {
+    readonly #sessions: Set<Http2Session> = new Set()
+
+    /**
+     * @param options its TLS (its certificate and its key, the authority of the certificates of its clients)
+     */
+    constructor(options: { tls?: GRPCServerTLSOptions } = {}) {
+        this.#server = options.tls ? http2.createSecureServer({
+            cert: options.tls.cert,
+            key: options.tls.key,
+            ca: options.tls.ca,
+            requestCert: !!options.tls.ca,
+            rejectUnauthorized: !!options.tls.ca,
+            ALPNProtocols: ['h2']
+        }) : http2.createServer()
         this.#server.on('stream', (stream: ServerHttp2Stream, headers: IncomingHttpHeaders): void => {
             const call: GRPCServerCall = new GRPCServerCall(stream, headers)
             const method = this.#methods.get(call.path)
@@ -477,6 +490,10 @@ export class GRPCServer {
             })
         })
         this.#server.on('sessionError', (): void => undefined)
+        this.#server.on('session', (session: Http2Session): void => {
+            this.#sessions.add(session)
+            session.once('close', (): unknown => this.#sessions.delete(session))
+        })
     }
 
     /**
@@ -503,4 +520,46 @@ export class GRPCServer {
     public serve(socket: Duplex): void {
         this.#server.emit('connection', socket)
     }
+
+    /**
+     * Listen on a port (0: a free one) or on a unix socket
+     * @param options
+     * @return the address listened on (its port)
+     */
+    public async listen(options: { port?: number, host?: string, socketPath?: string }): Promise<AddressInfo | string> {
+        await new Promise<void>((resolve: () => void, reject: (error: Error) => void): void => {
+            this.#server.once('error', reject)
+            const listening = (): void => {
+                this.#server.off('error', reject)
+                resolve()
+            }
+            if (options.socketPath) this.#server.listen(options.socketPath, listening)
+            else this.#server.listen(options.port ?? 50051, options.host, listening)
+        })
+        return this.#server.address() as AddressInfo | string
+    }
+
+    /**
+     * Close the server: its sessions closed once their streams end (or destroyed after the grace time)
+     * @param grace milliseconds
+     */
+    public async close(grace: number = 5000): Promise<void> {
+        const closing: Promise<void> = new Promise<void>((resolve: () => void): void => void this.#server.close((): void => resolve()))
+        const timer: NodeJS.Timeout = setTimeout((): void => this.#sessions.forEach((session: Http2Session): unknown => session.destroy()), grace)
+        this.#sessions.forEach((session: Http2Session): unknown => session.close())
+        await closing
+        clearTimeout(timer)
+    }
+}
+
+/**
+ * The TLS of a server
+ */
+export type GRPCServerTLSOptions = {
+    cert: string | Buffer
+    key: string | Buffer
+    /**
+     * The authority of the certificates of the clients: the clients without a certificate it signs are refused
+     */
+    ca?: string | Buffer
 }
