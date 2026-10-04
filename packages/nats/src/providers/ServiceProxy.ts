@@ -6,21 +6,60 @@ import {ServiceResponseCodec} from '@lakutata/entrypoint/channel'
 import {NatsNoRespondersAvailableException} from '../exceptions/NatsNoRespondersAvailableException.js'
 
 /**
- * Build service proxy options
+ * The options of a {@link ServiceProxy}, given to {@link BuildServiceProxy}.
  */
 export type BuildServiceProxyOptions = {
+    /**
+     * The name of the {@link NATS} component the proxy sends its requests through, as registered in the components.
+     */
     readonly natsComponentName: string
+    /**
+     * The id of the remote service: the subject its {@link NatsServiceEntrypoint} listens on, which is its application
+     * id (its `id` option) unless the entrypoint's `subject` option changes it. Its events are listened to under this id
+     * too, which only matches the application id.
+     */
     readonly serviceId: string
-    /** The retries of the requests nobody received (no responder), 3 by default; the timeouts and the failures are not retried */
+    /**
+     * The number of times a request nobody received (no responder: the service is not running or is restarting) is
+     * sent again before {@link NatsNoRespondersAvailableException} is thrown. The timeouts and the failures of the
+     * service are never retried, since the request may have been processed.
+     * @default 3
+     */
     readonly maxRetries?: number
-    /** ms, the delay before each retry, 100 by default */
+    /**
+     * The delay before each retry, in milliseconds.
+     * @default 100
+     */
     readonly retryDelay?: number
 }
 
 /**
- * Build service proxy
- * @param options
- * @constructor
+ * Build the component options of a {@link ServiceProxy}, to register it in the `components` of an application under the
+ * name of your choice; declare one per remote service. The options are validated when the component is created, not
+ * here.
+ * @param options The NATS component to use, the id of the remote service, and the retries of the requests nobody
+ * received.
+ * @returns The component options (`{class: ServiceProxy, ...options}`).
+ * @example
+ * ```typescript
+ * import {Application} from 'lakutata'
+ * import {buildNatsClientOptions, BuildServiceProxy, type ServiceProxy} from '@lakutata/nats'
+ *
+ * Application
+ *     .run({
+ *         id: 'shop.app',
+ *         name: 'Shop',
+ *         components: {
+ *             nats: buildNatsClientOptions({servers: 'nats://127.0.0.1:4222'}),
+ *             //The actions and the events of the application whose id is "order.service"
+ *             orderService: BuildServiceProxy({natsComponentName: 'nats', serviceId: 'order.service', maxRetries: 5})
+ *         }
+ *     })
+ *     .onLaunched(async (app: Application): Promise<void> => {
+ *         const orderService: ServiceProxy = await app.getObject('orderService')
+ *         console.log(await orderService.invoke({cmd: 'order.get', id: 1}))
+ *     })
+ * ```
  */
 export const BuildServiceProxy: ComponentOptionsBuilder<BuildServiceProxyOptions> = (options: BuildServiceProxyOptions) => {
     return {
@@ -33,93 +72,154 @@ export const BuildServiceProxy: ComponentOptionsBuilder<BuildServiceProxyOptions
 }
 
 /**
- * Service proxy provider
- */
-/**
- * The proxy of a remote service: invokes its actions and listens to its events
- * A component (one instance per declaration in the components): its event subscriptions live as long as it,
- * they are cancelled when it is destroyed
+ * The proxy of a remote service served by {@link NatsServiceEntrypoint}: it invokes the service's actions and listens to
+ * its events, over a {@link NATS} component. Register it in the `components` of an application with
+ * {@link BuildServiceProxy}, one per remote service, and get it with `getObject()` or `@Inject`; it is a singleton. It
+ * resolves its NATS component when it is created (which fails when that component is not registered).
+ *
+ * An invocation is a NATS request to the service id, answered by one instance of the service (its queue group): the
+ * action's result is returned, the action's failure thrown as a `ServiceInvokeException` carrying the remote error's
+ * properties (`errno`, `statusCode`, `message`…). A request nobody received is sent again (`maxRetries`, `retryDelay`);
+ * a timeout is never retried, since the action may have run. Large requests and responses go through the bulk channel
+ * of the NATS component (see {@link NATS}).
+ *
+ * The event listeners registered through the proxy are removed when it is destroyed.
+ * @example
+ * ```typescript
+ * import {Application, Component} from 'lakutata'
+ * import {Inject} from 'lakutata/decorator/di'
+ * import {buildNatsClientOptions, BuildServiceProxy, ServiceInvokeException, type ServiceProxy} from '@lakutata/nats'
+ *
+ * type Order = {id: number, total: number}
+ *
+ * class Billing extends Component {
+ *     @Inject('orderService')
+ *     protected readonly orderService: ServiceProxy
+ *
+ *     public async total(id: number): Promise<number | undefined> {
+ *         try {
+ *             //The action of the order service matching {cmd: 'order.get'}, its input {id}; 30 seconds at most
+ *             const order: Order = await this.orderService.invoke({cmd: 'order.get', id: id}, 30000)
+ *             return order.total
+ *         } catch (error) {
+ *             //The action failed: the remote error's errno and statusCode are copied
+ *             if (error instanceof ServiceInvokeException && error.statusCode === 404) return undefined
+ *             //NatsNoRespondersAvailableException (not running, after the retries), NatsRequestTimeoutException…
+ *             throw error
+ *         }
+ *     }
+ * }
+ *
+ * Application
+ *     .run({
+ *         id: 'billing.app',
+ *         name: 'Billing',
+ *         components: {
+ *             nats: buildNatsClientOptions({servers: 'nats://127.0.0.1:4222'}),
+ *             orderService: BuildServiceProxy({natsComponentName: 'nats', serviceId: 'order.service'}),
+ *             billing: {class: Billing}
+ *         }
+ *     })
+ *     .onLaunched(async (app: Application): Promise<void> => {
+ *         const orderService: ServiceProxy = await app.getObject('orderService')
+ *         //The events emitted by the order service with NATS.emitServiceEvent('orderPaid', id, total)
+ *         orderService.on('orderPaid', (id: number, total: number): void => console.log(`Order ${id} paid: ${total}`))
+ *         const billing: Billing = await app.getObject('billing')
+ *         console.log(await billing.total(1))
+ *     })
+ * ```
  */
 export class ServiceProxy extends Component {
     /**
-     * Inject application instance
-     * @protected
+     * The application the proxy belongs to, to resolve its NATS component.
      */
     @Inject(Application)
     protected readonly app: Application
 
     /**
-     * NATS registered component name
-     * @protected
+     * The name of the NATS component the proxy uses.
      */
     @Configurable(DTO.String().required())
     protected readonly natsComponentName: string
 
     /**
-     * Service ID
-     * @protected
+     * The id of the remote service: the subject of its requests and the id of its events.
      */
     @Configurable(DTO.String().required())
     protected readonly serviceId: string
 
     /**
-     * The retries of the requests nobody received (no responder), the timeouts and the failures of the service are not retried
-     * @protected
+     * The number of times a request nobody received is sent again; the timeouts and the failures of the service are
+     * never retried.
+     * @default 3
      */
     @Configurable(DTO.Number().integer().optional().default(3))
     protected readonly maxRetries: number
 
     /**
-     * ms, the delay before each retry
-     * @protected
+     * The delay before each retry, in milliseconds.
+     * @default 100
      */
     @Configurable(DTO.Number().integer().optional().default(100))
     protected readonly retryDelay: number
 
     /**
-     * NATS component instance
-     * @protected
+     * The NATS component, resolved when the proxy is created.
      */
     protected nats: NATS
 
     /**
-     * Initializer
-     * @protected
+     * The event listeners registered through this proxy, by event name, removed when it is destroyed.
      */
-    /**
-     * The event listeners subscribed through this proxy, by event name
-     * @protected
-     */
-    protected readonly eventListeners: Map<string, Set<(...args: any[]) => void>> = new Map()
+    protected readonly eventListeners: Map<string, Map<(...args: any[]) => void, (...args: any[]) => unknown>> = new Map()
 
+    /**
+     * Resolve the NATS component.
+     * @throws {Error} When no component is registered under `natsComponentName`.
+     */
     protected async init(): Promise<void> {
         this.nats = await this.app.getObject<NATS>(this.natsComponentName)
     }
 
     /**
-     * Cancel the event subscriptions of this proxy
-     * @protected
+     * Remove the event listeners registered through this proxy.
      */
     protected async destroy(): Promise<void> {
-        this.eventListeners.forEach((listeners: Set<(...args: any[]) => void>, eventName: string): void => listeners.forEach((listener: (...args: any[]) => void): unknown => this.nats.offServiceEvent(this.serviceId, eventName, listener)))
+        this.eventListeners.forEach((listeners: Map<(...args: any[]) => void, (...args: any[]) => unknown>, eventName: string): void => listeners.forEach((wrapper: (...args: any[]) => unknown): unknown => this.nats.offServiceEvent(this.serviceId, eventName, wrapper)))
         this.eventListeners.clear()
     }
 
     /**
-     * Keep an event listener subscribed through this proxy
-     * @param eventName
-     * @param listener
-     * @protected
+     * Record an event listener registered through this proxy, to remove it when the proxy is destroyed.
+     * @param eventName The event name.
+     * @param listener The listener.
      */
-    protected keepListener(eventName: string, listener: (...args: any[]) => void): void {
-        const listeners: Set<(...args: any[]) => void> = this.eventListeners.get(eventName) ?? new Set()
-        this.eventListeners.set(eventName, listeners.add(listener))
+    protected keepListener(eventName: string, listener: (...args: any[]) => void): ((...args: any[]) => unknown) | undefined {
+        const listeners: Map<(...args: any[]) => void, (...args: any[]) => unknown> = this.eventListeners.get(eventName) ?? new Map()
+        this.eventListeners.set(eventName, listeners)
+        //Added once
+        if (listeners.has(listener)) return undefined
+        //A wrapper of this proxy: the NATS component shared by the proxies keeps their listeners apart, the same function
+        //added by two proxies included
+        const wrapper = (...args: any[]): unknown => listener(...args)
+        listeners.set(listener, wrapper)
+        return wrapper
     }
 
     /**
-     * Invoke service registered method by pattern
-     * @param input
-     * @param timeout ms, 10 minutes by default: a missing service fails at once (no responder), the timeout only covers a request received but processed too slowly
+     * Invoke an action of the remote service and return its result.
+     * @param input The message: the action's pattern (as declared by its `@ServiceAction`) and its input, in one object
+     * (`{cmd: 'order.get', id: 1}`). It is encoded with the NATS component's codec (plain JSON data).
+     * @param timeout The time to wait for the response of each attempt, in milliseconds. A missing service fails at once
+     * (no responder), so it only bounds a request received and processed too slowly; `0` waits 600000 (10 minutes).
+     * @returns The action's result (the data of a `StatusResult`).
+     * @throws {ServiceInvokeException} When the action fails, or no action matches: its message is the remote error's, its
+     * `errno`, `statusCode` and other properties are copied from it, its `service` is the service id.
+     * @throws {NatsNoRespondersAvailableException} When nobody received the request, after `maxRetries` retries.
+     * @throws {NatsRequestTimeoutException} When no response arrives in time (never retried: the action may have run).
+     * @throws {NatsBulkException} When a large request cannot be stored, or a large response cannot be read.
+     * @throws {Error} The NATS client error `MAX_PAYLOAD_EXCEEDED` when a request too large is not relayed (see
+     * {@link NATS.request}), `CONNECTION_CLOSED` once the connection is closed.
      */
     public async invoke<T extends Record<string, any>>(input: ActionPattern<T>, timeout: number = 10 * 60 * 1000): Promise<any> {
         //Only a request nobody received is retried: no instance processed it, so the retry is its first processing.
@@ -140,36 +240,55 @@ export class ServiceProxy extends Component {
     }
 
     /**
-     * On service event
-     * @param eventName
-     * @param listener
-     * @param onlySingleClientReceived
+     * Listen to an event of the remote service, emitted by its NATS component with `emitServiceEvent()`. A listener
+     * registered again for the same event on the same NATS component is ignored.
+     * @param eventName The event name.
+     * @param listener The listener, receiving the event's arguments.
+     * @param onlySingleClientReceived Whether each event goes to one of the listeners registered with `true` for it, across
+     * all the applications (a queue group, such as the instances of one service), instead of to each of them.
+     * @returns The proxy, for chaining.
      */
     public on(eventName: string, listener: (...args: any[]) => void, onlySingleClientReceived: boolean = false): this {
-        this.nats.onServiceEvent(this.serviceId, eventName, listener, onlySingleClientReceived)
-        this.keepListener(eventName, listener)
+        const wrapper: ((...args: any[]) => unknown) | undefined = this.keepListener(eventName, listener)
+        if (wrapper) this.nats.onServiceEvent(this.serviceId, eventName, wrapper, onlySingleClientReceived)
         return this
     }
 
     /**
-     * Once service event
-     * @param eventName
-     * @param listener
+     * Listen to the next occurrence of an event of the remote service only.
+     * @param eventName The event name.
+     * @param listener The listener, receiving the event's arguments.
+     * @returns The proxy, for chaining.
      */
     public once(eventName: string, listener: (...args: any[]) => void): this {
-        this.nats.onceServiceEvent(this.serviceId, eventName, listener)
-        this.keepListener(eventName, listener)
+        if (!this.keepListener(eventName, listener)) return this
+        //The function registered is the one kept: off() removes it
+        const registered = (...args: any[]): unknown => {
+            this.eventListeners.get(eventName)?.delete(listener)
+            return listener(...args)
+        }
+        this.eventListeners.get(eventName)!.set(listener, registered)
+        this.nats.onceServiceEvent(this.serviceId, eventName, registered)
         return this
     }
 
     /**
-     * Off service events
-     * @param eventName
-     * @param listener
+     * Stop listening to an event of the remote service.
+     * @param eventName The event name.
+     * @param listener The listener to remove; without it, every listener of the event added through this proxy (the
+     * listeners added through the other proxies or `NATS.onServiceEvent()` are kept).
+     * @returns The proxy, for chaining.
      */
     public off(eventName: string, listener?: (...args: any[]) => void): this {
-        this.nats.offServiceEvent(this.serviceId, eventName, listener)
-        listener ? this.eventListeners.get(eventName)?.delete(listener) : this.eventListeners.delete(eventName)
+        //This proxy's listeners only: the other proxies of the NATS component keep theirs
+        const listeners: Map<(...args: any[]) => void, (...args: any[]) => unknown> | undefined = this.eventListeners.get(eventName)
+        if (!listeners) return this
+        for (const [registered, wrapper] of [...listeners]) {
+            if (listener && registered !== listener) continue
+            this.nats.offServiceEvent(this.serviceId, eventName, wrapper)
+            listeners.delete(registered)
+        }
+        if (!listeners.size) this.eventListeners.delete(eventName)
         return this
     }
 }

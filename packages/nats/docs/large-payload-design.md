@@ -118,7 +118,10 @@ emitServiceEvent(evt, big) → encode ≥ 阈值 → put → publish(subject, {_
 
 | header 键 | 方向 | 含义 |
 |---|---|---|
-| `X-Lkt-Chunk: 1` | 请求 | 客户端能力声明:能处理引用中转 |
+| `X-Lkt-Bulk: 1` | 请求、响应 | 能力声明:这一侧开启了 bulk 通道,能处理引用中转 |
+| `X-Lkt-Ref: 1` | 请求、响应 | 标记:payload 是指向 Object Store 的引用 `{__ref}` |
+
+能力探测:请求方第一次向某个 subject 发送超过阈值的请求、又还不知道对端能力时,先向 `_LKT.BULK.<subject>` 发一个空请求;开启了 bulk 通道的新版响应方订阅了这个探测 subject 并回带 `X-Lkt-Bulk: 1` 的空响应,旧版没有订阅(无响应者/超时)即视为不支持。探测结果和普通响应学到的能力一样按 subject 缓存。
 
 - payload 永远是业务数据或 `{__ref}`,协议元信息只在 header → 不污染、跨语言干净;
 - `server` 是否支持 header:从 `nc.info.headers` 自动判断,不支持则自动退化。

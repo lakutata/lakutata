@@ -42,6 +42,7 @@ describe('S2 RPC large data relay', (): void => {
     let self: ServiceProxy
     let legacy: ServiceProxy
     let mismatch: ServiceProxy
+    let cold: ServiceProxy
 
     before(async (): Promise<void> => {
         const n = await ensureNats()
@@ -53,25 +54,34 @@ describe('S2 RPC large data relay', (): void => {
                 natsLegacy: buildNatsClientOptions({servers: n.url, bulk: false}), //Simulates a client without bulk support
                 //Uses a different bucket: the server puts the large response into its own bucket, this client cannot fetch it from its own bucket, simulating an unresolvable reference
                 natsMismatch: buildNatsClientOptions({servers: n.url, bulkBucket: 'mismatch-bucket'}),
+                //A client which never requested the service: its capability unknown
+                natsCold: buildNatsClientOptions({servers: n.url}),
                 entrypoint: BuildEntrypoints({
                     controllers: [BulkController],
                     service: SetupNatsServiceEntrypoint('nats')
                 }),
                 self: BuildServiceProxy({serviceId: 'it.bulkrpc.app', natsComponentName: 'nats'}),
                 legacy: BuildServiceProxy({serviceId: 'it.bulkrpc.app', natsComponentName: 'natsLegacy'}),
-                mismatch: BuildServiceProxy({serviceId: 'it.bulkrpc.app', natsComponentName: 'natsMismatch'})
+                mismatch: BuildServiceProxy({serviceId: 'it.bulkrpc.app', natsComponentName: 'natsMismatch'}),
+                cold: BuildServiceProxy({serviceId: 'it.bulkrpc.app', natsComponentName: 'natsCold'})
             },
             bootstrap: ['entrypoint']
         })
         self = await app.getObject<ServiceProxy>('self')
         legacy = await app.getObject<ServiceProxy>('legacy')
         mismatch = await app.getObject<ServiceProxy>('mismatch')
+        cold = await app.getObject<ServiceProxy>('cold')
     }, {timeout: 120000})
 
     after(async (): Promise<void> => {
         if (app) await destroyApp(app)
         await stopNats()
     }, {timeout: 60000})
+
+    it('large request first: the capability of the service is probed, the 1.5MB request relayed', async (): Promise<void> => {
+        const result: any = await cold.invoke({cmd: 'bigEcho', data: 'x'.repeat(BIG)}, 30000)
+        expect(result.len).toBe(BIG)
+    })
 
     it('large response: invoke gets the full 1.5MB response (>max_payload, proving the Object Store was used)', async (): Promise<void> => {
         const result: any = await self.invoke({cmd: 'bigResponse', size: BIG}, 30000)
