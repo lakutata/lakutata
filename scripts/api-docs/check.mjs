@@ -18,7 +18,8 @@ import ts from 'typescript'
 const ROOT = fileURLToPath(new URL('../../', import.meta.url))
 const PACKAGES = path.join(ROOT, 'packages')
 const BASELINE = fileURLToPath(new URL('./baseline.json', import.meta.url))
-const EXAMPLES = path.join(ROOT, 'consumer-fixture', '.examples')
+//A directory of each run: the runs at the same time do not share their examples
+const EXAMPLES = path.join(ROOT, 'consumer-fixture', '.examples', String(process.pid))
 const README_SECTIONS = ['## Installation', '## Usage', '## API']
 
 const {values: args} = parseArgs({
@@ -245,6 +246,7 @@ function CompileExamples(examples) {
     const applications = ts.getParsedCommandLineOfConfigFile(path.join(PACKAGES, 'lakutata', 'tsconfig.base.json'), {}, {...ts.sys, onUnRecoverableConfigFileDiagnostic: () => undefined})
     const program = ts.createProgram([...files.keys()], {...applications.options, types: ['node'], noEmit: true})
     const errors = ts.getPreEmitDiagnostics(program).filter(diagnostic => diagnostic.file && files.has(diagnostic.file.fileName))
+    rmSync(EXAMPLES, {recursive: true, force: true})
     return errors.map(diagnostic => {
         const example = files.get(diagnostic.file.fileName)
         const {line} = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start)

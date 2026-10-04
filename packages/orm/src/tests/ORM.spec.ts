@@ -207,14 +207,14 @@ describe('The ORM', (): void => {
          * @param env
          * @param options the names of the databases, a migration failing
          */
-        function command(directory: string, env: Record<string, string>, options: { databases?: string[], failing?: boolean } = {}): SpawnSyncReturns<string> {
+        function command(directory: string, env: Record<string, string>, options: { databases?: string[], failing?: boolean, transactionMode?: string } = {}): SpawnSyncReturns<string> {
             const databases: string[] = options.databases ?? ['db']
             const script: string = [
                 `import {Application} from '${import.meta.resolve('@lakutata/core')}'`,
                 `import {BuildDatabaseOptions} from '${new URL('../exports/DatabaseComponent.js', import.meta.url)}'`,
                 'class CreateNote1700000000000 { name = \'CreateNote1700000000000\'; async up(q) { await q.query(\'CREATE TABLE "note" ("id" integer PRIMARY KEY)\') } async down(q) { await q.query(\'DROP TABLE "note"\') } }',
                 `class CreateTag1700000000001 { name = 'CreateTag1700000000001'; async up(q) { ${options.failing ? 'throw new Error(\'the tag fails\')' : 'await q.query(\'CREATE TABLE "tag" ("id" integer PRIMARY KEY)\')'} } async down(q) { await q.query('DROP TABLE "tag"') } }`,
-                `const components = Object.fromEntries(${JSON.stringify(databases)}.map((name) => [name, BuildDatabaseOptions({type: 'sqlite', database: name + '.db', migrations: [CreateNote1700000000000, CreateTag1700000000001]})]))`,
+                `const components = Object.fromEntries(${JSON.stringify(databases)}.map((name) => [name, BuildDatabaseOptions({type: 'sqlite', database: name + '.db', migrations: [CreateNote1700000000000, CreateTag1700000000001]${options.transactionMode ? `, migrationsTransactionMode: '${options.transactionMode}'` : ''}})]))`,
                 'Application.run({id: \'migration.test\', name: \'MigrationTest\', components: components})'
             ].join('\n')
             const base: NodeJS.ProcessEnv = Object.fromEntries(Object.entries(process.env).filter(([name]): boolean => !name.toUpperCase().startsWith('MIGRATION_')))
@@ -289,6 +289,16 @@ describe('The ORM', (): void => {
             const invalid: SpawnSyncReturns<string> = command(directory, {MIGRATION_RUN: '1', MIGRATION_TRANSACTION: 'some'})
             assert.notStrictEqual(invalid.status, 0, invalid.stderr + invalid.stdout)
             assert.match(invalid.stderr, /MIGRATION_TRANSACTION is all, none or each, not "some"/)
+        }))
+
+        it('runs the migrations in the transactions of the database, unless MIGRATION_TRANSACTION is set', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+            //A transaction for each migration (migrationsTransactionMode): the first one kept
+            assert.strictEqual(command(directory, {MIGRATION_RUN: '1'}, {failing: true, transactionMode: 'each'}).status, 1)
+            assert.deepStrictEqual(await tablesOf(path.join(directory, 'db.db')), ['note'])
+            await rm(path.join(directory, 'db.db'))
+            //MIGRATION_TRANSACTION first: one transaction for all, none kept
+            assert.strictEqual(command(directory, {MIGRATION_RUN: '1', MIGRATION_TRANSACTION: 'all'}, {failing: true, transactionMode: 'each'}).status, 1)
+            assert.deepStrictEqual(await tablesOf(path.join(directory, 'db.db')), [])
         }))
     })
 
