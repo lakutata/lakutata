@@ -15,18 +15,35 @@ type Packaged = {
 }
 
 /**
- * Whether the application runs packed: bundled (lakutata package bundle) or in an executable (lakutata package exe)
+ * Tell whether the application runs packed: bundled by `lakutata package bundle`, or inside a single executable built by
+ * `lakutata package exe`.
+ * @returns `true` when packed, `false` when it runs from its sources or its build (in development).
+ * @example
+ * ```typescript
+ * import {IsPackaged} from 'lakutata'
+ *
+ * //The updates are only checked by the released builds
+ * if (IsPackaged()) console.log('Running the released build')
+ * ```
  */
 export function IsPackaged(): boolean {
     return !!(globalThis as Record<symbol, unknown>)[PACKAGED]
 }
 
 /**
- * The directory of the resources of a packed application (the "lakutata.resources" of its package.json, by their "to"),
- * undefined when it does not run packed: the application gives its own then (in development, the directory they are
- * built in)
+ * Get the directory of the resources of a packed application: the files declared by the `lakutata.resources` field of
+ * its package.json, at their `to` paths (extracted first when it runs in a single executable).
+ * @returns The absolute path of the directory, or `undefined` when the application does not run packed: it then locates
+ * its resources itself (in development, the directory they are built in).
  * @example
- * const ui: string = ResourcesPath() ? path.join(ResourcesPath()!, 'ui') : path.join(uiPackage, 'dist')
+ * ```typescript
+ * import path from 'node:path'
+ * import {ResourcesPath} from 'lakutata'
+ *
+ * //The web UI served by the application: its packed copy, or its build in development
+ * const resources: string | undefined = ResourcesPath()
+ * const ui: string = resources ? path.join(resources, 'ui') : path.resolve('ui', 'dist')
+ * ```
  */
 export function ResourcesPath(): string | undefined {
     return ((globalThis as Record<symbol, unknown>)[PACKAGED] as Packaged | undefined)?.resources()

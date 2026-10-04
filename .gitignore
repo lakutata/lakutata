@@ -306,3 +306,4 @@ src/tests/**/*.csv
 .npmrc
 CLAUDE.md
 proposal/
+consumer-fixture/.examples
