@@ -284,6 +284,18 @@ export function SignalNumber(signal: string | number): number {
 }
 
 /**
+ * The counters of a metrics message as numbers: the 64-bit ones beyond 2^53 (an unlimited limit, 2^64 - 1) are decoded
+ * as bigints, the statistics are numbers
+ * @param value
+ */
+function Counters<T>(value: T): T {
+    if (typeof value === 'bigint') return Number(value) as T
+    if (Array.isArray(value)) return value.map(Counters) as T
+    if (value && typeof value === 'object' && !(value instanceof Uint8Array)) return Object.fromEntries(Object.entries(value).map(([key, item]): [string, unknown] => [key, Counters(item)])) as T
+    return value
+}
+
+/**
  * The containers of containerd: created from the images (their specifications of OCI, their snapshots), their tasks
  * started, stopped, executed in; their logs written by the shims of containerd (file://), kept by the restart monitor
  * of containerd as their restart policies ask
@@ -997,7 +1009,7 @@ export class ContainerStore {
             networks: {}
         }
         if (type.endsWith('cgroups.v2.Metrics')) {
-            const metrics: Message = Decode(M.CgroupV2Metrics, data)
+            const metrics: Message = Counters(Decode(M.CgroupV2Metrics, data))
             stats.pids = {current: metrics.pids?.current ?? 0, limit: metrics.pids?.limit ?? 0}
             stats.cpu = {
                 usage: (metrics.cpu?.usageUsec ?? 0) * 1000,
@@ -1023,7 +1035,7 @@ export class ContainerStore {
                 stats.blkio.writeOps += entry.wios ?? 0
             }
         } else if (type.endsWith('cgroups.v1.Metrics')) {
-            const metrics: Message = Decode(M.CgroupV1Metrics, data)
+            const metrics: Message = Counters(Decode(M.CgroupV1Metrics, data))
             stats.pids = {current: metrics.pids?.current ?? 0, limit: metrics.pids?.limit ?? 0}
             stats.cpu = {
                 usage: metrics.cpu?.usage?.total ?? 0,
