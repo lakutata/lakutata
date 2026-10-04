@@ -311,4 +311,4 @@ if (failures.length) {
     process.exit(1)
 }
 const remaining = packages.reduce((total, pkg) => total + current[pkg].size, 0)
-console.log(`The public API is documented as its baseline lists (${remaining} declarations left), its ${examples.length} examples compile.`)
+console.log(`The public API is documented as its baseline lists (${remaining} declarations left), ${args['skip-examples'] ? `its ${examples.length} examples not compiled (--skip-examples)` : `its ${examples.length} examples compile`}.`)

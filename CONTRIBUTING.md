@@ -85,7 +85,8 @@ the options of an application) is fenced as `text` or completed into a module.
 
 ### The check
 
-`npm run test:api-docs` builds the packages, then:
+`npm run lint` runs the check without compiling the examples (no build needed); `npm run test:api-docs` builds the
+packages, then runs it whole:
 
 - reports each public declaration missing its description, an `@param` of one of its parameters, or the `@example` of a
   class or a function (the exceptions need none), and each library package missing its README or one of its sections;

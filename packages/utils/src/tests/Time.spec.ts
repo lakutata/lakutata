@@ -28,8 +28,10 @@ describe('Time', (): void => {
     })
 
     it('compares times', (): void => {
-        const early: Time = new Time('2024-01-01T00:00:00Z')
-        const late: Time = new Time('2024-06-01T00:00:00Z')
+        //In UTC: the days between two times are counted on their wall clock (a change of offset between them, as the
+        //DST of the zone of the process, would count one hour less or more)
+        const early: Time = new Time('2024-01-01T00:00:00Z').timezone('UTC')
+        const late: Time = new Time('2024-06-01T00:00:00Z').timezone('UTC')
         assert.ok(early.isBefore(late) && late.isAfter(early))
         assert.strictEqual(Time.max(early, late).valueOf(), late.valueOf())
         assert.strictEqual(Time.min(early, late).valueOf(), early.valueOf())

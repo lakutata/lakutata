@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "lint": "eslint .",
+    "lint": "eslint . && node scripts/api-docs/check.mjs --skip-examples",
     "build": "npm run compile -w @lakutata/utils && npm run compile -w @lakutata/core && npm run compile -w @lakutata/logger && npm run compile -w @lakutata/entrypoint && npm run compile -w @lakutata/i18n && npm run compile -w @lakutata/nats && npm run compile -w @lakutata/mcp && npm run compile -w @lakutata/dbus && npm run compile -w @lakutata/security && npm run compile -w @lakutata/cache && npm run compile -w @lakutata/mutex && npm run compile -w @lakutata/docker && npm run compile -w @lakutata/grpc && npm run compile -w @lakutata/containerd && npm run compile -w @lakutata/orm && npm run compile -w @lakutata/monitor && npm run compile -w packages/lakutata && npm run compile -w @lakutata/builder && npm run compile -w @lakutata/cli",
     "test:unit": "npm run test:unit -w @lakutata/utils && npm run test:unit -w @lakutata/core && npm run test:unit -w @lakutata/logger && npm run test:unit -w @lakutata/entrypoint && npm run test:unit -w @lakutata/i18n && npm run test:unit -w @lakutata/nats && npm run test:unit -w @lakutata/security && npm run test:unit -w @lakutata/cache && npm run test:unit -w @lakutata/mutex && npm run test:unit -w @lakutata/docker && npm run test:unit -w @lakutata/grpc && npm run test:unit -w @lakutata/containerd && npm run test:unit -w @lakutata/orm && npm run test:unit -w @lakutata/monitor",
     "test:fastpath": "npm run test:fastpath -w @lakutata/core",
