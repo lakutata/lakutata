@@ -6,7 +6,7 @@ import {mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile} from 'node:fs
 import {pipeline} from 'node:stream/promises'
 import {extract as tarExtract, type Header} from 'tar-stream'
 import type {Readable} from 'node:stream'
-import {tmpdir} from 'node:os'
+import {hostname, tmpdir} from 'node:os'
 import path from 'node:path'
 import {setTimeout as sleep} from 'node:timers/promises'
 import {Application, InvalidValueException} from '@lakutata/core'
@@ -560,6 +560,8 @@ describe('The containerd component with the containerd of the machine', {skip: !
         const registry: ContainerdContainer = await containerd.createContainer({
             image: (await containerd.pullImage({image: 'registry:2'})).name,
             name: 'lakutata-test-registry',
+            //Listening on the host's loopback
+            network: 'host',
             env: {REGISTRY_HTTP_ADDR: `127.0.0.1:${REGISTRY_PORT}`},
             tmpfs: [{containerPath: '/var/lib/registry'}]
         })
@@ -588,8 +590,14 @@ describe('The containerd component with the containerd of the machine', {skip: !
 
     it('connects the containers to the networks of CNI and publishes their ports', async (): Promise<void> => {
         const server: string[] = ['sh', '-c', 'while true; do printf "HTTP/1.0 200 OK\\r\\n\\r\\n$(hostname)\\n" | nc -l -p 80 >/dev/null; done']
-        const web: ContainerdContainer = await containerd.createContainer({image: ALPINE, name: 'lakutata-test-web', networks: [{networkName: 'bridge'}], ports: [{port: 80, hostPorts: [18080, 18081]}], cmd: server})
+        //No network given: the default network bridge, as Docker
+        const web: ContainerdContainer = await containerd.createContainer({image: ALPINE, name: 'lakutata-test-web', ports: [{port: 80, hostPorts: [18080, 18081]}], cmd: server})
+        //The host's network asked
+        const onHost: ContainerdContainer = await containerd.createContainer({image: ALPINE, name: 'lakutata-test-host', network: 'host', cmd: ['sleep', '600']})
         try {
+            assert.deepStrictEqual(onHost.networkNames, ['host'])
+            assert.strictEqual(onHost.hostname, hostname())
+            await onHost.remove({force: true})
             assert.deepStrictEqual(web.networkNames, ['bridge'])
             assert.deepStrictEqual(web.ports, [{host: '0.0.0.0', port: 80, type: 'tcp', hostPorts: [18080, 18081]}])
             assert.deepStrictEqual(web.networks.map((network): string => network.ip), [''])

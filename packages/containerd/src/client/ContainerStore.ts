@@ -639,7 +639,7 @@ export class ContainerStore {
             if (options.privileged) devices.push(...(await this.hostDevices()).filter((device: SpecDevice): boolean => !devices.some((given: SpecDevice): boolean => given.containerPath === device.containerPath)))
             let hooks: Record<string, { path: string, args: string[], timeout: number }[]> | undefined
             if (network === 'cni') {
-                if (!this.networks.pluginDirectories().length) throw new Error(`The plugins of CNI are not installed (${this.networks.cniPath.join(', ')})`)
+                if (!this.networks.pluginDirectories().length) throw new Error(`The plugins of CNI are not installed (${this.networks.cniPath.join(', ')}): install them (the package containernetworking-plugins, or the CNI plugins release in /opt/cni/bin), or give the container the network 'host'`)
                 await this.networks.render(stateDir, id, cniNetworks, ports)
                 const hook: string = path.join(stateDir, 'network', 'hook.sh')
                 hooks = {

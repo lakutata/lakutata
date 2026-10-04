@@ -79,8 +79,9 @@ Application
   CNI network configurations are nerdctl's (`nerdctl-<name>.conflist`): nerdctl and the component share them.
 - A container's output is written to a log file by containerd's shim, and its restart policy is applied by containerd's
   restart monitor: both keep working while the application is stopped. The logs have no timestamps.
-- `createContainer()` takes the image in its options, and never pulls it: pull it first. The containers run on the
-  host's network by default; ports are published through CNI networks (`networks: [{networkName: 'bridge'}]`).
+- `createContainer()` takes the image in its options, and never pulls it: pull it first. As with Docker, the containers
+  join the default network `bridge` by default (a CNI network created when first used: the CNI plugins are needed, see
+  the installation), where their ports are published; `network: 'host'` gives them the host's network.
 - There is no `loginRepository()`: the credentials are the `registryAuths` option, or the `auth` of each call.
 - `importImage()` returns every image of the archive, and `prune()` returns what it removed.
 - A namespace is the unit: the images, containers and volumes of the other namespaces are not seen.

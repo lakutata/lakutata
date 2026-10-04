@@ -79,7 +79,7 @@ const container = await containerd.createContainer({
     binds: [{hostPath: '/data/worker', containerPath: '/data'}],
     tmpfs: [{containerPath: '/tmp', size: 16 * 1024 * 1024}],
     devices: [{hostPath: '/dev/ttyUSB0'}],
-    network: 'host',          //或 none：只有回环接口；CNI 网络见下文
+    network: 'host',          //宿主机网络；none：只有回环接口；默认是 CNI 网络 bridge（见下文）
     memoryLimit: 128 * 1024 * 1024,
     cpus: 0.5,
     restartPolicy: 'always'   //由 containerd 的 restart monitor 维持，应用未运行时也有效

@@ -660,9 +660,9 @@ export class Containerd extends Component {
 
     /**
      * Create a container of an image present in containerd (it is not pulled): its snapshot, its OCI specification and
-     * its state directory (log file, `hosts`, `resolv.conf`, `hostname`). The container is not started. It runs on the
-     * host's network by default; `ports` need CNI `networks` (`[{networkName: 'bridge'}]`) and are published on the first
-     * one. Its system calls are filtered by containerd's default seccomp profile, unless it is privileged or
+     * its state directory (log file, `hosts`, `resolv.conf`, `hostname`). The container is not started. It joins the
+     * default CNI network `bridge` by default (created when first used, the CNI plugins needed), as with Docker; `network:
+     * 'host'` gives it the host's network. Its `ports` are published on its first CNI network. Its system calls are filtered by containerd's default seccomp profile, unless it is privileged or
      * `seccompProfile` says otherwise. The settings are kept so that {@link ContainerdContainer.update} can create it
      * again.
      * @param options The image and the container's settings (name, command, environment, user, mounts, devices,
@@ -704,7 +704,10 @@ export class Containerd extends Component {
                 mounts: mounts,
                 devices: (options.devices ?? []).map(device => ({hostPath: device.hostPath, containerPath: device.containerPath, permissions: device.cgroupPermissions})),
                 deviceCgroupRules: options.deviceCgroupRules,
-                network: options.networks?.length ? options.networks.map((network): { name: string, ip?: string, ipv6?: string } => ({name: network.networkName, ip: network.ip || undefined, ipv6: network.ipv6 || undefined})) : options.network,
+                //Without network: the default CNI network bridge, as Docker and nerdctl
+                network: options.networks?.length
+                    ? options.networks.map((network): { name: string, ip?: string, ipv6?: string } => ({name: network.networkName, ip: network.ip || undefined, ipv6: network.ipv6 || undefined}))
+                    : options.network ?? [{name: DEFAULT_NETWORK}],
                 ports: ports,
                 pidHost: options.pidMode === 'host',
                 ipcHost: options.ipcMode === 'host',

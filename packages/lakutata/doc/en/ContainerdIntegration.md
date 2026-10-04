@@ -80,7 +80,7 @@ const container = await containerd.createContainer({
     binds: [{hostPath: '/data/worker', containerPath: '/data'}],
     tmpfs: [{containerPath: '/tmp', size: 16 * 1024 * 1024}],
     devices: [{hostPath: '/dev/ttyUSB0'}],
-    network: 'host',          //or none: its loopback only; networks of CNI: see below
+    network: 'host',          //the host's network; none: its loopback only; by default the CNI network bridge (see below)
     memoryLimit: 128 * 1024 * 1024,
     cpus: 0.5,
     restartPolicy: 'always'   //kept by the restart monitor of containerd, even when the application is not running

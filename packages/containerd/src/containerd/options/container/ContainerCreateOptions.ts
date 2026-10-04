@@ -13,8 +13,8 @@ import type {ContainerdVolume} from '../../types/ContainerdVolume.js'
  * component keeps these settings: {@link ContainerdContainer.update} creates the container again with the ones it
  * changes.
  *
- * Unlike the Docker component, the container joins the host network unless `networks` is given, its ports are
- * published only on a CNI network, and its named volumes are directories the component keeps (not Docker's nor
+ * As with the Docker component, the container joins the default network `bridge` unless `network` or `networks` is
+ * given (here a CNI network, the CNI plugins needed); its ports are published only on a CNI network, and its named volumes are directories the component keeps (not Docker's nor
  * nerdctl's volumes).
  * @example
  * ```typescript
@@ -215,11 +215,11 @@ export class ContainerCreateOptions extends DTO {
 
     /**
      * The network of a container without `networks`: `'host'`, the host's network stack, or `'none'`, a network
-     * namespace with only its loopback. Ignored when `networks` is given. Unlike Docker, the default is the host
-     * network.
-     * @default 'host'
+     * namespace with only its loopback. Ignored when `networks` is given. Without both, the container joins the default
+     * CNI network `bridge`, as with Docker and nerdctl (its ports published there; the CNI plugins needed).
+     * @default the network `bridge`
      */
-    @Expect(DTO.String().valid('host', 'none').optional().default('host'))
+    @Expect(DTO.String().valid('host', 'none').optional())
     public network?: 'host' | 'none'
 
     /**
