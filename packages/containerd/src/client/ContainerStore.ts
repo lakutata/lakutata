@@ -14,7 +14,7 @@ import {ChainIds, ImageStore, type ResolvedImage} from './ImageStore.js'
 import {ProcessFifo} from './Fifo.js'
 import {DEFAULT_NETWORK, NetworkStore, type CNINetwork, type ContainerNetworkInterface, type PortMapping} from './Networks.js'
 import {ResolveUser, type ProcessUser} from './Rootfs.js'
-import {Capabilities, ExecProcessSpec, GenerateSpec, type SpecDevice, type SpecMount} from './Spec.js'
+import {Capabilities, ExecProcessSpec, GenerateSpec, ParseDeviceCgroupRule, type SpecDevice, type SpecMount} from './Spec.js'
 import {DefaultSeccompProfile, SeccompSupported, type SeccompProfile} from './Seccomp.js'
 
 /**
@@ -109,6 +109,11 @@ export type ContainerCreateOptions = {
     seccompProfile?: 'default' | 'unconfined' | string
     mounts?: ContainerMount[]
     devices?: ContainerDeviceMapping[]
+    /**
+     * The devices the cgroup allows besides the ones given, as Docker writes them ("c 188:* rwm"): the devices plugged
+     * after the start, given by a bind mount of /dev (or of /dev/serial, /dev/bus/usb)
+     */
+    deviceCgroupRules?: string[]
     /**
      * The network of the container: the one of the host, none (its loopback only), or networks of CNI (bridge, the
      * default one of nerdctl), with their addresses
@@ -449,6 +454,7 @@ export class ContainerStore {
                 seccomp: await this.seccomp(options),
                 mounts: specMounts,
                 devices: devices,
+                deviceCgroupRules: (options.deviceCgroupRules ?? []).map(ParseDeviceCgroupRule),
                 network: {mode: network},
                 hooks: hooks,
                 pidHost: options.pidHost,

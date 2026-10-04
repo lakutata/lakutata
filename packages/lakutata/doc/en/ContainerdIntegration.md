@@ -106,6 +106,10 @@ await containerd.listContainers({app: 'web'})  //by labels
 - The output of a container is written by the shim of containerd into its log file, so it keeps being logged when the
   application stops or restarts. `exec` captures the standard output and error apart (FIFOs created by the `mkfifo`
   of the system; without it, both are in `stdout`).
+- `devices` gives devices of the host (a serial port, the devices of a directory: `/dev/snd`), created in the container
+  when it is created. The devices plugged later (a USB serial port, `ttyUSB1` once plugged again) are given by a bind of
+  their directory and the rule of their numbers, as Docker's `--device-cgroup-rule`:
+  `binds: [{hostPath: '/dev', containerPath: '/dev'}], deviceCgroupRules: ['c 188:* rwm']` (188: the USB serial ports).
 - The containers have a cgroup namespace of their own on cgroup v2 (`cgroupns: 'host'` shares the one of the host).
 - Their system calls are filtered by seccomp as nerdctl filters them: the default profile of containerd, its system
   calls allowed by the capabilities of the container (`capabilities: ['SYS_ADMIN']` allows `mount`, `unshare`…).

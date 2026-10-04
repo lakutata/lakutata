@@ -88,6 +88,32 @@ export type SpecDevice = {
 }
 
 /**
+ * A rule of the devices of the cgroup of a container: the devices of a type (a: all), of a major and a minor number
+ * (all when they are not given), and their access (r, w, m)
+ */
+export type DeviceCgroupRule = {
+    type: 'a' | 'c' | 'b'
+    major?: number
+    minor?: number
+    access: string
+}
+
+/**
+ * Parse a rule of the devices of a cgroup as Docker writes it: "c 188:* rwm", "b 8:16 r", "a *:* rwm"
+ * @param rule
+ */
+export function ParseDeviceCgroupRule(rule: string): DeviceCgroupRule {
+    const match: RegExpMatchArray | null = rule.trim().match(/^([acb]) (\*|\d+):(\*|\d+) ([rwm]{1,3})$/)
+    if (!match || new Set(match[4]).size !== match[4].length) throw new Error(`The rule of the devices "${rule}" is not valid ("c 188:* rwm": a type a, c or b, the major and the minor numbers or *, the access of r, w and m)`)
+    return {
+        type: match[1] as DeviceCgroupRule['type'],
+        ...match[2] === '*' ? {} : {major: Number(match[2])},
+        ...match[3] === '*' ? {} : {minor: Number(match[3])},
+        access: match[4]
+    }
+}
+
+/**
  * The options of the specification of a container
  */
 export type SpecOptions = {
@@ -107,6 +133,10 @@ export type SpecOptions = {
     capDrop?: string[]
     mounts?: SpecMount[]
     devices?: SpecDevice[]
+    /**
+     * The devices the cgroup allows besides the ones given (the ones plugged later, by a bind mount of /dev)
+     */
+    deviceCgroupRules?: DeviceCgroupRule[]
     /**
      * The network: the one of the host, or a namespace of its own (only its loopback, or the path of the one prepared)
      */
@@ -200,7 +230,8 @@ export function GenerateSpec(options: SpecOptions): Record<string, any> {
     const resources: Record<string, any> = {
         devices: options.privileged ? [{allow: true, access: 'rwm'}] : [
             ...DEFAULT_DEVICE_RULES,
-            ...devices.map((device: SpecDevice): object => ({allow: true, type: device.type, major: device.major, minor: device.minor, access: device.permissions}))
+            ...devices.map((device: SpecDevice): object => ({allow: true, type: device.type, major: device.major, minor: device.minor, access: device.permissions})),
+            ...(options.deviceCgroupRules ?? []).map((rule: DeviceCgroupRule): object => ({allow: true, ...rule}))
         ]
     }
     if (options.memory || options.oomKillDisable) {

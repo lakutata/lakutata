@@ -131,6 +131,13 @@ export class ContainerCreateOptions extends DTO {
     public devices?: ContainerdDevice[]
 
     /**
+     * The devices the cgroup of the container allows besides the ones given, as Docker writes them ("c 188:* rwm" for
+     * the USB serial ports): the devices plugged after its start, given by a bind of /dev (or of /dev/serial)
+     */
+    @Expect(DTO.Array(DTO.String().pattern(/^[acb] (\*|\d+):(\*|\d+) [rwm]{1,3}$/)).optional())
+    public deviceCgroupRules?: string[]
+
+    /**
      * The network of the container without networks of CNI: the one of the host, or none (its loopback only)
      * @default 'host'
      */

@@ -249,6 +249,41 @@ describe('The containerd component with the containerd of the machine', {skip: !
         }
     })
 
+    it('gives the devices of the host to the containers, the ones plugged after their starts by their rules', async (): Promise<void> => {
+        //The devices of the tests: the one of FUSE (10:229, not allowed by runc by default, unlike TUN), created where
+        //the tests want it
+        const devices: string = path.join(directory, 'devices')
+        const hot: string = path.join(directory, 'hot')
+        await mkdir(devices, {recursive: true})
+        await mkdir(hot, {recursive: true})
+        assert.strictEqual(spawnSync('mknod', [path.join(devices, 'fuse'), 'c', '10', '229']).status, 0)
+        const open: string = 'test -c /dev/extra/fuse && exec 3<>/dev/extra/fuse && echo opened'
+        const created: ContainerdContainer[] = []
+        const run = async (options: Partial<ContainerCreateOptions>): Promise<ContainerdContainer> => {
+            const container: ContainerdContainer = await containerd.createContainer({image: ALPINE, cmd: ['sleep', '600'], network: 'none', ...options})
+            created.push(container)
+            await container.start()
+            return container
+        }
+        try {
+            //A device given: its node in the /dev of the container, allowed by its cgroup
+            const given: ContainerdContainer = await run({devices: [{hostPath: path.join(devices, 'fuse'), containerPath: '/dev/extra/fuse'}]})
+            assert.match((await given.exec({cmd: 'ls -l /dev/extra/fuse'})).stdout, /^c.* 10,\s*229 /)
+            assert.strictEqual((await given.exec({cmd: open})).stdout, 'opened\n')
+            //Plugged after the start in a directory bound: opened with the rule of its major number, refused without it
+            const ruled: ContainerdContainer = await run({binds: [{hostPath: hot, containerPath: '/dev/extra'}], deviceCgroupRules: ['c 10:* rwm']})
+            const unruled: ContainerdContainer = await run({binds: [{hostPath: hot, containerPath: '/dev/extra'}]})
+            assert.notStrictEqual((await ruled.exec({cmd: open})).exitCode, 0)
+            assert.strictEqual(spawnSync('mknod', [path.join(hot, 'fuse'), 'c', '10', '229']).status, 0)
+            assert.strictEqual((await ruled.exec({cmd: open})).stdout, 'opened\n')
+            const refused = await unruled.exec({cmd: open})
+            assert.notStrictEqual(refused.exitCode, 0)
+            assert.match(refused.stderr, /not permitted/i)
+        } finally {
+            for (const container of created) await container.remove({force: true})
+        }
+    })
+
     it('restarts the containers by their restart policies', async (): Promise<void> => {
         const container: ContainerdContainer = await containerd.createContainer({image: ALPINE, cmd: ['sh', '-c', 'echo run; sleep 0.5; exit 1'], restartPolicy: 'always'})
         try {

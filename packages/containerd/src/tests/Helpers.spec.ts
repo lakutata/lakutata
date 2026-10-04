@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {ImageName, ParseReference} from '../client/Reference.js'
 import {FormatPlatform, MatchPlatform, ParsePlatform, PlatformRank, SupportedPlatforms} from '../client/Platforms.js'
-import {Capabilities, ExecProcessSpec, GenerateSpec} from '../client/Spec.js'
+import {Capabilities, ExecProcessSpec, GenerateSpec, ParseDeviceCgroupRule} from '../client/Spec.js'
 import {ChainIds} from '../client/ImageStore.js'
 import {LayerDirectories, ReadRootfsFile, ResolveUser} from '../client/Rootfs.js'
 import {SignalNumber} from '../client/ContainerStore.js'
@@ -97,6 +97,16 @@ describe('The helpers of the containerd component', (): void => {
         assert.deepStrictEqual(process.env, ['A=2', 'B=3'])
         assert.deepStrictEqual(process.user, {uid: 0, gid: 0})
         assert.deepStrictEqual(spec.process.args, ['sh'])
+    })
+
+    it('parses the rules of the devices of the cgroups as Docker writes them', (): void => {
+        assert.deepStrictEqual(ParseDeviceCgroupRule('c 188:* rwm'), {type: 'c', major: 188, access: 'rwm'})
+        assert.deepStrictEqual(ParseDeviceCgroupRule('b 8:16 r'), {type: 'b', major: 8, minor: 16, access: 'r'})
+        assert.deepStrictEqual(ParseDeviceCgroupRule('a *:* rwm'), {type: 'a', access: 'rwm'})
+        for (const invalid of ['c 188 rwm', 'x 1:2 r', 'c 1:2 rx', 'c 1:2 rr', 'c a:2 r']) assert.throws((): unknown => ParseDeviceCgroupRule(invalid), invalid)
+        const spec = GenerateSpec({id: 'c', namespace: 'default', args: ['sh'], env: [], cwd: '/', uid: 0, gid: 0, additionalGids: [], hostname: 'h', network: {mode: 'host'}, cgroupsPath: '/default/c', deviceCgroupRules: [ParseDeviceCgroupRule('c 188:* rwm')]})
+        assert.deepStrictEqual(spec.linux.resources.devices.at(-1), {allow: true, type: 'c', major: 188, access: 'rwm'})
+        assert.deepStrictEqual(spec.linux.resources.devices[0], {allow: false, access: 'rwm'})
     })
 
     it('reads the users of the root file systems of the snapshots', async (): Promise<void> => {

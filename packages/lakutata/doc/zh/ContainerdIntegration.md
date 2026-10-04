@@ -104,6 +104,9 @@ await containerd.listContainers({app: 'web'})  //按标签
 
 - 容器的输出由 containerd 的 shim 写入日志文件，因此应用停止或重启时日志仍会继续记录。`exec` 分别捕获标准输出与
   标准错误（使用系统的 `mkfifo` 创建 FIFO；没有 `mkfifo` 时二者都在 `stdout` 中）。
+- `devices` 把宿主机的设备（串口、某个目录中的设备，如 `/dev/snd`）在创建容器时给到容器。之后才插入的设备（USB 串口，
+  或重新插拔后变成 `ttyUSB1`）可以像 Docker 的 `--device-cgroup-rule` 一样，通过绑定其目录并放行其设备号来使用：
+  `binds: [{hostPath: '/dev', containerPath: '/dev'}], deviceCgroupRules: ['c 188:* rwm']`（188：USB 串口）。
 - 在 cgroup v2 上容器拥有独立的 cgroup 命名空间（`cgroupns: 'host'` 则共享宿主机的）。
 - 与 nerdctl 一样，容器的系统调用由 seccomp 过滤：使用 containerd 的默认 profile，并按容器的 capabilities 放行相应的系统调用
   （`capabilities: ['SYS_ADMIN']` 会放行 `mount`、`unshare` 等）。`seccompProfile: 'unconfined'` 关闭过滤，也可以给出

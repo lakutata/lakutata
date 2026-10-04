@@ -527,6 +527,7 @@ export class Containerd extends Component {
                 seccompProfile: options.seccompProfile,
                 mounts: mounts,
                 devices: (options.devices ?? []).map(device => ({hostPath: device.hostPath, containerPath: device.containerPath, permissions: device.cgroupPermissions})),
+                deviceCgroupRules: options.deviceCgroupRules,
                 network: options.networks?.length ? options.networks.map((network): { name: string, ip?: string } => ({name: network.networkName, ip: network.ip || undefined})) : options.network,
                 ports: ports,
                 pidHost: options.pidMode === 'host',
