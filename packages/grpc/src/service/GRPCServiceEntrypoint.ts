@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto'
 import type {AddressInfo} from 'node:net'
 import {EntrypointStoppedException, ServiceContext, type EntrypointAdapter, type MiddlewareDefinition} from '@lakutata/entrypoint'
 import {ServiceChannel, ServiceResponseCodec, type ChannelRuntime, type ServiceResponse} from '@lakutata/entrypoint/channel'
-import {GRPCServer, type GRPCServerCall, type GRPCServerTLSOptions} from '../lib/GRPC.js'
+import {GRPCServer, type GRPCCompression, type GRPCServerCall, type GRPCServerTLSOptions} from '../lib/GRPC.js'
 import type {Message} from '../lib/Protobuf.js'
 import {EventsRequest, FromJSONBytes, InvokeRequest, InvokeResponse, JSONBytes, SERVICE_METHODS, ServiceEvent} from './ServiceProto.js'
 
@@ -28,6 +28,15 @@ export type GRPCServiceEntrypointOptions = {
      * certificate refused)
      */
     tls?: GRPCServerTLSOptions
+    /**
+     * The largest request received in bytes (decompressed), 4 MB by default: a larger one is refused (RESOURCE_EXHAUSTED)
+     */
+    maxMessageSize?: number
+    /**
+     * The compression of the responses (gzip, deflate) for the clients accepting it, none by default; the requests are
+     * received compressed or not
+     */
+    compression?: GRPCCompression
     /**
      * The middlewares of the actions of this adapter, run after the global middlewares
      */
@@ -74,11 +83,6 @@ export function GRPCServiceEntrypoint(options: GRPCServiceEntrypointOptions = {}
         if (stopping) {
             response = ServiceResponseCodec.encodeError(new EntrypointStoppedException('The entrypoint is stopping'))
         } else {
-            //Aborted when its client cancels it
-            const aborted: AbortController = new AbortController()
-            call.stream.once('close', (): void => {
-                if (!call.stream.writableFinished) aborted.abort()
-            })
             try {
                 let data: unknown
                 try {
@@ -87,11 +91,14 @@ export function GRPCServiceEntrypoint(options: GRPCServiceEntrypointOptions = {}
                     throw new Error('The data of the request is not JSON')
                 }
                 const context: ServiceContext = new ServiceContext({data: data && typeof data === 'object' ? data as Record<string, unknown> : {}, clientId: call.metadata('id')[0], grpc: call})
-                response = ServiceResponseCodec.encode(await runtime.dispatch(context, {signal: aborted.signal}), false)
+                //Aborted when its client cancels it or its deadline is exceeded
+                response = ServiceResponseCodec.encode(await runtime.dispatch(context, {signal: call.signal}), false)
             } catch (error: unknown) {
                 response = ServiceResponseCodec.encodeError(error)
             }
         }
+        //Its deadline exceeded meanwhile: already answered
+        if (call.finished) return
         await call.send(InvokeResponse, {success: response.success, payload: JSONBytes(response.payload ?? undefined), error: JSONBytes(response.error ?? undefined)})
     }
 
@@ -120,7 +127,7 @@ export function GRPCServiceEntrypoint(options: GRPCServiceEntrypointOptions = {}
         name: options.name,
         middlewares: options.middlewares,
         start: async (runtime: ChannelRuntime<ServiceContext>): Promise<void> => {
-            server = new GRPCServer({tls: options.tls})
+            server = new GRPCServer({tls: options.tls, maxMessageSize: options.maxMessageSize ?? 4 * 1024 * 1024, compression: options.compression})
             server.method(SERVICE_METHODS.INVOKE, (call: GRPCServerCall): Promise<void> => invoke(runtime, call))
             server.method(SERVICE_METHODS.EVENTS, listen)
             const address: AddressInfo | string = await server.listen({port: options.port ?? 50051, host: options.host, socketPath: options.socketPath})

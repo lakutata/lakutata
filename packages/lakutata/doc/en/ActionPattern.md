@@ -127,7 +127,9 @@ to other patterns, `positionalParams` accepts the params by position). Its batch
 specification; the errors are the ones of JSON-RPC: `-32601` (no action matches), `-32602` (the DTO refuses the input),
 `-32000` (the errors of the actions, the whole error as their `data`). Its transports: HTTP (`POST`), WebSocket (the
 package `ws`) and stdio (a child process, framed by lines or by `Content-Length` headers); the last two push the events
-of the clients as notifications (`{"method": event, "params": args}`).
+of the clients as notifications (`{"method": event, "params": args}`). Over WebSocket, the connections which do not answer
+its pings are closed (`heartbeat`, 30 s); over stdio, the application exits once its input ends (its parent process gone,
+`end: 'application'`), its requests in progress answered.
 
 ```typescript
 service: [
@@ -140,7 +142,10 @@ service: [
 `GRPCServiceEntrypoint` (`@lakutata/grpc/service`) serves them over gRPC: the service `lakutata.service.v1.Service`
 (`SERVICE_PROTO`, for the clients of the other languages) invokes an action with the JSON of its pattern and its input,
 and streams the events of a client (its metadata `id`). `GRPCServiceProxy` invokes the actions of a remote service and
-listens to its events, as the proxy of NATS does:
+listens to its events, as the proxy of NATS does. A request larger than `maxMessageSize` (4 MB by default) is refused
+(`RESOURCE_EXHAUSTED`); the messages may be compressed (gzip, deflate: `compression`); the deadline of a call
+(`grpc-timeout`, the timeout of `invoke`) aborts its action (`DEADLINE_EXCEEDED`). The official gRPC of Python and
+grpcurl (Go) are tested with it (`npm run test:interop -w @lakutata/grpc`):
 
 ```typescript
 service: GRPCServiceEntrypoint({port: 50051, tls: {cert, key}})

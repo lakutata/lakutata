@@ -36,7 +36,8 @@
     "build:js": "npm run build:cjs && npm run build:esm && npm run build:cjs-pkg",
     "rebuild": "npm run clean && npm run build:js",
     "compile": "npm run rebuild",
-    "test:unit": "npm run compile && node --test \"dist/esm/tests/*.spec.js\""
+    "test:unit": "npm run compile && node --test \"dist/esm/tests/*.spec.js\"",
+    "test:interop": "sh test-env/interop.sh"
   },
   "peerDependencies": {
     "@lakutata/core": "2.0.126",

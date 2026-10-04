@@ -2,6 +2,8 @@ import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
 import type {AddressInfo} from 'node:net'
 import {mkdtemp, rm} from 'node:fs/promises'
+import http2, {type IncomingHttpHeaders} from 'node:http2'
+import {gzipSync} from 'node:zlib'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {Decode, Encode, GRPCConnection, GRPCError, GRPCServer, GRPCStatus, type GRPCServerCall, type Message, type Schema} from '../exports/GRPC.js'
@@ -106,6 +108,113 @@ describe('The gRPC client and server', (): void => {
             authenticated.close()
             anonymous.close()
             await mutual.close()
+        }
+    })
+
+    it('limits the size of the messages received, compressed or not', async (): Promise<void> => {
+        const limited: GRPCServer = new GRPCServer({maxMessageSize: 1024}).method('/test.Echo/Unary', async (call: GRPCServerCall): Promise<void> => {
+            await call.send(Text, {text: `${String((await call.request(Text)).text).length} bytes`})
+        })
+        const limitedPort: number = (await limited.listen({port: 0, host: '127.0.0.1'}) as AddressInfo).port
+        const plain: GRPCConnection = new GRPCConnection(`tcp://127.0.0.1:${limitedPort}`)
+        const gzip: GRPCConnection = new GRPCConnection(`tcp://127.0.0.1:${limitedPort}`, undefined, {compression: 'gzip'})
+        try {
+            assert.strictEqual((await plain.unary('/test.Echo/Unary', Text, {text: 'x'.repeat(1000)}, Text)).text, '1000 bytes')
+            await assert.rejects(plain.unary('/test.Echo/Unary', Text, {text: 'x'.repeat(2000)}, Text), (error: unknown): boolean => error instanceof GRPCError && error.code === GRPCStatus.RESOURCE_EXHAUSTED)
+            //Small once compressed, too large once decompressed
+            await assert.rejects(gzip.unary('/test.Echo/Unary', Text, {text: 'x'.repeat(100000)}, Text), (error: unknown): boolean => error instanceof GRPCError && error.code === GRPCStatus.RESOURCE_EXHAUSTED)
+            assert.strictEqual((await gzip.unary('/test.Echo/Unary', Text, {text: 'y'.repeat(500)}, Text)).text, '500 bytes')
+            //The responses limited by the connections
+            const small: GRPCConnection = new GRPCConnection(`tcp://127.0.0.1:${port}`, undefined, {maxMessageSize: 10})
+            await assert.rejects(small.unary('/test.Echo/Unary', Text, {text: 'a longer text'}, Text), (error: unknown): boolean => error instanceof GRPCError && error.code === GRPCStatus.RESOURCE_EXHAUSTED)
+            small.close()
+        } finally {
+            plain.close()
+            gzip.close()
+            await limited.close()
+        }
+    })
+
+    it('compresses the messages with gzip and deflate, the responses for the clients accepting it', async (): Promise<void> => {
+        const compressing: GRPCServer = new GRPCServer({compression: 'gzip'}).method('/test.Echo/Unary', async (call: GRPCServerCall): Promise<void> => {
+            await call.send(Text, {text: `${(await call.request(Text)).text}!`})
+        })
+        const compressingPort: number = (await compressing.listen({port: 0, host: '127.0.0.1'}) as AddressInfo).port
+        try {
+            for (const compression of ['gzip', 'deflate', 'identity'] as const) {
+                const connection: GRPCConnection = new GRPCConnection(`tcp://127.0.0.1:${compressingPort}`, undefined, {compression: compression})
+                assert.strictEqual((await connection.unary('/test.Echo/Unary', Text, {text: compression.repeat(100)}, Text)).text, `${compression.repeat(100)}!`)
+                connection.close()
+            }
+            //Raw: the response compressed for a client accepting gzip, not for the other ones; an unknown compression refused
+            const raw = async (headers: Record<string, string>, body: Buffer): Promise<{ headers: IncomingHttpHeaders, trailers: IncomingHttpHeaders, body: Buffer }> => {
+                const client = http2.connect(`http://127.0.0.1:${compressingPort}`)
+                try {
+                    const stream = client.request({':method': 'POST', ':path': '/test.Echo/Unary', 'content-type': 'application/grpc', 'te': 'trailers', ...headers})
+                    const chunks: Buffer[] = []
+                    let responseHeaders: IncomingHttpHeaders = {}
+                    let trailers: IncomingHttpHeaders = {}
+                    stream.on('response', (value: IncomingHttpHeaders): unknown => responseHeaders = value)
+                    stream.on('trailers', (value: IncomingHttpHeaders): unknown => trailers = value)
+                    stream.on('data', (chunk: Buffer): unknown => chunks.push(chunk))
+                    stream.end(body)
+                    await new Promise((resolve): unknown => stream.on('close', resolve))
+                    return {headers: responseHeaders, trailers: trailers, body: Buffer.concat(chunks)}
+                } finally {
+                    client.close()
+                }
+            }
+            const encoded: Buffer = Buffer.from(Encode(Text, {text: 'raw'}))
+            const plainFrame: Buffer = Buffer.concat([Buffer.from([0, 0, 0, 0, encoded.length]), encoded])
+            const accepting = await raw({'grpc-accept-encoding': 'identity,gzip'}, plainFrame)
+            assert.strictEqual(accepting.headers['grpc-encoding'], 'gzip')
+            assert.strictEqual(accepting.body[0], 1)
+            const notAccepting = await raw({}, plainFrame)
+            assert.strictEqual(notAccepting.headers['grpc-encoding'], undefined)
+            assert.strictEqual(notAccepting.body[0], 0)
+            const compressed: Buffer = gzipSync(encoded)
+            const gzipFrame: Buffer = Buffer.concat([Buffer.from([1, 0, 0, 0, compressed.length]), compressed])
+            assert.strictEqual((await raw({'grpc-encoding': 'gzip'}, gzipFrame)).trailers['grpc-status'], '0')
+            assert.strictEqual((await raw({'grpc-encoding': 'br'}, gzipFrame)).trailers['grpc-status'], String(GRPCStatus.UNIMPLEMENTED))
+        } finally {
+            await compressing.close()
+        }
+    })
+
+    it('keeps the deadlines of the calls', async (): Promise<void> => {
+        const aborted: string[] = []
+        const slow: GRPCServer = new GRPCServer().method('/test.Echo/Slow', async (call: GRPCServerCall): Promise<void> => {
+            await call.request(Text)
+            await new Promise<void>((resolve: () => void): void => {
+                const timer: NodeJS.Timeout = setTimeout(resolve, 1000)
+                call.signal.addEventListener('abort', (): void => {
+                    aborted.push((call.signal.reason as GRPCError).code === GRPCStatus.DEADLINE_EXCEEDED ? 'deadline' : 'cancelled')
+                    clearTimeout(timer)
+                    resolve()
+                })
+            })
+        })
+        const slowPort: number = (await slow.listen({port: 0, host: '127.0.0.1'}) as AddressInfo).port
+        const connection: GRPCConnection = new GRPCConnection(`tcp://127.0.0.1:${slowPort}`)
+        try {
+            //The client ends the call at its deadline
+            await assert.rejects(connection.unary('/test.Echo/Slow', Text, {}, Text, {timeout: 100}), (error: unknown): boolean => error instanceof GRPCError && error.code === GRPCStatus.DEADLINE_EXCEEDED)
+            //The server answers at the deadline of a client which does not end it
+            const client = http2.connect(`http://127.0.0.1:${slowPort}`)
+            const stream = client.request({':method': 'POST', ':path': '/test.Echo/Slow', 'content-type': 'application/grpc', 'te': 'trailers', 'grpc-timeout': '100m'})
+            let trailers: IncomingHttpHeaders = {}
+            stream.on('trailers', (value: IncomingHttpHeaders): unknown => trailers = value).resume()
+            const started: number = Date.now()
+            stream.end(Buffer.from([0, 0, 0, 0, 0]))
+            await new Promise((resolve): unknown => stream.on('close', resolve))
+            client.close()
+            assert.strictEqual(trailers['grpc-status'], String(GRPCStatus.DEADLINE_EXCEEDED))
+            assert.ok(Date.now() - started < 900)
+            for (let attempt = 0; attempt < 20 && aborted.length < 2; attempt++) await new Promise((resolve): unknown => setTimeout(resolve, 20))
+            assert.ok(aborted.includes('deadline'), aborted.join())
+        } finally {
+            connection.close()
+            await slow.close()
         }
     })
 

@@ -2,6 +2,7 @@ import http2, {type ClientHttp2Session, type ClientHttp2Stream, type Http2Secure
 import net, {type AddressInfo} from 'node:net'
 import type {Duplex} from 'node:stream'
 import tls from 'node:tls'
+import {deflateSync, gzipSync, gunzipSync, inflateSync} from 'node:zlib'
 import {Decode, Encode, type Message, type Schema} from './Protobuf.js'
 
 /**
@@ -43,6 +44,56 @@ export class GRPCError extends Error {
 export type CallOptions = {
     metadata?: Record<string, string | string[] | undefined>
     signal?: AbortSignal
+    /**
+     * Milliseconds the call may last: its deadline, given to the server (grpc-timeout), the call failed with
+     * DEADLINE_EXCEEDED after it
+     */
+    timeout?: number
+}
+
+/**
+ * The compressions of the messages: none, gzip, deflate
+ */
+export type GRPCCompression = 'identity' | 'gzip' | 'deflate'
+
+/**
+ * The compressions read
+ */
+const ACCEPTED_ENCODINGS: readonly string[] = ['identity', 'gzip', 'deflate']
+
+/**
+ * The options of the messages of a connection or of a server
+ */
+export type GRPCMessageOptions = {
+    /**
+     * The largest message received in bytes (decompressed): 4 MB for the servers, unlimited for the connections by default
+     */
+    maxMessageSize?: number
+    /**
+     * The compression of the messages sent: none by default (a server compresses its responses only for the clients
+     * accepting it)
+     */
+    compression?: GRPCCompression
+}
+
+/**
+ * The milliseconds of a timeout of gRPC (grpc-timeout: 100m, 5S, 1H)
+ * @param value
+ */
+export function ParseGRPCTimeout(value: string | string[] | undefined): number | undefined {
+    const match: RegExpMatchArray | null = (Array.isArray(value) ? value[0] : value ?? '').match(/^(\d{1,8})([HMSmun])$/)
+    if (!match) return undefined
+    const factors: Record<string, number> = {H: 3600000, M: 60000, S: 1000, m: 1, u: 0.001, n: 0.000001}
+    return Number(match[1]) * factors[match[2]]
+}
+
+/**
+ * The timeout of gRPC of milliseconds
+ * @param milliseconds
+ */
+export function FormatGRPCTimeout(milliseconds: number): string {
+    const value: number = Math.max(1, Math.ceil(milliseconds))
+    return value < 1e8 ? `${value}m` : `${Math.ceil(value / 1000)}S`
 }
 
 /**
@@ -73,33 +124,57 @@ export type BidiStream = {
 }
 
 /**
- * The messages of the frames of gRPC read from a stream (a byte of compression, four of length, the message)
+ * The messages of the frames of gRPC read from a stream (a byte of compression, four of length, the message): their sizes
+ * limited (compressed and decompressed), the compressed ones decompressed by the encoding of the stream
  */
 class FrameReader {
     #buffer: Buffer = Buffer.alloc(0)
+
+    constructor(protected readonly maxMessageSize: number = Infinity, public encoding: string = 'identity') {
+    }
 
     push(chunk: Buffer): Buffer[] {
         this.#buffer = this.#buffer.length ? Buffer.concat([this.#buffer, chunk]) : chunk
         const messages: Buffer[] = []
         while (this.#buffer.length >= 5) {
             const length: number = this.#buffer.readUInt32BE(1)
+            //Refused before it is received
+            if (length > this.maxMessageSize) throw new GRPCError(GRPCStatus.RESOURCE_EXHAUSTED, `The message of ${length} bytes is larger than the largest one received (${this.maxMessageSize} bytes)`, '')
             if (this.#buffer.length < 5 + length) break
-            if (this.#buffer[0] !== 0) throw new Error('The gRPC message is compressed, which this client does not request')
-            messages.push(this.#buffer.subarray(5, 5 + length))
+            const compressed: boolean = this.#buffer[0] === 1
+            const data: Buffer = this.#buffer.subarray(5, 5 + length)
             this.#buffer = this.#buffer.subarray(5 + length)
+            messages.push(compressed ? this.decompress(data) : data)
         }
         return messages
+    }
+
+    protected decompress(data: Buffer): Buffer {
+        const limit: { maxOutputLength?: number } = Number.isFinite(this.maxMessageSize) ? {maxOutputLength: this.maxMessageSize} : {}
+        try {
+            if (this.encoding === 'gzip') return gunzipSync(data, limit)
+            if (this.encoding === 'deflate') return inflateSync(data, limit)
+        } catch (error: unknown) {
+            if ((error as NodeJS.ErrnoException).code === 'ERR_BUFFER_TOO_LARGE' || error instanceof RangeError) throw new GRPCError(GRPCStatus.RESOURCE_EXHAUSTED, `The message decompressed is larger than the largest one received (${this.maxMessageSize} bytes)`, '')
+            throw new GRPCError(GRPCStatus.INTERNAL, `The message is not decompressed (${this.encoding}): ${(error as Error).message}`, '')
+        }
+        throw new GRPCError(GRPCStatus.INTERNAL, `The message is compressed without its encoding (${this.encoding})`, '')
     }
 }
 
 /**
- * A message framed for gRPC
+ * A message framed for gRPC (compressed by an encoding)
  * @param schema
  * @param message
+ * @param compression
  */
-function Frame(schema: Schema, message: Message): Buffer {
-    const data: Uint8Array = Encode(schema, message)
+function Frame(schema: Schema, message: Message, compression: GRPCCompression = 'identity'): Buffer {
+    let data: Uint8Array = Encode(schema, message)
+    const compressed: boolean = compression !== 'identity'
+    if (compression === 'gzip') data = gzipSync(data)
+    if (compression === 'deflate') data = deflateSync(data)
     const frame: Buffer = Buffer.alloc(5 + data.length)
+    frame[0] = compressed ? 1 : 0
     frame.writeUInt32BE(data.length, 1)
     frame.set(data, 5)
     return frame
@@ -192,7 +267,7 @@ export class GRPCConnection {
      * @param address the path of a unix socket, unix:///path or tcp://host:port
      * @param tlsOptions
      */
-    constructor(public readonly address: string, protected readonly tlsOptions?: GRPCTLSOptions) {
+    constructor(public readonly address: string, protected readonly tlsOptions?: GRPCTLSOptions, protected readonly messageOptions: GRPCMessageOptions = {}) {
         if (!address.startsWith('/') && !address.startsWith('unix://') && !address.startsWith('tcp://')) throw new Error(`The address ${address} is not a unix socket (/path, unix:///path) nor tcp://host:port`)
     }
 
@@ -237,8 +312,25 @@ export class GRPCConnection {
     protected open(path: string, options: CallOptions): ClientHttp2Stream {
         const metadata: Record<string, string | string[]> = {}
         for (const [name, value] of Object.entries(options.metadata ?? {})) if (value !== undefined) metadata[name] = value
+        const compression: GRPCCompression = this.messageOptions.compression ?? 'identity'
         const session: ClientHttp2Session = this.session()
-        const stream: ClientHttp2Stream = session.request({':method': 'POST', ':path': path, 'content-type': 'application/grpc', 'te': 'trailers', ...metadata})
+        const stream: ClientHttp2Stream = session.request({
+            ':method': 'POST',
+            ':path': path,
+            'content-type': 'application/grpc',
+            'te': 'trailers',
+            'grpc-accept-encoding': ACCEPTED_ENCODINGS.join(','),
+            ...compression !== 'identity' ? {'grpc-encoding': compression} : {},
+            ...options.timeout !== undefined ? {'grpc-timeout': FormatGRPCTimeout(options.timeout)} : {},
+            ...metadata
+        })
+        if (options.timeout !== undefined) {
+            const timer: NodeJS.Timeout = setTimeout((): void => {
+                (stream as ClientHttp2Stream & { deadlineExceeded?: boolean }).deadlineExceeded = true
+                stream.close(http2.constants.NGHTTP2_CANCEL)
+            }, options.timeout)
+            stream.once('close', (): void => clearTimeout(timer))
+        }
         if (this.#active++ === 0) session.ref()
         stream.once('close', (): void => {
             if (--this.#active === 0 && !session.destroyed) session.unref()
@@ -260,17 +352,18 @@ export class GRPCConnection {
      * @param queue
      */
     protected read(path: string, stream: ClientHttp2Stream, schema: Schema, queue: MessageQueue): void {
-        const reader: FrameReader = new FrameReader()
+        const reader: FrameReader = new FrameReader(this.messageOptions.maxMessageSize)
         let status: { code: number, message: string } | undefined
         stream.on('response', (headers: IncomingHttpHeaders & IncomingHttpStatusHeader): void => {
             if (headers[':status'] !== 200) status = {code: GRPCStatus.UNKNOWN, message: `HTTP status ${headers[':status']}`}
             status = Status(headers) ?? status
+            reader.encoding = String(headers['grpc-encoding'] ?? 'identity')
         })
         stream.on('data', (chunk: Buffer): void => {
             try {
                 for (const data of reader.push(chunk)) queue.push(Decode(schema, data))
             } catch (error: unknown) {
-                queue.finish(new GRPCError(GRPCStatus.INTERNAL, `The response of ${path} is not decoded: ${(error as Error).message}`, path))
+                queue.finish(error instanceof GRPCError ? new GRPCError(error.code, error.message, path) : new GRPCError(GRPCStatus.INTERNAL, `The response of ${path} is not decoded: ${(error as Error).message}`, path))
                 stream.close(http2.constants.NGHTTP2_CANCEL)
             }
         })
@@ -279,6 +372,7 @@ export class GRPCConnection {
         })
         stream.on('error', (error: Error): void => queue.finish(new GRPCError(GRPCStatus.UNAVAILABLE, error.message, path)))
         stream.on('close', (): void => {
+            if ((stream as ClientHttp2Stream & { deadlineExceeded?: boolean }).deadlineExceeded && !status) return queue.finish(new GRPCError(GRPCStatus.DEADLINE_EXCEEDED, 'The deadline of the call is exceeded', path))
             if (stream.rstCode === http2.constants.NGHTTP2_CANCEL && !status) return queue.finish(new GRPCError(GRPCStatus.CANCELLED, 'The call was cancelled', path))
             if (!status) return queue.finish(new GRPCError(GRPCStatus.UNAVAILABLE, 'The call ended without status', path))
             queue.finish(status.code === GRPCStatus.OK ? undefined : new GRPCError(status.code, status.message, path))
@@ -297,7 +391,7 @@ export class GRPCConnection {
         const stream: ClientHttp2Stream = this.open(path, options)
         const queue: MessageQueue = new MessageQueue((): void => undefined)
         this.read(path, stream, responseSchema, queue)
-        stream.end(Frame(requestSchema, request))
+        stream.end(Frame(requestSchema, request, this.messageOptions.compression))
         let response: Message | undefined
         for await (const message of queue) response ??= message
         return response ?? {}
@@ -315,7 +409,7 @@ export class GRPCConnection {
         const stream: ClientHttp2Stream = this.open(path, options)
         const queue: MessageQueue = new MessageQueue((): void => void stream.close(http2.constants.NGHTTP2_CANCEL))
         this.read(path, stream, responseSchema, queue)
-        stream.end(Frame(requestSchema, request))
+        stream.end(Frame(requestSchema, request, this.messageOptions.compression))
         return queue
     }
 
@@ -333,7 +427,7 @@ export class GRPCConnection {
         return {
             send: async (message: Message): Promise<void> => {
                 if (stream.closed || stream.destroyed) throw new GRPCError(GRPCStatus.CANCELLED, 'The call is closed', path)
-                if (!stream.write(Frame(requestSchema, message))) {
+                if (!stream.write(Frame(requestSchema, message, this.messageOptions.compression))) {
                     await new Promise<void>((resolve: () => void): void => {
                         const done = (): void => {
                             stream.off('drain', done).off('close', done)
@@ -363,14 +457,57 @@ export class GRPCConnection {
  */
 export class GRPCServerCall {
 
-    readonly #reader: FrameReader = new FrameReader()
+    readonly #reader: FrameReader
+
+    readonly #abort: AbortController = new AbortController()
 
     #responded: boolean = false
 
     #finished: boolean = false
 
-    constructor(public readonly stream: ServerHttp2Stream, public readonly headers: IncomingHttpHeaders) {
+    /**
+     * The compression of its responses (the one of the server, when the client accepts it)
+     */
+    readonly #compression: GRPCCompression
+
+    /**
+     * Its deadline (grpc-timeout of its client)
+     */
+    public readonly deadline: Date | undefined
+
+    constructor(public readonly stream: ServerHttp2Stream, public readonly headers: IncomingHttpHeaders, options: GRPCMessageOptions = {}) {
         stream.on('error', (): void => undefined)
+        this.#reader = new FrameReader(options.maxMessageSize ?? 4 * 1024 * 1024, String(headers['grpc-encoding'] ?? 'identity'))
+        const accepted: string[] = String(headers['grpc-accept-encoding'] ?? '').split(',').map((item: string): string => item.trim())
+        this.#compression = options.compression && options.compression !== 'identity' && accepted.includes(options.compression) ? options.compression : 'identity'
+        const timeout: number | undefined = ParseGRPCTimeout(headers['grpc-timeout'])
+        if (timeout !== undefined) this.deadline = new Date(Date.now() + timeout)
+        //Aborted when its client cancels it (its stream closed before its end)
+        stream.once('close', (): void => {
+            if (!this.#finished) this.#abort.abort(new GRPCError(GRPCStatus.CANCELLED, 'The call was cancelled by its client', this.path))
+        })
+    }
+
+    /**
+     * Aborted when the client cancels the call or its deadline is exceeded
+     */
+    public get signal(): AbortSignal {
+        return this.#abort.signal
+    }
+
+    /**
+     * Abort the call (its deadline exceeded)
+     * @param reason
+     */
+    public abort(reason: GRPCError): void {
+        this.#abort.abort(reason)
+    }
+
+    /**
+     * Whether it is finished (its status sent)
+     */
+    public get finished(): boolean {
+        return this.#finished
     }
 
     /**
@@ -403,7 +540,13 @@ export class GRPCServerCall {
     public async* requests(schema: Schema): AsyncGenerator<Message> {
         //Left early (a unary request read), the stream is kept for the responses
         for await (const chunk of this.stream.iterator({destroyOnReturn: false})) {
-            for (const data of this.#reader.push(chunk as Buffer)) yield Decode(schema, data)
+            let messages: Buffer[]
+            try {
+                messages = this.#reader.push(chunk as Buffer)
+            } catch (error: unknown) {
+                throw error instanceof GRPCError ? new GRPCError(error.code, error.message, this.path) : error
+            }
+            for (const data of messages) yield Decode(schema, data)
         }
     }
 
@@ -424,7 +567,7 @@ export class GRPCServerCall {
     public async send(schema: Schema, message: Message): Promise<void> {
         if (this.#finished || this.stream.destroyed) throw new GRPCError(GRPCStatus.CANCELLED, 'The call is closed', this.path)
         this.respond()
-        if (!this.stream.write(Frame(schema, message))) {
+        if (!this.stream.write(Frame(schema, message, this.#compression))) {
             await new Promise<void>((resolve: () => void): void => {
                 const done = (): void => {
                     this.stream.off('drain', done).off('close', done)
@@ -438,7 +581,12 @@ export class GRPCServerCall {
     protected respond(): void {
         if (this.#responded) return
         this.#responded = true
-        this.stream.respond({':status': 200, 'content-type': 'application/grpc'}, {waitForTrailers: true})
+        this.stream.respond({
+            ':status': 200,
+            'content-type': 'application/grpc',
+            'grpc-accept-encoding': ACCEPTED_ENCODINGS.join(','),
+            ...this.#compression !== 'identity' ? {'grpc-encoding': this.#compression} : {}
+        }, {waitForTrailers: true})
     }
 
     /**
@@ -470,9 +618,10 @@ export class GRPCServer {
     readonly #sessions: Set<Http2Session> = new Set()
 
     /**
-     * @param options its TLS (its certificate and its key, the authority of the certificates of its clients)
+     * @param options its TLS (its certificate and its key, the authority of the certificates of its clients), the largest
+     * message it receives (4 MB by default), the compression of its responses
      */
-    constructor(options: { tls?: GRPCServerTLSOptions } = {}) {
+    constructor(options: { tls?: GRPCServerTLSOptions } & GRPCMessageOptions = {}) {
         this.#server = options.tls ? http2.createSecureServer({
             cert: options.tls.cert,
             key: options.tls.key,
@@ -482,12 +631,22 @@ export class GRPCServer {
             ALPNProtocols: ['h2']
         }) : http2.createServer()
         this.#server.on('stream', (stream: ServerHttp2Stream, headers: IncomingHttpHeaders): void => {
-            const call: GRPCServerCall = new GRPCServerCall(stream, headers)
+            const call: GRPCServerCall = new GRPCServerCall(stream, headers, {maxMessageSize: options.maxMessageSize, compression: options.compression})
+            const encoding: string = String(headers['grpc-encoding'] ?? 'identity')
+            if (!ACCEPTED_ENCODINGS.includes(encoding)) return call.finish(GRPCStatus.UNIMPLEMENTED, `The compression ${encoding} is not supported (${ACCEPTED_ENCODINGS.join(', ')})`)
             const method = this.#methods.get(call.path)
             if (!method) return call.finish(GRPCStatus.UNIMPLEMENTED, `The method ${call.path} is not implemented`)
+            //Its deadline: aborted, answered as exceeded
+            let timer: NodeJS.Timeout | undefined
+            if (call.deadline) {
+                timer = setTimeout((): void => {
+                    call.abort(new GRPCError(GRPCStatus.DEADLINE_EXCEEDED, 'The deadline of the call is exceeded', call.path))
+                    call.finish(GRPCStatus.DEADLINE_EXCEEDED, 'The deadline of the call is exceeded')
+                }, Math.max(0, call.deadline.getTime() - Date.now()))
+            }
             method(call).then((): void => call.finish(), (error: unknown): void => {
                 call.finish(error instanceof GRPCError ? error.code : GRPCStatus.UNKNOWN, (error as Error)?.message ?? String(error))
-            })
+            }).finally((): void => clearTimeout(timer))
         })
         this.#server.on('sessionError', (): void => undefined)
         this.#server.on('session', (session: Http2Session): void => {

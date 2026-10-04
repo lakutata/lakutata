@@ -124,7 +124,8 @@ params 就是动作的模式与输入，`{"method": "order.get", "params": {"id"
 （`methodField` 指定字段名，`toPattern(method, params)` 可映射为其他模式，`positionalParams` 可接受按位置传入的参数）。
 批量请求与通知遵循规范；错误使用 JSON-RPC 的错误码：`-32601`（没有匹配的动作）、`-32602`（DTO 校验失败）、`-32000`
 （动作抛出的错误，完整的错误对象在 `data` 中）。支持三种传输：HTTP（`POST`）、WebSocket（需要 `ws` 包）、stdio（作为子进程，
-按行或按 `Content-Length` 头分帧）；后两种会把推送给客户端的事件作为通知发送（`{"method": 事件, "params": 参数}`）。
+按行或按 `Content-Length` 头分帧）；后两种会把推送给客户端的事件作为通知发送（`{"method": 事件, "params": 参数}`）。WebSocket 下不响应心跳 ping 的连接会被关闭
+（`heartbeat`，默认 30 秒）；stdio 下输入结束（父进程退出）时，应用在回复完进行中的请求后退出（`end: 'application'`）。
 
 ```typescript
 service: [
@@ -136,7 +137,10 @@ service: [
 
 `GRPCServiceEntrypoint`（`@lakutata/grpc/service`）通过 gRPC 提供服务动作：服务 `lakutata.service.v1.Service`
 （`SERVICE_PROTO`，供其他语言生成客户端）用 JSON 形式的模式与输入调用动作，并按客户端（其 metadata `id`）推送事件。
-`GRPCServiceProxy` 与 NATS 的服务代理一样，调用远程服务的动作并监听其事件：
+`GRPCServiceProxy` 与 NATS 的服务代理一样，调用远程服务的动作并监听其事件。超过 `maxMessageSize`（默认 4 MB）的请求会被拒绝
+（`RESOURCE_EXHAUSTED`）；消息可以压缩（gzip、deflate：`compression`）；调用的 deadline（`grpc-timeout`、`invoke` 的超时）
+到期时会中止动作（`DEADLINE_EXCEEDED`）。已与 Python 官方 gRPC 和 grpcurl（Go）做过互通测试
+（`npm run test:interop -w @lakutata/grpc`）：
 
 ```typescript
 service: GRPCServiceEntrypoint({port: 50051, tls: {cert, key}})

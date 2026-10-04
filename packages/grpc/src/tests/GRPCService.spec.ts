@@ -68,6 +68,23 @@ describe('The service actions over gRPC', (): void => {
         }
     })
 
+    it('limits and compresses the requests, aborts the actions at their deadlines', async (): Promise<void> => {
+        let port: number = 0
+        const container: Container = new Container()
+        try {
+            await container.set(Entrypoint, BuildEntrypoints({
+                controllers: [OrderController],
+                service: GRPCServiceEntrypoint({port: 0, host: '127.0.0.1', maxMessageSize: 2048, compression: 'gzip', listening: (address): void => void (port = (address as AddressInfo).port)})
+            }))
+            const proxy: GRPCServiceProxy = await container.set(GRPCServiceProxy, {address: `127.0.0.1:${port}`, compression: 'gzip'})
+            assert.deepStrictEqual((await proxy.invoke({cmd: 'order.get', id: 1, note: 'x'.repeat(1000)})).id, 1)
+            await assert.rejects(proxy.invoke({cmd: 'order.get', id: 1, note: 'x'.repeat(100000)}), (error: unknown): boolean => (error as {code?: number}).code === 8)
+            await assert.rejects(proxy.invoke({cmd: 'slow'}, 50), (error: unknown): boolean => (error as {code?: number}).code === 4)
+        } finally {
+            await container.destroy()
+        }
+    })
+
     it('pushes the events to the clients', async (): Promise<void> => {
         const {container, entrypoint, proxy} = await Start()
         try {

@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto'
 import {ActionPattern, Component, ComponentOptionsBuilder, DTO} from '@lakutata/core'
 import {Configurable} from '@lakutata/core/decorator/di'
 import {ServiceResponseCodec} from '@lakutata/entrypoint/channel'
-import {GRPCConnection, type GRPCTLSOptions} from '../lib/GRPC.js'
+import {GRPCConnection, type GRPCCompression, type GRPCTLSOptions} from '../lib/GRPC.js'
 import type {Message} from '../lib/Protobuf.js'
 import {EventsRequest, FromJSONBytes, InvokeRequest, InvokeResponse, JSONBytes, SERVICE_METHODS, ServiceEvent} from './ServiceProto.js'
 
@@ -26,6 +26,14 @@ export type BuildGRPCServiceProxyOptions = {
      * ms, the delay before the event stream is opened again once it ends, 1000 by default
      */
     readonly reconnectDelay?: number
+    /**
+     * The largest response received in bytes (decompressed), unlimited by default
+     */
+    readonly maxMessageSize?: number
+    /**
+     * The compression of the requests (gzip, deflate), none by default
+     */
+    readonly compression?: GRPCCompression
 }
 
 /**
@@ -38,7 +46,9 @@ export const BuildGRPCServiceProxy: ComponentOptionsBuilder<BuildGRPCServiceProx
         address: options.address,
         tls: options.tls,
         clientId: options.clientId,
-        reconnectDelay: options.reconnectDelay
+        reconnectDelay: options.reconnectDelay,
+        maxMessageSize: options.maxMessageSize,
+        compression: options.compression
     }
 }
 
@@ -60,6 +70,12 @@ export class GRPCServiceProxy extends Component {
     @Configurable(DTO.Number().integer().min(0).optional().default(1000))
     protected readonly reconnectDelay: number
 
+    @Configurable(DTO.Number().integer().positive().optional())
+    protected readonly maxMessageSize?: number
+
+    @Configurable(DTO.String().valid('identity', 'gzip', 'deflate').optional())
+    protected readonly compression?: GRPCCompression
+
     #connection: GRPCConnection
 
     #id: string
@@ -76,7 +92,7 @@ export class GRPCServiceProxy extends Component {
      */
     protected async init(): Promise<void> {
         const address: string = this.address.startsWith('/') || /^(unix|tcp):\/\//.test(this.address) ? this.address : `tcp://${this.address}`
-        this.#connection = new GRPCConnection(address, this.tls)
+        this.#connection = new GRPCConnection(address, this.tls, {maxMessageSize: this.maxMessageSize, compression: this.compression})
         this.#id = this.clientId ?? randomUUID()
     }
 
@@ -101,12 +117,12 @@ export class GRPCServiceProxy extends Component {
     /**
      * Invoke an action of the service by its pattern
      * @param input its pattern and its input
-     * @param timeout ms, 10 minutes by default
+     * @param timeout ms, 10 minutes by default: the deadline of the call, given to the service (its action aborted after it)
      */
     public async invoke<T extends Record<string, any>>(input: ActionPattern<T>, timeout: number = 10 * 60 * 1000): Promise<any> {
         const response: Message = await this.#connection.unary(SERVICE_METHODS.INVOKE, InvokeRequest, {data: JSONBytes(input)}, InvokeResponse, {
             metadata: {id: this.#id},
-            signal: AbortSignal.timeout(timeout)
+            timeout: timeout
         })
         return ServiceResponseCodec.decode({success: !!response.success, payload: FromJSONBytes(response.payload) ?? null, error: (FromJSONBytes(response.error) ?? null) as Error | null}, this.address)
     }
