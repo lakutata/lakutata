@@ -803,19 +803,6 @@
     "monitor: MemoryMonitor: @example",
     "monitor: README.md"
   ],
-  "mutex": [
-    "mutex: Mutex.attempt: @param deadline",
-    "mutex: Mutex.attempt: @param name",
-    "mutex: Mutex.attempt: @param options",
-    "mutex: Mutex.attempt: @param timeout",
-    "mutex: Mutex.renew: @param lock"
-  ],
-  "nats": [
-    "nats: NATS.subscribeTo: @param answerProbes",
-    "nats: NATS.subscribeTo: @param callback",
-    "nats: NATS.subscribeTo: @param subject",
-    "nats: NATS.subscribeTo: @param subscribeOptions"
-  ],
   "security": [
     "security: Crypt.decrypt: @param encrypted",
     "security: Crypt.decryptString: @param encrypted",

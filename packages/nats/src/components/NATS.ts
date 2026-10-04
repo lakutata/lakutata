@@ -488,11 +488,12 @@ export class NATS extends Component {
 
     /**
      * Subscribe to a subject, as {@link NATS.subscribe}; the subscriptions of the events do not answer the capability
-     * probes of the requesters (nobody requests them)
-     * @param subject
-     * @param callback
-     * @param subscribeOptions
-     * @param answerProbes
+     * probes of the requesters (nobody requests them).
+     * @param subject The subject, wildcards allowed.
+     * @param callback Called with each message's data and subject; its result answers a request.
+     * @param subscribeOptions The queue group, the number of messages, the iteration and the error responses.
+     * @param answerProbes Whether the subscription answers the capability probes of the large requests to its subject.
+     * @returns The NATS subscription.
      * @protected
      */
     protected subscribeTo(subject: string, callback: (data: any, subject: string) => any | Promise<any>, subscribeOptions: SubscribeOptions | undefined, answerProbes: boolean): Subscription {
@@ -660,7 +661,8 @@ export class NATS extends Component {
      * Ask the responders of a subject whether they support the bulk references, before the first large request to it:
      * the responders supporting them answer on the probe subject, the others (an older version, the bulk channel off)
      * have no subscription there (no responders, or no answer in time). The answer is kept for the subject.
-     * @param subject
+     * @param subject The subject of the request.
+     * @returns Whether its responders support the bulk references.
      * @private
      */
     private async probeBulk(subject: string): Promise<boolean> {

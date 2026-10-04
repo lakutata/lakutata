@@ -286,8 +286,8 @@ export class Mutex extends Component {
 
     /**
      * Plan the next renewal of a lock of an expiring driver: a third of its time to live (renewed twice before it
-     * expires). A renewal failing (the store unreachable) is tried again until the lock expires, then the lock is lost
-     * @param lock
+     * expires). A renewal failing (the store unreachable) is tried again until the lock expires, then the lock is lost.
+     * @param lock The lock held by the component; a lock released or lost is not renewed.
      * @protected
      */
     protected renew(lock: MutexLock): void {
@@ -307,11 +307,13 @@ export class Mutex extends Component {
 
     /**
      * An attempt of {@link Mutex.acquire}, bounded by its deadline: an attempt hanging (the store unreachable) fails at
-     * the deadline, the lock it acquires later released
-     * @param name
-     * @param options
-     * @param deadline
-     * @param timeout
+     * the deadline, the lock it acquires later released.
+     * @param name The lock name.
+     * @param options The options of the acquisition (its `ttl`).
+     * @param deadline The time the wait ends, in milliseconds since the epoch.
+     * @param timeout The timeout of the wait, in milliseconds, for the message of its exception.
+     * @returns The lock acquired, or `undefined` when another holder has it.
+     * @throws {MutexTimeoutException} When the attempt does not end before the deadline.
      * @protected
      */
     protected async attempt(name: string, options: MutexAcquireOptions, deadline: number, timeout: number): Promise<MutexLock | undefined> {
