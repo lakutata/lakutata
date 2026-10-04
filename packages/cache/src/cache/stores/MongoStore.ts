@@ -61,7 +61,7 @@ export class MongoStore extends SerializedCacheStore {
     public async connect(): Promise<void> {
         const driver: MongoDriver = await LoadDriver<MongoDriver>('MongoClient', 'mongodb')
         const options: MongoCacheOptions = this.options
-        const auth: string = options.username ? `${encodeURIComponent(options.username)}:${encodeURIComponent(options.password)}@` : ''
+        const auth: string = options.username ? `${encodeURIComponent(options.username)}:${encodeURIComponent(options.password ?? '')}@` : ''
         this.client = new driver.MongoClient(`mongodb://${auth}${options.host}:${options.port ?? 27017}`)
         await this.client.connect()
         this.collection = this.client.db(options.database).collection(options.collection)

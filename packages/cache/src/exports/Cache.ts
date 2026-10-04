@@ -3,6 +3,7 @@ export * from '../cache/Cacher.js'
 export * from '../cache/interfaces/CacherOptions.js'
 
 export * from '../cache/options/FileCacheOptions.js'
+export * from '../cache/options/MemoryCacheOptions.js'
 export * from '../cache/options/MemcacheCacheOptions.js'
 export * from '../cache/options/MongoCacheOptions.js'
 export * from '../cache/options/MysqlCacheOptions.js'

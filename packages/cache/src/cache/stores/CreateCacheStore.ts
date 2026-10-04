@@ -1,6 +1,7 @@
 import {CacheStore} from './CacheStore.js'
 import {CacheStoreOptions} from '../types/CacheStoreOptions.js'
 import {FileStore} from './FileStore.js'
+import {MemoryStore} from './MemoryStore.js'
 import {RedisStore} from './RedisStore.js'
 import {MemcacheStore} from './MemcacheStore.js'
 import {MongoStore} from './MongoStore.js'
@@ -14,6 +15,8 @@ import {MysqlStore} from './MysqlStore.js'
  */
 export function CreateCacheStore(options: CacheStoreOptions): CacheStore | undefined {
     switch (options.type) {
+        case 'memory':
+            return new MemoryStore(options.sweepInterval)
         case 'file':
             return new FileStore(options)
         case 'redis':

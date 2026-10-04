@@ -4,7 +4,7 @@ import {mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {Container} from '@lakutata/core'
-import {Cacher, CacheDriverNotFoundException} from '../exports/Cache.js'
+import {Cacher, CacheDriverNotFoundException, MongoCacheOptions, MysqlCacheOptions, PostgresCacheOptions} from '../exports/Cache.js'
 import {Deserialize, Serialize} from '../cache/lib/Serializer.js'
 import {LoadDriver} from '../cache/lib/LoadDriver.js'
 
@@ -153,6 +153,32 @@ describe('Cacher', (): void => {
         const copied: number = first.cache.find(([key]): boolean => key === 'a')![1].expire!
         assert.ok(Math.abs(copied - expires) < 50)
     }))
+
+    it('declares the memory store as a tier in front of another store', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+        const filename: string = path.join(directory, 'l2.json')
+        const container: Container = new Container()
+        const cacher: Cacher = await container.set(Cacher, {stores: [{type: 'memory', sweepInterval: 1000}, {type: 'file', filename: filename, writeDelay: 0}]})
+        //The memory tier keeps the values themselves, the file their JSON
+        const value: { at: Date } = {at: new Date(1)}
+        await cacher.set('v', value)
+        assert.strictEqual(await cacher.get('v'), value)
+        await container.destroy()
+        //The second tier read through, the value copied to the memory tier
+        const reopened: Container = new Container()
+        const tiers: Cacher = await reopened.set(Cacher, {stores: [{type: 'memory'}, {type: 'file', filename: filename, writeDelay: 0}]})
+        assert.deepStrictEqual(await tiers.get('v'), {at: new Date(1).toISOString()})
+        await reopened.destroy()
+        await assert.rejects(new Container().set(Cacher, {stores: {type: 'memory', sweepInterval: -1}}))
+    }))
+
+    it('connects to the databases without credentials (trust authentication)', (): void => {
+        for (const Options of [PostgresCacheOptions, MysqlCacheOptions, MongoCacheOptions]) {
+            const type: string = Options === PostgresCacheOptions ? 'postgres' : Options === MysqlCacheOptions ? 'mysql' : 'mongo'
+            const target: Record<string, string> = type === 'mongo' ? {collection: 'cache'} : {table: 'cache'}
+            assert.doesNotThrow((): unknown => Options.validate({type: type, host: 'localhost', database: 'cache', ...target}), type)
+            assert.doesNotThrow((): unknown => Options.validate({type: type, host: 'localhost', database: 'cache', ...target, username: 'app', password: ''}), type)
+        }
+    })
 
     it('caches in files, in the format of 2.x', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
         const filename: string = path.join(directory, 'cache.json')

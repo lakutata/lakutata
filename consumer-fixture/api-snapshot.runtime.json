@@ -386,6 +386,7 @@
     "Cacher",
     "FileCacheOptions",
     "MemcacheCacheOptions",
+    "MemoryCacheOptions",
     "MongoCacheOptions",
     "MysqlCacheOptions",
     "PostgresCacheOptions",
