@@ -27,7 +27,8 @@
     "rebuild": "npm run clean && npm run build:js",
     "compile": "npm run rebuild",
     "test:unit": "npm run compile && node --test \"dist/esm/tests/*.spec.js\"",
-    "test:containerd": "npm run compile && CONTAINERD_TEST=1 node --test --test-concurrency=1 \"dist/esm/tests/engine/*.spec.js\""
+    "test:containerd": "npm run compile && CONTAINERD_TEST=1 node --test --test-concurrency=1 \"dist/esm/tests/engine/*.spec.js\"",
+    "test:engines": "sh test-env/run.sh"
   },
   "dependencies": {
     "tar-stream": "3.2.2"
