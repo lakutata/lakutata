@@ -52,7 +52,7 @@
     "clean": "node -e \"require('node:fs').rmSync('dist', {recursive: true, force: true})\"",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:esm": "tsc -p tsconfig.esm.json",
-    "build:cjs-pkg": "node -e \"require('node:fs').writeFileSync('dist/cjs/package.json',JSON.stringify({type:'commonjs'}))\"",
+    "build:cjs-pkg": "node ../../scripts/package-build/cjs-package.mjs",
     "build:js": "npm run build:cjs && npm run build:esm && npm run build:cjs-pkg",
     "rebuild": "npm run clean && npm run build:js",
     "compile": "npm run rebuild",

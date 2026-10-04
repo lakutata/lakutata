@@ -105,6 +105,17 @@ await check('CJS @lakutata/i18n parses and formats', () => {
     if (typeof requireCJS('../packages/i18n/dist/cjs/exports/I18nMiddleware.js').I18nMiddleware !== 'function') throw new Error('I18nMiddleware missing')
 })
 
+// The SDKs bundled with lakutata 2.x require the framework through the interop of Rollup: the default of a module marked
+// __esModule (the CJS entries of 3.0) is the entry itself (scripts/package-build/cjs-package.mjs)
+const InteropDefault = (e) => e && e.__esModule ? e : {default: e}
+for (const [name, entry, member] of [['lakutata', 'lakutata/dist/cjs/exports/Lakutata.js', 'DTO'], ['lakutata/decorator/dto', 'lakutata/dist/cjs/exports/DTODecorators.js', 'Expect'], ['@lakutata/nats', 'nats/dist/cjs/exports/Nats.js', 'NATS'], ['@lakutata/utils/helper/*', 'utils/dist/cjs/lib/helpers/UniqueArray.js', 'UniqueArray']]) {
+    await check(`CJS ${name} through the interop of the 2.x bundles`, () => {
+        const required = requireCJS(`../packages/${entry}`)
+        if (InteropDefault(required).default !== required || typeof required.default[member] !== 'function') throw new Error(`${member} missing from the default`)
+        if (Object.keys(required).includes('default')) throw new Error('the default is enumerated')
+    })
+}
+
 if (failures.length) {
     console.error('\nCJS-INTEROP FAILURES (' + failures.length + '):\n' + failures.join('\n'))
     process.exit(1)
