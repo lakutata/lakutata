@@ -6,34 +6,97 @@ import {ServiceResponseCodec, type ServiceResponse} from '../../lib/ServiceRespo
 import {EntrypointStoppedException} from '../../exceptions/EntrypointStoppedException.js'
 
 /**
- * The web contents of a renderer: the sender of its invocations, the receiver of the events pushed to it
+ * The part of Electron's `WebContents` (a renderer) that {@link ElectronIPCServiceEntrypoint} uses: the sender of the
+ * invocations and the receiver of the events pushed to its pages.
  */
 export type IPCSender = {
+    /**
+     * Listen once to the renderer's destruction, which aborts its requests in progress and removes its clients.
+     * @param event The `'destroyed'` event.
+     * @param listener Called when the renderer is destroyed.
+     */
     once(event: 'destroyed', listener: () => void): unknown
+    /**
+     * Remove a `'destroyed'` listener (`removeListener` is used without it).
+     * @param event The `'destroyed'` event.
+     * @param listener The listener to remove.
+     */
     off?(event: 'destroyed', listener: () => void): unknown
+    /**
+     * Remove a `'destroyed'` listener, when `off` is missing.
+     * @param event The `'destroyed'` event.
+     * @param listener The listener to remove.
+     */
     removeListener?(event: 'destroyed', listener: () => void): unknown
+    /**
+     * Send a message to the renderer's main frame, used to push an event to a client without a known frame.
+     * @param channel The IPC channel.
+     * @param args The message's arguments.
+     */
     send?(channel: string, ...args: unknown[]): void
+    /**
+     * Send a message to a frame of the renderer, used to push an event to the page of a client.
+     * @param frame The frame's process id and frame id.
+     * @param channel The IPC channel.
+     * @param args The message's arguments.
+     */
     sendToFrame?(frame: [number, number], channel: string, ...args: unknown[]): void
+    /**
+     * Tell whether the renderer is destroyed; its clients are then dropped instead of receiving the events.
+     * @returns Whether the renderer is destroyed.
+     */
     isDestroyed?(): boolean
 }
 
 /**
- * The event of an invocation: its sender is the web contents of the renderer, its frame the one of the page invoking
+ * The part of Electron's `IpcMainInvokeEvent` that {@link ElectronIPCServiceEntrypoint} uses, given to the service
+ * actions through {@link IPCEventOfContext}.
  */
 export type IPCInvokeEvent = {
+    /**
+     * The renderer that invoked.
+     */
     readonly sender: IPCSender
+    /**
+     * The id of the renderer process of the invoking frame.
+     */
     readonly processId?: number
+    /**
+     * The id of the invoking frame within its process.
+     */
     readonly frameId?: number
+    /**
+     * The invoking frame; a frame without `parent` is the main frame of its window.
+     */
     readonly senderFrame?: { readonly parent?: unknown } | null
 }
 
 /**
- * The part of the ipcMain of Electron used by the adapter
+ * The part of Electron's `ipcMain` that {@link ElectronIPCServiceEntrypoint} uses (give a stand-in in the tests).
  */
 export type IPCMain = {
+    /**
+     * Handle the invocations of a channel (`ipcRenderer.invoke`).
+     * @param channel The IPC channel.
+     * @param listener Answers an invocation with its result.
+     */
     handle(channel: string, listener: (event: any, ...args: any[]) => unknown): void
+    /**
+     * Remove the handler of a channel, when the adapter closes.
+     * @param channel The IPC channel.
+     */
     removeHandler(channel: string): void
+    /**
+     * Listen to the messages of a channel (`ipcRenderer.send`), used for the event subscriptions; without it, the pages
+     * are registered as clients only when they invoke with their id.
+     * @param channel The IPC channel.
+     * @param listener Called with each message.
+     */
     on?(channel: string, listener: (event: any, ...args: any[]) => void): unknown
+    /**
+     * Remove the listeners of a channel, when the adapter closes.
+     * @param channel The IPC channel.
+     */
     removeAllListeners?(channel: string): unknown
 }
 
@@ -47,30 +110,52 @@ type IPCClient = {
     main: boolean
 }
 
+/**
+ * The options of {@link ElectronIPCServiceEntrypoint}.
+ */
 export type ElectronIPCServiceEntrypointOptions = {
     /**
-     * The adapter name
+     * The adapter name, to tell apart several service adapters of one entrypoint.
      */
     name?: string
     /**
-     * The IPC channel of the requests, "lakutata:service" by default (ipcRenderer.invoke(channel, data, clientId)); the
-     * events pushed to the renderers (Entrypoint.notify, broadcast) are sent on "<channel>:event", the renderers
-     * subscribe to them by sending their id on "<channel>:subscribe"
+     * The IPC channel of the requests (`ipcRenderer.invoke(channel, data, clientId)`). The events pushed to the pages are
+     * sent on `<channel>:event`, and a page subscribes to them by sending its client id on `<channel>:subscribe`.
+     * @default 'lakutata:service'
      */
     channel?: string
     /**
-     * The ipcMain of Electron, the one of the main process by default
+     * The `ipcMain` to serve the requests on.
+     * @default the `ipcMain` of Electron's main process
      */
     ipcMain?: IPCMain
     /**
-     * The middlewares of the actions of this adapter, run after the global middlewares
+     * The middlewares of this adapter's actions, run after the entrypoint's global middlewares.
      */
     middlewares?: MiddlewareDefinition[]
 }
 
 /**
- * The IPC event of the request of a context, in the service actions served by Electron
- * @param context
+ * Get the IPC event of a service action's request, when {@link ElectronIPCServiceEntrypoint} serves it (to reach the
+ * invoking renderer or frame).
+ * @param context The service action's context (`this.context` in a controller).
+ * @returns The IPC event (Electron's `IpcMainInvokeEvent`, typed as `Event`), or `undefined` when another adapter serves
+ * the request.
+ * @example
+ * ```typescript
+ * import {Controller, ServiceContext} from 'lakutata/com/entrypoint'
+ * import {IPCEventOfContext} from 'lakutata/adapter/electron'
+ * import {ServiceAction} from 'lakutata/decorator/ctrl'
+ * import type {IpcMainInvokeEvent} from 'electron'
+ *
+ * class WindowController extends Controller {
+ *     //ipcRenderer.invoke('lakutata:service', {cmd: 'window.url'})
+ *     @ServiceAction({cmd: 'window.url'})
+ *     public async url(): Promise<string | undefined> {
+ *         return IPCEventOfContext<IpcMainInvokeEvent>(this.context as ServiceContext)?.sender.getURL()
+ *     }
+ * }
+ * ```
  */
 export function IPCEventOfContext<Event extends IPCInvokeEvent = IPCInvokeEvent>(context: ServiceContext): Event | undefined {
     return (context as ServiceContext & { event?: Event }).event
@@ -94,12 +179,62 @@ async function LoadIPCMain(): Promise<IPCMain> {
 }
 
 /**
- * The service entrypoint served over the IPC of Electron: the renderers invoke the channel with the pattern and the input of an action,
- * ipcRenderer.invoke('lakutata:service', {cmd: 'echo', …}, clientId), and receive its response encoded as {success, error, payload}
- * (ServiceResponseCodec). Each page is a client (the id it gives, the clientId of the contexts of its requests): the
- * main process pushes events to it (Entrypoint.notify, broadcast) on 'lakutata:service:event', which it subscribes to by
- * sending its id on 'lakutata:service:subscribe'
- * @param options
+ * Create a service adapter of an entrypoint served over Electron's IPC, in the main process. It needs the optional
+ * peer dependency `electron`: without the `ipcMain` option, the entrypoint fails to start outside Electron's main
+ * process.
+ *
+ * A renderer invokes the channel with the action's pattern and input, and optionally its client id:
+ * `ipcRenderer.invoke('lakutata:service', {cmd: 'echo', text: 'hi'}, clientId)`. The invocation resolves to
+ * `{success, error, payload}` (see `ServiceResponseCodec`): `payload` is the result, or `error` the whole error object
+ * when the action failed (no matching action, validation…).
+ *
+ * Each page is a client, identified by the id it gives (a non-empty string of at most 200 characters), which its
+ * requests carry as `ServiceContext.clientId`. A page registers by sending its id on `<channel>:subscribe` (or with
+ * any invocation giving it); a page reloaded in the same frame replaces its previous id. The events pushed by
+ * `Entrypoint.notify` and `Entrypoint.broadcast` are sent to the page's frame on `<channel>:event` with the event name
+ * and its arguments array. A destroyed renderer drops its clients.
+ *
+ * When a renderer is destroyed, its requests in progress are aborted (their abort signal fires). When the entrypoint
+ * stops, the new invocations resolve to an `EntrypointStoppedException` error; once the requests in progress end, the
+ * IPC handlers are removed.
+ * @param options The adapter options; by default it serves the channel `'lakutata:service'` on Electron's `ipcMain`.
+ * @returns The adapter, to give to the `service` option of `BuildEntrypoints`.
+ * @example
+ * ```typescript
+ * import {Application} from 'lakutata'
+ * import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+ * import {ServiceAction} from 'lakutata/decorator/ctrl'
+ * import {ElectronIPCServiceEntrypoint} from 'lakutata/adapter/electron'
+ * import type {IpcRenderer, IpcRendererEvent} from 'electron'
+ *
+ * class EchoController extends Controller {
+ *     @ServiceAction({cmd: 'echo'})
+ *     public async echo(input: {text: string}): Promise<string> {
+ *         return input.text
+ *     }
+ * }
+ *
+ * //In the main process
+ * Application.run({
+ *     id: 'desktop.app',
+ *     name: 'Desktop',
+ *     components: {
+ *         entrypoint: BuildEntrypoints({
+ *             controllers: [EchoController],
+ *             service: ElectronIPCServiceEntrypoint()
+ *         })
+ *     }
+ * })
+ *
+ * //In the preload script of a window
+ * declare const ipcRenderer: IpcRenderer
+ * const clientId: string = crypto.randomUUID()
+ * //The events pushed by entrypoint.notify(clientId, 'progress', 50)
+ * ipcRenderer.on('lakutata:service:event', (event: IpcRendererEvent, name: string, args: unknown[]): void => console.log(name, ...args))
+ * ipcRenderer.send('lakutata:service:subscribe', clientId)
+ * //{success: true, error: null, payload: 'hi'}
+ * console.log(await ipcRenderer.invoke('lakutata:service', {cmd: 'echo', text: 'hi'}, clientId))
+ * ```
  */
 export function ElectronIPCServiceEntrypoint(options: ElectronIPCServiceEntrypointOptions = {}): EntrypointAdapter<ServiceContext> {
     const channel: string = options.channel ?? 'lakutata:service'

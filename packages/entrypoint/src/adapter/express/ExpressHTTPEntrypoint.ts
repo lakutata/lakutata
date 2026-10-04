@@ -12,76 +12,102 @@ import {RouteNotFoundException} from '../../exceptions/RouteNotFoundException.js
 import {ExpressResponder, JSONResponder} from './Responders.js'
 
 /**
- * What the hooks of the adapter are given
+ * What the `before` hook of {@link ExpressHTTPEntrypoint} receives besides the express application: the entrypoint's
+ * module, the HTTP server (not listening yet) and the routes the actions will occupy.
  */
 export type ExpressHookContext = {
+    /**
+     * The module owning the entrypoint, to get the application's objects from (`await module.getObject('db')`).
+     */
     readonly module: Module
+    /**
+     * The HTTP server serving the express application. It does not listen yet when the hook runs; attach other servers
+     * to it there (such as a socket.io server, see the `server` option of `SocketIOServiceEntrypoint`).
+     */
     readonly server: Server
     /**
-     * The routes of the actions and their methods
+     * Each action route mapped to its HTTP methods, in lower case as declared (`'/users/:id'` → `{'get', 'delete'}`).
      */
     readonly routes: Map<string, Set<string>>
     /**
-     * The first segments of the routes of the actions ('/device', '/user'…)
+     * The first segment of each action route (`'/device'`, `'/user'`…). A route starting with a parameter (`/:id`)
+     * adds none.
      */
     readonly actionPrefixes: string[]
     /**
-     * Whether a path belongs to the actions (it starts with one of their prefixes)
+     * Tell whether a request path belongs to the actions: it equals one of the action prefixes or starts with one
+     * followed by `/`.
      */
     readonly isActionPath: (requestPath: string) => boolean
 }
 
+/**
+ * The options of {@link ExpressHTTPEntrypoint}.
+ */
 export type ExpressHTTPEntrypointOptions = {
     /**
-     * The adapter name
+     * The adapter name, to tell apart several HTTP adapters of one entrypoint.
      */
     name?: string
     /**
-     * The port, 80 by default (0 for a random port)
+     * The port the server listens on; 0 picks a random free port. The entrypoint fails to start when the port is in use.
+     * @default 80
      */
     port?: number
     /**
-     * The host, all the interfaces by default
+     * The host or address the server listens on.
+     * @default all the interfaces
      */
     host?: string
     /**
-     * The options of the HTTP server (keepAliveTimeout, headersTimeout…)
+     * The options of the Node.js HTTP server (`keepAliveTimeout`, `headersTimeout`, `requestTimeout`, in milliseconds…).
      */
     server?: ServerOptions & { keepAliveTimeout?: number, headersTimeout?: number, requestTimeout?: number }
     /**
-     * The express application, a new one by default
+     * An existing express application to add the action routes to.
+     * @default a new express application
      */
     app?: Express
     /**
-     * The body parsers (JSON and URL encoded) with their size limit, or false to leave the parsing to the application
+     * The JSON and URL-encoded body parsers, with their size limit (bytes, or a text such as `'5mb'`); a larger body is
+     * answered with an error (413). `false` installs no parser, leaving the parsing to the application. The parsers are
+     * installed after the `before` hook, so the middlewares added there do not see a parsed body.
+     * @default {limit: '1mb'}
      */
     body?: false | { limit?: string | number }
     /**
-     * The input of an action from a request, the query and the body by default (the route parameters are merged over it)
+     * Build an action's input from a request. The route parameters are always merged over its result.
+     * @default the query parameters, then the properties of an object body over them
      */
     input?: (request: Request) => Record<string, unknown>
     /**
-     * How the results and the errors are written, JSONResponder by default
+     * How the results and the errors of the actions are written.
+     * @default JSONResponder
      */
     respond?: ExpressResponder
     /**
-     * The middlewares of the actions of this adapter, run after the global middlewares
+     * The middlewares of this adapter's actions, run after the entrypoint's global middlewares.
      */
     middlewares?: MiddlewareDefinition[]
     /**
-     * Run before the routes of the actions are added: the express middlewares and routes of the application
+     * Run before the action routes are added, to add the application's own express middlewares and routes (they take
+     * precedence over the actions). A failure fails the entrypoint start.
      */
     before?: (app: Express, context: ExpressHookContext) => void | Promise<void>
     /**
-     * The handler of the requests matching no action and outside of the action prefixes (such as the pages of a web application)
+     * The handler of the requests that match no action and whose path is outside the action prefixes, such as the pages
+     * of a web application (see {@link StaticUI}). The unmatched requests inside the action prefixes, and all of them
+     * without a fallback, are answered with a `RouteNotFoundException` (404).
      */
     fallback?: RequestHandler
     /**
-     * Run when the adapter stops, after the server is closed
+     * Run when the adapter stops, after the server is closed.
      */
     stop?: () => void | Promise<void>
     /**
-     * ms, the interval of the comments keeping the event streams alive, 15s by default
+     * The interval between the comments keeping the event streams (`EventsResult`) alive through the proxies, in
+     * milliseconds.
+     * @default 15000
      */
     heartbeat?: number
 }
@@ -116,8 +142,63 @@ function EventFrame(data: unknown, event?: string, id?: string): string {
 }
 
 /**
- * The HTTP entrypoint served by an express application
- * @param options
+ * Create the HTTP adapter of an entrypoint served by an express application: each HTTP action (`@GET`, `@POST`,
+ * `@HTTPAction`…) becomes an express route. It needs the optional peer dependency `express`.
+ *
+ * An action's input is the request's query and body (see the `input` option) with the route parameters merged over
+ * them. Its result is written by the responder (JSON by default, 204 for no result); a `StatusResult` sets the status
+ * and the headers, a `FileResult` sends a file, a buffer or a stream (304 when its ETag matches `If-None-Match`), and an
+ * `EventsResult` streams Server-Sent Events. An action that writes the response itself (through
+ * `HTTPContext.response`) is left alone. The errors are written by the responder with their status (400 for the
+ * validation failures, 500 by default).
+ *
+ * When the client disconnects before the response, the action's abort signal fires and nothing is written. When the
+ * entrypoint stops, the server stops accepting connections, the event streams end, and the requests in progress are
+ * given up to one second after they settle to send their responses before the remaining connections are closed.
+ * @param options The adapter options; by default it listens on port 80 of all the interfaces with a new express
+ * application.
+ * @returns The adapter, to give to the `http` option of `BuildEntrypoints`.
+ * @example
+ * ```typescript
+ * import {Application} from 'lakutata'
+ * import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+ * import {GET, POST} from 'lakutata/decorator/ctrl'
+ * import {ExpressHTTPEntrypoint, StaticUI} from 'lakutata/adapter/express'
+ *
+ * class UserController extends Controller {
+ *     //GET /users/1?verbose=true: the route parameter id merged over the query
+ *     @GET('/users/:id')
+ *     public async get(input: {id: string, verbose?: string}): Promise<{id: string}> {
+ *         return {id: input.id}
+ *     }
+ *
+ *     //POST /users with the JSON body {"name": "Ada"}
+ *     @POST('/users')
+ *     public async create(input: {name: string}): Promise<{name: string}> {
+ *         return {name: input.name}
+ *     }
+ * }
+ *
+ * Application.run({
+ *     id: 'web.app',
+ *     name: 'Web',
+ *     components: {
+ *         entrypoint: BuildEntrypoints({
+ *             controllers: [UserController],
+ *             http: ExpressHTTPEntrypoint({
+ *                 port: 8080,
+ *                 body: {limit: '5mb'},
+ *                 //The application's own routes, before the actions
+ *                 before: (app): void => {
+ *                     app.get('/health', (request, response): void => void response.send('ok'))
+ *                 },
+ *                 //The pages of the UI built in ./ui/dist, for the paths outside /users
+ *                 fallback: StaticUI('./ui/dist')
+ *             })
+ *         })
+ *     }
+ * })
+ * ```
  */
 export function ExpressHTTPEntrypoint(options: ExpressHTTPEntrypointOptions = {}): EntrypointAdapter<HTTPContext> {
     const respond: ExpressResponder = options.respond ?? JSONResponder

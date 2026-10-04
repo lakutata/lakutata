@@ -6,5 +6,8 @@ import {Exception} from '@lakutata/core'
 export class ServiceInvokeException extends Exception {
     public errno: string | number = 'E_SERVICE_INVOKE'
 
+    /**
+     * The id of the service invoked.
+     */
     public service?: string
 }

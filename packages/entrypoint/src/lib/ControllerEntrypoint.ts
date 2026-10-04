@@ -13,25 +13,77 @@ import {CLIChannel, HTTPChannel, ServiceChannel} from '../channel/BuiltinChannel
 
 export type ActionPatternMap = Map<ActionPattern, ActionDetails>
 
+/**
+ * A registered controller action: its address in its channel, its controller and method, its input DTO and its
+ * options. The channels read it from {@link ChannelEntry.details}.
+ */
 export type ActionDetails<ClassPrototype extends Controller = Controller, DTOConstructor extends typeof DTO = typeof DTO> =
     {
+        /**
+         * The action's address in its channel (`{route, method}`, `{command}`, a service pattern…), with its
+         * controller prefix once bound to an entrypoint.
+         */
         pattern: ActionPattern
+        /**
+         * The controller class serving the action: the registered controller, which may be a subclass of the class
+         * declaring the action.
+         */
         constructor: IBaseObjectConstructor<ClassPrototype>
+        /**
+         * The controller method running the action.
+         */
         method: string | number | symbol
+        /**
+         * The DTO validating the action's input.
+         */
         dtoConstructor: DTOConstructor
+        /**
+         * The JSON schema of the action's input (its DTO).
+         */
         jsonSchema: JSONSchema
+        /**
+         * The middlewares of the action's `middlewares` option.
+         */
         middlewares: MiddlewareDefinition[]
+        /**
+         * Get the action's options and identity, as given to the access control rules (`targetAction`).
+         * @returns The action's identity and options.
+         */
         getActionInfo: () => ActionInfo
     }
     & ActionInfo
 
+/**
+ * A controller action's identity and options.
+ */
 export type ActionInfo = {
+    /**
+     * The action's id: a UUID derived from the controller, the method and the address, stable across restarts.
+     */
     id: string
+    /**
+     * Whether the action is checked by the access control rules (its `acl` option).
+     */
     acl: boolean
+    /**
+     * The action's controller class and method, as `ControllerClass:method`.
+     */
     action: string
+    /**
+     * The action's name: its `name` option, `ControllerClass:method` by default.
+     */
     name: string
+    /**
+     * The action's description: its `description` option, empty by default.
+     */
     description: string
+    /**
+     * The ids of the action's groups (its `groups` option).
+     */
     groups: string[]
+    /**
+     * The action's own access rule (its `rule` option).
+     */
     rule?: AccessControlRuleHandler<any>
 }
 
@@ -141,14 +193,33 @@ export function RegisterChannelAction(channel: ChannelDefinition, target: IBaseO
 }
 
 /**
- * Register an action of a controller method on a channel
- * @param channel
- * @param controllerPrototype
- * @param propertyKey
- * @param actionPattern
- * @param dtoConstructor
- * @param actionOptions
- * @constructor
+ * Register a controller method as an action of a channel, for the decorators of the packages providing a channel
+ * (the built-in `@HTTPAction`, `@CLIAction` and `@ServiceAction` call it). The action is served by the controller class
+ * and its subclasses registered in an entrypoint. Registering the same address again for the class replaces the
+ * previous action.
+ * @param channel The channel's definition (see {@link DefineChannel}).
+ * @param controllerPrototype The prototype of the controller class (the decorator's target).
+ * @param propertyKey The name of the method running the action.
+ * @param actionPattern The action's address, checked by the channel's `validate`; at most 2 levels of nesting.
+ * @param dtoConstructor The DTO validating the action's input (`FlexibleDTO` to accept any input).
+ * @param actionOptions The action's options (name, description, groups, access control, middlewares); give them
+ * validated (as {@link GetActionDTOAndOptions} returns them).
+ * @throws {InvalidActionPatternDepthException} When the address is nested more than 2 levels deep.
+ * @throws {InvalidMiddlewareException} When a middleware of the options is neither a function nor a `Middleware` subclass.
+ * @example
+ * ```typescript
+ * import {DTO} from 'lakutata'
+ * import {Controller, type ControllerProperty} from 'lakutata/com/entrypoint'
+ * import {GetActionDTOAndOptions, GetChannel, RegisterControllerAction, type ActionOptions} from '@lakutata/entrypoint/channel'
+ *
+ * //A decorator declaring the actions of a "queue" channel defined by its package
+ * export function OnMessage(topic: string, dtoOrOptions?: typeof DTO | ActionOptions<any>, options?: ActionOptions<any>) {
+ *     return <ClassPrototype extends Controller>(target: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>): void => {
+ *         const [dtoConstructor, actionOptions] = GetActionDTOAndOptions(dtoOrOptions, options)
+ *         RegisterControllerAction(GetChannel('queue'), target, propertyKey, {topic: topic}, dtoConstructor, actionOptions)
+ *     }
+ * }
+ * ```
  */
 export function RegisterControllerAction<ClassPrototype extends Controller, DTOConstructor extends typeof DTO = typeof DTO>(
     channel: ChannelDefinition,

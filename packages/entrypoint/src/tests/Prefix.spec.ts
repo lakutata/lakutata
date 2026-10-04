@@ -133,6 +133,20 @@ describe('Controller prefixes', (): void => {
         await assert.rejects(Create([AController, BController]), {name: 'DuplicateActionNameException'})
     })
 
+    it('let the routes of one method share its name', async (): Promise<void> => {
+        class AliasController extends Controller {
+            @GET('/users/:id')
+            @GET('/members/:id')
+            public async get(): Promise<string> {
+                return 'user'
+            }
+        }
+
+        const {entrypoint, container} = await Create([AliasController])
+        assert.deepStrictEqual(entrypoint.getHttpActions().actions.map((action): string => action.name), ['AliasController:get', 'AliasController:get'])
+        await container.destroy()
+    })
+
     it('keep the actions without prefix as they are', async (): Promise<void> => {
         const {entrypoint, container} = await Create([PlainController])
         const [action] = entrypoint.getHttpActions().actions

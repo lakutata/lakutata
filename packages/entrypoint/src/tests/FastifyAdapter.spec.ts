@@ -229,4 +229,22 @@ describe('Fastify adapter', (): void => {
         await second.destroy()
         await first.destroy()
     })
+
+    it('listens on every interface by default', async (): Promise<void> => {
+        let server: Server | undefined
+        const container: Container = new Container()
+        await container.set(Entrypoint, BuildEntrypoints({
+            controllers: [DeviceController],
+            http: FastifyHTTPEntrypoint({port: 0, before: (app, context): void => {
+                server = context.server
+            }})
+        }))
+        try {
+            const address: AddressInfo = server!.address() as AddressInfo
+            assert.ok(['::', '0.0.0.0'].includes(address.address), address.address)
+            assert.deepStrictEqual(await (await fetch(`http://127.0.0.1:${address.port}/device/a`)).json(), {sn: 'a'})
+        } finally {
+            await container.destroy()
+        }
+    })
 })

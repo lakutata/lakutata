@@ -41,102 +41,445 @@ export {type ServiceContextParams} from './types/ServiceContextParams.js'
 export {type ScheduleContextParams} from './types/ScheduleContextParams.js'
 
 //The builders of the entrypoints of lakutata 2.x: their result is ignored, a promise awaited (an asynchronous builder)
+/**
+ * A CLI entrypoint in the style of lakutata 2.x: a function the entrypoint calls once when it starts, which reads the
+ * command line and runs its commands through the handler. Its result is ignored; a promise it returns is awaited before
+ * the next adapter starts, and its rejection fails the entrypoint's initialization. Prefer an adapter
+ * (`CommanderCLIEntrypoint` of `lakutata/adapter/commander`) for new code.
+ * @param module The module owning the entrypoint (the application).
+ * @param cliMap The CLI actions' commands, each with the JSON schema of its input.
+ * @param handler Runs a command: dispatches a {@link CLIContext} to the matching action.
+ * @param registerDestroy Registers a function run when the entrypoint stops.
+ */
 export type CLIEntrypoint = (module: Module, cliMap: CLIMap, handler: CLIEntrypointHandler, registerDestroy: EntrypointDestroyerRegistrar) => unknown
+/**
+ * An HTTP entrypoint in the style of lakutata 2.x: a function the entrypoint calls once when it starts, which starts a
+ * server and passes its requests to the handler. Its result is ignored; a promise it returns is awaited before the next
+ * adapter starts, and its rejection fails the entrypoint's initialization. Prefer an adapter (`ExpressHTTPEntrypoint` of
+ * `lakutata/adapter/express`, `FastifyHTTPEntrypoint` of `lakutata/adapter/fastify`) for new code.
+ * @param module The module owning the entrypoint (the application).
+ * @param routeMap The HTTP actions' routes, each with its methods.
+ * @param handler Runs a request: dispatches an {@link HTTPContext} to the matching action.
+ * @param registerDestroy Registers a function run when the entrypoint stops (closing the server).
+ */
 export type HTTPEntrypoint = (module: Module, routeMap: HTTPRouteMap, handler: HTTPEntrypointHandler, registerDestroy: EntrypointDestroyerRegistrar) => unknown
+/**
+ * A service entrypoint in the style of lakutata 2.x: a function the entrypoint calls once when it starts, which
+ * receives the service requests of a transport and passes them to the handler. Its result is ignored; a promise it
+ * returns is awaited before the next adapter starts, and its rejection fails the entrypoint's initialization. Prefer an
+ * adapter (`SocketIOServiceEntrypoint`, `JSONRPCServiceEntrypoint`, `ElectronIPCServiceEntrypoint`) for new code.
+ * @param module The module owning the entrypoint (the application).
+ * @param handler Runs a request: dispatches a {@link ServiceContext} to the action whose pattern matches its input.
+ * @param registerDestroy Registers a function run when the entrypoint stops.
+ */
 export type ServiceEntrypoint = (module: Module, handler: ServiceEntrypointHandler, registerDestroy: EntrypointDestroyerRegistrar) => unknown
 
+/**
+ * The CLI actions given to a {@link CLIEntrypoint}: each command mapped to the JSON schema of its input (its DTO).
+ */
 export type CLIMap = Map<string, JSONSchema>
+/**
+ * The HTTP actions given to an {@link HTTPEntrypoint}: each route (with its controller prefix) mapped to the set of
+ * its HTTP methods (`GET`, `POST`…).
+ */
 export type HTTPRouteMap<HTTPMethods = string> = Map<string, Set<HTTPMethods>>
 
+/**
+ * Dispatch a CLI request to the action of its command, given to a {@link CLIEntrypoint}.
+ * The promise resolves to the action's result; it rejects with a `ControllerActionNotFoundException` when no action
+ * has the command, and with the error of the input validation, the access control or the action. Aborting the
+ * controller cancels the request: its result is dropped and the promise resolves to `undefined`; a request aborted
+ * before it starts is not run at all.
+ * @param context The request: its command and its data (the input of the action).
+ * @param abortController Aborts the request, for example when its client goes away.
+ * @returns The action's result.
+ */
 export type CLIEntrypointHandler<T = unknown> = (context: CLIContext, abortController?: AbortController) => Promise<T>
+/**
+ * Dispatch an HTTP request to the action of its route and method, given to an {@link HTTPEntrypoint}.
+ * The promise resolves to the action's result; it rejects with a `ControllerActionNotFoundException` when no action
+ * matches, and with the error of the input validation, the access control or the action. Aborting the controller
+ * cancels the request: its result is dropped and the promise resolves to `undefined`; a request aborted before it
+ * starts is not run at all.
+ * @param context The request: its route, method, data (the input of the action), request and response.
+ * @param abortController Aborts the request, for example when its connection closes.
+ * @returns The action's result.
+ */
 export type HTTPEntrypointHandler<T = unknown> = (context: HTTPContext, abortController?: AbortController) => Promise<T>
+/**
+ * Dispatch a service request to the action whose pattern matches its input, given to a {@link ServiceEntrypoint}.
+ * The promise resolves to the action's result; it rejects with a `ControllerActionNotFoundException` when no action
+ * matches, and with the error of the input validation, the access control or the action. Aborting the controller
+ * cancels the request: its result is dropped and the promise resolves to `undefined`; a request aborted before it
+ * starts is not run at all.
+ * @param context The request: its data, matched against the actions' patterns (the pattern keys are removed from the
+ * action's input).
+ * @param abortController Aborts the request, for example when its client disconnects.
+ * @returns The action's result.
+ */
 export type ServiceEntrypointHandler<T = unknown> = (context: ServiceContext, abortController?: AbortController) => Promise<T>
 
+/**
+ * A function releasing what a 2.x entrypoint started (a server, a connection), run when the entrypoint stops; the
+ * entrypoint then waits for the requests in progress.
+ */
 export type EntrypointDestroyer = () => void | Promise<void>
+/**
+ * Register an {@link EntrypointDestroyer}, given to the 2.x entrypoints. The destroyers registered by an entrypoint run
+ * together (not in order) when it stops; their failures are thrown from the entrypoint's destruction.
+ * @param destroyer The function run when the entrypoint stops.
+ */
 export type EntrypointDestroyerRegistrar = (destroyer: EntrypointDestroyer) => void
 
 /**
- * The entrypoint options, the packages of the other channels add their adapter keys (declaration merging)
+ * The options of the {@link Entrypoint} component: its controllers, middlewares and access rules, and the adapters
+ * receiving the requests of each channel. Any other key is the name of a channel and takes that channel's adapters
+ * (the packages providing a channel add their key to this interface by declaration merging); an adapter given under
+ * another channel's key, or a key which is neither an option nor an adapter, fails the entrypoint's initialization
+ * with an `InvalidEntrypointAdapterException`.
+ * Build them with {@link BuildEntrypoints}.
  */
 export interface EntrypointOptions {
+    /**
+     * The controller classes whose actions the entrypoint serves. They are registered in the entrypoint's container;
+     * an action declared in a parent controller is served by each registered subclass.
+     */
     controllers: IBaseObjectConstructor<Controller>[]
+    /**
+     * The middlewares run around every action of every channel, in order, before the ones of the adapter, of the
+     * controller class and of the action.
+     * @default []
+     */
     middlewares?: MiddlewareDefinition[]
+    /**
+     * The access control rule classes checked for the actions declared with `acl: true`, in order; a rule is skipped
+     * for the contexts not in its `supportContextTypes`.
+     * @default []
+     */
     rules?: IBaseObjectConstructor<AccessControlRule>[]
     /**
-     * ms, the time given to the requests in progress when the entrypoint stops, they are aborted after it
+     * The time in milliseconds given to the requests in progress when the entrypoint stops; the ones still running
+     * after it are aborted, and fail with an `EntrypointStoppedException`.
+     * @default 30000
      */
     shutdownTimeout?: number
+    /**
+     * The CLI action groups: each group id (used in the actions' `groups` option) mapped to its display name. An action
+     * in a group not listed here fails the entrypoint's initialization with an `InvalidActionGroupException`.
+     * @default {}
+     */
     cliActionGroups?: Record<string, string>
+    /**
+     * The adapters (or 2.x entrypoint functions) receiving the CLI requests, such as `CommanderCLIEntrypoint()`.
+     */
     cli?: CLIEntrypoint | EntrypointAdapter<CLIContext> | (CLIEntrypoint | EntrypointAdapter<CLIContext>)[]
+    /**
+     * The HTTP action groups: each group id (used in the actions' `groups` option) mapped to its display name. An
+     * action in a group not listed here fails the entrypoint's initialization with an `InvalidActionGroupException`.
+     * @default {}
+     */
     httpActionGroups?: Record<string, string>
+    /**
+     * The adapters (or 2.x entrypoint functions) receiving the HTTP requests, such as `ExpressHTTPEntrypoint()`.
+     */
     http?: HTTPEntrypoint | EntrypointAdapter<HTTPContext> | (HTTPEntrypoint | EntrypointAdapter<HTTPContext>)[]
+    /**
+     * The service action groups: each group id (used in the actions' `groups` option) mapped to its display name. An
+     * action in a group not listed here fails the entrypoint's initialization with an `InvalidActionGroupException`.
+     * @default {}
+     */
     serviceActionGroups?: Record<string, string>
+    /**
+     * The adapters (or 2.x entrypoint functions) receiving the service requests, such as `SocketIOServiceEntrypoint()`.
+     */
     service?: ServiceEntrypoint | EntrypointAdapter<ServiceContext> | (ServiceEntrypoint | EntrypointAdapter<ServiceContext>)[]
     /**
-     * The schedule adapter running the actions declared with @Schedule (they do not run without it)
+     * The schedule adapter running the actions declared with `@Schedule` (`ScheduleEntrypoint()`); without it they
+     * never run.
      */
     schedule?: EntrypointAdapter<ScheduleContext> | EntrypointAdapter<ScheduleContext>[]
 }
 
+/**
+ * The description of a controller action in a channel, as listed by {@link Entrypoint.getActions}, given to the
+ * access control rules and, extended with the address, to the adapters.
+ */
 export interface BaseActionInfo {
+    /**
+     * The action's id: a UUID derived from the controller, the method and the address, stable across restarts.
+     */
     readonly id: string
+    /**
+     * Whether the action is checked by the access control rules (its `acl` option).
+     */
     readonly acl: boolean
+    /**
+     * The action's name: its `name` option, `ControllerClass:method` by default. It is unique within a channel among
+     * the controller methods (the addresses of one method share its name).
+     */
     readonly name: string
+    /**
+     * The action's description: its `description` option, empty by default.
+     */
     readonly description: string
+    /**
+     * The ids of the action's groups (its `groups` option).
+     */
     readonly groups: string[]
+    /**
+     * The class name of the controller serving the action.
+     */
     readonly controller: string
+    /**
+     * The name of the controller method running the action.
+     */
     readonly method: string
+    /**
+     * The JSON schema of the action's input (its DTO).
+     */
     readonly jsonSchema: JSONSchema
 }
 
+/**
+ * The description of an HTTP action.
+ */
 export interface HTTPActionInfo extends BaseActionInfo {
+    /**
+     * The action's route, with its controller prefix.
+     */
     readonly route: string
 }
 
+/**
+ * The description of a service action.
+ */
 export interface ServiceActionInfo extends BaseActionInfo {
+    /**
+     * The pattern the requests' input matches, with its controller prefix.
+     */
     readonly pattern: ActionPattern
 }
 
+/**
+ * The description of a CLI action.
+ */
 export interface CLIActionInfo extends BaseActionInfo {
+    /**
+     * The action's command, with its controller prefix.
+     */
     readonly command: string
 }
 
+/**
+ * A group of actions of a channel, as listed by {@link Entrypoint.getActions}.
+ */
 export interface ActionGroupInfo<T extends BaseActionInfo> {
+    /**
+     * The group's id, as used in the actions' `groups` option.
+     */
     readonly id: string
+    /**
+     * The group's display name, from the entrypoint's action group options (`httpActionGroups`…); `undefined` for the
+     * channels without such an option.
+     */
     readonly name: string
+    /**
+     * The actions in the group.
+     */
     actions: T[]
 }
 
+/**
+ * The actions of a channel, and the groups they belong to.
+ */
 export interface EntrypointActions<T extends BaseActionInfo> {
+    /**
+     * The groups used by the actions, each with its actions; an action may be in several groups.
+     */
     readonly groups: ActionGroupInfo<T>[]
+    /**
+     * Every action of the channel, grouped or not.
+     */
     readonly actions: T[]
 }
 
 /**
- * Build cli entrypoint
- * @param entrypoint
- * @constructor
+ * Type a CLI entrypoint in the style of lakutata 2.x; the function is returned as it is.
+ * @param entrypoint The function the entrypoint calls when it starts, with the module, the commands, the request
+ * handler and the destroyer registrar.
+ * @returns The same function, to give to the `cli` option of {@link BuildEntrypoints}.
+ * @example
+ * ```typescript
+ * import {Application} from 'lakutata'
+ * import {BuildCLIEntrypoint, BuildEntrypoints, CLIContext, Controller} from 'lakutata/com/entrypoint'
+ * import {CLIAction} from 'lakutata/decorator/ctrl'
+ *
+ * class VersionController extends Controller {
+ *     @CLIAction('version')
+ *     public async version(): Promise<string> {
+ *         return '1.0.0'
+ *     }
+ * }
+ *
+ * Application.run(() => ({
+ *     id: 'tool.app',
+ *     name: 'Tool',
+ *     components: {
+ *         entrypoint: BuildEntrypoints({
+ *             controllers: [VersionController],
+ *             //Run the command given as the first argument once the entrypoint starts
+ *             cli: BuildCLIEntrypoint(async (module, cliMap, handler): Promise<void> => {
+ *                 const command: string = process.argv[2] ?? 'version'
+ *                 if (cliMap.has(command)) console.log(await handler(new CLIContext({command: command, data: {}})))
+ *             })
+ *         })
+ *     }
+ * }))
+ * ```
  */
 export const BuildCLIEntrypoint: (entrypoint: CLIEntrypoint) => CLIEntrypoint = (entrypoint: CLIEntrypoint): CLIEntrypoint => entrypoint
 
 /**
- * Build http entrypoint
- * @param entrypoint
- * @constructor
+ * Type an HTTP entrypoint in the style of lakutata 2.x; the function is returned as it is.
+ * @param entrypoint The function the entrypoint calls when it starts, with the module, the routes, the request handler
+ * and the destroyer registrar.
+ * @returns The same function, to give to the `http` option of {@link BuildEntrypoints}.
+ * @example
+ * ```typescript
+ * import {createServer, type Server} from 'node:http'
+ * import {Application} from 'lakutata'
+ * import {BuildEntrypoints, BuildHTTPEntrypoint, Controller, HTTPContext} from 'lakutata/com/entrypoint'
+ * import {GET} from 'lakutata/decorator/ctrl'
+ *
+ * class HealthController extends Controller {
+ *     @GET('/health')
+ *     public async health(): Promise<{status: string}> {
+ *         return {status: 'ok'}
+ *     }
+ * }
+ *
+ * Application.run(() => ({
+ *     id: 'api.app',
+ *     name: 'API',
+ *     components: {
+ *         entrypoint: BuildEntrypoints({
+ *             controllers: [HealthController],
+ *             http: BuildHTTPEntrypoint((module, routeMap, handler, registerDestroy): void => {
+ *                 const server: Server = createServer(async (request, response): Promise<void> => {
+ *                     const route: string = (request.url ?? '/').split('?')[0]
+ *                     const method: string = request.method ?? 'GET'
+ *                     if (!routeMap.get(route)?.has(method)) {
+ *                         response.writeHead(404).end()
+ *                         return
+ *                     }
+ *                     const abortController: AbortController = new AbortController()
+ *                     response.on('close', (): void => abortController.abort())
+ *                     try {
+ *                         const context: HTTPContext = new HTTPContext({route, method, request, response, data: {}})
+ *                         response.end(JSON.stringify(await handler(context, abortController)))
+ *                     } catch (error) {
+ *                         response.writeHead(500).end((error as Error).message)
+ *                     }
+ *                 }).listen(3000)
+ *                 registerDestroy((): Promise<void> => new Promise((resolve): void => void server.close((): void => resolve())))
+ *             })
+ *         })
+ *     }
+ * }))
+ * ```
  */
 export const BuildHTTPEntrypoint: (entrypoint: HTTPEntrypoint) => HTTPEntrypoint = (entrypoint: HTTPEntrypoint): HTTPEntrypoint => entrypoint
 
 /**
- * Build service entrypoint
- * @param entrypoint
- * @constructor
+ * Type a service entrypoint in the style of lakutata 2.x; the function is returned as it is.
+ * @param entrypoint The function the entrypoint calls when it starts, with the module, the request handler and the
+ * destroyer registrar.
+ * @returns The same function, to give to the `service` option of {@link BuildEntrypoints}.
+ * @example
+ * ```typescript
+ * import {EventEmitter} from 'node:events'
+ * import {Application} from 'lakutata'
+ * import {BuildEntrypoints, BuildServiceEntrypoint, Controller, ServiceContext} from 'lakutata/com/entrypoint'
+ * import {ServiceAction} from 'lakutata/decorator/ctrl'
+ *
+ * declare const bus: EventEmitter
+ *
+ * class MathController extends Controller {
+ *     @ServiceAction({ctrl: 'math', act: 'add'})
+ *     public async add(input: {a: number, b: number}): Promise<number> {
+ *         return input.a + input.b
+ *     }
+ * }
+ *
+ * Application.run(() => ({
+ *     id: 'math.app',
+ *     name: 'Math',
+ *     components: {
+ *         entrypoint: BuildEntrypoints({
+ *             controllers: [MathController],
+ *             //Each message of the bus is a request: its data matched against the patterns of the actions
+ *             service: BuildServiceEntrypoint((module, handler, registerDestroy): void => {
+ *                 const listener = async (data: Record<string, any>, reply: (result: unknown) => void): Promise<void> => {
+ *                     reply(await handler(new ServiceContext({data: data})))
+ *                 }
+ *                 bus.on('request', listener)
+ *                 registerDestroy((): void => void bus.off('request', listener))
+ *             })
+ *         })
+ *     }
+ * }))
+ * ```
  */
 export const BuildServiceEntrypoint: (entrypoint: ServiceEntrypoint) => ServiceEntrypoint = (entrypoint: ServiceEntrypoint): ServiceEntrypoint => entrypoint
 
 /**
- * Build entrypoints options for Entrypoint component
- * @param options
- * @constructor
+ * Type the options of the {@link Entrypoint} component; they are returned as they are. The applications of the
+ * `lakutata` package declare the entrypoint as the component `entrypoint`: give these options to it.
+ * @param options The controllers, middlewares, access rules and the adapters of each channel.
+ * @returns The same options, to declare as the `entrypoint` component.
+ * @example
+ * ```typescript
+ * import {Application, DTO} from 'lakutata'
+ * import {BuildEntrypoints, Controller, ScheduleEntrypoint} from 'lakutata/com/entrypoint'
+ * import {GET, POST, Schedule} from 'lakutata/decorator/ctrl'
+ * import {Expect} from 'lakutata/decorator/dto'
+ * import {ExpressHTTPEntrypoint} from 'lakutata/adapter/express'
+ *
+ * class CreateOrderDTO extends DTO {
+ *     @Expect(DTO.String().required())
+ *     public product: string
+ * }
+ *
+ * class OrderController extends Controller {
+ *     @GET('/orders', {name: 'listOrders', groups: ['orders']})
+ *     public async list(): Promise<string[]> {
+ *         return []
+ *     }
+ *
+ *     @POST('/orders', CreateOrderDTO, {name: 'createOrder', groups: ['orders']})
+ *     public async create(input: CreateOrderDTO): Promise<{product: string}> {
+ *         return {product: input.product}
+ *     }
+ *
+ *     @Schedule('0 * * * *')
+ *     public async purge(): Promise<void> {
+ *     }
+ * }
+ *
+ * Application.run(() => ({
+ *     id: 'shop.app',
+ *     name: 'Shop',
+ *     components: {
+ *         entrypoint: BuildEntrypoints({
+ *             controllers: [OrderController],
+ *             httpActionGroups: {orders: 'Orders'},
+ *             shutdownTimeout: 10000,
+ *             http: ExpressHTTPEntrypoint({port: 3000}),
+ *             schedule: ScheduleEntrypoint()
+ *         })
+ *     }
+ * }))
+ * ```
  */
 export const BuildEntrypoints: (options: EntrypointOptions) => EntrypointOptions = (options: EntrypointOptions): EntrypointOptions => options
 
@@ -193,66 +536,162 @@ const ENTRYPOINT_OPTIONS: Set<string> = new Set(['class', 'id', 'controllers', '
 const LEGACY_CHANNELS: Set<string> = new Set(['cli', 'http', 'service'])
 
 /**
- * Entrypoint Component
+ * The entrypoint component: it serves the controllers' actions to the requests of every channel (HTTP, CLI, service,
+ * schedule, and the channels of other packages), each received by the adapters configured for its channel.
+ *
+ * The applications of the `lakutata` package declare it as the component `entrypoint`: configure it with
+ * {@link BuildEntrypoints}. When it initializes, it registers the controllers, checks their actions (their groups and
+ * the uniqueness of their names) and starts the adapters in order; it is ready (the adapters acting on their own, such
+ * as the schedules, begin) once the application has launched. Each request runs in a scope of its own: its middlewares,
+ * then a new controller instance receiving its context and signal, the validation of its input, the access control
+ * and the action; the scope is destroyed when the request ends.
+ *
+ * When it is destroyed, it stops the adapters in reverse order: each stops receiving requests, the requests in progress
+ * get `shutdownTimeout` milliseconds to complete and are then aborted (failing with an `EntrypointStoppedException`),
+ * and the adapter is closed.
+ * @example
+ * ```typescript
+ * import {Application, Component} from 'lakutata'
+ * import {BuildEntrypoints, Controller, Entrypoint, ServiceContext} from 'lakutata/com/entrypoint'
+ * import {GET, ServiceAction} from 'lakutata/decorator/ctrl'
+ * import {Inject} from 'lakutata/decorator/di'
+ * import {ExpressHTTPEntrypoint} from 'lakutata/adapter/express'
+ * import {SocketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
+ *
+ * class ChatController extends Controller {
+ *     @Inject('entrypoint')
+ *     protected readonly entrypoint: Entrypoint
+ *
+ *     //Served over HTTP: GET /rooms
+ *     @GET('/rooms')
+ *     public async rooms(): Promise<string[]> {
+ *         return ['general']
+ *     }
+ *
+ *     //Served over Socket.IO, the message pushed to every client
+ *     @ServiceAction({act: 'say'})
+ *     public async say(input: {text: string}): Promise<number> {
+ *         const from: string | undefined = (this.context as ServiceContext).clientId
+ *         return this.entrypoint.broadcast('message', from, input.text)
+ *     }
+ * }
+ *
+ * Application
+ *     .run(() => ({
+ *         id: 'chat.app',
+ *         name: 'Chat',
+ *         components: {
+ *             entrypoint: BuildEntrypoints({
+ *                 controllers: [ChatController],
+ *                 http: ExpressHTTPEntrypoint({port: 3000}),
+ *                 service: SocketIOServiceEntrypoint({port: 3001})
+ *             })
+ *         }
+ *     }))
+ *     .onLaunched(async (app: Application): Promise<void> => {
+ *         const entrypoint: Entrypoint = await app.getObject<Entrypoint>('entrypoint')
+ *         console.log(entrypoint.getHttpActions().actions.map(action => action.route)) //['/rooms']
+ *     })
+ * ```
  */
 @Singleton()
 export class Entrypoint extends Component {
 
     /**
-     * The options of the channels (not configurable properties): the adapters, and the callbacks of 2.x
-     * @param name
-     * @param value
+     * Whether an option which is not a configurable property is accepted: the adapters given under a channel's key,
+     * and the 2.x entrypoint functions under `cli`, `http` and `service`. The container calls it when it checks the
+     * component's options.
+     * @param name The option's key.
+     * @param value The option's value: one item or an array.
+     * @returns `true` when every item is an adapter, or a function under a 2.x channel's key.
      */
     public static acceptsOption(name: string, value: unknown): boolean {
         const items: unknown[] = Array.isArray(value) ? value : [value]
         return items.every((item: unknown): boolean => IsEntrypointAdapter(item) || (typeof item === 'function' && LEGACY_CHANNELS.has(name)))
     }
 
+    /**
+     * The class running the access control of the actions declared with `acl: true` or a `rule`; a subclass of the
+     * entrypoint may replace it with a subclass of {@link AccessControl}.
+     * @protected
+     */
     protected readonly accessControl: typeof AccessControl = AccessControl
 
     /**
-     * Controllers
+     * The controller classes whose actions the entrypoint serves.
+     * @default []
      * @protected
      */
     @Configurable(DTO.Array(DTO.Class(Controller)).optional().default([]))
     protected readonly controllers: IBaseObjectConstructor<Controller>[]
 
     /**
-     * Middlewares of all the actions
+     * The middlewares run around every action of every channel, before the ones of the adapter, of the controller class
+     * and of the action.
+     * @default []
      * @protected
      */
     @Configurable(DTO.Array(DTO.Function()).optional().default([]))
     protected readonly middlewares: MiddlewareDefinition[]
 
     /**
-     * Access control rules
+     * The access control rule classes checked for the actions declared with `acl: true`.
+     * @default []
      * @protected
      */
     @Configurable(DTO.Array(DTO.Class(AccessControlRule)).optional().default([]))
     protected readonly rules: IBaseObjectConstructor<AccessControlRule>[]
 
     /**
-     * ms, the time given to the requests in progress when the entrypoint stops
+     * The time in milliseconds given to the requests in progress when the entrypoint stops, before they are aborted.
+     * @default 30000
      * @protected
      */
     @Configurable(DTO.Number().integer().min(0).optional().default(30000))
     protected readonly shutdownTimeout: number
 
+    /**
+     * The CLI action groups: each group id mapped to its display name.
+     * @default {}
+     * @protected
+     */
     @Configurable(DTO.Object().pattern(DTO.String(), DTO.String()).optional().default({}))
     protected readonly cliActionGroups: Record<string, string>
 
+    /**
+     * The HTTP action groups: each group id mapped to its display name.
+     * @default {}
+     * @protected
+     */
     @Configurable(DTO.Object().pattern(DTO.String(), DTO.String()).optional().default({}))
     protected readonly httpActionGroups: Record<string, string>
 
+    /**
+     * The service action groups: each group id mapped to its display name.
+     * @default {}
+     * @protected
+     */
     @Configurable(DTO.Object().pattern(DTO.String(), DTO.String()).optional().default({}))
     protected readonly serviceActionGroups: Record<string, string>
 
+    /**
+     * The adapters (or 2.x entrypoint functions) receiving the CLI requests.
+     * @protected
+     */
     @Configurable()
     protected readonly cli?: CLIEntrypoint | EntrypointAdapter | (CLIEntrypoint | EntrypointAdapter)[]
 
+    /**
+     * The adapters (or 2.x entrypoint functions) receiving the HTTP requests.
+     * @protected
+     */
     @Configurable()
     protected readonly http?: HTTPEntrypoint | EntrypointAdapter | (HTTPEntrypoint | EntrypointAdapter)[]
 
+    /**
+     * The adapters (or 2.x entrypoint functions) receiving the service requests.
+     * @protected
+     */
     @Configurable()
     protected readonly service?: ServiceEntrypoint | EntrypointAdapter | (ServiceEntrypoint | EntrypointAdapter)[]
 
@@ -272,7 +711,12 @@ export class Entrypoint extends Component {
     })
 
     /**
-     * Initializer
+     * Register the controllers and the middleware classes, check the actions and start the adapters in order.
+     * @throws {InvalidMiddlewareException} When a middleware is neither a function nor a {@link Middleware} subclass.
+     * @throws {InvalidEntrypointAdapterException} When an option is neither an entrypoint option nor an adapter of its
+     * channel.
+     * @throws {InvalidActionGroupException} When an action is in a group missing from its channel's action groups.
+     * @throws {DuplicateActionNameException} When two actions of a channel have the same name.
      * @protected
      */
     protected async init(): Promise<void> {
@@ -298,8 +742,7 @@ export class Entrypoint extends Component {
     }
 
     /**
-     * The entrypoint is ready once the application has launched (once its adapters started without application, in a
-     * bare container)
+     * Mark the entrypoint ready: the application has launched (in a bare container, once its adapters started).
      * @protected
      */
     protected async launched(): Promise<void> {
@@ -307,8 +750,8 @@ export class Entrypoint extends Component {
     }
 
     /**
-     * Stop the adapters (in reverse order) and wait for their requests in progress, before the scopes of the requests
-     * in progress and the controllers are destroyed
+     * Stop the adapters, before the scopes of the requests in progress and the controllers are destroyed (see
+     * {@link Entrypoint.stopAdapters}).
      * @protected
      */
     protected async beforeDestroy(): Promise<void> {
@@ -316,7 +759,11 @@ export class Entrypoint extends Component {
     }
 
     /**
-     * Stop the adapters (in reverse order) and wait for their requests in progress, once
+     * Stop the adapters in reverse order, once (a second call returns the same promise): each adapter stops receiving
+     * requests, its requests in progress get `shutdownTimeout` milliseconds before they are aborted, then it is closed.
+     * Every adapter is stopped even when another fails.
+     * @returns Resolves once every adapter is closed.
+     * @throws {AggregateError} When several adapters failed to stop or close; a single failure is thrown as it is.
      * @protected
      */
     protected stopAdapters(): Promise<void> {
@@ -343,7 +790,11 @@ export class Entrypoint extends Component {
     }
 
     /**
-     * The adapters of the options: every option which is not an entrypoint option is a channel
+     * The adapters of the options: every option which is not an entrypoint option is a channel's key; a 2.x entrypoint
+     * function is wrapped in an adapter, the channel of an adapter carrying its definition is defined.
+     * @returns The adapters, in the order of the options.
+     * @throws {InvalidEntrypointAdapterException} When an adapter is given under another channel's key, its channel is
+     * not defined, or the option is neither an adapter nor a 2.x function of `cli`, `http` or `service`.
      * @protected
      */
     protected configuredAdapters(): EntrypointAdapter<any>[] {
@@ -368,9 +819,11 @@ export class Entrypoint extends Component {
     }
 
     /**
-     * The adapter of a callback of 2.x
-     * @param channel
-     * @param callback
+     * Wrap a 2.x entrypoint function in an adapter: it is called when the adapter starts, its registered destroyers run
+     * when the adapter stops.
+     * @param channel The channel: `cli`, `http` or `service`.
+     * @param callback The {@link CLIEntrypoint}, {@link HTTPEntrypoint} or {@link ServiceEntrypoint}.
+     * @returns The adapter.
      * @protected
      */
     protected legacyAdapter(channel: string, callback: Function): EntrypointAdapter<any> {
@@ -401,9 +854,10 @@ export class Entrypoint extends Component {
     }
 
     /**
-     * Collect the actions of a channel
-     * @param definition
-     * @param actions
+     * Collect the actions of a channel: their descriptions, their middlewares and the channel's lookup.
+     * @param definition The channel.
+     * @param actions The actions bound to the entrypoint for the channel, by address.
+     * @returns The channel's state.
      * @protected
      */
     protected createChannelState(definition: ChannelDefinition, actions: ActionPatternMap): ChannelState {
@@ -437,11 +891,13 @@ export class Entrypoint extends Component {
     }
 
     /**
-     * Check the action groups and names of a channel
-     * @param type
-     * @param actionInfoMap
-     * @param actionGroups
-     * @param option
+     * Check a channel's actions: their groups are defined (when the channel has action groups) and their names unique.
+     * @param type The channel's name used in the error messages (`HTTP`, `CLI`…).
+     * @param actionInfoMap The channel's action descriptions by id; nothing is checked when it is `undefined`.
+     * @param actionGroups The channel's action groups; the groups are not checked without them.
+     * @param option The option holding the action groups, named in the error message.
+     * @throws {InvalidActionGroupException} When an action is in a group missing from `actionGroups`.
+     * @throws {DuplicateActionNameException} When two actions have the same name.
      * @protected
      */
     protected checkActions(type: string, actionInfoMap: Map<string, BaseActionInfo> | undefined, actionGroups?: Record<string, string>, option?: string): void {
@@ -462,8 +918,9 @@ export class Entrypoint extends Component {
     }
 
     /**
-     * Start an adapter
-     * @param adapter
+     * Start an adapter, giving it the runtime of its channel (its actions and the dispatch functions).
+     * @param adapter The adapter.
+     * @throws {InvalidChannelException} When the adapter's channel is not defined.
      * @protected
      */
     protected async startAdapter(adapter: EntrypointAdapter<any>): Promise<void> {
@@ -511,8 +968,9 @@ export class Entrypoint extends Component {
     }
 
     /**
-     * Wait for the requests in progress of a stopped adapter, abort them after the shutdown timeout
-     * @param started
+     * Wait for a stopped adapter's requests in progress; abort the ones still running after `shutdownTimeout`
+     * milliseconds with an {@link EntrypointStoppedException}.
+     * @param started The adapter and its requests in progress.
      * @protected
      */
     protected async drain(started: StartedAdapter): Promise<void> {
@@ -530,9 +988,14 @@ export class Entrypoint extends Component {
     }
 
     /**
-     * Run an action in the container of its request: create the controller, validate the input, check the access and call the action
-     * @param details
-     * @param invocation
+     * Run an action in its request's container: create the controller with the request's context and signal, validate
+     * the input (the request's data, overridden by the address parameters), check the access and call the action
+     * method with the validated input.
+     * @param details The action.
+     * @param invocation The request.
+     * @returns The action's result.
+     * @throws {Error} The input validation error, the access control's denial ({@link AccessDeniedException} or the
+     * rule's error), or the action's error.
      * @protected
      */
     protected async runAction(details: ActionDetails, invocation: ActionInvocation): Promise<unknown> {
@@ -548,11 +1011,13 @@ export class Entrypoint extends Component {
     }
 
     /**
-     * Validate the input of an action; an invalid input of a request with its language is validated again in it, its
-     * error in the language (a valid input is validated once, the settings of its validation unchanged)
-     * @param dtoConstructor
-     * @param data
-     * @param locale
+     * Validate an action's input. An invalid input of a request with a language is validated again in it, so the
+     * error is in that language (a valid input is validated once, with the default settings).
+     * @param dtoConstructor The action's DTO.
+     * @param data The input to validate.
+     * @param locale The request's language (`context.locale`).
+     * @returns The validated input, with its defaults and conversions applied.
+     * @throws {Error} The validation error.
      * @protected
      */
     protected async validateInput(dtoConstructor: typeof DTO, data: Record<string, any>, locale?: string): Promise<Record<string, any>> {
@@ -565,12 +1030,14 @@ export class Entrypoint extends Component {
     }
 
     /**
-     * Dispatch a request to an action, in a new request container
-     * @param started
-     * @param entry
-     * @param runner
-     * @param context
-     * @param options
+     * Dispatch a request to an action in a new request container, tracked as in progress for its adapter until it
+     * ends. A request whose signal is already aborted is not run and resolves to `undefined`.
+     * @param started The adapter receiving the request.
+     * @param entry The action.
+     * @param runner The action's middleware pipeline.
+     * @param context The request's context.
+     * @param options The request's abort signal and address parameters.
+     * @returns The action's result, `undefined` when the request is aborted by its client.
      * @protected
      */
     protected async dispatch(started: StartedAdapter, entry: ActionEntry, runner: InvocationRunner, context: BaseContext, options: DispatchOptions): Promise<unknown> {
@@ -590,12 +1057,15 @@ export class Entrypoint extends Component {
     }
 
     /**
-     * Execute a request in a new request container, an aborted request destroys its container and its result is dropped
-     * @param entry
-     * @param runner
-     * @param context
-     * @param signal
-     * @param params
+     * Execute a request in a new request container, destroyed when it ends. An aborted request settles at once: its
+     * container is destroyed and its result or error dropped.
+     * @param entry The action.
+     * @param runner The action's middleware pipeline.
+     * @param context The request's context.
+     * @param signal The request's abort signal.
+     * @param params The parameters taken from the request's address.
+     * @returns The action's result, `undefined` when the request is aborted by its client.
+     * @throws {EntrypointStoppedException} When the request is aborted because the entrypoint stopped.
      * @protected
      */
     protected async execute(entry: ActionEntry, runner: InvocationRunner, context: BaseContext, signal: AbortSignal, params?: Record<string, unknown>): Promise<unknown> {
@@ -637,30 +1107,44 @@ export class Entrypoint extends Component {
     }
 
     /**
-     * The action information of a channel
-     * @param channel
+     * The descriptions of a channel's actions.
+     * @param channel The channel's name.
+     * @returns The descriptions, empty when the channel has no actions.
      * @protected
      */
     protected actionInfos<T extends BaseActionInfo>(channel: string): T[] {
         return As<T[]>([...(this.#channels.get(channel)?.infos.values() ?? [])])
     }
 
+    /**
+     * The descriptions of the HTTP actions.
+     * @protected
+     */
     protected get HTTP_ACTIONS(): HTTPActionInfo[] {
         return this.actionInfos('http')
     }
 
+    /**
+     * The descriptions of the service actions.
+     * @protected
+     */
     protected get SERVICE_ACTIONS(): ServiceActionInfo[] {
         return this.actionInfos('service')
     }
 
+    /**
+     * The descriptions of the CLI actions.
+     * @protected
+     */
     protected get CLI_ACTIONS(): CLIActionInfo[] {
         return this.actionInfos('cli')
     }
 
     /**
-     * The actions of a channel, with their groups
-     * @param channel
-     * @param actionGroups
+     * The actions of a channel, with the groups they belong to.
+     * @param channel The channel's name.
+     * @param actionGroups The group names by id.
+     * @returns The actions and their groups.
      * @protected
      */
     protected getEntrypointActions<T extends BaseActionInfo>(channel: string, actionGroups: Record<string, string> = {}): EntrypointActions<T> {
@@ -683,9 +1167,10 @@ export class Entrypoint extends Component {
     }
 
     /**
-     * The groups of the actions which are not defined
-     * @param actionInfoMap
-     * @param actionGroups
+     * The group ids used by the actions but missing from the action groups.
+     * @param actionInfoMap The action descriptions by id.
+     * @param actionGroups The group names by id.
+     * @returns The missing group ids, each once.
      * @protected
      */
     protected findInvalidActionGroupIds(actionInfoMap: Map<string, BaseActionInfo>, actionGroups: Record<string, string>): string[] {
@@ -697,24 +1182,32 @@ export class Entrypoint extends Component {
     }
 
     /**
-     * The duplicate names of the actions
-     * @param actionInfoMap
+     * The names shared by the actions of several controller methods (the addresses of one method, such as its two
+     * routes, share its name).
+     * @param actionInfoMap The action descriptions by id.
+     * @returns The duplicate names, each once.
      * @protected
      */
     protected findDuplicateActionNames(actionInfoMap: Map<string, BaseActionInfo>): string[] {
-        const seen: Set<string> = new Set()
+        const methods: Map<string, string> = new Map()
         const duplicates: Set<string> = new Set()
-        actionInfoMap.forEach((action: BaseActionInfo): unknown => seen.has(action.name) ? duplicates.add(action.name) : seen.add(action.name))
+        actionInfoMap.forEach((action: BaseActionInfo): void => {
+            const method: string = `${action.controller}:${action.method}`
+            const seen: string | undefined = methods.get(action.name)
+            if (seen === undefined) methods.set(action.name, method)
+            else if (seen !== method) duplicates.add(action.name)
+        })
         return [...duplicates]
     }
 
     /**
-     * Check the access to an action
-     * @param rules
-     * @param runtimeContainer
-     * @param context
-     * @param input
-     * @param details
+     * Check the access to an action with {@link Entrypoint.accessControl}.
+     * @param rules The access control rule classes.
+     * @param runtimeContainer The request's container, where the rules are created.
+     * @param context The request's context.
+     * @param input The validated input.
+     * @param details The action.
+     * @throws {AccessDeniedException} When a rule denies the access (or the error a rule throws).
      * @protected
      */
     protected async runAccessControl(rules: IBaseObjectConstructor<AccessControlRule>[], runtimeContainer: Container, context: CLIContext | HTTPContext | ServiceContext, input: Record<string, any>, details: ActionDetails): Promise<void> {
@@ -726,12 +1219,12 @@ export class Entrypoint extends Component {
     }
 
     /**
-     * Push an event to a client of the adapters which have clients (the renderer of a window of Electron, a socket of
-     * socket.io), its arguments given to its listeners: the client of a service action is its context.clientId
-     * @param clientId
-     * @param event
-     * @param args
-     * @returns whether a client has it
+     * Push an event to a client of the adapters which have clients (an Electron window's renderer, a Socket.IO
+     * socket); its listeners receive the arguments. The client of a service request is its `context.clientId`.
+     * @param clientId The client's id.
+     * @param event The event's name.
+     * @param args The arguments given to the client's listeners.
+     * @returns Whether an adapter has the client; `false` when it is gone or no adapter has clients.
      */
     public notify(clientId: string, event: string, ...args: unknown[]): boolean {
         let notified: boolean = false
@@ -740,10 +1233,11 @@ export class Entrypoint extends Component {
     }
 
     /**
-     * Push an event to every client of the adapters which have clients
-     * @param event
-     * @param args
-     * @returns the number of the clients
+     * Push an event to every client of the adapters which have clients (Electron windows, Socket.IO sockets); their
+     * listeners receive the arguments.
+     * @param event The event's name.
+     * @param args The arguments given to the clients' listeners.
+     * @returns The number of clients the event was pushed to.
      */
     public broadcast(event: string, ...args: unknown[]): number {
         let clients: number = 0
@@ -751,33 +1245,59 @@ export class Entrypoint extends Component {
         return clients
     }
 
+    /**
+     * The HTTP action groups configured by the `httpActionGroups` option.
+     * @returns The group names by id.
+     */
     public getHttpActionGroups(): Record<string, string> {
         return this.httpActionGroups
     }
 
+    /**
+     * The service action groups configured by the `serviceActionGroups` option.
+     * @returns The group names by id.
+     */
     public getServiceActionGroups(): Record<string, string> {
         return this.serviceActionGroups
     }
 
+    /**
+     * The CLI action groups configured by the `cliActionGroups` option.
+     * @returns The group names by id.
+     */
     public getCliActionGroups(): Record<string, string> {
         return this.cliActionGroups
     }
 
+    /**
+     * The HTTP actions, with the groups they belong to (named after `httpActionGroups`).
+     * @returns The actions and their groups.
+     */
     public getHttpActions(): EntrypointActions<HTTPActionInfo> {
         return this.getEntrypointActions('http', this.httpActionGroups)
     }
 
+    /**
+     * The service actions, with the groups they belong to (named after `serviceActionGroups`).
+     * @returns The actions and their groups.
+     */
     public getServiceActions(): EntrypointActions<ServiceActionInfo> {
         return this.getEntrypointActions('service', this.serviceActionGroups)
     }
 
+    /**
+     * The CLI actions, with the groups they belong to (named after `cliActionGroups`).
+     * @returns The actions and their groups.
+     */
     public getCliActions(): EntrypointActions<CLIActionInfo> {
         return this.getEntrypointActions('cli', this.cliActionGroups)
     }
 
     /**
-     * The actions of a channel
-     * @param channel
+     * The actions of any channel, with the groups they belong to; the groups have no name (use the methods of the
+     * built-in channels, such as {@link Entrypoint.getHttpActions}, for named groups).
+     * @param channel The channel's name (`http`, `cli`, `service`, `schedule`, or a channel of another package).
+     * @returns The actions and their groups, empty when the channel has no actions.
      */
     public getActions<T extends BaseActionInfo = BaseActionInfo & Record<string, unknown>>(channel: string): EntrypointActions<T> {
         return this.getEntrypointActions<T>(channel)

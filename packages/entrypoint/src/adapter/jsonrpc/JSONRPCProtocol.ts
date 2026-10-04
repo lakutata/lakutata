@@ -6,75 +6,149 @@ import {ControllerActionNotFoundException} from '../../exceptions/ControllerActi
 import {EntrypointStoppedException} from '../../exceptions/EntrypointStoppedException.js'
 
 /**
- * The error codes of JSON-RPC 2.0
+ * The error codes of the JSON-RPC 2.0 responses sent by {@link JSONRPCServiceEntrypoint}.
  */
 export const JSONRPCErrorCode = {
+    /**
+     * The message is not valid JSON.
+     */
     PARSE_ERROR: -32700,
+    /**
+     * The message is not a JSON-RPC 2.0 request (or is an empty batch, or the HTTP request is not a `POST` to the path).
+     */
     INVALID_REQUEST: -32600,
+    /**
+     * No service action matches the request (`ControllerActionNotFoundException`).
+     */
     METHOD_NOT_FOUND: -32601,
+    /**
+     * The params are given by position without the `positionalParams` option, or fail the action's input validation
+     * (`InvalidValueException`).
+     */
     INVALID_PARAMS: -32602,
+    /**
+     * Reserved by the specification for the internal errors; the adapter does not send it.
+     */
     INTERNAL_ERROR: -32603,
     /**
-     * The errors of the actions (the range of the errors of the servers: -32000 to -32099)
+     * Any other error thrown by an action (in the server error range, -32000 to -32099), with the whole error object as
+     * the error's `data`.
      */
     SERVER_ERROR: -32000,
     /**
-     * The adapter is stopping
+     * The entrypoint is stopping and refuses the new requests (`EntrypointStoppedException`).
      */
     STOPPING: -32001
 } as const
 
 /**
- * A request of JSON-RPC 2.0 (a notification without its id)
+ * A JSON-RPC 2.0 request, as a client sends it. Without an `id`, it is a notification: the action runs but no response
+ * is sent.
  */
 export type JSONRPCRequest = {
+    /**
+     * The protocol version, always `'2.0'`.
+     */
     jsonrpc: '2.0'
+    /**
+     * The method, mapped to the service action's pattern (see `JSONRPCMappingOptions`).
+     */
     method: string
+    /**
+     * The params: by name (an object, merged into the action's input), or by position (an array, accepted only with the
+     * `positionalParams` option).
+     */
     params?: Record<string, unknown> | unknown[]
+    /**
+     * The request id, echoed in its response; omitted for a notification.
+     */
     id?: string | number | null
 }
 
 /**
- * A response of JSON-RPC 2.0
+ * A JSON-RPC 2.0 response, as the adapter sends it: either `result` or `error`.
  */
 export type JSONRPCResponse = {
+    /**
+     * The protocol version, always `'2.0'`.
+     */
     jsonrpc: '2.0'
+    /**
+     * The id of the request answered; `null` when it could not be read (a parse error, an invalid request).
+     */
     id: string | number | null
+    /**
+     * The action's result, `null` when it returned nothing.
+     */
     result?: unknown
+    /**
+     * The error: its code (see {@link JSONRPCErrorCode}), its message, and for an action's error the whole error object as
+     * `data`.
+     */
     error?: { code: number, message: string, data?: unknown }
 }
 
 /**
- * The options of the mapping of the requests to the service actions
+ * How {@link JSONRPCServiceEntrypoint} maps a JSON-RPC request to a service action's pattern and input.
  */
 export type JSONRPCMappingOptions = {
     /**
-     * The field of the pattern of the actions given the method of a request, "method" by default:
-     * {"method": "user.get", "params": {"id": 1}} is dispatched as {method: 'user.get', id: 1}
+     * The pattern field receiving the request's method: with `'method'`, `{"method": "user.get", "params": {"id": 1}}`
+     * is dispatched as `{method: 'user.get', id: 1}`, the action declared with `@ServiceAction({method: 'user.get'})`.
+     * @default 'method'
      */
     methodField?: string
     /**
-     * The pattern and the input of the action of a request (its method, its params), instead of the field of its method
+     * Build the pattern and the input of a request's action from its method and its params, replacing `methodField` and
+     * `positionalParams`. A thrown error answers the request with `INVALID_PARAMS`.
      */
     toPattern?: (method: string, params: Record<string, unknown> | unknown[] | undefined) => Record<string, unknown>
     /**
-     * The field given the params of a request by position (an array): refused by default (invalid params)
+     * The input field receiving the params given by position (an array): with `'args'`, `{"method": "sum", "params":
+     * [1, 2]}` is dispatched as `{method: 'sum', args: [1, 2]}`.
+     * @default none: the params by position are refused with `INVALID_PARAMS`
      */
     positionalParams?: string
 }
 
 /**
- * The information of the request of JSON-RPC of a context
+ * The JSON-RPC request behind a service action's request, as {@link JSONRPCRequestOfContext} returns it.
  */
 export type JSONRPCRequestInfo = {
+    /**
+     * The request's method.
+     */
     method: string
+    /**
+     * The request's id; `undefined` for a notification (no response is sent).
+     */
     id: string | number | null | undefined
+    /**
+     * The transport the request came through.
+     */
     transport: 'http' | 'websocket' | 'stdio'
 }
 
 /**
- * The request of JSON-RPC of a context, in the service actions served by JSONRPCServiceEntrypoint
- * @param context
+ * Get the JSON-RPC request behind a service action's request, when {@link JSONRPCServiceEntrypoint} serves it (to
+ * tell a notification from a request, or read the transport).
+ * @param context The service action's context (`this.context` in a controller).
+ * @returns The request's method, id and transport, or `undefined` when another adapter serves the request.
+ * @example
+ * ```typescript
+ * import {Controller, ServiceContext} from 'lakutata/com/entrypoint'
+ * import {ServiceAction} from 'lakutata/decorator/ctrl'
+ * import {JSONRPCRequestOfContext, type JSONRPCRequestInfo} from 'lakutata/adapter/jsonrpc'
+ *
+ * class LogController extends Controller {
+ *     //{"jsonrpc": "2.0", "method": "log.write", "params": {"line": "started"}}: a notification, no id
+ *     @ServiceAction({method: 'log.write'})
+ *     public async write(input: {line: string}): Promise<void> {
+ *         const request: JSONRPCRequestInfo | undefined = JSONRPCRequestOfContext(this.context as ServiceContext)
+ *         console.log(`${request?.transport}: ${input.line}`)
+ *     }
+ * }
+ * ```
  */
 export function JSONRPCRequestOfContext(context: ServiceContext): JSONRPCRequestInfo | undefined {
     return (context as ServiceContext & { jsonrpc?: JSONRPCRequestInfo }).jsonrpc
@@ -171,7 +245,8 @@ export class JSONRPCProtocol {
                 jsonrpc: {method: candidate.method, id: candidate.id, transport: dispatch.transport},
                 ...dispatch.extra ?? {}
             })
-            const result: unknown = await dispatch.runtime.dispatch(context, {signal: dispatch.signal})
+            //A StatusResult sent as its data (a file or an event stream cannot be sent: an error)
+            const result: unknown = ServiceResponseCodec.payload(await dispatch.runtime.dispatch(context, {signal: dispatch.signal}))
             return respond({jsonrpc: '2.0', id: id, result: result === undefined ? null : result})
         } catch (error: unknown) {
             //The error of the action: its message, the whole error as its data (as the other service adapters give it)

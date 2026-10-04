@@ -1,7 +1,8 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import type {AddressInfo} from 'node:net'
-import type {Server} from 'node:http'
+import {createServer, type Server} from 'node:http'
+import {Server as SocketIOServer} from 'socket.io'
 import {io as Connect, type ManagerOptions, type Socket as ClientSocket, type SocketOptions} from 'socket.io-client'
 import {Container, DTO} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
@@ -190,5 +191,28 @@ describe('Socket.IO adapter', (): void => {
         assert.deepStrictEqual(await inProgress, {success: true, error: null, payload: 'slow'})
         await destroyed
         client.disconnect()
+    })
+
+    it('leaves the sockets of a given io without its listeners once closed', async (): Promise<void> => {
+        const server: Server = createServer()
+        const io: SocketIOServer = new SocketIOServer(server)
+        await new Promise<void>((resolve: () => void): unknown => server.listen(0, '127.0.0.1', resolve))
+        const url: string = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+        const container: Container = new Container()
+        await container.set(Entrypoint, BuildEntrypoints({controllers: [EchoController], service: SocketIOServiceEntrypoint({io: io})}))
+        const client: ClientSocket = await Client(url)
+        try {
+            assert.strictEqual((await Request(client, {cmd: 'echo', value: 1})).success, true)
+            await container.destroy()
+            //Still connected to the io, the socket has no listener of the adapter
+            const [socket] = await io.fetchSockets()
+            assert.ok(socket)
+            const serverSocket = io.of('/').sockets.get(socket.id)!
+            assert.strictEqual(serverSocket.listeners('message').length, 0)
+            await assert.rejects(client.timeout(200).emitWithAck('message', {cmd: 'echo', value: 2}))
+        } finally {
+            client.disconnect()
+            await new Promise<void>((resolve: () => void): void => void io.close((): void => resolve()))
+        }
     })
 })

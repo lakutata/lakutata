@@ -151,9 +151,22 @@ function ParseField(text: string, min: number, max: number, names: string[] | un
 }
 
 /**
- * A cron expression: "second minute hour day-of-month month day-of-week" (the second is optional),
- * with the ranges, the steps, the lists, the names of the months and of the days, and the macros (@daily…).
- * When both the day of the month and the day of the week are restricted, a day matching either of them matches
+ * A cron expression, as `@Schedule` uses it: `second minute hour day-of-month month day-of-week`, the second optional
+ * (0 when omitted). Each field accepts `*` (or `?`), values, ranges (`1-5`), steps (`*\/15`, `10/5`, `1-30/2`) and lists
+ * (`1,15`); the months and the days of the week also accept their English three-letter names (`jan`, `mon`), and the
+ * day of the week 7 is Sunday like 0. The macros `@yearly`, `@annually`, `@monthly`, `@weekly`, `@daily`, `@midnight`
+ * and `@hourly` are accepted. When both the day of the month and the day of the week are restricted, a day matching
+ * either of them matches.
+ * @example
+ * ```typescript
+ * import {Cron} from 'lakutata/com/entrypoint'
+ *
+ * //At 09:30 on the weekdays, in Shanghai
+ * const cron: Cron = new Cron('30 9 * * mon-fri', 'Asia/Shanghai')
+ * const next: Date | undefined = cron.next(new Date('2026-01-02T12:00:00Z'))
+ * console.log(next?.toISOString()) //2026-01-05T01:30:00.000Z
+ * console.log(new Cron('0 0 30 2 *').next()) //undefined: February has no 30th
+ * ```
  */
 export class Cron {
 
@@ -170,8 +183,13 @@ export class Cron {
     readonly #weekday: Field
 
     /**
-     * @param expression
-     * @param timezone an IANA time zone ("Asia/Shanghai"), the local time zone by default
+     * Parse a cron expression.
+     * @param expression The expression, 5 or 6 fields separated by spaces, or a macro (case-insensitive).
+     * @param timezone The IANA time zone the expression's times are in (`Asia/Shanghai`); the local time zone when
+     * omitted.
+     * @throws {SyntaxError} When the expression does not have 5 or 6 fields, or a field has a value out of its range,
+     * a reversed range or an invalid step.
+     * @throws {RangeError} When the time zone is unknown.
      */
     constructor(public readonly expression: string, public readonly timezone?: string) {
         if (timezone) new Intl.DateTimeFormat('en-US', {timeZone: timezone})
@@ -202,9 +220,10 @@ export class Cron {
     }
 
     /**
-     * The next time matching the expression, after a time
-     * @param after
-     * @return undefined when no time matches (such as February 30th)
+     * Find the next time matching the expression, strictly after a time, to the second. When the clocks go back, the
+     * times of the repeated hour match once; the times skipped when the clocks go forward never match.
+     * @param after The time to search from, a date or milliseconds since the epoch; now by default.
+     * @returns The next matching time, `undefined` when none matches within eight years (such as February 30th).
      */
     public next(after: Date | number = Date.now()): Date | undefined {
         const timezone: string | undefined = this.timezone
@@ -240,8 +259,19 @@ export class Cron {
 }
 
 /**
- * Parse a duration: milliseconds, or a text such as "500ms", "30s", "5m", "1h30m", "1d"
- * @param duration
+ * Parse a duration into milliseconds, as `@Schedule` reads its intervals.
+ * @param duration A number of milliseconds, or a text of numbers with their units (`ms`, `s`, `m`, `h`, `d`), summed
+ * and case-insensitive: `500ms`, `30s`, `1.5h`, `1h 30m`, `1d`.
+ * @returns The duration in milliseconds.
+ * @throws {SyntaxError} When the duration is not positive (or not finite), or the text has an unknown part.
+ * @example
+ * ```typescript
+ * import {ParseDuration} from 'lakutata/com/entrypoint'
+ *
+ * console.log(ParseDuration('1h30m')) //5400000
+ * console.log(ParseDuration('500ms')) //500
+ * console.log(ParseDuration(2000)) //2000
+ * ```
  */
 export function ParseDuration(duration: number | string): number {
     if (typeof duration === 'number') {

@@ -5,62 +5,85 @@ import type {ChannelRuntime, EntrypointAdapter} from '../../channel/EntrypointAd
 import type {MiddlewareDefinition} from '../../lib/Middleware.js'
 import type {ServiceContext} from '../../context/ServiceContext.js'
 import {ServiceChannel} from '../../channel/BuiltinChannels.js'
-import {JSONRPCProtocol, type JSONRPCDispatch, type JSONRPCMappingOptions, type JSONRPCResponse} from './JSONRPCProtocol.js'
+import {JSONRPCErrorCode, JSONRPCProtocol, type JSONRPCDispatch, type JSONRPCMappingOptions, type JSONRPCResponse} from './JSONRPCProtocol.js'
 import {ApplicationOf} from '../../lib/ApplicationOf.js'
 
+/**
+ * The options of {@link JSONRPCServiceEntrypoint}: its transport, and how the requests map to the service actions (see
+ * {@link JSONRPCMappingOptions}).
+ */
 export type JSONRPCServiceEntrypointOptions = JSONRPCMappingOptions & {
     /**
-     * The adapter name
+     * The adapter name, to tell apart several service adapters of one entrypoint.
      */
     name?: string
     /**
-     * The transport of the messages: HTTP (POST), WebSocket (ws, the events pushed), or the standard input and output of
-     * the process (a child process, the events pushed)
+     * The transport of the messages: `'http'` (a `POST` per message), `'websocket'` (a message per WebSocket text
+     * frame, with the events pushed; it needs the optional package `ws`), or `'stdio'` (the process's standard input
+     * and output, for a child process, with the events pushed).
      * @default 'http'
      */
     transport?: 'http' | 'websocket' | 'stdio'
     /**
-     * The port of the server of HTTP or WebSocket, 3000 by default (0 for a random port)
+     * The port of the HTTP or WebSocket server; 0 picks a random free port. The entrypoint fails to start when the port
+     * is in use.
+     * @default 3000
      */
     port?: number
     /**
-     * The host of the server, all the interfaces by default
+     * The host or address of the HTTP or WebSocket server.
+     * @default all the interfaces
      */
     host?: string
     /**
-     * The path of the requests (HTTP) or of the connections (WebSocket), "/" by default
+     * The path receiving the requests (HTTP) or the connections (WebSocket).
+     * @default '/'
      */
     path?: string
     /**
-     * The largest message, in bytes, 10 MB by default
+     * The largest message, in bytes. Over HTTP a larger body is answered with 413; over WebSocket the connection is
+     * closed by `ws`; over stdio a larger message is skipped (the rest of its line, or the length its header declares)
+     * and answered with an Invalid Request error without id (`-32600`).
+     * @default 10485760 (10 MiB)
      */
     limit?: number
     /**
-     * The framing of the messages of stdio: one per line, or after their Content-Length header (the one of LSP)
+     * How the messages are delimited on stdio: `'newline'` (one JSON message per line), or `'content-length'` (each
+     * message after a `Content-Length` header and a blank line, as in the Language Server Protocol). The responses and
+     * the notifications are written the same way.
      * @default 'newline'
      */
     framing?: 'newline' | 'content-length'
     /**
-     * The streams of stdio, the ones of the process by default
+     * The stream the stdio transport reads.
+     * @default process.stdin
      */
     input?: Readable
+    /**
+     * The stream the stdio transport writes.
+     * @default process.stdout
+     */
     output?: Writable
     /**
-     * Once the input of stdio ends (its parent process gone): 'application' (default) exits the application once the
-     * requests in progress are answered, 'none' does nothing, or a function
+     * What happens when the stdio input ends (the parent process is gone): `'application'` exits the application with
+     * the code 0 once the requests in progress are answered, `'none'` does nothing, or a function run once they are
+     * answered.
+     * @default 'application'
      */
     end?: 'application' | 'none' | (() => void | Promise<void>)
     /**
-     * Milliseconds between the pings of the WebSocket connections, 30 s by default (0: none): a connection which does not
-     * answer a ping before the next one is closed
+     * The interval between the pings of the WebSocket connections, in milliseconds; 0 sends none. A connection that has
+     * not answered a ping by the next one is terminated.
+     * @default 30000
      */
     heartbeat?: number
     /**
-     * The middlewares of the actions of this adapter, run after the global middlewares
+     * The middlewares of this adapter's actions, run after the entrypoint's global middlewares.
      */
     middlewares?: MiddlewareDefinition[]
     /**
-     * Run once the adapter listens, with its server (HTTP, WebSocket)
+     * Run once the HTTP or WebSocket server listens, with the server (to read the port picked for port 0). A failure
+     * fails the entrypoint start. Not called with stdio.
      */
     listening?: (server: Server) => void | Promise<void>
 }
@@ -102,38 +125,71 @@ async function ReadBody(request: IncomingMessage, limit: number): Promise<string
 }
 
 /**
- * The messages of a stream framed by lines, or by their Content-Length headers
+ * The messages of a stream framed by lines, or by their Content-Length headers. A message larger than the limit is
+ * skipped (the rest of its line, or the length its header declares, keeping the framing) and reported
  * @param input
  * @param framing
  * @param limit
  * @param receive
+ * @param ended
+ * @param oversized
  */
-function ReadMessages(input: Readable, framing: 'newline' | 'content-length', limit: number, receive: (message: string) => void, ended: () => void): () => void {
+function ReadMessages(input: Readable, framing: 'newline' | 'content-length', limit: number, receive: (message: string) => void, ended: () => void, oversized: () => void): () => void {
     let buffer: Buffer = Buffer.alloc(0)
+    //The bytes of an oversized message still to skip (content-length), or its line being skipped (newline)
+    let skipping: number = 0
+    let skippingLine: boolean = false
     const onData = (chunk: Buffer | string): void => {
         buffer = Buffer.concat([buffer, typeof chunk === 'string' ? Buffer.from(chunk) : chunk])
         for (; ;) {
+            if (skipping) {
+                const skipped: number = Math.min(skipping, buffer.length)
+                buffer = buffer.subarray(skipped)
+                skipping -= skipped
+                if (skipping) break
+            }
             if (framing === 'newline') {
                 const end: number = buffer.indexOf(0x0a)
-                if (end < 0) break
-                const line: string = buffer.subarray(0, end).toString('utf8').trim()
+                if (end < 0) {
+                    //A line growing over the limit: skipped up to its end
+                    if (buffer.length > limit) {
+                        buffer = Buffer.alloc(0)
+                        if (!skippingLine) oversized()
+                        skippingLine = true
+                    }
+                    break
+                }
+                const tooLarge: boolean = skippingLine || end > limit
+                const line: string = tooLarge ? '' : buffer.subarray(0, end).toString('utf8').trim()
                 buffer = buffer.subarray(end + 1)
+                if (tooLarge && !skippingLine) oversized()
+                skippingLine = false
                 if (line) receive(line)
                 continue
             }
             const headerEnd: number = buffer.indexOf('\r\n\r\n')
-            if (headerEnd < 0) break
+            if (headerEnd < 0) {
+                //No header of a message: what is not one is dropped, its end kept (a part of the next header)
+                if (buffer.length > limit) buffer = buffer.subarray(buffer.length - 3)
+                break
+            }
             const length: number = Number(buffer.subarray(0, headerEnd).toString('ascii').match(/content-length:\s*(\d+)/i)?.[1] ?? NaN)
             if (!Number.isFinite(length)) {
                 //Not a header of a message: skipped
                 buffer = buffer.subarray(headerEnd + 4)
                 continue
             }
+            if (length > limit) {
+                //Its content skipped as it arrives
+                buffer = buffer.subarray(headerEnd + 4)
+                skipping = length
+                oversized()
+                continue
+            }
             if (buffer.length < headerEnd + 4 + length) break
             receive(buffer.subarray(headerEnd + 4, headerEnd + 4 + length).toString('utf8'))
             buffer = buffer.subarray(headerEnd + 4 + length)
         }
-        if (buffer.length > limit) buffer = Buffer.alloc(0)
     }
     input.on('data', onData)
     input.once('end', ended)
@@ -159,13 +215,72 @@ type WebSocketLike = {
 }
 
 /**
- * The service entrypoint served over JSON-RPC 2.0: the method and the params (by name) of a request are the pattern and
- * the input of a service action ({method: 'user.get', ...params} by default, or the field and the mapping of the
- * options); the batches and the notifications as the specification gives them; the errors of the actions as the errors
- * of JSON-RPC (method not found, invalid params, the server errors with the whole error as their data). Its transports:
- * HTTP (POST), WebSocket and stdio, the last two with the events pushed to the clients (Entrypoint.notify, broadcast) as
- * notifications ({"method": event, "params": args})
- * @param options
+ * Create a service adapter of an entrypoint served over JSON-RPC 2.0, on HTTP, WebSocket or stdio. Only the WebSocket
+ * transport needs an optional peer dependency, `ws`; without it, the entrypoint fails to start.
+ *
+ * A request's method and named params become the service action's pattern and input: by default
+ * `{"method": "user.get", "params": {"id": 1}}` is dispatched as `{method: 'user.get', id: 1}` (see
+ * {@link JSONRPCMappingOptions} for the other mappings). The batches are answered with an array of responses, the
+ * notifications (no `id`) run without a response. The action's result is the response's `result` (`null` for none);
+ * its error becomes a JSON-RPC error (see {@link JSONRPCErrorCode}): `METHOD_NOT_FOUND`, `INVALID_PARAMS` for a failed
+ * validation, otherwise `SERVER_ERROR` with the whole error object as its `data`.
+ *
+ * Over HTTP, a message is the body of a `POST` to the path, answered with 200 and the JSON response (204 when it held
+ * only notifications); any other method or path is answered with 404, and the CORS headers allow any origin. Over
+ * WebSocket and stdio, the events pushed by `Entrypoint.notify` and `Entrypoint.broadcast` are sent as notifications,
+ * `{"jsonrpc": "2.0", "method": event, "params": args}`. The client id carried by `ServiceContext.clientId` is the `id`
+ * header or `id` query parameter of the HTTP request or of the WebSocket connection (at most 200 characters; a random
+ * one for a WebSocket connection without it), and `'stdio'` on stdio.
+ *
+ * When an HTTP client disconnects before its response, the action's abort signal fires. When the entrypoint stops,
+ * stdio stops reading, the new requests are answered with `STOPPING`, and once the requests in progress are answered
+ * the WebSocket connections are closed (code 1001) and the server shuts down.
+ * @param options The adapter options; by default it serves HTTP on port 3000 of all the interfaces, on the path `/`.
+ * @returns The adapter, to give to the `service` option of `BuildEntrypoints`.
+ * @example
+ * ```typescript
+ * import {Application} from 'lakutata'
+ * import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+ * import {ServiceAction} from 'lakutata/decorator/ctrl'
+ * import {JSONRPCServiceEntrypoint} from 'lakutata/adapter/jsonrpc'
+ * import WebSocket from 'ws'
+ *
+ * class UserController extends Controller {
+ *     @ServiceAction({method: 'user.get'})
+ *     public async get(input: {id: number}): Promise<{id: number, name: string}> {
+ *         return {id: input.id, name: 'Ada'}
+ *     }
+ * }
+ *
+ * Application.run({
+ *     id: 'user.service',
+ *     name: 'Users',
+ *     components: {
+ *         entrypoint: BuildEntrypoints({
+ *             controllers: [UserController],
+ *             service: [
+ *                 //POST http://localhost:3000/rpc
+ *                 JSONRPCServiceEntrypoint({name: 'rpc-http', port: 3000, path: '/rpc'}),
+ *                 //ws://localhost:3001/rpc, with the events pushed
+ *                 JSONRPCServiceEntrypoint({name: 'rpc-ws', transport: 'websocket', port: 3001, path: '/rpc'})
+ *             ]
+ *         })
+ *     }
+ * })
+ *
+ * //An HTTP client: {"jsonrpc": "2.0", "id": 1, "result": {"id": 1, "name": "Ada"}}
+ * const response: Response = await fetch('http://localhost:3000/rpc', {
+ *     method: 'POST',
+ *     headers: {'Content-Type': 'application/json'},
+ *     body: JSON.stringify({jsonrpc: '2.0', id: 1, method: 'user.get', params: {id: 1}})
+ * })
+ * console.log(await response.json())
+ *
+ * //A WebSocket client, identified as client-1: the responses and the notifications arrive as messages
+ * const socket: WebSocket = new WebSocket('ws://localhost:3001/rpc?id=client-1')
+ * socket.on('open', (): void => socket.send(JSON.stringify({jsonrpc: '2.0', id: 2, method: 'user.get', params: {id: 2}})))
+ * socket.on('message', (data: WebSocket.RawData): void => console.log(JSON.parse(data.toString())))
+ * ```
  */
 export function JSONRPCServiceEntrypoint(options: JSONRPCServiceEntrypointOptions = {}): EntrypointAdapter<ServiceContext> {
     const transport: 'http' | 'websocket' | 'stdio' = options.transport ?? 'http'
@@ -236,7 +351,9 @@ export function JSONRPCServiceEntrypoint(options: JSONRPCServiceEntrypointOption
                         if (mode === 'application') ApplicationOf(runtime.module)?.exit(0)
                     })
                 }
-                stopReading = ReadMessages(options.input ?? process.stdin, options.framing ?? 'newline', limit, (message: string): void => void answer(runtime, message, {clientId: 'stdio'}, write), ended)
+                //A message over the limit: an Invalid Request error, without id (it is not read)
+                const oversized = (): unknown => write(JSON.stringify({jsonrpc: '2.0', id: null, error: {code: JSONRPCErrorCode.INVALID_REQUEST, message: `The message is larger than ${limit} bytes`}}))
+                stopReading = ReadMessages(options.input ?? process.stdin, options.framing ?? 'newline', limit, (message: string): void => void answer(runtime, message, {clientId: 'stdio'}, write), ended, oversized)
                 return
             }
             if (transport === 'http') {

@@ -1,9 +1,23 @@
 import {type ErrorDescription} from '../types/ErrorDescription.js'
 
 /**
- * The HTTP status of an error: the first client error (4xx) of its causes, its own status, or 500
- * (a validation failure is wrapped in an exception whose cause is the 400 validation error)
- * @param error
+ * Find the HTTP status of an error, read from its `statusCode` or `status`: the first client error (4xx) found on the
+ * error or along its `cause` chain, else the error's own status when it is between 400 and 599, else 500. A validation
+ * failure, wrapped in an exception whose cause is the 400 validation error, thus gives 400.
+ * @param error The error, any value.
+ * @returns The HTTP status, from 400 to 599.
+ * @example
+ * ```typescript
+ * import {StatusOfError} from 'lakutata/adapter/express'
+ *
+ * class NotFound extends Error {
+ *     public readonly statusCode: number = 404
+ * }
+ *
+ * console.log(StatusOfError(new NotFound('No such order'))) //404
+ * console.log(StatusOfError(new Error('Failed', {cause: new NotFound('No such order')}))) //404
+ * console.log(StatusOfError(new Error('Boom'))) //500
+ * ```
  */
 export function StatusOfError(error: unknown): number {
     for (let current: any = error; current && typeof current === 'object'; current = current.cause) {
@@ -15,8 +29,17 @@ export function StatusOfError(error: unknown): number {
 }
 
 /**
- * The error number and message of an error
- * @param error
+ * Describe an error as the JSON responders send it: its `errno` (or `code`, `E_UNKNOWN` without either) and its
+ * `errMsg` (or `message`, or the error converted to a string).
+ * @param error The error, any value.
+ * @returns The error's number and message.
+ * @example
+ * ```typescript
+ * import {DescribeError, type ErrorDescription} from 'lakutata/adapter/express'
+ *
+ * const description: ErrorDescription = DescribeError(new Error('Boom'))
+ * console.log(description) //{errno: 'E_UNKNOWN', errMsg: 'Boom'}
+ * ```
  */
 export function DescribeError(error: unknown): ErrorDescription {
     const described: any = error ?? {}

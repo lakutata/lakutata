@@ -56,6 +56,13 @@ class NamedController extends Controller {
     }
 }
 
+class NestedPatternController extends Controller {
+    @ServiceAction({res: {name: 'user'}, act: 'get'})
+    public async get(input: Record<string, unknown>): Promise<unknown> {
+        return {input: input, message: (this.context as ServiceContext).input}
+    }
+}
+
 class InputController extends Controller {
     @ServiceAction({act: 'input'}, InputDTO)
     public async input(input: InputDTO): Promise<string> {
@@ -67,6 +74,23 @@ class InputController extends Controller {
 }
 
 describe('Action input', (): void => {
+
+    it('keeps the nested keys of the pattern in the message of the context', async (): Promise<void> => {
+        let handler: ServiceEntrypointHandler
+        const container: Container = new Container()
+        await container.set(Entrypoint, BuildEntrypoints({
+            controllers: [NestedPatternController],
+            service: BuildServiceEntrypoint((module, serviceHandler): unknown => handler = serviceHandler)
+        }))
+        try {
+            const result: any = await handler!(new ServiceContext({data: {res: {name: 'user', scope: 'all'}, act: 'get', id: 1}}))
+            //The input without the keys of the pattern, the message with all of them
+            assert.deepStrictEqual(result.input, {res: {scope: 'all'}, id: 1})
+            assert.deepStrictEqual(JSON.parse(JSON.stringify(result.message)), {res: {name: 'user', scope: 'all'}, act: 'get', id: 1})
+        } finally {
+            await container.destroy()
+        }
+    })
 
     it('is a copy of the context data, including the nested values', async (): Promise<void> => {
         let handler: ServiceEntrypointHandler

@@ -5,7 +5,7 @@ import stylistic from '@stylistic/eslint-plugin'
 import globals from 'globals'
 
 export default defineConfig([
-    globalIgnores(['**/node_modules/', '**/dist/', '**/distro/', 'proposal/']),
+    globalIgnores(['**/node_modules/', '**/dist/', '**/distro/', 'proposal/', 'consumer-fixture/.examples/']),
     {
         files: ['**/*.ts', '**/*.mts', '**/*.cts'],
         extends: [js.configs.recommended, tseslint.configs.recommended],

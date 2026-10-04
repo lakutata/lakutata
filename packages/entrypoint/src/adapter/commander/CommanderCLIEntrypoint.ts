@@ -9,7 +9,7 @@ import type {MiddlewareDefinition} from '../../lib/Middleware.js'
 import {CLIContext} from '../../context/CLIContext.js'
 import {CLIChannel} from '../../channel/BuiltinChannels.js'
 import {EventsResult, FileResult, StatusResult} from '../../lib/Result.js'
-import {Prompt, PromptStreams} from './Prompt.js'
+import {LoadPrompts, Prompt, PromptStreams} from './Prompt.js'
 import {BoxWrap, DisplayWidth} from './Width.js'
 
 /**
@@ -26,91 +26,119 @@ export type PropertySchema = {
 }
 
 /**
- * A text of the help or of the prompts: its key (commands.<command>.description, commands.<command>.options.<property>,
- * commands.<command>.arguments.<name>, description, help.usage…), its English text and its arguments ({name} in it)
+ * A text of the help or of the prompts of {@link CommanderCLIEntrypoint}, given to its `translate` function.
  */
 export type CLIText = {
+    /**
+     * The key identifying the text: `description` (the program), `commands.<command>.description`,
+     * `commands.<command>.options.<property>`, `commands.<command>.arguments.<name>` (a nested command's words are joined
+     * with dots: `package.exe`), the help titles and labels (`help.usage`, `help.options`, `help.commands`,
+     * `help.default`, `help.choices`…), the prompt messages (`prompt.json`).
+     */
     key: string
+    /**
+     * The English text, with its `{name}` placeholders.
+     */
     text: string
+    /**
+     * The values of the text's `{name}` placeholders, by name.
+     */
     params?: Record<string, string>
 }
 
 /**
- * The text of the help or of the prompts in the language of the user
+ * Translate a text of the help or of the prompts into the user's language: return the translated text, its `{name}`
+ * placeholders filled from `params`.
  */
 export type CLITranslate = (text: CLIText) => string
 
+/**
+ * The options of {@link CommanderCLIEntrypoint}.
+ */
 export type CommanderCLIEntrypointOptions = {
     /**
-     * The adapter name
+     * The adapter name, to tell apart several CLI adapters of one entrypoint.
      */
     name?: string
     /**
-     * The program name shown in the help, the name of the script by default
+     * The program name shown in the help.
+     * @default the name of the script run, without its extension
      */
     bin?: string
     /**
-     * The description of the program shown in the help
+     * The program description shown in the help.
      */
     description?: string
     /**
-     * The descriptions of the groups of commands: the first words of the nested commands ("package" of the command
-     * "package exe <file>"), whose help lists their commands (tool package --help)
+     * The descriptions of the command groups, by group name: the first words of the nested commands (`'package'` for
+     * the command `'package exe <file>'`), whose help (`tool package --help`) lists their commands.
      */
     groups?: Record<string, string>
     /**
-     * The version of the program, adds the -V, --version option
+     * The program version; adds the `-V, --version` option.
      */
     version?: string
     /**
-     * The arguments of the user, process.argv.slice(2) by default
+     * The command-line arguments to parse, without the node executable and the script.
+     * @default process.argv.slice(2)
      */
     argv?: string[]
     /**
-     * Prompt for the missing required options:
-     * 'auto' (default) when the input and the output are terminals and @inquirer/prompts is installed,
-     * true to prompt whenever @inquirer/prompts is installed, false to never prompt
+     * Prompt for the missing required options (it needs the optional package `@inquirer/prompts`): `'auto'` when both
+     * stdin and stdout are terminals, `true` always, `false` never. While prompting is on, the required options are not
+     * enforced by the parser; without `@inquirer/prompts` installed, prompting is off (the parser requires them).
+     * @default 'auto'
      */
     interactive?: boolean | 'auto'
     /**
-     * The input of the prompts, process.stdin by default
+     * The input stream of the prompts.
+     * @default process.stdin
      */
     stdin?: NodeJS.ReadableStream
     /**
-     * The output of the results and of the help, process.stdout by default
+     * The output stream of the results, the help and the prompts.
+     * @default process.stdout
      */
     stdout?: NodeJS.WritableStream
     /**
-     * The output of the errors, process.stderr by default
+     * The output stream of the errors.
+     * @default process.stderr
      */
     stderr?: NodeJS.WritableStream
     /**
-     * How a result is written, a string as it is, a buffer as its bytes and the other values as indented JSON by default
+     * Turn an action's result into the text or bytes written to stdout; `undefined` writes nothing.
+     * @default a string as is (with a final newline), bytes as is, `null` and `undefined` as nothing, any other value as
+     * indented JSON (the bigints as strings)
      */
     format?: (result: unknown) => string | Uint8Array | undefined
     /**
-     * When no command is given: 'help' (default) writes the help and exits with the code 1,
-     * 'ignore' leaves the application running (an application which also serves other channels)
+     * What happens when no argument is given: `'help'` writes the help and ends with the code 1, `'ignore'` runs no
+     * command and leaves the application running (an application also serving other channels).
+     * @default 'help'
      */
     noCommand?: 'help' | 'ignore'
     /**
-     * Once a command ended: 'application' (default) exits the application with the code of the command,
-     * 'process' only sets the exit code of the process, 'none' does nothing, or a function given the code
+     * What happens once the command ended, with its exit code (0 on success, 1 on failure, the parser's code for a
+     * usage error): `'application'` exits the application with the code, `'process'` only sets `process.exitCode`,
+     * `'none'` does nothing, or a function receiving the code.
+     * @default 'application'
      */
     exit?: 'application' | 'process' | 'none' | ((code: number) => void | Promise<void>)
     /**
-     * Customize the program (hooks, global options, additional commands) before the arguments are parsed
+     * Customize the commander program (hooks, global options, additional commands) after the action commands are
+     * added and before the arguments are parsed.
      */
     configure?: (program: Command) => void | Promise<void>
     /**
-     * The middlewares of the actions of this adapter, run after the global middlewares
+     * The middlewares of this adapter's actions, run after the entrypoint's global middlewares.
      */
     middlewares?: MiddlewareDefinition[]
     /**
-     * The texts of the help and of the prompts in the language of the user (the descriptions of the program, of its
-     * commands, of their arguments and options, the titles of the help): given the module of the adapter when the
-     * arguments are parsed, it gives the function translating them (CommanderTranslator of lakutata/com/i18n gives the
-     * ones of an i18n component). The names of the commands and of the options are not translated
+     * Translate the texts of the help and of the prompts (the program, command, argument and option descriptions, the
+     * help titles) into the user's language: given the entrypoint's module when the arguments are parsed, it returns the
+     * translating function (`CommanderTranslator` of `lakutata/com/i18n` returns the one of an i18n component). The
+     * command and option names are never translated.
+     * @default the English texts
      */
     translate?: (module: Module) => CLITranslate | Promise<CLITranslate>
 }
@@ -249,8 +277,63 @@ function ErrorMessage(error: unknown): string {
 }
 
 /**
- * The CLI entrypoint parsing the arguments with commander: each CLI action is a command whose options are the properties of its input
- * @param options
+ * Create the CLI adapter of an entrypoint, parsing the command-line arguments with commander: each CLI action
+ * (`@CLIAction`) becomes a command, and the properties of its input DTO become its options. It needs the optional peer
+ * dependency `commander` (and `@inquirer/prompts` for the interactive prompts).
+ *
+ * A property becomes a kebab-case option (`deviceId` → `--device-id <value>`), parsed by its type: a number, `true` or
+ * `false`, a JSON object, an array (`--tags <values...>`), a boolean as a flag (with a `--no-<name>` negation when it
+ * defaults to `true`); the enums, the defaults and the descriptions appear in the help. The command text may declare
+ * positional arguments, given to the properties of their names (`'copy <files...> [target]'`), and its leading words
+ * before the last one name its groups (`'package exe <file>'` is the command `exe` of the group `package`).
+ *
+ * The command runs once the application has launched (all its objects, its bootstrap and the other adapters are
+ * ready). Its result is written to stdout (see `format`; an `EventsResult` writes each event's data, a `FileResult`
+ * the file's bytes); a failure writes `error: <message>` to stderr and ends with the code 1. Then the application exits
+ * with the command's code (see `exit`). When the entrypoint stops first, a command not started yet does not run, and
+ * the prompts and the event streams end.
+ * @param options The adapter options; by default it parses `process.argv`, prompts in a terminal, and exits the
+ * application once the command ended.
+ * @returns The adapter, to give to the `cli` option of `BuildEntrypoints`.
+ * @example
+ * ```typescript
+ * import {Application, DTO} from 'lakutata'
+ * import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+ * import {CLIAction} from 'lakutata/decorator/ctrl'
+ * import {Expect} from 'lakutata/decorator/dto'
+ * import {CommanderCLIEntrypoint} from 'lakutata/adapter/commander'
+ *
+ * class GreetDTO extends DTO {
+ *     @Expect(DTO.String().required().description('The name to greet'))
+ *     public name!: string
+ *
+ *     @Expect(DTO.Number().integer().optional().default(1).description('How many times'))
+ *     public times?: number
+ *
+ *     @Expect(DTO.Boolean().optional().default(false))
+ *     public loud?: boolean
+ * }
+ *
+ * class GreetController extends Controller {
+ *     //tool greet Ada --times 2 --loud
+ *     @CLIAction('greet <name>', GreetDTO)
+ *     public async greet(input: GreetDTO): Promise<string> {
+ *         const text: string = `Hello, ${input.name}`
+ *         return (input.loud ? text.toUpperCase() : text).repeat(input.times ?? 1)
+ *     }
+ * }
+ *
+ * Application.run({
+ *     id: 'tool.app',
+ *     name: 'Tool',
+ *     components: {
+ *         entrypoint: BuildEntrypoints({
+ *             controllers: [GreetController],
+ *             cli: CommanderCLIEntrypoint({bin: 'tool', description: 'A greeting tool', version: '1.0.0'})
+ *         })
+ *     }
+ * })
+ * ```
  */
 export function CommanderCLIEntrypoint(options: CommanderCLIEntrypointOptions = {}): EntrypointAdapter<CLIContext> {
     const stdout: NodeJS.WritableStream = options.stdout ?? process.stdout
@@ -286,12 +369,12 @@ export function CommanderCLIEntrypoint(options: CommanderCLIEntrypointOptions = 
     }
 
     /**
-     * Whether the missing options are prompted
+     * Whether the missing options are prompted: the prompts installed (else the parser requires the options)
      */
-    const interactive = (): boolean => {
+    const interactive = async (): Promise<boolean> => {
         if (options.interactive === false) return false
-        if (options.interactive === true) return true
-        return !!(stdin as { isTTY?: boolean }).isTTY && !!(stdout as { isTTY?: boolean }).isTTY
+        if (options.interactive !== true && !((stdin as { isTTY?: boolean }).isTTY && (stdout as { isTTY?: boolean }).isTTY)) return false
+        return !!(await LoadPrompts())
     }
 
     /**
@@ -322,7 +405,7 @@ export function CommanderCLIEntrypoint(options: CommanderCLIEntrypointOptions = 
     const run = async (runtime: ChannelRuntime<CLIContext>): Promise<number | undefined> => {
         const argv: string[] = options.argv ?? process.argv.slice(2)
         if (!argv.length && options.noCommand === 'ignore') return undefined
-        const prompting: boolean = interactive()
+        const prompting: boolean = await interactive()
         //The texts of the help and of the prompts in the language of the user
         const translate: CLITranslate = options.translate ? await options.translate(runtime.module) : English
         const say = (key: string, text: string, params?: Record<string, string>): string => translate({key: key, text: text, params: params})

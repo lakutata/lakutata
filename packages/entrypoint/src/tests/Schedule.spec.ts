@@ -155,6 +155,27 @@ describe('Schedule adapter', (): void => {
         assert.ok(parallel.length >= 5, `${parallel.length} runs`)
     })
 
+    it('goes on when the handler of the skipped runs throws', async (): Promise<void> => {
+        const errors: unknown[] = []
+        const original = console.error
+        console.error = (...args: unknown[]): void => void errors.push(args)
+        let skips: number = 0
+        try {
+            const container: Container = await Start({onError: (): void => undefined, onSkip: (): never => {
+                skips++
+                throw new Error('The handler failed')
+            }})
+            await Sleep(300)
+            await container.destroy()
+        } finally {
+            console.error = original
+        }
+        //The slow job skipped several times, its runs going on
+        assert.ok(skips >= 2, `${skips} skips`)
+        assert.ok(slowConcurrency === 1)
+        assert.match(String((errors[0] as unknown[])[0]), /The onSkip handler of the scheduled action .* failed/)
+    })
+
     it('runs immediately and waits for the runs in progress when it stops', async (): Promise<void> => {
         const container: Container = await Start({onError: (): void => undefined})
         //The slow job runs immediately

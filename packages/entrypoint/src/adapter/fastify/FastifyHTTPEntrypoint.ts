@@ -13,68 +13,92 @@ import {RouteNotFoundException} from '../../exceptions/RouteNotFoundException.js
 import {FastifyJSONResponder, type FastifyResponder} from './Responders.js'
 
 /**
- * What the hooks of the adapter are given
+ * What the `before` hook of {@link FastifyHTTPEntrypoint} receives besides the fastify instance: the entrypoint's
+ * module, the HTTP server (not listening yet) and the routes the actions will occupy.
  */
 export type FastifyHookContext = {
+    /**
+     * The module owning the entrypoint, to get the application's objects from (`await module.getObject('db')`).
+     */
     readonly module: Module
+    /**
+     * The HTTP server of the fastify instance. It does not listen yet when the hook runs; attach other servers to it
+     * there (such as a socket.io server, see the `server` option of `SocketIOServiceEntrypoint`).
+     */
     readonly server: Server
     /**
-     * The routes of the actions and their methods
+     * Each action route mapped to its HTTP methods, in upper case (`'/users/:id'` → `{'GET', 'DELETE'}`).
      */
     readonly routes: Map<string, Set<string>>
     /**
-     * The first segments of the routes of the actions ('/device', '/user'…)
+     * The first segment of each action route (`'/device'`, `'/user'`…). A route starting with a parameter (`/:id`)
+     * adds none.
      */
     readonly actionPrefixes: string[]
     /**
-     * Whether a path belongs to the actions (it starts with one of their prefixes)
+     * Tell whether a request path belongs to the actions: it equals one of the action prefixes or starts with one
+     * followed by `/`.
      */
     readonly isActionPath: (requestPath: string) => boolean
 }
 
+/**
+ * The options of {@link FastifyHTTPEntrypoint}.
+ */
 export type FastifyHTTPEntrypointOptions = {
     /**
-     * The adapter name
+     * The adapter name, to tell apart several HTTP adapters of one entrypoint.
      */
     name?: string
     /**
-     * The port, 80 by default (0 for a random port)
+     * The port the server listens on; 0 picks a random free port. The entrypoint fails to start when the port is in use.
+     * @default 80
      */
     port?: number
     /**
-     * The host, all the interfaces by default
+     * The host or address the server listens on.
+     * @default every interface, as the other HTTP adapters (`::`, or `0.0.0.0` without IPv6)
      */
     host?: string
     /**
-     * The fastify instance, or the options of a new one (bodyLimit, trustProxy, logger…)
+     * An existing fastify instance to add the action routes to, or the options of the instance to create (`bodyLimit`,
+     * `trustProxy`, `logger`…). The adapter closes the instance when it stops, a given one included.
+     * @default a new fastify instance with its default options (a body limit of 1 MiB)
      */
     fastify?: FastifyInstance | FastifyServerOptions
     /**
-     * The input of an action from a request, the query and the body by default (the route parameters are merged over it)
+     * Build an action's input from a request. The route parameters are always merged over its result.
+     * @default the query parameters, then the properties of an object body over them (an array body is ignored)
      */
     input?: (request: FastifyRequest) => Record<string, unknown>
     /**
-     * How the results and the errors are written, FastifyJSONResponder by default
+     * How the results and the errors of the actions are written.
+     * @default FastifyJSONResponder
      */
     respond?: FastifyResponder
     /**
-     * The middlewares of the actions of this adapter, run after the global middlewares
+     * The middlewares of this adapter's actions, run after the entrypoint's global middlewares.
      */
     middlewares?: MiddlewareDefinition[]
     /**
-     * Run before the routes of the actions are added: the plugins, hooks and routes of the application
+     * Run before the action routes are added, to register the application's own plugins, hooks and routes. A failure
+     * fails the entrypoint start.
      */
     before?: (app: FastifyInstance, context: FastifyHookContext) => void | Promise<void>
     /**
-     * The handler of the requests matching no action and outside of the action prefixes (such as the pages of a web application)
+     * The handler of the requests that match no route and whose path is outside the action prefixes, such as the pages
+     * of a web application. The unmatched requests inside the action prefixes, and all of them without a fallback, are
+     * answered with a `RouteNotFoundException` (404).
      */
     fallback?: (request: FastifyRequest, reply: FastifyReply) => unknown
     /**
-     * Run when the adapter stops, after the server is closed
+     * Run when the adapter stops, after the server is closed.
      */
     stop?: () => void | Promise<void>
     /**
-     * ms, the interval of the comments keeping the event streams alive, 15s by default
+     * The interval between the comments keeping the event streams (`EventsResult`) alive through the proxies, in
+     * milliseconds.
+     * @default 15000
      */
     heartbeat?: number
 }
@@ -138,8 +162,63 @@ function IsFastifyInstance(value: unknown): value is FastifyInstance {
 }
 
 /**
- * The HTTP entrypoint served by a fastify instance
- * @param options
+ * Create the HTTP adapter of an entrypoint served by a fastify instance: each HTTP action (`@GET`, `@POST`,
+ * `@HTTPAction`…) becomes a fastify route. It needs the optional peer dependency `fastify`.
+ *
+ * An action's input is the request's query and body (see the `input` option) with the route parameters merged over
+ * them. Its result is written by the responder (JSON by default, 204 for no result); a `StatusResult` sets the status
+ * and the headers, a `FileResult` sends a file, a buffer or a stream (its content type guessed from the extension of
+ * its file name, 304 when its ETag matches `If-None-Match`), and an `EventsResult` streams Server-Sent Events. An action
+ * that writes the response itself (through `HTTPContext.response`) is left alone. The errors, those of fastify included
+ * (a body too large: 413, a malformed JSON body: 400), are written by the responder with their status (500 by default).
+ * A GET action also answers HEAD, unless a HEAD action is declared for its route.
+ *
+ * When the client disconnects before the response, the action's abort signal fires and nothing is written. When the
+ * entrypoint stops, fastify stops accepting connections and answers the new requests with 503, the event streams end,
+ * and the requests in progress are given up to one second after they settle to send their responses before the
+ * remaining connections are closed.
+ * @param options The adapter options; by default it listens on port 80 with a new fastify instance.
+ * @returns The adapter, to give to the `http` option of `BuildEntrypoints`.
+ * @example
+ * ```typescript
+ * import {Application} from 'lakutata'
+ * import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+ * import {GET, POST} from 'lakutata/decorator/ctrl'
+ * import {FastifyHTTPEntrypoint} from 'lakutata/adapter/fastify'
+ *
+ * class UserController extends Controller {
+ *     //GET /users/1?verbose=true: the route parameter id merged over the query
+ *     @GET('/users/:id')
+ *     public async get(input: {id: string, verbose?: string}): Promise<{id: string}> {
+ *         return {id: input.id}
+ *     }
+ *
+ *     //POST /users with the JSON body {"name": "Ada"}
+ *     @POST('/users')
+ *     public async create(input: {name: string}): Promise<{name: string}> {
+ *         return {name: input.name}
+ *     }
+ * }
+ *
+ * Application.run({
+ *     id: 'web.app',
+ *     name: 'Web',
+ *     components: {
+ *         entrypoint: BuildEntrypoints({
+ *             controllers: [UserController],
+ *             http: FastifyHTTPEntrypoint({
+ *                 port: 8080,
+ *                 host: '0.0.0.0',
+ *                 fastify: {bodyLimit: 5 * 1024 * 1024, trustProxy: true},
+ *                 //The application's own routes
+ *                 before: (app): void => {
+ *                     app.get('/health', async (): Promise<string> => 'ok')
+ *                 }
+ *             })
+ *         })
+ *     }
+ * })
+ * ```
  */
 export function FastifyHTTPEntrypoint(options: FastifyHTTPEntrypointOptions = {}): EntrypointAdapter<HTTPContext> {
     const respond: FastifyResponder = options.respond ?? FastifyJSONResponder
@@ -303,7 +382,17 @@ export function FastifyHTTPEntrypoint(options: FastifyHTTPEntrypointOptions = {}
             })
             fastify.setErrorHandler((error: unknown, request: FastifyRequest, reply: FastifyReply): unknown => respond.error(reply, error, request))
             //The adapter starts once the server listens (an occupied port fails the start)
-            await fastify.listen({port: options.port ?? 80, host: options.host})
+            //Every interface by default, as the other adapters (fastify listens on localhost only)
+            if (options.host !== undefined) {
+                await fastify.listen({port: options.port ?? 80, host: options.host})
+            } else {
+                try {
+                    await fastify.listen({port: options.port ?? 80, host: '::'})
+                } catch (error: unknown) {
+                    if (!['EAFNOSUPPORT', 'EADDRNOTAVAIL'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error
+                    await fastify.listen({port: options.port ?? 80, host: '0.0.0.0'})
+                }
+            }
         },
         stop: (): void => {
             //The event streams end; fastify stops accepting connections, closes the idle ones and answers 503 to the new requests

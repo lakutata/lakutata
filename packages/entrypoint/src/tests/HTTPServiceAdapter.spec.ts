@@ -3,7 +3,7 @@ import assert from 'node:assert'
 import type {AddressInfo} from 'node:net'
 import {Container, DTO} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
-import {BuildEntrypoints, Controller, Entrypoint, HTTPRequestOfContext, HTTPServiceEntrypoint, type HTTPServiceEntrypointOptions, ServiceContext} from '../exports/Entrypoint.js'
+import {BuildEntrypoints, Controller, Entrypoint, HTTPRequestOfContext, HTTPServiceEntrypoint, type HTTPServiceEntrypointOptions, Result, ServiceContext, type FileResult, type StatusResult} from '../exports/Entrypoint.js'
 import {ServiceAction} from '../exports/CTRLDecorators.js'
 
 const abortedActions: string[] = []
@@ -23,6 +23,16 @@ class EchoController extends Controller {
     @ServiceAction({cmd: 'whoami'})
     public async whoami(): Promise<string | undefined> {
         return (this.context as ServiceContext).clientId
+    }
+
+    @ServiceAction({cmd: 'created'})
+    public async created(): Promise<StatusResult> {
+        return Result.status(201, {id: 7}, {Location: '/orders/7'})
+    }
+
+    @ServiceAction({cmd: 'file'})
+    public async file(): Promise<FileResult> {
+        return Result.file(Buffer.from('a,b'))
     }
 
     @ServiceAction({cmd: 'wait'})
@@ -130,7 +140,7 @@ describe('HTTP service adapter', (): void => {
         const {url, container} = await Start({path: '/api/', limit: 64})
         assert.strictEqual((await Invoke(`${url}/api`, {cmd: 'echo', value: 1})).payload.value, 1)
         const large = await Invoke(`${url}/api`, {cmd: 'echo', value: 1, padding: 'x'.repeat(100)})
-        assert.deepStrictEqual([large.status, large.error.message], [400, 'The body of the request is larger than 64 bytes'])
+        assert.deepStrictEqual([large.status, large.error.message], [413, 'The body of the request is larger than 64 bytes'])
         await container.destroy()
     })
 
@@ -153,6 +163,18 @@ describe('HTTP service adapter', (): void => {
         assert.strictEqual(entrypoint.notify('postman', 'progress'), false)
         anonymous.close()
         await container.destroy()
+    })
+
+    it('sends the data of the status results, refuses the files', async (): Promise<void> => {
+        const {url, container} = await Start()
+        try {
+            assert.deepStrictEqual(await Invoke(url, {cmd: 'created'}), {status: 200, success: true, error: null, payload: {id: 7}})
+            const file = await Invoke(url, {cmd: 'file'})
+            assert.strictEqual(file.success, false)
+            assert.match(file.error.message, /cannot send a FileResult/)
+        } finally {
+            await container.destroy()
+        }
     })
 
     it('aborts the signal of the controllers once their clients are gone', async (): Promise<void> => {

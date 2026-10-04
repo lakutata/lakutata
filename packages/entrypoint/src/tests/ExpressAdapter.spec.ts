@@ -219,7 +219,10 @@ describe('Express adapter', (): void => {
         await writeFile(path.join(ui, 'index.html'), '<div id="app"></div>')
         await mkdir(path.join(ui, 'assets'))
         await writeFile(path.join(ui, 'assets', 'main-Cx7aB3dE.js'), 'console.log(1)')
-        const {url, container} = await Start({fallback: StaticUI(ui)})
+        //Not hashed: a name of lowercase words
+        await writeFile(path.join(ui, 'assets', 'my-component.js'), 'console.log(2)')
+        assert.throws((): unknown => StaticUI(ui, {assetsMaxAge: 'soon'}), /Invalid duration/)
+        const {url, container} = await Start({fallback: StaticUI(ui, {assetsMaxAge: '30d'})})
         const page: Response = await fetch(`${url}/`, {headers: {Accept: 'text/html'}})
         assert.strictEqual(await page.text(), '<div id="app"></div>')
         assert.strictEqual(page.headers.get('cache-control'), 'no-cache')
@@ -227,7 +230,8 @@ describe('Express adapter', (): void => {
         assert.strictEqual(await (await fetch(`${url}/stations/42`, {headers: {Accept: 'text/html'}})).text(), '<div id="app"></div>')
         const asset: Response = await fetch(`${url}/assets/main-Cx7aB3dE.js`)
         assert.strictEqual(await asset.text(), 'console.log(1)')
-        assert.match(asset.headers.get('cache-control')!, /immutable/)
+        assert.strictEqual(asset.headers.get('cache-control'), 'public, max-age=2592000, immutable')
+        assert.strictEqual((await fetch(`${url}/assets/my-component.js`)).headers.get('cache-control'), 'no-cache')
         //A missing file, and the paths of the actions, are not the index
         assert.strictEqual((await fetch(`${url}/assets/missing.js`)).status, 404)
         assert.strictEqual(((await (await fetch(`${url}/device`, {headers: {Accept: 'text/html'}})).json()) as any).errno, 'E_ROUTE_NOT_FOUND')

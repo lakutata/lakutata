@@ -8,39 +8,48 @@ import {ScheduleChannel} from '../channel/BuiltinChannels.js'
 import {Cron, ParseDuration} from '../lib/schedule/Cron.js'
 
 /**
- * When an action runs: every interval, or at the times of a cron expression
+ * When a scheduled action runs (`@Schedule`): every interval (`every`) or at the times of a cron expression (`cron`),
+ * with how its runs overlap, start and are shared between the instances of the application.
  */
 export type ScheduleOptions = ({
     /**
-     * The interval of the runs: milliseconds, or a text such as "500ms", "30s", "5m", "1h30m", "1d"
+     * The interval between the runs: milliseconds, or a duration text such as `'500ms'`, `'30s'`, `'5m'`, `'1h30m'` or
+     * `'1d'`. The first run comes one interval after the application launched; the runs missed while the process was
+     * suspended are skipped.
      */
     every: number | string
     cron?: never
     timezone?: never
 } | {
     /**
-     * The times of the runs: "second minute hour day-of-month month day-of-week" (the second is optional), or a macro (@hourly, @daily…)
+     * The times of the runs: a cron expression `'second minute hour day-of-month month day-of-week'` (the second is
+     * optional: 5 fields run at second 0), or a macro (`'@hourly'`, `'@daily'`…).
      */
     cron: string
     /**
-     * The IANA time zone of the expression ("Asia/Shanghai"), the time zone of the application by default
+     * The IANA time zone the expression is read in (`'Asia/Shanghai'`).
+     * @default the local time zone of the process
      */
     timezone?: string
     every?: never
 }) & {
     /**
-     * Run while the previous run of the action is still in progress, false by default: the run is skipped
+     * Start a run while the previous run of the action is still in progress; otherwise the run is skipped.
+     * @default false
      */
     overlap?: boolean
     /**
-     * Also run once the application launched, false by default
+     * Also run the action once as soon as the application launched, besides its schedule.
+     * @default false
      */
     immediate?: boolean
     /**
-     * Run in one instance of the application at a time (the locks of a mutex component, @lakutata/mutex): each run by
-     * the instance acquiring its lock, the other ones skipping it; the intervals aligned on their multiples (the same
-     * times in every instance). true uses the component named "mutex"; key names the lock, the name of the action by
-     * default
+     * Run the action in one instance of the application at a time, with the locks of a mutex component
+     * (`lakutata/com/mutex`): each run is made by the instance acquiring its lock, the others skip it, and the intervals
+     * are aligned on their multiples so that every instance plans the same times. `true` uses the component named
+     * `'mutex'`; `{mutex, key}` names the component and the lock (the action name by default). Without the component,
+     * the action does not run and the error is logged.
+     * @default false
      */
     exclusive?: boolean | { mutex?: string, key?: string }
 }
@@ -92,16 +101,70 @@ function ScheduleAddress(schedule: string | ScheduleOptions): Record<string, str
 }
 
 /**
- * Method Decorator, run the action on a schedule when the entrypoint has a schedule adapter (schedule: ScheduleEntrypoint()).
- * A text is an interval ("30s", "1h30m") or a cron expression ("0 *\/5 * * * *", "@daily")
- * @param schedule
+ * Run the controller method on a schedule, when the entrypoint has a schedule adapter (`schedule: ScheduleEntrypoint()`
+ * of `lakutata/com/entrypoint`). The runs start once the application launched and the runs in progress end before it
+ * stops. Each run has its own request scope and goes through the middlewares and the access control like a request; the
+ * method receives an empty input, and `this.context` is a `ScheduleContext` (its schedule, its planned time and its run
+ * number). The value returned is ignored; an error thrown is given to the adapter's `onError`, or logged by the
+ * application's `log` component (to the console without it), and the next runs go on.
+ * @param schedule A duration text (`'30s'`, `'1h30m'`) for an interval, any other text for a cron expression
+ * (`'0 *\/5 * * * *'`, `'@daily'`), or the schedule options.
+ * @returns The method decorator.
+ * @throws {SyntaxError} When the class is declared, if the interval or the cron expression is invalid.
+ * @throws {RangeError} When the class is declared, if the time zone is unknown.
+ * @example
+ * ```typescript
+ * import {Application} from 'lakutata'
+ * import {BuildEntrypoints, Controller, ScheduleContext, ScheduleEntrypoint} from 'lakutata/com/entrypoint'
+ * import {Schedule} from 'lakutata/decorator/ctrl'
+ *
+ * class JobController extends Controller {
+ *     //Every 30 seconds, and once as soon as the application launched
+ *     @Schedule({every: '30s', immediate: true})
+ *     public async heartbeat(): Promise<void> {
+ *         if (this.context instanceof ScheduleContext) console.log(`run ${this.context.run} of ${this.context.schedule}`)
+ *     }
+ *
+ *     //Every 5 minutes, at second 0
+ *     @Schedule('0 *\/5 * * * *')
+ *     public async report(): Promise<void> {
+ *     }
+ *
+ *     //At 03:00 every day in Shanghai, by one instance of the application at a time (a mutex component named "mutex")
+ *     @Schedule({cron: '0 3 * * *', timezone: 'Asia/Shanghai', exclusive: true}, {name: 'Purge the expired sessions'})
+ *     public async purge(): Promise<void> {
+ *     }
+ * }
+ *
+ * Application.run(() => ({
+ *     id: 'jobs.app',
+ *     name: 'Jobs',
+ *     components: {
+ *         entrypoint: BuildEntrypoints({
+ *             controllers: [JobController],
+ *             schedule: ScheduleEntrypoint({onError: (error: unknown): void => console.error(error)})
+ *         })
+ *     },
+ *     bootstrap: ['entrypoint']
+ * }))
+ * ```
  */
 export function Schedule<ClassPrototype extends Controller, Method>(schedule: string | ScheduleOptions): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
 /**
- * Method Decorator, run the action on a schedule when the entrypoint has a schedule adapter (schedule: ScheduleEntrypoint()).
- * A text is an interval ("30s", "1h30m") or a cron expression ("0 *\/5 * * * *", "@daily")
- * @param schedule
- * @param actionOptions
+ * Run the controller method on a schedule, with action options, when the entrypoint has a schedule adapter
+ * (`schedule: ScheduleEntrypoint()`). Each run has its own request scope and goes through the middlewares and the access
+ * control like a request; the method receives an empty input and `this.context` is a `ScheduleContext`. An error thrown
+ * is given to the adapter's `onError`, or logged, and the next runs go on.
+ * @param schedule A duration text (`'30s'`, `'1h30m'`) for an interval, any other text for a cron expression
+ * (`'0 *\/5 * * * *'`, `'@daily'`), or the schedule options.
+ * @param actionOptions The action options: `name` (`ClassName:method` by default) names the action in the logs and is the
+ * default lock key of an exclusive schedule; `description` and `groups` describe it; `acl` runs the access control
+ * rules (false by default); `rule` is an access rule of the action; `middlewares` run before the ones `@UseMiddlewares`
+ * adds to the method.
+ * @returns The method decorator.
+ * @throws {SyntaxError} When the class is declared, if the interval or the cron expression is invalid.
+ * @throws {RangeError} When the class is declared, if the time zone is unknown.
+ * @throws {InvalidValueException} When the class is declared, if the action options are invalid.
  */
 export function Schedule<ClassPrototype extends Controller, Method>(schedule: string | ScheduleOptions, actionOptions: ActionOptions<ScheduleContext>): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
 export function Schedule<ClassPrototype extends Controller, Method>(schedule: string | ScheduleOptions, actionOptions?: ActionOptions<ScheduleContext>): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>> {

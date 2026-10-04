@@ -7,53 +7,83 @@ import {ServiceChannel} from '../../channel/BuiltinChannels.js'
 import {ServiceResponseCodec, type ServiceResponse} from '../../lib/ServiceResponseCodec.js'
 import {EntrypointStoppedException} from '../../exceptions/EntrypointStoppedException.js'
 
+/**
+ * The options of {@link SocketIOServiceEntrypoint}.
+ */
 export type SocketIOServiceEntrypointOptions = {
     /**
-     * The adapter name
+     * The adapter name, to tell apart several service adapters of one entrypoint.
      */
     name?: string
     /**
-     * The event of the requests, "message" by default: socket.emit('message', {cmd: 'echo', …}, (response) => …)
+     * The socket.io event carrying the requests: `socket.emit('message', {cmd: 'echo', …}, (response) => …)`.
+     * @default 'message'
      */
     event?: string
     /**
-     * The namespace of the requests, "/" by default
+     * The socket.io namespace receiving the requests.
+     * @default '/'
      */
     namespace?: string
     /**
-     * The HTTP server the socket.io server is attached to (such as the server of ExpressHTTPEntrypoint, given by its before hook),
-     * or a function giving it when the adapter starts. Without it, the adapter listens on a port of its own
+     * An HTTP server to attach the socket.io server to (such as the one of `ExpressHTTPEntrypoint`, given to its
+     * `before` hook), or a function returning it when the adapter starts. The adapter then does not listen itself, and
+     * when it stops it disconnects the sockets but leaves the HTTP server to its owner.
+     * @default a server of its own, listening on `port`
      */
     server?: Server | (() => Server)
     /**
-     * The socket.io server, created by the adapter by default. The adapter does not close a server it is given
+     * An existing socket.io server to serve the requests on, used as is: the adapter neither makes it listen nor closes
+     * it, and ignores `server`, `port`, `host` and `options`.
+     * @default a socket.io server created by the adapter
      */
     io?: SocketIOServer
     /**
-     * The port of the server of the adapter, 3000 by default (0 for a random port)
+     * The port of the adapter's own server (without `server` and `io`); 0 picks a random free port. The entrypoint fails
+     * to start when the port is in use.
+     * @default 3000
      */
     port?: number
     /**
-     * The host of the server of the adapter, all the interfaces by default
+     * The host or address of the adapter's own server.
+     * @default all the interfaces
      */
     host?: string
     /**
-     * The options of the socket.io server created by the adapter (path, cors, transports…)
+     * The options of the socket.io server created by the adapter (`path`, `cors`, `transports`…).
      */
     options?: Partial<ServerOptions>
     /**
-     * The middlewares of the actions of this adapter, run after the global middlewares
+     * The middlewares of this adapter's actions, run after the entrypoint's global middlewares.
      */
     middlewares?: MiddlewareDefinition[]
     /**
-     * Run once the adapter listens, with the socket.io server
+     * Run once the adapter is ready, with the socket.io server and its HTTP server (`undefined` when `io` is given
+     * without `server`).
+     * A failure fails the entrypoint start.
      */
     listening?: (io: SocketIOServer, server: Server | undefined) => void | Promise<void>
 }
 
 /**
- * The socket of the request of a context, in the service actions served by socket.io
- * @param context
+ * Get the socket.io socket that sent a service action's request, when {@link SocketIOServiceEntrypoint} serves it (to
+ * read its handshake, join it to rooms, emit to it…).
+ * @param context The service action's context (`this.context` in a controller).
+ * @returns The socket, or `undefined` when another adapter serves the request.
+ * @example
+ * ```typescript
+ * import {Controller, ServiceContext} from 'lakutata/com/entrypoint'
+ * import {ServiceAction} from 'lakutata/decorator/ctrl'
+ * import {SocketOfContext} from 'lakutata/adapter/socket.io'
+ *
+ * class RoomController extends Controller {
+ *     //socket.emit('message', {cmd: 'room.join', room: 'lobby'}, (response) => …)
+ *     @ServiceAction({cmd: 'room.join'})
+ *     public async join(input: {room: string}): Promise<void> {
+ *         await SocketOfContext(this.context as ServiceContext)?.join(input.room)
+ *     }
+ * }
+ * ```
  */
 export function SocketOfContext(context: ServiceContext): Socket | undefined {
     return (context as ServiceContext & { socket?: Socket }).socket
@@ -71,11 +101,58 @@ function ClientId(socket: Socket): string {
 }
 
 /**
- * The service entrypoint served by socket.io: a request is an event whose data is the pattern and the input of an action,
- * its acknowledgement is the response of the action, encoded as {success, error, payload} (ServiceResponseCodec). Each
- * socket is the one of a client (the id it gives when it connects, the clientId of the contexts of its requests): the
- * events pushed to it (Entrypoint.notify, broadcast) are emitted to it
- * @param options
+ * Create a service adapter of an entrypoint served by socket.io. It needs the optional peer dependency `socket.io`
+ * (and `socket.io-client` on the clients).
+ *
+ * A request is an emit of the request event (`'message'` by default) whose data holds the action's pattern and input,
+ * with an acknowledgement callback receiving the response `{success, error, payload}` (see `ServiceResponseCodec`):
+ * `payload` is the result, or `error` the whole error object when the action failed (no matching action, validation…).
+ * An emit without an acknowledgement still runs the action.
+ *
+ * Each socket belongs to a client, identified by the id it gives when it connects (`auth.id`, else the `id` header,
+ * else the `id` query parameter; at most 200 characters), else by its socket id; its requests carry it as
+ * `ServiceContext.clientId`. The events pushed by `Entrypoint.notify` are emitted to every socket of the client, those
+ * of `Entrypoint.broadcast` to every socket of the namespace, with the event's arguments as the emit's arguments.
+ *
+ * When a socket disconnects, its requests in progress are aborted (their abort signal fires). When the entrypoint
+ * stops, the new requests are answered with an `EntrypointStoppedException` error; once the requests in progress end,
+ * the socket.io server is closed (the sockets disconnected, with the attached HTTP server left open).
+ * @param options The adapter options; by default it listens on port 3000 of all the interfaces with a server of its own.
+ * @returns The adapter, to give to the `service` option of `BuildEntrypoints`.
+ * @example
+ * ```typescript
+ * import {Application} from 'lakutata'
+ * import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+ * import {ServiceAction} from 'lakutata/decorator/ctrl'
+ * import {SocketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
+ * import {io} from 'socket.io-client'
+ *
+ * class EchoController extends Controller {
+ *     @ServiceAction({cmd: 'echo'})
+ *     public async echo(input: {text: string}): Promise<string> {
+ *         return input.text
+ *     }
+ * }
+ *
+ * Application.run({
+ *     id: 'echo.service',
+ *     name: 'Echo',
+ *     components: {
+ *         entrypoint: BuildEntrypoints({
+ *             controllers: [EchoController],
+ *             service: SocketIOServiceEntrypoint({port: 3000, options: {cors: {origin: '*'}}})
+ *         })
+ *     }
+ * })
+ *
+ * //A client, identified as client-1 (the events pushed by entrypoint.notify('client-1', 'progress', 50) reach it)
+ * const socket = io('http://localhost:3000', {auth: {id: 'client-1'}})
+ * socket.on('progress', (percent: number): void => console.log(`${percent}%`))
+ * socket.emit('message', {cmd: 'echo', text: 'hi'}, (response: {success: boolean, error: unknown, payload: unknown}): void => {
+ *     //{success: true, error: null, payload: 'hi'}
+ *     console.log(response)
+ * })
+ * ```
  */
 export function SocketIOServiceEntrypoint(options: SocketIOServiceEntrypointOptions = {}): EntrypointAdapter<ServiceContext> {
     const event: string = options.event ?? 'message'
@@ -87,6 +164,8 @@ export function SocketIOServiceEntrypoint(options: SocketIOServiceEntrypointOpti
     let onConnection: ((socket: Socket) => void) | undefined
     //The sockets of each client (a client may connect several times)
     const clients: Map<string, Set<Socket>> = new Map()
+    //The removal of the listeners the adapter added to each socket (the sockets of a given io outlive the adapter)
+    const detachers: Map<Socket, () => void> = new Map()
 
     return {
         channel: 'service',
@@ -111,12 +190,13 @@ export function SocketIOServiceEntrypoint(options: SocketIOServiceEntrypointOpti
                 clients.get(clientId)!.add(socket)
                 //The requests of a socket in progress, aborted when it disconnects
                 const requests: Set<AbortController> = new Set()
-                socket.once('disconnect', (): void => {
+                const onDisconnect = (): void => {
                     requests.forEach((request: AbortController): void => request.abort())
                     clients.get(clientId)?.delete(socket)
                     if (!clients.get(clientId)?.size) clients.delete(clientId)
-                })
-                socket.on(event, async (data: unknown, acknowledge?: unknown): Promise<void> => {
+                    detachers.delete(socket)
+                }
+                const onRequest = async (data: unknown, acknowledge?: unknown): Promise<void> => {
                     const reply = (response: ServiceResponse): void => {
                         if (typeof acknowledge === 'function') acknowledge(response)
                     }
@@ -131,6 +211,13 @@ export function SocketIOServiceEntrypoint(options: SocketIOServiceEntrypointOpti
                     } finally {
                         requests.delete(request)
                     }
+                }
+                socket.once('disconnect', onDisconnect)
+                const onEvent = (data: unknown, acknowledge?: unknown): void => void onRequest(data, acknowledge)
+                socket.on(event, onEvent)
+                detachers.set(socket, (): void => {
+                    socket.off('disconnect', onDisconnect)
+                    socket.off(event, onEvent)
                 })
             }
             namespace.on('connection', onConnection)
@@ -162,6 +249,9 @@ export function SocketIOServiceEntrypoint(options: SocketIOServiceEntrypointOpti
         close: async (): Promise<void> => {
             clients.clear()
             if (namespace && onConnection) namespace.off('connection', onConnection)
+            //The sockets connected keep no listener of the adapter (they stay connected to a given io)
+            detachers.forEach((detach: () => void): void => detach())
+            detachers.clear()
             if (!io || options.io) return
             if (sharedServer) {
                 //The server is closed by its owner: the clients are disconnected and the transports closed

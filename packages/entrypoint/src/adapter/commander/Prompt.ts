@@ -25,7 +25,7 @@ let prompts: Promise<any> | undefined
 /**
  * Load the prompts
  */
-function LoadPrompts(): Promise<any> {
+export function LoadPrompts(): Promise<any> {
     prompts ??= import('@inquirer/prompts').catch((): undefined => undefined)
     return prompts
 }

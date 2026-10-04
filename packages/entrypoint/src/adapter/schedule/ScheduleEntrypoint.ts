@@ -4,22 +4,29 @@ import {ScheduleContext} from '../../context/ScheduleContext.js'
 import {ScheduleChannel} from '../../channel/BuiltinChannels.js'
 import {Cron} from '../../lib/schedule/Cron.js'
 
+/**
+ * The options of {@link ScheduleEntrypoint}.
+ */
 export type ScheduleEntrypointOptions = {
     /**
-     * The adapter name
+     * The adapter name, to tell apart several schedule adapters of one entrypoint.
      */
     name?: string
     /**
-     * The middlewares of the runs of this adapter, run after the global middlewares
+     * The middlewares of this adapter's runs, run after the entrypoint's global middlewares.
      */
     middlewares?: MiddlewareDefinition[]
     /**
-     * A run failed, it is written to the log of the application by default
+     * Called when a run fails (the action, a middleware or the access control threw), with the error, the action and
+     * the run's context. A failed run does not stop the next ones.
+     * @default the error is written to the application's `log` component (`console.error` without one)
      */
     onError?: (error: unknown, action: ChannelActionInfo, context: ScheduleContext) => void | Promise<void>
     /**
-     * A run was skipped: the previous run of the action is still in progress (overlap: the action does not overlap), or
-     * another instance runs it (exclusive: its lock held)
+     * Called when a run is skipped, with the action, the time the run was due and why: `'overlap'` when the action's
+     * previous run is still in progress (an action without `overlap: true`), `'exclusive'` when another instance of the
+     * application holds the run's lock (an `exclusive` action). An error it throws is written to the application's
+     * `log` component; the schedule goes on.
      */
     onSkip?: (action: ChannelActionInfo, scheduledAt: Date, reason: 'overlap' | 'exclusive') => void
 }
@@ -50,9 +57,60 @@ type ActionState = {
 }
 
 /**
- * The schedule adapter: runs the actions declared with @Schedule once the application launched.
- * Each run has its own request scope and goes through the middlewares; the runs in progress end before the application stops
- * @param options
+ * Create the schedule adapter of an entrypoint: it runs the controller actions declared with `@Schedule`, which never
+ * run without it. It needs no optional dependency.
+ *
+ * The runs begin once the application has launched (all its objects, its bootstrap and the other adapters are ready).
+ * Each run is dispatched like a request: a new controller in its own scope, the middlewares and the access control, a
+ * {@link ScheduleContext} giving the schedule, the time the run was due and its number. An interval keeps its pace:
+ * the runs missed while the process was suspended are skipped, not caught up. An action whose previous run is still in
+ * progress skips its run unless it allows `overlap`.
+ *
+ * An `exclusive` action runs in one instance of the application at a time: each run first tries to acquire a lock
+ * named `schedule:<key>` (the `key` of its `exclusive` option, the action name by default) from the mutex component
+ * (the `Mutex` of `lakutata/com/mutex`, named `mutex` by default), and is skipped when another
+ * instance holds it; the lock is kept after the run for half of its period (30 seconds at most) so that the instances
+ * whose clocks are late skip it too. An exclusive action whose mutex component cannot be resolved never runs (the
+ * error is logged).
+ *
+ * When the entrypoint stops, no new run starts, the kept locks are released and the entrypoint waits for the runs in
+ * progress (aborting them after its `shutdownTimeout`).
+ * @param options The adapter options.
+ * @returns The adapter, to give to the `schedule` option of `BuildEntrypoints`.
+ * @example
+ * ```typescript
+ * import {Application} from 'lakutata'
+ * import {BuildEntrypoints, Controller, ScheduleContext, ScheduleEntrypoint} from 'lakutata/com/entrypoint'
+ * import {Schedule} from 'lakutata/decorator/ctrl'
+ *
+ * class MaintenanceController extends Controller {
+ *     //Every 5 minutes, and once the application launched
+ *     @Schedule({every: '5m', immediate: true})
+ *     public async purge(): Promise<void> {
+ *         const context: ScheduleContext = this.context as ScheduleContext
+ *         console.log(`Run ${context.run}, due at ${context.scheduledAt.toISOString()}`)
+ *     }
+ *
+ *     //Every day at 03:00 in Shanghai
+ *     @Schedule({cron: '0 3 * * *', timezone: 'Asia/Shanghai'})
+ *     public async report(): Promise<void> {
+ *     }
+ * }
+ *
+ * Application.run({
+ *     id: 'worker.app',
+ *     name: 'Worker',
+ *     components: {
+ *         entrypoint: BuildEntrypoints({
+ *             controllers: [MaintenanceController],
+ *             schedule: ScheduleEntrypoint({
+ *                 onError: (error, action): void => console.error(`${action.name} failed`, error),
+ *                 onSkip: (action, scheduledAt, reason): void => console.warn(`${action.name} skipped (${reason})`)
+ *             })
+ *         })
+ *     }
+ * })
+ * ```
  */
 export function ScheduleEntrypoint(options: ScheduleEntrypointOptions = {}): EntrypointAdapter<ScheduleContext> {
     const timers: Set<NodeJS.Timeout> = new Set()
@@ -131,6 +189,20 @@ export function ScheduleEntrypoint(options: ScheduleEntrypointOptions = {}): Ent
             }
 
             /**
+             * Tell a run skipped: an error of the handler is written to the log, the schedule goes on
+             * @param action
+             * @param scheduledAt
+             * @param reason
+             */
+            const skip = (action: ChannelActionInfo, scheduledAt: number, reason: 'overlap' | 'exclusive'): void => {
+                try {
+                    options.onSkip?.(action, new Date(scheduledAt), reason)
+                } catch (error: unknown) {
+                    void log(runtime, error, `The onSkip handler of the scheduled action ${action.name} failed`)
+                }
+            }
+
+            /**
              * Run an action
              * @param action
              * @param scheduledAt
@@ -138,7 +210,7 @@ export function ScheduleEntrypoint(options: ScheduleEntrypointOptions = {}): Ent
             const fire = (action: ChannelActionInfo, scheduledAt: number): void => {
                 if (stopped) return
                 const state: ActionState = states.get(action)!
-                if (state.running && !action.address.overlap) return options.onSkip?.(action, new Date(scheduledAt), 'overlap')
+                if (state.running && !action.address.overlap) return skip(action, scheduledAt, 'overlap')
                 state.running++
                 const exclusive: ScheduleLocks | undefined = locks.get(action)
                 void (async (): Promise<void> => {
@@ -147,7 +219,7 @@ export function ScheduleEntrypoint(options: ScheduleEntrypointOptions = {}): Ent
                         if (exclusive) {
                             lock = await exclusive.tryAcquire(`schedule:${action.address.exclusiveKey ?? action.name}`)
                             //Run by another instance
-                            if (!lock) return options.onSkip?.(action, new Date(scheduledAt), 'exclusive')
+                            if (!lock) return skip(action, scheduledAt, 'exclusive')
                         }
                         state.runs++
                         const context: ScheduleContext = new ScheduleContext({schedule: action.address.schedule, scheduledAt: new Date(scheduledAt), run: state.runs, data: {}})

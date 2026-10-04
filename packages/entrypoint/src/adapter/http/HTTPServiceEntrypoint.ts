@@ -7,40 +7,62 @@ import {ServiceChannel} from '../../channel/BuiltinChannels.js'
 import {ServiceResponseCodec, type ServiceResponse} from '../../lib/ServiceResponseCodec.js'
 import {EntrypointStoppedException} from '../../exceptions/EntrypointStoppedException.js'
 
+/**
+ * The options of {@link HTTPServiceEntrypoint}.
+ */
 export type HTTPServiceEntrypointOptions = {
     /**
-     * The adapter name
+     * The adapter name, to tell apart several service adapters of one entrypoint.
      */
     name?: string
     /**
-     * The port of its server, 3000 by default (0 for a random port)
+     * The port the server listens on; 0 picks a random free port. The entrypoint fails to start when the port is in use.
+     * @default 3000
      */
     port?: number
     /**
-     * The host of its server, all the interfaces by default
+     * The host or address the server listens on.
+     * @default all the interfaces
      */
     host?: string
     /**
-     * The path of the requests (POST), "/" by default; the one of the events is "events" under it ("/events")
+     * The path receiving the requests (POST). The event stream is served on `events` under it (`/api` → `/api/events`).
+     * @default '/'
      */
     path?: string
     /**
-     * The largest body of a request, in bytes, 10 MB by default
+     * The largest request body, in bytes; a larger one is answered with 413 and an error response.
+     * @default 10485760 (10 MiB)
      */
     limit?: number
     /**
-     * The middlewares of the actions of this adapter, run after the global middlewares
+     * The middlewares of this adapter's actions, run after the entrypoint's global middlewares.
      */
     middlewares?: MiddlewareDefinition[]
     /**
-     * Run once the adapter listens, with its server
+     * Run once the server listens, with the server (to read the port picked for port 0). A failure fails the entrypoint
+     * start.
      */
     listening?: (server: Server) => void | Promise<void>
 }
 
 /**
- * The HTTP request of a context, in the service actions served by HTTPServiceEntrypoint
- * @param context
+ * Get the HTTP request carrying a service action's request, when {@link HTTPServiceEntrypoint} serves it (to read its
+ * headers, its remote address…).
+ * @param context The service action's context (`this.context` in a controller).
+ * @returns The Node.js HTTP request, or `undefined` when another adapter serves the request.
+ * @example
+ * ```typescript
+ * import {Controller, HTTPRequestOfContext, ServiceContext} from 'lakutata/com/entrypoint'
+ * import {ServiceAction} from 'lakutata/decorator/ctrl'
+ *
+ * class WhoAmIController extends Controller {
+ *     @ServiceAction({cmd: 'whoami'})
+ *     public async whoami(): Promise<string | undefined> {
+ *         return HTTPRequestOfContext(this.context as ServiceContext)?.socket.remoteAddress
+ *     }
+ * }
+ * ```
  */
 export function HTTPRequestOfContext(context: ServiceContext): IncomingMessage | undefined {
     return (context as ServiceContext & { request?: IncomingMessage }).request
@@ -87,19 +109,66 @@ async function ReadBody(request: IncomingMessage, limit: number): Promise<string
     let size: number = 0
     for await (const chunk of request) {
         size += (chunk as Buffer).length
-        if (size > limit) throw new Error(`The body of the request is larger than ${limit} bytes`)
+        if (size > limit) throw Object.assign(new Error(`The body of the request is larger than ${limit} bytes`), {statusCode: 413})
         chunks.push(chunk as Buffer)
     }
     return Buffer.concat(chunks).toString('utf8')
 }
 
 /**
- * The service entrypoint served over HTTP, the one of the tools (Postman, curl) in the development of the applications:
- * a request is a POST whose body is the pattern and the input of an action (JSON), its response the response of the
- * action, encoded as {success, error, payload} (ServiceResponseCodec); the id of its client in its header id. The
- * events pushed to a client (Entrypoint.notify, broadcast) are the Server-Sent Events of GET /events (its id in its header
- * id or its query id; an id is given by the adapter without it, in the event client)
- * @param options
+ * Create a service adapter of an entrypoint served over plain HTTP, handy to call the service actions from tools such
+ * as curl or Postman during development. It needs no optional dependency.
+ *
+ * A request is a `POST` to the path whose JSON body holds the action's pattern and input (`{"cmd": "echo", "text":
+ * "hi"}`). The response is always 200 with the body `{success, error, payload}` (see `ServiceResponseCodec`): `payload`
+ * is the result, or `error` the whole error object when the action failed (no matching action, validation…). A body that
+ * is not JSON or exceeds `limit` is answered with 400 and an error body; any other method or path with 404. The CORS
+ * headers allow any origin.
+ *
+ * The events pushed to the clients (`Entrypoint.notify`, `Entrypoint.broadcast`) are streamed as Server-Sent Events by
+ * `GET <path>/events`: each event's name is the SSE event, its arguments the JSON array of its data. A client gives its
+ * id in the `id` header or the `id` query parameter (at most 200 characters), the same on its requests so that they
+ * carry it as `ServiceContext.clientId`; without one, the stream assigns a random id, sent first as the `client` event.
+ * The streams receive a keep-alive comment every 15 seconds.
+ *
+ * When a client disconnects before its response, the action's abort signal fires. When the entrypoint stops, the new
+ * requests are answered with an `EntrypointStoppedException` error; once the requests in progress end, the event
+ * streams are closed and the server shuts down.
+ * @param options The adapter options; by default it listens on port 3000 of all the interfaces, on the path `/`.
+ * @returns The adapter, to give to the `service` option of `BuildEntrypoints`.
+ * @example
+ * ```typescript
+ * import {Application} from 'lakutata'
+ * import {BuildEntrypoints, Controller, HTTPServiceEntrypoint} from 'lakutata/com/entrypoint'
+ * import {ServiceAction} from 'lakutata/decorator/ctrl'
+ *
+ * class EchoController extends Controller {
+ *     @ServiceAction({cmd: 'echo'})
+ *     public async echo(input: {text: string}): Promise<string> {
+ *         return input.text
+ *     }
+ * }
+ *
+ * Application.run({
+ *     id: 'echo.service',
+ *     name: 'Echo',
+ *     components: {
+ *         entrypoint: BuildEntrypoints({
+ *             controllers: [EchoController],
+ *             service: HTTPServiceEntrypoint({port: 3000, path: '/rpc'})
+ *         })
+ *     }
+ * })
+ *
+ * //A client: the response is {"success": true, "error": null, "payload": "hi"}
+ * const response: Response = await fetch('http://localhost:3000/rpc', {
+ *     method: 'POST',
+ *     headers: {'Content-Type': 'application/json', 'id': 'client-1'},
+ *     body: JSON.stringify({cmd: 'echo', text: 'hi'})
+ * })
+ * console.log(await response.json())
+ * //The events pushed to client-1: GET http://localhost:3000/rpc/events?id=client-1 (text/event-stream)
+ * ```
  */
 export function HTTPServiceEntrypoint(options: HTTPServiceEntrypointOptions = {}): EntrypointAdapter<ServiceContext> {
     const base: string = (options.path ?? '/').replace(/\/+$/, '')
@@ -160,7 +229,8 @@ export function HTTPServiceEntrypoint(options: HTTPServiceEntrypointOptions = {}
             const body: string = await ReadBody(request, limit)
             data = body ? JSON.parse(body) : {}
         } catch (error: unknown) {
-            return Reply(response, 400, ServiceResponseCodec.encodeError(error instanceof SyntaxError ? new Error('The body of the request is not JSON') : error))
+            //413 for a body larger than the limit, 400 for a body which is not JSON
+            return Reply(response, (error as { statusCode?: number }).statusCode ?? 400, ServiceResponseCodec.encodeError(error instanceof SyntaxError ? new Error('The body of the request is not JSON') : error))
         }
         let result: ServiceResponse
         try {

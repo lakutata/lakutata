@@ -256,4 +256,34 @@ describe('The JSON-RPC 2.0 service adapter', (): void => {
             }
         }
     })
+
+    it('skips the messages of stdio larger than its limit, keeping the framing', async (): Promise<void> => {
+        for (const framing of ['newline', 'content-length'] as const) {
+            const input: PassThrough = new PassThrough()
+            const output: PassThrough = new PassThrough()
+            let written: string = ''
+            output.on('data', (chunk: Buffer): unknown => written += chunk.toString())
+            const {container} = await Start({transport: 'stdio', framing: framing, input: input, output: output, limit: 100})
+            try {
+                const frame = (message: unknown): string => {
+                    const text: string = JSON.stringify(message)
+                    return framing === 'newline' ? `${text}\n` : `Content-Length: ${Buffer.byteLength(text)}\r\n\r\n${text}`
+                }
+                //An oversized message in several chunks, then a message
+                const large: string = frame({jsonrpc: '2.0', method: 'echo', params: {value: 1, padding: 'x'.repeat(300)}, id: 1})
+                for (let index = 0; index < large.length; index += 64) input.write(large.slice(index, index + 64))
+                input.write(frame({jsonrpc: '2.0', method: 'whoami', id: 2}))
+                for (let attempt = 0; attempt < 100 && !written.includes('"id":2'); attempt++) await new Promise((resolve): unknown => setTimeout(resolve, 20))
+                const messages: any[] = framing === 'newline'
+                    ? written.trim().split('\n').map((line: string): unknown => JSON.parse(line))
+                    : written.split(/Content-Length: \d+\r\n\r\n/).filter(Boolean).map((part: string): unknown => JSON.parse(part))
+                assert.deepStrictEqual(messages, [
+                    {jsonrpc: '2.0', id: null, error: {code: -32600, message: 'The message is larger than 100 bytes'}},
+                    {jsonrpc: '2.0', id: 2, result: 'stdio'}
+                ], framing)
+            } finally {
+                await container.destroy()
+            }
+        }
+    })
 })

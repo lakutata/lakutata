@@ -3,24 +3,45 @@ import {Expect, IndexSignature} from '@lakutata/core/decorator/dto'
 import {InvalidPrefixException} from '../exceptions/InvalidPrefixException.js'
 
 /**
- * The prefixes of the actions of a controller, the packages of the other channels add their own prefixes (declaration merging)
+ * A controller's action prefixes, given to `@Prefix`. The packages of the other channels add their own prefix keys
+ * (declaration merging); the keys are kept even when not declared here.
+ * @example
+ * ```typescript
+ * import {Controller} from 'lakutata/com/entrypoint'
+ * import {CLIAction, GET, Prefix, ServiceAction} from 'lakutata/decorator/ctrl'
+ *
+ * //GET /users/:id, the command user:get, the pattern {resource: 'user', act: 'get'}
+ * @Prefix({route: '/users', command: 'user', pattern: {resource: 'user'}})
+ * class UserController extends Controller {
+ *     @GET('/:id')
+ *     @CLIAction('get')
+ *     @ServiceAction({act: 'get'})
+ *     public async get(input: {id: string}): Promise<{id: string}> {
+ *         return {id: input.id}
+ *     }
+ * }
+ * ```
  */
 @IndexSignature(DTO.Any())
 export class PrefixOptions extends DTO {
     /**
-     * The path prepended to the routes of the HTTP actions
+     * The path prepended to the HTTP actions' routes, the slashes between them normalized (`/users` + `/:id` =
+     * `/users/:id`).
      */
     @Expect(DTO.String().optional())
     public route?: string
 
     /**
-     * The command prepended to the commands of the CLI actions, joined by ":"
+     * The command prepended to the CLI actions' commands, joined by `:` (`user` + `get` = `user:get`; an empty
+     * command gives the prefix alone).
      */
     @Expect(DTO.String().optional())
     public command?: string
 
     /**
-     * The pattern merged into the patterns of the service actions
+     * The pattern merged into the service actions' patterns, deeply (`{resource: 'user'}` + `{act: 'get'}` =
+     * `{resource: 'user', act: 'get'}`); a key the prefix and the pattern set to different values fails the
+     * entrypoint's initialization with an `InvalidPrefixException`.
      */
     @Expect(DTO.Object().optional())
     public pattern?: ActionPattern
@@ -29,9 +50,21 @@ export class PrefixOptions extends DTO {
 const CONTROLLER_PREFIX: symbol = Symbol('ENTRYPOINT.CONTROLLER.PREFIX')
 
 /**
- * Set the prefixes of a controller class, merged into the ones already set on the class (by the decorators of the other channels)
- * @param controller
- * @param options
+ * Set a controller class's prefixes, merged over the ones already set on the class (by the decorators of the other
+ * channels). Used by `@Prefix` and by the prefix decorators of the packages providing a channel.
+ * @param controller The controller class.
+ * @param options The prefixes to set.
+ * @throws {Error} When the merged prefixes are invalid (the validation error of {@link PrefixOptions}).
+ * @example
+ * ```typescript
+ * import {Controller} from 'lakutata/com/entrypoint'
+ * import {SetPrefix} from '@lakutata/entrypoint/channel'
+ *
+ * //A decorator of a "queue" channel prefixing the topics of a controller
+ * export function TopicPrefix(topic: string) {
+ *     return (target: typeof Controller): void => SetPrefix(target, {topic: topic})
+ * }
+ * ```
  */
 export function SetPrefix(controller: Function, options: PrefixOptions): void {
     const own: PrefixOptions | undefined = Reflect.getOwnMetadata(CONTROLLER_PREFIX, controller)
@@ -39,8 +72,25 @@ export function SetPrefix(controller: Function, options: PrefixOptions): void {
 }
 
 /**
- * The prefixes of a controller: the ones of the class or of its nearest parent class declaring them
- * @param controller
+ * Get a controller's prefixes: the ones of the class, or else of its nearest parent class declaring them (they are not
+ * merged across the hierarchy).
+ * @param controller The controller class.
+ * @returns The prefixes, `undefined` when neither the class nor its parents declare any.
+ * @example
+ * ```typescript
+ * import {Controller} from 'lakutata/com/entrypoint'
+ * import {Prefix} from 'lakutata/decorator/ctrl'
+ * import {GetPrefix} from '@lakutata/entrypoint/channel'
+ *
+ * @Prefix({route: '/users'})
+ * class UserController extends Controller {
+ * }
+ *
+ * class AdminController extends UserController {
+ * }
+ *
+ * console.log(GetPrefix(AdminController)?.route) //'/users'
+ * ```
  */
 export function GetPrefix(controller: Function): PrefixOptions | undefined {
     for (let current: any = controller; current && current !== Function.prototype; current = Object.getPrototypeOf(current)) {
