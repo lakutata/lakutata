@@ -6,6 +6,10 @@ import {Expect} from '@lakutata/core/decorator/dto'
 import {BuildEntrypoints, Controller, Entrypoint, ServiceContext, ServiceInvokeException} from '@lakutata/entrypoint'
 import {ServiceAction} from '@lakutata/entrypoint/decorator/ctrl'
 import {GRPCCallOfContext, GRPCServiceEntrypoint, GRPCServiceProxy, SERVICE_PROTO} from '../exports/GRPCService.js'
+import {mkdtemp, rm} from 'node:fs/promises'
+import {tmpdir} from 'node:os'
+import path from 'node:path'
+import {CreateTestCertificates, OpenSSLAvailable, type TestCertificates} from './support/Certificates.js'
 
 class OrderDTO extends DTO {
     @Expect(DTO.Number().required())
@@ -88,6 +92,38 @@ describe('The service actions over gRPC', (): void => {
             assert.strictEqual(entrypoint.notify('proxy-1', 'orderChanged'), false)
         } finally {
             await container.destroy()
+        }
+    })
+
+    it('invokes the actions over mutual TLS', {skip: !OpenSSLAvailable() && 'openssl creates the certificates of the tests'}, async (): Promise<void> => {
+        const directory: string = await mkdtemp(path.join(tmpdir(), 'lakutata-grpc-tls-'))
+        const container: Container = new Container()
+        try {
+            const certificates: TestCertificates = CreateTestCertificates(directory)
+            let port: number = 0
+            await container.set(Entrypoint, BuildEntrypoints({
+                controllers: [OrderController],
+                service: GRPCServiceEntrypoint({
+                    port: 0,
+                    host: '127.0.0.1',
+                    tls: {cert: certificates.serverCert, key: certificates.serverKey, ca: certificates.ca},
+                    listening: (address): void => void (port = (address as AddressInfo).port)
+                })
+            }))
+            const proxy: GRPCServiceProxy = await container.set(GRPCServiceProxy, {address: `127.0.0.1:${port}`, clientId: 'tls-1', tls: {ca: certificates.ca, cert: certificates.clientCert, key: certificates.clientKey, servername: 'localhost'}})
+            assert.deepStrictEqual(await proxy.invoke({cmd: 'order.get', id: 3}), {id: 3, client: 'tls-1', path: '/lakutata.service.v1.Service/Invoke'})
+            //Without the certificate of its client: refused (a proxy of another container, a component being single in one)
+            const other: Container = new Container()
+            try {
+                const anonymous: GRPCServiceProxy = await other.set(GRPCServiceProxy, {address: `127.0.0.1:${port}`, tls: {ca: certificates.ca, servername: 'localhost'}})
+                assert.notStrictEqual(anonymous, proxy)
+                await assert.rejects(anonymous.invoke({cmd: 'order.get', id: 3}, 2000))
+            } finally {
+                await other.destroy()
+            }
+        } finally {
+            await container.destroy()
+            await rm(directory, {recursive: true, force: true})
         }
     })
 
