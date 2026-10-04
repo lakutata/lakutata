@@ -1,329 +1,172 @@
-# Lakutata DTO 和验证
+# Lakutata DTO 与数据校验
 
-**Lakutata** 是一个基于 IoC（控制反转）的通用应用框架，旨在为 TypeScript 和 Node.js 开发者提供模块化且可扩展的开发体验。在数据处理方面，Lakutata 提供了强大的 **DTO（数据传输对象）** 系统，以促进应用不同层之间的结构化数据传输，通过验证机制确保数据的完整性和一致性。本文档详细解释了 Lakutata 框架中 DTO 的定义、验证功能、核心装饰器以及使用示例。
+**DTO**（数据传输对象）是用校验规则声明属性的类。框架用它们校验对象的选项（`@Configurable`）、方法的参数和返回值（`@Accept`、`@Return`）以及控制器动作的输入。`DTO` 由 `lakutata` 导出，相关装饰器由 `lakutata/decorator/dto` 导出；校验引擎是框架自带的，API 与 joi 相同（并扩展了 bigint 和下文的数值类型）。
 
-## 1. DTO 功能概述
-
-**DTO（数据传输对象）** 是一种用于在软件应用子系统之间传输数据的设计模式。在 Lakutata 中，DTO 提供了一种结构化的方法来定义控制器、服务或其他组件之间交换数据的形状，确保跨层通信的清晰性和关注点分离。
-
-### 1.1 DTO 的核心目的
-- **数据结构定义**：DTO 定义客户端请求、API 响应或内部服务调用的数据结构。
-- **层间解耦**：DTO 有助于将表示层（如 API 控制器）与业务逻辑层（如服务）和数据持久化层（如实体）解耦。
-- **验证和约束**：DTO 提供了一个集中点来应用数据验证规则，确保数据在被业务逻辑处理前符合预期。
-
-### 1.2 与 Lakutata 的集成
-Lakutata 基于 `DTO` 基类和 Lakutata 内置的验证引擎（通过 `VLD` 模块提供）提供了一个全面的 DTO 系统，使开发者能够定义带有验证规则的数据结构。Lakutata 的 IoC 容器进一步支持将 DTO 或相关验证服务注入到组件或控制器中，确保在整个应用中无缝集成。此外，Lakutata 提供了多种装饰器（如 `@Expect`、`@Accept`、`@Return`）来以声明式方式定义验证逻辑。
-
-## 2. 定义 DTO
-
-在 Lakutata 中，DTO 通常定义为继承自 `DTO` 基类的 TypeScript 类，表示预期或返回的数据结构。这些类可以通过装饰器应用验证规则。
-
-### 2.1 基本 DTO 定义
-以下是一个简单的 DTO 类示例，表示用户注册数据：
+## 1. 定义 DTO
 
 ```typescript
-import { DTO } from '../../lib/core/DTO.js';
+import {DTO} from 'lakutata'
+import {Expect} from 'lakutata/decorator/dto'
 
-export class UserRegisterDTO extends DTO {
-  name: string;
-  email: string;
-  password: string;
+class AddressDTO extends DTO {
+    @Expect(DTO.String().required())
+    public city: string
+
+    @Expect(DTO.String().pattern(/^[0-9]{5}$/).optional())
+    public zip?: string
+}
+
+class CustomerDTO extends DTO {
+    @Expect(DTO.String().min(2).max(50).required())
+    public name: string
+
+    @Expect(DTO.String().email().required())
+    public email: string
+
+    @Expect(DTO.Number().integer().min(0).default(0))
+    public credit: number
+
+    //嵌套的 DTO
+    @Expect(AddressDTO.required())
+    public address: AddressDTO
+
+    //嵌套 DTO 的数组
+    @Expect(DTO.Array(AddressDTO.Schema()).optional())
+    public otherAddresses?: AddressDTO[]
 }
 ```
 
-- **说明**：此 `UserRegisterDTO` 定义了用户注册数据的结构，具有 `name`、`email` 和 `password` 属性。在没有验证规则的情况下，它纯粹作为数据结构使用。
+### 校验规则
 
-### 2.2 使用验证装饰器增强 DTO
-Lakutata 提供了 `@Expect` 装饰器来为 DTO 属性指定验证模式。这些模式使用 `VLD` 模块定义，支持各种数据类型和验证规则。
+校验规则由 `DTO` 的静态方法构建：`DTO.String()`、`DTO.Number()`、`DTO.BigInt()`、`DTO.Boolean()`、`DTO.Date()`、`DTO.Binary()`、`DTO.Symbol()`、`DTO.Object()`、`DTO.Array()`、`DTO.Alternatives()`、`DTO.Any()`、`DTO.Function()`、`DTO.AsyncFunction()`、`DTO.Class()`、`DTO.InstanceOf()`、`DTO.Cron()`、`DTO.Glob()`、`DTO.Ref()`、`DTO.Link()` 等。规则方法与 joi 相同（`.required()`、`.optional()`、`.default()`、`.valid()`、`.min()`、`.max()`、`.pattern()`、`.email()`、`.uri()` 等）。
 
-#### 示例：带有验证的 DTO
+- **默认严格**：类型不对的值会被拒绝，而不是被转换（字符串 `'5'` 不是数字 5）。需要转换时调用 `.strict(false)`，例如 HTTP 的查询参数和路由参数总是字符串。
+- **数值类型**：`DTO.Number()` 提供整数类型 `int8`、`uint8`、`int16`、`uint16`、`int32`、`uint32`、`int64` 和 `uint64`（64 位类型限于 JavaScript 的安全整数范围），以及浮点类型 `float`（32 位范围）和 `double`。
+- **校验选项**：默认在遇到第一个错误时停止（`abortEarly`），并移除未知字段（`stripUnknown`）。DTO 作为校验规则使用时，可用 `MyDTO.options({...})` 指定其他选项。
+- **DTO 类作为校验规则**：`MyDTO.Schema()` 是它的对象校验规则，`MyDTO.required()` 和 `MyDTO.optional()` 是标记为必填或可选的同一规则。凡是需要校验规则的地方（`@Accept`、`@Return`、动作装饰器）都可以直接使用 DTO 类。
+
+## 2. 校验
+
 ```typescript
-import { DTO } from '../../lib/core/DTO.js';
-import { Expect } from '../../decorators/validation/Expect.js';
-import { VLD } from '../../lib/validation/VLD.js';
+//构造时校验：填充默认值，移除未知字段 "note"；数据不合法时抛出 InvalidValueException
+const customer: CustomerDTO = new CustomerDTO({name: 'Ada', email: 'ada@example.com', address: {city: 'London'}, note: 'vip'})
 
-export class UserRegisterDTO extends DTO {
-  @Expect(VLD.string().min(2).max(50))
-  name: string;
+//DTO 实例会校验对其属性的每次修改：不合法的修改会抛出异常并被撤销
+customer.credit = 10
 
-  @Expect(VLD.string().email())
-  email: string;
+//不创建实例直接校验：返回校验后的值，或抛出 InvalidValueException
+const data: CustomerDTO = CustomerDTO.validate({name: 'Ada', email: 'ada@example.com', address: {city: 'London'}})
+const later: CustomerDTO = await CustomerDTO.validateAsync({name: 'Ada', email: 'ada@example.com', address: {city: 'London'}})
 
-  @Expect(VLD.string().min(8))
-  password: string;
-}
+//只检查，不抛出异常
+const valid: boolean = CustomerDTO.isValid({name: ''})
+
+//用任意校验规则校验任意值
+const port: number = DTO.validate(8080, DTO.Number().port().required())
 ```
 
-- **说明**：
-  - `@Expect(VLD.string().min(2).max(50))` 确保 `name` 是一个长度在 2 到 50 之间的字符串。
-  - `@Expect(VLD.string().email())` 验证 `email` 为有效的电子邮件格式。
-  - `@Expect(VLD.string().min(8))` 确保 `password` 是一个最短长度为 8 的字符串。
+`validate()`、`validateAsync()`、`isValid()` 和 `isValidAsync()` 的参数依次为：要校验的值，可选的校验规则（默认为该 DTO 自身的规则），以及校验选项。
 
-## 3. DTO 验证机制
+## 3. 装饰器（`lakutata/decorator/dto`）
 
-验证确保传入数据符合 DTO 中定义的规则。Lakutata 通过 `VLD` 模块提供底层的验证支持，由 Lakutata 内置的验证引擎实现。验证可以在 DTO 实例化时自动触发，也可以在控制器或服务中手动调用。
+| 装饰器 | 作用对象 | 效果 |
+|---|---|---|
+| `@Expect(schema)` | DTO 的属性 | 声明属性的校验规则 |
+| `@IndexSignature(schema)` | DTO 类 | 保留没有 `@Expect` 规则的字段并按该规则校验，而不是移除它们 |
+| `@Accept(...schemas)` | 方法 | 每次调用时按位置校验参数；失败时抛出 `InvalidMethodAcceptException` |
+| `@Return(schema)` | 方法 | 每次调用时校验返回值（异步方法会等待其结果）；失败时抛出 `InvalidMethodReturnException` |
 
-### 3.1 VLD 验证库
-`VLD` 是 Lakutata 中的核心验证模块，构建在其自有的验证引擎之上，提供了广泛的验证能力：
-- **模式定义**：支持多种数据类型的模式，如字符串（`string()`）、数字（`number()`）、对象（`object()`）等。
-- **数值类型**：`number()` 提供整数类型 `int8`、`uint8`、`int16`、`uint16`、`int32`、`uint32`、`int64`、`uint64`（64 位类型受限于 JavaScript 的安全整数范围），以及浮点类型 `float`（32 位范围）与 `double`。
-- **验证方法**：提供同步（`validate`）和异步（`validateAsync`）验证方法，失败时抛出 `InvalidValueException`。
-- **默认配置**：默认验证选项包括 `abortEarly: true`（在第一个错误时停止）、`stripUnknown: true`（移除未知字段）等。
+`@Accept` 和 `@Return` 把校验后的值交给方法（或调用方）：已填充默认值、已移除未知字段。用 DTO 类校验参数或返回值时，得到的是普通对象，而不是该类的实例。缺少的参数会被接受，除非它的规则是必填的（`MyDTO.required()`）。
 
-### 3.2 手动验证
-开发者可以使用 `VLD` 提供的验证方法手动验证 DTO 数据。
-
-#### 示例：手动 DTO 验证
 ```typescript
-import { VLD } from '../../lib/validation/VLD.js';
-import { UserRegisterDTO } from './dtos/UserRegisterDTO.js';
+import {Component, DTO} from 'lakutata'
+import {Accept, Expect, IndexSignature, Return} from 'lakutata/decorator/dto'
 
-export class UserController {
-  async register(data: any): Promise<void> {
-    // 创建 DTO 实例（假设 DTO 支持直接实例化）
-    const dto = new UserRegisterDTO(data);
-    
-    // 手动验证（取决于 DTO 内部实现）
-    try {
-      await VLD.validateAsync(dto, VLD.object()); // 假设 DTO 有内部模式定义
-      console.log('Validation passed:', dto);
-      // 继续业务逻辑
-    } catch (error) {
-      console.error('Validation failed:', error.message);
-      throw new Error('Invalid input data');
+class TransferDTO extends DTO {
+    @Expect(DTO.String().required())
+    public to: string
+
+    @Expect(DTO.Number().positive().required())
+    public amount: number
+}
+
+class UserDTO extends DTO {
+    @Expect(DTO.Number().integer().required())
+    public id: number
+
+    @Expect(DTO.String().required())
+    public name: string
+}
+
+//设备及其读数，读数名称可以任意取
+@IndexSignature(DTO.Number())
+class ReadingsDTO extends DTO {
+    [sensor: string]: any
+
+    @Expect(DTO.String().required())
+    public device: string
+}
+
+class Bank extends Component {
+    //转账参数必填，备注可选
+    @Accept(TransferDTO.required(), DTO.String().max(140).optional())
+    public async transfer(transfer: TransferDTO, note?: string): Promise<void> {
+        console.log(`${transfer.amount} to ${transfer.to}`, note)
     }
-  }
+
+    //结果中的密码哈希会被移除：UserDTO 没有为它声明规则
+    @Return(UserDTO)
+    public async find(id: number): Promise<UserDTO> {
+        return {id: id, name: 'Ada', passwordHash: '…'} as UserDTO
+    }
 }
 ```
 
-- **说明**：`VLD.validateAsync` 用于验证数据，失败时抛出 `InvalidValueException`，并提供详细的错误信息。
+## 4. 框架中的 DTO
 
-### 3.3 自动验证
-在 Lakutata 中，DTO 验证通常由框架内部处理，尤其是在使用 `@Accept` 或 `@Return` 等装饰器时，验证会在方法调用或返回值处理期间自动触发。
+- **对象选项**：`@Configurable(schema)`（来自 `lakutata/decorator/di`）校验组件、提供者或模块的选项；见 [Core](Core.md)。
+- **控制器动作**：传给 `@GET`、`@POST`、`@CLIAction`、`@ServiceAction` 等的 DTO 校验动作的输入；输入不合法时以状态码 400 响应。见 [ActionPattern](ActionPattern.md)。
+- **分页**（`lakutata/dtos`）：`PaginationSearchDTO` 和 `PaginationResultDTO` 是分页动作的输入和结果，`Paginator` 负责计算分页；`FlexibleDTO` 是接受任意字段的 DTO。
+- **校验消息**：错误消息支持多语言；`lakutata` 中的 `RegisterValidationMessages`、`RunInValidationLanguage` 和 `CurrentValidationLanguage` 管理其语言，I18n 组件的语言中间件为每个请求设置语言（见 [I18n](I18n.md)）。
 
-## 4. 验证装饰器
+## 5. JSON Schema 与 OpenAPI
 
-Lakutata 提供了多个装饰器，用于在 DTO 类、方法和属性上应用验证规则。
+DTO 和校验规则可以与 JSON Schema（draft 04、06、07、2019-09 和 2020-12）以及 OpenAPI 3.0/3.1 的 schema 对象互相转换，用于与前端共享校验规则、发布 API 文档、存储校验规则，或从 OpenAPI 文档生成 DTO。
 
-### 4.1 @Expect（属性验证）
-`@Expect` 装饰器用于为 DTO 属性指定验证模式。
-
-#### 示例
-```typescript
-import { DTO } from '../../lib/core/DTO.js';
-import { Expect } from '../../decorators/validation/Expect.js';
-import { VLD } from '../../lib/validation/VLD.js';
-
-export class UserDTO extends DTO {
-  @Expect(VLD.string().min(2).max(50))
-  name: string;
-
-  @Expect(VLD.string().email())
-  email: string;
-}
-```
-
-- **说明**：`name` 和 `email` 属性分别通过长度约束和电子邮件格式规则进行验证。
-
-### 4.2 @Accept（方法参数验证）
-`@Accept` 装饰器用于验证方法输入参数，支持多个 DTO 或模式作为验证规则。
-
-#### 示例
-```typescript
-import { Accept } from '../../decorators/validation/Accept.js';
-import { UserDTO } from './UserDTO.js';
-
-export class UserController {
-  @Accept(UserDTO)
-  async register(data: UserDTO): Promise<void> {
-    // 数据已通过验证
-    console.log('Registering user:', data);
-  }
-}
-```
-
-- **说明**：`register` 方法的参数 `data` 被验证以符合 `UserDTO` 的结构和规则。
-
-### 4.3 @Return（方法返回值验证）
-`@Return` 装饰器用于验证方法返回值。
-
-#### 示例
-```typescript
-import { Return } from '../../decorators/validation/Return.js';
-import { UserDTO } from './UserDTO.js';
-
-export class UserService {
-  @Return(UserDTO)
-  async getUser(): Promise<UserDTO> {
-    return new UserDTO({ name: 'John', email: 'john@example.com' });
-  }
-}
-```
-
-- **说明**：`getUser` 方法的返回值被验证以符合 `UserDTO` 的结构和规则。
-
-### 4.4 @IndexSignature（索引签名验证）
-`@IndexSignature` 装饰器用于为 DTO 类中的索引签名定义验证规则，适用于具有动态键的对象。
-
-#### 示例
-```typescript
-import { IndexSignature } from '../../decorators/validation/IndexSignature.js';
-import { VLD } from '../../lib/validation/VLD.js';
-import { DTO } from '../../lib/core/DTO.js';
-
-@IndexSignature(VLD.string())
-export class DynamicDataDTO extends DTO {
-  [key: string]: string;
-}
-```
-
-- **说明**：`DynamicDataDTO` 类允许任何字符串键，但每个键的值必须是字符串。
-
-## 5. 嵌套 DTO 和复杂结构
-
-Lakutata 支持使用 `VLD.object()` 和 `SchemaMap` 类型定义来验证嵌套 DTO 和复杂数据结构。
-
-### 示例：嵌套 DTO
-```typescript
-import { DTO } from '../../lib/core/DTO.js';
-import { Expect } from '../../decorators/validation/Expect.js';
-import { VLD } from '../../lib/validation/VLD.js';
-
-export class AddressDTO extends DTO {
-  @Expect(VLD.string())
-  street: string;
-
-  @Expect(VLD.string())
-  city: string;
-}
-
-export class UserProfileDTO extends DTO {
-  @Expect(VLD.string().min(2))
-  name: string;
-
-  @Expect(VLD.string().email())
-  email: string;
-
-  @Expect(VLD.object())
-  address: AddressDTO;
-}
-```
-
-- **说明**：`UserProfileDTO` 包含一个嵌套的 `address` 属性，类型为 `AddressDTO`，验证会递归检查嵌套对象的属性。
-
-## 6. 在控制器和服务中使用 DTO
-
-DTO 在 Lakutata 中常用于控制器和服务中，以定义输入和输出数据的结构。
-
-### 6.1 在控制器中使用 DTO
-控制器通常接收原始数据（例如来自 HTTP 请求的 JSON），并将其映射到 DTO 进行验证。
-
-#### 示例：控制器中的 DTO
-```typescript
-import { Controller } from '../../lib/core/Controller.js';
-import { Accept } from '../../decorators/validation/Accept.js';
-import { UserRegisterDTO } from './dtos/UserRegisterDTO.js';
-import { UserService } from './UserService.js';
-import { Inject } from '../../decorators/di/Inject.js';
-
-@Controller()
-export class UserController {
-  @Inject('userService')
-  protected readonly userService: UserService;
-
-  @Accept(UserRegisterDTO)
-  async register(dto: UserRegisterDTO): Promise<any> {
-    // DTO 已通过验证
-    return await this.userService.registerUser(dto);
-  }
-}
-```
-
-- **说明**：控制器使用 `@Accept` 装饰器验证传入的 `dto` 符合 `UserRegisterDTO`，然后将其传递给服务。
-
-### 6.2 在服务中使用 DTO
-服务可以使用 DTO 确保接收或返回的数据符合特定结构。
-
-#### 示例：服务中的 DTO
-```typescript
-import { Component } from '../../lib/core/Component.js';
-import { UserRegisterDTO } from './dtos/UserRegisterDTO.js';
-import { User } from './entities/User.js';
-
-@Component()
-export class UserService {
-  async registerUser(dto: UserRegisterDTO): Promise<User> {
-    // 从 DTO 创建用户实体
-    const user = new User();
-    user.name = dto.name;
-    user.email = dto.email;
-    // 应用业务逻辑，例如密码哈希
-    user.passwordHash = this.hashPassword(dto.password);
-    
-    // 保存到数据库（假设注入了存储库）
-    return await this.userRepository.save(user);
-  }
-
-  private hashPassword(password: string): string {
-    // 密码哈希逻辑的占位符
-    return `hashed_${password}`;
-  }
-}
-```
-
-- **说明**：`UserService` 接收一个已验证的 `UserRegisterDTO`，并使用其属性创建 `User` 实体，应用必要的业务逻辑。
-
-## 7. JSON Schema 与 OpenAPI
-
-DTO 与 Schema 可以与 JSON Schema（draft-04、06、07、2019-09、2020-12）以及 OpenAPI 3.0/3.1 的 Schema 对象相互转换，用于与前端共享校验规则、发布 API 文档、存储 Schema，或根据 OpenAPI 文档生成 DTO。
-
-### 7.1 导出
+### 5.1 导出
 
 ```typescript
 import {DTO} from 'lakutata'
 import {toJsonSchema} from 'lakutata/dtos'
 
-UserDTO.toJsonSchema()                  // JSON Schema 2020-12（默认）
-UserDTO.toJsonSchema('draft-07')        // 'draft-2020-12' | 'draft-2019-09' | 'draft-07' | 'draft-04'
-UserDTO.toOpenAPIJsonSchema()           // OpenAPI 3.1（默认），或 '3.0'
-toJsonSchema(DTO.String().email(), {target: 'openapi-3.0'})   // 任意 Schema，或 DTO 类
+UserDTO.toJsonSchema()                  //JSON Schema 2020-12（默认）
+UserDTO.toJsonSchema('draft-07')        //'draft-2020-12' | 'draft-2019-09' | 'draft-07' | 'draft-04'
+UserDTO.toOpenAPIJsonSchema()           //OpenAPI 3.1（默认），或 '3.0'
+toJsonSchema(DTO.String().email(), {target: 'openapi-3.0'})   //任意校验规则，或 DTO 类
 ```
 
-- 导出的 JSON Schema 描述的是 Schema 在不做类型转换时接受的值，因此 ajv（配合 ajv-formats）等校验器接受的正是这些值；JSON Schema 无法表达的部分（自定义规则、对其他值的引用、类型转换）会被丢弃，所以导出的 JSON Schema 可能接受更多的值，但不会拒绝 Schema 接受的值。
-- 未知键的处理遵循校验选项：在 lakutata 的默认选项（`allowUnknown`、`stripUnknown`）下对象接受未知键；如需按其他选项导出，请传入 `preferences`。
-- 数值类型会转换为整数边界（`int8` 到 `uint64`）与浮点范围；OpenAPI 还会标注格式 `int32`、`int64`、`float`、`double`。
+- 生成的 JSON Schema 描述的是校验规则在不做转换时接受的值，因此 ajv（配合 ajv-formats）等校验器接受的值与之完全一致；JSON Schema 无法表达的内容（自定义规则、对其他值的引用、类型转换）会被丢弃，所以 JSON Schema 接受的值只会更多，不会更少。
+- 未知字段遵循校验选项：在 lakutata 的默认选项（`allowUnknown`、`stripUnknown`）下，对象接受未知字段；使用其他选项时通过 `preferences` 传入。
+- 数值类型转换为整数边界（`int8` 到 `uint64`）和浮点范围；OpenAPI 还会给出 `int32`、`int64`、`float` 和 `double` 格式名。
 
-### 7.2 导入
+### 5.2 导入
 
 ```typescript
+import {DTO} from 'lakutata'
 import {fromJsonSchema} from 'lakutata/dtos'
 
 const schema = fromJsonSchema({type: 'object', properties: {id: {type: 'integer'}}, required: ['id']})
 DTO.validate({id: 1}, schema)
 
-// 生成 DTO 类（调用它的类的子类）
+//生成 DTO 类，它是调用该方法的类的子类
 const UserDTO = DTO.fromJsonSchema(userJsonSchema)
 const user = new UserDTO({id: 1, name: 'Alice'})
 
-// 按名称生成 OpenAPI 文档中对象 Schema（components.schemas）的 DTO 类
+//OpenAPI 文档中各对象 schema（components.schemas）对应的 DTO 类，按名称取用
 const {Pet, Person} = DTO.fromOpenAPI(openApiDocument)
 ```
 
-- 导入的 Schema 按 JSON Schema 语义校验：不做类型转换（`convert: true` 可开启转换），未知键遵循 `additionalProperties`，格式与 ajv-formats 一致，并会应用默认值。
-- 引用通过 JSON Pointer、`$anchor` 与 `$id` 解析（其他文档通过 `schemas` 传入，OpenAPI 文档通过 `document` 传入），支持递归引用。
-- 版本从 `$schema` 读取，也可以通过 `dialect` 指定（默认 2020-12）。
-- 对 lakutata 的 Schema 而言 JSON Schema 是有损的（自定义规则、类型转换）：如需精确地存储与还原 Schema，请保存其 `describe()` 的输出（不含函数时即为 JSON 值），并通过 `DTO.Build(description)` 还原。
-
-## 8. DTO 和验证的最佳实践
-
-- **保持 DTO 专注**：为特定用例定义 DTO（例如 `UserRegisterDTO`、`UserUpdateDTO`），而不是为多个用途重用单个 DTO，确保清晰性和可维护性。
-- **声明式验证**：优先使用装饰器（例如 `@Expect`、`@Accept`）定义验证规则，保持代码简洁。
-- **处理复杂数据**：对复杂数据结构使用嵌套 DTO 和 `VLD.object()`，确保验证覆盖所有层次。
-- **优雅处理错误**：捕获 `InvalidValueException` 并向客户端提供用户友好的错误消息。
-- **性能考虑**：在高流量端点中避免过于复杂的验证规则，以减少性能开销。
-
-## 总结
-
-Lakutata 通过 `DTO` 基类、`VLD` 验证库和一组验证装饰器（`@Expect`、`@Accept`、`@Return`、`@IndexSignature`）提供了强大的 DTO 和验证功能。开发者可以轻松定义带有验证规则的数据结构，并将其应用于属性、方法参数和返回值，确保跨应用层的数据完整性和一致性。结合 Lakutata 的 IoC 容器，DTO 和验证逻辑可以无缝集成到组件、控制器和服务中，增强了应用模块化和可维护性。
-
-有关 Lakutata 其他功能的详细信息，请参阅相关文档章节。
+- 导入的校验规则按 JSON Schema 的语义校验：不转换值（`convert: true` 时转换），未知字段遵循 `additionalProperties`，格式校验与 ajv-formats 一致，并会填充默认值。
+- 引用通过 JSON pointer、`$anchor` 和 `$id` 解析（其他文档通过 `schemas` 传入，OpenAPI 文档通过 `document` 传入）；支持递归引用。
+- 版本从 `$schema` 读取，或通过 `dialect` 指定（默认 2020-12）。
+- 对 lakutata 的校验规则而言，JSON Schema 会丢失信息（自定义规则、类型转换）：要原样存储并恢复校验规则，请保存它的 `describe()` 输出（不含函数时是一个 JSON 值），再用 `DTO.Build(description)` 重建。

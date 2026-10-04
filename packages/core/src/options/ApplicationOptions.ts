@@ -71,8 +71,8 @@ export class ApplicationOptions extends ModuleOptions {
     public readonly mode?: 'development' | 'production'
 
     /**
-     * The signals ending the application gracefully: its entrypoints stop (the requests running complete), its objects
-     * are destroyed, its done handler runs, then it exits with the code 0. A second signal, or a signal received while
+     * The signals ending the application gracefully: its done handler runs (the application still working), its
+     * entrypoints stop (the requests running complete), its objects are destroyed, then it exits with the code 0. A second signal, or a signal received while
      * the application launches, ends the process at once with the code 128 + the number of the signal (143 for SIGTERM,
      * 130 for SIGINT). SIGTERM and SIGINT by default (docker stop, the rolling updates of Kubernetes, systemd, Ctrl+C);
      * false: the signals are not handled by the application (Node.js ends the process at once).

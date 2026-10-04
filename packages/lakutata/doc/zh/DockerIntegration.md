@@ -1,278 +1,205 @@
 # Lakutata Docker 集成
 
-**Lakutata** 是一个基于 IoC（控制反转）的通用应用框架，旨在为 TypeScript 和 Node.js 开发者提供模块化且可扩展的开发体验。作为一个现代框架，Lakutata 强调代码可维护性、类型安全性和基于组件的设计。在容器化支持方面，Lakutata 通过预设的 **Docker 组件** 与 Docker 深度集成，使开发者能够轻松管理 Docker 容器、镜像和网络。本文档详细解释了 Lakutata 框架中 Docker 集成的设计理念、核心组件、数据验证机制（DTO）以及使用场景。
+**Docker 组件**（`lakutata/com/docker`，`@lakutata/docker` 包）通过 Docker Engine API 操作 Docker 守护进程，不需要 Docker CLI：拉取、构建（使用 BuildKit）、导入、导出、打标签和推送镜像，创建、运行和管理容器（exec、交互式 TTY、日志、统计、commit、导出文件），以及管理网络。它可以连接本地套接字，也可以通过 HTTP、HTTPS 或 SSH 连接远程守护进程。全部选项见 `@lakutata/docker` 的 README 和 `lakutata/com/docker` 的类型声明。
 
-## 1. Docker 集成功能概述
+该组件不是预置组件：需要在应用的 `components` 中声明。只运行 containerd、没有 Docker 的机器（嵌入式 Linux 设备）请参阅 [ContainerdIntegration](ContainerdIntegration.md)。
 
-**Docker 集成** 是 Lakutata 框架中的一个关键功能模块，旨在便于以编程方式与 Docker 交互。作为预设组件，**Docker 组件** 内置于框架中，遵循 Lakutata 的 IoC 设计理念。这使开发者可以通过依赖注入在应用的任何地方调用 Docker 相关功能。Lakutata 提供了一组结构化的 **DTO（数据传输对象）** 来定义 Docker 操作的参数和配置，确保输入数据的类型安全性和验证。这些 DTO 涵盖了容器管理、镜像构建和操作以及网络创建等多个方面，与 Lakutata 的核心功能（如 IoC 容器、控制器和服务）无缝集成。
+## 1. 环境要求与连接
 
-### 1.1 Docker 集成的核心目标
-- **容器化管理**：以编程方式管理 Docker 容器、镜像和网络，简化容器化应用的开发和部署。
-- **类型安全和数据验证**：利用 Lakutata 的 DTO 系统和 `@Expect` 装饰器对操作参数进行严格的类型检查和验证，确保可靠性和安全性。
-- **提升开发和部署效率**：提供预设的 Docker 组件，使开发者能够直接调用 Docker 功能，减少手动操作和脚本编写，同时保持代码一致性和可维护性。
+组件需要应用能访问到的 Docker 守护进程（Docker Engine 或 Docker Desktop，Engine API 1.41 或更高版本）。SSH 连接需要可选的 peer 依赖 `ssh2`（`npm install ssh2`），以及远程主机上的 Docker CLI。
 
-### 1.2 与 Lakutata 设计理念的集成
-Lakutata 的设计理念围绕 IoC、模块化和类型安全性展开，Docker 集成模块充分体现了这些原则：
-- **IoC 和依赖注入**：作为预设组件，Docker 组件由 Lakutata 的 IoC 容器管理，开发者可以通过依赖注入在控制器、服务或其他组件中使用 Docker 功能，而无需手动实例化或管理底层连接。
-- **模块化和可扩展性**：Docker 组件遵循模块化设计，开发者可以基于提供的 DTO 扩展自定义 Docker 操作逻辑，或通过配置文件调整连接参数。
-- **类型安全的 DTO 验证**：Lakutata 优先考虑类型安全，所有 Docker 操作参数通过 DTO 定义，并使用 `@Expect` 装饰器进行验证，确保输入数据的完整性和准确性，减少运行时错误。
-- **预设组件的便利性**：作为预设组件，Docker 组件内置于框架中，无需额外安装或配置，降低了学习曲线和集成成本。
+| 连接方式 | 选项 |
+|---|---|
+| 环境中的 Docker（默认） | 无：读取 `DOCKER_HOST`、`DOCKER_TLS_VERIFY`、`DOCKER_CERT_PATH`、`DOCKER_CLIENT_TIMEOUT`，否则使用本地套接字 |
+| Unix 套接字 / Windows 命名管道 | `socketPath`（`BuildDockerSocketConnectionOptions`） |
+| TCP，HTTP | `host`、`port`（`BuildDockerHttpConnectionOptions`） |
+| TCP，HTTPS | `host`、`port`，以及 PEM 内容形式的 `ca`、`cert`、`key`（`BuildDockerHttpsConnectionOptions`） |
+| SSH | `host`、`port`、`username`、`sshAuthAgent`（`BuildDockerSSHConnectionOptions`） |
 
-### 1.3 与 Lakutata 其他模块的集成
-Lakutata 的 Docker 集成模块不仅仅是一个独立的工具包，它与其他框架模块（如控制器、服务和事件系统）紧密相连。例如，开发者可以在控制器中调用 Docker 组件以动态构建和部署容器，或在服务层中使用 DTO 验证用户提供的镜像构建参数。这种集成利用了 Lakutata 的 IoC 容器和模块化设计，确保 Docker 功能在整个应用生命周期中无缝运行。
+组件创建时会 ping 守护进程并协商 API 版本：守护进程不可达时启动失败，抛出 `DockerConnectionException`。`timeout`（毫秒）是请求允许空闲的时间。
 
-## 2. Docker 集成的核心组件
+```typescript
+import {readFileSync} from 'node:fs'
+import {Application} from 'lakutata'
+import {BuildDockerHttpsConnectionOptions, BuildDockerSocketConnectionOptions, Docker} from 'lakutata/com/docker'
 
-Lakutata 的 Docker 集成主要通过预设的 **Docker 组件** 提供，操作参数由一组 DTO 类定义。这些 DTO 利用 Lakutata 的 DTO 系统和 `@Expect` 装饰器进行数据验证，确保开发者传递的参数符合预期标准。以下是基于提供的源文件进行的详细分析，涵盖容器管理、镜像操作和网络配置。
+Application.run(() => ({
+    id: 'docker.app',
+    name: 'Docker',
+    components: {
+        //环境中的 Docker：DOCKER_HOST，否则为本地套接字
+        docker: {class: Docker},
+        //套接字，请求超时 60 秒
+        local: BuildDockerSocketConnectionOptions({socketPath: '/var/run/docker.sock', timeout: 60000}),
+        //TLS：传入 PEM 内容，而不是文件路径
+        remote: BuildDockerHttpsConnectionOptions({
+            host: 'docker.example.com',
+            port: 2376,
+            ca: readFileSync('/etc/docker/certs/ca.pem'),
+            cert: readFileSync('/etc/docker/certs/cert.pem'),
+            key: readFileSync('/etc/docker/certs/key.pem')
+        })
+    },
+    bootstrap: ['docker']
+}))
+```
 
-### 2.1 容器管理 DTO
+## 2. 第一个示例
 
-#### 2.1.1 ContainerStopOptions
-定义停止容器的参数，控制停止操作的行为。
+```typescript
+import {Application} from 'lakutata'
+import {Docker, type DockerContainer, type DockerImage} from 'lakutata/com/docker'
 
-- **功能**：通过指定停止信号和超时时间优雅地停止 Docker 容器。
-- **字段和验证规则**：
-  - `signal`：停止信号（如 "SIGTERM"），类型为字符串，可选。通过 `@Expect(DTO.String().optional())` 验证，确保如果提供则为字符串。
-  - `timeout`：在强制终止容器之前等待的秒数，类型为数字，可选。通过 `@Expect(DTO.Number().optional())` 验证，确保如果提供则为数字值。
-- **示例**：
-  ```typescript
-  import { ContainerStopOptions } from '../../utils/docker/ContainerStopOptions.js';
-  
-  const options = new ContainerStopOptions({
-    signal: 'SIGTERM',
-    timeout: 10
-  });
-  ```
-- **用途**：在 Lakutata 应用中，开发者可以使用此 DTO 配合 Docker 组件以受控方式停止容器，确保适当的关闭流程（例如，避免因突然终止导致数据丢失）。
-- **数据验证价值**：通过 DTO 验证，框架确保 `signal` 是有效的字符串，`timeout` 是合理的数字值，防止因无效参数导致容器停止失败。
+Application
+    .run(() => ({
+        id: 'docker.app',
+        name: 'Docker',
+        components: {
+            docker: {class: Docker}
+        }
+    }))
+    .onLaunched(async (app: Application): Promise<void> => {
+        const docker: Docker = await app.getObject<Docker>('docker')
 
-#### 2.1.2 ContainerTTYConsoleSizeOptions
-定义设置容器 TTY 控制台大小的参数，用于调整终端显示尺寸。
+        //拉取后按 alpine:3.20 查找
+        const image: DockerImage = await docker.pullImage({repo: 'alpine', tag: '3.20'})
 
-- **功能**：设置容器的终端列数和行数，适用于交互式会话或调试场景。
-- **字段和验证规则**：
-  - `cols`：终端列数，类型为数字，必填。通过 `@Expect(DTO.Number().required())` 验证，确保为数字值且必须提供。
-  - `rows`：终端行数，类型为数字，必填。通过 `@Expect(DTO.Number().required())` 验证，确保为数字值且必须提供。
-- **示例**：
-  ```typescript
-  import { ContainerTTYConsoleSizeOptions } from '../../utils/docker/ContainerTTYConsoleSizeOptions.js';
-  
-  const options = new ContainerTTYConsoleSizeOptions({
-    cols: 80,
-    rows: 24
-  });
-  ```
-- **用途**：在 Lakutata 框架中，此 DTO 用于通过 Docker 组件调整容器终端大小，确保在容器交互过程中（特别是在调试或监控任务中）为开发者或用户提供合适的显示效果。
-- **数据验证价值**：通过 DTO 的 `required()` 验证规则，确保 `cols` 和 `rows` 都被提供且为数字值，避免因缺少参数导致终端设置失败。
+        //创建并启动
+        const container: DockerContainer = await image.run({
+            name: 'hello',
+            cmd: ['sh', '-c', 'echo started; sleep 3600'],
+            env: {MODE: 'production'}
+        })
+        console.log(container.id, container.state.status)
 
-### 2.2 镜像操作 DTO
+        //退出码、stdout 和 stderr
+        const {exitCode, stdout} = await container.exec({cmd: ['cat', '/etc/alpine-release']})
+        console.log(exitCode, stdout)
 
-#### 2.2.1 ImageBuildOptions
-定义构建 Docker 镜像的参数，配置构建上下文和选项。
+        await container.stop({timeout: 10})
+        await container.remove()
+    })
+```
 
-- **功能**：提供详细的构建镜像配置，包括上下文目录、文件列表、Dockerfile 路径、目标平台等，支持复杂的构建需求。
-- **关键字段和验证规则**：
-  - `workdir`：构建上下文工作目录，类型为字符串，必填。通过 `@Expect(DTO.String().required())` 验证，确保提供有效的目录路径。
-  - `files`：构建上下文中的文件列表，类型为字符串数组，必填。通过 `@Expect(DTO.Array(DTO.String()).required())` 验证，确保提供文件列表。
-  - `dockerfile`：Dockerfile 路径，类型为字符串，可选，默认值为 "Dockerfile"。通过 `@Expect(DTO.String().optional().default('Dockerfile'))` 验证，带有默认值。
-  - `repoTag`：镜像名称和标签，类型为字符串，可选。通过 `@Expect(DTO.String().optional())` 验证，确保如果提供则格式正确。
-  - `platform`：构建平台，类型为字符串，可选，默认值为空字符串。通过 `@Expect(DTO.String().allow('').optional().default(''))` 验证，允许空值。
-  - `target`：目标构建阶段，类型为字符串，可选，默认值为空字符串。
-  - `remote`：Git 仓库或 HTTP/HTTPS 上下文 URI，类型为字符串，可选，用于远程构建上下文。
-  - `quite`：抑制详细的构建输出，类型为布尔值，可选，默认值为 `false`。
-  - `nocache`：构建时禁用缓存，类型为布尔值，可选，默认值为 `false`。
-  - `rm`：构建成功后移除中间容器，类型为布尔值，可选，默认值为 `true`。
-  - `forcerm`：即使失败也总是移除中间容器，类型为布尔值，可选，默认值为 `false`。
-  - `shmsize`：/dev/shm 的大小（字节），类型为数字，可选。
-  - `buildargs`：构建时变量，类型为字符串键值对的对象，可选。
-  - `auth`：Docker 认证选项，类型为 `DockerAuthOptions`，可选。
-  - `outputCallback`：构建输出回调函数，类型为函数，可选。
-- **示例**：
-  ```typescript
-  import { ImageBuildOptions } from '../../utils/docker/ImageBuildOptions.js';
-  
-  const options = new ImageBuildOptions({
-    workdir: '/path/to/context',
-    files: ['file1.txt', 'file2.txt'],
-    repoTag: 'myimage:latest',
-    platform: 'linux/amd64',
-    buildargs: { VERSION: '1.0.0' }
-  });
-  ```
-- **用途**：在 Lakutata 框架中，此 DTO 与 Docker 组件一起使用，用于构建自定义镜像，支持从本地上下文到远程仓库的完整工作流程，适用于 CI/CD 管道或自动化构建任务。
-- **数据验证价值**：通过 DTO 验证，框架确保必填字段（如 `workdir` 和 `files`）被提供，数据类型符合预期（如 `buildargs` 必须为字符串键值对），防止因缺少或格式错误的参数导致构建失败。
+## 3. 镜像
 
-#### 2.2.2 ImageExportOptions
-定义导出 Docker 镜像的参数，将镜像保存到指定目标。
+```typescript
+import {createReadStream} from 'node:fs'
+import {type Docker, type DockerImage} from 'lakutata/com/docker'
 
-- **功能**：指定导出镜像的目标（文件名或可写流）及相关选项。
-- **字段和验证规则**：
-  - `destination`：导出目标，类型为字符串或 `NodeJS.WritableStream`，必填。通过 `@Expect(DTO.Alternatives(DTO.String(), DTO.InstanceOf(Stream)).required())` 验证，支持两种类型。
-  - `repoTag`：要导出的特定镜像标签，类型为字符串，可选。
-  - `createRepoTagIfNotExists`：如果标签不存在则创建，类型为布尔值，可选，默认值为 `true`。
-- **示例**：
-  ```typescript
-  import { ImageExportOptions } from '../../utils/docker/ImageExportOptions.js';
-  
-  const options = new ImageExportOptions({
-    destination: '/path/to/image.tar',
-    repoTag: 'myimage:latest'
-  });
-  ```
-- **用途**：在 Lakutata 应用中，开发者可以使用此 DTO 配合 Docker 组件导出镜像，用于分发或备份目的。
-- **数据验证价值**：DTO 验证确保 `destination` 字段被提供且类型正确，防止因无效路径或流导致导出失败。
+async function images(docker: Docker): Promise<void> {
+    //拉取，附带镜像仓库的凭据和进度消息
+    await docker.pullImage({
+        repo: 'registry.example.com/base/node',
+        tag: '22',
+        platform: 'linux/amd64',
+        auth: {serverAddress: 'registry.example.com', username: 'ci', password: 'secret'},
+        outputCallback: (output: Record<string, any>): void => console.log(output.status, output.progress ?? '')
+    })
 
-#### 2.2.3 ImageImportOptions
-定义导入 Docker 镜像的参数，从指定源加载镜像。
+    //使用 BuildKit 构建：构建上下文是列出的文件（目录连同其内容），排除 .dockerignore 中的文件
+    const app: DockerImage = await docker.buildImage({
+        workdir: '/srv/app',
+        files: ['Dockerfile', 'package.json', 'src'],
+        repoTag: 'app:1.0.0',
+        buildargs: {NODE_ENV: 'production'},
+        outputCallback: (output: Record<string, any>): void => console.log(output.stream ?? '')
+    })
 
-- **功能**：指定导入镜像的源（文件名或可读流）及相关选项。
-- **字段和验证规则**：
-  - `source`：导入源，类型为字符串或 `NodeJS.ReadableStream`，必填。通过 `@Expect(DTO.Alternatives(DTO.String(), DTO.InstanceOf(Stream)).required())` 验证，支持两种类型。
-  - `quiet`：在导入过程中抑制进度详情，类型为布尔值，可选，默认值为 `false`。
-- **示例**：
-  ```typescript
-  import { ImageImportOptions } from '../../utils/docker/ImageImportOptions.js';
-  
-  const options = new ImageImportOptions({
-    source: '/path/to/image.tar',
-    quiet: true
-  });
-  ```
-- **用途**：在 Lakutata 框架中，此 DTO 与 Docker 组件一起使用，用于导入镜像，适用于恢复备份或跨环境迁移镜像。
-- **数据验证价值**：通过 DTO 验证，确保 `source` 字段被提供且类型正确，防止因无效源导致导入失败。
+    //打标签、推送、保存为归档文件、再加载回来
+    await app.tag({repo: 'registry.example.com/team/app', tag: '1.0.0'})
+    await app.push({repo: 'registry.example.com/team/app', tag: '1.0.0', auth: {serverAddress: 'registry.example.com', username: 'ci', password: 'secret'}})
+    await app.export({destination: '/tmp/app.tar', repoTag: 'app:1.0.0'})
+    const loaded: DockerImage = await docker.importImage({source: createReadStream('/tmp/app.tar')})
+    console.log(loaded.repoTags)
 
-#### 2.2.4 ImagePullOptions
-定义拉取 Docker 镜像的参数，从 Docker 注册中心下载镜像。
+    //按 ID、短 ID 或名称查找，列出，删除（默认强制），清理
+    console.log((await docker.getImage('app:1.0.0')).id)
+    console.log((await docker.listImages()).map((image: DockerImage): string[] => image.repoTags))
+    await app.remove()
+    await docker.prune({containers: false, images: true, networks: false, volumes: false})
+}
+```
 
-- **功能**：配置从 Docker 注册中心拉取镜像的选项，支持平台指定和认证。
-- **字段和验证规则**：
-  - `repo`：注册中心仓库地址，类型为字符串，必填。通过 `@Expect(DTO.String().required())` 验证，确保被提供。
-  - `tag`：镜像标签，类型为字符串，可选，默认值为 "latest"。
-  - `platform`：特定平台，类型为字符串，可选。
-  - `auth`：Docker 认证选项，类型为 `DockerAuthOptions`，可选。
-  - `outputCallback`：输出回调函数，类型为函数，可选。
-- **示例**：
-  ```typescript
-  import { ImagePullOptions } from '../../utils/docker/ImagePullOptions.js';
-  
-  const options = new ImagePullOptions({
-    repo: 'docker.io/library/nginx',
-    tag: 'latest',
-    platform: 'linux/amd64'
-  });
-  ```
-- **用途**：在 Lakutata 应用中，此 DTO 与 Docker 组件一起使用，用于从远程注册中心拉取镜像，适用于部署前准备或动态镜像更新。
-- **数据验证价值**：DTO 验证确保 `repo` 字段被提供，避免因缺少注册中心地址导致拉取失败，同时验证其他字段的类型正确性。
+- `getImage()` 按守护进程的规则解析名称：完整或短 ID、`alpine`（即 `alpine:latest`）、摘要。
+- 不带选项的 `prune()` 清理已停止的容器和悬空镜像；未使用的网络和匿名卷只在指定时清理（`networks: true`、`volumes: true`）。
 
-#### 2.2.5 ImagePushOptions
-定义推送 Docker 镜像的参数，将本地镜像上传到 Docker 注册中心。
+## 4. 容器
 
-- **功能**：配置将镜像推送到 Docker 注册中心的选项，支持认证。
-- **字段和验证规则**：
-  - `repo`：注册中心仓库地址，类型为字符串，必填。通过 `@Expect(DTO.String().required())` 验证，确保被提供。
-  - `tag`：镜像标签，类型为字符串，可选，默认值为 "latest"。
-  - `auth`：Docker 认证选项，类型为 `DockerAuthOptions`，可选。
-  - `outputCallback`：输出回调函数，类型为函数，可选。
-- **示例**：
-  ```typescript
-  import { ImagePushOptions } from '../../utils/docker/ImagePushOptions.js';
-  
-  const options = new ImagePushOptions({
-    repo: 'docker.io/myuser/myimage',
-    tag: 'v1.0.0'
-  });
-  ```
-- **用途**：在 Lakutata 框架中，此 DTO 与 Docker 组件一起使用，用于将本地镜像推送到远程注册中心，适用于镜像发布和版本管理。
-- **数据验证价值**：DTO 验证确保 `repo` 字段被提供，防止因缺少目标注册中心地址导致推送失败。
+```typescript
+import {type Docker, type DockerContainer, type DockerContainerTTY, type DockerImage} from 'lakutata/com/docker'
 
-#### 2.2.6 ImageRemoveOptions
-定义移除 Docker 镜像的参数，用于清理本地镜像。
+async function containers(docker: Docker): Promise<void> {
+    const image: DockerImage = await docker.getImage('nginx:1.27')
+    //创建，但不启动
+    const web: DockerContainer = await docker.createContainer(image.id, {
+        name: 'web',
+        ports: [{port: 80, type: 'tcp', hostPorts: [8080]}],
+        binds: [{hostPath: '/srv/www', containerPath: '/usr/share/nginx/html', rw: false}],
+        networks: [{networkName: 'backend', ip: '172.30.0.10'}],
+        memoryLimit: 256 * 1024 * 1024,
+        restartPolicy: 'unless-stopped'
+    })
+    await web.start()
 
-- **功能**：配置删除镜像的选项，支持强制移除和清理控制。
-- **字段和验证规则**：
-  - `force`：强制移除镜像，类型为布尔值，可选，默认值为 `true`。
-  - `noprune`：避免清理未使用的镜像，类型为布尔值，可选。
-- **示例**：
-  ```typescript
-  import { ImageRemoveOptions } from '../../utils/docker/ImageRemoveOptions.js';
-  
-  const options = new ImageRemoveOptions({
-    force: true,
-    noprune: false
-  });
-  ```
-- **用途**：在 Lakutata 应用中，此 DTO 与 Docker 组件一起使用，用于删除指定镜像，释放存储空间。
-- **数据验证价值**：DTO 验证确保字段类型正确，降低因参数错误导致删除失败的风险。
+    //目前为止的日志（follow: true 时在容器运行期间保持流打开）
+    const logs: NodeJS.ReadableStream = await web.logs({follow: false, tail: 100})
+    logs.pipe(process.stdout)
 
-#### 2.2.7 ImageTagOptions
-定义为 Docker 镜像打标签的参数，用于镜像版本管理。
+    //一次 CPU、内存、网络和块 I/O 的采样
+    console.log(await web.stats())
 
-- **功能**：为镜像设置新的仓库和标签。
-- **字段和验证规则**：
-  - `repo`：目标仓库地址，类型为字符串，必填。通过 `@Expect(DTO.String().required())` 验证，确保被提供。
-  - `tag`：新标签名称，类型为字符串，可选。
-- **示例**：
-  ```typescript
-  import { ImageTagOptions } from '../../utils/docker/ImageTagOptions.js';
-  
-  const options = new ImageTagOptions({
-    repo: 'myuser/myimage',
-    tag: 'v2.0.0'
-  });
-  ```
-- **用途**：在 Lakutata 框架中，此 DTO 与 Docker 组件一起使用，用于为现有镜像添加新标签，便于版本管理和镜像分发。
-- **数据验证价值**：DTO 验证确保 `repo` 字段被提供，避免因缺少目标仓库地址导致打标签操作失败。
+    //命令行（由 /bin/sh -c 执行）：无论退出码是多少，都返回退出码、stdout 和 stderr
+    const {exitCode, stdout, stderr} = await web.exec({cmd: 'nginx -t && ls /etc/nginx | wc -l'})
+    console.log(exitCode, stdout, stderr)
 
-### 2.3 网络管理 DTO
+    //带 TTY 的交互式 shell（默认 /bin/sh）
+    const tty: DockerContainerTTY = await web.createTTY({consoleSize: {cols: 120, rows: 40}})
+    tty.onData((chunk: Buffer): void => {
+        process.stdout.write(chunk)
+    })
+    tty.write('nginx -v\n')
+    await tty.resize({cols: 160, rows: 50})
+    tty.write('exit\n')
 
-#### 2.3.1 NetworkCreateOptions
-定义创建 Docker 网络的参数，用于配置容器之间的通信网络。
+    //内存限制和重启策略在线修改；其他设置通过重建容器修改（其 ID 会变化）
+    await web.update({memoryLimit: 512 * 1024 * 1024, restartPolicy: 'on-failure:3'})
 
-- **功能**：配置新 Docker 网络的名称、驱动程序和 IPAM 设置，支持自定义网络隔离和通信。
-- **字段和验证规则**：
-  - `name`：网络名称，类型为字符串，必填。通过 `@Expect(DTO.String().required())` 验证，确保被提供。
-  - `options`：特定驱动程序选项，类型为对象，可选，默认值为空对象。
-  - `driver`：网络驱动程序类型，类型为字符串，可选，默认值为 "bridge"。通过 `@Expect(DTO.String().valid('bridge', 'ipvlan', 'macvlan').optional().default('bridge'))` 验证，限制为允许的值。
-  - `NetworkIPAMConfigs`：网络 IPAM 配置数组，类型为对象数组，默认值为空数组。通过 `@Expect(DTO.Array(DTO.Object({...})))` 验证，定义子字段验证规则（如 `subnet` 和 `gateway` 必须为有效 IP 地址）。
-  - `internal`：限制外部访问，类型为布尔值，可选。
-  - `enableIPv6`：启用 IPv6 支持，类型为布尔值，可选。
-- **示例**：
-  ```typescript
-  import { NetworkCreateOptions } from '../../utils/docker/NetworkCreateOptions.js';
-  
-  const options = new NetworkCreateOptions({
-    name: 'my-network',
-    driver: 'bridge',
-    NetworkIPAMConfigs: [{ subnet: '192.168.1.0/24', gateway: '192.168.1.1' }]
-  });
-  ```
-- **用途**：在 Lakutata 框架中，此 DTO 与 Docker 组件一起使用，用于创建自定义网络，支持容器之间的通信配置和网络隔离，适用于多容器应用部署。
-- **数据验证价值**：DTO 验证确保 `name` 字段被提供，`driver` 字段值在允许范围内，`NetworkIPAMConfigs` 中的 IP 地址格式正确，防止因配置错误导致网络创建失败。
+    await web.restart({timeout: 5})
+    await web.stop()
+    await web.remove({force: true})
 
-## 3. Docker 组件作为预设组件的设计优势
+    //所有容器，包括已停止的
+    console.log((await docker.listContainers()).map((container: DockerContainer): string => `${container.name}: ${container.state.status}`))
+}
+```
 
-在 Lakutata 框架中，Docker 组件作为预设组件存在，具有以下设计优势：
-- **即用性**：Docker 组件内置于框架中，开发者可以通过 IoC 容器直接访问实例，无需额外安装或配置，降低了入门门槛。
-- **统一管理**：通过 Lakutata 的 IoC 容器，Docker 组件的生命周期和依赖关系由框架统一管理，确保在不同环境中的行为一致性。
-- **与框架深度集成**：Docker 组件与其他 Lakutata 模块（如控制器、服务、事件系统）无缝协作，开发者可以在业务逻辑中直接调用 Docker 功能，如在控制器中动态构建镜像或在服务层管理容器。
-- **可扩展性支持**：开发者可以基于提供的 DTO 和接口扩展 Docker 组件的功能，如添加自定义 Docker 操作或调整连接参数以满足特定需求。
+- `DockerContainer` 是一个快照：它自己的操作会刷新它；其他地方做的修改需要重新获取才能看到（`docker.getContainer(id)`，也接受名称或短 ID）。
+- 启动正在运行的容器或停止已停止的容器不做任何事，与 Docker CLI 一致。
+- `exec()` 在没有 TTY 和 stdin 的情况下运行。数组形式的命令原样执行；字符串是命令行，由 `/bin/sh -c` 执行。
+- `kill()` 默认发送 `SIGKILL`，也可以指定信号。
+- `commit()` 用容器生成镜像，`exportDirectory()` 把容器中的目录写成 tar 归档。
+- 不提供的功能：附加到主进程、向容器中复制文件、卷（`prune()` 除外）以及守护进程的事件。
 
-## 4. Docker 集成的使用场景
+## 5. 网络
 
-- **容器化开发和测试**：使用 `ContainerStopOptions` 和 `ContainerTTYConsoleSizeOptions`，开发者可以管理容器生命周期和交互式终端，适用于开发和测试环境。例如，在应用调试期间动态调整终端大小，或在测试后优雅地停止容器。
-- **镜像构建和分发**：通过 `ImageBuildOptions`、`ImageExportOptions` 和 `ImageImportOptions`，开发者可以构建、导出和导入自定义镜像，支持 CI/CD 工作流程。例如，在 CI 管道中通过 Lakutata 自动构建镜像并导出到指定位置。
-- **镜像注册中心管理**：通过 `ImagePullOptions` 和 `ImagePushOptions`，开发者可以从 Docker 注册中心拉取镜像或将镜像推送到注册中心，适用于镜像版本管理和部署。例如，在部署前通过 Lakutata 拉取最新镜像版本。
-- **网络配置**：使用 `NetworkCreateOptions`，开发者可以创建自定义网络，优化容器之间的通信和隔离。例如，在多容器应用中通过 Lakutata 创建内部网络，用于服务之间的安全通信。
-- **自动化和调度**：结合 Lakutata 的事件系统和定时任务，开发者可以自动化 Docker 操作，如定期清理未使用的镜像或定期拉取更新。
+```typescript
+import {type Docker, type NetworkInfo} from 'lakutata/com/docker'
 
-## 5. Docker 集成的优势和特点
+async function networks(docker: Docker): Promise<void> {
+    const network: NetworkInfo = await docker.createNetwork({
+        name: 'backend',
+        driver: 'bridge',
+        NetworkIPAMConfigs: [{subnet: '172.30.0.0/16', gateway: '172.30.0.1'}],
+        internal: false
+    })
+    //由守护进程选择子网
+    await docker.createNetwork({name: 'frontend'})
+    console.log(network.id, (await docker.listNetworks()).map((item: NetworkInfo): string => item.name))
+    await docker.removeNetwork('frontend')
+}
+```
 
-- **类型安全和严格验证**：通过 DTO 和 `@Expect` 装饰器，输入参数得到严格验证，确保合法性和完整性，减少运行时错误。例如，`ImageBuildOptions` 确保 `workdir` 和 `files` 字段被提供且类型正确。
-- **模块化和 IoC 集成**：Docker 组件遵循 Lakutata 的模块化设计，由 IoC 容器管理，支持依赖注入和模块化调用，增强代码可维护性。
-- **全面的功能覆盖**：涵盖容器管理、镜像操作和网络配置的多个方面，满足容器化应用开发、测试和部署的需求。
-- **易用性和一致性**：DTO 设计直观，参数配置灵活，开发者可以快速上手 Docker 操作，而框架统一的参数验证和组件管理确保操作行为的一致性。
-- **性能和稳定性**：通过预设组件和 DTO 验证机制，Docker 集成模块确保性能和稳定性，如避免因参数错误导致 Docker 操作失败。
+## 6. 错误
 
-## 总结
-
-Lakutata 的 Docker 集成模块通过预设的 **Docker 组件** 和一组结构化的 DTO，为开发者提供了与 Docker 交互的编程接口，涵盖容器管理、镜像操作和网络配置等关键功能。作为 Lakutata 框架中的预设组件，Docker 组件利用框架的 IoC 设计理念和模块化特性，通过依赖注入和类型安全机制确保在应用中的无缝操作。DTO 系统结合 `@Expect` 装饰器，为操作参数提供了严格的数据验证，减少了运行时错误并增强了代码可靠性。Docker 集成模块适用于容器化开发、测试、构建和部署的各种场景，为开发者在容器化环境中提供了强大且用户友好的支持。
+组件的异常由 `lakutata/com/docker` 导出：`DockerConnectionException`（组件创建时守护进程不可达）、`DockerContainerNotFoundException`、`DockerImageNotFoundException`、`DockerNetworkNotFoundException`、`DockerImagePullException`、`DockerImageBuildException`、`DockerImageImportException`、`DockerImagePushException`、`DockerImageRepoTagNotFoundException`，以及 `DockerRequestException`（守护进程拒绝请求；其 `statusCode` 为 HTTP 状态码，名称已被占用时为 409）。选项不合法时抛出 `InvalidMethodAcceptException`。组件被销毁时，正在进行的拉取和构建会被中止。

@@ -1,173 +1,145 @@
 # Lakutata Helper Functions
 
-**Lakutata** is a universal application framework based on IoC (Inversion of Control), designed to provide a modular and extensible development experience for TypeScript and Node.js developers. In terms of utility support, Lakutata offers the **Helper Functions** system, a set of auxiliary functions aimed at simplifying common tasks during application development. This document provides a detailed explanation of the functionality, categorization, and usage examples of Helper Functions within the Lakutata framework.
+`lakutata/utils` (package `@lakutata/utils`) exports the helpers the framework and its applications share: strings,
+objects, arrays and sets, hashes and encodings, UUIDs, IP addresses, globs, statistics, and `Time`
+(see [Time](Time.md)). They are plain functions and classes with no dependency: import them where they are needed,
+inside an application or not, without registration. The README of `@lakutata/utils` and the typings of each helper give
+the details and the errors they throw.
 
-## 1. Helper Functions Functionality Overview
+```typescript
+import {Application, Component, Time} from 'lakutata'
+import {ObjectHash, RandomString, Templating, UUID} from 'lakutata/utils'
 
-**Helper Functions** are a collection of practical utility functions in the Lakutata framework, designed to assist developers in handling common programming tasks. These functions cover various areas such as data transformation, cryptographic hashing, object and array sorting, and template processing, providing developers with convenient ways to address general issues. Lakutata's helper functions are designed as independent modules, easily callable within controllers, services, or other components of the framework, enhancing code reusability and development efficiency.
+class Invitations extends Component {
+    public invite(email: string): { id: string, code: string, key: string, message: string } {
+        const expires: Time = new Time().timezone('Europe/Paris').add(7, 'days').endOf('day')
+        return {
+            id: UUID.v4(),
+            code: RandomString(6, 'numeric'),
+            //The same invitation always gives the same key
+            key: ObjectHash({email: email}),
+            message: Templating('Your invitation to {app} expires on {date}', {app: 'Lakutata', date: expires.format('LL')})
+        }
+    }
+}
 
-### 1.1 Core Purpose of Helper Functions
-- **Simplify Development Tasks**: Provide ready-to-use utility functions to reduce redundant code writing.
-- **Enhance Code Consistency**: Standardize common operations to ensure consistency in code style and results.
-- **Support Diverse Scenarios**: Cover multiple application scenarios such as data processing, security encryption, and content generation.
+Application
+    .run(() => ({
+        id: 'utils.app',
+        name: 'Utils',
+        components: {
+            invitations: {class: Invitations}
+        }
+    }))
+    .onLaunched(async (app: Application): Promise<void> => {
+        const invitations: Invitations = await app.getObject<Invitations>('invitations')
+        console.log(invitations.invite('ada@example.com'))
+    })
+```
 
-### 1.2 Integration with Lakutata
-Lakutata's Helper Functions serve as the framework's foundational utility library, directly importable and usable in any part of an application. These functions do not depend on specific framework components, making them versatile for use in Lakutata controllers and services, as well as in standalone scripts, offering significant flexibility.
+## 1. Strings
 
-## 2. Helper Functions Categories and Features
+| Helper | What it does |
+|---|---|
+| `CamelCase(text)` | Converts a string of any case into camelCase |
+| `NoCase(text, options?)` | Converts a string of any case into lower case words separated by spaces |
+| `Templating(template, data, options?)` | Fills the `{key}` placeholders, and the `{{key}}` ones HTML-escaped; `MissingValueError` for a missing value unless `ignoreMissing` |
+| `RandomString(length?, charset?)` | A random string, from a named character set (`'alphanumeric'`, `'alphabetic'`, `'numeric'`, `'hex'`, `'binary'`, `'octal'`) or a custom one |
+| `NonceString()` | A random string of 32 letters and digits |
 
-Lakutata's Helper Functions can be categorized by functionality as follows. Each function's purpose and usage example are described in detail below.
+## 2. Objects, arrays and sets
 
-### 2.1 Data Structure Transformation
+| Helper | What it does |
+|---|---|
+| `ObjectPath.get()`, `.set()`, `.has()` | Reads, sets and tests a nested property by its path (`'a.b[0].c'`) |
+| `CloneDeep(value)` | Deep copy, the classes, collections and circular references kept |
+| `ObjectHash(value, options?)` | A hash of a value by its content, whatever the order of its keys |
+| `SortArray(array, ...options)` | Sorts an array in place, by its items or their properties (`by`, `order`, `customOrders`, `computed`) |
+| `SortKeys(object, options?)` | A copy of a plain object with its keys sorted by a comparison (`deep`, `compare`) |
+| `SortObject(object, options?)` | A copy of a plain object with its keys in alphabetical order (`deep`, `order: 'asc' \| 'desc'`) |
+| `UniqueArray(array)` | The array without its duplicates |
+| `MergeArray`, `MergeSet`, `MergeMap` | Merge two arrays, sets or maps into a new one |
+| `ArrayToSet`, `SetToArray`, `ObjectToMap` | Conversions between collections |
+| `GetObjectPropertyPaths`, `GetObjectNestingDepth`, `IsEmptyObject` | The paths of the leaf values of an object, its depth, whether it has no own property |
+| `ObjectConstructor`, `ObjectPrototype`, `ObjectParentConstructor(s)`, `IsSubclassOf` | Classes and their ancestors |
+| `Statistics` | Means, quantiles, deviations, regressions, distributions and random samples of numbers |
 
-#### 2.1.1 SetToArray
-Converts a `Set` object to an array.
+```typescript
+import {CamelCase, NoCase, ObjectPath, SortArray, SortObject, Templating, UniqueArray} from 'lakutata/utils'
 
-- **Functionality**: Converts a `Set` to an array, supporting generic types.
-- **Example**:
-  ```typescript
-  import { SetToArray } from '../../utils/SetToArray.js';
-  
-  const mySet = new Set([1, 2, 3]);
-  const myArray = SetToArray(mySet); // Result: [1, 2, 3]
-  ```
-- **Purpose**: Facilitates converting set-type data to arrays for subsequent operations.
+console.log(CamelCase('user_id'), '|', NoCase('XMLHttpRequest'))
+//userId | xml http request
 
-#### 2.1.2 UniqueArray
-Removes duplicate elements from an array.
+const config: Record<string, any> = {db: {hosts: [{name: 'primary', port: 5432}]}}
+console.log(ObjectPath.get<number>(config, 'db.hosts[0].port'))
+//5432
 
-- **Functionality**: Removes duplicates from an array using a `Set`.
-- **Example**:
-  ```typescript
-  import { UniqueArray } from '../../utils/UniqueArray.js';
-  
-  const arr = [1, 2, 2, 3, 3];
-  const unique = UniqueArray(arr); // Result: [1, 2, 3]
-  ```
-- **Purpose**: Simplifies array deduplication, improving data processing efficiency.
+//{{name}} escapes the HTML, {name} does not
+console.log(Templating('<p>Hello {{name}}</p>', {name: '<b>Ada</b>'}))
+//<p>Hello &lt;b&gt;Ada&lt;/b&gt;</p>
 
-### 2.2 Cryptography and Hashing
+type Person = { name: string, age: number }
+const people: Person[] = [{name: 'Bob', age: 30}, {name: 'Ada', age: 30}, {name: 'Cy', age: 20}]
+//In place: the oldest first, by name among the same age
+SortArray(people, {by: ['age', 'name'], order: ['desc', 'asc']})
+console.log(people.map((person: Person): string => person.name))
+//['Ada', 'Bob', 'Cy']
 
-#### 2.2.1 SHA1
-Calculates the SHA1 hash of a string.
+console.log(UniqueArray([3, 1, 3, 2]), Object.keys(SortObject({b: 1, a: 2})))
+//[3, 1, 2] ['a', 'b']
+```
 
-- **Functionality**: Computes the SHA1 hash of an input string, prioritizing Node.js native `crypto` module, falling back to `crypto-js` if unavailable.
-- **Example**:
-  ```typescript
-  import { SHA1 } from '../../utils/SHA1.js';
-  
-  const hash = SHA1("Hello, World!"); // Returns a Buffer of the SHA1 hash
-  ```
-- **Purpose**: Used for data integrity verification or password hashing scenarios.
+## 3. Hashes, encodings and identifiers
 
-#### 2.2.2 SHA256
-Calculates the SHA256 hash of a string.
+| Helper | What it does |
+|---|---|
+| `MD5(text)`, `SHA1(text)`, `SHA256(text)` | The digest of a string, as a `Buffer` (for checksums; for passwords and secrets, see [Security](Security.md)) |
+| `MessagePack` | Serializes values to and from MessagePack bytes or strings |
+| `UUID` | Generates (`v1`, `v3`, `v4`, `v5`, `v6`), validates, parses and stringifies UUIDs |
+| `URLBuilder` | Parses a URL of any scheme into its attributes, or builds one from them |
+| `HexToUnsigned`, `UnsignedToHex(value, bits = 32)` | Hexadecimal and unsigned integers (8 to 128 bits) |
+| `HexToSigned`, `SignedToHex(value, bits = 32)` | Hexadecimal and signed integers (two's complement) |
+| `HexToIEEE754`, `IEEE754ToHex` | Hexadecimal and IEEE 754 floating point numbers |
+| `IP`, `IPv4`, `IPv6` | Validate, convert and compare IP addresses and CIDR blocks |
 
-- **Functionality**: Computes the SHA256 hash of an input string, prioritizing Node.js native `crypto` module, falling back to `crypto-js` if unavailable.
-- **Example**:
-  ```typescript
-  import { SHA256 } from '../../utils/SHA256.js';
-  
-  const hash = SHA256("Hello, World!"); // Returns a Buffer of the SHA256 hash
-  ```
-- **Purpose**: Provides a more secure hashing algorithm, suitable for sensitive data handling.
+```typescript
+import {HexToSigned, MD5, ObjectHash, SHA256, SignedToHex, UUID} from 'lakutata/utils'
 
-### 2.3 Numeric Conversion
+console.log(SHA256('hello').toString('hex').slice(0, 16), MD5('hello').length)
+//2cf24dba5fb0a30e 16
+//Deeply equal values give the same hash, whatever the order of their keys
+console.log(ObjectHash({a: 1, b: 2}) === ObjectHash({b: 2, a: 1}))
+//true
+console.log(SignedToHex(-2, 16), HexToSigned('FFFE'))
+//FFFE -2
+console.log(UUID.validate(UUID.v4()))
+//true
+```
 
-#### 2.3.1 SignedToHex
-Converts a signed number to a hexadecimal string.
+## 4. Async, process and files
 
-- **Functionality**: Converts a signed number to a hexadecimal string of specified bit length, supporting 8, 16, 32, 64, and 128 bits.
-- **Example**:
-  ```typescript
-  import { SignedToHex } from '../../utils/SignedToHex.js';
-  
-  const hex = SignedToHex(-123, 32); // Result: "FFFFFF85"
-  ```
-- **Purpose**: Useful for scenarios requiring numeric values to be represented in hexadecimal, such as low-level data processing.
+| Helper | What it does |
+|---|---|
+| `Delay(ms)` | Waits for a number of milliseconds |
+| `GracefulExit` | Exits the process once cleanup functions have run |
+| `PathExists(path)`, `IsPath(text)` | Whether a file or directory exists; whether a string is written as a path |
+| `Glob(patterns, options?)`, `GlobSync`, `IsGlobString` | The files matching glob patterns; whether a string is a glob pattern |
+| `IsPromise`, `IsPromiseLike`, `IsAbortError` | Whether a value is a promise or a thenable; whether an error is an abort error of Node.js |
+| `IsSymbol`, `IsNativeFunction`, `IsHTML`, `IsXML` | Type guards |
+| `As<T>(value)`, `DevNull(...args)` | A cast for the type checker only; a function ignoring its arguments |
 
-#### 2.3.2 UnsignedToHex
-Converts an unsigned number to a hexadecimal string.
+```typescript
+import {Delay, Glob, PathExists, Statistics} from 'lakutata/utils'
 
-- **Functionality**: Converts an unsigned number to a hexadecimal string of specified bit length, supporting 8, 16, 32, 64, and 128 bits.
-- **Example**:
-  ```typescript
-  import { UnsignedToHex } from '../../utils/UnsignedToHex.js';
-  
-  const hex = UnsignedToHex(123, 32); // Result: "0000007B"
-  ```
-- **Purpose**: Used to convert positive integers to fixed-length hexadecimal representations.
+if (await PathExists('./src')) {
+    const sources: string[] = await Glob('src/**/*.ts')
+    console.log(`${sources.length} TypeScript files`)
+}
+await Delay(100)
+const latencies: number[] = [12, 15, 11, 90, 14, 13]
+console.log(Statistics.median(latencies), Statistics.quantile(latencies, 0.9))
+//13.5 90
+```
 
-### 2.4 Sorting and Structuring
-
-#### 2.4.1 SortArray
-Sorts an array.
-
-- **Functionality**: Based on the `sort-array` library, supports sorting by multiple fields, custom orders, and computed fields.
-- **Example**:
-  ```typescript
-  import { SortArray } from '../../utils/SortArray.js';
-  
-  const arr = [{ name: "John", age: 30 }, { name: "Alice", age: 25 }];
-  const sorted = SortArray(arr, { by: "age", order: "asc" }); // Sorts by age in ascending order
-  ```
-- **Purpose**: Provides flexible sorting capabilities for array data, suitable for tabular data or list processing.
-
-#### 2.4.2 SortKeys
-Sorts the keys of an object.
-
-- **Functionality**: Sorts the keys of an object, supporting deep sorting and custom comparison functions.
-- **Example**:
-  ```typescript
-  import { SortKeys } from '../../utils/SortKeys.js';
-  
-  const obj = { b: 2, a: 1, c: 3 };
-  const sorted = SortKeys(obj); // Result: { a: 1, b: 2, c: 3 }
-  ```
-- **Purpose**: Normalizes object structure for easier data comparison or output.
-
-#### 2.4.3 SortObject
-Sorts object keys in ascending or descending order.
-
-- **Functionality**: Sorts object keys in ascending or descending order, supporting deep sorting.
-- **Example**:
-  ```typescript
-  import { SortObject } from '../../utils/SortObject.js';
-  
-  const obj = { b: 2, a: 1, c: 3 };
-  const sorted = SortObject(obj, { order: "desc" }); // Result: { c: 3, b: 2, a: 1 }
-  ```
-- **Purpose**: Offers a simplified interface for sorting object keys, enhancing readability.
-
-### 2.5 Template Processing
-
-#### 2.5.1 Templating
-Processes template strings and replaces placeholders.
-
-- **Functionality**: Supports replacing placeholders (e.g., `{key}` or `{{key}}`) with values from a data object, including HTML escaping, ignoring missing values, and custom transformations.
-- **Example**:
-  ```typescript
-  import { Templating } from '../../utils/Templating.js';
-  
-  const template = "Hello, {name}!";
-  const result = Templating(template, { name: "Alice" }); // Result: "Hello, Alice!"
-  ```
-- **Purpose**: Used for dynamically generating text or HTML content, suitable for template rendering scenarios.
-
-## 3. Helper Functions Use Cases
-
-- **Data Processing and Transformation**: Such as array deduplication, set-to-array conversion, and numeric-to-hexadecimal conversion, simplifying data operations.
-- **Data Security**: Such as SHA1 and SHA256 hash calculations for data integrity verification or password handling.
-- **Data Structuring**: Such as array and object sorting to ensure consistency and readability in data output.
-- **Dynamic Content Generation**: Such as template processing for generating dynamic text or page content.
-
-## 4. Advantages and Features of Helper Functions
-
-- **Comprehensive Functionality**: Covers a wide range of common needs including data transformation, encryption, sorting, and template processing.
-- **Strong Independence**: Each helper function is an independent module, callable from anywhere in the framework.
-- **High Usability**: Function interfaces are concise with well-designed parameters, making integration into business logic straightforward.
-- **Performance Optimization**: For instance, hash functions prioritize native modules to ensure optimal performance.
-
-## Summary
-
-Lakutata's Helper Functions provide a set of practical utility functions covering data processing, encryption, sorting, and template generation. Designed as independent modules with simple and user-friendly interfaces, these functions significantly enhance development efficiency and reduce redundant code. As foundational utility support within the Lakutata framework, Helper Functions are applicable in various scenarios such as controllers, services, and data processing, offering developers powerful auxiliary capabilities.
+The guards (`Is*`) return `false` instead of throwing; the other helpers throw the standard JavaScript errors
+(`RangeError`, `TypeError`), and `Templating()` a `MissingValueError`.

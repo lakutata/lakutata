@@ -1,312 +1,298 @@
 # Lakutata 装饰器
 
-**Lakutata** 是一个基于 IoC（控制反转）的通用应用框架，广泛使用装饰器来实现元编程。这简化了依赖注入、控制器行为定义、数据模型管理等操作。本文档详细解释了 Lakutata 框架及其集成中使用的各种装饰器，包括 Lakutata 的自定义装饰器和集成的 TypeORM 装饰器。
+框架用装饰器声明依赖、选项、动作和校验（TypeScript 的 `experimentalDecorators` 与 `emitDecoratorMetadata`，两者都已在 `lakutata/tsconfig.json` 中开启）。装饰器由以下子路径导出：
 
-## 1. 概述
+| 子路径 | 装饰器 |
+|---|---|
+| `lakutata/decorator/di` | `@Inject`、`@Configurable`、`@Autoload`、`@Singleton`、`@Scoped`、`@Transient`、`@Lifetime` |
+| `lakutata/decorator/ctrl` | `@HTTPAction`、`@GET`、`@POST`、`@PUT`、`@PATCH`、`@DELETE`、`@HEAD`、`@OPTIONS`、`@CLIAction`、`@ServiceAction`、`@Schedule`、`@Prefix`、`@UseMiddlewares` |
+| `lakutata/decorator/dto` | `@Expect`、`@IndexSignature`、`@Accept`、`@Return` |
+| `lakutata/decorator/asst` | `@Before`、`@After` |
+| `lakutata/decorator/orm` | TypeORM 的装饰器（`@Entity`、`@Column` 等） |
+| `lakutata/com/mutex` | `@Synchronized` |
 
-在 Lakutata 中，装饰器是 TypeScript 的核心功能，用于将元数据或行为附加到类、方法或属性上。Lakutata 利用装饰器来实现依赖注入、控制器路由、数据验证以及与 TypeORM 等数据库 ORM 的集成。装饰器分为以下几类：
-- **依赖注入装饰器**：用于管理依赖和配置注入。
-- **控制器行为装饰器**：用于定义 HTTP、CLI 和服务入口点的行为。
-- **DTO 验证装饰器**：用于验证数据传输对象的属性。
-- **数据库模型装饰器**：与 TypeORM 集成，用于定义实体、列、关系和其他数据库结构。
+## 1. 依赖注入（`lakutata/decorator/di`）
 
-以下章节将详细阐述每个装饰器类别的功能和用法。
+### 1.1 `@Inject`
 
-## 2. 依赖注入装饰器
+在对象创建时、`init()` 之前，把容器中的某个对象赋给属性：
 
-依赖注入（DI）是 Lakutata 的核心机制，相关装饰器用于声明和管理组件、控制器或提供者之间的依赖关系。
+```typescript
+import {Application, Component, type ILogger} from 'lakutata'
+import {Inject} from 'lakutata/decorator/di'
 
-### 2.1 `@Inject()`
-- **功能**：声明某个属性或参数需要通过 IoC 容器进行依赖注入。支持按类型或特定名称注入。
-- **使用场景**：将服务、日志记录器或其他依赖注入到组件、控制器或提供者中。
-- **参数**：可选参数，用于指定注入对象的名称或类型（如 `Application`）。
-- **示例**：
-  ```typescript
-  import { Component } from '../../lib/core/Component.js';
-  import { Inject } from '../../decorators/di/Inject.js';
-  import type { Logger } from '../../components/Logger.js';
-  import { Application } from '../../lib/core/Application.js';
+class Mailer extends Component {
+    public async send(to: string, text: string): Promise<void> {
+        console.log(to, text)
+    }
+}
 
-  export class TestComponent extends Component {
+class Signup extends Component {
+    //以属性名注册的对象：组件 "mailer"
     @Inject()
-    protected readonly log: Logger;
+    protected readonly mailer: Mailer
 
+    //以指定名称注册的对象：预置为 "log" 的日志组件
+    @Inject('log')
+    protected readonly logger: ILogger
+
+    //为某个类注册的对象（标记了 @Autoload() 的类会在第一次使用时自动注册）
     @Inject(Application)
-    protected readonly app: Application;
+    protected readonly app: Application
+
+    //由注册对象派生的值
+    @Inject('mailer', (mailer: Mailer) => mailer.send.bind(mailer))
+    protected readonly send: (to: string, text: string) => Promise<void>
+
+    public async register(email: string): Promise<void> {
+        this.logger.info('Signup of %s', email)
+        await this.send(email, `Welcome to ${this.app.appName}`)
+    }
+}
+```
+
+无法解析的注册项会使对象创建失败，并抛出 `DependencyInjectionException`。
+
+### 1.2 `@Configurable`
+
+`@Configurable(schema?, fn?)` 把属性声明为对象的选项，选项值来自对象的声明（`{class: Server, port: 8080}`）或 `getObject()` 的第二个参数。值先由校验规则（默认 `DTO.Any()`）校验（及转换），如果提供了 `fn`，再交给 `fn` 处理（调用时 `this` 为该实例）。
+
+```typescript
+import {Application, Component, DTO} from 'lakutata'
+import {Configurable} from 'lakutata/decorator/di'
+
+class Server extends Component {
+    //声明中没有给出 port 时为 80
+    @Configurable(DTO.Number().integer().min(1).max(65535).optional().default(80))
+    protected readonly port: number
+
+    //初始值就是默认值，和配置值一样会被校验
+    @Configurable(DTO.String().required())
+    protected readonly host: string = '127.0.0.1'
+
+    //去掉基础 URL 末尾的斜杠
+    @Configurable(DTO.String().uri().optional().default('http://localhost'), (value: string): string => value.replace(/\/+$/, ''))
+    protected readonly baseURL: string
 
     protected async init(): Promise<void> {
-      this.log.info('TestComponent initialized');
+        console.log(`Listening on ${this.host}:${this.port} for ${this.baseURL}`)
     }
-  }
-  ```
-- **说明**：在上述示例中，`log` 属性通过类型推断注入了一个 `Logger` 实例，而 `app` 属性明确指定注入 `Application` 实例。
+}
 
-### 2.2 `@Configurable()`
-- **功能**：将配置值注入到属性中，通常用于提供者或组件中从配置对象获取值。
-- **使用场景**：动态注入外部配置参数（如路径、密钥）。
-- **参数**：无，通常直接应用于属性。
-- **示例**：
-  ```typescript
-  import { Provider } from '../../lib/core/Provider.js';
-  import { Configurable } from '../../decorators/di/Configurable.js';
+Application.run(() => ({
+    id: 'server.app',
+    name: 'Server',
+    components: {
+        server: {class: Server, port: 8080, baseURL: 'https://example.com/'}
+    },
+    bootstrap: ['server']
+}))
+```
 
-  export class TestProvider extends Provider {
-    @Configurable()
-    protected readonly path: string;
-
-    protected async init(): Promise<void> {
-      console.log('TestProviderInit', this.path);
-    }
-  }
-  ```
-- **说明**：`path` 属性从应用配置中获取值，该配置在 `Application.run()` 中定义（如通过 `path` 字段）。
-- **取值**：优先使用配置里给的值，其次是属性的初始值（`protected readonly port: number = 8080`），最后是 schema 的默认值（`DTO.Number().default(80)`）。初始值会和配置值一样经过校验和转换；子类可以用自己的初始值给出自己的默认值。在子类中，以最近一层的声明为准。
-- **`maxListeners`**：所有组件都有这个可配置属性（默认 11），表示同一个事件的监听器超过多少个时给出可能内存泄漏的警告（0 表示不警告；监听器数量从不受限制）。组件可以用 `protected readonly maxListeners: number = 0` 设置自己的默认值，也可以在配置里设置：`{class: MyComponent, maxListeners: 0}`。
-- **启动检查**：模块初始化时，会在创建任何对象之前检查它声明的所有对象（组件、提供者和对象）的选项，所以即使某个对象从未被使用，配置错误也会在启动时暴露：
-  - 不符合 `@Configurable()` 属性 schema 的值会导致启动失败，抛出 `InvalidObjectOptionsException`，并列出所有不合法的选项；
-  - 不是该类 `@Configurable()` 属性的选项会被忽略并给出警告，警告中列出该类的可配置属性（用于发现拼错的选项名）。
+- **取值**：优先使用配置里给的值，其次是属性的初始值（`protected readonly host: string = '127.0.0.1'`），最后是校验规则的默认值（`DTO.Number().default(80)`）。初始值会和配置值一样经过校验和转换；子类可以用自己的初始值给出自己的默认值。
+- **`maxListeners`**：所有组件都有这个可配置属性（默认 11），表示同一个事件的监听器超过多少个时给出可能内存泄漏的警告（0 表示不警告；监听器数量从不受限制）。组件可以用 `protected readonly maxListeners: number = 0` 设置自己的默认值，也可以在声明里设置：`{class: MyComponent, maxListeners: 0}`。
+- **启动检查**：模块（或应用）初始化时，会在创建任何对象之前检查它声明的所有对象（组件、提供者和对象）的选项，所以即使某个对象从未被使用，配置错误也会在启动时暴露：
+  - 不符合 `@Configurable` 属性校验规则的值会导致启动失败，抛出 `InvalidObjectOptionsException`，并列出所有不合法的选项；
+  - 不是该类 `@Configurable` 属性的选项会被忽略并给出警告，警告中列出该类的可配置属性（用于发现拼错的选项名）。
 
   通过 `getConfigurableRecords()` 读取非可配置属性选项的类，可以覆盖静态方法 `acceptsOption(name, value)` 来接受这些选项，不产生警告。由外部（异步）规则校验的值在对象创建时校验。在应用或模块的选项中设置 `checkOptions: false` 可以关闭这项检查。
 
-### 2.3 `@Transient()`
-- **功能**：定义类的生命周期为瞬态，即每次请求该对象时都会创建一个新实例。
-- **使用场景**：适用于需要独立状态或资源的场景，避免单例模式下的共享状态。
-- **参数**：无，通常在类级别应用。
-- **示例**：
-  ```typescript
-  import { Provider } from '../../lib/core/Provider.js';
-  import { Transient } from '../../decorators/di/Lifetime.js';
+### 1.3 `@Autoload`
 
-  @Transient()
-  export class TestProvider extends Provider {
-    protected async init(): Promise<void> {
-      console.log('New instance created');
+标记了 `@Autoload()` 的类在第一次被请求时（`@Inject(TheClass)`、`getObject(TheClass)`）自动注册，而不是报错：单例注册到根容器，作用域类注册到最近的作用域，瞬态类注册到发起请求的容器。该标记不会被子类继承。
+
+### 1.4 生命周期：`@Singleton`、`@Scoped`、`@Transient`、`@Lifetime`
+
+| 装饰器 | 实例数量 | 默认用于 |
+|---|---|---|
+| `@Singleton(lock?)` | 每个注册该类的容器一个 | `Component`、`Module`（锁定） |
+| `@Scoped(lock?)` | 每个作用域一个（入口的一次请求） | `Provider`、`Controller`（锁定） |
+| `@Transient(lock?)` | 每次解析一个 | `BaseObject` |
+
+`@Lifetime('SINGLETON' | 'SCOPED' | 'TRANSIENT', lock?)` 是它们的完整写法。`lock` 为 `true` 时，子类不能声明其他生命周期类型（子类定义时抛出 `LifetimeLockedException`）；`Provider` 不能是单例。
+
+```typescript
+import {Provider} from 'lakutata'
+import {Transient} from 'lakutata/decorator/di'
+
+//每个使用者都得到自己的构建器，各自保存状态
+@Transient()
+export class QueryBuilder extends Provider {
+    protected readonly clauses: string[] = []
+
+    public where(clause: string): this {
+        this.clauses.push(clause)
+        return this
     }
-  }
-  ```
-- **说明**：每次请求 `TestProvider` 时，IoC 容器都会返回一个新实例，而不是共享的单例。
+}
+```
 
-### 2.4 子类的属性
-- **继承**：子类继承父类的 `@Inject()` 和 `@Configurable()` 属性。子类重新声明某个属性时，会取代父类对它的声明，不论使用的是哪种装饰器，以最近一层的声明为准（父类注入的属性，在子类里用 `@Configurable()` 重新声明后，只按配置处理，不再注入；反之亦然）。
+### 1.5 子类的属性
+
+- **继承**：子类继承父类的 `@Inject` 和 `@Configurable` 属性。子类重新声明某个属性时，会取代父类对它的声明，不论使用的是哪种装饰器，以最近一层的声明为准（父类注入的属性，在子类里用 `@Configurable` 重新声明后，只按配置处理，不再注入；反之亦然）。
 - **属性的类型**：TypeScript 允许子类在重新声明属性时把类型改窄（例如把 `Store` 改成 `MemoryStore`），但不允许换成其他类型：把 `number` 换成 `string` 会报 `TS2416`（`Property 'port' in type 'BrokenServer' is not assignable to the same property in base type 'PlainServer'`），而且没有任何编译选项可以关闭这个检查。如果父类允许子类替换某个属性的类型，就用泛型参数来声明这个属性：
   - 父类在类上声明泛型参数，按属性命名并以 `Type` 结尾（属性 `store` 对应 `StoreType`）。加上约束（`extends Store`）：父类可以按约束的类型使用这个属性，子类也只能换成兼容的类型。再加上默认类型（`= Store`）：不需要替换类型的子类，继承时不用填写类型参数；
   - 子类在 `extends` 处填入具体类型。只有需要更换装饰器时，才在子类里重新声明这个属性。
-- **示例**：
-  ```typescript
-  import { Component, DTO } from 'lakutata';
-  import { Configurable, Inject } from 'lakutata/decorator/di';
 
-  export interface Store {
-    get(key: string): Promise<unknown>;
-  }
+```typescript
+import {Component, DTO} from 'lakutata'
+import {Configurable, Inject} from 'lakutata/decorator/di'
 
-  export interface MemoryStore extends Store {
-    clear(): void;
-  }
+export interface Store {
+    get(key: string): Promise<unknown>
+}
 
-  export class Repository<StoreType extends Store = Store> extends Component {
+export interface MemoryStore extends Store {
+    clear(): void
+}
+
+export class Repository<StoreType extends Store = Store> extends Component {
     @Inject('store')
-    protected readonly store: StoreType;
+    protected readonly store: StoreType
 
     public async find(key: string): Promise<unknown> {
-      return await this.store.get(key);
+        return await this.store.get(key)
     }
-  }
+}
 
-  // 沿用父类的类型：store 是 Store
-  export class RemoteRepository extends Repository {
-  }
+//沿用父类的类型：store 是 Store
+export class RemoteRepository extends Repository {
+}
 
-  // 换成其他类型：store 是 MemoryStore，仍按父类的声明注入
-  export class MemoryRepository extends Repository<MemoryStore> {
+//换成其他类型：store 是 MemoryStore，按父类的声明注入
+export class MemoryRepository extends Repository<MemoryStore> {
     public reset(): void {
-      this.store.clear();
+        this.store.clear()
     }
-  }
+}
 
-  export class Server<PortType extends number | string = number> extends Component {
+export class Server<PortType extends number | string = number> extends Component {
     @Configurable(DTO.Number().integer().min(1).optional().default(80))
-    protected readonly port: PortType;
-  }
+    protected readonly port: PortType
+}
 
-  // 换成其他类型和其他 schema：port 是一个名称
-  export class NamedPortServer extends Server<string> {
+//换成其他类型和其他校验规则：port 是一个名称
+export class NamedPortServer extends Server<string> {
     @Configurable(DTO.String().valid('auto', 'http', 'https').optional().default('auto'))
-    protected readonly port: string;
-  }
-  ```
-- **说明**：在 `MemoryRepository` 里，IDE 会把 `this.store` 当作 `MemoryStore` 来补全；在 `Repository` 里则当作 `Store`。如果父类没有声明泛型参数，子类只能在属性上用 `// @ts-expect-error` 压制这个错误，而父类的方法仍会按原来的类型使用这个属性。
+    protected readonly port: string
+}
+```
 
-## 3. 控制器行为装饰器
+在 `MemoryRepository` 里，IDE 会把 `this.store` 当作 `MemoryStore` 来补全；在 `Repository` 里则当作 `Store`。如果父类没有声明泛型参数，子类只能在属性上用 `// @ts-expect-error` 压制这个错误，而父类的方法仍会按原来的类型使用这个属性。
 
-Lakutata 中的控制器（`Controller`）使用装饰器来定义处理 HTTP 请求、CLI 命令或服务消息的行为。这些装饰器指定路由、命令或消息模式。
+## 2. 控制器动作（`lakutata/decorator/ctrl`）
 
-### 3.1 `@HTTPAction(route: string, methods: string | string[], dto?: DTO)`
-- **功能**：定义控制器方法以处理特定的 HTTP 请求路由和方法（如 GET、POST）。
-- **使用场景**：在 HTTP 入口点中定义 API 端点。
-- **参数**：
-  - `route`：路由路径，支持参数化（如 `/test/:id`）。
-  - `methods`：支持的 HTTP 方法，可以是单个字符串（如 `'GET'`）或数组（如 `['GET', 'POST']`）。
-  - `dto`：可选参数，指定用于输入数据验证的数据传输对象（DTO）类。
-- **示例**：
-  ```typescript
-  import { Controller } from '../../components/entrypoint/lib/Controller.js';
-  import { HTTPAction } from '../../decorators/ctrl/HTTPAction.js';
-  import { DTO } from '../../lib/core/DTO.js';
+这些装饰器用于 `Controller` 子类的方法（`@Prefix` 和 `@UseMiddlewares` 也可用于类）；详见 [ActionPattern](ActionPattern.md)。
 
-  class TestDTO extends DTO {
-    // DTO 定义省略
-  }
+| 装饰器 | 地址 |
+|---|---|
+| `@HTTPAction(route, method \| methods, DTO?, options?)` | 一个或多个 HTTP 方法（`'get'`、`['get', 'post']`）的路由 |
+| `@GET(route, DTO?, options?)`、`@POST`、`@PUT`、`@PATCH`、`@DELETE`、`@HEAD`、`@OPTIONS` | 单个 HTTP 方法的路由 |
+| `@CLIAction(command, DTO?, options?)` | CLI 命令（`'copy <source> [target]'`；名称前面的词是命令分组） |
+| `@ServiceAction(pattern, DTO?, options?)` | 服务模式（`{cmd: 'order.get'}`） |
+| `@Schedule(schedule, options?)` | 间隔（`'30s'`）或 cron 表达式（`'0 3 * * *'`） |
+| `@Prefix({route, command, pattern})` | 为控制器类中动作的地址添加前缀 |
+| `@UseMiddlewares(...middlewares)` | 控制器类或动作的中间件 |
 
-  export class TestController1 extends Controller {
-    @HTTPAction('/test', 'GET')
-    public async test(inp) {
-      return 'oh!';
-    }
+`options` 是动作选项：`acl`、`name`、`description`、`groups`、`rule`、`middlewares`。
 
-    @HTTPAction('/test/:id', ['GET', 'POST'], TestDTO)
-    public async test3(inp) {
-      return 'oh!!!!!!!!!!';
-    }
-  }
-  ```
-- **说明**：`test` 方法处理 `/test` 路径的 GET 请求，而 `test3` 方法处理 `/test/:id` 的 GET 和 POST 请求，并使用 `TestDTO` 进行输入验证。
-
-### 3.2 `@CLIAction(command: string, dto?: DTO)`
-- **功能**：定义控制器方法以处理特定的 CLI 命令。
-- **使用场景**：在 CLI 入口点中定义命令行操作。
-- **参数**：
-  - `command`：命令名称。
-  - `dto`：可选参数，指定用于验证命令参数的 DTO 类。
-- **示例**：
-  ```typescript
-  import { Controller } from '../../components/entrypoint/lib/Controller.js';
-  import { CLIAction } from '../../decorators/ctrl/CLIAction.js';
-  import { DTO } from '../../lib/core/DTO.js';
-
-  class TestDTO extends DTO {
-    // DTO 定义省略
-  }
-
-  export class TestController1 extends Controller {
-    @CLIAction('test3', TestDTO)
-    public async test3(inp) {
-      console.log('cli!');
-      return 'oh!!!!!!!!!!';
-    }
-  }
-  ```
-- **说明**：`test3` 方法处理 `test3` 命令，并使用 `TestDTO` 验证输入参数。
-- **参数与命令组**：命令可以声明位置参数（`'copy <files...> [target]'`），按名字传给 DTO 中同名的属性。参数之前的单词中，
-  除最后一个外都是命令组：`@CLIAction('package exe <name>', ExeDTO)` 是命令组 `package` 下的命令 `exe`
-  （`tool package exe app`），`tool package --help` 会列出这个组的所有命令。命令组的说明由适配器的 `groups` 选项给出
-  （`CommanderCLIEntrypoint({groups: {package: '打包应用'}})`，翻译键为 `commands.package.description`）。
-
-### 3.3 `@ServiceAction(pattern: object)`
-- **功能**：定义控制器方法以处理特定的服务消息模式。
-- **使用场景**：在服务入口点中处理实时消息或其他服务请求。
-- **参数**：
-  - `pattern`：用于匹配服务请求的消息模式对象。
-- **示例**：
-  ```typescript
-  import { Controller } from '../../components/entrypoint/lib/Controller.js';
-  import { ServiceAction } from '../../decorators/ctrl/ServiceAction.js';
-
-  export class TestController1 extends Controller {
-    @ServiceAction({
-      act: 'test3',
-      bbc: { abc: true, ccc: 1 }
-    })
-    public async test3(inp) {
-      return 'oh!!!!!!!!!!';
-    }
-  }
-  ```
-- **说明**：`test3` 方法处理与指定模式匹配的服务请求。
-
-## 4. DTO 验证装饰器
-
-数据传输对象（DTO）用于验证输入数据，Lakutata 提供装饰器来定义 DTO 属性的验证规则。
-
-### 4.1 `@Expect(rule: DTO.Rule)`
-- **功能**：为 DTO 属性定义验证规则，如是否必填或有类型约束。
-- **使用场景**：在 DTO 类中验证 HTTP 请求或 CLI 命令的输入数据。
-- **参数**：
-  - `rule`：验证规则对象，通常使用 `DTO.String()`、`DTO.Number()` 等方法构建。
-- **示例**：
-  ```typescript
-  import { DTO } from '../../lib/core/DTO.js';
-  import { Expect } from '../../decorators/dto/Expect.js';
-
-  class TestDTO extends DTO {
-    @Expect(DTO.String().optional())
-    public aaa: string;
-
-    @Expect(DTO.Number().required().strict(false).description('hahahaha'))
-    public bbb: number;
-  }
-  ```
-- **说明**：`aaa` 属性是一个可选的字符串，而 `bbb` 属性是一个必填的数字，并附带描述信息。
-
-## 5. 数据库模型装饰器（TypeORM 集成）
-
-Lakutata 与 TypeORM 集成用于数据库操作，提供了众多装饰器来定义实体、列、关系等。这些装饰器直接引用自 TypeORM 库，Lakutata 通过导出提供了便捷的访问方式。
-
-### 5.1 实体相关装饰器
-- **`@Entity()`**：将类标记为数据库实体，映射到数据库表。
-- **`@ViewEntity()`**：将类标记为视图实体，映射到数据库视图（参见 `ViewEntity.ts`）。
-- **`@Unique()`**：在字段或字段组合上定义唯一约束（参见 `Unique.ts`）。
-
-### 5.2 列相关装饰器
-- **`@Column()`**：在实体中定义列，指定数据类型和属性。
-- **`@PrimaryColumn()`**：定义主键列。
-- **`@PrimaryGeneratedColumn()`**：定义自动生成的主键列（例如自增 ID）。
-- **`@CreateDateColumn()`**：定义创建日期列，自动记录实体创建时间。
-- **`@UpdateDateColumn()`**：定义更新日期列，自动记录实体更新时间（参见 `UpdateDateColumn.ts`）。
-- **`@VersionColumn()`**：定义版本列，用于乐观锁（参见 `VersionColumn.ts`）。
-- **`@ViewColumn()`**：定义视图列，适用于视图实体（参见 `ViewColumn.ts`）。
-- **`@VirtualColumn()`**：定义虚拟列，不存储在数据库中但可在查询中使用（参见 `VirtualColumn.ts`）。
-
-### 5.3 关系相关装饰器
-- **`@OneToOne()`**：定义一对一关系。
-- **`@OneToMany()`**：定义一对多关系。
-- **`@ManyToOne()`**：定义多对一关系。
-- **`@ManyToMany()`**：定义多对多关系。
-
-### 5.4 树结构相关装饰器
-Lakutata 支持 TypeORM 的树结构功能，用于实现嵌套集或闭包表以处理层次数据：
-- **`@Tree()`**：将实体标记为树结构实体（参见 `Tree.ts`）。
-- **`@TreeChildren()`**：定义树结构的子节点属性（参见 `TreeChildren.ts`）。
-- **`@TreeParent()`**：定义树结构的父节点属性（参见 `TreeParent.ts`）。
-- **`@TreeLevelColumn()`**：定义树结构中的级别列，记录节点级别（参见 `TreeLevelColumn.ts`）。
-
-### 5.5 使用示例
-以下是一个简单的实体定义示例，展示了 TypeORM 装饰器的使用：
 ```typescript
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import {DTO} from 'lakutata'
+import {Controller} from 'lakutata/com/entrypoint'
+import {CLIAction, HTTPAction, ServiceAction} from 'lakutata/decorator/ctrl'
+import {Expect} from 'lakutata/decorator/dto'
+
+class ItemDTO extends DTO {
+    @Expect(DTO.Number().integer().strict(false).required().description('The item id'))
+    public id: number
+}
+
+class ItemController extends Controller {
+    @HTTPAction('/items/:id', ['get', 'post'], ItemDTO)
+    @CLIAction('item <id>', ItemDTO, {description: 'Show an item'})
+    @ServiceAction({act: 'item.get'}, ItemDTO)
+    public async get(input: ItemDTO): Promise<{ id: number }> {
+        return {id: input.id}
+    }
+}
+```
+
+CLI 命令名称前面的词是命令分组：`@CLIAction('package exe <name>', ExeDTO)` 是命令组 `package` 下的命令 `exe`（`tool package exe app`），`tool package --help` 会列出这个组的所有命令。命令组的说明由适配器的 `groups` 选项给出（`CommanderCLIEntrypoint({groups: {package: '打包应用'}})`，翻译键为 `commands.package.description`）。
+
+## 3. 校验（`lakutata/decorator/dto`）
+
+| 装饰器 | 效果 |
+|---|---|
+| `@Expect(schema)` | DTO 属性的校验规则（`DTO.String().required()`） |
+| `@IndexSignature(schema)` | DTO 类保留没有规则的字段，并按该规则校验 |
+| `@Accept(...schemas)` | 每次调用方法时按位置校验参数 |
+| `@Return(schema)` | 每次调用方法时校验返回值 |
+
+见 [DTOValidation](DTOValidation.md)。
+
+## 4. 辅助装饰器（`lakutata/decorator/asst`）
+
+`@Before(fn)` 在方法每次调用之前以其参数执行一个函数：函数返回的数组会替换传给方法的参数。`@After(fn)` 在每次调用之后以其结果执行一个函数：函数返回的非 `undefined` 值会替换结果。这些函数调用时 `this` 为该实例；只有方法是异步的，函数才可以是异步的。
+
+```typescript
+import {Component} from 'lakutata'
+import {After, Before} from 'lakutata/decorator/asst'
+
+class Users extends Component {
+    //按去除首尾空格并转为小写后的名称查找
+    @Before(function (this: Users, name: string): [string] {
+        return [name.trim().toLowerCase()]
+    })
+    public async find(name: string): Promise<string | undefined> {
+        return name === 'ada' ? 'Ada Lovelace' : undefined
+    }
+}
+
+class Prices extends Component {
+    //价格四舍五入到分
+    @After(async function (this: Prices, price: number): Promise<number> {
+        return Math.round(price * 100) / 100
+    })
+    public async withTax(price: number): Promise<number> {
+        return price * 1.196
+    }
+}
+```
+
+## 5. 锁（`lakutata/com/mutex`）
+
+`@Synchronized` 让控制器动作在持有 `Mutex` 组件的锁时执行，锁在输入校验和访问控制通过之后获取。见 [Mutex](Mutex.md)。
+
+## 6. 数据库实体（`lakutata/decorator/orm`）
+
+`lakutata/decorator/orm` 重新导出 TypeORM 的装饰器：
+
+- 实体：`@Entity`、`@ViewEntity`、`@ChildEntity`、`@TableInheritance`、`@Unique`、`@Index`、`@Check`、`@Exclusion`。
+- 列：`@Column`、`@PrimaryColumn`、`@PrimaryGeneratedColumn`、`@Generated`、`@ObjectIdColumn`、`@CreateDateColumn`、`@UpdateDateColumn`、`@DeleteDateColumn`、`@VersionColumn`、`@ViewColumn`、`@VirtualColumn`。
+- 关系：`@OneToOne`、`@OneToMany`、`@ManyToOne`、`@ManyToMany`、`@JoinColumn`、`@JoinTable`、`@RelationId`。
+- 树：`@Tree`、`@TreeChildren`、`@TreeParent`、`@TreeLevelColumn`。
+- 监听器：`@BeforeInsert`、`@AfterInsert`、`@BeforeUpdate`、`@AfterUpdate`、`@BeforeRemove`、`@AfterRemove`、`@BeforeSoftRemove`、`@AfterSoftRemove`、`@BeforeRecover`、`@AfterRecover`、`@AfterLoad`、`@EventSubscriber`。
+
+```typescript
+import {Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn} from 'lakutata/decorator/orm'
 
 @Entity()
 export class User {
-  @PrimaryGeneratedColumn()
-  id: number;
+    @PrimaryGeneratedColumn()
+    public id: number
 
-  @Column()
-  name: string;
+    @Column()
+    public name: string
 
-  @Column()
-  email: string;
+    @Column({unique: true})
+    public email: string
 
-  @CreateDateColumn()
-  createdAt: Date;
+    @CreateDateColumn()
+    public createdAt: Date
 
-  @UpdateDateColumn()
-  updatedAt: Date;
+    @UpdateDateColumn()
+    public updatedAt: Date
 }
 ```
-- **说明**：`User` 类被标记为数据库实体，`id` 是一个自增主键，`name` 和 `email` 是普通列，`createdAt` 和 `updatedAt` 自动记录创建和更新时间。
 
-## 总结
-
-Lakutata 框架利用装饰器实现了高度模块化和声明式的开发方式。依赖注入装饰器（如 `@Inject`、`@Configurable`）简化了组件间的依赖管理；控制器行为装饰器（如 `@HTTPAction`、`@CLIAction`）提供了灵活的入口点行为定义；DTO 验证装饰器（如 `@Expect`）确保输入数据的有效性；数据库模型装饰器（从 TypeORM 集成）支持复杂的数据库操作和关系管理。这些装饰器共同构成了 Lakutata 框架强大的功能基础。
-
-有关 Lakutata 其他功能的详细信息，请参阅相关文档章节。
+见 [ORMIntegration](ORMIntegration.md)。

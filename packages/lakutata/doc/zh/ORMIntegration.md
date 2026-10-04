@@ -1,348 +1,319 @@
 # Lakutata ORM 集成
 
-**Lakutata** 是一个基于 IoC（控制反转）的通用应用框架，旨在为 TypeScript 和 Node.js 开发者提供模块化且可扩展的开发体验。在数据库操作方面，Lakutata 集成了 **TypeORM**（一个强大的对象关系映射库），提供了无缝的数据库访问和管理能力。本文档详细解释了 Lakutata 框架中的 ORM 集成特性、配置方法、核心装饰器以及使用示例。
+框架的 ORM（`@lakutata/orm` 包）基于 [TypeORM](https://typeorm.io) 0.3。`lakutata` 包通过四个子路径重新导出它：
 
-## 1. ORM 集成概述
+| 子路径 | 内容 |
+|---|---|
+| `lakutata/com/database` | `Database` 组件（整个应用共享一个连接）和 `BuildDatabaseOptions` |
+| `lakutata/provider/database` | `Database` 提供者（每次解析都有自己的连接）和 `BuildDatabaseOptions` |
+| `lakutata/decorator/orm` | TypeORM 的实体装饰器（`@Entity`、`@Column`、关系等） |
+| `lakutata/orm` | TypeORM 的 API：`Repository`、`EntityManager`、`QueryRunner`、查询操作符、`BaseEntity`、迁移、错误类 |
 
-Lakutata 选择 TypeORM 作为主要的 ORM 解决方案，因为 TypeORM 支持多种数据库（包括 MySQL、PostgreSQL、SQLite、MongoDB 等），并与 TypeScript 深度集成，允许通过装饰器和类定义数据库模型。Lakutata 封装并导出了 TypeORM 的功能，使开发者能够在框架内无缝定义实体、执行数据库操作和管理关系。
+更多细节见 `@lakutata/orm` 的 README；实体、查询选项、查询构建器和迁移的用法见 TypeORM 文档。
 
-### 1.1 核心特性
-- **实体定义**：使用装饰器（如 `@Entity`）将 TypeScript 类映射到数据库表或视图。
-- **列和关系管理**：支持多种列类型（如 `@Column`、`@PrimaryGeneratedColumn`）和关系定义（如 `@OneToMany`、`@ManyToOne`）。
-- **树结构支持**：使用 TypeORM 的树结构装饰器（如 `@Tree`、`@TreeChildren`）实现嵌套集或闭包表等层次数据管理。
-- **数据库操作**：通过 TypeORM 的 `Repository` 和 `EntityManager` 提供 CRUD 操作、查询构建和事务管理。
-- **多数据库支持**：允许多个数据库实例的配置和连接，适用于复杂的应用场景。
-- **IoC 容器集成**：Lakutata 提供了作为组件或提供者的 `Database` 类，通过 IoC 容器实现数据库连接和实体管理的依赖注入，简化配置和生命周期管理。
+## 1. 安装
 
-### 1.2 集成方式
-Lakutata 将 TypeORM 集成作为可选依赖，允许开发者使用提供的 `Database` 类（实现为组件或提供者）配置数据库连接，并在应用启动时初始化。Lakutata 还导出了 TypeORM 装饰器（如 `Entity`、`Column`），方便访问，无需直接导入 TypeORM 库。
+TypeORM 是该包的依赖，数据库驱动则不是。请按连接的 `type` 安装对应的驱动：
 
-### 1.3 提供的数据库类
-Lakutata 提供了两个版本的 `Database` 类，适用于不同的注入场景：
-- **Database 组件（单例）**：以单例模式运行，适用于在整个应用中共享单个数据库连接实例。用 `@Singleton()` 装饰器定义，其生命周期与应用一致。
-- **Database 提供者（瞬态）**：以瞬态模式运行，每次请求创建一个新实例，适用于需要独立数据库连接的场景。用 `@Transient()` 装饰器定义。
+| 数据库 | `type` | 需安装 |
+|---|---|---|
+| PostgreSQL、CockroachDB | `postgres`、`cockroachdb` | `pg` |
+| MySQL、MariaDB | `mysql`、`mariadb` | `mysql2` |
+| SQLite | `sqlite` / `better-sqlite3` | `sqlite3` / `better-sqlite3` |
+| 内存中的 SQLite（WebAssembly） | `sqljs` | `sql.js` |
+| Microsoft SQL Server | `mssql` | `mssql` |
+| Oracle | `oracle` | `oracledb` |
+| MongoDB | `mongodb` | `mongodb`（5 或 6） |
 
-两个版本都支持通过 `@Configurable()` 装饰器注入数据库连接选项（`options`），提供者版本还额外支持配置实体列表（`entities`）。
-
-## 2. 配置 ORM 连接
-
-在 Lakutata 中，ORM 连接通常通过应用配置或组件定义。开发者需要在 `Application.run()` 方法中指定数据库连接参数，并通过 IoC 容器管理数据库服务。Lakutata 提供了 `BuildDatabaseOptions` 方法来简化数据库连接选项的构建。
-
-### 2.1 数据库连接配置
-以下是一个典型的数据库连接配置示例，展示如何在 Lakutata 应用中使用 `Database` 组件初始化 TypeORM：
-
-```typescript
-import { Application } from '../lib/core/Application.js';
-import { BuildDatabaseOptions } from '../components/Database.js';
-
-// 定义数据库连接配置
-Application.run(() => ({
-  id: 'test.app',
-  name: 'TestApp',
-  timezone: 'auto',
-  components: {
-    db: BuildDatabaseOptions({
-      type: 'mysql',
-      host: 'localhost',
-      port: 3306,
-      username: 'root',
-      password: 'password',
-      database: 'test_db',
-      entities: [__dirname + '/entities/*.js'],
-      synchronize: true // 仅用于开发环境；生产环境应设置为 false
-    })
-  },
-  bootstrap: ['db']
-}));
+```shell
+npm install lakutata pg
 ```
 
-- **说明**：`BuildDatabaseOptions` 方法构建数据库连接选项并将其注册为 `db` 组件。设置 `synchronize: true` 启用自动数据库模式同步，仅适用于开发环境。`Database` 组件根据提供的 `options` 初始化 TypeORM 的 `DataSource`。
+## 2. Database 组件
 
-### 2.2 使用提供者版本
-对于需要瞬态数据库连接的场景，可以使用 `Database` 提供者版本：
-
-```typescript
-import { Application } from '../lib/core/Application.js';
-import { BuildDatabaseOptions } from '../providers/Database.js';
-
-// 定义数据库连接配置
-Application.run(() => ({
-  id: 'test.app',
-  name: 'TestApp',
-  timezone: 'auto',
-  providers: {
-    transientDb: BuildDatabaseOptions({
-      type: 'postgres',
-      host: 'localhost',
-      port: 5432,
-      username: 'postgres',
-      password: 'password',
-      database: 'test_db',
-      entities: [__dirname + '/entities/*.js'],
-      synchronize: true
-    })
-  }
-}));
-```
-
-- **说明**：`Database` 提供者以瞬态模式运行，每次请求 `transientDb` 时创建一个新的数据库连接实例，适用于需要独立连接的场景。
-
-### 2.3 通过 IoC 容器注入
-Lakutata 的 IoC 容器支持将数据库连接或 `Repository` 实例注入到组件或控制器中，简化数据库访问：
+`BuildDatabaseOptions` 用 TypeORM 的连接选项（`DataSourceOptions`，原样传给 TypeORM）声明一个 `Database` 组件。组件在创建时连接数据库（列入 `bootstrap` 时在启动阶段连接；连接失败会使启动失败），在应用停止时断开。其他对象按名称注入它。
 
 ```typescript
-import { Component } from '../../lib/core/Component.js';
-import { Inject } from '../../decorators/di/Inject.js';
-import { Repository } from 'typeorm';
-import { User } from './entities/User.js';
-import { Database } from '../../components/Database.js';
+import {Application, Component} from 'lakutata'
+import {Inject} from 'lakutata/decorator/di'
+import {BuildDatabaseOptions, Database} from 'lakutata/com/database'
+import {Column, CreateDateColumn, Entity, PrimaryGeneratedColumn} from 'lakutata/decorator/orm'
 
-export class UserService extends Component {
-  @Inject('db')
-  protected readonly db: Database;
+@Entity('users')
+class User {
+    @PrimaryGeneratedColumn()
+    public id: number
 
-  protected userRepository: Repository<User>;
+    @Column({type: 'varchar', length: 100})
+    public name: string
 
-  protected async init(): Promise<void> {
-    this.userRepository = this.db.getRepository(User);
-    console.log('UserService initialized with repository');
-  }
+    @Column({unique: true})
+    public email: string
 
-  public async getAllUsers(): Promise<User[]> {
-    return this.userRepository.find();
-  }
+    @CreateDateColumn({type: 'timestamptz'})
+    public createdAt: Date
 }
-```
 
-- **说明**：`UserService` 通过 `@Inject` 装饰器获取数据库组件，并提取 `User` 实体的 `Repository`，便于后续数据库操作。
+class Users extends Component {
+    //以 "db" 注册的组件
+    @Inject('db')
+    protected readonly db: Database
 
-## 3. 实体和装饰器
-
-Lakutata 集成了 TypeORM 装饰器，用于定义数据库实体、列、关系等。以下是常用的装饰器及其功能。
-
-### 3.1 实体相关装饰器
-- **`@Entity()`**：将类标记为数据库实体，映射到数据库表。
-- **`@ViewEntity()`**：将类标记为视图实体，映射到数据库视图。
-- **`@Unique()`**：在字段或字段组合上定义唯一约束。
-
-### 3.2 列相关装饰器
-- **`@Column()`**：在实体中定义列，指定数据类型和属性（如 `type: 'varchar', length: 255`）。
-- **`@PrimaryColumn()`**：定义主键列。
-- **`@PrimaryGeneratedColumn()`**：定义自动生成的主键列（如自增 ID）。
-- **`@CreateDateColumn()`**：定义创建日期列，自动记录实体创建时间。
-- **`@UpdateDateColumn()`**：定义更新日期列，自动记录实体更新时间。
-- **`@VersionColumn()`**：定义版本列，用于乐观锁。
-- **`@ViewColumn()`**：定义视图列，适用于视图实体。
-- **`@VirtualColumn()`**：定义虚拟列，不存储在数据库中，但可在查询中使用。
-
-### 3.3 关系相关装饰器
-- **`@OneToOne()`**：定义一对一关系。
-- **`@OneToMany()`**：定义一对多关系。
-- **`@ManyToOne()`**：定义多对一关系。
-- **`@ManyToMany()`**：定义多对多关系。
-
-### 3.4 树结构相关装饰器
-Lakutata 支持 TypeORM 的树结构功能，用于实现嵌套集或闭包表的层次数据：
-- **`@Tree()`**：将实体标记为树结构实体。
-- **`@TreeChildren()`**：定义树结构的子节点属性。
-- **`@TreeParent()`**：定义树结构的父节点属性。
-- **`@TreeLevelColumn()`**：定义树结构中的级别列，记录节点级别。
-
-### 3.5 实体定义示例
-以下是一个简单的实体定义示例，展示 TypeORM 装饰器的使用：
-
-```typescript
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
-import { Post } from './Post.js';
-
-@Entity()
-export class User {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @Column({ type: 'varchar', length: 100 })
-  name: string;
-
-  @Column({ type: 'varchar', length: 255, unique: true })
-  email: string;
-
-  @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
-
-  @OneToMany(() => Post, (post) => post.author)
-  posts: Post[];
-}
-```
-
-- **说明**：`User` 实体定义了一个自增主键 `id`，普通列 `name` 和 `email`（`email` 具有唯一约束），自动时间戳 `createdAt` 和 `updatedAt`，以及与 `Post` 实体的一对多关系。
-
-## 4. 数据库操作
-
-Lakutata 通过 `Database` 类全面支持 TypeORM 的数据库操作，包括 CRUD 操作、查询构建、事务管理和迁移操作。
-
-### 4.1 CRUD 操作
-使用 `Repository`，可以轻松实现基本的创建、读取、更新和删除操作：
-
-```typescript
-import { Component } from '../../lib/core/Component.js';
-import { Inject } from '../../decorators/di/Inject.js';
-import { Repository } from 'typeorm';
-import { User } from './entities/User.js';
-import { Database } from '../../components/Database.js';
-
-export class UserService extends Component {
-  @Inject('db')
-  protected readonly db: Database;
-
-  protected userRepository: Repository<User>;
-
-  protected async init(): Promise<void> {
-    this.userRepository = this.db.getRepository(User);
-    console.log('UserService initialized with repository');
-  }
-
-  // 创建用户
-  public async createUser(name: string, email: string): Promise<User> {
-    const user = this.userRepository.create({ name, email });
-    return await this.userRepository.save(user);
-  }
-
-  // 获取所有用户
-  public async getAllUsers(): Promise<User[]> {
-    return await this.userRepository.find();
-  }
-
-  // 根据 ID 获取用户
-  public async getUserById(id: number): Promise<User | null> {
-    return await this.userRepository.findOneBy({ id });
-  }
-
-  // 更新用户
-  public async updateUser(id: number, name: string): Promise<User | null> {
-    const user = await this.userRepository.findOneBy({ id });
-    if (user) {
-      user.name = name;
-      return await this.userRepository.save(user);
+    public async register(name: string, email: string): Promise<User> {
+        return await this.db.getRepository(User).save({name: name, email: email})
     }
-    return null;
-  }
 
-  // 删除用户
-  public async deleteUser(id: number): Promise<boolean> {
-    const result = await this.userRepository.delete(id);
-    return result.affected > 0;
-  }
-}
-```
+    public async find(id: number): Promise<User | null> {
+        return await this.db.getRepository(User).findOneBy({id: id})
+    }
 
-- **说明**：`UserService` 为 `User` 实体提供了基本操作，包括创建、获取、更新和删除。
+    public async rename(id: number, name: string): Promise<void> {
+        await this.db.getRepository(User).update({id: id}, {name: name})
+    }
 
-### 4.2 复杂查询
-`Database` 类提供了 `createQueryBuilder` 方法，支持复杂查询条件：
-
-```typescript
-public async findUsersByName(name: string): Promise<User[]> {
-  return await this.db
-    .createQueryBuilder(User, 'user')
-    .where('user.name LIKE :name', { name: `%${name}%` })
-    .orderBy('user.createdAt', 'DESC')
-    .getMany();
-}
-```
-
-- **说明**：上述方法使用查询构建器查找名称包含指定字符串的用户，并按创建时间降序排列。
-
-### 4.3 事务管理
-`Database` 类支持事务，确保数据操作的原子性：
-
-```typescript
-public async createUserWithPost(name: string, email: string, postTitle: string): Promise<User> {
-  return await this.db.transaction(async (entityManager) => {
-    const user = await entityManager.save(User, { name, email });
-    await entityManager.save(Post, { title: postTitle, author: user });
-    return user;
-  });
-}
-```
-
-- **说明**：在事务中创建用户及其关联的帖子，确保两个操作要么都成功，要么都失败。
-
-### 4.4 数据库迁移和同步
-`Database` 类提供了数据库模式同步和迁移管理的方法：
-
-```typescript
-public async syncDatabaseSchema(dropBeforeSync: boolean = false): Promise<void> {
-  await this.db.synchronize(dropBeforeSync);
-  console.log('Database schema synchronized');
+    public async remove(id: number): Promise<boolean> {
+        const result = await this.db.getRepository(User).delete({id: id})
+        return !!result.affected
+    }
 }
 
-public async runDatabaseMigrations(): Promise<void> {
-  const migrations = await this.db.runMigrations({ transaction: 'all' });
-  console.log('Migrations run:', migrations);
-}
-
-public async undoLastMigration(): Promise<void> {
-  await this.db.undoLastMigration({ transaction: 'all' });
-  console.log('Last migration undone');
-}
-```
-
-- **说明**：`synchronize` 方法同步数据库模式，而 `runMigrations` 和 `undoLastMigration` 管理数据库迁移。
-
-## 5. 多数据库支持
-
-Lakutata 支持配置多个数据库连接，适用于需要访问多个数据源的应用：
-
-```typescript
-import { Application } from '../lib/core/Application.js';
-import { BuildDatabaseOptions } from '../components/Database.js';
-
-// 定义多个数据库连接配置
-Application.run(() => ({
-  id: 'test.app',
-  name: 'TestApp',
-  timezone: 'auto',
-  components: {
-    primaryDb: BuildDatabaseOptions({
-      type: 'mysql',
-      host: 'localhost',
-      port: 3306,
-      username: 'root',
-      password: 'password',
-      database: 'primary_db',
-      entities: [__dirname + '/entities/primary/*.js'],
-      synchronize: true
-    }),
-    secondaryDb: BuildDatabaseOptions({
-      type: 'postgres',
-      host: 'localhost',
-      port: 5432,
-      username: 'postgres',
-      password: 'password',
-      database: 'secondary_db',
-      entities: [__dirname + '/entities/secondary/*.js'],
-      synchronize: true
+Application
+    .run(() => ({
+        id: 'com.example.users',
+        name: 'Users',
+        components: {
+            db: BuildDatabaseOptions({
+                type: 'postgres',
+                host: process.env.DB_HOST ?? 'localhost',
+                port: 5432,
+                username: 'postgres',
+                password: process.env.DB_PASSWORD,
+                database: 'users',
+                entities: [User],
+                //仅用于开发：表结构跟随实体变化；生产环境用迁移修改表结构
+                synchronize: true
+            }),
+            users: {class: Users}
+        },
+        bootstrap: ['db']
+    }))
+    .onLaunched(async (app: Application): Promise<void> => {
+        const users: Users = await app.getObject<Users>('users')
+        await users.register('Ada', 'ada@example.com')
     })
-  },
-  bootstrap: ['primaryDb', 'secondaryDb']
-}));
 ```
 
-- **说明**：通过配置多个 `Database` 组件，应用可以同时初始化和管理多个数据库连接（MySQL 和 PostgreSQL）。
+常用的连接选项：
 
-## 6. 注意事项和最佳实践
+| 选项 | 含义 |
+|---|---|
+| `type` | 驱动：`'postgres'`、`'mysql'`、`'sqlite'` 等 |
+| `url` 或 `host`、`port`、`username`、`password`、`database` | 服务器和数据库 |
+| `entities` | 实体类、`EntitySchema`，或其编译后文件的 glob 路径（`'dist/entities/*.js'`） |
+| `synchronize` | 每次连接时根据实体更新表结构（默认 `false`）：仅用于开发 |
+| `migrations`、`migrationsRun`、`migrationsTransactionMode` | 迁移列表、是否在每次连接时执行（默认 `false`）、迁移的事务方式（默认 `'all'`） |
+| `logging`、`logger` | TypeORM 记录哪些日志以及记录到哪里 |
+| `poolSize`、`extra` | 连接池大小；传给驱动的选项 |
+| `subscribers`、`namingStrategy`、`cache` | 实体订阅者、表名和列名的命名策略、查询结果缓存 |
 
-- **避免过度同步**：在生产环境中，将 `synchronize` 设置为 `false`，并使用 TypeORM 的迁移工具管理模式变更。`Database` 类提供了 `runMigrations` 和 `undoLastMigration` 方法用于迁移管理。
-- **性能优化**：对于频繁查询，使用索引（通过 `@Index()` 装饰器）或缓存机制来提高性能。`Database` 类提供了 `queryResultCache` 属性用于缓存管理。
-- **连接管理**：确保在应用关闭时正确释放数据库连接。`Database` 类在组件生命周期结束时通过 `destroy` 方法自动关闭连接。
-- **单例与瞬态**：根据应用需求选择合适的 `Database` 版本。单例适用于共享连接，而瞬态适用于独立连接场景。
-- **错误处理**：在数据库操作中实现适当的错误处理，以确保应用稳定性。
+组件提供数据源的 TypeORM API：`getRepository()`、`getTreeRepository()`、`getMongoRepository()`、`manager`、`transaction()`、`query()`、`createQueryBuilder()`、`createQueryRunner()`、`synchronize()`、`runMigrations()`、`undoLastMigration()`、`showMigrations()`。
 
-## 总结
+## 3. 实体
 
-Lakutata 通过与 TypeORM 的集成以及提供自定义的 `Database` 类（组件和提供者模式），提供了强大的 ORM 能力。这使开发者能够轻松定义数据库模型、执行复杂查询，并在框架内管理多个数据库连接。借助 `BuildDatabaseOptions` 方法和与 IoC 容器的深度集成，Lakutata 进一步简化了数据库服务的配置和依赖管理。无论是简单的 CRUD 操作还是复杂的树结构数据管理，Lakutata 的 ORM 集成都能满足多样化的应用需求。
+`lakutata/decorator/orm` 中的装饰器就是 TypeORM 的装饰器（完整列表见 [Decorator](Decorator.md)）：
 
-有关 Lakutata 其他功能的详细信息，请参阅相关文档章节。
+```typescript
+import {
+    BeforeInsert, Column, CreateDateColumn, DeleteDateColumn, Entity, Index, JoinColumn, ManyToOne, OneToMany,
+    PrimaryGeneratedColumn, UpdateDateColumn, VersionColumn
+} from 'lakutata/decorator/orm'
+
+@Entity('orders')
+export class Order {
+    @PrimaryGeneratedColumn('uuid')
+    public id: string
+
+    @Index()
+    @Column()
+    public customer: string
+
+    //随订单一起保存
+    @OneToMany(() => OrderLine, (line: OrderLine) => line.order, {cascade: true})
+    public lines: OrderLine[]
+
+    @CreateDateColumn({type: 'timestamptz'})
+    public createdAt: Date
+
+    @UpdateDateColumn({type: 'timestamptz'})
+    public updatedAt: Date
+
+    //由 softDelete() 设置：除非指定 withDeleted，查询会跳过该订单
+    @DeleteDateColumn({type: 'timestamptz'})
+    public deletedAt: Date | null
+
+    //每次保存时递增
+    @VersionColumn()
+    public version: number
+
+    @BeforeInsert()
+    protected normalize(): void {
+        this.customer = this.customer.trim()
+    }
+}
+
+@Entity('order_lines')
+export class OrderLine {
+    @PrimaryGeneratedColumn()
+    public id: number
+
+    @Column()
+    public product: string
+
+    @Column('integer')
+    public quantity: number
+
+    @ManyToOne(() => Order, (order: Order) => order.lines, {onDelete: 'CASCADE'})
+    @JoinColumn({name: 'order_id'})
+    public order: Order
+}
+```
+
+实体也可以继承 `BaseEntity`（来自 `lakutata/orm`）以使用活动记录风格的操作（`User.findOneBy()`、`user.save()`）：它们使用最后一个注册了该实体的连接。
+
+## 4. 查询
+
+`lakutata/orm` 导出了查询操作符（`In`、`ILike`、`Between`、`MoreThan`、`IsNull`、`Not`、`Raw` 等）、仓储和查询构建器。
+
+```typescript
+import {Component} from 'lakutata'
+import {Inject} from 'lakutata/decorator/di'
+import {Database} from 'lakutata/com/database'
+import {Between, ILike, type Repository} from 'lakutata/orm'
+
+class Orders extends Component {
+    @Inject('db')
+    protected readonly db: Database
+
+    protected get orders(): Repository<Order> {
+        return this.db.getRepository(Order)
+    }
+
+    //某段时间内订单的一页，以及订单总数
+    public async search(customer: string, from: Date, to: Date, page: number): Promise<[Order[], number]> {
+        return await this.orders.findAndCount({
+            where: {customer: ILike(`%${customer}%`), createdAt: Between(from, to)},
+            order: {createdAt: 'DESC'},
+            skip: (page - 1) * 20,
+            take: 20
+        })
+    }
+
+    //查询构建器
+    public async findByCustomer(customer: string): Promise<Order[]> {
+        return await this.db.createQueryBuilder(Order, 'order')
+            .where('order.customer LIKE :customer', {customer: `%${customer}%`})
+            .orderBy('order.createdAt', 'DESC')
+            .getMany()
+    }
+
+    //原生 SQL：PostgreSQL 的占位符是 $1、$2…
+    public async count(customer: string): Promise<number> {
+        const rows: { count: string }[] = await this.db.query('SELECT COUNT(*) AS count FROM orders WHERE customer = $1', [customer])
+        return Number(rows[0].count)
+    }
+}
+```
+
+## 5. 事务
+
+`transaction([isolationLevel], fn)` 在事务中执行函数：函数完成时提交，失败时回滚（并重新抛出其错误）。事务中的操作要通过传给函数的实体管理器执行；通过 `db.manager` 或 `db.getRepository()` 执行的操作不在该事务中。`createQueryRunner()` 用于手动控制事务。
+
+```typescript
+import {Component} from 'lakutata'
+import {Inject} from 'lakutata/decorator/di'
+import {Database} from 'lakutata/com/database'
+import {type EntityManager} from 'lakutata/orm'
+
+class Signup extends Component {
+    @Inject('db')
+    protected readonly db: Database
+
+    //两次保存要么都成功，要么都不生效
+    public async signup(name: string, email: string, product: string): Promise<User> {
+        return await this.db.transaction('SERIALIZABLE', async (manager: EntityManager): Promise<User> => {
+            const user: User = await manager.save(User, {name: name, email: email})
+            await manager.save(Order, {customer: email, lines: [{product: product, quantity: 1}]})
+            return user
+        })
+    }
+}
+```
+
+## 6. Database 提供者
+
+`lakutata/provider/database` 中的提供者与组件的 API 相同，但它是瞬态的：每次解析（`@Inject`、`getObject()`）都会创建一个新实例，该实例打开自己的连接池，并在随创建它的对象或容器一起销毁时关闭。它适合短时使用（任务、脚本、租户数据库）；应用的各个请求共享组件。它的 `entities` 选项会追加到连接选项的实体中。
+
+```typescript
+import {Application} from 'lakutata'
+import {BuildDatabaseOptions, Database} from 'lakutata/provider/database'
+
+Application
+    .run(() => ({
+        id: 'com.example.reports',
+        name: 'Reports',
+        providers: {
+            reports: {
+                ...BuildDatabaseOptions({type: 'postgres', url: process.env.REPORTS_URL}),
+                entities: [Report]
+            }
+        }
+    }))
+    .onLaunched(async (app: Application): Promise<void> => {
+        //在这里打开连接，随应用一起关闭
+        const database: Database = await app.getObject<Database>('reports')
+        console.log(await database.getRepository(Report).count())
+    })
+```
+
+## 7. 多个数据库
+
+每个数据库是一个有自己名称的组件，按该名称注入：
+
+```typescript
+Application.run(() => ({
+    id: 'com.example.shop',
+    name: 'Shop',
+    components: {
+        db: BuildDatabaseOptions({type: 'postgres', url: process.env.DATABASE_URL, entities: [User, Order, OrderLine]}),
+        analytics: BuildDatabaseOptions({type: 'mysql', url: process.env.ANALYTICS_URL, entities: [Visit]})
+    },
+    bootstrap: ['db', 'analytics']
+}))
+```
+
+## 8. 迁移
+
+迁移是实现了 `MigrationInterface`（来自 `lakutata/orm`）的类：`up()` 修改表结构，`down()` 撤销修改。连接选项 `migrations` 列出所有迁移。迁移在以下情况下执行：连接时设置了 `migrationsRun: true`，调用组件或提供者的 `runMigrations()` 和 `undoLastMigration()`，或者通过应用的迁移命令。
+
+迁移命令是传给应用本身的环境变量：带着其中一个变量启动时，应用读取自己的选项，然后不执行 `bootstrap` 和 `onLaunched` 处理函数，而是对选项中的每个 `Database` 组件和提供者执行该命令，然后退出（成功时退出码为 0，失败时为 1）。
+
+| 变量 | 命令 |
+|---|---|
+| `MIGRATION_GENERATE=<directory>` | 比较实体和数据库表结构，把差异的 SQL 作为迁移写入该目录 |
+| `MIGRATION_RUN=1` | 执行待执行的迁移 |
+| `MIGRATION_REVERT=1` | 撤销最后一次执行的迁移（有多个数据库时必须指定 `MIGRATION_DATABASE`） |
+| `MIGRATION_SHOW=1` | 列出已执行和待执行的迁移 |
+| `MIGRATION_DATABASE=<name>` | 命令作用的数据库（默认全部） |
+| `MIGRATION_TRANSACTION=all\|each\|none` | `MIGRATION_RUN` 和 `MIGRATION_REVERT` 的事务方式 |
+| `MIGRATION_FAKE=1` | 只把迁移记录为已执行（或已撤销），不真正执行 |
+
+```shell
+MIGRATION_GENERATE=src/migrations node dist/App.js
+MIGRATION_RUN=1 node dist/App.js
+```
+
+## 9. 注意事项
+
+- 生产环境中把 `synchronize` 设为 `false`，用迁移修改表结构。
+- `pg` 把 `numeric` 和 `bigint` 列读成字符串：用列的 `transformer` 进行转换。
+- 错误类型是 TypeORM 的错误，由 `lakutata/orm` 导出：`QueryFailedError`（其 `driverError` 包含驱动的错误）、`EntityNotFoundError`（`findOneByOrFail()`）、`EntityMetadataNotFoundError`（实体不在连接的 `entities` 中）等。

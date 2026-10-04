@@ -1,349 +1,341 @@
 # Lakutata ORM Integration
 
-**Lakutata** is a universal application framework based on IoC (Inversion of Control), designed to provide a modular and extensible development experience for TypeScript and Node.js developers. For database operations, Lakutata integrates **TypeORM** (a powerful Object-Relational Mapping library) to offer seamless database access and management capabilities. This document provides a detailed explanation of the ORM integration features, configuration methods, core decorators, and usage examples within the Lakutata framework.
+The ORM of the framework (the package `@lakutata/orm`) is built on [TypeORM](https://typeorm.io) 0.3. The package
+`lakutata` re-exports it under four subpaths:
 
-## 1. ORM Integration Overview
+| Subpath | What it provides |
+|---|---|
+| `lakutata/com/database` | The `Database` component (a connection shared by the application) and `BuildDatabaseOptions` |
+| `lakutata/provider/database` | The `Database` provider (a connection of its own per resolution) and `BuildDatabaseOptions` |
+| `lakutata/decorator/orm` | The TypeORM entity decorators (`@Entity`, `@Column`, the relations…) |
+| `lakutata/orm` | The TypeORM API: `Repository`, `EntityManager`, `QueryRunner`, the find operators, `BaseEntity`, the migrations, the errors |
 
-Lakutata chooses TypeORM as its primary ORM solution due to TypeORM's support for multiple databases (including MySQL, PostgreSQL, SQLite, MongoDB, etc.) and its deep integration with TypeScript, allowing database models to be defined via decorators and classes. Lakutata encapsulates and exports TypeORM functionalities, enabling developers to define entities, perform database operations, and manage relationships seamlessly within the framework.
+The README of `@lakutata/orm` gives the details; the TypeORM documentation describes the entities, the find options,
+the query builder and the migrations.
 
-### 1.1 Core Features
-- **Entity Definition**: Map TypeScript classes to database tables or views using decorators (e.g., `@Entity`).
-- **Column and Relationship Management**: Support various column types (e.g., `@Column`, `@PrimaryGeneratedColumn`) and relationship definitions (e.g., `@OneToMany`, `@ManyToOne`).
-- **Tree Structure Support**: Implement hierarchical data management like nested sets or closure tables using TypeORM's tree structure decorators (e.g., `@Tree`, `@TreeChildren`).
-- **Database Operations**: Provide CRUD operations, query building, and transaction management via TypeORM's `Repository` and `EntityManager`.
-- **Multi-Database Support**: Allow configuration and connection to multiple database instances for complex application scenarios.
-- **IoC Container Integration**: Lakutata offers the `Database` class as a Component or Provider, enabling dependency injection of database connections and entity management through the IoC container, simplifying configuration and lifecycle management.
+## 1. Installation
 
-### 1.2 Integration Approach
-Lakutata integrates TypeORM as an optional dependency, allowing developers to configure database connections using the provided `Database` class (implemented as a Component or Provider) and initialize them during application startup. Lakutata also exports TypeORM decorators (e.g., `Entity`, `Column`) for convenient access, eliminating the need to directly import the TypeORM library.
+TypeORM is a dependency of the package; the database driver is not. Install the driver of the `type` of the connection:
 
-### 1.3 Provided Database Classes
-Lakutata provides two versions of the `Database` class for different injection scenarios:
-- **Database Component (Singleton)**: Operates in singleton mode, suitable for sharing a single database connection instance across the entire application. Defined with the `@Singleton()` decorator, its lifecycle aligns with the application.
-- **Database Provider (Transient)**: Operates in transient mode, creating a new instance for each request, ideal for scenarios requiring independent database connections. Defined with the `@Transient()` decorator.
+| Database | `type` | Install |
+|---|---|---|
+| PostgreSQL, CockroachDB | `postgres`, `cockroachdb` | `pg` |
+| MySQL, MariaDB | `mysql`, `mariadb` | `mysql2` |
+| SQLite | `sqlite` / `better-sqlite3` | `sqlite3` / `better-sqlite3` |
+| SQLite in memory (WebAssembly) | `sqljs` | `sql.js` |
+| Microsoft SQL Server | `mssql` | `mssql` |
+| Oracle | `oracle` | `oracledb` |
+| MongoDB | `mongodb` | `mongodb` (5 or 6) |
 
-Both versions support injecting database connection options (`options`) via the `@Configurable()` decorator, with the Provider version additionally supporting configuration of entity lists (`entities`).
-
-## 2. Configuring ORM Connections
-
-In Lakutata, ORM connections are typically defined through application configuration or components. Developers need to specify database connection parameters in the `Application.run()` method and manage database services via the IoC container. Lakutata provides the `BuildDatabaseOptions` method to streamline the construction of database connection options.
-
-### 2.1 Database Connection Configuration
-Below is a typical database connection configuration example demonstrating how to initialize TypeORM using the `Database` Component in a Lakutata application:
-
-```typescript
-import { Application } from '../lib/core/Application.js';
-import { BuildDatabaseOptions } from '../components/Database.js';
-
-// Define database connection configuration
-Application.run(() => ({
-  id: 'test.app',
-  name: 'TestApp',
-  timezone: 'auto',
-  components: {
-    db: BuildDatabaseOptions({
-      type: 'mysql',
-      host: 'localhost',
-      port: 3306,
-      username: 'root',
-      password: 'password',
-      database: 'test_db',
-      entities: [__dirname + '/entities/*.js'],
-      synchronize: true // For development only; set to false in production
-    })
-  },
-  bootstrap: ['db']
-}));
+```shell
+npm install lakutata pg
 ```
 
-- **Explanation**: The `BuildDatabaseOptions` method constructs database connection options and registers them as the `db` component. Setting `synchronize: true` enables automatic database schema synchronization, which is suitable only for development environments. The `Database` Component initializes TypeORM's `DataSource` based on the provided `options`.
+## 2. The Database component
 
-### 2.2 Using the Provider Version
-For scenarios requiring transient database connections, the `Database` Provider version can be used:
-
-```typescript
-import { Application } from '../lib/core/Application.js';
-import { BuildDatabaseOptions } from '../providers/Database.js';
-
-// Define database connection configuration
-Application.run(() => ({
-  id: 'test.app',
-  name: 'TestApp',
-  timezone: 'auto',
-  providers: {
-    transientDb: BuildDatabaseOptions({
-      type: 'postgres',
-      host: 'localhost',
-      port: 5432,
-      username: 'postgres',
-      password: 'password',
-      database: 'test_db',
-      entities: [__dirname + '/entities/*.js'],
-      synchronize: true
-    })
-  }
-}));
-```
-
-- **Explanation**: The `Database` Provider operates in transient mode, creating a new database connection instance for each request to `transientDb`, suitable for scenarios needing independent connections.
-
-### 2.3 Injection via IoC Container
-Lakutata's IoC container supports injecting database connections or `Repository` instances into components or controllers, simplifying database access:
+`BuildDatabaseOptions` declares a `Database` component with the TypeORM connection options (`DataSourceOptions`, passed
+to TypeORM as they are). The component connects when it is created (at launch when it is listed in `bootstrap`; a
+connection failure stops the launch) and disconnects when the application stops. Other objects inject it by its name.
 
 ```typescript
-import { Component } from '../../lib/core/Component.js';
-import { Inject } from '../../decorators/di/Inject.js';
-import { Repository } from 'typeorm';
-import { User } from './entities/User.js';
-import { Database } from '../../components/Database.js';
+import {Application, Component} from 'lakutata'
+import {Inject} from 'lakutata/decorator/di'
+import {BuildDatabaseOptions, Database} from 'lakutata/com/database'
+import {Column, CreateDateColumn, Entity, PrimaryGeneratedColumn} from 'lakutata/decorator/orm'
 
-export class UserService extends Component {
-  @Inject('db')
-  protected readonly db: Database;
+@Entity('users')
+class User {
+    @PrimaryGeneratedColumn()
+    public id: number
 
-  protected userRepository: Repository<User>;
+    @Column({type: 'varchar', length: 100})
+    public name: string
 
-  protected async init(): Promise<void> {
-    this.userRepository = this.db.getRepository(User);
-    console.log('UserService initialized with repository');
-  }
+    @Column({unique: true})
+    public email: string
 
-  public async getAllUsers(): Promise<User[]> {
-    return this.userRepository.find();
-  }
+    @CreateDateColumn({type: 'timestamptz'})
+    public createdAt: Date
 }
-```
 
-- **Explanation**: `UserService` retrieves the database component via the `@Inject` decorator and extracts the `Repository` for the `User` entity, facilitating subsequent database operations.
+class Users extends Component {
+    //The component registered as "db"
+    @Inject('db')
+    protected readonly db: Database
 
-## 3. Entities and Decorators
-
-Lakutata integrates TypeORM decorators for defining database entities, columns, relationships, and more. Below are commonly used decorators and their functionalities.
-
-### 3.1 Entity-Related Decorators
-- **`@Entity()`**: Marks a class as a database entity, mapping it to a database table.
-- **`@ViewEntity()`**: Marks a class as a view entity, mapping it to a database view.
-- **`@Unique()`**: Defines a unique constraint on a field or combination of fields.
-
-### 3.2 Column-Related Decorators
-- **`@Column()`**: Defines a column in an entity, specifying data type and properties (e.g., `type: 'varchar', length: 255`).
-- **`@PrimaryColumn()`**: Defines a primary key column.
-- **`@PrimaryGeneratedColumn()`**: Defines an auto-generated primary key column (e.g., auto-incrementing ID).
-- **`@CreateDateColumn()`**: Defines a creation date column, automatically recording the entity creation time.
-- **`@UpdateDateColumn()`**: Defines an update date column, automatically recording the entity update time.
-- **`@VersionColumn()`**: Defines a version column for optimistic locking.
-- **`@ViewColumn()`**: Defines a view column, applicable to view entities.
-- **`@VirtualColumn()`**: Defines a virtual column, not stored in the database but usable in queries.
-
-### 3.3 Relationship-Related Decorators
-- **`@OneToOne()`**: Defines a one-to-one relationship.
-- **`@OneToMany()`**: Defines a one-to-many relationship.
-- **`@ManyToOne()`**: Defines a many-to-one relationship.
-- **`@ManyToMany()`**: Defines a many-to-many relationship.
-
-### 3.4 Tree Structure-Related Decorators
-Lakutata supports TypeORM's tree structure functionality for implementing nested sets or closure tables for hierarchical data:
-- **`@Tree()`**: Marks an entity as a tree structure entity.
-- **`@TreeChildren()`**: Defines the children property of a tree structure.
-- **`@TreeParent()`**: Defines the parent property of a tree structure.
-- **`@TreeLevelColumn()`**: Defines a level column in a tree structure to record node levels.
-
-### 3.5 Entity Definition Example
-Below is a simple entity definition example showcasing the use of TypeORM decorators:
-
-```typescript
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
-import { Post } from './Post.js';
-
-@Entity()
-export class User {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @Column({ type: 'varchar', length: 100 })
-  name: string;
-
-  @Column({ type: 'varchar', length: 255, unique: true })
-  email: string;
-
-  @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
-
-  @OneToMany(() => Post, (post) => post.author)
-  posts: Post[];
-}
-```
-
-- **Explanation**: The `User` entity defines an auto-incrementing primary key `id`, regular columns `name` and `email` (with `email` having a unique constraint), automatic timestamps `createdAt` and `updatedAt`, and a one-to-many relationship with the `Post` entity.
-
-## 4. Database Operations
-
-Lakutata provides comprehensive support for TypeORM database operations through the `Database` class, including CRUD operations, query building, transaction management, and migration operations.
-
-### 4.1 CRUD Operations
-Using `Repository`, basic create, read, update, and delete operations can be easily implemented:
-
-```typescript
-import { Component } from '../../lib/core/Component.js';
-import { Inject } from '../../decorators/di/Inject.js';
-import { Repository } from 'typeorm';
-import { User } from './entities/User.js';
-import { Database } from '../../components/Database.js';
-
-export class UserService extends Component {
-  @Inject('db')
-  protected readonly db: Database;
-
-  protected userRepository: Repository<User>;
-
-  protected async init(): Promise<void> {
-    this.userRepository = this.db.getRepository(User);
-    console.log('UserService initialized with repository');
-  }
-
-  // Create a user
-  public async createUser(name: string, email: string): Promise<User> {
-    const user = this.userRepository.create({ name, email });
-    return await this.userRepository.save(user);
-  }
-
-  // Retrieve all users
-  public async getAllUsers(): Promise<User[]> {
-    return await this.userRepository.find();
-  }
-
-  // Retrieve a user by ID
-  public async getUserById(id: number): Promise<User | null> {
-    return await this.userRepository.findOneBy({ id });
-  }
-
-  // Update a user
-  public async updateUser(id: number, name: string): Promise<User | null> {
-    const user = await this.userRepository.findOneBy({ id });
-    if (user) {
-      user.name = name;
-      return await this.userRepository.save(user);
+    public async register(name: string, email: string): Promise<User> {
+        return await this.db.getRepository(User).save({name: name, email: email})
     }
-    return null;
-  }
 
-  // Delete a user
-  public async deleteUser(id: number): Promise<boolean> {
-    const result = await this.userRepository.delete(id);
-    return result.affected > 0;
-  }
-}
-```
+    public async find(id: number): Promise<User | null> {
+        return await this.db.getRepository(User).findOneBy({id: id})
+    }
 
-- **Explanation**: `UserService` provides basic operations for the `User` entity, including creation, retrieval, update, and deletion.
+    public async rename(id: number, name: string): Promise<void> {
+        await this.db.getRepository(User).update({id: id}, {name: name})
+    }
 
-### 4.2 Complex Queries
-The `Database` class offers the `createQueryBuilder` method to support complex query conditions:
-
-```typescript
-public async findUsersByName(name: string): Promise<User[]> {
-  return await this.db
-    .createQueryBuilder(User, 'user')
-    .where('user.name LIKE :name', { name: `%${name}%` })
-    .orderBy('user.createdAt', 'DESC')
-    .getMany();
-}
-```
-
-- **Explanation**: The above method uses a query builder to find users whose names contain the specified string, ordered by creation time in descending order.
-
-### 4.3 Transaction Management
-The `Database` class supports transactions to ensure the atomicity of data operations:
-
-```typescript
-public async createUserWithPost(name: string, email: string, postTitle: string): Promise<User> {
-  return await this.db.transaction(async (entityManager) => {
-    const user = await entityManager.save(User, { name, email });
-    await entityManager.save(Post, { title: postTitle, author: user });
-    return user;
-  });
-}
-```
-
-- **Explanation**: Creates a user and an associated post within a transaction, ensuring both operations either succeed or fail together.
-
-### 4.4 Database Migration and Synchronization
-The `Database` class provides methods for database schema synchronization and migration management:
-
-```typescript
-public async syncDatabaseSchema(dropBeforeSync: boolean = false): Promise<void> {
-  await this.db.synchronize(dropBeforeSync);
-  console.log('Database schema synchronized');
+    public async remove(id: number): Promise<boolean> {
+        const result = await this.db.getRepository(User).delete({id: id})
+        return !!result.affected
+    }
 }
 
-public async runDatabaseMigrations(): Promise<void> {
-  const migrations = await this.db.runMigrations({ transaction: 'all' });
-  console.log('Migrations run:', migrations);
-}
-
-public async undoLastMigration(): Promise<void> {
-  await this.db.undoLastMigration({ transaction: 'all' });
-  console.log('Last migration undone');
-}
-```
-
-- **Explanation**: The `synchronize` method syncs the database schema, while `runMigrations` and `undoLastMigration` manage database migrations.
-
-## 5. Multi-Database Support
-
-Lakutata supports configuring multiple database connections, suitable for applications needing access to multiple data sources:
-
-```typescript
-import { Application } from '../lib/core/Application.js';
-import { BuildDatabaseOptions } from '../components/Database.js';
-
-// Define multiple database connection configurations
-Application.run(() => ({
-  id: 'test.app',
-  name: 'TestApp',
-  timezone: 'auto',
-  components: {
-    primaryDb: BuildDatabaseOptions({
-      type: 'mysql',
-      host: 'localhost',
-      port: 3306,
-      username: 'root',
-      password: 'password',
-      database: 'primary_db',
-      entities: [__dirname + '/entities/primary/*.js'],
-      synchronize: true
-    }),
-    secondaryDb: BuildDatabaseOptions({
-      type: 'postgres',
-      host: 'localhost',
-      port: 5432,
-      username: 'postgres',
-      password: 'password',
-      database: 'secondary_db',
-      entities: [__dirname + '/entities/secondary/*.js'],
-      synchronize: true
+Application
+    .run(() => ({
+        id: 'com.example.users',
+        name: 'Users',
+        components: {
+            db: BuildDatabaseOptions({
+                type: 'postgres',
+                host: process.env.DB_HOST ?? 'localhost',
+                port: 5432,
+                username: 'postgres',
+                password: process.env.DB_PASSWORD,
+                database: 'users',
+                entities: [User],
+                //Development only: the schema follows the entities; the migrations change it in production
+                synchronize: true
+            }),
+            users: {class: Users}
+        },
+        bootstrap: ['db']
+    }))
+    .onLaunched(async (app: Application): Promise<void> => {
+        const users: Users = await app.getObject<Users>('users')
+        await users.register('Ada', 'ada@example.com')
     })
-  },
-  bootstrap: ['primaryDb', 'secondaryDb']
-}));
 ```
 
-- **Explanation**: By configuring multiple `Database` components, the application can initialize and manage multiple database connections (MySQL and PostgreSQL) simultaneously.
+The common connection options:
 
-## 6. Notes and Best Practices
+| Option | What it sets |
+|---|---|
+| `type` | The driver: `'postgres'`, `'mysql'`, `'sqlite'`… |
+| `url` or `host`, `port`, `username`, `password`, `database` | The server and the database |
+| `entities` | The entity classes, `EntitySchema`s, or glob paths of their compiled files (`'dist/entities/*.js'`) |
+| `synchronize` | Update the schema from the entities on each connection (default `false`): development only |
+| `migrations`, `migrationsRun`, `migrationsTransactionMode` | The migrations, whether they run on each connection (default `false`), their transactions (default `'all'`) |
+| `logging`, `logger` | What TypeORM logs and where |
+| `poolSize`, `extra` | The connection pool size; the options passed to the driver |
+| `subscribers`, `namingStrategy`, `cache` | The entity subscribers, the naming of the tables and columns, the query result cache |
 
-- **Avoid Over-Synchronization**: In production environments, set `synchronize` to `false` and use TypeORM's migration tools to manage schema changes. The `Database` class provides `runMigrations` and `undoLastMigration` methods for migration management.
-- **Performance Optimization**: For frequent queries, use indexes (via the `@Index()` decorator) or caching mechanisms to improve performance. The `Database` class offers the `queryResultCache` property for cache management.
-- **Connection Management**: Ensure database connections are properly released when the application shuts down. The `Database` class automatically closes connections via the `destroy` method at the end of the component lifecycle.
-- **Singleton vs. Transient**: Choose the appropriate `Database` version based on application needs. Singleton is suitable for shared connections, while Transient is ideal for independent connection scenarios.
-- **Error Handling**: Implement proper error handling in database operations to ensure application stability.
+The component gives the TypeORM API of a data source: `getRepository()`, `getTreeRepository()`,
+`getMongoRepository()`, `manager`, `transaction()`, `query()`, `createQueryBuilder()`, `createQueryRunner()`,
+`synchronize()`, `runMigrations()`, `undoLastMigration()`, `showMigrations()`.
 
-## Summary
+## 3. Entities
 
-Lakutata, through its integration with TypeORM and the provision of custom `Database` classes (in both Component and Provider modes), delivers robust ORM capabilities. This enables developers to effortlessly define database models, execute complex queries, and manage multiple database connections within the framework. With the `BuildDatabaseOptions` method and deep integration with the IoC container, Lakutata further simplifies database service configuration and dependency management. Whether for simple CRUD operations or complex tree structure data management, Lakutata's ORM integration meets diverse application needs.
+The decorators of `lakutata/decorator/orm` are the ones of TypeORM (see [Decorator](Decorator.md) for the list):
 
-For detailed information on other Lakutata features, please refer to the relevant documentation sections.
-for your feedback, and I look forward to any further input or confirmation! 😊
+```typescript
+import {
+    BeforeInsert, Column, CreateDateColumn, DeleteDateColumn, Entity, Index, JoinColumn, ManyToOne, OneToMany,
+    PrimaryGeneratedColumn, UpdateDateColumn, VersionColumn
+} from 'lakutata/decorator/orm'
+
+@Entity('orders')
+export class Order {
+    @PrimaryGeneratedColumn('uuid')
+    public id: string
+
+    @Index()
+    @Column()
+    public customer: string
+
+    //Saved with the order
+    @OneToMany(() => OrderLine, (line: OrderLine) => line.order, {cascade: true})
+    public lines: OrderLine[]
+
+    @CreateDateColumn({type: 'timestamptz'})
+    public createdAt: Date
+
+    @UpdateDateColumn({type: 'timestamptz'})
+    public updatedAt: Date
+
+    //Set by softDelete(): the finds skip the order unless withDeleted is set
+    @DeleteDateColumn({type: 'timestamptz'})
+    public deletedAt: Date | null
+
+    //Incremented by each save
+    @VersionColumn()
+    public version: number
+
+    @BeforeInsert()
+    protected normalize(): void {
+        this.customer = this.customer.trim()
+    }
+}
+
+@Entity('order_lines')
+export class OrderLine {
+    @PrimaryGeneratedColumn()
+    public id: number
+
+    @Column()
+    public product: string
+
+    @Column('integer')
+    public quantity: number
+
+    @ManyToOne(() => Order, (order: Order) => order.lines, {onDelete: 'CASCADE'})
+    @JoinColumn({name: 'order_id'})
+    public order: Order
+}
+```
+
+An entity may also extend `BaseEntity` (from `lakutata/orm`) for the active record operations (`User.findOneBy()`,
+`user.save()`): they use the last connection that registered the entity.
+
+## 4. Queries
+
+`lakutata/orm` exports the find operators (`In`, `ILike`, `Between`, `MoreThan`, `IsNull`, `Not`, `Raw`…), the
+repositories and the query builders.
+
+```typescript
+import {Component} from 'lakutata'
+import {Inject} from 'lakutata/decorator/di'
+import {Database} from 'lakutata/com/database'
+import {Between, ILike, type Repository} from 'lakutata/orm'
+
+class Orders extends Component {
+    @Inject('db')
+    protected readonly db: Database
+
+    protected get orders(): Repository<Order> {
+        return this.db.getRepository(Order)
+    }
+
+    //A page of the orders of a period, and their count
+    public async search(customer: string, from: Date, to: Date, page: number): Promise<[Order[], number]> {
+        return await this.orders.findAndCount({
+            where: {customer: ILike(`%${customer}%`), createdAt: Between(from, to)},
+            order: {createdAt: 'DESC'},
+            skip: (page - 1) * 20,
+            take: 20
+        })
+    }
+
+    //A query builder
+    public async findByCustomer(customer: string): Promise<Order[]> {
+        return await this.db.createQueryBuilder(Order, 'order')
+            .where('order.customer LIKE :customer', {customer: `%${customer}%`})
+            .orderBy('order.createdAt', 'DESC')
+            .getMany()
+    }
+
+    //Raw SQL: the PostgreSQL placeholders are $1, $2…
+    public async count(customer: string): Promise<number> {
+        const rows: { count: string }[] = await this.db.query('SELECT COUNT(*) AS count FROM orders WHERE customer = $1', [customer])
+        return Number(rows[0].count)
+    }
+}
+```
+
+## 5. Transactions
+
+`transaction([isolationLevel], fn)` runs a function in a transaction: committed when it resolves, rolled back when it
+rejects (its error rethrown). The operations of the transaction go through the entity manager given to the function;
+the ones made through `db.manager` or `db.getRepository()` run outside of it. `createQueryRunner()` controls a
+transaction by hand.
+
+```typescript
+import {Component} from 'lakutata'
+import {Inject} from 'lakutata/decorator/di'
+import {Database} from 'lakutata/com/database'
+import {type EntityManager} from 'lakutata/orm'
+
+class Signup extends Component {
+    @Inject('db')
+    protected readonly db: Database
+
+    //Both saves, or none
+    public async signup(name: string, email: string, product: string): Promise<User> {
+        return await this.db.transaction('SERIALIZABLE', async (manager: EntityManager): Promise<User> => {
+            const user: User = await manager.save(User, {name: name, email: email})
+            await manager.save(Order, {customer: email, lines: [{product: product, quantity: 1}]})
+            return user
+        })
+    }
+}
+```
+
+## 6. The Database provider
+
+The provider of `lakutata/provider/database` has the API of the component, but it is transient: each resolution
+(`@Inject`, `getObject()`) creates a new instance, which opens its own connection pool and closes it when it is
+destroyed with the object or the container that created it. It suits a short use (a job, a script, a tenant
+database); the requests of an application share the component. Its `entities` option is added to the entities of its
+connection options.
+
+```typescript
+import {Application} from 'lakutata'
+import {BuildDatabaseOptions, Database} from 'lakutata/provider/database'
+
+Application
+    .run(() => ({
+        id: 'com.example.reports',
+        name: 'Reports',
+        providers: {
+            reports: {
+                ...BuildDatabaseOptions({type: 'postgres', url: process.env.REPORTS_URL}),
+                entities: [Report]
+            }
+        }
+    }))
+    .onLaunched(async (app: Application): Promise<void> => {
+        //A connection opened here, closed with the application
+        const database: Database = await app.getObject<Database>('reports')
+        console.log(await database.getRepository(Report).count())
+    })
+```
+
+## 7. Several databases
+
+Each database is a component of its own name, injected by that name:
+
+```typescript
+Application.run(() => ({
+    id: 'com.example.shop',
+    name: 'Shop',
+    components: {
+        db: BuildDatabaseOptions({type: 'postgres', url: process.env.DATABASE_URL, entities: [User, Order, OrderLine]}),
+        analytics: BuildDatabaseOptions({type: 'mysql', url: process.env.ANALYTICS_URL, entities: [Visit]})
+    },
+    bootstrap: ['db', 'analytics']
+}))
+```
+
+## 8. Migrations
+
+A migration is a class implementing `MigrationInterface` (from `lakutata/orm`): its `up()` changes the schema, its
+`down()` reverts the change. The `migrations` connection option lists them. They run when the database connects with
+`migrationsRun: true`, by `runMigrations()` and `undoLastMigration()` of the component or provider, or by the commands
+of the application.
+
+The commands are environment variables given to the application itself: started with one of them, the application
+reads its options, then, instead of its `bootstrap` and its `onLaunched` handlers, does the command on each `Database`
+component and provider of its options, and exits (code 0, or 1 when the command fails).
+
+| Variable | Command |
+|---|---|
+| `MIGRATION_GENERATE=<directory>` | Write the SQL of the differences between the entities and the schema as a migration in the directory |
+| `MIGRATION_RUN=1` | Run the pending migrations |
+| `MIGRATION_REVERT=1` | Revert the last migration run (`MIGRATION_DATABASE` required with several databases) |
+| `MIGRATION_SHOW=1` | Print the migrations run and pending |
+| `MIGRATION_DATABASE=<name>` | The database of the command (all by default) |
+| `MIGRATION_TRANSACTION=all\|each\|none` | The transactions of `MIGRATION_RUN` and `MIGRATION_REVERT` |
+| `MIGRATION_FAKE=1` | Record the migrations as run (or reverted) without running them |
+
+```shell
+MIGRATION_GENERATE=src/migrations node dist/App.js
+MIGRATION_RUN=1 node dist/App.js
+```
+
+## 9. Notes
+
+- Set `synchronize` to `false` in production and change the schema with migrations.
+- `pg` reads the `numeric` and `bigint` columns back as strings: convert them with a column `transformer`.
+- The errors are the ones of TypeORM, exported by `lakutata/orm`: `QueryFailedError` (its `driverError` holds the
+  driver error), `EntityNotFoundError` (`findOneByOrFail()`), `EntityMetadataNotFoundError` (an entity not in the
+  `entities` of the connection)…

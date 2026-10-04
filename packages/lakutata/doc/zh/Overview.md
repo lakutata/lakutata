@@ -1,54 +1,112 @@
-# Lakutata - 基于IoC的通用应用框架
+# Lakutata 概述
 
-**Lakutata** 是一个基于 **IoC（控制反转）** 的通用应用框架，专为 TypeScript 和 Node.js 开发者设计。它提供了一个模块化且可扩展的开发环境，帮助开发者构建复杂的企业级应用。Lakutata 利用依赖注入（DI）、装饰器模式和基于组件的架构，显著降低模块耦合度，提升代码的可维护性和可重用性。
+**Lakutata** 是一个面向 Node.js 和 TypeScript 的、基于 IoC 的应用框架：Web 服务、命令行工具、桌面（Electron）应用和嵌入式设备使用同一套编程模型。应用是一棵由容器创建的对象树（组件、提供者、模块、控制器），对象的选项和输入由 DTO 校验，控制器由各种传输方式对外提供：HTTP（Express、Fastify）、CLI（Commander）、服务调用（HTTP、Socket.IO、JSON-RPC 2.0、gRPC、NATS、Electron IPC）以及定时任务。同一个控制器方法可以同时通过所有这些方式调用。
 
-## 亮点
+`lakutata` 包通过各个子路径重新导出 `@lakutata/*` 系列包（见下表），并为每个应用预置两个组件：`log`（基于 pino 的 `Logger`）和 `entrypoint`（对外提供控制器的 `Entrypoint`）。
 
-- **IoC & 依赖注入（DI）**：通过强大的 DI 机制解耦模块依赖，实现灵活的组件管理。
-- **装饰器驱动开发**：支持类、方法、属性和参数装饰器，简化元编程和声明式开发。
-- **模块化架构**：清晰的模块划分，允许开发者仅导入所需功能，如核心功能、ORM 或组件。
-- **ORM 集成**：基于 TypeORM，提供强大的数据库操作抽象和实体管理。
-- **基于组件的设计**：包含开箱即用的组件（如 Docker、数据库、日志器），减少特定领域的开发工作量。
-- **多格式支持**：同时支持 ESM 和 CJS 模块格式，兼容各种运行时环境。
-- **类型安全**：与 TypeScript 深度集成，提供强类型支持和类型声明文件。
+## 环境要求
 
-## 功能目录
+- Node.js 22 或更高版本。
+- ESM（`"type": "module"`）；包里同时提供了 CommonJS 构建。
+- TypeScript 需开启 `experimentalDecorators` 和 `emitDecoratorMetadata`。框架所需的编译选项以 `lakutata/tsconfig.json` 发布。
 
-Lakutata 的功能按领域和用途分类，开发者可根据需求选择使用模块。以下是框架功能的分类概述：
-
-### 1. 核心功能
-- **IoC 容器**：管理对象生命周期和依赖关系，支持单例、瞬态等多种作用域。
-- **依赖注入（DI）**：通过装饰器自动实现依赖注入，简化组件间的依赖管理。
-- **应用入口点**：提供统一的应用启动和管理机制。
-
-### 2. 装饰器支持
-- **ASST 装饰器**：增强类和方法行为的实用装饰器。
-- **CTRL 装饰器**：用于定义路由和请求处理逻辑的控制器装饰器。
-- **DI 装饰器**：用于声明依赖的依赖注入装饰器。
-- **DTO 装饰器**：用于数据验证和转换的数据传输对象装饰器。
-- **ORM 装饰器**：用于定义数据库实体和关系的对象关系映射装饰器。
-
-### 3. 数据管理
-- **ORM 集成**：基于 TypeORM，支持多种数据库（如 MySQL、PostgreSQL、SQLite）。
-- **数据库组件**：提供数据库连接管理和操作的抽象层。
-- **DTO 验证**：基于 Lakutata 自有的验证引擎进行数据结构验证，并可导出为 JSON Schema / OpenAPI Schema。
-
-### 4. 组件与服务
-- **Docker 组件**：内置 Docker Engine API 客户端，用于 Docker 镜像、容器和网络的管理。
-- **Mutex 组件**：应用的锁，在实例与进程之间互斥（内存、文件、Redis、PostgreSQL、MySQL）。
-- **containerd 组件**：内置 containerd API 客户端，用于在只运行 containerd、没有 Docker 的机器（嵌入式 Linux 设备）上管理镜像与容器。
-- **日志器组件**：基于 Pino，提供高性能的日志记录功能。
-- **数据库提供者**：封装数据库连接逻辑，简化配置和使用。
-- **[国际化组件](I18n.md)**：按键名管理各语言的消息（ICU MessageFormat），处理语言的协商与回退。
-
-### 5. 工具与实用程序
-- **辅助函数**：提供常用的实用函数和类，简化开发流程。
-- **行为模式**：支持事件驱动或命令式开发的行为模式定义。
-
-## 入门指南
-
-### 安装
+## 安装
 
 ```bash
-npm install lakutata
+npx @lakutata/cli create --name my-app   # 从模板创建新项目（Web、服务、CLI、Electron 等）
+npm install lakutata                      # 或在已有项目中安装框架
 ```
+
+```json
+{
+  "extends": "lakutata/tsconfig.json",
+  "compilerOptions": {"rootDir": "src", "outDir": "dist"}
+}
+```
+
+传输方式和各项集成依赖可选的 peer 依赖，用到时再安装：`express` 或 `fastify`、`commander`、`socket.io`、`ws`、数据库驱动（`pg`、`mysql2`、`sqlite3` 等）、缓存存储（`redis` 等）。
+
+## 第一个应用
+
+```typescript
+import {Application, DTO, type ILogger} from 'lakutata'
+import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+import {GET, ServiceAction} from 'lakutata/decorator/ctrl'
+import {Expect} from 'lakutata/decorator/dto'
+import {ExpressHTTPEntrypoint} from 'lakutata/adapter/express'
+
+class GreetDTO extends DTO {
+    @Expect(DTO.String().optional().default('world'))
+    public name: string
+}
+
+class GreetController extends Controller {
+    //GET /greet?name=you，以及服务动作 {cmd: 'greet', name: 'you'}
+    @GET('/greet', GreetDTO)
+    @ServiceAction({cmd: 'greet'}, GreetDTO)
+    public async greet(input: GreetDTO): Promise<{ message: string }> {
+        return {message: `Hello, ${input.name}!`}
+    }
+}
+
+Application
+    .run(() => ({
+        id: 'com.example.greeter',
+        name: 'Greeter',
+        components: {
+            entrypoint: BuildEntrypoints({
+                controllers: [GreetController],
+                http: ExpressHTTPEntrypoint({port: 8080})
+            })
+        },
+        bootstrap: ['entrypoint']
+    }))
+    .onLaunched((app: Application, log: ILogger): void => log.info('%s started', app.appName))
+```
+
+## 子路径
+
+| 子路径 | 内容 |
+|---|---|
+| `lakutata` | `Application`、`Module`、`Component`、`Provider`、`BaseObject`、`Container`、`DTO`、`Exception`、`Time`、`IsPackaged`、`ResourcesPath`、校验消息 |
+| `lakutata/decorator/di` | `@Inject`、`@Configurable`、`@Autoload`、`@Singleton`、`@Scoped`、`@Transient`、`@Lifetime` |
+| `lakutata/decorator/dto` | `@Expect`、`@Accept`、`@Return`、`@IndexSignature` |
+| `lakutata/decorator/asst` | `@Before`、`@After` |
+| `lakutata/dtos` | `PaginationSearchDTO`、`PaginationResultDTO`、`Paginator`、`FlexibleDTO`、JSON Schema 转换 |
+| `lakutata/com/entrypoint` | `Entrypoint`、`BuildEntrypoints`、`Controller`、各种上下文、`Result`、访问控制、中间件、`HTTPServiceEntrypoint`、`ScheduleEntrypoint` |
+| `lakutata/decorator/ctrl` | `@HTTPAction`、`@GET`…`@OPTIONS`、`@CLIAction`、`@ServiceAction`、`@Schedule`、`@Prefix`、`@UseMiddlewares` |
+| `lakutata/adapter/express`、`lakutata/adapter/fastify` | HTTP 传输 |
+| `lakutata/adapter/commander` | CLI 传输 |
+| `lakutata/adapter/socket.io`、`lakutata/adapter/jsonrpc`、`lakutata/adapter/electron` | 服务传输 |
+| `lakutata/com/logger` | `Logger` 组件（pino），预置为 `log` |
+| `lakutata/orm`、`lakutata/decorator/orm` | TypeORM 及其装饰器 |
+| `lakutata/com/database`、`lakutata/provider/database` | `Database` 组件和提供者 |
+| `lakutata/com/cacher` | `Cacher` 组件 |
+| `lakutata/com/mutex` | `Mutex` 组件、`@Synchronized` |
+| `lakutata/com/i18n` | `I18n` 组件、`Translator`、语言中间件 |
+| `lakutata/com/docker` | `Docker` 组件 |
+| `lakutata/com/containerd` | `Containerd` 组件 |
+| `lakutata/com/monitor` | CPU、内存、事件循环和 HTTP 监控 |
+| `lakutata/security`、`lakutata/provider/passwordHash` | 哈希、加解密、签名、`PasswordHash` 提供者 |
+| `lakutata/utils` | 辅助函数 |
+
+不在本包中的：`@lakutata/cli`（`lakutata` 命令：项目、打包、可执行文件、迁移）、`@lakutata/grpc`（gRPC 客户端、服务端和服务传输）、`@lakutata/nats`（NATS 组件和服务传输）、`@lakutata/dbus`（D-Bus）和 `@lakutata/mcp`（Model Context Protocol）。
+
+## 指南
+
+| 指南 | 主题 |
+|---|---|
+| [Core](Core.md) | 应用、容器、生命周期类型、依赖注入、模块、应用的生命周期 |
+| [DTOValidation](DTOValidation.md) | DTO、校验规则，以及选项、输入和返回值的校验 |
+| [Decorator](Decorator.md) | 各子路径的装饰器 |
+| [ActionPattern](ActionPattern.md) | 控制器、动作及其传输方式（HTTP、CLI、服务、定时任务） |
+| [ORMIntegration](ORMIntegration.md) | `Database` 组件与 TypeORM |
+| [I18n](I18n.md) | 多语言消息 |
+| [Mutex](Mutex.md) | 实例与进程之间的锁 |
+| [DockerIntegration](DockerIntegration.md) | `Docker` 组件 |
+| [ContainerdIntegration](ContainerdIntegration.md) | `Containerd` 组件 |
+| [Security](Security.md) | 哈希、加解密、签名、密码 |
+| [Time](Time.md) | `Time` 类 |
+| [HelperFunctions](HelperFunctions.md) | `lakutata/utils` 的辅助函数 |
+
+每个 `@lakutata/*` 包都有自己的 README，各子路径的类型声明也为每个声明附带了说明和示例。

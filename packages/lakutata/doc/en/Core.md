@@ -1,171 +1,303 @@
-# Lakutata Core Features
+# Lakutata Core
 
-**Lakutata** is a universal application framework based on IoC (Inversion of Control), designed for TypeScript and Node.js developers. Its core features provide foundational mechanisms for dependency management, application structure organization, and lifecycle definition. This document elaborates on Lakutata's core functionalities, including the IoC Container, Dependency Injection (DI), and Application Entry Points.
+This guide covers the core of the framework (the package `@lakutata/core`, re-exported by `lakutata`,
+`lakutata/decorator/di`, `lakutata/decorator/dto` and `lakutata/decorator/asst`): the objects and their container, their
+lifetimes and scopes, their asynchronous construction, dependency injection, modules and the application lifecycle. The
+README of `@lakutata/core` and the typings of each export give the details.
 
-## 1. IoC Container
+## 1. Objects and the container
 
-The **IoC Container** is the central component of the Lakutata framework, responsible for implementing the Inversion of Control principle to decouple modules and manage object lifecycles. It serves as a registry and factory for application components, providers, and modules, ensuring dynamic resolution of dependencies at runtime.
+Every object of an application is created by an IoC container, never with `new`. The class hierarchy:
 
-### Key Features
-- **Object Lifecycle Management**: The IoC Container supports various lifecycle scopes, defined via decorators (e.g., `@Transient()`):
-  - **Singleton (Default)**: Only one instance is created and shared across the entire application.
-  - **Transient**: A new instance is created each time the object is requested, as seen with `@Transient()` in `TestProvider.ts`.
-  - Other Custom Scopes: Further defined through configuration or decorators.
-- **Dependency Resolution**: Automatically resolves dependencies based on registered components, providers, or modules, reducing manual instantiation efforts.
-- **Provider Registration**: Supports registering classes or services as providers (`Provider`), with paths or classes specified in application configuration, as with `TestProvider`.
-- **Component Management**: Enables registration and initialization of components (`Component`), which can be infrastructure services like logging or custom functional modules.
-- **Modular Support**: Allows functionality to be organized into modules (`Module`) for better code organization and reuse.
+| Class | Role | Default lifetime |
+|---|---|---|
+| `BaseObject` | The root class: asynchronous construction, `init()`/`destroy()`, `getObject()` | `@Transient` |
+| `Provider` | A functional unit living in a scope, such as a request (a repository, a hasher) | `@Scoped` |
+| `Component` | A long-lived service shared by the application (a logger, a database, an entrypoint); an event emitter | `@Singleton` (locked) |
+| `Module` | A component owning its own components, providers and objects | `@Singleton` (locked) |
+| `Application` | The root module, created by `Application.run()` | |
+| `Controller` (`lakutata/com/entrypoint`) | A provider serving the requests of an entrypoint | `@Scoped` (locked) |
 
-### Usage Example
-Below is an example based on the provided test code, demonstrating how to register and use components and providers in Lakutata:
+### Lifetimes
 
-```typescript
-import { Application } from '../lib/core/Application.js';
-import { TestComponent } from './components/TestComponent.js';
-import { TestProvider } from './providers/TestProvider.js';
-import path from 'node:path';
+| Decorator (`lakutata/decorator/di`) | One instance… |
+|---|---|
+| `@Singleton()` | per container registering the class, shared by its users and its scopes |
+| `@Scoped()` | per scope (`container.createScope()`; each request of an entrypoint is a scope, the root container is one too) |
+| `@Transient()` | per resolution, never cached |
 
-// Configure the application and register components and providers
-Application.run(() => ({
-  id: 'test.app',
-  name: 'TestApp',
-  timezone: 'auto',
-  components: {
-    testComponent: {
-      class: TestComponent
-    }
-  },
-  providers: {
-    testProvider: {
-      class: TestProvider,
-      path: path.resolve('@test2', './hahahaha')
-    }
-  },
-  bootstrap: ['testComponent']
-}));
-```
+Subclasses inherit the lifetime. `Component` and `Module` lock theirs: a subclass declaring another one throws a
+`LifetimeLockedException`; a `Provider` can be `@Transient` but never `@Singleton` (use a `Component`).
+`@Lifetime('SINGLETON' | 'SCOPED' | 'TRANSIENT', lock)` is the long form of the three decorators.
 
-### Benefits
-- Reduces coupling between modules by managing object creation through the container.
-- Supports flexible lifecycle configurations for resource management and performance optimization.
-- Provides a unified dependency resolution mechanism, simplifying complex application development.
+### Scopes
 
-## 2. Dependency Injection (DI)
+A scope is a child container holding its own instances of the scoped objects, the singletons and registrations of its
+parent being shared. The entrypoint creates one per request: the controller of the request and the providers it injects
+are created in it and destroyed when the request ends. A component creates its own with its protected `createScope()`.
 
-**Dependency Injection (DI)** is a key design pattern in Lakutata for decoupling components. Through the IoC Container, Lakutata allows developers to declare dependencies required by components or controllers without manually instantiating them. Dependency Injection is primarily implemented via decorators.
+## 2. Asynchronous construction
 
-### Key Features
-- **Decorator Injection**: Uses the `@Inject()` decorator to declare dependencies to be injected, supporting injection by type or by name.
-- **Custom Configuration**: Uses the `@Configurable()` decorator to inject configuration values into providers or components, as seen with the `path` property in `TestProvider.ts`.
-- **Multi-Level Dependencies**: Supports nested dependency injection across components, controllers, and providers, with the IoC Container automatically resolving dependency chains.
-- **Application Instance Injection**: Allows direct injection of the `Application` instance to access global configurations or control application lifecycle, as demonstrated in `TestController1.ts`.
+The container creates an object asynchronously, and the promise of `getObject()` (or `@Inject`) settles once the
+object is ready:
 
-### Usage Example
-Below is a practical example of Dependency Injection based on `TestComponent.ts` and `TestController1.ts`:
+1. its `@Inject` properties are resolved;
+2. its `@Configurable` properties get their configured values, validated (and converted) by their schemas; a property
+   not configured keeps its initializer, else the default of its schema;
+3. its `init()` runs (an error thrown here fails the creation);
+4. once the application has launched, its `launched()` runs (not awaited; its errors are logged).
+
+At its teardown (`dispose()`, or the teardown of the object, scope or application that created it) its
+`beforeDestroy()` runs, then the objects it created are destroyed, then its `destroy()` runs. Each object owns a
+container: the objects it creates with `this.getObject()` are destroyed with it.
 
 ```typescript
-import { Component } from '../../lib/core/Component.js';
-import { Inject } from '../../decorators/di/Inject.js';
-import type { Logger } from '../../components/Logger.js';
-import { Application } from '../../lib/core/Application.js';
-import { Controller } from '../../components/entrypoint/lib/Controller.js';
+import {Application, Component, DTO, type ILogger} from 'lakutata'
+import {Configurable, Inject} from 'lakutata/decorator/di'
 
-// Using Dependency Injection in a Component
-export class TestComponent extends Component {
-  @Inject()
-  protected readonly log: Logger;
+class Mailer extends Component {
+    //Its option, given by its declaration in the application options
+    @Configurable(DTO.String().required())
+    protected readonly host: string
 
-  protected async init(): Promise<void> {
-    this.log.info('TestComponent initialized');
-  }
+    //25 unless configured: the initializer is the default, validated like a configured value
+    @Configurable(DTO.Number().integer().min(1).max(65535))
+    protected readonly port: number = 25
+
+    //The logger preset by the lakutata package as the "log" component
+    @Inject('log')
+    protected readonly log: ILogger
+
+    protected async init(): Promise<void> {
+        this.log.info('Mailer connected to %s:%d', this.host, this.port)
+    }
+
+    public async send(to: string, text: string): Promise<void> {
+        this.log.info('Mail to %s: %s', to, text)
+    }
+
+    protected async destroy(): Promise<void> {
+        this.log.info('Mailer disconnected')
+    }
 }
 
-// Using Dependency Injection in a Controller
-export class TestController1 extends Controller {
-  @Inject()
-  protected readonly log: Logger;
-
-  @Inject(Application)
-  protected readonly app: Application;
-
-  protected async init(): Promise<void> {
-    this.log.info('TestController initialized');
-  }
-}
-```
-
-### Benefits
-- Simplifies dependency declaration via the `@Inject()` decorator, avoiding manual instantiation.
-- Supports injection of the `Application` instance for easy access to global configurations or application control.
-- Enhances code maintainability and facilitates testing by allowing dependency substitution.
-
-## 3. Application Entry Points
-
-**Application Entry Points** are core mechanisms in Lakutata for starting and managing the application lifecycle. Through the `Application` class, they provide a unified approach for application configuration, component registration, and bootstrap initialization. Lakutata supports multiple entry point types, including HTTP, CLI, and Service entry points, to accommodate diverse application scenarios.
-
-### Key Features
-- **Application Configuration**: Defines the application’s ID, name, timezone, components, providers, modules, and bootstrap items (`bootstrap`) via the `Application.run()` method.
-- **Multiple Entry Point Support**: Lakutata designs entry points as an abstraction layer, allowing developers to freely choose specific implementation frameworks or libraries as long as they can integrate with the framework’s entry point mechanism. The framework provides `BuildEntrypoints` and related helper methods (e.g., `BuildHTTPEntrypoint`, `BuildCLIEntrypoint`, `BuildServiceEntrypoint`) to assist developers in defining entry points:
-    - **HTTP Entry Point**: For handling HTTP requests, developers can choose to use Fastify or other HTTP frameworks, needing only to implement the request handling logic and integrate with Lakutata’s `HTTPContext`.
-    - **CLI Entry Point**: For command-line interactions, developers can opt for Commander.js or other CLI tools, simply connecting the command handling logic with Lakutata’s `CLIContext`.
-    - **Service Entry Point**: For real-time communication or other service scenarios, developers can select Socket.IO or other communication libraries, integrating with Lakutata’s `ServiceContext`.
-- **Lifecycle Management**: Provides hooks like `onLaunched`, `onDone`, and `onFatalException` for executing custom logic during application startup, completion, or error scenarios.
-- **Shutdown signals**: On `SIGTERM` (`docker stop`, the rolling updates of Kubernetes, systemd) and `SIGINT` (Ctrl+C), the application ends gracefully: `onDone` runs first, the application still working (its third argument tells why: `{code: 0, signal: 'SIGTERM'}`, or `{code}` for `app.exit(code)`), then its entrypoints stop accepting requests and let the running ones complete, its objects are destroyed, and it exits with the code 0. A second signal (a shutdown hanging), or a signal received while the application launches, ends the process at once with the code 128 + the number of the signal (143 for `SIGTERM`, 130 for `SIGINT`). The option `shutdownSignals` of the application gives other signals (`['SIGTERM', 'SIGINT', 'SIGHUP']`), or `false` to handle them yourself.
-- **Launch failure**: When the application cannot launch (an object failing to initialize, invalid options), the handler of `onFatalException` gives the exit code (1 when it returns none). Without handler, the error is logged and the application exits with the code 1, as Node.js on an uncaught exception, so the tools running it (Docker restart policies, Kubernetes, systemd, CI) know it failed; the objects already created (a server listening, a connection) do not keep it running.
-- **Environment Variable Support**: Sets environment variables via the `Application.env()` method, accessible throughout the application.
-- **The mode**: `app.mode()` gives `'development'` or `'production'`. The environment overrides the code, so the same build runs in each mode: the `MODE` environment variable (the one of lakutata), then `NODE_ENV`, then the `mode` option of the application, `development` otherwise. A `MODE` which is not one of them is warned of and ignored, a `NODE_ENV` which is not one of them (`test`, set by the test tools) is skipped. The mode is written back to `MODE` and `NODE_ENV`, so the libraries read the same mode. The variables come from the system, `Application.env({MODE: 'production'})`, or the `.env` file Bun reads (`bun App.js`; the executables of Bun do not read it).
-- **The packed application**: `IsPackaged()` tells whether the application runs bundled (`lakutata package bundle`) or in an executable (`lakutata package exe`). Its resources, the files it reads at run time (the built pages of a web application, templates, data), are declared by the `lakutata.resources` of its `package.json`, as the `extraResources` of electron-builder: `[{"from": "../ui/dist", "to": "ui"}]`. Packed, `ResourcesPath()` gives their directory (next to the bundle or to the executable, or extracted with the native addons of a single executable); not packed, it gives `undefined` and the application finds them where they are built: `const ui = ResourcesPath() ? path.join(ResourcesPath()!, 'ui') : uiBuildDirectory`.
-
-### Usage Example
-Below is an example of application entry point configuration and startup based on `App.spec.ts`:
-
-```typescript
-import { Application } from '../lib/core/Application.js';
-import { TestComponent } from './components/TestComponent.js';
-import { TestController1 } from './controllers/TestController1.js';
-import { BuildEntrypoints, BuildHTTPEntrypoint } from '../components/entrypoint/Entrypoint.js';
-
-// Configure and start the application
 Application
-  .env({ TEST: '123' }) // Set environment variables
-  .run(() => ({
-    id: 'test.app',
-    name: 'TestApp',
-    timezone: 'auto',
-    components: {
-      testComponent: {
-        class: TestComponent
-      },
-      entrypoint: BuildEntrypoints({
-        controllers: [TestController1],
-        http: BuildHTTPEntrypoint((module, routeMap, handler, onDestroy) => {
-          // Developers can freely choose HTTP framework for implementation
-          // Specific implementation code omitted, refer to App.spec.ts
-        }),
-        // CLI and Service entry point configurations omitted
-      })
-    },
-    bootstrap: ['entrypoint']
-  }))
-  .onLaunched(async (app, log) => {
-    log.info('Application %s launched', app.appName);
-  })
-  .onDone(async (app, log, reason) => {
-    log.info('Application %s done (exit code %d%s)', app.appName, reason.code, reason.signal ? `, ${reason.signal}` : '');
-  })
-  .onFatalException((error, log) => {
-    log.error('Application error: %s', error.message);
-    return 100;
-  });
+    .run(() => ({
+        id: 'com.example.app',
+        name: 'Example',
+        components: {
+            mailer: {class: Mailer, host: 'smtp.example.com'}
+        },
+        bootstrap: ['mailer']
+    }))
+    .onLaunched(async (app: Application): Promise<void> => {
+        const mailer: Mailer = await app.getObject<Mailer>('mailer')
+        await mailer.send('someone@example.com', 'Hello')
+    })
 ```
 
-### Benefits
-- Provides a unified `Application` class for application configuration and startup, simplifying the initialization of complex applications.
-- Abstracted entry point design grants developers high flexibility to choose suitable frameworks or libraries for specific functionality.
-- Supports custom logic through lifecycle hooks, facilitating debugging and extension.
+## 3. Dependency injection
 
-## Summary
+`@Inject` (from `lakutata/decorator/di`) sets a property when the object is created, before `init()`:
 
-Lakutata’s core features—including the IoC Container, Dependency Injection, and Application Entry Points—provide developers with a powerful framework for building modular and scalable applications. By managing dependencies and object lifecycles through the IoC Container, simplifying inter-component relationships via Dependency Injection, and offering flexible startup and management through Application Entry Points, Lakutata effectively addresses needs ranging from simple scripts to complex enterprise applications.
+- `@Inject()`: the object registered under the property name;
+- `@Inject('name')` or `@Inject(symbol)`: the object registered under that name;
+- `@Inject(SomeClass)`: the object registered for the class (`@Inject(Application)` gives the application);
+- `@Inject('name', transform)`: the value returned by `transform(object)` (it may be async).
 
-For detailed information on controller behavior definition, Data Transfer Objects (DTOs), or other modules, please refer to the relevant documentation sections.
+A class marked `@Autoload()` is registered on its first request instead of failing: a singleton in the root container,
+a scoped class in the nearest scope, a transient class in the requesting container. A registration that cannot be
+resolved fails the creation with a `DependencyInjectionException`.
+
+`@Configurable(schema, fn?)` makes a property an option of the object: its value comes from the object's declaration
+(`{class: Mailer, host: 'smtp.example.com'}`) or from the second argument of `getObject()`, validated by the schema, then
+passed to `fn` when given. A module checks the options of the objects it declares when it initializes: an invalid value
+fails it with an `InvalidObjectOptionsException`, an option that is not a configurable property is warned of.
+
+```typescript
+import {Application, Component, Provider} from 'lakutata'
+import {Autoload, Inject, Scoped} from 'lakutata/decorator/di'
+
+//Not declared in the application: registered the first time it is injected
+@Autoload()
+@Scoped()
+class RequestClock extends Provider {
+    public readonly startedAt: number = Date.now()
+}
+
+class Reports extends Component {
+    @Inject(RequestClock)
+    protected readonly clock: RequestClock
+
+    @Inject(Application)
+    protected readonly app: Application
+
+    public elapsed(): number {
+        return Date.now() - this.clock.startedAt
+    }
+}
+```
+
+## 4. Modules
+
+A `Module` declares its own components, providers and objects with the same options as the application, in the
+initializer of its `options` property. Its objects resolve their dependencies from the module first, then from the
+application; the application's objects do not see the module's. Declare a module in the `objects.named` of the
+application (or of a parent module), its options under `options` (merged over its initializer), and list it in
+`bootstrap` to start it at launch.
+
+When a module is created, its options are checked, its objects registered, then its `bootstrap` runs in order. An
+object outside the module getting it (`getObject()`, `@Inject`) receives it once these steps are complete, or receives
+the error of the step that failed; the module's own objects, created by these steps, receive it at once.
+
+```typescript
+import {Application, Component, Module, type ModuleOptions} from 'lakutata'
+
+class Billing extends Component {
+    public charge(amount: number): void {
+        console.log(`Charged ${amount}`)
+    }
+}
+
+class PaymentModule extends Module {
+    protected options: ModuleOptions = {
+        components: {
+            billing: {class: Billing}
+        },
+        bootstrap: ['billing']
+    }
+}
+
+Application.run(() => ({
+    id: 'shop.app',
+    name: 'Shop',
+    objects: {
+        named: {
+            payment: {class: PaymentModule}
+        }
+    },
+    bootstrap: ['payment']
+}))
+```
+
+`module.reload()` destroys the module with its objects and initializes it again.
+
+## 5. The application
+
+### Options
+
+`Application.run(options)` (or `run(() => options)`, the getter called at launch, possibly async) takes:
+
+| Option | Meaning |
+|---|---|
+| `id`, `name` | Required. The ID (also the `process.title`) and the name of the application (`app.appId`, `app.appName`) |
+| `timezone` | An IANA time zone, or `'auto'` (default) for the system's; written to `TZ` |
+| `mode` | `'development'` or `'production'`, when the environment gives none (see below) |
+| `shutdownSignals` | The signals ending the application gracefully (default `['SIGTERM', 'SIGINT']`), or `false` |
+| `components`, `providers` | The components and providers by name: `{class, ...options}` |
+| `objects` | Other objects (modules, plain objects): `{named: {...}, anonymous: [...]}` |
+| `bootstrap` | The steps run in order at launch: a name, a symbol or a class (the object is created), or an async function called with the application |
+| `checkOptions` | Check the options of the declared objects at launch (default `true`) |
+
+A declaration without `class` completes the options of the object of the same name preset by the framework: the
+`lakutata` package presets `log` (the `Logger`) and `entrypoint` (the `Entrypoint`), so `log: {level: 'debug'}` sets the
+level of the preset logger. `Application.preset(options)` presets objects for every application of the process.
+
+### The fluent API
+
+```typescript
+import {Application, type ApplicationExitReason, type ILogger} from 'lakutata'
+
+Application
+    //Environment variables, set at launch before the options getter runs
+    .env({TZ_NAME: 'Asia/Shanghai'})
+    //Path aliases: '@data' in a path given to path.resolve() or app.alias.resolve(); created when missing
+    .alias({'@data': './data'}, true)
+    .run(() => ({
+        id: 'com.example.app',
+        name: 'Example',
+        components: {}
+    }))
+    //Called once the bootstrap completed (not awaited)
+    .onLaunched((app: Application, log: ILogger): void => log.info('%s launched in %s mode', app.appName, app.mode()))
+    //Called, awaited, when the application exits, before its objects are destroyed
+    .onDone(async (app: Application, log: ILogger, reason: ApplicationExitReason): Promise<void> => {
+        log.info('%s done (exit code %d%s)', app.appName, reason.code, reason.signal ? `, ${reason.signal}` : '')
+    })
+    //An uncaught exception of the process, the application keeps running
+    .onUncaughtException((error: Error, log: ILogger): void => log.warn(error.message))
+    //The launch failed: the returned number is the exit code (1 when none)
+    .onFatalException((error: Error, log: ILogger): number => {
+        log.error('Launch failed: %s', error.message)
+        return 100
+    })
+```
+
+`app.exit(code)` ends the application gracefully with the exit code; `app.exit(true)` ends the process at once with the
+code 2, without the done handlers nor the teardown.
+
+### Lifecycle
+
+1. The environment variables are set and the aliases registered (`@runtime` is the working directory).
+2. The options are read and validated; the ID, the time zone and the mode are applied.
+3. The application is created in a new root container: its objects are registered and its `bootstrap` runs in order.
+4. The `onLaunched` handlers and the `launched()` hooks of the objects run.
+
+- **Launch failure**: when the application cannot launch (invalid options, an object failing to initialize, a bootstrap
+  step failing), the `onFatalException` handler gives the exit code (1 when it returns none). Without handler, the error
+  is logged and the process exits with the code 1, as Node.js does on an uncaught exception, so the tools running it
+  (Docker restart policies, Kubernetes, systemd, CI) know it failed; the objects already created (a listening server, a
+  connection) do not keep it running.
+- **Shutdown signals**: on `SIGTERM` (`docker stop`, the rolling updates of Kubernetes, systemd) and `SIGINT` (Ctrl+C),
+  the application ends gracefully: the `onDone` handlers run first, the application still working (their third
+  argument tells why: `{code: 0, signal: 'SIGTERM'}`, or `{code}` for `app.exit(code)`), then the entrypoints stop
+  accepting requests and let the running ones complete, the objects are destroyed, and the process exits with the code
+  0. A second signal (a shutdown hanging), or a signal received while the application launches, ends the process at
+  once with the code 128 + the number of the signal (143 for `SIGTERM`, 130 for `SIGINT`). The option
+  `shutdownSignals` gives other signals (`['SIGTERM', 'SIGINT', 'SIGHUP']`), or `false` to leave them to Node.js.
+- **The mode**: `app.mode()` gives `'development'` or `'production'`. The environment overrides the code, so the same
+  build runs in each mode: the `MODE` environment variable, then `NODE_ENV`, then the `mode` option, `'development'`
+  otherwise. A `MODE` that is not a mode is warned of and ignored; a `NODE_ENV` that is not a mode (`test`) is skipped.
+  The mode is written back to `MODE` and `NODE_ENV`, so the libraries read the same mode. The variables come from the
+  system, from `Application.env({MODE: 'production'})`, or from the `.env` file Bun reads (`bun App.js`; the
+  executables built by Bun do not read it).
+- **The packed application**: `IsPackaged()` (from `lakutata`) tells whether the application runs bundled
+  (`lakutata package bundle`) or as an executable (`lakutata package exe`). The files it reads at run time (the built
+  pages of a web application, templates, data) are declared by `lakutata.resources` in its `package.json`, as the
+  `extraResources` of electron-builder: `[{"from": "../ui/dist", "to": "ui"}]`. Packed, `ResourcesPath()` gives their
+  directory; not packed, it gives `undefined` and the application finds them where they are built:
+  `const ui = ResourcesPath() ? path.join(ResourcesPath()!, 'ui') : uiBuildDirectory`.
+
+## 6. Entrypoints
+
+The `entrypoint` component (`lakutata/com/entrypoint`) serves the controllers over HTTP, CLI, service transports and
+schedules. Give its options with `BuildEntrypoints({controllers, http, cli, service, schedule})` and list it in
+`bootstrap`; see [ActionPattern](ActionPattern.md).
+
+## 7. A container without an application
+
+Tests, scripts and libraries can use the objects in a bare container:
+
+```typescript
+import {Component, Container, DTO} from 'lakutata'
+import {Configurable} from 'lakutata/decorator/di'
+
+class Mailer extends Component {
+    @Configurable(DTO.String().required())
+    protected readonly host: string
+
+    public async send(to: string, text: string): Promise<string> {
+        return `${this.host} -> ${to}: ${text}`
+    }
+}
+
+const container: Container = new Container()
+//Created with its options, its init() awaited
+const mailer: Mailer = await container.set(Mailer, {host: 'localhost'})
+await mailer.send('someone@example.com', 'Hello')
+//Destroys the objects it created
+await container.destroy()
+```
+
+`container.register()`/`registerNamed()` register a class without creating it, `get()` resolves an object,
+`build()` creates a new one whatever its lifetime, `createScope()` creates a scope.

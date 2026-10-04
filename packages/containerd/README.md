@@ -227,8 +227,8 @@ await tty.close()
 
 ### Networks
 
-Besides `host` (the default) and `none`, the containers join CNI networks: nerdctl's default `bridge` (`nerdctl0`,
-`10.4.0.0/24`, created when first asked for) and the networks created, bridges, macvlans or ipvlans, with IPv4 and
+Besides `host` and `none`, the containers join CNI networks: nerdctl's default `bridge` (`nerdctl0`, `10.4.0.0/24`,
+created when first asked for; the network of the containers created without `network` nor `networks`) and the networks created, bridges, macvlans or ipvlans, with IPv4 and
 IPv6 subnets. Each container's networks are set up by its runc hooks, so they also work when containerd restarts it
 without the application.
 

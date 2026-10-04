@@ -1,137 +1,324 @@
-# Lakutata Action Pattern
+# Lakutata Controllers and Actions
 
-**Lakutata** is a universal application framework based on IoC (Inversion of Control), designed to provide a modular and extensible development experience for TypeScript and Node.js developers. In terms of operation dispatching and entry point definition, Lakutata offers the **Action Pattern** system, which maps requests or commands to controller methods through pattern matching, enabling flexible operation invocation. This document provides a detailed explanation of the Action Pattern definition, core decorators, pattern management mechanisms, and usage examples within the Lakutata framework.
+The `Entrypoint` component (`lakutata/com/entrypoint`, package `@lakutata/entrypoint`) serves the methods of the
+controllers, the **actions**, over several transports. An action is addressed by an HTTP route, a CLI command, a
+service pattern or a schedule, and one method can carry several of these addresses at once: its input is validated by
+its DTO, checked by the access control and passed through the middlewares the same way whatever the transport. The
+README of `@lakutata/entrypoint` and the typings of `lakutata/com/entrypoint` and `lakutata/decorator/ctrl` give the
+details.
 
-## 1. Action Pattern Functionality Overview
+## 1. Controllers
 
-**Action Pattern** is a mechanism in the Lakutata framework for defining and matching operation patterns, primarily used for registering and invoking entry points of controller methods. Action Pattern allows developers to map HTTP requests, command-line operations, or service calls to specific methods in controllers through defined patterns, thereby achieving operation dispatching and handling. Lakutata's Action Pattern system supports multiple entry types, including HTTP requests, command-line operations, and service operations, and leverages a pattern-matching engine for efficient operation lookup and execution.
+A controller extends `Controller` (`lakutata/com/entrypoint`), a provider whose lifetime is `@Scoped` (locked): each
+request creates its own controller in the request's scope and destroys it when the request ends; the providers it
+injects are scoped to the request too.
 
-### 1.1 Core Purpose of Action Pattern
-- **Operation Mapping**: Maps specific requests or commands to methods within controllers, ensuring accurate operation dispatching.
-- **Entry Point Definition**: Defines operation entry points through decorators, supporting various entry types (e.g., HTTP, CLI, service calls).
-- **Pattern Matching**: Utilizes pattern matching mechanisms to flexibly handle complex service operation calls.
-
-### 1.2 Integration with Lakutata
-Lakutata provides three core Action decorators (`@HTTPAction`, `@CLIAction`, `@ServiceAction`) for registering controller methods as different types of operation entry points. Combined with the `ActionPattern` type and `PatternManager` pattern manager, Lakutata efficiently handles pattern matching and operation invocation. Furthermore, the Action Pattern system integrates with the DTO system, supporting input data validation to ensure operation security and consistency.
-
-## 2. Action Pattern Core Components
-
-### 2.1 ActionPattern Type
-`ActionPattern` is a key-value pair record type (`Record<string, any>`), capable of containing arbitrary properties and supporting generic extensions for type safety. It is primarily used for defining patterns in service operations.
-
-### 2.2 Action Decorators
-Lakutata provides three Action decorators for registering controller methods as specific types of operation entry points.
-
-#### 2.2.1 @HTTPAction
-The `@HTTPAction` decorator is used to register controller methods as entry points for HTTP requests.
-
-- **Parameters**:
-  - `route`: HTTP route path (e.g., `/users`).
-  - `method` or `methods`: HTTP request method(s), which can be a single method (e.g., `'GET'`) or multiple methods (e.g., `['GET', 'POST']`).
-  - `dtoConstructor` (optional): DTO class for validating request data.
-- **Example**:
-  ```typescript
-  import { HTTPAction } from '../../decorators/action/HTTPAction.js';
-  import { Controller } from '../../components/entrypoint/lib/Controller.js';
-  import { UserDTO } from './UserDTO.js';
-
-  @Controller()
-  export class UserController {
-    @HTTPAction('/users', 'GET')
-    async getUsers(): Promise<any> {
-      return { message: 'List of users' };
-    }
-
-    @HTTPAction('/users', 'POST', UserDTO)
-    async createUser(data: UserDTO): Promise<any> {
-      return { message: 'User created', data };
-    }
-  }
-  ```
-- **Explanation**: The `getUsers` method is registered as the entry point for GET requests to `/users`; the `createUser` method is registered as the entry point for POST requests to `/users` and uses `UserDTO` to validate request data.
-
-#### 2.2.2 @CLIAction
-The `@CLIAction` decorator is used to register controller methods as entry points for command-line operations.
-
-- **Parameters**:
-    - `command`: Command string (e.g., `user:create`).
-    - `dtoConstructor` (optional): DTO class for validating command parameters.
-- **Example**:
-  ```typescript
-  import { CLIAction } from '../../decorators/action/CLIAction.js';
-  import { Controller } from '../../components/entrypoint/lib/Controller.js';
-  import { UserDTO } from './UserDTO.js';
-
-  @Controller()
-  export class UserController {
-    @CLIAction('user:create', UserDTO)
-    async createUser(data: UserDTO): Promise<void> {
-      console.log('Creating user:', data);
-    }
-  }
-  ```
-    - **Explanation**: The `createUser` method is registered as the entry point for the `user:create` command and uses `UserDTO` to validate command parameters.
-
-#### 2.2.3 @ServiceAction
-The `@ServiceAction` decorator is used to register controller methods as entry points for service operations.
-
-- **Parameters**:
-    - `pattern`: Operation pattern based on the `ActionPattern` type, allowing the definition of arbitrary key-value pair patterns.
-    - `dtoConstructor` (optional): DTO class for validating operation data.
-- **Example**:
-  ```typescript
-  import { ServiceAction } from '../../decorators/action/ServiceAction.js';
-  import { Controller } from '../../components/entrypoint/lib/Controller.js';
-  import { UserDTO } from './UserDTO.js';
-
-  @Controller()
-  export class UserController {
-    @ServiceAction({ action: 'createUser', module: 'user' }, UserDTO)
-    async createUser(data: UserDTO): Promise<any> {
-      return { message: 'User created via service action', data };
-    }
-  }
-  ```
-    - **Explanation**: The `createUser` method is registered as the entry point for the `{ action: 'createUser', module: 'user' }` pattern, suitable for inter-service calls, and uses `UserDTO` to validate data.
-
-#### 2.2.4 The clients of the service actions and their events
-The service adapters with clients (`ElectronIPCServiceEntrypoint`: each page of a window; `SocketIOServiceEntrypoint`:
-each socket, its id given when it connects by its `auth.id` or its `id` header; `HTTPServiceEntrypoint`: the requests
-`POST /` and the event streams `GET /events` of a client, its id in their `id` header or the `id` query of the stream)
-give the id of the client of a request to its context, `ServiceContext.clientId`. The entrypoint component pushes events to the clients by their ids, kept as long
-as needed, or to every client:
+- `this.context` is the context of the request: an `HTTPContext` (its `request`, `response`, `route`, `method`), a
+  `CLIContext` (its `command`), a `ServiceContext` (its `clientId`) or a `ScheduleContext`; tell them apart by their
+  class or their `type`.
+- `this.signal` is an `AbortSignal` aborted when the request is: its client gone, its deadline exceeded, or the
+  entrypoint stopping. Long-running actions should stop then: their result is dropped.
+- The method receives its input (the data of the request, validated by the DTO of the action, its defaults applied and
+  its unknown keys removed) as a plain object, not a DTO instance. Without a DTO, the input is accepted as it is.
+- The value returned is the response; an exception is answered with its `statusCode` (HTTP) and its `errno` and
+  message, an invalid input with the status 400.
 
 ```typescript
-export class TaskController extends Controller {
+import {Application, DTO} from 'lakutata'
+import {BuildEntrypoints, Controller, ScheduleEntrypoint} from 'lakutata/com/entrypoint'
+import {CLIAction, GET, POST, Schedule, ServiceAction} from 'lakutata/decorator/ctrl'
+import {Expect} from 'lakutata/decorator/dto'
+import {ExpressHTTPEntrypoint} from 'lakutata/adapter/express'
+import {CommanderCLIEntrypoint} from 'lakutata/adapter/commander'
+import {SocketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
+
+class GetOrderDTO extends DTO {
+    //The route parameters and the query are strings: strict(false) converts them
+    @Expect(DTO.Number().integer().strict(false).required())
+    public id: number
+}
+
+class CreateOrderDTO extends DTO {
+    @Expect(DTO.String().required())
+    public product: string
+
+    @Expect(DTO.Number().integer().min(1).default(1))
+    public quantity: number
+}
+
+class OrderController extends Controller {
+    //GET /orders/42, the command "order --id 42", the service message {cmd: 'order.get', id: 42}
+    @GET('/orders/:id', GetOrderDTO)
+    @CLIAction('order', GetOrderDTO)
+    @ServiceAction({cmd: 'order.get'}, GetOrderDTO)
+    public async get(input: GetOrderDTO): Promise<{ id: number }> {
+        return {id: input.id}
+    }
+
+    //POST /orders with a JSON body
+    @POST('/orders', CreateOrderDTO)
+    public async create(input: CreateOrderDTO): Promise<{ product: string, quantity: number }> {
+        return input
+    }
+
+    //Every 5 minutes
+    @Schedule('5m')
+    public async report(): Promise<void> {
+    }
+}
+
+Application.run(() => ({
+    id: 'orders.app',
+    name: 'Orders',
+    components: {
+        entrypoint: BuildEntrypoints({
+            controllers: [OrderController],
+            http: ExpressHTTPEntrypoint({port: 8080}),
+            cli: CommanderCLIEntrypoint(),
+            service: SocketIOServiceEntrypoint({port: 8081}),
+            schedule: ScheduleEntrypoint()
+        })
+    },
+    bootstrap: ['entrypoint']
+}))
+```
+
+## 2. The action decorators (`lakutata/decorator/ctrl`)
+
+Each decorator takes its address, then optionally the DTO class of the input, then optionally the action options
+(`acl`, `name`, `description`, `groups`, `rule`, `middlewares`).
+
+### HTTP: `@HTTPAction`, `@GET`, `@POST`, `@PUT`, `@PATCH`, `@DELETE`, `@HEAD`, `@OPTIONS`
+
+```text
+@HTTPAction(route, method | methods, DTOClass?, options?)
+@GET(route, DTOClass?, options?)
+```
+
+- The route uses the syntax of the HTTP adapter (`/users/:id`); the method is case-insensitive (`'get'`, `['get', 'post']`).
+- The input is the query merged with the parsed body (JSON or URL-encoded), then the route parameters over them. The
+  query values and the route parameters are strings and the schemas are strict: convert them with `.strict(false)`.
+- The value returned is answered as JSON (204 for `undefined`). `Result.status(201, data, headers)`,
+  `Result.file(path)` and `Result.events(producer)` (Server-Sent Events), from `lakutata/com/entrypoint`, control the
+  response.
+
+### CLI: `@CLIAction`
+
+```text
+@CLIAction(command, DTOClass?, options?)
+```
+
+- The command is its name, optionally followed by positional arguments (`'copy <source> [target]'`, `'<files...>'`);
+  the words before the name are groups (`'package exe <file>'`). The other properties of the DTO are options
+  (`--times 2`), the booleans flags (`--shout`); `.description()` of a schema is the help of its option, and the
+  `description` action option the help of the command.
+- The value returned is written to stdout (a string as it is, other values as JSON); an error is written to stderr and
+  the command ends with the code 1.
+
+### Service: `@ServiceAction`
+
+```text
+@ServiceAction(pattern, DTOClass?, options?)
+```
+
+- The pattern is an object (nested 2 levels at most) whose keys a message must hold with the same values; a string
+  value may be a glob (`'user.*'`). The most specific matching pattern wins. The input is the message without the keys
+  of the pattern.
+- The caller receives `{success: true, error: null, payload}`, or `{success: false, error, payload: null}` where
+  `error` holds the properties of the error (`errno`, `errMsg`, `statusCode`, `message`…); JSON-RPC answers with its
+  own `result` and `error`. A message no pattern matches fails with `ControllerActionNotFoundException`.
+
+### Schedules: `@Schedule`
+
+```text
+@Schedule(schedule, options?)
+```
+
+The method runs on a schedule when the entrypoint has a schedule adapter (`schedule: ScheduleEntrypoint()`). The
+schedule is a duration (`'30s'`, `'1h30m'`, an interval), a cron expression (`'0 */5 * * * *'`, 5 or 6 fields, or a
+macro such as `'@daily'`), or the options `{every}` or `{cron, timezone}` with:
+
+- `overlap` (default `false`): start a run while the previous one is in progress; otherwise the run is skipped;
+- `immediate` (default `false`): also run once as soon as the application launched;
+- `exclusive` (default `false`): run in one instance of the application at a time, with the locks of a mutex component
+  (`true` uses the component named `mutex`, `{mutex, key}` names it and the lock); see [Mutex](Mutex.md).
+
+Each run has its own scope and goes through the middlewares and the access control; the method receives an empty
+input, `this.context` is a `ScheduleContext` (its `schedule`, its planned time, its `run` number). An error thrown is
+given to the `onError` option of `ScheduleEntrypoint`, or logged, and the next runs go on.
+
+```typescript
+import {Controller, ScheduleContext} from 'lakutata/com/entrypoint'
+import {Schedule} from 'lakutata/decorator/ctrl'
+
+class JobController extends Controller {
+    //Every 30 seconds, and once as soon as the application launched
+    @Schedule({every: '30s', immediate: true})
+    public async heartbeat(): Promise<void> {
+        if (this.context instanceof ScheduleContext) console.log(`run ${this.context.run} of ${this.context.schedule}`)
+    }
+
+    //At 03:00 every day in Shanghai, in one instance at a time (a mutex component named "mutex")
+    @Schedule({cron: '0 3 * * *', timezone: 'Asia/Shanghai', exclusive: true}, {name: 'Purge the expired sessions'})
+    public async purge(): Promise<void> {
+    }
+}
+```
+
+### Prefixes: `@Prefix`
+
+`@Prefix({route, command, pattern})` on a controller class prefixes its actions: `route` is prepended to the HTTP
+routes, `command` to the CLI commands (joined by `:`, `user` and `get` give `user:get`), `pattern` is merged into the
+service patterns.
+
+```typescript
+import {DTO} from 'lakutata'
+import {Controller} from 'lakutata/com/entrypoint'
+import {CLIAction, GET, Prefix, ServiceAction} from 'lakutata/decorator/ctrl'
+import {Expect} from 'lakutata/decorator/dto'
+
+class UserIdDTO extends DTO {
+    @Expect(DTO.String().required())
+    public id: string
+}
+
+@Prefix({route: '/users', command: 'user', pattern: {resource: 'user'}})
+class UserController extends Controller {
+    //GET /users/:id, the command "user:get <id>" and the message {resource: 'user', act: 'get', id}
+    @GET('/:id', UserIdDTO)
+    @CLIAction('get <id>', UserIdDTO)
+    @ServiceAction({act: 'get'}, UserIdDTO)
+    public async get(input: UserIdDTO): Promise<{ id: string }> {
+        return {id: input.id}
+    }
+}
+```
+
+## 3. Middlewares and access control
+
+A middleware runs around an action, before its input validation and its access control: a function
+`(invocation, next) => Promise<unknown>` or a `Middleware` class. They are given to `BuildEntrypoints({middlewares})`
+(every action), to an adapter's `middlewares` option, to `@UseMiddlewares(...)` on a controller class or a method, and to
+the `middlewares` action option.
+
+```typescript
+import {type ActionInvocation, Controller, type Next} from 'lakutata/com/entrypoint'
+import {GET, UseMiddlewares} from 'lakutata/decorator/ctrl'
+
+async function Timing(invocation: ActionInvocation, next: Next): Promise<unknown> {
+    const started: number = Date.now()
+    try {
+        return await next()
+    } finally {
+        console.log(`${invocation.context.type} took ${Date.now() - started} ms`)
+    }
+}
+
+@UseMiddlewares(Timing)
+class HealthController extends Controller {
+    @GET('/health')
+    public async health(): Promise<string> {
+        return 'ok'
+    }
+}
+```
+
+An action declared with `{acl: true}` is checked by the rules given to `BuildEntrypoints({rules})`: `AccessControlRule`
+subclasses, created for each request, whose `rule()` resolving `false` denies it with an `AccessDeniedException` (HTTP
+403). The `rule` action option is the action's own rule.
+
+```typescript
+import {AccessControlRule, ContextType, Controller, type HTTPContext} from 'lakutata/com/entrypoint'
+import {DELETE} from 'lakutata/decorator/ctrl'
+
+class AdminRule extends AccessControlRule<HTTPContext> {
+    public get supportContextTypes(): ContextType[] {
+        return [ContextType.HTTP]
+    }
+
+    public async rule(): Promise<boolean> {
+        if (!this.targetAction.groups.includes('admin')) return true
+        return this.context.request.headers['x-role'] === 'admin'
+    }
+}
+
+class UserController extends Controller {
+    @DELETE('/users/:id', {acl: true, groups: ['admin']})
+    public async remove(input: { id: string }): Promise<void> {
+    }
+}
+
+//BuildEntrypoints({controllers: [UserController], rules: [AdminRule], httpActionGroups: {admin: 'Administration'}})
+```
+
+The groups of an action must be declared in `httpActionGroups`, `cliActionGroups` or `serviceActionGroups` of
+`BuildEntrypoints`. `shutdownTimeout` (default 30000 ms) is the time given to the running requests when the entrypoint
+stops.
+
+## 4. The transports
+
+| Option of `BuildEntrypoints` | Adapter | Subpath | Install |
+|---|---|---|---|
+| `http` | `ExpressHTTPEntrypoint({port})` | `lakutata/adapter/express` | `express` |
+| `http` | `FastifyHTTPEntrypoint({port})` | `lakutata/adapter/fastify` | `fastify` |
+| `cli` | `CommanderCLIEntrypoint()` | `lakutata/adapter/commander` | `commander` (`@inquirer/prompts` for the prompts) |
+| `service` | `SocketIOServiceEntrypoint({port})` | `lakutata/adapter/socket.io` | `socket.io` |
+| `service` | `JSONRPCServiceEntrypoint()` (HTTP, WebSocket, stdio) | `lakutata/adapter/jsonrpc` | `ws` for WebSocket |
+| `service` | `ElectronIPCServiceEntrypoint()` | `lakutata/adapter/electron` | (Electron) |
+| `service` | `HTTPServiceEntrypoint({port})` (`POST /`, events by SSE) | `lakutata/com/entrypoint` | |
+| `service` | `GRPCServiceEntrypoint({port})` | `@lakutata/grpc/service` | `@lakutata/grpc` |
+| `service` | `NatsServiceEntrypoint('nats')` | `@lakutata/nats` | `@lakutata/nats` |
+| `schedule` | `ScheduleEntrypoint()` | `lakutata/com/entrypoint` | |
+
+Each option takes one adapter or an array of adapters. `BuildHTTPEntrypoint`, `BuildCLIEntrypoint` and
+`BuildServiceEntrypoint` (from `lakutata/com/entrypoint`) type an entrypoint function in the style of lakutata 2.x, to
+plug another library; `EntrypointAdapter` (from `@lakutata/entrypoint/channel`) is the interface of the adapters.
+
+### The clients of the service actions and their events
+
+The service adapters with clients give the id of the client of a request to its context, `ServiceContext.clientId`:
+`ElectronIPCServiceEntrypoint` (each page of a window), `SocketIOServiceEntrypoint` (each socket, its id given when it
+connects by its `auth.id` or its `id` header), `HTTPServiceEntrypoint` (the `id` header of the `POST` requests, the `id`
+header or query of the event stream `GET /events`), `JSONRPCServiceEntrypoint` over WebSocket and stdio, and
+`GRPCServiceEntrypoint` (the `id` metadata). The entrypoint pushes events to a client with `notify(clientId, event,
+...args)` (it returns whether a client received it) or to every client with `broadcast(event, ...args)` (it returns the
+number of clients):
+
+```typescript
+import {Controller, Entrypoint, ServiceContext} from 'lakutata/com/entrypoint'
+import {ServiceAction} from 'lakutata/decorator/ctrl'
+import {Inject} from 'lakutata/decorator/di'
+
+class TaskController extends Controller {
     @Inject('entrypoint')
     protected readonly entrypoint: Entrypoint
 
     @ServiceAction({cmd: 'start'})
     public async start(): Promise<void> {
-        const clientId = (this.context as ServiceContext).clientId!
-        setTimeout(() => this.entrypoint.notify(clientId, 'done', {task: 1}), 1000)
+        const clientId: string | undefined = (this.context as ServiceContext).clientId
+        if (clientId) setTimeout((): void => void this.entrypoint.notify(clientId, 'done', {task: 1}), 1000)
         this.entrypoint.broadcast('started', {task: 1})
     }
 }
 ```
 
-The renderers of Electron listen to them with `window.ipc.on(event, listener)` (the Electron templates), the sockets
-with `socket.on(event, listener)`, the HTTP clients with the Server-Sent Events of `GET /events` (`EventSource`, curl,
-Postman). A page of a window is a client until it is loaded again or its window is closed.
+The renderers of Electron listen to the events with `window.ipc.on(event, listener)` (the Electron templates), the
+sockets with `socket.on(event, listener)`, the HTTP clients with the Server-Sent Events of `GET /events`
+(`EventSource`, curl). A page of a window is a client until it is loaded again or its window is closed.
 
-#### 2.2.5 JSON-RPC 2.0 and gRPC
-`JSONRPCServiceEntrypoint` (`lakutata/adapter/jsonrpc`) serves the service actions over JSON-RPC 2.0: the method and the
-params (by name) of a request are the pattern and the input of an action, `{"method": "order.get", "params": {"id": 1}}`
-being dispatched as `{method: 'order.get', id: 1}` (`methodField` names the field, `toPattern(method, params)` maps them
-to other patterns, `positionalParams` accepts the params by position). Its batches and notifications follow the
-specification; the errors are the ones of JSON-RPC: `-32601` (no action matches), `-32602` (the DTO refuses the input),
-`-32000` (the errors of the actions, the whole error as their `data`). Its transports: HTTP (`POST`), WebSocket (the
-package `ws`) and stdio (a child process, framed by lines or by `Content-Length` headers); the last two push the events
-of the clients as notifications (`{"method": event, "params": args}`). Over WebSocket, the connections which do not answer
-its pings are closed (`heartbeat`, 30 s); over stdio, the application exits once its input ends (its parent process gone,
-`end: 'application'`), its requests in progress answered.
+### JSON-RPC 2.0
 
-```typescript
+`JSONRPCServiceEntrypoint` serves the service actions over JSON-RPC 2.0: the method and the params (by name) of a
+request are the pattern and the input of an action, `{"method": "order.get", "params": {"id": 1}}` being dispatched as
+`{method: 'order.get', id: 1}` (`methodField` names the field, `toPattern(method, params)` maps them to other patterns,
+`positionalParams` accepts the params by position). The batches and the notifications follow the specification; the
+errors are `-32601` (no action matches), `-32602` (the DTO refuses the input) and `-32000` (the errors of the actions,
+the whole error as their `data`). The transports are HTTP (`POST`), WebSocket (the package `ws`) and stdio (framed by
+lines or by `Content-Length` headers); the last two push the events of the clients as notifications. Over WebSocket, the
+connections that do not answer the pings are closed (`heartbeat`, 30 s); over stdio, the application exits once its
+input ends (`end: 'application'`).
+
+```text
 service: [
     JSONRPCServiceEntrypoint({port: 4000, path: '/rpc'}),
     JSONRPCServiceEntrypoint({transport: 'websocket', port: 4001}),
@@ -139,50 +326,33 @@ service: [
 ]
 ```
 
-`GRPCServiceEntrypoint` (`@lakutata/grpc/service`) serves them over gRPC: the service `lakutata.service.v1.Service`
-(`SERVICE_PROTO`, for the clients of the other languages) invokes an action with the JSON of its pattern and its input,
-and streams the events of a client (its metadata `id`). `GRPCServiceProxy` invokes the actions of a remote service and
-listens to its events, as the proxy of NATS does. A request larger than `maxMessageSize` (4 MB by default) is refused
-(`RESOURCE_EXHAUSTED`); the messages may be compressed (gzip, deflate: `compression`); the deadline of a call
-(`grpc-timeout`, the timeout of `invoke`) aborts its action (`DEADLINE_EXCEEDED`). The official gRPC of Python and
-grpcurl (Go) are tested with it (`npm run test:interop -w @lakutata/grpc`):
+### gRPC and NATS
+
+`GRPCServiceEntrypoint` (`@lakutata/grpc/service`) serves the service actions over gRPC: the service
+`lakutata.service.v1.Service` (`SERVICE_PROTO`, for the clients of other languages) invokes an action with the JSON of
+its pattern and input, and streams the events of a client. `GRPCServiceProxy`, declared with `BuildGRPCServiceProxy`,
+invokes the actions of a remote application and listens to its events. The deadline of a call aborts its action
+(`this.signal`). See the README of `@lakutata/grpc`.
 
 ```typescript
-service: GRPCServiceEntrypoint({port: 50051, tls: {cert, key}})
+import {Application} from 'lakutata'
+import {BuildGRPCServiceProxy, type GRPCServiceProxy} from '@lakutata/grpc/service'
 
-components: {orders: BuildGRPCServiceProxy({address: 'orders.internal:50051'})}
-const orders = await app.getObject<GRPCServiceProxy>('orders')
-await orders.invoke({cmd: 'order.get', id: 1})
-orders.on('orderChanged', (order) => {})
+Application
+    .run(() => ({
+        id: 'shop.app',
+        name: 'Shop',
+        components: {
+            orders: BuildGRPCServiceProxy({address: 'orders.internal:50051'})
+        }
+    }))
+    .onLaunched(async (app: Application): Promise<void> => {
+        const orders: GRPCServiceProxy = await app.getObject<GRPCServiceProxy>('orders')
+        orders.on('orderChanged', (order: { id: number }): void => console.log(order))
+        console.log(await orders.invoke({cmd: 'order.get', id: 1}))
+    })
 ```
 
-The controllers have `this.signal`, aborted once their request is (its client gone, the deadline of a call of gRPC
-exceeded, the entrypoint stopping): the long works of the actions stop with it.
-
-### 2.3 Pattern Manager (PatternManager)
-`PatternManager` is the core component in Lakutata for handling pattern matching in service operations, implemented based on the `Patrun` library.
-
-- **Functionality**:
-    - Registers patterns and their corresponding objects (controller methods).
-    - Finds patterns matching a given subject, supporting exact matching (via the `exact` parameter).
-    - Lists all registered patterns that include a partial pattern.
-    - Supports wildcard matching (through the `globMatch` option).
-- **Role**: `PatternManager` ensures that service operation patterns are efficiently mapped to controller methods, suitable for complex pattern-matching scenarios.
-
-## 3. Action Pattern Use Cases
-
-- **HTTP Request Handling**: Using the `@HTTPAction` decorator, controller methods are mapped to specific HTTP routes and methods to handle API requests.
-- **Command-Line Tool Development**: Using the `@CLIAction` decorator, controller methods are mapped to command-line commands, supporting the development of command-line tools.
-- **Inter-Service Communication**: Using the `@ServiceAction` decorator and `ActionPattern`, inter-service operation calls based on pattern matching are achieved, suitable for microservice architectures or modular systems.
-- **Flexible Pattern Matching**: Leveraging `PatternManager` and the `Patrun` library, complex pattern matching rules are supported, allowing developers to define custom patterns to meet specific needs.
-
-## 4. Advantages and Features of Action Pattern
-
-- **Multi-Entry Support**: Lakutata's Action Pattern system supports HTTP, CLI, and Service entry types, covering a wide range of application scenarios.
-- **Efficient Pattern Matching**: Implemented via the `Patrun` library, `PatternManager` enables efficient pattern matching, particularly suitable for complex `ServiceAction` scenarios.
-- **Integration with DTO**: All Action decorators support specifying a DTO class for validating input data, ensuring operation security and consistency.
-- **Declarative Definition**: Operation entry points are defined declaratively through decorators, keeping the code concise and maintainable.
-
-## Summary
-
-Lakutata's Action Pattern system, through the `@HTTPAction`, `@CLIAction`, and `@ServiceAction` decorators, provides a flexible mechanism for defining and registering operation entry points. Combined with the `ActionPattern` type and `PatternManager` pattern manager, Lakutata efficiently maps requests or commands to controller methods, supporting various scenarios such as HTTP request handling, command-line operations, and inter-service communication. The integration of Action Pattern with the DTO system further ensures data validation and security, enhancing the modularity and scalability of applications.
+`NatsServiceEntrypoint` (`@lakutata/nats`) serves them over NATS, on the subject of the application id, the instances
+sharing a queue group; `ServiceProxy`, declared with `BuildServiceProxy`, invokes them. See the README of
+`@lakutata/nats`.

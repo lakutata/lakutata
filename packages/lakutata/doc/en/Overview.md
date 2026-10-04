@@ -1,53 +1,123 @@
-# Lakutata - IoC-based Universal Application Framework
+# Lakutata Overview
 
-**Lakutata** is an **IoC (Inversion of Control)**-based universal application framework designed for TypeScript and Node.js developers. It provides a modular and extensible development environment to help developers build complex, enterprise-grade applications. Lakutata leverages dependency injection (DI), decorator patterns, and a component-based architecture to significantly reduce module coupling and enhance code maintainability and reusability.
+**Lakutata** is an IoC-based application framework for Node.js and TypeScript: one programming model for web
+services, CLI tools, desktop (Electron) applications and embedded devices. An application is a tree of objects created
+by a container (components, providers, modules, controllers), whose options and inputs are validated by DTOs, and whose
+controllers are served by transports: HTTP (Express, Fastify), CLI (Commander), service RPC (HTTP, Socket.IO,
+JSON-RPC 2.0, gRPC, NATS, Electron IPC) and schedules. One controller method can be all of them at once.
 
-## Highlights
+The package `lakutata` re-exports the `@lakutata/*` packages under its subpaths (see the table below) and presets two
+components in every application: `log` (the pino `Logger`) and `entrypoint` (the `Entrypoint` that serves the
+controllers).
 
-- **IoC & Dependency Injection (DI)**: Decouple module dependencies with a powerful DI mechanism, enabling flexible component management.
-- **Decorator-Driven Development**: Support for class, method, property, and parameter decorators to simplify metaprogramming and declarative development.
-- **Modular Architecture**: Clear module separation, allowing developers to import only the required features, such as core functionality, ORM, or components.
-- **ORM Integration**: Built on TypeORM, offering robust database operation abstractions and entity management.
-- **Component-Based Design**: Includes out-of-the-box components (e.g., Docker, Database, Logger) to reduce development effort in specific domains.
-- **Multi-Format Support**: Supports both ESM and CJS module formats for compatibility with various runtime environments.
-- **Type Safety**: Deep integration with TypeScript, providing strong typing support and type declaration files.
+## Requirements
 
-## Feature Directory
+- Node.js 22 or later.
+- ESM (`"type": "module"`); the package also ships CommonJS builds.
+- TypeScript with `experimentalDecorators` and `emitDecoratorMetadata`. The package publishes the compiler options the
+  framework needs as `lakutata/tsconfig.json`.
 
-Lakutata's functionality is categorized by domain and purpose, allowing developers to selectively use modules based on their needs. Below is a categorized overview of the framework's features:
-
-### 1. Core Functionality
-- **IoC Container**: Manages object lifecycles and dependencies, supporting singleton, transient, and other scopes.
-- **Dependency Injection (DI)**: Automates dependency injection via decorators, simplifying dependency management between components.
-- **Application Entrypoint**: Provides a unified mechanism for application startup and management.
-
-### 2. Decorator Support
-- **ASST Decorators**: Utility decorators to enhance class and method behaviors.
-- **CTRL Decorators**: Controller decorators for defining routing and request handling logic.
-- **DI Decorators**: Dependency injection decorators for declaring dependencies.
-- **DTO Decorators**: Data Transfer Object decorators for data validation and transformation.
-- **ORM Decorators**: Object-Relational Mapping decorators for defining database entities and relationships.
-
-### 3. Data Management
-- **ORM Integration**: Based on TypeORM, supporting multiple databases (e.g., MySQL, PostgreSQL, SQLite).
-- **Database Component**: Provides an abstraction layer for database connection management and operations.
-- **DTO Validation**: Validates data structures with schemas built on Lakutata's own validation engine, and exports them as JSON Schema / OpenAPI schemas.
-
-### 4. Components & Services
-- **Docker Component**: A built-in client of the Docker Engine API for Docker image, container and network management.
-- **Mutex Component**: The locks of an application, between its instances and its processes (memory, files, Redis, PostgreSQL, MySQL).
-- **containerd Component**: A built-in client of the API of containerd for the images and the containers of the machines running containerd without Docker (embedded Linux devices).
-- **Logger Component**: Based on Pino, offering high-performance logging capabilities.
-- **Database Provider**: Encapsulates database connection logic for simplified configuration and usage.
-- **[I18n Component](I18n.md)**: The messages of each language by their keys (ICU MessageFormat), the languages negotiated and falling back.
-
-### 5. Tools & Utilities
-- **Helper Functions**: Provides commonly used utility functions and classes to streamline development.
-- **Action Pattern**: Supports behavior pattern definitions for event-driven or command-based development.
-
-## Getting Started
-
-### Installation
+## Installation
 
 ```bash
-npm install lakutata
+npx @lakutata/cli create --name my-app   # a new project from a template (web, service, CLI, Electron…)
+npm install lakutata                      # or the framework in an existing project
+```
+
+```json
+{
+  "extends": "lakutata/tsconfig.json",
+  "compilerOptions": {"rootDir": "src", "outDir": "dist"}
+}
+```
+
+The transports and the integrations use optional peer dependencies, installed when used: `express` or `fastify`,
+`commander`, `socket.io`, `ws`, the database drivers (`pg`, `mysql2`, `sqlite3`…), the cache stores (`redis`…).
+
+## A first application
+
+```typescript
+import {Application, DTO, type ILogger} from 'lakutata'
+import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+import {GET, ServiceAction} from 'lakutata/decorator/ctrl'
+import {Expect} from 'lakutata/decorator/dto'
+import {ExpressHTTPEntrypoint} from 'lakutata/adapter/express'
+
+class GreetDTO extends DTO {
+    @Expect(DTO.String().optional().default('world'))
+    public name: string
+}
+
+class GreetController extends Controller {
+    //GET /greet?name=you, and the service action {cmd: 'greet', name: 'you'}
+    @GET('/greet', GreetDTO)
+    @ServiceAction({cmd: 'greet'}, GreetDTO)
+    public async greet(input: GreetDTO): Promise<{ message: string }> {
+        return {message: `Hello, ${input.name}!`}
+    }
+}
+
+Application
+    .run(() => ({
+        id: 'com.example.greeter',
+        name: 'Greeter',
+        components: {
+            entrypoint: BuildEntrypoints({
+                controllers: [GreetController],
+                http: ExpressHTTPEntrypoint({port: 8080})
+            })
+        },
+        bootstrap: ['entrypoint']
+    }))
+    .onLaunched((app: Application, log: ILogger): void => log.info('%s started', app.appName))
+```
+
+## The subpaths
+
+| Subpath | What it provides |
+|---|---|
+| `lakutata` | `Application`, `Module`, `Component`, `Provider`, `BaseObject`, `Container`, `DTO`, `Exception`, `Time`, `IsPackaged`, `ResourcesPath`, the validation messages |
+| `lakutata/decorator/di` | `@Inject`, `@Configurable`, `@Autoload`, `@Singleton`, `@Scoped`, `@Transient`, `@Lifetime` |
+| `lakutata/decorator/dto` | `@Expect`, `@Accept`, `@Return`, `@IndexSignature` |
+| `lakutata/decorator/asst` | `@Before`, `@After` |
+| `lakutata/dtos` | `PaginationSearchDTO`, `PaginationResultDTO`, `Paginator`, `FlexibleDTO`, the JSON Schema conversion |
+| `lakutata/com/entrypoint` | `Entrypoint`, `BuildEntrypoints`, `Controller`, the contexts, `Result`, the access control, the middlewares, `HTTPServiceEntrypoint`, `ScheduleEntrypoint` |
+| `lakutata/decorator/ctrl` | `@HTTPAction`, `@GET`…`@OPTIONS`, `@CLIAction`, `@ServiceAction`, `@Schedule`, `@Prefix`, `@UseMiddlewares` |
+| `lakutata/adapter/express`, `lakutata/adapter/fastify` | The HTTP transports |
+| `lakutata/adapter/commander` | The CLI transport |
+| `lakutata/adapter/socket.io`, `lakutata/adapter/jsonrpc`, `lakutata/adapter/electron` | The service transports |
+| `lakutata/com/logger` | The `Logger` component (pino), preset as `log` |
+| `lakutata/orm`, `lakutata/decorator/orm` | TypeORM and its decorators |
+| `lakutata/com/database`, `lakutata/provider/database` | The `Database` component and provider |
+| `lakutata/com/cacher` | The `Cacher` component |
+| `lakutata/com/mutex` | The `Mutex` component, `@Synchronized` |
+| `lakutata/com/i18n` | The `I18n` component, the `Translator`, the language middleware |
+| `lakutata/com/docker` | The `Docker` component |
+| `lakutata/com/containerd` | The `Containerd` component |
+| `lakutata/com/monitor` | The CPU, memory, event loop and HTTP monitors |
+| `lakutata/security`, `lakutata/provider/passwordHash` | Hashing, ciphers, signatures, the `PasswordHash` provider |
+| `lakutata/utils` | The helper functions |
+
+Outside this package: `@lakutata/cli` (the `lakutata` command: projects, bundles, executables, migrations),
+`@lakutata/grpc` (gRPC client, server and service transport), `@lakutata/nats` (NATS component and service transport),
+`@lakutata/dbus` (D-Bus) and `@lakutata/mcp` (the Model Context Protocol).
+
+## The guides
+
+| Guide | Topic |
+|---|---|
+| [Core](Core.md) | The application, the container, the lifetimes, dependency injection, modules, the lifecycle |
+| [DTOValidation](DTOValidation.md) | DTOs, the schemas, the validation of the options, inputs and results |
+| [Decorator](Decorator.md) | The decorators of each subpath |
+| [ActionPattern](ActionPattern.md) | The controllers, their actions and their transports (HTTP, CLI, services, schedules) |
+| [ORMIntegration](ORMIntegration.md) | The `Database` component and TypeORM |
+| [I18n](I18n.md) | The messages of each language |
+| [Mutex](Mutex.md) | The locks between the instances and the processes |
+| [DockerIntegration](DockerIntegration.md) | The `Docker` component |
+| [ContainerdIntegration](ContainerdIntegration.md) | The `Containerd` component |
+| [Security](Security.md) | Hashing, ciphers, signatures, passwords |
+| [Time](Time.md) | The `Time` class |
+| [HelperFunctions](HelperFunctions.md) | The helper functions of `lakutata/utils` |
+
+Each `@lakutata/*` package has its own README, and the typings of each subpath document every declaration with
+examples.

@@ -1,171 +1,255 @@
-# Lakutata 核心功能
+# Lakutata 核心
 
-**Lakutata** 是一个基于 IoC（控制反转）的通用应用框架，专为 TypeScript 和 Node.js 开发者设计。其核心功能为依赖管理、应用结构组织和生命周期定义提供了基础机制。本文档详细阐述了 Lakutata 的核心功能，包括 IoC 容器、依赖注入（DI）和应用入口点。
+本指南介绍框架的核心（`@lakutata/core` 包，由 `lakutata`、`lakutata/decorator/di`、`lakutata/decorator/dto` 和 `lakutata/decorator/asst` 重新导出）：对象及其容器、生命周期类型与作用域、异步构造、依赖注入、模块以及应用的生命周期。更多细节见 `@lakutata/core` 的 README 和各导出的类型声明。
 
-## 1. IoC 容器
+## 1. 对象与容器
 
-**IoC 容器** 是 Lakutata 框架的中心组件，负责实现控制反转原则以解耦模块并管理对象生命周期。它作为应用组件、提供者和模块的注册中心和工厂，确保在运行时动态解析依赖关系。
+应用中的每个对象都由 IoC 容器创建，从不使用 `new`。类的继承关系如下：
 
-### 主要特性
-- **对象生命周期管理**：IoC 容器支持多种生命周期范围，通过装饰器定义（如 `@Transient()`）：
-  - **单例（默认）**：整个应用中仅创建一个实例并在所有地方共享。
-  - **瞬态**：每次请求对象时创建一个新实例，如 `TestProvider.ts` 中的 `@Transient()`。
-  - 其他自定义范围：通过配置或装饰器进一步定义。
-- **依赖解析**：基于注册的组件、提供者或模块自动解析依赖关系，减少手动实例化的工作。
-- **提供者注册**：支持将类或服务注册为提供者（`Provider`），在应用配置中指定路径或类，如 `TestProvider`。
-- **组件管理**：支持注册和初始化组件（`Component`），可以是日志记录等基础设施服务或自定义功能模块。
-- **模块化支持**：允许将功能组织成模块（`Module`），以实现更好的代码组织和重用。
+| 类 | 作用 | 默认生命周期 |
+|---|---|---|
+| `BaseObject` | 根类：异步构造、`init()`/`destroy()`、`getObject()` | `@Transient` |
+| `Provider` | 存在于某个作用域（如一次请求）中的功能单元（仓储、哈希器等） | `@Scoped` |
+| `Component` | 整个应用共享的长期服务（日志、数据库、入口等），同时是事件发射器 | `@Singleton`（锁定） |
+| `Module` | 拥有自己的组件、提供者和对象的组件 | `@Singleton`（锁定） |
+| `Application` | 根模块，由 `Application.run()` 创建 | |
+| `Controller`（`lakutata/com/entrypoint`） | 处理入口请求的提供者 | `@Scoped`（锁定） |
 
-### 使用示例
-以下是基于提供的测试代码的一个示例，展示了如何在 Lakutata 中注册和使用组件和提供者：
+### 生命周期类型
 
-```typescript
-import { Application } from '../lib/core/Application.js';
-import { TestComponent } from './components/TestComponent.js';
-import { TestProvider } from './providers/TestProvider.js';
-import path from 'node:path';
+| 装饰器（`lakutata/decorator/di`） | 实例数量 |
+|---|---|
+| `@Singleton()` | 每个注册该类的容器一个，由它的使用者和它的作用域共享 |
+| `@Scoped()` | 每个作用域一个（`container.createScope()`；入口的每次请求是一个作用域，根容器本身也是一个作用域） |
+| `@Transient()` | 每次解析都新建，从不缓存 |
 
-// 配置应用并注册组件和提供者
-Application.run(() => ({
-  id: 'test.app',
-  name: 'TestApp',
-  timezone: 'auto',
-  components: {
-    testComponent: {
-      class: TestComponent
-    }
-  },
-  providers: {
-    testProvider: {
-      class: TestProvider,
-      path: path.resolve('@test2', './hahahaha')
-    }
-  },
-  bootstrap: ['testComponent']
-}));
-```
+子类继承父类的生命周期类型。`Component` 和 `Module` 锁定了自己的类型：子类声明其他类型会抛出 `LifetimeLockedException`；`Provider` 可以是 `@Transient`，但不能是 `@Singleton`（需要单例时请使用 `Component`）。`@Lifetime('SINGLETON' | 'SCOPED' | 'TRANSIENT', lock)` 是这三个装饰器的完整写法。
 
-### 优势
-- 通过容器管理对象创建，减少模块之间的耦合。
-- 支持灵活的生命周期配置，用于资源管理和性能优化。
-- 提供统一的依赖解析机制，简化复杂应用的开发。
+### 作用域
 
-## 2. 依赖注入（DI）
+作用域是一个子容器，持有自己的作用域对象实例，父容器的单例和注册项则是共享的。入口为每次请求创建一个作用域：该请求的控制器以及它注入的提供者都在其中创建，请求结束时一并销毁。组件可以通过受保护的 `createScope()` 创建自己的作用域。
 
-**依赖注入（DI）** 是 Lakutata 中用于解耦组件的关键设计模式。通过 IoC 容器，Lakutata 允许开发者声明组件或控制器所需的依赖，而无需手动实例化它们。依赖注入主要通过装饰器实现。
+## 2. 异步构造
 
-### 主要特性
-- **装饰器注入**：使用 `@Inject()` 装饰器声明要注入的依赖，支持按类型或按名称注入。
-- **自定义配置**：使用 `@Configurable()` 装饰器将配置值注入到提供者或组件中，如 `TestProvider.ts` 中的 `path` 属性。
-- **多级依赖**：支持组件、控制器和提供者之间的嵌套依赖注入，IoC 容器自动解析依赖链。
-- **应用实例注入**：允许直接注入 `Application` 实例以访问全局配置或控制应用生命周期，如 `TestController1.ts` 中所示。
+容器以异步方式创建对象，`getObject()`（或 `@Inject`）返回的 Promise 在对象就绪后才完成：
 
-### 使用示例
-以下是基于 `TestComponent.ts` 和 `TestController1.ts` 的依赖注入实际示例：
+1. 解析它的 `@Inject` 属性；
+2. 为它的 `@Configurable` 属性赋予配置值，并由各自的校验规则校验（及转换）；未配置的属性保留其初始值，没有初始值时取校验规则的默认值；
+3. 执行它的 `init()`（在此抛出的错误会导致创建失败）；
+4. 应用启动完成后，执行它的 `launched()`（不会被等待，其错误会被记录到日志）。
+
+销毁时（调用 `dispose()`，或创建它的对象、作用域、应用被销毁时），先执行它的 `beforeDestroy()`，再销毁它创建的对象，最后执行它的 `destroy()`。每个对象都拥有自己的容器：通过 `this.getObject()` 创建的对象会随它一起销毁。
 
 ```typescript
-import { Component } from '../../lib/core/Component.js';
-import { Inject } from '../../decorators/di/Inject.js';
-import type { Logger } from '../../components/Logger.js';
-import { Application } from '../../lib/core/Application.js';
-import { Controller } from '../../components/entrypoint/lib/Controller.js';
+import {Application, Component, DTO, type ILogger} from 'lakutata'
+import {Configurable, Inject} from 'lakutata/decorator/di'
 
-// 在组件中使用依赖注入
-export class TestComponent extends Component {
-  @Inject()
-  protected readonly log: Logger;
+class Mailer extends Component {
+    //它的选项，由应用选项中的声明给出
+    @Configurable(DTO.String().required())
+    protected readonly host: string
 
-  protected async init(): Promise<void> {
-    this.log.info('TestComponent initialized');
-  }
+    //未配置时为 25：初始值就是默认值，和配置值一样会被校验
+    @Configurable(DTO.Number().integer().min(1).max(65535))
+    protected readonly port: number = 25
+
+    //lakutata 包预置的日志组件 "log"
+    @Inject('log')
+    protected readonly log: ILogger
+
+    protected async init(): Promise<void> {
+        this.log.info('Mailer connected to %s:%d', this.host, this.port)
+    }
+
+    public async send(to: string, text: string): Promise<void> {
+        this.log.info('Mail to %s: %s', to, text)
+    }
+
+    protected async destroy(): Promise<void> {
+        this.log.info('Mailer disconnected')
+    }
 }
 
-// 在控制器中使用依赖注入
-export class TestController1 extends Controller {
-  @Inject()
-  protected readonly log: Logger;
-
-  @Inject(Application)
-  protected readonly app: Application;
-
-  protected async init(): Promise<void> {
-    this.log.info('TestController initialized');
-  }
-}
-```
-
-### 优势
-- 通过 `@Inject()` 装饰器简化依赖声明，避免手动实例化。
-- 支持注入 `Application` 实例，以便轻松访问全局配置或应用控制。
-- 增强代码可维护性，并通过允许依赖替换来便于测试。
-
-## 3. 应用入口点
-
-**应用入口点** 是 Lakutata 中用于启动和管理应用生命周期的核心机制。通过 `Application` 类，它们为应用配置、组件注册和引导初始化提供了统一的方法。Lakutata 支持多种入口点类型，包括 HTTP、CLI 和服务入口点，以适应不同的应用场景。
-
-### 主要特性
-- **应用配置**：通过 `Application.run()` 方法定义应用的 ID、名称、时区、组件、提供者、模块和引导项（`bootstrap`）。
-- **多入口点支持**：Lakutata 将入口点设计为抽象层，允许开发者自由选择特定的实现框架或库，只要它们能与框架的入口点机制集成即可。框架提供了 `BuildEntrypoints` 及相关辅助方法（如 `BuildHTTPEntrypoint`、`BuildCLIEntrypoint`、`BuildServiceEntrypoint`）来帮助开发者定义入口点：
-  - **HTTP 入口点**：用于处理 HTTP 请求，开发者可以选择使用 Fastify 或其他 HTTP 框架，只需实现请求处理逻辑并与 Lakutata 的 `HTTPContext` 集成。
-  - **CLI 入口点**：用于命令行交互，开发者可以选择 Commander.js 或其他 CLI 工具，只需将命令处理逻辑与 Lakutata 的 `CLIContext` 连接。
-  - **服务入口点**：用于实时通信或其他服务场景，开发者可以选择 Socket.IO 或其他通信库，与 Lakutata 的 `ServiceContext` 集成。
-- **生命周期管理**：提供 `onLaunched`、`onDone` 和 `onFatalException` 等钩子，用于在应用启动、完成或错误场景下执行自定义逻辑。
-- **退出信号**：收到 `SIGTERM`（`docker stop`、Kubernetes 滚动更新、systemd 停止服务）或 `SIGINT`（Ctrl+C）时，应用会优雅退出：先执行 `onDone`，此时应用仍然完全可用（它的第三个参数说明退出原因：收到信号时是 `{code: 0, signal: 'SIGTERM'}`，调用 `app.exit(code)` 时是 `{code}`）；然后各入口停止接收新请求并等待正在处理的请求完成，各对象被销毁，最后以退出码 0 退出。如果再次收到信号（比如退出过程卡住了），或者信号是在应用启动期间收到的，进程会立即以 128 + 信号编号退出（`SIGTERM` 为 143，`SIGINT` 为 130）。应用选项 `shutdownSignals` 可以指定其他信号（如 `['SIGTERM', 'SIGINT', 'SIGHUP']`），设为 `false` 则由应用自己处理信号。
-- **启动失败**：应用无法启动时（对象初始化失败、选项不合法等），由 `onFatalException` 的处理函数决定退出码（没有返回退出码时为 1）。没有注册处理函数时，框架记录错误后以退出码 1 退出，和 Node.js 处理未捕获异常的方式一致，这样运行它的工具（Docker 的重启策略、Kubernetes、systemd、CI）都能知道启动失败了；已经创建的对象（正在监听的服务、数据库连接等）也不会让进程继续挂着。
-- **环境变量支持**：通过 `Application.env()` 方法设置环境变量，可在整个应用中访问。
-- **运行模式**：`app.mode()` 返回 `'development'` 或 `'production'`。环境变量会覆盖代码里的配置，同一份构建产物可以在不同模式下运行：依次看环境变量 `MODE`（lakutata 自己的变量）、`NODE_ENV`，然后是应用选项 `mode`，都没有时为 `development`。不是这两个值的 `MODE` 会发出警告并被忽略，不是这两个值的 `NODE_ENV`（如测试工具设置的 `test`）会被跳过。确定的模式会同时写回 `MODE` 和 `NODE_ENV`，所以第三方库读到的也是同一个模式。环境变量可以来自系统、`Application.env({MODE: 'production'})`，或者 Bun 自动读取的 `.env` 文件（指 `bun App.js` 这种运行方式；Bun 打包出的可执行文件不会读取它）。
-- **打包后的应用**：`IsPackaged()` 表示应用是否以打包形式运行（`lakutata package bundle` 的打包产物或 `lakutata package exe` 的可执行文件）。应用运行时要读取的资源文件（Web 应用构建好的前端页面、模板、数据等）在 `package.json` 的 `lakutata.resources` 里声明，写法和 electron-builder 的 `extraResources` 一样：`[{"from": "../ui/dist", "to": "ui"}]`。打包后，`ResourcesPath()` 返回资源所在的目录（在打包产物或可执行文件旁边，单文件可执行程序则是和原生插件一起解压出来的目录）；未打包时返回 `undefined`，由应用自己到构建目录里找：`const ui = ResourcesPath() ? path.join(ResourcesPath()!, 'ui') : uiBuildDirectory`。
-
-### 使用示例
-以下是基于 `App.spec.ts` 的应用入口点配置和启动示例：
-
-```typescript
-import { Application } from '../lib/core/Application.js';
-import { TestComponent } from './components/TestComponent.js';
-import { TestController1 } from './controllers/TestController1.js';
-import { BuildEntrypoints, BuildHTTPEntrypoint } from '../components/entrypoint/Entrypoint.js';
-
-// 配置并启动应用
 Application
-  .env({ TEST: '123' }) // 设置环境变量
-  .run(() => ({
-    id: 'test.app',
-    name: 'TestApp',
-    timezone: 'auto',
-    components: {
-      testComponent: {
-        class: TestComponent
-      },
-      entrypoint: BuildEntrypoints({
-        controllers: [TestController1],
-        http: BuildHTTPEntrypoint((module, routeMap, handler, onDestroy) => {
-          // 开发者可以自由选择 HTTP 框架进行实现
-          // 具体实现代码省略，参见 App.spec.ts
-        }),
-        // CLI 和服务入口点配置省略
-      })
-    },
-    bootstrap: ['entrypoint']
-  }))
-  .onLaunched(async (app, log) => {
-    log.info('Application %s launched', app.appName);
-  })
-  .onDone(async (app, log, reason) => {
-    log.info('Application %s done (exit code %d%s)', app.appName, reason.code, reason.signal ? `, ${reason.signal}` : '');
-  })
-  .onFatalException((error, log) => {
-    log.error('Application error: %s', error.message);
-    return 100;
-  });
+    .run(() => ({
+        id: 'com.example.app',
+        name: 'Example',
+        components: {
+            mailer: {class: Mailer, host: 'smtp.example.com'}
+        },
+        bootstrap: ['mailer']
+    }))
+    .onLaunched(async (app: Application): Promise<void> => {
+        const mailer: Mailer = await app.getObject<Mailer>('mailer')
+        await mailer.send('someone@example.com', 'Hello')
+    })
 ```
 
-### 优势
-- 提供统一的 `Application` 类用于应用配置和启动，简化复杂应用的初始化。
-- 抽象的入口点设计赋予开发者高度灵活性，可选择适合特定功能的框架或库。
-- 通过生命周期钩子支持自定义逻辑，便于调试和扩展。
+## 3. 依赖注入
 
-## 总结
+`@Inject`（来自 `lakutata/decorator/di`）在对象创建时、`init()` 之前为属性赋值：
 
-Lakutata 的核心功能——包括 IoC 容器、依赖注入和应用入口点——为开发者提供了构建模块化和可扩展应用的强大框架。通过 IoC 容器管理依赖和对象生命周期，通过依赖注入简化组件间关系，以及通过应用入口点提供灵活的启动和管理，Lakutata 有效满足了从简单脚本到复杂企业应用的各种需求。
+- `@Inject()`：注入以属性名注册的对象；
+- `@Inject('name')` 或 `@Inject(symbol)`：注入以该名称注册的对象；
+- `@Inject(SomeClass)`：注入为该类注册的对象（`@Inject(Application)` 注入应用本身）；
+- `@Inject('name', transform)`：注入 `transform(object)` 的返回值（可以是异步函数）。
 
-有关控制器行为定义、数据传输对象（DTO）或其他模块的详细信息，请参阅相关文档章节。
+标记了 `@Autoload()` 的类在第一次被请求时自动注册，而不是报错：单例注册到根容器，作用域类注册到最近的作用域，瞬态类注册到发起请求的容器。无法解析的注册项会使创建失败并抛出 `DependencyInjectionException`。
+
+`@Configurable(schema, fn?)` 把属性声明为对象的选项：它的值来自对象的声明（`{class: Mailer, host: 'smtp.example.com'}`）或 `getObject()` 的第二个参数，经校验规则校验后，如果提供了 `fn` 再交给 `fn` 处理。模块在初始化时会检查其声明的对象的选项：不合法的值会使初始化失败并抛出 `InvalidObjectOptionsException`，不是可配置属性的选项会给出警告。
+
+```typescript
+import {Application, Component, Provider} from 'lakutata'
+import {Autoload, Inject, Scoped} from 'lakutata/decorator/di'
+
+//未在应用中声明：第一次被注入时自动注册
+@Autoload()
+@Scoped()
+class RequestClock extends Provider {
+    public readonly startedAt: number = Date.now()
+}
+
+class Reports extends Component {
+    @Inject(RequestClock)
+    protected readonly clock: RequestClock
+
+    @Inject(Application)
+    protected readonly app: Application
+
+    public elapsed(): number {
+        return Date.now() - this.clock.startedAt
+    }
+}
+```
+
+## 4. 模块
+
+`Module` 在其 `options` 属性的初始值中，用与应用相同的选项声明自己的组件、提供者和对象。模块内的对象先从模块解析依赖，再从应用解析；应用的对象看不到模块内的对象。在应用（或父模块）的 `objects.named` 中声明模块，它的选项写在 `options` 下（合并到其初始值之上），并把它列入 `bootstrap` 以便在启动时创建。
+
+模块被创建时，先检查选项，再注册对象，然后依次执行它的 `bootstrap`。模块外部的对象获取它时（`getObject()`、`@Inject`），要等这些步骤全部完成才会拿到它，若某一步失败则得到该步骤的错误；模块自己的对象（由这些步骤创建）则会立即拿到它。
+
+```typescript
+import {Application, Component, Module, type ModuleOptions} from 'lakutata'
+
+class Billing extends Component {
+    public charge(amount: number): void {
+        console.log(`Charged ${amount}`)
+    }
+}
+
+class PaymentModule extends Module {
+    protected options: ModuleOptions = {
+        components: {
+            billing: {class: Billing}
+        },
+        bootstrap: ['billing']
+    }
+}
+
+Application.run(() => ({
+    id: 'shop.app',
+    name: 'Shop',
+    objects: {
+        named: {
+            payment: {class: PaymentModule}
+        }
+    },
+    bootstrap: ['payment']
+}))
+```
+
+`module.reload()` 会销毁模块及其对象，然后重新初始化。
+
+## 5. 应用
+
+### 选项
+
+`Application.run(options)`（或 `run(() => options)`，在启动时调用该函数，可以是异步的）接受以下选项：
+
+| 选项 | 含义 |
+|---|---|
+| `id`、`name` | 必填。应用的 ID（同时作为 `process.title`）和名称（`app.appId`、`app.appName`） |
+| `timezone` | IANA 时区名，或 `'auto'`（默认）表示使用系统时区；写入 `TZ` |
+| `mode` | `'development'` 或 `'production'`，在环境变量未指定时生效（见下文） |
+| `shutdownSignals` | 使应用优雅退出的信号（默认 `['SIGTERM', 'SIGINT']`），或 `false` |
+| `components`、`providers` | 按名称声明的组件和提供者：`{class, ...options}` |
+| `objects` | 其他对象（模块、普通对象）：`{named: {...}, anonymous: [...]}` |
+| `bootstrap` | 启动时依次执行的步骤：名称、symbol 或类（创建该对象），或以应用为参数调用的异步函数 |
+| `checkOptions` | 启动时检查所声明对象的选项（默认 `true`） |
+
+不带 `class` 的声明会补充框架预置的同名对象的选项：`lakutata` 包预置了 `log`（`Logger`）和 `entrypoint`（`Entrypoint`），因此 `log: {level: 'debug'}` 会设置预置日志组件的级别。`Application.preset(options)` 为进程中的所有应用预置对象。
+
+### 链式 API
+
+```typescript
+import {Application, type ApplicationExitReason, type ILogger} from 'lakutata'
+
+Application
+    //环境变量，在启动时、调用选项函数之前设置
+    .env({TZ_NAME: 'Asia/Shanghai'})
+    //路径别名：传给 path.resolve() 或 app.alias.resolve() 的路径中的 '@data'；目录不存在时创建
+    .alias({'@data': './data'}, true)
+    .run(() => ({
+        id: 'com.example.app',
+        name: 'Example',
+        components: {}
+    }))
+    //bootstrap 完成后调用（不会被等待）
+    .onLaunched((app: Application, log: ILogger): void => log.info('%s launched in %s mode', app.appName, app.mode()))
+    //应用退出时、对象销毁之前调用，会被等待
+    .onDone(async (app: Application, log: ILogger, reason: ApplicationExitReason): Promise<void> => {
+        log.info('%s done (exit code %d%s)', app.appName, reason.code, reason.signal ? `, ${reason.signal}` : '')
+    })
+    //进程中未捕获的异常，应用继续运行
+    .onUncaughtException((error: Error, log: ILogger): void => log.warn(error.message))
+    //启动失败：返回的数字作为退出码（未返回时为 1）
+    .onFatalException((error: Error, log: ILogger): number => {
+        log.error('Launch failed: %s', error.message)
+        return 100
+    })
+```
+
+`app.exit(code)` 以指定退出码优雅地结束应用；`app.exit(true)` 立即以退出码 2 结束进程，不执行 `onDone` 处理函数，也不销毁对象。
+
+### 生命周期
+
+1. 设置环境变量，注册路径别名（`@runtime` 为当前工作目录）。
+2. 读取并校验选项；应用 ID、时区和运行模式。
+3. 在新的根容器中创建应用：注册它的对象，并依次执行 `bootstrap`。
+4. 执行 `onLaunched` 处理函数和各对象的 `launched()` 钩子。
+
+- **启动失败**：应用无法启动时（选项不合法、对象初始化失败、bootstrap 步骤失败），由 `onFatalException` 的处理函数决定退出码（没有返回时为 1）。没有注册处理函数时，框架记录错误后以退出码 1 退出，和 Node.js 处理未捕获异常的方式一致，这样运行它的工具（Docker 的重启策略、Kubernetes、systemd、CI）都能知道启动失败了；已经创建的对象（正在监听的服务、数据库连接等）也不会让进程继续挂着。
+- **退出信号**：收到 `SIGTERM`（`docker stop`、Kubernetes 滚动更新、systemd 停止服务）或 `SIGINT`（Ctrl+C）时，应用会优雅退出：先执行 `onDone` 处理函数，此时应用仍然完全可用（第三个参数说明退出原因：收到信号时是 `{code: 0, signal: 'SIGTERM'}`，调用 `app.exit(code)` 时是 `{code}`）；然后各入口停止接收新请求并等待正在处理的请求完成，各对象被销毁，最后以退出码 0 退出。如果再次收到信号（比如退出过程卡住了），或者信号是在应用启动期间收到的，进程会立即以 128 + 信号编号退出（`SIGTERM` 为 143，`SIGINT` 为 130）。选项 `shutdownSignals` 可以指定其他信号（如 `['SIGTERM', 'SIGINT', 'SIGHUP']`），设为 `false` 则交由 Node.js 处理。
+- **运行模式**：`app.mode()` 返回 `'development'` 或 `'production'`。环境变量会覆盖代码里的配置，同一份构建产物可以在不同模式下运行：依次看环境变量 `MODE`、`NODE_ENV`，然后是选项 `mode`，都没有时为 `'development'`。不是这两个值的 `MODE` 会发出警告并被忽略，不是这两个值的 `NODE_ENV`（如 `test`）会被跳过。确定的模式会写回 `MODE` 和 `NODE_ENV`，第三方库读到的也是同一个模式。环境变量可以来自系统、`Application.env({MODE: 'production'})`，或者 Bun 读取的 `.env` 文件（指 `bun App.js` 这种运行方式；Bun 构建的可执行文件不会读取它）。
+- **打包后的应用**：`IsPackaged()`（来自 `lakutata`）表示应用是否以打包形式运行（`lakutata package bundle` 的打包产物或 `lakutata package exe` 的可执行文件）。应用运行时要读取的文件（Web 应用构建好的页面、模板、数据等）在 `package.json` 的 `lakutata.resources` 中声明，写法和 electron-builder 的 `extraResources` 一样：`[{"from": "../ui/dist", "to": "ui"}]`。打包后，`ResourcesPath()` 返回这些文件所在的目录；未打包时返回 `undefined`，由应用到构建目录中查找：`const ui = ResourcesPath() ? path.join(ResourcesPath()!, 'ui') : uiBuildDirectory`。
+
+## 6. 入口
+
+`entrypoint` 组件（`lakutata/com/entrypoint`）通过 HTTP、CLI、服务传输和定时任务对外提供控制器。用 `BuildEntrypoints({controllers, http, cli, service, schedule})` 给出它的选项，并把它列入 `bootstrap`；详见 [ActionPattern](ActionPattern.md)。
+
+## 7. 不使用应用的容器
+
+测试、脚本和库可以在单独的容器中使用这些对象：
+
+```typescript
+import {Component, Container, DTO} from 'lakutata'
+import {Configurable} from 'lakutata/decorator/di'
+
+class Mailer extends Component {
+    @Configurable(DTO.String().required())
+    protected readonly host: string
+
+    public async send(to: string, text: string): Promise<string> {
+        return `${this.host} -> ${to}: ${text}`
+    }
+}
+
+const container: Container = new Container()
+//按选项创建，并等待它的 init() 完成
+const mailer: Mailer = await container.set(Mailer, {host: 'localhost'})
+await mailer.send('someone@example.com', 'Hello')
+//销毁它创建的所有对象
+await container.destroy()
+```
+
+`container.register()`/`registerNamed()` 只注册类而不创建对象，`get()` 解析对象，`build()` 无论生命周期类型都新建一个对象，`createScope()` 创建作用域。

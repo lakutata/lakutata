@@ -16,7 +16,7 @@ npm install lakutata          # the framework
 npm install @lakutata/core    # or the core only
 ```
 
-Node.js 20 or later, ESM (`"type": "module"`). The TypeScript options the decorators need:
+Node.js 22 or later, ESM (`"type": "module"`). The TypeScript options the decorators need:
 
 ```json
 {

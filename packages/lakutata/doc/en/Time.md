@@ -19,10 +19,13 @@ time.isBetween('2024-01-01', '2024-12-31', 'day', '[]')  // true
 - A `Time` is a `Date`: it can be used wherever a `Date` is expected (`DTO.Date()`, ORM columns, `JSON.stringify`).
 - The methods returning a `Time` return a new instance: `add`, `subtract`, `startOf`, `endOf`, `set`, the setters
   (`hours(5)`, `month(0)`...), `timezone(zone)`, `clone()`. The instance they are called on does not change. The methods
-  of `Date` (`setHours`...) are the ones of `Date`.
+  inherited from `Date` (`getHours()`, `setHours()`...) read and modify the time in the time zone of the process, not
+  in the one of the instance, and the setters modify the instance: use the methods of `Time`.
 - The constructor takes a `Time` (its time zone too), a `Date`, a timestamp in milliseconds, a date string (a numeric
   string is a timestamp; an invalid string throws a `RangeError`), or the wall clock fields `[year, month, date, hours,
-  minutes, seconds, milliseconds]` of the default time zone. Without argument (or `null`), it is now.
+  minutes, seconds, milliseconds]` of the default time zone. Without argument (or `null`), it is now. A string without
+  offset is read in the default time zone.
+- An invalid time (a field of the array out of its range) does not throw: its `format()` gives `'Invalid date'`.
 
 ## Time zones
 
@@ -35,6 +38,16 @@ time.isBetween('2024-01-01', '2024-12-31', 'day', '[]')  // true
 - The getters, the setters, the calendar operations (`add` of days, months...) and `format` use the wall clock of the
   zone. Adding days keeps the wall clock across daylight saving transitions; a wall clock time which does not exist
   moves forward.
+
+## Arithmetic
+
+- `add()` and `subtract()` move the wall clock for the years, quarters, months, weeks and days, and the instant for the
+  hours, minutes, seconds and milliseconds: across a daylight saving change, `add(1, 'day')` keeps the hour,
+  `add(24, 'hours')` does not. A month without the day takes its last day (January 31 plus one month is February 29
+  in 2024).
+- `diff(other, unit, precise?)` is `this - other` in the unit, truncated toward zero unless `precise` is `true`.
+- `isBefore()`, `isAfter()`, `isSame()`, `isBetween()` compare at a granularity (`'day'`…); `Time.max()` and
+  `Time.min()` give the latest and the earliest of several times.
 
 ## Formats
 

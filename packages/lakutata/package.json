@@ -344,6 +344,7 @@
     "dist",
     "!dist/*/tests",
     "*.md",
+    "doc",
     "LICENSE",
     "package.json",
     "tsconfig.base.json"
