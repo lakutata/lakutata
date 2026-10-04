@@ -8,7 +8,7 @@ import {pipeline} from 'node:stream/promises'
 import {extract as tarExtract, pack as tarPack, type Header, type Pack} from 'tar-stream'
 import {ContainerdClient, IsGRPCError, type ContentDescriptor} from './ContainerdClient.js'
 import {GRPCStatus, type Message} from '@lakutata/grpc'
-import {FormatPlatform, HostPlatform, NormalizePlatform, PlatformRank, type Platform} from './Platforms.js'
+import {FormatPlatform, HostPlatform, MatchPlatform, NormalizePlatform, PlatformRank, type Platform} from './Platforms.js'
 import {ImageName, ParseReference, type ImageReference} from './Reference.js'
 import {Digest, IsIndex, IsManifest, MediaTypes, RegistryClient, type RegistryOptions} from './Registry.js'
 
@@ -107,7 +107,7 @@ export type PullOptions = {
     platforms?: Platform[] | 'all'
     registry?: RegistryOptions
     /**
-     * Unpack the layers of the platforms of the machine into its snapshots (run its containers), true by default
+     * Unpack the layers of the platforms the machine runs (the ones of the store) into its snapshots, true by default
      */
     unpack?: boolean
     progress?: (progress: TransferProgress) => void
@@ -164,8 +164,10 @@ export class ImageStore {
      * @param client
      * @param snapshotter
      * @param temporary the directory of the archives extracted (a disk of the machine, not a small tmpfs)
+     * @param runnablePlatforms the platforms the machine runs, unpacked by the pulls and the imports (the one of the
+     * machine by default)
      */
-    constructor(protected readonly client: ContainerdClient, public readonly snapshotter: string, public readonly temporary: string = os.tmpdir()) {
+    constructor(protected readonly client: ContainerdClient, public readonly snapshotter: string, public readonly temporary: string = os.tmpdir(), public readonly runnablePlatforms: () => Platform[] = (): Platform[] => [HostPlatform()]) {
     }
 
     /**
@@ -365,7 +367,8 @@ export class ImageStore {
     }
 
     /**
-     * Unpack an image for the platforms the content store has (its manifests pulled)
+     * Unpack an image for the platforms the machine runs, among the ones the content store has (its manifests pulled):
+     * not the other platforms, nor the attestations (unknown/unknown)
      * @param name
      * @param lease
      */
@@ -375,15 +378,20 @@ export class ImageStore {
         const manifests: ContentDescriptor[] = IsIndex(image.target.mediaType)
             ? (await this.readJson<ImageIndex>(image.target.digest)).manifests.filter((descriptor: ContentDescriptor): boolean => IsManifest(descriptor.mediaType))
             : [image.target]
+        const runnable: Platform[] = this.runnablePlatforms()
         for (const descriptor of manifests) {
             if (!(await this.client.contentInfo(descriptor.digest))) continue
-            await this.unpack(await this.readJson<ImageManifest>(descriptor.digest), lease)
+            const manifest: ImageManifest = await this.readJson<ImageManifest>(descriptor.digest)
+            const platform: Platform = descriptor.platform ? NormalizePlatform(descriptor.platform) : ConfigPlatform(await this.readJson<ImageConfigFile>(manifest.config.digest))
+            if (!runnable.some((item: Platform): boolean => MatchPlatform(platform, item))) continue
+            await this.unpack(manifest, lease)
         }
     }
 
     /**
-     * Push an image to a registry (as another reference): the manifests of the platforms the content store has, and
-     * its index when it has all of them; the manifest of the platform asked (the one of the machine) otherwise
+     * Push an image to a registry (as another reference): the manifest of the platform asked; without it, the manifests
+     * of all the platforms and the index when the content store has all of them, the manifest of the machine's platform
+     * otherwise
      * @param name
      * @param options
      */
@@ -403,11 +411,17 @@ export class ImageStore {
             await registry.pushManifest(reference, descriptor.mediaType, data)
         }
         const target: ContentDescriptor = image.target
-        if (!IsIndex(target.mediaType)) return await pushManifest(target, tag)
+        if (!IsIndex(target.mediaType)) {
+            if (options.platform) {
+                const platform: Platform = ConfigPlatform(await this.readJson<ImageConfigFile>((await this.readJson<ImageManifest>(target.digest)).config.digest))
+                if (!MatchPlatform(platform, options.platform)) throw Object.assign(new Error(`The image ${name} has no manifest of the platform ${FormatPlatform(options.platform)} to push (it is ${FormatPlatform(platform)})`), {code: 'PLATFORM'})
+            }
+            return await pushManifest(target, tag)
+        }
         const index: ImageIndex = await this.readJson<ImageIndex>(target.digest)
         const local: ContentDescriptor[] = []
         for (const descriptor of index.manifests) if (await this.client.contentInfo(descriptor.digest)) local.push(descriptor)
-        if (local.length === index.manifests.length) {
+        if (!options.platform && local.length === index.manifests.length) {
             for (const descriptor of local) await pushManifest(descriptor, descriptor.digest)
             return await registry.pushManifest(tag, target.mediaType, await this.client.readAll(target.digest))
         }
@@ -500,7 +514,8 @@ export class ImageStore {
 
     /**
      * Import an archive of images: an OCI image layout (nerdctl save, docker save of Docker 25+), or an archive of
-     * docker save; the images named by the archive (or by a name given), unpacked for the machine
+     * docker save; the images named by the archive (or by a name given, to an archive of one image), unpacked for the
+     * platforms the machine runs
      * @param source a file, or its stream
      * @param options
      */
@@ -515,20 +530,25 @@ export class ImageStore {
             const exists = async (name: string): Promise<boolean> => !!(await stat(name).catch((): undefined => undefined))
             const names: string[] = []
             const named = (name: string | undefined): string | undefined => options.name ? ImageName(options.name) : name ? ImageName(name) : undefined
-            if (await exists(file('index.json'))) {
-                const index: ImageIndex = JSON.parse(await readFile(file('index.json'), 'utf8')) as ImageIndex
+            const index: ImageIndex | undefined = await exists(file('index.json')) ? JSON.parse(await readFile(file('index.json'), 'utf8')) as ImageIndex : undefined
+            const entries = await exists(file('manifest.json')) ? JSON.parse(await readFile(file('manifest.json'), 'utf8')) as { Config: string, RepoTags?: string[] | null, Layers: string[] }[] : []
+            if (options.name) {
+                //One name for one image (its tags: its entries of the same digest), checked before any import
+                const images: number = new Set((index?.manifests ?? []).map((entry: ContentDescriptor): string => entry.digest)).size || new Set(entries.map((entry): string => entry.Config)).size
+                if (images > 1) throw new Error(`The archive has ${images} images: the name ${options.name} can only be given to an archive of one image`)
+            }
+            if (index) {
                 const blob = async (descriptor: ContentDescriptor): Promise<AsyncIterable<Uint8Array>> => createReadStream(blobFile(descriptor.digest))
                 for (const entry of index.manifests) {
                     const name: string | undefined = named(entry.annotations?.['io.containerd.image.name'] ?? entry.annotations?.['org.opencontainers.image.ref.name'])
                     await this.writeTree(entry, blob, lease)
                     if (!name) continue
                     await this.client.putImage({name: name, target: {mediaType: entry.mediaType, digest: entry.digest, size: entry.size}}, lease)
-                    names.push(name)
+                    if (!names.includes(name)) names.push(name)
                 }
             }
-            if (!names.length && await exists(file('manifest.json'))) {
+            if (!names.length && entries.length) {
                 //docker save: uncompressed layers (or compressed ones), the configuration, the tags
-                const entries = JSON.parse(await readFile(file('manifest.json'), 'utf8')) as { Config: string, RepoTags?: string[] | null, Layers: string[] }[]
                 for (const entry of entries) {
                     const configData: Buffer = await readFile(file(entry.Config))
                     const layers: ContentDescriptor[] = []
@@ -555,7 +575,7 @@ export class ImageStore {
                 }
             }
             if (!names.length) throw new Error('The archive has no image: an OCI image layout (index.json) or an archive of docker save (manifest.json)')
-            if (options.unpack ?? true) for (const name of names) await this.unpackFor(name, lease).catch((): undefined => undefined)
+            if (options.unpack ?? true) for (const name of names) await this.unpackFor(name, lease)
             return names
         } finally {
             await this.client.deleteLease(lease)

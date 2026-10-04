@@ -2,14 +2,14 @@ import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
 import {spawnSync} from 'node:child_process'
 import {createReadStream, createWriteStream, existsSync} from 'node:fs'
-import {mkdir, mkdtemp, readFile, rm, symlink, writeFile} from 'node:fs/promises'
+import {mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile} from 'node:fs/promises'
 import {pipeline} from 'node:stream/promises'
 import {extract as tarExtract, type Header} from 'tar-stream'
 import type {Readable} from 'node:stream'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {setTimeout as sleep} from 'node:timers/promises'
-import {Application} from '@lakutata/core'
+import {Application, InvalidValueException} from '@lakutata/core'
 import {
     Containerd,
     ContainerdContainer,
@@ -20,9 +20,11 @@ import {
     ContainerdVolumeInUseException,
     ContainerdImage,
     ContainerdImageBuildException,
+    ContainerdImageImportException,
     ContainerdImageNotFoundException,
     ContainerdNetworkConflictException,
     ContainerdNetworkNotFoundException,
+    ContainerdPathNotFoundException,
     ContainerdPlatformException,
     type ContainerdNetworkInfo,
     type ContainerCreateOptions,
@@ -176,6 +178,9 @@ describe('The containerd component with the containerd of the machine', {skip: !
             assert.strictEqual(container.labels['nerdctl/name'], 'lakutata-test-web')
             await assert.rejects(containerd.createContainer({image: ALPINE, name: 'lakutata-test-web'}), ContainerdContainerNameConflictException)
             await assert.rejects(container.exec({cmd: 'true'}), ContainerdContainerStateException)
+            //Never started: the operations of a running container refused, its exit code at once
+            for (const operation of [(): Promise<unknown> => container.kill(), (): Promise<unknown> => container.pause(), (): Promise<unknown> => container.unpause(), (): Promise<unknown> => container.processes()]) await assert.rejects(operation(), ContainerdContainerStateException)
+            assert.strictEqual(await container.wait(), 0)
             await container.start()
             assert.strictEqual(container.state.status, 'running')
             assert.ok(container.state.pid > 0)
@@ -198,6 +203,10 @@ describe('The containerd component with the containerd of the machine', {skip: !
             await container.stop({timeout: 5})
             assert.strictEqual(container.state.status, 'exited')
             assert.strictEqual(container.state.exitCode, 3)
+            //Stopped (its task deleted): its exit code kept
+            assert.strictEqual(await container.wait(), 3)
+            await assert.rejects(container.kill({signal: 'SIGTERM'}), ContainerdContainerStateException)
+            await assert.rejects(container.processes(), ContainerdContainerStateException)
             let logs: string = ''
             for await (const chunk of await container.logs({follow: false})) logs += chunk
             assert.strictEqual(logs, 'started\nstopping\n')
@@ -284,15 +293,27 @@ describe('The containerd component with the containerd of the machine', {skip: !
             const refused = await unruled.exec({cmd: open})
             assert.notStrictEqual(refused.exitCode, 0)
             assert.match(refused.stderr, /not permitted/i)
+            //Privileged: the devices of the host in its /dev, not only the ones of runc
+            const defaults: string[] = ['null', 'zero', 'full', 'random', 'urandom', 'tty', 'console', 'ptmx']
+            const hostDevice = (await readdir('/dev', {withFileTypes: true})).find((entry): boolean => (entry.isCharacterDevice() || entry.isBlockDevice()) && !defaults.includes(entry.name))
+            assert.ok(hostDevice, 'a device of the host')
+            const privileged: ContainerdContainer = await run({privileged: true})
+            assert.strictEqual((await privileged.exec({cmd: ['test', '-e', `/dev/${hostDevice.name}`]})).exitCode, 0)
+            assert.notStrictEqual((await given.exec({cmd: ['test', '-e', `/dev/${hostDevice.name}`]})).exitCode, 0)
         } finally {
             for (const container of created) await container.remove({force: true})
         }
     })
 
     it('gives the resources the containers use, updates them while they run', async (): Promise<void> => {
-        const container: ContainerdContainer = await containerd.createContainer({image: ALPINE, name: 'lakutata-test-busy', cmd: ['sh', '-c', 'while true; do :; done'], network: 'none', memoryLimit: 64 * 1024 * 1024})
+        const container: ContainerdContainer = await containerd.createContainer({image: ALPINE, name: 'lakutata-test-busy', cmd: ['sh', '-c', 'while true; do :; done'], network: 'none', memoryLimit: 64 * 1024 * 1024, cpuShares: 512, cpuSet: [0]})
+        //A file of its cgroup (v2), empty when the kernel does not have it
+        const cgroup = async (file: string): Promise<string> => (await container.exec({cmd: `cat /sys/fs/cgroup/${file} 2>/dev/null || true`})).stdout.trim()
         try {
             await container.start()
+            //As much swap as memory by default (memory.swap.max: the swap alone)
+            const swap: string = await cgroup('memory.swap.max')
+            if (swap) assert.strictEqual(swap, String(64 * 1024 * 1024))
             const stats = await container.stats(500)
             assert.ok(stats.cpu.percent > 50, `${stats.cpu.percent}%`)
             assert.ok(stats.cpu.usage > 0 && stats.memory.usage > 0)
@@ -317,7 +338,22 @@ describe('The containerd component with the containerd of the machine', {skip: !
             assert.strictEqual(container.state.status, 'running')
             //The resources updated before kept
             assert.strictEqual((await container.exec({cmd: 'echo $MODE; cat /sys/fs/cgroup/memory.max /sys/fs/cgroup/pids.max'})).stdout, `updated\n${32 * 1024 * 1024}\n20\n`)
+            //The swap limit followed the memory limit
+            if (swap) assert.strictEqual(await cgroup('memory.swap.max'), String(32 * 1024 * 1024))
             await assert.rejects(containerd.getContainer(old), ContainerdContainerNotFoundException)
+            //The limits removed while it runs: removed at once, and from the settings it is created again with
+            const weight: string = await cgroup('cpu.weight')
+            await container.update({memoryLimit: 0, pidsLimit: 0, cpus: 0, cpuShares: 0, cpuSet: []})
+            assert.strictEqual(await cgroup('memory.max'), 'max')
+            if (swap) assert.strictEqual(await cgroup('memory.swap.max'), 'max')
+            assert.strictEqual(await cgroup('pids.max'), 'max')
+            assert.match(await cgroup('cpu.max'), /^max /)
+            if (weight) assert.ok(Number(await cgroup('cpu.weight')) > Number(weight), `${weight} -> ${await cgroup('cpu.weight')}`)
+            const cpus: string = await cgroup('cpuset.cpus')
+            if (cpus) assert.strictEqual(cpus, (await readFile('/sys/devices/system/cpu/online', 'utf8')).trim())
+            await assert.rejects(container.update({memorySwap: 128 * 1024 * 1024}), InvalidValueException)
+            await container.update({env: {MODE: 'unlimited'}})
+            assert.strictEqual((await container.exec({cmd: 'echo $MODE; cat /sys/fs/cgroup/memory.max /sys/fs/cgroup/pids.max'})).stdout, 'unlimited\nmax\nmax\n')
             //A setting which fails: the old container kept with its name
             const current: string = container.id
             await assert.rejects(container.update({image: 'lakutata-test/none:1'}))
@@ -346,6 +382,12 @@ describe('The containerd component with the containerd of the machine', {skip: !
             await until(/40 120/)
             tty.write('exit 5\n')
             assert.strictEqual(await tty.wait(), 5)
+            //A string run by /bin/sh -c
+            const line: ContainerdContainerTTY = await container.createTTY({cmd: 'sleep 1; echo $((40 + 2)); exit 7'})
+            let lineOutput: string = ''
+            line.onData((chunk: Buffer): unknown => lineOutput += chunk.toString())
+            assert.strictEqual(await line.wait(), 7)
+            assert.match(lineOutput, /42/)
             //Closed while its process runs: killed
             const other: ContainerdContainerTTY = await container.createTTY({cmd: ['sleep', '600']})
             await other.close()
@@ -411,7 +453,12 @@ describe('The containerd component with the containerd of the machine', {skip: !
             await container.exportDirectory({path: '/etc', destination: path.join(directory, 'etc.tar')})
             const etc: Record<string, string> = await entries(path.join(directory, 'etc.tar'))
             assert.ok(etc['etc/hostname'] !== undefined && etc['etc/motd'] === undefined, Object.keys(etc).join())
-            await assert.rejects(container.exportDirectory({path: '/missing', destination: path.join(directory, 'missing.tar')}))
+            await assert.rejects(container.exportDirectory({path: '/missing', destination: path.join(directory, 'missing.tar')}), ContainerdPathNotFoundException)
+            //A name given to an archive of several images: refused, nothing imported
+            const several: string = path.join(directory, 'several.tar')
+            await containerd.exportImages([ALPINE, image.name], {destination: several})
+            await assert.rejects(containerd.importImage({source: several, name: 'lakutata-test/renamed:1'}), ContainerdImageImportException)
+            await assert.rejects(containerd.getImage('lakutata-test/renamed:1'), ContainerdImageNotFoundException)
         } finally {
             await container.remove({force: true})
         }

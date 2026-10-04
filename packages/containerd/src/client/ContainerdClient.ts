@@ -24,13 +24,33 @@ export type SnapshotMount = {
 }
 
 /**
- * An event of containerd: its topic (/tasks/exit), its type (containerd.events.TaskExit) and its fields
+ * An event of containerd, as {@link Containerd.events} streams it: its topic (`/tasks/exit`), its type
+ * (`containerd.events.TaskExit`) and its decoded fields.
  */
 export type ContainerdEvent = {
+    /**
+     * When containerd published the event.
+     */
     timestamp: Date
+    /**
+     * The namespace the event happened in (the component's).
+     */
     namespace: string
+    /**
+     * The event's topic: `/tasks/create`, `/tasks/start`, `/tasks/exit`, `/tasks/delete`, `/tasks/oom`,
+     * `/tasks/paused`, `/tasks/resumed`, `/tasks/exec-added`, `/tasks/exec-started`, `/containers/create`,
+     * `/containers/update`, `/containers/delete`, `/images/create`, `/images/update`, `/images/delete`,
+     * `/snapshot/prepare`, `/snapshot/commit`, `/snapshot/remove`…
+     */
     topic: string
+    /**
+     * The type of the event's payload (`containerd.events.TaskExit`).
+     */
     type: string
+    /**
+     * The event's fields, decoded for the task, container, image and snapshot events (`{containerId, pid, exitStatus,
+     * exitedAt}` for `/tasks/exit`, `{name}` for `/images/delete`); an empty object for the other events.
+     */
     event: Message
 }
 

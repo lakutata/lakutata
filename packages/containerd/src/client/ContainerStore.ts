@@ -1,7 +1,7 @@
 import {randomBytes} from 'node:crypto'
 import {availableParallelism, constants as osConstants, hostname as osHostname, totalmem} from 'node:os'
-import {copyFile, mkdir, open, readdir, readFile, readlink, rm, stat, truncate, writeFile} from 'node:fs/promises'
-import {createReadStream, existsSync, type BigIntStats, type Stats} from 'node:fs'
+import {copyFile, lstat, mkdir, open, readdir, readFile, readlink, rm, stat, truncate, writeFile} from 'node:fs/promises'
+import {createReadStream, existsSync, readdirSync, type BigIntStats, type Dirent, type Stats} from 'node:fs'
 import {pipeline} from 'node:stream/promises'
 import {pack as tarPack, type Header, type Pack} from 'tar-stream'
 import path from 'node:path'
@@ -283,6 +283,44 @@ export function SignalNumber(signal: string | number): number {
     return number
 }
 
+let swapLimitSupported: boolean | undefined
+
+/**
+ * Whether the kernel limits the swap of the cgroups (Docker discards the swap limits otherwise): the files of the swap
+ * limits, in the cgroups below the root on cgroup v2 (the root has none)
+ */
+export function SwapLimitSupported(): boolean {
+    if (swapLimitSupported !== undefined) return swapLimitSupported
+    if (existsSync('/sys/fs/cgroup/cgroup.controllers')) {
+        try {
+            swapLimitSupported = readdirSync('/sys/fs/cgroup', {withFileTypes: true}).some((entry: Dirent): boolean => entry.isDirectory() && existsSync(path.join('/sys/fs/cgroup', entry.name, 'memory.swap.max')))
+        } catch {
+            swapLimitSupported = false
+        }
+    } else {
+        swapLimitSupported = existsSync('/sys/fs/cgroup/memory/memory.memsw.limit_in_bytes')
+    }
+    return swapLimitSupported
+}
+
+/**
+ * The swap limit of a container (its memory and its swap together), as Docker and nerdctl give it: twice its memory
+ * limit by default, -1 unlimited; none without a memory limit, or when the kernel does not limit the swap
+ * @param memory
+ * @param memorySwap
+ */
+export function SwapLimit(memory: number | undefined, memorySwap: number | undefined): number | undefined {
+    if (!memory || !SwapLimitSupported()) return undefined
+    return memorySwap === -1 || (memorySwap && memorySwap > 0) ? memorySwap : memory * 2
+}
+
+/**
+ * The CPUs of the machine online, as a cpuset writes them (0-3,6)
+ */
+async function OnlineCpus(): Promise<string> {
+    return (await readFile('/sys/devices/system/cpu/online', 'utf8').catch((): string => '')).trim() || `0-${availableParallelism() - 1}`
+}
+
 /**
  * The counters of a metrics message as numbers: the 64-bit ones beyond 2^53 (an unlimited limit, 2^64 - 1) are decoded
  * as bigints, the statistics are numbers
@@ -469,20 +507,52 @@ export class ContainerStore {
             return devices
         }
         if (!stats.isCharacterDevice() && !stats.isBlockDevice()) throw new Error(`${mapping.hostPath} is not a device`)
+        return [ContainerStore.Device(mapping.hostPath, containerPath, stats, mapping.permissions ?? 'rwm')]
+    }
+
+    /**
+     * A device of the host, by the stats of its node (its major and minor numbers of its rdev, as glibc splits it)
+     * @param hostPath
+     * @param containerPath
+     * @param stats
+     * @param permissions
+     */
+    protected static Device(hostPath: string, containerPath: string, stats: BigIntStats, permissions: string): SpecDevice {
         const rdev: bigint = stats.rdev
-        const major: number = Number(((rdev >> 8n) & 0xfffn) | ((rdev >> 32n) & ~0xfffn))
-        const minor: number = Number((rdev & 0xffn) | ((rdev >> 12n) & ~0xffn))
-        return [{
-            path: mapping.hostPath,
+        return {
+            path: hostPath,
             containerPath: containerPath,
             type: stats.isCharacterDevice() ? 'c' : 'b',
-            major: major,
-            minor: minor,
+            major: Number(((rdev >> 8n) & 0xfffn) | ((rdev >> 32n) & ~0xfffn)),
+            minor: Number((rdev & 0xffn) | ((rdev >> 12n) & ~0xffn)),
             fileMode: Number(stats.mode & 0o777n),
             uid: Number(stats.uid),
             gid: Number(stats.gid),
-            permissions: mapping.permissions ?? 'rwm'
-        }]
+            permissions: permissions
+        }
+    }
+
+    /**
+     * The devices of the host given to a privileged container, as containerd's WithHostDevices gives them: the
+     * character and block devices of /dev and of its subdirectories, without the links, the console and the directories
+     * of the pseudo terminals, the shared memory, the descriptors and the queues
+     * @param directory
+     */
+    protected async hostDevices(directory: string = '/dev'): Promise<SpecDevice[]> {
+        const devices: SpecDevice[] = []
+        const entries = await readdir(directory, {withFileTypes: true}).catch((): [] => [])
+        for (const entry of entries) {
+            const entryPath: string = path.join(directory, entry.name)
+            if (entry.isDirectory()) {
+                if (!['pts', 'shm', 'fd', 'mqueue', '.lxc', '.lxd-mounts', '.udev'].includes(entry.name)) devices.push(...await this.hostDevices(entryPath))
+                continue
+            }
+            if (entry.name === 'console' || (!entry.isCharacterDevice() && !entry.isBlockDevice())) continue
+            //Removed meanwhile
+            const stats: BigIntStats | undefined = await lstat(entryPath, {bigint: true}).catch((): undefined => undefined)
+            if (stats && (stats.isCharacterDevice() || stats.isBlockDevice())) devices.push(ContainerStore.Device(entryPath, entryPath, stats, 'rwm'))
+        }
+        return devices
     }
 
     /**
@@ -565,6 +635,8 @@ export class ContainerStore {
             }
             const devices: SpecDevice[] = []
             for (const device of options.devices ?? []) devices.push(...await this.devices(device))
+            //The devices of the host in its /dev (its cgroup allows them all), the ones given kept
+            if (options.privileged) devices.push(...(await this.hostDevices()).filter((device: SpecDevice): boolean => !devices.some((given: SpecDevice): boolean => given.containerPath === device.containerPath)))
             let hooks: Record<string, { path: string, args: string[], timeout: number }[]> | undefined
             if (network === 'cni') {
                 if (!this.networks.pluginDirectories().length) throw new Error(`The plugins of CNI are not installed (${this.networks.cniPath.join(', ')})`)
@@ -601,7 +673,7 @@ export class ContainerStore {
                 cgroupNamespace: (options.cgroupns ?? 'private') === 'private' && existsSync('/sys/fs/cgroup/cgroup.controllers'),
                 cgroupsPath: this.options.cgroupManager === 'systemd' ? `system.slice:lakutata:${id}` : `/${this.client.namespace}/${id}`,
                 memory: options.memory,
-                memorySwap: options.memorySwap,
+                memorySwap: SwapLimit(options.memory, options.memorySwap),
                 cpuQuota: options.cpus ? Math.round(options.cpus * 100000) : undefined,
                 cpuShares: options.cpuShares,
                 cpuset: options.cpuset,
@@ -822,15 +894,71 @@ export class ContainerStore {
      */
     public async kill(container: Message, signal: string | number = 'SIGKILL', all: boolean = false): Promise<void> {
         if (SignalNumber(signal) === SignalNumber('SIGKILL') && container.labels?.[ContainerLabels.RESTART_POLICY]) await this.label(container, {[ContainerLabels.RESTART_STATUS]: 'stopped'})
-        await this.client.kill(container.id, SignalNumber(signal), {all: all})
+        await this.client.kill(container.id, SignalNumber(signal), {all: all}).catch((error: unknown): never => {
+            throw this.taskError(container, error)
+        })
     }
 
     public async pause(container: Message): Promise<void> {
-        await this.client.pause(container.id)
+        await this.running(container)
+        await this.client.pause(container.id).catch((error: unknown): never => {
+            throw this.taskError(container, error)
+        })
     }
 
     public async resume(container: Message): Promise<void> {
-        await this.client.resume(container.id)
+        await this.running(container)
+        await this.client.resume(container.id).catch((error: unknown): never => {
+            throw this.taskError(container, error)
+        })
+    }
+
+    /**
+     * Check that a container has a task which did not exit (the shim refuses to pause or resume a stopped one with an
+     * error of no code)
+     * @param container
+     * @protected
+     */
+    protected async running(container: Message): Promise<void> {
+        const task: Message | undefined = await this.client.getTask(container.id)
+        if (!task || task.status === M.ProcessStatus.STOPPED) throw Object.assign(new Error(`The container ${ContainerStore.Name(container)} is not running`), {code: 'NOT_RUNNING'})
+    }
+
+    /**
+     * The processes of a running container (their identifiers on the host)
+     * @param container
+     */
+    public async processes(container: Message): Promise<number[]> {
+        return await this.client.listPids(container.id).catch((error: unknown): never => {
+            throw this.taskError(container, error)
+        })
+    }
+
+    /**
+     * Wait for the main process of a container to exit: its exit code; the last one at once when it has no task (never
+     * started: 0, stopped: its task deleted, its exit kept by the store)
+     * @param container
+     * @param signal
+     */
+    public async wait(container: Message, signal?: AbortSignal): Promise<number> {
+        try {
+            return (await this.client.wait(container.id, '', signal)).exitStatus
+        } catch (error: unknown) {
+            if (!IsGRPCError(error, GRPCStatus.NOT_FOUND)) throw error
+            return (await this.readState(container.id)).exitCode ?? 0
+        }
+    }
+
+    /**
+     * The error of an operation on the task of a container: the container is not running when it has no task (or its
+     * process exited)
+     * @param container
+     * @param error
+     * @protected
+     */
+    protected taskError(container: Message, error: unknown): unknown {
+        if (!IsGRPCError(error, GRPCStatus.NOT_FOUND)) return error
+        return Object.assign(new Error(`The container ${ContainerStore.Name(container)} is not running (${error.message})`, {cause: error}), {code: 'NOT_RUNNING'})
     }
 
     /**
@@ -1183,11 +1311,28 @@ export class ContainerStore {
     public async updateResources(container: Message, update: ContainerResourceUpdate): Promise<void> {
         const spec: Record<string, any> = ContainerdClient.FromJson(container.spec) ?? {}
         const resources: Record<string, any> = spec.linux.resources ??= {}
+        //The limits removed: absent from the specification, given to the task as the values of no limit (the update of
+        //runc leaves a 0 or an empty value as it is)
+        const removed: { memory?: true, swap?: true, shares?: true, cpus?: true } = {}
         if (update.memory !== undefined || update.memorySwap !== undefined || update.oomKillDisable !== undefined) {
             resources.memory ??= {}
-            if (update.memory !== undefined) resources.memory.limit = update.memory || undefined
-            if (update.memorySwap !== undefined) resources.memory.swap = update.memorySwap || undefined
+            if (update.memory === 0) {
+                //No swap limit without a memory limit
+                delete resources.memory.limit
+                delete resources.memory.swap
+                removed.memory = removed.swap = true
+            } else if (update.memory !== undefined) {
+                //A swap limit of twice the memory (the default one) follows the memory
+                if (update.memorySwap === undefined && resources.memory.limit > 0 && resources.memory.swap === resources.memory.limit * 2) resources.memory.swap = update.memory * 2
+                resources.memory.limit = update.memory
+            }
+            if (update.memorySwap !== undefined) {
+                if (update.memorySwap > 0 && !(resources.memory.limit > 0)) throw Object.assign(new Error('The swap limit of a container (memorySwap) needs its memory limit (memoryLimit)'), {code: 'INVALID_VALUE'})
+                //0: no swap limit; discarded when the kernel does not limit the swap
+                if (!removed.swap && SwapLimitSupported()) resources.memory.swap = update.memorySwap || -1
+            }
             if (update.oomKillDisable !== undefined) resources.memory.disableOOMKiller = update.oomKillDisable
+            if (resources.memory.swap > 0 && resources.memory.swap < resources.memory.limit) throw Object.assign(new Error('The swap limit of a container (memorySwap, its memory and its swap) is less than its memory limit (memoryLimit)'), {code: 'INVALID_VALUE'})
         }
         if (update.cpus !== undefined || update.cpuShares !== undefined || update.cpuset !== undefined) {
             resources.cpu ??= {}
@@ -1195,8 +1340,18 @@ export class ContainerStore {
                 resources.cpu.quota = update.cpus ? Math.round(update.cpus * 100000) : -1
                 resources.cpu.period = 100000
             }
-            if (update.cpuShares !== undefined) resources.cpu.shares = update.cpuShares || undefined
-            if (update.cpuset !== undefined) resources.cpu.cpus = update.cpuset || undefined
+            if (update.cpuShares === 0) {
+                delete resources.cpu.shares
+                removed.shares = true
+            } else if (update.cpuShares !== undefined) {
+                resources.cpu.shares = update.cpuShares
+            }
+            if (update.cpuset === '') {
+                delete resources.cpu.cpus
+                removed.cpus = true
+            } else if (update.cpuset !== undefined) {
+                resources.cpu.cpus = update.cpuset
+            }
         }
         if (update.pidsLimit !== undefined) resources.pids = {limit: update.pidsLimit || -1}
         const labels: Record<string, string> = {}
@@ -1210,7 +1365,14 @@ export class ContainerStore {
         //The labels emptied are deleted
         await this.client.updateContainer({id: container.id, spec: ContainerdClient.Json(SPEC_TYPE_URL, spec), labels: Object.fromEntries(Object.entries(labels).filter(([, value]): boolean => !!value))}, ['spec', ...Object.keys(labels).map((key: string): string => `labels.${key}`)])
         const task: Message | undefined = await this.client.getTask(container.id)
-        if (task && task.status !== M.ProcessStatus.STOPPED) await this.client.updateTask(container.id, resources)
+        if (!task || task.status === M.ProcessStatus.STOPPED) return
+        const taskResources: Record<string, any> = structuredClone(resources)
+        if (removed.memory) taskResources.memory.limit = -1
+        if (removed.swap) taskResources.memory.swap = -1
+        //The default weight of the kernel
+        if (removed.shares) taskResources.cpu.shares = 1024
+        if (removed.cpus) taskResources.cpu.cpus = await OnlineCpus()
+        await this.client.updateTask(container.id, taskResources)
     }
 
     /**

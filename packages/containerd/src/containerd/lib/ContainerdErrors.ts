@@ -1,8 +1,10 @@
+import {InvalidValueException} from '@lakutata/core'
 import {ContainerdImageNotFoundException} from '../exceptions/ContainerdImageNotFoundException.js'
 import {ContainerdPlatformException} from '../exceptions/ContainerdPlatformException.js'
 import {ContainerdContainerNameConflictException} from '../exceptions/ContainerdContainerNameConflictException.js'
 import {ContainerdContainerStateException} from '../exceptions/ContainerdContainerStateException.js'
 import {ContainerdNetworkNotFoundException} from '../exceptions/ContainerdNetworkNotFoundException.js'
+import {ContainerdPathNotFoundException} from '../exceptions/ContainerdPathNotFoundException.js'
 
 /**
  * The exception of an error of the client (by its code), or the one given
@@ -20,6 +22,10 @@ export function ContainerdError(error: unknown, fallback?: new (message: string)
             return new ContainerdContainerNameConflictException(message)
         case 'NETWORK_NOT_FOUND':
             return new ContainerdNetworkNotFoundException(message)
+        case 'INVALID_VALUE':
+            return new InvalidValueException(message)
+        case 'PATH_NOT_FOUND':
+            return new ContainerdPathNotFoundException(message)
         case 'RUNNING':
         case 'NOT_RUNNING':
         case 'PAUSED':
