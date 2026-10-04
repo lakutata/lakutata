@@ -478,9 +478,15 @@ export class Application extends Module {
                 for (const name in input) {
                     const objectClass: any = input[name]?.class
                     if (typeof objectClass?.[loaderName] === 'function') {
-                        const dataSourceOptions: Record<string, any> = input[name].options
-                        if (!dataSourceOptions) continue
-                        Reflect.set(dataSourceOptions, 'dataSourceName', name)
+                        if (!input[name].options) continue
+                        //A copy (the options given are not changed), with the entities given apart to a provider
+                        const entities: unknown[] = Array.isArray(input[name].entities) ? input[name].entities : []
+                        const own: unknown = input[name].options.entities
+                        const dataSourceOptions: Record<string, any> = {
+                            ...input[name].options,
+                            ...entities.length ? {entities: [...Array.isArray(own) ? own : Object.values(own ?? {}), ...entities]} : {},
+                            dataSourceName: name
+                        }
                         migrationTargets.push({dataSourceName: name, dataSourceOptions: dataSourceOptions, loader: objectClass[loaderName]})
                     }
                 }

@@ -23,9 +23,39 @@ import {As} from '@lakutata/utils'
 import {type MigrationRunOptions} from '../types/MigrationRunOptions.js'
 
 /**
- * Build database provider connection options
- * @param options
- * @constructor
+ * Build the registration of a {@link Database} provider, for the `providers` of the application options: the provider
+ * class with its TypeORM connection options. Its `entities` option, added to the entities of the connection options,
+ * is set by spreading the registration: `{...BuildDatabaseOptions(options), entities: [User]}`.
+ * @param options The TypeORM connection options (`DataSourceOptions`): the driver `type`, the connection settings, the
+ * `entities`, the `migrations`, `synchronize`, `migrationsRun`, `logging`… Passed to TypeORM as they are.
+ * @returns The registration `{class: Database, options}`.
+ * @example
+ * ```typescript
+ * import {Application} from 'lakutata'
+ * import {BuildDatabaseOptions} from 'lakutata/provider/database'
+ * import {Column, Entity, PrimaryGeneratedColumn} from 'lakutata/decorator/orm'
+ *
+ * @Entity()
+ * class Report {
+ *     @PrimaryGeneratedColumn()
+ *     public id: number
+ *
+ *     @Column('text')
+ *     public content: string
+ * }
+ *
+ * Application.run(() => ({
+ *     id: 'com.example.reports',
+ *     name: 'Reports',
+ *     providers: {
+ *         //A new PostgreSQL connection each time reports is resolved, closed with its owner
+ *         reports: {
+ *             ...BuildDatabaseOptions({type: 'postgres', url: 'postgres://postgres:secret@localhost:5432/reports'}),
+ *             entities: [Report]
+ *         }
+ *     }
+ * }))
+ * ```
  */
 export const BuildDatabaseOptions: (options: DataSourceOptions) => {
     class: typeof Database
@@ -36,105 +66,157 @@ export const BuildDatabaseOptions: (options: DataSourceOptions) => {
 })
 
 /**
- * Database component
+ * A database connection of its own: a transient provider wrapping a TypeORM `DataSource`, with the API of the
+ * `Database` component of `lakutata/com/database`.
+ *
+ * Register it in the `providers` of the application options with {@link BuildDatabaseOptions}. Each resolution
+ * (`@Inject('reports')`, `getObject('reports')`) creates a new instance, even within one scope: it opens its own
+ * connection (its own pool) while it is created, and closes it when it is destroyed with the object or the container
+ * which created it. It suits a short use (a job, a script, a tenant database); the requests of a busy application
+ * share the `Database` component instead. A connection failure rejects its creation with the driver error.
+ *
+ * The entities of its `entities` option are added to the entities of its connection options.
+ * @example
+ * ```typescript
+ * import {Application} from 'lakutata'
+ * import {BuildDatabaseOptions, Database} from 'lakutata/provider/database'
+ * import {Column, Entity, PrimaryGeneratedColumn} from 'lakutata/decorator/orm'
+ *
+ * @Entity()
+ * class Report {
+ *     @PrimaryGeneratedColumn()
+ *     public id: number
+ *
+ *     @Column('text')
+ *     public content: string
+ * }
+ *
+ * Application
+ *     .run(() => ({
+ *         id: 'com.example.reports',
+ *         name: 'Reports',
+ *         providers: {
+ *             reports: {
+ *                 ...BuildDatabaseOptions({type: 'postgres', url: 'postgres://postgres:secret@localhost:5432/reports', synchronize: true}),
+ *                 entities: [Report]
+ *             }
+ *         }
+ *     }))
+ *     .onLaunched(async (app: Application): Promise<void> => {
+ *         //A connection opened for this use, closed with the application
+ *         const database: Database = await app.getObject('reports')
+ *         await database.transaction(async (manager): Promise<void> => {
+ *             await manager.save(Report, {content: 'Daily report'})
+ *         })
+ *         console.log(await database.getRepository(Report).count())
+ *     })
+ * ```
  */
 @Transient()
 export class Database extends Provider {
 
     /**
-     * Lazy loader of the migration generator provider, used by Application when MIGRATION_GENERATE is set
+     * Load the provider generating the migrations of the database. The application calls it when it is started with
+     * `MIGRATION_GENERATE`: the applications do not call it.
+     * @returns The migration generator provider class.
      */
     public static migrationGenerator = async (): Promise<typeof Provider> => (await import('./migration/GenerateMigration.js')).GenerateMigration
 
     /**
-     * Lazy loader of the provider running, reverting or showing the migrations, used by Application when MIGRATION_RUN,
-     * MIGRATION_REVERT or MIGRATION_SHOW is set
+     * Load the provider running, reverting or showing the migrations of the database. The application calls it when it
+     * is started with `MIGRATION_RUN`, `MIGRATION_REVERT` or `MIGRATION_SHOW`: the applications do not call it.
+     * @returns The migration executor provider class.
      */
     public static migrationExecutor = async (): Promise<typeof Provider> => (await import('./migration/ExecuteMigration.js')).ExecuteMigration
 
     #datasource: DataSource
 
     /**
-     * Connection options
+     * The TypeORM connection options, given by the registration (see {@link BuildDatabaseOptions}). Not validated by
+     * lakutata: TypeORM checks them while connecting.
      */
     @Configurable()
     protected readonly options: DataSourceOptions
 
     /**
-     * Database entities
-     * @protected
+     * The entities added to the `entities` of the connection options: classes, `EntitySchema`s or glob paths of their
+     * files. The migration commands of the application (`MIGRATION_GENERATE`…) read the connection options only, not
+     * this option.
+     * @default []
      */
     @Configurable()
     protected readonly entities: MixedList<Function | string | EntitySchema>
 
     /**
-     * Datasource instance
-     * @protected
+     * The TypeORM `DataSource` of the connection, for the subclasses needing what this class does not expose.
      */
     protected get datasource(): DataSource {
         return this.#datasource
     }
 
     /**
-     * Connection driver
+     * The TypeORM driver of the connection (PostgreSQL, MySQL, SQLite…).
      */
     public get driver(): Driver {
         return this.datasource.driver
     }
 
     /**
-     * EntityManager of this connection.
+     * The entity manager of the connection: the TypeORM operations on any entity (`find`, `save`, `delete`…) outside a
+     * transaction.
      */
     public get manager(): EntityManager {
         return this.datasource.manager
     }
 
     /**
-     * Set naming strategy used in the connection.
-     * @param instance
+     * Replace the naming strategy of the connection, which names the tables, the columns and the constraints of the
+     * entities. Set it before the metadata is used: the names already built are not renamed.
+     * @param instance The naming strategy.
      */
     public set namingStrategy(instance: NamingStrategyInterface) {
         this.datasource.namingStrategy = instance
     }
 
     /**
-     * Get naming strategy used in the connection.
+     * The naming strategy of the connection, which names the tables, the columns and the constraints of the entities.
+     * @default TypeORM's `DefaultNamingStrategy`, unless the options set `namingStrategy`
      */
     public get namingStrategy(): NamingStrategyInterface {
         return this.datasource.namingStrategy
     }
 
     /**
-     * Entity subscriber instances that are registered for this connection.
+     * The entity subscribers registered on the connection (the `subscribers` of the options).
      */
     public get subscribers(): EntitySubscriberInterface<any>[] {
         return this.datasource.subscribers
     }
 
     /**
-     * All entity metadatas that are registered for this connection.
+     * The metadata of every entity registered on the connection.
      */
     public get entityMetadatas(): EntityMetadata[] {
         return this.datasource.entityMetadatas
     }
 
     /**
-     * All entity metadatas that are registered for this connection.
-     * This is a copy of #.entityMetadatas property -> used for more performant searches.
+     * The metadata of every entity registered on the connection, by entity target (class, name or schema): the same as
+     * {@link Database.entityMetadatas}, for fast lookups.
      */
     public get entityMetadatasMap(): Map<EntityTarget<any>, EntityMetadata> {
         return this.datasource.entityMetadatasMap
     }
 
     /**
-     * Used to work with query result cache.
+     * The query result cache of the connection, `undefined` unless the options enable `cache`.
      */
     public get queryResultCache(): QueryResultCache | undefined {
         return this.datasource.queryResultCache
     }
 
     /**
-     * Initializer
+     * Connect to the database with the options, their entities and the ones of the `entities` option.
      * @protected
      */
     protected async init(): Promise<void> {
@@ -147,7 +229,7 @@ export class Database extends Provider {
     }
 
     /**
-     * Destroyer
+     * Disconnect from the database.
      * @protected
      */
     protected async destroy(): Promise<void> {
@@ -155,144 +237,188 @@ export class Database extends Provider {
     }
 
     /**
-     * Creates database schema for all entities registered in this connection.
-     * Can be used only after connection to the database is established.
-     *
-     * @param dropBeforeSync If set to true then it drops the database with all its tables and data
+     * Create or update the database schema from the registered entities (the tables, columns, indices and foreign
+     * keys). Meant for development: the migrations change the schema of a production database.
+     * @param dropBeforeSync Drop every table of the database schema, with its data (also the tables of no entity),
+     * before creating the schema. Defaults to `false`.
+     * @returns Resolves once the schema is built.
+     * @throws {CannotExecuteNotConnectedError} When the connection is closed.
      */
     public async synchronize(dropBeforeSync?: boolean): Promise<void> {
         return await this.datasource.synchronize(dropBeforeSync)
     }
 
     /**
-     * Runs all pending migrations.
-     * Can be used only after connection to the database is established.
-     * @param options
+     * Run the pending migrations (the `migrations` of the options not yet recorded in the migrations table), in their
+     * timestamp order.
+     * @param options The transactions of the migrations, and whether they are only recorded (`fake`).
+     * @returns The migrations run, an empty array when none is pending.
+     * @throws {CannotExecuteNotConnectedError} When the connection is closed.
+     * @throws {Error} The error of a failed migration, once its transaction (`'all'` or `'each'`) is rolled back.
      */
     public async runMigrations(options?: MigrationRunOptions): Promise<Migration[]> {
         return await this.datasource.runMigrations(options)
     }
 
     /**
-     * Reverts last executed migration.
-     * Can be used only after connection to the database is established.
-     * @param options
+     * Revert the last migration run (its `down()`), and remove it from the migrations table. Does nothing when no
+     * migration was run.
+     * @param options The transaction of the migration (`'all'` by default, `migrationsTransactionMode` not applying),
+     * and whether it is only removed from the migrations table (`fake`).
+     * @returns Resolves once the migration is reverted.
+     * @throws {CannotExecuteNotConnectedError} When the connection is closed.
      */
     public async undoLastMigration(options?: MigrationRunOptions): Promise<void> {
         return await this.datasource.undoLastMigration(options)
     }
 
     /**
-     * Lists all migrations and whether they have been run.
-     * Returns true if there are pending migrations
+     * Log each migration of the options with whether it was run (`[X]`) or not (`[ ]`), through the logger of the
+     * connection (shown when its `logging` includes `schema`).
+     * @returns Whether a migration is pending.
      */
     public async showMigrations(): Promise<boolean> {
         return await this.datasource.showMigrations()
     }
 
     /**
-     * Checks if entity metadata exist for the given entity class, target name or table name.
-     * @param target
+     * Whether an entity is registered on the connection.
+     * @param target The entity class, its name, or its table name.
+     * @returns `true` when the connection has its metadata.
      */
     public hasMetadata(target: EntityTarget<any>): boolean {
         return this.datasource.hasMetadata(target)
     }
 
     /**
-     * Gets entity metadata for the given entity class or schema name.
-     * @param target
+     * The metadata of a registered entity: its table, columns, relations…
+     * @param target The entity class, its name, or its table name.
+     * @returns The metadata of the entity.
+     * @throws {EntityMetadataNotFoundError} When the entity is not registered on the connection.
      */
     public getMetadata(target: EntityTarget<any>): EntityMetadata {
         return this.datasource.getMetadata(target)
     }
 
     /**
-     * Gets repository for the given entity.
-     * @param target
+     * The repository of an entity, created once per entity: its `find`, `save`, `delete`… operations outside a
+     * transaction (in a transaction, use the entity manager given to the callback).
+     * @param target The entity class, its name, or its `EntitySchema`.
+     * @returns The repository of the entity (a `MongoRepository` on a MongoDB connection).
+     * @throws {EntityMetadataNotFoundError} From the repository operations, when the entity is not registered.
      */
     public getRepository<Entity extends ObjectLiteral>(target: EntityTarget<Entity>): Repository<Entity> {
         return this.datasource.getRepository<Entity>(target)
     }
 
     /**
-     * Gets tree repository for the given entity class or name.
-     * Only tree-type entities can have a TreeRepository, like ones decorated with @Tree decorator.
-     * @param target
+     * The tree repository of an entity decorated with `@Tree()`: the operations on its ancestors and descendants
+     * (`findTrees`, `findDescendants`…).
+     * @param target The tree entity class, or its name.
+     * @returns The tree repository of the entity.
+     * @throws {TreeRepositoryNotSupportedError} On a driver without tree support (MongoDB).
      */
     public getTreeRepository<Entity extends ObjectLiteral>(target: EntityTarget<Entity>): TreeRepository<Entity> {
         return this.datasource.getTreeRepository<Entity>(target)
     }
 
     /**
-     * Gets mongodb-specific repository for the given entity class or name.
-     * Works only if connection is mongodb-specific.
-     * @param target
+     * The MongoDB repository of an entity: the repository operations plus the MongoDB ones (`aggregate`, `bulkWrite`…).
+     * @param target The entity class, or its name.
+     * @returns The MongoDB repository of the entity.
+     * @throws {TypeORMError} When the connection is not a MongoDB one.
      */
     public getMongoRepository<Entity extends ObjectLiteral>(target: EntityTarget<Entity>): MongoRepository<Entity> {
         return this.datasource.getMongoRepository<Entity>(target)
     }
 
     /**
-     * Wraps given function execution (and all operations made there) into a transaction.
-     * All database operations must be executed using provided entity manager.
-     * @param runInTransaction
+     * Run a function in a transaction, on one connection of the pool: committed when the function resolves, rolled
+     * back when it rejects (its error rethrown). Every operation of the transaction goes through the entity manager given
+     * to the function: the ones made through {@link Database.manager} or the repositories of this object run outside of
+     * it.
+     * @param runInTransaction The function, given the entity manager of the transaction.
+     * @returns What the function resolves.
+     * @throws {Error} The error of the function, or of the database, after the rollback.
      */
     public async transaction<T>(runInTransaction: (entityManager: EntityManager) => Promise<T>): Promise<T>
+    /**
+     * Run a function in a transaction with an isolation level, on one connection of the pool: committed when the
+     * function resolves, rolled back when it rejects (its error rethrown). Every operation of the transaction goes
+     * through the entity manager given to the function.
+     * @param isolationLevel The isolation level: `'READ UNCOMMITTED'`, `'READ COMMITTED'`, `'REPEATABLE READ'` or
+     * `'SERIALIZABLE'` (the levels the driver supports).
+     * @param runInTransaction The function, given the entity manager of the transaction.
+     * @returns What the function resolves.
+     * @throws {Error} The error of the function, or of the database, after the rollback.
+     */
     public async transaction<T>(isolationLevel: IsolationLevel, runInTransaction: (entityManager: EntityManager) => Promise<T>): Promise<T>
     public async transaction<T>(inp1: IsolationLevel | ((entityManager: EntityManager) => Promise<T>), inp2?: (entityManager: EntityManager) => Promise<T>): Promise<T> {
         return inp2 ? await this.datasource.transaction(<IsolationLevel>inp1, inp2) : await this.datasource.transaction(<(entityManager: EntityManager) => Promise<T>>inp1)
     }
 
     /**
-     * Executes raw SQL query and returns raw database results.
-     * @param query
-     * @param parameters
-     * @param queryRunner
+     * Run a raw SQL query.
+     * @param query The SQL, its parameters as placeholders: `$1`, `$2`… for PostgreSQL, `?` for MySQL and SQLite.
+     * @param parameters The values of the placeholders, escaped by the driver.
+     * @param queryRunner The query runner to run it on (a transaction of {@link Database.createQueryRunner}), a
+     * connection of the pool otherwise.
+     * @returns The raw result of the driver: the rows of a `SELECT` (an array of objects).
+     * @throws {QueryFailedError} When the database rejects the query.
      */
     public async query<T = any>(query: string, parameters?: any[], queryRunner?: QueryRunner): Promise<T> {
         return await this.datasource.query(query, parameters, queryRunner)
     }
 
     /**
-     * Creates a new query builder that can be used to build a SQL query.
-     * @param entityClass
-     * @param alias
-     * @param queryRunner
+     * Create a query builder selecting an entity.
+     * @param entityClass The entity class, its name, or its `EntitySchema`.
+     * @param alias The alias of the entity in the query (`'user'` in `user.name`).
+     * @param queryRunner The query runner to run the query on, a connection of the pool otherwise.
+     * @returns The query builder, selecting the entity from its table.
+     * @throws {EntityMetadataNotFoundError} When the entity is not registered.
+     * @throws {TypeORMError} On a MongoDB connection, which has no query builder.
      */
     public createQueryBuilder<Entity extends ObjectLiteral>(entityClass: EntityTarget<Entity>, alias: string, queryRunner?: QueryRunner): SelectQueryBuilder<Entity>
+    /**
+     * Create an empty query builder, its selection and source set by its `select()` and `from()`.
+     * @param queryRunner The query runner to run the query on, a connection of the pool otherwise.
+     * @returns The query builder.
+     * @throws {TypeORMError} On a MongoDB connection, which has no query builder.
+     */
     public createQueryBuilder(queryRunner?: QueryRunner): SelectQueryBuilder<any>
     public createQueryBuilder<Entity extends ObjectLiteral>(inp1?: EntityTarget<Entity> | QueryRunner, inp2?: string, inp3?: QueryRunner): SelectQueryBuilder<Entity> {
         return arguments.length > 1 ? this.datasource.createQueryBuilder(<EntityTarget<Entity>>inp1, <string>inp2, <QueryRunner | undefined>inp3) : this.datasource.createQueryBuilder(<QueryRunner | undefined>inp1)
     }
 
     /**
-     * Creates a query runner used for perform queries on a single database connection.
-     * Using query runners you can control your queries to execute using single database connection and
-     * manually control your database transaction.
-     *
-     * Mode is used in replication mode and indicates whatever you want to connect
-     * to master database or any of slave databases.
-     * If you perform writes you must use master database,
-     * if you perform reads you can use slave databases.
-     *
-     * @param mode
+     * Create a query runner: one connection taken from the pool, to run several queries on the same connection and
+     * control its transaction by hand (`connect()`, `startTransaction()`, `commitTransaction()`,
+     * `rollbackTransaction()`). The caller must `release()` it, or the connection stays taken.
+     * @param mode With replication, `'master'` (the default) for the writes, `'slave'` for the reads on a replica.
+     * @returns The query runner, not connected until its first query or `connect()`.
      */
     public createQueryRunner(mode?: ReplicationMode): QueryRunner {
         return this.datasource.createQueryRunner(mode)
     }
 
     /**
-     * Gets entity metadata of the junction table (many-to-many table).
-     * @param entityTarget
-     * @param relationPropertyPath
+     * The metadata of the junction table of a many-to-many relation.
+     * @param entityTarget The entity owning the relation.
+     * @param relationPropertyPath The property of the relation (`'tags'`, or a path such as `'profile.tags'`).
+     * @returns The metadata of the junction table.
+     * @throws {EntityMetadataNotFoundError} When the entity is not registered.
+     * @throws {TypeORMError} When the entity has no such relation, or the relation is not a many-to-many one.
      */
     public getManyToManyMetadata(entityTarget: EntityTarget<any>, relationPropertyPath: string): EntityMetadata | undefined {
         return this.datasource.getManyToManyMetadata(entityTarget, relationPropertyPath)
     }
 
     /**
-     * Creates an Entity Manager for the current connection with the help of the EntityManagerFactory.
-     * @param queryRunner
+     * Create an entity manager on the connection, bound to a query runner when given (its operations then run on the
+     * runner's connection and transaction).
+     * @param queryRunner The query runner the manager uses, a connection of the pool per operation otherwise.
+     * @returns The entity manager.
      */
     public createEntityManager(queryRunner?: QueryRunner): EntityManager {
         return this.datasource.createEntityManager(queryRunner)

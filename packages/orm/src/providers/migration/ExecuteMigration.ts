@@ -40,8 +40,16 @@ export class ExecuteMigration extends Provider {
     @Configurable()
     protected readonly dataSource: DataSourceOptions
 
-    @Configurable(DTO.String().valid('all', 'none', 'each').optional().default('all'))
-    protected readonly transaction: 'all' | 'none' | 'each'
+    @Configurable(DTO.String().valid('all', 'none', 'each').optional())
+    protected readonly transaction?: 'all' | 'none' | 'each'
+
+    /**
+     * The transactions of the migrations: MIGRATION_TRANSACTION, else the migrationsTransactionMode of the database, else
+     * one for all
+     */
+    protected get transactionMode(): 'all' | 'none' | 'each' {
+        return this.transaction ?? this.dataSource.migrationsTransactionMode ?? 'all'
+    }
 
     @Configurable(DTO.Boolean().optional().default(false))
     protected readonly fake: boolean
@@ -88,7 +96,7 @@ export class ExecuteMigration extends Provider {
         switch (this.action) {
             case 'run': {
                 const pending: Migration[] = await executor.getPendingMigrations()
-                const ran: Migration[] = await dataSource.runMigrations({transaction: this.transaction, fake: this.fake})
+                const ran: Migration[] = await dataSource.runMigrations({transaction: this.transactionMode, fake: this.fake})
                 //The migrations marked as run are not given back by TypeORM
                 const executed: Migration[] = this.fake ? pending : ran
                 if (!executed.length) return console.log(ansi.green`${this.prefix}No pending migration`)
@@ -98,7 +106,7 @@ export class ExecuteMigration extends Provider {
             case 'revert': {
                 const [last] = (await executor.getExecutedMigrations()).sort((a: Migration, b: Migration): number => (b.id ?? 0) - (a.id ?? 0))
                 if (!last) return console.log(ansi.yellow`${this.prefix}No migration to revert`)
-                await dataSource.undoLastMigration({transaction: this.transaction, fake: this.fake})
+                await dataSource.undoLastMigration({transaction: this.transactionMode, fake: this.fake})
                 return console.log(ansi.green`${this.prefix}Migration ${ansi.blue(last.name)} has been ${this.fake ? 'marked as reverted' : 'reverted'}`)
             }
             case 'show': {

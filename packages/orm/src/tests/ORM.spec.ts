@@ -300,14 +300,15 @@ describe('The ORM', (): void => {
          * @param dependencies the dependencies of the project
          * @param title the options of the column title of Note
          */
-        async function generate(directory: string, dependencies: Record<string, string>, title: Record<string, string> = {}): Promise<SpawnSyncReturns<string>> {
+        async function generate(directory: string, dependencies: Record<string, string>, title: Record<string, string> = {}, objects: string = 'components: {db: BuildDatabaseOptions({type: \'sqlite\', database: \'project.db\', entities: [Note]})}'): Promise<SpawnSyncReturns<string>> {
             await writeFile(path.join(directory, 'package.json'), JSON.stringify({name: 'project', type: 'module', dependencies: dependencies}))
             const script: string = [
                 `import {Application} from '${import.meta.resolve('@lakutata/core')}'`,
                 `import {EntitySchema} from '${new URL('../exports/ORM.js', import.meta.url)}'`,
                 `import {BuildDatabaseOptions} from '${new URL('../exports/DatabaseComponent.js', import.meta.url)}'`,
+                `import {Database as DatabaseProvider} from '${new URL('../exports/DatabaseProvider.js', import.meta.url)}'`,
                 `const Note = new EntitySchema({name: 'note', columns: {id: {type: Number, primary: true, generated: true}, title: {type: String, ...${JSON.stringify(title)}}}})`,
-                'Application.run({id: \'migration.test\', name: \'MigrationTest\', components: {db: BuildDatabaseOptions({type: \'sqlite\', database: \'project.db\', entities: [Note]})}})'
+                `Application.run({id: 'migration.test', name: 'MigrationTest', ${objects}})`
             ].join('\n')
             return spawnSync(process.execPath, ['--input-type=module', '-e', script], {
                 cwd: directory,
@@ -348,6 +349,22 @@ describe('The ORM', (): void => {
             const literal: string = migration.slice(migration.indexOf('queryRunner.query(`') + 'queryRunner.query('.length, migration.indexOf('`);') + 1)
             const query: string = new Function(`return ${literal}`)()
             assert.ok(query.includes(`DEFAULT ('${value}')`), query)
+        }))
+
+        it('generates the migrations of the entities given apart to a Database provider', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+            const result: SpawnSyncReturns<string> = await generate(directory, {'@lakutata/orm': '2.0.126'}, {}, 'providers: {db: {class: DatabaseProvider, options: {type: \'sqlite\', database: \'project.db\'}, entities: [Note]}}')
+            assert.strictEqual(result.status, 0, result.stdout + result.stderr)
+            const [file] = await readdir(path.join(directory, 'migrations'))
+            assert.match(await readFile(path.join(directory, 'migrations', file), 'utf8'), /CREATE TABLE "note"/)
+        }))
+
+        it('succeeds when a database of several has changes', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+            //The second database has the schema already
+            const dataSource: DataSource = await new DataSource({type: 'sqlite', database: path.join(directory, 'second.db'), entities: [Note], synchronize: true}).initialize()
+            await dataSource.destroy()
+            const result: SpawnSyncReturns<string> = await generate(directory, {'@lakutata/orm': '2.0.126'}, {}, 'components: {first: BuildDatabaseOptions({type: \'sqlite\', database: \'first.db\', entities: [Note]}), second: BuildDatabaseOptions({type: \'sqlite\', database: \'second.db\', entities: [Note]})}')
+            assert.strictEqual(result.status, 0, result.stdout + result.stderr)
+            assert.deepStrictEqual((await readdir(path.join(directory, 'migrations'))).map((file: string): string => file.replace(/^\d+/, '')), ['-first.ts'])
         }))
 
         it('fails when the schema has no changes', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
