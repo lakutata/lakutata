@@ -7,69 +7,111 @@ import {ContainerBind} from '../../types/ContainerBind.js'
 import {ContainerNetwork} from '../../types/ContainerNetwork.js'
 import {ContainerCapability} from '../../types/ContainerCapability.js'
 
+/**
+ * The settings of a container: given to {@link Docker.createContainer} and `DockerImage.run()` (create, then start),
+ * which use the image's defaults (command, environment…) for the settings absent, and to `DockerContainer.update()`,
+ * which changes the settings given and keeps the others: the limits and the restart policy live, the others by
+ * recreating the container. Every option is optional.
+ * @example
+ * ```typescript
+ * import {Docker, ContainerCapability} from 'lakutata/com/docker'
+ *
+ * declare const docker: Docker
+ *
+ * const image = await docker.pullImage({repo: 'nginx', tag: '1.27'})
+ * const container = await image.run({
+ *     name: 'web',
+ *     env: {TZ: 'UTC'},
+ *     memoryLimit: 256 * 1024 * 1024,
+ *     restartPolicy: 'unless-stopped',
+ *     ports: [{port: 80, type: 'tcp', hostPorts: [8080]}],
+ *     binds: [{hostPath: '/srv/web/html', containerPath: '/usr/share/nginx/html', rw: false}],
+ *     networks: [{networkName: 'front'}],
+ *     capabilities: [ContainerCapability.NET_ADMIN]
+ * })
+ * //The same container, with 512 MiB of memory, restarted 3 times at most when it fails
+ * await container.update({memoryLimit: 512 * 1024 * 1024, restartPolicy: 'on-failure:3'})
+ * ```
+ */
 export class ContainerSettingOptions extends DTO {
 
     /**
-     * Container name
+     * The container name, unique on the Docker host: letters, digits, `_`, `.` and `-`, starting with a letter or a
+     * digit. Docker generates one (`happy_turing`) when absent.
      */
     @Expect(DTO.String().optional())
     public name?: string
 
     /**
-     * Container hostname
+     * The host name seen in the container; Docker uses the first 12 characters of the container ID when absent.
      */
     @Expect(DTO.String().optional())
     public hostname?: string
 
     /**
-     * Gives the container full access to the host.
+     * Run the container privileged (`docker run --privileged`): every capability and every host device, without the
+     * security restrictions. It gives the container full access to the host.
      */
     @Expect(DTO.Boolean().optional())
     public privileged?: boolean
 
     /**
-     * Attach standard streams to a TTY
+     * Give the container's main process a terminal (`docker run -t`): its output is then not multiplexed, and
+     * `DockerContainer.logs()` gives it as written.
      */
     @Expect(DTO.Boolean().optional())
     public tty?: boolean
 
     /**
-     * Container environment variables
+     * The environment variables, by name (`{NODE_ENV: 'production'}`), added to the image's ones; the values are
+     * strings.
      */
     @Expect(DTO.Object().optional())
     public env?: Record<string, string>
 
     /**
-     * Memory limit in bytes.
-     * @default 0 (No limit)
+     * The memory limit, in bytes (`256 * 1024 * 1024` for 256 MiB); Docker requires at least 6 MiB. `0` or absent for
+     * no limit. The swap limit is Docker's default: as much swap as memory.
+     * @default 0
      */
     @Expect(DTO.Number().optional())
     public memoryLimit?: number
 
     /**
-     * CPUs in which to allow execution (e.g., [0,1]).
+     * The indexes of the host CPUs the container may run on (`[0, 1]`, sent to Docker as `"0,1"`); all of them when
+     * absent. Each one is an integer.
      */
     @Expect(DTO.Array(DTO.Number().integer()).optional())
     public cpuSet?: number[]
 
     /**
-     * Container restart policy
+     * When Docker restarts the container after it exits: `''`, `'no'`, `'always'`, `'unless-stopped'`,
+     * `'on-failure'` (with no limit on the retries) or `'on-failure:N'` (`N` retries at most, `'on-failure:3'`); another
+     * value fails the validation. `''` or absent for no restart.
      */
-    @Expect(DTO.String().optional().allow('').valid('', 'no', 'always', 'unless-stopped', 'on-failure'))
+    @Expect(DTO.Alternatives(
+        DTO.String().allow('').valid('', 'no', 'always', 'unless-stopped', 'on-failure'),
+        DTO.String().pattern(/^on-failure:\d+$/)
+    ).optional())
     public restartPolicy?: ContainerRestartPolicy
 
     /**
-     * Container expose ports
+     * The container ports published on the host (`docker run -p`), each one required to have a `port` (a valid port
+     * number) and a `type` (`'tcp'` or `'udp'`), sent to Docker as `"80/tcp"`. Its `hostPorts` are the host ports
+     * forwarded to it, bound on every host address (`[8080]`, each one once); empty, or absent, it is published on no
+     * host port.
      */
     @Expect(DTO.Array(DTO.Object({
         port: DTO.Number().port().required(),
         type: DTO.String().valid('tcp', 'udp').required(),
         hostPorts: DTO.Array(DTO.Number().port()).optional().default([])
     })).optional())
-    ports?: Omit<ContainerPort, 'host'>[]
+    ports?: (Pick<ContainerPort, 'port' | 'type'> & Partial<Pick<ContainerPort, 'hostPorts'>>)[]
 
     /**
-     * Container binds
+     * The host files and directories mounted into the container (`docker run -v`), each one required to have its
+     * `hostPath`, its `containerPath` and `rw` (`false` for read-only); sent to Docker as
+     * `"hostPath:containerPath:rw"` or `"hostPath:containerPath:ro"`.
      */
     @Expect(DTO.Array(DTO.Object({
         hostPath: DTO.String().required(),
@@ -79,7 +121,9 @@ export class ContainerSettingOptions extends DTO {
     public binds?: ContainerBind[]
 
     /**
-     * A list of devices to add to the container.
+     * The host devices made available in the container (`docker run --device`), each one required to have its
+     * `hostPath` and its `containerPath`; its `cgroupPermissions`, a combination of `r`, `w` and `m`, is `'rwm'` by
+     * default.
      */
     @Expect(DTO.Array(DTO.Object({
         hostPath: DTO.String().required(),
@@ -89,59 +133,63 @@ export class ContainerSettingOptions extends DTO {
     public devices?: (Pick<ContainerDevice, 'hostPath' | 'containerPath'> & Partial<Pick<ContainerDevice, 'cgroupPermissions'>>)[]
 
     /**
-     * Container networks
+     * The networks the container is connected to, each one required to have its `networkName`; the default `bridge`
+     * network when absent. On a user-defined network, `ip` (an IPv4 address) and `ipv6` (an IPv6 address) set the
+     * container's static addresses, within the network's range; empty or absent, Docker allocates them. They are
+     * ignored on `bridge`, `host` and `none`.
      */
     @Expect(DTO.Array(DTO.Object({
         networkName: DTO.String().required(),
         ip: DTO.String().allow('').ip({version: 'ipv4'}).optional(),
         ipv6: DTO.String().allow('').ip({version: 'ipv6'}).optional()
     })).optional())
-    public networks?: Partial<Pick<ContainerNetwork, 'networkName' | 'ip' | 'ipv6'>>[]
+    public networks?: (Pick<ContainerNetwork, 'networkName'> & Partial<Pick<ContainerNetwork, 'ip' | 'ipv6'>>)[]
 
     /**
-     * Disable OOM Killer for the container.
+     * Keep the kernel's OOM killer from killing the container's processes when it runs out of memory; set it with a
+     * memory limit only, or the host may kill its own processes instead.
      */
     @Expect(DTO.Boolean().optional())
     public OOMKillDisable?: boolean
 
     /**
-     * Kernel capabilities
+     * The Linux capabilities added to Docker's default set (`docker run --cap-add`); a value outside
+     * {@link ContainerCapability} fails the validation. None added when absent (`update()` keeps the container's).
      */
-    @Expect(DTO.Array(DTO.String().valid(...Object.values(ContainerCapability))).optional().default([]))
+    @Expect(DTO.Array(DTO.String().valid(...Object.values(ContainerCapability))).optional())
     public capabilities?: ContainerCapability[]
 
     /**
-     * Cgroup to use for the container.
+     * The cgroup the container runs in (the Docker Engine's `HostConfig.Cgroup`): `'container:<name|id>'` shares
+     * another container's cgroup; its own when absent.
      */
     @Expect(DTO.String().optional())
     public cgroup?: string
 
     /**
-     * Path to cgroups under which the container's cgroup is created.
-     * If the path is not absolute, the path is considered to be relative to the cgroups path of the init process.
-     * Cgroups are created if they do not already exist.
+     * The parent cgroup the container's cgroup is created under (`docker run --cgroup-parent`); a relative path is
+     * relative to the cgroup of the init process. The cgroups are created when missing.
      */
     @Expect(DTO.String().optional())
     public cgroupParent?: string
 
     /**
-     * Set the PID (Process) Namespace mode for the container. It can be either:
-     * "container:<name|id>": joins another container's PID namespace
-     * "host": use the host's PID namespace inside the container
+     * The PID namespace of the container (`docker run --pid`): `'container:<name|id>'` joins another container's,
+     * `'host'` uses the host's; its own when absent.
      */
     @Expect(DTO.String().optional())
     public pidMode?: string
 
     /**
-     * Command to run specified as a string or an array of strings.
+     * The command, replacing the image's `CMD`: the executable followed by its arguments (`['node', 'server.js']`), an
+     * array only.
      */
     @Expect(DTO.Array(DTO.String()).optional())
     public cmd?: string[]
 
     /**
-     * The entry point for the container as a string or an array of strings.
-     * If the array consists of exactly one empty string ([""]) then the entry point is reset to system default
-     * (i.e., the entry point used by docker when there is no ENTRYPOINT instruction in the Dockerfile).
+     * The entry point, replacing the image's `ENTRYPOINT`: the executable followed by its arguments, an array only.
+     * `['']` removes the image's entry point: the command runs alone.
      */
     @Expect(DTO.Array(DTO.String()).optional())
     public entrypoint?: string[]

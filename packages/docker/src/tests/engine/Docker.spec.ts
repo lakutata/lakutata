@@ -6,7 +6,19 @@ import {mkdir, mkdtemp, rm, symlink, writeFile} from 'node:fs/promises'
 import {arch, tmpdir} from 'node:os'
 import path from 'node:path'
 import {Application} from '@lakutata/core'
-import {Docker, DockerContainer, DockerContainerTTY, DockerImage, DockerImageBuildException, NetworkInfo} from '../../exports/Docker.js'
+import {DockerClient} from '../../client/DockerClient.js'
+import {
+    Docker,
+    DockerContainer,
+    DockerContainerNotFoundException,
+    DockerContainerTTY,
+    DockerImage,
+    DockerImageBuildException,
+    DockerImageNotFoundException,
+    DockerNetworkNotFoundException,
+    DockerRequestException,
+    NetworkInfo
+} from '../../exports/Docker.js'
 
 /**
  * The tests run with the Docker of the machine (DOCKER_TEST=1): they pull alpine and create their images, containers and
@@ -129,10 +141,14 @@ describe('The Docker component with the Docker of the machine', {skip: !ENABLED 
             //Without follow (followed by default, until the container stops)
             for await (const chunk of await container.logs({follow: false})) logs.push(Buffer.from(chunk))
             assert.strictEqual(Buffer.concat(logs).toString(), 'started\n')
-            assert.strictEqual(await container.exec({cmd: ['cat', '/hello.txt']}), 'hello\n')
-            //The outputs of stdout and stderr are given as Docker copies them: in their order within each of them
-            assert.deepStrictEqual((await container.exec({cmd: ['sh', '-c', 'echo out; echo err >&2']})).split('\n').sort(), ['', 'err', 'out'])
-            const tty: DockerContainerTTY = await container.createTTY({cmd: 'sh'})
+            assert.deepStrictEqual(await container.exec({cmd: ['cat', '/hello.txt']}), {exitCode: 0, stdout: 'hello\n', stderr: ''})
+            //A command line, run by /bin/sh -c; stdout and stderr apart; its exit code
+            assert.deepStrictEqual(await container.exec({cmd: 'echo out; echo err >&2; exit 3'}), {exitCode: 3, stdout: 'out\n', stderr: 'err\n'})
+            //An array is run as it is
+            assert.deepStrictEqual(await container.exec({cmd: ['echo', '$HOME; exit 3']}), {exitCode: 0, stdout: '$HOME; exit 3\n', stderr: ''})
+            assert.ok([126, 127].includes((await container.exec({cmd: ['lakutata-missing-program']})).exitCode))
+            //The default command: /bin/sh (alpine has no bash); no log component in the application
+            const tty: DockerContainerTTY = await container.createTTY()
             let output: string = ''
             tty.onData((chunk: Buffer): unknown => output += chunk.toString())
             tty.write('echo tty-$((40+2))\n')
@@ -168,13 +184,157 @@ describe('The Docker component with the Docker of the machine', {skip: !ENABLED 
     })
 
     it('creates and removes a network', async (): Promise<void> => {
-        const network: NetworkInfo = await docker.createNetwork({name: 'lakutata-test-network', NetworkIPAMConfigs: []})
+        const network: NetworkInfo = await docker.createNetwork({name: 'lakutata-test-network'})
         try {
             assert.ok((await docker.listNetworks()).some(({id}): boolean => id === network.id))
             assert.strictEqual((await docker.getNetwork(network.id)).name, 'lakutata-test-network')
+            //By its name or a short ID, as the daemon finds it
+            assert.strictEqual((await docker.getNetwork('lakutata-test-network')).id, network.id)
+            assert.strictEqual((await docker.getNetwork(network.id.substring(0, 12))).id, network.id)
+            assert.ok((await docker.listNetworks()).some(({driver}): boolean => driver === 'host' || driver === 'null'))
         } finally {
-            await docker.removeNetwork(network.id)
+            await docker.removeNetwork('lakutata-test-network')
         }
         assert.ok(!(await docker.listNetworks()).some(({id}): boolean => id === network.id))
+        await assert.rejects(docker.getNetwork(network.id), DockerNetworkNotFoundException)
+        await assert.rejects(docker.removeNetwork('lakutata-test-network'), DockerNetworkNotFoundException)
+    })
+
+    it('finds the images as the daemon names them', async (): Promise<void> => {
+        const image: DockerImage = await docker.getImage(`${BASE.repo}:${BASE.tag}`)
+        assert.strictEqual((await docker.getImage(`docker.io/library/${BASE.repo}:${BASE.tag}`)).id, image.id)
+        assert.strictEqual((await docker.getImage(image.id.substring(7, 19))).id, image.id)
+        //Pulled by its full name, found as the daemon names it
+        assert.strictEqual((await docker.pullImage({repo: `docker.io/library/${BASE.repo}`, tag: BASE.tag, platform: PLATFORM})).id, image.id)
+        await assert.rejects(docker.getImage('lakutata-test-missing:1'), DockerImageNotFoundException)
+    })
+
+    it('rejects an import of a missing file with its error', async (): Promise<void> => {
+        await assert.rejects(docker.importImage({source: path.join(context, 'missing.tar')}), /ENOENT/)
+    })
+
+    it('starts, stops and kills a container with the signal given; the missing containers rejected as such', async (): Promise<void> => {
+        const container: DockerContainer = await docker.createContainer(`${BASE.repo}:${BASE.tag}`, {
+            name: 'lakutata-test-signals',
+            //Exits 42 on SIGHUP
+            cmd: ['sh', '-c', 'trap "exit 42" HUP; while true; do sleep 0.1; done'],
+            restartPolicy: 'on-failure:3'
+        })
+        try {
+            assert.strictEqual(container.state.startedAt, null)
+            assert.strictEqual(container.state.finishedAt, null)
+            assert.strictEqual(container.restartPolicy, 'on-failure:3')
+            await container.start()
+            //Started already: done
+            await container.start()
+            assert.ok(container.state.running)
+            await container.update({restartPolicy: 'no'})
+            await container.kill({signal: 'SIGHUP'})
+            for (let wait: number = 0; wait < 50 && container.state.running; wait++) {
+                await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 100))
+                container.state = (await docker.getContainer(container.id)).state
+            }
+            assert.strictEqual(container.state.exitCode, 42)
+            assert.ok(container.state.finishedAt)
+            //Stopped already: done
+            await container.stop()
+            await assert.rejects(container.kill(), (error: Error): boolean => error instanceof DockerRequestException && error.statusCode === 409)
+            await assert.rejects(docker.createContainer(`${BASE.repo}:${BASE.tag}`, {name: 'lakutata-test-signals'}), (error: Error): boolean => error instanceof DockerRequestException && error.statusCode === 409)
+        } finally {
+            await container.remove({force: true})
+        }
+        await assert.rejects(container.start(), DockerContainerNotFoundException)
+        await assert.rejects(docker.getContainer('lakutata-test-signals'), DockerContainerNotFoundException)
+    })
+
+    it('reads a container whose image was removed', async (): Promise<void> => {
+        const image: DockerImage = await docker.buildImage({workdir: context, files: ['Dockerfile'], repoTag: 'lakutata-test-removed:1', platform: PLATFORM})
+        const container: DockerContainer = await docker.createContainer(image.id, {name: 'lakutata-test-removed'})
+        try {
+            await image.remove({force: true})
+            assert.strictEqual((await docker.getContainer(container.id)).image, undefined)
+            assert.ok((await docker.listContainers()).some((listed: DockerContainer): boolean => listed.id === container.id && !listed.image))
+            //Recreated from its removed image: refused, kept
+            await assert.rejects(container.update({env: {MODE: 'test'}}), DockerImageNotFoundException)
+            assert.strictEqual((await docker.getContainer('lakutata-test-removed')).id, container.id)
+        } finally {
+            await container.remove({force: true})
+        }
+    })
+
+    it('updates a container: its resources live, the other settings by recreating it from its whole configuration', async (): Promise<void> => {
+        //Its image has an anonymous volume
+        const directory: string = path.join(context, 'volumes')
+        await mkdir(directory)
+        await writeFile(path.join(directory, 'Dockerfile'), `FROM ${BASE.repo}:${BASE.tag}\nVOLUME /anonymous\n`)
+        const image: DockerImage = await docker.buildImage({workdir: directory, files: ['Dockerfile'], repoTag: 'lakutata-test-update:1', platform: PLATFORM})
+        const network: NetworkInfo = await docker.createNetwork({name: 'lakutata-test-update'})
+        const client: DockerClient = new DockerClient({version: process.env.DOCKER_TEST_API_VERSION || undefined})
+        let container: DockerContainer | undefined
+        let anonymousVolume: string | undefined
+        try {
+            container = await docker.createContainer(image.id, {
+                name: 'lakutata-test-update',
+                cmd: ['sh', '-c', 'echo -n kept >> /anonymous/file; echo -n named > /named/file; sleep 3600'],
+                //A named volume (a source which is not a path)
+                binds: [{hostPath: 'lakutata-test-update-named', containerPath: '/named', rw: true}],
+                ports: [{port: 8080, type: 'tcp', hostPorts: [18080]}],
+                networks: [{networkName: 'lakutata-test-update'}]
+            })
+            await container.start()
+            const firstId: string = container.id
+            anonymousVolume = (await client.inspectContainer(firstId)).Mounts.find(({Destination}): boolean => Destination === '/anonymous').Name
+            //Live: the same container
+            await container.update({memoryLimit: 64 * 1024 * 1024, cpuSet: [0], restartPolicy: 'on-failure:2'})
+            assert.strictEqual(container.id, firstId)
+            assert.strictEqual(container.memoryLimit, 64 * 1024 * 1024)
+            assert.deepStrictEqual(container.cpuSet, [0])
+            assert.strictEqual(container.restartPolicy, 'on-failure:2')
+            assert.ok(container.state.running)
+            //Renamed live
+            await container.update({name: 'lakutata-test-update-renamed'})
+            assert.strictEqual(container.id, firstId)
+            assert.strictEqual(container.name, 'lakutata-test-update-renamed')
+            await container.update({name: 'lakutata-test-update'})
+            //Recreated: a new container, the same configuration
+            await container.update({env: {MODE: 'updated'}})
+            assert.notStrictEqual(container.id, firstId)
+            assert.strictEqual(container.name, 'lakutata-test-update')
+            assert.strictEqual(container.env.MODE, 'updated')
+            assert.ok(container.env.PATH)
+            assert.ok(container.state.running)
+            assert.strictEqual(container.memoryLimit, 64 * 1024 * 1024)
+            assert.strictEqual(container.restartPolicy, 'on-failure:2')
+            await assert.rejects(docker.getContainer(firstId), DockerContainerNotFoundException)
+            const inspectInfo: Record<string, any> = await client.inspectContainer(container.id)
+            //The command and the volumes kept, with their files
+            assert.deepStrictEqual(inspectInfo.Config.Cmd, ['sh', '-c', 'echo -n kept >> /anonymous/file; echo -n named > /named/file; sleep 3600'])
+            assert.strictEqual(inspectInfo.Mounts.find(({Destination}): boolean => Destination === '/anonymous').Name, anonymousVolume)
+            assert.strictEqual((await container.exec({cmd: 'cat /anonymous/file /named/file'})).stdout, 'keptkeptnamed')
+            //The port bound once, the address assigned by Docker not made static
+            assert.deepStrictEqual(inspectInfo.HostConfig.PortBindings['8080/tcp'], [{HostIp: '', HostPort: '18080'}])
+            assert.ok(!inspectInfo.NetworkSettings.Networks['lakutata-test-update'].IPAMConfig?.IPv4Address)
+            assert.deepStrictEqual(container.ports.filter(({port}): boolean => port === 8080).map(({hostPorts}): number[] => hostPorts), [[18080]])
+            //The daemon's defaults (an empty cgroup, cgroup parent, PID mode) do not fail a recreation
+            await container.update({hostname: 'updated', memoryLimit: 0})
+            assert.strictEqual(container.hostname, 'updated')
+            assert.strictEqual(container.memoryLimit, 0)
+            //A creation refused: the container kept as it was
+            const keptId: string = container.id
+            await assert.rejects(container.update({networks: [{networkName: 'lakutata-test-missing-network'}]}), DockerNetworkNotFoundException)
+            assert.strictEqual(container.id, keptId)
+            const kept: DockerContainer = await docker.getContainer('lakutata-test-update')
+            assert.strictEqual(kept.id, keptId)
+            assert.ok(kept.state.running)
+            assert.ok(!(await docker.listContainers()).some((listed: DockerContainer): boolean => listed.name.startsWith('lakutata-test-update-update-')))
+        } finally {
+            await container?.remove({force: true}).catch((): void => undefined)
+            for (const volume of ['lakutata-test-update-named', anonymousVolume]) {
+                if (volume) await client.connection.request({method: 'DELETE', path: `/volumes/${volume}`, statusCodes: {204: true, 404: true}})
+            }
+            client.close()
+            await docker.removeNetwork(network.id)
+            await image.remove({force: true})
+        }
     })
 })

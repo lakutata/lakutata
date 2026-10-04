@@ -1,3 +1,9 @@
+/**
+ * The Linux capabilities a container's processes can be given, by their names without the `CAP_` prefix (see
+ * capabilities(7)), for {@link ContainerSettingOptions.capabilities} (`docker run --cap-add`). Docker grants a default
+ * set already (`CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `FSETID`, `KILL`, `SETGID`, `SETUID`, `SETPCAP`, `NET_BIND_SERVICE`,
+ * `NET_RAW`, `SYS_CHROOT`, `MKNOD`, `AUDIT_WRITE`, `SETFCAP`); a privileged container has them all.
+ */
 export enum ContainerCapability {
     /**
      * Enable and disable kernel auditing; change auditing filter rules; retrieve auditing status and filtering rules.

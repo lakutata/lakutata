@@ -6,12 +6,17 @@
  */
 import type {IncomingMessage} from 'node:http'
 import type {Duplex} from 'node:stream'
-import {DockerConnection, type DockerConnectionOptions} from './DockerConnection.js'
+import {DockerConnection, type DockerConnectionOptions, type DockerRequest} from './DockerConnection.js'
+import {DockerRequestError} from './DockerRequestError.js'
 import {type ContainerCreateResponse} from './types/ContainerCreateResponse.js'
 import {type ContainerStopQuery} from './types/ContainerStopQuery.js'
 import {type IdResponse} from './types/IdResponse.js'
 import {type NetworkCreateResponse} from './types/NetworkCreateResponse.js'
 import {type RepositoryTag} from '../docker/types/RepositoryTag.js'
+import {DockerContainerNotFoundException} from '../docker/exceptions/DockerContainerNotFoundException.js'
+import {DockerImageNotFoundException} from '../docker/exceptions/DockerImageNotFoundException.js'
+import {DockerNetworkNotFoundException} from '../docker/exceptions/DockerNetworkNotFoundException.js'
+import {DockerRequestException} from '../docker/exceptions/DockerRequestException.js'
 
 /**
  * The status codes of the requests: the successes, and the reasons of the failures
@@ -22,6 +27,27 @@ const NO_SUCH_IMAGE: Record<number, string> = {404: 'no such image'}
 const NO_SUCH_CONTAINER: Record<number, string> = {404: 'no such container'}
 const NO_SUCH_EXEC: Record<number, string> = {404: 'no such exec'}
 const NO_SUCH_NETWORK: Record<number, string> = {404: 'no such network'}
+
+/**
+ * The exception of a request the daemon refused: the not found exception of the resource missing (told by the daemon's
+ * message, else by the meaning of the status for the request), a DockerRequestException otherwise. The other errors
+ * (the network errors, the aborts) are given as they are
+ * @param error
+ */
+export function DockerException(error: unknown): unknown {
+    if (!(error instanceof DockerRequestError)) return error
+    if (error.statusCode === 404) {
+        //"No such container: x", "No such image: x", "network x not found" (also in the failure of a start)
+        const kind: string = /no such container/i.test(error.detail) ? 'container'
+            : /no such image/i.test(error.detail) ? 'image'
+                : /no such network|network \S+ not found/i.test(error.detail) ? 'network'
+                    : error.reason.replace(/^no such /, '')
+        if (kind === 'container') return new DockerContainerNotFoundException(error.detail)
+        if (kind === 'image') return new DockerImageNotFoundException(error.detail)
+        if (kind === 'network') return new DockerNetworkNotFoundException(error.detail)
+    }
+    return new DockerRequestException(error.statusCode, error.detail || error.message)
+}
 
 /**
  * The registry credentials of a request
@@ -47,18 +73,54 @@ export class DockerClient {
     }
 
     /**
+     * A request whose response is JSON, its failure as the exception of the component
+     * @param request
+     */
+    async #request<T = any>(request: DockerRequest): Promise<T> {
+        try {
+            return await this.connection.request<T>(request)
+        } catch (e) {
+            throw DockerException(e)
+        }
+    }
+
+    /**
+     * A request whose response is a stream, its failure as the exception of the component
+     * @param request
+     */
+    async #stream(request: DockerRequest): Promise<IncomingMessage> {
+        try {
+            return await this.connection.stream(request)
+        } catch (e) {
+            throw DockerException(e)
+        }
+    }
+
+    /**
+     * A request upgraded to a raw stream, its failure as the exception of the component
+     * @param request
+     */
+    async #hijack(request: DockerRequest): Promise<Duplex> {
+        try {
+            return await this.connection.hijack(request)
+        } catch (e) {
+            throw DockerException(e)
+        }
+    }
+
+    /**
      * Whether the daemon answers
      * @param signal
      */
     public async ping(signal?: AbortSignal): Promise<string> {
-        return await this.connection.request({method: 'GET', path: '/_ping', statusCodes: {200: true, ...SERVER_ERROR}, signal: signal})
+        return await this.#request({method: 'GET', path: '/_ping', statusCodes: {200: true, ...SERVER_ERROR}, signal: signal})
     }
 
     /**
      * The versions of the daemon
      */
     public async version(): Promise<Record<string, any>> {
-        return await this.connection.request({method: 'GET', path: '/version', statusCodes: {200: true, ...SERVER_ERROR}})
+        return await this.#request({method: 'GET', path: '/version', statusCodes: {200: true, ...SERVER_ERROR}})
     }
 
     /**
@@ -66,17 +128,17 @@ export class DockerClient {
      * @param auth
      */
     public async checkAuth(auth: DockerRegistryAuth): Promise<Record<string, any>> {
-        return await this.connection.request({method: 'POST', path: '/auth', body: auth, statusCodes: {...OK, ...SERVER_ERROR}})
+        return await this.#request({method: 'POST', path: '/auth', body: auth, statusCodes: {...OK, ...SERVER_ERROR}})
     }
 
     /** Images **/
 
     public async listImages(query?: Record<string, unknown>, signal?: AbortSignal): Promise<Record<string, any>[]> {
-        return await this.connection.request({method: 'GET', path: '/images/json', query: query, statusCodes: {200: true, 400: 'bad parameter', ...SERVER_ERROR}, signal: signal})
+        return await this.#request({method: 'GET', path: '/images/json', query: query, statusCodes: {200: true, 400: 'bad parameter', ...SERVER_ERROR}, signal: signal})
     }
 
     public async inspectImage(name: string, signal?: AbortSignal): Promise<Record<string, any>> {
-        return await this.connection.request({method: 'GET', path: `/images/${name}/json`, statusCodes: {200: true, ...NO_SUCH_IMAGE, ...SERVER_ERROR}, signal: signal})
+        return await this.#request({method: 'GET', path: `/images/${name}/json`, statusCodes: {200: true, ...NO_SUCH_IMAGE, ...SERVER_ERROR}, signal: signal})
     }
 
     /**
@@ -86,7 +148,7 @@ export class DockerClient {
      * @param signal
      */
     public async pullImage(query: Record<string, unknown>, auth?: DockerRegistryAuth, signal?: AbortSignal): Promise<IncomingMessage> {
-        return await this.connection.stream({method: 'POST', path: '/images/create', query: query, auth: auth as Record<string, unknown>, statusCodes: {200: true, ...SERVER_ERROR}, signal: signal})
+        return await this.#stream({method: 'POST', path: '/images/create', query: query, auth: auth as Record<string, unknown>, statusCodes: {200: true, ...SERVER_ERROR}, signal: signal})
     }
 
     /**
@@ -97,7 +159,7 @@ export class DockerClient {
      * @param signal
      */
     public async buildImage(context: NodeJS.ReadableStream, query: Record<string, unknown>, registryConfig?: Record<string, DockerRegistryAuth>, signal?: AbortSignal): Promise<IncomingMessage> {
-        return await this.connection.stream({method: 'POST', path: '/build', query: query, body: context, registryConfig: registryConfig, statusCodes: {200: true, ...SERVER_ERROR}, signal: signal})
+        return await this.#stream({method: 'POST', path: '/build', query: query, body: context, registryConfig: registryConfig, statusCodes: {200: true, ...SERVER_ERROR}, signal: signal})
     }
 
     /**
@@ -106,7 +168,7 @@ export class DockerClient {
      * @param query quiet
      */
     public async loadImage(archive: NodeJS.ReadableStream, query?: Record<string, unknown>): Promise<IncomingMessage> {
-        return await this.connection.stream({method: 'POST', path: '/images/load', query: query, body: archive, statusCodes: {200: true, ...SERVER_ERROR}})
+        return await this.#stream({method: 'POST', path: '/images/load', query: query, body: archive, statusCodes: {200: true, ...SERVER_ERROR}})
     }
 
     /**
@@ -114,11 +176,11 @@ export class DockerClient {
      * @param name
      */
     public async exportImage(name: string): Promise<IncomingMessage> {
-        return await this.connection.stream({method: 'GET', path: `/images/${name}/get`, statusCodes: {200: true, ...SERVER_ERROR}})
+        return await this.#stream({method: 'GET', path: `/images/${name}/get`, statusCodes: {200: true, ...SERVER_ERROR}})
     }
 
     public async tagImage(name: string, query: RepositoryTag): Promise<void> {
-        await this.connection.request({method: 'POST', path: `/images/${name}/tag`, query: query, statusCodes: {200: true, 201: true, 400: 'bad parameter', ...NO_SUCH_IMAGE, 409: 'conflict', ...SERVER_ERROR}})
+        await this.#request({method: 'POST', path: `/images/${name}/tag`, query: query, statusCodes: {200: true, 201: true, 400: 'bad parameter', ...NO_SUCH_IMAGE, 409: 'conflict', ...SERVER_ERROR}})
     }
 
     /**
@@ -128,21 +190,21 @@ export class DockerClient {
      * @param auth
      */
     public async pushImage(name: string, query: Record<string, unknown>, auth?: DockerRegistryAuth): Promise<IncomingMessage> {
-        return await this.connection.stream({method: 'POST', path: `/images/${name}/push`, query: query, auth: (auth ?? {}) as Record<string, unknown>, statusCodes: {200: true, ...NO_SUCH_IMAGE, ...SERVER_ERROR}})
+        return await this.#stream({method: 'POST', path: `/images/${name}/push`, query: query, auth: (auth ?? {}) as Record<string, unknown>, statusCodes: {200: true, ...NO_SUCH_IMAGE, ...SERVER_ERROR}})
     }
 
     public async removeImage(name: string, query?: { force?: boolean, noprune?: boolean }): Promise<Record<string, any>[]> {
-        return await this.connection.request({method: 'DELETE', path: `/images/${name}`, query: query, statusCodes: {200: true, ...NO_SUCH_IMAGE, 409: 'conflict', ...SERVER_ERROR}})
+        return await this.#request({method: 'DELETE', path: `/images/${name}`, query: query, statusCodes: {200: true, ...NO_SUCH_IMAGE, 409: 'conflict', ...SERVER_ERROR}})
     }
 
     public async pruneImages(query?: Record<string, unknown>): Promise<Record<string, any>> {
-        return await this.connection.request({method: 'POST', path: '/images/prune', query: query, statusCodes: {200: true, ...SERVER_ERROR}})
+        return await this.#request({method: 'POST', path: '/images/prune', query: query, statusCodes: {200: true, ...SERVER_ERROR}})
     }
 
     /** Containers **/
 
     public async listContainers(query?: Record<string, unknown>, signal?: AbortSignal): Promise<Record<string, any>[]> {
-        return await this.connection.request({method: 'GET', path: '/containers/json', query: query, statusCodes: {200: true, 400: 'bad parameter', ...SERVER_ERROR}, signal: signal})
+        return await this.#request({method: 'GET', path: '/containers/json', query: query, statusCodes: {200: true, 400: 'bad parameter', ...SERVER_ERROR}, signal: signal})
     }
 
     /**
@@ -151,43 +213,68 @@ export class DockerClient {
      * @param query name, platform
      */
     public async createContainer(body: Record<string, unknown>, query?: { name?: string, platform?: string }): Promise<ContainerCreateResponse> {
-        return await this.connection.request({method: 'POST', path: '/containers/create', query: query, body: body, statusCodes: {200: true, 201: true, 400: 'bad parameter', ...NO_SUCH_CONTAINER, 406: 'impossible to attach', ...SERVER_ERROR}})
+        return await this.#request({method: 'POST', path: '/containers/create', query: query, body: body, statusCodes: {200: true, 201: true, 400: 'bad parameter', ...NO_SUCH_IMAGE, 409: 'conflict', ...SERVER_ERROR}})
     }
 
     public async inspectContainer(id: string, signal?: AbortSignal): Promise<Record<string, any>> {
-        return await this.connection.request({method: 'GET', path: `/containers/${id}/json`, statusCodes: {200: true, ...NO_SUCH_CONTAINER, ...SERVER_ERROR}, signal: signal})
+        return await this.#request({method: 'GET', path: `/containers/${id}/json`, statusCodes: {200: true, ...NO_SUCH_CONTAINER, ...SERVER_ERROR}, signal: signal})
     }
 
+    /**
+     * Start a container: one already started is done (HTTP 304), as the Docker CLI does
+     * @param id
+     * @param signal
+     */
     public async startContainer(id: string, signal?: AbortSignal): Promise<void> {
-        await this.connection.request({method: 'POST', path: `/containers/${id}/start`, statusCodes: {...OK, 304: 'container already started', ...NO_SUCH_CONTAINER, ...SERVER_ERROR}, signal: signal})
+        await this.#request({method: 'POST', path: `/containers/${id}/start`, statusCodes: {...OK, 304: true, ...NO_SUCH_CONTAINER, ...SERVER_ERROR}, signal: signal})
     }
 
+    /**
+     * Stop a container: one already stopped is done (HTTP 304), as the Docker CLI does
+     * @param id
+     * @param query
+     * @param signal
+     */
     public async stopContainer(id: string, query?: ContainerStopQuery, signal?: AbortSignal): Promise<void> {
-        await this.connection.request({method: 'POST', path: `/containers/${id}/stop`, query: query, statusCodes: {...OK, 304: 'container already stopped', ...NO_SUCH_CONTAINER, ...SERVER_ERROR}, signal: signal})
+        await this.#request({method: 'POST', path: `/containers/${id}/stop`, query: query, statusCodes: {...OK, 304: true, ...NO_SUCH_CONTAINER, ...SERVER_ERROR}, signal: signal})
     }
 
     public async restartContainer(id: string, query?: ContainerStopQuery, signal?: AbortSignal): Promise<void> {
-        await this.connection.request({method: 'POST', path: `/containers/${id}/restart`, query: query, statusCodes: {...OK, ...NO_SUCH_CONTAINER, ...SERVER_ERROR}, signal: signal})
+        await this.#request({method: 'POST', path: `/containers/${id}/restart`, query: query, statusCodes: {...OK, ...NO_SUCH_CONTAINER, ...SERVER_ERROR}, signal: signal})
     }
 
     public async pauseContainer(id: string): Promise<void> {
-        await this.connection.request({method: 'POST', path: `/containers/${id}/pause`, statusCodes: {...OK, ...NO_SUCH_CONTAINER, ...SERVER_ERROR}})
+        await this.#request({method: 'POST', path: `/containers/${id}/pause`, statusCodes: {...OK, ...NO_SUCH_CONTAINER, ...SERVER_ERROR}})
     }
 
     public async unpauseContainer(id: string): Promise<void> {
-        await this.connection.request({method: 'POST', path: `/containers/${id}/unpause`, statusCodes: {...OK, ...NO_SUCH_CONTAINER, ...SERVER_ERROR}})
+        await this.#request({method: 'POST', path: `/containers/${id}/unpause`, statusCodes: {...OK, ...NO_SUCH_CONTAINER, ...SERVER_ERROR}})
     }
 
     public async killContainer(id: string, query?: { signal?: string }): Promise<void> {
-        await this.connection.request({method: 'POST', path: `/containers/${id}/kill`, query: query, statusCodes: {...OK, ...NO_SUCH_CONTAINER, ...SERVER_ERROR}})
+        await this.#request({method: 'POST', path: `/containers/${id}/kill`, query: query, statusCodes: {...OK, ...NO_SUCH_CONTAINER, ...SERVER_ERROR}})
     }
 
     public async removeContainer(id: string, query?: { v?: boolean, force?: boolean, link?: boolean }): Promise<void> {
-        await this.connection.request({method: 'DELETE', path: `/containers/${id}`, query: query, statusCodes: {...OK, 400: 'bad parameter', ...NO_SUCH_CONTAINER, ...SERVER_ERROR}})
+        await this.#request({method: 'DELETE', path: `/containers/${id}`, query: query, statusCodes: {...OK, 400: 'bad parameter', ...NO_SUCH_CONTAINER, ...SERVER_ERROR}})
     }
 
+    /**
+     * Rename a container
+     * @param id
+     * @param name
+     */
+    public async renameContainer(id: string, name: string): Promise<void> {
+        await this.#request({method: 'POST', path: `/containers/${id}/rename`, query: {name: name}, statusCodes: {...OK, ...NO_SUCH_CONTAINER, 409: 'name already in use', ...SERVER_ERROR}})
+    }
+
+    /**
+     * Update the resources and the restart policy of a container, live (docker update)
+     * @param id
+     * @param body
+     */
     public async updateContainer(id: string, body: Record<string, unknown>): Promise<Record<string, any>> {
-        return await this.connection.request({method: 'POST', path: `/containers/${id}/update`, body: body, statusCodes: {...OK, 400: 'bad parameter', ...NO_SUCH_CONTAINER, ...SERVER_ERROR}})
+        return await this.#request({method: 'POST', path: `/containers/${id}/update`, body: body, statusCodes: {...OK, 400: 'bad parameter', ...NO_SUCH_CONTAINER, ...SERVER_ERROR}})
     }
 
     /**
@@ -196,7 +283,7 @@ export class DockerClient {
      * @param query repo, tag, comment, author, pause, changes
      */
     public async commitContainer(id: string, query?: Record<string, unknown>): Promise<IdResponse> {
-        return await this.connection.request({method: 'POST', path: '/commit', query: {...query, container: id}, statusCodes: {200: true, 201: true, ...NO_SUCH_CONTAINER, ...SERVER_ERROR}})
+        return await this.#request({method: 'POST', path: '/commit', query: {...query, container: id}, statusCodes: {200: true, 201: true, ...NO_SUCH_CONTAINER, ...SERVER_ERROR}})
     }
 
     /**
@@ -205,7 +292,7 @@ export class DockerClient {
      * @param query follow, stdout, stderr, since, until, timestamps, tail
      */
     public async containerLogs(id: string, query: Record<string, unknown>): Promise<IncomingMessage> {
-        return await this.connection.stream({method: 'GET', path: `/containers/${id}/logs`, query: query, statusCodes: {200: true, ...NO_SUCH_CONTAINER, ...SERVER_ERROR}})
+        return await this.#stream({method: 'GET', path: `/containers/${id}/logs`, query: query, statusCodes: {200: true, ...NO_SUCH_CONTAINER, ...SERVER_ERROR}})
     }
 
     /**
@@ -213,7 +300,7 @@ export class DockerClient {
      * @param id
      */
     public async containerStats(id: string): Promise<Record<string, any>> {
-        return await this.connection.request({method: 'GET', path: `/containers/${id}/stats`, query: {'stream': false, 'one-shot': true}, statusCodes: {200: true, ...NO_SUCH_CONTAINER, ...SERVER_ERROR}})
+        return await this.#request({method: 'GET', path: `/containers/${id}/stats`, query: {'stream': false, 'one-shot': true}, statusCodes: {200: true, ...NO_SUCH_CONTAINER, ...SERVER_ERROR}})
     }
 
     /**
@@ -222,7 +309,7 @@ export class DockerClient {
      * @param query path
      */
     public async getArchive(id: string, query: { path: string }): Promise<IncomingMessage> {
-        return await this.connection.stream({method: 'GET', path: `/containers/${id}/archive`, query: query, statusCodes: {200: true, 400: 'client error, bad parameters', ...NO_SUCH_CONTAINER, ...SERVER_ERROR}})
+        return await this.#stream({method: 'GET', path: `/containers/${id}/archive`, query: query, statusCodes: {200: true, 400: 'client error, bad parameters', ...NO_SUCH_CONTAINER, ...SERVER_ERROR}})
     }
 
     /**
@@ -231,7 +318,7 @@ export class DockerClient {
      * @param body Cmd, AttachStdin, AttachStdout, AttachStderr, Tty, ConsoleSize...
      */
     public async createExec(id: string, body: Record<string, unknown>): Promise<IdResponse> {
-        return await this.connection.request({method: 'POST', path: `/containers/${id}/exec`, body: body, statusCodes: {200: true, 201: true, ...NO_SUCH_CONTAINER, 409: 'container stopped/paused', ...SERVER_ERROR}})
+        return await this.#request({method: 'POST', path: `/containers/${id}/exec`, body: body, statusCodes: {200: true, 201: true, ...NO_SUCH_CONTAINER, 409: 'container stopped/paused', ...SERVER_ERROR}})
     }
 
     /**
@@ -240,47 +327,47 @@ export class DockerClient {
      * @param body Detach, Tty
      */
     public async startExec(execId: string, body: { Detach?: boolean, Tty?: boolean }): Promise<Duplex> {
-        return await this.connection.hijack({method: 'POST', path: `/exec/${execId}/start`, body: body, statusCodes: {...OK, ...NO_SUCH_EXEC, 409: 'container stopped/paused', 500: 'container not running'}})
+        return await this.#hijack({method: 'POST', path: `/exec/${execId}/start`, body: body, statusCodes: {...OK, ...NO_SUCH_EXEC, 409: 'container stopped/paused', 500: 'container not running'}})
     }
 
     public async resizeExec(execId: string, query: { h: number, w: number }): Promise<void> {
-        await this.connection.request({method: 'POST', path: `/exec/${execId}/resize`, query: query, statusCodes: {...OK, ...NO_SUCH_EXEC, 500: 'container not running'}})
+        await this.#request({method: 'POST', path: `/exec/${execId}/resize`, query: query, statusCodes: {...OK, ...NO_SUCH_EXEC, 500: 'container not running'}})
     }
 
     public async inspectExec(execId: string): Promise<Record<string, any>> {
-        return await this.connection.request({method: 'GET', path: `/exec/${execId}/json`, statusCodes: {200: true, ...NO_SUCH_EXEC, ...SERVER_ERROR}})
+        return await this.#request({method: 'GET', path: `/exec/${execId}/json`, statusCodes: {200: true, ...NO_SUCH_EXEC, ...SERVER_ERROR}})
     }
 
     public async pruneContainers(query?: Record<string, unknown>): Promise<Record<string, any>> {
-        return await this.connection.request({method: 'POST', path: '/containers/prune', query: query, statusCodes: {200: true, ...SERVER_ERROR}})
+        return await this.#request({method: 'POST', path: '/containers/prune', query: query, statusCodes: {200: true, ...SERVER_ERROR}})
     }
 
     /** Networks **/
 
     public async listNetworks(query?: Record<string, unknown>, signal?: AbortSignal): Promise<Record<string, any>[]> {
-        return await this.connection.request({method: 'GET', path: '/networks', query: query, statusCodes: {200: true, 400: 'bad parameter', ...SERVER_ERROR}, signal: signal})
+        return await this.#request({method: 'GET', path: '/networks', query: query, statusCodes: {200: true, 400: 'bad parameter', ...SERVER_ERROR}, signal: signal})
     }
 
     public async createNetwork(body: Record<string, unknown>): Promise<NetworkCreateResponse> {
-        return await this.connection.request({method: 'POST', path: '/networks/create', body: body, statusCodes: {200: true, 201: true, 404: 'driver not found', ...SERVER_ERROR}})
+        return await this.#request({method: 'POST', path: '/networks/create', body: body, statusCodes: {200: true, 201: true, 404: 'driver not found', ...SERVER_ERROR}})
     }
 
     public async inspectNetwork(id: string): Promise<Record<string, any>> {
-        return await this.connection.request({method: 'GET', path: `/networks/${id}`, statusCodes: {200: true, ...NO_SUCH_NETWORK, ...SERVER_ERROR}})
+        return await this.#request({method: 'GET', path: `/networks/${id}`, statusCodes: {200: true, ...NO_SUCH_NETWORK, ...SERVER_ERROR}})
     }
 
     public async removeNetwork(id: string): Promise<void> {
-        await this.connection.request({method: 'DELETE', path: `/networks/${id}`, statusCodes: {...OK, ...NO_SUCH_NETWORK, 409: 'conflict', ...SERVER_ERROR}})
+        await this.#request({method: 'DELETE', path: `/networks/${id}`, statusCodes: {...OK, ...NO_SUCH_NETWORK, 409: 'conflict', ...SERVER_ERROR}})
     }
 
     public async pruneNetworks(query?: Record<string, unknown>): Promise<Record<string, any>> {
-        return await this.connection.request({method: 'POST', path: '/networks/prune', query: query, statusCodes: {200: true, ...SERVER_ERROR}})
+        return await this.#request({method: 'POST', path: '/networks/prune', query: query, statusCodes: {200: true, ...SERVER_ERROR}})
     }
 
     /** Volumes **/
 
     public async pruneVolumes(query?: Record<string, unknown>): Promise<Record<string, any>> {
-        return await this.connection.request({method: 'POST', path: '/volumes/prune', query: query, statusCodes: {200: true, ...SERVER_ERROR}})
+        return await this.#request({method: 'POST', path: '/volumes/prune', query: query, statusCodes: {200: true, ...SERVER_ERROR}})
     }
 
     /**

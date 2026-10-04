@@ -1,9 +1,19 @@
 import {type RepositoryTag} from '../types/RepositoryTag.js'
 
 /**
- * Parse repository tag
- * @param input
- * @constructor
+ * Split an image reference into its repository and its tag (or digest). A digest (`@`) wins over a tag; the port of a
+ * registry (`registry:5000/app`) is not taken for a tag.
+ * @param input The image reference: `alpine`, `alpine:3.20`, `registry.example.com:5000/team/app:1.0`,
+ * `alpine@sha256:…`.
+ * @returns The repository, and the tag (or the digest, without its `@`) when the reference has one.
+ * @example
+ * ```typescript
+ * import {ParseRepositoryTag, type RepositoryTag} from 'lakutata/com/docker'
+ *
+ * const reference: RepositoryTag = ParseRepositoryTag('registry.example.com:5000/team/app:1.0')
+ * console.log(reference) //{repo: 'registry.example.com:5000/team/app', tag: '1.0'}
+ * console.log(ParseRepositoryTag('registry.example.com:5000/team/app')) //{repo: 'registry.example.com:5000/team/app'}
+ * ```
  */
 export function ParseRepositoryTag(input: string): RepositoryTag {
     let separatorPos: number

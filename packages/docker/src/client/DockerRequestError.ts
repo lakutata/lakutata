@@ -10,7 +10,7 @@ export class DockerRequestError extends Error {
      * @param detail the message of the daemon
      * @param json the body of the response
      */
-    constructor(public readonly statusCode: number, public readonly reason: string, detail: string, public readonly json?: unknown) {
+    constructor(public readonly statusCode: number, public readonly reason: string, public readonly detail: string, public readonly json?: unknown) {
         super(`(HTTP code ${statusCode}) ${reason} - ${detail} `)
         this.name = 'DockerRequestError'
     }

@@ -207,7 +207,9 @@ export class DockerConnection {
     #sshAgent: Promise<Agent> | undefined
 
     constructor(options: DockerConnectionOptions = {}) {
-        this.#options = options.socketPath || options.host ? {...options} : {...DefaultConnectionOptions(), ...options}
+        //The options given (a timeout, headers…) apply over the ones of the environment, the ones not given keep them
+        const given: DockerConnectionOptions = Object.fromEntries(Object.entries(options).filter(([, value]: [string, unknown]): boolean => value !== undefined))
+        this.#options = given.socketPath || given.host ? given : {...DefaultConnectionOptions(), ...given}
         this.#protocol = this.#options.protocol ?? (this.#options.key && this.#options.cert && this.#options.ca ? 'https' : 'http')
         if (this.#options.version) this.#version = this.#options.version.replace(/^v/, '')
         if (this.#protocol !== 'ssh') {

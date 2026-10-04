@@ -318,6 +318,23 @@ describe('The client of the Docker Engine API', (): void => {
             connection.close()
         })
 
+        it('applies the options given to the Docker of the environment', async (): Promise<void> => {
+            const saved: string | undefined = process.env.DOCKER_HOST
+            try {
+                process.env.DOCKER_HOST = `${process.platform === 'win32' ? 'npipe' : 'unix'}://${socketPath}`
+                //The options not given (undefined) keep the environment's
+                const connection: DockerConnection = new DockerConnection({socketPath: undefined, host: undefined, headers: {'X-Proxy-Token': 'secret'}, timeout: 5000, version: '1.56'})
+                requests = []
+                await connection.request({method: 'GET', path: '/info', statusCodes: {200: true}})
+                assert.strictEqual(requests[0].headers['x-proxy-token'], 'secret')
+                assert.strictEqual(requests[0].url, '/v1.56/info')
+                connection.close()
+            } finally {
+                if (saved === undefined) delete process.env.DOCKER_HOST
+                else process.env.DOCKER_HOST = saved
+            }
+        })
+
         it('connects to the Docker of the environment', (): void => {
             const saved: string | undefined = process.env.DOCKER_HOST
             try {
