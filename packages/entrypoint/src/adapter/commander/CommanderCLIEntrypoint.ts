@@ -2,7 +2,8 @@ import {Argument, Command, CommanderError, InvalidArgumentError, Option} from 'c
 import {createReadStream} from 'node:fs'
 import path from 'node:path'
 import type {Readable} from 'node:stream'
-import {Application, type Module} from '@lakutata/core'
+import {type Application, type Module} from '@lakutata/core'
+import {ApplicationOf} from '../../lib/ApplicationOf.js'
 import type {ChannelActionInfo, ChannelRuntime, EntrypointAdapter} from '../../channel/EntrypointAdapter.js'
 import type {MiddlewareDefinition} from '../../lib/Middleware.js'
 import {CLIContext} from '../../context/CLIContext.js'
@@ -245,16 +246,6 @@ function ErrorMessage(error: unknown): string {
         if (typeof message === 'string' && message) return message
     }
     return String(error)
-}
-
-/**
- * The application a module belongs to
- * @param module
- */
-function ApplicationOf(module: unknown): Application | undefined {
-    let target: any = module
-    while (target && !(target instanceof Application)) target = target.getParent?.()
-    return target
 }
 
 /**

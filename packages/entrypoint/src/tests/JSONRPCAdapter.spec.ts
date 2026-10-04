@@ -189,6 +189,42 @@ describe('The JSON-RPC 2.0 service adapter', (): void => {
         }
     })
 
+    it('closes the WebSocket connections which do not answer the pings', async (): Promise<void> => {
+        const {port, container, entrypoint} = await Start({transport: 'websocket', heartbeat: 100})
+        const {WebSocket} = await import('ws')
+        const answering = new WebSocket(`ws://127.0.0.1:${port}/`, {headers: {id: 'answering'}})
+        const silent = new WebSocket(`ws://127.0.0.1:${port}/`, {headers: {id: 'silent'}})
+        try {
+            await Promise.all([answering, silent].map((socket): Promise<unknown> => new Promise((resolve, reject): unknown => socket.once('open', resolve).once('error', reject))))
+            //Its pings not read: not answered
+            ;(silent as unknown as { _socket: { pause(): void } })._socket.pause()
+            for (let attempt = 0; attempt < 50 && entrypoint.notify('silent', 'tick'); attempt++) await new Promise((resolve): unknown => setTimeout(resolve, 20))
+            assert.strictEqual(entrypoint.notify('silent', 'tick'), false)
+            assert.strictEqual(entrypoint.notify('answering', 'tick'), true)
+        } finally {
+            answering.terminate()
+            silent.terminate()
+            await container.destroy()
+        }
+    })
+
+    it('ends once the input of stdio ends, its requests in progress answered', async (): Promise<void> => {
+        const input: PassThrough = new PassThrough()
+        const output: PassThrough = new PassThrough()
+        let written: string = ''
+        output.on('data', (chunk: Buffer): unknown => written += chunk.toString())
+        let ended: boolean = false
+        const {container} = await Start({transport: 'stdio', input: input, output: output, end: (): void => void (ended = true)})
+        try {
+            input.end(`${JSON.stringify({jsonrpc: '2.0', method: 'echo', params: {value: 4}, id: 1})}\n`)
+            for (let attempt = 0; attempt < 50 && !ended; attempt++) await new Promise((resolve): unknown => setTimeout(resolve, 20))
+            assert.ok(ended)
+            assert.deepStrictEqual(JSON.parse(written).result.value, 4)
+        } finally {
+            await container.destroy()
+        }
+    })
+
     it('dispatches the messages of stdio, framed by lines or by their Content-Length headers', async (): Promise<void> => {
         for (const framing of ['newline', 'content-length'] as const) {
             const input: PassThrough = new PassThrough()

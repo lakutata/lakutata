@@ -6,6 +6,7 @@ import type {MiddlewareDefinition} from '../../lib/Middleware.js'
 import type {ServiceContext} from '../../context/ServiceContext.js'
 import {ServiceChannel} from '../../channel/BuiltinChannels.js'
 import {JSONRPCProtocol, type JSONRPCDispatch, type JSONRPCMappingOptions, type JSONRPCResponse} from './JSONRPCProtocol.js'
+import {ApplicationOf} from '../../lib/ApplicationOf.js'
 
 export type JSONRPCServiceEntrypointOptions = JSONRPCMappingOptions & {
     /**
@@ -44,6 +45,16 @@ export type JSONRPCServiceEntrypointOptions = JSONRPCMappingOptions & {
      */
     input?: Readable
     output?: Writable
+    /**
+     * Once the input of stdio ends (its parent process gone): 'application' (default) exits the application once the
+     * requests in progress are answered, 'none' does nothing, or a function
+     */
+    end?: 'application' | 'none' | (() => void | Promise<void>)
+    /**
+     * Milliseconds between the pings of the WebSocket connections, 30 s by default (0: none): a connection which does not
+     * answer a ping before the next one is closed
+     */
+    heartbeat?: number
     /**
      * The middlewares of the actions of this adapter, run after the global middlewares
      */
@@ -97,7 +108,7 @@ async function ReadBody(request: IncomingMessage, limit: number): Promise<string
  * @param limit
  * @param receive
  */
-function ReadMessages(input: Readable, framing: 'newline' | 'content-length', limit: number, receive: (message: string) => void): () => void {
+function ReadMessages(input: Readable, framing: 'newline' | 'content-length', limit: number, receive: (message: string) => void, ended: () => void): () => void {
     let buffer: Buffer = Buffer.alloc(0)
     const onData = (chunk: Buffer | string): void => {
         buffer = Buffer.concat([buffer, typeof chunk === 'string' ? Buffer.from(chunk) : chunk])
@@ -125,7 +136,11 @@ function ReadMessages(input: Readable, framing: 'newline' | 'content-length', li
         if (buffer.length > limit) buffer = Buffer.alloc(0)
     }
     input.on('data', onData)
-    return (): void => void input.off('data', onData)
+    input.once('end', ended)
+    return (): void => {
+        input.off('data', onData)
+        input.off('end', ended)
+    }
 }
 
 /**
@@ -139,6 +154,8 @@ type WebSocketLike = {
     on(event: 'message', listener: (data: Buffer | ArrayBuffer | Buffer[], isBinary: boolean) => void): unknown
     on(event: 'close', listener: () => void): unknown
     on(event: 'error', listener: (error: Error) => void): unknown
+    on(event: 'pong', listener: () => void): unknown
+    ping(): void
 }
 
 /**
@@ -159,6 +176,7 @@ export function JSONRPCServiceEntrypoint(options: JSONRPCServiceEntrypointOption
     let server: Server | undefined
     let webSocketServer: { close(callback?: () => void): void, clients: Set<WebSocketLike> } | undefined
     let stopReading: (() => void) | undefined
+    let heartbeat: NodeJS.Timeout | undefined
     //The connections of each client (WebSocket), the output of stdio
     const clients: Map<string, Set<(message: string) => void>> = new Map()
     const inProgress: Set<Promise<unknown>> = new Set()
@@ -210,7 +228,15 @@ export function JSONRPCServiceEntrypoint(options: JSONRPCServiceEntrypointOption
                 const output: Writable = options.output ?? process.stdout
                 const write = (message: string): unknown => output.write(options.framing === 'content-length' ? `Content-Length: ${Buffer.byteLength(message)}\r\n\r\n${message}` : `${message}\n`)
                 addClient('stdio', write)
-                stopReading = ReadMessages(options.input ?? process.stdin, options.framing ?? 'newline', limit, (message: string): void => void answer(runtime, message, {clientId: 'stdio'}, write))
+                const ended = (): void => {
+                    const mode: JSONRPCServiceEntrypointOptions['end'] = options.end ?? 'application'
+                    //The requests in progress answered first
+                    void Promise.allSettled([...inProgress]).then(async (): Promise<void> => {
+                        if (typeof mode === 'function') return await mode()
+                        if (mode === 'application') ApplicationOf(runtime.module)?.exit(0)
+                    })
+                }
+                stopReading = ReadMessages(options.input ?? process.stdin, options.framing ?? 'newline', limit, (message: string): void => void answer(runtime, message, {clientId: 'stdio'}, write), ended)
                 return
             }
             if (transport === 'http') {
@@ -246,6 +272,8 @@ export function JSONRPCServiceEntrypoint(options: JSONRPCServiceEntrypointOption
             }
             server = createServer((_request: IncomingMessage, response: ServerResponse): void => void response.writeHead(426, {'Content-Type': 'text/plain'}).end('A WebSocket connection is expected'))
             webSocketServer = new ws.WebSocketServer({server: server, path: path, maxPayload: limit})
+            //Whether each connection answered the last ping
+            const alive: WeakMap<WebSocketLike, boolean> = new WeakMap()
             ;(webSocketServer as any).on('connection', (socket: WebSocketLike, request: IncomingMessage): void => {
                 const clientId: string = ClientId(request) ?? randomUUID()
                 const send = (message: string): void => {
@@ -258,7 +286,19 @@ export function JSONRPCServiceEntrypoint(options: JSONRPCServiceEntrypointOption
                 })
                 socket.on('close', remove)
                 socket.on('error', (): void => undefined)
+                socket.on('pong', (): unknown => alive.set(socket, true))
+                alive.set(socket, true)
             })
+            //The connections which do not answer the pings closed (the ones a proxy dropped)
+            const interval: number = options.heartbeat ?? 30000
+            if (interval > 0) {
+                heartbeat = setInterval((): void => webSocketServer?.clients.forEach((socket: WebSocketLike): void => {
+                    if (!alive.get(socket)) return socket.terminate()
+                    alive.set(socket, false)
+                    socket.ping()
+                }), interval)
+                heartbeat.unref()
+            }
             await listen(server)
         },
         stop: (): void => {
@@ -267,6 +307,7 @@ export function JSONRPCServiceEntrypoint(options: JSONRPCServiceEntrypointOption
             stopReading?.()
         },
         close: async (): Promise<void> => {
+            clearInterval(heartbeat)
             await Promise.allSettled([...inProgress])
             clients.clear()
             if (webSocketServer) {
