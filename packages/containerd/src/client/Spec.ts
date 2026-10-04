@@ -1,3 +1,5 @@
+import type {SeccompProfile} from './Seccomp.js'
+
 /**
  * The capabilities of the containers by default (the ones of containerd, Docker and nerdctl)
  */
@@ -133,6 +135,10 @@ export type SpecOptions = {
     rlimits?: { type: string, hard: number, soft: number }[]
     annotations?: Record<string, string>
     /**
+     * The profile of seccomp of the processes (none: unconfined)
+     */
+    seccomp?: SeccompProfile
+    /**
      * The hooks of the runtime (createRuntime, poststop…)
      */
     hooks?: Record<string, { path: string, args?: string[], env?: string[], timeout?: number }[]>
@@ -244,6 +250,7 @@ export function GenerateSpec(options: SpecOptions): Record<string, any> {
                 gid: device.gid ?? 0
             })),
             ...options.sysctls && Object.keys(options.sysctls).length ? {sysctl: options.sysctls} : {},
+            ...options.seccomp ? {seccomp: options.seccomp} : {},
             ...options.privileged ? {} : {maskedPaths: [...MASKED_PATHS], readonlyPaths: [...READONLY_PATHS]}
         }
     }

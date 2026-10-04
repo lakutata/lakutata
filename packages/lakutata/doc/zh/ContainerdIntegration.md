@@ -105,6 +105,9 @@ await containerd.listContainers({app: 'web'})  //按标签
 - 容器的输出由 containerd 的 shim 写入日志文件，因此应用停止或重启时日志仍会继续记录。`exec` 分别捕获标准输出与
   标准错误（使用系统的 `mkfifo` 创建 FIFO；没有 `mkfifo` 时二者都在 `stdout` 中）。
 - 在 cgroup v2 上容器拥有独立的 cgroup 命名空间（`cgroupns: 'host'` 则共享宿主机的）。
+- 与 nerdctl 一样，容器的系统调用由 seccomp 过滤：使用 containerd 的默认 profile，并按容器的 capabilities 放行相应的系统调用
+  （`capabilities: ['SYS_ADMIN']` 会放行 `mount`、`unshare` 等）。`seccompProfile: 'unconfined'` 关闭过滤，也可以给出
+  OCI 格式 profile 文件的路径（其规范中的 `linux.seccomp`）；特权容器以及内核不支持 seccomp 时不过滤。
 - `privileged`、`capabilities` / `capabilitiesDrop`、`readonlyRootfs`、`pidMode: 'host'`、`ipcMode: 'host'`、
   `sysctls`、`extraHosts`、`dns`、`shmSize`、`pidsLimit`、`cpuSet`、`OOMKillDisable` 与 Docker 的同名选项含义相同。
 
@@ -189,4 +192,4 @@ for await (const event of containerd.events(abort.signal)) {
 ## 9. 当前版本的限制
 
 - 暂不支持 Compose 项目。
-- 容器运行时没有 seccomp 配置，日志不带时间戳。
+- 容器日志不带时间戳。

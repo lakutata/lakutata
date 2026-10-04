@@ -107,6 +107,10 @@ await containerd.listContainers({app: 'web'})  //by labels
   application stops or restarts. `exec` captures the standard output and error apart (FIFOs created by the `mkfifo`
   of the system; without it, both are in `stdout`).
 - The containers have a cgroup namespace of their own on cgroup v2 (`cgroupns: 'host'` shares the one of the host).
+- Their system calls are filtered by seccomp as nerdctl filters them: the default profile of containerd, its system
+  calls allowed by the capabilities of the container (`capabilities: ['SYS_ADMIN']` allows `mount`, `unshare`…).
+  `seccompProfile: 'unconfined'` disables it, the path of a file gives a profile of OCI (the `linux.seccomp` of its
+  specification); the privileged containers are unconfined, and the kernels without seccomp too.
 - `privileged`, `capabilities` / `capabilitiesDrop`, `readonlyRootfs`, `pidMode: 'host'`, `ipcMode: 'host'`, `sysctls`,
   `extraHosts`, `dns`, `shmSize`, `pidsLimit`, `cpuSet`, `OOMKillDisable` are the options of Docker of the same names.
 
@@ -197,4 +201,4 @@ another one, or a container uses it).
 ## 9. Limits of this version
 
 - The projects of Compose are not supported yet.
-- The containers run without seccomp profile, and their logs have no timestamps.
+- The logs of the containers have no timestamps.

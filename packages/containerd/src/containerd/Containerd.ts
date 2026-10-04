@@ -524,6 +524,7 @@ export class Containerd extends Component {
                 readonlyRootfs: options.readonlyRootfs,
                 capAdd: options.capabilities,
                 capDrop: options.capabilitiesDrop,
+                seccompProfile: options.seccompProfile,
                 mounts: mounts,
                 devices: (options.devices ?? []).map(device => ({hostPath: device.hostPath, containerPath: device.containerPath, permissions: device.cgroupPermissions})),
                 network: options.networks?.length ? options.networks.map((network): { name: string, ip?: string } => ({name: network.networkName, ip: network.ip || undefined})) : options.network,

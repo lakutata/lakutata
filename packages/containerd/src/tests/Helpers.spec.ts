@@ -9,6 +9,7 @@ import {Capabilities, ExecProcessSpec, GenerateSpec} from '../client/Spec.js'
 import {ChainIds} from '../client/ImageStore.js'
 import {LayerDirectories, ReadRootfsFile, ResolveUser} from '../client/Rootfs.js'
 import {SignalNumber} from '../client/ContainerStore.js'
+import {DefaultSeccompProfile, SeccompSupported, type SeccompSyscall} from '../client/Seccomp.js'
 
 describe('The helpers of the containerd component', (): void => {
 
@@ -119,6 +120,36 @@ describe('The helpers of the containerd component', (): void => {
         } finally {
             await rm(root, {recursive: true, force: true})
         }
+    })
+
+    it('gives the default profile of seccomp of containerd', (): void => {
+        const allowed = (profile: ReturnType<typeof DefaultSeccompProfile>, name: string): SeccompSyscall[] => profile.syscalls!.filter((rule: SeccompSyscall): boolean => rule.names.includes(name))
+        const profile = DefaultSeccompProfile(Capabilities({}), 'x64', '6.1.0-13-amd64')
+        assert.strictEqual(profile.defaultAction, 'SCMP_ACT_ERRNO')
+        assert.deepStrictEqual(profile.architectures, ['SCMP_ARCH_X86_64', 'SCMP_ARCH_X86', 'SCMP_ARCH_X32'])
+        assert.strictEqual(allowed(profile, 'read').length, 1)
+        assert.strictEqual(allowed(profile, 'arch_prctl').length, 1)
+        //The capabilities by default: chroot, not mount nor reboot; clone without namespaces, clone3 ENOSYS
+        assert.strictEqual(allowed(profile, 'chroot').length, 1)
+        assert.strictEqual(allowed(profile, 'mount').length, 0)
+        assert.strictEqual(allowed(profile, 'reboot').length, 0)
+        assert.deepStrictEqual(allowed(profile, 'clone')[0].args, [{index: 0, value: 0x7e020000, valueTwo: 0, op: 'SCMP_CMP_MASKED_EQ'}])
+        assert.deepStrictEqual(allowed(profile, 'clone3')[0], {names: ['clone3'], action: 'SCMP_ACT_ERRNO', errnoRet: 38})
+        assert.deepStrictEqual(allowed(profile, 'socket')[0].args, [{index: 0, value: 40, op: 'SCMP_CMP_NE'}])
+        assert.strictEqual(allowed(profile, 'personality').length, 5)
+        assert.strictEqual(allowed(profile, 'ptrace').length, 1)
+        //The capabilities added: their system calls
+        const admin = DefaultSeccompProfile(Capabilities({capAdd: ['SYS_ADMIN', 'SYS_TIME']}), 'arm64', '6.1.0')
+        assert.deepStrictEqual(admin.architectures, ['SCMP_ARCH_ARM', 'SCMP_ARCH_AARCH64'])
+        assert.ok(allowed(admin, 'mount').length && allowed(admin, 'unshare').length && allowed(admin, 'clock_settime').length && allowed(admin, 'set_tls').length)
+        assert.deepStrictEqual(allowed(admin, 'clone').map((rule: SeccompSyscall): unknown => rule.args), [[]])
+        assert.strictEqual(allowed(admin, 'clone3')[0].action, 'SCMP_ACT_ALLOW')
+        //s390x: the flags of clone are its second argument; the kernels before 4.8: no ptrace
+        const old = DefaultSeccompProfile(Capabilities({}), 's390x', '4.4.0')
+        assert.strictEqual(allowed(old, 'clone')[0].args![0].index, 1)
+        assert.strictEqual(allowed(old, 'ptrace').length, 0)
+        assert.ok(SeccompSupported('Name:\tsh\nSeccomp:\t0\n'))
+        assert.ok(!SeccompSupported('Name:\tsh\n'))
     })
 
     it('numbers the signals', (): void => {

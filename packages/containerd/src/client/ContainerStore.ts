@@ -14,7 +14,8 @@ import {ChainIds, ImageStore, type ResolvedImage} from './ImageStore.js'
 import {ProcessFifo} from './Fifo.js'
 import {DEFAULT_NETWORK, NetworkStore, type CNINetwork, type ContainerNetworkInterface, type PortMapping} from './Networks.js'
 import {ResolveUser, type ProcessUser} from './Rootfs.js'
-import {ExecProcessSpec, GenerateSpec, type SpecDevice, type SpecMount} from './Spec.js'
+import {Capabilities, ExecProcessSpec, GenerateSpec, type SpecDevice, type SpecMount} from './Spec.js'
+import {DefaultSeccompProfile, SeccompSupported, type SeccompProfile} from './Seccomp.js'
 
 /**
  * The labels of the containers: the ones of nerdctl (nerdctl ps, nerdctl logs know them), the ones of the restart
@@ -101,6 +102,11 @@ export type ContainerCreateOptions = {
     readonlyRootfs?: boolean
     capAdd?: string[]
     capDrop?: string[]
+    /**
+     * The profile of seccomp: the default one of containerd (and nerdctl), unconfined, or the file of a profile of OCI
+     * (the linux.seccomp of its specification); the privileged containers are unconfined
+     */
+    seccompProfile?: 'default' | 'unconfined' | string
     mounts?: ContainerMount[]
     devices?: ContainerDeviceMapping[]
     /**
@@ -222,6 +228,26 @@ export class ContainerStore {
             networks.push({network: found, ip: item.ip})
         }
         return networks
+    }
+
+    /**
+     * The profile of seccomp of a container, as nerdctl gives it: none for the privileged ones, unconfined ones and when
+     * the kernel does not filter the system calls; the default one by its capabilities; the one of a file
+     * @param options
+     * @protected
+     */
+    protected async seccomp(options: ContainerCreateOptions): Promise<SeccompProfile | undefined> {
+        const profile: string = options.seccompProfile ?? 'default'
+        if (options.privileged || profile === 'unconfined') return undefined
+        if (profile !== 'default') {
+            try {
+                return JSON.parse(await readFile(profile, 'utf8')) as SeccompProfile
+            } catch (error: unknown) {
+                throw new Error(`The profile of seccomp ${profile} is not read: ${(error as Error).message}`, {cause: error})
+            }
+        }
+        if (!SeccompSupported()) return undefined
+        return DefaultSeccompProfile(Capabilities(options))
     }
 
     /**
@@ -420,6 +446,7 @@ export class ContainerStore {
                 readonlyRootfs: options.readonlyRootfs,
                 capAdd: options.capAdd,
                 capDrop: options.capDrop,
+                seccomp: await this.seccomp(options),
                 mounts: specMounts,
                 devices: devices,
                 network: {mode: network},

@@ -92,6 +92,14 @@ export class ContainerCreateOptions extends DTO {
     public capabilitiesDrop?: string[]
 
     /**
+     * The profile of seccomp: the default one of containerd (and nerdctl), unconfined, or the path of the file of a
+     * profile of OCI (the linux.seccomp of its specification); the privileged containers are unconfined
+     * @default 'default'
+     */
+    @Expect(DTO.String().optional().default('default'))
+    public seccompProfile?: 'default' | 'unconfined' | string
+
+    /**
      * Container binds
      */
     @Expect(DTO.Array(DTO.Object({

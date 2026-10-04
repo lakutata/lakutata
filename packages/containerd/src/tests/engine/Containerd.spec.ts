@@ -20,6 +20,7 @@ import {
     ContainerdNetworkNotFoundException,
     ContainerdPlatformException,
     type ContainerdNetworkInfo,
+    type ContainerCreateOptions,
     type ContainerdEvent,
     type ContainerdProgress
 } from '../../exports/Containerd.js'
@@ -210,6 +211,42 @@ describe('The containerd component with the containerd of the machine', {skip: !
         await assert.rejects(containerd.getContainer('lakutata-test-web'), ContainerdContainerNotFoundException)
         const topics: string[] = events.filter((event: ContainerdEvent): boolean => event.event.containerId === container.id || event.event.id === container.id).map((event: ContainerdEvent): string => event.topic)
         for (const topic of ['/containers/create', '/tasks/start', '/tasks/exit', '/tasks/delete', '/containers/delete']) assert.ok(topics.includes(topic), topic)
+    })
+
+    it('filters the system calls of the containers by seccomp', async (): Promise<void> => {
+        const created: ContainerdContainer[] = []
+        const run = async (options: Partial<ContainerCreateOptions>): Promise<ContainerdContainer> => {
+            const container: ContainerdContainer = await containerd.createContainer({image: ALPINE, cmd: ['sleep', '600'], network: 'none', ...options})
+            created.push(container)
+            await container.start()
+            return container
+        }
+        const seccomp = async (container: ContainerdContainer): Promise<string> => (await container.exec({cmd: 'grep ^Seccomp: /proc/self/status'})).stdout.split(/\s+/)[1]
+        try {
+            //The default profile: unshare refused (EPERM)
+            const confined: ContainerdContainer = await run({})
+            assert.strictEqual(await seccomp(confined), '2')
+            const refused = await confined.exec({cmd: 'unshare -u true'})
+            assert.notStrictEqual(refused.exitCode, 0)
+            assert.match(refused.stderr, /not permitted/i)
+            assert.strictEqual((await confined.exec({cmd: 'echo allowed'})).stdout, 'allowed\n')
+            //CAP_SYS_ADMIN: its system calls allowed by the profile
+            const admin: ContainerdContainer = await run({capabilities: ['SYS_ADMIN']})
+            assert.strictEqual(await seccomp(admin), '2')
+            assert.strictEqual((await admin.exec({cmd: 'unshare -u true'})).exitCode, 0)
+            //Unconfined, privileged: no filter
+            assert.strictEqual(await seccomp(await run({seccompProfile: 'unconfined'})), '0')
+            assert.strictEqual(await seccomp(await run({privileged: true})), '0')
+            //A profile of a file: mkdir refused
+            const profile: string = path.join(directory, 'seccomp.json')
+            await writeFile(profile, JSON.stringify({defaultAction: 'SCMP_ACT_ALLOW', syscalls: [{names: ['mkdir', 'mkdirat'], action: 'SCMP_ACT_ERRNO'}]}))
+            const custom: ContainerdContainer = await run({seccompProfile: profile})
+            assert.notStrictEqual((await custom.exec({cmd: 'mkdir /tmp/refused'})).exitCode, 0)
+            assert.strictEqual((await custom.exec({cmd: 'unshare -u true'})).exitCode, 1)
+            await assert.rejects(containerd.createContainer({image: ALPINE, seccompProfile: path.join(directory, 'none.json')}), /seccomp/)
+        } finally {
+            for (const container of created) await container.remove({force: true})
+        }
     })
 
     it('restarts the containers by their restart policies', async (): Promise<void> => {

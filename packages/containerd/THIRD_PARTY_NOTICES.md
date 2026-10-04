@@ -9,7 +9,8 @@ Copyright The containerd Authors. Licensed under the Apache License, Version 2.0
 
 The messages of the API of containerd (their fields and their numbers, from its `api/` protobuf definitions):
 `src/client/Messages.ts`; the defaults of the specifications of the containers (the capabilities, the mounts, the masked
-and read only paths, the devices, from its `oci/` package): `src/client/Spec.ts`; the identifiers of the chains of the
+and read only paths, the devices, from its `oci/` package): `src/client/Spec.ts`; its default profile of seccomp (from
+its `contrib/seccomp` package): `src/client/Seccomp.ts`; the identifiers of the chains of the
 layers and the labels of its garbage collection: `src/client/ImageStore.ts`.
 
 Modifications: no protobuf definitions are included; the messages are written as the schemas of the encoder of this
