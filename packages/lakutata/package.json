@@ -84,6 +84,16 @@
         "default": "./dist/cjs/exports/CacherComponent.js"
       }
     },
+    "./com/mutex": {
+      "import": {
+        "types": "./dist/types/exports/MutexComponent.d.ts",
+        "default": "./dist/esm/exports/MutexComponent.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/MutexComponent.d.ts",
+        "default": "./dist/cjs/exports/MutexComponent.js"
+      }
+    },
     "./com/i18n": {
       "import": {
         "types": "./dist/types/exports/I18nComponent.d.ts",
@@ -327,7 +337,8 @@
     "@lakutata/i18n": "2.0.126",
     "@lakutata/monitor": "2.0.126",
     "@lakutata/utils": "2.0.126",
-    "@lakutata/security": "2.0.126"
+    "@lakutata/security": "2.0.126",
+    "@lakutata/mutex": "2.0.126"
   },
   "files": [
     "dist",

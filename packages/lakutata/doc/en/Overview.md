@@ -35,6 +35,7 @@ Lakutata's functionality is categorized by domain and purpose, allowing develope
 
 ### 4. Components & Services
 - **Docker Component**: A built-in client of the Docker Engine API for Docker image, container and network management.
+- **Mutex Component**: The locks of an application, between its instances and its processes (memory, files, Redis, PostgreSQL, MySQL).
 - **containerd Component**: A built-in client of the API of containerd for the images and the containers of the machines running containerd without Docker (embedded Linux devices).
 - **Logger Component**: Based on Pino, offering high-performance logging capabilities.
 - **Database Provider**: Encapsulates database connection logic for simplified configuration and usage.

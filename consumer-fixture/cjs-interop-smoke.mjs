@@ -78,6 +78,11 @@ await check('@lakutata/docker loads under ESM', () => {
 const {pack: TarPack} = await import('tar-stream')
 await check('tar-stream pack (build context)', () => { TarPack().finalize() })
 
+// @lakutata/mutex — the locks (their clients of Redis, PostgreSQL and MySQL loaded when used)
+await check('CJS @lakutata/mutex loads', () => {
+    if (typeof requireCJS('../packages/mutex/dist/cjs/exports/Mutex.js').Mutex !== 'function') throw new Error('Mutex missing')
+})
+
 // @lakutata/grpc — the gRPC over HTTP/2 of containerd, BuildKit and the service actions
 await check('CJS @lakutata/grpc loads', () => {
     if (typeof requireCJS('../packages/grpc/dist/cjs/exports/GRPC.js').GRPCServer !== 'function') throw new Error('GRPCServer missing')

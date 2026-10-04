@@ -392,6 +392,25 @@
     "RedisCacheOptions",
     "SqliteCacheOptions"
   ],
+  "lakutata/com/mutex": [
+    "FileMutexDriver",
+    "FileMutexOptions",
+    "MemoryMutexDriver",
+    "MemoryMutexOptions",
+    "Mutex",
+    "MutexDriver",
+    "MutexDriverException",
+    "MutexDriverNotFoundException",
+    "MutexLock",
+    "MutexLostException",
+    "MutexTimeoutException",
+    "MysqlMutexDriver",
+    "MysqlMutexOptions",
+    "PostgresMutexDriver",
+    "PostgresMutexOptions",
+    "RedisMutexDriver",
+    "RedisMutexOptions"
+  ],
   "lakutata/com/monitor": [
     "CpuMonitor",
     "EventLoopMonitor",

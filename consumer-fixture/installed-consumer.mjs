@@ -18,7 +18,7 @@ const failures = []
 /**
  * The packages of the repository installed with lakutata
  */
-const PACKAGES = ['core', 'logger', 'entrypoint', 'cache', 'grpc', 'containerd', 'docker', 'orm', 'monitor', 'utils', 'security', 'lakutata']
+const PACKAGES = ['core', 'logger', 'entrypoint', 'cache', 'mutex', 'grpc', 'containerd', 'docker', 'orm', 'monitor', 'utils', 'security', 'lakutata']
 
 /**
  * Pack the packages once
