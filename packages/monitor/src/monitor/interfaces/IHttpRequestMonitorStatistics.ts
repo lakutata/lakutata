@@ -1,38 +1,43 @@
+/**
+ * The statistics of an {@link HttpRequestMonitor} since it was created or reset: the number of HTTP requests received
+ * and their durations, from their arrival to the end of their response, in milliseconds rounded to 2 decimals. The
+ * percentiles are approximate (3 significant digits). All 0 before the first request.
+ */
 export interface IHttpRequestMonitorStatistics {
     /**
-     * Number of HTTP requests received
+     * The number of requests received whose response ended.
      */
     count: number
     /**
-     * Minimum HTTP request duration (ms)
+     * The shortest request, in milliseconds.
      */
     min: number
     /**
-     * Maximum HTTP request duration (ms)
+     * The longest request, in milliseconds.
      */
     max: number
     /**
-     * Average HTTP request duration (ms)
+     * The mean duration, in milliseconds.
      */
     avg: number
     /**
-     * Standard deviation of HTTP request duration (ms)
+     * The standard deviation of the durations, in milliseconds.
      */
     stdDev: number
     /**
-     * P50 of HTTP request duration (ms)
+     * The median duration, in milliseconds.
      */
     p50: number
     /**
-     * P90 of HTTP request duration (ms)
+     * The 90th percentile of the durations (90% of the requests were faster), in milliseconds.
      */
     p90: number
     /**
-     * P95 of HTTP request duration (ms)
+     * The 95th percentile of the durations, in milliseconds.
      */
     p95: number
     /**
-     * P99 of HTTP request duration (ms)
+     * The 99th percentile of the durations, in milliseconds.
      */
     p99: number
 }

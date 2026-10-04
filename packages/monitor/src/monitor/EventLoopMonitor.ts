@@ -4,14 +4,60 @@ import {IEventLoopMonitorStatistics} from './interfaces/IEventLoopMonitorStatist
 import {IMonitor} from './interfaces/IMonitor.js'
 
 /**
- * The delays of the event loop of the process (milliseconds) and its utilization (percent)
+ * The event loop monitor: measures how late the event loop of the main thread runs its timers (the event loop delay,
+ * in milliseconds, with Node's `monitorEventLoopDelay` at a 1 ms resolution) and how busy it is (its utilization, in
+ * percent of the time). A growing delay means synchronous work (CPU-bound code, synchronous I/O, large JSON) blocks the
+ * other requests; a utilization near 100 means the loop has no idle time left.
+ *
+ * Both cover the time since the monitor was created or last {@link EventLoopMonitor.reset}: the delays are a
+ * histogram of every measure, the utilization is the share of that whole time the loop was busy. Declare it in the
+ * `components` of the application (`{class: EventLoopMonitor}`) and get it with `@Inject` or `getObject()`; it is a
+ * singleton. It starts measuring when it is created: list it in `bootstrap` to measure from the launch; it stops when
+ * the component is destroyed.
+ * @example
+ * ```typescript
+ * import {Application} from 'lakutata'
+ * import {EventLoopMonitor, type IEventLoopMonitorStatistics} from 'lakutata/com/monitor'
+ *
+ * Application
+ *     .run(() => ({
+ *         id: 'loop.app',
+ *         name: 'Loop',
+ *         components: {
+ *             eventLoop: {class: EventLoopMonitor}
+ *         },
+ *         bootstrap: ['eventLoop']
+ *     }))
+ *     .onLaunched(async (app: Application): Promise<void> => {
+ *         const eventLoop: EventLoopMonitor = await app.getObject('eventLoop')
+ *         setInterval((): void => {
+ *             const statistics: IEventLoopMonitorStatistics = eventLoop.statistics
+ *             if (statistics.p99 > 100) console.log(`The event loop lags: p99 ${statistics.p99} ms, ${statistics.utilRate}% busy`)
+ *             //Each report covers the last minute
+ *             eventLoop.reset()
+ *         }, 60000)
+ *     })
+ * ```
  */
 export class EventLoopMonitor extends Component implements IMonitor<IEventLoopMonitorStatistics> {
 
+    /**
+     * The histogram of the event loop delays, in nanoseconds, sampled every millisecond while enabled (from the
+     * monitor's initialization to its destruction).
+     */
     protected readonly histogram: IntervalHistogram = monitorEventLoopDelay({resolution: 1})
 
+    /**
+     * The event loop utilization when the monitor was created or reset: the start of the period that
+     * {@link IEventLoopMonitorStatistics.utilRate} covers.
+     */
     protected initUtil: EventLoopUtilization = performance.eventLoopUtilization()
 
+    /**
+     * The event loop statistics since the monitor was created or reset, computed at each read: the minimum, maximum,
+     * mean, standard deviation and percentiles of the delays in milliseconds (not rounded; all 0 before the first
+     * measure), and the utilization in percent.
+     */
     public get statistics(): IEventLoopMonitorStatistics {
         //Without sample yet, the histogram gives no meaningful value
         const sampled: boolean = this.histogram.count > 0
@@ -38,7 +84,8 @@ export class EventLoopMonitor extends Component implements IMonitor<IEventLoopMo
     }
 
     /**
-     * Forget the delays and restart the utilization
+     * Forget the delays and restart the utilization: the statistics then cover the time since this call. Use it to
+     * measure a period, such as between two reports.
      */
     public reset(): void {
         this.histogram.reset()

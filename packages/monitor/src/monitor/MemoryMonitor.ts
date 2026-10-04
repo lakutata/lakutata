@@ -5,7 +5,38 @@ import {IMemoryMonitorStatistics} from './interfaces/IMemoryMonitorStatistics.js
 import {Round, Samples} from './lib/Samples.js'
 
 /**
- * The memory of the process (bytes), sampled when the monitor is created then every second
+ * The memory monitor: measures the memory of the process, in bytes, with `process.memoryUsage()`: its resident set
+ * (the physical memory it occupies, `rss`), its V8 heap (`heapTotal` reserved, `heapUsed` occupied by the JavaScript
+ * objects) and its external memory (the C++ objects bound to JavaScript ones, the `Buffer`s included). It takes a
+ * sample when it is created then every second, and keeps the statistics of every sample since it was created or last
+ * {@link MemoryMonitor.reset}: the minimum, the maximum, the mean and percentiles, in constant memory.
+ *
+ * Declare it in the `components` of the application (`{class: MemoryMonitor}`) and get it with `@Inject` or
+ * `getObject()`; it is a singleton. It starts sampling when it is created: list it in `bootstrap` to measure from the
+ * launch. Its timer does not keep the process alive, and stops when the component is destroyed.
+ * @example
+ * ```typescript
+ * import {Application} from 'lakutata'
+ * import {MemoryMonitor, type IMemoryMonitorStatistics} from 'lakutata/com/monitor'
+ *
+ * Application
+ *     .run(() => ({
+ *         id: 'memory.app',
+ *         name: 'Memory',
+ *         components: {
+ *             memory: {class: MemoryMonitor}
+ *         },
+ *         bootstrap: ['memory']
+ *     }))
+ *     .onLaunched(async (app: Application): Promise<void> => {
+ *         const memory: MemoryMonitor = await app.getObject('memory')
+ *         setInterval((): void => {
+ *             const statistics: IMemoryMonitorStatistics = memory.statistics
+ *             const megabytes = (bytes: number): string => (bytes / 1048576).toFixed(1)
+ *             console.log(`RSS ${megabytes(statistics.physicalUsed)} MB (${statistics.physicalUsage}% of the host), heap ${statistics.heapUsage}% used`)
+ *         }, 60000)
+ *     })
+ * ```
  */
 export class MemoryMonitor extends Component implements IMonitor<IMemoryMonitorStatistics> {
 
@@ -25,6 +56,13 @@ export class MemoryMonitor extends Component implements IMonitor<IMemoryMonitorS
 
     #sampleInterval: NodeJS.Timeout | undefined
 
+    /**
+     * The memory statistics, computed at each read: the latest sample (`physicalUsed`, `heapTotal`, `heapUsed`,
+     * `externalUsed`, in bytes, and the percentages `physicalUsage` and `heapUsage`, rounded to 2 decimals), the host's
+     * total memory, and the minimum, maximum, mean (rounded to 2 decimals) and percentiles of the samples since the
+     * monitor was created or reset. The percentiles are approximate (3 significant digits). The statistics of the
+     * samples are 0 after a reset until the next sample.
+     */
     public get statistics(): IMemoryMonitorStatistics {
         const latest: NodeJS.MemoryUsage = this.#latest
         return {
@@ -60,7 +98,8 @@ export class MemoryMonitor extends Component implements IMonitor<IMemoryMonitorS
     }
 
     /**
-     * Sample the memory of the process
+     * Take a sample of the memory of the process: it becomes the latest usage and is added to the statistics. Called
+     * when the monitor is created, then every second.
      * @protected
      */
     protected sampleMemoryUsage(): void {
@@ -81,7 +120,8 @@ export class MemoryMonitor extends Component implements IMonitor<IMemoryMonitorS
     }
 
     /**
-     * Forget the samples (the latest usage is kept)
+     * Forget the samples: the minimum, maximum, mean and percentiles are 0 until the next sample, then cover the samples
+     * taken since. The latest usage is kept.
      */
     public reset(): void {
         this.#physical.reset()

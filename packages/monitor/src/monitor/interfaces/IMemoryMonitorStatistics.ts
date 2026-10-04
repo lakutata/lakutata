@@ -1,114 +1,124 @@
+/**
+ * The statistics of a {@link MemoryMonitor}, in bytes unless stated: the latest sample of the process memory
+ * (`process.memoryUsage()`), and the minimum, maximum, mean and percentiles of the samples taken every second since
+ * the monitor was created or reset (0 after a reset until the next sample). The percentiles are approximate (3
+ * significant digits).
+ */
 export interface IMemoryMonitorStatistics {
     /**
-     * Total physical memory (Bytes)
+     * The total physical memory of the host (`os.totalmem()`), in bytes; under a container, the host's,
+     * not the container's limit.
      */
     physicalTotal: number
     /**
-     * Physical memory usage by the process (Bytes)
+     * The resident set size of the process (`rss`) at the latest sample: the physical memory it occupies, in
+     * bytes.
      */
     physicalUsed: number
     /**
-     * Physical memory usage percentage by the process (%)
+     * `physicalUsed` as a percentage of `physicalTotal`, rounded to 2 decimals.
      */
     physicalUsage: number
     /**
-     * Minimum physical memory usage by the process (Bytes)
+     * The lowest resident set size sampled, in bytes.
      */
     physicalUsedMin: number
     /**
-     * Maximum physical memory usage by the process (Bytes)
+     * The highest resident set size sampled, in bytes.
      */
     physicalUsedMax: number
     /**
-     * Average physical memory usage by the process (Bytes)
+     * The mean resident set size of the samples, in bytes, rounded to 2 decimals.
      */
     physicalUsedAvg: number
     /**
-     * P50 of physical memory usage by the process (Bytes)
+     * The median resident set size of the samples, in bytes.
      */
     physicalUsedP50: number
     /**
-     * P90 of physical memory usage by the process (Bytes)
+     * The 90th percentile of the resident set size samples, in bytes.
      */
     physicalUsedP90: number
     /**
-     * P95 of physical memory usage by the process (Bytes)
+     * The 95th percentile of the resident set size samples, in bytes.
      */
     physicalUsedP95: number
     /**
-     * P99 of physical memory usage by the process (Bytes)
+     * The 99th percentile of the resident set size samples, in bytes.
      */
     physicalUsedP99: number
     /**
-     * Total heap memory allocated for JS objects (Bytes)
+     * The size of the V8 heap reserved by the process at the latest sample, in bytes.
      */
     heapTotal: number
     /**
-     * Used portion of heap memory (Bytes)
+     * The part of the V8 heap occupied by JavaScript objects at the latest sample, in bytes.
      */
     heapUsed: number
     /**
-     * Percentage of used heap memory (%)
+     * `heapUsed` as a percentage of `heapTotal`, rounded to 2 decimals. V8 grows the heap as needed, so a
+     * high value alone is not a leak: a leak shows as `heapUsedMin` rising from one reset period to the next.
      */
     heapUsage: number
     /**
-     * Minimum used portion of heap memory (Bytes)
+     * The lowest used heap sampled, in bytes.
      */
     heapUsedMin: number
     /**
-     * Maximum used portion of heap memory (Bytes)
+     * The highest used heap sampled, in bytes.
      */
     heapUsedMax: number
     /**
-     * Average used portion of heap memory (Bytes)
+     * The mean used heap of the samples, in bytes, rounded to 2 decimals.
      */
     heapUsedAvg: number
     /**
-     * P50 of used portion of heap memory (Bytes)
+     * The median used heap of the samples, in bytes.
      */
     heapUsedP50: number
     /**
-     * P90 of used portion of heap memory (Bytes)
+     * The 90th percentile of the used heap samples, in bytes.
      */
     heapUsedP90: number
     /**
-     * P95 of used portion of heap memory (Bytes)
+     * The 95th percentile of the used heap samples, in bytes.
      */
     heapUsedP95: number
     /**
-     * P99 of used portion of heap memory (Bytes)
+     * The 99th percentile of the used heap samples, in bytes.
      */
     heapUsedP99: number
     /**
-     * Memory occupied by C++ objects (Bytes)
+     * The memory of the C++ objects bound to JavaScript objects (the `Buffer`s included) at the latest
+     * sample, in bytes.
      */
     externalUsed: number
     /**
-     * Minimum memory occupied by C++ objects (Bytes)
+     * The lowest external memory sampled, in bytes.
      */
     externalUsedMin: number
     /**
-     * Maximum memory occupied by C++ objects (Bytes)
+     * The highest external memory sampled, in bytes.
      */
     externalUsedMax: number
     /**
-     * Average memory occupied by C++ objects (Bytes)
+     * The mean external memory of the samples, in bytes, rounded to 2 decimals.
      */
     externalUsedAvg: number
     /**
-     * P50 of memory occupied by C++ objects (Bytes)
+     * The median external memory of the samples, in bytes.
      */
     externalUsedP50: number
     /**
-     * P90 of memory occupied by C++ objects (Bytes)
+     * The 90th percentile of the external memory samples, in bytes.
      */
     externalUsedP90: number
     /**
-     * P95 of memory occupied by C++ objects (Bytes)
+     * The 95th percentile of the external memory samples, in bytes.
      */
     externalUsedP95: number
     /**
-     * P99 of memory occupied by C++ objects (Bytes)
+     * The 99th percentile of the external memory samples, in bytes.
      */
     externalUsedP99: number
 }

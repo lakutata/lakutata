@@ -5,8 +5,39 @@ import {IHttpRequestMonitorStatistics} from './interfaces/IHttpRequestMonitorSta
 import {Round, Samples} from './lib/Samples.js'
 
 /**
- * The durations (milliseconds) of the HTTP requests received by the HTTP servers of the process (node:http, so the
- * servers of express and fastify too); the requests sent by the process are not counted
+ * The HTTP request monitor: measures how long the HTTP requests received by the process take, in milliseconds, from
+ * their arrival to the end of their response, through the performance entries of `node:http` (so every server built on
+ * it is counted: the Express and Fastify adapters, and any other server of the process). The requests the process
+ * sends are not counted, nor are HTTP/2 requests.
+ *
+ * It keeps the count and the statistics of the durations since it was created or last {@link HttpRequestMonitor.reset},
+ * in constant memory. The entries reach it in batches, shortly after the responses end, so a request just answered may
+ * not be counted yet. Declare it in the `components` of the application (`{class: HttpRequestMonitor}`) and get it with
+ * `@Inject` or `getObject()`; it is a singleton. It only sees the requests ending after its creation: list it in
+ * `bootstrap` to measure from the launch; it stops when the component is destroyed.
+ * @example
+ * ```typescript
+ * import {Application} from 'lakutata'
+ * import {HttpRequestMonitor, type IHttpRequestMonitorStatistics} from 'lakutata/com/monitor'
+ *
+ * Application
+ *     .run(() => ({
+ *         id: 'http.app',
+ *         name: 'Http',
+ *         components: {
+ *             httpRequests: {class: HttpRequestMonitor}
+ *         },
+ *         bootstrap: ['httpRequests']
+ *     }))
+ *     .onLaunched(async (app: Application): Promise<void> => {
+ *         const httpRequests: HttpRequestMonitor = await app.getObject('httpRequests')
+ *         setInterval((): void => {
+ *             const statistics: IHttpRequestMonitorStatistics = httpRequests.statistics
+ *             console.log(`${statistics.count} requests, avg ${statistics.avg} ms, p99 ${statistics.p99} ms`)
+ *             httpRequests.reset()
+ *         }, 60000)
+ *     })
+ * ```
  */
 export class HttpRequestMonitor extends Component implements IMonitor<IHttpRequestMonitorStatistics> {
 
@@ -14,11 +45,21 @@ export class HttpRequestMonitor extends Component implements IMonitor<IHttpReque
 
     readonly #durations: Samples = new Samples(100)
 
+    /**
+     * The observer of the `http` performance entries, recording the duration of each received request (the
+     * `HttpRequest` entries); observing from the monitor's initialization to its destruction.
+     */
     protected readonly observer: PerformanceObserver = new PerformanceObserver((list: PerformanceObserverEntryList): void => {
         //Every request of the batch, the received ones only (HttpClient entries are the requests sent)
         for (const entry of list.getEntriesByName('HttpRequest')) this.#durations.record(entry.duration)
     })
 
+    /**
+     * The statistics of the request durations since the monitor was created or reset, computed at each read: the
+     * number of requests, and the minimum, maximum, mean, standard deviation and percentiles of their durations in
+     * milliseconds, rounded to 2 decimals. The percentiles are approximate (3 significant digits). All 0 before the first
+     * request.
+     */
     public get statistics(): IHttpRequestMonitorStatistics {
         return {
             count: this.#durations.count,
@@ -42,7 +83,8 @@ export class HttpRequestMonitor extends Component implements IMonitor<IHttpReque
     }
 
     /**
-     * Forget the durations
+     * Forget the requests: the count and the statistics restart from 0. Use it to measure a period, such as between
+     * two reports.
      */
     public reset(): void {
         this.#durations.reset()
