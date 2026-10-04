@@ -6,7 +6,7 @@ import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {setTimeout as sleep} from 'node:timers/promises'
 import {Container} from '@lakutata/core'
-import {Mutex, MutexLock, MutexLostException, MutexTimeoutException, type MutexDriverOptions} from '../exports/Mutex.js'
+import {FileMutexDriver, MemoryMutexDriver, Mutex, MutexLock, MutexLostException, MutexTimeoutException, type MutexDriverOptions} from '../exports/Mutex.js'
 
 /**
  * A component of the locks, in a container of its own (an instance of an application)
@@ -176,5 +176,52 @@ describe('The locks', (): void => {
             child.kill('SIGKILL')
             await container.destroy()
         }
+    })
+
+    it('renews a lock at the pace of its last time to live', async (): Promise<void> => {
+        const {mutex, container} = await Instance({type: 'memory'})
+        const other = await Instance({type: 'memory'})
+        try {
+            const lock: MutexLock = (await mutex.tryAcquire('shortened', {ttl: 3000}))!
+            //Shortened: renewed every 50 ms from now on, not every second
+            assert.ok(await lock.extend(150))
+            await sleep(600)
+            assert.ok(lock.held)
+            assert.strictEqual(await other.mutex.tryAcquire('shortened'), undefined)
+        } finally {
+            await container.destroy()
+            await other.container.destroy()
+        }
+    })
+
+    it('does not renew the expired locks, nor replace the lock of a new holder', async (): Promise<void> => {
+        const memory: MemoryMutexDriver = new MemoryMutexDriver('test:expired:')
+        const first = (await memory.acquire('a', 50))!
+        await sleep(80)
+        assert.strictEqual(await memory.extend('a', first, 1000), false)
+        const files: FileMutexDriver = new FileMutexDriver(directory, 'test:expired:')
+        const held = (await files.acquire('b', 50))!
+        await sleep(80)
+        //Taken over once expired
+        const taker = (await files.acquire('b', 10000))!
+        assert.ok(taker)
+        assert.strictEqual(await files.extend('b', held, 1000), false)
+        assert.ok(await files.extend('b', taker, 10000))
+        assert.ok(await files.release('b', taker))
+    })
+
+    it('gives up waiting at its timeout when the store is unreachable', async (): Promise<void> => {
+        const {mutex, container} = await Instance({type: 'redis', host: '127.0.0.1', port: 1})
+        try {
+            const started: number = Date.now()
+            await assert.rejects(mutex.acquire('unreachable', {timeout: 300}), MutexTimeoutException)
+            assert.ok(Date.now() - started < 2000, `${Date.now() - started} ms`)
+        } finally {
+            await container.destroy()
+        }
+    })
+
+    it('refuses the invalid table names in the options', async (): Promise<void> => {
+        await assert.rejects(Instance({type: 'postgres', host: 'localhost', database: 'db', username: 'u', password: 'p', mode: 'table', table: 'locks; DROP TABLE users'} as MutexDriverOptions), {name: 'InvalidValueException'})
     })
 })

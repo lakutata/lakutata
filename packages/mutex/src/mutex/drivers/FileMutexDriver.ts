@@ -30,23 +30,62 @@ function ProcessRuns(pid: number): boolean {
 }
 
 /**
- * The locks of the processes of a host: a file created exclusively (O_EXCL) for each lock in a directory; a lock expired,
- * or whose process of this host is gone, is taken over
+ * The file driver (`{type: 'file'}`): each lock is a file of a directory, created exclusively, shared by the processes of
+ * one host using the same directory and prefix (several workers or applications of a machine). It needs no package.
+ * The processes must share the directory: the default one (`lakutata-mutex` in the operating system's temporary
+ * directory) can differ between users. A directory shared by several hosts (a network file system) works only as far
+ * as its exclusive creation and renames are atomic, and only the expiration then frees the lock of a crashed host.
+ *
+ * The locks expire after their `ttl` unless renewed; a lock whose process is gone on this host is taken over at once,
+ * without waiting for its expiration. The driver gives no fencing token (`fence` is `undefined`).
+ * @example
+ * ```typescript
+ * import {FileMutexDriver, type DriverLock} from 'lakutata/com/mutex'
+ *
+ * //The workers of this machine run the migration one at a time
+ * const driver: FileMutexDriver = new FileMutexDriver('/var/lock/my-app', 'my-app:')
+ * const lock: DriverLock | undefined = await driver.acquire('migrate', 60000)
+ * if (lock) {
+ *     try {
+ *         console.log('migrating')
+ *     } finally {
+ *         await driver.release('migrate', lock)
+ *     }
+ * }
+ * ```
  */
 export class FileMutexDriver extends MutexDriver {
 
+    /**
+     * `true`: the locks expire after their `ttl` unless renewed.
+     */
     public readonly expiring: boolean = true
 
     readonly #host: string = hostname()
 
+    /**
+     * Create a driver on a directory, created at the first acquisition when it does not exist.
+     * @param directory The directory of the lock files.
+     * @param prefix The prefix added to the lock names; `''` by default.
+     */
     constructor(protected readonly directory: string, protected readonly prefix: string = '') {
         super()
     }
 
+    /**
+     * The path of a lock's file: the SHA-256 digest of the prefixed name, with the extension `.lock`.
+     * @param name The lock name.
+     * @returns The file path.
+     */
     protected file(name: string): string {
         return path.join(this.directory, `${NameDigest(this.prefix + name)}.lock`)
     }
 
+    /**
+     * Read a lock file.
+     * @param file The file path.
+     * @returns Its content, or `undefined` when it does not exist or cannot be parsed (being written).
+     */
     protected async read(file: string): Promise<LockFile | undefined> {
         try {
             return JSON.parse(await readFile(file, 'utf8')) as LockFile
@@ -57,16 +96,19 @@ export class FileMutexDriver extends MutexDriver {
     }
 
     /**
-     * Whether a lock file is not held any more: expired, or its process of this host gone
-     * @param lock
+     * Whether a lock file is no longer held: expired, or written by another process of this host which no longer runs.
+     * @param lock The content of the lock file.
+     * @returns Whether it may be taken over.
      */
     protected stale(lock: LockFile): boolean {
         return lock.expires <= Date.now() || (lock.host === this.#host && lock.pid !== process.pid && !ProcessRuns(lock.pid))
     }
 
     /**
-     * Whether a lock file which cannot be read was abandoned (its process ended while writing it), not being written
-     * @param file
+     * Whether a lock file which cannot be read was abandoned (its process ended while writing it) rather than being
+     * written: unchanged for more than 5 seconds.
+     * @param file The file path.
+     * @returns Whether it may be taken over.
      */
     protected async abandoned(file: string): Promise<boolean> {
         try {
@@ -77,10 +119,11 @@ export class FileMutexDriver extends MutexDriver {
     }
 
     /**
-     * Take a lock file away when it still is the one read (renamed: only one taker has it); the one of another holder
-     * taken meanwhile given back
-     * @param file
-     * @param token
+     * Remove a lock file when it is still the one read, by renaming it first so that only one process takes it. A file
+     * of another holder taken by mistake is put back when its place is still free.
+     * @param file The file path.
+     * @param token The token read in the file, or `undefined` for a file which could not be read.
+     * @returns Whether the file was removed.
      */
     protected async take(file: string, token: string | undefined): Promise<boolean> {
         const taken: string = `${file}.${LockToken()}`
@@ -100,6 +143,14 @@ export class FileMutexDriver extends MutexDriver {
         return false
     }
 
+    /**
+     * Try to acquire a lock once: create its file exclusively, or take over a file expired, abandoned, or whose process
+     * of this host is gone.
+     * @param name The lock name.
+     * @param ttl How long the lock stays held without a renewal, in milliseconds.
+     * @returns The lock (without fencing token), or `undefined` when another holder has it.
+     * @throws {Error} When the directory cannot be created or the file written (permissions, disk full).
+     */
     public async acquire(name: string, ttl: number): Promise<DriverLock | undefined> {
         await mkdir(this.directory, {recursive: true})
         const file: string = this.file(name)
@@ -119,23 +170,62 @@ export class FileMutexDriver extends MutexDriver {
         return undefined
     }
 
+    /**
+     * Release a lock by removing its file, when the file still holds this holder's token.
+     * @param name The lock name.
+     * @param lock The lock acquired.
+     * @returns Whether it was released.
+     */
     public async release(name: string, lock: DriverLock): Promise<boolean> {
         const file: string = this.file(name)
         if ((await this.read(file))?.token !== lock.token) return false
         return await this.take(file, lock.token)
     }
 
+    /**
+     * Renew a lock whose file still holds this holder's token, for `ttl` milliseconds from now: the file is taken away
+     * (renamed), checked, rewritten and given back without replacing a lock another process acquired meanwhile (the
+     * renewal fails then). A lock expired is not renewed (lost), even when no other process took it over yet.
+     * @param name The lock name.
+     * @param lock The lock acquired.
+     * @param ttl How long the lock stays held without another renewal, in milliseconds.
+     * @returns Whether it was renewed.
+     */
     public async extend(name: string, lock: DriverLock, ttl: number): Promise<boolean> {
         const file: string = this.file(name)
         const current: LockFile | undefined = await this.read(file)
-        if (current?.token !== lock.token) return false
-        //Written aside, then renamed over it (the readers never read a part of it)
-        const next: string = `${file}.${LockToken()}`
-        await writeFile(next, JSON.stringify({...current, expires: Date.now() + ttl} satisfies LockFile))
-        await rename(next, file)
-        return true
+        //Expired: lost, even when nobody took it yet
+        if (current?.token !== lock.token || current.expires <= Date.now()) return false
+        //Taken away (renamed: only one taker has it) and checked, renewed, then given back without replacing a lock
+        //acquired meanwhile (linked: it fails when the file exists)
+        const taken: string = `${file}.${LockToken()}`
+        try {
+            await rename(file, taken)
+        } catch {
+            return false
+        }
+        const content: LockFile | undefined = await this.read(taken)
+        if (content?.token !== lock.token) {
+            //Another holder's lock, taken over meanwhile: given back
+            await link(taken, file).catch((): undefined => undefined)
+            await unlink(taken).catch((): undefined => undefined)
+            return false
+        }
+        await writeFile(taken, JSON.stringify({...content, expires: Date.now() + ttl} satisfies LockFile))
+        try {
+            await link(taken, file)
+            return true
+        } catch {
+            //Acquired by another process while it was taken away: lost
+            return false
+        } finally {
+            await unlink(taken).catch((): undefined => undefined)
+        }
     }
 
+    /**
+     * Do nothing: the driver keeps no file open; the lock files stay until they are released or taken over.
+     */
     public async close(): Promise<void> {
         //Nothing kept open
     }
