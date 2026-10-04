@@ -23,24 +23,25 @@ import {EndProcess, IsEnding} from '../foundation/EndProcess.js'
 
 //The handlers are method signatures, so a handler may declare the logger implementation it expects (such as Logger)
 /**
- * On application launched event handler
+ * The handler of `Application.onLaunched()`: called with the application and its logger once it has launched.
  */
 export type LaunchedHandler = { handler(app: Application, logger: ILogger): void | Promise<void> }['handler']
 /**
- * On application done event handler
+ * The handler of `Application.onDone()`: called with the application, its logger and the reason of its exit.
  */
 export type DoneHandler = { handler(app: Application, logger: ILogger, reason: ApplicationExitReason): void | Promise<void> }['handler']
 /**
- * On process uncaught exception event handler
+ * The handler of `Application.onUncaughtException()`: called with an uncaught error and the logger.
  */
 export type UncaughtExceptionHandler = { handler(error: Error, logger: ILogger): void | Promise<void> }['handler']
 /**
- * On application fatal exception event handler
+ * The handler of `Application.onFatalException()`: called with the error which stopped the launch and the logger;
+ * returns the exit code of the process (1 when it returns none).
  */
 export type FatalExceptionHandler = { handler(error: Error, logger: ILogger): number | undefined | void | Promise<number | undefined | void> }['handler']
 
 /**
- * Application states
+ * The events of the application's lifecycle.
  */
 export enum ApplicationState {
     Launched = 'LAUNCHED',
@@ -50,30 +51,75 @@ export enum ApplicationState {
 }
 
 /**
- * Application module
+ * The application: the root module, created and launched by the static fluent API. `Application.run()` gives its
+ * options (its identity and its components, providers, objects and bootstrap); the other static calls set its
+ * environment variables, path aliases and lifecycle handlers. The calls of one synchronous chain launch it once, in
+ * the next turn of the event loop:
+ * 1. the environment variables are set, the aliases registered (`@runtime` being the working directory);
+ * 2. the options are read (from the getter given to `run()`, which may be async) and validated, the identity applied
+ *    (`process.title` is the application ID, the time zone and the mode set);
+ * 3. the application is created in a new root container: its objects are registered and its bootstrap runs in order;
+ * 4. the `onLaunched()` handlers and the objects' `launched()` hooks run.
+ *
+ * A failure of steps 1 to 3 is a fatal exception: the `onFatalException()` handler runs (or the error is logged), then
+ * the process exits (code 1 by default). The application ends by `app.exit()` or a shutdown signal (`shutdownSignals`
+ * option): the `onDone()` handlers run, the objects are destroyed, then the process exits.
+ *
+ * The objects of the application are reached with `@Inject`, or with `app.getObject()`.
+ * @example
+ * ```typescript
+ * import {Application, Component} from 'lakutata'
+ *
+ * class Greeter extends Component {
+ *     public greet(name: string): string {
+ *         return `Hello, ${name}`
+ *     }
+ * }
+ *
+ * Application
+ *     .env({TZ_NAME: 'Asia/Shanghai'})
+ *     .alias({'@data': './data'}, true)
+ *     .run(() => ({
+ *         id: 'greeter.app',
+ *         name: 'Greeter',
+ *         components: {
+ *             greeter: {class: Greeter}
+ *         },
+ *         bootstrap: ['greeter']
+ *     }))
+ *     .onLaunched(async (app, logger): Promise<void> => {
+ *         const greeter: Greeter = await app.getObject<Greeter>('greeter')
+ *         logger.info(greeter.greet(app.appName))
+ *     })
+ *     .onDone((app, logger, reason): void => logger.info('Exiting with the code %d', reason.code))
+ *     .onFatalException((error, logger): number => {
+ *         logger.error(error)
+ *         return 2
+ *     })
+ * ```
  */
 export class Application extends Module {
 
     /**
-     * Event emitter
+     * The emitter of the lifecycle events, shared by the application class.
      * @protected
      */
     protected static readonly eventEmitter: SynchronousEventEmitter = new SynchronousEventEmitter()
 
     /**
-     * Application instance, if the application boot failed, the property will be undefined
+     * The application once launched; undefined before, or when its launch failed.
      * @protected
      */
     protected static readonly appInstance: Application | undefined
 
     /**
-     * Environment variables map
+     * The environment variables given by `env()`, set at launch.
      * @protected
      */
     protected static readonly environmentVariableMap: Map<string, string> = new Map()
 
     /**
-     * Alias declarations
+     * The path aliases given by `alias()`, registered at launch.
      * @protected
      */
     protected static readonly aliasDeclarations: {
@@ -82,20 +128,19 @@ export class Application extends Module {
     }[] = []
 
     /**
-     * Options or options getter function for application booting
+     * The options given to `run()`, or the function returning them.
      * @protected
      */
     protected static readonly launchOptions: ApplicationOptions | (() => ApplicationOptions | Promise<ApplicationOptions>)
 
     /**
-     * The timer for application booting.
-     * This property will be overwriting multiple times during static invoke-chain
+     * The timer of the launch, restarted by each call of the fluent API so that a chain launches once.
      * @protected
      */
     protected static launchTimeout: NodeJS.Timeout
 
     /**
-     * The options preset for the applications, see preset()
+     * The options preset for the applications, see `preset()`.
      * @protected
      */
     protected static readonly presetOptions: ModuleOptions = {}
@@ -107,11 +152,29 @@ export class Application extends Module {
     static #consoleLogger: Promise<ILogger> | undefined
 
     /**
-     * Preset the options of the applications, before they run: the preset objects are loaded first and the objects of
-     * the same name given to run() replace them, the preset bootstrap runs first. The packages assembling the framework
-     * preset their components (such as the Logger and the Entrypoint of lakutata). Each call adds to the preset: its
-     * components, providers and named objects replace the preset ones of the same name
-     * @param options
+     * Preset the options of the applications, before they run: the packages assembling the framework preset their
+     * components (the `lakutata` package presets its Logger as `log` and its Entrypoint as `entrypoint`). An object
+     * given to `run()` under a preset name replaces the preset one when it gives its class, or completes its options
+     * when it gives none (`log: {level: 'debug'}`); the preset bootstrap steps run first. Each call adds to the preset:
+     * its components, providers and named objects replace the preset ones of the same name, its anonymous objects and
+     * bootstrap steps are appended. Does not launch the application.
+     * @param options The objects and bootstrap steps to preset.
+     * @returns The application class, to chain the other calls.
+     * @example
+     * ```typescript
+     * import {Application, Component} from 'lakutata'
+     *
+     * class Metrics extends Component {
+     * }
+     *
+     * //Every application of this process gets the "metrics" component, started at launch
+     * Application.preset({
+     *     components: {
+     *         metrics: {class: Metrics}
+     *     },
+     *     bootstrap: ['metrics']
+     * })
+     * ```
      */
     public static preset(options: ModuleOptions): typeof Application {
         const preset: ModuleOptions = this.presetOptions
@@ -126,8 +189,9 @@ export class Application extends Module {
     }
 
     /**
-     * Get logger: the "log" component of the application, or the console when there is no application or no "log"
-     * component
+     * The logger: the application's `log` component, or a console logger when there is no application or no `log`
+     * component.
+     * @returns The logger.
      * @protected
      */
     protected static async getLogger(): Promise<ILogger> {
@@ -135,7 +199,8 @@ export class Application extends Module {
     }
 
     /**
-     * The console logger, created once
+     * The console logger ({@link ConsoleLogger}), created once.
+     * @returns The console logger.
      * @protected
      */
     protected static getConsoleLogger(): Promise<ILogger> {
@@ -144,8 +209,11 @@ export class Application extends Module {
     }
 
     /**
-     * Set environment variables
-     * @param env
+     * Set environment variables, written to `process.env` at launch, before the options getter given to `run()` is
+     * called (it may read them). Each call adds to the previous ones.
+     * @param env The variables, by name; the values are strings.
+     * @returns The application class, to chain the other calls.
+     * @throws {InvalidMethodAcceptException} When a value is not a string.
      */
     @Accept(DTO.Object().pattern(DTO.String(), DTO.String()).required())
     public static env(env: Record<string, string>): typeof Application {
@@ -154,9 +222,14 @@ export class Application extends Module {
     }
 
     /**
-     * Register path aliases
-     * @param alias
-     * @param createIfNotExist
+     * Register path aliases at launch: an alias (`@data`) in a path given to `path.resolve()` of Node.js or to
+     * `app.alias.resolve()` is replaced with its path. The alias `@runtime` (the working directory) is
+     * registered by the application. An invalid alias name (`@` followed by letters and digits only) or an alias
+     * registered twice fails the launch (a fatal exception). Each call adds to the previous ones.
+     * @param alias The paths, by alias name (`{'@data': '/var/lib/app'}`).
+     * @param createIfNotExist Create the directories of the aliases which do not exist; false by default.
+     * @returns The application class, to chain the other calls.
+     * @throws {InvalidMethodAcceptException} When a path is not a string.
      */
     @Accept(
         DTO.Object().pattern(DTO.String(), DTO.String()).required(),
@@ -170,8 +243,10 @@ export class Application extends Module {
     }
 
     /**
-     * Application has been launched
-     * @param handler
+     * Add a handler called once the application has launched (its bootstrap completed). An async handler is not
+     * awaited; its rejection is an unhandled rejection.
+     * @param handler The function called with the application and its logger.
+     * @returns The application class, to chain the other calls.
      */
     public static onLaunched(handler: LaunchedHandler): typeof Application {
         this.eventEmitter.once(ApplicationState.Launched, async (app: Application) => handler(app, await app.getLogger()))
@@ -179,9 +254,12 @@ export class Application extends Module {
     }
 
     /**
-     * The application exits: its handler runs before the entrypoints stop and the objects are destroyed, the application
-     * still working; it is given why the application exits (its exit code, the signal ending it)
-     * @param handler
+     * Add a handler called when the application exits (`app.exit()`, a shutdown signal): it runs, awaited, before the
+     * entrypoints stop and the objects are destroyed, the application still working. A handler failing makes the
+     * process exit with the code 1.
+     * @param handler The function called with the application, its logger and why it exits (its exit code, the
+     * signal ending it).
+     * @returns The application class, to chain the other calls.
      */
     public static onDone(handler: DoneHandler): typeof Application {
         this.eventEmitter.once(ApplicationState.Done, async (app: Application, reason: ApplicationExitReason) => handler(app, await app.getLogger(), reason))
@@ -189,8 +267,10 @@ export class Application extends Module {
     }
 
     /**
-     * Uncaught exception occurred during application execution
-     * @param handler
+     * Add a handler of the process' uncaught exceptions (`process.on('uncaughtException')`), the application keeping
+     * running. Without handler, the exception is logged as a warning. Every handler added is called.
+     * @param handler The function called with the error and the logger.
+     * @returns The application class, to chain the other calls.
      */
     public static onUncaughtException(handler: UncaughtExceptionHandler): typeof Application {
         this.eventEmitter.on(ApplicationState.UncaughtException, async (error: Error) => {
@@ -201,8 +281,12 @@ export class Application extends Module {
     }
 
     /**
-     * Fatal exception occurred during application execution
-     * @param handler
+     * Set the handler of a fatal exception: an error stopping the launch (invalid options or aliases, an object failing
+     * to initialize, a bootstrap step failing). The process exits after it, with the code it returns (1 when it returns
+     * none). Without handler, the error is logged and the process exits with the code 1. Only the first handler added
+     * is called.
+     * @param handler The function called with the error and the logger, returning the exit code.
+     * @returns The application class, to chain the other calls.
      */
     public static onFatalException(handler: FatalExceptionHandler): typeof Application {
         this.eventEmitter.once(ApplicationState.FatalException, async (error: Error) => {
@@ -215,13 +299,18 @@ export class Application extends Module {
     }
 
     /**
-     * Run application with options object
-     * @param options
+     * Give the application options and launch it (in the next turn of the event loop, once the chain of calls is
+     * complete). The options are validated at launch: invalid options are a fatal exception.
+     * @param options The application's identity (`id`, `name`), its objects and its bootstrap.
+     * @returns The application class, to chain the other calls.
      */
     public static run(options: ApplicationOptions): typeof Application
     /**
-     * Run application with options getter
-     * @param optionsGetter
+     * Give the function returning the application options, called at launch once the environment variables and the
+     * aliases are set, and launch the application (in the next turn of the event loop). A getter failing, or invalid
+     * options, are a fatal exception.
+     * @param optionsGetter The function returning the options, or their promise.
+     * @returns The application class, to chain the other calls.
      */
     public static run(optionsGetter: () => ApplicationOptions | Promise<ApplicationOptions>): typeof Application
     public static run(inp: ApplicationOptions | (() => ApplicationOptions | Promise<ApplicationOptions>)): typeof Application {
@@ -230,7 +319,8 @@ export class Application extends Module {
     }
 
     /**
-     * Launch application after invoke chain processed
+     * Schedule the launch for the next turn of the event loop, replacing the launch already scheduled.
+     * @returns The application class.
      * @protected
      */
     protected static launch(): typeof Application {
@@ -245,9 +335,10 @@ export class Application extends Module {
     }
 
     /**
-     * Process uncaught exception: the handlers of onUncaughtException(), or the logger (the console when the logger
-     * cannot be got)
-     * @param error
+     * Handle an uncaught exception: the handlers of `onUncaughtException()`, else a warning of the logger (the console
+     * when the logger cannot be got).
+     * @param error The uncaught error.
+     * @returns Resolves once handled.
      * @protected
      */
     protected static async processUncaughtException(error: Error): Promise<void> {
@@ -265,10 +356,11 @@ export class Application extends Module {
     }
 
     /**
-     * Process fatal exception: the handler of onFatalException(), or the logger (the console when the logger cannot be
-     * got), then the application exits with the code 1 (as Node.js on an uncaught exception): it cannot run, and the
-     * objects already created (a server listening, a connection) would keep the process alive
-     * @param error
+     * Handle a fatal exception: the handler of `onFatalException()`, else an error of the logger (the console when the
+     * logger cannot be got), then the process exits (with the code 1 by default, as Node.js on an uncaught exception):
+     * the application cannot run, and the objects already created (a server listening, a connection) would keep the
+     * process alive. Ignored once the process is ending.
+     * @param error The error.
      * @protected
      */
     protected static processFatalException(error: Error): void {
@@ -290,10 +382,10 @@ export class Application extends Module {
     }
 
     /**
-     * End the application gracefully on the signals: its exit (the requests running complete, the objects destroyed, the
-     * done handler, the code 0); a second signal, or a signal received while it launches, ends the process at once with
-     * the code 128 + the number of the signal
-     * @param signals
+     * End the application gracefully on the signals: its exit (the done handlers, the requests running complete, the
+     * objects destroyed, the code 0); a second signal, or a signal received while it launches, ends the process at
+     * once with the code 128 + the signal number.
+     * @param signals The signals to listen to.
      * @protected
      */
     protected static listenShutdownSignals(signals: NodeJS.Signals[]): void {
@@ -310,7 +402,9 @@ export class Application extends Module {
     }
 
     /**
-     * Internal launch application process
+     * Launch the application: environment variables, aliases, options (or the database migration command given by the
+     * `MIGRATION_*` environment variables), then the application created in a new root container.
+     * @returns The application, once its bootstrap has completed.
      * @protected
      */
     protected static async launchApplication(): Promise<Application> {
@@ -448,19 +542,21 @@ export class Application extends Module {
     }
 
     /**
-     * Override config loader
+     * The class reading the application options, which also applies its identity (ID, name, time zone, mode).
      * @protected
      */
     protected ConfigLoader = ApplicationConfigLoader
 
     /**
-     * Application embed options
+     * The application's own declarations: a copy of the preset options (see `preset()`), the options given to `run()`
+     * being merged over them.
      * @protected
      */
     protected options: Partial<ApplicationOptions> = Application.copyPresetOptions()
 
     /**
-     * A copy of the preset options, for an application
+     * A copy of the preset options, for an application.
+     * @returns The copy.
      * @protected
      */
     protected static copyPresetOptions(): ModuleOptions {
@@ -474,7 +570,8 @@ export class Application extends Module {
     }
 
     /**
-     * The logger of the application: its "log" component, or the console when it has none
+     * The logger of the application: its `log` component, or a console logger when it has none.
+     * @returns The logger.
      * @protected
      */
     protected async getLogger(): Promise<ILogger> {
@@ -482,62 +579,67 @@ export class Application extends Module {
     }
 
     /**
-     * Alias manager
+     * The path alias manager, shared by the process: `resolve()` replaces the aliases in a path, `get()`, `set()`,
+     * `has()` and `list()` manage them.
      */
     public get alias(): Alias {
         return Alias.getAliasInstance()
     }
 
     /**
-     * The ID of the application, available before the application is created ("Unknown" until its options are loaded)
+     * The ID of the application (its `id` option), readable before the application is created; "Unknown" until its
+     * options are loaded.
      */
     public static get appId(): string {
         return GetAppId()
     }
 
     /**
-     * The name of the application, available before the application is created ("Unknown" until its options are loaded)
+     * The name of the application (its `name` option), readable before the application is created; "Unknown" until
+     * its options are loaded.
      */
     public static get appName(): string {
         return GetAppName()
     }
 
     /**
-     * Get application's ID
+     * The ID of the application (its `id` option).
      */
     public get appId(): string {
         return GetAppId()
     }
 
     /**
-     * Get application's name
+     * The name of the application (its `name` option).
      */
     public get appName(): string {
         return GetAppName()
     }
 
     /**
-     * Get application's timezone
+     * The time zone of the application: its `timezone` option, or the system's (`auto`); the `TZ` environment
+     * variable.
      */
     public get timezone(): string {
         return GetBasicInfo().timezone
     }
 
     /**
-     * Get application's uptime
+     * The time the process has been running, in seconds (rounded down).
      */
     public get uptime(): number {
         return Math.floor(process.uptime())
     }
 
     /**
-     * Exit application
-     * @param exitCode
+     * Exit the application gracefully: the `onDone()` handlers run, the entrypoints stop (the requests running
+     * complete), the objects are destroyed, then the process exits with the code. Returns at once.
+     * @param exitCode The exit code of the process (0 for success).
      */
     public exit(exitCode: number): void
     /**
-     * Exit application
-     * @param force
+     * Exit the process at once with the code 2, without the done handlers nor the teardown of the objects.
+     * @param force true.
      */
     public exit(force: true): void
     public exit(forceOrExitCode?: boolean | number): void {

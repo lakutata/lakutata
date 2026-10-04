@@ -52,7 +52,42 @@ const OSP: symbol = Symbol('OBJECT.SYMBOL.PROPERTY')
 type ObjectState = 'constructing' | 'ready' | 'destroying' | 'destroyed'
 
 /**
- * Lakutata object base class
+ * The base class of every object managed by the container (the {@link Provider}, {@link Component}, {@link Module} and
+ * {@link Application} classes extend it). Extend it for a plain object; its lifetime is `@Transient`: a new instance
+ * each time it is requested.
+ *
+ * An object is never created with `new`: the container creates it (`getObject()`, `buildObject()`, the module options),
+ * asynchronously: its `@Inject` properties are resolved, its `@Configurable` properties get their configured values
+ * (validated and transformed by their schemas; a property not configured keeps its initializer, else the default of
+ * its schema), then its `init()` runs. Once its application has launched, its `launched()` runs. At its teardown
+ * (`dispose()`, or the teardown of the object, scope or application which created it) its `beforeDestroy()` runs, then
+ * the objects it created are destroyed, then its `destroy()` runs. Each object owns a container: the objects it
+ * creates are destroyed with it.
+ * @example
+ * ```typescript
+ * import {BaseObject, Container, DTO} from 'lakutata'
+ * import {Configurable} from 'lakutata/decorator/di'
+ *
+ * class Counter extends BaseObject {
+ *     @Configurable(DTO.Number().integer().min(0))
+ *     protected readonly start: number = 0
+ *
+ *     #value: number = 0
+ *
+ *     protected async init(): Promise<void> {
+ *         this.#value = this.start
+ *     }
+ *
+ *     public increment(): number {
+ *         return ++this.#value
+ *     }
+ * }
+ *
+ * const container: Container = new Container()
+ * const counter: Counter = await container.build(Counter, {start: 10})
+ * console.log(counter.increment()) //11
+ * await counter.dispose()
+ * ```
  */
 @Transient()
 @DefineObjectType(ObjectType.Object)
@@ -151,8 +186,9 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
-     * Constructor
-     * @param cradleProxy
+     * Called by the container only: an object is created through a container (see the class description), never with
+     * `new`.
+     * @param cradleProxy The container's resolution proxy.
      */
     constructor(cradleProxy: Record<string | symbol, any>) {
         super(async (): Promise<void> => {
@@ -181,18 +217,19 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
-     * Return class's name
+     * The name of the class.
      */
     public static get className(): string {
         return this.name
     }
 
     /**
-     * Whether the class accepts an option which is not one of its configurable properties (read by
-     * getConfigurableRecords()): the modules check the options of the objects they declare and warn of the options
-     * the classes do not accept. Override it in the classes which read options without configurable properties
-     * @param name
-     * @param value
+     * Whether the class accepts an option which is not one of its `@Configurable` properties (an option it reads with
+     * `getConfigurableRecords()`): the modules check the options of the objects they declare and warn of the options
+     * the classes do not accept. Override it in the classes reading options without configurable properties.
+     * @param name The option name.
+     * @param value The option value.
+     * @returns true when the option is accepted; false by default.
      */
     public static acceptsOption(name: string, value: unknown): boolean {
         DevNull(name, value)
@@ -200,15 +237,18 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
-     * Get instance's class name
+     * The name of the object's class.
      */
     public get className(): string {
         return ObjectConstructor(this).name
     }
 
     /**
-     * Internal initializer
-     * @param hooks
+     * The framework's initializer: injects the dependencies, applies the configured values, runs the hooks, then
+     * `init()`. Override `init()` instead.
+     * @param hooks The steps the framework's subclasses run before `init()`.
+     * @returns Resolves once the object is ready.
+     * @throws {ObjectDestroyedException} When the object has been destroyed (before or during its initialization).
      * @protected
      */
     protected async [__init](...hooks: (() => Promise<void>)[]): Promise<void> {
@@ -254,8 +294,9 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
-     * Make a destroyed object ready to be initialized again (reload)
-     * @description Fails when the parent has been destroyed (or is being destroyed). Injected dependencies were destroyed with the object, so they are injected again
+     * Make a destroyed object ready to be initialized again (its reload); its dependencies, destroyed with it, are
+     * injected again. Does nothing when the object is not destroyed.
+     * @throws {ObjectDestroyedException} When the parent's container has been destroyed (or is being destroyed).
      * @protected
      */
     protected [__revive](): void {
@@ -268,8 +309,12 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
-     * Internal destroyer
-     * @param hooks
+     * The framework's destroyer: `beforeDestroy()`, the objects created by this object, the hooks, then `destroy()`;
+     * runs once whatever starts it. Override `beforeDestroy()` and `destroy()` instead.
+     * @param hooks The steps the framework's subclasses run before `destroy()`.
+     * @returns Resolves once the object is destroyed.
+     * @throws {Error} The error of `beforeDestroy()`, a hook or `destroy()` (an `AggregateError` when several fail), to
+     * the first caller only.
      * @protected
      */
     protected async [__destroy](...hooks: (() => Promise<void>)[]): Promise<void> {
@@ -314,7 +359,9 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
-     * Initializer
+     * Initialize the object, once its dependencies are injected and its configured values applied; override it. The
+     * object is returned to its requester once it completes; an error thrown here fails the object's creation.
+     * @returns Resolves once initialized.
      * @protected
      */
     protected async init(): Promise<void> {
@@ -322,27 +369,31 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
-     * Called once the application the object belongs to has launched (its objects are created and its bootstrap ran),
-     * as the mounted hook of a Vue component: the object starts the work which needs the whole application. An object
-     * created once the application has launched, or without application (in a bare container), is called right after
-     * its initialization; an object destroyed before is not called, a reloaded object is called again. Its errors are
-     * reported (through the logger of the application), they do not stop the application
+     * Called once the object's application has launched (its objects are created and its bootstrap ran), as the
+     * mounted hook of a Vue component: the object starts the work which needs the whole application; override it. An
+     * object created once the application has launched, or without application (in a bare container), is called right
+     * after its initialization; an object destroyed before is not called, a reloaded object is called again. Its errors
+     * are reported through the application's logger, they do not stop the application.
+     * @returns Resolves once the work is started; not awaited by the application.
      * @protected
      */
     protected async launched(): Promise<void> {
     }
 
     /**
-     * Called when the teardown of the object starts, before the objects it created are destroyed (as the parent first
+     * Called when the object's teardown starts, before the objects it created are destroyed (as the parent-first
      * beforeDestroy of a Vue component): the object stops its work, such as receiving requests, while the objects it
-     * uses are still alive. Called once per teardown, whatever starts it
+     * uses are still alive; override it. Called once per teardown, whatever starts it.
+     * @returns Resolves once the work is stopped.
      * @protected
      */
     protected async beforeDestroy(): Promise<void> {
     }
 
     /**
-     * Destroyer, called once the objects created by the object are destroyed
+     * Release the object's resources (connections, timers…), called once the objects it created are destroyed;
+     * override it. Its error is thrown to the caller of `dispose()`, or reported when a parent's teardown destroys it.
+     * @returns Resolves once released.
      * @protected
      */
     protected async destroy(): Promise<void> {
@@ -350,34 +401,68 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
-     * Get registered object via constructor
-     * @param constructor
-     * @param configurableRecords
+     * Get an object registered by its class, from this object's container or its parents (the module's registrations,
+     * the application's), as {@link Container.get}. The objects it creates are destroyed with this object.
+     * @param constructor The class the object was registered with (or an `@Autoload` class).
+     * @param configurableRecords The options of the object (the values of its `@Configurable` properties and the options
+     * it reads), merged over the ones it was registered with. Ignored, with a warning outside production, when the
+     * cached singleton or scoped instance already exists; a scoped object requested with options is a new instance
+     * owned by this object.
+     * @returns The object, once created and initialized.
+     * @throws {ObjectDestroyedException} When this object has been destroyed.
+     * @throws {Error} When nothing is registered under it, or the object fails to be created.
+     * @protected
      */
     protected async getObject<T extends BaseObject>(constructor: IBaseObjectConstructor<T>, configurableRecords?: Record<string, any>): Promise<T>
     /**
-     * Get registered object via string
-     * @param name
-     * @param configurableRecords
+     * Get an object registered under a name (its key in the module options), as {@link BaseObject.getObject} by class.
+     * @param name The registration name.
+     * @param configurableRecords The options of the object (the values of its `@Configurable` properties and the options
+     * it reads), merged over the ones it was registered with. Ignored, with a warning outside production, when the
+     * cached singleton or scoped instance already exists; a scoped object requested with options is a new instance
+     * owned by this object.
+     * @returns The object, once created and initialized.
+     * @throws {ObjectDestroyedException} When this object has been destroyed.
+     * @throws {Error} When nothing is registered under it, or the object fails to be created.
+     * @protected
      */
     protected async getObject<T extends BaseObject>(name: string, configurableRecords?: Record<string, any>): Promise<T>
     /**
-     * Get registered object via symbol
-     * @param name
-     * @param configurableRecords
+     * Get an object registered under a symbol, as {@link BaseObject.getObject} by class.
+     * @param name The registration symbol.
+     * @param configurableRecords The options of the object (the values of its `@Configurable` properties and the options
+     * it reads), merged over the ones it was registered with. Ignored, with a warning outside production, when the
+     * cached singleton or scoped instance already exists; a scoped object requested with options is a new instance
+     * owned by this object.
+     * @returns The object, once created and initialized.
+     * @throws {ObjectDestroyedException} When this object has been destroyed.
+     * @throws {Error} When nothing is registered under it, or the object fails to be created.
+     * @protected
      */
     protected async getObject<T extends BaseObject>(name: symbol, configurableRecords?: Record<string, any>): Promise<T>
     /**
-     * Get registered object via string or symbol
-     * @param name
-     * @param configurableRecords
+     * Get an object registered under a name or a symbol, as {@link BaseObject.getObject} by class.
+     * @param name The registration name or symbol.
+     * @param configurableRecords The options of the object (the values of its `@Configurable` properties and the options
+     * it reads), merged over the ones it was registered with. Ignored, with a warning outside production, when the
+     * cached singleton or scoped instance already exists; a scoped object requested with options is a new instance
+     * owned by this object.
+     * @returns The object, once created and initialized.
+     * @throws {ObjectDestroyedException} When this object has been destroyed.
+     * @throws {Error} When nothing is registered under it, or the object fails to be created.
      * @protected
      */
     protected async getObject<T extends BaseObject>(name: string | symbol, configurableRecords?: Record<string, any>): Promise<T>
     /**
-     * Get registered object via string or symbol or constructor
-     * @param nameOrConstructor
-     * @param configurableRecords
+     * Get an object registered under a name, a symbol or by its class, as {@link BaseObject.getObject} by class.
+     * @param nameOrConstructor The registration name, symbol or class.
+     * @param configurableRecords The options of the object (the values of its `@Configurable` properties and the options
+     * it reads), merged over the ones it was registered with. Ignored, with a warning outside production, when the
+     * cached singleton or scoped instance already exists; a scoped object requested with options is a new instance
+     * owned by this object.
+     * @returns The object, once created and initialized.
+     * @throws {ObjectDestroyedException} When this object has been destroyed.
+     * @throws {Error} When nothing is registered under it, or the object fails to be created.
      * @protected
      */
     protected async getObject<T extends BaseObject>(nameOrConstructor: string | symbol | IBaseObjectConstructor<T>, configurableRecords?: Record<string, any>): Promise<T>
@@ -387,9 +472,13 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
-     * Instantiate an instance of a base object class by injecting dependencies, but without registering it in the container
-     * @param constructor
-     * @param configurableRecords
+     * Create a new object of a class without registering it, whatever its lifetime, as {@link Container.build}; it is
+     * destroyed with this object (unless disposed before).
+     * @param constructor The class, registered or not.
+     * @param configurableRecords The options of the object.
+     * @returns The new object, once created and initialized.
+     * @throws {ObjectDestroyedException} When this object has been destroyed.
+     * @throws {Error} When the object fails to be created.
      * @protected
      */
     protected async buildObject<T extends BaseObject>(constructor: IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
@@ -399,7 +488,8 @@ export class BaseObject extends AsyncConstructor {
 
     /**
      * The options the object was created with, as they were given: the values of its configurable properties before
-     * their validation, and the options which are not configurable properties
+     * their validation, and the options which are not configurable properties.
+     * @returns A copy of the options.
      * @protected
      */
     protected getConfigurableRecords(): Record<string, any> {
@@ -407,7 +497,8 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
-     * Get current object's parent
+     * The object which created this object (the module or component whose container created it).
+     * @returns The parent, or undefined for an object created by a container without owner (the root container).
      * @protected
      */
     protected getParent(): BaseObject | undefined {
@@ -415,7 +506,8 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
-     * Get current object's parent module
+     * The nearest module among the object's parents (its module, or the application).
+     * @returns The module; undefined (despite the type) for an object created outside any module.
      * @protected
      */
     protected getModule(): Module {
@@ -427,21 +519,22 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
-     * Unique object uuid
+     * A random UUID identifying the instance.
      */
     public get $uuid(): string {
         return this.#uniqueId
     }
 
     /**
-     * Object instance id which defined in runtime
+     * The name the object was registered under (its key in the module options), or a symbol of its class for an object
+     * registered by its class or built without registration.
      */
     public get $id(): string | symbol {
         return this.#objectId
     }
 
     /**
-     * Object instance symbol
+     * A symbol unique to the instance (made from its `$uuid`), created on first read.
      */
     public get $symbol(): symbol {
         if (Reflect.hasOwnMetadata(OSP, this)) return Reflect.getOwnMetadata(OSP, this)
@@ -450,18 +543,19 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
-     * Set object property
-     * @param propertyKey
-     * @param value
+     * Set a property of the object; the value is not validated, even for a `@Configurable` property.
+     * @param propertyKey The property name.
+     * @param value The value.
      */
     public setProperty(propertyKey: string, value: any): void {
         this[propertyKey] = value
     }
 
     /**
-     * Get object's property value
-     * @param propertyKey
-     * @param defaultValue
+     * Read an own property of the object.
+     * @param propertyKey The property name.
+     * @param defaultValue The value returned when the object has no own property of this name.
+     * @returns The property value, or the default value.
      */
     public getProperty<T = any>(propertyKey: string, defaultValue?: T): T {
         if (this.hasProperty(propertyKey)) return As<T>(this[propertyKey])
@@ -469,30 +563,34 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
-     * Is object has property
-     * @param propertyKey
+     * Whether the object has an own property (not a method or accessor of its class) of this name or symbol.
+     * @param propertyKey The property name or symbol.
+     * @returns true when the property exists.
      */
     public hasProperty(propertyKey: string | symbol): boolean {
         return typeof propertyKey === 'string' ? this.propertyNames().includes(propertyKey) : this.propertySymbols().includes(propertyKey)
     }
 
     /**
-     * Get own property symbols
+     * The symbols of the object's own properties.
+     * @returns The symbols.
      */
     public propertySymbols(): symbol[] {
         return Object.getOwnPropertySymbols(this)
     }
 
     /**
-     * Get own property names
+     * The names of the object's own properties (not its class's methods and accessors).
+     * @returns The names.
      */
     public propertyNames(): string[] {
         return Object.getOwnPropertyNames(this)
     }
 
     /**
-     * Is object has method
-     * @param name
+     * Whether the object has a method of this name or symbol (a function of its class, not an own property).
+     * @param name The method name or symbol.
+     * @returns true when the method exists.
      */
     public hasMethod(name: string | symbol): boolean {
         const propertyExists: boolean = this.hasProperty(name)
@@ -501,9 +599,12 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
-     * Get method from object
-     * @param name
-     * @param throwExceptionIfNotFound
+     * Get a method bound to the object, to call it by name.
+     * @param name The method name or symbol.
+     * @param throwExceptionIfNotFound Throw when the method does not exist, instead of returning a function doing
+     * nothing; false by default.
+     * @returns The bound method, or a function doing nothing (returning undefined) when it does not exist.
+     * @throws {MethodNotFoundException} When the method does not exist and `throwExceptionIfNotFound` is true.
      */
     public getMethod(name: string | symbol, throwExceptionIfNotFound: boolean = false): (...args: any[]) => any | Promise<any> {
         if (this.hasMethod(name)) {
@@ -519,10 +620,13 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
-     * Dispose current object
-     * @description Destroy the objects created by current object, then current object itself.
-     * Calling it more than once destroys only once. Errors thrown by current object's destroyer are rethrown,
-     * errors of the objects it created are reported instead.
+     * Destroy the object: its `beforeDestroy()`, the objects it created, then its `destroy()`. Calling it more than once
+     * destroys once. A disposed singleton or scoped object is dropped from its container, which creates a new one on
+     * the next request. Using a destroyed object (`getObject()`, `buildObject()`) throws an
+     * {@link ObjectDestroyedException}.
+     * @returns Resolves once the object is destroyed.
+     * @throws {Error} The error of the object's own `beforeDestroy()` or `destroy()` (an `AggregateError` when several
+     * fail); the errors of the objects it created are reported through the application's logger instead.
      */
     public async dispose(): Promise<void> {
         try {
@@ -535,7 +639,8 @@ export class BaseObject extends AsyncConstructor {
     }
 
     /**
-     * Support explicit resource management: `await using object = ...`
+     * Dispose the object at the end of an `await using` block, as {@link BaseObject.dispose}.
+     * @returns Resolves once the object is destroyed.
      */
     public async [Symbol.asyncDispose](): Promise<void> {
         await this.dispose()

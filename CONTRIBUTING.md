@@ -29,8 +29,10 @@ of the API needs to know beyond its summary (its concurrency, its cost, its plat
 
 An `@example` is a complete TypeScript module, fenced as `typescript`: it imports what it uses from the published
 subpaths (`lakutata`, `lakutata/com/mutex`, `@lakutata/grpc`…, never `src/`), and declares with `declare` what it does not
-build itself (`declare const app: Application`). The examples are compiled against the built typings by
-`npm run test:api-docs`: an example which does not compile any more fails it.
+build itself (`declare const app: Application`). The examples are compiled as ES modules (top-level `await` allowed)
+against the built typings, with the compiler options of the applications (the `tsconfig.json` published by `lakutata`),
+by `npm run test:api-docs`: an example which does not compile any more fails it. A decorator may start a line of an
+example: the check reads the lines of a code fence as code, not as tags.
 
 ```typescript
 /**
@@ -78,13 +80,17 @@ Each library package has a `README.md` with these sections (the check requires t
 5. `## Errors`: its exceptions and when they are thrown.
 6. `## See also`: its guide in `doc/en` / `doc/zh` and its related packages.
 
+Each ```` ```typescript ```` block of a README is compiled as an example, a module of its own: a fragment (a part of
+the options of an application) is fenced as `text` or completed into a module.
+
 ### The check
 
 `npm run test:api-docs` builds the packages, then:
 
 - reports each public declaration missing its description, an `@param` of one of its parameters, or the `@example` of a
   class or a function (the exceptions need none), and each library package missing its README or one of its sections;
-- compiles the `@example` of every public declaration against the built typings.
+- compiles the `@example` of every public declaration and the TypeScript blocks of the READMEs against the built
+  typings.
 
 The declarations not documented yet are listed in `scripts/api-docs/baseline.json`: the check fails on a new one, and
 on one documented since (its entry removed with `node scripts/api-docs/check.mjs --update`). The baseline only shrinks.

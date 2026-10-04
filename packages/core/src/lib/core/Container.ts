@@ -50,6 +50,53 @@ export function RegisterTeardownHook(container: Container, hook: () => Promise<v
     return (): void => void hooks!.delete(hook)
 }
 
+/**
+ * The dependency injection container: it registers the classes of the objects (components, providers, modules, any
+ * {@link BaseObject}), creates them on demand with their lifetime and destroys them with itself.
+ *
+ * An object is created asynchronously: its `@Inject` properties are resolved from the container, its `@Configurable`
+ * properties get their configured values (validated and transformed by their schemas), then its `init()` runs; the
+ * promise of `get()`, `set()` or `build()` settles once `init()` has completed. The lifetime of the class decides
+ * which instance is returned:
+ * - `@Singleton` (components, modules): one instance, held by the container which registered the class.
+ * - `@Scoped` (providers): one instance per scope (see {@link Container.createScope}), such as per request.
+ * - `@Transient` ({@link BaseObject}): a new instance on each request.
+ *
+ * The applications rarely create a container: the {@link Application} owns the root one, each object owns a child
+ * container tracking the objects it creates (destroyed with it), and the modules and components reach theirs through
+ * their protected `container` property. A container created with `new Container()` is a root container, to use the
+ * objects without an application (tests, scripts).
+ * @example
+ * ```typescript
+ * import {Component, Container, DTO, Provider} from 'lakutata'
+ * import {Configurable, Inject} from 'lakutata/decorator/di'
+ *
+ * class Greeter extends Provider {
+ *     //'Hello' unless configured
+ *     @Configurable(DTO.String())
+ *     protected readonly greeting: string = 'Hello'
+ *
+ *     public greet(name: string): string {
+ *         return `${this.greeting}, ${name}`
+ *     }
+ * }
+ *
+ * class Reception extends Component {
+ *     @Inject('greeter')
+ *     protected readonly greeter!: Greeter
+ *
+ *     public welcome(name: string): string {
+ *         return this.greeter.greet(name)
+ *     }
+ * }
+ *
+ * const container: Container = new Container()
+ * await container.registerNamed('greeter', Greeter, {greeting: 'Welcome'})
+ * const reception: Reception = await container.set(Reception)
+ * console.log(reception.welcome('Ada')) //Welcome, Ada
+ * await container.destroy()
+ * ```
+ */
 export class Container {
 
     readonly #dic: IDependencyInjectionContainer
@@ -85,8 +132,18 @@ export class Container {
      */
     #isScope: boolean
 
+    /**
+     * The container this one was created from (the one of the object which created the owner, or the one a scope was
+     * created from); undefined for a root container.
+     */
     public readonly parent?: Container
 
+    /**
+     * Create a container. Without parent, a root container; with a parent, a container whose registrations fall back
+     * to the parent's, destroyed together with it.
+     * @param parent The parent container, none for a root container.
+     * @param owner The object owning the container (the framework gives each object its own container).
+     */
     constructor(parent?: Container, owner?: BaseObject) {
         this.parent = parent
         this.#isScope = !parent
@@ -164,8 +221,10 @@ export class Container {
     }
 
     /**
-     * Destroy objects inside container
-     * @param instance
+     * Destroy an object of the container during its teardown: its `beforeDestroy()`, the objects it created, then its
+     * `destroy()`. Never throws: the errors are reported through the application's logger.
+     * @param instance The object to destroy.
+     * @returns Resolves once the object is destroyed.
      * @protected
      */
     protected async disposer<T extends BaseObject>(instance: T): Promise<void> {
@@ -178,8 +237,10 @@ export class Container {
     }
 
     /**
-     * Get build resolver options by class constructor
-     * @param target
+     * The options of the resolver of a class: the lifetime declared by its decorators (`@Singleton`, `@Scoped`,
+     * `@Transient`) and its disposer ({@link Container.disposer}).
+     * @param target The class to register or build.
+     * @returns The resolver options.
      * @protected
      */
     protected buildResolverOptions<T extends BaseObject>(target: IBaseObjectConstructor<T>): BuildResolverOptions<T> {
@@ -191,10 +252,13 @@ export class Container {
     }
 
     /**
-     * Process resolved
-     * @param resolved
-     * @param registrationName
-     * @param configurableRecords
+     * Give an object just created by the container its registration name and its options: the options it was
+     * registered with, overridden by the ones requested. An object already created (a cached singleton or scoped
+     * instance) is returned as it is, the options requested being ignored with a warning outside production.
+     * @param resolved The object, or the promise of its asynchronous construction.
+     * @param registrationName The name (or class symbol) the object was requested by.
+     * @param configurableRecords The options requested for the object.
+     * @returns The object, once constructed.
      * @protected
      */
     protected async processResolved<T extends BaseObject>(resolved: T | Promise<T>, registrationName: string | symbol, configurableRecords: Record<string, any> = {}): Promise<T> {
@@ -215,8 +279,10 @@ export class Container {
     }
 
     /**
-     * Build name and registration pair from container load options
-     * @param options
+     * Build the registration of an object declaration: its name is its id (the name it is declared under) or, without
+     * id, a symbol of its class; its other options are kept as the options it is created with.
+     * @param options The object declaration.
+     * @returns The registration, keyed by its name.
      * @protected
      */
     protected buildNameAndRegistrationPairFromOptions<T extends BaseObject>(options: LoadObjectOptions): NameAndRegistrationPair<T> {
@@ -231,8 +297,12 @@ export class Container {
     }
 
     /**
-     * Build name and registration pair from glob
-     * @param glob
+     * Build the registrations of the classes found by a glob pattern: each file matched is imported, and registered
+     * under the symbol of its class when its first export is a {@link BaseObject} subclass; a file whose first export is
+     * not, or which fails to import, registers nothing.
+     * @param glob The glob pattern of the files to import, relative to the working directory (the aliases are not
+     * replaced in it).
+     * @returns The registrations, keyed by their class symbols.
      * @protected
      */
     protected async buildNameAndRegistrationPairFromGlob<T extends typeof BaseObject>(glob: string): Promise<NameAndRegistrationPair<T>> {
@@ -263,18 +333,30 @@ export class Container {
     }
 
     /**
-     * Get current container owner
+     * The object owning the container (the one whose container it is, or the owner of the container a scope was
+     * created from).
+     * @returns The owner, or undefined for a container without owner or whose owner was garbage collected.
      */
     public owner<Owner extends BaseObject = BaseObject>(): Owner | undefined {
         const owner: WeakRef<Owner> | undefined = this.#dic.resolve(ownerSymbol, {allowUnregistered: true})
         return owner ? owner.deref() : undefined
     }
 
+    /**
+     * The names registered by this container itself (not by its parents); a singleton is resolved by the container
+     * which registered it, a scoped object by the nearest scope.
+     * @protected
+     */
     protected injectionNames: Set<string | symbol> = new Set()
 
     /**
-     * Load objects
-     * @param options
+     * Register objects in the container, without creating them: a class is registered under the symbol of its class
+     * (got by its class), a declaration with an id under its id (got by its name) with its options, a glob pattern
+     * registers the classes of the files it matches. A name registered again replaces the previous registration.
+     * @param options The classes, declarations (`{class, ...options}`) and glob patterns to register.
+     * @returns Resolves once registered (the glob patterns imported).
+     * @throws {InvalidMethodAcceptException} When an item is neither a class, a declaration nor a glob pattern.
+     * @throws {ObjectDestroyedException} When the container has been destroyed.
      */
     @Accept(DTO.Array(DTO.Alternatives(LoadObjectOptions.Schema(), DTO.Class(() => BaseObject), DTO.Glob())))
     public async load<T extends typeof BaseObject>(options: (LoadObjectOptions | typeof BaseObject | string)[]): Promise<void> {
@@ -308,33 +390,64 @@ export class Container {
     }
 
     /**
-     * Get registered object via constructor
-     * @param constructor
-     * @param configurableRecords
+     * Get an object registered by its class, creating it when the lifetime requires: a singleton is created once, a
+     * scoped object once per scope, a transient object on each call. A class marked `@Autoload` is registered on first
+     * request (its singleton in the root container, its scoped object in the nearest scope). A scoped object requested
+     * with options is a new instance owned by the caller, not the one shared within the scope (see
+     * {@link Container.getShared}).
+     * @param constructor The class the object was registered with (an object registered under a name is not found by
+     * its class).
+     * @param configurableRecords The options of the object (the values of its `@Configurable` properties and the options
+     * it reads), merged over the ones it was registered with; validated when the object is created. Ignored, with a
+     * warning outside production, when the cached singleton or scoped instance already exists.
+     * @returns The object, once its dependencies are injected, its options applied and its `init()` completed.
+     * @throws {ObjectDestroyedException} When the container has been destroyed.
+     * @throws {Error} When the class is not registered here or in a parent container, or the object fails to be
+     * created (an injection failing with a {@link DependencyInjectionException}, an invalid option, an error of `init()`).
      */
     public async get<T extends BaseObject>(constructor: IBaseObjectConstructor<T>, configurableRecords?: Record<string, any>): Promise<T>
     /**
-     * Get registered object via string
-     * @param name
-     * @param configurableRecords
+     * Get an object registered under a name, as {@link Container.get} by class.
+     * @param name The name the object was registered under (its key in the module options).
+     * @param configurableRecords The options of the object (the values of its `@Configurable` properties and the options
+     * it reads), merged over the ones it was registered with; validated when the object is created. Ignored, with a
+     * warning outside production, when the cached singleton or scoped instance already exists.
+     * @returns The object, once created and initialized.
+     * @throws {ObjectDestroyedException} When the container has been destroyed.
+     * @throws {Error} When the name is not registered, or the object fails to be created.
      */
     public async get<T extends BaseObject>(name: string, configurableRecords?: Record<string, any>): Promise<T>
     /**
-     * Get registered object via symbol
-     * @param name
-     * @param configurableRecords
+     * Get an object registered under a symbol, as {@link Container.get} by class.
+     * @param name The symbol the object was registered under.
+     * @param configurableRecords The options of the object (the values of its `@Configurable` properties and the options
+     * it reads), merged over the ones it was registered with; validated when the object is created. Ignored, with a
+     * warning outside production, when the cached singleton or scoped instance already exists.
+     * @returns The object, once created and initialized.
+     * @throws {ObjectDestroyedException} When the container has been destroyed.
+     * @throws {Error} When the symbol is not registered, or the object fails to be created.
      */
     public async get<T extends BaseObject>(name: symbol, configurableRecords?: Record<string, any>): Promise<T>
     /**
-     * Get registered object via string or symbol
-     * @param name
-     * @param configurableRecords
+     * Get an object registered under a name or a symbol, as {@link Container.get} by class.
+     * @param name The name or symbol the object was registered under.
+     * @param configurableRecords The options of the object (the values of its `@Configurable` properties and the options
+     * it reads), merged over the ones it was registered with; validated when the object is created. Ignored, with a
+     * warning outside production, when the cached singleton or scoped instance already exists.
+     * @returns The object, once created and initialized.
+     * @throws {ObjectDestroyedException} When the container has been destroyed.
+     * @throws {Error} When the name is not registered, or the object fails to be created.
      */
     public async get<T extends BaseObject>(name: string | symbol, configurableRecords?: Record<string, any>): Promise<T>
     /**
-     * Get registered object via string or symbol or constructor
-     * @param nameOrConstructor
-     * @param configurableRecords
+     * Get an object registered under a name, a symbol or by its class, as {@link Container.get} by class.
+     * @param nameOrConstructor The name, symbol or class the object was registered with.
+     * @param configurableRecords The options of the object (the values of its `@Configurable` properties and the options
+     * it reads), merged over the ones it was registered with; validated when the object is created. Ignored, with a
+     * warning outside production, when the cached singleton or scoped instance already exists.
+     * @returns The object, once created and initialized.
+     * @throws {ObjectDestroyedException} When the container has been destroyed.
+     * @throws {Error} When it is not registered, or the object fails to be created.
      */
     public async get<T extends BaseObject>(nameOrConstructor: string | symbol | IBaseObjectConstructor<T>, configurableRecords?: Record<string, any>): Promise<T>
     public async get<T extends BaseObject>(inp: string | symbol | IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
@@ -342,18 +455,26 @@ export class Container {
     }
 
     /**
-     * Get the shared instance of a registered object (the instance of the container, or of the request scope for a
-     * scoped object), created with the configuration if it does not exist yet. Unlike get(), a scoped object requested
-     * with a configuration is not a new instance owned by the requester: the creator of a scope uses it to provide an
-     * object configured for the request, which the objects of the request then share
-     * @param constructor
-     * @param configurableRecords
+     * Get the shared instance of an object registered by its class (the container's instance, or the scope's instance
+     * for a scoped object), created with the options when it does not exist yet. Unlike {@link Container.get}, a scoped
+     * object requested with options is not a new instance owned by the caller: the creator of a scope uses it to provide
+     * an object configured for the request, which the request's objects then share.
+     * @param constructor The class the object was registered with.
+     * @param configurableRecords The options of the object, used only when the shared instance is created now; ignored,
+     * with a warning outside production, when it exists already.
+     * @returns The shared object, once created and initialized.
+     * @throws {ObjectDestroyedException} When the container has been destroyed.
+     * @throws {Error} When the class is not registered, or the object fails to be created.
      */
     public async getShared<T extends BaseObject>(constructor: IBaseObjectConstructor<T>, configurableRecords?: Record<string, any>): Promise<T>
     /**
-     * Get the shared instance of a registered object via string or symbol
-     * @param name
-     * @param configurableRecords
+     * Get the shared instance of an object registered under a name or a symbol, as {@link Container.getShared} by
+     * class.
+     * @param name The name or symbol the object was registered under.
+     * @param configurableRecords The options of the object, used only when the shared instance is created now.
+     * @returns The shared object, once created and initialized.
+     * @throws {ObjectDestroyedException} When the container has been destroyed.
+     * @throws {Error} When the name is not registered, or the object fails to be created.
      */
     public async getShared<T extends BaseObject>(name: string | symbol, configurableRecords?: Record<string, any>): Promise<T>
     public async getShared<T extends BaseObject>(inp: string | symbol | IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
@@ -402,23 +523,28 @@ export class Container {
     }
 
     /**
-     * Is object registered in container (By symbol)
-     * @param symbol
+     * Whether an object is registered under a symbol, in this container or one of its parents.
+     * @param symbol The registration symbol.
+     * @returns true when registered.
      */
     public has(symbol: symbol): boolean
     /**
-     * Is object registered in container (By name)
-     * @param name
+     * Whether an object is registered under a name, in this container or one of its parents.
+     * @param name The registration name.
+     * @returns true when registered.
      */
     public has(name: string): boolean
     /**
-     * Is object registered in container (By name or symbol)
-     * @param nameOrSymbol
+     * Whether an object is registered under a name or a symbol, in this container or one of its parents.
+     * @param nameOrSymbol The registration name or symbol.
+     * @returns true when registered.
      */
     public has(nameOrSymbol: string | symbol): boolean
     /**
-     * Is object registered in container (By constructor)
-     * @param constructor
+     * Whether a class is registered by its class (not under a name), in this container or one of its parents; an
+     * `@Autoload` class not requested yet is not registered.
+     * @param constructor The class.
+     * @returns true when registered.
      */
     public has<ClassConstructor extends typeof BaseObject>(constructor: ClassConstructor): boolean
     public has<ClassConstructor extends typeof BaseObject>(inp: symbol | string | ClassConstructor): boolean {
@@ -427,9 +553,13 @@ export class Container {
     }
 
     /**
-     * Builds an instance of a base object class by injecting dependencies, and registering it in the container
-     * @param target
-     * @param configurableRecords
+     * Register a class (unless it is registered already) and get its object, as {@link Container.get}.
+     * @param target The class.
+     * @param configurableRecords The options of the object: registered with the class when it is registered now, and
+     * requested for the object.
+     * @returns The object, once created and initialized.
+     * @throws {ObjectDestroyedException} When the container has been destroyed.
+     * @throws {Error} When the object fails to be created.
      */
     public async set<T extends BaseObject>(target: IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
         if (!this.has(target)) {
@@ -444,10 +574,13 @@ export class Container {
     }
 
     /**
-     * Builds a named instance of a base object class by injecting dependencies, and registering it in the container
-     * @param name
-     * @param target
-     * @param configurableRecords
+     * Register a class under a name, replacing a previous registration of the name, and get its object.
+     * @param name The registration name or symbol.
+     * @param target The class.
+     * @param configurableRecords The options the object is registered with.
+     * @returns The object, once created and initialized.
+     * @throws {ObjectDestroyedException} When the container has been destroyed.
+     * @throws {Error} When the object fails to be created.
      */
     public async setNamed<T extends BaseObject>(name: string | symbol, target: IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
         await this.load([{
@@ -459,9 +592,12 @@ export class Container {
     }
 
     /**
-     * Register base object class in the container
-     * @param target
-     * @param configurableRecords
+     * Register a class by its class, without creating its object; a class registered again replaces its previous
+     * registration.
+     * @param target The class.
+     * @param configurableRecords The options its objects are created with.
+     * @returns Resolves once registered.
+     * @throws {ObjectDestroyedException} When the container has been destroyed.
      */
     public async register<T extends BaseObject>(target: IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<void> {
         await this.load([{
@@ -471,10 +607,13 @@ export class Container {
     }
 
     /**
-     * Register named base object class in the container
-     * @param name
-     * @param target
-     * @param configurableRecords
+     * Register a class under a name, without creating its object; a name registered again replaces its previous
+     * registration.
+     * @param name The registration name or symbol.
+     * @param target The class.
+     * @param configurableRecords The options its objects are created with.
+     * @returns Resolves once registered.
+     * @throws {ObjectDestroyedException} When the container has been destroyed.
      */
     public async registerNamed<T extends BaseObject>(name: string | symbol, target: IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<void> {
         await this.load([{
@@ -485,9 +624,13 @@ export class Container {
     }
 
     /**
-     * Builds an instance of a base object class by injecting dependencies, but without registering it in the container
-     * @param target
-     * @param configurableRecords
+     * Create a new object of a class without registering it, whatever its lifetime: its dependencies are injected
+     * from this container, and it is destroyed with this container (unless disposed before).
+     * @param target The class, registered or not.
+     * @param configurableRecords The options of the object.
+     * @returns The new object, once created and initialized.
+     * @throws {ObjectDestroyedException} When the container has been destroyed.
+     * @throws {Error} When the object fails to be created.
      */
     public async build<T extends BaseObject>(target: IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
         this.#assertNotDestroyed()
@@ -497,7 +640,11 @@ export class Container {
     }
 
     /**
-     * Create sub container scope
+     * Create a scope: a child container holding its own instances of the scoped objects (one per scope, such as one per
+     * request), the singletons and registrations of this container being shared. The scope lives until it is destroyed
+     * explicitly, or together with this container.
+     * @returns The new scope.
+     * @throws {ObjectDestroyedException} When the container has been destroyed.
      */
     public createScope(): Container {
         this.#assertNotDestroyed()
@@ -509,15 +656,16 @@ export class Container {
     }
 
     /**
-     * Register current container to its parent
+     * Track this container in its parent again, so it is destroyed together with the parent (used when its owner is
+     * initialized again).
      */
     public registerContainerToItsParent(): void {
         this.#attachToParent()
     }
 
     /**
-     * Make a destroyed container usable again, its owner is being reloaded
-     * @description Fails when the parent container has been destroyed (or is being destroyed)
+     * Make a destroyed container usable again, when its owner is reloaded.
+     * @throws {ObjectDestroyedException} When the parent container has been destroyed (or is being destroyed).
      */
     public revive(): void {
         if (this.parent && this.parent.#destroyed) throw new ObjectDestroyedException('Cannot revive a container whose parent container has been destroyed')
@@ -527,9 +675,10 @@ export class Container {
     }
 
     /**
-     * Drop the cached instance of a registration, so the next resolution creates a new one
-     * @param name
-     * @param instance
+     * Drop the cached instance of a registration, so the next request creates a new one; nothing happens when the
+     * cached instance is not the one given.
+     * @param name The registration name or symbol.
+     * @param instance The instance to drop.
      */
     public forget(name: string | symbol, instance: BaseObject): void {
         const cached: { value: any } | undefined = this.#dic.cache.get(name)
@@ -537,7 +686,11 @@ export class Container {
     }
 
     /**
-     * Clear current container but not destroy it
+     * Destroy the container's objects and scopes, the container remaining usable: the teardown hooks run (the
+     * entrypoints stop), then the scopes and the containers of the objects are destroyed, then the cached objects and
+     * the transient objects still alive. Never throws: the errors are reported through the application's logger, and a
+     * failing object does not stop the teardown of the others.
+     * @returns Resolves once everything is destroyed.
      */
     public async clear(): Promise<void> {
         //Every step always runs to the end, a failing object never stops the teardown of the others
@@ -567,7 +720,9 @@ export class Container {
     }
 
     /**
-     * Destroy current container
+     * Destroy the container: as {@link Container.clear}, then the container refuses any further request with an
+     * {@link ObjectDestroyedException}. A concurrent or repeated call waits for the same teardown.
+     * @returns Resolves once the container is destroyed.
      */
     public async destroy(): Promise<void> {
         //A teardown already in progress is awaited, not skipped

@@ -10,174 +10,240 @@ import {IpOptions} from './IpOptions.js'
 import {UriOptions} from './UriOptions.js'
 import {StringRegexOptions} from './StringRegexOptions.js'
 
+/**
+ * A schema of strings, built by `DTO.String()` (and `DTO.Glob()`, `DTO.Cron()`, `DTO.HttpDocument()`): length,
+ * patterns, formats (email, URI, UUID…) and case.
+ *
+ * The empty string is rejected unless allowed (`allow('')`). The rules changing the string (`trim()`, `lowercase()`,
+ * `uppercase()`, `case()`, `normalize()`, `replace()`, `truncate()`) only change it with conversion enabled
+ * (`strict(false)`): the schemas built by `DTO` are strict, so these rules only check the string.
+ * @typeParam TSchema The type of the strings the schema validates.
+ */
 export interface StringSchema<TSchema = string> extends AnySchema<TSchema> {
     /**
-     * Requires the string value to only contain a-z, A-Z, and 0-9.
+     * Require the string to only contain the characters a-z, A-Z and 0-9.
+     * @returns A new schema.
      */
     alphanum(): this
 
     /**
-     * Requires the string value to be a valid base64 string; does not check the decoded value.
+     * Require the string to be valid base64; the decoded value is not checked.
+     * @param options `paddingRequired`: whether the `=` padding is required (default true); `urlSafe`: whether the
+     * URL-safe alphabet (`-` and `_`) is used instead of `+` and `/` (default false).
+     * @returns A new schema.
      */
     base64(options?: Base64Options): this
 
     /**
-     * Sets the required string case.
+     * Require the string to be all upper case or all lower case; with conversion enabled (`strict(false)`), it is
+     * converted instead.
+     * @param direction The case required.
+     * @returns A new schema.
      */
     case(direction: 'upper' | 'lower'): this
 
     /**
-     * Requires the number to be a credit card number (Using Luhn Algorithm).
+     * Require the string to be a credit card number (digits passing the Luhn checksum).
+     * @returns A new schema.
      */
     creditCard(): this
 
     /**
-     * Requires the string value to be a valid data URI string.
+     * Require the string to be a data URI (`data:<media type>;base64,<data>`).
+     * @param options `paddingRequired`: whether the base64 data requires its `=` padding (default true).
+     * @returns A new schema.
      */
     dataUri(options?: DataUriOptions): this
 
     /**
-     * Requires the string value to be a valid domain.
+     * Require the string to be a domain name, like `example.com`.
+     * @param options The domain rules: `minDomainSegments` (default 2), `maxDomainSegments`, `tlds` (the allowed and
+     * denied top-level domains, the IANA list by default; false allows any), `allowFullyQualified` (a trailing `.`,
+     * default false), `allowUnicode` (default true).
+     * @returns A new schema.
      */
     domain(options?: DomainOptions): this
 
     /**
-     * Requires the string value to be a valid email address.
+     * Require the string to be an email address. Its domain must have at least 2 segments and, by default, a top-level
+     * domain of the IANA list.
+     * @param options The address rules: `multiple` (a list of addresses split by `separator`, default `,`), `tlds`
+     * (the allowed and denied top-level domains; false allows any), `minDomainSegments`, `maxDomainSegments`,
+     * `allowUnicode` (default true), `ignoreLength`, `allowFullyQualified`.
+     * @returns A new schema.
      */
     email(options?: EmailOptions): this
 
     /**
-     * Requires the string value to be valid in a format of JSON Schema: date, time, date-time, duration, email,
-     * idn-email, hostname, ipv4, ipv6, uri, uri-reference, uri-template, uuid, regex, json-pointer,
-     * relative-json-pointer or byte (base64).
+     * Require the string to be valid in a JSON Schema format, checked like the full formats of ajv-formats.
+     * @param name The format: `date`, `time`, `date-time`, `duration`, `email`, `idn-email`, `hostname`, `ipv4`,
+     * `ipv6`, `uri`, `uri-reference`, `uri-template`, `uuid`, `regex`, `json-pointer`, `relative-json-pointer` or
+     * `byte` (base64).
+     * @returns A new schema.
+     * @throws {SchemaDefinitionException} When the format is not one of these.
      */
     format(name: string): this
 
     /**
-     * Requires the string value to be a valid GUID.
+     * Require the string to be a GUID (a UUID), optionally wrapped in `{}`, `()` or `[]`.
+     * @param options `version`: the UUID versions allowed (`'uuidv4'`, or a list), any by default; `separator`: the
+     * separator required between the groups (`-` or `:`), true for either, false for none; optional by default.
+     * @returns A new schema.
      */
     guid(options?: GuidOptions): this
 
     /**
-     * Requires the string value to be a valid hexadecimal string.
+     * Require the string to be hexadecimal.
+     * @param options `byteAligned`: whether the length must be even (default false); `prefix`: whether the `0x`
+     * prefix is required (true), forbidden (false, the default) or allowed (`'optional'`).
+     * @returns A new schema.
      */
     hex(options?: HexOptions): this
 
     /**
-     * Requires the string value to be a valid hostname as per RFC1123.
+     * Require the string to be a host name (RFC 1123), or an IP address.
+     * @returns A new schema.
      */
     hostname(): this
 
     /**
-     * Allows the value to match any whitelist of blacklist item in a case insensitive comparison.
+     * Compare the string with the values of `valid()`, `allow()` and `invalid()` case-insensitively.
+     * @returns A new schema.
      */
     insensitive(): this
 
     /**
-     * Requires the string value to be a valid ip address.
+     * Require the string to be an IP address.
+     * @param options `version`: the versions allowed (`'ipv4'`, `'ipv6'`, `'ipvfuture'`, or a list), all by default;
+     * `cidr`: whether a CIDR suffix (`/24`) is `optional` (the default), `required` or `forbidden`.
+     * @returns A new schema.
      */
     ip(options?: IpOptions): this
 
     /**
-     * Requires the string value to be in valid ISO 8601 date format.
+     * Require the string to be an ISO 8601 date (`2024-01-31`, `2024-01-31T12:00:00Z`); with conversion enabled
+     * (`strict(false)`), it is converted to the full ISO format (`2024-01-31T00:00:00.000Z`).
+     * @returns A new schema.
      */
     isoDate(): this
 
     /**
-     * Requires the string value to be in valid ISO 8601 duration format.
+     * Require the string to be an ISO 8601 duration, like `P1DT2H`.
+     * @returns A new schema.
      */
     isoDuration(): this
 
     /**
-     * Specifies the exact string length required
-     * @param limit - the required string length. It can also be a reference to another field.
-     * @param encoding - if specified, the string length is calculated in bytes using the provided encoding.
+     * Require an exact length.
+     * @param limit The length, in characters (UTF-16 code units), or a reference to another value holding it.
+     * @param encoding An encoding (`'utf8'`): the length is then counted in bytes in that encoding.
+     * @returns A new schema.
      */
     length(limit: number | Reference, encoding?: string): this
 
     /**
-     * Requires the string value to be all lowercase. If the validation convert option is on (enabled by default), the string will be forced to lowercase.
+     * Require the string to be all lower case; with conversion enabled (`strict(false)`), it is converted instead.
+     * @returns A new schema.
      */
     lowercase(): this
 
     /**
-     * Specifies the maximum number of string characters.
-     * @param limit - the maximum number of string characters allowed. It can also be a reference to another field.
-     * @param encoding - if specified, the string length is calculated in bytes using the provided encoding.
+     * Require a maximum length (see `truncate()` to cut longer strings instead).
+     * @param limit The maximum length (inclusive), in characters (UTF-16 code units), or a reference to another value
+     * holding it.
+     * @param encoding An encoding (`'utf8'`): the length is then counted in bytes in that encoding.
+     * @returns A new schema.
      */
     max(limit: number | Reference, encoding?: string): this
 
     /**
-     * Specifies the minimum number string characters.
-     * @param limit - the minimum number of string characters required. It can also be a reference to another field.
-     * @param encoding - if specified, the string length is calculated in bytes using the provided encoding.
+     * Require a minimum length.
+     * @param limit The minimum length (inclusive), in characters (UTF-16 code units), or a reference to another value
+     * holding it.
+     * @param encoding An encoding (`'utf8'`): the length is then counted in bytes in that encoding.
+     * @returns A new schema.
      */
     min(limit: number | Reference, encoding?: string): this
 
     /**
-     * Requires the string value to be in a unicode normalized form. If the validation convert option is on (enabled by default), the string will be normalized.
-     * @param [form='NFC'] - The unicode normalization form to use. Valid values: NFC [default], NFD, NFKC, NFKD
+     * Require the string to be in a Unicode normalization form; with conversion enabled (`strict(false)`), it is
+     * normalized instead.
+     * @param form The normalization form. Defaults to `NFC`.
+     * @returns A new schema.
      */
     normalize(form?: 'NFC' | 'NFD' | 'NFKC' | 'NFKD'): this
 
     /**
-     * Defines a regular expression rule.
-     * @param pattern - a regular expression object the string value must match against.
-     * @param options - optional, can be:
-     *   Name for patterns (useful with multiple patterns). Defaults to 'required'.
-     *   An optional configuration object with the following supported properties:
-     *     name - optional pattern name.
-     *     invert - optional boolean flag. Defaults to false behavior. If specified as true, the provided pattern will be disallowed instead of required.
+     * Require the string to match a regular expression.
+     * @param pattern The regular expression (its `g` and `y` flags are not allowed).
+     * @param options The name of the pattern in the error messages, or an object: `name`, and `invert` (true: the
+     * string must not match; default false).
+     * @returns A new schema.
      */
     pattern(pattern: RegExp, options?: string | StringRegexOptions): this
 
     /**
-     * Defines a regular expression rule.
-     * @param pattern - a regular expression object the string value must match against.
-     * @param options - optional, can be:
-     *   Name for patterns (useful with multiple patterns). Defaults to 'required'.
-     *   An optional configuration object with the following supported properties:
-     *     name - optional pattern name.
-     *     invert - optional boolean flag. Defaults to false behavior. If specified as true, the provided pattern will be disallowed instead of required.
+     * Require the string to match a regular expression (an alias of `pattern()`).
+     * @param pattern The regular expression (its `g` and `y` flags are not allowed).
+     * @param options The name of the pattern in the error messages, or an object: `name`, and `invert` (true: the
+     * string must not match; default false).
+     * @returns A new schema.
      */
     regex(pattern: RegExp, options?: string | StringRegexOptions): this
 
     /**
-     * Replace characters matching the given pattern with the specified replacement string where:
-     * @param pattern - a regular expression object to match against, or a string of which all occurrences will be replaced.
-     * @param replacement - the string that will replace the pattern.
+     * Replace the parts of the string matching a pattern, before the other rules; only with conversion enabled
+     * (`strict(false)`), otherwise the rule does nothing.
+     * @param pattern A regular expression (add its `g` flag to replace every match), or a string whose occurrences are
+     * all replaced.
+     * @param replacement The replacement, which may use the groups of a regular expression (`$1`).
+     * @returns A new schema.
      */
     replace(pattern: RegExp | string, replacement: string): this
 
     /**
-     * Requires the string value to only contain a-z, A-Z, 0-9, and underscore _.
+     * Require the string to only contain the characters a-z, A-Z, 0-9 and `_`.
+     * @returns A new schema.
      */
     token(): this
 
     /**
-     * Requires the string value to contain no whitespace before or after. If the validation convert option is on (enabled by default), the string will be trimmed.
-     * @param [enabled=true] - optional parameter defaulting to true which allows you to reset the behavior of trim by providing a falsy value.
+     * Require the string to have no leading or trailing whitespace; with conversion enabled (`strict(false)`), it is
+     * trimmed instead.
+     * @param enabled Whether the rule applies: a falsy value removes it. Defaults to true.
+     * @returns A new schema.
      */
     trim(enabled?: any): this
 
     /**
-     * Specifies whether the string.max() limit should be used as a truncation.
-     * @param [enabled=true] - optional parameter defaulting to true which allows you to reset the behavior of truncate by providing a falsy value.
+     * Cut the strings longer than the `max()` limit to it, instead of rejecting them; only with conversion enabled
+     * (`strict(false)`).
+     * @param enabled Whether to truncate: false restores the rejection. Defaults to true.
+     * @returns A new schema.
      */
     truncate(enabled?: boolean): this
 
     /**
-     * Requires the string value to be all uppercase. If the validation convert option is on (enabled by default), the string will be forced to uppercase.
+     * Require the string to be all upper case; with conversion enabled (`strict(false)`), it is converted instead.
+     * @returns A new schema.
      */
     uppercase(): this
 
     /**
-     * Requires the string value to be a valid RFC 3986 URI.
+     * Require the string to be a URI (RFC 3986), absolute by default.
+     * @param options `scheme`: the schemes allowed (`'https'`, a regular expression, or a list), any by default;
+     * `allowRelative`: whether relative URIs are allowed too (default false); `relativeOnly`: whether only relative
+     * URIs are (default false); `allowQuerySquareBrackets` (default false); `domain`: the rules of the host name, as in
+     * `domain()`.
+     * @returns A new schema.
      */
     uri(options?: UriOptions): this
 
     /**
-     * Requires the string value to be a valid GUID.
+     * Require the string to be a UUID (an alias of `guid()`).
+     * @param options `version`: the UUID versions allowed (`'uuidv4'`, or a list), any by default; `separator`: the
+     * separator required between the groups (`-` or `:`), true for either, false for none; optional by default.
+     * @returns A new schema.
      */
     uuid(options?: GuidOptions): this
 }

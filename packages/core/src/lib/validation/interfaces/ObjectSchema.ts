@@ -6,129 +6,191 @@ import {DependencyOptions} from './DependencyOptions.js'
 import {Reference} from './Reference.js'
 import {RenameOptions} from './RenameOptions.js'
 
+/**
+ * A schema of objects, built by `DTO.Object(keys)` (and returned by `DTO.Schema()` for a DTO class): the schemas of
+ * its keys, the unknown keys, and the dependencies between keys.
+ *
+ * The validations of lakutata allow the unknown keys and remove them from the validated object (the `allowUnknown` and
+ * `stripUnknown` options); `unknown(false)` rejects them instead.
+ * @typeParam TSchema The type of the objects the schema validates.
+ */
 export interface ObjectSchema<TSchema = any> extends AnySchema<TSchema> {
     /**
-     * Defines an all-or-nothing relationship between keys where if one of the peers is present, all of them are required as well.
-     *
-     * Optional settings must be the last argument.
+     * Require all the keys together: when one of them is present, all of them must be.
+     * @param peers The key names (dotted paths reach nested keys), optionally followed by the options: `separator`
+     * of the paths (default `.`), `isPresent` (what counts as present, by default not undefined).
+     * @returns A new schema.
      */
     and(...peers: Array<string | DependencyOptions>): this
 
     /**
-     * Appends the allowed object keys. If schema is null, undefined, or {}, no changes will be applied.
+     * Add keys to the schema, replacing the schemas of the keys already present. Unlike `keys()`, an empty or missing
+     * argument changes nothing.
+     * @param schema The schemas of the keys to add, by key.
+     * @returns A new schema.
      */
     append(schema?: SchemaMap<TSchema>): this
 
     append<TSchemaExtended = any, T = TSchemaExtended>(schema?: SchemaMap<T>): ObjectSchema<T>
 
     /**
-     * Verifies an assertion where.
+     * Require a value of the object to match a schema (the object itself fails, with the message).
+     * @param ref The value tested: a key path relative to the object, which starts with `.` (`'.a.b'`), or a
+     * reference.
+     * @param schema The schema the value must match, like `DTO.Ref('b')` to require it to equal another key.
+     * @param message The reason shown in the error message (`… failed to <message>`).
+     * @returns A new schema.
      */
     assert(ref: string | Reference, schema: SchemaLike, message?: string): this
 
     /**
-     * Requires the object to be an instance of a given constructor.
+     * Require the object to be an instance of a class.
      *
-     * @param constructor - the constructor function that the object must be an instance of.
-     * @param name - an alternate name to use in validation errors. This is useful when the constructor function does not have a name.
+     * @param constructor The class the object must be an instance of.
+     * @param name The name of the class in the error messages, for a class without a name. Defaults to its name.
+     * @returns A new schema.
      */
     // tslint:disable-next-line:ban-types
     instance(constructor: Function, name?: string): this
 
     /**
-     * Requires every key name of the object to match a schema.
+     * Require every key name of the object to match a schema.
+     * @param schema The schema of the key names, like `DTO.String().pattern(/^[a-z]+$/)`.
+     * @returns A new schema.
      */
     keyNames(schema: SchemaLike): this
 
     /**
-     * Sets or extends the allowed object keys.
+     * Set the keys of the schema, adding to the keys already set (a key given again replaces its schema). Without an
+     * argument, any key is allowed; with `{}`, no key is.
+     * @param schema The schemas of the keys, by key.
+     * @returns A new schema.
      */
     keys(schema?: SchemaMap<TSchema>): this
 
     /**
-     * Specifies the exact number of keys in the object.
+     * Require an exact number of keys.
+     * @param limit The number of keys.
+     * @returns A new schema.
      */
     length(limit: number): this
 
     /**
-     * Specifies the maximum number of keys in the object.
+     * Require at most a number of keys.
+     * @param limit The maximum number of keys (inclusive), or a reference to another value holding it.
+     * @returns A new schema.
      */
     max(limit: number | Reference): this
 
     /**
-     * Specifies the minimum number of keys in the object.
+     * Require at least a number of keys.
+     * @param limit The minimum number of keys (inclusive), or a reference to another value holding it.
+     * @returns A new schema.
      */
     min(limit: number | Reference): this
 
     /**
-     * Defines a relationship between keys where not all peers can be present at the same time.
-     *
-     * Optional settings must be the last argument.
+     * Forbid all the keys together: some of them may be present, not all of them.
+     * @param peers The key names (dotted paths reach nested keys), optionally followed by the options: `separator`
+     * of the paths (default `.`), `isPresent` (what counts as present, by default not undefined).
+     * @returns A new schema.
      */
     nand(...peers: Array<string | DependencyOptions>): this
 
     /**
-     * Defines a relationship between keys where one of the peers is required (and more than one is allowed).
-     *
-     * Optional settings must be the last argument.
+     * Require at least one of the keys (several are allowed).
+     * @param peers The key names (dotted paths reach nested keys), optionally followed by the options: `separator`
+     * of the paths (default `.`), `isPresent` (what counts as present, by default not undefined).
+     * @returns A new schema.
      */
     or(...peers: Array<string | DependencyOptions>): this
 
     /**
-     * Defines an exclusive relationship between a set of keys where only one is allowed but none are required.
-     *
-     * Optional settings must be the last argument.
+     * Allow at most one of the keys: none or one of them.
+     * @param peers The key names (dotted paths reach nested keys), optionally followed by the options: `separator`
+     * of the paths (default `.`), `isPresent` (what counts as present, by default not undefined).
+     * @returns A new schema.
      */
     oxor(...peers: Array<string | DependencyOptions>): this
 
     /**
      * Specify validation rules for unknown keys matching a pattern.
      *
-     * @param pattern - a pattern that can be either a regular expression or a schema that will be tested against the unknown key names
-     * @param schema - the schema object matching keys must validate against
+     * @param pattern A regular expression, or a schema, the unknown key names are tested against.
+     * @param schema The schema of the values of the matching keys.
+     * @param options `fallthrough`: whether a key matching this pattern is also tested against the following patterns
+     * (default false); `matches`: a schema the array of the matching key names must match (like
+     * `DTO.Array().max(3)`).
+     * @returns A new schema.
      */
     pattern(pattern: RegExp | SchemaLike, schema: SchemaLike, options?: ObjectPatternOptions): this
 
     /**
-     * Requires the object to be a reference.
+     * Require the value to be a reference (created by `DTO.Ref()`).
+     * @returns A new schema.
      */
     ref(): this
 
     /**
-     * Requires the object to be a `RegExp` object.
+     * Require the value to be a `RegExp` object.
+     * @returns A new schema.
      */
     regex(): this
 
     /**
-     * Renames a key to another name (deletes the renamed key).
+     * Rename a key of the validated object, before its keys are validated: the old key is removed unless the `alias`
+     * option is set.
+     * @param from The key to rename, or a regular expression matching the keys to rename.
+     * @param to The new key name.
+     * @param options `alias` (keep the old key too), `multiple` (allow several keys renamed to the same one, the last
+     * wins), `override` (allow replacing an existing key), `ignoreUndefined` (skip an undefined value); all false by
+     * default.
+     * @returns A new schema.
+     * @throws {SchemaDefinitionException} When the key is already renamed by the schema, or renamed to itself.
      */
     rename(from: string | RegExp, to: string, options?: RenameOptions): this
 
     /**
-     * Requires the object to be a schema instance.
+     * Require the value to be a schema (built by `DTO`).
+     * @param type The type the schema must have (`'number'`). Defaults to `any`, which accepts every schema.
+     * @returns A new schema.
      */
     schema(type?: SchemaLike): this
 
     /**
-     * Overrides the handling of unknown keys for the scope of the current object only (does not apply to children).
-     * With a schema, the unknown keys are allowed and their values must match it.
+     * Set whether the unknown keys are allowed, for this object only (not its children), overriding the `allowUnknown`
+     * validation option. Allowed unknown keys are kept in the validated object.
+     * @param allow True (the default) to allow and keep them, false to reject them, or a schema their values must
+     * match.
+     * @returns A new schema.
      */
     unknown(allow?: boolean | SchemaLike): this
 
     /**
-     * Requires the presence of other keys whenever the specified key is present.
+     * Require other keys whenever a key is present.
+     * @param key The key (a dotted path reaches a nested key).
+     * @param peers The keys required with it.
+     * @param options `separator` of the paths (default `.`), `isPresent` (what counts as present, by default not
+     * undefined).
+     * @returns A new schema.
      */
     with(key: string, peers: string | string[], options?: DependencyOptions): this
 
     /**
-     * Forbids the presence of other keys whenever the specified is present.
+     * Forbid other keys whenever a key is present.
+     * @param key The key (a dotted path reaches a nested key).
+     * @param peers The keys forbidden with it.
+     * @param options `separator` of the paths (default `.`), `isPresent` (what counts as present, by default not
+     * undefined).
+     * @returns A new schema.
      */
     without(key: string, peers: string | string[], options?: DependencyOptions): this
 
     /**
-     * Defines an exclusive relationship between a set of keys. one of them is required but not at the same time.
-     *
-     * Optional settings must be the last argument.
+     * Require exactly one of the keys.
+     * @param peers The key names (dotted paths reach nested keys), optionally followed by the options: `separator`
+     * of the paths (default `.`), `isPresent` (what counts as present, by default not undefined).
+     * @returns A new schema.
      */
     xor(...peers: Array<string | DependencyOptions>): this
 }

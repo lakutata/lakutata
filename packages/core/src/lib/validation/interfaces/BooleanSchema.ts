@@ -1,24 +1,32 @@
 import {AnySchema} from './AnySchema.js'
 
+/**
+ * A schema of booleans, built by `DTO.Boolean()`. With conversion enabled (`strict(false)`), the strings `'true'` and
+ * `'false'` (case-insensitively) and the values of `truthy()` and `falsy()` are accepted and converted to booleans.
+ * @typeParam TSchema The type of the booleans the schema validates.
+ */
 export interface BooleanSchema<TSchema = boolean> extends AnySchema<TSchema> {
     /**
-     * Allows for additional values to be considered valid booleans by converting them to false during validation.
-     * String comparisons are by default case insensitive,
-     * see `boolean.sensitive()` to change this behavior.
-     * @param values - strings, numbers or arrays of them
+     * Accept other values as false, with conversion enabled (`strict(false)`). The strings are compared
+     * case-insensitively unless `sensitive()` is called.
+     * @param values The values converted to false: strings, numbers or null.
+     * @returns A new schema.
      */
     falsy(...values: Array<string | number | null>): this
 
     /**
-     * Allows the values provided to truthy and falsy as well as the "true" and "false" default conversion
-     * (when not in `strict()` mode) to be matched in a case insensitive manner.
+     * Compare the strings converted to booleans (`'true'`, `'false'`, and the ones of `truthy()` and `falsy()`)
+     * case-sensitively.
+     * @param enabled Whether the comparison is case-sensitive. Defaults to true.
+     * @returns A new schema.
      */
     sensitive(enabled?: boolean): this
 
     /**
-     * Allows for additional values to be considered valid booleans by converting them to true during validation.
-     * String comparisons are by default case insensitive, see `boolean.sensitive()` to change this behavior.
-     * @param values - strings, numbers or arrays of them
+     * Accept other values as true, with conversion enabled (`strict(false)`). The strings are compared
+     * case-insensitively unless `sensitive()` is called.
+     * @param values The values converted to true: strings, numbers or null.
+     * @returns A new schema.
      */
     truthy(...values: Array<string | number | null>): this
 }

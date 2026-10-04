@@ -11,6 +11,10 @@ import {StringSchema} from '../interfaces/StringSchema.js'
 import {LinkSchema} from '../interfaces/LinkSchema.js'
 import {SymbolSchema} from '../interfaces/SymbolSchema.js'
 
+/**
+ * Any schema built by the `DTO` builders (`DTO.String()`, `DTO.Object()`, …): what `DTO.validate()`, `@Expect()` and
+ * the other validation APIs accept. `P` is the type of the values it validates.
+ */
 export type Schema<P = any> =
     | AnySchema<P>
     | ArraySchema<P>

@@ -1,68 +1,68 @@
 import {HierarchySeparatorOptions} from './HierarchySeparatorOptions.js'
 
+/**
+ * The options of a reference created by `DTO.Ref()` or `DTO.In()`: how its key is read and how the value it resolves to
+ * is adjusted.
+ */
 export interface ReferenceOptions extends HierarchySeparatorOptions {
     /**
-     * a function with the signature `function(value)` where `value` is the resolved reference value and the return value is the adjusted value to use.
-     * Note that the adjust feature will not perform any type validation on the adjusted value and it must match the value expected by the rule it is used in.
-     * Cannot be used with `map`.
-     *
-     * @example `(value) => value + 5`
+     * A function adjusting the resolved value, like `(value) => value + 5`. The adjusted value is not validated: it
+     * must be what the rule using the reference expects. Cannot be combined with `map`.
      */
     adjust?: (value: any) => any
 
     /**
-     * an array of array pairs using the format `[[key, value], [key, value]]` used to maps the resolved reference value to another value.
-     * If the resolved value is not in the map, it is returned as-is.
-     * Cannot be used with `adjust`.
+     * Pairs `[[from, to], …]` mapping the resolved value to another one; a value not in the map is used as is. Cannot
+     * be combined with `adjust`.
      */
     map?: Array<[any, any]>
 
     /**
-     * overrides default prefix characters.
+     * The characters marking the kind of a reference at the start of its key.
      */
     prefix?: {
         /**
-         * references to the globally provided context preference.
-         *
+         * The prefix of the references to the `context` validation option.
          * @default '$'
          */
         global?: string
 
         /**
-         * references to error-specific or rule specific context.
-         *
+         * The prefix of the references to the context of an error message or a rule.
          * @default '#'
          */
         local?: string
 
         /**
-         * references to the root value being validated.
-         *
+         * The prefix of the references to the root value being validated.
          * @default '/'
          */
         root?: string
     }
 
     /**
-     * If set to a number, sets the reference relative starting point.
-     * Cannot be combined with separator prefix characters.
-     * Defaults to the reference key prefix (or 1 if none present)
+     * The starting point of the reference: 0 for the value itself, 1 for its parent (the object holding it), 2 for the
+     * grandparent… Cannot be combined with a key starting with separators (`'...a'`).
+     * @default the number of leading separators of the key, else 1
      */
     ancestor?: number
 
     /**
-     * creates an in-reference.
+     * Whether the reference resolves to an array of values the value must be one of (what `DTO.In()` creates), in
+     * `valid()` and `invalid()`.
+     * @default false
      */
     in?: boolean
 
     /**
-     * when true, the reference resolves by reaching into maps and sets.
+     * Whether the path reaches into the `Map` and `Set` objects.
+     * @default false
      */
     iterables?: boolean
 
     /**
-     * when true, the value of the reference is used instead of its name in error messages
-     * and template rendering. Defaults to false.
+     * Whether the error messages show the resolved value instead of the name of the reference.
+     * @default false
      */
     render?: boolean
 }

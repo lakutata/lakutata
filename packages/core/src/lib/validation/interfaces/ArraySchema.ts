@@ -8,12 +8,19 @@ import {ArraySortOptions} from './ArraySortOptions.js'
 import {ArrayUniqueOptions} from './ArrayUniqueOptions.js'
 import {ComparatorFunction} from '../types/ComparatorFunction.js'
 
+/**
+ * A schema of arrays, built by `DTO.Array(...itemSchemas)`: the schemas of its items, their number, order and
+ * uniqueness. Without items given, the items may be anything.
+ * @typeParam TSchema The type of the arrays the schema validates.
+ */
 export interface ArraySchema<TSchema = any[]> extends AnySchema<TSchema> {
     /**
-     * Verifies that an assertion passes for at least one item in the array, where:
-     * `schema` - the validation rules required to satisfy the assertion. If the `schema` includes references, they are resolved against
-     * the array item being tested, not the value of the `ref` target.
-     * `options.min` and `options.max` limit the number of matching items (by default at least one, no maximum).
+     * Require items matching a schema: at least one by default.
+     * @param schema The schema the matching items match. Its references are resolved against the item tested, not
+     * against the array.
+     * @param options `min` and `max`, the number of matching items required (non-negative integers): by default at
+     * least one, no maximum.
+     * @returns A new schema.
      */
     has(schema: SchemaLike, options?: { min?: number, max?: number }): this
 
@@ -37,7 +44,9 @@ export interface ArraySchema<TSchema = any[]> extends AnySchema<TSchema> {
      * Errors will contain the number of items that didn't match.
      * Any unmatched item having a label will be mentioned explicitly.
      *
-     * @param type - a schema object to validate each array item against.
+     * @param a The schema of the items. With several schemas (more arguments), each item must match one of them.
+     * @returns A new schema.
+     * @throws {SchemaDefinitionException} When an item schema is an array schema and `single()` is enabled.
      */
     items<A>(a: SchemaLikeWithoutArray<A>): ArraySchema<A[]>
     items<A, B>(
@@ -82,52 +91,67 @@ export interface ArraySchema<TSchema = any[]> extends AnySchema<TSchema> {
     >
 
     /**
-     * Specifies the exact number of items in the array.
+     * Require an exact number of items.
+     * @param limit The number of items, or a reference to another value holding it.
+     * @returns A new schema.
      */
     length(limit: number | Reference): this
 
     /**
-     * Specifies the maximum number of items in the array.
+     * Require at most a number of items.
+     * @param limit The maximum number of items (inclusive), or a reference to another value holding it.
+     * @returns A new schema.
      */
     max(limit: number | Reference): this
 
     /**
-     * Specifies the minimum number of items in the array.
+     * Require at least a number of items.
+     * @param limit The minimum number of items (inclusive), or a reference to another value holding it.
+     * @returns A new schema.
      */
     min(limit: number | Reference): this
 
     /**
-     * Lists the types in sequence order for the array values where:
-     * @param type - a schema object to validate against each array item in sequence order. type can be multiple values passed as individual arguments.
-     * If a given type is .required() then there must be a matching item with the same index position in the array.
-     * Errors will contain the number of items that didn't match.
-     * Any unmatched item having a label will be mentioned explicitly.
+     * List the schemas of the items by position (a tuple): the first item matches the first schema, and so on. An
+     * item of a `required()` schema must be present; the items beyond the list are not allowed unless `items()`
+     * allows them. Any unmatched item having a label is mentioned in the error.
+     * @param types The schemas of the items, in order.
+     * @returns A new schema.
      */
     ordered(...types: SchemaLikeWithoutArray[]): this
 
     /**
-     * Allow single values to be checked against rules as if it were provided as an array.
-     * enabled can be used with a falsy value to go back to the default behavior.
+     * Accept a single value which is not an array, validated as an array of that one item (and returned as such).
+     * @param enabled Whether a single value is accepted: a falsy value restores the default (rejected). Defaults to
+     * true.
+     * @returns A new schema.
+     * @throws {SchemaDefinitionException} When the items are arrays.
      */
     single(enabled?: any): this
 
     /**
-     * Sorts the array by given order.
+     * Require the items to be sorted; with conversion enabled (`strict(false)`), the array is sorted instead.
+     * @param options `order`: `ascending` (the default) or `descending`; `by`: the key (or reference) of the items to
+     * sort by, the items themselves by default.
+     * @returns A new schema.
      */
     sort(options?: ArraySortOptions): this
 
     /**
-     * Allow this array to be sparse.
-     * enabled can be used with a falsy value to go back to the default behavior.
+     * Allow the array to be sparse: undefined items (holes) are rejected by default.
+     * @param enabled Whether undefined items are allowed: a falsy value restores the default. Defaults to true.
+     * @returns A new schema.
      */
     sparse(enabled?: any): this
 
     /**
-     * Requires the array values to be unique.
-     * Remember that if you provide a custom comparator function,
-     * different types can be passed as parameter depending on the rules you set on items.
-     * Be aware that a deep equality is performed on elements of the array having a type of object,
-     * a performance penalty is to be expected for this kind of operation.
+     * Require the items to be unique, compared by deep equality for the objects (which has a cost on large arrays).
+     * @param comparator The key path of the items to compare (`'id'`, `'a.b'`), or a function telling whether two items
+     * are duplicates (the items it receives are of the types the item schemas accept). By default the items themselves
+     * are compared.
+     * @param options `ignoreUndefined`: with a key path, whether items without the key are ignored instead of being
+     * duplicates of each other (default false); `separator`: the separator of the key path (default `.`).
+     * @returns A new schema.
      */
     unique(comparator?: string | ComparatorFunction, options?: ArrayUniqueOptions): this
 }

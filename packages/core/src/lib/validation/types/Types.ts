@@ -1,3 +1,6 @@
+/**
+ * The type names of the schemas (the `type` of a schema).
+ */
 export type Types =
     | 'any'
     | 'alternatives'

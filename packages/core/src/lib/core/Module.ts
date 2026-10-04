@@ -19,20 +19,63 @@ export const MODULE_INITIALIZED: string = `_$.MODULE.INITIALIZED_${NonceString()
 export const MODULE_INITIALIZE_ERROR: string = `_$.MODULE.INITIALIZE_ERROR_${NonceString()}`
 
 /**
- * Module base class
+ * The base class of the modules: a component owning its own objects (components, providers, named and anonymous
+ * objects) declared by its options, the way the application declares its own. Its lifetime is `@Singleton`, locked.
+ * The objects of a module resolve their dependencies from the module first, then from the application; the objects
+ * of the application do not see the module's.
+ *
+ * Declare it in the `objects.named` of the application (or of a parent module) options, its options under `options`
+ * (they are merged over its `options` initializer), and list it in `bootstrap` to start it at launch. When a module is
+ * created, its options are checked (see `checkOptions`), its objects registered, then its `bootstrap` runs in order: a
+ * name or class is got from its container (creating it), an async function is called with the module. The module is
+ * returned to its requester before these steps complete (they run in a later turn of the event loop); the
+ * application waits for its own before it launches.
+ * @example
+ * ```typescript
+ * import {Application, Component, Module, type ModuleOptions} from 'lakutata'
+ *
+ * class Billing extends Component {
+ *     public charge(amount: number): void {
+ *         console.log(`Charged ${amount}`)
+ *     }
+ * }
+ *
+ * export class PaymentModule extends Module {
+ *     protected options: ModuleOptions = {
+ *         components: {
+ *             billing: {class: Billing}
+ *         },
+ *         bootstrap: ['billing']
+ *     }
+ * }
+ *
+ * Application.run({
+ *     id: 'shop.app',
+ *     name: 'Shop',
+ *     objects: {
+ *         named: {
+ *             payment: {class: PaymentModule}
+ *         }
+ *     },
+ *     bootstrap: ['payment']
+ * })
+ * ```
  */
 @Singleton(true)
 @DefineObjectType(ObjectType.Module)
 export class Module extends Component {
 
     /**
-     * Config loader constructor
+     * The class reading the module options into the declarations to register and the bootstrap steps (the
+     * application's reads its identity too).
      * @protected
      */
     protected readonly ConfigLoader: typeof ModuleConfigLoader = ModuleConfigLoader
 
     /**
-     * Module embed options
+     * The module's own declarations, given by the initializer of a subclass; the options configured for the module
+     * (its `options` option) are merged over them: a component, provider or named object of the same name is
+     * replaced, or completed when declared without its class, and the bootstrap steps are appended.
      * @protected
      */
     @Configurable(ModuleOptions.optional().default({}).options({stripUnknown: false}), function (this: Module, options: ModuleOptions) {
@@ -54,7 +97,7 @@ export class Module extends Component {
     }
 
     /**
-     * Get container
+     * The module's container, holding the objects it declares.
      * @protected
      */
     protected get container(): Container {
@@ -80,16 +123,19 @@ export class Module extends Component {
     #checkOptions: boolean = true
 
     /**
-     * Constructor
-     * @param cradleProxy
+     * Called by the container only: a module is created through a container, never with `new`.
+     * @param cradleProxy The container's resolution proxy.
      */
     constructor(cradleProxy: Record<string | symbol, any>) {
         super(cradleProxy)
     }
 
     /**
-     * Internal initializer
-     * @param hooks
+     * The framework's initializer: schedules the initialization (injection, configured values, `init()`, the objects
+     * registered, the bootstrap) for a later turn of the event loop and returns at once; the completion or the failure
+     * is emitted as an internal event. Override `init()` instead.
+     * @param hooks The steps the framework's subclasses run before the objects are registered.
+     * @returns Resolves at once, before the initialization.
      * @protected
      */
     protected async [__init](...hooks: (() => Promise<void>)[]): Promise<void> {
@@ -125,8 +171,9 @@ export class Module extends Component {
     }
 
     /**
-     * Internal destroyer
-     * @param hooks
+     * The framework's destroyer, see {@link Component}; override `beforeDestroy()` and `destroy()` instead.
+     * @param hooks The steps the framework's subclasses run before `destroy()`.
+     * @returns Resolves once the module and its objects are destroyed.
      * @protected
      */
     protected async [__destroy](...hooks: (() => Promise<void>)[]): Promise<void> {
@@ -134,14 +181,20 @@ export class Module extends Component {
     }
 
     /**
-     * Get current runtime env is production or development
+     * The mode the application runs in: the `MODE` environment variable, else `NODE_ENV`, when it is `development` or
+     * `production`; `development` otherwise.
+     * @returns The mode.
      */
     public mode(): 'development' | 'production' {
         return CurrentMode()
     }
 
     /**
-     * Reload self
+     * Destroy the module with its objects and initialize it again (same instance): its objects are registered again
+     * and its bootstrap runs again.
+     * @returns Resolves once the module is initialized again.
+     * @throws {ObjectDestroyedException} When its parent has been destroyed.
+     * @throws {Error} The error of its teardown or of its initialization.
      */
     public async reload(): Promise<void> {
         await this[__destroy]()
@@ -163,35 +216,58 @@ export class Module extends Component {
     }
 
     /**
-     * Get registered object via constructor
-     * @param constructor
-     * @param configurableRecords
+     * Get an object registered by its class, from the module's container or its parents, as {@link Container.get}.
+     * @param constructor The class the object was registered with (or an `@Autoload` class).
+     * @param configurableRecords The options of the object, merged over the ones it was declared with. Ignored, with a
+     * warning outside production, when the cached singleton or scoped instance already exists; a scoped object
+     * requested with options is a new instance owned by the module.
+     * @returns The object, once created and initialized.
+     * @throws {ObjectDestroyedException} When the module has been destroyed.
+     * @throws {Error} When nothing is registered under it, or the object fails to be created.
      */
     public async getObject<T extends BaseObject>(constructor: IBaseObjectConstructor<T>, configurableRecords?: Record<string, any>): Promise<T>
     /**
-     * Get registered object via string
-     * @param name
-     * @param configurableRecords
+     * Get an object registered under a name (its key in the module options), as {@link Module.getObject} by class.
+     * @param name The registration name.
+     * @param configurableRecords The options of the object, merged over the ones it was declared with. Ignored, with a
+     * warning outside production, when the cached singleton or scoped instance already exists; a scoped object
+     * requested with options is a new instance owned by the module.
+     * @returns The object, once created and initialized.
+     * @throws {ObjectDestroyedException} When the module has been destroyed.
+     * @throws {Error} When nothing is registered under it, or the object fails to be created.
      */
     public async getObject<T extends BaseObject>(name: string, configurableRecords?: Record<string, any>): Promise<T>
     /**
-     * Get registered object via symbol
-     * @param name
-     * @param configurableRecords
+     * Get an object registered under a symbol, as {@link Module.getObject} by class.
+     * @param name The registration symbol.
+     * @param configurableRecords The options of the object, merged over the ones it was declared with. Ignored, with a
+     * warning outside production, when the cached singleton or scoped instance already exists; a scoped object
+     * requested with options is a new instance owned by the module.
+     * @returns The object, once created and initialized.
+     * @throws {ObjectDestroyedException} When the module has been destroyed.
+     * @throws {Error} When nothing is registered under it, or the object fails to be created.
      */
     public async getObject<T extends BaseObject>(name: symbol, configurableRecords?: Record<string, any>): Promise<T>
     /**
-     * Get registered object via string or symbol
-     * @param name
-     * @param configurableRecords
-     * @protected
+     * Get an object registered under a name or a symbol, as {@link Module.getObject} by class.
+     * @param name The registration name or symbol.
+     * @param configurableRecords The options of the object, merged over the ones it was declared with. Ignored, with a
+     * warning outside production, when the cached singleton or scoped instance already exists; a scoped object
+     * requested with options is a new instance owned by the module.
+     * @returns The object, once created and initialized.
+     * @throws {ObjectDestroyedException} When the module has been destroyed.
+     * @throws {Error} When nothing is registered under it, or the object fails to be created.
      */
     public async getObject<T extends BaseObject>(name: string | symbol, configurableRecords?: Record<string, any>): Promise<T>
     /**
-     * Get registered object via string or symbol or constructor
-     * @param nameOrConstructor
-     * @param configurableRecords
-     * @protected
+     * Get an object registered under a name, a symbol or by its class, as {@link Module.getObject} by class.
+     * @param nameOrConstructor The registration name, symbol or class.
+     * @param configurableRecords The options of the object, merged over the ones it was declared with. Ignored, with a
+     * warning outside production, when the cached singleton or scoped instance already exists; a scoped object
+     * requested with options is a new instance owned by the module.
+     * @returns The object, once created and initialized.
+     * @throws {ObjectDestroyedException} When the module has been destroyed.
+     * @throws {Error} When nothing is registered under it, or the object fails to be created.
      */
     public async getObject<T extends BaseObject>(nameOrConstructor: string | symbol | IBaseObjectConstructor<T>, configurableRecords?: Record<string, any>): Promise<T>
     public async getObject<T extends BaseObject>(inp: string | symbol | IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {

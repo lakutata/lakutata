@@ -4,9 +4,38 @@ import {SetMethodAcceptArgumentsValidator} from '../../lib/dto/MethodValidation.
 import {Schema} from '../../lib/validation/types/Schema.js'
 
 /**
- * Method Decorator
- * @param defs
- * @constructor
+ * Validate the arguments of each call of the method, in order, against the schemas given; the method then receives the
+ * validated values (defaults applied, the keys without schema removed). A DTO class validates its argument against its
+ * schema: the method receives a plain object, not an instance of the class. The arguments beyond the schemas given are
+ * passed unchecked. An async method is validated asynchronously (its call rejects on failure), another method
+ * synchronously.
+ * @remarks A missing argument is accepted unless its schema is required (`MyDTO.required()`,
+ * `DTO.String().required()`); an optional argument is omitted, not passed as `undefined` when an argument follows it.
+ * @param defs The schemas of the arguments, by position: DTO classes or schemas (`DTO.String()`).
+ * @returns The method decorator; the decorated method cannot be reassigned.
+ * @throws {InvalidMethodAcceptException} From a call, when an argument does not match its schema (its cause is the
+ * `InvalidValueException` of the validation).
+ * @example
+ * ```typescript
+ * import {Component, DTO} from 'lakutata'
+ * import {Accept, Expect} from 'lakutata/decorator/dto'
+ *
+ * class TransferDTO extends DTO {
+ *     @Expect(DTO.String().required())
+ *     public to!: string
+ *
+ *     @Expect(DTO.Number().positive().required())
+ *     public amount!: number
+ * }
+ *
+ * class Bank extends Component {
+ *     //The transfer is required, the note optional
+ *     @Accept(TransferDTO.required(), DTO.String().max(140).optional())
+ *     public async transfer(transfer: TransferDTO, note?: string): Promise<void> {
+ *         console.log(`${transfer.amount} to ${transfer.to}`, note)
+ *     }
+ * }
+ * ```
  */
 export function Accept<ClassPrototype, DTOConstructor extends typeof DTO, Method>(...defs: (DTOConstructor | Schema)[]): MethodDecorator<ClassPrototype, Method> {
     return (target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<Method>): TypedPropertyDescriptor<any> => SetMethodAcceptArgumentsValidator(target, propertyKey, descriptor, defs)

@@ -10,9 +10,10 @@ export interface BaseValidationOptions {
      */
     abortEarly?: boolean
     /**
-     * when true, allows object to contain unknown keys which are ignored.
+     * When true, the objects may contain unknown keys; when false, they are rejected, unless `stripUnknown` removes
+     * them. `ObjectSchema.unknown()` overrides it for an object.
      *
-     * @default false
+     * @default true (lakutata)
      */
     allowUnknown?: boolean
     /**
@@ -84,12 +85,11 @@ export interface BaseValidationOptions {
      */
     skipFunctions?: boolean
     /**
-     * remove unknown elements from objects and arrays.
-     * - when true, all unknown elements will be removed
-     * - when an object:
-     *      - objects - set to true to remove unknown keys from objects
+     * Remove the unknown elements instead of rejecting them: true (or `{objects: true}`) removes the unknown keys of the
+     * objects, `{arrays: true}` the array items matching none of the item schemas. The keys an object allows with
+     * `unknown()` are kept.
      *
-     * @default false
+     * @default true (lakutata)
      */
     stripUnknown?: boolean | { arrays?: boolean, objects?: boolean }
 }

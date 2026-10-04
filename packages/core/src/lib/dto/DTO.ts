@@ -229,11 +229,52 @@ function dynamicProxyProperty(target: any, prop: string | symbol, receiver: any,
 const DTODescriptionSymbol: symbol = Symbol('DTO.DESCRIPTION')
 
 /**
- * DTO base class
+ * The base class of the data transfer objects: a class whose properties are declared with schemas (`@Expect`), and
+ * which validates its data when it is constructed and each time it is changed. Its static methods validate any value
+ * (`DTO.validate()`), build schemas (`DTO.String()`, `DTO.Object()`…), and convert the class schema to or from JSON
+ * Schema. A DTO class is also a schema wherever one is expected: `@Accept`, `@Return`, the input of the controller
+ * actions. The schemas built by `DTO` are strict: a value of the wrong type is rejected, not converted (the string `'5'`
+ * is not the number 5).
+ * @example
+ * ```typescript
+ * import {DTO} from 'lakutata'
+ * import {Expect} from 'lakutata/decorator/dto'
+ *
+ * class AddressDTO extends DTO {
+ *     @Expect(DTO.String().required())
+ *     public city!: string
+ *
+ *     @Expect(DTO.String().pattern(/^[0-9]{5}$/).optional())
+ *     public zip?: string
+ * }
+ *
+ * class CustomerDTO extends DTO {
+ *     @Expect(DTO.String().min(1).required())
+ *     public name!: string
+ *
+ *     @Expect(AddressDTO.required())
+ *     public address!: AddressDTO
+ * }
+ *
+ * //Validated when constructed, the unknown key "note" removed
+ * const customer: CustomerDTO = new CustomerDTO({name: 'Ada', address: {city: 'London'}, note: 'vip'})
+ * //Validated without an instance: the validated value, or an InvalidValueException
+ * const data: CustomerDTO = CustomerDTO.validate({name: 'Ada', address: {city: 'London'}})
+ * //Checked without exception
+ * console.log(customer.name, data.address.city, CustomerDTO.isValid({name: ''}))
+ * ```
  */
 @(<ClassConstructor extends typeof DTO>(target: ClassConstructor): ClassConstructor => DefineObjectAsDTO(target))
 export class DTO extends DataValidator {
 
+    /**
+     * Create a DTO from its data, validated against the class schema: the defaults applied, the keys without schema
+     * removed (unless the class has an `@IndexSignature`). The instance then validates each change of a property, or
+     * of a value nested in it (an array, an object): an invalid change throws an `InvalidValueException` and is
+     * undone.
+     * @param props The data of the DTO. Default: no data (`{}`).
+     * @throws {InvalidValueException} When the data does not match the class schema.
+     */
     constructor(props: Record<string, any> = {}) {
         super()
         //Create DTO proxy object
@@ -268,9 +309,11 @@ export class DTO extends DataValidator {
     [prop: string | symbol]: any
 
     /**
-     * Prepare schema and validate options
-     * @param schemaOrOptions
-     * @param options
+     * Resolve the arguments of the validation methods: the schema given, else the class schema (`this.Schema()`), and
+     * the validation options.
+     * @param schemaOrOptions The schema to validate against, or the validation options when no schema is given.
+     * @param options The validation options, when a schema is given. Default: no option (`{}`).
+     * @returns The schema and the options to validate with.
      * @protected
      */
     protected static prepareValidation(schemaOrOptions?: Schema | ValidationOptions, options?: ValidationOptions): {
@@ -286,18 +329,25 @@ export class DTO extends DataValidator {
     }
 
     /**
-     * Convert current DTO to JSONSchema (default: JSON Schema 2020-12)
-     * @param version
-     * @param options
+     * Convert the class schema to a JSON Schema, for an API document or another validator. What JSON Schema cannot
+     * express (custom rules, references to other values) is dropped, so the JSON Schema may accept more values, never
+     * less.
+     * @param version The JSON Schema version to write. Default `'draft-2020-12'`.
+     * @param options The validation options the schema is used with, whether `$schema` is written, and the object
+     * receiving the shared schemas. Default: no option (`{}`).
+     * @returns A new JSON Schema.
+     * @throws {SchemaConversionException} When the version is unknown.
      */
     public static toJsonSchema(version: 'draft-2020-12' | 'draft-2019-09' | 'draft-07' | 'draft-04' = 'draft-2020-12', options: Omit<ToJsonSchemaOptions, 'target'> = {}): JSONSchema {
         return toJsonSchema(this, {...options, target: version})
     }
 
     /**
-     * Convert current DTO to OpenAPI JSONSchema (default: OpenAPI 3.1)
-     * @param version
-     * @param options
+     * Convert the class schema to an OpenAPI schema object, for the `components.schemas` of an OpenAPI document.
+     * @param version The OpenAPI version: `'3.0'` or `'3.1'`. Default `'3.1'`.
+     * @param options The validation options the schema is used with, and the object receiving the shared schemas.
+     * Default: no option (`{}`).
+     * @returns A new OpenAPI schema object.
      */
     public static toOpenAPIJsonSchema(version: '3.0' | '3.1' = '3.1', options: Omit<ToJsonSchemaOptions, 'target' | 'dialect'> = {}): JSONSchema {
         return toJsonSchema(this, {...options, target: version === '3.0' ? 'openapi-3.0' : 'openapi-3.1'})
@@ -306,9 +356,14 @@ export class DTO extends DataValidator {
     /**
      * Create a DTO class (a subclass of the current DTO class) from an object JSON Schema (or an OpenAPI schema object),
      * validating like JSON Schema: its properties become the properties of the DTO, its other keywords (unknown keys,
-     * pattern properties, key counts, dependencies, subschemas) constrain the whole object
-     * @param schema
-     * @param options
+     * pattern properties, key counts, dependencies, subschemas) constrain the whole object.
+     * @param schema The JSON Schema of an object (or an OpenAPI schema object), or a reference (`$ref`) to one.
+     * @param options The version of the JSON Schema, where its references are resolved, whether the values are
+     * converted, and the name of the class. Default `name`: the title of the JSON Schema, else the current class
+     * name followed by `FromJsonSchema`.
+     * @returns The new DTO class.
+     * @throws {SchemaConversionException} When the JSON Schema does not describe objects, a reference cannot be
+     * resolved, or a pattern is not a valid regular expression.
      */
     public static fromJsonSchema<T extends typeof DTO>(this: T, schema: JSONSchema, options: FromJsonSchemaOptions & { name?: string } = {}): T {
         const imported: ImportedObject = importObject(schema, options)
@@ -324,9 +379,13 @@ export class DTO extends DataValidator {
 
     /**
      * Create the DTO classes of the object schemas of an OpenAPI document (its components.schemas), by name; the
-     * references between the schemas are resolved in the document
-     * @param document
-     * @param options
+     * references between the schemas are resolved in the document. The schemas which do not describe objects are
+     * skipped.
+     * @param document The OpenAPI 3.0 or 3.1 document.
+     * @param options How the JSON Schemas are read. Default `dialect`: the version of the document's `openapi` field.
+     * @returns The DTO classes, by the names of their schemas.
+     * @throws {SchemaConversionException} When the document has no `components.schemas`, or a schema cannot be
+     * converted.
      */
     public static fromOpenAPI<T extends typeof DTO>(this: T, document: Record<string, unknown>, options: Omit<FromJsonSchemaOptions, 'document'> = {}): Record<string, T> {
         const version: unknown = document.openapi
@@ -346,8 +405,10 @@ export class DTO extends DataValidator {
     }
 
     /**
-     * Set description
-     * @param desc
+     * Set the description of the class schema, written into its JSON Schema and its descriptions. The description is
+     * not inherited by the subclasses.
+     * @param desc The description.
+     * @returns The class itself, for chaining.
      */
     public static description(desc: string): typeof DTO {
         Reflect.defineMetadata(DTODescriptionSymbol, desc, this)
@@ -356,8 +417,10 @@ export class DTO extends DataValidator {
     }
 
     /**
-     * DTO schema
-     * @constructor
+     * Get the class schema: an object schema of the properties declared with `@Expect` (the parents' included), with
+     * the `@IndexSignature` and the description of the class. The schema is optional (it accepts `undefined`): use
+     * `required()` for a required one.
+     * @returns The object schema; the same instance until a schema declaration changes.
      */
     public static Schema(): ObjectSchema {
         return GetCachedDTOSchema(classSchemaCache, this, (): ObjectSchema => {
@@ -370,49 +433,57 @@ export class DTO extends DataValidator {
     }
 
     /**
-     * Marks DTO schema as required which will not allow undefined as value.
+     * Get the class schema marked as required: `undefined` is rejected.
+     * @returns A new object schema.
      */
     public static required(): ObjectSchema {
         return this.Schema().required()
     }
 
     /**
-     * Marks a DTO schema as optional which will allow undefined as values.
+     * Get the class schema marked as optional: `undefined` is accepted (as by `Schema()`).
+     * @returns A new object schema.
      */
     public static optional(): ObjectSchema {
         return this.Schema().optional()
     }
 
     /**
-     * Overrides the validate() options for the current key and any sub-key.
-     * @param options
+     * Get the class schema with its own validation options, which override the options of the validation for the
+     * object and its nested values.
+     * @param options The validation options.
+     * @returns A new object schema.
      */
     public static options(options: ValidationOptions): ObjectSchema {
         return this.Schema().options(options)
     }
 
     /**
-     * Is data matched with given schema
-     * @param data
+     * Check whether a value matches a schema (the class schema when none is given), without throwing.
+     * @param data The value to check.
+     * @returns `true` when the value matches the schema, else `false`.
      */
     public static isValid<T = any>(data: T): boolean
     /**
-     * Is data matched with given schema
-     * @param data
-     * @param options
+     * Check whether a value matches a schema (the class schema when none is given), without throwing.
+     * @param data The value to check.
+     * @param options The validation options, merged with the defaults (unknown keys removed, the first error only).
+     * @returns `true` when the value matches the schema, else `false`.
      */
     public static isValid<T = any>(data: T, options: ValidationOptions): boolean
     /**
-     * Is data matched with given schema
-     * @param data
-     * @param schema
+     * Check whether a value matches a schema (the class schema when none is given), without throwing.
+     * @param data The value to check.
+     * @param schema The schema to check against, instead of the class schema.
+     * @returns `true` when the value matches the schema, else `false`.
      */
     public static isValid<T = any>(data: T, schema: Schema): boolean
     /**
-     * Is data matched with given schema
-     * @param data
-     * @param schema
-     * @param options
+     * Check whether a value matches a schema (the class schema when none is given), without throwing.
+     * @param data The value to check.
+     * @param schema The schema to check against, instead of the class schema.
+     * @param options The validation options, merged with the defaults (unknown keys removed, the first error only).
+     * @returns `true` when the value matches the schema, else `false`.
      */
     public static isValid<T = any>(data: T, schema: Schema, options: ValidationOptions): boolean
     public static isValid<T = any>(data: T, schemaOrOptions?: Schema | ValidationOptions, validateOptions?: ValidationOptions): boolean {
@@ -421,27 +492,35 @@ export class DTO extends DataValidator {
     }
 
     /**
-     *
-     * @param data
+     * Check whether a value matches a schema (the class schema when none is given), without throwing; asynchronously,
+     * running the external rules of the schema.
+     * @param data The value to check.
+     * @returns A promise of `true` when the value matches the schema, else `false`.
      */
     public static async isValidAsync<T = any>(data: T): Promise<boolean>
     /**
-     * Is data matched with given schema
-     * @param data
-     * @param options
+     * Check whether a value matches a schema (the class schema when none is given), without throwing; asynchronously,
+     * running the external rules of the schema.
+     * @param data The value to check.
+     * @param options The validation options, merged with the defaults (unknown keys removed, the first error only).
+     * @returns A promise of `true` when the value matches the schema, else `false`.
      */
     public static async isValidAsync<T = any>(data: T, options: ValidationOptions): Promise<boolean>
     /**
-     * Is data matched with given schema
-     * @param data
-     * @param schema
+     * Check whether a value matches a schema (the class schema when none is given), without throwing; asynchronously,
+     * running the external rules of the schema.
+     * @param data The value to check.
+     * @param schema The schema to check against, instead of the class schema.
+     * @returns A promise of `true` when the value matches the schema, else `false`.
      */
     public static async isValidAsync<T = any>(data: T, schema: Schema): Promise<boolean>
     /**
-     * Is data matched with given schema
-     * @param data
-     * @param schema
-     * @param options
+     * Check whether a value matches a schema (the class schema when none is given), without throwing; asynchronously,
+     * running the external rules of the schema.
+     * @param data The value to check.
+     * @param schema The schema to check against, instead of the class schema.
+     * @param options The validation options, merged with the defaults (unknown keys removed, the first error only).
+     * @returns A promise of `true` when the value matches the schema, else `false`.
      */
     public static async isValidAsync<T = any>(data: T, schema: Schema, options: ValidationOptions): Promise<boolean>
     public static async isValidAsync<T = any>(data: T, schemaOrOptions?: Schema | ValidationOptions, validateOptions?: ValidationOptions): Promise<boolean> {
@@ -450,27 +529,35 @@ export class DTO extends DataValidator {
     }
 
     /**
-     * Validates a value using the schema and options.
-     * @param data
+     * Validate a value against a schema (the class schema when none is given).
+     * @param data The value to check.
+     * @returns The validated value: the defaults applied, the unknown keys removed (a plain object, not a DTO instance).
+     * @throws {InvalidValueException} When the value does not match the schema (its cause holds the details).
      */
     public static validate<T = any>(data: T): T
     /**
-     * Validates a value using the schema and options.
-     * @param data
-     * @param options
+     * Validate a value against a schema (the class schema when none is given).
+     * @param data The value to check.
+     * @param options The validation options, merged with the defaults (unknown keys removed, the first error only).
+     * @returns The validated value: the defaults applied, the unknown keys removed (a plain object, not a DTO instance).
+     * @throws {InvalidValueException} When the value does not match the schema (its cause holds the details).
      */
     public static validate<T = any>(data: T, options: ValidationOptions): T
     /**
-     * Validates a value using the schema and options.
-     * @param data
-     * @param schema
+     * Validate a value against a schema (the class schema when none is given).
+     * @param data The value to check.
+     * @param schema The schema to check against, instead of the class schema.
+     * @returns The validated value: the defaults applied, the unknown keys removed (a plain object, not a DTO instance).
+     * @throws {InvalidValueException} When the value does not match the schema (its cause holds the details).
      */
     public static validate<T = any>(data: T, schema: Schema): T
     /**
-     * Validates a value using the schema and options.
-     * @param data
-     * @param schema
-     * @param options
+     * Validate a value against a schema (the class schema when none is given).
+     * @param data The value to check.
+     * @param schema The schema to check against, instead of the class schema.
+     * @param options The validation options, merged with the defaults (unknown keys removed, the first error only).
+     * @returns The validated value: the defaults applied, the unknown keys removed (a plain object, not a DTO instance).
+     * @throws {InvalidValueException} When the value does not match the schema (its cause holds the details).
      */
     public static validate<T = any>(data: T, schema: Schema, options: ValidationOptions): T
     public static validate<T = any>(data: T, schemaOrOptions?: Schema | ValidationOptions, validateOptions?: ValidationOptions): T {
@@ -479,27 +566,47 @@ export class DTO extends DataValidator {
     }
 
     /**
-     * Validates a value using the schema and options.
-     * @param data
+     * Validate a value against a schema (the class schema when none is given), asynchronously: the external rules of
+     * the schema (`.external()`) run, which the synchronous validation cannot run.
+     * @param data The value to check.
+     * @returns A promise of the validated value: the defaults applied, the unknown keys removed (a plain object, not a DTO
+     * instance).
+     * @throws {InvalidValueException} When the value does not match the schema (the promise rejects; its cause holds
+     * the details).
      */
     public static async validateAsync<T = any>(data: T): Promise<T>
     /**
-     * Validates a value using the schema and options.
-     * @param data
-     * @param options
+     * Validate a value against a schema (the class schema when none is given), asynchronously: the external rules of
+     * the schema (`.external()`) run, which the synchronous validation cannot run.
+     * @param data The value to check.
+     * @param options The validation options, merged with the defaults (unknown keys removed, the first error only).
+     * @returns A promise of the validated value: the defaults applied, the unknown keys removed (a plain object, not a DTO
+     * instance).
+     * @throws {InvalidValueException} When the value does not match the schema (the promise rejects; its cause holds
+     * the details).
      */
     public static async validateAsync<T = any>(data: T, options: ValidationOptions): Promise<T>
     /**
-     * Validates a value using the schema and options.
-     * @param data
-     * @param schema
+     * Validate a value against a schema (the class schema when none is given), asynchronously: the external rules of
+     * the schema (`.external()`) run, which the synchronous validation cannot run.
+     * @param data The value to check.
+     * @param schema The schema to check against, instead of the class schema.
+     * @returns A promise of the validated value: the defaults applied, the unknown keys removed (a plain object, not a DTO
+     * instance).
+     * @throws {InvalidValueException} When the value does not match the schema (the promise rejects; its cause holds
+     * the details).
      */
     public static async validateAsync<T = any>(data: T, schema: Schema): Promise<T>
     /**
-     * Validates a value using the schema and options.
-     * @param data
-     * @param schema
-     * @param options
+     * Validate a value against a schema (the class schema when none is given), asynchronously: the external rules of
+     * the schema (`.external()`) run, which the synchronous validation cannot run.
+     * @param data The value to check.
+     * @param schema The schema to check against, instead of the class schema.
+     * @param options The validation options, merged with the defaults (unknown keys removed, the first error only).
+     * @returns A promise of the validated value: the defaults applied, the unknown keys removed (a plain object, not a DTO
+     * instance).
+     * @throws {InvalidValueException} When the value does not match the schema (the promise rejects; its cause holds
+     * the details).
      */
     public static async validateAsync<T = any>(data: T, schema: Schema, options: ValidationOptions): Promise<T>
     public static async validateAsync<T = any>(data: T, schemaOrOptions?: Schema | ValidationOptions, validateOptions?: ValidationOptions): Promise<T> {

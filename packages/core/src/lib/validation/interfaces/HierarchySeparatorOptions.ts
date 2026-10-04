@@ -1,7 +1,6 @@
 export interface HierarchySeparatorOptions {
     /**
-     * overrides the default `.` hierarchy separator. Set to false to treat the key as a literal value.
-     *
+     * The separator of the keys in a path, or false to read the whole path as a single key.
      * @default '.'
      */
     separator?: string | false

@@ -59,9 +59,27 @@ export function SetMethodAcceptArgumentsValidator<ClassPrototype, DTOConstructor
 const METHOD_RETURN_SCHEMA: symbol = Symbol('DTO.METHOD.RETURN.SCHEMA')
 
 /**
- * The schema of the return value of a method declared with @Return, for the channels describing the results of their actions
- * @param target the prototype of the class
- * @param propertyKey
+ * Get the schema a method's result is validated against, declared with `@Return` (the schema of a DTO class given to
+ * `@Return`); used by the entrypoint channels describing the results of their actions. It is looked up through the
+ * prototype chain: a subclass gets the schema of its parent's method, even when it overrides the method.
+ * @param target The prototype of the class.
+ * @param propertyKey The name of the method.
+ * @returns The schema, or `undefined` when the method has no `@Return`.
+ * @example
+ * ```typescript
+ * import {Component, DTO} from 'lakutata'
+ * import {GetMethodReturnSchema, Return} from 'lakutata/decorator/dto'
+ *
+ * class Clock extends Component {
+ *     @Return(DTO.Number().integer().required())
+ *     public async now(): Promise<number> {
+ *         return Date.now()
+ *     }
+ * }
+ *
+ * //The description of the result, e.g. for a generated API document
+ * console.log(GetMethodReturnSchema(Clock.prototype, 'now')?.describe())
+ * ```
  */
 export function GetMethodReturnSchema(target: object, propertyKey: string | symbol): Schema | undefined {
     return Reflect.getMetadata(METHOD_RETURN_SCHEMA, target, propertyKey)

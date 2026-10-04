@@ -9,7 +9,40 @@ import {Configurable} from '../../decorators/di/Configurable.js'
 import {DTO} from '../dto/DTO.js'
 
 /**
- * Component base class
+ * The base class of the components: the long-lived objects shared by the whole application (a logger, a database
+ * connection, a cache, an entrypoint). Its lifetime is `@Singleton`, locked: one instance per container registering
+ * it, and a subclass declaring another lifetime throws a {@link LifetimeLockedException}.
+ *
+ * Declare it in the `components` of the application or module options, under a name, with its options; it is created
+ * on first request (`@Inject`, `getObject()`), or at launch when its name is listed in `bootstrap`. A component is an
+ * event emitter: its events support namespaces (`'order.paid'`) and wildcards (`'order.*'`), and its listeners added
+ * by `on()`, `once()`, `many()` and their prepended forms run asynchronously after the emitting. Its listeners are
+ * removed at its teardown.
+ * @example
+ * ```typescript
+ * import {Application, Component, Module} from 'lakutata'
+ *
+ * export class Orders extends Component {
+ *     public async pay(id: number): Promise<void> {
+ *         //...
+ *         this.emit('order.paid', id)
+ *     }
+ * }
+ *
+ * Application.run({
+ *     id: 'shop.app',
+ *     name: 'Shop',
+ *     components: {
+ *         orders: {class: Orders}
+ *     },
+ *     bootstrap: [
+ *         async (app: Module): Promise<void> => {
+ *             const orders: Orders = await app.getObject<Orders>('orders')
+ *             orders.on('order.*', (id: number): void => console.log(`Order ${id} changed`))
+ *         }
+ *     ]
+ * })
+ * ```
  */
 @Singleton(true)
 @DefineObjectType(ObjectType.Component)
@@ -22,9 +55,10 @@ export class Component extends Provider {
     #eventEmitter: EventEmitter = new EventEmitter()
 
     /**
-     * The number of the listeners of an event above which a possible memory leak is warned of (11 by default, 0 for
-     * no warning); the listeners are never limited. A subclass gives its own default by an initializer
-     * (protected readonly maxListeners: number = 0)
+     * The number of listeners of one event above which a possible memory leak is warned of (0: no warning); the
+     * listeners are never limited. A subclass gives its own default by an initializer
+     * (`protected readonly maxListeners: number = 0`).
+     * @default 11
      * @protected
      */
     @Configurable(DTO.Number().integer().min(0).optional().default(11), function (this: Component, maxListeners: number): number {
@@ -34,8 +68,9 @@ export class Component extends Provider {
     protected readonly maxListeners: number
 
     /**
-     * Internal initializer
-     * @param hooks
+     * The framework's initializer, see {@link BaseObject}; override `init()` instead.
+     * @param hooks The steps the framework's subclasses run before `init()`.
+     * @returns Resolves once the component is ready.
      * @protected
      */
     protected async [__init](...hooks: (() => Promise<void>)[]): Promise<void> {
@@ -43,8 +78,10 @@ export class Component extends Provider {
     }
 
     /**
-     * Internal destroyer
-     * @param hooks
+     * The framework's destroyer, see {@link BaseObject}: it also removes all the listeners; override `beforeDestroy()`
+     * and `destroy()` instead.
+     * @param hooks The steps the framework's subclasses run before `destroy()`.
+     * @returns Resolves once the component is destroyed.
      * @protected
      */
     protected async [__destroy](...hooks: (() => Promise<void>)[]): Promise<void> {
@@ -54,7 +91,7 @@ export class Component extends Provider {
     }
 
     /**
-     * Get container
+     * The component's own container: the objects it registers or creates there are destroyed with it.
      * @protected
      */
     protected get container(): Container {
@@ -62,7 +99,11 @@ export class Component extends Provider {
     }
 
     /**
-     * Create sub scope container
+     * Create a scope from the component's container (see {@link Container.createScope}), such as one per request:
+     * the scoped objects got from it are its own instances. Destroy it once done; it is destroyed with the component
+     * otherwise.
+     * @returns The new scope.
+     * @throws {ObjectDestroyedException} When the component's container has been destroyed.
      * @protected
      */
     protected createScope(): Container {
@@ -70,29 +111,42 @@ export class Component extends Provider {
     }
 
     /**
-     * emitter.emit(event | eventNS, [arg1], [arg2], [...])
-     * Execute each of the listeners that may be listening for the specified event name in order with the list of arguments.
-     * @param event
-     * @param values
+     * Emit an event: the listeners added by `addListener()` and `onAny()` are called now, in order; the ones added by
+     * `on()`, `once()`, `many()` and their prepended forms are scheduled (an error they throw is an unhandled
+     * rejection). Use `emitRequest()` to wait for the listeners and their results.
+     * @param event The event: a name (`'order.paid'`, the parts separated by dots, with the wildcards `*` for one part
+     * and `**` for any parts) or the parts as an array (`['order', 'paid']`). A symbol is accepted by the type but not
+     * supported: its listeners are never called.
+     * @param values The values passed to the listeners.
+     * @returns true when the event has listeners.
+     * @throws {Error} The error emitted as an `'error'` event which has no listener.
      */
     public emit(event: string | symbol | event[], ...values: any[]): boolean {
         return this.#eventEmitter.emit(event, ...values)
     }
 
     /**
-     * emitter.emitRequest(event | eventNS, [arg1], [arg2], [...])
-     * Return the results of the listeners via Promise.all.
-     * @param event
-     * @param values
+     * Emit an event and wait for its listeners (the asynchronous ones included).
+     * @param event The event: a name (`'order.paid'`, the parts separated by dots, with the wildcards `*` for one part
+     * and `**` for any parts) or the parts as an array (`['order', 'paid']`). A symbol is accepted by the type but not
+     * supported: its listeners are never called.
+     * @param values The values passed to the listeners.
+     * @returns The results of the listeners, in their order (an empty array without listener).
+     * @throws {Error} The first error thrown by a listener, or the error emitted as an `'error'` event which has no
+     * listener.
      */
     public async emitRequest(event: string | symbol | event[], ...values: any[]): Promise<any[]> {
         return this.#eventEmitter.emitRequest(event, ...values)
     }
 
     /**
-     * Adds a listener to the end of the listeners array for the specified event.
-     * @param event
-     * @param listener
+     * Add a listener called synchronously, at the emitting, after the event's other listeners. Unlike `on()`, its
+     * listener runs before `emit()` returns.
+     * @param event The event: a name (`'order.paid'`, the parts separated by dots, with the wildcards `*` for one part
+     * and `**` for any parts) or the parts as an array (`['order', 'paid']`). A symbol is accepted by the type but not
+     * supported: its listeners are never called.
+     * @param listener The function called with the event's values.
+     * @returns The component, for chaining.
      */
     public addListener(event: string | symbol | event[], listener: ListenerFn): this {
         this.#eventEmitter.addListener(event, listener)
@@ -100,9 +154,13 @@ export class Component extends Provider {
     }
 
     /**
-     * Adds a listener to the end of the listeners array for the specified event.
-     * @param event
-     * @param listener
+     * Add a listener, after the event's other listeners.
+     * @param event The event: a name (`'order.paid'`, the parts separated by dots, with the wildcards `*` for one part
+     * and `**` for any parts) or the parts as an array (`['order', 'paid']`). A symbol is accepted by the type but not
+     * supported: its listeners are never called.
+     * @param listener The function called with the event's values, asynchronously after the emitting (in a later turn of
+     * the event loop); its result (or the promise it returns) is collected by `emitRequest()`.
+     * @returns The component, for chaining.
      */
     public on(event: string | symbol | event[], listener: ListenerFn): this {
         this.#eventEmitter.on(event, listener)
@@ -110,9 +168,13 @@ export class Component extends Provider {
     }
 
     /**
-     * Adds a listener to the beginning of the listeners array for the specified event.
-     * @param event
-     * @param listener
+     * Add a listener before the event's other listeners.
+     * @param event The event: a name (`'order.paid'`, the parts separated by dots, with the wildcards `*` for one part
+     * and `**` for any parts) or the parts as an array (`['order', 'paid']`). A symbol is accepted by the type but not
+     * supported: its listeners are never called.
+     * @param listener The function called with the event's values, asynchronously after the emitting (in a later turn of
+     * the event loop); its result (or the promise it returns) is collected by `emitRequest()`.
+     * @returns The component, for chaining.
      */
     public prependListener(event: string | symbol | event[], listener: ListenerFn): this {
         this.#eventEmitter.prependListener(event, listener)
@@ -120,9 +182,13 @@ export class Component extends Provider {
     }
 
     /**
-     * Adds a one time listener for the event. The listener is invoked only the first time the event is fired, after which it is removed.
-     * @param event
-     * @param listener
+     * Add a listener called for the event's next emitting only, then removed.
+     * @param event The event: a name (`'order.paid'`, the parts separated by dots, with the wildcards `*` for one part
+     * and `**` for any parts) or the parts as an array (`['order', 'paid']`). A symbol is accepted by the type but not
+     * supported: its listeners are never called.
+     * @param listener The function called with the event's values, asynchronously after the emitting (in a later turn of
+     * the event loop); its result (or the promise it returns) is collected by `emitRequest()`.
+     * @returns The component, for chaining.
      */
     public once(event: string | symbol | event[], listener: ListenerFn): this {
         this.#eventEmitter.once(event, listener)
@@ -130,9 +196,14 @@ export class Component extends Provider {
     }
 
     /**
-     * Adds a one time listener for the event. The listener is invoked only the first time the event is fired, after which it is removed. The listener is added to the beginning of the listeners array
-     * @param event
-     * @param listener
+     * Add a listener called for the event's next emitting only, then removed; it is placed before the event's other
+     * listeners.
+     * @param event The event: a name (`'order.paid'`, the parts separated by dots, with the wildcards `*` for one part
+     * and `**` for any parts) or the parts as an array (`['order', 'paid']`). A symbol is accepted by the type but not
+     * supported: its listeners are never called.
+     * @param listener The function called with the event's values, asynchronously after the emitting (in a later turn of
+     * the event loop); its result (or the promise it returns) is collected by `emitRequest()`.
+     * @returns The component, for chaining.
      */
     public prependOnceListener(event: string | symbol | event[], listener: ListenerFn): this {
         this.#eventEmitter.prependOnceListener(event, listener)
@@ -140,10 +211,14 @@ export class Component extends Provider {
     }
 
     /**
-     * Adds a listener that will execute n times for the event before being removed. The listener is invoked only the first n times the event is fired, after which it is removed.
-     * @param event
-     * @param timesToListen
-     * @param listener
+     * Add a listener called for the event's next emittings, then removed.
+     * @param event The event: a name (`'order.paid'`, the parts separated by dots, with the wildcards `*` for one part
+     * and `**` for any parts) or the parts as an array (`['order', 'paid']`). A symbol is accepted by the type but not
+     * supported: its listeners are never called.
+     * @param timesToListen The number of emittings the listener is called for.
+     * @param listener The function called with the event's values, asynchronously after the emitting (in a later turn of
+     * the event loop); its result (or the promise it returns) is collected by `emitRequest()`.
+     * @returns The component, for chaining.
      */
     public many(event: string | symbol | event[], timesToListen: number, listener: ListenerFn): this {
         this.#eventEmitter.many(event, timesToListen, listener)
@@ -151,10 +226,15 @@ export class Component extends Provider {
     }
 
     /**
-     * Adds a listener that will execute n times for the event before being removed. The listener is invoked only the first n times the event is fired, after which it is removed. The listener is added to the beginning of the listeners array.
-     * @param event
-     * @param timesToListen
-     * @param listener
+     * Add a listener called for the event's next emittings, then removed; it is placed before the event's other
+     * listeners.
+     * @param event The event: a name (`'order.paid'`, the parts separated by dots, with the wildcards `*` for one part
+     * and `**` for any parts) or the parts as an array (`['order', 'paid']`). A symbol is accepted by the type but not
+     * supported: its listeners are never called.
+     * @param timesToListen The number of emittings the listener is called for.
+     * @param listener The function called with the event's values, asynchronously after the emitting (in a later turn of
+     * the event loop); its result (or the promise it returns) is collected by `emitRequest()`.
+     * @returns The component, for chaining.
      */
     public prependMany(event: string | symbol | event[], timesToListen: number, listener: ListenerFn): this {
         this.#eventEmitter.prependMany(event, timesToListen, listener)
@@ -162,8 +242,9 @@ export class Component extends Provider {
     }
 
     /**
-     * Adds a listener that will be fired when any event is emitted. The event name is passed as the first argument to the callback.
-     * @param listener
+     * Add a listener of every event, called synchronously at the emitting, before the event's own listeners.
+     * @param listener The function called with the event name, then the event's values.
+     * @returns The component, for chaining.
      */
     public onAny(listener: EventAndListener): this {
         this.#eventEmitter.onAny(listener)
@@ -171,8 +252,9 @@ export class Component extends Provider {
     }
 
     /**
-     * Adds a listener that will be fired when any event is emitted. The event name is passed as the first argument to the callback. The listener is added to the beginning of the listeners array
-     * @param listener
+     * Add a listener of every event, before the other listeners of every event, called synchronously at the emitting.
+     * @param listener The function called with the event name, then the event's values.
+     * @returns The component, for chaining.
      */
     public prependAny(listener: EventAndListener): this {
         this.#eventEmitter.prependAny(listener)
@@ -180,8 +262,9 @@ export class Component extends Provider {
     }
 
     /**
-     * Removes the listener that will be fired when any event is emitted.
-     * @param listener
+     * Remove a listener of every event added by `onAny()` or `prependAny()`.
+     * @param listener The listener to remove.
+     * @returns The component, for chaining.
      */
     public offAny(listener: ListenerFn): this {
         this.#eventEmitter.offAny(listener)
@@ -189,9 +272,10 @@ export class Component extends Provider {
     }
 
     /**
-     * Remove a specific listener from the listener array for the specified event.
-     * @param event
-     * @param listener
+     * Remove a listener of an event, as `off()`.
+     * @param event The event the listener was added for.
+     * @param listener The listener to remove.
+     * @returns The component, for chaining.
      */
     public removeListener(event: string | symbol | event[], listener: ListenerFn): this {
         this.#eventEmitter.removeListener(event, listener)
@@ -199,10 +283,10 @@ export class Component extends Provider {
     }
 
     /**
-     * emitter.off(event | eventNS, listener)
-     * Remove a listener from the listener array for the specified event. Caution: Calling this method changes the array indices in the listener array behind the listener.
-     * @param event
-     * @param listener
+     * Remove a listener of an event; nothing happens when it was not added.
+     * @param event The event the listener was added for.
+     * @param listener The listener to remove.
+     * @returns The component, for chaining.
      */
     public off(event: string | symbol | event[], listener: ListenerFn): this {
         this.#eventEmitter.off(event, listener)
@@ -210,9 +294,9 @@ export class Component extends Provider {
     }
 
     /**
-     * emitter.removeAllListeners([event | eventNS])
-     * Removes all listeners, or those of the specified event.
-     * @param event
+     * Remove the listeners of an event, or all the listeners.
+     * @param event The event whose listeners are removed; all the listeners when omitted.
+     * @returns The component, for chaining.
      */
     public removeAllListeners(event?: string | symbol | event[] | undefined): this {
         this.#eventEmitter.removeAllListeners(event)
@@ -220,67 +304,77 @@ export class Component extends Provider {
     }
 
     /**
-     * emitter.setMaxListeners(n)
-     * By default EventEmitters will print a warning if more than 10 listeners are added to it. This is a useful default which helps finding memory leaks. Obviously not all Emitters should be limited to 10. This function allows that to be increased. Set to zero for unlimited.
-     * @param n
+     * Set the number of listeners of one event above which a possible memory leak is warned of (the
+     * `maxListeners` option, 11 by default); the listeners are never limited.
+     * @param n The number, 0 for no warning.
      */
     public setMaxListeners(n: number): void {
         this.#eventEmitter.setMaxListeners(n)
     }
 
     /**
-     * emitter.getMaxListeners()
-     * Returns the current max listener value for the EventEmitter which is either set by emitter.setMaxListeners(n)
+     * The number of listeners of one event above which a possible memory leak is warned of.
+     * @returns The number, 0 for no warning.
      */
     public getMaxListeners(): number {
         return this.#eventEmitter.getMaxListeners()
     }
 
     /**
-     * emitter.eventNames(nsAsArray)
-     * Returns an array listing the events for which the emitter has registered listeners.
-     * Listeners order not guaranteed
-     * @param nsAsArray
+     * The events having listeners, in no guaranteed order.
+     * @param nsAsArray Return each namespaced event as the array of its parts (`['order', 'paid']`) instead of its
+     * name (`'order.paid'`); false by default.
+     * @returns The events.
      */
     public eventNames(nsAsArray?: boolean | undefined): (string | symbol | event[])[] {
         return this.#eventEmitter.eventNames(nsAsArray)
     }
 
     /**
-     * Returns listener count that are listening for specific event or events
-     * @param event
+     * The number of listeners of an event (the wildcard listeners matching it included), or of every event (the
+     * listeners of `onAny()` excluded).
+     * @param event The event name or its parts as an array; every event when omitted.
+     * @returns The number of listeners.
      */
     public listenerCount(event?: string | symbol | event[] | undefined): number {
         return this.#eventEmitter.listenerCount(event)
     }
 
     /**
-     * emitter.listeners(event | eventNS)
-     * Returns an array of listeners for the specified event. This array can be manipulated, e.g. to remove listeners.
-     * @param event
+     * The listeners of an event, or of every event.
+     * @param event The event name (the wildcard listeners matching it included) or its parts as an array; required.
+     * @returns A copy of the listeners; changing it does not change the listeners.
+     * @throws {Error} When no event is given.
      */
     public listeners(event?: string | symbol | event[] | undefined): ListenerFn[] {
         return this.#eventEmitter.listeners(event)
     }
 
     /**
-     * Returns an array of listeners that are listening for any event that is specified. This array can be manipulated, e.g. to remove listeners.
+     * The listeners of every event, added by `onAny()` and `prependAny()`.
+     * @returns The component's own array of these listeners (not a copy).
      */
     public listenersAny(): ListenerFn[] {
         return this.#eventEmitter.listenersAny()
     }
 
     /**
-     * hasListeners(event | eventNS?:String)
-     * Checks whether emitter has any listeners.
-     * @param event
+     * Whether an event has listeners (the wildcard listeners matching it included; the listeners of `onAny()`
+     * excluded).
+     * @param event The event name; required despite its type.
+     * @returns true when there are listeners.
+     * @throws {TypeError} When no event is given.
      */
     public hasListeners(event?: string | undefined): boolean {
         return this.#eventEmitter.hasListeners(event)
     }
 
     /**
-     * Reload self
+     * Destroy the component and initialize it again (same instance): its dependencies are injected again and its
+     * `init()` runs again; its listeners are removed by the teardown. Its configured values are kept.
+     * @returns Resolves once the component is ready again.
+     * @throws {ObjectDestroyedException} When its parent has been destroyed.
+     * @throws {Error} The error of its teardown or of its initialization.
      */
     public async reload(): Promise<void> {
         await this[__destroy]()
