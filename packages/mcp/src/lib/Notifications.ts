@@ -9,23 +9,6 @@ export type MCPNotificationSink = {
 }
 
 /**
- * The sinks of the adapters running
+ * The method of {@link MCPNotifier} attaching the sink of an adapter of its application
  */
-const sinks: Set<MCPNotificationSink> = new Set()
-
-/**
- * Send the notifications to a sink until the returned function is called
- * @param sink
- */
-export function AddNotificationSink(sink: MCPNotificationSink): () => void {
-    sinks.add(sink)
-    return (): void => void sinks.delete(sink)
-}
-
-/**
- * Send a notification to the sinks
- * @param send
- */
-export function Notify(send: (sink: MCPNotificationSink) => void): void {
-    sinks.forEach(send)
-}
+export const ATTACH: unique symbol = Symbol('MCP.NOTIFIER.ATTACH')

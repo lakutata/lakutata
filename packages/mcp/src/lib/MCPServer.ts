@@ -3,22 +3,26 @@ import type {ChannelActionInfo, ChannelRuntime} from '@lakutata/entrypoint'
 import {McpServer, ProtocolError, ProtocolErrorCode, ResourceTemplate, type CallToolResult, type GetPromptResult, type ReadResourceResult, type ServerContext, type StandardSchemaWithJSON, type Variables} from '@modelcontextprotocol/server'
 import {MCPAuthInfo, MCPContext, MCPRequestKind} from '../context/MCPContext.js'
 import type {MCPMetadata} from './Metadata.js'
-import {ErrorMessage, ToErrorResult, ToPromptResult, ToResourceResult, ToToolResult} from './Results.js'
+import {ErrorMessage, ResultType, ToErrorResult, ToPromptResult, ToResourceResult, ToToolResult} from './Results.js'
 
 /**
- * The description of the MCP server given to the clients
+ * The description of an MCP server, given to the clients when they connect (`initialize`); the options of
+ * `StdioMCPEntrypoint` and `HTTPMCPEntrypoint` include it.
  */
 export type MCPServerInfo = {
     /**
-     * The server name, the application name by default
+     * The server's name.
+     * @default the application's name, else `'lakutata'`
      */
     serverName?: string
     /**
-     * The server version, "1.0.0" by default
+     * The server's version.
+     * @default '1.0.0'
      */
     serverVersion?: string
     /**
-     * How the tools, the resources and the prompts of the server are used, given to the model
+     * Instructions given to the model: how and when to use the server's tools, resources and prompts.
+     * @default undefined
      */
     instructions?: string
 }
@@ -104,7 +108,13 @@ function RegisterTool(server: McpServer, runtime: ChannelRuntime<MCPContext>, ac
         annotations: annotations
     }, async (args: unknown, context: ServerContext): Promise<CallToolResult> => {
         try {
-            return await ToToolResult(await runtime.dispatchTo(action, RequestContext('tool', name, Input(args), context), {signal: context.mcpReq.signal}))
+            const result: unknown = await runtime.dispatchTo(action, RequestContext('tool', name, Input(args), context), {signal: context.mcpReq.signal})
+            const toolResult: CallToolResult = await ToToolResult(result, !!outputSchema)
+            //A tool declaring an output answers an object: the error names the action rather than the SDK's validation
+            if (outputSchema && !toolResult.isError && toolResult.structuredContent === undefined) {
+                return ToErrorResult(new TypeError(`The tool ${name} declares an output, but its action ${action.name} returned ${ResultType(result)} instead of an object`))
+            }
+            return toolResult
         } catch (error: unknown) {
             return ToErrorResult(error)
         }
@@ -165,10 +175,52 @@ function RegisterPrompt(server: McpServer, runtime: ChannelRuntime<MCPContext>, 
 }
 
 /**
- * An MCP server serving the actions of a runtime as its tools, resources and prompts
- * @param runtime
- * @param info
- * @param subscriptions the URIs of the resources the client of a session subscribed to (resources/subscribe)
+ * Build an MCP server (`McpServer` of `@modelcontextprotocol/server`) serving the actions of an MCP channel runtime as
+ * its tools, resources and prompts, as the adapters do: for a custom adapter connecting it to another transport
+ * (`await server.connect(transport)`). The tools answer their errors as results with `isError: true` (a tool declaring
+ * an `output` whose action returns no object included), the resources and the prompts as protocol errors. When there are resources, the server accepts the subscriptions
+ * (`resources/subscribe`, `resources/unsubscribe`) and records their URIs in `subscriptions`.
+ * @param runtime The runtime the entrypoint gives to the adapter's `start`: its actions and its dispatch.
+ * @param info The server's name, version and instructions; none by default.
+ * @param subscriptions The set where the URIs the client subscribes to are added, and removed when it unsubscribes;
+ * without it, the subscriptions are accepted and not recorded.
+ * @returns The server, not connected yet.
+ * @example
+ * ```typescript
+ * import {Application} from 'lakutata'
+ * import {BuildEntrypoints, type ChannelRuntime, type EntrypointAdapter} from 'lakutata/com/entrypoint'
+ * import {BuildMCPServer, MCPChannel, type MCPContext} from '@lakutata/mcp'
+ * import {StdioServerTransport} from '@modelcontextprotocol/server/stdio'
+ *
+ * type MCPServer = ReturnType<typeof BuildMCPServer>
+ *
+ * //An adapter serving the MCP actions over the standard streams of a child process
+ * function ChildMCPEntrypoint(): EntrypointAdapter<MCPContext> {
+ *     let server: MCPServer | undefined
+ *     return {
+ *         channel: 'mcp',
+ *         definition: MCPChannel,
+ *         start: async (runtime: ChannelRuntime<MCPContext>): Promise<void> => {
+ *             server = BuildMCPServer(runtime, {serverName: 'child', instructions: 'The tools of the child process.'})
+ *             await server.connect(new StdioServerTransport())
+ *         },
+ *         stop: (): void => {
+ *         },
+ *         close: async (): Promise<void> => {
+ *             await server?.close()
+ *         }
+ *     }
+ * }
+ *
+ * Application.run(() => ({
+ *     id: 'child.app',
+ *     name: 'Child',
+ *     components: {
+ *         entrypoint: BuildEntrypoints({controllers: [], mcp: ChildMCPEntrypoint()})
+ *     },
+ *     bootstrap: ['entrypoint']
+ * }))
+ * ```
  */
 export function BuildMCPServer(runtime: ChannelRuntime<MCPContext>, info: MCPServerInfo = {}, subscriptions?: Set<string>): McpServer {
     const server: McpServer = new McpServer({

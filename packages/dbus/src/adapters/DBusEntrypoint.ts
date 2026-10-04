@@ -9,29 +9,45 @@ import {type DBusInterfaceDeclaration, type DBusPropertyDefinition, type DBusSig
 import {CheckInterfaceName, CompilePathTemplate, ErrorName, type PathTemplate} from '../lib/Names.js'
 import {Encodable, SchemaSignature} from '../lib/Signature.js'
 
+/**
+ * The options of {@link DBusEntrypoint}: the bus to connect to, and the service name to own on it.
+ */
 export type DBusEntrypointOptions = {
     /**
-     * The adapter name
+     * The adapter's name, which tells it apart from the entrypoint's other adapters.
+     * @default undefined
      */
     name?: string
     /**
-     * The bus: 'session' (default), 'system', the address of a bus ("unix:path=…", "tcp:host=…") or the path of the socket of a private bus
+     * The bus to connect to: `'session'` (the address in `DBUS_SESSION_BUS_ADDRESS`), `'system'` (the address in
+     * `DBUS_SYSTEM_BUS_ADDRESS`, else `unix:path=/var/run/dbus/system_bus_socket`), the address of a bus
+     * (`'unix:path=/run/my-bus.sock'`, `'tcp:host=127.0.0.1,port=5555'`), or the path of the socket of a private bus.
+     * The adapter fails to start when the bus cannot be reached (for `'session'`, also when `DBUS_SESSION_BUS_ADDRESS`
+     * is not set).
+     * @default 'session'
      */
     bus?: 'session' | 'system' | string
     /**
-     * The well-known name of the service on the bus ("com.example.DeviceService")
+     * The well-known name the service owns on the bus (`'com.example.DeviceService'`): two or more elements separated by
+     * dots. The clients address the service by it, and it prefixes the names of the D-Bus errors. On the system bus,
+     * the bus policy (`/etc/dbus-1/system.d/`) must allow the process to own it.
      */
     service: string
     /**
-     * Take the name from its current owner if it allows it, false by default: the adapter fails to start when the name is owned
+     * Take the name from its current owner when that owner allowed it to be replaced (`allowReplacement`). Without it,
+     * the adapter fails to start when another connection owns the name; the request is never queued.
+     * @default false
      */
     replaceExisting?: boolean
     /**
-     * Let another service take the name, false by default
+     * Let another connection take the name with `replaceExisting`. The adapter is not stopped when the name is taken:
+     * the clients reach the new owner.
+     * @default false
      */
     allowReplacement?: boolean
     /**
-     * The middlewares of the methods of this adapter, run after the global middlewares
+     * The middlewares of this adapter's method calls, run after the entrypoint's global middlewares.
+     * @default []
      */
     middlewares?: MiddlewareDefinition[]
 }
@@ -79,9 +95,48 @@ function MethodError(error: unknown): Error {
 }
 
 /**
- * The DBus service of the application: the controllers declared with @DBusInterface are the interfaces of its objects,
- * their @DBusMethod actions are the methods; the objects of the templates are added and removed with DBusObjectManager
- * @param options
+ * Build the D-Bus adapter of the entrypoint (its `dbus` option): the application owns a service name on a bus and
+ * serves the controllers declared with `@DBusInterface` as the interfaces of its objects, their `@DBusMethod` actions
+ * as the methods. The objects of the paths without variables are exported when the adapter starts, until it stops
+ * ({@link DBusObjectManager.removeObject} does not remove them); the objects of the path templates are exported when
+ * they are added with {@link DBusObjectManager.addObject}, before or after the start.
+ *
+ * Starting connects to the bus and requests the name. The adapter stops gracefully with the entrypoint: it releases the
+ * name (no new call reaches it), the calls in progress end, then the connection closes. It needs a D-Bus daemon, as on
+ * Linux: the system bus, a session bus, or a private `dbus-daemon`.
+ * @param options The bus, the service name and how it is owned, the adapter's middlewares.
+ * @returns The adapter, to give to the `dbus` option of `BuildEntrypoints()`.
+ * @throws {TypeError} At once, when the service name is invalid; when the adapter starts, when an action declared with
+ * `@DBusMethod` belongs to a controller without `@DBusInterface`.
+ * @throws {Error} When the adapter starts, if the bus cannot be reached, or if another connection owns the name
+ * (`The DBus name … is owned by another service`): the entrypoint fails to start.
+ * @example
+ * ```typescript
+ * import {Application} from 'lakutata'
+ * import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+ * import {DBusEntrypoint, DBusInterface, DBusMethod} from '@lakutata/dbus'
+ *
+ * @DBusInterface('com.example.Manager', {path: '/com/example/Manager'})
+ * class ManagerController extends Controller {
+ *     @DBusMethod('Ping', {returns: 's'})
+ *     public async ping(): Promise<string> {
+ *         return 'pong'
+ *     }
+ * }
+ *
+ * //busctl --system call com.example.DeviceService /com/example/Manager com.example.Manager Ping
+ * Application.run(() => ({
+ *     id: 'devices.app',
+ *     name: 'Devices',
+ *     components: {
+ *         entrypoint: BuildEntrypoints({
+ *             controllers: [ManagerController],
+ *             dbus: DBusEntrypoint({bus: 'system', service: 'com.example.DeviceService'})
+ *         })
+ *     },
+ *     bootstrap: ['entrypoint']
+ * }))
+ * ```
  */
 export function DBusEntrypoint(options: DBusEntrypointOptions): EntrypointAdapter<DBusContext> {
     CheckInterfaceName(options.service)
@@ -220,8 +275,13 @@ export function DBusEntrypoint(options: DBusEntrypointOptions): EntrypointAdapte
                 return true
             }
 
-            //The objects of the paths without variables are exported at once
-            for (const {template} of templates.values()) if (template.static) addObject(template.template)
+            //The objects of the paths without variables are exported at once, and kept until the adapter closes
+            const fixed: Set<string> = new Set()
+            for (const {template} of templates.values()) {
+                if (!template.static) continue
+                fixed.add(template.template)
+                addObject(template.template)
+            }
             const connect: ConnectOpts = ConnectOptions(options.bus ?? 'session')
             let flags: number = RequestNameFlags.DBUS_NAME_FLAG_DO_NOT_QUEUE
             if (options.replaceExisting) flags |= RequestNameFlags.DBUS_NAME_FLAG_REPLACE_EXISTING
@@ -234,9 +294,10 @@ export function DBusEntrypoint(options: DBusEntrypointOptions): EntrypointAdapte
             const sink: DBusObjectSink = {
                 addObject: addObject,
                 removeObject: (path: string): boolean => {
-                    if (!exported.delete(path)) return false
+                    if (fixed.has(path) || !exported.delete(path)) return false
                     return localService.removeObject(path)
                 },
+                isFixed: (path: string): boolean => fixed.has(path),
                 emitSignal: (path: string, signal: DBusSignalDefinition<any>, data: unknown): boolean => {
                     const emitters = exported.get(path)?.signals.get(signal.name)?.filter((candidate): boolean => candidate.signal === signal)
                     if (!emitters?.length) return false

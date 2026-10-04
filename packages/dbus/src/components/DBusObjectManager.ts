@@ -11,18 +11,39 @@ export type DBusObjectSink = {
      * Export an object, false when no interface of the adapter serves its path
      */
     addObject(path: string): boolean
+    /**
+     * Stop exporting an object added by the object manager, false when it does not export it or exports it as a fixed
+     * object (the path of a template without variables), which it keeps
+     */
     removeObject(path: string): boolean
+    /**
+     * Whether it exports the object as a fixed object
+     */
+    isFixed(path: string): boolean
     emitSignal(path: string, signal: DBusSignalDefinition<any>, data: unknown): boolean
     propertyChanged(path: string, property: DBusPropertyDefinition<any>, value: unknown): void
 }
 
 /**
- * A property written by a client
+ * A property value written by a D-Bus client, the argument of the `propertyWritten` event of
+ * {@link DBusObjectManager}. The value is already validated and kept when the event is emitted.
  */
 export type DBusPropertyWrite = {
+    /**
+     * The object path of the property (`'/com/example/Devices/A1'`).
+     */
     readonly path: string
+    /**
+     * The name of the interface the client wrote it through (`'com.example.Device'`).
+     */
     readonly interface: string
+    /**
+     * The property's definition, to compare with the one built by `DefineDBusProperty`.
+     */
     readonly property: DBusPropertyDefinition<any>
+    /**
+     * The value written, validated by the property's schema.
+     */
     readonly value: unknown
 }
 
@@ -31,9 +52,51 @@ export const ATTACH: unique symbol = Symbol('DBUS.OBJECT.MANAGER.ATTACH')
 export const STORE: unique symbol = Symbol('DBUS.OBJECT.MANAGER.STORE')
 
 /**
- * The DBus objects of the application: the objects added and removed while it runs (the paths of the templates of @DBusInterface),
- * the values of their properties and their signals. Inject it (@Inject(DBusObjectManager)) or get it (getObject(DBusObjectManager))
- * from any object: it is autoloaded, one per application. It emits "propertyWritten" when a client writes a property
+ * The application's D-Bus objects: it adds and removes the objects of the path templates of `@DBusInterface`
+ * (`/com/example/Devices/{sn}`), keeps the values of their properties, and emits their signals. Inject it
+ * (`@Inject(DBusObjectManager)`) or get it (`getObject(DBusObjectManager)`) from any object: it is autoloaded, a
+ * singleton of the application, and needs no registration.
+ *
+ * Its state lives in the application, not on the bus: the objects added before a {@link DBusEntrypoint} starts are
+ * exported when it starts, and every running D-Bus adapter whose interfaces match a path exports the object. The
+ * clients are told of the objects added and removed by the `org.freedesktop.DBus.ObjectManager` interface of the root
+ * object (`InterfacesAdded`, `InterfacesRemoved`).
+ *
+ * It emits `propertyWritten` (a {@link DBusPropertyWrite}) when a client writes a writable property.
+ * @example
+ * ```typescript
+ * import {Component} from 'lakutata'
+ * import {Inject} from 'lakutata/decorator/di'
+ * import {DBusObjectManager, DefineDBusProperty, DefineDBusSignal, type DBusPropertyWrite} from '@lakutata/dbus'
+ *
+ * export const DeviceState = DefineDBusProperty<string>('State', 's', {initial: 'idle'})
+ * export const DeviceLevel = DefineDBusProperty<number>('Level', 'i', {writable: true, initial: 1})
+ * export const DeviceRemoved = DefineDBusSignal<string>('Removed', 's')
+ *
+ * //Declared in the components of the application, with the controllers of the interfaces at /com/example/Devices/{sn}
+ * export class Devices extends Component {
+ *     @Inject(DBusObjectManager)
+ *     protected readonly manager: DBusObjectManager
+ *
+ *     protected async init(): Promise<void> {
+ *         this.manager.on('propertyWritten', (write: DBusPropertyWrite): void => {
+ *             if (write.property === DeviceLevel) console.log(`${write.path}: level ${write.value}`)
+ *         })
+ *     }
+ *
+ *     public plug(sn: string): void {
+ *         const path: string = `/com/example/Devices/${sn}`
+ *         this.manager.addObject(path)
+ *         this.manager.setPropertyValue(path, DeviceState, 'running')
+ *     }
+ *
+ *     public unplug(sn: string): void {
+ *         const path: string = `/com/example/Devices/${sn}`
+ *         this.manager.emitSignal(path, DeviceRemoved, sn)
+ *         this.manager.removeObject(path)
+ *     }
+ * }
+ * ```
  */
 @Autoload()
 @Singleton()
@@ -78,9 +141,13 @@ export class DBusObjectManager extends Component {
     }
 
     /**
-     * Add an object: it is exported by the adapters whose interfaces serve its path (a template such as "/com/example/Devices/{sn}")
-     * @param path
-     * @return false when the object was already added
+     * Add an object: every running D-Bus adapter whose interfaces have a path template matching it (or the same path)
+     * exports it, with those interfaces, and the adapters started later export it when they start. The variables of the
+     * matching templates are given to the methods called on it. An object whose path matches no template is kept, but
+     * not exported.
+     * @param path The object path (`'/com/example/Devices/A1'`), not a template.
+     * @returns `false` when the object was already added, `true` otherwise.
+     * @throws {TypeError} When the path is invalid, or is a template (it contains braces).
      */
     public addObject(path: string): boolean {
         CheckPathTemplate(path)
@@ -92,37 +159,51 @@ export class DBusObjectManager extends Component {
     }
 
     /**
-     * Remove an object added
-     * @param path
-     * @return false when the object was not added
+     * Remove an object added with {@link addObject}: the adapters stop exporting it, and its property values are
+     * forgotten (added again, it starts from the initial values). A fixed object (the path of a template without
+     * variables, exported by the adapters themselves) stays exported, with its property values, when it was also
+     * added: only its entry in {@link objects} is removed.
+     * @param path The object path given to {@link addObject}.
+     * @returns `false` when the object was not added, `true` otherwise.
      */
     public removeObject(path: string): boolean {
         if (!this.#objects.delete(path)) return false
-        this.#values.delete(path)
-        this.#sinks.forEach((sink: DBusObjectSink): unknown => sink.removeObject(path))
+        let fixed: boolean = false
+        this.#sinks.forEach((sink: DBusObjectSink): void => {
+            //An adapter keeps the objects it exports by itself
+            if (sink.isFixed(path)) fixed = true
+            else sink.removeObject(path)
+        })
+        if (!fixed) this.#values.delete(path)
         return true
     }
 
     /**
-     * Whether an object was added
-     * @param path
+     * Tell whether an object was added with {@link addObject} and not removed since.
+     * @param path The object path.
+     * @returns `true` when the object is added.
      */
     public hasObject(path: string): boolean {
         return this.#objects.has(path)
     }
 
     /**
-     * The paths of the objects added
+     * List the objects added with {@link addObject}, in the order they were added; the objects of the paths without
+     * variables, exported by the adapters themselves, are not listed.
+     * @returns The object paths.
      */
     public objects(): string[] {
         return [...this.#objects]
     }
 
     /**
-     * Set the value of a property of an object: the clients are notified (PropertiesChanged)
-     * @param path
-     * @param property
-     * @param value
+     * Set the value of a property on an object, validated by the property's schema: the clients read it from then on,
+     * and the running adapters exporting the object announce it (`PropertiesChanged`). The value is kept even when no
+     * adapter exports the object yet.
+     * @param path The object path (`'/com/example/Devices/A1'`).
+     * @param property The property's definition, listed in the `properties` of the object's interface.
+     * @param value The new value.
+     * @throws {InvalidValueException} When the value does not match the property's schema; nothing is changed.
      */
     public setPropertyValue<T>(path: string, property: DBusPropertyDefinition<T>, value: T): void {
         const validated: T = property.validate(value)
@@ -131,9 +212,10 @@ export class DBusObjectManager extends Component {
     }
 
     /**
-     * The value of a property of an object, its initial value until it is set
-     * @param path
-     * @param property
+     * Get the value of a property on an object: the last value set by the application or written by a client.
+     * @param path The object path.
+     * @param property The property's definition.
+     * @returns The value, or the property's `initial` value until one is set.
      */
     public getPropertyValue<T>(path: string, property: DBusPropertyDefinition<T>): T | undefined {
         const values: Map<DBusPropertyDefinition<any>, unknown> | undefined = this.#values.get(path)
@@ -141,11 +223,13 @@ export class DBusObjectManager extends Component {
     }
 
     /**
-     * Emit a signal of an object
-     * @param path
-     * @param signal
-     * @param data
-     * @return false when no adapter exports the object
+     * Emit a signal from an object, through every running adapter exporting the object with an interface listing the
+     * signal. The data is validated by the signal's DTO first.
+     * @param path The object path (`'/com/example/Devices/A1'`).
+     * @param signal The signal's definition, listed in the `signals` of the object's interface.
+     * @param data The data of the signal.
+     * @returns `false` when no running adapter exports the object with this signal (nothing is sent), `true` otherwise.
+     * @throws {InvalidValueException} When the data does not match the signal's DTO.
      */
     public emitSignal<T>(path: string, signal: DBusSignalDefinition<T>, data: T): boolean {
         const validated: T = signal.validate(data)

@@ -65,21 +65,65 @@ async function FileContent(result: FileResult): Promise<ContentBlock> {
 }
 
 /**
- * The tool result of the result of an action:
- * a CallToolResult as it is, a string as a text, a file as an image, an audio clip or a resource,
- * the other values as JSON (a plain object is also the structured content)
- * @param result
+ * Convert the value an action returns into the result of a tool call (`CallToolResult`), as the MCP adapters do:
+ * - `undefined` or `null`: an empty result (no content);
+ * - a string: one text;
+ * - a `CallToolResult` (`{content: [...]}`): itself;
+ * - `Result.file()`: an image or an audio clip (base64) by its content type, else an embedded resource (a text for the
+ *   text, JSON and XML types, a blob otherwise; `application/octet-stream` without a type);
+ * - `Result.status()`: its data, converted;
+ * - a plain object: its JSON as a text, and the object as the structured content;
+ * - a class instance, such as a DTO: its JSON as a text; with `output`, also the structured content, when its JSON is
+ *   an object (its own enumerable properties, or what its `toJSON()` returns);
+ * - another value (an array, a number): its JSON as a text, without structured content.
+ *
+ * The JSON is indented, and its bigints are written as strings.
+ * @param result The value the action returned.
+ * @param output Whether the tool declares an output schema (`@MCPTool(…, {output})`), as the adapters tell it: the
+ * class instances then give their structured content too. The values which cannot be an object (a string, an array,
+ * `undefined`) still have none: the adapters answer them with an error result naming the action. Default `false`.
+ * @returns The tool result.
+ * @throws {TypeError} When the result is an event stream (`Result.events()`): report the progress with
+ * `context.progress()` instead.
+ * @throws {Error} When the file of `Result.file()` cannot be read.
+ * @example
+ * ```typescript
+ * import {ToToolResult} from '@lakutata/mcp'
+ *
+ * //{content: [{type: 'text', text: '{\n  "sn": "A1"\n}'}], structuredContent: {sn: 'A1'}}
+ * console.log(await ToToolResult({sn: 'A1'}))
+ * //{content: [{type: 'text', text: 'done'}]}
+ * console.log(await ToToolResult('done'))
+ * ```
  */
-export async function ToToolResult(result: unknown): Promise<CallToolResult> {
-    if (result instanceof StatusResult) return await ToToolResult(result.data)
+export async function ToToolResult(result: unknown, output: boolean = false): Promise<CallToolResult> {
+    if (result instanceof StatusResult) return await ToToolResult(result.data, output)
     if (result instanceof FileResult) return {content: [await FileContent(result)]}
     if (result instanceof EventsResult) throw EventsNotSupported()
     if (result === undefined || result === null) return {content: []}
     if (typeof result === 'string') return {content: [{type: 'text', text: result}]}
     if (isCallToolResult(result)) return result as CallToolResult
-    const toolResult: CallToolResult = {content: [{type: 'text', text: Stringify(result)}]}
-    if (IsPlainObject(result)) toolResult.structuredContent = JSON.parse(Stringify(result))
+    const text: string = Stringify(result)
+    const toolResult: CallToolResult = {content: [{type: 'text', text: text}]}
+    //A class instance (a DTO) gives its JSON, an object, as the structured content of a tool declaring an output
+    if (IsPlainObject(result) || (output && typeof result === 'object' && !Array.isArray(result))) {
+        const structured: unknown = text === undefined ? undefined : JSON.parse(text)
+        if (IsPlainObject(structured)) toolResult.structuredContent = structured
+    }
     return toolResult
+}
+
+/**
+ * The type of a value returned by an action, for the error of a tool declaring an output
+ * @param result
+ */
+export function ResultType(result: unknown): string {
+    if (result instanceof StatusResult) return ResultType(result.data)
+    if (result === undefined || result === null) return String(result)
+    if (Array.isArray(result)) return 'an array'
+    if (isCallToolResult(result)) return 'a CallToolResult without structuredContent'
+    if (typeof result === 'object') return `an instance of ${(result as object).constructor?.name ?? 'Object'}`
+    return `${/^[aeiou]/.test(typeof result) ? 'an' : 'a'} ${typeof result}`
 }
 
 /**
@@ -93,20 +137,47 @@ export function ErrorMessage(error: unknown): string {
 }
 
 /**
- * The tool result of an error: the errors of the tools are given to the model (it may correct its input), they are not protocol errors
- * @param error
+ * Convert an error thrown by an action into the result of a tool call, as the MCP adapters do: the errors of the tools
+ * are given to the model, which may correct its input and call the tool again, rather than sent as protocol errors.
+ * The result has `isError: true` and one text: `errno: message` for an exception with an `errno`, its message
+ * otherwise (its `errMsg`, else its `message`, else the value as a string).
+ * @param error The error thrown.
+ * @returns The tool result.
+ * @example
+ * ```typescript
+ * import {ToErrorResult} from '@lakutata/mcp'
+ *
+ * //{isError: true, content: [{type: 'text', text: 'The device is offline'}]}
+ * console.log(ToErrorResult(new Error('The device is offline')))
+ * ```
  */
 export function ToErrorResult(error: unknown): CallToolResult {
     return {isError: true, content: [{type: 'text', text: ErrorMessage(error)}]}
 }
 
 /**
- * The contents of a resource read:
- * a ReadResourceResult as it is, a string as a text, bytes and files as a text or a blob by their content type,
- * the other values as JSON
- * @param uri the URI read
- * @param result
- * @param mimeType the content type declared by the resource
+ * Convert the value an action returns into the contents of a resource read (`ReadResourceResult`), as the MCP adapters
+ * do:
+ * - `undefined` or `null`: no contents;
+ * - a `ReadResourceResult` (`{contents: [...]}`): itself;
+ * - a string: a text, of the type `mimeType` (`text/plain` without it);
+ * - a `Uint8Array` (a `Buffer`) or `Result.file()`: a text for the text, JSON and XML types, else a blob (base64); its
+ *   type is the file's content type, else `mimeType`, else `application/octet-stream`;
+ * - `Result.status()`: its data, converted;
+ * - another value: its JSON (indented, bigints as strings), of the type `mimeType` (`application/json` without it).
+ * @param uri The URI read, the `uri` of the contents.
+ * @param result The value the action returned.
+ * @param mimeType The content type the resource declares; none by default.
+ * @returns The contents of the resource.
+ * @throws {TypeError} When the result is an event stream (`Result.events()`).
+ * @throws {Error} When the file of `Result.file()` cannot be read.
+ * @example
+ * ```typescript
+ * import {ToResourceResult} from '@lakutata/mcp'
+ *
+ * //{contents: [{uri: 'device://A1/status', mimeType: 'application/json', text: '{\n  "online": true\n}'}]}
+ * console.log(await ToResourceResult('device://A1/status', {online: true}))
+ * ```
  */
 export async function ToResourceResult(uri: string, result: unknown, mimeType?: string): Promise<ReadResourceResult> {
     if (result instanceof StatusResult) return await ToResourceResult(uri, result.data, mimeType)
@@ -133,11 +204,25 @@ function PromptMessageOf(message: unknown): PromptMessage {
 }
 
 /**
- * The prompt of the result of an action:
- * a GetPromptResult as it is, a string as a message of the user, an array as the messages
- * (strings for the user, or {role, content}), the other values as JSON
- * @param result
- * @param description
+ * Convert the value an action returns into a prompt (`GetPromptResult`), as the MCP adapters do:
+ * - `undefined` or `null`: no messages;
+ * - a `GetPromptResult` (`{messages: [...]}`): itself, without the description;
+ * - a string: one message of the user;
+ * - an array: one message per item, a string as a message of the user, a `{role: 'user' | 'assistant', content}`
+ *   object as it is, another value as a message of the user holding its JSON;
+ * - `Result.status()`: its data, converted;
+ * - another value: one message of the user holding its JSON.
+ * @param result The value the action returned.
+ * @param description The prompt's description, added to the result; none by default.
+ * @returns The prompt.
+ * @throws {TypeError} When the result is a file or an event stream: the prompts are made of messages.
+ * @example
+ * ```typescript
+ * import {ToPromptResult} from '@lakutata/mcp'
+ *
+ * //{description: 'Diagnose a device', messages: [{role: 'user', content: {type: 'text', text: 'Diagnose A1.'}}]}
+ * console.log(ToPromptResult('Diagnose A1.', 'Diagnose a device'))
+ * ```
  */
 export function ToPromptResult(result: unknown, description?: string): GetPromptResult {
     if (result instanceof StatusResult) return ToPromptResult(result.data, description)

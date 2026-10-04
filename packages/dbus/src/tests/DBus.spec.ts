@@ -1,8 +1,18 @@
 import {after, afterEach, before, it} from 'node:test'
 import assert from 'node:assert'
-import {Container} from '@lakutata/core'
+import {Container, type ComponentOptions, type ModuleOptions} from '@lakutata/core'
 import {BuildEntrypoints, Entrypoint, type ActionInvocation, type MiddlewareHandler, type Next} from '@lakutata/entrypoint'
-import {DBus, DBusContext, DBusEntrypoint, DBusEntrypointOptions, DBusObjectManager, DBusPropertyWrite} from '../exports/DBus.js'
+import {
+    buildDBusClientOptions,
+    DBus,
+    DBusClientComponent,
+    DBusClientOptions,
+    DBusContext,
+    DBusEntrypoint,
+    DBusEntrypointOptions,
+    DBusObjectManager,
+    DBusPropertyWrite
+} from '../exports/DBus.js'
 import {describeBus, StartBus, TestBus} from './support/Bus.js'
 import {contexts, DeviceChanged, DeviceController, DeviceLevel, DeviceState, ManagerController} from './support/Controllers.js'
 
@@ -120,6 +130,41 @@ describeBus('DBus adapter', (): void => {
         assert.throws((): boolean => manager.addObject('/com/example/Devices/{sn}'), /template/)
         await client.disconnect()
         await container.destroy()
+    })
+
+    it('keeps the fixed objects exported when they are removed', async (): Promise<void> => {
+        const {container, manager, client} = await Start()
+        //A path without variables, exported by the adapter at its start, is also added
+        assert.strictEqual(manager.addObject('/com/example/Manager'), true)
+        assert.strictEqual(manager.hasObject('/com/example/Manager'), true)
+        manager.setPropertyValue('/com/example/Manager', DeviceState, 'running')
+        assert.strictEqual(manager.removeObject('/com/example/Manager'), true)
+        //Only what addObject added is removed: the object stays exported, with its values
+        assert.strictEqual(manager.hasObject('/com/example/Manager'), false)
+        assert.deepStrictEqual(manager.objects(), [])
+        assert.strictEqual(manager.getPropertyValue('/com/example/Manager', DeviceState), 'running')
+        assert.deepStrictEqual(await Call(client, '/com/example/Manager', 'com.example.Manager', 'Ping'), ['pong'])
+        const managed: Record<string, unknown> = (await client.invoke({service: SERVICE, objectPath: '/', interface: 'org.freedesktop.DBus.ObjectManager', method: 'GetManagedObjects'}))[0]
+        assert.ok(Object.keys(managed).includes('/com/example/Manager'))
+        assert.strictEqual(manager.removeObject('/com/example/Manager'), false)
+        await client.disconnect()
+        await container.destroy()
+    })
+
+    it('declares the client with buildDBusClientOptions', async (): Promise<void> => {
+        const options: ComponentOptions<DBusClientOptions> = buildDBusClientOptions({busAddress: `unix:path=${bus.socket}`, timeout: 5000})
+        //The declaration is accepted by the components of a module
+        const components: ModuleOptions['components'] = {dbus: options}
+        assert.strictEqual(components!.dbus, options)
+        assert.strictEqual(options.class, DBusClientComponent)
+        const container: Container = new Container()
+        try {
+            const dbus: DBusClientComponent = await container.setNamed('dbus', options.class, options)
+            assert.ok(dbus instanceof DBusClientComponent)
+            assert.ok((await dbus.listNames()).includes('org.freedesktop.DBus'))
+        } finally {
+            await container.destroy()
+        }
     })
 
     it('serves the properties', async (): Promise<void> => {

@@ -12,67 +12,100 @@ import {
 import {MCPChannel} from '../channel/MCPChannel.js'
 import type {MCPAuthInfo, MCPContext} from '../context/MCPContext.js'
 import {BuildMCPServer, type MCPServerInfo} from '../lib/MCPServer.js'
-import {AddNotificationSink} from '../lib/Notifications.js'
+import {ATTACH} from '../lib/Notifications.js'
+import {MCPNotifier} from '../components/MCPNotifier.js'
 
+/**
+ * The options of {@link HTTPMCPEntrypoint}: the server's description (`serverName`, `serverVersion`, `instructions`),
+ * where it listens, the checks of the requests (hosts, origins, authentication), and the protocol revisions it serves.
+ */
 export type HTTPMCPEntrypointOptions = MCPServerInfo & {
     /**
-     * The adapter name
+     * The adapter's name, which tells it apart from the entrypoint's other adapters.
+     * @default undefined
      */
     name?: string
     /**
-     * Listen on a port of its own, true by default. When false, the adapter serves the requests given to its handler,
-     * mounted on another HTTP server (such as the application of ExpressHTTPEntrypoint): app.all('/mcp', mcp.handler)
+     * Listen on a port of its own. When `false`, the adapter opens no port: it serves the requests given to its
+     * `handler`, mounted on another HTTP server (such as the application of `ExpressHTTPEntrypoint`:
+     * `app.all('/mcp', mcp.handler)`), and `port`, `host`, `path`, `server` and `listening` are ignored.
+     * @default true
      */
     listen?: boolean
     /**
-     * The port, 3000 by default (0 for a random port)
+     * The port to listen on; `0` picks a free port (read it from the server given to `listening`).
+     * @default 3000
      */
     port?: number
     /**
-     * The host, 127.0.0.1 by default: the server is reachable from this machine only
+     * The address to listen on. The default is reachable from this machine only; `'0.0.0.0'` accepts the remote
+     * clients (then set `allowedHosts` and `authenticate`).
+     * @default '127.0.0.1'
      */
     host?: string
     /**
-     * The path of the endpoint, "/mcp" by default (the routes of the server mounting the handler decide instead)
+     * The path of the endpoint; the other paths are answered `404`. When the handler is mounted, the routes of the
+     * mounting server decide instead.
+     * @default '/mcp'
      */
     path?: string
     /**
-     * The host names accepted in the Host header (against DNS rebinding),
-     * the local host names by default when the server of the adapter listens on a loopback address, false to accept every host
+     * The host names accepted in the `Host` header, against DNS rebinding; a request with another host is refused
+     * (`403`). `false` accepts every host.
+     * @default the local host names (`localhost`, `127.0.0.1`, `[::1]`) when the adapter listens on a loopback address;
+     * no check otherwise, and no check for a mounted handler
      */
     allowedHosts?: string[] | false
     /**
-     * The host names of the origins accepted in the Origin header,
-     * the local host names by default when the server of the adapter listens on a loopback address, false to accept every origin
+     * The host names of the origins accepted in the `Origin` header (sent by the browsers); a request from another
+     * origin is refused (`403`). `false` accepts every origin.
+     * @default the local host names when the adapter listens on a loopback address; no check otherwise, and no check for
+     * a mounted handler
      */
     allowedOrigins?: string[] | false
     /**
-     * Authenticate a request: the authentication is given to the tools in context.authInfo, an error answers 401
+     * Authenticate a request (its `Authorization` header…) before it is served. The authentication returned is given
+     * to the actions in `context.authInfo`; `undefined` serves the request without one. A thrown error (or a rejection)
+     * answers `401` with `WWW-Authenticate: Bearer` and the error's message.
+     * @param request The HTTP request.
+     * @returns The client's authentication, or `undefined`.
+     * @default undefined (no authentication: every request is served)
      */
     authenticate?: (request: IncomingMessage) => MCPAuthInfo | undefined | Promise<MCPAuthInfo | undefined>
     /**
-     * How the clients of the protocol revisions of 2025 are served: 'stateless' (default) or 'reject'
+     * How the clients of the protocol revisions of 2025 are served: `'stateless'` serves them without sessions (the
+     * server cannot notify them), `'reject'` refuses them. The clients of the revision 2026-07-28 are always served.
+     * @default 'stateless'
      */
     legacy?: 'stateless' | 'reject'
     /**
-     * The bus of the notifications (MCPNotifier) to the subscriptions of the clients, in the memory of the process by default:
-     * the instances of an application behind a load balancer share a bus (over Redis, NATS…) to notify all the clients
+     * The bus carrying the notifications of `MCPNotifier` to the clients listening for them (`subscriptions/listen`).
+     * The default keeps them in the process's memory: the instances of an application behind a load balancer share a
+     * bus (over Redis, NATS…) so that every client is notified, whatever instance it listens to.
+     * @default undefined (in the memory of the process)
      */
     bus?: ServerEventBus
     /**
-     * The maximum size of a request body in bytes, 4 MiB by default
+     * The largest request body accepted, in bytes; a larger request is answered `413`. A body already read by the
+     * mounting server's parser is not checked again.
+     * @default 4194304 (4 MiB)
      */
     maxRequestBodySize?: number
     /**
-     * The options of the HTTP server
+     * The options of the adapter's `node:http` server (`keepAliveTimeout`, `requestTimeout`…).
+     * @default {}
      */
     server?: ServerOptions
     /**
-     * The middlewares of the tools of this adapter, run after the global middlewares
+     * The middlewares of this adapter's requests, run after the entrypoint's global middlewares.
+     * @default []
      */
     middlewares?: MiddlewareDefinition[]
     /**
-     * Run once the server listens, with the server (its address when the port is random)
+     * Called once the server listens, with the server (read its address when the port is random); the adapter's start
+     * waits for it.
+     * @param server The adapter's HTTP server.
+     * @default undefined
      */
     listening?: (server: Server) => void | Promise<void>
 }
@@ -86,11 +119,18 @@ function IsLoopback(host: string): boolean {
 }
 
 /**
- * The adapter, with the handler of the requests given by another HTTP server
+ * The adapter {@link HTTPMCPEntrypoint} returns: an entrypoint adapter, with the handler to mount on another HTTP
+ * server.
  */
 export type HTTPMCPEntrypointAdapter = EntrypointAdapter<MCPContext> & {
     /**
-     * Serve a request given by another HTTP server (express, a Next.js custom server, node:http)
+     * Serve a request given by another HTTP server (Express, a Next.js custom server, `node:http`), when the adapter is
+     * built with `listen: false`. It answers `503` until the adapter has started, and once it stops. A body already
+     * parsed by the server (`express.json()`, in `request.body`) is used as it is. The `next` argument of Express is
+     * ignored: the handler always answers.
+     * @param request The HTTP request.
+     * @param response The HTTP response.
+     * @param next Ignored.
      */
     readonly handler: (request: IncomingMessage, response: ServerResponse, next?: unknown) => void
 }
@@ -164,8 +204,60 @@ async function WriteResponse(webResponse: Response, response: ServerResponse): P
 }
 
 /**
- * The MCP server of the remote clients, over Streamable HTTP
- * @param options
+ * Build the HTTP MCP adapter of the entrypoint (its `mcp` option): an MCP server for remote clients, over the
+ * Streamable HTTP transport, serving the application's `@MCPTool`, `@MCPResource` and `@MCPPrompt` actions. It serves
+ * the protocol revision 2026-07-28, and the clients of the revisions of 2025 without sessions (`legacy: 'reject'`
+ * refuses them); each request is served by an MCP server of its own.
+ *
+ * By default it listens on `127.0.0.1:3000` at `/mcp`, and checks the `Host` and `Origin` headers against the local
+ * host names (DNS rebinding). With `listen: false` it opens no port: mount its `handler` on another HTTP server, whose
+ * routes, middlewares and port apply; the `Host` and `Origin` headers are then checked only against the
+ * `allowedHosts` and `allowedOrigins` given. `authenticate` authenticates the requests; the actions read the result in
+ * `context.authInfo`.
+ *
+ * The clients of 2026-07-28 listening for changes (`subscriptions/listen`) are notified of what the application's
+ * `MCPNotifier` reports; the clients of 2025 are not. The adapter stops gracefully with the entrypoint: it refuses the
+ * new requests (`503`), gives the calls in progress a second to answer, then ends the subscription streams and closes
+ * the connections.
+ * @param options Where the server listens, the checks of the requests, the protocol revisions it serves; none by
+ * default.
+ * @returns The adapter, to give to the `mcp` option of `BuildEntrypoints()`, with its `handler`.
+ * @throws {Error} When the adapter starts, if the server cannot listen (`EADDRINUSE`): the entrypoint fails to start.
+ * @example
+ * ```typescript
+ * import type {IncomingMessage} from 'node:http'
+ * import {Application} from 'lakutata'
+ * import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+ * import {HTTPMCPEntrypoint, MCPTool, type MCPAuthInfo, type MCPContext} from '@lakutata/mcp'
+ *
+ * class ClockController extends Controller {
+ *     @MCPTool('now', {description: 'The current time of the server, as an ISO string', readOnly: true})
+ *     public async now(): Promise<string> {
+ *         const context: MCPContext = this.context as MCPContext
+ *         return `${new Date().toISOString()} (asked by ${context.authInfo?.clientId})`
+ *     }
+ * }
+ *
+ * //Throwing answers 401
+ * function VerifyToken(request: IncomingMessage): MCPAuthInfo {
+ *     const token: string = request.headers.authorization?.replace(/^Bearer /, '') ?? ''
+ *     if (token !== process.env.MCP_TOKEN) throw new Error('Invalid token')
+ *     return {token: token, clientId: 'assistant', scopes: ['clock']}
+ * }
+ *
+ * //The clients connect to http://127.0.0.1:3000/mcp
+ * Application.run(() => ({
+ *     id: 'clock.app',
+ *     name: 'Clock',
+ *     components: {
+ *         entrypoint: BuildEntrypoints({
+ *             controllers: [ClockController],
+ *             mcp: HTTPMCPEntrypoint({port: 3000, authenticate: VerifyToken})
+ *         })
+ *     },
+ *     bootstrap: ['entrypoint']
+ * }))
+ * ```
  */
 export function HTTPMCPEntrypoint(options: HTTPMCPEntrypointOptions = {}): HTTPMCPEntrypointAdapter {
     const listen: boolean = options.listen !== false
@@ -268,7 +360,9 @@ export function HTTPMCPEntrypoint(options: HTTPMCPEntrypointOptions = {}): HTTPM
                 bus: options.bus
             })
             const notify = handler.notify
-            removeSink = AddNotificationSink({
+            //The notifier of the application: the notifications of another application do not reach this adapter
+            const notifier: MCPNotifier = await runtime.getObject(MCPNotifier)
+            removeSink = notifier[ATTACH]({
                 toolsChanged: (): void => notify.toolsChanged(),
                 promptsChanged: (): void => notify.promptsChanged(),
                 resourcesChanged: (): void => notify.resourcesChanged(),

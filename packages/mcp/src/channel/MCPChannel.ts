@@ -7,14 +7,18 @@ import {GetMCPMetadata} from '../lib/Metadata.js'
 declare module '@lakutata/entrypoint' {
     interface EntrypointOptions {
         /**
-         * The MCP adapters (StdioMCPEntrypoint, HTTPMCPEntrypoint)
+         * The MCP adapters, built by `StdioMCPEntrypoint()` and `HTTPMCPEntrypoint()`: one, or several (stdio and HTTP
+         * at once).
+         * @default undefined (no MCP adapter)
          */
         mcp?: EntrypointAdapter<MCPContext> | EntrypointAdapter<MCPContext>[]
     }
 
     interface PrefixOptions {
         /**
-         * The prefix of the names of the tools and of the prompts of a controller, joined with "_" (device → device_status)
+         * The prefix of a controller's tool and prompt names, joined with `_` (`'device'`: the tool `status` is named
+         * `device_status`). The resource URIs are not prefixed.
+         * @default undefined (no prefix)
          */
         mcp?: string
     }
@@ -48,7 +52,11 @@ function AddressKey(kind: MCPRequestKind, name: string): string {
 }
 
 /**
- * The MCP channel: the actions are tools, resources or prompts
+ * The definition of the MCP channel of the entrypoint, named `mcp`: its actions are tools (`{tool: name}`), resources
+ * (`{resource: uri}`) or prompts (`{prompt: name}`), declared with `@MCPTool`, `@MCPResource` and `@MCPPrompt`. A
+ * request matches an action by its kind and its name (the resource URI template as declared); a request matching none
+ * fails with `ControllerActionNotFoundException`. The decorators and the adapters use it: an application only needs it
+ * to write an adapter of its own (see {@link BuildMCPServer}).
  */
 export const MCPChannel: ChannelDefinition = HasChannel('mcp') ? GetChannel('mcp') : DefineChannel({
     name: 'mcp',

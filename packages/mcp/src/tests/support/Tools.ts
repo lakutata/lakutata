@@ -100,6 +100,16 @@ export class ToolController extends Controller {
         return 'counted'
     }
 
+    @MCPTool('instance', DeviceDTO, {output: StatusDTO})
+    public async instance(input: DeviceDTO): Promise<StatusDTO> {
+        return new StatusDTO({sn: input.sn, online: true})
+    }
+
+    @MCPTool('mistyped', {output: StatusDTO})
+    public async mistyped(): Promise<string> {
+        return 'online'
+    }
+
     @MCPTool('slow')
     public async slow(): Promise<string> {
         await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 150))

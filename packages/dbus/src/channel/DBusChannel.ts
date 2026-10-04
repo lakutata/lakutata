@@ -7,17 +7,25 @@ import {CheckInterfaceName, CheckMemberName, CheckPathTemplate, CompilePathTempl
 declare module '@lakutata/entrypoint' {
     interface EntrypointOptions {
         /**
-         * The DBus adapters (DBusEntrypoint)
+         * The D-Bus adapters, built by `DBusEntrypoint()`: one, or several for several buses or service names.
+         * @default undefined (no D-Bus adapter)
          */
         dbus?: EntrypointAdapter<DBusContext> | EntrypointAdapter<DBusContext>[]
     }
 
     interface PrefixOptions {
         /**
-         * The object path (template) and the interface of the methods of a controller, set by @DBusInterface
+         * The object path (or path template) and the interface of a controller's D-Bus methods. `@DBusInterface` sets
+         * it; an application does not set it itself.
          */
         dbus?: {
+            /**
+             * The object path, or path template, of the methods.
+             */
             path?: string
+            /**
+             * The name of the methods' interface.
+             */
             interface?: string
         }
     }
@@ -34,8 +42,11 @@ function AddressKey(interfaceName: string, member: string, path: string): string
 }
 
 /**
- * The DBus channel: the actions are the methods of the interfaces of the DBus objects.
- * The address of a method is {member, interface, path}, the interface and the path (template) are given by @DBusInterface
+ * The definition of the D-Bus channel of the entrypoint, named `dbus`: its actions are the methods of D-Bus interfaces,
+ * addressed by `{member, interface, path}` (the method name from `@DBusMethod`, the interface and the path template from
+ * `@DBusInterface`). A call matches an action by its interface, its method and its object path; a call matching none
+ * fails with `ControllerActionNotFoundException`. `@DBusMethod` and {@link DBusEntrypoint} use it: an application only
+ * needs it to write an adapter of its own.
  */
 export const DBusChannel: ChannelDefinition = HasChannel('dbus') ? GetChannel('dbus') : DefineChannel({
     name: 'dbus',

@@ -72,7 +72,7 @@ for (const suiteEra of ['legacy', 'auto'] as const) describe(`HTTP MCP adapter (
         const {url, container} = await Start()
         const client: Client = await Connect(url)
         const tools = (await client.listTools()).tools
-        assert.deepStrictEqual(tools.map((tool): string => tool.name).sort(), ['count', 'device_reboot', 'device_status', 'device_touch', 'echo', 'picture', 'raw', 'slow'])
+        assert.deepStrictEqual(tools.map((tool): string => tool.name).sort(), ['count', 'device_reboot', 'device_status', 'device_touch', 'echo', 'instance', 'mistyped', 'picture', 'raw', 'slow'])
         const status = tools.find((tool): boolean => tool.name === 'device_status')!
         assert.strictEqual(status.title, 'Device status')
         assert.strictEqual(status.description, 'The status of a device')
@@ -95,6 +95,14 @@ for (const suiteEra of ['legacy', 'auto'] as const) describe(`HTTP MCP adapter (
         assert.deepStrictEqual((await client.callTool({name: 'picture', arguments: {}})).content, [{type: 'image', data: Buffer.from('png-bytes').toString('base64'), mimeType: 'image/png'}])
         assert.deepStrictEqual((await client.callTool({name: 'raw', arguments: {}})).content, [{type: 'text', text: 'first'}, {type: 'text', text: 'second'}])
         assert.deepStrictEqual((await client.callTool({name: 'echo', arguments: {a: [1, 2]}})).structuredContent, {a: [1, 2]})
+        //A DTO instance is the structured content of a tool declaring an output
+        const instance = await client.callTool({name: 'instance', arguments: {sn: 'B2'}})
+        assert.strictEqual(instance.isError, undefined)
+        assert.deepStrictEqual(instance.structuredContent, {sn: 'B2', online: true})
+        //A value which is not an object is an error naming the action and the type returned
+        const mistyped = await client.callTool({name: 'mistyped', arguments: {}})
+        assert.strictEqual(mistyped.isError, true)
+        assert.deepStrictEqual(mistyped.content, [{type: 'text', text: 'The tool mistyped declares an output, but its action ToolController:mistyped returned a string instead of an object'}])
         await client.close()
         await container.destroy()
     })
@@ -138,6 +146,28 @@ for (const suiteEra of ['legacy', 'auto'] as const) describe(`HTTP MCP adapter (
         //The server ends the stream gracefully
         assert.strictEqual(await open.closed, 'graceful')
         await client.close()
+    })
+
+    //The notifications of an application reach its own adapters only
+    it('notifies the clients of the application only', {skip: suiteEra === 'legacy'}, async (): Promise<void> => {
+        const first = await Start()
+        const second = await Start()
+        const client: Client = await Connect(second.url)
+        const updated: string[] = []
+        client.setNotificationHandler('notifications/resources/updated', (notification): void => void updated.push(notification.params.uri))
+        const subscription = await client.listen({resourceSubscriptions: ['device://A1/status']})
+        const other: Client = await Connect(first.url)
+        await other.callTool({name: 'device_touch', arguments: {sn: 'A1'}})
+        await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 100))
+        assert.deepStrictEqual(updated, [])
+        await client.callTool({name: 'device_touch', arguments: {sn: 'A1'}})
+        await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 100))
+        assert.deepStrictEqual(updated, ['device://A1/status'])
+        await subscription.close()
+        await other.close()
+        await client.close()
+        await first.container.destroy()
+        await second.container.destroy()
     })
 
     it('gets the prompts', async (): Promise<void> => {
