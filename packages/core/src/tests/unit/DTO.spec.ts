@@ -192,6 +192,17 @@ await describe('DTO Test', async function (): Promise<void> {
         assert.throws(() => new TestClass().testAccept(<TestDTO>invalidInput))
         assert.doesNotThrow(() => new TestClass().testAccept(<TestDTO>validInput))
         assert.equal(new TestClass().testAccept(<TestDTO>validInput), 'OK')
+        //An optional argument given as undefined, a required one missing
+        class OptionalArguments {
+            @Accept(DTO.String().required(), DTO.Number().optional().default(1), DTO.String().optional())
+            public run(name: string, count?: number, label?: string): string {
+                return `${name}:${count}:${label}`
+            }
+        }
+        assert.equal(new OptionalArguments().run('a', undefined, 'x'), 'a:1:x')
+        assert.equal(new OptionalArguments().run('a', undefined), 'a:1:undefined')
+        assert.equal(new OptionalArguments().run('a'), 'a:1:undefined')
+        assert.throws(() => new OptionalArguments().run(<any>undefined, 2), /is required/)
     })
     await it('validate class method\'s return value', async (): Promise<void> => {
         class TestDTO extends DTO {

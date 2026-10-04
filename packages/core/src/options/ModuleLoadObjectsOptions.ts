@@ -45,7 +45,8 @@ export class ModuleLoadObjectsOptions extends DTO {
     /**
      * The objects registered by their class (got with `getObject(TheClass)` or `@Inject(TheClass)`): classes,
      * declarations (`{class, ...options}`), or glob patterns of the files to import, relative to the working
-     * directory, each file registering its first export when it is a {@link BaseObject} subclass.
+     * directory, each file registering every export which is a {@link BaseObject} subclass (a file failing to import
+     * fails the module's initialization).
      * @default []
      */
     @Expect(

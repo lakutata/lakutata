@@ -220,6 +220,27 @@ Application.run({id: 'signals.app', name: 'SignalsApp', components: {keeper: {cl
             assert.strictEqual((await Signal(APPLICATION('', true), ['SIGINT', 'SIGINT'])).code, 130)
         })
 
+        it('launch once: the handlers added after the launch do not launch it again, a launched handler is called at once', (): void => {
+            const run = RunApplication(`
+let launches = 0
+class Counter extends Component {
+    async init() { launches++ }
+}
+Application.run({id: 'once.app', name: 'OnceApp', components: {counter: {class: Counter}}, bootstrap: ['counter']})
+    .onLaunched((app) => {
+        setTimeout(() => {
+            Application.onUncaughtException(() => undefined).onLaunched((late) => {
+                setTimeout(() => {
+                    console.log('RESULT ' + JSON.stringify({launches: launches, same: late === app}))
+                    app.exit(0)
+                }, 100)
+            })
+        }, 50)
+    })`)
+            assert.strictEqual(run.status, 0, run.output)
+            assert.deepStrictEqual(run.result, {launches: 1, same: true})
+        })
+
         it('tell the done handler the exit code given to exit(), without signal', (): void => {
             const run = RunApplication(`
 Application.run({id: 'exit.app', name: 'ExitApp'})

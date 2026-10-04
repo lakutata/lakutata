@@ -4,48 +4,48 @@ import {Reference} from './Reference.js'
 /**
  * A schema of bigints, built by `DTO.BigInt()`, for the integers beyond the safe integers of the numbers. With
  * conversion enabled (`strict(false)`), the integer strings and the integer numbers are accepted and converted to
- * bigints. Unlike the other schemas, its limits cannot be references to other values.
+ * bigints. Its limits and its base may be references to other values (`DTO.Ref('min')`), resolved when validating: a
+ * reference resolving to a value which is not a bigint fails the validation.
  * @typeParam T The type of the bigints the schema validates.
  */
 export interface BigIntSchema<T = bigint> extends AnySchema<T> {
     /**
      * Require the bigint to be greater than a limit.
-     * @param limit The limit (exclusive), a bigint.
+     * @param limit The limit (exclusive): a bigint, or a reference to one.
      * @returns A new schema.
-     * @throws {SchemaDefinitionException} When it is not a bigint: the references are not supported yet.
+     * @throws {SchemaDefinitionException} When it is neither a bigint nor a reference.
      */
     greater(limit: bigint | Reference): this
 
     /**
      * Require the bigint to be less than a limit.
-     * @param limit The limit (exclusive), a bigint.
+     * @param limit The limit (exclusive): a bigint, or a reference to one.
      * @returns A new schema.
-     * @throws {SchemaDefinitionException} When it is not a bigint: the references are not supported yet.
+     * @throws {SchemaDefinitionException} When it is neither a bigint nor a reference.
      */
     less(limit: bigint | Reference): this
 
     /**
      * Require the bigint to be at most a limit.
-     * @param limit The maximum (inclusive), a bigint.
+     * @param limit The maximum (inclusive): a bigint, or a reference to one.
      * @returns A new schema.
-     * @throws {SchemaDefinitionException} When it is not a bigint: the references are not supported yet.
+     * @throws {SchemaDefinitionException} When it is neither a bigint nor a reference.
      */
     max(limit: bigint | Reference): this
 
     /**
      * Require the bigint to be at least a limit.
-     * @param limit The minimum (inclusive), a bigint.
+     * @param limit The minimum (inclusive): a bigint, or a reference to one.
      * @returns A new schema.
-     * @throws {SchemaDefinitionException} When it is not a bigint: the references are not supported yet.
+     * @throws {SchemaDefinitionException} When it is neither a bigint nor a reference.
      */
     min(limit: bigint | Reference): this
 
     /**
-     * Require the bigint to be a multiple of a base. A value lower than the base is rejected: 0 and the negative
-     * multiples are not accepted as multiples.
-     * @param base The base, a bigint.
+     * Require the bigint to be a multiple of a base: 0 and the negative multiples included.
+     * @param base The base: a positive bigint, or a reference to one.
      * @returns A new schema.
-     * @throws {SchemaDefinitionException} When it is not a bigint: the references are not supported yet.
+     * @throws {SchemaDefinitionException} When it is neither a positive bigint nor a reference.
      */
     multiple(base: bigint | Reference): this
 

@@ -1,4 +1,4 @@
-import {Module, MODULE_INITIALIZE_ERROR, MODULE_INITIALIZED} from '../core/Module.js'
+import {Module} from '../core/Module.js'
 import {Container} from '../core/Container.js'
 import {ApplicationConfigLoader} from './ApplicationConfigLoader.js'
 import {ApplicationOptions} from '../../options/ApplicationOptions.js'
@@ -53,8 +53,9 @@ export enum ApplicationState {
 /**
  * The application: the root module, created and launched by the static fluent API. `Application.run()` gives its
  * options (its identity and its components, providers, objects and bootstrap); the other static calls set its
- * environment variables, path aliases and lifecycle handlers. The calls of one synchronous chain launch it once, in
- * the next turn of the event loop:
+ * environment variables, path aliases and lifecycle handlers. The application launches once, in the turn of the event
+ * loop following the first calls; the calls made once its launch started only add their handlers (`env()`, `alias()`
+ * and `run()` have no effect then):
  * 1. the environment variables are set, the aliases registered (`@runtime` being the working directory);
  * 2. the options are read (from the getter given to `run()`, which may be async) and validated, the identity applied
  *    (`process.title` is the application ID, the time zone and the mode set);
@@ -138,6 +139,12 @@ export class Application extends Module {
      * @protected
      */
     protected static launchTimeout: NodeJS.Timeout
+
+    /**
+     * Whether the launch of the application started (the calls of the fluent API after it do not launch it again)
+     * @protected
+     */
+    protected static launchStarted: boolean = false
 
     /**
      * The options preset for the applications, see `preset()`.
@@ -243,12 +250,18 @@ export class Application extends Module {
     }
 
     /**
-     * Add a handler called once the application has launched (its bootstrap completed). An async handler is not
-     * awaited; its rejection is an unhandled rejection.
+     * Add a handler called once the application has launched (its bootstrap completed), or at once when it has
+     * launched already. An async handler is not awaited; its rejection is an unhandled rejection.
      * @param handler The function called with the application and its logger.
      * @returns The application class, to chain the other calls.
      */
     public static onLaunched(handler: LaunchedHandler): typeof Application {
+        const launched: Application | undefined = this.appInstance
+        if (launched) {
+            //Added once the application has launched: called at once
+            void (async (): Promise<void> => handler(launched, await launched.getLogger()))()
+            return this
+        }
         this.eventEmitter.once(ApplicationState.Launched, async (app: Application) => handler(app, await app.getLogger()))
         return this.launch()
     }
@@ -324,8 +337,11 @@ export class Application extends Module {
      * @protected
      */
     protected static launch(): typeof Application {
+        //Launched once: the calls after its launch started only add their handlers
+        if (this.launchStarted) return this
         if (this.launchTimeout) clearTimeout(this.launchTimeout)
         this.launchTimeout = setTimeout((): void => {
+            this.launchStarted = true
             process.on('uncaughtException', (error: Error): void => void this.processUncaughtException(error))
             this.launchApplication()
                 .then((app: Application): unknown => Reflect.set(this, 'appInstance', app))
@@ -529,12 +545,11 @@ export class Application extends Module {
                         Reflect.set(this, 'appInstance', target)
                         this.eventEmitter.emit(ApplicationState.Launched, As<Application>(target))
                     })
+                    //Resolved once the application is initialized (its objects loaded, its bootstrap run), rejected with
+                    //the error of its initialization (a fatal exception)
                     rootContainer
                         .set(Application, {options: applicationOptions})
-                        .then((app: Application) => app
-                            .once(MODULE_INITIALIZED, () => resolve(app))
-                            .once(MODULE_INITIALIZE_ERROR, (error: Error) => this.processFatalException(error))
-                        )
+                        .then(resolve)
                         .catch(reject)
                 })
                 .catch(reject)

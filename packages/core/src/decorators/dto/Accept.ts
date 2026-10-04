@@ -10,7 +10,7 @@ import {Schema} from '../../lib/validation/types/Schema.js'
  * passed unchecked. An async method is validated asynchronously (its call rejects on failure), another method
  * synchronously.
  * @remarks A missing argument is accepted unless its schema is required (`MyDTO.required()`,
- * `DTO.String().required()`); an optional argument is omitted, not passed as `undefined` when an argument follows it.
+ * `DTO.String().required()`), whether it is omitted or passed as `undefined` (its default then applied).
  * @param defs The schemas of the arguments, by position: DTO classes or schemas (`DTO.String()`).
  * @returns The method decorator; the decorated method cannot be reassigned.
  * @throws {InvalidMethodAcceptException} From a call, when an argument does not match its schema (its cause is the

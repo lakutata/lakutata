@@ -6,6 +6,7 @@ import {Autoload} from '../../decorators/di/Autoload.js'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {TestObj} from './resources/glob-modules/TestObj.js'
+import {FirstObject, SecondObject} from './resources/glob-multiple/Objects.js'
 import {OBJECT_ID} from '../../options/LoadObjectOptions.js'
 import {Singleton, Transient} from '../../decorators/di/Lifetime.js'
 import {Inject} from '../../decorators/di/Inject.js'
@@ -77,6 +78,13 @@ await describe('DI Test', async function (): Promise<void> {
         await container.load([`${path.resolve(path.dirname(fileURLToPath(import.meta.url)), './resources/glob-modules')}/**.js`])
         const registration: TestObj = await container.get(TestObj)
         assert.equal(registration.foo(), 'bar')
+    })
+    await it('registers every object class exported by a file of a glob, fails on a file which cannot be imported', async (): Promise<void> => {
+        const resources: string = path.resolve(path.dirname(fileURLToPath(import.meta.url)), './resources')
+        await container.load([`${resources}/glob-multiple/**.js`])
+        assert.equal((await container.get(FirstObject)).name(), 'first')
+        assert.equal((await container.get(SecondObject)).name(), 'second')
+        await assert.rejects(container.load([`${resources}/glob-broken/**.js`]), /Broken\.js matched by .* cannot be imported: The module is broken/)
     })
     await it('builds an instance of a base object class by injecting dependencies, but without registering it in the container', async (): Promise<void> => {
         class TmpObject extends BaseObject {

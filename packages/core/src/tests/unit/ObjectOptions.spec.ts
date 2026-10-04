@@ -2,7 +2,7 @@ import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
 import {Component} from '../../lib/core/Component.js'
 import {Container} from '../../lib/core/Container.js'
-import {Module, MODULE_INITIALIZE_ERROR, MODULE_INITIALIZED} from '../../lib/core/Module.js'
+import {Module} from '../../lib/core/Module.js'
 import {Configurable} from '../../decorators/di/Configurable.js'
 import {DTO} from '../../lib/dto/DTO.js'
 import {ModuleOptions} from '../../options/ModuleOptions.js'
@@ -46,13 +46,16 @@ async function InitializeModule(options: ModuleOptions): Promise<{ module: Modul
     const listener = (warning: Error): number => warnings.push(warning.message)
     process.on('warning', listener)
     try {
-        const module: Module = await new Container().set(class extends Module {
+        let module!: Module
+        //The module given to its requester once initialized, its initialization error thrown: kept when it is created
+        const error: Error | undefined = await new Container().set(class extends Module {
             protected options: ModuleOptions = options
-        })
-        const error: Error | undefined = await new Promise<Error | undefined>((resolve): void => {
-            module.once(MODULE_INITIALIZED, (): void => resolve(undefined))
-            module.once(MODULE_INITIALIZE_ERROR, (error: Error): void => resolve(error))
-        })
+
+            protected readonly created: boolean = ((): boolean => {
+                module = this
+                return true
+            })()
+        }).then((): undefined => undefined, (error: Error): Error => error)
         return {module: module, error: error, warnings: warnings}
     } finally {
         process.off('warning', listener)

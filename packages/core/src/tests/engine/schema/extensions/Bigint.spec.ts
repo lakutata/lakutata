@@ -82,7 +82,10 @@ describe('bigint extension', () => {
 
     it('Value shoud be multiple of 3', () => {
         const schema = Engine.bigint().multiple(3n).required()
-        expect('error' in schema.validate(0n)).to.be.true()
+        //lakutata: 0 and the negative multiples are multiples, as for the numbers (upstream refused them)
+        expect('error' in schema.validate(0n)).to.be.false()
+        expect('error' in schema.validate(-6n)).to.be.false()
+        expect('error' in schema.validate(-7n)).to.be.true()
         expect('error' in schema.validate(2n)).to.be.true()
         expect('error' in schema.validate(3n)).to.be.false()
         expect('error' in schema.validate(2n)).to.be.true()
@@ -125,5 +128,19 @@ describe('bigint extension', () => {
         expect('error' in schema.validate(-1n)).to.be.true()
         expect('error' in schema.validate(0n)).to.be.true()
         expect('error' in schema.validate(1n)).to.be.false()
+    })
+
+    //lakutata: the limits and the base may be references, the base positive
+    it('Value is compared with references', () => {
+        const schema = Engine.object({
+            low: Engine.bigint(),
+            step: Engine.bigint(),
+            value: Engine.bigint().min(Engine.ref('low')).multiple(Engine.ref('step'))
+        })
+        expect('error' in schema.validate({low: 5n, step: 2n, value: 6n})).to.be.false()
+        expect('error' in schema.validate({low: 7n, step: 2n, value: 6n})).to.be.true()
+        expect('error' in schema.validate({low: 5n, step: 4n, value: 6n})).to.be.true()
+        expect('error' in schema.validate({low: 5n, step: 0n, value: 6n})).to.be.true()
+        expect(() => Engine.bigint().multiple(0n)).to.throw()
     })
 })

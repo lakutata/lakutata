@@ -4,7 +4,7 @@ import {BaseObject} from '../../lib/base/BaseObject.js'
 import {Component} from '../../lib/core/Component.js'
 import {Container, RegisterTeardownHook} from '../../lib/core/Container.js'
 import {SetLifecycleErrorReporter} from '../../lib/foundation/LifecycleErrorReporter.js'
-import {Module, MODULE_INITIALIZED} from '../../lib/core/Module.js'
+import {Module} from '../../lib/core/Module.js'
 import {ObjectDestroyedException} from '../../exceptions/ObjectDestroyedException.js'
 import {LifetimeLockedException} from '../../exceptions/di/LifetimeLockedException.js'
 import {Provider} from '../../lib/core/Provider.js'
@@ -170,9 +170,8 @@ class TestModule extends Module {
 }
 
 async function initializedModule(root: Container): Promise<TestModule> {
-    const module: TestModule = await root.get(TestModule)
-    await new Promise<void>(resolve => module.once(MODULE_INITIALIZED, () => resolve()))
-    return module
+    //Resolved from outside the module: once it is initialized
+    return await root.get(TestModule)
 }
 
 class DestroyCounter extends BaseObject {
@@ -350,10 +349,12 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         await root.destroy()
     })
 
-    await it('a module disposed before its deferred initialization never initializes', async (): Promise<void> => {
+    await it('a module is initialized once resolved from outside, and not again once disposed', async (): Promise<void> => {
         const root: Container = new Container()
         await root.load([DeferredModule])
+        events.length = 0
         const module: DeferredModule = await root.get(DeferredModule)
+        assert.deepEqual(events, ['DeferredModule.init'])
         events.length = 0
         await module.dispose()
         await sleep(20)

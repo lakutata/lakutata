@@ -68,14 +68,6 @@ export interface AnySchema<TSchema = any> {
     artifact(id: any): this
 
     /**
-     * Declared for the engine root object; the schemas do not implement it.
-     * @deprecated Not available on the schemas (calling it throws a `TypeError`): build schemas with the static `DTO`
-     * methods, which need no binding.
-     * @returns A new schema.
-     */
-    bind(): this
-
-    /**
      * Cache the validation results (successes and failures) of the inputs, for the primitive inputs only. The cache is
      * only used when the `cache` validation option is true, which it is not by default.
      * @param cache The cache to use. Defaults to a new cache of at most 1000 entries, dropping the least recently used.

@@ -68,6 +68,7 @@ export const bigintExtension = (_engine: Root): Extension<BigIntSchema> => ({
             args: [
                 {
                     name: 'limit',
+                    ref: true,
                     assert: isBigint,
                     message: 'must be a bigint'
                 }
@@ -83,6 +84,7 @@ export const bigintExtension = (_engine: Root): Extension<BigIntSchema> => ({
             args: [
                 {
                     name: 'limit',
+                    ref: true,
                     assert: isBigint,
                     message: 'must be a bigint'
                 }
@@ -98,6 +100,7 @@ export const bigintExtension = (_engine: Root): Extension<BigIntSchema> => ({
             args: [
                 {
                     name: 'limit',
+                    ref: true,
                     assert: isBigint,
                     message: 'must be a bigint'
                 }
@@ -113,6 +116,7 @@ export const bigintExtension = (_engine: Root): Extension<BigIntSchema> => ({
             args: [
                 {
                     name: 'limit',
+                    ref: true,
                     assert: isBigint,
                     message: 'must be a bigint'
                 }
@@ -123,16 +127,18 @@ export const bigintExtension = (_engine: Root): Extension<BigIntSchema> => ({
                 return this.$_addRule({name: 'multiple', args: {base}})
             },
             validate(value: unknown, helpers: Helpers, {base}: Record<string, unknown>): unknown {
-                //Like upstream: a value lower than the base (0 included) is not a multiple
-                return (value as bigint) >= (base as bigint) && (value as bigint) % (base as bigint) === 0n
+                //A multiple of the base: 0 and the negative multiples included, as the numbers (upstream refused the
+                //values lower than the base)
+                return (value as bigint) % (base as bigint) === 0n
                     ? value
                     : helpers.error('bigint.multiple', {base: (base as bigint).toString()})
             },
             args: [
                 {
                     name: 'base',
-                    assert: isBigint,
-                    message: 'must be a bigint'
+                    ref: true,
+                    assert: (base: unknown): boolean => isBigint(base) && (base as bigint) > 0n,
+                    message: 'must be a positive bigint'
                 }
             ],
             multi: true

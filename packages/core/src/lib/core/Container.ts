@@ -21,6 +21,7 @@ import {listModules, type ModuleDescriptor} from '../ioc/ListModules.js'
 import {pathToFileURL} from 'url'
 import {isClass} from '../ioc/Utils.js'
 import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
+import {MODULE_INITIALIZATION} from '../base/internal/ModuleInitialization.js'
 import {LifetimeType} from '../ioc/Lifetime.js'
 import {ReportDestroyError} from '../foundation/LifecycleErrorReporter.js'
 import {ThrowWarning} from '../foundation/ThrowWarning.js'
@@ -297,39 +298,29 @@ export class Container {
     }
 
     /**
-     * Build the registrations of the classes found by a glob pattern: each file matched is imported, and registered
-     * under the symbol of its class when its first export is a {@link BaseObject} subclass; a file whose first export is
-     * not, or which fails to import, registers nothing.
+     * Build the registrations of the classes found by a glob pattern: each file matched is imported, and each of its
+     * exports which is a {@link BaseObject} subclass is registered under the symbol of its class.
      * @param glob The glob pattern of the files to import, relative to the working directory (the aliases are not
      * replaced in it).
      * @returns The registrations, keyed by their class symbols.
+     * @throws {Error} When a file matched fails to import (its error as the cause).
      * @protected
      */
     protected async buildNameAndRegistrationPairFromGlob<T extends typeof BaseObject>(glob: string): Promise<NameAndRegistrationPair<T>> {
-        const formatPairPromises: Promise<NameAndRegistrationPair<T>>[] = []
-        listModules(glob).forEach((moduleDescriptor: ModuleDescriptor): void => {
-            formatPairPromises.push(new Promise<NameAndRegistrationPair<T>>(resolve => {
-                import(pathToFileURL(moduleDescriptor.path).toString()).then((importResult: Record<string, any>): void => {
-                    Object.keys(importResult).forEach((exportName: string): void => {
-                        const exportObj: any = importResult[exportName]
-                        if (isClass(exportObj) && IsSubclassOf(exportObj, BaseObject)) {
-                            const objectConstructor: T = exportObj
-                            const pair: NameAndRegistrationPair<T> = {}
-                            pair[ConstructorSymbol(objectConstructor)] = this.#createResolver(objectConstructor)
-                            return resolve(pair)
-                        } else {
-                            return resolve({})
-                        }
-                    })
-                }).catch(() => resolve({}))
-            }))
-        })
-        const pairs: NameAndRegistrationPair<T>[] = await Promise.all(formatPairPromises)
-        let result: NameAndRegistrationPair<T> = {}
-        pairs.forEach((pair: NameAndRegistrationPair<T>): void => {
-            result = {...result, ...pair}
-        })
-        return result
+        const pairs: NameAndRegistrationPair<T>[] = await Promise.all(listModules(glob).map(async (moduleDescriptor: ModuleDescriptor): Promise<NameAndRegistrationPair<T>> => {
+            let importResult: Record<string, any>
+            try {
+                importResult = await import(pathToFileURL(moduleDescriptor.path).toString())
+            } catch (error: unknown) {
+                throw new Error(`The file ${moduleDescriptor.path} matched by "${glob}" cannot be imported: ${(error as Error)?.message ?? error}`, {cause: error})
+            }
+            const pair: NameAndRegistrationPair<T> = {}
+            for (const exportObj of Object.values(importResult)) {
+                if (isClass(exportObj) && IsSubclassOf(exportObj, BaseObject)) pair[ConstructorSymbol(exportObj)] = this.#createResolver(As<T>(exportObj))
+            }
+            return pair
+        }))
+        return Object.assign({}, ...pairs)
     }
 
     /**
@@ -357,6 +348,7 @@ export class Container {
      * @returns Resolves once registered (the glob patterns imported).
      * @throws {InvalidMethodAcceptException} When an item is neither a class, a declaration nor a glob pattern.
      * @throws {ObjectDestroyedException} When the container has been destroyed.
+     * @throws {Error} When a file matched by a glob pattern fails to import.
      */
     @Accept(DTO.Array(DTO.Alternatives(LoadObjectOptions.Schema(), DTO.Class(() => BaseObject), DTO.Glob())))
     public async load<T extends typeof BaseObject>(options: (LoadObjectOptions | typeof BaseObject | string)[]): Promise<void> {
@@ -519,7 +511,22 @@ export class Container {
             while (!resolver.injectionNames.has(registrationName) && !resolver.#isScope && resolver.parent) resolver = resolver.parent
         }
         resolver.#assertNotDestroyed()
-        return await resolver.processResolved(resolver.#dic.resolve(registrationName), registrationName, configurableRecords)
+        const object: T = await resolver.processResolved(resolver.#dic.resolve(registrationName), registrationName, configurableRecords)
+        await this.#waitForModule(object)
+        return object
+    }
+
+    /**
+     * Wait for the initialization of a module resolved for an object outside it (its objects loaded, its bootstrap
+     * run); the module itself and its objects, created by its initialization, do not wait for it
+     * @param object
+     * @private
+     */
+    async #waitForModule(object: BaseObject): Promise<void> {
+        const initialization: (() => Promise<void>) | undefined = (object as any)?.[MODULE_INITIALIZATION]
+        if (typeof initialization !== 'function') return
+        for (let container: Container | undefined = this; container; container = container.parent) if (container.owner() === object) return
+        await initialization.call(object)
     }
 
     /**

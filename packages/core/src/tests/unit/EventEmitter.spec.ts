@@ -134,11 +134,12 @@ function Random(seed: number): () => number {
 const SYMBOL: symbol = Symbol.for('event')
 
 /**
- * The events listened to and emitted: names, namespaces, wildcards, arrays, a symbol and error
+ * The events listened to and emitted: names, namespaces, wildcards, arrays, a symbol in a namespace and error (an event
+ * named by a symbol alone is not compared: 2.x did not emit it, see the tests of the symbols below)
  */
 const EVENTS: any[] = [
     'a', 'b', 'a.b', 'a.c', 'b.c', 'a.b.c', 'a.b.d', 'x.y.z', 'a.*', '*.b', '*', '*.*', '**', 'a.**', '**.c', 'a.**.c', '**.**', 'a.*.c',
-    '*.*.*', '', 'a.', '.b', ['a', 'b'], ['a', '*'], ['**'], ['a', 'b', 'c'], SYMBOL, [SYMBOL, 'a'], 'error', 'newListener'
+    '*.*.*', '', 'a.', '.b', ['a', 'b'], ['a', '*'], ['**'], ['a', 'b', 'c'], [SYMBOL, 'a'], 'error', 'newListener'
 ]
 
 const flush = async (): Promise<void> => {
@@ -356,5 +357,42 @@ describe('EventEmitter', (): void => {
         }
         assert.strictEqual(new PortedEventEmitter2().getMaxListeners(), new UpstreamEventEmitter2().getMaxListeners())
         assert.strictEqual(PortedEventEmitter2.defaultMaxListeners, (UpstreamEventEmitter2 as any).defaultMaxListeners)
+    })
+})
+
+describe('The events named by symbols, the queries without an event', (): void => {
+
+    it('emits and removes the symbol events, lists the listeners of every event', async (): Promise<void> => {
+        const emitter: EventEmitter = new EventEmitter()
+        const paid: symbol = Symbol('paid')
+        const other: symbol = Symbol('other')
+        const received: unknown[] = []
+        const listener: ListenerFn = (value: unknown): void => void received.push(value)
+        assert.strictEqual(emitter.hasListeners(), false)
+        assert.deepStrictEqual(emitter.listeners(), [])
+        emitter.on(paid, listener)
+        emitter.on('order.created', (): undefined => undefined)
+        assert.strictEqual(emitter.emit(paid, 1), true)
+        assert.strictEqual(emitter.emit(other, 2), false)
+        assert.deepStrictEqual(await emitter.emitRequest(paid, 3), [undefined])
+        assert.deepStrictEqual(received, [1, 3])
+        assert.strictEqual(emitter.listenerCount(paid), 1)
+        assert.strictEqual(emitter.hasListeners(paid), true)
+        assert.strictEqual(emitter.hasListeners(other), false)
+        assert.strictEqual(emitter.listeners(paid).length, 1)
+        assert.deepStrictEqual(emitter.eventNames(), [paid, 'order.created'])
+        assert.deepStrictEqual(emitter.eventNames(true), [[paid], ['order', 'created']])
+        //Without an event: every event
+        assert.strictEqual(emitter.hasListeners(), true)
+        assert.strictEqual(emitter.listeners().length, 2)
+        emitter.off(paid, listener)
+        assert.strictEqual(emitter.emit(paid, 4), false)
+        assert.deepStrictEqual(received, [1, 3])
+        //A copy of the listeners of every event
+        emitter.onAny((): undefined => undefined)
+        emitter.listenersAny().length = 0
+        assert.strictEqual(emitter.listenersAny().length, 1)
+        emitter.removeAllListeners('order.created')
+        assert.strictEqual(emitter.hasListeners(), false)
     })
 })

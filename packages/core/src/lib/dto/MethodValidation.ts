@@ -21,13 +21,14 @@ export function SetMethodAcceptArgumentsValidator<ClassPrototype, DTOConstructor
     defs.forEach((def: DTOConstructor | Schema) => argumentSchemas.push(IsDTO(As<DTOConstructor>(def)) ? As<DTOConstructor>(def).Schema() : As<Schema>(def)))
     descriptor.writable = false
     const originalMethod: (...args: any[]) => any | Promise<any> = descriptor.value
-    const schema: ArraySchema = DTO.Array().ordered(...argumentSchemas)
+    //The arguments may be undefined (an optional argument given as undefined): sparse, each one checked by its schema
+    const schema: ArraySchema = DTO.Array().sparse(true).ordered(...argumentSchemas)
     const argumentSchemaLength: number = Array.isArray(argumentSchemas) ? argumentSchemas.length : 1
     if (isAsyncFunction(originalMethod)) {
         descriptor.value = async function (...args: any[]): Promise<any> {
             const argumentCount: number = args.length - argumentSchemaLength
             try {
-                args = await DTO.validateAsync(args, schema.concat(DTO.Array().ordered(...new Array(argumentCount >= 0 ? argumentCount : 0).fill(DTO.Any()))))
+                args = await DTO.validateAsync(args, schema.concat(DTO.Array().sparse(true).ordered(...new Array(argumentCount >= 0 ? argumentCount : 0).fill(DTO.Any()))))
             } catch (e) {
                 throw WithCause(new InvalidMethodAcceptException('Method [{propertyKey}] accept argument {reason}', {
                     propertyKey: propertyKey,
@@ -40,7 +41,7 @@ export function SetMethodAcceptArgumentsValidator<ClassPrototype, DTOConstructor
         descriptor.value = function (...args: any[]): any {
             const argumentCount: number = args.length - argumentSchemaLength
             try {
-                args = DTO.validate(args, schema.concat(DTO.Array().ordered(...new Array(argumentCount >= 0 ? argumentCount : 0).fill(DTO.Any()))))
+                args = DTO.validate(args, schema.concat(DTO.Array().sparse(true).ordered(...new Array(argumentCount >= 0 ? argumentCount : 0).fill(DTO.Any()))))
             } catch (e) {
                 throw WithCause(new InvalidMethodAcceptException('Method [{propertyKey}] accept argument {reason}', {
                     propertyKey: propertyKey,

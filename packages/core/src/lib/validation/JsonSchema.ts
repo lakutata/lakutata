@@ -45,8 +45,9 @@ export interface ToJsonSchemaOptions {
     /**
      * An object receiving the shared schemas (the schemas given an id with `.id()`), by id. The JSON Schema refers to
      * them with `$ref` (`#/$defs/<id>`, `#/definitions/<id>` in draft 04, `#/components/schemas/<id>` in OpenAPI);
-     * the JSON Schema versions also embed them in the root `$defs` (`definitions`), while an OpenAPI document must
-     * place them in its `components.schemas` itself.
+     * the JSON Schema versions also embed them in the root `$defs` (`definitions`). An OpenAPI schema object cannot
+     * hold them: the OpenAPI targets return them in the root key `schemas` of the result as well, both to be moved by
+     * the caller into the `components.schemas` of its document.
      */
     definitions?: Record<string, JSONSchema>
 }

@@ -115,8 +115,8 @@ export class Component extends Provider {
      * `on()`, `once()`, `many()` and their prepended forms are scheduled (an error they throw is an unhandled
      * rejection). Use `emitRequest()` to wait for the listeners and their results.
      * @param event The event: a name (`'order.paid'`, the parts separated by dots, with the wildcards `*` for one part
-     * and `**` for any parts) or the parts as an array (`['order', 'paid']`). A symbol is accepted by the type but not
-     * supported: its listeners are never called.
+     * and `**` for any parts) or the parts as an array (`['order', 'paid']`). A symbol is an event of
+     * its own (matched by the wildcard `*` as a name of one part).
      * @param values The values passed to the listeners.
      * @returns true when the event has listeners.
      * @throws {Error} The error emitted as an `'error'` event which has no listener.
@@ -128,8 +128,8 @@ export class Component extends Provider {
     /**
      * Emit an event and wait for its listeners (the asynchronous ones included).
      * @param event The event: a name (`'order.paid'`, the parts separated by dots, with the wildcards `*` for one part
-     * and `**` for any parts) or the parts as an array (`['order', 'paid']`). A symbol is accepted by the type but not
-     * supported: its listeners are never called.
+     * and `**` for any parts) or the parts as an array (`['order', 'paid']`). A symbol is an event of
+     * its own (matched by the wildcard `*` as a name of one part).
      * @param values The values passed to the listeners.
      * @returns The results of the listeners, in their order (an empty array without listener).
      * @throws {Error} The first error thrown by a listener, or the error emitted as an `'error'` event which has no
@@ -143,8 +143,8 @@ export class Component extends Provider {
      * Add a listener called synchronously, at the emitting, after the event's other listeners. Unlike `on()`, its
      * listener runs before `emit()` returns.
      * @param event The event: a name (`'order.paid'`, the parts separated by dots, with the wildcards `*` for one part
-     * and `**` for any parts) or the parts as an array (`['order', 'paid']`). A symbol is accepted by the type but not
-     * supported: its listeners are never called.
+     * and `**` for any parts) or the parts as an array (`['order', 'paid']`). A symbol is an event of
+     * its own (matched by the wildcard `*` as a name of one part).
      * @param listener The function called with the event's values.
      * @returns The component, for chaining.
      */
@@ -156,8 +156,8 @@ export class Component extends Provider {
     /**
      * Add a listener, after the event's other listeners.
      * @param event The event: a name (`'order.paid'`, the parts separated by dots, with the wildcards `*` for one part
-     * and `**` for any parts) or the parts as an array (`['order', 'paid']`). A symbol is accepted by the type but not
-     * supported: its listeners are never called.
+     * and `**` for any parts) or the parts as an array (`['order', 'paid']`). A symbol is an event of
+     * its own (matched by the wildcard `*` as a name of one part).
      * @param listener The function called with the event's values, asynchronously after the emitting (in a later turn of
      * the event loop); its result (or the promise it returns) is collected by `emitRequest()`.
      * @returns The component, for chaining.
@@ -170,8 +170,8 @@ export class Component extends Provider {
     /**
      * Add a listener before the event's other listeners.
      * @param event The event: a name (`'order.paid'`, the parts separated by dots, with the wildcards `*` for one part
-     * and `**` for any parts) or the parts as an array (`['order', 'paid']`). A symbol is accepted by the type but not
-     * supported: its listeners are never called.
+     * and `**` for any parts) or the parts as an array (`['order', 'paid']`). A symbol is an event of
+     * its own (matched by the wildcard `*` as a name of one part).
      * @param listener The function called with the event's values, asynchronously after the emitting (in a later turn of
      * the event loop); its result (or the promise it returns) is collected by `emitRequest()`.
      * @returns The component, for chaining.
@@ -184,8 +184,8 @@ export class Component extends Provider {
     /**
      * Add a listener called for the event's next emitting only, then removed.
      * @param event The event: a name (`'order.paid'`, the parts separated by dots, with the wildcards `*` for one part
-     * and `**` for any parts) or the parts as an array (`['order', 'paid']`). A symbol is accepted by the type but not
-     * supported: its listeners are never called.
+     * and `**` for any parts) or the parts as an array (`['order', 'paid']`). A symbol is an event of
+     * its own (matched by the wildcard `*` as a name of one part).
      * @param listener The function called with the event's values, asynchronously after the emitting (in a later turn of
      * the event loop); its result (or the promise it returns) is collected by `emitRequest()`.
      * @returns The component, for chaining.
@@ -199,8 +199,8 @@ export class Component extends Provider {
      * Add a listener called for the event's next emitting only, then removed; it is placed before the event's other
      * listeners.
      * @param event The event: a name (`'order.paid'`, the parts separated by dots, with the wildcards `*` for one part
-     * and `**` for any parts) or the parts as an array (`['order', 'paid']`). A symbol is accepted by the type but not
-     * supported: its listeners are never called.
+     * and `**` for any parts) or the parts as an array (`['order', 'paid']`). A symbol is an event of
+     * its own (matched by the wildcard `*` as a name of one part).
      * @param listener The function called with the event's values, asynchronously after the emitting (in a later turn of
      * the event loop); its result (or the promise it returns) is collected by `emitRequest()`.
      * @returns The component, for chaining.
@@ -213,8 +213,8 @@ export class Component extends Provider {
     /**
      * Add a listener called for the event's next emittings, then removed.
      * @param event The event: a name (`'order.paid'`, the parts separated by dots, with the wildcards `*` for one part
-     * and `**` for any parts) or the parts as an array (`['order', 'paid']`). A symbol is accepted by the type but not
-     * supported: its listeners are never called.
+     * and `**` for any parts) or the parts as an array (`['order', 'paid']`). A symbol is an event of
+     * its own (matched by the wildcard `*` as a name of one part).
      * @param timesToListen The number of emittings the listener is called for.
      * @param listener The function called with the event's values, asynchronously after the emitting (in a later turn of
      * the event loop); its result (or the promise it returns) is collected by `emitRequest()`.
@@ -229,8 +229,8 @@ export class Component extends Provider {
      * Add a listener called for the event's next emittings, then removed; it is placed before the event's other
      * listeners.
      * @param event The event: a name (`'order.paid'`, the parts separated by dots, with the wildcards `*` for one part
-     * and `**` for any parts) or the parts as an array (`['order', 'paid']`). A symbol is accepted by the type but not
-     * supported: its listeners are never called.
+     * and `**` for any parts) or the parts as an array (`['order', 'paid']`). A symbol is an event of
+     * its own (matched by the wildcard `*` as a name of one part).
      * @param timesToListen The number of emittings the listener is called for.
      * @param listener The function called with the event's values, asynchronously after the emitting (in a later turn of
      * the event loop); its result (or the promise it returns) is collected by `emitRequest()`.
@@ -342,9 +342,9 @@ export class Component extends Provider {
 
     /**
      * The listeners of an event, or of every event.
-     * @param event The event name (the wildcard listeners matching it included) or its parts as an array; required.
+     * @param event The event name (the wildcard listeners matching it included), its parts as an array, or a symbol;
+     * every event when omitted (the listeners of `onAny()` excluded).
      * @returns A copy of the listeners; changing it does not change the listeners.
-     * @throws {Error} When no event is given.
      */
     public listeners(event?: string | symbol | event[] | undefined): ListenerFn[] {
         return this.#eventEmitter.listeners(event)
@@ -352,7 +352,7 @@ export class Component extends Provider {
 
     /**
      * The listeners of every event, added by `onAny()` and `prependAny()`.
-     * @returns The component's own array of these listeners (not a copy).
+     * @returns A copy of these listeners; changing it does not change the listeners.
      */
     public listenersAny(): ListenerFn[] {
         return this.#eventEmitter.listenersAny()
@@ -361,11 +361,10 @@ export class Component extends Provider {
     /**
      * Whether an event has listeners (the wildcard listeners matching it included; the listeners of `onAny()`
      * excluded).
-     * @param event The event name; required despite its type.
+     * @param event The event name, its parts as an array, or a symbol; any event when omitted.
      * @returns true when there are listeners.
-     * @throws {TypeError} When no event is given.
      */
-    public hasListeners(event?: string | undefined): boolean {
+    public hasListeners(event?: string | symbol | event[] | undefined): boolean {
         return this.#eventEmitter.hasListeners(event)
     }
 

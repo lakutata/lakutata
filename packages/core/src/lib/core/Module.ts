@@ -14,9 +14,19 @@ import {DefineObjectType, ObjectType} from '../base/internal/ObjectType.js'
 import {NonceString} from '@lakutata/utils/NonceString'
 import {CheckObjectOptions} from '../base/internal/ObjectOptionsCheck.js'
 import {CurrentMode} from '../foundation/BasicInfo.js'
+import {MODULE_INITIALIZATION} from '../base/internal/ModuleInitialization.js'
 
 export const MODULE_INITIALIZED: string = `_$.MODULE.INITIALIZED_${NonceString()}`
 export const MODULE_INITIALIZE_ERROR: string = `_$.MODULE.INITIALIZE_ERROR_${NonceString()}`
+
+/**
+ * The initialization of a module and its settlement
+ */
+type ModuleInitialization = {
+    promise: Promise<void>
+    resolve: () => void
+    reject: (error: unknown) => void
+}
 
 /**
  * The base class of the modules: a component owning its own objects (components, providers, named and anonymous
@@ -27,9 +37,10 @@ export const MODULE_INITIALIZE_ERROR: string = `_$.MODULE.INITIALIZE_ERROR_${Non
  * Declare it in the `objects.named` of the application (or of a parent module) options, its options under `options`
  * (they are merged over its `options` initializer), and list it in `bootstrap` to start it at launch. When a module is
  * created, its options are checked (see `checkOptions`), its objects registered, then its `bootstrap` runs in order: a
- * name or class is got from its container (creating it), an async function is called with the module. The module is
- * returned to its requester before these steps complete (they run in a later turn of the event loop); the
- * application waits for its own before it launches.
+ * name or class is got from its container (creating it), an async function is called with the module. An object
+ * outside the module getting it (`getObject`, `@Inject`) receives it once these steps are complete, and receives the
+ * error of a step that fails; the module's own objects, created by these steps, receive it at once (they can inject
+ * the module they belong to).
  * @example
  * ```typescript
  * import {Application, Component, Module, type ModuleOptions} from 'lakutata'
@@ -141,6 +152,15 @@ export class Module extends Component {
     protected async [__init](...hooks: (() => Promise<void>)[]): Promise<void> {
         //Use setImmediate here for init module instance first, then sub objects can use @Inject decorator get current module
         //The initialization reports its errors (MODULE_INITIALIZE_ERROR)
+        //The initialization in progress, waited for by the objects resolving the module from outside it
+        const initialization: ModuleInitialization = {} as ModuleInitialization
+        initialization.promise = new Promise<void>((resolve: () => void, reject: (error: unknown) => void): void => {
+            initialization.resolve = resolve
+            initialization.reject = reject
+        })
+        //Its failure is reported by the event, the waiters receive it
+        initialization.promise.catch((): undefined => undefined)
+        this.#initialization = initialization
         setImmediate((): void => void (async (): Promise<void> => {
             try {
                 await super[__init](
@@ -164,10 +184,28 @@ export class Module extends Component {
                     }
                 )
                 this.emit(MODULE_INITIALIZED)
+                initialization.resolve()
             } catch (e) {
                 this.emit(MODULE_INITIALIZE_ERROR, e)
+                initialization.reject(e)
             }
         })())
+    }
+
+    /**
+     * The initialization of the module in progress or done (none before it starts), see {@link MODULE_INITIALIZATION}
+     * @internal
+     */
+    #initialization: ModuleInitialization | undefined
+
+    /**
+     * Wait for the initialization of the module: its objects loaded and its bootstrap run
+     * @returns Resolves once it is initialized (at once when its initialization did not start), rejects with the error
+     * of its initialization
+     * @internal
+     */
+    public async [MODULE_INITIALIZATION](): Promise<void> {
+        await this.#initialization?.promise
     }
 
     /**
@@ -177,6 +215,8 @@ export class Module extends Component {
      * @protected
      */
     protected async [__destroy](...hooks: (() => Promise<void>)[]): Promise<void> {
+        //Destroyed before its initialization ran (it never runs then): its waiters are released
+        this.#initialization?.resolve()
         return await super[__destroy](...hooks)
     }
 
