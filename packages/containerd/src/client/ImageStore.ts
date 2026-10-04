@@ -57,6 +57,25 @@ export type ImageConfigFile = {
 }
 
 /**
+ * The changes of the configuration of an image committed
+ */
+export type ImageConfigChanges = {
+    cmd?: string[]
+    entrypoint?: string[]
+    /**
+     * Its environment variables added or replaced (KEY=value)
+     */
+    env?: string[]
+    workingDir?: string
+    user?: string
+    labels?: Record<string, string>
+    /**
+     * Its ports exposed (80, 53/udp)
+     */
+    exposedPorts?: string[]
+}
+
+/**
  * An image of a platform, resolved: its manifest and its configuration
  */
 export type ResolvedImage = {
@@ -396,6 +415,65 @@ export class ImageStore {
         const chosen: ContentDescriptor | undefined = await this.chooseManifest(index, options.platform ?? HostPlatform(), true)
         if (!chosen) throw Object.assign(new Error(`The image ${name} has no manifest of the platform ${FormatPlatform(options.platform ?? HostPlatform())} to push`), {code: 'PLATFORM'})
         await pushManifest(chosen, tag)
+    }
+
+    /**
+     * Commit the changes of a snapshot (the one of a container) on its image: a layer of their diff, the configuration
+     * of the image with its changes, a manifest of the platform, the image named (and unpacked)
+     * @param options
+     */
+    public async commit(options: { image: string, platform: Platform, snapshotKey: string, name: string, changes?: ImageConfigChanges, comment?: string, author?: string }): Promise<string> {
+        const base: ResolvedImage = await this.resolve(options.image, options.platform)
+        const name: string = ImageName(options.name)
+        const lease: string = await this.client.createLease()
+        const view: string = `commit-${randomBytes(6).toString('hex')}`
+        try {
+            const chain: string[] = ChainIds(base.config.rootfs?.diff_ids ?? [])
+            const left = chain.length ? await this.client.viewSnapshot(this.snapshotter, view, chain[chain.length - 1], lease) : []
+            const right = await this.client.snapshotMounts(this.snapshotter, options.snapshotKey)
+            const layer: ContentDescriptor = await this.client.diff(left, right, lease)
+            const diffId: string | undefined = (await this.client.contentInfo(layer.digest))?.labels?.[Labels.uncompressed]
+            if (!diffId) throw new Error(`The layer ${layer.digest} of the commit has no uncompressed digest`)
+            const created: string = new Date().toISOString()
+            const changes: ImageConfigChanges = options.changes ?? {}
+            const config: ImageConfigFile & { history?: object[], author?: string } = {
+                ...structuredClone(base.config),
+                created: created,
+                rootfs: {type: 'layers', diff_ids: [...base.config.rootfs?.diff_ids ?? [], diffId]}
+            }
+            const containerConfig = config.config ??= {}
+            if (changes.cmd) containerConfig.Cmd = changes.cmd
+            if (changes.entrypoint) containerConfig.Entrypoint = changes.entrypoint
+            if (changes.env) {
+                const env: Map<string, string> = new Map((containerConfig.Env ?? []).map((entry: string): [string, string] => [entry.split('=')[0], entry]))
+                for (const entry of changes.env) env.set(entry.split('=')[0], entry)
+                containerConfig.Env = [...env.values()]
+            }
+            if (changes.workingDir !== undefined) containerConfig.WorkingDir = changes.workingDir
+            if (changes.user !== undefined) containerConfig.User = changes.user
+            if (changes.labels) containerConfig.Labels = {...containerConfig.Labels ?? {}, ...changes.labels}
+            if (changes.exposedPorts) containerConfig.ExposedPorts = {...containerConfig.ExposedPorts ?? {}, ...Object.fromEntries(changes.exposedPorts.map((port: string): [string, object] => [port.includes('/') ? port : `${port}/tcp`, {}]))}
+            if (options.author) config.author = options.author
+            config.history = [...config.history ?? [], {created: created, created_by: 'lakutata commit', ...options.comment ? {comment: options.comment} : {}, ...options.author ? {author: options.author} : {}}]
+            const configData: Buffer = Buffer.from(JSON.stringify(config))
+            const configDescriptor: ContentDescriptor = {mediaType: MediaTypes.OCI_CONFIG, digest: Digest(configData), size: configData.length}
+            await this.client.writeContent(configDescriptor, configData, lease)
+            const manifest: ImageManifest = {
+                schemaVersion: 2,
+                mediaType: MediaTypes.OCI_MANIFEST,
+                config: configDescriptor,
+                layers: [...base.manifest.layers.map((item: ContentDescriptor): ContentDescriptor => ({mediaType: item.mediaType, digest: item.digest, size: item.size})), {mediaType: layer.mediaType, digest: layer.digest, size: Number(layer.size)}]
+            }
+            const manifestData: Buffer = Buffer.from(JSON.stringify(manifest))
+            const manifestDescriptor: ContentDescriptor = {mediaType: MediaTypes.OCI_MANIFEST, digest: Digest(manifestData), size: manifestData.length}
+            await this.client.writeContent(manifestDescriptor, manifestData, lease, this.manifestLabels(manifest))
+            await this.client.putImage({name: name, target: manifestDescriptor}, lease)
+            await this.unpack(manifest, lease)
+            return name
+        } finally {
+            await this.client.removeSnapshot(this.snapshotter, view)
+            await this.client.deleteLease(lease)
+        }
     }
 
     /**

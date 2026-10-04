@@ -324,3 +324,98 @@ export const RuncOptions: Schema = {
     root: {no: 7, type: 'string'},
     systemdCgroup: {no: 9, type: 'bool'}
 }
+
+/*
+ * Metrics (Tasks.Metrics): the ones of the cgroups v1 and v2 (github.com/containerd/cgroups, stats)
+ */
+export const MetricsRequest: Schema = {filters: {no: 1, type: 'string', repeated: true}}
+export const Metric: Schema = {
+    timestamp: {no: 1, type: Timestamp},
+    id: {no: 2, type: 'string'},
+    data: {no: 3, type: Any}
+}
+export const MetricsResponse: Schema = {metrics: {no: 1, type: Metric, repeated: true}}
+
+const PidsStat: Schema = {current: {no: 1, type: 'uint64'}, limit: {no: 2, type: 'uint64'}}
+
+export const CgroupV2Metrics: Schema = {
+    pids: {no: 1, type: PidsStat},
+    cpu: {
+        no: 2, type: {
+            usageUsec: {no: 1, type: 'uint64'},
+            userUsec: {no: 2, type: 'uint64'},
+            systemUsec: {no: 3, type: 'uint64'},
+            nrPeriods: {no: 4, type: 'uint64'},
+            nrThrottled: {no: 5, type: 'uint64'},
+            throttledUsec: {no: 6, type: 'uint64'}
+        }
+    },
+    memory: {
+        no: 4, type: {
+            anon: {no: 1, type: 'uint64'},
+            file: {no: 2, type: 'uint64'},
+            inactiveFile: {no: 13, type: 'uint64'},
+            usage: {no: 32, type: 'uint64'},
+            usageLimit: {no: 33, type: 'uint64'},
+            swapUsage: {no: 34, type: 'uint64'},
+            swapLimit: {no: 35, type: 'uint64'},
+            maxUsage: {no: 36, type: 'uint64'}
+        }
+    },
+    io: {
+        no: 6, type: {
+            usage: {
+                no: 1, repeated: true, type: {
+                    major: {no: 1, type: 'uint64'},
+                    minor: {no: 2, type: 'uint64'},
+                    rbytes: {no: 3, type: 'uint64'},
+                    wbytes: {no: 4, type: 'uint64'},
+                    rios: {no: 5, type: 'uint64'},
+                    wios: {no: 6, type: 'uint64'}
+                }
+            }
+        }
+    },
+    memoryEvents: {no: 8, type: {oom: {no: 4, type: 'uint64'}, oomKill: {no: 5, type: 'uint64'}}}
+}
+
+const MemoryEntry: Schema = {limit: {no: 1, type: 'uint64'}, usage: {no: 2, type: 'uint64'}, max: {no: 3, type: 'uint64'}, failcnt: {no: 4, type: 'uint64'}}
+const BlkIOEntry: Schema = {op: {no: 1, type: 'string'}, major: {no: 3, type: 'uint64'}, minor: {no: 4, type: 'uint64'}, value: {no: 5, type: 'uint64'}}
+
+export const CgroupV1Metrics: Schema = {
+    pids: {no: 2, type: PidsStat},
+    cpu: {
+        no: 3, type: {
+            usage: {no: 1, type: {total: {no: 1, type: 'uint64'}, kernel: {no: 2, type: 'uint64'}, user: {no: 3, type: 'uint64'}, perCpu: {no: 4, type: 'uint64', repeated: true}}},
+            throttling: {no: 2, type: {periods: {no: 1, type: 'uint64'}, throttledPeriods: {no: 2, type: 'uint64'}, throttledTime: {no: 3, type: 'uint64'}}}
+        }
+    },
+    memory: {
+        no: 4, type: {
+            cache: {no: 1, type: 'uint64'},
+            rss: {no: 2, type: 'uint64'},
+            totalInactiveFile: {no: 30, type: 'uint64'},
+            usage: {no: 33, type: MemoryEntry},
+            swap: {no: 34, type: MemoryEntry}
+        }
+    },
+    blkio: {
+        no: 5, type: {
+            ioServiceBytesRecursive: {no: 1, type: BlkIOEntry, repeated: true},
+            ioServicedRecursive: {no: 2, type: BlkIOEntry, repeated: true}
+        }
+    },
+    memoryOomControl: {no: 9, type: {oomKill: {no: 3, type: 'uint64'}}}
+}
+
+/*
+ * Diff (the layers of the changes of the snapshots), the views of the snapshots
+ */
+export const DiffRequest: Schema = {
+    left: {no: 1, type: Mount, repeated: true},
+    right: {no: 2, type: Mount, repeated: true},
+    mediaType: {no: 3, type: 'string'},
+    ref: {no: 4, type: 'string'},
+    labels: {no: 5, type: 'string', map: true}
+}
+export const DiffResponse: Schema = {diff: {no: 3, type: Descriptor}}

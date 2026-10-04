@@ -4,6 +4,7 @@ import type {ContainerdRestartPolicy} from '../../types/ContainerdRestartPolicy.
 import type {ContainerdBind} from '../../types/ContainerdBind.js'
 import type {ContainerdDevice} from '../../types/ContainerdDevice.js'
 import type {ContainerdTmpfs} from '../../types/ContainerdTmpfs.js'
+import type {ContainerdVolume} from '../../types/ContainerdVolume.js'
 
 export class ContainerCreateOptions extends DTO {
     /**
@@ -111,6 +112,16 @@ export class ContainerCreateOptions extends DTO {
     public binds?: ContainerdBind[]
 
     /**
+     * The named volumes of the container (created when they do not exist)
+     */
+    @Expect(DTO.Array(DTO.Object({
+        volumeName: DTO.String().pattern(/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/).required(),
+        containerPath: DTO.String().required(),
+        readonly: DTO.Boolean().optional()
+    })).optional())
+    public volumes?: ContainerdVolume[]
+
+    /**
      * The tmpfs of the container
      */
     @Expect(DTO.Array(DTO.Object({
@@ -149,9 +160,10 @@ export class ContainerCreateOptions extends DTO {
      */
     @Expect(DTO.Array(DTO.Object({
         networkName: DTO.String().required(),
-        ip: DTO.String().allow('').ip({version: 'ipv4'}).optional()
+        ip: DTO.String().allow('').ip({version: 'ipv4'}).optional(),
+        ipv6: DTO.String().allow('').ip({version: 'ipv6'}).optional()
     })).optional())
-    public networks?: { networkName: string, ip?: string }[]
+    public networks?: { networkName: string, ip?: string, ipv6?: string }[]
 
     /**
      * The ports of the container published on the host (on its first network of CNI)

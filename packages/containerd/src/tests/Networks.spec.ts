@@ -3,7 +3,7 @@ import assert from 'node:assert'
 import {chmod, mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import {NetworkStore, ParseSubnet, type CNINetwork} from '../client/Networks.js'
+import {NetworkStore, ParseIPv6Subnet, ParseSubnet, type CNINetwork} from '../client/Networks.js'
 import {ResolvConf} from '../client/ContainerStore.js'
 
 describe('The networks of CNI', (): void => {
@@ -37,6 +37,25 @@ describe('The networks of CNI', (): void => {
         assert.deepStrictEqual(ParseSubnet('10.4.1.7/24'), {network: 0x0a040100, broadcast: 0x0a0401ff, prefix: 24, cidr: '10.4.1.0/24'})
         assert.throws((): unknown => ParseSubnet('10.4.1.0/31'))
         assert.throws((): unknown => ParseSubnet('10.4.1.300/24'))
+    })
+
+    it('parses the subnets of IPv6', (): void => {
+        assert.deepStrictEqual([ParseIPv6Subnet('fd00:4:10::7/64').cidr, ParseIPv6Subnet('fd00:4:10::/64').first], ['fd00:4:10::/64', 'fd00:4:10::1'])
+        assert.strictEqual(ParseIPv6Subnet('2001:db8::1:0:0:0/80').cidr, '2001:db8:0:0:1::/80')
+        assert.throws((): unknown => ParseIPv6Subnet('fd00::/127'))
+        assert.throws((): unknown => ParseIPv6Subnet('10.0.0.0/64'))
+    })
+
+    it('creates the networks of IPv4 and IPv6', async (): Promise<void> => {
+        const dual: CNINetwork = await store.create({name: 'dual', subnet: '10.4.90.0/24', ipv6Subnet: 'fd00:4:90::/64'})
+        assert.deepStrictEqual(dual.plugins[0].ipam.ranges, [[{gateway: '10.4.90.1', subnet: '10.4.90.0/24'}], [{subnet: 'fd00:4:90::/64', gateway: 'fd00:4:90::1'}]])
+        assert.deepStrictEqual(dual.plugins[0].ipam.routes, [{dst: '0.0.0.0/0'}, {dst: '::/0'}])
+        assert.deepStrictEqual(dual.subnets, ['10.4.90.0/24', 'fd00:4:90::/64'])
+        await assert.rejects(store.create({name: 'dual2', subnet: '10.4.91.0/24', ipv6Subnet: 'fd00:4:90:0:1::/80'}), /overlaps/)
+        await assert.rejects(store.create({name: 'dual3', subnet: '10.4.92.0/24', ipv6Subnet: 'fd00:4:92::/64', ipv6Gateway: 'fd00:4:93::1'}), /not in the subnet/)
+        await store.render(path.join(directory, 'dual-container'), 'c2', [{network: dual, ip: '10.4.90.9', ipv6: 'fd00:4:90::9'}], [])
+        assert.strictEqual(await readFile(path.join(directory, 'dual-container', 'network', '00', 'args'), 'utf8'), 'IgnoreUnknown=1;IP=10.4.90.9,fd00:4:90::9')
+        await store.remove(dual)
     })
 
     it('creates the default network of nerdctl once it is asked', async (): Promise<void> => {

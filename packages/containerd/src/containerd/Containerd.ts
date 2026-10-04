@@ -16,6 +16,15 @@ import type {RegistryCredentials, RegistryOptions} from '../client/Registry.js'
 import type {Message} from '../client/Protobuf.js'
 import {ContainerdImage} from './lib/ContainerdImage.js'
 import {ContainerdContainer} from './lib/ContainerdContainer.js'
+import {ContainerdContainerTTY} from './lib/ContainerdContainerTTY.js'
+import {ContainerdPruneOptions} from './options/ContainerdPruneOptions.js'
+import {VolumeCreateOptions} from './options/volume/VolumeCreateOptions.js'
+import type {ContainerdVolumeInfo} from './types/ContainerdVolumeInfo.js'
+import type {ContainerdPruneResult} from './types/ContainerdPruneResult.js'
+import {ContainerdVolumeNotFoundException} from './exceptions/ContainerdVolumeNotFoundException.js'
+import {ContainerdVolumeInUseException} from './exceptions/ContainerdVolumeInUseException.js'
+import {VolumeStore, type Volume} from '../client/Volumes.js'
+import {Time} from '@lakutata/utils/Time'
 import {ContainerdError} from './lib/ContainerdErrors.js'
 import {ImagePullOptions} from './options/image/ImagePullOptions.js'
 import {ImageImportOptions} from './options/image/ImageImportOptions.js'
@@ -152,7 +161,8 @@ export class Containerd extends Component {
     protected async init(): Promise<void> {
         await Promise.all([
             this.container.register(ContainerdImage),
-            this.container.register(ContainerdContainer)
+            this.container.register(ContainerdContainer),
+            this.container.register(ContainerdContainerTTY)
         ])
         this.#client = new ContainerdClient(this.socketPath, this.namespace)
         try {
@@ -393,6 +403,7 @@ export class Containerd extends Component {
             driver: network.driver,
             reserved: !network.managed || network.labels['nerdctl/default-network'] === 'true',
             internal: network.driver === 'bridge' && main.isGateway === false && main.ipMasq === false,
+            enableIPv6: network.subnets.some((subnet: string): boolean => subnet.includes(':')),
             subnets: network.subnets,
             gateways: network.gateways,
             labels: network.labels,
@@ -405,7 +416,7 @@ export class Containerd extends Component {
      * it)
      */
     public async listNetworks(): Promise<ContainerdNetworkInfo[]> {
-        const system: ContainerdNetworkInfo[] = ['host', 'none'].map((name: string): ContainerdNetworkInfo => ({id: name, name: name, driver: name, reserved: true, internal: name === 'none', subnets: [], gateways: [], labels: {}}))
+        const system: ContainerdNetworkInfo[] = ['host', 'none'].map((name: string): ContainerdNetworkInfo => ({id: name, name: name, driver: name, reserved: true, internal: name === 'none', enableIPv6: false, subnets: [], gateways: [], labels: {}}))
         return [...system, ...(await this.#networks.list()).map((network: CNINetwork): ContainerdNetworkInfo => this.networkInfo(network))]
     }
 
@@ -504,7 +515,8 @@ export class Containerd extends Component {
     public async createContainer(options: ContainerCreateOptions): Promise<ContainerdContainer> {
         const mounts: ContainerMount[] = [
             ...(options.binds ?? []).map((bind): ContainerMount => ({type: 'bind', source: bind.hostPath, target: bind.containerPath, readonly: bind.rw === false, options: bind.propagation ? [bind.propagation] : undefined})),
-            ...(options.tmpfs ?? []).map((tmpfs): ContainerMount => ({type: 'tmpfs', target: tmpfs.containerPath, options: [...tmpfs.size ? [`size=${tmpfs.size}`] : [], ...tmpfs.mode ? [`mode=${tmpfs.mode}`] : []]}))
+            ...(options.tmpfs ?? []).map((tmpfs): ContainerMount => ({type: 'tmpfs', target: tmpfs.containerPath, options: [...tmpfs.size ? [`size=${tmpfs.size}`] : [], ...tmpfs.mode ? [`mode=${tmpfs.mode}`] : []]})),
+            ...(options.volumes ?? []).map((volume): ContainerMount => ({type: 'volume', source: volume.volumeName, target: volume.containerPath, readonly: volume.readonly}))
         ]
         const ports: PortMapping[] = (options.ports ?? []).flatMap((port): PortMapping[] => port.hostPorts.map((hostPort: number): PortMapping => ({hostPort: hostPort, containerPort: port.port, protocol: port.type ?? 'tcp', hostIP: port.hostIP})))
         let record: Message
@@ -528,7 +540,7 @@ export class Containerd extends Component {
                 mounts: mounts,
                 devices: (options.devices ?? []).map(device => ({hostPath: device.hostPath, containerPath: device.containerPath, permissions: device.cgroupPermissions})),
                 deviceCgroupRules: options.deviceCgroupRules,
-                network: options.networks?.length ? options.networks.map((network): { name: string, ip?: string } => ({name: network.networkName, ip: network.ip || undefined})) : options.network,
+                network: options.networks?.length ? options.networks.map((network): { name: string, ip?: string, ipv6?: string } => ({name: network.networkName, ip: network.ip || undefined, ipv6: network.ipv6 || undefined})) : options.network,
                 ports: ports,
                 pidHost: options.pidMode === 'host',
                 ipcHost: options.ipcMode === 'host',
@@ -550,6 +562,148 @@ export class Containerd extends Component {
         } catch (error: unknown) {
             throw ContainerdError(error)
         }
+        //Its settings: the ones it is created again with by its update
+        await this.#containers.writeSettings(record.id, Object.fromEntries(Object.entries(options).filter(([, value]): boolean => value !== undefined && typeof value !== 'function')))
         return await this.getContainer(record.id)
+    }
+
+    /**
+     * Create a container again with other settings: the new one named, the old one removed once it is created (its
+     * name given back to it when the new one fails), started when the old one ran
+     * @param record
+     * @param options
+     */
+    public async recreateContainer(record: Message, options: ContainerCreateOptions): Promise<ContainerdContainer> {
+        const old: ContainerdContainer = await this.getContainer(record.id)
+        const running: boolean = old.state.running || old.state.paused
+        const name: string = old.name
+        await this.#containers.rename(record, `${name}-replaced-${randomBytes(4).toString('hex')}`)
+        let created: ContainerdContainer
+        try {
+            created = await this.createContainer(options)
+        } catch (error: unknown) {
+            await this.#containers.rename((await this.#containers.find(record.id))!, name).catch((): undefined => undefined)
+            throw error
+        }
+        await old.remove({force: true})
+        if (running) await created.start()
+        return created
+    }
+
+    /** Containerd Volume Operations **/
+
+    protected volumeInfo(volume: Volume): ContainerdVolumeInfo {
+        return {name: volume.name, mountpoint: volume.mountpoint, labels: volume.labels, createdAt: new Time(volume.createdAt)}
+    }
+
+    protected get volumes(): VolumeStore {
+        return this.#containers.volumes
+    }
+
+    /**
+     * The containers using a volume
+     * @param name
+     * @protected
+     */
+    protected async volumeUsers(name: string): Promise<string[]> {
+        return (await this.#containers.list())
+            .filter((record: Message): boolean => ContainerStore.Volumes(record).includes(name))
+            .map((record: Message): string => ContainerStore.Name(record))
+    }
+
+    /**
+     * List volumes
+     */
+    public async listVolumes(): Promise<ContainerdVolumeInfo[]> {
+        return (await this.volumes.list()).map((volume: Volume): ContainerdVolumeInfo => this.volumeInfo(volume))
+    }
+
+    /**
+     * Get volume
+     * @param name
+     */
+    @Accept(DTO.String().required())
+    public async getVolume(name: string): Promise<ContainerdVolumeInfo> {
+        const volume: Volume | undefined = VolumeStore.ValidName(name) ? await this.volumes.get(name) : undefined
+        if (!volume) throw new ContainerdVolumeNotFoundException(`The volume ${name} does not exist`)
+        return this.volumeInfo(volume)
+    }
+
+    /**
+     * Create a volume (the existing one is given when it exists)
+     * @param options
+     */
+    @Accept(VolumeCreateOptions.required())
+    public async createVolume(options: VolumeCreateOptions): Promise<ContainerdVolumeInfo> {
+        return this.volumeInfo(await this.volumes.create(options.name, options.labels ?? {}))
+    }
+
+    /**
+     * Remove a volume and its data (refused while a container uses it)
+     * @param name
+     */
+    @Accept(DTO.String().required())
+    public async removeVolume(name: string): Promise<void> {
+        await this.getVolume(name)
+        const users: string[] = await this.volumeUsers(name)
+        if (users.length) throw new ContainerdVolumeInUseException(`The volume ${name} is used by the containers ${users.join(', ')}`)
+        await this.volumes.remove(name)
+    }
+
+    /** Containerd Common Operations **/
+
+    /**
+     * Prune unused resources: the stopped containers, the images no container uses (the dangling ones, or all), the
+     * networks and the volumes no container uses
+     * @param options
+     */
+    @Accept(ContainerdPruneOptions.optional())
+    public async prune(options?: ContainerdPruneOptions): Promise<ContainerdPruneResult> {
+        if (!options) return await this.prune({})
+        const result: ContainerdPruneResult = {containers: [], images: [], networks: [], volumes: []}
+        if (options.containers) {
+            for (const container of await this.listContainers()) {
+                if (container.state.status !== 'exited' && container.state.status !== 'created') continue
+                await container.remove({force: false}).then((): unknown => result.containers.push(container.id), (): undefined => undefined)
+            }
+        }
+        const records: Message[] = await this.#containers.list()
+        if (options.images || options.allImages) {
+            const used: Set<string> = new Set(records.map((record: Message): string => record.image))
+            for (const image of await this.#client.listImages()) {
+                if (used.has(image.name)) continue
+                const dangling: boolean = (() => {
+                    try {
+                        return !ParseReference(image.name).tag
+                    } catch {
+                        return true
+                    }
+                })()
+                if (!options.allImages && !dangling) continue
+                await this.#images.remove(image.name).then((): unknown => result.images.push(image.name), (): undefined => undefined)
+            }
+        }
+        if (options.networks) {
+            const usedNetworks: Set<string> = new Set(records.flatMap((record: Message): string[] => {
+                try {
+                    return JSON.parse(record.labels?.['nerdctl/networks'] ?? '[]') as string[]
+                } catch {
+                    return []
+                }
+            }))
+            for (const network of await this.#networks.list()) {
+                if (!network.managed || network.labels['nerdctl/default-network'] === 'true' || usedNetworks.has(network.name)) continue
+                await this.#networks.remove(network).then((): unknown => result.networks.push(network.name), (): undefined => undefined)
+            }
+        }
+        if (options.volumes) {
+            const usedVolumes: Set<string> = new Set(records.flatMap((record: Message): string[] => ContainerStore.Volumes(record)))
+            for (const volume of await this.volumes.list()) {
+                if (usedVolumes.has(volume.name)) continue
+                await this.volumes.remove(volume.name)
+                result.volumes.push(volume.name)
+            }
+        }
+        return result
     }
 }

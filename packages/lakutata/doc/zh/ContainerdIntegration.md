@@ -98,6 +98,14 @@ await container.restart()
 await container.pause(); await container.unpause()
 await container.remove({force: true}) //同时删除其快照与状态目录
 
+await container.stats()                         //{cpu: {percent…}, memory: {usage, limit…}, blkio, networks, pids}
+await container.update({memoryLimit: 256 * 1024 * 1024, restartPolicy: 'always'}) //运行中直接修改（docker update）
+await container.update({env: {MODE: 'debug'}})  //其他设置：用新设置重建容器，名称不变
+const tty = await container.createTTY({consoleSize: {cols: 120, rows: 40}}) //带伪终端的 shell
+tty.onData(chunk => process.stdout.write(chunk)); tty.write('ls\n'); await tty.resize({cols: 100, rows: 30})
+await container.commit({repoTag: 'app:patched', changes: {cmd: ['node', 'main.js']}}) //把改动提交为镜像
+await container.exportDirectory({path: '/var/log', destination: '/tmp/logs.tar'})     //导出为 tar 归档
+
 await containerd.getContainer('worker')        //按名称、ID 或 ID 前缀
 await containerd.listContainers({app: 'web'})  //按标签
 ```
@@ -114,6 +122,18 @@ await containerd.listContainers({app: 'web'})  //按标签
 - `privileged`、`capabilities` / `capabilitiesDrop`、`readonlyRootfs`、`pidMode: 'host'`、`ipcMode: 'host'`、
   `sysctls`、`extraHosts`、`dns`、`shmSize`、`pidsLimit`、`cpuSet`、`OOMKillDisable` 与 Docker 的同名选项含义相同。
 
+命名卷保存在 dataRoot 下，容器使用时自动创建：
+
+```typescript
+await containerd.createVolume({name: 'data', labels: {app: 'web'}})
+await containerd.createContainer({image: 'app', volumes: [{volumeName: 'data', containerPath: '/var/lib/app'}]})
+await containerd.listVolumes()
+await containerd.removeVolume('data') //仍有容器使用时会被拒绝
+
+//停止的容器、悬空镜像（allImages：所有未使用的镜像）、未使用的网络与卷
+await containerd.prune({networks: true, volumes: true})
+```
+
 ## 4. 网络
 
 除了宿主机网络（默认）与 `none`，容器还可以加入 CNI 网络：`bridge`（nerdctl 的默认网络，`nerdctl0`，`10.4.0.0/24`，
@@ -123,6 +143,7 @@ await containerd.listContainers({app: 'web'})  //按标签
 
 ```typescript
 const network = await containerd.createNetwork({name: 'backend', subnet: '10.4.10.0/24'}) //或自动选择 10.4.0.0/16 中空闲的子网
+await containerd.createNetwork({name: 'dual', subnet: '10.4.11.0/24', ipv6Subnet: 'fd00:4:11::/64'}) //同时支持 IPv6（容器可指定 ipv6）
 await containerd.createNetwork({name: 'lan', driver: 'macvlan', parent: 'eth0', subnet: '192.168.1.0/24', gateway: '192.168.1.1', ipRange: '192.168.1.192/27'})
 
 const web = await containerd.createContainer({
@@ -190,7 +211,8 @@ for await (const event of containerd.events(abort.signal)) {
 `ContainerdImagePushException`、`ContainerdImageImportException`、`ContainerdImageExportException`、
 `ContainerdImageBuildException`（无法连接 BuildKit，或构建失败）、`ContainerdPlatformException`（镜像没有该平台的清单）、`ContainerdContainerNotFoundException`、
 `ContainerdContainerNameConflictException`、`ContainerdContainerStateException`（正在运行、未运行、已暂停）、
-`ContainerdNetworkNotFoundException`、`ContainerdNetworkConflictException`（网络已存在、子网与其他网络重叠、或仍有容器使用）。
+`ContainerdNetworkNotFoundException`、`ContainerdNetworkConflictException`（网络已存在、子网与其他网络重叠、或仍有容器使用）、
+`ContainerdVolumeNotFoundException`、`ContainerdVolumeInUseException`。
 
 ## 9. 当前版本的限制
 

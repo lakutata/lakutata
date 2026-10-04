@@ -99,6 +99,14 @@ await container.restart()
 await container.pause(); await container.unpause()
 await container.remove({force: true}) //its snapshot and its state removed
 
+await container.stats()                         //{cpu: {percent…}, memory: {usage, limit…}, blkio, networks, pids}
+await container.update({memoryLimit: 256 * 1024 * 1024, restartPolicy: 'always'}) //while it runs (docker update)
+await container.update({env: {MODE: 'debug'}})  //the other settings: created again with them, its name kept
+const tty = await container.createTTY({consoleSize: {cols: 120, rows: 40}}) //a shell with its pseudo terminal
+tty.onData(chunk => process.stdout.write(chunk)); tty.write('ls\n'); await tty.resize({cols: 100, rows: 30})
+await container.commit({repoTag: 'app:patched', changes: {cmd: ['node', 'main.js']}}) //its changes as an image
+await container.exportDirectory({path: '/var/log', destination: '/tmp/logs.tar'})     //a tar archive
+
 await containerd.getContainer('worker')        //by its name, its identifier or a prefix of it
 await containerd.listContainers({app: 'web'})  //by labels
 ```
@@ -118,6 +126,18 @@ await containerd.listContainers({app: 'web'})  //by labels
 - `privileged`, `capabilities` / `capabilitiesDrop`, `readonlyRootfs`, `pidMode: 'host'`, `ipcMode: 'host'`, `sysctls`,
   `extraHosts`, `dns`, `shmSize`, `pidsLimit`, `cpuSet`, `OOMKillDisable` are the options of Docker of the same names.
 
+Named volumes are kept under the data root, created when a container asks them:
+
+```typescript
+await containerd.createVolume({name: 'data', labels: {app: 'web'}})
+await containerd.createContainer({image: 'app', volumes: [{volumeName: 'data', containerPath: '/var/lib/app'}]})
+await containerd.listVolumes()
+await containerd.removeVolume('data') //refused while a container uses it
+
+//The stopped containers, the dangling images (allImages: all the unused ones), the unused networks and volumes
+await containerd.prune({networks: true, volumes: true})
+```
+
 ## 4. Networks
 
 Besides the network of the host (the default) and `none`, the containers join the networks of CNI: `bridge` (the
@@ -128,6 +148,7 @@ with iptables.
 
 ```typescript
 const network = await containerd.createNetwork({name: 'backend', subnet: '10.4.10.0/24'}) //or a free subnet of 10.4.0.0/16
+await containerd.createNetwork({name: 'dual', subnet: '10.4.11.0/24', ipv6Subnet: 'fd00:4:11::/64'}) //and IPv6 (ipv6 of the containers)
 await containerd.createNetwork({name: 'lan', driver: 'macvlan', parent: 'eth0', subnet: '192.168.1.0/24', gateway: '192.168.1.1', ipRange: '192.168.1.192/27'})
 
 const web = await containerd.createContainer({
@@ -200,7 +221,7 @@ for await (const event of containerd.events(abort.signal)) {
 image has no manifest of the platform), `ContainerdContainerNotFoundException`,
 `ContainerdContainerNameConflictException`, `ContainerdContainerStateException` (running, not running, paused),
 `ContainerdNetworkNotFoundException`, `ContainerdNetworkConflictException` (the network exists, its subnet overlaps
-another one, or a container uses it).
+another one, or a container uses it), `ContainerdVolumeNotFoundException`, `ContainerdVolumeInUseException`.
 
 ## 9. Limits of this version
 

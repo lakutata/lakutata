@@ -13,6 +13,9 @@ and read only paths, the devices, from its `oci/` package): `src/client/Spec.ts`
 its `contrib/seccomp` package): `src/client/Seccomp.ts`; the identifiers of the chains of the
 layers and the labels of its garbage collection: `src/client/ImageStore.ts`.
 
+The metrics of the cgroups v1 and v2 (their fields and their numbers, from the `stats` protobuf definitions of
+github.com/containerd/cgroups, Copyright The containerd Authors, Apache License 2.0): `src/client/Messages.ts`.
+
 Modifications: no protobuf definitions are included; the messages are written as the schemas of the encoder of this
 package (`src/client/Protobuf.ts`), with the fields this package uses only.
 

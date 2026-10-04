@@ -1,19 +1,22 @@
 import {randomBytes} from 'node:crypto'
-import {constants as osConstants, hostname as osHostname} from 'node:os'
-import {copyFile, mkdir, open, readdir, readFile, rm, stat, truncate, writeFile} from 'node:fs/promises'
-import {existsSync, type BigIntStats} from 'node:fs'
+import {availableParallelism, constants as osConstants, hostname as osHostname, totalmem} from 'node:os'
+import {copyFile, mkdir, open, readdir, readFile, readlink, rm, stat, truncate, writeFile} from 'node:fs/promises'
+import {createReadStream, existsSync, type BigIntStats, type Stats} from 'node:fs'
+import {pipeline} from 'node:stream/promises'
+import {pack as tarPack, type Header, type Pack} from 'tar-stream'
 import path from 'node:path'
 import {Readable} from 'node:stream'
 import {setTimeout as sleep} from 'node:timers/promises'
 import {ContainerdClient, IsGRPCError, PROCESS_TYPE_URL, SPEC_TYPE_URL, TimestampDate, type SnapshotMount} from './ContainerdClient.js'
 import {GRPCStatus} from './GRPC.js'
 import * as M from './Messages.js'
-import {Encode, type Message} from './Protobuf.js'
-import {FormatPlatform, HostPlatform, type Platform} from './Platforms.js'
-import {ChainIds, ImageStore, type ResolvedImage} from './ImageStore.js'
+import {Decode, Encode, type Message} from './Protobuf.js'
+import {FormatPlatform, HostPlatform, ParsePlatform, type Platform} from './Platforms.js'
+import {ChainIds, ImageStore, type ImageConfigChanges, type ResolvedImage} from './ImageStore.js'
 import {ProcessFifo} from './Fifo.js'
+import {VolumeStore, type Volume} from './Volumes.js'
 import {DEFAULT_NETWORK, NetworkStore, type CNINetwork, type ContainerNetworkInterface, type PortMapping} from './Networks.js'
-import {ResolveUser, type ProcessUser} from './Rootfs.js'
+import {DirectoryTree, LayerDirectories, LayersTree, ResolveUser, type FileTree, type ProcessUser} from './Rootfs.js'
 import {Capabilities, ExecProcessSpec, GenerateSpec, ParseDeviceCgroupRule, type SpecDevice, type SpecMount} from './Spec.js'
 import {DefaultSeccompProfile, SeccompSupported, type SeccompProfile} from './Seccomp.js'
 
@@ -64,7 +67,10 @@ export type ContainerRuntimeState = {
  * A mount of a container: a directory or a file of the host (bind), a tmpfs
  */
 export type ContainerMount = {
-    type?: 'bind' | 'tmpfs'
+    type?: 'bind' | 'tmpfs' | 'volume'
+    /**
+     * The directory (or the file) of the host of a bind, the name of a volume (created when it does not exist)
+     */
     source?: string
     target: string
     readonly?: boolean
@@ -118,7 +124,7 @@ export type ContainerCreateOptions = {
      * The network of the container: the one of the host, none (its loopback only), or networks of CNI (bridge, the
      * default one of nerdctl), with their addresses
      */
-    network?: 'host' | 'none' | { name: string, ip?: string }[]
+    network?: 'host' | 'none' | { name: string, ip?: string, ipv6?: string }[]
     /**
      * The ports published on the host (on its first network of CNI)
      */
@@ -194,6 +200,78 @@ export function ResolvConf(content: string, ownNetwork: boolean): string {
 }
 
 /**
+ * An error of the runtime refusing the profile of seccomp of a container (a runc built without seccomp), with what to do
+ * @param error
+ */
+export function SeccompHint(error: unknown): unknown {
+    const message: string = (error as Error)?.message ?? ''
+    if (!/seccomp/i.test(message) || !/not (supported|enabled)/i.test(message)) return error
+    return Object.assign(error as Error, {message: `${message} (the runtime of this machine does not filter the system calls with seccomp: create the container with the profile of seccomp unconfined)`})
+}
+
+/**
+ * The resources of a container used (its cgroup, its interfaces of network)
+ */
+export type ContainerResourceStats = {
+    read: Date
+    pids: { current: number, limit: number }
+    cpu: {
+        /**
+         * Its time on the CPUs in nanoseconds, in the user mode and in the kernel mode
+         */
+        usage: number
+        user: number
+        system: number
+        throttledPeriods: number
+        throttledTime: number
+        onlineCpus: number
+        /**
+         * Its use of the CPUs during the interval of the sampling (100 is one CPU used all the time)
+         */
+        percent: number
+    }
+    memory: {
+        usage: number
+        /**
+         * Its usage without the cache which can be freed (the one of docker stats)
+         */
+        workingSet: number
+        limit: number
+        cache: number
+        swap: number
+        oomKills: number
+    }
+    blkio: { readBytes: number, writeBytes: number, readOps: number, writeOps: number }
+    networks: Record<string, { rxBytes: number, rxPackets: number, rxErrors: number, rxDropped: number, txBytes: number, txPackets: number, txErrors: number, txDropped: number }>
+}
+
+/**
+ * A terminal of a process executed in a container: its input, its output, its size, its exit
+ */
+export type ContainerTerminal = {
+    execId: string
+    input: NodeJS.WritableStream & { end(): unknown }
+    output: Readable
+    resize(cols: number, rows: number): Promise<void>
+    exited: Promise<number>
+    close(): Promise<void>
+}
+
+/**
+ * The resources of a running container updated
+ */
+export type ContainerResourceUpdate = {
+    memory?: number
+    memorySwap?: number
+    cpus?: number
+    cpuShares?: number
+    cpuset?: string
+    pidsLimit?: number
+    oomKillDisable?: boolean
+    restart?: RestartPolicy | ''
+}
+
+/**
  * The number of a signal (SIGTERM, TERM, 15)
  * @param signal
  */
@@ -213,7 +291,24 @@ export function SignalNumber(signal: string | number): number {
  */
 export class ContainerStore {
 
-    constructor(protected readonly client: ContainerdClient, protected readonly images: ImageStore, protected readonly networks: NetworkStore, public readonly options: ContainerStoreOptions) {
+    public readonly volumes: VolumeStore
+
+    constructor(protected readonly client: ContainerdClient, protected readonly images: ImageStore, protected readonly networks: NetworkStore, public readonly options: ContainerStoreOptions, volumes?: VolumeStore) {
+        this.volumes = volumes ?? new VolumeStore(path.join(options.dataRoot, 'volumes', client.namespace))
+    }
+
+    /**
+     * The names of the volumes of a container
+     * @param container
+     */
+    public static Volumes(container: Message): string[] {
+        try {
+            return (JSON.parse(container.labels?.[ContainerLabels.MOUNTS] ?? '[]') as { Type?: string, Name?: string }[])
+                .filter((mount): boolean => mount.Type === 'volume' && !!mount.Name)
+                .map((mount): string => mount.Name!)
+        } catch {
+            return []
+        }
     }
 
     /**
@@ -221,16 +316,16 @@ export class ContainerStore {
      * @param network
      * @protected
      */
-    protected async cniNetworks(network: ContainerCreateOptions['network']): Promise<{ network: CNINetwork, ip?: string }[]> {
+    protected async cniNetworks(network: ContainerCreateOptions['network']): Promise<{ network: CNINetwork, ip?: string, ipv6?: string }[]> {
         if (!Array.isArray(network)) return []
         if (!network.length) throw new Error('The networks of the container are empty')
-        const networks: { network: CNINetwork, ip?: string }[] = []
+        const networks: { network: CNINetwork, ip?: string, ipv6?: string }[] = []
         for (const item of network) {
             if (item.name === 'host' || item.name === 'none') throw new Error(`The network ${item.name} is not one of CNI: give it alone`)
             const found: CNINetwork | undefined = await this.networks.get(item.name)
             if (!found) throw Object.assign(new Error(`The network ${item.name} does not exist`), {code: 'NETWORK_NOT_FOUND'})
             if (networks.some((known): boolean => known.network.name === found.name)) throw new Error(`The network ${found.name} is given twice`)
-            networks.push({network: found, ip: item.ip})
+            networks.push({network: found, ip: item.ip, ipv6: item.ipv6})
         }
         return networks
     }
@@ -294,6 +389,35 @@ export class ContainerStore {
     protected async writeState(id: string, state: StoredState): Promise<void> {
         await mkdir(this.stateDir(id), {recursive: true})
         await writeFile(path.join(this.stateDir(id), 'state.json'), JSON.stringify({...await this.readState(id), ...state}))
+    }
+
+    /**
+     * The settings a container was created with by the component (its update creates it again with them)
+     * @param id
+     */
+    public async readSettings<T = Record<string, any>>(id: string): Promise<T | undefined> {
+        try {
+            return JSON.parse(await readFile(path.join(this.stateDir(id), 'settings.json'), 'utf8')) as T
+        } catch {
+            return undefined
+        }
+    }
+
+    public async writeSettings(id: string, settings: object): Promise<void> {
+        await mkdir(this.stateDir(id), {recursive: true})
+        await writeFile(path.join(this.stateDir(id), 'settings.json'), JSON.stringify(settings))
+    }
+
+    /**
+     * Name a container again (its label of nerdctl)
+     * @param container
+     * @param name
+     */
+    public async rename(container: Message, name: string): Promise<void> {
+        if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(name)) throw new Error(`The name of a container "${name}" is not valid ([a-zA-Z0-9][a-zA-Z0-9_.-]*)`)
+        const used: Message[] = await this.client.listContainers([`labels."${ContainerLabels.NAME}"==${name}`])
+        if (used.some((other: Message): boolean => other.id !== container.id)) throw Object.assign(new Error(`The name ${name} is used by another container`), {code: 'CONFLICT'})
+        await this.label(container, {[ContainerLabels.NAME]: name})
     }
 
     /**
@@ -378,7 +502,7 @@ export class ContainerStore {
         if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(name)) throw new Error(`The name of a container "${name}" is not valid ([a-zA-Z0-9][a-zA-Z0-9_.-]*)`)
         if ((await this.client.listContainers([`labels."${ContainerLabels.NAME}"==${name}`])).length) throw Object.assign(new Error(`The name ${name} is used by another container`), {code: 'CONFLICT'})
         const network: 'host' | 'none' | 'cni' = Array.isArray(options.network) ? 'cni' : options.network ?? 'host'
-        const cniNetworks: { network: CNINetwork, ip?: string }[] = await this.cniNetworks(options.network)
+        const cniNetworks: { network: CNINetwork, ip?: string, ipv6?: string }[] = await this.cniNetworks(options.network)
         const ports: PortMapping[] = options.ports ?? []
         if (ports.length && network !== 'cni') throw new Error(`The ports of a container are published on its networks of CNI (${DEFAULT_NETWORK}), not on the network ${network}`)
         const hostname: string = options.hostname ?? (network === 'host' ? osHostname() : id.slice(0, 12))
@@ -417,6 +541,10 @@ export class ContainerStore {
             for (const mount of options.mounts ?? []) {
                 if (mount.type === 'tmpfs') {
                     specMounts.push({type: 'tmpfs', source: 'tmpfs', destination: mount.target, options: ['nosuid', 'nodev', 'noexec', ...mount.options ?? [], ...mount.readonly ? ['ro'] : []]})
+                } else if (mount.type === 'volume') {
+                    if (!mount.source) throw new Error(`The volume mounted on ${mount.target} has no name`)
+                    const volume: Volume = await this.volumes.create(mount.source)
+                    specMounts.push({type: 'bind', source: volume.mountpoint, destination: mount.target, options: ['rbind', 'rprivate', mount.readonly ? 'ro' : 'rw']})
                 } else {
                     if (!mount.source) throw new Error(`The bind mount of ${mount.target} has no source`)
                     const source: string = path.resolve(mount.source)
@@ -482,7 +610,9 @@ export class ContainerStore {
                 [ContainerLabels.STATE_DIR]: stateDir,
                 [ContainerLabels.NETWORKS]: JSON.stringify(network === 'cni' ? cniNetworks.map((item): string => item.network.name) : [network]),
                 [ContainerLabels.PORTS]: JSON.stringify(ports.map((port: PortMapping): object => ({HostPort: port.hostPort, ContainerPort: port.containerPort, Protocol: port.protocol, HostIP: port.hostIP || '0.0.0.0'}))),
-                [ContainerLabels.MOUNTS]: JSON.stringify((options.mounts ?? []).map((mount: ContainerMount): object => ({Type: mount.type ?? 'bind', Source: mount.source ?? '', Destination: mount.target, RW: !mount.readonly})))
+                [ContainerLabels.MOUNTS]: JSON.stringify((options.mounts ?? []).map((mount: ContainerMount): object => mount.type === 'volume'
+                    ? {Type: 'volume', Name: mount.source, Source: path.join(this.volumes.directory, mount.source!, '_data'), Destination: mount.target, RW: !mount.readonly}
+                    : {Type: mount.type ?? 'bind', Source: mount.source ?? '', Destination: mount.target, RW: !mount.readonly}))
             }
             const stopSignal: string | undefined = options.stopSignal ?? resolved.config.config?.StopSignal
             if (stopSignal) labels[ContainerLabels.STOP_SIGNAL] = stopSignal
@@ -613,9 +743,13 @@ export class ContainerStore {
         const logUri: string = container.labels?.[ContainerLabels.LOG_URI] ?? `file://${this.logFile(container.id)}`
         await mkdir(path.dirname(this.logFile(container.id)), {recursive: true})
         const rootfs: SnapshotMount[] = await this.client.snapshotMounts(container.snapshotter || this.options.snapshotter, container.snapshotKey || container.id)
-        await this.client.createTask({containerId: container.id, rootfs: rootfs, stdout: logUri, stderr: logUri})
+        await this.client.createTask({containerId: container.id, rootfs: rootfs, stdout: logUri, stderr: logUri}).catch((error: unknown): never => {
+            throw SeccompHint(error)
+        })
         try {
-            const pid: number = await this.client.startTask(container.id)
+            const pid: number = await this.client.startTask(container.id).catch((error: unknown): never => {
+                throw SeccompHint(error)
+            })
             await this.writeState(container.id, {startedAt: new Date().toISOString(), finishedAt: undefined, exitCode: undefined})
             if (container.labels?.[ContainerLabels.RESTART_POLICY]) await this.label(container, {[ContainerLabels.RESTART_STATUS]: 'running'})
             return pid
@@ -840,6 +974,304 @@ export class ContainerStore {
                 await sleep(250, undefined, {signal: options.signal}).catch((): undefined => undefined)
             }
         })())
+    }
+
+    /**
+     * A sample of the resources a running container uses
+     * @param container
+     * @protected
+     */
+    protected async sample(container: Message): Promise<Omit<ContainerResourceStats, 'cpu'> & { cpu: Omit<ContainerResourceStats['cpu'], 'percent'> }> {
+        const task: Message | undefined = await this.client.getTask(container.id)
+        if (task?.status !== M.ProcessStatus.RUNNING && task?.status !== M.ProcessStatus.PAUSED) throw Object.assign(new Error(`The container ${ContainerStore.Name(container)} is not running`), {code: 'NOT_RUNNING'})
+        const metric: Message | undefined = await this.client.metrics(container.id)
+        const type: string = String(metric?.data?.typeUrl ?? '')
+        const data: Uint8Array = metric?.data?.value ?? new Uint8Array()
+        const unlimited = (value: number): number => !value || value >= 2 ** 62 ? totalmem() : value
+        const onlineCpus: number = availableParallelism()
+        const stats: Omit<ContainerResourceStats, 'cpu'> & { cpu: Omit<ContainerResourceStats['cpu'], 'percent'> } = {
+            read: TimestampDate(metric?.timestamp) ?? new Date(),
+            pids: {current: 0, limit: 0},
+            cpu: {usage: 0, user: 0, system: 0, throttledPeriods: 0, throttledTime: 0, onlineCpus: onlineCpus},
+            memory: {usage: 0, workingSet: 0, limit: totalmem(), cache: 0, swap: 0, oomKills: 0},
+            blkio: {readBytes: 0, writeBytes: 0, readOps: 0, writeOps: 0},
+            networks: {}
+        }
+        if (type.endsWith('cgroups.v2.Metrics')) {
+            const metrics: Message = Decode(M.CgroupV2Metrics, data)
+            stats.pids = {current: metrics.pids?.current ?? 0, limit: metrics.pids?.limit ?? 0}
+            stats.cpu = {
+                usage: (metrics.cpu?.usageUsec ?? 0) * 1000,
+                user: (metrics.cpu?.userUsec ?? 0) * 1000,
+                system: (metrics.cpu?.systemUsec ?? 0) * 1000,
+                throttledPeriods: metrics.cpu?.nrThrottled ?? 0,
+                throttledTime: (metrics.cpu?.throttledUsec ?? 0) * 1000,
+                onlineCpus: onlineCpus
+            }
+            const usage: number = metrics.memory?.usage ?? 0
+            stats.memory = {
+                usage: usage,
+                workingSet: Math.max(0, usage - (metrics.memory?.inactiveFile ?? 0)),
+                limit: unlimited(metrics.memory?.usageLimit ?? 0),
+                cache: metrics.memory?.file ?? 0,
+                swap: metrics.memory?.swapUsage ?? 0,
+                oomKills: metrics.memoryEvents?.oomKill ?? 0
+            }
+            for (const entry of metrics.io?.usage ?? []) {
+                stats.blkio.readBytes += entry.rbytes ?? 0
+                stats.blkio.writeBytes += entry.wbytes ?? 0
+                stats.blkio.readOps += entry.rios ?? 0
+                stats.blkio.writeOps += entry.wios ?? 0
+            }
+        } else if (type.endsWith('cgroups.v1.Metrics')) {
+            const metrics: Message = Decode(M.CgroupV1Metrics, data)
+            stats.pids = {current: metrics.pids?.current ?? 0, limit: metrics.pids?.limit ?? 0}
+            stats.cpu = {
+                usage: metrics.cpu?.usage?.total ?? 0,
+                user: metrics.cpu?.usage?.user ?? 0,
+                system: metrics.cpu?.usage?.kernel ?? 0,
+                throttledPeriods: metrics.cpu?.throttling?.throttledPeriods ?? 0,
+                throttledTime: metrics.cpu?.throttling?.throttledTime ?? 0,
+                onlineCpus: metrics.cpu?.usage?.perCpu?.length || onlineCpus
+            }
+            const usage: number = metrics.memory?.usage?.usage ?? 0
+            stats.memory = {
+                usage: usage,
+                workingSet: Math.max(0, usage - (metrics.memory?.totalInactiveFile ?? 0)),
+                limit: unlimited(metrics.memory?.usage?.limit ?? 0),
+                cache: metrics.memory?.cache ?? 0,
+                swap: Math.max(0, (metrics.memory?.swap?.usage ?? 0) - usage),
+                oomKills: metrics.memoryOomControl?.oomKill ?? 0
+            }
+            for (const entry of metrics.blkio?.ioServiceBytesRecursive ?? []) {
+                if (/^read$/i.test(entry.op)) stats.blkio.readBytes += entry.value ?? 0
+                if (/^write$/i.test(entry.op)) stats.blkio.writeBytes += entry.value ?? 0
+            }
+            for (const entry of metrics.blkio?.ioServicedRecursive ?? []) {
+                if (/^read$/i.test(entry.op)) stats.blkio.readOps += entry.value ?? 0
+                if (/^write$/i.test(entry.op)) stats.blkio.writeOps += entry.value ?? 0
+            }
+        }
+        //The interfaces of its namespace of network (without its loopback)
+        try {
+            for (const line of (await readFile(`/proc/${task.pid}/net/dev`, 'utf8')).split('\n').slice(2)) {
+                const [name, counters] = line.split(':')
+                if (!counters || name.trim() === 'lo') continue
+                const values: number[] = counters.trim().split(/\s+/).map(Number)
+                stats.networks[name.trim()] = {
+                    rxBytes: values[0], rxPackets: values[1], rxErrors: values[2], rxDropped: values[3],
+                    txBytes: values[8], txPackets: values[9], txErrors: values[10], txDropped: values[11]
+                }
+            }
+        } catch {
+            //Its process is gone
+        }
+        return stats
+    }
+
+    /**
+     * The resources a running container uses: two samples, its use of the CPUs between them
+     * @param container
+     * @param interval milliseconds between the samples
+     */
+    public async stats(container: Message, interval: number = 1000): Promise<ContainerResourceStats> {
+        const first = await this.sample(container)
+        if (interval <= 0) return {...first, cpu: {...first.cpu, percent: 0}}
+        await sleep(interval)
+        const second = await this.sample(container)
+        const elapsed: number = (second.read.getTime() - first.read.getTime()) * 1e6 || interval * 1e6
+        return {...second, cpu: {...second.cpu, percent: Math.max(0, (second.cpu.usage - first.cpu.usage) / elapsed * 100)}}
+    }
+
+    /**
+     * Open a terminal in a running container: a process executed with its pseudo terminal, its input and its output by
+     * FIFOs (mkfifo of the system)
+     * @param container
+     * @param options
+     */
+    public async terminal(container: Message, options: { cmd: string[], cols?: number, rows?: number, env?: Record<string, string>, workingDir?: string, user?: string }): Promise<ContainerTerminal> {
+        const task: Message | undefined = await this.client.getTask(container.id)
+        if (task?.status !== M.ProcessStatus.RUNNING) throw Object.assign(new Error(`The container ${ContainerStore.Name(container)} is not running`), {code: 'NOT_RUNNING'})
+        if (!ProcessFifo.Supported()) throw new Error('The terminals of the containers need mkfifo')
+        const spec: Record<string, any> = ContainerdClient.FromJson(container.spec) ?? {}
+        let user: ProcessUser | undefined
+        if (options.user) user = await ResolveUser(await this.client.snapshotMounts(container.snapshotter || this.options.snapshotter, container.snapshotKey || container.id), options.user)
+        const env: Record<string, string> = {TERM: 'xterm', ...options.env ?? {}}
+        const process: Record<string, any> = ExecProcessSpec(spec, {
+            args: options.cmd,
+            env: Object.entries(env).map(([key, value]): string => `${key}=${value}`),
+            cwd: options.workingDir,
+            uid: user?.uid,
+            gid: user?.gid,
+            additionalGids: user?.additionalGids,
+            terminal: true
+        })
+        if (options.cols && options.rows) process.consoleSize = {height: options.rows, width: options.cols}
+        const execId: string = `tty-${randomBytes(8).toString('hex')}`
+        const directory: string = path.join(this.stateDir(container.id), 'exec')
+        await mkdir(directory, {recursive: true})
+        const stdin: ProcessFifo = ProcessFifo.Create(path.join(directory, `${execId}-stdin`), 'write')
+        const stdout: ProcessFifo = ProcessFifo.Create(path.join(directory, `${execId}-stdout`), 'read')
+        let cleaned: boolean = false
+        const cleanup = async (): Promise<void> => {
+            if (cleaned) return
+            cleaned = true
+            stdin.close()
+            stdout.close()
+            await this.client.deleteProcess(container.id, execId).catch((): undefined => undefined)
+            await rm(stdin.path, {force: true})
+            await rm(stdout.path, {force: true})
+        }
+        try {
+            await this.client.exec({containerId: container.id, execId: execId, stdin: stdin.path, stdout: stdout.path, terminal: true, spec: ContainerdClient.Json(PROCESS_TYPE_URL, process)})
+            const waiting: Promise<{ exitStatus: number }> = this.client.wait(container.id, execId)
+            await this.client.startTask(container.id, execId)
+            const input = stdin.open()
+            const output = stdout.open()
+            input.on('error', (): void => undefined)
+            const exited: Promise<number> = (async (): Promise<number> => {
+                try {
+                    return (await waiting).exitStatus
+                } finally {
+                    //Its output read before the FIFOs are closed
+                    if (!output.readableEnded) await new Promise<void>((resolve: () => void): void => {
+                        const timer: NodeJS.Timeout = setTimeout(resolve, 1000)
+                        output.once('end', (): void => {
+                            clearTimeout(timer)
+                            resolve()
+                        })
+                    })
+                    await cleanup()
+                }
+            })()
+            exited.catch((): undefined => undefined)
+            return {
+                execId: execId,
+                input: input,
+                output: output,
+                resize: async (cols: number, rows: number): Promise<void> => this.client.resizePty(container.id, execId, cols, rows),
+                exited: exited,
+                close: async (): Promise<void> => {
+                    if (cleaned) return
+                    await this.client.kill(container.id, SignalNumber('SIGKILL'), {execId: execId}).catch((): undefined => undefined)
+                    await exited.catch((): undefined => undefined)
+                }
+            }
+        } catch (error: unknown) {
+            await cleanup()
+            throw error
+        }
+    }
+
+    /**
+     * Update the resources of a container (its specification, the cgroup of its running task) and its restart policy,
+     * without restarting it (docker update)
+     * @param container
+     * @param update
+     */
+    public async updateResources(container: Message, update: ContainerResourceUpdate): Promise<void> {
+        const spec: Record<string, any> = ContainerdClient.FromJson(container.spec) ?? {}
+        const resources: Record<string, any> = spec.linux.resources ??= {}
+        if (update.memory !== undefined || update.memorySwap !== undefined || update.oomKillDisable !== undefined) {
+            resources.memory ??= {}
+            if (update.memory !== undefined) resources.memory.limit = update.memory || undefined
+            if (update.memorySwap !== undefined) resources.memory.swap = update.memorySwap || undefined
+            if (update.oomKillDisable !== undefined) resources.memory.disableOOMKiller = update.oomKillDisable
+        }
+        if (update.cpus !== undefined || update.cpuShares !== undefined || update.cpuset !== undefined) {
+            resources.cpu ??= {}
+            if (update.cpus !== undefined) {
+                resources.cpu.quota = update.cpus ? Math.round(update.cpus * 100000) : -1
+                resources.cpu.period = 100000
+            }
+            if (update.cpuShares !== undefined) resources.cpu.shares = update.cpuShares || undefined
+            if (update.cpuset !== undefined) resources.cpu.cpus = update.cpuset || undefined
+        }
+        if (update.pidsLimit !== undefined) resources.pids = {limit: update.pidsLimit || -1}
+        const labels: Record<string, string> = {}
+        if (update.restart !== undefined) {
+            const restart: string = update.restart === 'no' ? '' : update.restart
+            labels[ContainerLabels.RESTART_POLICY] = restart
+            labels[ContainerLabels.RESTART_LOG_URI] = restart ? container.labels?.[ContainerLabels.LOG_URI] ?? `file://${this.logFile(container.id)}` : ''
+            const task: Message | undefined = await this.client.getTask(container.id)
+            labels[ContainerLabels.RESTART_STATUS] = restart && task?.status === M.ProcessStatus.RUNNING ? 'running' : restart ? 'stopped' : ''
+        }
+        //The labels emptied are deleted
+        await this.client.updateContainer({id: container.id, spec: ContainerdClient.Json(SPEC_TYPE_URL, spec), labels: Object.fromEntries(Object.entries(labels).filter(([, value]): boolean => !!value))}, ['spec', ...Object.keys(labels).map((key: string): string => `labels.${key}`)])
+        const task: Message | undefined = await this.client.getTask(container.id)
+        if (task && task.status !== M.ProcessStatus.STOPPED) await this.client.updateTask(container.id, resources)
+    }
+
+    /**
+     * Commit a container: the changes of its file system as a layer on its image, a new image (its container paused
+     * meanwhile when it runs, by default)
+     * @param container
+     * @param options
+     */
+    public async commit(container: Message, options: { name: string, pause?: boolean, changes?: ImageConfigChanges, comment?: string, author?: string }): Promise<string> {
+        const task: Message | undefined = await this.client.getTask(container.id)
+        const pause: boolean = (options.pause ?? true) && task?.status === M.ProcessStatus.RUNNING
+        if (pause) await this.client.pause(container.id)
+        try {
+            return await this.images.commit({
+                image: container.image,
+                platform: container.labels?.[ContainerLabels.PLATFORM] ? ParsePlatform(container.labels[ContainerLabels.PLATFORM]) : HostPlatform(),
+                snapshotKey: container.snapshotKey || container.id,
+                name: options.name,
+                changes: options.changes,
+                comment: options.comment,
+                author: options.author
+            })
+        } finally {
+            if (pause) await this.client.resume(container.id).catch((): undefined => undefined)
+        }
+    }
+
+    /**
+     * Archive a path of the file system of a container (tar): the one of its running process (its mounts with it), or
+     * the one of its snapshot when it is not running; its symbolic links resolved in it
+     * @param container
+     * @param file an absolute path in the container
+     * @param destination
+     */
+    public async archive(container: Message, file: string, destination: NodeJS.WritableStream): Promise<void> {
+        const task: Message | undefined = await this.client.getTask(container.id)
+        const running: boolean = !!task && task.status !== M.ProcessStatus.STOPPED && !!task.pid
+        const tree: FileTree = running
+            ? new DirectoryTree(`/proc/${task!.pid}/root`)
+            : new LayersTree(LayerDirectories(await this.client.snapshotMounts(container.snapshotter || this.options.snapshotter, container.snapshotKey || container.id)))
+        const resolved: string = await tree.resolve(file)
+        const root: { stats: Stats, path: string } | undefined = await tree.lstat(resolved)
+        if (!root) throw Object.assign(new Error(`The path ${file} does not exist in the container ${ContainerStore.Name(container)}`), {code: 'PATH_NOT_FOUND'})
+        const archive: Pack = tarPack()
+        const output: Promise<void> = pipeline(archive, destination)
+        const entry = (header: Partial<Header>): Promise<void> => new Promise((resolve: () => void, reject: (error: Error) => void): void => void archive.entry(header as Header, (error?: Error | null): void => error ? reject(error) : resolve()))
+        const add = async (name: string, inner: string, stats: Stats, real: string): Promise<void> => {
+            const header: Partial<Header> = {name: name, mode: stats.mode & 0o7777, mtime: stats.mtime, uid: stats.uid, gid: stats.gid}
+            if (stats.isDirectory()) {
+                await entry({...header, type: 'directory'})
+                for (const child of await tree.readdir(inner)) {
+                    const childInner: string = path.posix.join(inner, child)
+                    const found = await tree.lstat(childInner)
+                    if (found) await add(`${name}/${child}`, childInner, found.stats, found.path)
+                }
+            } else if (stats.isSymbolicLink()) {
+                await entry({...header, type: 'symlink', linkname: await readlink(real)})
+            } else if (stats.isFile()) {
+                await new Promise<void>((resolve: () => void, reject: (error: Error) => void): void => {
+                    const writer = archive.entry({...header, type: 'file', size: stats.size} as Header, (error?: Error | null): void => error ? reject(error) : resolve())
+                    pipeline(createReadStream(real), writer).catch(reject)
+                })
+            }
+            //The devices, the sockets and the pipes are not archived
+        }
+        try {
+            await add(path.posix.basename(resolved) || '.', resolved, root.stats, root.path)
+            archive.finalize()
+        } catch (error: unknown) {
+            archive.destroy(error as Error)
+        }
+        await output
     }
 
     /**

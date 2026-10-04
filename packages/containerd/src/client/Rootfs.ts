@@ -1,4 +1,4 @@
-import {lstat, readFile, readlink} from 'node:fs/promises'
+import {lstat, readdir, readFile, readlink} from 'node:fs/promises'
 import type {Stats} from 'node:fs'
 import path from 'node:path'
 import type {SnapshotMount} from './ContainerdClient.js'
@@ -116,4 +116,145 @@ export async function ResolveUser(mounts: SnapshotMount[], user: string | undefi
         .filter((fields: string[]): boolean => (fields[3] ?? '').split(',').includes(name!) && Number(fields[2]) !== gid)
         .map((fields: string[]): number => Number(fields[2])) : []
     return {uid: uid, gid: gid, additionalGids: [...new Set(additionalGids)], home: home}
+}
+
+/**
+ * A file system read from the host: a directory (the root of a process), or the directories of the layers of a snapshot
+ */
+export interface FileTree {
+    /**
+     * A path whose symbolic links are resolved in the file system (not in the one of the host)
+     * @param file an absolute path in the file system
+     */
+    resolve(file: string): Promise<string>
+
+    /**
+     * The stats of a path (its link not followed) and the path of the host to read it, undefined when it does not exist
+     * @param file
+     */
+    lstat(file: string): Promise<{ stats: Stats, path: string } | undefined>
+
+    /**
+     * The names of the entries of a directory, sorted
+     * @param directory
+     */
+    readdir(directory: string): Promise<string[]>
+}
+
+/**
+ * The resolution of the symbolic links of a path in a file tree
+ * @param tree
+ * @param file
+ */
+async function ResolveInTree(tree: FileTree, file: string): Promise<string> {
+    const pending: string[] = path.posix.normalize(`/${file}`).split('/').filter(Boolean)
+    let current: string = '/'
+    let links: number = 0
+    while (pending.length) {
+        const part: string = pending.shift()!
+        if (part === '..') {
+            current = path.posix.dirname(current)
+            continue
+        }
+        const candidate: string = path.posix.join(current, part)
+        const found = await tree.lstat(candidate)
+        if (found?.stats.isSymbolicLink()) {
+            if (++links > 40) throw new Error(`The path ${file} has too many symbolic links`)
+            const target: string = await readlink(found.path)
+            if (target.startsWith('/')) current = '/'
+            pending.unshift(...target.split('/').filter(Boolean))
+            continue
+        }
+        current = candidate
+    }
+    return current
+}
+
+/**
+ * A file system of a directory of the host (/proc/<pid>/root: the one of a running container, its mounts with it)
+ */
+export class DirectoryTree implements FileTree {
+
+    constructor(protected readonly root: string) {
+    }
+
+    public resolve(file: string): Promise<string> {
+        return ResolveInTree(this, file)
+    }
+
+    public async lstat(file: string): Promise<{ stats: Stats, path: string } | undefined> {
+        const real: string = path.join(this.root, path.posix.normalize(`/${file}`))
+        try {
+            return {stats: await lstat(real), path: real}
+        } catch {
+            return undefined
+        }
+    }
+
+    public async readdir(directory: string): Promise<string[]> {
+        return (await readdir(path.join(this.root, path.posix.normalize(`/${directory}`)))).sort()
+    }
+}
+
+/**
+ * Whether stats are the ones of a whiteout of overlay (a deletion of a layer)
+ * @param stats
+ */
+function IsWhiteout(stats: Stats): boolean {
+    return stats.isCharacterDevice() && stats.rdev === 0
+}
+
+/**
+ * A file system of the layers of a snapshot (the directories of overlay, the top one first): the deletions of the upper
+ * layers (their whiteouts) hide the entries of the lower ones
+ */
+export class LayersTree implements FileTree {
+
+    constructor(protected readonly layers: string[]) {
+    }
+
+    public resolve(file: string): Promise<string> {
+        return ResolveInTree(this, file)
+    }
+
+    protected async stat(file: string): Promise<Stats | undefined> {
+        try {
+            return await lstat(file)
+        } catch {
+            return undefined
+        }
+    }
+
+    public async lstat(file: string): Promise<{ stats: Stats, path: string } | undefined> {
+        const parts: string[] = path.posix.normalize(`/${file}`).split('/').filter(Boolean)
+        for (const layer of this.layers) {
+            //An ancestor deleted (or replaced by a file) by this layer hides the path in the lower layers
+            for (let length = 1; length < parts.length; length++) {
+                const ancestor: Stats | undefined = await this.stat(path.join(layer, ...parts.slice(0, length)))
+                if (ancestor && (IsWhiteout(ancestor) || !ancestor.isDirectory())) return undefined
+            }
+            const real: string = path.join(layer, ...parts)
+            const stats: Stats | undefined = await this.stat(real)
+            if (!stats) continue
+            return IsWhiteout(stats) ? undefined : {stats: stats, path: real}
+        }
+        return undefined
+    }
+
+    public async readdir(directory: string): Promise<string[]> {
+        const parts: string[] = path.posix.normalize(`/${directory}`).split('/').filter(Boolean)
+        const names: Map<string, boolean> = new Map()
+        for (const layer of this.layers) {
+            const stats: Stats | undefined = await this.stat(path.join(layer, ...parts))
+            if (!stats) continue
+            //Deleted or replaced by this layer: the lower layers are hidden
+            if (!stats.isDirectory()) break
+            for (const name of await readdir(path.join(layer, ...parts))) {
+                if (names.has(name)) continue
+                const entry: Stats | undefined = await this.stat(path.join(layer, ...parts, name))
+                names.set(name, !!entry && !IsWhiteout(entry))
+            }
+        }
+        return [...names].filter(([, present]): boolean => present).map(([name]): string => name).sort()
+    }
 }

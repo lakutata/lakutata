@@ -7,8 +7,9 @@ import {ImageName, ParseReference} from '../client/Reference.js'
 import {FormatPlatform, MatchPlatform, ParsePlatform, PlatformRank, SupportedPlatforms} from '../client/Platforms.js'
 import {Capabilities, ExecProcessSpec, GenerateSpec, ParseDeviceCgroupRule} from '../client/Spec.js'
 import {ChainIds} from '../client/ImageStore.js'
-import {LayerDirectories, ReadRootfsFile, ResolveUser} from '../client/Rootfs.js'
-import {SignalNumber} from '../client/ContainerStore.js'
+import {DirectoryTree, LayerDirectories, LayersTree, ReadRootfsFile, ResolveUser} from '../client/Rootfs.js'
+import {VolumeStore} from '../client/Volumes.js'
+import {SeccompHint, SignalNumber} from '../client/ContainerStore.js'
 import {DefaultSeccompProfile, SeccompSupported, type SeccompSyscall} from '../client/Seccomp.js'
 
 describe('The helpers of the containerd component', (): void => {
@@ -160,6 +161,57 @@ describe('The helpers of the containerd component', (): void => {
         assert.strictEqual(allowed(old, 'ptrace').length, 0)
         assert.ok(SeccompSupported('Name:\tsh\nSeccomp:\t0\n'))
         assert.ok(!SeccompSupported('Name:\tsh\n'))
+    })
+
+    it('reads the file systems of the containers: a directory, the layers of a snapshot', async (): Promise<void> => {
+        const root: string = await mkdtemp(path.join(tmpdir(), 'lakutata-tree-'))
+        try {
+            const [lower, upper] = [path.join(root, 'lower'), path.join(root, 'upper')]
+            await mkdir(path.join(lower, 'app', 'old'), {recursive: true})
+            await mkdir(path.join(upper, 'app'), {recursive: true})
+            await writeFile(path.join(lower, 'app', 'kept.txt'), 'lower')
+            await writeFile(path.join(lower, 'app', 'changed.txt'), 'lower')
+            await writeFile(path.join(lower, 'app', 'old', 'inside.txt'), 'lower')
+            await writeFile(path.join(upper, 'app', 'changed.txt'), 'upper')
+            await symlink('/app', path.join(upper, 'link'))
+            const layers: LayersTree = new LayersTree([upper, lower])
+            assert.deepStrictEqual(await layers.readdir('/app'), ['changed.txt', 'kept.txt', 'old'])
+            assert.strictEqual((await layers.lstat('/app/changed.txt'))!.path, path.join(upper, 'app', 'changed.txt'))
+            assert.strictEqual((await layers.lstat('/app/kept.txt'))!.path, path.join(lower, 'app', 'kept.txt'))
+            //The absolute links resolved in the tree, not in the host
+            assert.strictEqual(await layers.resolve('/link/kept.txt'), '/app/kept.txt')
+            assert.strictEqual(await layers.resolve('/app/../link/../app/old'), '/app/old')
+            assert.strictEqual(await new DirectoryTree(lower).resolve('/app/old/inside.txt'), '/app/old/inside.txt')
+            assert.strictEqual(await new DirectoryTree(upper).resolve('/link'), '/app')
+            assert.strictEqual(await layers.lstat('/missing'), undefined)
+        } finally {
+            await rm(root, {recursive: true, force: true})
+        }
+    })
+
+    it('keeps the named volumes', async (): Promise<void> => {
+        const root: string = await mkdtemp(path.join(tmpdir(), 'lakutata-volumes-'))
+        try {
+            const volumes: VolumeStore = new VolumeStore(root)
+            const created = await volumes.create('data', {app: 'web'})
+            assert.strictEqual(created.mountpoint, path.join(root, 'data', '_data'))
+            await writeFile(path.join(created.mountpoint, 'kept'), 'x')
+            //Created again: the existing one
+            assert.deepStrictEqual((await volumes.create('data')).labels, {app: 'web'})
+            await volumes.create('cache')
+            assert.deepStrictEqual((await volumes.list()).map((volume): string => volume.name), ['cache', 'data'])
+            await volumes.remove('data')
+            assert.strictEqual(await volumes.get('data'), undefined)
+            await assert.rejects(volumes.create('../escape'))
+        } finally {
+            await rm(root, {recursive: true, force: true})
+        }
+    })
+
+    it('tells what to do when the runtime has no seccomp', (): void => {
+        const error: Error = SeccompHint(new Error('failed to create shim task: OCI runtime create failed: seccomp: config provided but seccomp not supported: unknown')) as Error
+        assert.match(error.message, /seccomp unconfined/)
+        assert.strictEqual((SeccompHint(new Error('other')) as Error).message, 'other')
     })
 
     it('numbers the signals', (): void => {

@@ -1,8 +1,11 @@
 import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
 import {spawnSync} from 'node:child_process'
-import {existsSync} from 'node:fs'
+import {createReadStream, createWriteStream, existsSync} from 'node:fs'
 import {mkdir, mkdtemp, readFile, rm, symlink, writeFile} from 'node:fs/promises'
+import {pipeline} from 'node:stream/promises'
+import {extract as tarExtract, type Header} from 'tar-stream'
+import type {Readable} from 'node:stream'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {setTimeout as sleep} from 'node:timers/promises'
@@ -13,6 +16,8 @@ import {
     ContainerdContainerNameConflictException,
     ContainerdContainerNotFoundException,
     ContainerdContainerStateException,
+    ContainerdContainerTTY,
+    ContainerdVolumeInUseException,
     ContainerdImage,
     ContainerdImageBuildException,
     ContainerdImageNotFoundException,
@@ -281,6 +286,204 @@ describe('The containerd component with the containerd of the machine', {skip: !
             assert.match(refused.stderr, /not permitted/i)
         } finally {
             for (const container of created) await container.remove({force: true})
+        }
+    })
+
+    it('gives the resources the containers use, updates them while they run', async (): Promise<void> => {
+        const container: ContainerdContainer = await containerd.createContainer({image: ALPINE, name: 'lakutata-test-busy', cmd: ['sh', '-c', 'while true; do :; done'], network: 'none', memoryLimit: 64 * 1024 * 1024})
+        try {
+            await container.start()
+            const stats = await container.stats(500)
+            assert.ok(stats.cpu.percent > 50, `${stats.cpu.percent}%`)
+            assert.ok(stats.cpu.usage > 0 && stats.memory.usage > 0)
+            assert.strictEqual(stats.memory.limit, 64 * 1024 * 1024)
+            assert.ok(stats.pids.current >= 1)
+            await assert.rejects((await containerd.createContainer({image: ALPINE, cmd: ['true']})).stats(), ContainerdContainerStateException)
+            //Updated while it runs: its cgroup, its specification, its restart policy
+            const pid: number = container.state.pid
+            await container.update({memoryLimit: 32 * 1024 * 1024, pidsLimit: 20, restartPolicy: 'always'})
+            assert.strictEqual(container.state.pid, pid)
+            assert.strictEqual((await container.exec({cmd: 'cat /sys/fs/cgroup/memory.max'})).stdout.trim(), String(32 * 1024 * 1024))
+            assert.strictEqual((await container.exec({cmd: 'cat /sys/fs/cgroup/pids.max'})).stdout.trim(), '20')
+            assert.strictEqual(container.restartPolicy, 'always')
+            assert.strictEqual(container.labels['containerd.io/restart.status'], 'running')
+            await container.update({restartPolicy: 'no'})
+            assert.strictEqual(container.labels['containerd.io/restart.policy'], undefined)
+            //Its other settings: created again with them, its name kept, started again
+            const old: string = container.id
+            await container.update({env: {MODE: 'updated'}})
+            assert.notStrictEqual(container.id, old)
+            assert.strictEqual(container.name, 'lakutata-test-busy')
+            assert.strictEqual(container.state.status, 'running')
+            //The resources updated before kept
+            assert.strictEqual((await container.exec({cmd: 'echo $MODE; cat /sys/fs/cgroup/memory.max /sys/fs/cgroup/pids.max'})).stdout, `updated\n${32 * 1024 * 1024}\n20\n`)
+            await assert.rejects(containerd.getContainer(old), ContainerdContainerNotFoundException)
+            //A setting which fails: the old container kept with its name
+            const current: string = container.id
+            await assert.rejects(container.update({image: 'lakutata-test/none:1'}))
+            assert.strictEqual((await containerd.getContainer('lakutata-test-busy')).id, current)
+        } finally {
+            for (const item of await containerd.listContainers()) if (item.name.startsWith('lakutata-test-busy') || item.state.status === 'created') await item.remove({force: true})
+        }
+    })
+
+    it('opens terminals in the containers', async (): Promise<void> => {
+        const container: ContainerdContainer = await containerd.createContainer({image: ALPINE, cmd: ['sleep', '600'], network: 'none'})
+        try {
+            await container.start()
+            const tty: ContainerdContainerTTY = await container.createTTY({consoleSize: {cols: 100, rows: 30}})
+            let output: string = ''
+            tty.onData((chunk: Buffer): unknown => output += chunk.toString())
+            const until = async (pattern: RegExp): Promise<void> => {
+                for (let attempt = 0; attempt < 50 && !pattern.test(output); attempt++) await sleep(100)
+                assert.match(output, pattern)
+            }
+            tty.write('stty size; tty\n')
+            await until(/30 100/)
+            await until(/\/dev\/pts\/\d+/)
+            await tty.resize({cols: 120, rows: 40})
+            tty.write('stty size\n')
+            await until(/40 120/)
+            tty.write('exit 5\n')
+            assert.strictEqual(await tty.wait(), 5)
+            //Closed while its process runs: killed
+            const other: ContainerdContainerTTY = await container.createTTY({cmd: ['sleep', '600']})
+            await other.close()
+            assert.strictEqual(await other.wait(), 137)
+        } finally {
+            await container.remove({force: true})
+        }
+    })
+
+    it('commits the containers, exports their directories', async (): Promise<void> => {
+        const volume: string = path.join(directory, 'export-volume')
+        await mkdir(volume, {recursive: true})
+        await writeFile(path.join(volume, 'mounted.txt'), 'mounted')
+        const container: ContainerdContainer = await containerd.createContainer({image: ALPINE, cmd: ['sh', '-c', 'mkdir -p /data/sub && echo committed > /data/sub/file && ln -s /data/sub /data/link && rm /etc/motd && sleep 600'], network: 'none', binds: [{hostPath: volume, containerPath: '/mnt/volume'}]})
+        const entries = async (archive: string): Promise<Record<string, string>> => {
+            const found: Record<string, string> = {}
+            const extract = tarExtract()
+            extract.on('entry', (header: Header, entry: unknown, next: () => void): void => {
+                const stream: Readable = entry as Readable
+                let content: string = ''
+                stream.on('data', (chunk: Buffer): unknown => content += chunk)
+                stream.on('end', (): void => {
+                    found[header.name] = header.type === 'symlink' ? `-> ${header.linkname}` : header.type === 'directory' ? '/' : content
+                    next()
+                })
+            })
+            await pipeline(createReadStream(archive), extract)
+            return found
+        }
+        try {
+            await container.start()
+            await sleep(500)
+            //Running: its file system with its mounts, its links resolved in it
+            await container.exportDirectory({path: '/data', destination: path.join(directory, 'data.tar')})
+            assert.deepStrictEqual(await entries(path.join(directory, 'data.tar')), {'data': '/', 'data/link': '-> /data/sub', 'data/sub': '/', 'data/sub/file': 'committed\n'})
+            await container.exportDirectory({path: '/data/link', destination: createWriteStream(path.join(directory, 'link.tar'))})
+            assert.deepStrictEqual(Object.keys(await entries(path.join(directory, 'link.tar'))), ['sub', 'sub/file'])
+            await container.exportDirectory({path: '/mnt/volume', destination: path.join(directory, 'volume.tar')})
+            assert.strictEqual((await entries(path.join(directory, 'volume.tar')))['volume/mounted.txt'], 'mounted')
+            //Committed: its changes as a layer, the changes of its configuration
+            const image: ContainerdImage = await container.commit({repoTag: 'lakutata-test/committed:1', changes: {cmd: ['cat', '/data/sub/file'], env: {COMMITTED: 'yes'}}, comment: 'test'})
+            assert.strictEqual(image.name, 'docker.io/lakutata-test/committed:1')
+            assert.deepStrictEqual(image.config.cmd, ['cat', '/data/sub/file'])
+            assert.strictEqual(image.config.env.COMMITTED, 'yes')
+            assert.strictEqual(container.state.status, 'running')
+            const run: ContainerdContainer = await containerd.createContainer({image: image.name, network: 'none'})
+            await run.start()
+            assert.strictEqual(await run.wait(), 0)
+            let logs: string = ''
+            for await (const chunk of await run.logs({follow: false})) logs += chunk
+            assert.strictEqual(logs, 'committed\n')
+            //The file deleted in the container: deleted in the image (its whiteout)
+            assert.notStrictEqual((await (async (): Promise<number> => {
+                const check: ContainerdContainer = await containerd.createContainer({image: image.name, cmd: ['test', '-e', '/etc/motd'], network: 'none'})
+                await check.start()
+                const code: number = await check.wait()
+                await check.remove()
+                return code
+            })()), 0)
+            await run.remove()
+            //Stopped: its snapshot read from its layers (the deleted file not there)
+            await container.stop({timeout: 1})
+            await container.exportDirectory({path: '/etc', destination: path.join(directory, 'etc.tar')})
+            const etc: Record<string, string> = await entries(path.join(directory, 'etc.tar'))
+            assert.ok(etc['etc/hostname'] !== undefined && etc['etc/motd'] === undefined, Object.keys(etc).join())
+            await assert.rejects(container.exportDirectory({path: '/missing', destination: path.join(directory, 'missing.tar')}))
+        } finally {
+            await container.remove({force: true})
+        }
+    })
+
+    it('keeps the named volumes of the containers', async (): Promise<void> => {
+        const volume = await containerd.createVolume({name: 'lakutata-test-data', labels: {app: 'test'}})
+        assert.strictEqual(volume.labels.app, 'test')
+        const writer: ContainerdContainer = await containerd.createContainer({image: ALPINE, cmd: ['sh', '-c', 'echo kept > /data/file'], network: 'none', volumes: [{volumeName: 'lakutata-test-data', containerPath: '/data'}, {volumeName: 'lakutata-test-auto', containerPath: '/auto'}]})
+        try {
+            assert.deepStrictEqual(writer.volumes, ['lakutata-test-data', 'lakutata-test-auto'])
+            await writer.start()
+            assert.strictEqual(await writer.wait(), 0)
+            await writer.remove()
+            const reader: ContainerdContainer = await containerd.createContainer({image: ALPINE, cmd: ['cat', '/data/file'], network: 'none', volumes: [{volumeName: 'lakutata-test-data', containerPath: '/data', readonly: true}]})
+            await reader.start()
+            assert.strictEqual(await reader.wait(), 0)
+            let logs: string = ''
+            for await (const chunk of await reader.logs({follow: false})) logs += chunk
+            assert.strictEqual(logs, 'kept\n')
+            assert.ok((await containerd.listVolumes()).some((item): boolean => item.name === 'lakutata-test-auto'))
+            await assert.rejects(containerd.removeVolume('lakutata-test-data'), ContainerdVolumeInUseException)
+            await reader.remove()
+            await containerd.removeVolume('lakutata-test-data')
+            assert.strictEqual((await containerd.prune({containers: false, images: false, volumes: true})).volumes.includes('lakutata-test-auto'), true)
+            assert.ok(!(await containerd.listVolumes()).some((item): boolean => item.name.startsWith('lakutata-test')))
+        } finally {
+            for (const item of await containerd.listContainers()) if (item.volumes.length) await item.remove({force: true})
+        }
+    })
+
+    it('connects the containers to the networks of IPv6', async (): Promise<void> => {
+        const network = await containerd.createNetwork({name: 'lakutata-test-v6', subnet: '10.4.201.0/24', ipv6Subnet: 'fd00:4:201::/64'})
+        assert.strictEqual(network.enableIPv6, true)
+        const server: ContainerdContainer = await containerd.createContainer({image: ALPINE, cmd: ['sh', '-c', 'while true; do printf "HTTP/1.0 200 OK\\r\\n\\r\\nv6\\n" | nc -l -p 80 >/dev/null; done'], networks: [{networkName: 'lakutata-test-v6', ipv6: 'fd00:4:201::50'}]})
+        const client: ContainerdContainer = await containerd.createContainer({image: ALPINE, cmd: ['sleep', '600'], networks: [{networkName: 'lakutata-test-v6'}]})
+        try {
+            await server.start()
+            await client.start()
+            assert.strictEqual(server.networks[0].ipv6, 'fd00:4:201::50')
+            assert.match(server.networks[0].ip, /^10\.4\.201\./)
+            assert.match(client.networks[0].ipv6, /^fd00:4:201::/)
+            assert.strictEqual((await client.exec({cmd: 'wget -qO- -T 5 http://[fd00:4:201::50]/'})).stdout.trim(), 'v6')
+        } finally {
+            await server.remove({force: true})
+            await client.remove({force: true})
+            await containerd.removeNetwork('lakutata-test-v6')
+        }
+    })
+
+    it('prunes the resources no container uses', async (): Promise<void> => {
+        const stopped: ContainerdContainer = await containerd.createContainer({image: ALPINE, cmd: ['true'], network: 'none'})
+        const kept: ContainerdContainer = await containerd.createContainer({image: ALPINE, cmd: ['sleep', '600'], network: 'none'})
+        await kept.start()
+        const image: ContainerdImage = await containerd.getImage(ALPINE)
+        const dangling: string = `docker.io/lakutata-test/dangling@${image.digest}`
+        await image.tag(dangling)
+        await image.tag('lakutata-test/tagged:1')
+        await containerd.createNetwork({name: 'lakutata-test-unused'})
+        try {
+            const result = await containerd.prune({networks: true})
+            assert.ok(result.containers.includes(stopped.id))
+            assert.ok(!result.containers.includes(kept.id))
+            assert.ok(result.images.includes(dangling))
+            assert.ok(!result.images.includes('docker.io/lakutata-test/tagged:1') && !result.images.includes(image.name))
+            assert.ok(result.networks.includes('lakutata-test-unused'))
+            assert.strictEqual(kept.state.status, 'running')
+            //All the images no container uses
+            assert.ok((await containerd.prune({containers: false, allImages: true})).images.includes('docker.io/lakutata-test/tagged:1'))
+            assert.ok((await containerd.getImage(ALPINE)).name)
+        } finally {
+            await kept.remove({force: true})
         }
     })
 

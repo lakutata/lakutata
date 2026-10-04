@@ -294,6 +294,28 @@ export class ContainerdClient {
         await this.call('snapshots.v1.Snapshots', 'Commit', M.CommitSnapshotRequest, {snapshotter: snapshotter, name: name, key: key, labels: labels}, M.Empty, lease)
     }
 
+    public async viewSnapshot(snapshotter: string, key: string, parent: string, lease?: string): Promise<SnapshotMount[]> {
+        return (await this.call('snapshots.v1.Snapshots', 'View', M.PrepareSnapshotRequest, {snapshotter: snapshotter, key: key, parent: parent}, M.MountsResponse, lease)).mounts as SnapshotMount[]
+    }
+
+    /**
+     * The layer of the changes of a snapshot from another one (tar+gzip), written into the content store
+     * @param left the older one
+     * @param right the newer one
+     * @param lease
+     */
+    public async diff(left: SnapshotMount[], right: SnapshotMount[], lease?: string): Promise<ContentDescriptor> {
+        return (await this.call('diff.v1.Diff', 'Diff', M.DiffRequest, {left: left, right: right, mediaType: 'application/vnd.oci.image.layer.v1.tar+gzip'}, M.DiffResponse, lease)).diff as ContentDescriptor
+    }
+
+    /**
+     * The metrics of the cgroup of a task: their type (io.containerd.cgroups.v1.Metrics, …v2.Metrics) and their bytes
+     * @param containerId
+     */
+    public async metrics(containerId: string): Promise<Message | undefined> {
+        return (await this.call('tasks.v1.Tasks', 'Metrics', M.MetricsRequest, {filters: [`id==${containerId}`]}, M.MetricsResponse)).metrics[0]
+    }
+
     public async removeSnapshot(snapshotter: string, key: string): Promise<void> {
         await this.orUndefined(this.call('snapshots.v1.Snapshots', 'Remove', M.SnapshotKeyRequest, {snapshotter: snapshotter, key: key}))
     }

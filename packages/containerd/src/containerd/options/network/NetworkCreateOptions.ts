@@ -48,6 +48,18 @@ export class NetworkCreateOptions extends DTO {
     @Expect(DTO.Number().integer().min(68).optional())
     public mtu?: number
 
+    /**
+     * Its subnet of IPv6, besides its subnet of IPv4 (fd00:4:10::/64)
+     */
+    @Expect(DTO.String().ip({version: 'ipv6', cidr: 'required'}).optional())
+    public ipv6Subnet?: string
+
+    /**
+     * Its gateway of IPv6, the first address of its subnet by default
+     */
+    @Expect(DTO.String().ip({version: 'ipv6', cidr: 'forbidden'}).optional())
+    public ipv6Gateway?: string
+
     @Expect(DTO.Object().pattern(DTO.String(), DTO.String().allow('')).optional())
     public labels?: Record<string, string>
 }

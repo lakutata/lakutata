@@ -10,6 +10,7 @@ export type ContainerdNetworkInfo = {
      */
     reserved: boolean
     internal: boolean
+    enableIPv6: boolean
     subnets: string[]
     gateways: string[]
     labels: Record<string, string>

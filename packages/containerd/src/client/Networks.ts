@@ -2,6 +2,7 @@ import {createHash, randomBytes} from 'node:crypto'
 import {spawn, spawnSync} from 'node:child_process'
 import {accessSync, constants as fsConstants, existsSync} from 'node:fs'
 import {mkdir, readdir, readFile, rm, writeFile} from 'node:fs/promises'
+import {isIPv6} from 'node:net'
 import path from 'node:path'
 
 /**
@@ -57,6 +58,14 @@ export type CNINetworkCreateOptions = {
     internal?: boolean
     mtu?: number
     labels?: Record<string, string>
+    /**
+     * Its subnet of IPv6 (CIDR), besides its subnet of IPv4
+     */
+    ipv6Subnet?: string
+    /**
+     * Its gateway of IPv6, the first address of its subnet by default
+     */
+    ipv6Gateway?: string
 }
 
 /**
@@ -89,6 +98,7 @@ export type ContainerNetworkInterface = {
 export type ContainerNetworkRequest = {
     name: string
     ip?: string
+    ipv6?: string
 }
 
 /**
@@ -236,6 +246,48 @@ export function ParseSubnet(cidr: string): { network: number, broadcast: number,
     const mask: number = prefix === 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0
     const network: number = (IPv4ToNumber(address) & mask) >>> 0
     return {network: network, broadcast: (network | (~mask >>> 0)) >>> 0, prefix: prefix, cidr: `${NumberToIPv4(network)}/${prefix}`}
+}
+
+/**
+ * The integer of an address of IPv6
+ * @param address
+ */
+function IPv6ToBigInt(address: string): bigint {
+    if (!isIPv6(address)) throw new Error(`The address ${address} is not an address of IPv6`)
+    const [head, tail] = address.split('::') as [string, string | undefined]
+    //An address of IPv4 at its end (::ffff:1.2.3.4)
+    const ipv4 = (part: string): string[] => part.includes('.') ? [(IPv4ToNumber(part) >>> 16).toString(16), (IPv4ToNumber(part) & 0xffff).toString(16)] : [part]
+    const headGroups: string[] = head ? head.split(':').flatMap(ipv4) : []
+    const tailGroups: string[] = tail ? tail.split(':').flatMap(ipv4) : []
+    const groups: string[] = tail === undefined ? headGroups : [...headGroups, ...Array(8 - headGroups.length - tailGroups.length).fill('0'), ...tailGroups]
+    return groups.reduce((value: bigint, group: string): bigint => (value << 16n) | BigInt(parseInt(group || '0', 16)), 0n)
+}
+
+function BigIntToIPv6(value: bigint): string {
+    const groups: string[] = []
+    for (let index = 7; index >= 0; index--) groups.push(((value >> BigInt(index * 16)) & 0xffffn).toString(16))
+    //The longest run of zeros compressed
+    let best: [number, number] = [-1, 0]
+    for (let start = 0; start < 8; start++) {
+        let length: number = 0
+        while (start + length < 8 && groups[start + length] === '0') length++
+        if (length > best[1]) best = [start, length]
+    }
+    if (best[1] < 2) return groups.join(':')
+    return `${groups.slice(0, best[0]).join(':')}::${groups.slice(best[0] + best[1]).join(':')}`
+}
+
+/**
+ * A subnet of IPv6 (CIDR): its network, its prefix, its first address
+ * @param cidr
+ */
+export function ParseIPv6Subnet(cidr: string): { cidr: string, first: string, network: bigint, last: bigint } {
+    const [address, prefixText] = cidr.split('/')
+    const prefix: number = Number(prefixText)
+    if (!Number.isInteger(prefix) || prefix < 8 || prefix > 126) throw new Error(`The subnet ${cidr} is not a CIDR of IPv6 (/8 to /126)`)
+    const mask: bigint = ((1n << 128n) - 1n) ^ ((1n << BigInt(128 - prefix)) - 1n)
+    const network: bigint = IPv6ToBigInt(address) & mask
+    return {cidr: `${BigIntToIPv6(network)}/${prefix}`, first: BigIntToIPv6(network + 1n), network: network, last: network | (((1n << 128n) - 1n) ^ mask)}
 }
 
 /**
@@ -486,6 +538,23 @@ export class NetworkStore {
             range.rangeEnd = NumberToIPv4(Math.min(ipRange.broadcast - 1, subnet.broadcast - 1))
         }
         const ipam: Record<string, any> = {ranges: [[range]], routes: options.internal ? [] : [{dst: '0.0.0.0/0'}], type: 'host-local', dataDir: IPAM_DATA_DIR}
+        if (options.ipv6Subnet) {
+            const ipv6 = ParseIPv6Subnet(options.ipv6Subnet)
+            const ipv6Gateway: string = options.ipv6Gateway ?? ipv6.first
+            const gateway6: bigint = IPv6ToBigInt(ipv6Gateway)
+            if (gateway6 <= ipv6.network || gateway6 > ipv6.last) throw new Error(`The gateway ${ipv6Gateway} is not in the subnet ${ipv6.cidr}`)
+            const overlapping6: CNINetwork | undefined = networks.find((network: CNINetwork): boolean => network.subnets.some((other: string): boolean => {
+                try {
+                    const known = ParseIPv6Subnet(other)
+                    return known.network <= ipv6.last && ipv6.network <= known.last
+                } catch {
+                    return false
+                }
+            }))
+            if (overlapping6) throw Object.assign(new Error(`The subnet ${ipv6.cidr} overlaps the one of the network ${overlapping6.name}`), {code: 'CONFLICT'})
+            ipam.ranges.push([{subnet: ipv6.cidr, gateway: ipv6Gateway}])
+            if (!options.internal) ipam.routes.push({dst: '::/0'})
+        }
         const id: string = randomBytes(32).toString('hex')
         let main: Record<string, any>
         if (driver === 'bridge') {
@@ -525,7 +594,7 @@ export class NetworkStore {
      * @param networks
      * @param ports
      */
-    public async render(stateDir: string, containerId: string, networks: { network: CNINetwork, ip?: string }[], ports: PortMapping[]): Promise<void> {
+    public async render(stateDir: string, containerId: string, networks: { network: CNINetwork, ip?: string, ipv6?: string }[], ports: PortMapping[]): Promise<void> {
         const directory: string = path.join(stateDir, 'network')
         await rm(directory, {recursive: true, force: true})
         await mkdir(directory, {recursive: true})
@@ -539,12 +608,13 @@ export class NetworkStore {
         ].join('\n'))
         await writeFile(path.join(directory, 'hook.sh'), HOOK_SCRIPT, {mode: 0o755})
         for (let index = 0; index < networks.length; index++) {
-            const {network, ip} = networks[index]
+            const {network, ip, ipv6} = networks[index]
             const net: string = path.join(directory, String(index).padStart(2, '0'))
             await mkdir(net)
             await writeFile(path.join(net, 'name'), network.name)
             await writeFile(path.join(net, 'ifname'), `eth${index}`)
-            await writeFile(path.join(net, 'args'), ['IgnoreUnknown=1', ...ip ? [`IP=${ip}`] : []].join(';'))
+            const addresses: string[] = [ip, ipv6].filter((address: string | undefined): address is string => !!address)
+            await writeFile(path.join(net, 'args'), ['IgnoreUnknown=1', ...addresses.length ? [`IP=${addresses.join(',')}`] : []].join(';'))
             await writeFile(path.join(net, 'count'), String(network.plugins.length))
             for (let position = 0; position < network.plugins.length; position++) {
                 const plugin: Record<string, any> = {...network.plugins[position], name: network.name, cniVersion: network.cniVersion}

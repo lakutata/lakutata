@@ -3,6 +3,7 @@ import {Transient, Configurable} from '@lakutata/core/decorator/di'
 import {Accept} from '@lakutata/core/decorator/dto'
 import {Time} from '@lakutata/utils/Time'
 import type {Readable} from 'node:stream'
+import {createWriteStream} from 'node:fs'
 import type {Message} from '../../client/Protobuf.js'
 import {ContainerLabels, ContainerStore, type ContainerRuntimeState} from '../../client/ContainerStore.js'
 import type {ContainerdClient} from '../../client/ContainerdClient.js'
@@ -21,6 +22,15 @@ import {ContainerExecOptions} from '../options/container/ContainerExecOptions.js
 import {ContainerLogsOptions} from '../options/container/ContainerLogsOptions.js'
 import {ContainerdContainerNotFoundException} from '../exceptions/ContainerdContainerNotFoundException.js'
 import {ContainerdError} from './ContainerdErrors.js'
+import {ContainerdContainerTTY} from './ContainerdContainerTTY.js'
+import {ContainerTTYOptions} from '../options/container/ContainerTTYOptions.js'
+import {ContainerResourceOptions} from '../options/container/ContainerResourceOptions.js'
+import {ContainerCommitOptions} from '../options/container/ContainerCommitOptions.js'
+import {ContainerExportDirectoryOptions} from '../options/container/ContainerExportDirectoryOptions.js'
+import type {ContainerCreateOptions} from '../options/container/ContainerCreateOptions.js'
+import type {ContainerdContainerStats} from '../types/ContainerdContainerStats.js'
+import {ContainerdContainerStateException} from '../exceptions/ContainerdContainerStateException.js'
+import {ParseReference} from '../../client/Reference.js'
 
 /**
  * A container of containerd
@@ -76,6 +86,11 @@ export class ContainerdContainer extends Provider {
      * Its ports published on the host
      */
     public ports: ContainerdContainerPort[]
+
+    /**
+     * The names of its volumes
+     */
+    public volumes: string[]
 
     public createdAt: Time
 
@@ -143,6 +158,7 @@ export class ContainerdContainer extends Provider {
             //Not the labels of nerdctl
         }
         this.ports = [...ports.values()]
+        this.volumes = ContainerStore.Volumes(record)
         const state: ContainerRuntimeState = await this.getStore().state(record)
         this.state = {
             status: state.status,
@@ -286,6 +302,109 @@ export class ContainerdContainer extends Provider {
     public async logs(options?: ContainerLogsOptions): Promise<Readable> {
         if (!options) return await this.logs({})
         return this.getStore().logs(this.record, {tail: options.tail, follow: options.follow, signal: this.#abortController.signal})
+    }
+
+    /**
+     * The resources the running container uses (its use of the CPUs during the interval of the sampling)
+     * @param interval milliseconds between its two samples
+     */
+    @Accept(DTO.Number().integer().min(0).optional())
+    public async stats(interval: number = 1000): Promise<ContainerdContainerStats> {
+        try {
+            return await this.getStore().stats(this.record, interval)
+        } catch (error: unknown) {
+            throw ContainerdError(error)
+        }
+    }
+
+    /**
+     * Open a terminal in the running container (a shell by default)
+     * @param options
+     */
+    @Accept(ContainerTTYOptions.optional())
+    public async createTTY(options?: ContainerTTYOptions): Promise<ContainerdContainerTTY> {
+        return await this.getObject(ContainerdContainerTTY, {
+            getStore: this.getStore,
+            getRecord: (): Message => this.record,
+            cmd: options?.cmd ?? '/bin/sh',
+            initialConsoleSize: options?.consoleSize,
+            env: options?.env,
+            workingDir: options?.workingDir,
+            user: options?.user
+        })
+    }
+
+    /**
+     * Update the container: its resources and its restart policy while it runs (docker update); the other settings by
+     * creating it again with them (its name kept, started again when it runs)
+     * @param options
+     */
+    @Accept(DTO.Object().required())
+    public async update(options: Partial<ContainerCreateOptions>): Promise<void> {
+        const keys: string[] = Object.keys(options).filter((key: string): boolean => options[key] !== undefined)
+        const resourceKeys: string[] = ['memoryLimit', 'memorySwap', 'cpus', 'cpuShares', 'cpuSet', 'pidsLimit', 'OOMKillDisable', 'restartPolicy']
+        if (keys.every((key: string): boolean => resourceKeys.includes(key))) {
+            const resources: ContainerResourceOptions = ContainerResourceOptions.validate(options)
+            await this.operate((record: Message): Promise<void> => this.getStore().updateResources(record, {
+                memory: resources.memoryLimit,
+                memorySwap: resources.memorySwap,
+                cpus: resources.cpus,
+                cpuShares: resources.cpuShares,
+                cpuset: resources.cpuSet ? resources.cpuSet.join(',') : undefined,
+                pidsLimit: resources.pidsLimit,
+                oomKillDisable: resources.OOMKillDisable,
+                restart: resources.restartPolicy
+            }))
+            //Kept by its settings: the ones it is created again with
+            const current: Partial<ContainerCreateOptions> | undefined = await this.getStore().readSettings(this.id)
+            if (current) await this.getStore().writeSettings(this.id, {...current, ...Object.fromEntries(keys.map((key: string): [string, unknown] => [key, options[key]]))})
+            return
+        }
+        const settings: Partial<ContainerCreateOptions> | undefined = await this.getStore().readSettings(this.id)
+        if (!settings) throw new ContainerdContainerStateException(`The container ${this.name} was not created by the component (its settings are unknown): create it again`)
+        this.id = (await this.getContainerd().recreateContainer(this.record, {...settings, ...options, name: options.name ?? this.name} as ContainerCreateOptions)).id
+        await this.syncContainerInfo()
+    }
+
+    /**
+     * Commit the container: the changes of its file system as a new image
+     * @param options
+     */
+    @Accept(ContainerCommitOptions.optional())
+    public async commit(options?: ContainerCommitOptions): Promise<ContainerdImage> {
+        if (!options) return await this.commit({})
+        let name: string
+        if (options.repoTag) {
+            name = options.repoTag
+        } else {
+            const reference = ParseReference(this.imageName)
+            name = `${reference.registry}/${reference.repository}:commit-${Date.now()}`
+        }
+        try {
+            name = await this.getStore().commit(this.record, {
+                name: name,
+                pause: options.pauseBeforeCommitting,
+                changes: options.changes ? {...options.changes, env: options.changes.env ? Object.entries(options.changes.env).map(([key, value]): string => `${key}=${value}`) : undefined} : undefined,
+                comment: options.comment,
+                author: options.author
+            })
+        } catch (error: unknown) {
+            throw ContainerdError(error)
+        }
+        return await this.getContainerd().getImage(name)
+    }
+
+    /**
+     * Export a path of the file system of the container (its mounts with it while it runs) as a tar archive
+     * @param options
+     */
+    @Accept(ContainerExportDirectoryOptions.required())
+    public async exportDirectory(options: ContainerExportDirectoryOptions): Promise<void> {
+        try {
+            await this.getStore().archive(this.record, options.path, typeof options.destination === 'string' ? createWriteStream(options.destination) : options.destination)
+        } catch (error: unknown) {
+            throw ContainerdError(error)
+        }
     }
 
     /**
