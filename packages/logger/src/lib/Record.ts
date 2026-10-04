@@ -83,8 +83,9 @@ function SetParsed(log: Record<string, unknown>, key: string, value: unknown): v
  * @param bindings
  * @param args
  * @param parse whether to also build the parsed line
+ * @param redacted the lower-case names of the headers of an HTTP request or response written as [Redacted]
  */
-export function BuildRecord(level: number, bindings: LogBindings, args: unknown[], parse: boolean = false): LogRecord {
+export function BuildRecord(level: number, bindings: LogBindings, args: unknown[], parse: boolean = false, redacted: ReadonlySet<string> = new Set()): LogRecord {
     let object: any = null
     let message: unknown
     let [first, ...rest] = args
@@ -92,9 +93,9 @@ export function BuildRecord(level: number, bindings: LogBindings, args: unknown[
         message = first
         if (first !== null) {
             if ((first as any).method && (first as any).headers && (first as any).socket) {
-                first = {req: SerializeRequest(first)}
+                first = {req: SerializeRequest(first, redacted)}
             } else if (typeof (first as any).setHeader === 'function') {
-                first = {res: SerializeResponse(first)}
+                first = {res: SerializeResponse(first, redacted)}
             }
         }
         let formatArgs: unknown[]

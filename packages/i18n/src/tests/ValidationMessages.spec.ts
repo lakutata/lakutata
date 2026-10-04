@@ -57,4 +57,17 @@ describe('The validation messages of the i18n component', (): void => {
         assert.strictEqual(await ErrorOf({}, 'en'), '"customer" is required')
         assert.notStrictEqual(await ErrorOf({}, 'fr'), '"customer" is required')
     })
+    it('are registered for the languages added at run time, and for their validation messages', async (): Promise<void> => {
+        const i18n: I18n = await Create({defaultLocale: 'ko', messages: {ko: {hello: '안녕하세요'}}})
+        //A new language: its built-in messages
+        await i18n.addMessages('it', {hello: 'Ciao'})
+        assert.strictEqual(await ErrorOf({}, 'it'), '"customer" è obbligatorio')
+        //sv has no built-in messages: the ones of the default language, ko
+        await i18n.addMessages('sv', {hello: 'Hej'})
+        assert.strictEqual(await ErrorOf({}, 'sv'), '"customer"은(는) 필수입니다')
+        //The validation messages of a language known already, and of the languages falling back to it
+        await i18n.addMessages('ko', {validation: {any: {required: '{{#label}}를 입력하세요'}}})
+        assert.strictEqual(await ErrorOf({}, 'ko'), '"customer"를 입력하세요')
+        assert.strictEqual(await ErrorOf({}, 'sv'), '"customer"를 입력하세요')
+    })
 })

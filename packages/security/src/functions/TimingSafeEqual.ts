@@ -6,9 +6,21 @@ import {createHmac, randomBytes, timingSafeEqual} from 'node:crypto'
 const COMPARISON_KEY: Buffer = randomBytes(32)
 
 /**
- * Compare two values in a time which does not depend on where they differ (for secrets: signatures, tokens)
- * @param a
- * @param b
+ * Compare two secrets (signatures, tokens, API keys) in a time that does not depend on their content or their lengths,
+ * so an attacker cannot guess a secret by timing the comparisons. Values of different lengths are compared too, and
+ * are unequal. Use it instead of `===` whenever one side is a secret; to check a password, use
+ * {@link PasswordHash.validate} instead.
+ * @param a The first value: a string (compared as its UTF-8 bytes) or bytes.
+ * @param b The second value: a string (compared as its UTF-8 bytes) or bytes.
+ * @returns `true` when both values hold the same bytes.
+ * @example
+ * ```typescript
+ * import {TimingSafeEqual} from 'lakutata/security'
+ *
+ * declare const presentedApiKey: string
+ *
+ * if (!TimingSafeEqual(presentedApiKey, process.env.API_KEY ?? '')) throw new Error('Unauthorized')
+ * ```
  */
 export function TimingSafeEqual(a: string | Uint8Array, b: string | Uint8Array): boolean {
     const digestA: Buffer = createHmac('sha256', COMPARISON_KEY).update(a).digest()

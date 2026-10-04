@@ -4,18 +4,24 @@ import type {I18n} from '../I18n.js'
 import type {ITranslator} from '../interfaces/ITranslator.js'
 import {ProcessLocales} from '../lib/Locale.js'
 
+/**
+ * The options of {@link CommanderTranslator}.
+ */
 export type CommanderTranslatorOptions = {
     /**
-     * The I18n component, the object "i18n" by default
+     * The name the {@link I18n} component is registered under.
+     * @default 'i18n'
      */
     component?: string
     /**
-     * The prefix of the keys of the texts in the messages, "cli" by default (cli.commands.greet.description); "" for
-     * none
+     * The prefix of the message keys of the texts: with `'cli'`, the description of the command `greet` is the message
+     * `cli.commands.greet.description`; `''` for no prefix.
+     * @default 'cli'
      */
     prefix?: string
     /**
-     * The environment variable giving the language before the ones of the environment (LAKUTATA_LANG), none by default
+     * The name of an environment variable (`LAKUTATA_LANG`) whose language is preferred to the ones of the environment.
+     * @default none
      */
     environment?: string
 }
@@ -29,11 +35,51 @@ function English(text: CLIText): string {
 }
 
 /**
- * The texts of the help and of the prompts of the Commander adapter in the language of the user
- * (CommanderCLIEntrypoint({translate: CommanderTranslator()})): the messages of an I18n component, by the keys of the
- * texts (cli.commands.<command>.description, cli.commands.<command>.options.<property>, cli.help.usage…), in the
- * language of the environment; the English texts for the ones without a message
- * @param options
+ * Translate the help and the prompts of the Commander CLI adapter with the messages of an {@link I18n} component: give
+ * it to the `translate` option of `CommanderCLIEntrypoint()`. Each text is the message of its key under the prefix
+ * (`cli.description`, `cli.commands.<command>.description`, `cli.commands.<command>.arguments.<name>`,
+ * `cli.commands.<command>.options.<property>`, `cli.help.usage`, `cli.help.options`, `cli.help.default`,
+ * `cli.prompt.json`…), formatted with the text's parameters (`{value}`); a text without a message keeps its English
+ * text. The language is chosen once, when the adapter starts: the environment variable of the `environment` option,
+ * the environment ({@link EnvironmentLocales}), then the process's language, negotiated with the component's
+ * supported languages. The names of the commands and of the options are never translated.
+ * @param options The component, the key prefix and the environment variable.
+ * @returns The `translate` function of the adapter, which gets the component from the application's module.
+ * @example
+ * ```typescript
+ * import {Application} from 'lakutata'
+ * import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+ * import {CommanderCLIEntrypoint} from 'lakutata/adapter/commander'
+ * import {CLIAction} from 'lakutata/decorator/ctrl'
+ * import {BuildI18nOptions, CommanderTranslator, I18nMiddleware} from 'lakutata/com/i18n'
+ *
+ * class GreetController extends Controller {
+ *     @CLIAction('greet', {description: 'Greet someone'})
+ *     public async greet(): Promise<string> {
+ *         return 'Hello'
+ *     }
+ * }
+ *
+ * Application.run(() => ({
+ *     id: 'tool.app',
+ *     name: 'Tool',
+ *     components: {
+ *         i18n: BuildI18nOptions({
+ *             messages: {
+ *                 'zh-CN': {cli: {commands: {greet: {description: '问候某人'}}, help: {usage: '用法：', options: '选项：'}}}
+ *             }
+ *         }),
+ *         entrypoint: BuildEntrypoints({
+ *             controllers: [GreetController],
+ *             //The controllers' Translator in the same language
+ *             middlewares: [I18nMiddleware],
+ *             //LANG=zh_CN.UTF-8 tool --help: the help in Chinese
+ *             cli: CommanderCLIEntrypoint({bin: 'tool', translate: CommanderTranslator({environment: 'TOOL_LANG'})})
+ *         })
+ *     },
+ *     bootstrap: ['entrypoint']
+ * }))
+ * ```
  */
 export function CommanderTranslator(options: CommanderTranslatorOptions = {}): (module: Module) => Promise<CLITranslate> {
     const prefix: string = options.prefix ?? 'cli'

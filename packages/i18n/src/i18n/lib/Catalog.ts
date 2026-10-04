@@ -5,12 +5,15 @@ import {I18nCatalogException} from '../exceptions/I18nCatalogException.js'
 import {NormalizeLocale} from './Locale.js'
 
 /**
- * The messages of a language, nested by the parts of their keys: {"order": {"count": "..."}} is order.count
+ * The messages of a language, nested by the parts of their keys: `{order: {count: '...'}}` holds the key
+ * `order.count`. A key part cannot be empty or contain `.`, and every leaf is a string (ICU MessageFormat, or a
+ * validation template under `validation`).
  */
 export type NestedMessages = { [key: string]: string | NestedMessages }
 
 /**
- * The messages of the languages, by language then by key (order.count)
+ * Loaded messages, by canonical language tag then by full key (`order.count`), as {@link LoadCatalogs} gives them to
+ * {@link CheckCatalogs} and {@link GenerateMessageTypes}.
  */
 export type Catalogs = Map<string, Map<string, string>>
 

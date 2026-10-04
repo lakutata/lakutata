@@ -55,6 +55,15 @@ describe('The I18n middleware', (): void => {
         assert.deepStrictEqual(middleware.languages(HTTP('/orders', {})), [])
     })
 
+    it('reads the languages of the HTTP request of the HTTP service and JSON-RPC adapters', (): void => {
+        process.env = {LANG: 'ja_JP.UTF-8'}
+        const request: IncomingMessage = HTTP('/rpc?lang=ja', {'cookie': 'lang=zh-CN', 'accept-language': 'fr, en;q=0.5'}).request
+        //The HTTP service adapter, JSON-RPC over HTTP
+        assert.deepStrictEqual(middleware.languages(new ServiceContext({data: {}, request: request})), ['ja', 'zh-CN', 'fr', 'en'])
+        //JSON-RPC over WebSocket: the request opening the connection, the socket having no handshake
+        assert.deepStrictEqual(middleware.languages(new ServiceContext({data: {}, socket: {readyState: 1}, request: HTTP('/rpc', {'accept-language': 'zh-CN'}).request})), ['zh-CN'])
+    })
+
     it('reads the languages of a Socket.IO connection, of the environment for the command line and Electron, none for the schedules', (): void => {
         const socket = {handshake: {query: {lang: 'zh-CN'}, headers: {'accept-language': 'ja'}}}
         assert.deepStrictEqual(middleware.languages(new ServiceContext({data: {}, socket: socket})), ['zh-CN', 'ja'])
@@ -93,7 +102,7 @@ describe('The I18n middleware', (): void => {
 
     it('translates the help of the Commander adapter with the messages of the component', async (): Promise<void> => {
         const i18n: I18n = await container.get(I18n)
-        i18n.addMessages('zh-CN', {cli: {help: {usage: '用法：', default: '默认：{value}'}, commands: {greet: {description: '问候某人'}}}})
+        await i18n.addMessages('zh-CN', {cli: {help: {usage: '用法：', default: '默认：{value}'}, commands: {greet: {description: '问候某人'}}}})
         const module = {getObject: async (): Promise<I18n> => i18n} as unknown as Module
         process.env = {LANG: 'en_US.UTF-8', TOOL_LANG: 'zh-CN'}
         const chinese = await CommanderTranslator({component: 'unused', environment: 'TOOL_LANG'})(module)
@@ -118,7 +127,7 @@ describe('The I18n middleware', (): void => {
             public errno: string = 'E_OTHER'
         }
         const i18n: I18n = await container.get(I18n)
-        i18n.addMessages('zh-CN', {errors: {E_LIMIT: '{0} 超过了上限 {1}', E_OTHER: '缺少 {missing}'}})
+        await i18n.addMessages('zh-CN', {errors: {E_LIMIT: '{0} 超过了上限 {1}', E_OTHER: '缺少 {missing}'}})
         const run = async (fail: () => never | Promise<never>): Promise<unknown> => {
             const scope: Container = container.createScope()
             try {

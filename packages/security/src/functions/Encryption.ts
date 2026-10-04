@@ -1,5 +1,6 @@
 import {createCipheriv, createDecipheriv, hkdfSync, randomBytes, scrypt as scryptCallback, type ScryptOptions} from 'node:crypto'
 import {DecryptionFailedException} from '../exceptions/DecryptionFailedException.js'
+import {AssertKey} from '../lib/AssertKey.js'
 
 /**
  * The versions of the encrypted data: the key derivation (the cipher is AES-256-GCM)
@@ -87,26 +88,68 @@ function open(part: { header: Buffer, iv: Buffer, tag: Buffer, ciphertext: Buffe
 }
 
 /**
- * Encrypt data with a key (AES-256-GCM, with a key derived for the message): the encrypted data is authenticated,
- * base64url encoded
- * @param data
- * @param key
+ * Encrypt data with a secret key, using AES-256-GCM (authenticated encryption): the output is confidential and
+ * tamper-proof. Each call derives a fresh key from the key and a random 16-byte salt (HKDF-SHA256) and uses a random
+ * 12-byte IV, so encrypting the same data twice gives different outputs. The {@link Crypt} provider does the same with
+ * configured keys and key rotation.
+ *
+ * The key must be random (see {@link GenerateKey}): its derivation is fast, so a password used as a key is open to
+ * brute force; use {@link EncryptByPassword} for passwords. The function refuses an empty key, but does not check
+ * the key's length or strength otherwise.
+ * @param data The data to encrypt: a string (encrypted as its UTF-8 bytes) or bytes.
+ * @param key The secret key: a string (used as its UTF-8 bytes, not decoded from base64) or bytes, not empty; 32
+ * random bytes recommended.
+ * @returns The encrypted data, base64url encoded without padding: 1 version byte, the salt, the IV, a 16-byte
+ * authentication tag and the ciphertext (45 bytes more than the data, before base64url).
+ * @throws {RangeError} When the key is empty.
+ * @example
+ * ```typescript
+ * import {DecryptByKey, EncryptByKey, GenerateKey} from 'lakutata/security'
+ *
+ * const key: string = process.env.CRYPT_KEY ?? GenerateKey()
+ * const encrypted: string = EncryptByKey('card ending 4242', key)
+ * console.log(DecryptByKey(encrypted, key).toString('utf8'))
+ * ```
  */
 export function EncryptByKey(data: string | Uint8Array, key: string | Uint8Array): string {
+    AssertKey(key)
     const salt: Buffer = randomBytes(SALT_LENGTH)
     return seal(KEY_VERSION, salt, deriveKey(key, salt), data)
 }
 
 /**
- * Decrypt data encrypted by EncryptByKey(), with one of the keys (the keys are tried in order, for key rotation)
- * @param encrypted
- * @param keys
- * @throws DecryptionFailedException when no key decrypts the data, or the data was changed
+ * Decrypt data encrypted by {@link EncryptByKey} (or {@link Crypt.encrypt}) with one of the keys, tried in order: list
+ * the current key and the previous ones during a key rotation. The authentication tag is checked before anything is
+ * returned, so changed data is never decrypted.
+ * @param encrypted The encrypted data, base64url as {@link EncryptByKey} returns it.
+ * @param keys The key, or the keys to try: strings (used as their UTF-8 bytes) or bytes, none empty.
+ * @returns The decrypted bytes (call `.toString('utf8')` for a string).
+ * @throws {DecryptionFailedException} When no key decrypts the data, or it was changed, truncated or not produced by
+ * {@link EncryptByKey} (data encrypted by {@link EncryptByPassword} included).
+ * @throws {RangeError} When a key is empty.
+ * @example
+ * ```typescript
+ * import {DecryptByKey, DecryptionFailedException} from 'lakutata/security'
+ *
+ * declare const encrypted: string
+ * declare const currentKey: string
+ * declare const previousKey: string
+ *
+ * try {
+ *     //The new key first, the previous one while old data remains
+ *     const secret: string = DecryptByKey(encrypted, [currentKey, previousKey]).toString('utf8')
+ *     console.log(secret)
+ * } catch (error) {
+ *     if (error instanceof DecryptionFailedException) console.log('Changed, or encrypted with an unknown key')
+ * }
+ * ```
  */
 export function DecryptByKey(encrypted: string, keys: string | Uint8Array | (string | Uint8Array)[]): Buffer {
+    const candidates: (string | Uint8Array)[] = Array.isArray(keys) ? keys : [keys]
+    candidates.forEach(AssertKey)
     const part: ReturnType<typeof parts> = parts(encrypted, KEY_VERSION)
     if (part) {
-        for (const key of Array.isArray(keys) ? keys : [keys]) {
+        for (const key of candidates) {
             const decrypted: Buffer | undefined = open(part, deriveKey(key, part.salt))
             if (decrypted) return decrypted
         }
@@ -115,10 +158,22 @@ export function DecryptByKey(encrypted: string, keys: string | Uint8Array | (str
 }
 
 /**
- * Encrypt data with a password (AES-256-GCM, with a key derived from the password by scrypt): the encrypted data is
- * authenticated, base64url encoded
- * @param data
- * @param password
+ * Encrypt data with a password chosen by a person, using AES-256-GCM (authenticated encryption) with a key derived
+ * from the password and a random 16-byte salt by scrypt (N = 16384, r = 8, p = 1: about 16 MB of memory and a few
+ * tens of milliseconds per call, off the main thread). The slow derivation makes guessing the password costly; a
+ * strong password still matters. For a random key, {@link EncryptByKey} is faster. To check a login password, use
+ * {@link PasswordHash} instead.
+ * @param data The data to encrypt: a string (encrypted as its UTF-8 bytes) or bytes.
+ * @param password The password: a string (used as its UTF-8 bytes) or bytes. Its length is not checked.
+ * @returns The encrypted data, base64url encoded without padding, in the format of {@link EncryptByKey} with another
+ * version byte: the two are not interchangeable.
+ * @example
+ * ```typescript
+ * import {DecryptByPassword, EncryptByPassword} from 'lakutata/security'
+ *
+ * const encrypted: string = await EncryptByPassword('backup contents', 'a long passphrase of the user')
+ * console.log((await DecryptByPassword(encrypted, 'a long passphrase of the user')).toString('utf8'))
+ * ```
  */
 export async function EncryptByPassword(data: string | Uint8Array, password: string | Uint8Array): Promise<string> {
     const salt: Buffer = randomBytes(SALT_LENGTH)
@@ -126,10 +181,26 @@ export async function EncryptByPassword(data: string | Uint8Array, password: str
 }
 
 /**
- * Decrypt data encrypted by EncryptByPassword()
- * @param encrypted
- * @param password
- * @throws DecryptionFailedException when the password does not decrypt the data, or the data was changed
+ * Decrypt data encrypted by {@link EncryptByPassword}, deriving the key from the password and the salt stored in the
+ * data (the same scrypt cost).
+ * @param encrypted The encrypted data, base64url as {@link EncryptByPassword} returns it.
+ * @param password The password it was encrypted with: a string (used as its UTF-8 bytes) or bytes.
+ * @returns The decrypted bytes (call `.toString('utf8')` for a string).
+ * @throws {DecryptionFailedException} When the password is wrong, or the data was changed, truncated or not produced
+ * by {@link EncryptByPassword} (data encrypted by {@link EncryptByKey} included).
+ * @example
+ * ```typescript
+ * import {DecryptByPassword, DecryptionFailedException} from 'lakutata/security'
+ *
+ * declare const encrypted: string
+ * declare const passphrase: string
+ *
+ * try {
+ *     console.log((await DecryptByPassword(encrypted, passphrase)).toString('utf8'))
+ * } catch (error) {
+ *     if (error instanceof DecryptionFailedException) console.log('Wrong passphrase, or changed data')
+ * }
+ * ```
  */
 export async function DecryptByPassword(encrypted: string, password: string | Uint8Array): Promise<Buffer> {
     const part: ReturnType<typeof parts> = parts(encrypted, PASSWORD_VERSION)

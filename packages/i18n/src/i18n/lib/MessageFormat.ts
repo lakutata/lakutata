@@ -2,17 +2,90 @@ import {I18nMessageSyntaxException} from '../exceptions/I18nMessageSyntaxExcepti
 import {I18nMissingParameterException} from '../exceptions/I18nMissingParameterException.js'
 
 /**
- * A part of a parsed message: a text, an argument ({name}, {name, number}, {name, date, short}), a choice (plural,
- * selectordinal, select), or the number of the closest plural (#)
+ * A part of a message parsed by {@link ParseMessage}: a literal text (a string, its quoting already removed), a plain
+ * argument (`{name}`), a number argument (`{n, number, percent}`), a date or time argument (`{at, date, short}`), a
+ * choice (`plural`, `selectordinal`, `select`), or the `#` of a plural (its number).
  */
 export type MessagePart =
     | string
-    | { type: 'argument', name: string }
-    | { type: 'number', name: string, style?: string }
-    | { type: 'date' | 'time', name: string, style?: string }
-    | { type: 'plural' | 'selectordinal', name: string, offset: number, options: Record<string, MessagePart[]> }
-    | { type: 'select', name: string, options: Record<string, MessagePart[]> }
-    | { type: 'pound' }
+    | {
+        /**
+         * A plain argument, `{name}`: a number formatted in the language, a `Date` as a date, anything else as a string.
+         */
+        type: 'argument'
+        /**
+         * The name of the argument.
+         */
+        name: string
+    }
+    | {
+        /**
+         * A number argument, `{name, number}` or `{name, number, style}`.
+         */
+        type: 'number'
+        /**
+         * The name of the argument.
+         */
+        name: string
+        /**
+         * The style: `integer`, `percent`, `currency` or `currency/XXX` (an ISO 4217 code); absent for a plain number.
+         */
+        style?: string
+    }
+    | {
+        /**
+         * A date argument (`{name, date, style}`) or a time argument (`{name, time, style}`).
+         */
+        type: 'date' | 'time'
+        /**
+         * The name of the argument.
+         */
+        name: string
+        /**
+         * The style: `short`, `medium`, `long` or `full`; absent for `medium`.
+         */
+        style?: string
+    }
+    | {
+        /**
+         * A cardinal (`plural`) or ordinal (`selectordinal`) choice on a number argument.
+         */
+        type: 'plural' | 'selectordinal'
+        /**
+         * The name of the argument.
+         */
+        name: string
+        /**
+         * The `offset:` of the choice, subtracted from the number before its plural rule and its `#`; 0 without it.
+         */
+        offset: number
+        /**
+         * The messages by selector: `=0` (an exact value, matched before the offset), a plural category of the
+         * language (`zero`, `one`, `two`, `few`, `many`), and the required `other`.
+         */
+        options: Record<string, MessagePart[]>
+    }
+    | {
+        /**
+         * A choice on the string value of an argument, `{name, select, admin {...} other {...}}`.
+         */
+        type: 'select'
+        /**
+         * The name of the argument.
+         */
+        name: string
+        /**
+         * The messages by value of the argument, and the required `other`.
+         */
+        options: Record<string, MessagePart[]>
+    }
+    | {
+        /**
+         * The `#` of a plural: the number of the closest enclosing `plural` or `selectordinal` (minus its offset),
+         * formatted in the language.
+         */
+        type: 'pound'
+    }
 
 /**
  * How a message is formatted
@@ -28,9 +101,14 @@ export type FormatContext = {
      */
     timeZone?: string
     /**
-     * An argument missing: thrown, or kept as it is written ({name})
+     * An argument or a currency missing: thrown, or kept (the argument as it is written, {name}; the number without
+     * currency) with a warning
      */
     missing: 'throw' | 'keep'
+    /**
+     * Told what is kept when missing is 'keep'
+     */
+    warn?: (warning: string) => void
 }
 
 const NUMBER_STYLES: RegExp = /^(integer|percent|currency|currency\/[A-Z]{3})$/
@@ -234,17 +312,41 @@ class MessageParser {
 }
 
 /**
- * Parse a message of ICU MessageFormat
- * @param message
- * @param source where the message is (its key), for the errors
+ * Parse an ICU MessageFormat message into its parts, to inspect it (its arguments: {@link MessageArguments}). The
+ * syntax: `{name}`; `{name, number}` with the styles `integer`, `percent`, `currency`, `currency/XXX`; `{name, date}`
+ * and `{name, time}` with the styles `short`, `medium`, `long`, `full`; `{name, plural, ...}` (with `offset:n`),
+ * `{name, selectordinal, ...}` and `{name, select, ...}`, each requiring an `other` option; `#` in a plural; `''` for
+ * an apostrophe and `'{...}'` to quote the braces (and `#` in a plural). Other argument types and the skeletons
+ * (`::currency/EUR`) are not supported.
+ * @param message The message.
+ * @param source Where the message comes from (`zh-CN: order.count`), the prefix of the error messages: `'message'` by
+ * default.
+ * @returns The parts of the message.
+ * @throws {I18nMessageSyntaxException} When the message is not valid, with the source and the position.
+ * @example
+ * ```typescript
+ * import {ParseMessage, type MessagePart} from 'lakutata/com/i18n'
+ *
+ * const parts: MessagePart[] = ParseMessage('{count, plural, one {# order} other {# orders}} for {customer}')
+ * console.log(parts.length) //3
+ * ```
  */
 export function ParseMessage(message: string, source: string = 'message'): MessagePart[] {
     return new MessageParser(message, source).parse()
 }
 
 /**
- * The names of the arguments of a parsed message (its type for the checks of the translations)
- * @param parts
+ * List the arguments a parsed message uses, nested choices included, with the type of their first use: `argument`,
+ * `number`, `date`, `time`, `plural`, `selectordinal` or `select`.
+ * @param parts The parts of the message, from {@link ParseMessage}.
+ * @returns The argument types by argument name, in their order in the message.
+ * @example
+ * ```typescript
+ * import {MessageArguments, ParseMessage} from 'lakutata/com/i18n'
+ *
+ * const args: Map<string, string> = MessageArguments(ParseMessage('{count, plural, other {# orders}} for {customer}'))
+ * console.log([...args]) //[['count', 'plural'], ['customer', 'argument']]
+ * ```
  */
 export function MessageArguments(parts: MessagePart[]): Map<string, string> {
     const names: Map<string, string> = new Map()
@@ -305,7 +407,9 @@ export function FormatMessage(parts: MessagePart[], params: Record<string, unkno
             }
             const value: unknown = params[part.name]
             if (value === undefined) {
-                if (context.missing === 'throw') throw new I18nMissingParameterException(`${source}: the argument "${part.name}" is missing`)
+                const missing: string = `${source}: the argument "${part.name}" is missing`
+                if (context.missing === 'throw') throw new I18nMissingParameterException(missing)
+                context.warn?.(missing)
                 text += `{${part.name}}`
                 continue
             }
@@ -353,8 +457,11 @@ function NumberOptions(style: string | undefined, params: Record<string, unknown
     if (style?.startsWith('currency')) {
         //The currency of the style, of the parameters, of the configuration
         const currency: unknown = style.split('/')[1] ?? params.currency ?? context.currency
-        if (typeof currency !== 'string') throw new I18nMissingParameterException(`${source}: the currency is missing (currency/XXX, the "currency" argument, or the currency of the configuration)`)
-        return {style: 'currency', currency: currency}
+        if (typeof currency === 'string') return {style: 'currency', currency: currency}
+        const missing: string = `${source}: the currency is missing (currency/XXX, the "currency" argument, or the currency of the configuration)`
+        if (context.missing === 'throw') throw new I18nMissingParameterException(missing)
+        //Kept: the number without currency
+        context.warn?.(missing)
     }
     return {}
 }

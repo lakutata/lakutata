@@ -43,14 +43,40 @@ describe('PasswordHash', (): void => {
         await assert.rejects(passwordHash.hash('x'.repeat(73)), PasswordTooLongException)
         //Bytes, not characters: 25 characters of 3 bytes
         await assert.rejects(passwordHash.hash('密'.repeat(25)), {errno: 'E_PASSWORD_TOO_LONG', message: 'The password is longer than 72 bytes'})
+        //Never hashed: not valid, even when its first 72 bytes match
+        const hash: string = await passwordHash.hash('x'.repeat(72))
+        assert.strictEqual(bcrypt.compareSync('x'.repeat(73), hash), true)
+        assert.strictEqual(await passwordHash.validate('x'.repeat(73), hash), false)
         await container.destroy()
+    })
+
+    it('does not validate against a value which is not a bcrypt hash', async (): Promise<void> => {
+        const container: Container = new Container()
+        const passwordHash: PasswordHash = await container.set(PasswordHash, {saltRounds: 4})
+        const hash: string = await passwordHash.hash('secret')
+        const malformed: string[] = [
+            '',
+            'secret',
+            hash.slice(0, 59),
+            //60 characters: a wrong variant, a wrong cost, a character out of the alphabet
+            `$2x$${hash.slice(4)}`,
+            `$2b$03$${hash.slice(7)}`,
+            `$2b$32$${hash.slice(7)}`,
+            `${hash.slice(0, 30)}!${hash.slice(31)}`,
+            'x'.repeat(60)
+        ]
+        for (const value of malformed) assert.strictEqual(await passwordHash.validate('secret', value), false, value)
+        assert.strictEqual(await passwordHash.validate('secret', undefined as unknown as string), false)
+        assert.ok(await passwordHash.validate('secret', hash))
     })
 
     it('defaults to 10 salt rounds, and validates the rounds', async (): Promise<void> => {
         const container: Container = new Container()
         assert.strictEqual((await container.set(PasswordHash)).saltRounds, 10)
         await assert.rejects(container.set(PasswordHash, {saltRounds: 0}))
+        await assert.rejects(container.set(PasswordHash, {saltRounds: 3}))
         await assert.rejects(container.set(PasswordHash, {saltRounds: 32}))
+        assert.strictEqual((await container.set(PasswordHash, {saltRounds: 31})).saltRounds, 31)
         await container.destroy()
     })
 })

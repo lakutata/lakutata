@@ -70,6 +70,17 @@ describe('Security functions', (): void => {
         assert.strictEqual(DecryptByKey(EncryptByKey('', OLD_KEY), OLD_KEY).toString(), '')
     })
 
+    it('refuse an empty key', (): void => {
+        for (const empty of ['', new Uint8Array(0)]) {
+            assert.throws((): unknown => HMAC('data', empty), {name: 'RangeError', message: 'The key is empty'})
+            assert.throws((): unknown => VerifyHMAC('data', HMAC('data', OLD_KEY), empty), RangeError)
+            assert.throws((): unknown => EncryptByKey('data', empty), RangeError)
+            assert.throws((): unknown => DecryptByKey(EncryptByKey('data', OLD_KEY), empty), RangeError)
+            //Among the keys too, even after the one decrypting
+            assert.throws((): unknown => DecryptByKey(EncryptByKey('data', OLD_KEY), [OLD_KEY, empty]), RangeError)
+        }
+    })
+
     it('encrypt and decrypt with passwords', async (): Promise<void> => {
         const encrypted: string = await EncryptByPassword('secret', 'correct horse battery staple')
         assert.strictEqual((await DecryptByPassword(encrypted, 'correct horse battery staple')).toString(), 'secret')

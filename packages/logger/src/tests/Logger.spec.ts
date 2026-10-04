@@ -3,6 +3,8 @@ import assert from 'node:assert'
 import {execFileSync} from 'node:child_process'
 import {fileURLToPath} from 'node:url'
 import {PassThrough} from 'node:stream'
+import {IncomingMessage, ServerResponse} from 'node:http'
+import {Socket} from 'node:net'
 import {Container} from '@lakutata/core'
 import {Logger} from '../exports/Logger.js'
 
@@ -91,5 +93,55 @@ process.exit(0)`)
         assert.strictEqual(lines[1].err.message, 'outer: inner')
         //The stacks keep the causes
         assert.strictEqual(lines[0].err.stack.split('caused by: ').length, 3)
+    })
+    it('logs the fatal errors above the errors, at once', async (): Promise<void> => {
+        const json = Collector()
+        const container: Container = new Container()
+        const fatalOnly: Logger = await container.set(Logger, {level: 'fatal', pretty: false, destinations: [json.stream]})
+        fatalOnly.error('hidden')
+        fatalOnly.fatal({code: 3}, 'shutting down after %s', 'a failure')
+        //Written without a flush, before the buffered lines (the next turn of the event loop); the stream emits it on
+        //the next tick
+        await new Promise((resolve: (value: unknown) => void): unknown => process.nextTick(resolve))
+        const lines: Record<string, any>[] = json.text().split('\n').filter(Boolean).map((line: string): Record<string, any> => JSON.parse(line))
+        assert.deepStrictEqual(lines.map((line: Record<string, any>): unknown[] => [line.level, line.code, line.msg]), [[60, 3, 'shutting down after a failure']])
+        const silent = Collector()
+        const silentLogger: Logger = await new Container().set(Logger, {level: 'silent', destinations: [silent.stream]})
+        silentLogger.fatal(new Error('lost'))
+        silentLogger.flush()
+        assert.strictEqual(silent.text(), '')
+        const pretty = Collector()
+        const prettyLogger: Logger = await new Container().set(Logger, {destinations: [pretty.stream]})
+        prettyLogger.fatal(new Error('crash'))
+        await new Promise((resolve: (value: unknown) => void): unknown => process.nextTick(resolve))
+        assert.match(pretty.text(), /FATAL \(Unknown\/\d+\): crash\n/)
+        await container.destroy()
+    })
+
+    it('redacts the credential headers of the requests and the responses', async (): Promise<void> => {
+        const request: IncomingMessage = new IncomingMessage(new Socket())
+        request.method = 'GET'
+        request.url = '/orders'
+        request.headers = {'authorization': 'Bearer secret', 'cookie': 'session=secret', 'proxy-authorization': 'Basic secret', 'x-api-key': 'key', 'accept': '*/*'}
+        const response: ServerResponse = new ServerResponse(request)
+        response.setHeader('Set-Cookie', 'session=secret')
+        response.setHeader('Content-Type', 'text/plain')
+        const logged = async (options: Record<string, unknown>): Promise<Record<string, any>[]> => {
+            const json = Collector()
+            const logger: Logger = await new Container().set(Logger, {pretty: false, destinations: [json.stream], ...options})
+            logger.info(request, 'request')
+            logger.info(response, 'response')
+            logger.flush()
+            return json.text().split('\n').filter(Boolean).map((line: string): Record<string, any> => JSON.parse(line))
+        }
+        const [requestLine, responseLine] = await logged({})
+        assert.deepStrictEqual(requestLine.req.headers, {'authorization': '[Redacted]', 'cookie': '[Redacted]', 'proxy-authorization': '[Redacted]', 'x-api-key': 'key', 'accept': '*/*'})
+        assert.deepStrictEqual(responseLine.res.headers, {'set-cookie': '[Redacted]', 'content-type': 'text/plain'})
+        //The headers themselves are not changed
+        assert.strictEqual(request.headers.authorization, 'Bearer secret')
+        assert.strictEqual(response.getHeader('set-cookie'), 'session=secret')
+        //Other headers, case-insensitive; none
+        assert.deepStrictEqual((await logged({redactedHeaders: ['Authorization', 'X-API-Key']}))[0].req.headers, {'authorization': '[Redacted]', 'cookie': 'session=secret', 'proxy-authorization': 'Basic secret', 'x-api-key': '[Redacted]', 'accept': '*/*'})
+        assert.strictEqual((await logged({redactedHeaders: []}))[1].res.headers['set-cookie'], 'session=secret')
     })
 })

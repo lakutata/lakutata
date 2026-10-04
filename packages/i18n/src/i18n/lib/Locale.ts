@@ -1,7 +1,18 @@
 /**
- * The tag of a language (BCP 47), canonical: zh-CN, zh-Hant-TW, en. The tags of the environment (zh_CN.UTF-8,
- * en_US@euro) are converted; an invalid tag gives undefined
- * @param tag
+ * Give the canonical BCP 47 form of a language tag (`zh-cn` gives `zh-CN`, `iw` gives `he`). The POSIX locales of the
+ * environment are converted: their encoding and modifier dropped, `_` replaced by `-` (`zh_CN.UTF-8` gives `zh-CN`,
+ * `en_US@euro` gives `en-US`).
+ * @param tag The tag; surrounding spaces are ignored.
+ * @returns The canonical tag; `undefined` for an invalid tag, a tag whose language is not 2 or 3 letters, `C`,
+ * `POSIX`, `*` and the empty string.
+ * @example
+ * ```typescript
+ * import {NormalizeLocale} from 'lakutata/com/i18n'
+ *
+ * console.log(NormalizeLocale('zh_CN.UTF-8')) //zh-CN
+ * console.log(NormalizeLocale('zh-hant-tw')) //zh-Hant-TW
+ * console.log(NormalizeLocale('C')) //undefined
+ * ```
  */
 export function NormalizeLocale(tag: string): string | undefined {
     //The encoding and the modifier of the locales of the environment: zh_CN.UTF-8, de_DE@euro
@@ -25,8 +36,17 @@ export function LanguageOf(locale: string): string {
 }
 
 /**
- * The languages of an Accept-Language header, by their quality (the first one preferred): "zh-CN,zh;q=0.9,en;q=0.8"
- * @param header
+ * Read the languages of an `Accept-Language` header, preferred first: by decreasing quality (`q`, 1 when absent),
+ * then in their order in the header. The tags are normalized ({@link NormalizeLocale}); the invalid ones, `*`, and the
+ * ones of quality 0 or an invalid quality are dropped.
+ * @param header The value of the header (`zh-CN,zh;q=0.9,en;q=0.8`).
+ * @returns The language tags, preferred first; empty without a header.
+ * @example
+ * ```typescript
+ * import {ParseAcceptLanguage} from 'lakutata/com/i18n'
+ *
+ * console.log(ParseAcceptLanguage('en;q=0.5,fr,*;q=0.1')) //['fr', 'en']
+ * ```
  */
 export function ParseAcceptLanguage(header: string | undefined): string[] {
     if (!header) return []
@@ -43,8 +63,18 @@ export function ParseAcceptLanguage(header: string | undefined): string[] {
 }
 
 /**
- * The languages of the environment of a process, preferred first: LANGUAGE (a list), LC_ALL, LC_MESSAGES, LANG
- * @param environment
+ * Read the languages of a process environment, preferred first, as gettext does: the locale is the first of `LC_ALL`,
+ * `LC_MESSAGES` and `LANG` which is set; the colon-separated list of `LANGUAGE` comes before it, but only when that
+ * locale is set and valid (not `C` or `POSIX`). The tags are normalized ({@link NormalizeLocale}), the invalid ones
+ * and the duplicates dropped.
+ * @param environment The environment variables: `process.env` by default.
+ * @returns The language tags, preferred first; empty when the environment gives none.
+ * @example
+ * ```typescript
+ * import {EnvironmentLocales} from 'lakutata/com/i18n'
+ *
+ * console.log(EnvironmentLocales({LANG: 'zh_CN.UTF-8', LANGUAGE: 'zh_TW:en'})) //['zh-TW', 'en', 'zh-CN']
+ * ```
  */
 export function EnvironmentLocales(environment: NodeJS.ProcessEnv = process.env): string[] {
     //LANGUAGE is used by gettext only when the locale is not C
@@ -65,12 +95,22 @@ export function ProcessLocales(variable?: string, environment: NodeJS.ProcessEnv
 }
 
 /**
- * The language among the supported ones for the requested ones, preferred first: the same tag, the language of the
- * requested one supported alone (en-GB → en), a tag of the same language (en-GB → en-US, in the order of the supported
- * ones); the default one when none matches
- * @param requested
- * @param supported
- * @param defaultLocale
+ * Choose the supported language for the requested ones. Each requested language is tried in turn, preferred first,
+ * and the first match wins: the same tag (case-insensitive), then its language alone (`en-GB` matches `en`), then
+ * another tag of its language (`pt-PT` matches `pt-BR`, the first one in the order of `supported`). The invalid
+ * requested tags are skipped.
+ * @param requested The requested language tags, preferred first (from {@link ParseAcceptLanguage} or
+ * {@link EnvironmentLocales}).
+ * @param supported The supported language tags.
+ * @param defaultLocale The language returned when none of the requested ones matches.
+ * @returns The matching tag as written in `supported`, or `defaultLocale`.
+ * @example
+ * ```typescript
+ * import {NegotiateLocale} from 'lakutata/com/i18n'
+ *
+ * console.log(NegotiateLocale(['pt-PT', 'en'], ['en', 'pt-BR'], 'en')) //pt-BR
+ * console.log(NegotiateLocale(['de'], ['en', 'zh-CN'], 'en')) //en
+ * ```
  */
 export function NegotiateLocale(requested: string[], supported: string[], defaultLocale: string): string {
     const canonical: string[] = supported.map((tag: string): string => NormalizeLocale(tag) ?? tag)
@@ -92,11 +132,21 @@ export function NegotiateLocale(requested: string[], supported: string[], defaul
 }
 
 /**
- * The languages looked up for a message of a language, in their order: the language, its fallbacks (and theirs), the
- * tags it is more specific than (zh-Hant-TW → zh-Hant → zh), the default language
- * @param locale
- * @param fallbacks
- * @param defaultLocale
+ * List the languages a message of a language is looked up in, in their order, each once: the language, then each of
+ * its configured fallbacks (followed by their own fallbacks and less specific tags), then its less specific tags
+ * (`zh-Hant-TW`, `zh-Hant`, `zh`), then the default language (and its own fallbacks and less specific tags). The tags
+ * are not normalized: give canonical ones.
+ * @param locale The language tag of the message asked.
+ * @param fallbacks The configured fallbacks, by language tag.
+ * @param defaultLocale The default language tag.
+ * @returns The language tags, in lookup order.
+ * @example
+ * ```typescript
+ * import {FallbackChain} from 'lakutata/com/i18n'
+ *
+ * console.log(FallbackChain('zh-TW', {'zh-TW': ['zh-CN']}, 'en')) //['zh-TW', 'zh-CN', 'zh', 'en']
+ * console.log(FallbackChain('zh-Hant-TW', {}, 'en')) //['zh-Hant-TW', 'zh-Hant', 'zh', 'en']
+ * ```
  */
 export function FallbackChain(locale: string, fallbacks: Record<string, string[]>, defaultLocale: string): string[] {
     const chain: string[] = []

@@ -1,15 +1,29 @@
 import {DefaultValidationMessages} from '@lakutata/core'
 import {LoadDirectory, type Catalogs} from './Catalog.js'
+import {I18nCatalogException} from '../exceptions/I18nCatalogException.js'
 import {NormalizeLocale} from './Locale.js'
 import {MessageArguments, ParseMessage, type MessagePart} from './MessageFormat.js'
 
 /**
- * A problem of the messages: an error (a message which cannot be right) or a warning (a message to look at)
+ * A problem found by {@link CheckCatalogs} in the messages.
  */
 export type CatalogIssue = {
+    /**
+     * `'error'` for a message which cannot be right (it fails or loses an argument when it is formatted), `'warning'`
+     * for a message to look at (missing, or not translated yet).
+     */
     level: 'error' | 'warning'
+    /**
+     * The language tag of the message.
+     */
     locale: string
+    /**
+     * The key of the message (`order.count`); `''` when the default language has no messages at all.
+     */
     key: string
+    /**
+     * What is wrong, in English.
+     */
     message: string
 }
 
@@ -20,8 +34,21 @@ export type CatalogIssue = {
 const VALIDATION_PREFIX: string = 'validation.'
 
 /**
- * Load the messages of directories (a file or a directory by language), the later ones replacing the earlier ones
- * @param directories
+ * Load the messages of directories as the {@link I18n} component does, to check them or generate their types out of
+ * an application (in a script, a test or the CI).
+ * @param directories The directories, each holding a JSON file (`zh-CN.json`) or a directory (`zh-CN/order.json`) per
+ * language; paths resolved from the working directory (the aliases are not resolved). The later directories replace
+ * the same keys of the earlier ones.
+ * @returns The messages, by language then by key.
+ * @throws {I18nCatalogException} When a directory is missing, a file is not valid JSON, a name is not a language tag
+ * or a key is invalid.
+ * @example
+ * ```typescript
+ * import {LoadCatalogs, type Catalogs} from 'lakutata/com/i18n'
+ *
+ * const catalogs: Catalogs = await LoadCatalogs(['./locales'])
+ * for (const [locale, messages] of catalogs) console.log(locale, messages.size)
+ * ```
  */
 export async function LoadCatalogs(directories: string[]): Promise<Catalogs> {
     const catalogs: Catalogs = new Map()
@@ -54,13 +81,26 @@ function Parse(issues: CatalogIssue[], locale: string, key: string, message: str
 }
 
 /**
- * Check the messages of the languages against the ones of the default language:
- * - errors: a syntax error, a key the default language does not have, an argument the default message does not have
- *   (missing when it is formatted), the validation messages of an unknown code or with variables of another code;
- * - warnings: a key missing (the message of a fallback is given), an argument of the default message not used, a message
- *   the same as the default one (not translated yet)
- * @param catalogs
- * @param defaultLocale
+ * Check every language's messages against the default language's messages, as `lakutata i18n check` does. It reports:
+ * - errors: an ICU syntax error (in any language), a key the default language does not have, an argument the default
+ *   message does not have (the code does not give it), a `validation.<code>` message whose code is unknown or which
+ *   uses a variable that code does not have (`{{#limit}}`);
+ * - warnings: a key of the default language missing in a language (its fallback is given), an argument of the default
+ *   message not used, a message identical to the default one and containing letters (not translated yet).
+ *
+ * The `validation.*` messages are not compared between languages; they need not exist in the default language.
+ * @param catalogs The messages, as {@link LoadCatalogs} gives them.
+ * @param defaultLocale The default language tag, normalized (`zh_CN` is `zh-CN`).
+ * @returns The issues, by language in alphabetical order; empty when everything is right. Only one error when the
+ * default language has no messages.
+ * @example
+ * ```typescript
+ * import {CheckCatalogs, LoadCatalogs, type CatalogIssue} from 'lakutata/com/i18n'
+ *
+ * const issues: CatalogIssue[] = CheckCatalogs(await LoadCatalogs(['./locales']), 'en')
+ * for (const issue of issues) console.log(`${issue.level} ${issue.locale} ${issue.key}: ${issue.message}`)
+ * if (issues.some((issue: CatalogIssue): boolean => issue.level === 'error')) process.exitCode = 1
+ * ```
  */
 export function CheckCatalogs(catalogs: Catalogs, defaultLocale: string): CatalogIssue[] {
     const issues: CatalogIssue[] = []
@@ -148,16 +188,30 @@ function Literal(value: string): string {
 }
 
 /**
- * The declaration of the keys of the messages of the default language and of their arguments (I18nMessages), for the
- * module the application imports the i18n from
- * @param catalogs
- * @param defaultLocale
- * @param moduleName lakutata/com/i18n, or @lakutata/i18n
+ * Generate the TypeScript declaration of the default language's message keys and their arguments (the
+ * {@link I18nMessages} augmentation), as `lakutata i18n types` does. Each argument is typed by its use: `number |
+ * bigint` for `{n, number}`, `number` for a plural, `string` for a select, `Date | number | string` for a date or a
+ * time, any scalar for a plain argument; a currency argument without its currency adds an optional `currency`. The
+ * `validation.*` messages are left out.
+ * @param catalogs The messages, as {@link LoadCatalogs} gives them.
+ * @param defaultLocale The default language tag, whose messages are declared.
+ * @param moduleName The module the application imports the i18n from, which the declaration augments:
+ * `'lakutata/com/i18n'` by default, `'@lakutata/i18n'` for the applications importing the package directly.
+ * @returns The source of a `.d.ts` file.
+ * @throws {I18nCatalogException} When the default language has no messages.
+ * @throws {I18nMessageSyntaxException} When a message of the default language is not valid ICU MessageFormat.
+ * @example
+ * ```typescript
+ * import {writeFile} from 'node:fs/promises'
+ * import {GenerateMessageTypes, LoadCatalogs} from 'lakutata/com/i18n'
+ *
+ * await writeFile('src/i18n.d.ts', GenerateMessageTypes(await LoadCatalogs(['./locales']), 'en'))
+ * ```
  */
 export function GenerateMessageTypes(catalogs: Catalogs, defaultLocale: string, moduleName: string = 'lakutata/com/i18n'): string {
     const base: string = NormalizeLocale(defaultLocale) ?? defaultLocale
     const defaults: Map<string, string> | undefined = catalogs.get(base)
-    if (!defaults) throw new Error(`There are no messages of the default language ${base}`)
+    if (!defaults) throw new I18nCatalogException(`There are no messages of the default language ${base}`)
     const lines: string[] = []
     for (const key of [...defaults.keys()].filter((name: string): boolean => !name.startsWith(VALIDATION_PREFIX)).sort()) {
         const parts: MessagePart[] = ParseMessage(defaults.get(key)!, `${base}: ${key}`)

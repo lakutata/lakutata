@@ -107,6 +107,13 @@ describe('The messages', (): void => {
         assert.strictEqual(await Format('{n, number, currency}', {n: 9.5, currency: 'USD'}, 'en'), '$9.50')
         assert.strictEqual(await Format('{n, number, currency}', {n: 9.5}, 'zh-CN', {currency: 'CNY'}), '¥9.50')
         await assert.rejects(Format('{n, number, currency}', {n: 9.5}, 'en'), I18nMissingParameterException)
+        //Without a currency and with missing: 'key', a plain number and a warning, once
+        const lenient: I18n = await Create({messages: {en: {total: 'Total: {n, number, currency}'}}, missing: 'key'})
+        const warnings: string[] = await Warnings((): void => {
+            assert.strictEqual(lenient.t('total', {n: 1234.5}), 'Total: 1,234.5')
+            assert.strictEqual(lenient.t('total', {n: 9.5}), 'Total: 9.5')
+        })
+        assert.deepStrictEqual(warnings, ['en: total: the currency is missing (currency/XXX, the "currency" argument, or the currency of the configuration)'])
         const at: Date = new Date(Date.UTC(2026, 9, 3, 14, 5))
         assert.strictEqual(await Format('{at, date, long} {at, time, short}', {at: at}, 'en', {timeZone: 'UTC'}), 'October 3, 2026 2:05 PM')
         assert.strictEqual(await Format('{at, date, long}', {at: at.getTime()}, 'zh-CN', {timeZone: 'UTC'}), '2026年10月3日')
@@ -186,7 +193,7 @@ describe('The i18n component', (): void => {
         assert.strictEqual(i18n.t('order.created', {customer: '山田'}, 'ja'), '山田 の注文を作成しました')
         assert.deepStrictEqual(i18n.getKeys('zh-TW').sort(), ['admin.user.title', 'order.count'])
         //Added at run time, the messages already formatted replaced
-        i18n.addMessages('zh-CN', {order: {count: '{count, plural, other {# 单}}'}})
+        await i18n.addMessages('zh-CN', {order: {count: '{count, plural, other {# 单}}'}})
         assert.strictEqual(i18n.t('order.count', {count: 2}, 'zh-CN'), '2 单')
     })
 
@@ -219,8 +226,17 @@ describe('The i18n component', (): void => {
             assert.strictEqual(lenient.t('order.missing', {}, 'zh-CN'), 'order.missing')
             assert.strictEqual(lenient.t('order.missing', {}, 'zh-CN'), 'order.missing')
             assert.strictEqual(lenient.t('order.created', {}, 'zh-CN'), '已为 {customer} 创建订单')
+            assert.strictEqual(lenient.t('order.created', {}, 'zh-CN'), '已为 {customer} 创建订单')
+            //Another message missing the same argument warns too
+            assert.strictEqual(lenient.t('order.created', {}, 'en'), 'Order created for {customer}')
+            assert.strictEqual(lenient.format('Hi {name}', {}), 'Hi {name}')
         })
-        assert.deepStrictEqual(warnings, ['No message "order.missing" in zh-CN, zh, en'])
+        assert.deepStrictEqual(warnings, [
+            'No message "order.missing" in zh-CN, zh, en',
+            'zh-CN: order.created: the argument "customer" is missing',
+            'en: order.created: the argument "customer" is missing',
+            'message "Hi {name}": the argument "name" is missing'
+        ])
         //By default: thrown, the key given in production
         const environment: string | undefined = process.env.NODE_ENV
         try {
@@ -230,6 +246,23 @@ describe('The i18n component', (): void => {
             if (environment === undefined) delete process.env.NODE_ENV
             else process.env.NODE_ENV = environment
         }
+    })
+
+    it('supports the languages added at run time, unless its languages are given', async (): Promise<void> => {
+        const i18n: I18n = await Create({messages: {en: {hello: 'Hello'}}, missing: 'throw'})
+        assert.deepStrictEqual(i18n.getLocales(), ['en'])
+        await i18n.addMessages('fr', {hello: 'Bonjour'})
+        await i18n.addMessages('de', {hello: 'Hallo'})
+        assert.deepStrictEqual(i18n.getLocales(), ['en', 'de', 'fr'])
+        assert.strictEqual(i18n.negotiate(['fr-CA']), 'fr')
+        assert.strictEqual(i18n.t('hello', {}, i18n.negotiate(['de-AT'])), 'Hallo')
+        //Invalid: thrown by the call, nothing added
+        assert.throws((): unknown => i18n.addMessages('not a tag', {hello: 'x'}), I18nCatalogException)
+        const fixed: I18n = await Create({locales: ['en'], messages: {en: {hello: 'Hello'}}, missing: 'throw'})
+        await fixed.addMessages('fr', {hello: 'Bonjour'})
+        assert.deepStrictEqual(fixed.getLocales(), ['en'])
+        assert.strictEqual(fixed.negotiate(['fr']), 'en')
+        assert.strictEqual(fixed.t('hello', {}, 'fr'), 'Bonjour')
     })
 
     it('refuses invalid catalogs, telling the file', async (): Promise<void> => {

@@ -3,7 +3,7 @@ import assert from 'node:assert'
 import {mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import {CheckCatalogs, GenerateMessageTypes, LoadCatalogs, type CatalogIssue, type Catalogs} from '../exports/I18n.js'
+import {CheckCatalogs, GenerateMessageTypes, I18nCatalogException, LoadCatalogs, type CatalogIssue, type Catalogs} from '../exports/I18n.js'
 
 describe('The tools of the messages', (): void => {
     let directory: string
@@ -84,6 +84,6 @@ declare module 'lakutata/com/i18n' {
 }
 `)
         assert.match(GenerateMessageTypes(catalogs, 'en', '@lakutata/i18n'), /^import '@lakutata\/i18n'\n\ndeclare module '@lakutata\/i18n' \{$/m)
-        assert.throws((): unknown => GenerateMessageTypes(catalogs, 'fr'), /no messages of the default language fr/)
+        assert.throws((): unknown => GenerateMessageTypes(catalogs, 'fr'), (error: Error): boolean => error instanceof I18nCatalogException && /no messages of the default language fr/.test(error.message))
     })
 })
