@@ -131,8 +131,10 @@ const EXTENDED = {extends: 'lakutata/tsconfig.json', compilerOptions: {rootDir: 
 Check('the exported tsconfig.json has no path of the framework', () => {
     const project = Project('show-config', {name: 'show-config', private: true}, {extends: 'lakutata/tsconfig.json'}, 'export {}\n')
     const config = JSON.parse(execFileSync(process.execPath, [TSC, '--showConfig'], {cwd: project}).toString()).compilerOptions
-    for (const option of ['rootDir', 'outDir', 'baseUrl', 'paths', 'declaration']) if (option in config) throw new Error(`The exported configuration sets ${option}: ${JSON.stringify(config[option])}`)
+    for (const option of ['rootDir', 'outDir', 'baseUrl', 'paths']) if (option in config) throw new Error(`The exported configuration sets ${option}: ${JSON.stringify(config[option])}`)
     if (!config.experimentalDecorators || !config.emitDecoratorMetadata) throw new Error('The exported configuration does not enable the decorators and their metadata')
+    //The options of 2.x: the declarations of an application's build are imported by its SDKs and UIs
+    for (const option of ['declaration', 'allowJs', 'isolatedModules']) if (config[option] !== true) throw new Error(`The exported configuration does not set ${option}`)
 })
 
 /**
