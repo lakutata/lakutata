@@ -6,7 +6,8 @@
 // The repository is not changed: the versions are given to the packed packages.
 //
 // Run: node scripts/verify-release/verify.mjs [--version 3.0.0-verify.1] [--tag verify] [--templates "service cli"]
-//      [--skip-build] [--skip-images] [--keep]
+//      [--skip-build] [--skip-images] [--keep] [--publish-only]
+// --publish-only publishes the packages to the registry and keeps it running, without verifying the templates
 // Needs Docker and the access to registry.npmjs.org.
 
 import {execFileSync, spawnSync} from 'node:child_process'
@@ -26,7 +27,8 @@ const {values: options} = parseArgs({
         'node': {type: 'string', default: '22'},
         'skip-build': {type: 'boolean', default: false},
         'skip-images': {type: 'boolean', default: false},
-        'keep': {type: 'boolean', default: false}
+        'keep': {type: 'boolean', default: false},
+        'publish-only': {type: 'boolean', default: false}
     }
 })
 const CONTAINER = 'lakutata-verify-registry'
@@ -285,12 +287,18 @@ try {
     }
     const token = await StartRegistry()
     Publish(token)
-    Consumer()
-    if (!options['skip-images']) await Images()
-    Step('Results')
-    for (const result of results) console.log(result.startsWith('PASS') ? `\x1b[32m${result}\x1b[0m` : `\x1b[31m${result}\x1b[0m`)
-    failed = !results.length || results.some(result => !result.startsWith('PASS'))
-    console.log(`\n${results.filter(result => result.startsWith('PASS')).length} passed, ${results.filter(result => !result.startsWith('PASS')).length} failed; the projects and the logs: ${work}`)
+    if (options['publish-only']) {
+        //The registry only, kept running, for the projects verified by hand against it
+        options.keep = true
+        failed = false
+    } else {
+        Consumer()
+        if (!options['skip-images']) await Images()
+        Step('Results')
+        for (const result of results) console.log(result.startsWith('PASS') ? `\x1b[32m${result}\x1b[0m` : `\x1b[31m${result}\x1b[0m`)
+        failed = !results.length || results.some(result => !result.startsWith('PASS'))
+        console.log(`\n${results.filter(result => result.startsWith('PASS')).length} passed, ${results.filter(result => !result.startsWith('PASS')).length} failed; the projects and the logs: ${work}`)
+    }
 } catch (error) {
     console.error(error)
 } finally {
