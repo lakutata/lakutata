@@ -40,11 +40,11 @@ export {type CLIContextParams} from './types/CLIContextParams.js'
 export {type ServiceContextParams} from './types/ServiceContextParams.js'
 export {type ScheduleContextParams} from './types/ScheduleContextParams.js'
 
-//The builders of the entrypoints of lakutata 2.x: their result is ignored, a promise awaited (an asynchronous builder)
+//The builders of the entrypoints of lakutata 2.x: called when the entrypoint starts, their promises not awaited, as in 2.x
 /**
  * A CLI entrypoint in the style of lakutata 2.x: a function the entrypoint calls once when it starts, which reads the
- * command line and runs its commands through the handler. Its result is ignored; a promise it returns is awaited before
- * the next adapter starts, and its rejection fails the entrypoint's initialization. Prefer an adapter
+ * command line and runs its commands through the handler. Its result is ignored; a promise it returns is not awaited (as
+ * 2.x: the entrypoint initializes meanwhile), its rejection being an uncaught exception of the application. Prefer an adapter
  * (`CommanderCLIEntrypoint` of `lakutata/adapter/commander`) for new code.
  * @param module The module owning the entrypoint (the application).
  * @param cliMap The CLI actions' commands, each with the JSON schema of its input.
@@ -54,8 +54,8 @@ export {type ScheduleContextParams} from './types/ScheduleContextParams.js'
 export type CLIEntrypoint = (module: Module, cliMap: CLIMap, handler: CLIEntrypointHandler, registerDestroy: EntrypointDestroyerRegistrar) => unknown
 /**
  * An HTTP entrypoint in the style of lakutata 2.x: a function the entrypoint calls once when it starts, which starts a
- * server and passes its requests to the handler. Its result is ignored; a promise it returns is awaited before the next
- * adapter starts, and its rejection fails the entrypoint's initialization. Prefer an adapter (`ExpressHTTPEntrypoint` of
+ * server and passes its requests to the handler. Its result is ignored; a promise it returns is not awaited (as
+ * 2.x: the entrypoint initializes meanwhile), its rejection being an uncaught exception of the application. Prefer an adapter (`ExpressHTTPEntrypoint` of
  * `lakutata/adapter/express`, `FastifyHTTPEntrypoint` of `lakutata/adapter/fastify`) for new code.
  * @param module The module owning the entrypoint (the application).
  * @param routeMap The HTTP actions' routes, each with its methods.
@@ -65,8 +65,8 @@ export type CLIEntrypoint = (module: Module, cliMap: CLIMap, handler: CLIEntrypo
 export type HTTPEntrypoint = (module: Module, routeMap: HTTPRouteMap, handler: HTTPEntrypointHandler, registerDestroy: EntrypointDestroyerRegistrar) => unknown
 /**
  * A service entrypoint in the style of lakutata 2.x: a function the entrypoint calls once when it starts, which
- * receives the service requests of a transport and passes them to the handler. Its result is ignored; a promise it
- * returns is awaited before the next adapter starts, and its rejection fails the entrypoint's initialization. Prefer an
+ * receives the service requests of a transport and passes them to the handler. Its result is ignored; a promise it returns is not awaited (as
+ * 2.x: the entrypoint initializes meanwhile), its rejection being an uncaught exception of the application. Prefer an
  * adapter (`SocketIOServiceEntrypoint`, `JSONRPCServiceEntrypoint`, `ElectronIPCServiceEntrypoint`) for new code.
  * @param module The module owning the entrypoint (the application).
  * @param handler Runs a request: dispatches a {@link ServiceContext} to the action whose pattern matches its input.
@@ -819,8 +819,11 @@ export class Entrypoint extends Component {
     }
 
     /**
-     * Wrap a 2.x entrypoint function in an adapter: it is called when the adapter starts, its registered destroyers run
-     * when the adapter stops.
+     * Wrap a 2.x entrypoint function in an adapter: it is called when the adapter starts, and the promise of an
+     * asynchronous builder is not awaited, as 2.x called it (a builder getting objects which inject the entrypoint —
+     * such as an authenticator of the requests — would wait for the entrypoint being initialized otherwise). A
+     * synchronous builder throwing fails the entrypoint's initialization; the rejection of an asynchronous one is an
+     * uncaught exception of the application, as in 2.x. Its registered destroyers run when the adapter stops.
      * @param channel The channel: `cli`, `http` or `service`.
      * @param callback The {@link CLIEntrypoint}, {@link HTTPEntrypoint} or {@link ServiceEntrypoint}.
      * @returns The adapter.
@@ -829,27 +832,42 @@ export class Entrypoint extends Component {
     protected legacyAdapter(channel: string, callback: Function): EntrypointAdapter<any> {
         const destroyers: EntrypointDestroyer[] = []
         const registerDestroy: EntrypointDestroyerRegistrar = (destroyer: EntrypointDestroyer): unknown => destroyers.push(destroyer)
+        let stopped: boolean = false
         return {
             channel: channel,
-            //An asynchronous builder (async (module, routeMap, handler) => …) is awaited
-            start: (runtime: ChannelRuntime<any>): void | Promise<void> => {
+            start: (runtime: ChannelRuntime<any>): void => {
                 const handler = (context: BaseContext, abortController?: AbortController): Promise<unknown> => runtime.dispatch(context, {signal: abortController?.signal})
-                switch (channel) {
-                    case 'http': {
-                        const routeMap: HTTPRouteMap = new Map()
-                        for (const action of runtime.actions) {
-                            const methods: Set<string> = routeMap.get(action.address.route) ?? new Set()
-                            routeMap.set(action.address.route, methods.add(action.address.method))
+                const run = (): unknown => {
+                    switch (channel) {
+                        case 'http': {
+                            const routeMap: HTTPRouteMap = new Map()
+                            for (const action of runtime.actions) {
+                                const methods: Set<string> = routeMap.get(action.address.route) ?? new Set()
+                                routeMap.set(action.address.route, methods.add(action.address.method))
+                            }
+                            return callback(runtime.module, routeMap, handler, registerDestroy)
                         }
-                        return callback(runtime.module, routeMap, handler, registerDestroy)
+                        case 'cli':
+                            return callback(runtime.module, CommandMap(runtime.actions), handler, registerDestroy)
+                        default:
+                            return callback(runtime.module, handler, registerDestroy)
                     }
-                    case 'cli':
-                        return callback(runtime.module, CommandMap(runtime.actions), handler, registerDestroy)
-                    default:
-                        return callback(runtime.module, handler, registerDestroy)
                 }
+                //Called now, its promise not awaited (as 2.x): an asynchronous builder getting objects which inject the
+                //entrypoint goes on once the entrypoint is initialized
+                //A synchronous builder throwing fails the entrypoint's initialization
+                const result: unknown = run()
+                if (result instanceof Promise) result.catch((error: unknown): void => {
+                    //An uncaught exception of the application, as the rejected builders of 2.x
+                    if (!stopped) setImmediate((): never => {
+                        throw error
+                    })
+                })
             },
-            stop: async (): Promise<void> => void await Promise.all(destroyers.map((destroyer: EntrypointDestroyer): Promise<void> => Promise.resolve(destroyer())))
+            stop: async (): Promise<void> => {
+                stopped = true
+                await Promise.all(destroyers.map((destroyer: EntrypointDestroyer): Promise<void> => Promise.resolve(destroyer())))
+            }
         }
     }
 

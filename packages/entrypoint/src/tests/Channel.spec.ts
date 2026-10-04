@@ -2,7 +2,7 @@ import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {Component, Container, DTO, type ActionPattern} from '@lakutata/core'
 import {Expect, Return} from '@lakutata/core/decorator/dto'
-import {Autoload, Singleton} from '@lakutata/core/decorator/di'
+import {Autoload, Inject, Singleton} from '@lakutata/core/decorator/di'
 import {
     ActionInvocation,
     BaseContext,
@@ -196,6 +196,27 @@ describe('Channels', (): void => {
         assert.deepStrictEqual(trace, ['controller', 'action', 'service adapter', 'controller', 'action'])
         await container.destroy()
         assert.ok(legacyStopped)
+    })
+
+    it('do not wait for the 2.x asynchronous builders: their objects may inject the entrypoint', async (): Promise<void> => {
+        //An authenticator of the requests injecting the entrypoint, got by the builder
+        class Guard extends Component {
+            @Inject('entrypoint')
+            public readonly entrypoint: Entrypoint
+        }
+
+        let guarded: Guard | undefined
+        const container: Container = new Container()
+        await container.registerNamed('guard', Guard)
+        await container.setNamed('entrypoint', Entrypoint, BuildEntrypoints({
+            controllers: [DeviceController],
+            service: BuildServiceEntrypoint(async (): Promise<void> => {
+                guarded = await container.get<Guard>('guard')
+            })
+        }))
+        for (let attempt = 0; attempt < 50 && !guarded; attempt++) await new Promise((resolve): unknown => setImmediate(resolve))
+        assert.ok(guarded?.entrypoint instanceof Entrypoint)
+        await container.destroy()
     })
 
     it('reject the options which are not adapters of their channel', async (): Promise<void> => {
