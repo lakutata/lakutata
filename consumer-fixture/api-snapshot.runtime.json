@@ -482,6 +482,11 @@
     "SocketIOServiceEntrypoint",
     "SocketOfContext"
   ],
+  "lakutata/adapter/jsonrpc": [
+    "JSONRPCErrorCode",
+    "JSONRPCRequestOfContext",
+    "JSONRPCServiceEntrypoint"
+  ],
   "lakutata/adapter/electron": [
     "ElectronIPCServiceEntrypoint",
     "IPCEventOfContext"

@@ -104,6 +104,9 @@
             "@lakutata/entrypoint/adapter/socket.io": [
                 "../entrypoint/dist/types/exports/SocketIOAdapter"
             ],
+            "@lakutata/entrypoint/adapter/jsonrpc": [
+                "../entrypoint/dist/types/exports/JSONRPCAdapter"
+            ],
             "@lakutata/entrypoint/adapter/electron": [
                 "../entrypoint/dist/types/exports/ElectronAdapter"
             ],

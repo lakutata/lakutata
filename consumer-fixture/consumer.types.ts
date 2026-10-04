@@ -142,3 +142,8 @@ declare const electronEntrypoint: typeof ElectronIPCServiceEntrypoint
 declare const ipcMain: IPCMain
 export const _socketIOOptions: EntrypointOptions = {controllers: [], service: socketIOEntrypoint({port: 3001, options: {cors: {origin: '*'}}})}
 export const _electronOptions: EntrypointOptions = {controllers: [], service: [electronEntrypoint({ipcMain: ipcMain}), socketIOEntrypoint()]}
+
+// The JSON-RPC 2.0 adapter of the service channel: HTTP, WebSocket, stdio
+import type {JSONRPCServiceEntrypoint} from 'lakutata/adapter/jsonrpc'
+declare const jsonrpcEntrypoint: typeof JSONRPCServiceEntrypoint
+export const _jsonrpcOptions: EntrypointOptions = {controllers: [], service: [jsonrpcEntrypoint({port: 4000, path: '/rpc'}), jsonrpcEntrypoint({transport: 'websocket', port: 4001}), jsonrpcEntrypoint({transport: 'stdio', framing: 'content-length', toPattern: (method: string): Record<string, unknown> => ({cmd: method})})]}
