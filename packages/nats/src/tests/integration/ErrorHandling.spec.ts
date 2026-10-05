@@ -2,18 +2,18 @@ import {after, before, it} from 'node:test'
 import {expect} from '../support/Expect.js'
 import {describeNats as describe, destroyApp, runApp, ensureNats, stopNats} from '../support/App.js'
 import {Application} from '@lakutata/core'
-import {BuildEntrypoints, Controller} from '@lakutata/entrypoint'
+import {buildEntrypoints, Controller} from '@lakutata/entrypoint'
 import {ServiceAction} from '@lakutata/entrypoint/decorator/ctrl'
-import {Delay} from '@lakutata/utils'
+import {delay} from '@lakutata/utils'
 import {Codec} from 'nats'
 import {
-    BuildNatsClientOptions,
-    BuildServiceProxy,
+    buildNatsClientOptions,
+    buildServiceProxy,
     NATS,
     NatsRequestTimeoutException,
     ServiceInvokeException,
     ServiceProxy,
-    SetupNatsServiceEntrypoint
+    setupNatsServiceEntrypoint
 } from '../../exports/Nats.js'
 
 //A deliberately failing codec: encode always produces bad msgpack bytes (declares a 1-item array with no data, so the server decode throws),
@@ -44,7 +44,7 @@ class TestController extends Controller {
 
     @ServiceAction({cmd: 'slow'})
     public async slow(): Promise<{ok: boolean}> {
-        await Delay(1000)
+        await delay(1000)
         return {ok: true}
     }
 }
@@ -62,15 +62,15 @@ describe('error handling / crash protection / reply guard', (): void => {
             id: 'it.errhandling.app',
             name: 'ITErrHandling',
             components: {
-                nats: BuildNatsClientOptions({servers: n.url}),
-                natsBad: BuildNatsClientOptions({servers: n.url, codec: badCodec}),
-                entrypoint: BuildEntrypoints({
+                nats: buildNatsClientOptions({servers: n.url}),
+                natsBad: buildNatsClientOptions({servers: n.url, codec: badCodec}),
+                entrypoint: buildEntrypoints({
                     controllers: [TestController],
-                    service: SetupNatsServiceEntrypoint('nats')
+                    service: setupNatsServiceEntrypoint('nats')
                 })
             },
             providers: {
-                self: BuildServiceProxy({serviceId: 'it.errhandling.app', natsComponentName: 'nats'})
+                self: buildServiceProxy({serviceId: 'it.errhandling.app', natsComponentName: 'nats'})
             },
             bootstrap: ['entrypoint']
         })
@@ -131,9 +131,9 @@ describe('error handling / crash protection / reply guard', (): void => {
         nats.onServiceEvent('it.errhandling.app', 'evtErr', (): void => {
             throw new Error('listener boom')
         })
-        await Delay(120)
+        await delay(120)
         nats.emitServiceEvent('evtErr')
-        await Delay(200)
+        await delay(200)
         expect(await self.invoke({cmd: 'echo', value: 5}, 5000)).toEqual({echoed: 5})
     })
 
@@ -141,9 +141,9 @@ describe('error handling / crash protection / reply guard', (): void => {
         nats.subscribe('boom.subject', (): never => {
             throw new Error('cb boom')
         })
-        await Delay(100)
+        await delay(100)
         nats.publish('boom.subject', {x: 1})
-        await Delay(200)
+        await delay(200)
         expect(await self.invoke({cmd: 'echo', value: 6}, 5000)).toEqual({echoed: 6})
     })
 
@@ -151,9 +151,9 @@ describe('error handling / crash protection / reply guard', (): void => {
         nats.subscribe('iter.boom.subject', (): never => {
             throw new Error('iter boom')
         }, {iterator: true})
-        await Delay(100)
+        await delay(100)
         nats.publish('iter.boom.subject', {x: 1})
-        await Delay(200)
+        await delay(200)
         expect(await self.invoke({cmd: 'echo', value: 7}, 5000)).toEqual({echoed: 7})
     })
 
@@ -169,7 +169,7 @@ describe('error handling / crash protection / reply guard', (): void => {
                     throw new Error('subscription failed')
                 }
             }))
-            await Delay(100)
+            await delay(100)
             expect(errors.map((error: Error): string => error.message)).toEqual(['subscription failed'])
             expect(await self.invoke({cmd: 'echo', value: 8}, 5000)).toEqual({echoed: 8})
         } finally {
@@ -184,7 +184,7 @@ describe('error handling / crash protection / reply guard', (): void => {
                 return {should: 'not be responded'} //No reply, so this return value is not encoded/responded
             })
         })
-        await Delay(100)
+        await delay(100)
         nats.publish('noreply.subject', {ping: true})
         expect(await got).toEqual({ping: true}) //Message received without respond/encode errors
     })

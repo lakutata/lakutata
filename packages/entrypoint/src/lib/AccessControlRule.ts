@@ -25,7 +25,7 @@ export type AccessControlRuleHandler<T extends BaseContext<Record<string, any>>>
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {AccessControlRule, BuildEntrypoints, ContextType, Controller, type HTTPContext} from 'lakutata/com/entrypoint'
+ * import {AccessControlRule, buildEntrypoints, ContextType, Controller, type HTTPContext} from 'lakutata/com/entrypoint'
  * import {DELETE} from 'lakutata/decorator/ctrl'
  *
  * //Only the requests of an administrator reach the actions of the "admin" group
@@ -50,7 +50,7 @@ export type AccessControlRuleHandler<T extends BaseContext<Record<string, any>>>
  *     id: 'admin.app',
  *     name: 'Admin',
  *     components: {
- *         entrypoint: BuildEntrypoints({
+ *         entrypoint: buildEntrypoints({
  *             controllers: [UserController],
  *             rules: [AdminRule],
  *             httpActionGroups: {admin: 'Administration'}

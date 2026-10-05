@@ -2,8 +2,8 @@ import assert from 'node:assert'
 import {Application} from '../../../exports/Lakutata.js'
 import {DataSource} from '../../../exports/ORM.js'
 import {Column, Entity, PrimaryGeneratedColumn} from '../../../exports/ORMDecorators.js'
-import {BuildDatabaseOptions, Database} from '../../../exports/DatabaseComponent.js'
-import {BuildCacherOptions, Cacher} from '../../../exports/CacherComponent.js'
+import {buildDatabaseOptions, Database} from '../../../exports/DatabaseComponent.js'
+import {buildCacherOptions, Cacher} from '../../../exports/CacherComponent.js'
 import {RunChecks} from '../support/Scenario.js'
 
 /**
@@ -29,7 +29,7 @@ class Device {
  * The cache stored in a table of the database, as oims declares its caches
  * @param namespace
  */
-const PostgresCache = (namespace: string): ReturnType<typeof BuildCacherOptions> => BuildCacherOptions({
+const PostgresCache = (namespace: string): ReturnType<typeof buildCacherOptions> => buildCacherOptions({
     stores: {
         type: 'postgres',
         host: server.hostname,
@@ -49,7 +49,7 @@ Application
         name: 'IntegrationPostgreSQL',
         components: {
             log: {level: 'warn'},
-            db: BuildDatabaseOptions({type: 'postgres', url: databaseURL(name), entities: [Device], synchronize: true}),
+            db: buildDatabaseOptions({type: 'postgres', url: databaseURL(name), entities: [Device], synchronize: true}),
             tokens: PostgresCache('integration.tokens'),
             sessions: PostgresCache('integration.sessions')
         },

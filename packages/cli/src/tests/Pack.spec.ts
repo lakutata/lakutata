@@ -91,9 +91,9 @@ describe('The packing of an application', (): void => {
         Write('assets/nested/farewell.txt', 'Bye')
         Write('tsconfig.json', JSON.stringify({compilerOptions: {target: 'ES2022', module: 'Node16', moduleResolution: 'Node16', outDir: 'build', rootDir: 'src', strict: true, experimentalDecorators: true, emitDecoratorMetadata: true, strictPropertyInitialization: false, skipLibCheck: true, types: ['node']}, include: ['src']}))
         Write('src/App.ts', `#!/usr/bin/env node
-import {Application, Component, DTO, IsPackaged, ResourcesPath} from 'lakutata'
-import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
-import {CommanderCLIEntrypoint} from 'lakutata/adapter/commander'
+import {Application, Component, DTO, isPackaged, resourcesPath} from 'lakutata'
+import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+import {commanderCLIEntrypoint} from 'lakutata/adapter/commander'
 import {CLIAction} from 'lakutata/decorator/ctrl'
 import {Inject} from 'lakutata/decorator/di'
 import {Expect} from 'lakutata/decorator/dto'
@@ -128,8 +128,8 @@ class GreetController extends Controller {
 
     @CLIAction('resource')
     public async resource(): Promise<string> {
-        if (!IsPackaged()) return 'unpackaged'
-        const texts: string = path.join(ResourcesPath()!, 'texts')
+        if (!isPackaged()) return 'unpackaged'
+        const texts: string = path.join(resourcesPath()!, 'texts')
         return 'packaged ' + readFileSync(path.join(texts, 'greeting.txt'), 'utf8') + ' ' + readFileSync(path.join(texts, 'nested', 'farewell.txt'), 'utf8')
     }
 
@@ -145,7 +145,7 @@ Application.run({
     name: 'greeter',
     components: {
         greeting: {class: Greeting},
-        entrypoint: BuildEntrypoints({controllers: [GreetController], cli: CommanderCLIEntrypoint({bin: 'greet'})})
+        entrypoint: buildEntrypoints({controllers: [GreetController], cli: commanderCLIEntrypoint({bin: 'greet'})})
     },
     bootstrap: ['entrypoint']
 })

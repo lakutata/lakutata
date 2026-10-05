@@ -1,13 +1,13 @@
 import type {ActionPattern} from '@lakutata/core'
 import {ControllerActionNotFoundException, type BaseContext, type EntrypointAdapter} from '@lakutata/entrypoint'
-import {DefineChannel, GetChannel, HasChannel, type ChannelDefinition, type ChannelEntry, type ChannelMatch, type ChannelMatcher} from '@lakutata/entrypoint/channel'
+import {defineChannel, getChannel, hasChannel, type ChannelDefinition, type ChannelEntry, type ChannelMatch, type ChannelMatcher} from '@lakutata/entrypoint/channel'
 import {MCP_CONTEXT_TYPE, MCPContext, type MCPRequestKind} from '../context/MCPContext.js'
 import {GetMCPMetadata} from '../lib/Metadata.js'
 
 declare module '@lakutata/entrypoint' {
     interface EntrypointOptions {
         /**
-         * The MCP adapters, built by `StdioMCPEntrypoint()` and `HTTPMCPEntrypoint()`: one, or several (stdio and HTTP
+         * The MCP adapters, built by `stdioMCPEntrypoint()` and `httpMCPEntrypoint()`: one, or several (stdio and HTTP
          * at once).
          * @default undefined (no MCP adapter)
          */
@@ -56,9 +56,9 @@ function AddressKey(kind: MCPRequestKind, name: string): string {
  * (`{resource: uri}`) or prompts (`{prompt: name}`), declared with `@MCPTool`, `@MCPResource` and `@MCPPrompt`. A
  * request matches an action by its kind and its name (the resource URI template as declared); a request matching none
  * fails with `ControllerActionNotFoundException`. The decorators and the adapters use it: an application only needs it
- * to write an adapter of its own (see {@link BuildMCPServer}).
+ * to write an adapter of its own (see {@link buildMCPServer}).
  */
-export const MCPChannel: ChannelDefinition = HasChannel('mcp') ? GetChannel('mcp') : DefineChannel({
+export const MCPChannel: ChannelDefinition = hasChannel('mcp') ? getChannel('mcp') : defineChannel({
     name: 'mcp',
     kind: 'request',
     contextType: MCP_CONTEXT_TYPE,

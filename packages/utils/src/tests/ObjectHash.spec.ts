@@ -1,7 +1,7 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import UpstreamObjectHash from 'object-hash'
-import {ObjectHash, type ObjectHashOptions} from '../exports/Utils.js'
+import {objectHash, type ObjectHashOptions} from '../exports/Utils.js'
 
 /**
  * A pseudo random generator with a seed (mulberry32)
@@ -114,7 +114,7 @@ function Outcome(fn: () => unknown): { value?: unknown, error?: string } {
     }
 }
 
-describe('ObjectHash', (): void => {
+describe('objectHash', (): void => {
 
     it('hashes as object-hash', (): void => {
         const counts: Record<string, number> = {value: 0, error: 0}
@@ -122,16 +122,16 @@ describe('ObjectHash', (): void => {
             const value: unknown = Value()
             const options: ObjectHashOptions | undefined = Options()
             const expected: { value?: unknown, error?: string } = Outcome((): unknown => UpstreamObjectHash(value as any, options as any))
-            assert.deepStrictEqual(Outcome((): unknown => ObjectHash(value, options)), expected, `run ${run}`)
+            assert.deepStrictEqual(Outcome((): unknown => objectHash(value, options)), expected, `run ${run}`)
             counts[expected.error === undefined ? 'value' : 'error']++
         }
         assert.ok(counts.value > 2000 && counts.error > 100, JSON.stringify(counts))
     })
 
     it('hashes the values of 2.x as 2.x', (): void => {
-        assert.strictEqual(ObjectHash({b: 1, a: [1, 'x', null]}), UpstreamObjectHash({b: 1, a: [1, 'x', null]}))
-        assert.strictEqual(ObjectHash('text', {algorithm: 'md5', encoding: 'base64'}), UpstreamObjectHash('text', {algorithm: 'md5', encoding: 'base64'}))
-        assert.strictEqual(ObjectHash({a: {b: 1}}, {algorithm: 'passthrough'}), UpstreamObjectHash({a: {b: 1}}, {algorithm: 'passthrough'}))
-        assert.throws((): unknown => ObjectHash(undefined), /Object argument required/)
+        assert.strictEqual(objectHash({b: 1, a: [1, 'x', null]}), UpstreamObjectHash({b: 1, a: [1, 'x', null]}))
+        assert.strictEqual(objectHash('text', {algorithm: 'md5', encoding: 'base64'}), UpstreamObjectHash('text', {algorithm: 'md5', encoding: 'base64'}))
+        assert.strictEqual(objectHash({a: {b: 1}}, {algorithm: 'passthrough'}), UpstreamObjectHash({a: {b: 1}}, {algorithm: 'passthrough'}))
+        assert.throws((): unknown => objectHash(undefined), /Object argument required/)
     })
 })

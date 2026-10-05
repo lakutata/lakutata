@@ -1,10 +1,10 @@
 import type {IncomingMessage} from 'node:http'
-import {Exception, ExceptionParams, RunInValidationLanguage} from '@lakutata/core'
+import {Exception, exceptionParams, runInValidationLanguage} from '@lakutata/core'
 import {Inject} from '@lakutata/core/decorator/di'
-import {ContextType, HTTPRequestOfContext, Middleware, type ActionInvocation, type BaseContext, type HTTPContext, type Next, type ServiceContext} from '@lakutata/entrypoint'
+import {ContextType, httpRequestOfContext, Middleware, type ActionInvocation, type BaseContext, type HTTPContext, type Next, type ServiceContext} from '@lakutata/entrypoint'
 import type {I18n} from '../I18n.js'
 import {Translator} from '../Translator.js'
-import {NormalizeLocale, ParseAcceptLanguage, ProcessLocales} from '../lib/Locale.js'
+import {normalizeLocale, parseAcceptLanguage, ProcessLocales} from '../lib/Locale.js'
 
 /**
  * The headers and the query of a Socket.IO connection (its handshake)
@@ -16,7 +16,7 @@ type Handshake = {
 
 /**
  * The entrypoint middleware choosing the language of each request. Add it to the `middlewares` of
- * `BuildEntrypoints()`. For each request, it reads the languages the request asks for ({@link I18nMiddleware.requested}),
+ * `buildEntrypoints()`. For each request, it reads the languages the request asks for ({@link I18nMiddleware.requested}),
  * negotiates them with the supported languages of the {@link I18n} component ({@link I18n.negotiate}, the default
  * language when none matches), and makes the result:
  * - the request's `context.locale`;
@@ -30,7 +30,7 @@ type Handshake = {
  * `Accept-Language`; for Socket.IO, the same from the connection's handshake; for the HTTP service adapter and the
  * JSON-RPC adapter over HTTP or WebSocket, the same from the HTTP request (for WebSocket, the request opening the
  * connection); for the command line and the other service transports, the process's environment
- * ({@link EnvironmentLocales}) then the process's language; for the schedules, none. It uses the component registered as `i18n`; a subclass changes the component, the names of the query
+ * ({@link environmentLocales}) then the process's language; for the schedules, none. It uses the component registered as `i18n`; a subclass changes the component, the names of the query
  * parameter and of the cookie, or the languages read (`requested()`).
  * @example
  * ```typescript
@@ -100,7 +100,7 @@ export class I18nMiddleware extends Middleware {
         //The translator of the request, shared by its objects
         const translator: Translator = await invocation.container.getShared(Translator, {locale: locale, i18n: this.i18n})
         //Its validations in its language
-        return await RunInValidationLanguage(locale, async (): Promise<unknown> => {
+        return await runInValidationLanguage(locale, async (): Promise<unknown> => {
             try {
                 return await next()
             } catch (error) {
@@ -124,7 +124,7 @@ export class I18nMiddleware extends Middleware {
         if (!(error instanceof Exception) || error.errno === undefined || error.errno === null) return error
         const key: string = `errors.${error.errno}`
         if (!translator.has(key)) return error
-        const params: Record<string, unknown> | unknown[] | undefined = ExceptionParams(error)
+        const params: Record<string, unknown> | unknown[] | undefined = exceptionParams(error)
         let message: string
         try {
             message = translator.t(key, Array.isArray(params) ? Object.fromEntries(params.map((value: unknown, index: number): [string, unknown] => [String(index), value])) : params ?? {})
@@ -156,7 +156,7 @@ export class I18nMiddleware extends Middleware {
             const handshake: Handshake | undefined = (context as BaseContext & { socket?: { handshake?: Handshake } }).socket?.handshake
             if (handshake) return this.fromHeaders(handshake.query?.[this.queryParameter], handshake.headers ?? {})
             //The HTTP service adapter, JSON-RPC over HTTP, and over WebSocket (the request upgraded)
-            const request: IncomingMessage | undefined = HTTPRequestOfContext(context as ServiceContext)
+            const request: IncomingMessage | undefined = httpRequestOfContext(context as ServiceContext)
             if (request) return this.fromRequest(request)
         }
         if (context.type === ContextType.CLI || context.type === ContextType.SERVICE) {
@@ -184,10 +184,10 @@ export class I18nMiddleware extends Middleware {
     protected fromHeaders(query: unknown, headers: Record<string, string | string[] | undefined>): string[] {
         const single = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
         const requested: string[] = []
-        if (typeof query === 'string' && NormalizeLocale(query)) requested.push(query)
+        if (typeof query === 'string' && normalizeLocale(query)) requested.push(query)
         const cookie: string | undefined = this.cookieValue(single(headers.cookie))
-        if (cookie && NormalizeLocale(cookie)) requested.push(cookie)
-        return [...requested, ...ParseAcceptLanguage(single(headers['accept-language']))]
+        if (cookie && normalizeLocale(cookie)) requested.push(cookie)
+        return [...requested, ...parseAcceptLanguage(single(headers['accept-language']))]
     }
 
     /**

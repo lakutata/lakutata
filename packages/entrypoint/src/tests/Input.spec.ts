@@ -1,11 +1,11 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {types} from 'node:util'
-import {Container, DTO, RegisterValidationMessages} from '@lakutata/core'
+import {Container, DTO, registerValidationMessages} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
 import {
-    BuildEntrypoints,
-    BuildServiceEntrypoint,
+    buildEntrypoints,
+    buildServiceEntrypoint,
     Controller,
     Entrypoint,
     ServiceContext,
@@ -78,9 +78,9 @@ describe('Action input', (): void => {
     it('keeps the nested keys of the pattern in the message of the context', async (): Promise<void> => {
         let handler: ServiceEntrypointHandler
         const container: Container = new Container()
-        await container.set(Entrypoint, BuildEntrypoints({
+        await container.set(Entrypoint, buildEntrypoints({
             controllers: [NestedPatternController],
-            service: BuildServiceEntrypoint((module, serviceHandler): unknown => handler = serviceHandler)
+            service: buildServiceEntrypoint((module, serviceHandler): unknown => handler = serviceHandler)
         }))
         try {
             const result: any = await handler!(new ServiceContext({data: {res: {name: 'user', scope: 'all'}, act: 'get', id: 1}}))
@@ -95,9 +95,9 @@ describe('Action input', (): void => {
     it('is a copy of the context data, including the nested values', async (): Promise<void> => {
         let handler: ServiceEntrypointHandler
         const container: Container = new Container()
-        await container.set(Entrypoint, BuildEntrypoints({
+        await container.set(Entrypoint, buildEntrypoints({
             controllers: [InputController],
-            service: BuildServiceEntrypoint((module, serviceHandler): unknown => handler = serviceHandler)
+            service: buildServiceEntrypoint((module, serviceHandler): unknown => handler = serviceHandler)
         }))
         const context: ServiceContext = new ServiceContext({
             data: {
@@ -125,12 +125,12 @@ describe('Action input', (): void => {
     })
 
     it('is validated in the language of its request, its errors in it', async (): Promise<void> => {
-        RegisterValidationMessages('zh-CN', {'any.required': '{{#label}} 为必填项'})
+        registerValidationMessages('zh-CN', {'any.required': '{{#label}} 为必填项'})
         let handler: ServiceEntrypointHandler
         const container: Container = new Container()
-        await container.set(Entrypoint, BuildEntrypoints({
+        await container.set(Entrypoint, buildEntrypoints({
             controllers: [NamedController],
-            service: BuildServiceEntrypoint((module, serviceHandler): unknown => handler = serviceHandler)
+            service: buildServiceEntrypoint((module, serviceHandler): unknown => handler = serviceHandler)
         }))
         await assert.rejects(handler!(new ServiceContext({data: {act: 'named'}, locale: 'zh-CN'})), /"name" 为必填项/)
         //Without a language, or in a language without messages: the default messages

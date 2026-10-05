@@ -1,23 +1,23 @@
 import assert from 'node:assert'
 import {Application} from '../../../exports/Lakutata.js'
-import {BuildEntrypoints, Controller, type ActionInvocation, type HTTPContext, type Next} from '../../../exports/EntrypointComponent.js'
-import {ExpressHTTPEntrypoint, JSONEnvelope} from '../../../exports/ExpressAdapter.js'
+import {buildEntrypoints, Controller, type ActionInvocation, type HTTPContext, type Next} from '../../../exports/EntrypointComponent.js'
+import {expressHTTPEntrypoint, jsonEnvelope} from '../../../exports/ExpressAdapter.js'
 import {POST} from '../../../exports/CTRLDecorators.js'
 import {Inject} from '../../../exports/DIDecorators.js'
 import {
     Crypt,
-    DecryptByKey,
-    DecryptByPassword,
+    decryptByKey,
+    decryptByPassword,
     DecryptionFailedException,
-    EncryptByKey,
-    EncryptByPassword,
-    GenerateSecret,
-    HMAC,
+    encryptByKey,
+    encryptByPassword,
+    generateSecret,
+    hmac,
     InvalidSignatureException,
     Mac,
     PasswordTooLongException,
-    TimingSafeEqual,
-    VerifyHMAC
+    constantTimeEqual,
+    verifyHMAC
 } from '../../../exports/Security.js'
 import {PasswordHash} from '../../../exports/PasswordHashProvider.js'
 import {FreePort, RunChecks} from '../support/Scenario.js'
@@ -25,7 +25,7 @@ import {FreePort, RunChecks} from '../support/Scenario.js'
 /**
  * The key of the webhooks, shared with their sender
  */
-const WEBHOOK_KEY: string = GenerateSecret()
+const WEBHOOK_KEY: string = generateSecret()
 
 /**
  * The webhooks are signed: HMAC of their body in the header x-signature
@@ -33,7 +33,7 @@ const WEBHOOK_KEY: string = GenerateSecret()
 async function VerifyWebhook(invocation: ActionInvocation, next: Next): Promise<unknown> {
     const context: HTTPContext = invocation.context as HTTPContext
     const signature: unknown = context.request.headers['x-signature']
-    if (typeof signature !== 'string' || !VerifyHMAC(JSON.stringify(context.data), signature, WEBHOOK_KEY)) throw new InvalidSignatureException('The signature of the webhook is not valid')
+    if (typeof signature !== 'string' || !verifyHMAC(JSON.stringify(context.data), signature, WEBHOOK_KEY)) throw new InvalidSignatureException('The signature of the webhook is not valid')
     return await next()
 }
 
@@ -48,7 +48,7 @@ class WebhookController extends Controller {
     }
 }
 
-const [port, oldKey, newKey] = [await FreePort(), GenerateSecret(), GenerateSecret()]
+const [port, oldKey, newKey] = [await FreePort(), generateSecret(), generateSecret()]
 
 Application
     .run(() => ({
@@ -56,10 +56,10 @@ Application
         name: 'IntegrationSecurity',
         components: {
             log: {level: 'warn'},
-            entrypoint: BuildEntrypoints({
+            entrypoint: buildEntrypoints({
                 controllers: [WebhookController],
                 middlewares: [VerifyWebhook],
-                http: ExpressHTTPEntrypoint({port: port, host: '127.0.0.1', respond: JSONEnvelope({errorStatus: 200})})
+                http: expressHTTPEntrypoint({port: port, host: '127.0.0.1', respond: jsonEnvelope({errorStatus: 200})})
             })
         },
         providers: {
@@ -80,29 +80,29 @@ Application
         })).json()
 
         await check('the keys generated are random and of their size', (): void => {
-            assert.strictEqual(Buffer.from(GenerateSecret(), 'base64url').length, 32)
-            assert.strictEqual(Buffer.from(GenerateSecret(64), 'base64url').length, 64)
-            assert.notStrictEqual(GenerateSecret(), GenerateSecret())
+            assert.strictEqual(Buffer.from(generateSecret(), 'base64url').length, 32)
+            assert.strictEqual(Buffer.from(generateSecret(64), 'base64url').length, 64)
+            assert.notStrictEqual(generateSecret(), generateSecret())
         })
 
         await check('the data are signed and verified by HMAC, constant in time', (): void => {
-            const signature: string = HMAC('payload', WEBHOOK_KEY)
-            assert.strictEqual(signature, HMAC('payload', WEBHOOK_KEY))
-            assert.ok(VerifyHMAC('payload', signature, WEBHOOK_KEY))
-            assert.ok(!VerifyHMAC('payload!', signature, WEBHOOK_KEY))
-            assert.ok(!VerifyHMAC('payload', signature, GenerateSecret()))
-            assert.notStrictEqual(HMAC('payload', WEBHOOK_KEY, 'sha512'), signature)
-            assert.ok(TimingSafeEqual('abc', 'abc'))
-            assert.ok(!TimingSafeEqual('abc', 'abd'))
-            assert.ok(!TimingSafeEqual('abc', 'abcd'))
+            const signature: string = hmac('payload', WEBHOOK_KEY)
+            assert.strictEqual(signature, hmac('payload', WEBHOOK_KEY))
+            assert.ok(verifyHMAC('payload', signature, WEBHOOK_KEY))
+            assert.ok(!verifyHMAC('payload!', signature, WEBHOOK_KEY))
+            assert.ok(!verifyHMAC('payload', signature, generateSecret()))
+            assert.notStrictEqual(hmac('payload', WEBHOOK_KEY, 'sha512'), signature)
+            assert.ok(constantTimeEqual('abc', 'abc'))
+            assert.ok(!constantTimeEqual('abc', 'abd'))
+            assert.ok(!constantTimeEqual('abc', 'abcd'))
         })
 
         await check('a middleware accepts the webhooks signed only', async (): Promise<void> => {
             const body: Record<string, unknown> = {order: 7, amount: 42}
-            const accepted = await webhook(body, HMAC(JSON.stringify(body), WEBHOOK_KEY))
+            const accepted = await webhook(body, hmac(JSON.stringify(body), WEBHOOK_KEY))
             assert.strictEqual(accepted.errno, null, JSON.stringify(accepted))
             assert.strictEqual(accepted.data.order, 7)
-            assert.strictEqual((await webhook(body, HMAC(JSON.stringify({...body, amount: 4200}), WEBHOOK_KEY))).errno, 'E_INVALID_SIGNATURE')
+            assert.strictEqual((await webhook(body, hmac(JSON.stringify({...body, amount: 4200}), WEBHOOK_KEY))).errno, 'E_INVALID_SIGNATURE')
             assert.strictEqual((await webhook(body)).errno, 'E_INVALID_SIGNATURE')
         })
 
@@ -121,7 +121,7 @@ Application
 
         await check('the receipts encrypted by the action are decrypted by the provider', async (): Promise<void> => {
             const body: Record<string, unknown> = {order: 8, amount: 1}
-            const receipt: string = (await webhook(body, HMAC(JSON.stringify(body), WEBHOOK_KEY))).data.receipt
+            const receipt: string = (await webhook(body, hmac(JSON.stringify(body), WEBHOOK_KEY))).data.receipt
             assert.deepStrictEqual(JSON.parse((await app.getObject<Crypt>('crypt')).decryptString(receipt)), body)
         })
 
@@ -140,12 +140,12 @@ Application
         })
 
         await check('the data are encrypted by key (keys rotated) and by password', async (): Promise<void> => {
-            const encrypted: string = EncryptByKey('by key', oldKey)
-            assert.strictEqual(DecryptByKey(encrypted, [newKey, oldKey]).toString(), 'by key')
-            assert.throws((): unknown => DecryptByKey(encrypted, newKey), DecryptionFailedException)
-            const byPassword: string = await EncryptByPassword('by password', 'correct horse')
-            assert.strictEqual((await DecryptByPassword(byPassword, 'correct horse')).toString(), 'by password')
-            await assert.rejects(DecryptByPassword(byPassword, 'wrong horse'), DecryptionFailedException)
+            const encrypted: string = encryptByKey('by key', oldKey)
+            assert.strictEqual(decryptByKey(encrypted, [newKey, oldKey]).toString(), 'by key')
+            assert.throws((): unknown => decryptByKey(encrypted, newKey), DecryptionFailedException)
+            const byPassword: string = await encryptByPassword('by password', 'correct horse')
+            assert.strictEqual((await decryptByPassword(byPassword, 'correct horse')).toString(), 'by password')
+            await assert.rejects(decryptByPassword(byPassword, 'wrong horse'), DecryptionFailedException)
         })
 
         await check('the passwords are hashed with their rounds, the passwords bcrypt would truncate rejected', async (): Promise<void> => {

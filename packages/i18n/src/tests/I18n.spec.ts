@@ -5,18 +5,18 @@ import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {Container} from '@lakutata/core'
 import {
-    EnvironmentLocales,
-    FallbackChain,
+    environmentLocales,
+    fallbackChain,
     I18n,
     I18nCatalogException,
     I18nMessageSyntaxException,
     I18nMissingKeyException,
     I18nMissingParameterException,
-    MessageArguments,
-    NegotiateLocale,
-    NormalizeLocale,
-    ParseAcceptLanguage,
-    ParseMessage,
+    messageArguments,
+    negotiateLocale,
+    normalizeLocale,
+    parseAcceptLanguage,
+    parseMessage,
     type I18nOptions
 } from '../exports/I18n.js'
 
@@ -62,38 +62,38 @@ async function Warnings(run: () => unknown): Promise<string[]> {
 
 describe('The languages', (): void => {
     it('are normalized from the tags of the requests and of the environment', (): void => {
-        assert.strictEqual(NormalizeLocale('zh_CN.UTF-8'), 'zh-CN')
-        assert.strictEqual(NormalizeLocale('de_DE@euro'), 'de-DE')
-        assert.strictEqual(NormalizeLocale('ZH-hant-tw'), 'zh-Hant-TW')
-        assert.strictEqual(NormalizeLocale(' en '), 'en')
-        for (const invalid of ['C', 'POSIX', '*', '', 'not a tag', 'english']) assert.strictEqual(NormalizeLocale(invalid), undefined, invalid)
+        assert.strictEqual(normalizeLocale('zh_CN.UTF-8'), 'zh-CN')
+        assert.strictEqual(normalizeLocale('de_DE@euro'), 'de-DE')
+        assert.strictEqual(normalizeLocale('ZH-hant-tw'), 'zh-Hant-TW')
+        assert.strictEqual(normalizeLocale(' en '), 'en')
+        for (const invalid of ['C', 'POSIX', '*', '', 'not a tag', 'english']) assert.strictEqual(normalizeLocale(invalid), undefined, invalid)
     })
 
     it('are read from Accept-Language by their quality, and from the environment', (): void => {
-        assert.deepStrictEqual(ParseAcceptLanguage('en;q=0.8, zh-CN, zh;q=0.9, fr;q=0, *;q=0.1'), ['zh-CN', 'zh', 'en'])
-        assert.deepStrictEqual(ParseAcceptLanguage(undefined), [])
-        assert.deepStrictEqual(EnvironmentLocales({LANG: 'zh_CN.UTF-8'}), ['zh-CN'])
-        assert.deepStrictEqual(EnvironmentLocales({LC_ALL: 'ja_JP.UTF-8', LANG: 'en_US.UTF-8'}), ['ja-JP'])
-        assert.deepStrictEqual(EnvironmentLocales({LANGUAGE: 'zh_TW:zh_CN:en', LANG: 'zh_TW.UTF-8'}), ['zh-TW', 'zh-CN', 'en'])
+        assert.deepStrictEqual(parseAcceptLanguage('en;q=0.8, zh-CN, zh;q=0.9, fr;q=0, *;q=0.1'), ['zh-CN', 'zh', 'en'])
+        assert.deepStrictEqual(parseAcceptLanguage(undefined), [])
+        assert.deepStrictEqual(environmentLocales({LANG: 'zh_CN.UTF-8'}), ['zh-CN'])
+        assert.deepStrictEqual(environmentLocales({LC_ALL: 'ja_JP.UTF-8', LANG: 'en_US.UTF-8'}), ['ja-JP'])
+        assert.deepStrictEqual(environmentLocales({LANGUAGE: 'zh_TW:zh_CN:en', LANG: 'zh_TW.UTF-8'}), ['zh-TW', 'zh-CN', 'en'])
         //LANGUAGE is not used with the C locale
-        assert.deepStrictEqual(EnvironmentLocales({LANGUAGE: 'fr', LANG: 'C'}), [])
+        assert.deepStrictEqual(environmentLocales({LANGUAGE: 'fr', LANG: 'C'}), [])
     })
 
     it('are negotiated: the same tag, the language alone, a tag of the same language, the default one', (): void => {
         const supported: string[] = ['en', 'zh-CN', 'zh-TW', 'pt-BR']
-        assert.strictEqual(NegotiateLocale(['zh-tw'], supported, 'en'), 'zh-TW')
-        assert.strictEqual(NegotiateLocale(['en-GB'], supported, 'en'), 'en')
-        assert.strictEqual(NegotiateLocale(['pt-PT'], supported, 'en'), 'pt-BR')
-        assert.strictEqual(NegotiateLocale(['zh'], supported, 'en'), 'zh-CN')
-        assert.strictEqual(NegotiateLocale(['de', 'zh-HK'], supported, 'en'), 'zh-CN')
-        assert.strictEqual(NegotiateLocale(['de', 'invalid tag'], supported, 'en'), 'en')
+        assert.strictEqual(negotiateLocale(['zh-tw'], supported, 'en'), 'zh-TW')
+        assert.strictEqual(negotiateLocale(['en-GB'], supported, 'en'), 'en')
+        assert.strictEqual(negotiateLocale(['pt-PT'], supported, 'en'), 'pt-BR')
+        assert.strictEqual(negotiateLocale(['zh'], supported, 'en'), 'zh-CN')
+        assert.strictEqual(negotiateLocale(['de', 'zh-HK'], supported, 'en'), 'zh-CN')
+        assert.strictEqual(negotiateLocale(['de', 'invalid tag'], supported, 'en'), 'en')
     })
 
     it('fall back to their fallbacks, the tags they are more specific than, then the default one', (): void => {
-        assert.deepStrictEqual(FallbackChain('zh-Hant-TW', {}, 'en'), ['zh-Hant-TW', 'zh-Hant', 'zh', 'en'])
-        assert.deepStrictEqual(FallbackChain('zh-HK', {'zh-HK': ['zh-TW']}, 'en'), ['zh-HK', 'zh-TW', 'zh', 'en'])
+        assert.deepStrictEqual(fallbackChain('zh-Hant-TW', {}, 'en'), ['zh-Hant-TW', 'zh-Hant', 'zh', 'en'])
+        assert.deepStrictEqual(fallbackChain('zh-HK', {'zh-HK': ['zh-TW']}, 'en'), ['zh-HK', 'zh-TW', 'zh', 'en'])
         //A cycle of fallbacks ends
-        assert.deepStrictEqual(FallbackChain('a', {a: ['b'], b: ['a']}, 'en'), ['a', 'b', 'en'])
+        assert.deepStrictEqual(fallbackChain('a', {a: ['b'], b: ['a']}, 'en'), ['a', 'b', 'en'])
     })
 })
 
@@ -158,12 +158,12 @@ describe('The messages', (): void => {
             ['{}', /expected the name of an argument at 2/]
         ]
         for (const [message, error] of cases) {
-            assert.throws((): unknown => ParseMessage(message, 'test.key'), (thrown: Error): boolean => thrown instanceof I18nMessageSyntaxException && /^test\.key: /.test(thrown.message) && error.test(thrown.message), message)
+            assert.throws((): unknown => parseMessage(message, 'test.key'), (thrown: Error): boolean => thrown instanceof I18nMessageSyntaxException && /^test\.key: /.test(thrown.message) && error.test(thrown.message), message)
         }
     })
 
     it('tell their arguments and their types', (): void => {
-        assert.deepStrictEqual([...MessageArguments(ParseMessage('{a} {b, number} {c, plural, other {{d, select, other {{e, date}}}}}'))], [['a', 'argument'], ['b', 'number'], ['c', 'plural'], ['d', 'select'], ['e', 'date']])
+        assert.deepStrictEqual([...messageArguments(parseMessage('{a} {b, number} {c, plural, other {{d, select, other {{e, date}}}}}'))], [['a', 'argument'], ['b', 'number'], ['c', 'plural'], ['d', 'select'], ['e', 'date']])
     })
 })
 

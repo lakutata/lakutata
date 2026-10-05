@@ -3,7 +3,7 @@ import assert from 'node:assert'
 import type {AddressInfo} from 'node:net'
 import {Container, DTO} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
-import {BuildEntrypoints, Controller, Entrypoint, HTTPRequestOfContext, HTTPServiceEntrypoint, type HTTPServiceEntrypointOptions, Result, ServiceContext, type FileResult, type StatusResult} from '../exports/Entrypoint.js'
+import {buildEntrypoints, Controller, Entrypoint, httpRequestOfContext, httpServiceEntrypoint, type HTTPServiceEntrypointOptions, Result, ServiceContext, type FileResult, type StatusResult} from '../exports/Entrypoint.js'
 import {ServiceAction} from '../exports/CTRLDecorators.js'
 
 const abortedActions: string[] = []
@@ -17,7 +17,7 @@ class EchoController extends Controller {
 
     @ServiceAction({cmd: 'echo'}, EchoDTO)
     public async echo(input: EchoDTO): Promise<unknown> {
-        return {value: input.value, method: HTTPRequestOfContext(this.context as ServiceContext)?.method}
+        return {value: input.value, method: httpRequestOfContext(this.context as ServiceContext)?.method}
     }
 
     @ServiceAction({cmd: 'whoami'})
@@ -59,9 +59,9 @@ class EchoController extends Controller {
 async function Start(options: HTTPServiceEntrypointOptions = {}): Promise<{ url: string, container: Container, entrypoint: Entrypoint }> {
     let port: number = 0
     const container: Container = new Container()
-    const entrypoint: Entrypoint = await container.set(Entrypoint, BuildEntrypoints({
+    const entrypoint: Entrypoint = await container.set(Entrypoint, buildEntrypoints({
         controllers: [EchoController],
-        service: HTTPServiceEntrypoint({
+        service: httpServiceEntrypoint({
             port: 0,
             host: '127.0.0.1',
             ...options,

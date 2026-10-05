@@ -1,7 +1,7 @@
 import {IDockerKeyObject} from './IDockerKeyObject.js'
 
 /**
- * The connection options of the {@link Docker} component, as {@link BuildDockerConnectionOptions} takes them: a socket
+ * The connection options of the {@link Docker} component, as {@link buildDockerConnectionOptions} takes them: a socket
  * (`socketPath`), or a `host` and `port` reached over HTTP, HTTPS or SSH. Without `socketPath` nor `host`, the component
  * connects to the Docker of the environment (`DOCKER_HOST`, else the local socket), with the other options given
  * (`timeout`, `headers`, `version`…) applied over the environment's.

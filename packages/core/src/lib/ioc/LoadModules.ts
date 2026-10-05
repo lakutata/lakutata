@@ -10,7 +10,7 @@ import {
     asFunction
 } from './Resolvers.js'
 import {isClass, isFunction} from './Utils.js'
-import {CamelCase} from '@lakutata/utils/CamelCase'
+import {camelCase} from '@lakutata/utils/CamelCase'
 import {As} from '@lakutata/utils/As'
 
 /**
@@ -62,7 +62,7 @@ export interface LoadModulesDeps {
 }
 
 const nameFormatters: Record<string, NameFormatter> = {
-    camelCase: (s: string) => CamelCase(s)
+    camelCase: (s: string) => camelCase(s)
 }
 
 /**

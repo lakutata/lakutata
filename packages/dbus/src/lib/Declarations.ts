@@ -3,7 +3,7 @@ import {CheckInterfaceName, CheckMemberName, CheckPathTemplate} from './Names.js
 import {SchemaSignature} from './Signature.js'
 
 /**
- * A D-Bus signal, built by {@link DefineDBusSignal}: list it in the `signals` of `@DBusInterface`, and emit it with
+ * A D-Bus signal, built by {@link defineDBusSignal}: list it in the `signals` of `@DBusInterface`, and emit it with
  * {@link DBusObjectManager.emitSignal}. The definition itself identifies the signal: two definitions with the same
  * name are two signals.
  * @typeParam T The data the signal carries.
@@ -32,7 +32,7 @@ export type DBusSignalDefinition<T = unknown> = {
 }
 
 /**
- * A D-Bus property, built by {@link DefineDBusProperty}: list it in the `properties` of `@DBusInterface`. Its values
+ * A D-Bus property, built by {@link defineDBusProperty}: list it in the `properties` of `@DBusInterface`. Its values
  * are kept by {@link DBusObjectManager}, one per object path: the application sets them with
  * {@link DBusObjectManager.setPropertyValue}, the clients read them, and write them when the property is writable. The
  * definition itself identifies the property.
@@ -70,7 +70,7 @@ export type DBusPropertyDefinition<T = unknown> = {
 }
 
 /**
- * The options of {@link DefineDBusProperty}.
+ * The options of {@link defineDBusProperty}.
  * @typeParam T The values of the property.
  */
 export type DBusPropertyOptions<T> = {
@@ -130,7 +130,7 @@ export type DBusInterfaceDeclaration = {
  * ```typescript
  * import {DTO} from 'lakutata'
  * import {Expect} from 'lakutata/decorator/dto'
- * import {DefineDBusSignal, type DBusObjectManager} from '@lakutata/dbus'
+ * import {defineDBusSignal, type DBusObjectManager} from '@lakutata/dbus'
  *
  * class StatusDTO extends DTO {
  *     @Expect(DTO.String().required())
@@ -141,16 +141,16 @@ export type DBusInterfaceDeclaration = {
  * }
  *
  * //A dictionary of variants a{sv}, validated by StatusDTO
- * export const DeviceChanged = DefineDBusSignal<StatusDTO>('Changed', StatusDTO)
+ * export const DeviceChanged = defineDBusSignal<StatusDTO>('Changed', StatusDTO)
  * //A string s
- * export const DeviceMessage = DefineDBusSignal<string>('Message', 's')
+ * export const DeviceMessage = defineDBusSignal<string>('Message', 's')
  *
  * declare const manager: DBusObjectManager
  * manager.emitSignal('/com/example/Devices/A1', DeviceChanged, {sn: 'A1', online: true} as StatusDTO)
  * manager.emitSignal('/com/example/Devices/A1', DeviceMessage, 'Rebooted')
  * ```
  */
-export function DefineDBusSignal<T = Record<string, unknown>>(name: string, data: typeof DTO | string = 'a{sv}'): DBusSignalDefinition<T> {
+export function defineDBusSignal<T = Record<string, unknown>>(name: string, data: typeof DTO | string = 'a{sv}'): DBusSignalDefinition<T> {
     CheckMemberName(name, 'signal')
     const isDTO: boolean = typeof data === 'function'
     return {
@@ -176,12 +176,12 @@ export function DefineDBusSignal<T = Record<string, unknown>>(name: string, data
  * @example
  * ```typescript
  * import {DTO} from 'lakutata'
- * import {DefineDBusProperty, type DBusObjectManager, type DBusPropertyWrite} from '@lakutata/dbus'
+ * import {defineDBusProperty, type DBusObjectManager, type DBusPropertyWrite} from '@lakutata/dbus'
  *
  * //Read-only, "idle" until it is set
- * export const DeviceState = DefineDBusProperty<string>('State', 's', {initial: 'idle'})
+ * export const DeviceState = defineDBusProperty<string>('State', 's', {initial: 'idle'})
  * //Written by the clients, from 0 to 10
- * export const DeviceLevel = DefineDBusProperty<number>('Level', 'i', {writable: true, initial: 1, schema: DTO.Number().integer().min(0).max(10)})
+ * export const DeviceLevel = defineDBusProperty<number>('Level', 'i', {writable: true, initial: 1, schema: DTO.Number().integer().min(0).max(10)})
  *
  * declare const manager: DBusObjectManager
  * manager.setPropertyValue('/com/example/Devices/A1', DeviceState, 'running')
@@ -190,7 +190,7 @@ export function DefineDBusSignal<T = Record<string, unknown>>(name: string, data
  * })
  * ```
  */
-export function DefineDBusProperty<T = unknown>(name: string, type: string, options: DBusPropertyOptions<T> = {}): DBusPropertyDefinition<T> {
+export function defineDBusProperty<T = unknown>(name: string, type: string, options: DBusPropertyOptions<T> = {}): DBusPropertyDefinition<T> {
     CheckMemberName(name, 'property')
     const schema: Schema | undefined = options.schema
     return {

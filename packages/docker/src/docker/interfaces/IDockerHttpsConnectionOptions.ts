@@ -1,7 +1,7 @@
 import {IDockerConnectionOptions} from './IDockerConnectionOptions.js'
 
 /**
- * The options of {@link BuildDockerHttpsConnectionOptions}: a daemon reached over HTTPS at `host` and `port`, with the
+ * The options of {@link buildDockerHttpsConnectionOptions}: a daemon reached over HTTPS at `host` and `port`, with the
  * `ca`, `cert` and `key` (PEM contents), the headers, the timeout and the API version of
  * {@link IDockerConnectionOptions} (its `protocol` is replaced by `'https'`).
  */

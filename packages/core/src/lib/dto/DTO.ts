@@ -14,9 +14,9 @@ import {VLD, VLDMethods} from '../validation/VLD.js'
 import type {Base} from '../validation/engine/schema/base.js'
 import {Schema} from '../validation/types/Schema.js'
 import {ObjectSchema} from '../validation/interfaces/ObjectSchema.js'
-import {IsSymbol} from '@lakutata/utils/IsSymbol'
+import {isSymbol} from '@lakutata/utils/IsSymbol'
 import {As} from '@lakutata/utils/As'
-import {ObjectConstructor} from '@lakutata/utils/ObjectConstructor'
+import {objectConstructor} from '@lakutata/utils/ObjectConstructor'
 import {toJsonSchema, type FromJsonSchemaOptions, type ToJsonSchemaOptions} from '../validation/JsonSchema.js'
 import {importObject, type ImportedObject} from '../validation/engine/json-schema/import.js'
 import {SchemaConversionException} from '../validation/exceptions/SchemaConversionException.js'
@@ -29,7 +29,7 @@ import {type KeysChild} from '../validation/engine/schema/types/keys.js'
  * @param target
  */
 function getObjectSchema<ClassPrototype extends DTO>(target: ClassPrototype): Schema {
-    return GetCachedDTOSchema(instanceSchemaCache, ObjectConstructor(target), (): Schema => {
+    return GetCachedDTOSchema(instanceSchemaCache, objectConstructor(target), (): Schema => {
         const indexSignatureSchema: Schema | null = GetObjectIndexSignatureSchemaByPrototype(target)
         const objectSchema: ObjectSchema<ClassPrototype> = GetObjectSchemaByPrototype(target)
         return indexSignatureSchema ? objectSchema.pattern(DTO.String(), indexSignatureSchema) : objectSchema
@@ -83,7 +83,7 @@ function arePropertiesIndependent(objectSchema: Base): boolean {
  * @param propertyKey
  */
 function getPropertySchema<U extends DTO>(instance: U, propertyKey: string): Schema | null {
-    const schemas: Map<string, Schema | null> = GetCachedDTOSchema(propertySchemaCache, ObjectConstructor(instance), (): Map<string, Schema | null> => new Map())
+    const schemas: Map<string, Schema | null> = GetCachedDTOSchema(propertySchemaCache, objectConstructor(instance), (): Map<string, Schema | null> => new Map())
     let schema: Schema | null | undefined = schemas.get(propertyKey)
     if (schema !== undefined) return schema
     schema = null
@@ -280,19 +280,19 @@ export class DTO extends DataValidator {
         //Create DTO proxy object
         const DTOInstanceProxy: this = new Proxy(this, {
             set: (target, prop: string | symbol, value, receiver): boolean => {
-                if (!IsSymbol(prop)) value = validatePropertyValue(this, prop, value)
+                if (!isSymbol(prop)) value = validatePropertyValue(this, prop, value)
                 return Reflect.set(target, prop, value, receiver)
             },
             get: (target: this, p: string | symbol, receiver: any): any => dynamicProxyProperty(target, p, receiver, (): void => {
                 //A nested change is validated with the property holding it
-                if (IsSymbol(p)) {
+                if (isSymbol(p)) {
                     DTO.validate({...this}, getObjectSchema(this), {noDefaults: true})
                 } else {
                     validatePropertyValue(this, p, Reflect.get(target, p))
                 }
             }),
             deleteProperty: (target: any, prop: string | symbol): boolean => {
-                if (!IsSymbol(prop)) validatePropertyValue(this, prop, void (0))
+                if (!isSymbol(prop)) validatePropertyValue(this, prop, void (0))
                 return Reflect.deleteProperty(target, prop)
             }
         })

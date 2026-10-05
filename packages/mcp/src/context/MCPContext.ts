@@ -16,7 +16,7 @@ export const MCP_CONTEXT_TYPE: string = 'MCP'
 export type MCPRequestKind = 'tool' | 'resource' | 'prompt'
 
 /**
- * The authentication of the client of an HTTP request, returned by the `authenticate` option of `HTTPMCPEntrypoint`
+ * The authentication of the client of an HTTP request, returned by the `authenticate` option of `httpMCPEntrypoint`
  * and given to the actions in {@link MCPContext.authInfo}. The adapter does not check it: the application decides
  * what it means (the access rules, the actions).
  */
@@ -98,7 +98,7 @@ export class MCPContext<T extends Record<string, any> = {}> extends BaseContext<
     public readonly sessionId?: string
 
     /**
-     * The client's authentication, returned by the `authenticate` option of `HTTPMCPEntrypoint`; `undefined` over stdio
+     * The client's authentication, returned by the `authenticate` option of `httpMCPEntrypoint`; `undefined` over stdio
      * or without that option.
      */
     @Expect(DTO.Object().unknown().optional())

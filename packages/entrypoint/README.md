@@ -35,11 +35,11 @@ The transports use optional peer dependencies, installed when used:
 
 ```typescript
 import {Application, DTO} from 'lakutata'
-import {BuildEntrypoints, Controller, ScheduleEntrypoint} from 'lakutata/com/entrypoint'
+import {buildEntrypoints, Controller, scheduleEntrypoint} from 'lakutata/com/entrypoint'
 import {CLIAction, GET, POST, Schedule, ServiceAction} from 'lakutata/decorator/ctrl'
-import {ExpressHTTPEntrypoint} from 'lakutata/adapter/express'
-import {CommanderCLIEntrypoint} from 'lakutata/adapter/commander'
-import {SocketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
+import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
+import {commanderCLIEntrypoint} from 'lakutata/adapter/commander'
+import {socketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
 import {Expect} from 'lakutata/decorator/dto'
 
 class GetOrderDTO extends DTO {
@@ -81,12 +81,12 @@ Application.run(() => ({
     id: 'orders.app',
     name: 'Orders',
     components: {
-        entrypoint: BuildEntrypoints({
+        entrypoint: buildEntrypoints({
             controllers: [OrderController],
-            http: ExpressHTTPEntrypoint({port: 8080}),
-            cli: CommanderCLIEntrypoint(),
-            service: SocketIOServiceEntrypoint({port: 8081}),
-            schedule: ScheduleEntrypoint()
+            http: expressHTTPEntrypoint({port: 8080}),
+            cli: commanderCLIEntrypoint(),
+            service: socketIOServiceEntrypoint({port: 8081}),
+            schedule: scheduleEntrypoint()
         })
     },
     bootstrap: ['entrypoint']
@@ -107,7 +107,7 @@ Application.run(() => ({
 
 ```typescript
 import {Application} from 'lakutata'
-import {BuildEntrypoints, Controller, type ActionInvocation, type Next} from 'lakutata/com/entrypoint'
+import {buildEntrypoints, Controller, type ActionInvocation, type Next} from 'lakutata/com/entrypoint'
 import {GET, UseMiddlewares} from 'lakutata/decorator/ctrl'
 
 //Runs around the action: before its input validation and its access control
@@ -132,12 +132,12 @@ Application.run(() => ({
     id: 'health.app',
     name: 'Health',
     components: {
-        entrypoint: BuildEntrypoints({controllers: [HealthController], middlewares: [Timing]})
+        entrypoint: buildEntrypoints({controllers: [HealthController], middlewares: [Timing]})
     }
 }))
 ```
 
-The access control: an action declared with `{acl: true}` is checked by the rules given to `BuildEntrypoints({rules})`
+The access control: an action declared with `{acl: true}` is checked by the rules given to `buildEntrypoints({rules})`
 (`AccessControlRule` subclasses, created for each request); a rule resolving `false` denies it with
 `AccessDeniedException` (HTTP 403).
 
@@ -145,20 +145,20 @@ The access control: an action declared with `{acl: true}` is checked by the rule
 
 | Export | Subpath | What it is |
 |---|---|---|
-| `Entrypoint`, `BuildEntrypoints` | `lakutata/com/entrypoint` | The component and its options: controllers, transports, middlewares, rules, groups |
+| `Entrypoint`, `buildEntrypoints` | `lakutata/com/entrypoint` | The component and its options: controllers, transports, middlewares, rules, groups |
 | `Controller` | `lakutata/com/entrypoint` | The base class of the controllers (`context`, `signal`) |
 | `HTTPContext`, `CLIContext`, `ServiceContext`, `ScheduleContext`, `BaseContext`, `ContextType` | `lakutata/com/entrypoint` | The contexts of the requests |
 | `Result`, `StatusResult`, `FileResult`, `EventsResult` | `lakutata/com/entrypoint` | The results controlling the HTTP response |
 | `AccessControlRule`, `AccessControl` | `lakutata/com/entrypoint` | The access control |
 | `Middleware`, `ActionInvocation`, `Next` | `lakutata/com/entrypoint` | The middlewares |
-| `HTTPServiceEntrypoint`, `ScheduleEntrypoint` | `lakutata/com/entrypoint` | The service over HTTP, the schedules |
-| `Cron`, `ParseDuration` | `lakutata/com/entrypoint` | Cron expressions and durations |
+| `httpServiceEntrypoint`, `scheduleEntrypoint` | `lakutata/com/entrypoint` | The service over HTTP, the schedules |
+| `Cron`, `parseDuration` | `lakutata/com/entrypoint` | Cron expressions and durations |
 | `HTTPAction`, `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS` | `lakutata/decorator/ctrl` | HTTP routes |
 | `CLIAction`, `ServiceAction`, `Schedule` | `lakutata/decorator/ctrl` | Commands, service actions, scheduled jobs |
 | `Prefix`, `UseMiddlewares` | `lakutata/decorator/ctrl` | A prefix for the routes, commands and patterns of a controller; its middlewares |
-| `ExpressHTTPEntrypoint`, `FastifyHTTPEntrypoint` | `lakutata/adapter/express`, `lakutata/adapter/fastify` | HTTP transports (with static UIs) |
-| `CommanderCLIEntrypoint` | `lakutata/adapter/commander` | CLI transport |
-| `SocketIOServiceEntrypoint`, `JSONRPCServiceEntrypoint`, `ElectronIPCServiceEntrypoint` | `lakutata/adapter/*` | Service transports |
+| `expressHTTPEntrypoint`, `fastifyHTTPEntrypoint` | `lakutata/adapter/express`, `lakutata/adapter/fastify` | HTTP transports (with static UIs) |
+| `commanderCLIEntrypoint` | `lakutata/adapter/commander` | CLI transport |
+| `socketIOServiceEntrypoint`, `jsonRPCServiceEntrypoint`, `electronIPCServiceEntrypoint` | `lakutata/adapter/*` | Service transports |
 | `EntrypointAdapter`, `ChannelRuntime` | `@lakutata/entrypoint/channel` | Writing a transport or a channel |
 
 The typings document each declaration with examples.

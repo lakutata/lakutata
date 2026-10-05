@@ -7,10 +7,10 @@ import {Expect} from '@lakutata/core/decorator/dto'
 import {Inject} from '@lakutata/core/decorator/di'
 import {
     ActionInvocation,
-    BuildCLIEntrypoint,
-    BuildEntrypoints,
-    BuildHTTPEntrypoint,
-    BuildServiceEntrypoint,
+    buildCLIEntrypoint,
+    buildEntrypoints,
+    buildHTTPEntrypoint,
+    buildServiceEntrypoint,
     CLIContext,
     CLIEntrypointHandler,
     Controller,
@@ -116,12 +116,12 @@ async function Create(middlewares: unknown[] = [Trace('global')]): Promise<{ han
     const handlers: Partial<Handlers> = {}
     const container: Container = new Container()
     await container.load([RequestCounter])
-    await container.set(Entrypoint, BuildEntrypoints({
+    await container.set(Entrypoint, buildEntrypoints({
         controllers: [TestController],
         middlewares: middlewares as MiddlewareHandler[],
-        service: BuildServiceEntrypoint((module, handler): unknown => handlers.service = handler),
-        cli: BuildCLIEntrypoint((module, cliMap, handler): unknown => handlers.cli = handler),
-        http: BuildHTTPEntrypoint((module, routeMap, handler): unknown => handlers.http = handler)
+        service: buildServiceEntrypoint((module, handler): unknown => handlers.service = handler),
+        cli: buildCLIEntrypoint((module, cliMap, handler): unknown => handlers.cli = handler),
+        http: buildHTTPEntrypoint((module, routeMap, handler): unknown => handlers.http = handler)
     }))
     return {handlers: handlers as Handlers, container: container}
 }

@@ -5,7 +5,7 @@
 A [lakutata](https://github.com/lakutata/lakutata) Electron application. The project is a workspace:
 
 - `packages/app`: the main process, a lakutata application. Its controllers serve their `@ServiceAction` actions to the
-  renderer over IPC (`ElectronIPCServiceEntrypoint`); `MainWindow` is its window;
+  renderer over IPC (`electronIPCServiceEntrypoint`); `MainWindow` is its window;
 - `packages/ui`: the renderer, Vue built by Vite. It is isolated from Node.js and from Electron: `window.ipc`
   (`packages/ui/src/ipc.ts`, through the preload script `packages/app/src/preload.cts`) invokes the actions of the main
   process, `window.ipc.invoke({cmd: 'greet', name: 'you'})`, and listens to the events it pushes,

@@ -11,7 +11,7 @@ export const DBUS_CONTEXT_TYPE: string = 'DBUS'
 
 /**
  * The context of a D-Bus method call: `this.context` of a controller action declared with `@DBusMethod` when a client
- * calls it through {@link DBusEntrypoint}. The adapter creates one per call; its `data` is the call's input (the entries
+ * calls it through {@link dbusEntrypoint}. The adapter creates one per call; its `data` is the call's input (the entries
  * of its `a{sv}` dictionary). The variables of the object path template are not in the context: they are merged into
  * the action's input, as the route parameters of HTTP.
  * @example

@@ -39,7 +39,7 @@ The entities use the decorators and their metadata: the TypeScript options of th
 
 ### A database in an application
 
-`BuildDatabaseOptions` registers a `Database` component with the TypeORM connection options (`DataSourceOptions`,
+`buildDatabaseOptions` registers a `Database` component with the TypeORM connection options (`DataSourceOptions`,
 passed to TypeORM as they are). The component connects when it is created (while the application launches when it is
 listed in `bootstrap`), and disconnects when the application stops. A connection failure stops the launch of the
 application.
@@ -47,7 +47,7 @@ application.
 ```typescript
 import {Application, Component} from 'lakutata'
 import {Inject} from 'lakutata/decorator/di'
-import {BuildDatabaseOptions, Database} from 'lakutata/com/database'
+import {buildDatabaseOptions, Database} from 'lakutata/com/database'
 import {Column, CreateDateColumn, Entity, PrimaryGeneratedColumn} from 'lakutata/decorator/orm'
 
 @Entity('users')
@@ -81,7 +81,7 @@ Application
         id: 'com.example.users',
         name: 'Users',
         components: {
-            db: BuildDatabaseOptions({
+            db: buildDatabaseOptions({
                 type: 'postgres',
                 host: process.env.DB_HOST ?? 'localhost',
                 port: 5432,
@@ -322,7 +322,7 @@ connection options.
 
 ```typescript
 import {Application} from 'lakutata'
-import {BuildDatabaseOptions, Database} from 'lakutata/provider/database'
+import {buildDatabaseOptions, Database} from 'lakutata/provider/database'
 import {Column, Entity, PrimaryGeneratedColumn} from 'lakutata/decorator/orm'
 
 @Entity('reports')
@@ -340,7 +340,7 @@ Application
         name: 'Reports',
         providers: {
             reports: {
-                ...BuildDatabaseOptions({type: 'postgres', url: process.env.REPORTS_URL}),
+                ...buildDatabaseOptions({type: 'postgres', url: process.env.REPORTS_URL}),
                 entities: [Report]
             }
         }
@@ -359,8 +359,8 @@ Each database is a component of its own name, injected by it. The migration comm
 
 ```text
 components: {
-    db: BuildDatabaseOptions({type: 'postgres', url: process.env.DATABASE_URL, entities: [User, Order]}),
-    analytics: BuildDatabaseOptions({type: 'postgres', url: process.env.ANALYTICS_URL, entities: [Event]})
+    db: buildDatabaseOptions({type: 'postgres', url: process.env.DATABASE_URL, entities: [User, Order]}),
+    analytics: buildDatabaseOptions({type: 'postgres', url: process.env.ANALYTICS_URL, entities: [Event]})
 }
 ```
 
@@ -429,8 +429,8 @@ The entities of a database are the ones of its connection options, and for a `Da
 
 | Export | Subpath | What it is |
 |---|---|---|
-| `Database`, `BuildDatabaseOptions` | `lakutata/com/database` | The database component (a shared connection) and its registration |
-| `Database`, `BuildDatabaseOptions` | `lakutata/provider/database` | The database provider (a connection per resolution) and its registration |
+| `Database`, `buildDatabaseOptions` | `lakutata/com/database` | The database component (a shared connection) and its registration |
+| `Database`, `buildDatabaseOptions` | `lakutata/provider/database` | The database provider (a connection per resolution) and its registration |
 | `MigrationRunOptions` | `lakutata/com/database`, `lakutata/provider/database` | The options of `runMigrations()` and `undoLastMigration()` |
 | `Entity`, `Column`, `PrimaryGeneratedColumn`, `OneToMany`, `ManyToOne`, `Index`, `BeforeInsert`… | `lakutata/decorator/orm` | The TypeORM decorators |
 | `Repository`, `EntityManager`, `QueryRunner`, `SelectQueryBuilder`, `DataSource`, `BaseEntity`… | `lakutata/orm` | The TypeORM classes and types |

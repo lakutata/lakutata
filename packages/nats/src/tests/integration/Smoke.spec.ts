@@ -2,15 +2,15 @@ import {after, before, it} from 'node:test'
 import {expect} from '../support/Expect.js'
 import {describeNats as describe, destroyApp, runApp, ensureNats, stopNats} from '../support/App.js'
 import {Application} from '@lakutata/core'
-import {BuildEntrypoints, Controller} from '@lakutata/entrypoint'
+import {buildEntrypoints, Controller} from '@lakutata/entrypoint'
 import {ServiceAction} from '@lakutata/entrypoint/decorator/ctrl'
-import {Delay} from '@lakutata/utils'
+import {delay} from '@lakutata/utils'
 import {
-    BuildNatsClientOptions,
-    BuildServiceProxy,
+    buildNatsClientOptions,
+    buildServiceProxy,
     NATS,
     ServiceProxy,
-    SetupNatsServiceEntrypoint
+    setupNatsServiceEntrypoint
 } from '../../exports/Nats.js'
 
 /**
@@ -36,14 +36,14 @@ describe('Phase 0 smoke', (): void => {
             id: 'smoke.app',
             name: 'Smoke',
             components: {
-                nats: BuildNatsClientOptions({servers: process.env.NATS_URL!}),
-                entrypoint: BuildEntrypoints({
+                nats: buildNatsClientOptions({servers: process.env.NATS_URL!}),
+                entrypoint: buildEntrypoints({
                     controllers: [EchoController],
-                    service: SetupNatsServiceEntrypoint('nats')
+                    service: setupNatsServiceEntrypoint('nats')
                 })
             },
             providers: {
-                self: BuildServiceProxy({serviceId: 'smoke.app', natsComponentName: 'nats'})
+                self: buildServiceProxy({serviceId: 'smoke.app', natsComponentName: 'nats'})
             },
             bootstrap: ['entrypoint']
         })
@@ -62,7 +62,7 @@ describe('Phase 0 smoke', (): void => {
                 return null
             })
         })
-        await Delay(100) //Allow time for the subscription to be established
+        await delay(100) //Allow time for the subscription to be established
         nats.publish('smoke.subject', {hello: 'bun'})
         expect(await received).toEqual({hello: 'bun'})
     })

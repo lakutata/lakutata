@@ -144,7 +144,7 @@ the action does not run (the error is logged).
 
 ```typescript
 import {Application} from 'lakutata'
-import {BuildEntrypoints, Controller, ScheduleEntrypoint} from 'lakutata/com/entrypoint'
+import {buildEntrypoints, Controller, scheduleEntrypoint} from 'lakutata/com/entrypoint'
 import {Schedule} from 'lakutata/decorator/ctrl'
 import {Mutex} from 'lakutata/com/mutex'
 
@@ -166,9 +166,9 @@ Application.run(() => ({
     components: {
         mutex: {class: Mutex, driver: {type: 'redis', url: 'redis://127.0.0.1:6379'}},
         locks: {class: Mutex, driver: {type: 'postgres', host: 'db', database: 'app', username: 'app', password: ''}},
-        entrypoint: BuildEntrypoints({
+        entrypoint: buildEntrypoints({
             controllers: [ReportController],
-            schedule: ScheduleEntrypoint()
+            schedule: scheduleEntrypoint()
         })
     },
     bootstrap: ['entrypoint']
@@ -186,7 +186,7 @@ Application.run(() => ({
 | `MemoryMutexOptions`, `FileMutexOptions`, `RedisMutexOptions`, `PostgresMutexOptions`, `MysqlMutexOptions` | The options of each driver |
 | `Synchronized` | Method decorator running a controller action holding a lock |
 | `SynchronizedOptions` | The lock component, `timeout`, `wait` and `ttl` of `@Synchronized` |
-| `LockNameOf` | Builds a lock name from a template (`'order:{id}'`) and an input |
+| `lockNameOf` | Builds a lock name from a template (`'order:{id}'`) and an input |
 | `MutexDriver`, `DriverLock` | The base class of the drivers, and a lock granted by a driver |
 | `MemoryMutexDriver`, `FileMutexDriver`, `RedisMutexDriver`, `PostgresMutexDriver`, `MysqlMutexDriver` | The drivers, usable directly without the component (no waiting, no renewal) |
 | `RedisMutexConnection`, `PostgresMutexConnection`, `MysqlMutexConnection` | The connections given to the drivers' constructors |

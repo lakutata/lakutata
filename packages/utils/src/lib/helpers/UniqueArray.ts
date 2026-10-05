@@ -6,12 +6,12 @@
  * @returns A new array without duplicates.
  * @example
  * ```typescript
- * import {UniqueArray} from 'lakutata/utils'
+ * import {uniqueArray} from 'lakutata/utils'
  *
- * console.log(UniqueArray([3, 1, 3, 2, 1]))
+ * console.log(uniqueArray([3, 1, 3, 2, 1]))
  * //[3, 1, 2]
  * ```
  */
-export function UniqueArray<T>(arr: T[]): T[] {
+export function uniqueArray<T>(arr: T[]): T[] {
     return Array.from(new Set(arr))
 }

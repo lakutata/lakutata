@@ -7,7 +7,7 @@ import type {Message} from '../lib/Protobuf.js'
 import {EventsRequest, FromJSONBytes, InvokeRequest, InvokeResponse, JSONBytes, SERVICE_METHODS, ServiceEvent} from './ServiceProto.js'
 
 /**
- * The options of a {@link GRPCServiceProxy}, given to {@link BuildGRPCServiceProxy}.
+ * The options of a {@link GRPCServiceProxy}, given to {@link buildGRPCServiceProxy}.
  */
 export type BuildGRPCServiceProxyOptions = {
     /**
@@ -54,16 +54,16 @@ export type BuildGRPCServiceProxyOptions = {
  * ```typescript
  * import {readFileSync} from 'node:fs'
  * import {Application} from 'lakutata'
- * import {BuildGRPCServiceProxy, type GRPCServiceProxy} from '@lakutata/grpc/service'
+ * import {buildGRPCServiceProxy, type GRPCServiceProxy} from '@lakutata/grpc/service'
  *
  * Application
  *     .run(() => ({
  *         id: 'shop.app',
  *         name: 'Shop',
  *         components: {
- *             orders: BuildGRPCServiceProxy({address: 'orders.internal:50051'}),
+ *             orders: buildGRPCServiceProxy({address: 'orders.internal:50051'}),
  *             //Over mutual TLS, with a stable client id
- *             payments: BuildGRPCServiceProxy({
+ *             payments: buildGRPCServiceProxy({
  *                 address: 'tcp://payments.internal:50052',
  *                 tls: {ca: readFileSync('ca.pem'), cert: readFileSync('client.pem'), key: readFileSync('client-key.pem')},
  *                 clientId: 'shop-1',
@@ -77,7 +77,7 @@ export type BuildGRPCServiceProxyOptions = {
  *     })
  * ```
  */
-export const BuildGRPCServiceProxy: ComponentOptionsBuilder<BuildGRPCServiceProxyOptions> = (options: BuildGRPCServiceProxyOptions) => {
+export const buildGRPCServiceProxy: ComponentOptionsBuilder<BuildGRPCServiceProxyOptions> = (options: BuildGRPCServiceProxyOptions) => {
     return {
         class: GRPCServiceProxy,
         address: options.address,
@@ -90,9 +90,9 @@ export const BuildGRPCServiceProxy: ComponentOptionsBuilder<BuildGRPCServiceProx
 }
 
 /**
- * The client of a lakutata service served over gRPC by `GRPCServiceEntrypoint`: it invokes the service's actions by
+ * The client of a lakutata service served over gRPC by `grpcServiceEntrypoint`: it invokes the service's actions by
  * their patterns and listens to the events the service pushes to it. It is a component (a singleton), registered with
- * {@link BuildGRPCServiceProxy}; it connects at its first call, and its event stream is opened when the first listener
+ * {@link buildGRPCServiceProxy}; it connects at its first call, and its event stream is opened when the first listener
  * is added.
  *
  * The failures of the remote actions are thrown as `ServiceInvokeException` (from `lakutata/com/entrypoint`), with the
@@ -107,7 +107,7 @@ export const BuildGRPCServiceProxy: ComponentOptionsBuilder<BuildGRPCServiceProx
  * import type {GRPCServiceProxy} from '@lakutata/grpc/service'
  *
  * class OrderWatcher extends Component {
- *     //Registered as orders: BuildGRPCServiceProxy({address: 'orders.internal:50051'})
+ *     //Registered as orders: buildGRPCServiceProxy({address: 'orders.internal:50051'})
  *     @Inject('orders')
  *     protected readonly orders: GRPCServiceProxy
  *

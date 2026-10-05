@@ -5,10 +5,10 @@ import {Server as SocketIOServer, type Socket as ServerSocket} from 'socket.io'
 import {io, type Socket} from 'socket.io-client'
 import {Application, DTO, Exception, type Module} from '../../../exports/Lakutata.js'
 import {
-    BuildCLIEntrypoint,
-    BuildEntrypoints,
-    BuildHTTPEntrypoint,
-    BuildServiceEntrypoint,
+    buildCLIEntrypoint,
+    buildEntrypoints,
+    buildHTTPEntrypoint,
+    buildServiceEntrypoint,
     CLIContext,
     Controller,
     HTTPContext,
@@ -24,7 +24,7 @@ import {CLIAction, GET, POST, ServiceAction} from '../../../exports/CTRLDecorato
 import {Inject} from '../../../exports/DIDecorators.js'
 import {Expect} from '../../../exports/DTODecorators.js'
 import {Column, Entity, PrimaryGeneratedColumn} from '../../../exports/ORMDecorators.js'
-import {BuildDatabaseOptions, Database} from '../../../exports/DatabaseComponent.js'
+import {buildDatabaseOptions, Database} from '../../../exports/DatabaseComponent.js'
 import {As, ObjectPath} from '../../../exports/Utils.js'
 import {FreePort, RunChecks} from '../support/Scenario.js'
 
@@ -83,7 +83,7 @@ let cliHandler: CLIEntrypointHandler
  * The HTTP entrypoint as the applications of lakutata 2.x build it: an Express application whose routes are the ones
  * of the route map, the results enveloped
  */
-const SetupHttpEntrypoint = (): ReturnType<typeof BuildHTTPEntrypoint> => BuildHTTPEntrypoint(async (module: Module, routeMap: HTTPRouteMap, handler: HTTPEntrypointHandler, onDestroy: EntrypointDestroyerRegistrar): Promise<void> => {
+const SetupHttpEntrypoint = (): ReturnType<typeof buildHTTPEntrypoint> => buildHTTPEntrypoint(async (module: Module, routeMap: HTTPRouteMap, handler: HTTPEntrypointHandler, onDestroy: EntrypointDestroyerRegistrar): Promise<void> => {
     const app: Express = express()
     app.use(express.json())
     const db: Database = await module.getObject<Database>('db')
@@ -113,11 +113,11 @@ Application
         name: 'IntegrationLegacy',
         components: {
             log: {level: 'warn'},
-            db: BuildDatabaseOptions({type: 'sqlite', database: ':memory:', entities: [Device], synchronize: true}),
-            entrypoint: BuildEntrypoints({
+            db: buildDatabaseOptions({type: 'sqlite', database: ':memory:', entities: [Device], synchronize: true}),
+            entrypoint: buildEntrypoints({
                 controllers: [DeviceController],
                 http: SetupHttpEntrypoint(),
-                service: BuildServiceEntrypoint((_module: Module, handler: ServiceEntrypointHandler, onDestroy: EntrypointDestroyerRegistrar): void => {
+                service: buildServiceEntrypoint((_module: Module, handler: ServiceEntrypointHandler, onDestroy: EntrypointDestroyerRegistrar): void => {
                     const server: Server = createServer()
                     const ioServer: SocketIOServer = new SocketIOServer(server)
                     ioServer.on('connection', (socket: ServerSocket): void => {
@@ -130,7 +130,7 @@ Application
                     server.listen(ioPort, '127.0.0.1')
                     onDestroy((): Promise<void> => new Promise((resolve: () => void): unknown => ioServer.close((): void => resolve())))
                 }),
-                cli: BuildCLIEntrypoint((_module: Module, map: CLIMap, handler: CLIEntrypointHandler): void => {
+                cli: buildCLIEntrypoint((_module: Module, map: CLIMap, handler: CLIEntrypointHandler): void => {
                     cliMap = map
                     cliHandler = handler
                 })

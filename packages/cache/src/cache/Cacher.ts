@@ -25,7 +25,7 @@ import {CacheEntry} from './lib/Serializer.js'
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildCacherOptions, type Cacher} from 'lakutata/com/cacher'
+ * import {buildCacherOptions, type Cacher} from 'lakutata/com/cacher'
  *
  * Application
  *     .run(() => ({
@@ -33,7 +33,7 @@ import {CacheEntry} from './lib/Serializer.js'
  *         name: 'Cache',
  *         components: {
  *             //An in-memory cache whose entries expire after one minute
- *             cache: BuildCacherOptions({ttl: 60000})
+ *             cache: buildCacherOptions({ttl: 60000})
  *         }
  *     }))
  *     .onLaunched(async (app: Application): Promise<void> => {
@@ -43,7 +43,7 @@ import {CacheEntry} from './lib/Serializer.js'
  *     })
  * ```
  */
-export const BuildCacherOptions: ComponentOptionsBuilder<CacherOptions> = (options?: CacherOptions): ComponentOptions<CacherOptions> => ({
+export const buildCacherOptions: ComponentOptionsBuilder<CacherOptions> = (options?: CacherOptions): ComponentOptions<CacherOptions> => ({
     class: Cacher,
     stores: options?.stores,
     ttl: options?.ttl,
@@ -169,7 +169,7 @@ function FirstDefined<T>(promises: Promise<T | undefined>[]): Promise<T | undefi
 /**
  * The cache component: a key-value cache with expiration, backed by one or more stores (memory, file, Redis,
  * Memcache, MongoDB, SQLite, PostgreSQL, MySQL). Register it in the `components` of an application with
- * {@link BuildCacherOptions} (or `{class: Cacher, ...options}`) and get it with `getObject()` or `@Inject`; it is a
+ * {@link buildCacherOptions} (or `{class: Cacher, ...options}`) and get it with `getObject()` or `@Inject`; it is a
  * singleton. Without stores, it caches in memory.
  *
  * The stores connect when the component is created: when one fails to connect, the others are disconnected and the
@@ -192,7 +192,7 @@ function FirstDefined<T>(promises: Promise<T | undefined>[]): Promise<T | undefi
  * ```typescript
  * import {Application, Component} from 'lakutata'
  * import {Inject} from 'lakutata/decorator/di'
- * import {BuildCacherOptions, type Cacher} from 'lakutata/com/cacher'
+ * import {buildCacherOptions, type Cacher} from 'lakutata/com/cacher'
  *
  * type Product = {id: number, name: string}
  *
@@ -223,7 +223,7 @@ function FirstDefined<T>(promises: Promise<T | undefined>[]): Promise<T | undefi
  *         name: 'Catalog',
  *         components: {
  *             //A local file tier in front of Redis (the "redis" package installed)
- *             cache: BuildCacherOptions({
+ *             cache: buildCacherOptions({
  *                 stores: [
  *                     {type: 'file', filename: './cache/catalog.json'},
  *                     {type: 'redis', host: '127.0.0.1', namespace: 'catalog'}

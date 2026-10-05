@@ -1,7 +1,7 @@
 import {CacheStoreOptions} from '../types/CacheStoreOptions.js'
 
 /**
- * The options of a `Cacher` component, given to `BuildCacherOptions` (or next to `class: Cacher` in the
+ * The options of a `Cacher` component, given to `buildCacherOptions` (or next to `class: Cacher` in the
  * `components` of an application). They are validated when the component is created.
  */
 export interface CacherOptions {

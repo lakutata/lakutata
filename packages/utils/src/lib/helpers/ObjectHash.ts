@@ -7,7 +7,7 @@ import {createHash, getHashes, type Hash} from 'node:crypto'
 type HashName = 'md5' | 'sha1' | 'sha224' | 'sha256' | 'sha384' | 'sha512' | 'ripemd160' | string
 
 /**
- * The options of `ObjectHash`: the digest, and what the hash takes into account.
+ * The options of `objectHash`: the digest, and what the hash takes into account.
  */
 export type ObjectHashOptions = {
     /**
@@ -129,7 +129,7 @@ function ApplyDefaults(object: any, source: ObjectHashOptions = {}): HashingOpti
     return options
 }
 
-function IsNativeFunction(f: unknown): boolean {
+function isNativeFunction(f: unknown): boolean {
     if (typeof f !== 'function') return false
     return /^function\s+\w*\s*\(\s*\)\s*{\s+\[native code\]\s+}$/i.exec(Function.prototype.toString.call(f)) != null
 }
@@ -189,7 +189,7 @@ class TypeHasher {
 
     protected function(fn: Function): void {
         this.write('fn:')
-        this.dispatch(IsNativeFunction(fn) ? '[native]' : fn.toString())
+        this.dispatch(isNativeFunction(fn) ? '[native]' : fn.toString())
         //The native functions are distinguished by their names, or String and Function would have the same hash
         if (this.options.respectFunctionNames !== false) this.dispatch('function-name:' + String(fn.name))
         if (this.options.respectFunctionProperties) this.object(fn)
@@ -216,7 +216,7 @@ class TypeHasher {
         let keys: string[] = Object.keys(object)
         if (this.options.unorderedObjects) keys = keys.sort()
         //The special properties distinguish the types (new Foo, new Bar), not for the native functions
-        if (this.options.respectType !== false && !IsNativeFunction(object)) keys.splice(0, 0, 'prototype', '__proto__', 'constructor')
+        if (this.options.respectType !== false && !isNativeFunction(object)) keys.splice(0, 0, 'prototype', '__proto__', 'constructor')
         if (this.options.excludeKeys) keys = keys.filter((key: string): boolean => !this.options.excludeKeys!(key))
         this.write('object:' + keys.length + ':')
         for (const key of keys) {
@@ -375,16 +375,16 @@ class TypeHasher {
  * contains an unsupported type (a `Promise`, a `WeakMap`, a `Blob`…) without `ignoreUnknown`.
  * @example
  * ```typescript
- * import {ObjectHash} from 'lakutata/utils'
+ * import {objectHash} from 'lakutata/utils'
  *
- * console.log(ObjectHash({a: 1, b: [1, 2]}) === ObjectHash({b: [1, 2], a: 1}))
+ * console.log(objectHash({a: 1, b: [1, 2]}) === objectHash({b: [1, 2], a: 1}))
  * //true
- * console.log(ObjectHash([1, 2]) === ObjectHash([2, 1]))
+ * console.log(objectHash([1, 2]) === objectHash([2, 1]))
  * //false
- * console.log(ObjectHash([1, 2], {unorderedArrays: true}) === ObjectHash([2, 1], {unorderedArrays: true}))
+ * console.log(objectHash([1, 2], {unorderedArrays: true}) === objectHash([2, 1], {unorderedArrays: true}))
  * //true
  * //A cache key ignoring the timestamps
- * const key: string = ObjectHash({query: 'books', at: Date.now()}, {
+ * const key: string = objectHash({query: 'books', at: Date.now()}, {
  *     algorithm: 'sha256',
  *     excludeKeys: (name: string): boolean => name === 'at'
  * })
@@ -392,7 +392,7 @@ class TypeHasher {
  * //64
  * ```
  */
-export function ObjectHash(value: any, options?: ObjectHashOptions): string {
+export function objectHash(value: any, options?: ObjectHashOptions): string {
     const hashingOptions: HashingOptions = ApplyDefaults(value, options)
     if (hashingOptions.algorithm === 'passthrough') {
         const output: StringOutput = new StringOutput()

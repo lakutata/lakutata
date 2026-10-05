@@ -217,7 +217,7 @@ class ItemController extends Controller {
 }
 ```
 
-CLI 命令名称前面的词是命令分组：`@CLIAction('package exe <name>', ExeDTO)` 是命令组 `package` 下的命令 `exe`（`tool package exe app`），`tool package --help` 会列出这个组的所有命令。命令组的说明由适配器的 `groups` 选项给出（`CommanderCLIEntrypoint({groups: {package: '打包应用'}})`，翻译键为 `commands.package.description`）。
+CLI 命令名称前面的词是命令分组：`@CLIAction('package exe <name>', ExeDTO)` 是命令组 `package` 下的命令 `exe`（`tool package exe app`），`tool package --help` 会列出这个组的所有命令。命令组的说明由适配器的 `groups` 选项给出（`commanderCLIEntrypoint({groups: {package: '打包应用'}})`，翻译键为 `commands.package.description`）。
 
 ## 3. 校验（`lakutata/decorator/dto`）
 

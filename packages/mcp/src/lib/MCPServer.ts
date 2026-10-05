@@ -3,11 +3,11 @@ import type {ChannelActionInfo, ChannelRuntime} from '@lakutata/entrypoint'
 import {McpServer, ProtocolError, ProtocolErrorCode, ResourceTemplate, type CallToolResult, type GetPromptResult, type ReadResourceResult, type ServerContext, type StandardSchemaWithJSON, type Variables} from '@modelcontextprotocol/server'
 import {MCPAuthInfo, MCPContext, MCPRequestKind} from '../context/MCPContext.js'
 import type {MCPMetadata} from './Metadata.js'
-import {ErrorMessage, ResultType, ToErrorResult, ToPromptResult, ToResourceResult, ToToolResult} from './Results.js'
+import {ErrorMessage, ResultType, toErrorResult, toPromptResult, toResourceResult, toToolResult} from './Results.js'
 
 /**
  * The description of an MCP server, given to the clients when they connect (`initialize`); the options of
- * `StdioMCPEntrypoint` and `HTTPMCPEntrypoint` include it.
+ * `stdioMCPEntrypoint` and `httpMCPEntrypoint` include it.
  */
 export type MCPServerInfo = {
     /**
@@ -109,14 +109,14 @@ function RegisterTool(server: McpServer, runtime: ChannelRuntime<MCPContext>, ac
     }, async (args: unknown, context: ServerContext): Promise<CallToolResult> => {
         try {
             const result: unknown = await runtime.dispatchTo(action, RequestContext('tool', name, Input(args), context), {signal: context.mcpReq.signal})
-            const toolResult: CallToolResult = await ToToolResult(result, !!outputSchema)
+            const toolResult: CallToolResult = await toToolResult(result, !!outputSchema)
             //A tool declaring an output answers an object: the error names the action rather than the SDK's validation
             if (outputSchema && !toolResult.isError && toolResult.structuredContent === undefined) {
-                return ToErrorResult(new TypeError(`The tool ${name} declares an output, but its action ${action.name} returned ${ResultType(result)} instead of an object`))
+                return toErrorResult(new TypeError(`The tool ${name} declares an output, but its action ${action.name} returned ${ResultType(result)} instead of an object`))
             }
             return toolResult
         } catch (error: unknown) {
-            return ToErrorResult(error)
+            return toErrorResult(error)
         }
     })
 }
@@ -139,7 +139,7 @@ function RegisterResource(server: McpServer, runtime: ChannelRuntime<MCPContext>
     const read = async (url: URL, variables: Variables, context: ServerContext): Promise<ReadResourceResult> => {
         try {
             const result: unknown = await runtime.dispatchTo(action, RequestContext('resource', uri, {}, context, url.href), {signal: context.mcpReq.signal, params: variables})
-            return await ToResourceResult(url.href, result, mimeType)
+            return await toResourceResult(url.href, result, mimeType)
         } catch (error: unknown) {
             throw ToProtocolError(error)
         }
@@ -167,7 +167,7 @@ function RegisterPrompt(server: McpServer, runtime: ChannelRuntime<MCPContext>, 
         argsSchema: Schema(action.jsonSchema)
     }, async (args: unknown, context: ServerContext): Promise<GetPromptResult> => {
         try {
-            return ToPromptResult(await runtime.dispatchTo(action, RequestContext('prompt', name, Input(args), context), {signal: context.mcpReq.signal}), description)
+            return toPromptResult(await runtime.dispatchTo(action, RequestContext('prompt', name, Input(args), context), {signal: context.mcpReq.signal}), description)
         } catch (error: unknown) {
             throw ToProtocolError(error)
         }
@@ -188,11 +188,11 @@ function RegisterPrompt(server: McpServer, runtime: ChannelRuntime<MCPContext>, 
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildEntrypoints, type ChannelRuntime, type EntrypointAdapter} from 'lakutata/com/entrypoint'
- * import {BuildMCPServer, MCPChannel, type MCPContext} from '@lakutata/mcp'
+ * import {buildEntrypoints, type ChannelRuntime, type EntrypointAdapter} from 'lakutata/com/entrypoint'
+ * import {buildMCPServer, MCPChannel, type MCPContext} from '@lakutata/mcp'
  * import {StdioServerTransport} from '@modelcontextprotocol/server/stdio'
  *
- * type MCPServer = ReturnType<typeof BuildMCPServer>
+ * type MCPServer = ReturnType<typeof buildMCPServer>
  *
  * //An adapter serving the MCP actions over the standard streams of a child process
  * function ChildMCPEntrypoint(): EntrypointAdapter<MCPContext> {
@@ -201,7 +201,7 @@ function RegisterPrompt(server: McpServer, runtime: ChannelRuntime<MCPContext>, 
  *         channel: 'mcp',
  *         definition: MCPChannel,
  *         start: async (runtime: ChannelRuntime<MCPContext>): Promise<void> => {
- *             server = BuildMCPServer(runtime, {serverName: 'child', instructions: 'The tools of the child process.'})
+ *             server = buildMCPServer(runtime, {serverName: 'child', instructions: 'The tools of the child process.'})
  *             await server.connect(new StdioServerTransport())
  *         },
  *         stop: (): void => {
@@ -216,13 +216,13 @@ function RegisterPrompt(server: McpServer, runtime: ChannelRuntime<MCPContext>, 
  *     id: 'child.app',
  *     name: 'Child',
  *     components: {
- *         entrypoint: BuildEntrypoints({controllers: [], mcp: ChildMCPEntrypoint()})
+ *         entrypoint: buildEntrypoints({controllers: [], mcp: ChildMCPEntrypoint()})
  *     },
  *     bootstrap: ['entrypoint']
  * }))
  * ```
  */
-export function BuildMCPServer(runtime: ChannelRuntime<MCPContext>, info: MCPServerInfo = {}, subscriptions?: Set<string>): McpServer {
+export function buildMCPServer(runtime: ChannelRuntime<MCPContext>, info: MCPServerInfo = {}, subscriptions?: Set<string>): McpServer {
     const server: McpServer = new McpServer({
         name: info.serverName ?? Application.appName ?? 'lakutata',
         version: info.serverVersion ?? '1.0.0'

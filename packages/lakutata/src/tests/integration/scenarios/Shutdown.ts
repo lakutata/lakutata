@@ -3,11 +3,11 @@ import {mkdtempSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {Application, Component, type ApplicationExitReason} from '../../../exports/Lakutata.js'
-import {BuildEntrypoints, Controller} from '../../../exports/EntrypointComponent.js'
-import {ExpressHTTPEntrypoint, JSONEnvelope} from '../../../exports/ExpressAdapter.js'
+import {buildEntrypoints, Controller} from '../../../exports/EntrypointComponent.js'
+import {expressHTTPEntrypoint, jsonEnvelope} from '../../../exports/ExpressAdapter.js'
 import {GET} from '../../../exports/CTRLDecorators.js'
 import {Inject} from '../../../exports/DIDecorators.js'
-import {BuildDatabaseOptions, Database} from '../../../exports/DatabaseComponent.js'
+import {buildDatabaseOptions, Database} from '../../../exports/DatabaseComponent.js'
 import {FreePort, RunChecks} from '../support/Scenario.js'
 
 /**
@@ -48,10 +48,10 @@ Application
         components: {
             log: {level: 'warn'},
             recorder: {class: Recorder},
-            db: BuildDatabaseOptions({type: 'sqlite', database: path.join(mkdtempSync(path.join(tmpdir(), 'lakutata-shutdown-')), 'app.db')}),
-            entrypoint: BuildEntrypoints({
+            db: buildDatabaseOptions({type: 'sqlite', database: path.join(mkdtempSync(path.join(tmpdir(), 'lakutata-shutdown-')), 'app.db')}),
+            entrypoint: buildEntrypoints({
                 controllers: [SlowController],
-                http: ExpressHTTPEntrypoint({port: port, host: '127.0.0.1', respond: JSONEnvelope({errorStatus: 200})})
+                http: expressHTTPEntrypoint({port: port, host: '127.0.0.1', respond: jsonEnvelope({errorStatus: 200})})
             })
         },
         bootstrap: ['recorder', 'db', 'entrypoint']

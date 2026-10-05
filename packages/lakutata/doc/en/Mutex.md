@@ -155,8 +155,8 @@ class ReportController extends Controller {
 }
 ```
 
-The entrypoint needs a schedule adapter: `BuildEntrypoints({controllers: [ReportController], schedule:
-ScheduleEntrypoint()})` (see [ActionPattern](ActionPattern.md)).
+The entrypoint needs a schedule adapter: `buildEntrypoints({controllers: [ReportController], schedule:
+scheduleEntrypoint()})` (see [ActionPattern](ActionPattern.md)).
 
 ## 5. Exceptions
 

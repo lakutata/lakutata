@@ -8,7 +8,7 @@ import path from 'node:path'
 import {Readable} from 'node:stream'
 import {setTimeout as sleep} from 'node:timers/promises'
 import {ContainerdClient, IsGRPCError, PROCESS_TYPE_URL, SPEC_TYPE_URL, TimestampDate, type SnapshotMount} from './ContainerdClient.js'
-import {GRPCStatus, Decode, Encode, type Message} from '@lakutata/grpc'
+import {GRPCStatus, decode, encode, type Message} from '@lakutata/grpc'
 import * as M from './Messages.js'
 import {FormatPlatform, HostPlatform, ParsePlatform, type Platform} from './Platforms.js'
 import {ChainIds, ImageStore, type ImageConfigChanges, type ResolvedImage} from './ImageStore.js'
@@ -705,7 +705,7 @@ export class ContainerStore {
                 labels[ContainerLabels.RESTART_STATUS] = 'stopped'
             }
             const runtime: Message = {name: this.options.runtime}
-            if (this.options.cgroupManager === 'systemd') runtime.options = {typeUrl: 'containerd.runc.v1.Options', value: Encode(M.RuncOptions, {systemdCgroup: true})}
+            if (this.options.cgroupManager === 'systemd') runtime.options = {typeUrl: 'containerd.runc.v1.Options', value: encode(M.RuncOptions, {systemdCgroup: true})}
             return await this.client.createContainer({
                 id: id,
                 labels: labels,
@@ -1137,7 +1137,7 @@ export class ContainerStore {
             networks: {}
         }
         if (type.endsWith('cgroups.v2.Metrics')) {
-            const metrics: Message = Counters(Decode(M.CgroupV2Metrics, data))
+            const metrics: Message = Counters(decode(M.CgroupV2Metrics, data))
             stats.pids = {current: metrics.pids?.current ?? 0, limit: metrics.pids?.limit ?? 0}
             stats.cpu = {
                 usage: (metrics.cpu?.usageUsec ?? 0) * 1000,
@@ -1163,7 +1163,7 @@ export class ContainerStore {
                 stats.blkio.writeOps += entry.wios ?? 0
             }
         } else if (type.endsWith('cgroups.v1.Metrics')) {
-            const metrics: Message = Counters(Decode(M.CgroupV1Metrics, data))
+            const metrics: Message = Counters(decode(M.CgroupV1Metrics, data))
             stats.pids = {current: metrics.pids?.current ?? 0, limit: metrics.pids?.limit ?? 0}
             stats.cpu = {
                 usage: metrics.cpu?.usage?.total ?? 0,

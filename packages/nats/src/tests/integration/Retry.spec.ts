@@ -2,17 +2,17 @@ import {after, before, it} from 'node:test'
 import {expect} from '../support/Expect.js'
 import {describeNats as describe, destroyApp, runApp, ensureNats, stopNats} from '../support/App.js'
 import {Application} from '@lakutata/core'
-import {BuildEntrypoints, Controller} from '@lakutata/entrypoint'
+import {buildEntrypoints, Controller} from '@lakutata/entrypoint'
 import {ServiceAction} from '@lakutata/entrypoint/decorator/ctrl'
-import {Delay} from '@lakutata/utils'
+import {delay} from '@lakutata/utils'
 import {
-    BuildNatsClientOptions,
-    BuildServiceProxy,
+    buildNatsClientOptions,
+    buildServiceProxy,
     NatsNoRespondersAvailableException,
     NatsRequestTimeoutException,
     ServiceInvokeException,
     ServiceProxy,
-    SetupNatsServiceEntrypoint
+    setupNatsServiceEntrypoint
 } from '../../exports/Nats.js'
 
 class RetryController extends Controller {
@@ -23,7 +23,7 @@ class RetryController extends Controller {
 
     @ServiceAction({cmd: 'slow'})
     public async slow(): Promise<{ok: boolean}> {
-        await Delay(1000)
+        await delay(1000)
         return {ok: true}
     }
 
@@ -50,18 +50,18 @@ describe('#7 NoResponders safe retry', (): void => {
             id: 'it.retry.app',
             name: 'ITRetry',
             components: {
-                nats: BuildNatsClientOptions({servers: n.url}),
-                entrypoint: BuildEntrypoints({
+                nats: buildNatsClientOptions({servers: n.url}),
+                entrypoint: buildEntrypoints({
                     controllers: [RetryController],
-                    service: SetupNatsServiceEntrypoint('nats')
+                    service: setupNatsServiceEntrypoint('nats')
                 })
             },
             providers: {
-                self: BuildServiceProxy({serviceId: 'it.retry.app', natsComponentName: 'nats', maxRetries: 2, retryDelay: 50}),
+                self: buildServiceProxy({serviceId: 'it.retry.app', natsComponentName: 'nats', maxRetries: 2, retryDelay: 50}),
                 //Points to a serviceId with no subscribers, so NoResponders is guaranteed
-                dead: BuildServiceProxy({serviceId: 'nonexistent.service.xyz', natsComponentName: 'nats', maxRetries: 2, retryDelay: 50}),
+                dead: buildServiceProxy({serviceId: 'nonexistent.service.xyz', natsComponentName: 'nats', maxRetries: 2, retryDelay: 50}),
                 //No maxRetries/retryDelay given, to verify the defaults (3 x 100ms)
-                deadDefault: BuildServiceProxy({serviceId: 'nonexistent.service.xyz', natsComponentName: 'nats'})
+                deadDefault: buildServiceProxy({serviceId: 'nonexistent.service.xyz', natsComponentName: 'nats'})
             },
             bootstrap: ['entrypoint']
         })

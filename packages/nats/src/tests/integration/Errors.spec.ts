@@ -2,9 +2,9 @@ import {after, before, it} from 'node:test'
 import {expect} from '../support/Expect.js'
 import {describeNats as describe, destroyApp, runApp, ensureNats, stopNats} from '../support/App.js'
 import {Application} from '@lakutata/core'
-import {Delay} from '@lakutata/utils'
+import {delay} from '@lakutata/utils'
 import {
-    BuildNatsClientOptions,
+    buildNatsClientOptions,
     NATS,
     NatsNoRespondersAvailableException,
     NatsRequestTimeoutException
@@ -24,12 +24,12 @@ describe('NATS.request error mapping', (): void => {
         app = await runApp({
             id: 'it.errors.app',
             name: 'ITErrors',
-            components: {nats: BuildNatsClientOptions({servers: n.url})}
+            components: {nats: buildNatsClientOptions({servers: n.url})}
         })
         nats = await app.getObject<NATS>('nats')
         //A subscription that never responds, used to trigger a request timeout (408)
         nats.subscribe('slow.subject', (): Promise<any> => new Promise<any>((): void => {}))
-        await Delay(150)
+        await delay(150)
     }, {timeout: 120000})
 
     after(async (): Promise<void> => {

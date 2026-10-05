@@ -112,7 +112,7 @@ export interface ChannelRuntime<Context extends BaseContext = BaseContext> {
  * An adapter: a transport receiving a channel's requests (an HTTP server, a CLI parser, a socket server, the
  * scheduler). It is given to the entrypoint options under its channel's key; the entrypoint starts it when it
  * initializes and stops it, then closes it, when it is destroyed. The adapter packages export functions creating them
- * (`ExpressHTTPEntrypoint()`, `ScheduleEntrypoint()`…).
+ * (`expressHTTPEntrypoint()`, `scheduleEntrypoint()`…).
  */
 export interface EntrypointAdapter<Context extends BaseContext = BaseContext> {
     /**
@@ -177,14 +177,14 @@ export interface EntrypointAdapter<Context extends BaseContext = BaseContext> {
  * @returns `true` when the value is an adapter.
  * @example
  * ```typescript
- * import {ExpressHTTPEntrypoint} from 'lakutata/adapter/express'
- * import {IsEntrypointAdapter} from '@lakutata/entrypoint/channel'
+ * import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
+ * import {isEntrypointAdapter} from '@lakutata/entrypoint/channel'
  *
- * console.log(IsEntrypointAdapter(ExpressHTTPEntrypoint())) //true
- * console.log(IsEntrypointAdapter({channel: 'http'})) //false: no start function
+ * console.log(isEntrypointAdapter(expressHTTPEntrypoint())) //true
+ * console.log(isEntrypointAdapter({channel: 'http'})) //false: no start function
  * ```
  */
-export function IsEntrypointAdapter(value: unknown): value is EntrypointAdapter {
+export function isEntrypointAdapter(value: unknown): value is EntrypointAdapter {
     return !!value && typeof value === 'object' && typeof (value as EntrypointAdapter).channel === 'string' && typeof (value as EntrypointAdapter).start === 'function'
 }
 
@@ -195,19 +195,19 @@ export function IsEntrypointAdapter(value: unknown): value is EntrypointAdapter 
  * @example
  * ```typescript
  * import {type CLIContext, type EntrypointAdapter} from 'lakutata/com/entrypoint'
- * import {CommandMap} from '@lakutata/entrypoint/channel'
+ * import {commandMap} from '@lakutata/entrypoint/channel'
  *
  * //A CLI adapter printing the commands and their options
  * export const HelpCLIEntrypoint: EntrypointAdapter<CLIContext> = {
  *     channel: 'cli',
  *     start: (runtime): void => {
- *         for (const [command, schema] of CommandMap(runtime.actions)) {
+ *         for (const [command, schema] of commandMap(runtime.actions)) {
  *             console.log(command, Object.keys(schema.properties ?? {}).join(' '))
  *         }
  *     }
  * }
  * ```
  */
-export function CommandMap(actions: ReadonlyArray<ChannelActionInfo>): Map<string, JSONSchema> {
+export function commandMap(actions: ReadonlyArray<ChannelActionInfo>): Map<string, JSONSchema> {
     return new Map(actions.map((action: ChannelActionInfo): [string, JSONSchema] => [action.command as string, action.jsonSchema]))
 }

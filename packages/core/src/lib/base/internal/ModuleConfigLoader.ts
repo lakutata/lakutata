@@ -13,8 +13,8 @@ import {As} from '@lakutata/utils/As'
 import {GetObjectType, ObjectType} from './ObjectType.js'
 import {InvalidObjectTypeException} from '../../../exceptions/InvalidObjectTypeException.js'
 import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
-import {ArrayToSet} from '@lakutata/utils/ArrayToSet'
-import {SetToArray} from '@lakutata/utils/SetToArray'
+import {arrayToSet} from '@lakutata/utils/ArrayToSet'
+import {setToArray} from '@lakutata/utils/SetToArray'
 
 /**
  * Module configurations loader
@@ -37,7 +37,7 @@ export class ModuleConfigLoader {
      */
     constructor(module: Module, moduleOptions: ModuleOptions, presetLoadOptions: (LoadObjectOptions | typeof BaseObject | string)[] = []) {
         this.$module = module
-        this.$presetLoadOptionsSet = ArrayToSet(presetLoadOptions)
+        this.$presetLoadOptionsSet = arrayToSet(presetLoadOptions)
         this.$bootstrap = moduleOptions.bootstrap ? moduleOptions.bootstrap : []
         //Process anonymous objects
         moduleOptions.objects?.anonymous?.forEach((anonymousObject: AnonymousObject) => this.$loadOptions.push(anonymousObject))
@@ -111,7 +111,7 @@ export class ModuleConfigLoader {
      * Load options for container.load()
      */
     public get loadOptions(): (LoadObjectOptions | typeof BaseObject | string)[] {
-        return [...this.$loadOptions, ...SetToArray(this.$presetLoadOptionsSet)]
+        return [...this.$loadOptions, ...setToArray(this.$presetLoadOptionsSet)]
     }
 
     /**

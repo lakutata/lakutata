@@ -1,7 +1,7 @@
 import {Codec} from 'nats'
 
 /**
- * Create the JSON codec of the NATS messages, for the `codec` option of {@link BuildNatsClientOptions}. A value is sent
+ * Create the JSON codec of the NATS messages, for the `codec` option of {@link buildNatsClientOptions}. A value is sent
  * as the UTF-8 JSON text of a one-element array (`{id: 1}` is sent as `[{"id":1}]`), so that every value, `null` and
  * the strings included, has a JSON form; the peers written in other languages wrap and unwrap that array.
  *
@@ -13,24 +13,24 @@ import {Codec} from 'nats'
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildNatsClientOptions, JSONCodec} from '@lakutata/nats'
+ * import {buildNatsClientOptions, jsonCodec} from '@lakutata/nats'
  *
  * Application.run({
  *     id: 'json.app',
  *     name: 'JSON',
  *     components: {
  *         //Readable messages, for peers which do not speak MessagePack
- *         nats: BuildNatsClientOptions({servers: 'nats://127.0.0.1:4222', codec: JSONCodec()})
+ *         nats: buildNatsClientOptions({servers: 'nats://127.0.0.1:4222', codec: jsonCodec()})
  *     }
  * })
  *
- * const codec = JSONCodec()
+ * const codec = jsonCodec()
  * const bytes: Uint8Array = codec.encode({id: 1, at: new Date(0)})
  * console.log(Buffer.from(bytes).toString()) //[{"id":1,"at":"1970-01-01T00:00:00.000Z"}]
  * console.log(codec.decode(bytes)) //{id: 1, at: '1970-01-01T00:00:00.000Z'}
  * ```
  */
-export function JSONCodec(): Codec<any> {
+export function jsonCodec(): Codec<any> {
     return {
         encode(d: any): Uint8Array {
             return Buffer.from(JSON.stringify([d]))

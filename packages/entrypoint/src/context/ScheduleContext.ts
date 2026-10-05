@@ -4,7 +4,7 @@ import {DTO} from '@lakutata/core'
 import {type ScheduleContextParams} from '../types/ScheduleContextParams.js'
 
 /**
- * The context of a run of a scheduled action (`ScheduleEntrypoint`): `this.context` of a controller action declared
+ * The context of a run of a scheduled action (`scheduleEntrypoint`): `this.context` of a controller action declared
  * with `@Schedule`, when the schedule runs it. Its `data` is an empty object.
  * @example
  * ```typescript

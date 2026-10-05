@@ -11,12 +11,12 @@ import {
 } from '@modelcontextprotocol/server'
 import {MCPChannel} from '../channel/MCPChannel.js'
 import type {MCPAuthInfo, MCPContext} from '../context/MCPContext.js'
-import {BuildMCPServer, type MCPServerInfo} from '../lib/MCPServer.js'
+import {buildMCPServer, type MCPServerInfo} from '../lib/MCPServer.js'
 import {ATTACH} from '../lib/Notifications.js'
 import {MCPNotifier} from '../components/MCPNotifier.js'
 
 /**
- * The options of {@link HTTPMCPEntrypoint}: the server's description (`serverName`, `serverVersion`, `instructions`),
+ * The options of {@link httpMCPEntrypoint}: the server's description (`serverName`, `serverVersion`, `instructions`),
  * where it listens, the checks of the requests (hosts, origins, authentication), and the protocol revisions it serves.
  */
 export type HTTPMCPEntrypointOptions = MCPServerInfo & {
@@ -27,7 +27,7 @@ export type HTTPMCPEntrypointOptions = MCPServerInfo & {
     name?: string
     /**
      * Listen on a port of its own. When `false`, the adapter opens no port: it serves the requests given to its
-     * `handler`, mounted on another HTTP server (such as the application of `ExpressHTTPEntrypoint`:
+     * `handler`, mounted on another HTTP server (such as the application of `expressHTTPEntrypoint`:
      * `app.all('/mcp', mcp.handler)`), and `port`, `host`, `path`, `server` and `listening` are ignored.
      * @default true
      */
@@ -119,7 +119,7 @@ function IsLoopback(host: string): boolean {
 }
 
 /**
- * The adapter {@link HTTPMCPEntrypoint} returns: an entrypoint adapter, with the handler to mount on another HTTP
+ * The adapter {@link httpMCPEntrypoint} returns: an entrypoint adapter, with the handler to mount on another HTTP
  * server.
  */
 export type HTTPMCPEntrypointAdapter = EntrypointAdapter<MCPContext> & {
@@ -221,14 +221,14 @@ async function WriteResponse(webResponse: Response, response: ServerResponse): P
  * the connections.
  * @param options Where the server listens, the checks of the requests, the protocol revisions it serves; none by
  * default.
- * @returns The adapter, to give to the `mcp` option of `BuildEntrypoints()`, with its `handler`.
+ * @returns The adapter, to give to the `mcp` option of `buildEntrypoints()`, with its `handler`.
  * @throws {Error} When the adapter starts, if the server cannot listen (`EADDRINUSE`): the entrypoint fails to start.
  * @example
  * ```typescript
  * import type {IncomingMessage} from 'node:http'
  * import {Application} from 'lakutata'
- * import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
- * import {HTTPMCPEntrypoint, MCPTool, type MCPAuthInfo, type MCPContext} from '@lakutata/mcp'
+ * import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+ * import {httpMCPEntrypoint, MCPTool, type MCPAuthInfo, type MCPContext} from '@lakutata/mcp'
  *
  * class ClockController extends Controller {
  *     @MCPTool('now', {description: 'The current time of the server, as an ISO string', readOnly: true})
@@ -250,16 +250,16 @@ async function WriteResponse(webResponse: Response, response: ServerResponse): P
  *     id: 'clock.app',
  *     name: 'Clock',
  *     components: {
- *         entrypoint: BuildEntrypoints({
+ *         entrypoint: buildEntrypoints({
  *             controllers: [ClockController],
- *             mcp: HTTPMCPEntrypoint({port: 3000, authenticate: VerifyToken})
+ *             mcp: httpMCPEntrypoint({port: 3000, authenticate: VerifyToken})
  *         })
  *     },
  *     bootstrap: ['entrypoint']
  * }))
  * ```
  */
-export function HTTPMCPEntrypoint(options: HTTPMCPEntrypointOptions = {}): HTTPMCPEntrypointAdapter {
+export function httpMCPEntrypoint(options: HTTPMCPEntrypointOptions = {}): HTTPMCPEntrypointAdapter {
     const listen: boolean = options.listen !== false
     const host: string = options.host ?? '127.0.0.1'
     const path: string = options.path ?? '/mcp'
@@ -354,7 +354,7 @@ export function HTTPMCPEntrypoint(options: HTTPMCPEntrypointOptions = {}): HTTPM
         handler: (request: IncomingMessage, response: ServerResponse): void => handle(request, response),
         start: async (runtime: ChannelRuntime<MCPContext>): Promise<void> => {
             //Each request is served by a server of its own
-            handler = createMcpHandler((): ReturnType<typeof BuildMCPServer> => BuildMCPServer(runtime, options), {
+            handler = createMcpHandler((): ReturnType<typeof buildMCPServer> => buildMCPServer(runtime, options), {
                 legacy: options.legacy ?? 'stateless',
                 maxRequestBodySize: options.maxRequestBodySize,
                 bus: options.bus

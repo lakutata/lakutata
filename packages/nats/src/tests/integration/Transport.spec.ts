@@ -2,8 +2,8 @@ import {after, before, it} from 'node:test'
 import {expect} from '../support/Expect.js'
 import {describeNats as describe, destroyApp, runApp, ensureNats, stopNats} from '../support/App.js'
 import {Application} from '@lakutata/core'
-import {Delay} from '@lakutata/utils'
-import {BuildNatsClientOptions, JSONCodec, NATS} from '../../exports/Nats.js'
+import {delay} from '@lakutata/utils'
+import {buildNatsClientOptions, jsonCodec, NATS} from '../../exports/Nats.js'
 
 /**
  * Transport layer: explicit codec selection, queue load balancing, subscribe iterator mode.
@@ -21,9 +21,9 @@ describe('transport: codec / queue / subscribe', (): void => {
             id: 'it.transport.app',
             name: 'ITTransport',
             components: {
-                nats: BuildNatsClientOptions({servers: n.url}),
-                natsJson: BuildNatsClientOptions({servers: n.url, codec: JSONCodec()}),
-                nats2: BuildNatsClientOptions({servers: n.url})
+                nats: buildNatsClientOptions({servers: n.url}),
+                natsJson: buildNatsClientOptions({servers: n.url, codec: jsonCodec()}),
+                nats2: buildNatsClientOptions({servers: n.url})
             }
         })
         nats = await app.getObject<NATS>('nats')
@@ -36,14 +36,14 @@ describe('transport: codec / queue / subscribe', (): void => {
         await stopNats()
     }, {timeout: 60000})
 
-    it('explicit JSONCodec: publish / subscribe round-trip', async (): Promise<void> => {
+    it('explicit jsonCodec: publish / subscribe round-trip', async (): Promise<void> => {
         const got: Promise<any> = new Promise<any>((resolve): void => {
             natsJson.subscribe('json.subject', (data: any): null => {
                 resolve(data)
                 return null
             })
         })
-        await Delay(120)
+        await delay(120)
         natsJson.publish('json.subject', {via: 'json', n: 7, nested: {ok: true}})
         expect(await got).toEqual({via: 'json', n: 7, nested: {ok: true}})
     })
@@ -59,9 +59,9 @@ describe('transport: codec / queue / subscribe', (): void => {
             c2++
             return null
         }, {queue: 'qgroup'})
-        await Delay(180)
+        await delay(180)
         nats.publish('q.subject', {x: 1})
-        await Delay(300)
+        await delay(300)
         expect(c1 + c2).toBe(1)
     })
 
@@ -72,7 +72,7 @@ describe('transport: codec / queue / subscribe', (): void => {
                 return null
             }, {iterator: true})
         })
-        await Delay(120)
+        await delay(120)
         nats.publish('iter.subject', {mode: 'iterator'})
         expect(await got).toEqual({mode: 'iterator'})
     })

@@ -3,16 +3,16 @@ import assert from 'node:assert'
 import {Component, Container} from '@lakutata/core'
 import {
     ActionInvocation,
-    BuildEntrypoints,
+    buildEntrypoints,
     ChannelActionInfo,
     Controller,
     Cron,
     Entrypoint,
     MiddlewareHandler,
     Next,
-    ParseDuration,
+    parseDuration,
     ScheduleContext,
-    ScheduleEntrypoint,
+    scheduleEntrypoint,
     ScheduleEntrypointOptions
 } from '../exports/Entrypoint.js'
 import {Schedule} from '../exports/CTRLDecorators.js'
@@ -58,10 +58,10 @@ describe('Cron', (): void => {
         assert.throws((): unknown => new Cron('* * * *'), /5 or 6 fields/)
         assert.throws((): unknown => new Cron('0 5-1 * * *'), /reversed/)
         assert.throws((): unknown => new Cron('* * * * *', 'Mars/Olympus'))
-        assert.strictEqual(ParseDuration('1h30m'), 5400000)
-        assert.strictEqual(ParseDuration('500ms'), 500)
-        assert.strictEqual(ParseDuration(250), 250)
-        assert.throws((): number => ParseDuration('soon'), /Invalid duration/)
+        assert.strictEqual(parseDuration('1h30m'), 5400000)
+        assert.strictEqual(parseDuration('500ms'), 500)
+        assert.strictEqual(parseDuration(250), 250)
+        assert.throws((): number => parseDuration('soon'), /Invalid duration/)
     })
 })
 
@@ -113,7 +113,7 @@ async function Start(options: ScheduleEntrypointOptions = {}, entrypointOptions:
     slowRunning = 0
     slowConcurrency = 0
     const container: Container = new Container()
-    await container.set(Entrypoint, BuildEntrypoints({controllers: [JobController], ...entrypointOptions, schedule: ScheduleEntrypoint(options)}))
+    await container.set(Entrypoint, buildEntrypoints({controllers: [JobController], ...entrypointOptions, schedule: scheduleEntrypoint(options)}))
     return container
 }
 
@@ -191,7 +191,7 @@ describe('Schedule adapter', (): void => {
     it('runs nothing without a schedule adapter', async (): Promise<void> => {
         runs.length = 0
         const container: Container = new Container()
-        const entrypoint: Entrypoint = await container.set(Entrypoint, BuildEntrypoints({controllers: [JobController]}))
+        const entrypoint: Entrypoint = await container.set(Entrypoint, buildEntrypoints({controllers: [JobController]}))
         await Sleep(100)
         assert.strictEqual(runs.length, 0)
         //The scheduled actions are described
@@ -216,7 +216,7 @@ describe('Schedule adapter', (): void => {
             for (let index = 0; index < 2; index++) {
                 const container: Container = new Container()
                 await container.setNamed('mutex', SharedLocks)
-                await container.set(Entrypoint, BuildEntrypoints({controllers: [ExclusiveController], schedule: ScheduleEntrypoint({onError: (): void => undefined})}))
+                await container.set(Entrypoint, buildEntrypoints({controllers: [ExclusiveController], schedule: scheduleEntrypoint({onError: (): void => undefined})}))
                 instances.push(container)
             }
             exclusiveRuns.length = 0
@@ -238,7 +238,7 @@ describe('Schedule adapter', (): void => {
         console.error = (...args: unknown[]): void => void errors.push(args)
         const container: Container = new Container()
         try {
-            await container.set(Entrypoint, BuildEntrypoints({controllers: [ExclusiveController], schedule: ScheduleEntrypoint()}))
+            await container.set(Entrypoint, buildEntrypoints({controllers: [ExclusiveController], schedule: scheduleEntrypoint()}))
             exclusiveRuns.length = 0
             await Sleep(300)
         } finally {

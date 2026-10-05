@@ -1,7 +1,7 @@
 # @lakutata/nats
 
 The NATS component of the lakutata framework: a connection to a NATS server to publish, subscribe and send requests
-(MessagePack or JSON payloads), the service channel of an application served over NATS (`NatsServiceEntrypoint`), the
+(MessagePack or JSON payloads), the service channel of an application served over NATS (`natsServiceEntrypoint`), the
 proxies invoking the actions of the other services and listening to their events (`ServiceProxy`), and the large
 payloads relayed through a JetStream object store. The umbrella package `lakutata` does not re-export it: import it
 from `@lakutata/nats`.
@@ -26,19 +26,19 @@ docker run -d --name nats -p 4222:4222 nats:2.12-alpine -js
 
 ### The NATS component
 
-Register the `NATS` component with `BuildNatsClientOptions`, then get it with `getObject()` or `@Inject`. It connects
+Register the `NATS` component with `buildNatsClientOptions`, then get it with `getObject()` or `@Inject`. It connects
 when it is created: an unreachable server fails the application's start (after `timeout`, 20 seconds by default).
 
 ```typescript
 import {Application} from 'lakutata'
-import {BuildNatsClientOptions, type NATS} from '@lakutata/nats'
+import {buildNatsClientOptions, type NATS} from '@lakutata/nats'
 
 Application
     .run({
         id: 'pricing.app',
         name: 'Pricing',
         components: {
-            nats: BuildNatsClientOptions({servers: 'nats://127.0.0.1:4222', name: 'pricing'})
+            nats: buildNatsClientOptions({servers: 'nats://127.0.0.1:4222', name: 'pricing'})
         }
     })
     .onLaunched(async (app: Application): Promise<void> => {
@@ -76,8 +76,8 @@ The connection options: `servers`, `codec`, `timeout`, `token`, `user`, `pass`, 
 
 Every payload is encoded with the component's `codec`, the same on both sides of a subject:
 
-- `MessagePackCodec()` (the default): MessagePack, compact and fast;
-- `JSONCodec()`: JSON text, readable and easy for the clients of other languages.
+- `messagePackCodec()` (the default): MessagePack, compact and fast;
+- `jsonCodec()`: JSON text, readable and easy for the clients of other languages.
 
 Both send a value as a one-element array (`[value]`) and normalize it through JSON first, so that the clients of
 other languages receive plain JSON data: a `Date` arrives as its ISO string, a `Buffer` as
@@ -87,29 +87,29 @@ encoding. Any object with `encode(value): Uint8Array` and `decode(bytes)` can be
 
 ```typescript
 import {Application} from 'lakutata'
-import {BuildNatsClientOptions, JSONCodec} from '@lakutata/nats'
+import {buildNatsClientOptions, jsonCodec} from '@lakutata/nats'
 
 Application.run({
     id: 'json.app',
     name: 'JSON',
     components: {
-        nats: BuildNatsClientOptions({servers: 'nats://127.0.0.1:4222', codec: JSONCodec()})
+        nats: buildNatsClientOptions({servers: 'nats://127.0.0.1:4222', codec: jsonCodec()})
     }
 })
 ```
 
 ### Serving the service actions over NATS
 
-`NatsServiceEntrypoint` serves the service channel of the `Entrypoint` component: the requests sent to the
+`natsServiceEntrypoint` serves the service channel of the `Entrypoint` component: the requests sent to the
 application's id are dispatched to the `@ServiceAction` methods of the controllers, and answered with a service
 response `{success, error, payload}`.
 
 ```typescript
 import {Application, DTO} from 'lakutata'
-import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
 import {ServiceAction} from 'lakutata/decorator/ctrl'
 import {Expect} from 'lakutata/decorator/dto'
-import {BuildNatsClientOptions, NatsServiceEntrypoint, type NATS} from '@lakutata/nats'
+import {buildNatsClientOptions, natsServiceEntrypoint, type NATS} from '@lakutata/nats'
 
 class GetOrderDTO extends DTO {
     @Expect(DTO.Number().integer().required())
@@ -129,11 +129,11 @@ Application
         id: 'order.service',
         name: 'OrderService',
         components: {
-            nats: BuildNatsClientOptions({servers: 'nats://127.0.0.1:4222'}),
-            entrypoint: BuildEntrypoints({
+            nats: buildNatsClientOptions({servers: 'nats://127.0.0.1:4222'}),
+            entrypoint: buildEntrypoints({
                 controllers: [OrderController],
                 //Subject "order.service" (the application id), queue group "order.service.serviceQueue"
-                service: NatsServiceEntrypoint('nats')
+                service: natsServiceEntrypoint('nats')
             })
         },
         bootstrap: ['entrypoint']
@@ -157,18 +157,18 @@ Application
   `Entrypoint.notify()` does not reach the NATS clients (NATS has no client ids).
 - When the entrypoint stops, its subscription is drained: no new request is received (the callers retry, see below)
   and the requests in progress are answered.
-- `SetupNatsServiceEntrypoint` is its 2.x name, kept as an alias.
+- `setupNatsServiceEntrypoint` is its 2.x name, kept as an alias.
 
 ### Invoking a service: the service proxy
 
 A `ServiceProxy` invokes the actions of one remote service and listens to its events. It is a singleton provider, shared
-by the requests: declare one per service with `BuildServiceProxy` in the `providers` of the application, as in 2.x.
+by the requests: declare one per service with `buildServiceProxy` in the `providers` of the application, as in 2.x.
 
 ```typescript
 import {Application} from 'lakutata'
 import {
-    BuildNatsClientOptions,
-    BuildServiceProxy,
+    buildNatsClientOptions,
+    buildServiceProxy,
     NatsRequestTimeoutException,
     ServiceInvokeException,
     type ServiceProxy
@@ -179,10 +179,10 @@ Application
         id: 'billing.app',
         name: 'Billing',
         components: {
-            nats: BuildNatsClientOptions({servers: 'nats://127.0.0.1:4222'})
+            nats: buildNatsClientOptions({servers: 'nats://127.0.0.1:4222'})
         },
         providers: {
-            orderService: BuildServiceProxy({natsComponentName: 'nats', serviceId: 'order.service'})
+            orderService: buildServiceProxy({natsComponentName: 'nats', serviceId: 'order.service'})
         }
     })
     .onLaunched(async (app: Application): Promise<void> => {
@@ -237,13 +237,13 @@ receiver reads the object and deletes it. The callbacks, the actions and `invoke
 
 ```typescript
 import {Application} from 'lakutata'
-import {BuildNatsClientOptions} from '@lakutata/nats'
+import {buildNatsClientOptions} from '@lakutata/nats'
 
 Application.run({
     id: 'report.service',
     name: 'ReportService',
     components: {
-        nats: BuildNatsClientOptions({
+        nats: buildNatsClientOptions({
             servers: 'nats://127.0.0.1:4222',
             //The same bucket in every application exchanging large payloads
             bulkBucket: 'lkt-bulk-shared',
@@ -263,16 +263,16 @@ Application.run({
 | Export | What it is |
 |---|---|
 | `NATS` | The component: `publish`, `request`, `subscribe`, `emitServiceEvent`, `onServiceEvent`, `onceServiceEvent`, `offServiceEvent`, the bulk channel (`bulkEnabled`, `bulkThreshold`, `headersSupported`, `putBulk`, `getBulk`, `deleteBulk`, `bulkStatus`), the event `error` |
-| `BuildNatsClientOptions` | Builds the component options of a `NATS` component (`buildNatsClientOptions`, its name in 2.x, is a deprecated alias) |
+| `buildNatsClientOptions` | Builds the component options of a `NATS` component |
 | `NatsClientOptions` | Its options: the connection, the codec and the bulk channel |
 | `SubscribeOptions` | The options of `subscribe()`: `queue`, `max`, `iterator`, `errorResponse` |
-| `MessagePackCodec`, `JSONCodec` | The codecs of the payloads |
+| `messagePackCodec`, `jsonCodec` | The codecs of the payloads |
 | `StringCodec`, `Codec`, `Subscription`, `RetentionPolicy` | Re-exported from `nats` |
-| `NatsServiceEntrypoint` | The service adapter of an entrypoint served over NATS |
-| `SetupNatsServiceEntrypoint` | Its 2.x name |
+| `natsServiceEntrypoint` | The service adapter of an entrypoint served over NATS |
+| `setupNatsServiceEntrypoint` | Its 2.x name |
 | `NatsServiceEntrypointOptions` | Its options: `subject`, `queue`, `name`, `middlewares` |
 | `ServiceProxy` | The singleton provider invoking the actions of a remote service and listening to its events |
-| `BuildServiceProxy` | Builds the provider options of a `ServiceProxy` |
+| `buildServiceProxy` | Builds the provider options of a `ServiceProxy` |
 | `BuildServiceProxyOptions` | Its options: `natsComponentName`, `serviceId`, `maxRetries`, `retryDelay` |
 | `ServiceInvokeException` and the `Nats*Exception` classes | See [Errors](#errors) |
 

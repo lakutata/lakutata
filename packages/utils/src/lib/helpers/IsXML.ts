@@ -9,12 +9,12 @@ import {ValidateXML} from './internal/XMLValidator.js'
  * @returns `true` when the string is well-formed XML, `false` otherwise (an empty string included).
  * @example
  * ```typescript
- * import {IsXML} from 'lakutata/utils'
+ * import {isXML} from 'lakutata/utils'
  *
- * console.log(IsXML('<?xml version="1.0"?><note><to>Ann</to></note>'), IsXML('<a><b></a>'), IsXML('Hello'))
+ * console.log(isXML('<?xml version="1.0"?><note><to>Ann</to></note>'), isXML('<a><b></a>'), isXML('Hello'))
  * //true false false
  * ```
  */
-export function IsXML(string: string): boolean {
+export function isXML(string: string): boolean {
     return typeof string === 'string' && ValidateXML(string)
 }

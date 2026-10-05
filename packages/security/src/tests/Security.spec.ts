@@ -3,21 +3,21 @@ import assert from 'node:assert'
 import {Container} from '@lakutata/core'
 import {
     Crypt,
-    DecryptByKey,
-    DecryptByPassword,
+    decryptByKey,
+    decryptByPassword,
     DecryptionFailedException,
-    EncryptByKey,
-    EncryptByPassword,
-    GenerateSecret,
-    HMAC,
+    encryptByKey,
+    encryptByPassword,
+    generateSecret,
+    hmac,
     InvalidSignatureException,
     Mac,
-    TimingSafeEqual,
-    VerifyHMAC
+    constantTimeEqual,
+    verifyHMAC
 } from '../exports/Security.js'
 
-const OLD_KEY: string = GenerateSecret()
-const NEW_KEY: string = GenerateSecret()
+const OLD_KEY: string = generateSecret()
+const NEW_KEY: string = generateSecret()
 
 /**
  * The encrypted data with one byte changed
@@ -33,62 +33,62 @@ function tamper(encrypted: string, index: number): string {
 describe('Security functions', (): void => {
 
     it('compare in constant time', (): void => {
-        assert.ok(TimingSafeEqual('secret', 'secret'))
-        assert.ok(TimingSafeEqual(Buffer.from('secret'), 'secret'))
-        assert.ok(!TimingSafeEqual('secret', 'secreT'))
-        assert.ok(!TimingSafeEqual('secret', 'secret-longer'))
-        assert.ok(TimingSafeEqual('', ''))
+        assert.ok(constantTimeEqual('secret', 'secret'))
+        assert.ok(constantTimeEqual(Buffer.from('secret'), 'secret'))
+        assert.ok(!constantTimeEqual('secret', 'secreT'))
+        assert.ok(!constantTimeEqual('secret', 'secret-longer'))
+        assert.ok(constantTimeEqual('', ''))
     })
 
     it('generate random keys', (): void => {
-        assert.match(GenerateSecret(), /^[\w-]{43}$/)
-        assert.strictEqual(Buffer.from(GenerateSecret(64), 'base64url').length, 64)
-        assert.notStrictEqual(GenerateSecret(), GenerateSecret())
+        assert.match(generateSecret(), /^[\w-]{43}$/)
+        assert.strictEqual(Buffer.from(generateSecret(64), 'base64url').length, 64)
+        assert.notStrictEqual(generateSecret(), generateSecret())
     })
 
     it('sign and verify data', (): void => {
-        const signature: string = HMAC('data', OLD_KEY)
-        assert.strictEqual(signature, HMAC(Buffer.from('data'), OLD_KEY))
-        assert.ok(VerifyHMAC('data', signature, OLD_KEY))
-        assert.ok(!VerifyHMAC('Data', signature, OLD_KEY))
-        assert.ok(!VerifyHMAC('data', signature, NEW_KEY))
-        assert.ok(!VerifyHMAC('data', signature, OLD_KEY, 'sha512'))
-        assert.strictEqual(Buffer.from(HMAC('data', OLD_KEY, 'sha512'), 'base64url').length, 64)
+        const signature: string = hmac('data', OLD_KEY)
+        assert.strictEqual(signature, hmac(Buffer.from('data'), OLD_KEY))
+        assert.ok(verifyHMAC('data', signature, OLD_KEY))
+        assert.ok(!verifyHMAC('Data', signature, OLD_KEY))
+        assert.ok(!verifyHMAC('data', signature, NEW_KEY))
+        assert.ok(!verifyHMAC('data', signature, OLD_KEY, 'sha512'))
+        assert.strictEqual(Buffer.from(hmac('data', OLD_KEY, 'sha512'), 'base64url').length, 64)
     })
 
     it('encrypt and decrypt with keys', (): void => {
-        const encrypted: string = EncryptByKey('données secrètes', OLD_KEY)
-        assert.notStrictEqual(encrypted, EncryptByKey('données secrètes', OLD_KEY))
-        assert.strictEqual(DecryptByKey(encrypted, OLD_KEY).toString(), 'données secrètes')
+        const encrypted: string = encryptByKey('données secrètes', OLD_KEY)
+        assert.notStrictEqual(encrypted, encryptByKey('données secrètes', OLD_KEY))
+        assert.strictEqual(decryptByKey(encrypted, OLD_KEY).toString(), 'données secrètes')
         //Key rotation: the keys are tried in order
-        assert.strictEqual(DecryptByKey(encrypted, [NEW_KEY, OLD_KEY]).toString(), 'données secrètes')
-        assert.throws((): unknown => DecryptByKey(encrypted, NEW_KEY), DecryptionFailedException)
+        assert.strictEqual(decryptByKey(encrypted, [NEW_KEY, OLD_KEY]).toString(), 'données secrètes')
+        assert.throws((): unknown => decryptByKey(encrypted, NEW_KEY), DecryptionFailedException)
         //Any change is detected: the header, the tag and the ciphertext
-        for (const index of [0, 5, 20, 35, 50]) assert.throws((): unknown => DecryptByKey(tamper(encrypted, index), OLD_KEY), {errno: 'E_DECRYPTION_FAILED'})
-        assert.throws((): unknown => DecryptByKey('not encrypted', OLD_KEY), DecryptionFailedException)
-        assert.deepStrictEqual(DecryptByKey(EncryptByKey(Buffer.from([0, 1, 2]), OLD_KEY), OLD_KEY), Buffer.from([0, 1, 2]))
-        assert.strictEqual(DecryptByKey(EncryptByKey('', OLD_KEY), OLD_KEY).toString(), '')
+        for (const index of [0, 5, 20, 35, 50]) assert.throws((): unknown => decryptByKey(tamper(encrypted, index), OLD_KEY), {errno: 'E_DECRYPTION_FAILED'})
+        assert.throws((): unknown => decryptByKey('not encrypted', OLD_KEY), DecryptionFailedException)
+        assert.deepStrictEqual(decryptByKey(encryptByKey(Buffer.from([0, 1, 2]), OLD_KEY), OLD_KEY), Buffer.from([0, 1, 2]))
+        assert.strictEqual(decryptByKey(encryptByKey('', OLD_KEY), OLD_KEY).toString(), '')
     })
 
     it('refuse an empty key', (): void => {
         for (const empty of ['', new Uint8Array(0)]) {
-            assert.throws((): unknown => HMAC('data', empty), {name: 'RangeError', message: 'The key is empty'})
-            assert.throws((): unknown => VerifyHMAC('data', HMAC('data', OLD_KEY), empty), RangeError)
-            assert.throws((): unknown => EncryptByKey('data', empty), RangeError)
-            assert.throws((): unknown => DecryptByKey(EncryptByKey('data', OLD_KEY), empty), RangeError)
+            assert.throws((): unknown => hmac('data', empty), {name: 'RangeError', message: 'The key is empty'})
+            assert.throws((): unknown => verifyHMAC('data', hmac('data', OLD_KEY), empty), RangeError)
+            assert.throws((): unknown => encryptByKey('data', empty), RangeError)
+            assert.throws((): unknown => decryptByKey(encryptByKey('data', OLD_KEY), empty), RangeError)
             //Among the keys too, even after the one decrypting
-            assert.throws((): unknown => DecryptByKey(EncryptByKey('data', OLD_KEY), [OLD_KEY, empty]), RangeError)
+            assert.throws((): unknown => decryptByKey(encryptByKey('data', OLD_KEY), [OLD_KEY, empty]), RangeError)
         }
     })
 
     it('encrypt and decrypt with passwords', async (): Promise<void> => {
-        const encrypted: string = await EncryptByPassword('secret', 'correct horse battery staple')
-        assert.strictEqual((await DecryptByPassword(encrypted, 'correct horse battery staple')).toString(), 'secret')
-        await assert.rejects(DecryptByPassword(encrypted, 'wrong password'), DecryptionFailedException)
-        await assert.rejects(DecryptByPassword(tamper(encrypted, 40), 'correct horse battery staple'), DecryptionFailedException)
+        const encrypted: string = await encryptByPassword('secret', 'correct horse battery staple')
+        assert.strictEqual((await decryptByPassword(encrypted, 'correct horse battery staple')).toString(), 'secret')
+        await assert.rejects(decryptByPassword(encrypted, 'wrong password'), DecryptionFailedException)
+        await assert.rejects(decryptByPassword(tamper(encrypted, 40), 'correct horse battery staple'), DecryptionFailedException)
         //The versions are not mixed
-        assert.throws((): unknown => DecryptByKey(encrypted, 'correct horse battery staple'), DecryptionFailedException)
-        await assert.rejects(DecryptByPassword(EncryptByKey('secret', 'correct horse battery staple'), 'correct horse battery staple'), DecryptionFailedException)
+        assert.throws((): unknown => decryptByKey(encrypted, 'correct horse battery staple'), DecryptionFailedException)
+        await assert.rejects(decryptByPassword(encryptByKey('secret', 'correct horse battery staple'), 'correct horse battery staple'), DecryptionFailedException)
     })
 })
 

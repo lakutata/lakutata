@@ -1,1 +1,1 @@
-export {CommanderCLIEntrypoint, type CommanderCLIEntrypointOptions, type CLIText, type CLITranslate} from '../adapter/commander/CommanderCLIEntrypoint.js'
+export {commanderCLIEntrypoint, type CommanderCLIEntrypointOptions, type CLIText, type CLITranslate} from '../adapter/commander/CommanderCLIEntrypoint.js'

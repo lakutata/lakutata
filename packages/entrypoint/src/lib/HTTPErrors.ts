@@ -8,13 +8,13 @@ import {type ErrorDescription} from '../types/ErrorDescription.js'
  * @example
  * ```typescript
  * import type {Request, Response} from 'express'
- * import {DescribeError, type ExpressResponder, type HTTPErrorOrigin, StatusOfError} from 'lakutata/adapter/express'
+ * import {describeError, type ExpressResponder, type HTTPErrorOrigin, statusOfError} from 'lakutata/adapter/express'
  *
  * //The errors of the actions answered with 200, the others with their status
  * export const responder: ExpressResponder = {
  *     success: (response: Response, data: unknown): void => void response.json({data: data}),
  *     error: (response: Response, error: unknown, _request: Request, origin?: HTTPErrorOrigin): void => {
- *         response.status(origin === 'action' ? 200 : StatusOfError(error)).json(DescribeError(error))
+ *         response.status(origin === 'action' ? 200 : statusOfError(error)).json(describeError(error))
  *     }
  * }
  * ```
@@ -29,18 +29,18 @@ export type HTTPErrorOrigin = 'action' | 'request'
  * @returns The HTTP status, from 400 to 599.
  * @example
  * ```typescript
- * import {StatusOfError} from 'lakutata/adapter/express'
+ * import {statusOfError} from 'lakutata/adapter/express'
  *
  * class NotFound extends Error {
  *     public readonly statusCode: number = 404
  * }
  *
- * console.log(StatusOfError(new NotFound('No such order'))) //404
- * console.log(StatusOfError(new Error('Failed', {cause: new NotFound('No such order')}))) //404
- * console.log(StatusOfError(new Error('Boom'))) //500
+ * console.log(statusOfError(new NotFound('No such order'))) //404
+ * console.log(statusOfError(new Error('Failed', {cause: new NotFound('No such order')}))) //404
+ * console.log(statusOfError(new Error('Boom'))) //500
  * ```
  */
-export function StatusOfError(error: unknown): number {
+export function statusOfError(error: unknown): number {
     for (let current: any = error; current && typeof current === 'object'; current = current.cause) {
         const status: unknown = current.statusCode ?? current.status
         if (typeof status === 'number' && status >= 400 && status < 500) return status
@@ -56,13 +56,13 @@ export function StatusOfError(error: unknown): number {
  * @returns The error's number and message.
  * @example
  * ```typescript
- * import {DescribeError, type ErrorDescription} from 'lakutata/adapter/express'
+ * import {describeError, type ErrorDescription} from 'lakutata/adapter/express'
  *
- * const description: ErrorDescription = DescribeError(new Error('Boom'))
+ * const description: ErrorDescription = describeError(new Error('Boom'))
  * console.log(description) //{errno: 'E_UNKNOWN', errMsg: 'Boom'}
  * ```
  */
-export function DescribeError(error: unknown): ErrorDescription {
+export function describeError(error: unknown): ErrorDescription {
     const described: any = error ?? {}
     return {
         errno: described.errno ?? described.code ?? 'E_UNKNOWN',

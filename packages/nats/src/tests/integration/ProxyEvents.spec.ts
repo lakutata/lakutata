@@ -2,9 +2,9 @@ import {after, before, it} from 'node:test'
 import {expect} from '../support/Expect.js'
 import {describeNats as describe, destroyApp, runApp, ensureNats, stopNats} from '../support/App.js'
 import {Application} from '@lakutata/core'
-import {BuildEntrypoints, Controller, Entrypoint} from '@lakutata/entrypoint'
-import {Delay} from '@lakutata/utils'
-import {BuildServiceProxy, BuildNatsClientOptions, NATS, NatsServiceEntrypoint, ServiceProxy} from '../../exports/Nats.js'
+import {buildEntrypoints, Controller, Entrypoint} from '@lakutata/entrypoint'
+import {delay} from '@lakutata/utils'
+import {buildServiceProxy, buildNatsClientOptions, NATS, natsServiceEntrypoint, ServiceProxy} from '../../exports/Nats.js'
 
 class OrderController extends Controller {
 }
@@ -25,12 +25,12 @@ describe('service events through the proxies', (): void => {
             id: 'it.proxy-events.app',
             name: 'ITProxyEvents',
             components: {
-                nats: BuildNatsClientOptions({servers: n.url}),
-                entrypoint: BuildEntrypoints({controllers: [OrderController], service: NatsServiceEntrypoint('nats', {subject: 'it.custom.orders'})})
+                nats: buildNatsClientOptions({servers: n.url}),
+                entrypoint: buildEntrypoints({controllers: [OrderController], service: natsServiceEntrypoint('nats', {subject: 'it.custom.orders'})})
             },
             providers: {
-                first: BuildServiceProxy({serviceId: 'it.custom.orders', natsComponentName: 'nats'}),
-                second: BuildServiceProxy({serviceId: 'it.custom.orders', natsComponentName: 'nats'})
+                first: buildServiceProxy({serviceId: 'it.custom.orders', natsComponentName: 'nats'}),
+                second: buildServiceProxy({serviceId: 'it.custom.orders', natsComponentName: 'nats'})
             },
             bootstrap: ['entrypoint']
         })
@@ -48,9 +48,9 @@ describe('service events through the proxies', (): void => {
     it('broadcasts the events of the entrypoint under its subject', async (): Promise<void> => {
         const received: unknown[] = []
         first.on('shipped', (id: number): unknown => received.push(id))
-        await Delay(150)
+        await delay(150)
         entrypoint.broadcast('shipped', 7)
-        await Delay(300)
+        await delay(300)
         expect(received).toEqual([7])
         first.off('shipped')
     })
@@ -60,14 +60,14 @@ describe('service events through the proxies', (): void => {
         const listener = (name: string): unknown => received.push(name)
         first.on('renamed', listener)
         second.on('renamed', listener)
-        await Delay(150)
+        await delay(150)
         entrypoint.broadcast('renamed', 'a')
-        await Delay(300)
+        await delay(300)
         expect(received).toEqual(['a', 'a'])
         first.off('renamed')
-        await Delay(150)
+        await delay(150)
         entrypoint.broadcast('renamed', 'b')
-        await Delay(300)
+        await delay(300)
         expect(received).toEqual(['a', 'a', 'b'])
         second.off('renamed', listener)
     })
@@ -80,9 +80,9 @@ describe('service events through the proxies', (): void => {
             throw new Error('the listener failed')
         }
         first.on('failed', failing as (...args: any[]) => void)
-        await Delay(150)
+        await delay(150)
         entrypoint.broadcast('failed')
-        await Delay(300)
+        await delay(300)
         expect(errors.includes('the listener failed')).toBe(true)
         first.off('failed')
     })

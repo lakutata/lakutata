@@ -39,13 +39,13 @@ export type SynchronizedOptions = {
  * primitives are accepted).
  * @example
  * ```typescript
- * import {LockNameOf} from 'lakutata/com/mutex'
+ * import {lockNameOf} from 'lakutata/com/mutex'
  *
- * console.log(LockNameOf('order:{id}', {id: 42})) //order:42
- * console.log(LockNameOf('user:{user.id}:export', {user: {id: 'u7'}})) //user:u7:export
+ * console.log(lockNameOf('order:{id}', {id: 42})) //order:42
+ * console.log(lockNameOf('user:{user.id}:export', {user: {id: 'u7'}})) //user:u7:export
  * ```
  */
-export function LockNameOf(template: string, input: unknown): string {
+export function lockNameOf(template: string, input: unknown): string {
     return template.replace(/\{([^{}]+)}/g, (_: string, field: string): string => {
         const value: unknown = field.split('.').reduce((current: any, key: string): unknown => current === null || current === undefined ? undefined : current[key], input)
         if (value === undefined || value === null || (typeof value === 'object')) throw new TypeError(`The lock "${template}" needs the field ${field} of the input of the action (a string or a number)`)
@@ -63,7 +63,7 @@ export function LockNameOf(template: string, input: unknown): string {
  * getting the lock in time fails with a {@link MutexTimeoutException} (HTTP 409). The action is not interrupted when
  * its lock is lost: check the controller's `this.signal` for a long work.
  * @param name The lock name: a template filled from the fields of the action's input (`'order:{id}'`, see
- * {@link LockNameOf}; a missing field fails the request with a `TypeError`), or a function of the input and the
+ * {@link lockNameOf}; a missing field fails the request with a `TypeError`), or a function of the input and the
  * request's context returning it.
  * @param options The lock component, the wait and the lock's `ttl`.
  * @returns The method decorator.
@@ -105,7 +105,7 @@ export function Synchronized(name: string | ((input: any, context: any) => strin
         if (typeof action !== 'function') throw new TypeError(`@Synchronized decorates a method (${String(propertyKey)})`)
         descriptor.value = async function (this: any, ...args: unknown[]): Promise<unknown> {
             const input: unknown = args[0] ?? {}
-            const lockName: string = typeof name === 'function' ? name(input, this.context) : LockNameOf(name, input)
+            const lockName: string = typeof name === 'function' ? name(input, this.context) : lockNameOf(name, input)
             const mutex: Mutex = await this.getObject(options.mutex ?? 'mutex')
             return await mutex.synchronized(lockName, (_lock: MutexLock): unknown => action.apply(this, args), {
                 timeout: options.wait === false ? 0 : options.timeout,

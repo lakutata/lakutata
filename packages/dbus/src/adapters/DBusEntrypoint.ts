@@ -10,7 +10,7 @@ import {CheckInterfaceName, CompilePathTemplate, ErrorName, type PathTemplate} f
 import {Encodable, SchemaSignature} from '../lib/Signature.js'
 
 /**
- * The options of {@link DBusEntrypoint}: the bus to connect to, and the service name to own on it.
+ * The options of {@link dbusEntrypoint}: the bus to connect to, and the service name to own on it.
  */
 export type DBusEntrypointOptions = {
     /**
@@ -105,7 +105,7 @@ function MethodError(error: unknown): Error {
  * name (no new call reaches it), the calls in progress end, then the connection closes. It needs a D-Bus daemon, as on
  * Linux: the system bus, a session bus, or a private `dbus-daemon`.
  * @param options The bus, the service name and how it is owned, the adapter's middlewares.
- * @returns The adapter, to give to the `dbus` option of `BuildEntrypoints()`.
+ * @returns The adapter, to give to the `dbus` option of `buildEntrypoints()`.
  * @throws {TypeError} At once, when the service name is invalid; when the adapter starts, when an action declared with
  * `@DBusMethod` belongs to a controller without `@DBusInterface`.
  * @throws {Error} When the adapter starts, if the bus cannot be reached, or if another connection owns the name
@@ -113,8 +113,8 @@ function MethodError(error: unknown): Error {
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
- * import {DBusEntrypoint, DBusInterface, DBusMethod} from '@lakutata/dbus'
+ * import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+ * import {dbusEntrypoint, DBusInterface, DBusMethod} from '@lakutata/dbus'
  *
  * @DBusInterface('com.example.Manager', {path: '/com/example/Manager'})
  * class ManagerController extends Controller {
@@ -129,16 +129,16 @@ function MethodError(error: unknown): Error {
  *     id: 'devices.app',
  *     name: 'Devices',
  *     components: {
- *         entrypoint: BuildEntrypoints({
+ *         entrypoint: buildEntrypoints({
  *             controllers: [ManagerController],
- *             dbus: DBusEntrypoint({bus: 'system', service: 'com.example.DeviceService'})
+ *             dbus: dbusEntrypoint({bus: 'system', service: 'com.example.DeviceService'})
  *         })
  *     },
  *     bootstrap: ['entrypoint']
  * }))
  * ```
  */
-export function DBusEntrypoint(options: DBusEntrypointOptions): EntrypointAdapter<DBusContext> {
+export function dbusEntrypoint(options: DBusEntrypointOptions): EntrypointAdapter<DBusContext> {
     CheckInterfaceName(options.service)
     let service: LocalService | undefined
     let detach: (() => void) | undefined

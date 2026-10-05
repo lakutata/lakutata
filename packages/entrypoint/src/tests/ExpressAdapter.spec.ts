@@ -10,7 +10,7 @@ import {Inject} from '@lakutata/core/decorator/di'
 import {Expect} from '@lakutata/core/decorator/dto'
 import {
     ActionInvocation,
-    BuildEntrypoints,
+    buildEntrypoints,
     Controller,
     Entrypoint,
     MiddlewareHandler,
@@ -18,7 +18,7 @@ import {
     Result
 } from '../exports/Entrypoint.js'
 import {GET, POST} from '../exports/CTRLDecorators.js'
-import {ExpressHTTPEntrypoint, ExpressHTTPEntrypointOptions, JSONEnvelope, StaticUI} from '../exports/ExpressAdapter.js'
+import {expressHTTPEntrypoint, ExpressHTTPEntrypointOptions, jsonEnvelope, staticUI} from '../exports/ExpressAdapter.js'
 
 class DeviceDTO extends DTO {
     @Expect(DTO.String().required())
@@ -99,10 +99,10 @@ class DeviceController extends Controller {
 async function Start(options: ExpressHTTPEntrypointOptions = {}, entrypointOptions: Record<string, unknown> = {}): Promise<{ url: string, container: Container }> {
     let server: Server | undefined
     const container: Container = new Container()
-    await container.set(Entrypoint, BuildEntrypoints({
+    await container.set(Entrypoint, buildEntrypoints({
         controllers: [DeviceController],
         ...entrypointOptions,
-        http: ExpressHTTPEntrypoint({
+        http: expressHTTPEntrypoint({
             port: 0,
             host: '127.0.0.1',
             ...options,
@@ -173,7 +173,7 @@ describe('Express adapter', (): void => {
                 app.get('/health', (request, response): unknown => response.json({status: 'ok'}))
             },
             fallback: (request, response): unknown => response.type('html').send(`<page ${request.path}>`),
-            respond: JSONEnvelope({errorStatus: 200})
+            respond: jsonEnvelope({errorStatus: 200})
         })
         assert.deepStrictEqual(await (await fetch(`${url}/health`)).json(), {status: 'ok'})
         assert.strictEqual(await (await fetch(`${url}/about`)).text(), '<page /about>')
@@ -191,7 +191,7 @@ describe('Express adapter', (): void => {
             before: (app): void => {
                 app.use((request, _response, next): void => request.headers['x-token'] ? next() : next(new UnauthorizedException('Not logged in')))
             },
-            respond: JSONEnvelope({actionErrorStatus: 200})
+            respond: jsonEnvelope({actionErrorStatus: 200})
         })
         const token: RequestInit = {headers: {'x-token': 'a'}}
         const unauthorized: Response = await fetch(`${url}/device/a`)
@@ -248,8 +248,8 @@ describe('Express adapter', (): void => {
         await writeFile(path.join(ui, 'assets', 'main-Cx7aB3dE.js'), 'console.log(1)')
         //Not hashed: a name of lowercase words
         await writeFile(path.join(ui, 'assets', 'my-component.js'), 'console.log(2)')
-        assert.throws((): unknown => StaticUI(ui, {assetsMaxAge: 'soon'}), /Invalid duration/)
-        const {url, container} = await Start({fallback: StaticUI(ui, {assetsMaxAge: '30d'})})
+        assert.throws((): unknown => staticUI(ui, {assetsMaxAge: 'soon'}), /Invalid duration/)
+        const {url, container} = await Start({fallback: staticUI(ui, {assetsMaxAge: '30d'})})
         const page: Response = await fetch(`${url}/`, {headers: {Accept: 'text/html'}})
         assert.strictEqual(await page.text(), '<div id="app"></div>')
         assert.strictEqual(page.headers.get('cache-control'), 'no-cache')
@@ -270,15 +270,15 @@ describe('Express adapter', (): void => {
     it('fails to start on an occupied port', async (): Promise<void> => {
         let server: Server | undefined
         const first: Container = new Container()
-        await first.set(Entrypoint, BuildEntrypoints({
+        await first.set(Entrypoint, buildEntrypoints({
             controllers: [DeviceController],
-            http: ExpressHTTPEntrypoint({port: 0, host: '127.0.0.1', before: (app, context): void => {
+            http: expressHTTPEntrypoint({port: 0, host: '127.0.0.1', before: (app, context): void => {
                 server = context.server
             }})
         }))
         const port: number = (server!.address() as AddressInfo).port
         const second: Container = new Container()
-        await assert.rejects(second.set(Entrypoint, BuildEntrypoints({controllers: [DeviceController], http: ExpressHTTPEntrypoint({port: port, host: '127.0.0.1'})})), {code: 'EADDRINUSE'})
+        await assert.rejects(second.set(Entrypoint, buildEntrypoints({controllers: [DeviceController], http: expressHTTPEntrypoint({port: port, host: '127.0.0.1'})})), {code: 'EADDRINUSE'})
         await second.destroy()
         await first.destroy()
     })
@@ -293,9 +293,9 @@ describe('Express adapter', (): void => {
         const container: Container = new Container()
         await container.registerNamed('guard', Guard)
         let guarded: Guard | undefined
-        const starting: Promise<unknown> = container.setNamed('entrypoint', Entrypoint, BuildEntrypoints({
+        const starting: Promise<unknown> = container.setNamed('entrypoint', Entrypoint, buildEntrypoints({
             controllers: [DeviceController],
-            http: ExpressHTTPEntrypoint({
+            http: expressHTTPEntrypoint({
                 port: 0,
                 host: '127.0.0.1',
                 before: async (): Promise<void> => {

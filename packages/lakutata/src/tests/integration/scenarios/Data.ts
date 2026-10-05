@@ -1,14 +1,14 @@
 import assert from 'node:assert'
 import {Application, DTO, Time} from '../../../exports/Lakutata.js'
-import {BuildEntrypoints, Controller} from '../../../exports/EntrypointComponent.js'
-import {ExpressHTTPEntrypoint, JSONEnvelope} from '../../../exports/ExpressAdapter.js'
+import {buildEntrypoints, Controller} from '../../../exports/EntrypointComponent.js'
+import {expressHTTPEntrypoint, jsonEnvelope} from '../../../exports/ExpressAdapter.js'
 import {GET, HTTPAction, POST} from '../../../exports/CTRLDecorators.js'
 import {Inject} from '../../../exports/DIDecorators.js'
 import {Expect, Return} from '../../../exports/DTODecorators.js'
-import {FlexibleDTO, Paginator, PaginationResultDTO, PaginationSearchDTO, fromJsonSchema, toJsonSchema} from '../../../exports/DTOs.js'
+import {FlexibleDTO, paginator, PaginationResultDTO, PaginationSearchDTO, fromJsonSchema, toJsonSchema} from '../../../exports/DTOs.js'
 import {Column, Entity, PrimaryGeneratedColumn} from '../../../exports/ORMDecorators.js'
 import type {Repository} from '../../../exports/ORM.js'
-import {BuildDatabaseOptions, Database} from '../../../exports/DatabaseComponent.js'
+import {buildDatabaseOptions, Database} from '../../../exports/DatabaseComponent.js'
 import {FreePort, RunChecks} from '../support/Scenario.js'
 
 @Entity('device')
@@ -59,7 +59,7 @@ class DeviceController extends Controller {
     @HTTPAction('/devices', ['get', 'post'], DeviceSearchDTO)
     @Return(PaginationResultDTO)
     public async search(input: DeviceSearchDTO): Promise<PaginationResultDTO<Device>> {
-        return await Paginator(input, async (limit: number, offset: number): Promise<{ items: Device[], total: number }> => {
+        return await paginator(input, async (limit: number, offset: number): Promise<{ items: Device[], total: number }> => {
             const [items, total] = await this.devices.findAndCount({where: input.site ? {site: input.site} : {}, order: {id: 'ASC'}, take: limit, skip: offset})
             return {items: items, total: total}
         })
@@ -91,10 +91,10 @@ Application
         timezone: 'Asia/Shanghai',
         components: {
             log: {level: 'warn'},
-            db: BuildDatabaseOptions({type: 'sqlite', database: ':memory:', entities: [Device], synchronize: true}),
-            entrypoint: BuildEntrypoints({
+            db: buildDatabaseOptions({type: 'sqlite', database: ':memory:', entities: [Device], synchronize: true}),
+            entrypoint: buildEntrypoints({
                 controllers: [DeviceController],
-                http: ExpressHTTPEntrypoint({port: port, host: '127.0.0.1', respond: JSONEnvelope({errorStatus: 200})})
+                http: expressHTTPEntrypoint({port: port, host: '127.0.0.1', respond: jsonEnvelope({errorStatus: 200})})
             })
         },
         bootstrap: ['db', 'entrypoint']

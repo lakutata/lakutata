@@ -5,12 +5,12 @@ import {lstat, mkdir, mkdtemp, rm, symlink, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {Duplex} from 'node:stream'
-import {GRPCConnection, Decode, Encode, type Message, type Schema} from '@lakutata/grpc'
+import {GRPCConnection, decode, encode, type Message, type Schema} from '@lakutata/grpc'
 import {BuildKitSession, GoFileMode, PatternExpression, WalkDirectory, type SyncEntry} from '../client/BuildKit.js'
 import * as B from '../client/BuildKitMessages.js'
 
 function Frame(schema: Schema, message: Message): Buffer {
-    const data: Uint8Array = Encode(schema, message)
+    const data: Uint8Array = encode(schema, message)
     const frame: Buffer = Buffer.alloc(5 + data.length)
     frame.writeUInt32BE(data.length, 1)
     frame.set(data, 5)
@@ -28,7 +28,7 @@ async function* Messages(stream: AsyncIterable<Buffer>, schema: Schema): AsyncGe
         buffer = Buffer.concat([buffer, chunk])
         while (buffer.length >= 5 && buffer.length >= 5 + buffer.readUInt32BE(1)) {
             const length: number = buffer.readUInt32BE(1)
-            yield Decode(schema, buffer.subarray(5, 5 + length))
+            yield decode(schema, buffer.subarray(5, 5 + length))
             buffer = buffer.subarray(5 + length)
         }
     }

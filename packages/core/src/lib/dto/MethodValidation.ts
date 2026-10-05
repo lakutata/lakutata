@@ -69,7 +69,7 @@ const METHOD_RETURN_SCHEMA: symbol = Symbol('DTO.METHOD.RETURN.SCHEMA')
  * @example
  * ```typescript
  * import {Component, DTO} from 'lakutata'
- * import {GetMethodReturnSchema, Return} from 'lakutata/decorator/dto'
+ * import {getMethodReturnSchema, Return} from 'lakutata/decorator/dto'
  *
  * class Clock extends Component {
  *     @Return(DTO.Number().integer().required())
@@ -79,10 +79,10 @@ const METHOD_RETURN_SCHEMA: symbol = Symbol('DTO.METHOD.RETURN.SCHEMA')
  * }
  *
  * //The description of the result, e.g. for a generated API document
- * console.log(GetMethodReturnSchema(Clock.prototype, 'now')?.describe())
+ * console.log(getMethodReturnSchema(Clock.prototype, 'now')?.describe())
  * ```
  */
-export function GetMethodReturnSchema(target: object, propertyKey: string | symbol): Schema | undefined {
+export function getMethodReturnSchema(target: object, propertyKey: string | symbol): Schema | undefined {
     return Reflect.getMetadata(METHOD_RETURN_SCHEMA, target, propertyKey)
 }
 

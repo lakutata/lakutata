@@ -1,5 +1,5 @@
 import {Constructor} from './Resolvers.js'
-import {IsSymbol} from '@lakutata/utils/IsSymbol'
+import {isSymbol} from '@lakutata/utils/IsSymbol'
 import {As} from '@lakutata/utils/As'
 
 /**
@@ -26,7 +26,7 @@ export function nameValueToObject(
     value?: any
 ): Record<string | symbol, any> {
     const obj: string | symbol | object = name
-    if (typeof obj === 'string' || IsSymbol(obj)) return {[name as any]: value}
+    if (typeof obj === 'string' || isSymbol(obj)) return {[name as any]: value}
     return As(obj)
 }
 

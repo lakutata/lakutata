@@ -1,7 +1,7 @@
 import {IDockerConnectionOptions} from './IDockerConnectionOptions.js'
 
 /**
- * The options of {@link BuildDockerSSHConnectionOptions}: a remote host reached over SSH at `host` and `port`, as
+ * The options of {@link buildDockerSSHConnectionOptions}: a remote host reached over SSH at `host` and `port`, as
  * `username`, authenticated by the SSH agent (`sshAuthAgent`), with the timeout and the API version of
  * {@link IDockerConnectionOptions} (its `protocol` is replaced by `'ssh'`).
  */

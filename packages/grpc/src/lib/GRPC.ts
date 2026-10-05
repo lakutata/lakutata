@@ -3,7 +3,7 @@ import net, {type AddressInfo} from 'node:net'
 import type {Duplex} from 'node:stream'
 import tls from 'node:tls'
 import {deflateSync, gzipSync, gunzipSync, inflateSync} from 'node:zlib'
-import {Decode, Encode, type Message, type Schema} from './Protobuf.js'
+import {decode, encode, type Message, type Schema} from './Protobuf.js'
 
 /**
  * The gRPC status codes, by name: the `code` of a {@link GRPCError}, and the status a server call ends with
@@ -186,7 +186,7 @@ const MAX_TIMER_DELAY: number = 2 ** 31 - 1
  * @param delay milliseconds
  * @returns The cancellation of the call.
  */
-function Delay(callback: () => void, delay: number): () => void {
+function callLater(callback: () => void, delay: number): () => void {
     let timer: NodeJS.Timeout
     const at: number = Date.now() + delay
     const plan = (): void => {
@@ -205,15 +205,15 @@ function Delay(callback: () => void, delay: number): () => void {
  * malformed.
  * @example
  * ```typescript
- * import {ParseGRPCTimeout} from '@lakutata/grpc'
+ * import {parseGRPCTimeout} from '@lakutata/grpc'
  *
- * console.log(ParseGRPCTimeout('5S')) //5000
- * console.log(ParseGRPCTimeout('100m')) //100
- * console.log(ParseGRPCTimeout('1H')) //3600000
- * console.log(ParseGRPCTimeout('soon')) //undefined
+ * console.log(parseGRPCTimeout('5S')) //5000
+ * console.log(parseGRPCTimeout('100m')) //100
+ * console.log(parseGRPCTimeout('1H')) //3600000
+ * console.log(parseGRPCTimeout('soon')) //undefined
  * ```
  */
-export function ParseGRPCTimeout(value: string | string[] | undefined): number | undefined {
+export function parseGRPCTimeout(value: string | string[] | undefined): number | undefined {
     const match: RegExpMatchArray | null = (Array.isArray(value) ? value[0] : value ?? '').match(/^(\d{1,8})([HMSmun])$/)
     if (!match) return undefined
     const factors: Record<string, number> = {H: 3600000, M: 60000, S: 1000, m: 1, u: 0.001, n: 0.000001}
@@ -228,14 +228,14 @@ export function ParseGRPCTimeout(value: string | string[] | undefined): number |
  * @returns The header value.
  * @example
  * ```typescript
- * import {FormatGRPCTimeout} from '@lakutata/grpc'
+ * import {formatGRPCTimeout} from '@lakutata/grpc'
  *
- * console.log(FormatGRPCTimeout(1500)) //1500m
- * console.log(FormatGRPCTimeout(0.2)) //1m
- * console.log(FormatGRPCTimeout(2 * 24 * 3600 * 1000)) //172800S
+ * console.log(formatGRPCTimeout(1500)) //1500m
+ * console.log(formatGRPCTimeout(0.2)) //1m
+ * console.log(formatGRPCTimeout(2 * 24 * 3600 * 1000)) //172800S
  * ```
  */
-export function FormatGRPCTimeout(milliseconds: number): string {
+export function formatGRPCTimeout(milliseconds: number): string {
     const value: number = Math.max(1, Math.ceil(milliseconds))
     //The smallest unit whose value fits the 8 digits of the format, rounded up
     for (const [unit, factor] of [['m', 1], ['S', 1000], ['M', 60000], ['H', 3600000]] as const) {
@@ -347,7 +347,7 @@ class FrameReader {
  * @param compression
  */
 function Frame(schema: Schema, message: Message, compression: GRPCCompression = 'identity'): Buffer {
-    let data: Uint8Array = Encode(schema, message)
+    let data: Uint8Array = encode(schema, message)
     const compressed: boolean = compression !== 'identity'
     if (compression === 'gzip') data = gzipSync(data)
     if (compression === 'deflate') data = deflateSync(data)
@@ -564,11 +564,11 @@ export class GRPCConnection {
             'te': 'trailers',
             'grpc-accept-encoding': ACCEPTED_ENCODINGS.join(','),
             ...compression !== 'identity' ? {'grpc-encoding': compression} : {},
-            ...options.timeout !== undefined ? {'grpc-timeout': FormatGRPCTimeout(options.timeout)} : {},
+            ...options.timeout !== undefined ? {'grpc-timeout': formatGRPCTimeout(options.timeout)} : {},
             ...metadata
         })
         if (options.timeout !== undefined) {
-            const cancel: () => void = Delay((): void => {
+            const cancel: () => void = callLater((): void => {
                 (stream as ClientHttp2Stream & { deadlineExceeded?: boolean }).deadlineExceeded = true
                 stream.close(http2.constants.NGHTTP2_CANCEL)
             }, options.timeout)
@@ -605,7 +605,7 @@ export class GRPCConnection {
         })
         stream.on('data', (chunk: Buffer): void => {
             try {
-                for (const data of reader.push(chunk)) queue.push(Decode(schema, data))
+                for (const data of reader.push(chunk)) queue.push(decode(schema, data))
             } catch (error: unknown) {
                 queue.finish(error instanceof GRPCError ? new GRPCError(error.code, error.message, path) : new GRPCError(GRPCStatus.INTERNAL, `The response of ${path} is not decoded: ${(error as Error).message}`, path))
                 stream.close(http2.constants.NGHTTP2_CANCEL)
@@ -793,7 +793,7 @@ export class GRPCServerCall {
         this.#reader = new FrameReader(options.maxMessageSize ?? 4 * 1024 * 1024, String(headers['grpc-encoding'] ?? 'identity'))
         const accepted: string[] = String(headers['grpc-accept-encoding'] ?? '').split(',').map((item: string): string => item.trim())
         this.#compression = options.compression && options.compression !== 'identity' && accepted.includes(options.compression) ? options.compression : 'identity'
-        const timeout: number | undefined = ParseGRPCTimeout(headers['grpc-timeout'])
+        const timeout: number | undefined = parseGRPCTimeout(headers['grpc-timeout'])
         if (timeout !== undefined) this.deadline = new Date(Date.now() + timeout)
         //Aborted when its client cancels it (its stream closed before its end)
         stream.once('close', (): void => {
@@ -883,7 +883,7 @@ export class GRPCServerCall {
             for (const data of messages) {
                 let message: Message
                 try {
-                    message = Decode(schema, data)
+                    message = decode(schema, data)
                 } catch (error: unknown) {
                     //A request which is not a message of the schema
                     throw new GRPCError(GRPCStatus.INTERNAL, `The request of ${this.path} is not decoded: ${(error as Error).message}`, this.path)
@@ -1037,7 +1037,7 @@ export class GRPCServer {
             //Its deadline: aborted, answered as exceeded
             let cancel: (() => void) | undefined
             if (call.deadline) {
-                cancel = Delay((): void => {
+                cancel = callLater((): void => {
                     call.abort(new GRPCError(GRPCStatus.DEADLINE_EXCEEDED, 'The deadline of the call is exceeded', call.path))
                     call.finish(GRPCStatus.DEADLINE_EXCEEDED, 'The deadline of the call is exceeded')
                 }, Math.max(0, call.deadline.getTime() - Date.now()))
@@ -1117,7 +1117,7 @@ export class GRPCServer {
 }
 
 /**
- * The TLS options of a {@link GRPCServer} (and of `GRPCServiceEntrypoint`); the certificates are PEM strings or buffers.
+ * The TLS options of a {@link GRPCServer} (and of `grpcServiceEntrypoint`); the certificates are PEM strings or buffers.
  * The server negotiates HTTP/2 through ALPN (`h2`).
  */
 export type GRPCServerTLSOptions = {

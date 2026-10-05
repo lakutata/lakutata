@@ -4,14 +4,14 @@ import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {io, type Socket} from 'socket.io-client'
 import {Application, DTO, Exception, Provider} from '../../../exports/Lakutata.js'
-import {BuildEntrypoints, Controller} from '../../../exports/EntrypointComponent.js'
-import {ExpressHTTPEntrypoint, JSONEnvelope} from '../../../exports/ExpressAdapter.js'
-import {SocketIOServiceEntrypoint} from '../../../exports/SocketIOAdapter.js'
-import {CommanderCLIEntrypoint} from '../../../exports/CommanderAdapter.js'
+import {buildEntrypoints, Controller} from '../../../exports/EntrypointComponent.js'
+import {expressHTTPEntrypoint, jsonEnvelope} from '../../../exports/ExpressAdapter.js'
+import {socketIOServiceEntrypoint} from '../../../exports/SocketIOAdapter.js'
+import {commanderCLIEntrypoint} from '../../../exports/CommanderAdapter.js'
 import {CLIAction, GET, POST, ServiceAction} from '../../../exports/CTRLDecorators.js'
 import {Autoload, Inject, Scoped} from '../../../exports/DIDecorators.js'
 import {Accept, Expect} from '../../../exports/DTODecorators.js'
-import {BuildI18nOptions, I18n, I18nMiddleware, I18nMissingKeyException, Translator} from '../../../exports/I18nComponent.js'
+import {buildI18nOptions, I18n, I18nMiddleware, I18nMissingKeyException, Translator} from '../../../exports/I18nComponent.js'
 import {FreePort, MemoryStream, RunChecks} from '../support/Scenario.js'
 
 //The messages of the application: a file by language, a directory by language whose files prefix their keys; the
@@ -121,13 +121,13 @@ Application
         id: 'integration.i18n',
         name: 'IntegrationI18n',
         components: {
-            i18n: BuildI18nOptions({directory: '@locales', fallback: {'zh-TW': 'zh-CN'}, currency: 'CNY', missing: 'throw'}),
-            entrypoint: BuildEntrypoints({
+            i18n: buildI18nOptions({directory: '@locales', fallback: {'zh-TW': 'zh-CN'}, currency: 'CNY', missing: 'throw'}),
+            entrypoint: buildEntrypoints({
                 controllers: [OrderController],
                 middlewares: [I18nMiddleware],
-                http: ExpressHTTPEntrypoint({port: httpPort, host: '127.0.0.1', respond: JSONEnvelope({errorStatus: 200})}),
-                service: SocketIOServiceEntrypoint({port: ioPort, host: '127.0.0.1'}),
-                cli: CommanderCLIEntrypoint({bin: 'shop', argv: ['count-orders'], interactive: false, stdout: cliOutput, exit: (code: number): void => cliExited(code)})
+                http: expressHTTPEntrypoint({port: httpPort, host: '127.0.0.1', respond: jsonEnvelope({errorStatus: 200})}),
+                service: socketIOServiceEntrypoint({port: ioPort, host: '127.0.0.1'}),
+                cli: commanderCLIEntrypoint({bin: 'shop', argv: ['count-orders'], interactive: false, stdout: cliOutput, exit: (code: number): void => cliExited(code)})
             })
         },
         bootstrap: ['i18n', 'entrypoint']

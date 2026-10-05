@@ -5,8 +5,8 @@ The ORM of the framework (the package `@lakutata/orm`) is built on [TypeORM](htt
 
 | Subpath | What it provides |
 |---|---|
-| `lakutata/com/database` | The `Database` component (a connection shared by the application) and `BuildDatabaseOptions` |
-| `lakutata/provider/database` | The `Database` provider (a connection of its own per resolution) and `BuildDatabaseOptions` |
+| `lakutata/com/database` | The `Database` component (a connection shared by the application) and `buildDatabaseOptions` |
+| `lakutata/provider/database` | The `Database` provider (a connection of its own per resolution) and `buildDatabaseOptions` |
 | `lakutata/decorator/orm` | The TypeORM entity decorators (`@Entity`, `@Column`, the relations…) |
 | `lakutata/orm` | The TypeORM API: `Repository`, `EntityManager`, `QueryRunner`, the find operators, `BaseEntity`, the migrations, the errors |
 
@@ -33,14 +33,14 @@ npm install lakutata pg
 
 ## 2. The Database component
 
-`BuildDatabaseOptions` declares a `Database` component with the TypeORM connection options (`DataSourceOptions`, passed
+`buildDatabaseOptions` declares a `Database` component with the TypeORM connection options (`DataSourceOptions`, passed
 to TypeORM as they are). The component connects when it is created (at launch when it is listed in `bootstrap`; a
 connection failure stops the launch) and disconnects when the application stops. Other objects inject it by its name.
 
 ```typescript
 import {Application, Component} from 'lakutata'
 import {Inject} from 'lakutata/decorator/di'
-import {BuildDatabaseOptions, Database} from 'lakutata/com/database'
+import {buildDatabaseOptions, Database} from 'lakutata/com/database'
 import {Column, CreateDateColumn, Entity, PrimaryGeneratedColumn} from 'lakutata/decorator/orm'
 
 @Entity('users')
@@ -86,7 +86,7 @@ Application
         id: 'com.example.users',
         name: 'Users',
         components: {
-            db: BuildDatabaseOptions({
+            db: buildDatabaseOptions({
                 type: 'postgres',
                 host: process.env.DB_HOST ?? 'localhost',
                 port: 5432,
@@ -270,7 +270,7 @@ connection options.
 
 ```typescript
 import {Application} from 'lakutata'
-import {BuildDatabaseOptions, Database} from 'lakutata/provider/database'
+import {buildDatabaseOptions, Database} from 'lakutata/provider/database'
 
 Application
     .run(() => ({
@@ -278,7 +278,7 @@ Application
         name: 'Reports',
         providers: {
             reports: {
-                ...BuildDatabaseOptions({type: 'postgres', url: process.env.REPORTS_URL}),
+                ...buildDatabaseOptions({type: 'postgres', url: process.env.REPORTS_URL}),
                 entities: [Report]
             }
         }
@@ -299,8 +299,8 @@ Application.run(() => ({
     id: 'com.example.shop',
     name: 'Shop',
     components: {
-        db: BuildDatabaseOptions({type: 'postgres', url: process.env.DATABASE_URL, entities: [User, Order, OrderLine]}),
-        analytics: BuildDatabaseOptions({type: 'mysql', url: process.env.ANALYTICS_URL, entities: [Visit]})
+        db: buildDatabaseOptions({type: 'postgres', url: process.env.DATABASE_URL, entities: [User, Order, OrderLine]}),
+        analytics: buildDatabaseOptions({type: 'mysql', url: process.env.ANALYTICS_URL, entities: [Visit]})
     },
     bootstrap: ['db', 'analytics']
 }))

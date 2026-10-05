@@ -2,11 +2,11 @@ import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
 import {IncomingMessage, ServerResponse} from 'node:http'
 import {Socket} from 'node:net'
-import {Container, CurrentValidationLanguage, Exception, type Module} from '@lakutata/core'
+import {Container, currentValidationLanguage, Exception, type Module} from '@lakutata/core'
 import {Inject} from '@lakutata/core/decorator/di'
 import {BaseContext, CLIContext, ContextType, HTTPContext, ScheduleContext, ServiceContext, type ActionInvocation} from '@lakutata/entrypoint'
 import {I18n, I18nTranslatorException, Translator} from '../exports/I18n.js'
-import {CommanderTranslator, I18nMiddleware} from '../exports/I18nMiddleware.js'
+import {commanderTranslator, I18nMiddleware} from '../exports/I18nMiddleware.js'
 
 /**
  * The middleware, its I18n injected by its class, its languages requested told
@@ -105,18 +105,18 @@ describe('The I18n middleware', (): void => {
         await i18n.addMessages('zh-CN', {cli: {help: {usage: '用法：', default: '默认：{value}'}, commands: {greet: {description: '问候某人'}}}})
         const module = {getObject: async (): Promise<I18n> => i18n} as unknown as Module
         process.env = {LANG: 'en_US.UTF-8', TOOL_LANG: 'zh-CN'}
-        const chinese = await CommanderTranslator({component: 'unused', environment: 'TOOL_LANG'})(module)
+        const chinese = await commanderTranslator({component: 'unused', environment: 'TOOL_LANG'})(module)
         assert.strictEqual(chinese({key: 'help.usage', text: 'Usage:'}), '用法：')
         assert.strictEqual(chinese({key: 'help.default', text: 'default: {value}', params: {value: '1'}}), '默认：1')
         assert.strictEqual(chinese({key: 'commands.greet.description', text: 'Greet someone'}), '问候某人')
         //Without a message: the English text, its arguments filled
         assert.strictEqual(chinese({key: 'help.negate', text: 'Turn off {flag}', params: {flag: '--polite'}}), 'Turn off --polite')
         process.env = {LANG: 'zh_CN.UTF-8', TOOL_LANG: 'en'}
-        assert.strictEqual((await CommanderTranslator({environment: 'TOOL_LANG'})(module))({key: 'help.usage', text: 'Usage:'}), 'Usage:')
+        assert.strictEqual((await commanderTranslator({environment: 'TOOL_LANG'})(module))({key: 'help.usage', text: 'Usage:'}), 'Usage:')
         //The language of the environment without the variable; no prefix
         process.env = {LANG: 'zh_CN.UTF-8'}
-        assert.strictEqual((await CommanderTranslator()(module))({key: 'help.usage', text: 'Usage:'}), '用法：')
-        assert.strictEqual((await CommanderTranslator({prefix: ''})(module))({key: 'cli.help.usage', text: 'Usage:'}), '用法：')
+        assert.strictEqual((await commanderTranslator()(module))({key: 'help.usage', text: 'Usage:'}), '用法：')
+        assert.strictEqual((await commanderTranslator({prefix: ''})(module))({key: 'cli.help.usage', text: 'Usage:'}), '用法：')
     })
 
     it('runs the request in its language: its validations, the messages of its exceptions', async (): Promise<void> => {
@@ -140,7 +140,7 @@ describe('The I18n middleware', (): void => {
         }
         //The validations of the request in its language
         await middleware.handle({context: HTTP('/', {'accept-language': 'zh-CN'}), container: container.createScope(), action: {}} as unknown as ActionInvocation, async (): Promise<void> => {
-            assert.strictEqual(CurrentValidationLanguage(), 'zh-CN')
+            assert.strictEqual(currentValidationLanguage(), 'zh-CN')
         })
         //A message of its errno, the parameters given one by one
         const limit = await run((): never => {

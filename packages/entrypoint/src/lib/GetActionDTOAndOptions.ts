@@ -14,20 +14,20 @@ import {FlexibleDTO} from '@lakutata/core/dtos'
  * import {DTO} from 'lakutata'
  * import {FlexibleDTO} from 'lakutata/dtos'
  * import {Expect} from 'lakutata/decorator/dto'
- * import {GetActionDTOAndOptions} from '@lakutata/entrypoint/channel'
+ * import {getActionDTOAndOptions} from '@lakutata/entrypoint/channel'
  *
  * class SendDTO extends DTO {
  *     @Expect(DTO.String().required())
  *     public text: string
  * }
  *
- * const [dto, options] = GetActionDTOAndOptions(SendDTO, {name: 'send'})
+ * const [dto, options] = getActionDTOAndOptions(SendDTO, {name: 'send'})
  * console.log(dto === SendDTO, options.groups) //true []
- * const [anyInput] = GetActionDTOAndOptions({acl: true})
+ * const [anyInput] = getActionDTOAndOptions({acl: true})
  * console.log(anyInput === FlexibleDTO) //true
  * ```
  */
-export function GetActionDTOAndOptions<DTOConstructor extends typeof DTO = typeof DTO>(dtoConstructorOrOptions?: DTOConstructor | ActionOptions<any>, options?: ActionOptions<any>): [DTOConstructor | typeof FlexibleDTO, ActionOptions<any>] {
+export function getActionDTOAndOptions<DTOConstructor extends typeof DTO = typeof DTO>(dtoConstructorOrOptions?: DTOConstructor | ActionOptions<any>, options?: ActionOptions<any>): [DTOConstructor | typeof FlexibleDTO, ActionOptions<any>] {
     let dtoConstructor: DTOConstructor | typeof FlexibleDTO = FlexibleDTO
     let actionOptions: ActionOptions<any> = {}
     if (options) {

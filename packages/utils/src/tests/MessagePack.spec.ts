@@ -30,7 +30,7 @@ const INTEGERS: number[] = [0, 1, 0x7f, 0x80, 0xff, 0x100, 0xffff, 0x10000, 0xff
  * A random string: ASCII, other characters, surrogate pairs, of any length (the encodings change at 32, 50, 200 and
  * 256 bytes)
  */
-function RandomString(): string {
+function randomString(): string {
     const length: number = pick([0, 1, 5, 31, 32, 49, 51, 199, 201, 255, 300, 70000])
     const alphabet: string[] = pick([['a', 'b', 'z', '0', ' '], ['é', 'ü', 'ß'], ['中', '文', '字'], ['😀', '🚀', 'a', '中']])
     let value: string = ''
@@ -54,7 +54,7 @@ function RandomValue(depth: number = 0): unknown {
         case 3:
             return pick([0.5, -1.25, Math.PI, 1e300, -1e-300, NaN, Infinity, -Infinity, -0, random()])
         case 4:
-            return RandomString()
+            return randomString()
         case 5:
             return pick([0n, 1n, -1n, 2n ** 63n - 1n, -(2n ** 63n), 2n ** 64n - 1n, BigInt(Math.floor(random() * 1e15)) * -7n])
         case 6:
@@ -71,7 +71,7 @@ function RandomValue(depth: number = 0): unknown {
         default: {
             const object: Record<string, unknown> = {}
             const size: number = pick([0, 1, 4, 15, 16, 20])
-            for (let index: number = 0; index < size; index++) object[pick(['id', 'name', 'value', 'é', 'a'.repeat(17), `k${index}`, RandomString().slice(0, 20)])] = RandomValue(depth + 1)
+            for (let index: number = 0; index < size; index++) object[pick(['id', 'name', 'value', 'é', 'a'.repeat(17), `k${index}`, randomString().slice(0, 20)])] = RandomValue(depth + 1)
             return pick([object, object, object, new Map([['a', 1]]), new Set([1])])
         }
     }

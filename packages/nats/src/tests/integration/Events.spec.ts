@@ -2,8 +2,8 @@ import {after, before, it} from 'node:test'
 import {expect} from '../support/Expect.js'
 import {describeNats as describe, destroyApp, runApp, ensureNats, stopNats} from '../support/App.js'
 import {Application} from '@lakutata/core'
-import {Delay} from '@lakutata/utils'
-import {BuildNatsClientOptions, NATS} from '../../exports/Nats.js'
+import {delay} from '@lakutata/utils'
+import {buildNatsClientOptions, NATS} from '../../exports/Nats.js'
 
 /**
  * Verifies the service event bus: on / once / off / off-all / onlySingleClientReceived (queue distribution).
@@ -21,8 +21,8 @@ describe('service events', (): void => {
             id: 'it.events.app',
             name: 'ITEvents',
             components: {
-                nats: BuildNatsClientOptions({servers: n.url}),
-                nats2: BuildNatsClientOptions({servers: n.url})
+                nats: buildNatsClientOptions({servers: n.url}),
+                nats2: buildNatsClientOptions({servers: n.url})
             }
         })
         nats = await app.getObject<NATS>('nats')
@@ -39,7 +39,7 @@ describe('service events', (): void => {
         const got: Promise<any[]> = new Promise<any[]>((resolve): void => {
             nats.onServiceEvent(serviceId, 'evtA', (a: any, b: any): void => resolve([a, b]))
         })
-        await Delay(120)
+        await delay(120)
         nats.emitServiceEvent('evtA', 1, 'x')
         expect(await got).toEqual([1, 'x'])
     })
@@ -49,10 +49,10 @@ describe('service events', (): void => {
         nats.onceServiceEvent(serviceId, 'evtOnce', (): void => {
             count++
         })
-        await Delay(120)
+        await delay(120)
         nats.emitServiceEvent('evtOnce')
         nats.emitServiceEvent('evtOnce')
-        await Delay(250)
+        await delay(250)
         expect(count).toBe(1)
     })
 
@@ -62,13 +62,13 @@ describe('service events', (): void => {
             count++
         }
         nats.onServiceEvent(serviceId, 'evtOff', listener)
-        await Delay(120)
+        await delay(120)
         nats.emitServiceEvent('evtOff')
-        await Delay(150)
+        await delay(150)
         nats.offServiceEvent(serviceId, 'evtOff', listener)
-        await Delay(50)
+        await delay(50)
         nats.emitServiceEvent('evtOff')
-        await Delay(150)
+        await delay(150)
         expect(count).toBe(1)
     })
 
@@ -81,9 +81,9 @@ describe('service events', (): void => {
         nats2.onServiceEvent(serviceId, 'evtQ', (): void => {
             c2++
         }, true)
-        await Delay(180)
+        await delay(180)
         nats.emitServiceEvent('evtQ')
-        await Delay(300)
+        await delay(300)
         expect(c1 + c2).toBe(1)
     })
 })

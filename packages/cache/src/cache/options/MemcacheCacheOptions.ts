@@ -12,13 +12,13 @@ import {Expect} from '@lakutata/core/decorator/dto'
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildCacherOptions} from 'lakutata/com/cacher'
+ * import {buildCacherOptions} from 'lakutata/com/cacher'
  *
  * Application.run(() => ({
  *     id: 'memcache.app',
  *     name: 'Memcache',
  *     components: {
- *         cache: BuildCacherOptions({
+ *         cache: buildCacherOptions({
  *             stores: {type: 'memcache', host: '127.0.0.1', port: 11211, namespace: 'app'},
  *             ttl: 60000
  *         })

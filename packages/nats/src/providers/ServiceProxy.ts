@@ -1,12 +1,12 @@
 import {ActionPattern, Application, DTO, Provider, type ProviderOptionsBuilder} from '@lakutata/core'
 import {Configurable, Inject, Singleton} from '@lakutata/core/decorator/di'
-import {Delay} from '@lakutata/utils'
+import {delay} from '@lakutata/utils'
 import {NATS} from '../components/NATS.js'
 import {ServiceResponseCodec} from '@lakutata/entrypoint/channel'
 import {NatsNoRespondersAvailableException} from '../exceptions/NatsNoRespondersAvailableException.js'
 
 /**
- * The options of a {@link ServiceProxy}, given to {@link BuildServiceProxy}.
+ * The options of a {@link ServiceProxy}, given to {@link buildServiceProxy}.
  */
 export type BuildServiceProxyOptions = {
     /**
@@ -14,7 +14,7 @@ export type BuildServiceProxyOptions = {
      */
     readonly natsComponentName: string
     /**
-     * The id of the remote service: the subject its {@link NatsServiceEntrypoint} listens on, which is its application
+     * The id of the remote service: the subject its {@link natsServiceEntrypoint} listens on, which is its application
      * id (its `id` option) unless the entrypoint's `subject` option changes it. Its events are listened to under this id
      * too, which only matches the application id.
      */
@@ -43,18 +43,18 @@ export type BuildServiceProxyOptions = {
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildNatsClientOptions, BuildServiceProxy, type ServiceProxy} from '@lakutata/nats'
+ * import {buildNatsClientOptions, buildServiceProxy, type ServiceProxy} from '@lakutata/nats'
  *
  * Application
  *     .run({
  *         id: 'shop.app',
  *         name: 'Shop',
  *         components: {
- *             nats: BuildNatsClientOptions({servers: 'nats://127.0.0.1:4222'})
+ *             nats: buildNatsClientOptions({servers: 'nats://127.0.0.1:4222'})
  *         },
  *         providers: {
  *             //The actions and the events of the application whose id is "order.service"
- *             orderService: BuildServiceProxy({natsComponentName: 'nats', serviceId: 'order.service', maxRetries: 5})
+ *             orderService: buildServiceProxy({natsComponentName: 'nats', serviceId: 'order.service', maxRetries: 5})
  *         }
  *     })
  *     .onLaunched(async (app: Application): Promise<void> => {
@@ -63,7 +63,7 @@ export type BuildServiceProxyOptions = {
  *     })
  * ```
  */
-export const BuildServiceProxy: ProviderOptionsBuilder<BuildServiceProxyOptions> = (options: BuildServiceProxyOptions) => {
+export const buildServiceProxy: ProviderOptionsBuilder<BuildServiceProxyOptions> = (options: BuildServiceProxyOptions) => {
     return {
         class: ServiceProxy,
         natsComponentName: options.natsComponentName,
@@ -74,9 +74,9 @@ export const BuildServiceProxy: ProviderOptionsBuilder<BuildServiceProxyOptions>
 }
 
 /**
- * The proxy of a remote service served by {@link NatsServiceEntrypoint}: it invokes the service's actions and listens to
+ * The proxy of a remote service served by {@link natsServiceEntrypoint}: it invokes the service's actions and listens to
  * its events, over a {@link NATS} component. Register it in the `providers` of an application with
- * {@link BuildServiceProxy} (as in 2.x), one per remote service, and get it with `getObject()` or `@Inject`; it is a
+ * {@link buildServiceProxy} (as in 2.x), one per remote service, and get it with `getObject()` or `@Inject`; it is a
  * singleton provider, shared by the scopes. It resolves its NATS component when it is created (which fails when that
  * component is not registered).
  *
@@ -91,7 +91,7 @@ export const BuildServiceProxy: ProviderOptionsBuilder<BuildServiceProxyOptions>
  * ```typescript
  * import {Application, Component} from 'lakutata'
  * import {Inject} from 'lakutata/decorator/di'
- * import {BuildNatsClientOptions, BuildServiceProxy, ServiceInvokeException, type ServiceProxy} from '@lakutata/nats'
+ * import {buildNatsClientOptions, buildServiceProxy, ServiceInvokeException, type ServiceProxy} from '@lakutata/nats'
  *
  * type Order = {id: number, total: number}
  *
@@ -118,11 +118,11 @@ export const BuildServiceProxy: ProviderOptionsBuilder<BuildServiceProxyOptions>
  *         id: 'billing.app',
  *         name: 'Billing',
  *         components: {
- *             nats: BuildNatsClientOptions({servers: 'nats://127.0.0.1:4222'}),
+ *             nats: buildNatsClientOptions({servers: 'nats://127.0.0.1:4222'}),
  *             billing: {class: Billing}
  *         },
  *         providers: {
- *             orderService: BuildServiceProxy({natsComponentName: 'nats', serviceId: 'order.service'})
+ *             orderService: buildServiceProxy({natsComponentName: 'nats', serviceId: 'order.service'})
  *         }
  *     })
  *     .onLaunched(async (app: Application): Promise<void> => {
@@ -237,7 +237,7 @@ export class ServiceProxy extends Provider {
                 return ServiceResponseCodec.decode(response, this.serviceId)
             } catch (e) {
                 if (e instanceof NatsNoRespondersAvailableException && attempt < this.maxRetries) {
-                    await Delay(this.retryDelay)
+                    await delay(this.retryDelay)
                     continue
                 }
                 throw e

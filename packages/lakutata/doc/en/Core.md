@@ -270,17 +270,17 @@ code 2, without the done handlers nor the teardown.
   The mode is written back to `MODE` and `NODE_ENV`, so the libraries read the same mode. The variables come from the
   system, from `Application.env({MODE: 'production'})`, or from the `.env` file Bun reads (`bun App.js`; the
   executables built by Bun do not read it).
-- **The packed application**: `IsPackaged()` (from `lakutata`) tells whether the application runs bundled
+- **The packed application**: `isPackaged()` (from `lakutata`) tells whether the application runs bundled
   (`lakutata package bundle`) or as an executable (`lakutata package exe`). The files it reads at run time (the built
   pages of a web application, templates, data) are declared by `lakutata.resources` in its `package.json`, as the
-  `extraResources` of electron-builder: `[{"from": "../ui/dist", "to": "ui"}]`. Packed, `ResourcesPath()` gives their
+  `extraResources` of electron-builder: `[{"from": "../ui/dist", "to": "ui"}]`. Packed, `resourcesPath()` gives their
   directory; not packed, it gives `undefined` and the application finds them where they are built:
-  `const ui = ResourcesPath() ? path.join(ResourcesPath()!, 'ui') : uiBuildDirectory`.
+  `const ui = resourcesPath() ? path.join(resourcesPath()!, 'ui') : uiBuildDirectory`.
 
 ## 6. Entrypoints
 
 The `entrypoint` component (`lakutata/com/entrypoint`) serves the controllers over HTTP, CLI, service transports and
-schedules. Give its options with `BuildEntrypoints({controllers, http, cli, service, schedule})` and list it in
+schedules. Give its options with `buildEntrypoints({controllers, http, cli, service, schedule})` and list it in
 `bootstrap`; see [ActionPattern](ActionPattern.md).
 
 ## 7. A container without an application

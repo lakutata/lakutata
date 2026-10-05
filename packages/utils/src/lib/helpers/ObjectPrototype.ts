@@ -1,4 +1,4 @@
-type InferPrototype<ObjectConstruct extends Function> = ObjectConstruct extends new (...args: any[]) => infer ObjectPrototype ? ObjectPrototype : never
+type InferPrototype<ObjectConstruct extends Function> = ObjectConstruct extends new (...args: any[]) => infer objectPrototype ? objectPrototype : never
 
 /**
  * Get the prototype of a class: its `prototype` property, typed as an instance of the class (the object holding its
@@ -7,7 +7,7 @@ type InferPrototype<ObjectConstruct extends Function> = ObjectConstruct extends 
  * @returns The class's prototype.
  * @example
  * ```typescript
- * import {ObjectPrototype} from 'lakutata/utils'
+ * import {objectPrototype} from 'lakutata/utils'
  *
  * class User {
  *     public greet(): string {
@@ -15,11 +15,11 @@ type InferPrototype<ObjectConstruct extends Function> = ObjectConstruct extends 
  *     }
  * }
  *
- * const prototype: User = ObjectPrototype(User)
+ * const prototype: User = objectPrototype(User)
  * console.log(prototype === User.prototype, typeof prototype.greet)
  * //true function
  * ```
  */
-export function ObjectPrototype<ObjectConstruct extends Function>(target: ObjectConstruct): InferPrototype<ObjectConstruct> {
+export function objectPrototype<ObjectConstruct extends Function>(target: ObjectConstruct): InferPrototype<ObjectConstruct> {
     return target.prototype
 }

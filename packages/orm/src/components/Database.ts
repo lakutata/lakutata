@@ -29,7 +29,7 @@ import {type MigrationRunOptions} from '../types/MigrationRunOptions.js'
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildDatabaseOptions} from 'lakutata/com/database'
+ * import {buildDatabaseOptions} from 'lakutata/com/database'
  * import {Column, Entity, PrimaryGeneratedColumn} from 'lakutata/decorator/orm'
  *
  * @Entity()
@@ -46,7 +46,7 @@ import {type MigrationRunOptions} from '../types/MigrationRunOptions.js'
  *     name: 'Example',
  *     components: {
  *         //A PostgreSQL connection (the pg package installed), the component named db
- *         db: BuildDatabaseOptions({
+ *         db: buildDatabaseOptions({
  *             type: 'postgres',
  *             host: 'localhost',
  *             port: 5432,
@@ -61,7 +61,7 @@ import {type MigrationRunOptions} from '../types/MigrationRunOptions.js'
  * }))
  * ```
  */
-export const BuildDatabaseOptions: (options: DataSourceOptions) => {
+export const buildDatabaseOptions: (options: DataSourceOptions) => {
     class: typeof Database
     options: DataSourceOptions
 } = (options: DataSourceOptions) => ({
@@ -72,7 +72,7 @@ export const BuildDatabaseOptions: (options: DataSourceOptions) => {
 /**
  * A database connection shared by the whole application: a singleton component wrapping a TypeORM `DataSource`.
  *
- * Register it in the `components` of the application options with {@link BuildDatabaseOptions}, then inject it by its
+ * Register it in the `components` of the application options with {@link buildDatabaseOptions}, then inject it by its
  * name (`@Inject('db')`) or get it with `getObject('db')`. It connects when it is created (while the application
  * launches when it is listed in `bootstrap`, otherwise on its first use): a connection failure rejects its creation
  * with the driver error. TypeORM applies `synchronize` and `migrationsRun` of the options while connecting. It
@@ -84,7 +84,7 @@ export const BuildDatabaseOptions: (options: DataSourceOptions) => {
  * ```typescript
  * import {Application, Component} from 'lakutata'
  * import {Inject} from 'lakutata/decorator/di'
- * import {BuildDatabaseOptions, Database} from 'lakutata/com/database'
+ * import {buildDatabaseOptions, Database} from 'lakutata/com/database'
  * import {Column, Entity, PrimaryGeneratedColumn} from 'lakutata/decorator/orm'
  *
  * @Entity()
@@ -118,7 +118,7 @@ export const BuildDatabaseOptions: (options: DataSourceOptions) => {
  *     id: 'com.example.bank',
  *     name: 'Bank',
  *     components: {
- *         db: BuildDatabaseOptions({type: 'postgres', url: 'postgres://postgres:secret@localhost:5432/bank', entities: [Account]}),
+ *         db: buildDatabaseOptions({type: 'postgres', url: 'postgres://postgres:secret@localhost:5432/bank', entities: [Account]}),
  *         bank: {class: Bank}
  *     },
  *     bootstrap: ['db']
@@ -145,7 +145,7 @@ export class Database extends Component {
     #datasource: DataSource
 
     /**
-     * The TypeORM connection options, given by the registration (see {@link BuildDatabaseOptions}). Not validated by
+     * The TypeORM connection options, given by the registration (see {@link buildDatabaseOptions}). Not validated by
      * lakutata: TypeORM checks them while connecting.
      */
     @Configurable()

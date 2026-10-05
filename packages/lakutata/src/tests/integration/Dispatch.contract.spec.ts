@@ -17,7 +17,7 @@ import {DTO, Provider} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
 import {Inject} from '@lakutata/core/decorator/di'
 import {ServiceAction} from '@lakutata/entrypoint/decorator/ctrl'
-import {Controller, ServiceContext, BuildEntrypoints, BuildServiceEntrypoint, Entrypoint, AccessControlRule, AccessDeniedException, ContextType} from '@lakutata/entrypoint'
+import {Controller, ServiceContext, buildEntrypoints, buildServiceEntrypoint, Entrypoint, AccessControlRule, AccessDeniedException, ContextType} from '@lakutata/entrypoint'
 import {Logger} from '@lakutata/logger'
 
 class ProbeDTO extends DTO {
@@ -117,10 +117,10 @@ Application
         name: 'DispatchSpec',
         components: {
             log: {level: 'silent', destinations: [nullStream]},
-            entrypoint: BuildEntrypoints({
+            entrypoint: buildEntrypoints({
                 controllers: [ProbeController, BrokenController, GuardedController],
                 rules: [DenyRule],
-                service: BuildServiceEntrypoint((_module: unknown, handler: (context: ServiceContext, abortController?: AbortController) => Promise<unknown>, onDestroy: (fn: () => void) => void): void => {
+                service: buildServiceEntrypoint((_module: unknown, handler: (context: ServiceContext, abortController?: AbortController) => Promise<unknown>, onDestroy: (fn: () => void) => void): void => {
                     serviceHandler = handler
                     onDestroy((): void => {})
                 })

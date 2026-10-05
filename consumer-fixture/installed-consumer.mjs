@@ -86,7 +86,7 @@ function Check(name, fn) {
  */
 const SOURCE = `import {Application, DTO} from 'lakutata'
 import type {ILogger} from 'lakutata'
-import {Controller, BuildEntrypoints} from 'lakutata/com/entrypoint'
+import {Controller, buildEntrypoints} from 'lakutata/com/entrypoint'
 import {GET} from 'lakutata/decorator/ctrl'
 import {Expect} from 'lakutata/decorator/dto'
 import {Inject} from 'lakutata/decorator/di'
@@ -116,7 +116,7 @@ class GreetController extends Controller {
 Application.run({
     id: 'installed.app',
     name: 'Installed',
-    components: {greeter: {class: Greeter}, entrypoint: BuildEntrypoints({controllers: [GreetController]})}
+    components: {greeter: {class: Greeter}, entrypoint: buildEntrypoints({controllers: [GreetController]})}
 }).onLaunched((app: Application, log: ILogger): void => {
     log.info(app.appName)
     app.exit(0)

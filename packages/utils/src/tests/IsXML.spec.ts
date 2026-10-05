@@ -1,7 +1,7 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {XMLValidator} from 'fast-xml-parser'
-import {IsXML} from '../exports/Utils.js'
+import {isXML} from '../exports/Utils.js'
 
 /**
  * The validation of the upstream (fast-xml-parser 4.5.3), the reference of the port
@@ -47,7 +47,7 @@ const PIECES: string[] = [
     '&#x41;', '&#xZ;', '&;', '&unknown', 'text', ' ', '\n', '\t', '"', '\'', '>', '<', '/', '=', '﻿', 'é', '<é>', '</é>'
 ]
 
-describe('IsXML', (): void => {
+describe('isXML', (): void => {
 
     it('accepts the well formed XML documents', (): void => {
         for (const xml of [
@@ -58,7 +58,7 @@ describe('IsXML', (): void => {
             '<!DOCTYPE note [<!ELEMENT note (#PCDATA)>]><note>x</note>',
             '﻿<a/>',
             '<a><?xml-stylesheet href="style.css"?><?pi data?></a>'
-        ]) assert.strictEqual(IsXML(xml), true, xml)
+        ]) assert.strictEqual(isXML(xml), true, xml)
     })
 
     it('rejects the strings which are not well formed XML documents', (): void => {
@@ -67,8 +67,8 @@ describe('IsXML', (): void => {
             '<a x="1"y="2"/>', '<a x=/>', '<a x="1" x="2"/>', '<1a/>', '<a>&;</a>', '<a>&#xZ;</a>', '<a x="1/>',
             '<a/>text', '<a/><b/>', '<a x="1"/><b></b>', '<a><?xml version="1.0"?></a>', '<a></a><?xml version="1.0"?>',
             '      <?xml version="1.0"?><a/>'
-        ]) assert.strictEqual(IsXML(xml), false, xml)
-        assert.strictEqual(IsXML(undefined as unknown as string), false)
+        ]) assert.strictEqual(isXML(xml), false, xml)
+        assert.strictEqual(isXML(undefined as unknown as string), false)
     })
 
     it('validates as the upstream validator, with its bugs fixed', (): void => {
@@ -83,7 +83,7 @@ describe('IsXML', (): void => {
             const expected: boolean = Reference(xml)
             if (expected) valid++
             if (expected !== Upstream(xml)) fixed++
-            assert.strictEqual(IsXML(xml), expected, JSON.stringify(xml))
+            assert.strictEqual(isXML(xml), expected, JSON.stringify(xml))
         }
         //The generated documents are valid and invalid
         assert.ok(valid > 100, `${valid} valid documents`)

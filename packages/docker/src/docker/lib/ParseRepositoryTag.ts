@@ -8,14 +8,14 @@ import {type RepositoryTag} from '../types/RepositoryTag.js'
  * @returns The repository, and the tag (or the digest, without its `@`) when the reference has one.
  * @example
  * ```typescript
- * import {ParseRepositoryTag, type RepositoryTag} from 'lakutata/com/docker'
+ * import {parseRepositoryTag, type RepositoryTag} from 'lakutata/com/docker'
  *
- * const reference: RepositoryTag = ParseRepositoryTag('registry.example.com:5000/team/app:1.0')
+ * const reference: RepositoryTag = parseRepositoryTag('registry.example.com:5000/team/app:1.0')
  * console.log(reference) //{repo: 'registry.example.com:5000/team/app', tag: '1.0'}
- * console.log(ParseRepositoryTag('registry.example.com:5000/team/app')) //{repo: 'registry.example.com:5000/team/app'}
+ * console.log(parseRepositoryTag('registry.example.com:5000/team/app')) //{repo: 'registry.example.com:5000/team/app'}
  * ```
  */
-export function ParseRepositoryTag(input: string): RepositoryTag {
+export function parseRepositoryTag(input: string): RepositoryTag {
     let separatorPos: number
     const digestPos: number = input.indexOf('@')
     const colonPos: number = input.lastIndexOf(':')

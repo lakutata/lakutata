@@ -8,12 +8,12 @@ import {access} from 'node:fs/promises'
  * @returns A promise of `true` when the path exists, `false` otherwise; it never rejects.
  * @example
  * ```typescript
- * import {PathExists} from 'lakutata/utils'
+ * import {pathExists} from 'lakutata/utils'
  *
- * if (!(await PathExists('./config.json'))) console.log('No configuration file, using the defaults')
+ * if (!(await pathExists('./config.json'))) console.log('No configuration file, using the defaults')
  * ```
  */
-export async function PathExists(path: PathLike): Promise<boolean> {
+export async function pathExists(path: PathLike): Promise<boolean> {
     try {
         await access(path, constants.F_OK)
         return true

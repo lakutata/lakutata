@@ -1,6 +1,6 @@
 import type {ActionPattern} from '@lakutata/core'
-import {GetObjectPropertyPaths, UniqueArray} from '@lakutata/utils'
-import {ChannelDefinition, ChannelEntry, ChannelMatch, ChannelMatcher, DefineChannel} from './Channel.js'
+import {getObjectPropertyPaths, uniqueArray} from '@lakutata/utils'
+import {ChannelDefinition, ChannelEntry, ChannelMatch, ChannelMatcher, defineChannel} from './Channel.js'
 import {PatternManager} from '../lib/pattern/PatternManager.js'
 import {StringifyPattern} from '../lib/StringifyPattern.js'
 import {PrefixCommand, PrefixPattern, PrefixRoute} from '../lib/Prefix.js'
@@ -45,7 +45,7 @@ function HTTPKey(pattern: ActionPattern): string {
 /**
  * The HTTP channel, addressed by route and method
  */
-export const HTTPChannel: ChannelDefinition = DefineChannel({
+export const HTTPChannel: ChannelDefinition = defineChannel({
     name: 'http',
     kind: 'request',
     contextType: ContextType.HTTP,
@@ -62,7 +62,7 @@ export const HTTPChannel: ChannelDefinition = DefineChannel({
 /**
  * The CLI channel, addressed by command
  */
-export const CLIChannel: ChannelDefinition = DefineChannel({
+export const CLIChannel: ChannelDefinition = defineChannel({
     name: 'cli',
     kind: 'request',
     contextType: ContextType.CLI,
@@ -76,7 +76,7 @@ export const CLIChannel: ChannelDefinition = DefineChannel({
 /**
  * The service channel, addressed by pattern
  */
-export const ServiceChannel: ChannelDefinition = DefineChannel({
+export const ServiceChannel: ChannelDefinition = defineChannel({
     name: 'service',
     kind: 'request',
     contextType: ContextType.SERVICE,
@@ -95,9 +95,9 @@ export const ServiceChannel: ChannelDefinition = DefineChannel({
     },
     //The keys of the pattern are not a part of the action input
     prepare: (entry: ChannelEntry, context: BaseContext): void => {
-        const patternPaths: string[] = GetObjectPropertyPaths(entry.details.pattern)
+        const patternPaths: string[] = getObjectPropertyPaths(entry.details.pattern)
         patternPaths.forEach((path: string): unknown => UnsetValue(context.data, path))
-        const checkPatternPaths: string[] = UniqueArray(patternPaths
+        const checkPatternPaths: string[] = uniqueArray(patternPaths
             .map((path: string): string => path.substring(0, path.lastIndexOf('.')))
             .filter((path: string): boolean => !!path))
         checkPatternPaths.forEach((path: string): void => {
@@ -113,7 +113,7 @@ export const ServiceChannel: ChannelDefinition = DefineChannel({
  * The schedule channel: no external caller, each action is run by the timers of the schedule adapter.
  * The address of an action is its schedule, with the key telling apart the actions of a same schedule
  */
-export const ScheduleChannel: ChannelDefinition = DefineChannel({
+export const ScheduleChannel: ChannelDefinition = defineChannel({
     name: 'schedule',
     kind: 'trigger',
     contextType: ContextType.SCHEDULE,

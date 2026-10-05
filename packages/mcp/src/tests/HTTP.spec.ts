@@ -3,9 +3,9 @@ import assert from 'node:assert'
 import type {AddressInfo} from 'node:net'
 import {request as httpRequest, type IncomingMessage, type Server} from 'node:http'
 import {Container} from '@lakutata/core'
-import {BuildEntrypoints, Entrypoint, type ActionInvocation, type MiddlewareHandler, type Next} from '@lakutata/entrypoint'
+import {buildEntrypoints, Entrypoint, type ActionInvocation, type MiddlewareHandler, type Next} from '@lakutata/entrypoint'
 import {Client, StreamableHTTPClientTransport} from '@modelcontextprotocol/client'
-import {HTTPMCPEntrypoint, HTTPMCPEntrypointOptions, MCPContext} from '../exports/MCP.js'
+import {httpMCPEntrypoint, HTTPMCPEntrypointOptions, MCPContext} from '../exports/MCP.js'
 import {calls, DeviceController, ToolController} from './support/Tools.js'
 
 /**
@@ -16,10 +16,10 @@ import {calls, DeviceController, ToolController} from './support/Tools.js'
 async function Start(options: HTTPMCPEntrypointOptions = {}, entrypointOptions: Record<string, unknown> = {}): Promise<{ url: string, container: Container }> {
     let server: Server | undefined
     const container: Container = new Container()
-    await container.set(Entrypoint, BuildEntrypoints({
+    await container.set(Entrypoint, buildEntrypoints({
         controllers: [DeviceController, ToolController],
         ...entrypointOptions,
-        mcp: HTTPMCPEntrypoint({
+        mcp: httpMCPEntrypoint({
             port: 0,
             serverName: 'devices',
             serverVersion: '2.0.0',

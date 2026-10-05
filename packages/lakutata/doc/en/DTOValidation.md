@@ -147,9 +147,9 @@ class Bank extends Component {
 - **Controller actions**: the DTO given to `@GET`, `@POST`, `@CLIAction`, `@ServiceAction`… validates the input of the
   action; an invalid input is answered with the status 400. See [ActionPattern](ActionPattern.md).
 - **Pagination** (`lakutata/dtos`): `PaginationSearchDTO` and `PaginationResultDTO` are the input and the result of the
-  paginated actions, `Paginator` computes the pages; `FlexibleDTO` is a DTO accepting any key.
-- **Validation messages**: the messages of the errors are translated; `RegisterValidationMessages`,
-  `RunInValidationLanguage` and `CurrentValidationLanguage` (from `lakutata`) manage their languages, and the language
+  paginated actions, `paginator` computes the pages; `FlexibleDTO` is a DTO accepting any key.
+- **Validation messages**: the messages of the errors are translated; `registerValidationMessages`,
+  `runInValidationLanguage` and `currentValidationLanguage` (from `lakutata`) manage their languages, and the language
   middleware of the I18n component sets the language of each request (see [I18n](I18n.md)).
 
 ## 5. JSON Schema and OpenAPI

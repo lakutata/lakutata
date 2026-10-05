@@ -13,7 +13,7 @@ import {RouteNotFoundException} from '../../exceptions/RouteNotFoundException.js
 import {FastifyJSONResponder, type FastifyResponder} from './Responders.js'
 
 /**
- * What the `before` hook of {@link FastifyHTTPEntrypoint} receives besides the fastify instance: the entrypoint's
+ * What the `before` hook of {@link fastifyHTTPEntrypoint} receives besides the fastify instance: the entrypoint's
  * module, the HTTP server (not listening yet) and the routes the actions will occupy.
  */
 export type FastifyHookContext = {
@@ -23,7 +23,7 @@ export type FastifyHookContext = {
     readonly module: Module
     /**
      * The HTTP server of the fastify instance. It does not listen yet when the hook runs; attach other servers to it
-     * there (such as a socket.io server, see the `server` option of `SocketIOServiceEntrypoint`).
+     * there (such as a socket.io server, see the `server` option of `socketIOServiceEntrypoint`).
      */
     readonly server: Server
     /**
@@ -43,7 +43,7 @@ export type FastifyHookContext = {
 }
 
 /**
- * The options of {@link FastifyHTTPEntrypoint}.
+ * The options of {@link fastifyHTTPEntrypoint}.
  */
 export type FastifyHTTPEntrypointOptions = {
     /**
@@ -178,13 +178,13 @@ function IsFastifyInstance(value: unknown): value is FastifyInstance {
  * and the requests in progress are given up to one second after they settle to send their responses before the
  * remaining connections are closed.
  * @param options The adapter options; by default it listens on port 80 with a new fastify instance.
- * @returns The adapter, to give to the `http` option of `BuildEntrypoints`.
+ * @returns The adapter, to give to the `http` option of `buildEntrypoints`.
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+ * import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
  * import {GET, POST} from 'lakutata/decorator/ctrl'
- * import {FastifyHTTPEntrypoint} from 'lakutata/adapter/fastify'
+ * import {fastifyHTTPEntrypoint} from 'lakutata/adapter/fastify'
  *
  * class UserController extends Controller {
  *     //GET /users/1?verbose=true: the route parameter id merged over the query
@@ -204,9 +204,9 @@ function IsFastifyInstance(value: unknown): value is FastifyInstance {
  *     id: 'web.app',
  *     name: 'Web',
  *     components: {
- *         entrypoint: BuildEntrypoints({
+ *         entrypoint: buildEntrypoints({
  *             controllers: [UserController],
- *             http: FastifyHTTPEntrypoint({
+ *             http: fastifyHTTPEntrypoint({
  *                 port: 8080,
  *                 host: '0.0.0.0',
  *                 fastify: {bodyLimit: 5 * 1024 * 1024, trustProxy: true},
@@ -220,7 +220,7 @@ function IsFastifyInstance(value: unknown): value is FastifyInstance {
  * })
  * ```
  */
-export function FastifyHTTPEntrypoint(options: FastifyHTTPEntrypointOptions = {}): EntrypointAdapter<HTTPContext> {
+export function fastifyHTTPEntrypoint(options: FastifyHTTPEntrypointOptions = {}): EntrypointAdapter<HTTPContext> {
     const respond: FastifyResponder = options.respond ?? FastifyJSONResponder
     const input: (request: FastifyRequest) => Record<string, unknown> = options.input ?? ((request: FastifyRequest): Record<string, unknown> => ({
         ...(request.query && typeof request.query === 'object' ? request.query as Record<string, unknown> : {}),

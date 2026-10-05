@@ -266,14 +266,14 @@ export class Cron {
  * @throws {SyntaxError} When the duration is not positive (or not finite), or the text has an unknown part.
  * @example
  * ```typescript
- * import {ParseDuration} from 'lakutata/com/entrypoint'
+ * import {parseDuration} from 'lakutata/com/entrypoint'
  *
- * console.log(ParseDuration('1h30m')) //5400000
- * console.log(ParseDuration('500ms')) //500
- * console.log(ParseDuration(2000)) //2000
+ * console.log(parseDuration('1h30m')) //5400000
+ * console.log(parseDuration('500ms')) //500
+ * console.log(parseDuration(2000)) //2000
  * ```
  */
-export function ParseDuration(duration: number | string): number {
+export function parseDuration(duration: number | string): number {
     if (typeof duration === 'number') {
         if (!Number.isFinite(duration) || duration <= 0) throw new SyntaxError(`Invalid duration ${duration}: a positive number of milliseconds is expected`)
         return duration

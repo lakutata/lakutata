@@ -10,13 +10,13 @@ import {writeIEEE754} from './internal/IEEE754.js'
  * @returns The hexadecimal string.
  * @example
  * ```typescript
- * import {IEEE754ToHex} from 'lakutata/utils'
+ * import {ieee754ToHex} from 'lakutata/utils'
  *
- * console.log(IEEE754ToHex(1), IEEE754ToHex(1, 64), IEEE754ToHex(-2.5))
+ * console.log(ieee754ToHex(1), ieee754ToHex(1, 64), ieee754ToHex(-2.5))
  * //3F800000 3FF0000000000000 C0200000
  * ```
  */
-export function IEEE754ToHex(ieee754Number: number, bits: 32 | 64 = 32): string {
+export function ieee754ToHex(ieee754Number: number, bits: 32 | 64 = 32): string {
     //The canonical quiet NaN, as the runtime writes it
     if (Number.isNaN(ieee754Number)) return bits === 64 ? '7FF8000000000000' : '7FC00000'
     const buffer: Buffer = Buffer.alloc(bits / 8)

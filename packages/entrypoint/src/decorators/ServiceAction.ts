@@ -1,15 +1,15 @@
 import {Controller, type ControllerProperty} from '../lib/Controller.js'
 import {MethodDecorator, ActionPattern, DTO} from '@lakutata/core'
 import {RegisterServiceAction} from '../lib/ControllerEntrypoint.js'
-import {GetActionDTOAndOptions} from '../lib/GetActionDTOAndOptions.js'
+import {getActionDTOAndOptions} from '../lib/GetActionDTOAndOptions.js'
 import {ActionOptions} from '../lib/ActionOptions.js'
 import {ServiceContext} from '../context/ServiceContext.js'
 
 /**
  * Expose the controller method as a service action, addressed by a pattern that the messages of the service adapters
  * must match. Without a DTO, the input is accepted as it is.
- * A service adapter (`SocketIOServiceEntrypoint`, `JSONRPCServiceEntrypoint`, `ElectronIPCServiceEntrypoint`,
- * `HTTPServiceEntrypoint`) receives a message, an object, and dispatches it to the action whose pattern it matches. The
+ * A service adapter (`socketIOServiceEntrypoint`, `jsonRPCServiceEntrypoint`, `electronIPCServiceEntrypoint`,
+ * `httpServiceEntrypoint`) receives a message, an object, and dispatches it to the action whose pattern it matches. The
  * input is the message without the keys of the pattern; the middlewares run, the input is validated against the DTO
  * (the defaults applied, the unknown keys removed), the access control runs when `acl` is set, then the method receives
  * the validated input as a plain object.
@@ -25,10 +25,10 @@ import {ServiceContext} from '../context/ServiceContext.js'
  * @example
  * ```typescript
  * import {Application, DTO} from 'lakutata'
- * import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+ * import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
  * import {ServiceAction} from 'lakutata/decorator/ctrl'
  * import {Expect} from 'lakutata/decorator/dto'
- * import {SocketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
+ * import {socketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
  *
  * class TransferDTO extends DTO {
  *     @Expect(DTO.String().required())
@@ -58,9 +58,9 @@ import {ServiceContext} from '../context/ServiceContext.js'
  *     id: 'bank.app',
  *     name: 'Bank',
  *     components: {
- *         entrypoint: BuildEntrypoints({
+ *         entrypoint: buildEntrypoints({
  *             controllers: [AccountController],
- *             service: SocketIOServiceEntrypoint({port: 3000})
+ *             service: socketIOServiceEntrypoint({port: 3000})
  *         })
  *     },
  *     bootstrap: ['entrypoint']
@@ -120,7 +120,7 @@ export function ServiceAction<ClassPrototype extends Controller, Method, DTOCons
 
 export function ServiceAction<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(pattern: ActionPattern, dtoConstructorOrOptions?: DTOConstructor | ActionOptions<ServiceContext>, options?: ActionOptions<ServiceContext>): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>> {
     return (target: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>, descriptor: TypedPropertyDescriptor<Method>): TypedPropertyDescriptor<Method> => {
-        const [dtoConstructor, actionOptions] = GetActionDTOAndOptions(dtoConstructorOrOptions, options)
+        const [dtoConstructor, actionOptions] = getActionDTOAndOptions(dtoConstructorOrOptions, options)
         RegisterServiceAction(pattern, target, propertyKey, dtoConstructor, actionOptions)
         return descriptor
     }

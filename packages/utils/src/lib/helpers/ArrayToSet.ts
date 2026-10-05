@@ -5,13 +5,13 @@
  * @returns A new set of the array's items.
  * @example
  * ```typescript
- * import {ArrayToSet} from 'lakutata/utils'
+ * import {arrayToSet} from 'lakutata/utils'
  *
- * const tags: Set<string> = ArrayToSet(['a', 'b', 'a', 'c'])
+ * const tags: Set<string> = arrayToSet(['a', 'b', 'a', 'c'])
  * console.log([...tags])
  * //['a', 'b', 'c']
  * ```
  */
-export function ArrayToSet<T = any>(arr: T[]): Set<T> {
+export function arrayToSet<T = any>(arr: T[]): Set<T> {
     return new Set(arr)
 }

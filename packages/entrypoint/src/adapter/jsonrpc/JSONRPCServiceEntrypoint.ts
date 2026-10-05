@@ -9,7 +9,7 @@ import {JSONRPCErrorCode, JSONRPCProtocol, type JSONRPCDispatch, type JSONRPCMap
 import {ApplicationOf} from '../../lib/ApplicationOf.js'
 
 /**
- * The options of {@link JSONRPCServiceEntrypoint}: its transport, and how the requests map to the service actions (see
+ * The options of {@link jsonRPCServiceEntrypoint}: its transport, and how the requests map to the service actions (see
  * {@link JSONRPCMappingOptions}).
  */
 export type JSONRPCServiceEntrypointOptions = JSONRPCMappingOptions & {
@@ -236,13 +236,13 @@ type WebSocketLike = {
  * stdio stops reading, the new requests are answered with `STOPPING`, and once the requests in progress are answered
  * the WebSocket connections are closed (code 1001) and the server shuts down.
  * @param options The adapter options; by default it serves HTTP on port 3000 of all the interfaces, on the path `/`.
- * @returns The adapter, to give to the `service` option of `BuildEntrypoints`.
+ * @returns The adapter, to give to the `service` option of `buildEntrypoints`.
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+ * import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
  * import {ServiceAction} from 'lakutata/decorator/ctrl'
- * import {JSONRPCServiceEntrypoint} from 'lakutata/adapter/jsonrpc'
+ * import {jsonRPCServiceEntrypoint} from 'lakutata/adapter/jsonrpc'
  * import WebSocket from 'ws'
  *
  * class UserController extends Controller {
@@ -256,13 +256,13 @@ type WebSocketLike = {
  *     id: 'user.service',
  *     name: 'Users',
  *     components: {
- *         entrypoint: BuildEntrypoints({
+ *         entrypoint: buildEntrypoints({
  *             controllers: [UserController],
  *             service: [
  *                 //POST http://localhost:3000/rpc
- *                 JSONRPCServiceEntrypoint({name: 'rpc-http', port: 3000, path: '/rpc'}),
+ *                 jsonRPCServiceEntrypoint({name: 'rpc-http', port: 3000, path: '/rpc'}),
  *                 //ws://localhost:3001/rpc, with the events pushed
- *                 JSONRPCServiceEntrypoint({name: 'rpc-ws', transport: 'websocket', port: 3001, path: '/rpc'})
+ *                 jsonRPCServiceEntrypoint({name: 'rpc-ws', transport: 'websocket', port: 3001, path: '/rpc'})
  *             ]
  *         })
  *     }
@@ -282,7 +282,7 @@ type WebSocketLike = {
  * socket.on('message', (data: WebSocket.RawData): void => console.log(JSON.parse(data.toString())))
  * ```
  */
-export function JSONRPCServiceEntrypoint(options: JSONRPCServiceEntrypointOptions = {}): EntrypointAdapter<ServiceContext> {
+export function jsonRPCServiceEntrypoint(options: JSONRPCServiceEntrypointOptions = {}): EntrypointAdapter<ServiceContext> {
     const transport: 'http' | 'websocket' | 'stdio' = options.transport ?? 'http'
     const protocol: JSONRPCProtocol = new JSONRPCProtocol(options)
     const limit: number = options.limit ?? 10 * 1024 * 1024
@@ -385,7 +385,7 @@ export function JSONRPCServiceEntrypoint(options: JSONRPCServiceEntrypointOption
             try {
                 ws = await import('ws') as any
             } catch {
-                throw new Error('The WebSocket transport of JSONRPCServiceEntrypoint needs the package ws (npm install ws)')
+                throw new Error('The WebSocket transport of jsonRPCServiceEntrypoint needs the package ws (npm install ws)')
             }
             server = createServer((_request: IncomingMessage, response: ServerResponse): void => void response.writeHead(426, {'Content-Type': 'text/plain'}).end('A WebSocket connection is expected'))
             webSocketServer = new ws.WebSocketServer({server: server, path: path, maxPayload: limit})

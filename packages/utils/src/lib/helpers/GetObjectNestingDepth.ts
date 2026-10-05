@@ -28,14 +28,14 @@ function NestingDepth(target: Object, ancestors: Set<Object>): number {
  * @throws {TypeError} When `target` is `null` or `undefined`.
  * @example
  * ```typescript
- * import {GetObjectNestingDepth} from 'lakutata/utils'
+ * import {getObjectNestingDepth} from 'lakutata/utils'
  *
- * console.log(GetObjectNestingDepth({}), GetObjectNestingDepth({a: 1}), GetObjectNestingDepth({a: {b: {c: 1}}}))
+ * console.log(getObjectNestingDepth({}), getObjectNestingDepth({a: 1}), getObjectNestingDepth({a: {b: {c: 1}}}))
  * //0 1 3
- * console.log(GetObjectNestingDepth({a: null, b: {c: null}}))
+ * console.log(getObjectNestingDepth({a: null, b: {c: null}}))
  * //2
  * ```
  */
-export function GetObjectNestingDepth(target: Object): number {
+export function getObjectNestingDepth(target: Object): number {
     return NestingDepth(target, new Set())
 }

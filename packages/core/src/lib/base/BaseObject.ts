@@ -13,8 +13,8 @@ import {
 import {SetObjectContainerGetter} from './internal/ObjectContainer.js'
 import {DTO} from '../dto/DTO.js'
 import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
-import {IsSymbol} from '@lakutata/utils/IsSymbol'
-import {ObjectConstructor} from '@lakutata/utils/ObjectConstructor'
+import {isSymbol} from '@lakutata/utils/IsSymbol'
+import {objectConstructor} from '@lakutata/utils/ObjectConstructor'
 import {As} from '@lakutata/utils/As'
 import {DevNull} from '@lakutata/utils/DevNull'
 import {DefineObjectType, GetObjectType, ObjectType, RegisterBaseObject} from './internal/ObjectType.js'
@@ -130,7 +130,7 @@ export class BaseObject extends AsyncConstructor {
         const configurableRecords: Record<string, any> = GetConfigurableRecordsFromInstance(this)
         const setConfigurableValuePromises: Promise<void>[] = []
         GetObjectConfigurableProperties(this).forEach((schemaAndFn, propertyKey): void => {
-            if (IsSymbol(propertyKey)) return
+            if (isSymbol(propertyKey)) return
             const configured: unknown = configurableRecords[As<string>(propertyKey)]
             const value: unknown = configured !== undefined ? configured : this[propertyKey]
             setConfigurableValuePromises.push(new Promise<void>((resolve, reject): void => {
@@ -247,7 +247,7 @@ export class BaseObject extends AsyncConstructor {
      * The name of the object's class.
      */
     public get className(): string {
-        return ObjectConstructor(this).name
+        return objectConstructor(this).name
     }
 
     /**
@@ -561,7 +561,7 @@ export class BaseObject extends AsyncConstructor {
      */
     protected getModule(): Module {
         let parent: BaseObject | undefined = this.getParent()
-        while (parent && GetObjectType(As<IBaseObjectConstructor>(ObjectConstructor(parent))) !== ObjectType.Module) {
+        while (parent && GetObjectType(As<IBaseObjectConstructor>(objectConstructor(parent))) !== ObjectType.Module) {
             parent = parent.getParent()
         }
         return As<Module>(parent)

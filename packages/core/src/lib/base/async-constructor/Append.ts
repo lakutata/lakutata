@@ -1,4 +1,4 @@
-import {IsPromiseLike} from '@lakutata/utils/IsPromiseLike'
+import {isPromiseLike} from '@lakutata/utils/IsPromiseLike'
 
 export function AppendAsyncConstructor<T, U extends any[]>(target: T, asyncConstructor: (...args: U) => PromiseLike<void>, args?: U): void {
     async function applyAsyncConstructor(): Promise<T> {
@@ -8,7 +8,7 @@ export function AppendAsyncConstructor<T, U extends any[]>(target: T, asyncConst
         return target
     }
 
-    if (IsPromiseLike(target)) {
+    if (isPromiseLike(target)) {
         setThenMethod(target, Promise.resolve(target).then(applyAsyncConstructor))
     } else {
         setThenMethod(target, applyAsyncConstructor())

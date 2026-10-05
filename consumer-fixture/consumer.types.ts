@@ -105,24 +105,24 @@ export const _customPrefix: Pick<PrefixOptions, 'custom'> = {custom: '/custom'}
 export const _unknownOptions: EntrypointOptions = {controllers: [], unknown: customAdapter}
 
 // The express adapter of the HTTP channel
-import type {ExpressHTTPEntrypoint, JSONEnvelope} from 'lakutata/adapter/express'
+import type {expressHTTPEntrypoint, jsonEnvelope} from 'lakutata/adapter/express'
 import type {Result} from 'lakutata/com/entrypoint'
-export type _ExpressHTTPEntrypoint = typeof ExpressHTTPEntrypoint
-export type _JSONEnvelope = typeof JSONEnvelope
+export type _ExpressHTTPEntrypoint = typeof expressHTTPEntrypoint
+export type _JSONEnvelope = typeof jsonEnvelope
 export type _Result = typeof Result
-declare const expressEntrypoint: typeof ExpressHTTPEntrypoint
+declare const expressEntrypoint: typeof expressHTTPEntrypoint
 export const _httpOptions: EntrypointOptions = {controllers: [], http: expressEntrypoint({port: 3000})}
 
 // The commander adapter of the CLI channel
-import type {CommanderCLIEntrypoint} from 'lakutata/adapter/commander'
-declare const commanderEntrypoint: typeof CommanderCLIEntrypoint
+import type {commanderCLIEntrypoint} from 'lakutata/adapter/commander'
+declare const commanderEntrypoint: typeof commanderCLIEntrypoint
 export const _cliOptions: EntrypointOptions = {controllers: [], cli: commanderEntrypoint({version: '1.0.0', interactive: 'auto'})}
 
 // The schedule channel: built in, enabled with its adapter
-import {ScheduleEntrypoint} from 'lakutata/com/entrypoint'
+import {scheduleEntrypoint} from 'lakutata/com/entrypoint'
 import type {ScheduleContext} from 'lakutata/com/entrypoint'
 import type {Schedule, ScheduleOptions} from 'lakutata/decorator/ctrl'
-export const _scheduleOptions: EntrypointOptions = {controllers: [], schedule: ScheduleEntrypoint({onSkip: (): void => undefined})}
+export const _scheduleOptions: EntrypointOptions = {controllers: [], schedule: scheduleEntrypoint({onSkip: (): void => undefined})}
 export const _every: ScheduleOptions = {every: '30s', overlap: false}
 export const _cron: ScheduleOptions = {cron: '0 9 * * MON-FRI', timezone: 'Asia/Shanghai', immediate: true}
 // @ts-expect-error a schedule is an interval or a cron expression, not both
@@ -131,21 +131,21 @@ export type _Schedule = typeof Schedule
 export type _ScheduleContext = ScheduleContext['scheduledAt']
 
 // The fastify adapter of the HTTP channel
-import type {FastifyHTTPEntrypoint, FastifyJSONEnvelope} from 'lakutata/adapter/fastify'
-declare const fastifyEntrypoint: typeof FastifyHTTPEntrypoint
-declare const fastifyEnvelope: typeof FastifyJSONEnvelope
+import type {fastifyHTTPEntrypoint, fastifyJSONEnvelope} from 'lakutata/adapter/fastify'
+declare const fastifyEntrypoint: typeof fastifyHTTPEntrypoint
+declare const fastifyEnvelope: typeof fastifyJSONEnvelope
 export const _fastifyOptions: EntrypointOptions = {controllers: [], http: fastifyEntrypoint({port: 3000, respond: fastifyEnvelope(), before: async (app): Promise<void> => void app.get('/health', async (): Promise<unknown> => ({status: 'ok'}))})}
 
 // The socket.io and Electron adapters of the service channel
-import type {SocketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
-import type {ElectronIPCServiceEntrypoint, IPCMain} from 'lakutata/adapter/electron'
-declare const socketIOEntrypoint: typeof SocketIOServiceEntrypoint
-declare const electronEntrypoint: typeof ElectronIPCServiceEntrypoint
+import type {socketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
+import type {electronIPCServiceEntrypoint, IPCMain} from 'lakutata/adapter/electron'
+declare const socketIOEntrypoint: typeof socketIOServiceEntrypoint
+declare const electronEntrypoint: typeof electronIPCServiceEntrypoint
 declare const ipcMain: IPCMain
 export const _socketIOOptions: EntrypointOptions = {controllers: [], service: socketIOEntrypoint({port: 3001, options: {cors: {origin: '*'}}})}
 export const _electronOptions: EntrypointOptions = {controllers: [], service: [electronEntrypoint({ipcMain: ipcMain}), socketIOEntrypoint()]}
 
 // The JSON-RPC 2.0 adapter of the service channel: HTTP, WebSocket, stdio
-import type {JSONRPCServiceEntrypoint} from 'lakutata/adapter/jsonrpc'
-declare const jsonrpcEntrypoint: typeof JSONRPCServiceEntrypoint
+import type {jsonRPCServiceEntrypoint} from 'lakutata/adapter/jsonrpc'
+declare const jsonrpcEntrypoint: typeof jsonRPCServiceEntrypoint
 export const _jsonrpcOptions: EntrypointOptions = {controllers: [], service: [jsonrpcEntrypoint({port: 4000, path: '/rpc'}), jsonrpcEntrypoint({transport: 'websocket', port: 4001}), jsonrpcEntrypoint({transport: 'stdio', framing: 'content-length', toPattern: (method: string): Record<string, unknown> => ({cmd: method})})]}

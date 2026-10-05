@@ -1,8 +1,8 @@
 import {format as utilFormat} from 'node:util'
 import {GetAppId, GetAppName} from './BasicInfo.js'
-import {Templating} from '@lakutata/utils/Templating'
+import {templating} from '@lakutata/utils/Templating'
 import {As} from '@lakutata/utils/As'
-import {CamelCase} from '@lakutata/utils/CamelCase'
+import {camelCase} from '@lakutata/utils/CamelCase'
 import {DevNull} from '@lakutata/utils/DevNull'
 
 /**
@@ -57,7 +57,7 @@ const PARAMS: unique symbol = Symbol('EXCEPTION.PARAMS')
  * one) were given, or undefined when the exception was created without parameters or is not an {@link Exception}.
  * @example
  * ```typescript
- * import {Exception, ExceptionParams} from 'lakutata'
+ * import {Exception, exceptionParams} from 'lakutata'
  *
  * class OrderNotFoundException extends Exception {
  *     public errno: string = 'E_ORDER_NOT_FOUND'
@@ -65,10 +65,10 @@ const PARAMS: unique symbol = Symbol('EXCEPTION.PARAMS')
  *
  * const error: OrderNotFoundException = new OrderNotFoundException('Order {id} not found', {id: 1})
  * console.log(error.message) //Order 1 not found
- * console.log(ExceptionParams(error)) //{id: 1}
+ * console.log(exceptionParams(error)) //{id: 1}
  * ```
  */
-export function ExceptionParams(exception: Error): Record<string, unknown> | unknown[] | undefined {
+export function exceptionParams(exception: Error): Record<string, unknown> | unknown[] | undefined {
     return (exception as unknown as Record<symbol, Record<string, unknown> | unknown[] | undefined>)[PARAMS]
 }
 
@@ -86,7 +86,7 @@ export function ExceptionParams(exception: Error): Record<string, unknown> | unk
  * - `new XxxException(error)`: the message of another error.
  * - `new XxxException()`: a message made from the class name.
  *
- * The template parameters are kept for the translation of the message, see {@link ExceptionParams}.
+ * The template parameters are kept for the translation of the message, see {@link exceptionParams}.
  * @example
  * ```typescript
  * import {Exception} from 'lakutata'
@@ -143,7 +143,7 @@ export abstract class Exception extends Error {
             //Kept for the translations of the message, not an enumerable property (the errors sent are not changed)
             Object.defineProperty(this, PARAMS, {value: b.length > 1 || typeof b[0] !== 'object' || b[0] === null ? b : b[0], enumerable: false})
             try {
-                this.message = Templating(template, templatingArgs, {ignoreMissing: true})
+                this.message = templating(template, templatingArgs, {ignoreMissing: true})
             } catch (e) {
                 this.message = template
                 DevNull(e)
@@ -159,7 +159,7 @@ export abstract class Exception extends Error {
             }
         } else {
             //Empty message
-            const message: string = CamelCase(this.name).toLowerCase()
+            const message: string = camelCase(this.name).toLowerCase()
             this.message = `${message.charAt(0).toUpperCase()}${message.slice(1)}`
         }
         this.errMsg = this.message

@@ -6,12 +6,12 @@
  * @returns A new set of the items of both.
  * @example
  * ```typescript
- * import {MergeSet} from 'lakutata/utils'
+ * import {mergeSet} from 'lakutata/utils'
  *
- * console.log([...MergeSet(new Set([1, 2]), new Set([2, 3]))])
+ * console.log([...mergeSet(new Set([1, 2]), new Set([2, 3]))])
  * //[1, 2, 3]
  * ```
  */
-export function MergeSet<T = any, U = any>(s1: Set<T>, s2: Set<U>): Set<T | U> {
+export function mergeSet<T = any, U = any>(s1: Set<T>, s2: Set<U>): Set<T | U> {
     return new Set<T | U>([...s1, ...s2])
 }

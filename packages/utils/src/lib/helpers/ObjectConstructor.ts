@@ -9,16 +9,16 @@ import {IConstructor} from '../../interfaces/IConstructor.js'
  * @returns The constructor: the class for an instance, `Object` for a plain object.
  * @example
  * ```typescript
- * import {ObjectConstructor} from 'lakutata/utils'
+ * import {objectConstructor} from 'lakutata/utils'
  *
  * class User {
  * }
  *
- * console.log(ObjectConstructor(new User()) === User, ObjectConstructor({}) === Object)
+ * console.log(objectConstructor(new User()) === User, objectConstructor({}) === Object)
  * //true true
  * ```
  */
-export function ObjectConstructor<ObjectPrototype extends Object>(target: ObjectPrototype): IConstructor<ObjectPrototype> {
-    return As<IConstructor<ObjectPrototype>>(target.constructor)
+export function objectConstructor<objectPrototype extends Object>(target: objectPrototype): IConstructor<objectPrototype> {
+    return As<IConstructor<objectPrototype>>(target.constructor)
 }
 

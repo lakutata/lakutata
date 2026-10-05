@@ -7,12 +7,12 @@ import {createHash} from 'node:crypto'
  * @returns The 16-byte digest, as a `Buffer`: call `.toString('hex')` or `.toString('base64')` for its text form.
  * @example
  * ```typescript
- * import {MD5} from 'lakutata/utils'
+ * import {md5} from 'lakutata/utils'
  *
- * console.log(MD5('hello').toString('hex'))
+ * console.log(md5('hello').toString('hex'))
  * //5d41402abc4b2a76b9719d911017c592
  * ```
  */
-export function MD5(message: string): Buffer {
+export function md5(message: string): Buffer {
     return createHash('md5').update(Buffer.from(message)).digest()
 }

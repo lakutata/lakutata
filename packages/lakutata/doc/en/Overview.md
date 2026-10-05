@@ -38,10 +38,10 @@ The transports and the integrations use optional peer dependencies, installed wh
 
 ```typescript
 import {Application, DTO, type ILogger} from 'lakutata'
-import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
 import {GET, ServiceAction} from 'lakutata/decorator/ctrl'
 import {Expect} from 'lakutata/decorator/dto'
-import {ExpressHTTPEntrypoint} from 'lakutata/adapter/express'
+import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
 
 class GreetDTO extends DTO {
     @Expect(DTO.String().optional().default('world'))
@@ -62,9 +62,9 @@ Application
         id: 'com.example.greeter',
         name: 'Greeter',
         components: {
-            entrypoint: BuildEntrypoints({
+            entrypoint: buildEntrypoints({
                 controllers: [GreetController],
-                http: ExpressHTTPEntrypoint({port: 8080})
+                http: expressHTTPEntrypoint({port: 8080})
             })
         },
         bootstrap: ['entrypoint']
@@ -76,12 +76,12 @@ Application
 
 | Subpath | What it provides |
 |---|---|
-| `lakutata` | `Application`, `Module`, `Component`, `Provider`, `BaseObject`, `Container`, `DTO`, `Exception`, `Time`, `IsPackaged`, `ResourcesPath`, the validation messages |
+| `lakutata` | `Application`, `Module`, `Component`, `Provider`, `BaseObject`, `Container`, `DTO`, `Exception`, `Time`, `isPackaged`, `resourcesPath`, the validation messages |
 | `lakutata/decorator/di` | `@Inject`, `@Configurable`, `@Autoload`, `@Singleton`, `@Scoped`, `@Transient`, `@Lifetime` |
 | `lakutata/decorator/dto` | `@Expect`, `@Accept`, `@Return`, `@IndexSignature` |
 | `lakutata/decorator/asst` | `@Before`, `@After` |
-| `lakutata/dtos` | `PaginationSearchDTO`, `PaginationResultDTO`, `Paginator`, `FlexibleDTO`, the JSON Schema conversion |
-| `lakutata/com/entrypoint` | `Entrypoint`, `BuildEntrypoints`, `Controller`, the contexts, `Result`, the access control, the middlewares, `HTTPServiceEntrypoint`, `ScheduleEntrypoint` |
+| `lakutata/dtos` | `PaginationSearchDTO`, `PaginationResultDTO`, `paginator`, `FlexibleDTO`, the JSON Schema conversion |
+| `lakutata/com/entrypoint` | `Entrypoint`, `buildEntrypoints`, `Controller`, the contexts, `Result`, the access control, the middlewares, `httpServiceEntrypoint`, `scheduleEntrypoint` |
 | `lakutata/decorator/ctrl` | `@HTTPAction`, `@GET`…`@OPTIONS`, `@CLIAction`, `@ServiceAction`, `@Schedule`, `@Prefix`, `@UseMiddlewares` |
 | `lakutata/adapter/express`, `lakutata/adapter/fastify` | The HTTP transports |
 | `lakutata/adapter/commander` | The CLI transport |

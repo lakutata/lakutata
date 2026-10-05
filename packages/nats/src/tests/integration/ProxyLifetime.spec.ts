@@ -2,11 +2,11 @@ import {after, before, it} from 'node:test'
 import {expect} from '../support/Expect.js'
 import {describeNats as describe, destroyApp, ensureNats, runApp, stopNats} from '../support/App.js'
 import {Application} from '@lakutata/core'
-import {Delay} from '@lakutata/utils'
+import {delay} from '@lakutata/utils'
 import {Inject} from '@lakutata/core/decorator/di'
-import {BuildEntrypoints, Controller} from '@lakutata/entrypoint'
+import {buildEntrypoints, Controller} from '@lakutata/entrypoint'
 import {ServiceAction} from '@lakutata/entrypoint/decorator/ctrl'
-import {BuildNatsClientOptions, BuildServiceProxy, NATS, NatsServiceEntrypoint, ServiceProxy} from '../../exports/Nats.js'
+import {buildNatsClientOptions, buildServiceProxy, NATS, natsServiceEntrypoint, ServiceProxy} from '../../exports/Nats.js'
 
 class ProxyController extends Controller {
     @Inject('peer')
@@ -30,12 +30,12 @@ describe('service proxy lifetime', (): void => {
             id: 'it.proxy.app',
             name: 'ITProxy',
             components: {
-                nats: BuildNatsClientOptions({servers: n.url, bulk: false}),
-                entrypoint: BuildEntrypoints({controllers: [ProxyController], service: NatsServiceEntrypoint('nats')})
+                nats: buildNatsClientOptions({servers: n.url, bulk: false}),
+                entrypoint: buildEntrypoints({controllers: [ProxyController], service: natsServiceEntrypoint('nats')})
             },
             providers: {
-                peer: BuildServiceProxy({serviceId: 'it.proxy.app', natsComponentName: 'nats'}),
-                listener: BuildServiceProxy({serviceId: 'it.proxy.app', natsComponentName: 'nats'})
+                peer: buildServiceProxy({serviceId: 'it.proxy.app', natsComponentName: 'nats'}),
+                listener: buildServiceProxy({serviceId: 'it.proxy.app', natsComponentName: 'nats'})
             },
             bootstrap: ['entrypoint']
         })
@@ -60,12 +60,12 @@ describe('service proxy lifetime', (): void => {
         const received: string[] = []
         listener.on('proxyEvent', (value: string): unknown => received.push(`listener:${value}`))
         nats.onServiceEvent('it.proxy.app', 'proxyEvent', (value: string): unknown => received.push(`other:${value}`))
-        await Delay(120)
+        await delay(120)
         nats.emitServiceEvent('proxyEvent', 'before')
-        await Delay(120)
+        await delay(120)
         await listener.dispose()
         nats.emitServiceEvent('proxyEvent', 'after')
-        await Delay(120)
+        await delay(120)
         //The subscriptions made by others are kept
         expect(received.sort()).toEqual(['listener:before', 'other:after', 'other:before'])
     })

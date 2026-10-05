@@ -1,7 +1,7 @@
 import type {NestedMessages} from '../lib/Catalog.js'
 
 /**
- * The options of the {@link I18n} component, given to {@link BuildI18nOptions}. The messages come from `directory`
+ * The options of the {@link I18n} component, given to {@link buildI18nOptions}. The messages come from `directory`
  * (JSON files read when the component is created), from `messages` (bundled with the code), or from both; without
  * either, the component starts with no messages.
  */

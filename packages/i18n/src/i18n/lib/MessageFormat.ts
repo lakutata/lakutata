@@ -2,7 +2,7 @@ import {I18nMessageSyntaxException} from '../exceptions/I18nMessageSyntaxExcepti
 import {I18nMissingParameterException} from '../exceptions/I18nMissingParameterException.js'
 
 /**
- * A part of a message parsed by {@link ParseMessage}: a literal text (a string, its quoting already removed), a plain
+ * A part of a message parsed by {@link parseMessage}: a literal text (a string, its quoting already removed), a plain
  * argument (`{name}`), a number argument (`{n, number, percent}`), a date or time argument (`{at, date, short}`), a
  * choice (`plural`, `selectordinal`, `select`), or the `#` of a plural (its number).
  */
@@ -312,7 +312,7 @@ class MessageParser {
 }
 
 /**
- * Parse an ICU MessageFormat message into its parts, to inspect it (its arguments: {@link MessageArguments}). The
+ * Parse an ICU MessageFormat message into its parts, to inspect it (its arguments: {@link messageArguments}). The
  * syntax: `{name}`; `{name, number}` with the styles `integer`, `percent`, `currency`, `currency/XXX`; `{name, date}`
  * and `{name, time}` with the styles `short`, `medium`, `long`, `full`; `{name, plural, ...}` (with `offset:n`),
  * `{name, selectordinal, ...}` and `{name, select, ...}`, each requiring an `other` option; `#` in a plural; `''` for
@@ -325,30 +325,30 @@ class MessageParser {
  * @throws {I18nMessageSyntaxException} When the message is not valid, with the source and the position.
  * @example
  * ```typescript
- * import {ParseMessage, type MessagePart} from 'lakutata/com/i18n'
+ * import {parseMessage, type MessagePart} from 'lakutata/com/i18n'
  *
- * const parts: MessagePart[] = ParseMessage('{count, plural, one {# order} other {# orders}} for {customer}')
+ * const parts: MessagePart[] = parseMessage('{count, plural, one {# order} other {# orders}} for {customer}')
  * console.log(parts.length) //3
  * ```
  */
-export function ParseMessage(message: string, source: string = 'message'): MessagePart[] {
+export function parseMessage(message: string, source: string = 'message'): MessagePart[] {
     return new MessageParser(message, source).parse()
 }
 
 /**
  * List the arguments a parsed message uses, nested choices included, with the type of their first use: `argument`,
  * `number`, `date`, `time`, `plural`, `selectordinal` or `select`.
- * @param parts The parts of the message, from {@link ParseMessage}.
+ * @param parts The parts of the message, from {@link parseMessage}.
  * @returns The argument types by argument name, in their order in the message.
  * @example
  * ```typescript
- * import {MessageArguments, ParseMessage} from 'lakutata/com/i18n'
+ * import {messageArguments, parseMessage} from 'lakutata/com/i18n'
  *
- * const args: Map<string, string> = MessageArguments(ParseMessage('{count, plural, other {# orders}} for {customer}'))
+ * const args: Map<string, string> = messageArguments(parseMessage('{count, plural, other {# orders}} for {customer}'))
  * console.log([...args]) //[['count', 'plural'], ['customer', 'argument']]
  * ```
  */
-export function MessageArguments(parts: MessagePart[]): Map<string, string> {
+export function messageArguments(parts: MessagePart[]): Map<string, string> {
     const names: Map<string, string> = new Map()
     const visit = (items: MessagePart[]): void => {
         for (const part of items) {

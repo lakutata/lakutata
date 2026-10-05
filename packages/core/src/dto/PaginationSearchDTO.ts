@@ -3,7 +3,7 @@ import {Expect} from '../decorators/dto/Expect.js'
 
 /**
  * The input of a paginated search: how many items to return and how many to skip. Extend it with the search criteria,
- * and pass the validated input to `Paginator()`.
+ * and pass the validated input to `paginator()`.
  * @example
  * ```typescript
  * import {DTO} from 'lakutata'

@@ -5,12 +5,12 @@
  * @returns `true` when `typeof inp` is `'symbol'`, `false` otherwise.
  * @example
  * ```typescript
- * import {IsSymbol} from 'lakutata/utils'
+ * import {isSymbol} from 'lakutata/utils'
  *
- * console.log(IsSymbol(Symbol('id')), IsSymbol('id'))
+ * console.log(isSymbol(Symbol('id')), isSymbol('id'))
  * //true false
  * ```
  */
-export function IsSymbol(inp: any): boolean {
+export function isSymbol(inp: any): boolean {
     return typeof inp === 'symbol'
 }

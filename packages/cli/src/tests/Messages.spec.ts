@@ -2,9 +2,9 @@ import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {PassThrough} from 'node:stream'
 import {Container} from 'lakutata'
-import {BuildEntrypoints, Entrypoint} from 'lakutata/com/entrypoint'
-import {CommanderCLIEntrypoint, type CLIText} from 'lakutata/adapter/commander'
-import {BuildI18nOptions, I18n} from 'lakutata/com/i18n'
+import {buildEntrypoints, Entrypoint} from 'lakutata/com/entrypoint'
+import {commanderCLIEntrypoint, type CLIText} from 'lakutata/adapter/commander'
+import {buildI18nOptions, I18n} from 'lakutata/com/i18n'
 import {COMMAND_GROUPS, CONTROLLERS, MESSAGES} from '../Config.js'
 import {CLI, Run} from './support/Workspace.js'
 
@@ -29,9 +29,9 @@ async function HelpKeys(): Promise<Set<string>> {
         const output: PassThrough = new PassThrough()
         output.resume()
         const container: Container = new Container()
-        await container.set(Entrypoint, BuildEntrypoints({
+        await container.set(Entrypoint, buildEntrypoints({
             controllers: CONTROLLERS,
-            cli: CommanderCLIEntrypoint({
+            cli: commanderCLIEntrypoint({
                 bin: 'lakutata', description: 'The tool', version: '1.0.0', groups: COMMAND_GROUPS, interactive: false, argv: argv, stdout: output, stderr: output, exit: (): undefined => undefined,
                 translate: () => (text: CLIText): string => {
                     keys.add(text.key)
@@ -64,7 +64,7 @@ describe('The messages of the tool', (): void => {
             assert.deepStrictEqual(expected.filter((key: string): boolean => !keys.includes(key)), [], `${locale}: the texts without their messages`)
         }
         //Every message is formatted (its syntax, its arguments)
-        const i18n: I18n = await new Container().set(I18n, BuildI18nOptions({messages: MESSAGES, missing: 'throw'}) as Record<string, unknown>)
+        const i18n: I18n = await new Container().set(I18n, buildI18nOptions({messages: MESSAGES, missing: 'throw'}) as Record<string, unknown>)
         const params: Record<string, string> = {value: '1', choices: '"a"', flag: '--git', manager: 'npm', from: '1.0.0', to: '1.0.1', hints: 'default: 1'}
         for (const locale of Object.keys(MESSAGES)) for (const key of expected) assert.ok(i18n.t(`cli.${key}`, params, locale).length, `${locale} ${key}`)
     })

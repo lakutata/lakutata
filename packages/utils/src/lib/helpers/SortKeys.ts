@@ -7,7 +7,7 @@ function isPlainObject(value: any): boolean {
 }
 
 /**
- * How `SortKeys` sorts the keys.
+ * How `sortKeys` sorts the keys.
  */
 export interface SortKeysOptions {
     /**
@@ -35,14 +35,14 @@ export interface SortKeysOptions {
  * @throws {TypeError} When `object` is neither a plain object nor an array (a class instance, a `Map`, a primitive).
  * @example
  * ```typescript
- * import {SortKeys} from 'lakutata/utils'
+ * import {sortKeys} from 'lakutata/utils'
  *
- * const sorted: Record<string, any> = SortKeys({b: 1, a: {d: 1, c: 2}}, {deep: true})
+ * const sorted: Record<string, any> = sortKeys({b: 1, a: {d: 1, c: 2}}, {deep: true})
  * console.log(JSON.stringify(sorted))
  * //{"a":{"c":2,"d":1},"b":1}
  * ```
  */
-export function SortKeys(object: any, options: SortKeysOptions = {}) {
+export function sortKeys(object: any, options: SortKeysOptions = {}) {
     if (!isPlainObject(object) && !Array.isArray(object)) {
         throw new TypeError('Expected a plain object or array')
     }

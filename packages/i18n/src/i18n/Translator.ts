@@ -14,11 +14,11 @@ import {I18nTranslatorException} from './exceptions/I18nTranslatorException.js'
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
- * import {ExpressHTTPEntrypoint} from 'lakutata/adapter/express'
+ * import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+ * import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
  * import {CLIAction, GET} from 'lakutata/decorator/ctrl'
  * import {Inject} from 'lakutata/decorator/di'
- * import {BuildI18nOptions, I18nMiddleware, Translator} from 'lakutata/com/i18n'
+ * import {buildI18nOptions, I18nMiddleware, Translator} from 'lakutata/com/i18n'
  *
  * class OrderController extends Controller {
  *     @Inject(Translator)
@@ -36,16 +36,16 @@ import {I18nTranslatorException} from './exceptions/I18nTranslatorException.js'
  *     id: 'shop.app',
  *     name: 'Shop',
  *     components: {
- *         i18n: BuildI18nOptions({
+ *         i18n: buildI18nOptions({
  *             messages: {
  *                 'en': {order: {count: '{count, plural, one {# order} other {# orders}}'}},
  *                 'zh-CN': {order: {count: '{count} 个订单'}}
  *             }
  *         }),
- *         entrypoint: BuildEntrypoints({
+ *         entrypoint: buildEntrypoints({
  *             controllers: [OrderController],
  *             middlewares: [I18nMiddleware],
- *             http: ExpressHTTPEntrypoint({port: 3000})
+ *             http: expressHTTPEntrypoint({port: 3000})
  *         })
  *     },
  *     bootstrap: ['entrypoint']
@@ -83,7 +83,7 @@ export class Translator extends Provider implements ITranslator {
      * the entrypoint, or out of a request).
      */
     protected get translator(): ITranslator {
-        if (!this.#translator) throw new I18nTranslatorException('The translator of a request is given by the I18nMiddleware of its entrypoint: BuildEntrypoints({middlewares: [I18nMiddleware]})')
+        if (!this.#translator) throw new I18nTranslatorException('The translator of a request is given by the I18nMiddleware of its entrypoint: buildEntrypoints({middlewares: [I18nMiddleware]})')
         return this.#translator
     }
 

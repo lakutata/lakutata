@@ -1,5 +1,5 @@
 /**
- * The error number and message of an error, as `DescribeError()` gives them and the HTTP responders answer them
+ * The error number and message of an error, as `describeError()` gives them and the HTTP responders answer them
  * (`{errno, errMsg}`).
  */
 export type ErrorDescription = {

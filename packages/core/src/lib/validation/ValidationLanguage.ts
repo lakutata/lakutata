@@ -7,7 +7,7 @@ const LANGUAGE: AsyncLocalStorage<string> = new AsyncLocalStorage()
 
 /**
  * Run a function with a validation language: the validation errors raised in it, its asynchronous continuations
- * included, have their messages in that language (the messages registered by `RegisterValidationMessages()`), except
+ * included, have their messages in that language (the messages registered by `registerValidationMessages()`), except
  * for the validations giving their own `errors.language` option. The codes without a message in the language keep the
  * default (English) one, and so does every code of a language with no registered messages.
  * @param language The language tag the messages are registered under, like `fr` or `zh-CN`.
@@ -17,12 +17,12 @@ const LANGUAGE: AsyncLocalStorage<string> = new AsyncLocalStorage()
  * language, for its messages.
  * @example
  * ```typescript
- * import {DTO, LoadValidationMessages, RegisterValidationMessages, RunInValidationLanguage} from 'lakutata'
+ * import {DTO, loadValidationMessages, registerValidationMessages, runInValidationLanguage} from 'lakutata'
  *
- * const messages: Record<string, string> | undefined = await LoadValidationMessages('fr')
- * if (messages) RegisterValidationMessages('fr', messages)
+ * const messages: Record<string, string> | undefined = await loadValidationMessages('fr')
+ * if (messages) registerValidationMessages('fr', messages)
  *
- * await RunInValidationLanguage('fr', async (): Promise<void> => {
+ * await runInValidationLanguage('fr', async (): Promise<void> => {
  *     try {
  *         DTO.validate('', DTO.String().required())
  *     } catch (error) {
@@ -32,23 +32,23 @@ const LANGUAGE: AsyncLocalStorage<string> = new AsyncLocalStorage()
  * })
  * ```
  */
-export function RunInValidationLanguage<T>(language: string, fn: () => T): T {
+export function runInValidationLanguage<T>(language: string, fn: () => T): T {
     return LANGUAGE.run(language, fn)
 }
 
 /**
- * The validation language of the code running, set by `RunInValidationLanguage()`.
- * @returns The language tag, or undefined outside of `RunInValidationLanguage()`.
+ * The validation language of the code running, set by `runInValidationLanguage()`.
+ * @returns The language tag, or undefined outside of `runInValidationLanguage()`.
  * @example
  * ```typescript
- * import {CurrentValidationLanguage, RunInValidationLanguage} from 'lakutata'
+ * import {currentValidationLanguage, runInValidationLanguage} from 'lakutata'
  *
- * console.log(CurrentValidationLanguage()) //undefined
- * RunInValidationLanguage('ja', (): void => {
- *     console.log(CurrentValidationLanguage()) //ja
+ * console.log(currentValidationLanguage()) //undefined
+ * runInValidationLanguage('ja', (): void => {
+ *     console.log(currentValidationLanguage()) //ja
  * })
  * ```
  */
-export function CurrentValidationLanguage(): string | undefined {
+export function currentValidationLanguage(): string | undefined {
     return LANGUAGE.getStore()
 }

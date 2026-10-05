@@ -64,7 +64,7 @@ function SplitOptions(options: MCPResourceOptions): [MCPMetadata, ActionOptions<
  * variables are merged into the action's input, as route parameters (the input holds nothing else). The URIs are not
  * prefixed by the controllers.
  *
- * The result is converted by {@link ToResourceResult}: a string is a text, bytes and files a text or a blob by their
+ * The result is converted by {@link toResourceResult}: a string is a text, bytes and files a text or a blob by their
  * content type, the other values JSON, and a `ReadResourceResult` is sent as it is. An error thrown by the action is a
  * protocol error: "invalid parameters" for the client errors (a `statusCode` from 400 to 499), an internal error
  * otherwise, with the message `errno: message`. The clients may subscribe to a resource, and

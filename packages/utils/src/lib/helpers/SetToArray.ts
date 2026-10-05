@@ -4,12 +4,12 @@
  * @returns A new array of the set's items.
  * @example
  * ```typescript
- * import {SetToArray} from 'lakutata/utils'
+ * import {setToArray} from 'lakutata/utils'
  *
- * console.log(SetToArray(new Set(['b', 'a'])))
+ * console.log(setToArray(new Set(['b', 'a'])))
  * //['b', 'a']
  * ```
  */
-export function SetToArray<T = any>(set: Set<T>): T[] {
+export function setToArray<T = any>(set: Set<T>): T[] {
     return Array.from(set)
 }

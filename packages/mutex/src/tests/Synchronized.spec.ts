@@ -4,7 +4,7 @@ import type {AddressInfo} from 'node:net'
 import {setTimeout as sleep} from 'node:timers/promises'
 import {Container, DTO} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
-import {BuildEntrypoints, Controller, Entrypoint, HTTPServiceEntrypoint, ScheduleEntrypoint, type ScheduleContext, type ServiceContext} from '@lakutata/entrypoint'
+import {buildEntrypoints, Controller, Entrypoint, httpServiceEntrypoint, scheduleEntrypoint, type ScheduleContext, type ServiceContext} from '@lakutata/entrypoint'
 import {Schedule, ServiceAction} from '@lakutata/entrypoint/decorator/ctrl'
 import {Mutex, Synchronized} from '../exports/Mutex.js'
 
@@ -66,9 +66,9 @@ async function Start(): Promise<{ url: string, container: Container, mutex: Mute
     let port: number = 0
     const container: Container = new Container()
     const mutex: Mutex = await container.setNamed('mutex', Mutex, {retryDelay: 10})
-    await container.set(Entrypoint, BuildEntrypoints({
+    await container.set(Entrypoint, buildEntrypoints({
         controllers: [OrderController],
-        service: HTTPServiceEntrypoint({port: 0, host: '127.0.0.1', listening: (server): void => void (port = (server.address() as AddressInfo).port)})
+        service: httpServiceEntrypoint({port: 0, host: '127.0.0.1', listening: (server): void => void (port = (server.address() as AddressInfo).port)})
     }))
     return {url: `http://127.0.0.1:${port}`, container: container, mutex: mutex}
 }
@@ -164,7 +164,7 @@ describe('The exclusive schedules', (): void => {
             for (let index = 0; index < 3; index++) {
                 const container: Container = new Container()
                 await container.setNamed('mutex', Mutex, {driver: {type: 'memory'}})
-                await container.set(Entrypoint, BuildEntrypoints({controllers: [ReportController], schedule: ScheduleEntrypoint()}))
+                await container.set(Entrypoint, buildEntrypoints({controllers: [ReportController], schedule: scheduleEntrypoint()}))
                 instances.push(container)
             }
             await sleep(750)

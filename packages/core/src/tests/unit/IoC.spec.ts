@@ -3,7 +3,7 @@ import assert from 'node:assert'
 import {isClass} from '../../lib/ioc/Utils.js'
 import {BaseObject} from '../../lib/base/BaseObject.js'
 import {Container} from '../../lib/core/Container.js'
-import {IsSubclassOf} from '@lakutata/utils/IsSubclassOf'
+import {isSubclassOf} from '@lakutata/utils/IsSubclassOf'
 import {DTO} from '../../lib/dto/DTO.js'
 import {Provider} from '../../lib/core/Provider.js'
 import {Configurable} from '../../decorators/di/Configurable.js'
@@ -51,16 +51,16 @@ await describe('IoC Test', async function (): Promise<void> {
         await root.destroy()
     })
 
-    await it('IsSubclassOf() gives the same result as DTO.Class() validation', async (): Promise<void> => {
+    await it('isSubclassOf() gives the same result as DTO.Class() validation', async (): Promise<void> => {
         class Unrelated {
         }
 
         const values: unknown[] = [BaseObject, SubObject, class extends SubObject {
         }, Unrelated, Date, (): void => undefined, function helper(): void {
         }, new Unrelated(), {}, null, 'BaseObject', 1]
-        for (const value of values) assert.equal(IsSubclassOf(value, BaseObject), DTO.isValid(value, DTO.Class(BaseObject)), String(value))
+        for (const value of values) assert.equal(isSubclassOf(value, BaseObject), DTO.isValid(value, DTO.Class(BaseObject)), String(value))
         //The validation engine treats undefined as "not provided" and accepts it, but undefined is no subclass (no call site passes it)
-        assert.equal(IsSubclassOf(undefined, BaseObject), false)
+        assert.equal(isSubclassOf(undefined, BaseObject), false)
     })
 
     await it('a configured scoped object is owned by its requester, unless the shared instance is requested', async (): Promise<void> => {

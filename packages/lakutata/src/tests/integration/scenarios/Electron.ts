@@ -4,8 +4,8 @@ import {tmpdir} from 'node:os'
 import path from 'node:path'
 import electron, {type BrowserWindow} from 'electron'
 import {Application, Component, DTO} from '../../../exports/Lakutata.js'
-import {BuildEntrypoints, Controller, type ActionInvocation, type Next, type ServiceContext} from '../../../exports/EntrypointComponent.js'
-import {ElectronIPCServiceEntrypoint, IPCEventOfContext} from '../../../exports/ElectronAdapter.js'
+import {buildEntrypoints, Controller, type ActionInvocation, type Next, type ServiceContext} from '../../../exports/EntrypointComponent.js'
+import {electronIPCServiceEntrypoint, ipcEventOfContext} from '../../../exports/ElectronAdapter.js'
 import {ServiceAction} from '../../../exports/CTRLDecorators.js'
 import {Configurable, Inject} from '../../../exports/DIDecorators.js'
 import {Expect} from '../../../exports/DTODecorators.js'
@@ -108,7 +108,7 @@ class GreetController extends Controller {
     @ServiceAction({cmd: 'greet'}, GreetDTO)
     public async greet(input: GreetDTO): Promise<{ greeting: string, renderer: number }> {
         //The renderer invoking the action
-        const sender: { id: number } = IPCEventOfContext(this.context as ServiceContext)!.sender as unknown as { id: number }
+        const sender: { id: number } = ipcEventOfContext(this.context as ServiceContext)!.sender as unknown as { id: number }
         return {greeting: `Hello, ${input.name}`, renderer: sender.id}
     }
 
@@ -138,10 +138,10 @@ if (!electron.app.requestSingleInstanceLock()) {
             name: 'IntegrationElectron',
             components: {
                 log: {level: 'warn'},
-                entrypoint: BuildEntrypoints({
+                entrypoint: buildEntrypoints({
                     controllers: [GreetController],
                     middlewares: [RecordSignals],
-                    service: ElectronIPCServiceEntrypoint()
+                    service: electronIPCServiceEntrypoint()
                 }),
                 window: {class: MainWindow, directory: directory},
                 panel: {class: MainWindow, directory: directory, main: false, width: 400}

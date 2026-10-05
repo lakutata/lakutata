@@ -2,7 +2,7 @@ import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {inspect} from 'node:util'
 import upstreamSortArray from 'sort-array'
-import {SortArray, type SortArrayOptions} from '../exports/Utils.js'
+import {sortArray, type SortArrayOptions} from '../exports/Utils.js'
 
 /**
  * The SortArray of 2.x, on sort-array, with the options of a set alone given to sort-array (2.x gave by, order and
@@ -95,7 +95,7 @@ function Outcome(sort: (arr: unknown[], ...options: SortArrayOptions<any>[]) => 
     }
 }
 
-describe('SortArray', (): void => {
+describe('sortArray', (): void => {
 
     it('sorts as the SortArray of 2.x, in place', (): void => {
         const counts: Record<string, number> = {sorted: 0, error: 0}
@@ -103,7 +103,7 @@ describe('SortArray', (): void => {
             const input: unknown[] = RandomArray()
             const options: SortArrayOptions<any>[] = Array.from({length: pick([0, 1, 1, 1, 2, 3])}, Options)
             const expected: string = Outcome(UpstreamSortArray, input, options)
-            assert.strictEqual(Outcome(SortArray, input, options), expected, `${inspect(input)} ${inspect(options, {depth: 3})}`)
+            assert.strictEqual(Outcome(sortArray, input, options), expected, `${inspect(input)} ${inspect(options, {depth: 3})}`)
             counts[expected.startsWith('{ error') ? 'error' : 'sorted']++
         }
         //The errors are rare: the items which are not objects, sorted by a property
@@ -112,27 +112,27 @@ describe('SortArray', (): void => {
 
     it('sorts the keys of the patterns as 2.x (the identifiers of the actions)', (): void => {
         const keys: string[] = ['b', 'a', 'B', '10', '9', 'é', '_x', 'act', 'Act', 'z1', 'z10', 'z2']
-        const sorted: string[] = SortArray(keys.slice(), {order: 'asc'})
+        const sorted: string[] = sortArray(keys.slice(), {order: 'asc'})
         assert.deepStrictEqual(sorted, (upstreamSortArray as any)(keys.slice(), {order: 'asc'}))
     })
 
     it('sorts by a property missing on some items without computed, as undefined', (): void => {
         const items: { name?: string }[] = [{name: 'b'}, {}, {name: 'a'}]
-        assert.deepStrictEqual(SortArray(items, {by: 'name'}), [{name: 'a'}, {name: 'b'}, {}])
-        assert.deepStrictEqual(SortArray(items, {by: 'name', order: 'desc'}), [{name: 'b'}, {name: 'a'}, {}])
+        assert.deepStrictEqual(sortArray(items, {by: 'name'}), [{name: 'a'}, {name: 'b'}, {}])
+        assert.deepStrictEqual(sortArray(items, {by: 'name', order: 'desc'}), [{name: 'b'}, {name: 'a'}, {}])
     })
 
     it('sorts by the custom orders, and puts the null and undefined values first with their ranks', (): void => {
         type Task = { name: string, priority?: string | null }
         const tasks: Task[] = [{name: 'a', priority: 'low'}, {name: 'b', priority: 'high'}, {name: 'c', priority: 'medium'}]
-        SortArray(tasks, {by: 'priority', order: 'rank', customOrders: {rank: ['high', 'medium', 'low']}})
+        sortArray(tasks, {by: 'priority', order: 'rank', customOrders: {rank: ['high', 'medium', 'low']}})
         assert.deepStrictEqual(tasks.map((task: Task): string => task.name), ['b', 'c', 'a'])
-        assert.deepStrictEqual(SortArray([3, null, 1, undefined, 2]), [1, 2, 3, null, undefined])
-        assert.deepStrictEqual(SortArray([3, null, 1, 2], {nullRank: -1}), [null, 1, 2, 3])
+        assert.deepStrictEqual(sortArray([3, null, 1, undefined, 2]), [1, 2, 3, null, undefined])
+        assert.deepStrictEqual(sortArray([3, null, 1, 2], {nullRank: -1}), [null, 1, 2, 3])
         //An undefined item is not compared by Array.prototype.sort: it stays last
-        assert.deepStrictEqual(SortArray([3, undefined, 1, 2], {undefinedRank: -1, order: 'desc'}), [3, 2, 1, undefined])
+        assert.deepStrictEqual(sortArray([3, undefined, 1, 2], {undefinedRank: -1, order: 'desc'}), [3, 2, 1, undefined])
         const optional: Task[] = [{name: 'x', priority: 'b'}, {name: 'y'}, {name: 'z', priority: 'a'}]
-        SortArray(optional, {by: 'priority', undefinedRank: -1})
+        sortArray(optional, {by: 'priority', undefinedRank: -1})
         assert.deepStrictEqual(optional.map((task: Task): string => task.name), ['y', 'z', 'x'])
     })
 })

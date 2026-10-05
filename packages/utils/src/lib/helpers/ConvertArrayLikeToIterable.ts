@@ -7,12 +7,12 @@
  * @returns A generator of the items.
  * @example
  * ```typescript
- * import {ConvertArrayLikeToIterable} from 'lakutata/utils'
+ * import {convertArrayLikeToIterable} from 'lakutata/utils'
  *
- * console.log([...ConvertArrayLikeToIterable('abc')], [...ConvertArrayLikeToIterable(Buffer.from('hi'))])
+ * console.log([...convertArrayLikeToIterable('abc')], [...convertArrayLikeToIterable(Buffer.from('hi'))])
  * //['a', 'b', 'c'] [104, 105]
  * ```
  */
-export function* ConvertArrayLikeToIterable(input: string | Buffer | NodeJS.TypedArray): Generator {
+export function* convertArrayLikeToIterable(input: string | Buffer | NodeJS.TypedArray): Generator {
     for (let i: number = 0; i < input.length; i++) yield input[i]
 }

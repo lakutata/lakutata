@@ -18,24 +18,24 @@ const CHARSETS: Record<string, string> = {
  * drawn again), so the strings are fit for tokens and secrets.
  * @example
  * ```typescript
- * import {RandomString} from 'lakutata/utils'
+ * import {randomString} from 'lakutata/utils'
  *
- * console.log(RandomString().length, RandomString(6, 'numeric').length)
+ * console.log(randomString().length, randomString(6, 'numeric').length)
  * //32 6
- * console.log(/^[0-9a-f]{16}$/.test(RandomString(16, 'hex')))
+ * console.log(/^[0-9a-f]{16}$/.test(randomString(16, 'hex')))
  * //true
- * console.log(/^[0-9XYZ]{10}$/.test(RandomString(10, ['numeric', 'XYZ'])))
+ * console.log(/^[0-9XYZ]{10}$/.test(randomString(10, ['numeric', 'XYZ'])))
  * //true
  * ```
  */
-export function RandomString(): string
+export function randomString(): string
 /**
  * Generate a random string of letters and digits (`[A-Za-z0-9]`) of a given length.
  * @param length The number of characters: a non-negative integer (`0` gives `''`).
  * @returns A new random string.
  * @throws {RangeError} When `length` is negative or not an integer.
  */
-export function RandomString(length: number): string
+export function randomString(length: number): string
 /**
  * Generate a random string of a given length from a character set: one of the named sets (`'alphanumeric'`,
  * `'alphabetic'`, `'numeric'`, `'hex'`, `'binary'`, `'octal'`), or any other string, taken as the list of its
@@ -46,7 +46,7 @@ export function RandomString(length: number): string
  * @returns A new random string.
  * @throws {RangeError} When `length` is negative or not an integer, or when `charset` is empty.
  */
-export function RandomString(length: number, charset: string): string
+export function randomString(length: number, charset: string): string
 /**
  * Generate a random string of letters and digits (`[A-Za-z0-9]`) of a given length.
  * @param length The number of characters: a non-negative integer.
@@ -54,7 +54,7 @@ export function RandomString(length: number, charset: string): string
  * @returns A new random string.
  * @throws {RangeError} When `length` is negative or not an integer.
  */
-export function RandomString(length: number, charset: 'alphanumeric'): string
+export function randomString(length: number, charset: 'alphanumeric'): string
 /**
  * Generate a random string of letters (`[A-Za-z]`) of a given length.
  * @param length The number of characters: a non-negative integer.
@@ -62,7 +62,7 @@ export function RandomString(length: number, charset: 'alphanumeric'): string
  * @returns A new random string.
  * @throws {RangeError} When `length` is negative or not an integer.
  */
-export function RandomString(length: number, charset: 'alphabetic'): string
+export function randomString(length: number, charset: 'alphabetic'): string
 /**
  * Generate a random string of decimal digits (`[0-9]`) of a given length; it may start with `0`.
  * @param length The number of characters: a non-negative integer.
@@ -70,7 +70,7 @@ export function RandomString(length: number, charset: 'alphabetic'): string
  * @returns A new random string.
  * @throws {RangeError} When `length` is negative or not an integer.
  */
-export function RandomString(length: number, charset: 'numeric'): string
+export function randomString(length: number, charset: 'numeric'): string
 /**
  * Generate a random string of lower case hexadecimal digits (`[0-9a-f]`) of a given length.
  * @param length The number of characters: a non-negative integer.
@@ -78,7 +78,7 @@ export function RandomString(length: number, charset: 'numeric'): string
  * @returns A new random string.
  * @throws {RangeError} When `length` is negative or not an integer.
  */
-export function RandomString(length: number, charset: 'hex'): string
+export function randomString(length: number, charset: 'hex'): string
 /**
  * Generate a random string of binary digits (`[01]`) of a given length.
  * @param length The number of characters: a non-negative integer.
@@ -86,7 +86,7 @@ export function RandomString(length: number, charset: 'hex'): string
  * @returns A new random string.
  * @throws {RangeError} When `length` is negative or not an integer.
  */
-export function RandomString(length: number, charset: 'binary'): string
+export function randomString(length: number, charset: 'binary'): string
 /**
  * Generate a random string of octal digits (`[0-7]`) of a given length.
  * @param length The number of characters: a non-negative integer.
@@ -94,7 +94,7 @@ export function RandomString(length: number, charset: 'binary'): string
  * @returns A new random string.
  * @throws {RangeError} When `length` is negative or not an integer.
  */
-export function RandomString(length: number, charset: 'octal'): string
+export function randomString(length: number, charset: 'octal'): string
 /**
  * Generate a random string of a given length from several character sets joined: each item is a named set
  * (`'numeric'`…) or a string of characters (`['numeric', 'XYZ']` picks from `0-9XYZ`). The bigger sets are picked from
@@ -104,8 +104,8 @@ export function RandomString(length: number, charset: 'octal'): string
  * @returns A new random string.
  * @throws {RangeError} When `length` is negative or not an integer, or when the union of the sets is empty.
  */
-export function RandomString(length: number, charset: ('alphanumeric' | 'alphabetic' | 'numeric' | 'hex' | 'binary' | 'octal' | string)[]): string
-export function RandomString(length: number = 32, charset: string | string[] = 'alphanumeric'): string {
+export function randomString(length: number, charset: ('alphanumeric' | 'alphabetic' | 'numeric' | 'hex' | 'binary' | 'octal' | string)[]): string
+export function randomString(length: number = 32, charset: string | string[] = 'alphanumeric'): string {
     if (!Number.isInteger(length) || length < 0) throw new RangeError(`Invalid length: ${length}, a non-negative integer is expected`)
     //The named sets by an own property only: 'toString' is a string of characters, not a method of Object.prototype
     const charsetOf = (name: string): string => Object.hasOwn(CHARSETS, name) ? CHARSETS[name] : name

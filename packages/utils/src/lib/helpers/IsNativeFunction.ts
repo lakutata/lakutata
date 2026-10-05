@@ -32,13 +32,13 @@ const reNative = RegExp('^' +
  * @returns `true` when the value is a native function, `false` otherwise.
  * @example
  * ```typescript
- * import {IsNativeFunction} from 'lakutata/utils'
+ * import {isNativeFunction} from 'lakutata/utils'
  *
- * console.log(IsNativeFunction(Math.max), IsNativeFunction((): number => 1), IsNativeFunction(class Point {}))
+ * console.log(isNativeFunction(Math.max), isNativeFunction((): number => 1), isNativeFunction(class Point {}))
  * //true false false
  * ```
  */
-export function IsNativeFunction(target: any): boolean {
+export function isNativeFunction(target: any): boolean {
     const type = typeof target
     return type == 'function'
         // Use `Function#toString` to bypass the value's own `toString` method

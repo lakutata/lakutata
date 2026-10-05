@@ -3,9 +3,9 @@ import assert from 'node:assert'
 import {DTO} from '../../lib/dto/DTO.js'
 import {Expect} from '../../decorators/dto/Expect.js'
 import {Accept} from '../../decorators/dto/Accept.js'
-import {RunInValidationLanguage, CurrentValidationLanguage} from '../../lib/validation/ValidationLanguage.js'
-import {Exception, ExceptionParams} from '../../lib/foundation/Exception.js'
-import {BUILT_IN_VALIDATION_LANGUAGES, BuiltInValidationLanguage, DefaultValidationMessages, LoadValidationMessages, RegisterValidationMessages, ValidationLanguages} from '../../lib/validation/ValidationMessages.js'
+import {runInValidationLanguage, currentValidationLanguage} from '../../lib/validation/ValidationLanguage.js'
+import {Exception, exceptionParams} from '../../lib/foundation/Exception.js'
+import {BUILT_IN_VALIDATION_LANGUAGES, builtInValidationLanguage, defaultValidationMessages, loadValidationMessages, registerValidationMessages, validationLanguages} from '../../lib/validation/ValidationMessages.js'
 
 class OrderDTO extends DTO {
     @Expect(DTO.String().required())
@@ -33,8 +33,8 @@ describe('The messages of the validation errors', (): void => {
     it('are given in the language of the validation once registered, the default ones otherwise', async (): Promise<void> => {
         //Nothing registered: the language changes nothing
         assert.strictEqual(await ErrorOf({amount: 1}, 'zh-CN'), '"customer" is required')
-        RegisterValidationMessages('zh-CN', {'any.required': '{{#label}} 为必填项'})
-        assert.ok(ValidationLanguages().includes('zh-CN'))
+        registerValidationMessages('zh-CN', {'any.required': '{{#label}} 为必填项'})
+        assert.ok(validationLanguages().includes('zh-CN'))
         assert.strictEqual(await ErrorOf({amount: 1}, 'zh-CN'), '"customer" 为必填项')
         //A code without a message of the language: the default one
         assert.strictEqual(await ErrorOf({customer: 'Ada', amount: 101}, 'zh-CN'), '"amount" must be less than or equal to 100')
@@ -44,7 +44,7 @@ describe('The messages of the validation errors', (): void => {
     })
 
     it('are added to the ones of the language, the same codes replaced', async (): Promise<void> => {
-        RegisterValidationMessages('zh-CN', {'any.required': '缺少 {{#label}}', 'number.max': '{{#label}} 不能大于 {{#limit}}'})
+        registerValidationMessages('zh-CN', {'any.required': '缺少 {{#label}}', 'number.max': '{{#label}} 不能大于 {{#limit}}'})
         assert.strictEqual(await ErrorOf({amount: 1}, 'zh-CN'), '缺少 "customer"')
         assert.strictEqual(await ErrorOf({customer: 'Ada', amount: 101}, 'zh-CN'), '"amount" 不能大于 100')
         //The valid values are not changed by the language
@@ -87,14 +87,14 @@ class SampleDTO extends DTO {
 }
 
 describe('The built-in messages of the validation errors', (): void => {
-    const defaults: Record<string, string> = DefaultValidationMessages()
+    const defaults: Record<string, string> = defaultValidationMessages()
 
     it('give every message of the validation, their variables kept, in every built-in language', async (): Promise<void> => {
         assert.strictEqual(Object.keys(defaults).length, 137)
         assert.strictEqual(defaults['any.required'], '{{#label}} is required')
-        assert.deepStrictEqual(await LoadValidationMessages('en-GB'), defaults)
+        assert.deepStrictEqual(await loadValidationMessages('en-GB'), defaults)
         for (const language of BUILT_IN_VALIDATION_LANGUAGES.filter((tag: string): boolean => tag !== 'en')) {
-            const messages: Record<string, string> | undefined = await LoadValidationMessages(language)
+            const messages: Record<string, string> | undefined = await loadValidationMessages(language)
             assert.ok(messages, language)
             assert.deepStrictEqual(Object.keys(messages).sort(), Object.keys(defaults).sort(), language)
             for (const [code, template] of Object.entries(defaults)) {
@@ -112,7 +112,7 @@ describe('The built-in messages of the validation errors', (): void => {
         const english: string[] = []
         for (const data of invalid) english.push((await SampleDTO.validateAsync(data).catch((error: Error): Error => error) as Error).message)
         for (const language of BUILT_IN_VALIDATION_LANGUAGES.filter((tag: string): boolean => tag !== 'en')) {
-            RegisterValidationMessages(language, (await LoadValidationMessages(language))!)
+            registerValidationMessages(language, (await loadValidationMessages(language))!)
             for (const [index, data] of invalid.entries()) {
                 const error: Error = await SampleDTO.validateAsync(data, {errors: {language: language}}).catch((error: Error): Error => error) as Error
                 assert.ok(error instanceof Error, `${language}: ${JSON.stringify(data)} is valid`)
@@ -129,7 +129,7 @@ describe('The built-in messages of the validation errors', (): void => {
             ['pt', 'pt-BR'], ['pt-PT', 'pt-BR'], ['ja-JP', 'ja'], ['FR-ca', 'fr'], ['ar-EG', 'ar'],
             ['en', 'en'], ['en-GB', 'en'], ['sw', undefined], ['', undefined]
         ]
-        for (const [language, builtIn] of cases) assert.strictEqual(BuiltInValidationLanguage(language), builtIn, language)
+        for (const [language, builtIn] of cases) assert.strictEqual(builtInValidationLanguage(language), builtIn, language)
     })
 })
 
@@ -160,16 +160,16 @@ async function Failure(fn: () => unknown): Promise<string> {
 
 describe('The language of the validations of the code running', (): void => {
     it('gives the errors of every validation in the language, the valid values unchanged', async (): Promise<void> => {
-        RegisterValidationMessages('ja', {'any.required': '{{#label}} は必須です', 'number.max': '{{#label}} は {{#limit}} 以下にしてください'})
+        registerValidationMessages('ja', {'any.required': '{{#label}} は必須です', 'number.max': '{{#label}} は {{#limit}} 以下にしてください'})
         const orders: Orders = new Orders()
-        assert.strictEqual(CurrentValidationLanguage(), undefined)
-        await RunInValidationLanguage('ja', async (): Promise<void> => {
-            assert.strictEqual(CurrentValidationLanguage(), 'ja')
+        assert.strictEqual(currentValidationLanguage(), undefined)
+        await runInValidationLanguage('ja', async (): Promise<void> => {
+            assert.strictEqual(currentValidationLanguage(), 'ja')
             //An explicit validation, a validation of the arguments of a method (async, sync), a nested asynchronous call
             assert.strictEqual(await Failure((): Promise<unknown> => OrderDTO.validateAsync({amount: 1})), '"customer" は必須です')
             assert.strictEqual(await Failure((): unknown => OrderDTO.validate({amount: 1})), '"customer" は必須です')
             assert.match(await Failure((): Promise<unknown> => orders.take(101)), /は 100 以下にしてください/)
-            const english: string = await Failure((): unknown => RunInValidationLanguage('en', (): unknown => orders.label(1 as unknown as string)))
+            const english: string = await Failure((): unknown => runInValidationLanguage('en', (): unknown => orders.label(1 as unknown as string)))
             const japanese: string = await Failure((): unknown => orders.label(1 as unknown as string))
             assert.match(english, /must be a string/)
             assert.ok(japanese !== english && /^Method \[label\]/.test(japanese), japanese)
@@ -193,10 +193,10 @@ describe('The parameters of the exceptions', (): void => {
     it('are kept for the translations of their messages, not as properties', (): void => {
         const named: OrderNotFoundException = new OrderNotFoundException('Order {id} not found', {id: 7})
         assert.strictEqual(named.message, 'Order 7 not found')
-        assert.deepStrictEqual(ExceptionParams(named), {id: 7})
-        assert.deepStrictEqual(ExceptionParams(new OrderNotFoundException('Order {0} of {1}', 7, 'ada')), [7, 'ada'])
-        assert.deepStrictEqual(ExceptionParams(new OrderNotFoundException('Order %s not found', 7)), [7])
-        assert.strictEqual(ExceptionParams(new OrderNotFoundException('Order not found')), undefined)
+        assert.deepStrictEqual(exceptionParams(named), {id: 7})
+        assert.deepStrictEqual(exceptionParams(new OrderNotFoundException('Order {0} of {1}', 7, 'ada')), [7, 'ada'])
+        assert.deepStrictEqual(exceptionParams(new OrderNotFoundException('Order %s not found', 7)), [7])
+        assert.strictEqual(exceptionParams(new OrderNotFoundException('Order not found')), undefined)
         //Not in the properties of the error sent
         assert.ok(!Object.keys(named).some((key: string): boolean => key.includes('PARAMS')))
         assert.ok(!JSON.stringify(named).includes('"id"'))

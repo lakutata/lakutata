@@ -1,10 +1,10 @@
 import type {ApplicationOptions} from 'lakutata'
-import {BuildEntrypoints, HTTPServiceEntrypoint} from 'lakutata/com/entrypoint'
-import {ElectronIPCServiceEntrypoint, type IPCMain} from 'lakutata/adapter/electron'
+import {buildEntrypoints, httpServiceEntrypoint} from 'lakutata/com/entrypoint'
+import {electronIPCServiceEntrypoint, type IPCMain} from 'lakutata/adapter/electron'
 import {MainWindow} from '../components/MainWindow.js'
 import {ExampleController} from '../controllers/ExampleController.js'
 //@if i18n
-import {BuildI18nOptions, I18nMiddleware} from 'lakutata/com/i18n'
+import {buildI18nOptions, I18nMiddleware} from 'lakutata/com/i18n'
 import en from '../locales/en.json' with {type: 'json'}
 import zhCN from '../locales/zh-CN.json' with {type: 'json'}
 //@end
@@ -47,9 +47,9 @@ export function Config(options: ConfigOptions = {}): ApplicationOptions {
         components: {
             //@if i18n
             //The messages of the languages (src/locales), bundled with the code; created by the first request
-            i18n: BuildI18nOptions({messages: {'en': en, 'zh-CN': zhCN}}),
+            i18n: buildI18nOptions({messages: {'en': en, 'zh-CN': zhCN}}),
             //@end
-            entrypoint: BuildEntrypoints({
+            entrypoint: buildEntrypoints({
                 controllers: [ExampleController],
                 //@if i18n
                 //The messages in the language of its environment (LANG)
@@ -57,8 +57,8 @@ export function Config(options: ConfigOptions = {}): ApplicationOptions {
                 //@end
                 //The renderer invokes the actions over IPC: window.ipc.invoke({cmd: 'greet', name: 'you'})
                 service: [
-                    ElectronIPCServiceEntrypoint({ipcMain: options.ipcMain}),
-                    ...options.devPort === undefined ? [] : [HTTPServiceEntrypoint({port: options.devPort})]
+                    electronIPCServiceEntrypoint({ipcMain: options.ipcMain}),
+                    ...options.devPort === undefined ? [] : [httpServiceEntrypoint({port: options.devPort})]
                 ]
             }),
             ...(options.window === false ? {} : {

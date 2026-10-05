@@ -1,6 +1,6 @@
 import {Application} from '@lakutata/core'
-import {BuildEntrypoints, Entrypoint} from '@lakutata/entrypoint'
-import {StdioMCPEntrypoint} from '../../exports/MCP.js'
+import {buildEntrypoints, Entrypoint} from '@lakutata/entrypoint'
+import {stdioMCPEntrypoint} from '../../exports/MCP.js'
 import {DeviceController, ToolController} from './Tools.js'
 
 //The entrypoint is a default component of the lakutata package, not of the core
@@ -14,9 +14,9 @@ Application
         id: 'mcp.stdio.app',
         name: 'MCPStdio',
         components: {
-            entrypoint: BuildEntrypoints({
+            entrypoint: buildEntrypoints({
                 controllers: [DeviceController, ToolController],
-                mcp: StdioMCPEntrypoint({serverVersion: '3.0.0'})
+                mcp: stdioMCPEntrypoint({serverVersion: '3.0.0'})
             })
         },
         bootstrap: ['entrypoint']

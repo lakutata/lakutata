@@ -73,7 +73,7 @@ function SplitOptions(options: MCPToolOptions): [MCPMetadata, ActionOptions<MCPC
  * controller's `@Prefix({mcp})`, joined with `_` (`device_status`). Its input schema is the JSON schema of its DTO; the
  * input goes through the entrypoint's middlewares, the DTO validation and the access control, as in the other channels.
  *
- * The result is converted by {@link ToToolResult}: a string is a text, a plain object (and, for a tool with `output`, a
+ * The result is converted by {@link toToolResult}: a string is a text, a plain object (and, for a tool with `output`, a
  * DTO instance) is its JSON and the structured content, `Result.file()` an image, an audio clip or an embedded
  * resource, a `CallToolResult` is sent as it is. An
  * error thrown by the action is not a protocol error: the model gets a result with `isError: true` and the text

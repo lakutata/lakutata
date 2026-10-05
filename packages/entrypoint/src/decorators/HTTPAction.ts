@@ -2,12 +2,12 @@ import {Controller, type ControllerProperty} from '../lib/Controller.js'
 import {MethodDecorator, DTO} from '@lakutata/core'
 import {RegisterHTTPAction} from '../lib/ControllerEntrypoint.js'
 import {ActionOptions} from '../lib/ActionOptions.js'
-import {GetActionDTOAndOptions} from '../lib/GetActionDTOAndOptions.js'
+import {getActionDTOAndOptions} from '../lib/GetActionDTOAndOptions.js'
 import {HTTPContext} from '../context/HTTPContext.js'
 
 /**
  * Expose the controller method as an HTTP action answering a route for an HTTP method, served by the HTTP adapters of
- * the entrypoint (`ExpressHTTPEntrypoint`, `FastifyHTTPEntrypoint`). Without a DTO, the input is accepted as it is.
+ * the entrypoint (`expressHTTPEntrypoint`, `fastifyHTTPEntrypoint`). Without a DTO, the input is accepted as it is.
  *
  * On a request, the adapter assembles the input: by default, the query string merged with the parsed body (JSON or URL
  * encoded), then the route parameters over them. The middlewares run, the input is validated against the DTO (the
@@ -27,10 +27,10 @@ import {HTTPContext} from '../context/HTTPContext.js'
  * @example
  * ```typescript
  * import {Application, DTO} from 'lakutata'
- * import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+ * import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
  * import {HTTPAction} from 'lakutata/decorator/ctrl'
  * import {Expect} from 'lakutata/decorator/dto'
- * import {ExpressHTTPEntrypoint} from 'lakutata/adapter/express'
+ * import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
  *
  * class SearchDTO extends DTO {
  *     @Expect(DTO.String().required())
@@ -59,9 +59,9 @@ import {HTTPContext} from '../context/HTTPContext.js'
  *     id: 'search.app',
  *     name: 'Search',
  *     components: {
- *         entrypoint: BuildEntrypoints({
+ *         entrypoint: buildEntrypoints({
  *             controllers: [SearchController],
- *             http: ExpressHTTPEntrypoint({port: 8080})
+ *             http: expressHTTPEntrypoint({port: 8080})
  *         })
  *     },
  *     bootstrap: ['entrypoint']
@@ -184,7 +184,7 @@ export function HTTPAction<ClassPrototype extends Controller, Method, DTOConstru
     return (target: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>, descriptor: TypedPropertyDescriptor<Method>): TypedPropertyDescriptor<Method> => {
         const route: string = r.toString()
         const methods: string[] = Array.isArray(m) ? m : [m]
-        const [dtoConstructor, actionOptions] = GetActionDTOAndOptions(dtoConstructorOrOptions, options)
+        const [dtoConstructor, actionOptions] = getActionDTOAndOptions(dtoConstructorOrOptions, options)
         RegisterHTTPAction(route, methods, target, propertyKey, dtoConstructor, actionOptions)
         return descriptor
     }

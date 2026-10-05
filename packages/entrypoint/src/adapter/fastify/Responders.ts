@@ -1,9 +1,9 @@
 import type {FastifyReply, FastifyRequest} from 'fastify'
-import {DescribeError, type HTTPErrorOrigin, StatusOfError} from '../../lib/HTTPErrors.js'
+import {describeError, type HTTPErrorOrigin, statusOfError} from '../../lib/HTTPErrors.js'
 
 /**
- * How {@link FastifyHTTPEntrypoint} writes the results and the errors of the actions (its `respond` option). Implement
- * it to give the responses another shape; {@link FastifyJSONResponder} is the default, {@link FastifyJSONEnvelope}
+ * How {@link fastifyHTTPEntrypoint} writes the results and the errors of the actions (its `respond` option). Implement
+ * it to give the responses another shape; {@link FastifyJSONResponder} is the default, {@link fastifyJSONEnvelope}
  * wraps them in an envelope. The file results and the event streams are not written by the responder.
  */
 export interface FastifyResponder {
@@ -39,9 +39,9 @@ function SendJSON(reply: FastifyReply, data: unknown): void {
 }
 
 /**
- * The default responder of {@link FastifyHTTPEntrypoint}: a result is sent as JSON, no result as an empty 204 (or the
- * status set by a `StatusResult`); an error is sent as `{errno, errMsg}` (see `DescribeError`) with its HTTP status
- * (see `StatusOfError`: the first 4xx status in its cause chain, its own status, or 500).
+ * The default responder of {@link fastifyHTTPEntrypoint}: a result is sent as JSON, no result as an empty 204 (or the
+ * status set by a `StatusResult`); an error is sent as `{errno, errMsg}` (see `describeError`) with its HTTP status
+ * (see `statusOfError`: the first 4xx status in its cause chain, its own status, or 500).
  */
 export const FastifyJSONResponder: FastifyResponder = {
     success: (reply: FastifyReply, data: unknown): void => {
@@ -52,18 +52,18 @@ export const FastifyJSONResponder: FastifyResponder = {
         SendJSON(reply, data)
     },
     error: (reply: FastifyReply, error: unknown): void => {
-        reply.code(StatusOfError(error))
-        SendJSON(reply, DescribeError(error))
+        reply.code(statusOfError(error))
+        SendJSON(reply, describeError(error))
     }
 }
 
 /**
- * The options of {@link FastifyJSONEnvelope}.
+ * The options of {@link fastifyJSONEnvelope}.
  */
 export type FastifyJSONEnvelopeOptions = {
     /**
      * The HTTP status of every error response, such as 200 for the clients that read the errors from the envelope.
-     * @default the error's own status (see `StatusOfError`)
+     * @default the error's own status (see `statusOfError`)
      */
     errorStatus?: number
     /**
@@ -76,18 +76,18 @@ export type FastifyJSONEnvelopeOptions = {
 }
 
 /**
- * Create a responder for {@link FastifyHTTPEntrypoint} that wraps every response in the envelope
+ * Create a responder for {@link fastifyHTTPEntrypoint} that wraps every response in the envelope
  * `{errno, errMsg, data}`: a result as `{errno: null, errMsg: null, data}` (`data` is `null` when the action returned
  * nothing, and its status is not turned into 204), an error as `{errno, errMsg, data: null}` with the error's status,
  * the `errorStatus` option, or for the errors of the actions the `actionErrorStatus` option.
  * @param options The envelope options.
- * @returns The responder, to give to the `respond` option of `FastifyHTTPEntrypoint`.
+ * @returns The responder, to give to the `respond` option of `fastifyHTTPEntrypoint`.
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+ * import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
  * import {GET} from 'lakutata/decorator/ctrl'
- * import {FastifyHTTPEntrypoint, FastifyJSONEnvelope} from 'lakutata/adapter/fastify'
+ * import {fastifyHTTPEntrypoint, fastifyJSONEnvelope} from 'lakutata/adapter/fastify'
  *
  * class PingController extends Controller {
  *     //GET /ping answers {"errno": null, "errMsg": null, "data": "pong"}
@@ -101,23 +101,23 @@ export type FastifyJSONEnvelopeOptions = {
  *     id: 'web.app',
  *     name: 'Web',
  *     components: {
- *         entrypoint: BuildEntrypoints({
+ *         entrypoint: buildEntrypoints({
  *             controllers: [PingController],
  *             //The errors of the actions answered with 200 too (as the applications of lakutata 2.x), the routes not
  *             //found and the errors of the hooks with their status (404, 401…)
- *             http: FastifyHTTPEntrypoint({port: 8080, respond: FastifyJSONEnvelope({actionErrorStatus: 200})})
+ *             http: fastifyHTTPEntrypoint({port: 8080, respond: fastifyJSONEnvelope({actionErrorStatus: 200})})
  *         })
  *     }
  * })
  * ```
  */
-export function FastifyJSONEnvelope(options: FastifyJSONEnvelopeOptions = {}): FastifyResponder {
+export function fastifyJSONEnvelope(options: FastifyJSONEnvelopeOptions = {}): FastifyResponder {
     return {
         success: (reply: FastifyReply, data: unknown): void => SendJSON(reply, {errno: null, errMsg: null, data: data === undefined ? null : data}),
         error: (reply: FastifyReply, error: unknown, _request: FastifyRequest, origin?: HTTPErrorOrigin): void => {
             const status: number | undefined = origin === 'action' ? options.actionErrorStatus ?? options.errorStatus : options.errorStatus
-            reply.code(status ?? StatusOfError(error))
-            SendJSON(reply, {...DescribeError(error), data: null})
+            reply.code(status ?? statusOfError(error))
+            SendJSON(reply, {...describeError(error), data: null})
         }
     }
 }

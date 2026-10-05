@@ -3,7 +3,7 @@ import type {Base} from './engine/schema/base.js'
 import type {Preferences} from './engine/schema/model.js'
 import type {ValidationResult as EngineValidationResult} from './engine/schema/validator.js'
 import {extendBigInt} from './engine/schema/extensions/bigint.js'
-import {CurrentValidationLanguage} from './ValidationLanguage.js'
+import {currentValidationLanguage} from './ValidationLanguage.js'
 import {AnySchema} from './interfaces/AnySchema.js'
 import {ArraySchema} from './interfaces/ArraySchema.js'
 import {BooleanSchema} from './interfaces/BooleanSchema.js'
@@ -481,7 +481,7 @@ class ValidateMethods {
  * @param options
  */
 function InLanguage(options: ValidationOptions): string | undefined {
-    const language: string | undefined = CurrentValidationLanguage()
+    const language: string | undefined = currentValidationLanguage()
     return language && !(As<{ errors?: { language?: unknown } }>(options).errors?.language) ? language : undefined
 }
 

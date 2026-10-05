@@ -220,8 +220,8 @@ data), are declared by the `lakutata.resources` of its `package.json`, as the `e
 ```
 
 `from` is a file or a directory of the project, `to` its path in the resources: `dist/<name>.resources/`, distributed
-with the bundle. The application finds them by `ResourcesPath()` of lakutata (`undefined` when it does not run packed,
-`IsPackaged()` tells it).
+with the bundle. The application finds them by `resourcesPath()` of lakutata (`undefined` when it does not run packed,
+`isPackaged()` tells it).
 
 ### `lakutata package exe`
 
@@ -372,7 +372,7 @@ rpm the number of the versions, apk and pacman their upgrade scripts): the insta
 
 The installers of an Electron application (`"runtime": "electron"`) are made by electron-builder (a dependency of the
 project): its main process bundled with its dependencies (Electron left out) in the archive of the application, its
-native addons and its resources (`lakutata.resources`: its renderer, its preload script, read from `ResourcesPath()`)
+native addons and its resources (`lakutata.resources`: its renderer, its preload script, read from `resourcesPath()`)
 next to it, in the resources of Electron. Its installers are the targets of electron-builder (`deb` on Linux, `dmg` on
 macOS, `nsis` on Windows by default: `linux.targets`, `mac.targets`, `win.targets`); `name`, `appId`, `productName`, its
 description, maintainer, homepage and license are given to electron-builder, `electron` gives the rest (its icons, its

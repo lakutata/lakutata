@@ -2,18 +2,18 @@ import {after, before, it} from 'node:test'
 import {expect} from '../support/Expect.js'
 import {describeNats as describe, destroyApp, runApp, ensureNats, stopNats} from '../support/App.js'
 import {Application} from '@lakutata/core'
-import {BuildEntrypoints, Controller} from '@lakutata/entrypoint'
+import {buildEntrypoints, Controller} from '@lakutata/entrypoint'
 import {ServiceAction} from '@lakutata/entrypoint/decorator/ctrl'
 import {connect, NatsConnection} from 'nats'
 import {
-    BuildNatsClientOptions,
-    BuildServiceProxy,
-    MessagePackCodec,
+    buildNatsClientOptions,
+    buildServiceProxy,
+    messagePackCodec,
     ServiceProxy,
-    SetupNatsServiceEntrypoint
+    setupNatsServiceEntrypoint
 } from '../../exports/Nats.js'
 
-const codec = MessagePackCodec()
+const codec = messagePackCodec()
 
 class EchoController extends Controller {
     @ServiceAction({cmd: 'echo'})
@@ -45,15 +45,15 @@ describe('old/new version compatibility (bare NATS simulating the real legacy ve
             id: 'it.compat.app',
             name: 'ITCompat',
             components: {
-                nats: BuildNatsClientOptions({servers: n.url}), //New version (bulk defaults to true)
-                entrypoint: BuildEntrypoints({
+                nats: buildNatsClientOptions({servers: n.url}), //New version (bulk defaults to true)
+                entrypoint: buildEntrypoints({
                     controllers: [EchoController],
-                    service: SetupNatsServiceEntrypoint('nats') //New version server, serviceId = appId
+                    service: setupNatsServiceEntrypoint('nats') //New version server, serviceId = appId
                 })
             },
             providers: {
                 //New version client pointing at the legacy server (the bare legacy.svc subscription below)
-                selfToLegacy: BuildServiceProxy({serviceId: 'legacy.svc', natsComponentName: 'nats'})
+                selfToLegacy: buildServiceProxy({serviceId: 'legacy.svc', natsComponentName: 'nats'})
             },
             bootstrap: ['entrypoint']
         })

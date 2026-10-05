@@ -1,4 +1,4 @@
-import {ObjectParentConstructor} from './ObjectParentConstructor.js'
+import {objectParentConstructor} from './ObjectParentConstructor.js'
 import {IConstructor} from '../../interfaces/IConstructor.js'
 
 /**
@@ -8,7 +8,7 @@ import {IConstructor} from '../../interfaces/IConstructor.js'
  * class which extends nothing.
  * @example
  * ```typescript
- * import {ObjectParentConstructors} from 'lakutata/utils'
+ * import {objectParentConstructors} from 'lakutata/utils'
  *
  * class Entity {
  * }
@@ -19,18 +19,18 @@ import {IConstructor} from '../../interfaces/IConstructor.js'
  * class Admin extends User {
  * }
  *
- * console.log(ObjectParentConstructors(Admin).map((parent: Function): string => parent.name))
+ * console.log(objectParentConstructors(Admin).map((parent: Function): string => parent.name))
  * //['User', 'Entity']
  * ```
  */
-export function ObjectParentConstructors<ClassConstructor extends Function>(target: ClassConstructor): Function[]
-export function ObjectParentConstructors<ClassPrototype extends Object>(target: IConstructor<ClassPrototype>): Function[]
-export function ObjectParentConstructors(target: any): Function[] {
+export function objectParentConstructors<ClassConstructor extends Function>(target: ClassConstructor): Function[]
+export function objectParentConstructors<ClassPrototype extends Object>(target: IConstructor<ClassPrototype>): Function[]
+export function objectParentConstructors(target: any): Function[] {
     const parentConstructors: Function[] = []
-    let parentConstructor: Function | null = ObjectParentConstructor(target)
+    let parentConstructor: Function | null = objectParentConstructor(target)
     while (parentConstructor) {
         parentConstructors.push(parentConstructor)
-        parentConstructor = ObjectParentConstructor(parentConstructor)
+        parentConstructor = objectParentConstructor(parentConstructor)
     }
     return parentConstructors
 }

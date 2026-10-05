@@ -17,19 +17,19 @@ import {ComponentOptions, ComponentOptionsBuilder} from '@lakutata/core'
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildDockerConnectionOptions} from 'lakutata/com/docker'
+ * import {buildDockerConnectionOptions} from 'lakutata/com/docker'
  *
  * Application.run(() => ({
  *     id: 'docker.app',
  *     name: 'Docker',
  *     components: {
  *         //The Docker of the environment (DOCKER_HOST, else the local socket), with the API version 1.47
- *         docker: BuildDockerConnectionOptions({version: '1.47'})
+ *         docker: buildDockerConnectionOptions({version: '1.47'})
  *     }
  * }))
  * ```
  */
-export const BuildDockerConnectionOptions: ComponentOptionsBuilder<IDockerConnectionOptions> = (options: IDockerConnectionOptions): ComponentOptions<IDockerConnectionOptions> => ({
+export const buildDockerConnectionOptions: ComponentOptionsBuilder<IDockerConnectionOptions> = (options: IDockerConnectionOptions): ComponentOptions<IDockerConnectionOptions> => ({
     ...options,
     class: Docker
 })
@@ -44,18 +44,18 @@ export const BuildDockerConnectionOptions: ComponentOptionsBuilder<IDockerConnec
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildDockerSocketConnectionOptions} from 'lakutata/com/docker'
+ * import {buildDockerSocketConnectionOptions} from 'lakutata/com/docker'
  *
  * Application.run(() => ({
  *     id: 'docker.app',
  *     name: 'Docker',
  *     components: {
- *         docker: BuildDockerSocketConnectionOptions({socketPath: '/var/run/docker.sock', timeout: 60000})
+ *         docker: buildDockerSocketConnectionOptions({socketPath: '/var/run/docker.sock', timeout: 60000})
  *     }
  * }))
  * ```
  */
-export const BuildDockerSocketConnectionOptions: ComponentOptionsBuilder<IDockerConnectionOptions> = (options: IDockerSocketConnectionOptions): ComponentOptions<IDockerSocketConnectionOptions> => ({
+export const buildDockerSocketConnectionOptions: ComponentOptionsBuilder<IDockerConnectionOptions> = (options: IDockerSocketConnectionOptions): ComponentOptions<IDockerSocketConnectionOptions> => ({
     ...options,
     class: Docker
 })
@@ -70,18 +70,18 @@ export const BuildDockerSocketConnectionOptions: ComponentOptionsBuilder<IDocker
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildDockerHttpConnectionOptions} from 'lakutata/com/docker'
+ * import {buildDockerHttpConnectionOptions} from 'lakutata/com/docker'
  *
  * Application.run(() => ({
  *     id: 'docker.app',
  *     name: 'Docker',
  *     components: {
- *         docker: BuildDockerHttpConnectionOptions({host: '192.168.1.10', port: 2375})
+ *         docker: buildDockerHttpConnectionOptions({host: '192.168.1.10', port: 2375})
  *     }
  * }))
  * ```
  */
-export const BuildDockerHttpConnectionOptions: ComponentOptionsBuilder<IDockerHttpConnectionOptions> = (options: IDockerHttpConnectionOptions): ComponentOptions<IDockerHttpConnectionOptions> => ({
+export const buildDockerHttpConnectionOptions: ComponentOptionsBuilder<IDockerHttpConnectionOptions> = (options: IDockerHttpConnectionOptions): ComponentOptions<IDockerHttpConnectionOptions> => ({
     ...options,
     protocol: 'http',
     class: Docker
@@ -98,14 +98,14 @@ export const BuildDockerHttpConnectionOptions: ComponentOptionsBuilder<IDockerHt
  * ```typescript
  * import {readFileSync} from 'node:fs'
  * import {Application} from 'lakutata'
- * import {BuildDockerHttpsConnectionOptions} from 'lakutata/com/docker'
+ * import {buildDockerHttpsConnectionOptions} from 'lakutata/com/docker'
  *
  * Application.run(() => ({
  *     id: 'docker.app',
  *     name: 'Docker',
  *     components: {
  *         //The PEM contents, not the file paths
- *         docker: BuildDockerHttpsConnectionOptions({
+ *         docker: buildDockerHttpsConnectionOptions({
  *             host: 'docker.example.com',
  *             port: 2376,
  *             ca: readFileSync('/etc/docker/certs/ca.pem'),
@@ -116,7 +116,7 @@ export const BuildDockerHttpConnectionOptions: ComponentOptionsBuilder<IDockerHt
  * }))
  * ```
  */
-export const BuildDockerHttpsConnectionOptions: ComponentOptionsBuilder<IDockerHttpsConnectionOptions> = (options: IDockerHttpsConnectionOptions): ComponentOptions<IDockerHttpsConnectionOptions> => ({
+export const buildDockerHttpsConnectionOptions: ComponentOptionsBuilder<IDockerHttpsConnectionOptions> = (options: IDockerHttpsConnectionOptions): ComponentOptions<IDockerHttpsConnectionOptions> => ({
     ...options,
     protocol: 'https',
     class: Docker
@@ -133,18 +133,18 @@ export const BuildDockerHttpsConnectionOptions: ComponentOptionsBuilder<IDockerH
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildDockerSSHConnectionOptions} from 'lakutata/com/docker'
+ * import {buildDockerSSHConnectionOptions} from 'lakutata/com/docker'
  *
  * Application.run(() => ({
  *     id: 'docker.app',
  *     name: 'Docker',
  *     components: {
- *         docker: BuildDockerSSHConnectionOptions({host: 'docker.example.com', port: 22, username: 'deploy'})
+ *         docker: buildDockerSSHConnectionOptions({host: 'docker.example.com', port: 22, username: 'deploy'})
  *     }
  * }))
  * ```
  */
-export const BuildDockerSSHConnectionOptions: ComponentOptionsBuilder<IDockerSSHConnectionOptions> = (options: IDockerSSHConnectionOptions): ComponentOptions<IDockerSSHConnectionOptions> => ({
+export const buildDockerSSHConnectionOptions: ComponentOptionsBuilder<IDockerSSHConnectionOptions> = (options: IDockerSSHConnectionOptions): ComponentOptions<IDockerSSHConnectionOptions> => ({
     ...options,
     protocol: 'ssh',
     class: Docker

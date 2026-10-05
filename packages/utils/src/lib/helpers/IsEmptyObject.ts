@@ -8,15 +8,15 @@
  * `false` otherwise.
  * @example
  * ```typescript
- * import {IsEmptyObject} from 'lakutata/utils'
+ * import {isEmptyObject} from 'lakutata/utils'
  *
- * console.log(IsEmptyObject({}), IsEmptyObject({a: 1}), IsEmptyObject({[Symbol('id')]: 1}), IsEmptyObject([]))
+ * console.log(isEmptyObject({}), isEmptyObject({a: 1}), isEmptyObject({[Symbol('id')]: 1}), isEmptyObject([]))
  * //true false false false
- * console.log(IsEmptyObject(null), IsEmptyObject(new Map()), IsEmptyObject(new Map([['a', 1]])), IsEmptyObject(1))
+ * console.log(isEmptyObject(null), isEmptyObject(new Map()), isEmptyObject(new Map([['a', 1]])), isEmptyObject(1))
  * //true true false false
  * ```
  */
-export function IsEmptyObject<T = any>(obj: T): boolean {
+export function isEmptyObject<T = any>(obj: T): boolean {
     if (obj === null || obj === undefined) return true
     if (typeof obj !== 'object' && typeof obj !== 'function') return false
     if (obj instanceof Map || obj instanceof Set) return obj.size === 0

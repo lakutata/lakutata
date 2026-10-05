@@ -26,10 +26,10 @@ import {WaitForObjectStartup} from '../base/internal/ObjectStartup.js'
 import {LifetimeType} from '../ioc/Lifetime.js'
 import {ReportDestroyError} from '../foundation/LifecycleErrorReporter.js'
 import {ThrowWarning} from '../foundation/ThrowWarning.js'
-import {IsSubclassOf} from '@lakutata/utils/IsSubclassOf'
+import {isSubclassOf} from '@lakutata/utils/IsSubclassOf'
 import {ObjectDestroyedException} from '../../exceptions/ObjectDestroyedException.js'
 import {As} from '@lakutata/utils/As'
-import {IsEmptyObject} from '@lakutata/utils/IsEmptyObject'
+import {isEmptyObject} from '@lakutata/utils/IsEmptyObject'
 import {AppendObjectWeakRefs, ClearObjectWeakRefs, GetObjectWeakRefs} from '../ioc/ObjectWeakRefs.js'
 
 export const containerSymbol: symbol = Symbol('LAKUTATA.DI.CONTAINER.SYMBOL')
@@ -265,9 +265,9 @@ export class Container {
      */
     protected async processResolved<T extends BaseObject>(resolved: T | Promise<T>, registrationName: string | symbol, configurableRecords: Record<string, any> = {}): Promise<T> {
         //Only a newly created object gets its id and configurable records, a cached one is already initialized
-        const isSubBaseObject: boolean = IsSubclassOf(resolved?.constructor, BaseObject)
+        const isSubBaseObject: boolean = isSubclassOf(resolved?.constructor, BaseObject)
         const isNewSubBaseObject: boolean = isSubBaseObject && GetRegistrationNameFromInstance(As<T>(resolved)) === undefined
-        if (isSubBaseObject && !isNewSubBaseObject && !IsEmptyObject(configurableRecords) && process.env.NODE_ENV !== 'production') {
+        if (isSubBaseObject && !isNewSubBaseObject && !isEmptyObject(configurableRecords) && process.env.NODE_ENV !== 'production') {
             ThrowWarning(`The configuration passed for the already created object "${As<T>(resolved).className}" is ignored. Use a scoped or transient object to get an instance with its own configuration.`)
         }
         if (isNewSubBaseObject) {
@@ -317,7 +317,7 @@ export class Container {
             }
             const pair: NameAndRegistrationPair<T> = {}
             for (const exportObj of Object.values(importResult)) {
-                if (isClass(exportObj) && IsSubclassOf(exportObj, BaseObject)) pair[ConstructorSymbol(exportObj)] = this.#createResolver(As<T>(exportObj))
+                if (isClass(exportObj) && isSubclassOf(exportObj, BaseObject)) pair[ConstructorSymbol(exportObj)] = this.#createResolver(As<T>(exportObj))
             }
             return pair
         }))
@@ -375,7 +375,7 @@ export class Container {
                 pair = {..._pair, ...pair}
             })
         }
-        if (!IsEmptyObject(pair)) {
+        if (!isEmptyObject(pair)) {
             Object.getOwnPropertyNames(pair).forEach(value => this.injectionNames.add(value))
             Object.getOwnPropertySymbols(pair).forEach(value => this.injectionNames.add(value))
             this.#dic.register(pair)
@@ -498,7 +498,7 @@ export class Container {
         const lifetime: LifetimeType | undefined = registration?.lifetime
         //A scoped object requested with its own configuration is a new instance owned by the requester, it is not cached,
         //so it never replaces the instance shared within the request (unless the shared instance is requested)
-        if (!shared && registration && lifetime === 'SCOPED' && !IsEmptyObject(configurableRecords)) {
+        if (!shared && registration && lifetime === 'SCOPED' && !isEmptyObject(configurableRecords)) {
             const configured: T = await this.processResolved(this.#dic.build<T>(registration), registrationName, configurableRecords)
             AppendObjectWeakRefs(this.#dic, configured)
             await WaitForObjectStartup(configured)

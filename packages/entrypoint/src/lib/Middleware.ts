@@ -1,5 +1,5 @@
 import {Container, Provider, type IBaseObjectConstructor} from '@lakutata/core'
-import {IsSubclassOf} from '@lakutata/utils'
+import {isSubclassOf} from '@lakutata/utils'
 import type {CLIContext} from '../context/CLIContext.js'
 import type {HTTPContext} from '../context/HTTPContext.js'
 import type {ServiceContext} from '../context/ServiceContext.js'
@@ -61,7 +61,7 @@ export type MiddlewareHandler = (invocation: ActionInvocation, next: Next) => Pr
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildEntrypoints, Controller, Middleware, type ActionInvocation, type Next} from 'lakutata/com/entrypoint'
+ * import {buildEntrypoints, Controller, Middleware, type ActionInvocation, type Next} from 'lakutata/com/entrypoint'
  * import {GET, UseMiddlewares} from 'lakutata/decorator/ctrl'
  *
  * //Log the duration of each request
@@ -92,7 +92,7 @@ export type MiddlewareHandler = (invocation: ActionInvocation, next: Next) => Pr
  *     id: 'status.app',
  *     name: 'Status',
  *     components: {
- *         entrypoint: BuildEntrypoints({
+ *         entrypoint: buildEntrypoints({
  *             controllers: [StatusController],
  *             middlewares: [Timing]
  *         })
@@ -129,7 +129,7 @@ const METHOD_MIDDLEWARES: symbol = Symbol('ENTRYPOINT.METHOD.MIDDLEWARES')
  * @param middleware
  */
 export function IsMiddlewareClass(middleware: MiddlewareDefinition): middleware is IBaseObjectConstructor<Middleware> {
-    return IsSubclassOf(middleware, Middleware)
+    return isSubclassOf(middleware, Middleware)
 }
 
 /**

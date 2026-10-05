@@ -52,10 +52,10 @@ package's README.
 
 ```typescript
 import {Application, DTO, type ILogger} from 'lakutata'
-import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
 import {GET, ServiceAction} from 'lakutata/decorator/ctrl'
 import {Expect} from 'lakutata/decorator/dto'
-import {ExpressHTTPEntrypoint} from 'lakutata/adapter/express'
+import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
 
 class GreetDTO extends DTO {
     @Expect(DTO.String().optional().default('world'))
@@ -76,9 +76,9 @@ Application
         id: 'com.example.greeter',
         name: 'Greeter',
         components: {
-            entrypoint: BuildEntrypoints({
+            entrypoint: buildEntrypoints({
                 controllers: [GreetController],
-                http: ExpressHTTPEntrypoint({port: 8080})
+                http: expressHTTPEntrypoint({port: 8080})
             })
         },
         bootstrap: ['entrypoint']
@@ -94,10 +94,10 @@ Application
 | `lakutata/decorator/di` | `@lakutata/core` | `@Inject`, `@Configurable`, `@Autoload`, `@Singleton`, `@Scoped`, `@Transient` |
 | `lakutata/decorator/dto` | `@lakutata/core` | `@Expect`, `@Accept`, `@Return`, `@IndexSignature` |
 | `lakutata/decorator/asst` | `@lakutata/core` | `@Before`, `@After` |
-| `lakutata/dtos` | `@lakutata/core` | `PaginationSearchDTO`, `PaginationResultDTO`, `Paginator`, `FlexibleDTO`, the JSON Schema conversion |
-| `lakutata/com/entrypoint` | `@lakutata/entrypoint` | `Entrypoint`, `BuildEntrypoints`, `Controller`, the contexts, the results, the access control, the middlewares, `HTTPServiceEntrypoint`, `ScheduleEntrypoint` |
+| `lakutata/dtos` | `@lakutata/core` | `PaginationSearchDTO`, `PaginationResultDTO`, `paginator`, `FlexibleDTO`, the JSON Schema conversion |
+| `lakutata/com/entrypoint` | `@lakutata/entrypoint` | `Entrypoint`, `buildEntrypoints`, `Controller`, the contexts, the results, the access control, the middlewares, `httpServiceEntrypoint`, `scheduleEntrypoint` |
 | `lakutata/decorator/ctrl` | `@lakutata/entrypoint` | `@HTTPAction`, `@GET`…`@OPTIONS`, `@CLIAction`, `@ServiceAction`, `@Schedule`, `@Prefix`, `@UseMiddlewares` |
-| `lakutata/adapter/express`, `lakutata/adapter/fastify` | `@lakutata/entrypoint` | The HTTP transports, `StaticUI` |
+| `lakutata/adapter/express`, `lakutata/adapter/fastify` | `@lakutata/entrypoint` | The HTTP transports, `staticUI` |
 | `lakutata/adapter/commander` | `@lakutata/entrypoint` | The CLI transport |
 | `lakutata/adapter/socket.io`, `lakutata/adapter/jsonrpc`, `lakutata/adapter/electron` | `@lakutata/entrypoint` | The service transports |
 | `lakutata/com/logger` | `@lakutata/logger` | The `Logger` component (pino) preset as `log` |

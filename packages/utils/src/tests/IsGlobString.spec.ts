@@ -1,7 +1,7 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import upstreamIsGlob from 'is-glob'
-import {IsGlobString} from '../exports/Utils.js'
+import {isGlobString} from '../exports/Utils.js'
 
 /**
  * A pseudo random generator with a seed (mulberry32)
@@ -28,7 +28,7 @@ function Candidate(): string {
     return Array.from({length: Math.floor(random() * 7)}, (): string => pick(pieces)).join('')
 }
 
-describe('IsGlobString', (): void => {
+describe('isGlobString', (): void => {
 
     it('recognizes the globs as is-glob, and the ? wildcard of Glob anywhere', (): void => {
         const counts: Record<string, number> = {true: 0, false: 0}
@@ -36,15 +36,15 @@ describe('IsGlobString', (): void => {
             const candidate: string = Candidate()
             //is-glob only sees a ? after ], ., + or )
             const expected: boolean = upstreamIsGlob(candidate) || candidate.replace(/\\./g, '').includes('?')
-            assert.strictEqual(IsGlobString(candidate), expected, JSON.stringify(candidate))
+            assert.strictEqual(isGlobString(candidate), expected, JSON.stringify(candidate))
             counts[String(expected)]++
         }
         assert.ok(counts.true > 5000 && counts.false > 2000, JSON.stringify(counts))
-        for (const value of [undefined, null, 5, ''] as any[]) assert.strictEqual(IsGlobString(value), upstreamIsGlob(value))
+        for (const value of [undefined, null, 5, ''] as any[]) assert.strictEqual(isGlobString(value), upstreamIsGlob(value))
     })
 
     it('recognizes the ? wildcard as Glob does', (): void => {
-        for (const pattern of ['a?b', '?', 'file?.txt', 'src/?/x']) assert.strictEqual(IsGlobString(pattern), true, pattern)
-        for (const literal of ['a\\?b', 'src/index.ts', 'a.b']) assert.strictEqual(IsGlobString(literal), false, literal)
+        for (const pattern of ['a?b', '?', 'file?.txt', 'src/?/x']) assert.strictEqual(isGlobString(pattern), true, pattern)
+        for (const literal of ['a\\?b', 'src/index.ts', 'a.b']) assert.strictEqual(isGlobString(literal), false, literal)
     })
 })

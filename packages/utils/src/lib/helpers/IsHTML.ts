@@ -13,15 +13,15 @@ const full: RegExp = new RegExp(HTML_TAGS.map((tag: string) => `<${tag}\\b[^>]*>
  * @returns `true` when an HTML tag is found, `false` otherwise.
  * @example
  * ```typescript
- * import {IsHTML} from 'lakutata/utils'
+ * import {isHTML} from 'lakutata/utils'
  *
- * console.log(IsHTML('<!doctype html><html></html>'), IsHTML('<p>Hello</p>'))
+ * console.log(isHTML('<!doctype html><html></html>'), isHTML('<p>Hello</p>'))
  * //true true
- * console.log(IsHTML('<note>Hello</note>'), IsHTML('1 < 2'))
+ * console.log(isHTML('<note>Hello</note>'), isHTML('1 < 2'))
  * //false false
  * ```
  */
-export function IsHTML(value: string): boolean {
+export function isHTML(value: string): boolean {
     if (typeof value !== 'string') return false
     const head: string = value.trim().slice(0, 1000)
     return basic.test(head) || full.test(head)

@@ -1,10 +1,10 @@
 import type {ApplicationOptions} from 'lakutata'
-import {BuildEntrypoints} from 'lakutata/com/entrypoint'
-import {CommanderCLIEntrypoint} from 'lakutata/adapter/commander'
+import {buildEntrypoints} from 'lakutata/com/entrypoint'
+import {commanderCLIEntrypoint} from 'lakutata/adapter/commander'
 import manifest from '../../package.json' with {type: 'json'}
 import {ExampleController} from '../controllers/ExampleController.js'
 //@if i18n
-import {BuildI18nOptions, I18nMiddleware} from 'lakutata/com/i18n'
+import {buildI18nOptions, I18nMiddleware} from 'lakutata/com/i18n'
 import en from '../locales/en.json' with {type: 'json'}
 import zhCN from '../locales/zh-CN.json' with {type: 'json'}
 //@end
@@ -19,16 +19,16 @@ export function Config(): ApplicationOptions {
         components: {
             //@if i18n
             //The messages of the languages (src/locales), bundled with the code; created by the first request
-            i18n: BuildI18nOptions({messages: {'en': en, 'zh-CN': zhCN}}),
+            i18n: buildI18nOptions({messages: {'en': en, 'zh-CN': zhCN}}),
             //@end
-            entrypoint: BuildEntrypoints({
+            entrypoint: buildEntrypoints({
                 controllers: [ExampleController],
                 //@if i18n
                 //The messages in the language of its environment (LANG)
                 middlewares: [I18nMiddleware],
                 //@end
                 //The actions of the controllers are the commands; the missing required options are asked in a terminal
-                cli: CommanderCLIEntrypoint({bin: '{$APP_ID}', description: manifest.description, version: manifest.version})
+                cli: commanderCLIEntrypoint({bin: '{$APP_ID}', description: manifest.description, version: manifest.version})
             })
         },
         bootstrap: ['entrypoint']

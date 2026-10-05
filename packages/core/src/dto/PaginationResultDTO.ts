@@ -3,7 +3,7 @@ import {Expect} from '../decorators/dto/Expect.js'
 import {type PaginationMeta} from '../types/PaginationMeta.js'
 
 /**
- * The result of a paginated search: the items of the page, and where the page is in the whole result. `Paginator()`
+ * The result of a paginated search: the items of the page, and where the page is in the whole result. `paginator()`
  * builds it; use it with `@Return` to validate the result of a paginated action.
  * @example
  * ```typescript

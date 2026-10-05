@@ -9,14 +9,14 @@ import {DevNull} from './DevNull.js'
  * @param functions The cleanup functions, synchronous or asynchronous, in the order they run; none exits directly.
  * @example
  * ```typescript
- * import {GracefulExit} from 'lakutata/utils'
+ * import {gracefulExit} from 'lakutata/utils'
  *
  * declare function closeDatabase(): Promise<void>
  *
- * process.once('SIGTERM', (): void => GracefulExit(0, closeDatabase, (): void => console.log('Bye')))
+ * process.once('SIGTERM', (): void => gracefulExit(0, closeDatabase, (): void => console.log('Bye')))
  * ```
  */
-export function GracefulExit(exitCode: number, ...functions: (() => any)[]): void {
+export function gracefulExit(exitCode: number, ...functions: (() => any)[]): void {
     //The errors of the functions are ignored
     setImmediate((): void => void (async (): Promise<void> => {
         for (const func of functions) {

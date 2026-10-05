@@ -1,6 +1,6 @@
 import {DTO, Provider} from '@lakutata/core'
 import {Configurable} from '@lakutata/core/decorator/di'
-import {HMAC, type HMACAlgorithm, VerifyHMAC} from '../functions/HMAC.js'
+import {hmac, type HMACAlgorithm, verifyHMAC} from '../functions/HMAC.js'
 import {InvalidSignatureException} from '../exceptions/InvalidSignatureException.js'
 
 /**
@@ -17,7 +17,7 @@ import {InvalidSignatureException} from '../exceptions/InvalidSignatureException
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {GenerateSecret, InvalidSignatureException, Mac} from 'lakutata/security'
+ * import {generateSecret, InvalidSignatureException, Mac} from 'lakutata/security'
  *
  * Application
  *     .run(() => ({
@@ -25,7 +25,7 @@ import {InvalidSignatureException} from '../exceptions/InvalidSignatureException
  *         name: 'Links',
  *         providers: {
  *             //The keys come from the environment: the new key first, the previous one kept to verify
- *             mac: {class: Mac, keys: [process.env.MAC_KEY ?? GenerateSecret(), process.env.MAC_PREVIOUS_KEY ?? GenerateSecret()]}
+ *             mac: {class: Mac, keys: [process.env.MAC_KEY ?? generateSecret(), process.env.MAC_PREVIOUS_KEY ?? generateSecret()]}
  *         }
  *     }))
  *     .onLaunched(async (app: Application): Promise<void> => {
@@ -48,7 +48,7 @@ export class Mac extends Provider {
     /**
      * The secret keys, at least one, each a string of at least 16 characters used as its UTF-8 bytes (it is not decoded
      * from base64). The first key signs, every key verifies: to rotate, put the new key first and keep the previous ones
-     * while their signatures are still presented. Use random keys, such as the output of {@link GenerateSecret}, not
+     * while their signatures are still presented. Use random keys, such as the output of {@link generateSecret}, not
      * passwords. Required.
      */
     @Configurable(DTO.Array().items(DTO.String().min(16)).min(1).required())
@@ -68,7 +68,7 @@ export class Mac extends Provider {
      * @returns The HMAC of the data, base64url encoded without padding.
      */
     public sign(data: string | Uint8Array): string {
-        return HMAC(data, this.keys[0], this.algorithm)
+        return hmac(data, this.keys[0], this.algorithm)
     }
 
     /**
@@ -81,7 +81,7 @@ export class Mac extends Provider {
     public verify(data: string | Uint8Array, signature: string): boolean {
         //Every key is tried, to not reveal which one signed
         let valid: boolean = false
-        for (const key of this.keys) valid = VerifyHMAC(data, signature, key, this.algorithm) || valid
+        for (const key of this.keys) valid = verifyHMAC(data, signature, key, this.algorithm) || valid
         return valid
     }
 

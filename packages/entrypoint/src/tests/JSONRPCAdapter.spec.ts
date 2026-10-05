@@ -4,9 +4,9 @@ import type {AddressInfo} from 'node:net'
 import {PassThrough} from 'node:stream'
 import {Container, DTO, Exception} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
-import {BuildEntrypoints, Controller, Entrypoint, HTTPRequestOfContext, ServiceContext} from '../exports/Entrypoint.js'
+import {buildEntrypoints, Controller, Entrypoint, httpRequestOfContext, ServiceContext} from '../exports/Entrypoint.js'
 import {ServiceAction} from '../exports/CTRLDecorators.js'
-import {JSONRPCErrorCode, JSONRPCRequestOfContext, JSONRPCServiceEntrypoint, type JSONRPCServiceEntrypointOptions} from '../exports/JSONRPCAdapter.js'
+import {JSONRPCErrorCode, jsonRPCRequestOfContext, jsonRPCServiceEntrypoint, type JSONRPCServiceEntrypointOptions} from '../exports/JSONRPCAdapter.js'
 
 class EchoDTO extends DTO {
     @Expect(DTO.Number().required())
@@ -21,8 +21,8 @@ class RPCController extends Controller {
 
     @ServiceAction({method: 'echo'}, EchoDTO)
     public async echo(input: EchoDTO): Promise<unknown> {
-        const request = JSONRPCRequestOfContext(this.context as ServiceContext)
-        return {value: input.value, method: request?.method, transport: request?.transport, http: HTTPRequestOfContext(this.context as ServiceContext)?.method}
+        const request = jsonRPCRequestOfContext(this.context as ServiceContext)
+        return {value: input.value, method: request?.method, transport: request?.transport, http: httpRequestOfContext(this.context as ServiceContext)?.method}
     }
 
     @ServiceAction({method: 'whoami'})
@@ -58,9 +58,9 @@ class RPCController extends Controller {
 async function Start(options: JSONRPCServiceEntrypointOptions): Promise<{ port: number, container: Container, entrypoint: Entrypoint }> {
     let port: number = 0
     const container: Container = new Container()
-    const entrypoint: Entrypoint = await container.set(Entrypoint, BuildEntrypoints({
+    const entrypoint: Entrypoint = await container.set(Entrypoint, buildEntrypoints({
         controllers: [RPCController],
-        service: JSONRPCServiceEntrypoint({
+        service: jsonRPCServiceEntrypoint({
             port: 0,
             host: '127.0.0.1',
             ...options,

@@ -9,13 +9,13 @@ import {As} from './As.js'
  * @returns A new map of the object's properties, keyed by strings.
  * @example
  * ```typescript
- * import {ObjectToMap} from 'lakutata/utils'
+ * import {objectToMap} from 'lakutata/utils'
  *
- * const settings: Map<string, number> = ObjectToMap({retries: 3, timeout: 5000})
+ * const settings: Map<string, number> = objectToMap({retries: 3, timeout: 5000})
  * console.log(settings.get('timeout'))
  * //5000
  * ```
  */
-export function ObjectToMap<K extends (string | number | symbol), V>(obj: Record<K, V>): Map<`${Exclude<K, symbol>}`, V> {
+export function objectToMap<K extends (string | number | symbol), V>(obj: Record<K, V>): Map<`${Exclude<K, symbol>}`, V> {
     return As<Map<`${Exclude<K, symbol>}`, V>>(new Map(Object.entries(obj)))
 }

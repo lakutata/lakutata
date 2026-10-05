@@ -5,7 +5,7 @@ import {IncomingMessage, ServerResponse} from 'node:http'
 import {type HTTPContextParams} from '../types/HTTPContextParams.js'
 
 /**
- * The context of a request served by an HTTP adapter (`ExpressHTTPEntrypoint`, `FastifyHTTPEntrypoint`):
+ * The context of a request served by an HTTP adapter (`expressHTTPEntrypoint`, `fastifyHTTPEntrypoint`):
  * `this.context` of a controller action declared with `@HTTPAction` or `@GET`…, when it runs for an HTTP request. It
  * gives the Node.js request and response, to read or set headers; once an action has sent the response itself (its
  * headers sent), the adapter writes neither its value nor its error.

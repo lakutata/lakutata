@@ -5,7 +5,7 @@ import type {ITranslator} from '../interfaces/ITranslator.js'
 import {ProcessLocales} from '../lib/Locale.js'
 
 /**
- * The options of {@link CommanderTranslator}.
+ * The options of {@link commanderTranslator}.
  */
 export type CommanderTranslatorOptions = {
     /**
@@ -36,22 +36,22 @@ function English(text: CLIText): string {
 
 /**
  * Translate the help and the prompts of the Commander CLI adapter with the messages of an {@link I18n} component: give
- * it to the `translate` option of `CommanderCLIEntrypoint()`. Each text is the message of its key under the prefix
+ * it to the `translate` option of `commanderCLIEntrypoint()`. Each text is the message of its key under the prefix
  * (`cli.description`, `cli.commands.<command>.description`, `cli.commands.<command>.arguments.<name>`,
  * `cli.commands.<command>.options.<property>`, `cli.help.usage`, `cli.help.options`, `cli.help.default`,
  * `cli.prompt.json`…), formatted with the text's parameters (`{value}`); a text without a message keeps its English
  * text. The language is chosen once, when the adapter starts: the environment variable of the `environment` option,
- * the environment ({@link EnvironmentLocales}), then the process's language, negotiated with the component's
+ * the environment ({@link environmentLocales}), then the process's language, negotiated with the component's
  * supported languages. The names of the commands and of the options are never translated.
  * @param options The component, the key prefix and the environment variable.
  * @returns The `translate` function of the adapter, which gets the component from the application's module.
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
- * import {CommanderCLIEntrypoint} from 'lakutata/adapter/commander'
+ * import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+ * import {commanderCLIEntrypoint} from 'lakutata/adapter/commander'
  * import {CLIAction} from 'lakutata/decorator/ctrl'
- * import {BuildI18nOptions, CommanderTranslator, I18nMiddleware} from 'lakutata/com/i18n'
+ * import {buildI18nOptions, commanderTranslator, I18nMiddleware} from 'lakutata/com/i18n'
  *
  * class GreetController extends Controller {
  *     @CLIAction('greet', {description: 'Greet someone'})
@@ -64,24 +64,24 @@ function English(text: CLIText): string {
  *     id: 'tool.app',
  *     name: 'Tool',
  *     components: {
- *         i18n: BuildI18nOptions({
+ *         i18n: buildI18nOptions({
  *             messages: {
  *                 'zh-CN': {cli: {commands: {greet: {description: '问候某人'}}, help: {usage: '用法：', options: '选项：'}}}
  *             }
  *         }),
- *         entrypoint: BuildEntrypoints({
+ *         entrypoint: buildEntrypoints({
  *             controllers: [GreetController],
  *             //The controllers' Translator in the same language
  *             middlewares: [I18nMiddleware],
  *             //LANG=zh_CN.UTF-8 tool --help: the help in Chinese
- *             cli: CommanderCLIEntrypoint({bin: 'tool', translate: CommanderTranslator({environment: 'TOOL_LANG'})})
+ *             cli: commanderCLIEntrypoint({bin: 'tool', translate: commanderTranslator({environment: 'TOOL_LANG'})})
  *         })
  *     },
  *     bootstrap: ['entrypoint']
  * }))
  * ```
  */
-export function CommanderTranslator(options: CommanderTranslatorOptions = {}): (module: Module) => Promise<CLITranslate> {
+export function commanderTranslator(options: CommanderTranslatorOptions = {}): (module: Module) => Promise<CLITranslate> {
     const prefix: string = options.prefix ?? 'cli'
     return async (module: Module): Promise<CLITranslate> => {
         const i18n: I18n = await module.getObject<I18n>(options.component ?? 'i18n')

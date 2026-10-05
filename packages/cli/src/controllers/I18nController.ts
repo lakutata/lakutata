@@ -2,7 +2,7 @@ import {mkdir, writeFile} from 'node:fs/promises'
 import path from 'node:path'
 import {Controller} from 'lakutata/com/entrypoint'
 import {CLIAction} from 'lakutata/decorator/ctrl'
-import {CheckCatalogs, GenerateMessageTypes, LoadCatalogs, type CatalogIssue, type Catalogs} from 'lakutata/com/i18n'
+import {checkCatalogs, generateMessageTypes, loadCatalogs, type CatalogIssue, type Catalogs} from 'lakutata/com/i18n'
 import {I18nDTO} from '../dtos/I18nDTO.js'
 import {Done, Styled, Warn} from '../lib/Output.js'
 import {AddLocale} from '../lib/I18n.js'
@@ -18,8 +18,8 @@ export class I18nController extends Controller {
         const relative = (file: string): string => path.relative(process.cwd(), file) || '.'
         switch (input.action) {
             case 'check': {
-                const catalogs: Catalogs = await LoadCatalogs(directories)
-                const issues: CatalogIssue[] = CheckCatalogs(catalogs, input.default)
+                const catalogs: Catalogs = await loadCatalogs(directories)
+                const issues: CatalogIssue[] = checkCatalogs(catalogs, input.default)
                 for (const issue of issues) {
                     const where: string = issue.key ? `${issue.locale} ${issue.key}` : issue.locale
                     process.stdout.write(`${issue.level === 'error' ? Styled('red', '✖') : Styled('yellow', '!')} ${Styled('bold', where)}: ${issue.message}\n`)
@@ -32,7 +32,7 @@ export class I18nController extends Controller {
                 return undefined
             }
             case 'types': {
-                const declaration: string = GenerateMessageTypes(await LoadCatalogs(directories), input.default, input.module)
+                const declaration: string = generateMessageTypes(await loadCatalogs(directories), input.default, input.module)
                 const file: string = path.resolve(input.out)
                 await mkdir(path.dirname(file), {recursive: true})
                 await writeFile(file, declaration)

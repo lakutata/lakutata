@@ -88,16 +88,16 @@ async function FileContent(result: FileResult): Promise<ContentBlock> {
  * @throws {Error} When the file of `Result.file()` cannot be read.
  * @example
  * ```typescript
- * import {ToToolResult} from '@lakutata/mcp'
+ * import {toToolResult} from '@lakutata/mcp'
  *
  * //{content: [{type: 'text', text: '{\n  "sn": "A1"\n}'}], structuredContent: {sn: 'A1'}}
- * console.log(await ToToolResult({sn: 'A1'}))
+ * console.log(await toToolResult({sn: 'A1'}))
  * //{content: [{type: 'text', text: 'done'}]}
- * console.log(await ToToolResult('done'))
+ * console.log(await toToolResult('done'))
  * ```
  */
-export async function ToToolResult(result: unknown, output: boolean = false): Promise<CallToolResult> {
-    if (result instanceof StatusResult) return await ToToolResult(result.data, output)
+export async function toToolResult(result: unknown, output: boolean = false): Promise<CallToolResult> {
+    if (result instanceof StatusResult) return await toToolResult(result.data, output)
     if (result instanceof FileResult) return {content: [await FileContent(result)]}
     if (result instanceof EventsResult) throw EventsNotSupported()
     if (result === undefined || result === null) return {content: []}
@@ -145,13 +145,13 @@ export function ErrorMessage(error: unknown): string {
  * @returns The tool result.
  * @example
  * ```typescript
- * import {ToErrorResult} from '@lakutata/mcp'
+ * import {toErrorResult} from '@lakutata/mcp'
  *
  * //{isError: true, content: [{type: 'text', text: 'The device is offline'}]}
- * console.log(ToErrorResult(new Error('The device is offline')))
+ * console.log(toErrorResult(new Error('The device is offline')))
  * ```
  */
-export function ToErrorResult(error: unknown): CallToolResult {
+export function toErrorResult(error: unknown): CallToolResult {
     return {isError: true, content: [{type: 'text', text: ErrorMessage(error)}]}
 }
 
@@ -173,14 +173,14 @@ export function ToErrorResult(error: unknown): CallToolResult {
  * @throws {Error} When the file of `Result.file()` cannot be read.
  * @example
  * ```typescript
- * import {ToResourceResult} from '@lakutata/mcp'
+ * import {toResourceResult} from '@lakutata/mcp'
  *
  * //{contents: [{uri: 'device://A1/status', mimeType: 'application/json', text: '{\n  "online": true\n}'}]}
- * console.log(await ToResourceResult('device://A1/status', {online: true}))
+ * console.log(await toResourceResult('device://A1/status', {online: true}))
  * ```
  */
-export async function ToResourceResult(uri: string, result: unknown, mimeType?: string): Promise<ReadResourceResult> {
-    if (result instanceof StatusResult) return await ToResourceResult(uri, result.data, mimeType)
+export async function toResourceResult(uri: string, result: unknown, mimeType?: string): Promise<ReadResourceResult> {
+    if (result instanceof StatusResult) return await toResourceResult(uri, result.data, mimeType)
     if (result instanceof EventsResult) throw EventsNotSupported()
     if (result === undefined || result === null) return {contents: []}
     if (IsPlainObject(result) && Array.isArray(result.contents)) return result as ReadResourceResult
@@ -218,14 +218,14 @@ function PromptMessageOf(message: unknown): PromptMessage {
  * @throws {TypeError} When the result is a file or an event stream: the prompts are made of messages.
  * @example
  * ```typescript
- * import {ToPromptResult} from '@lakutata/mcp'
+ * import {toPromptResult} from '@lakutata/mcp'
  *
  * //{description: 'Diagnose a device', messages: [{role: 'user', content: {type: 'text', text: 'Diagnose A1.'}}]}
- * console.log(ToPromptResult('Diagnose A1.', 'Diagnose a device'))
+ * console.log(toPromptResult('Diagnose A1.', 'Diagnose a device'))
  * ```
  */
-export function ToPromptResult(result: unknown, description?: string): GetPromptResult {
-    if (result instanceof StatusResult) return ToPromptResult(result.data, description)
+export function toPromptResult(result: unknown, description?: string): GetPromptResult {
+    if (result instanceof StatusResult) return toPromptResult(result.data, description)
     if (result instanceof FileResult || result instanceof EventsResult) throw new TypeError('The prompts are made of messages: strings or {role, content}')
     if (IsPlainObject(result) && Array.isArray(result.messages)) return result as GetPromptResult
     const messages: PromptMessage[] = result === undefined || result === null ? [] : (Array.isArray(result) ? result : [result]).map(PromptMessageOf)

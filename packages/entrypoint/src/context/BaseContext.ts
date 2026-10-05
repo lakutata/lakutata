@@ -31,7 +31,7 @@ export type ContextParams<T extends {} = {}> = T & Record<string, any>
  * `ServiceContext`, `ScheduleContext`); test it with `instanceof` in an action serving several channels. A context is
  * a DTO: its properties are validated when it is created and when they change; it also holds the extra properties
  * given by its adapter (the Socket.IO socket, the JSON-RPC request), read by the adapters' helpers
- * (`SocketOfContext`…). The adapters create the contexts: an application only reads them.
+ * (`socketOfContext`…). The adapters create the contexts: an application only reads them.
  * @example
  * ```typescript
  * import {Controller, CLIContext, HTTPContext, ServiceContext} from 'lakutata/com/entrypoint'

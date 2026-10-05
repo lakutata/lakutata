@@ -250,7 +250,7 @@ class ItemController extends Controller {
 
 The words of a CLI command before its name are its groups: `@CLIAction('package exe <name>', ExeDTO)` is the command
 `exe` of the group `package` (`tool package exe app`), and `tool package --help` lists the commands of the group,
-described by the `groups` option of the adapter (`CommanderCLIEntrypoint({groups: {package: 'Package the
+described by the `groups` option of the adapter (`commanderCLIEntrypoint({groups: {package: 'Package the
 application'}})`, translated by the key `commands.package.description`).
 
 ## 3. Validation (`lakutata/decorator/dto`)

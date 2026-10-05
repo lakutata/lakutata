@@ -5,7 +5,7 @@ modified; the original copyright notices and license terms are reproduced here a
 
 ## @hapi/hoek 11.0.7
 
-The deep clone of `CloneDeep`: `src/lib/helpers/CloneDeep.ts`, from `lib/clone.js`.
+The deep clone of `cloneDeep`: `src/lib/helpers/cloneDeep.ts`, from `lib/clone.js`.
 
 Modifications: rewritten in TypeScript, with the default options of the upstream clone only (the prototypes and the
 symbol properties are kept, no shallow paths); the binary data (typed arrays, data views, array buffers) and the boxed
@@ -27,7 +27,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 ## fast-xml-parser 4.5.3
 
-The validation of the XML documents of `IsXML`: `src/lib/helpers/internal/XMLValidator.ts`, from `src/validator.js` and
+The validation of the XML documents of `isXML`: `src/lib/helpers/internal/XMLValidator.ts`, from `src/validator.js` and
 `src/util.js`.
 
 Modifications: rewritten in TypeScript, with the boolean attributes allowed and no unpaired tag, giving whether the
@@ -73,7 +73,7 @@ THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH RE
 
 ## object-hash 3.0.0
 
-`ObjectHash`: `src/lib/helpers/ObjectHash.ts`, from `index.js`.
+`objectHash`: `src/lib/helpers/objectHash.ts`, from `index.js`.
 
 Modifications: rewritten in TypeScript (the serializers of the types as methods of a class, the streaming API not
 ported).
@@ -102,7 +102,7 @@ SOFTWARE.
 
 ## sort-array 5.1.1, array-back 6.2.3, typical 7.3.0
 
-`SortArray`: `src/lib/helpers/SortArray.ts`, from their `index.js` (the functions of array-back and typical used).
+`sortArray`: `src/lib/helpers/sortArray.ts`, from their `index.js` (the functions of array-back and typical used).
 
 Modifications: rewritten in TypeScript, in one file.
 
@@ -275,7 +275,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ## is-glob 4.0.3, is-extglob 2.1.1
 
-`IsGlobString`: `src/lib/helpers/IsGlobString.ts`, from their `index.js` (the strict check of is-glob).
+`isGlobString`: `src/lib/helpers/isGlobString.ts`, from their `index.js` (the strict check of is-glob).
 
 Modifications: rewritten in TypeScript, in one file.
 

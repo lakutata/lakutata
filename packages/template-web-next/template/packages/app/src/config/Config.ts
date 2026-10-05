@@ -1,6 +1,6 @@
-import {ResourcesPath, type ApplicationOptions} from 'lakutata'
-import {BuildEntrypoints} from 'lakutata/com/entrypoint'
-import {ExpressHTTPEntrypoint, JSONEnvelope} from 'lakutata/adapter/express'
+import {resourcesPath, type ApplicationOptions} from 'lakutata'
+import {buildEntrypoints} from 'lakutata/com/entrypoint'
+import {expressHTTPEntrypoint, jsonEnvelope} from 'lakutata/adapter/express'
 import compression from 'compression'
 import path from 'node:path'
 import renderUI, {type UIHandler} from 'ui'
@@ -8,7 +8,7 @@ import {Authenticate} from '../middlewares/Authenticate.js'
 import {ExampleController} from '../controllers/ExampleController.js'
 import {HealthController} from '../controllers/HealthController.js'
 //@if i18n
-import {BuildI18nOptions, I18nMiddleware} from 'lakutata/com/i18n'
+import {buildI18nOptions, I18nMiddleware} from 'lakutata/com/i18n'
 import en from '../locales/en.json' with {type: 'json'}
 import zhCN from '../locales/zh-CN.json' with {type: 'json'}
 //@end
@@ -19,7 +19,7 @@ import zhCN from '../locales/zh-CN.json' with {type: 'json'}
  */
 export function Config(port: number = Number(process.env.PORT ?? 8080)): ApplicationOptions {
     //The standalone build of next of the ui package is in the resources of the application packed (lakutata.resources)
-    const resources: string | undefined = ResourcesPath()
+    const resources: string | undefined = resourcesPath()
     //The pages are compiled on demand in development, served from the build of next in production
     const ui: UIHandler = renderUI({dev: process.env.NODE_ENV !== 'production', standalone: resources && path.join(resources, 'ui')})
     return {
@@ -29,18 +29,18 @@ export function Config(port: number = Number(process.env.PORT ?? 8080)): Applica
         components: {
             //@if i18n
             //The messages of the languages (src/locales), bundled with the code; created by the first request
-            i18n: BuildI18nOptions({messages: {'en': en, 'zh-CN': zhCN}}),
+            i18n: buildI18nOptions({messages: {'en': en, 'zh-CN': zhCN}}),
             //@end
-            entrypoint: BuildEntrypoints({
+            entrypoint: buildEntrypoints({
                 controllers: [HealthController, ExampleController],
                 //@if i18n
                 //The messages in the language of each request: ?lang=, the cookie lang, Accept-Language
                 middlewares: [I18nMiddleware],
                 //@end
-                http: ExpressHTTPEntrypoint({
+                http: expressHTTPEntrypoint({
                     port: port,
                     //The results and the errors are {errno, errMsg, data}, with the status 200
-                    respond: JSONEnvelope({errorStatus: 200}),
+                    respond: jsonEnvelope({errorStatus: 200}),
                     body: {limit: '100mb'},
                     server: {keepAliveTimeout: 60000, headersTimeout: 65000},
                     middlewares: [Authenticate],

@@ -6,7 +6,7 @@ import {ServiceResponseCodec, type ServiceResponse} from '../../lib/ServiceRespo
 import {EntrypointStoppedException} from '../../exceptions/EntrypointStoppedException.js'
 
 /**
- * The part of Electron's `WebContents` (a renderer) that {@link ElectronIPCServiceEntrypoint} uses: the sender of the
+ * The part of Electron's `WebContents` (a renderer) that {@link electronIPCServiceEntrypoint} uses: the sender of the
  * invocations and the receiver of the events pushed to its pages.
  */
 export type IPCSender = {
@@ -49,8 +49,8 @@ export type IPCSender = {
 }
 
 /**
- * The part of Electron's `IpcMainInvokeEvent` that {@link ElectronIPCServiceEntrypoint} uses, given to the service
- * actions through {@link IPCEventOfContext}.
+ * The part of Electron's `IpcMainInvokeEvent` that {@link electronIPCServiceEntrypoint} uses, given to the service
+ * actions through {@link ipcEventOfContext}.
  */
 export type IPCInvokeEvent = {
     /**
@@ -72,7 +72,7 @@ export type IPCInvokeEvent = {
 }
 
 /**
- * The part of Electron's `ipcMain` that {@link ElectronIPCServiceEntrypoint} uses (give a stand-in in the tests).
+ * The part of Electron's `ipcMain` that {@link electronIPCServiceEntrypoint} uses (give a stand-in in the tests).
  */
 export type IPCMain = {
     /**
@@ -111,7 +111,7 @@ type IPCClient = {
 }
 
 /**
- * The options of {@link ElectronIPCServiceEntrypoint}.
+ * The options of {@link electronIPCServiceEntrypoint}.
  */
 export type ElectronIPCServiceEntrypointOptions = {
     /**
@@ -136,7 +136,7 @@ export type ElectronIPCServiceEntrypointOptions = {
 }
 
 /**
- * Get the IPC event of a service action's request, when {@link ElectronIPCServiceEntrypoint} serves it (to reach the
+ * Get the IPC event of a service action's request, when {@link electronIPCServiceEntrypoint} serves it (to reach the
  * invoking renderer or frame).
  * @param context The service action's context (`this.context` in a controller).
  * @returns The IPC event (Electron's `IpcMainInvokeEvent`, typed as `Event`), or `undefined` when another adapter serves
@@ -144,7 +144,7 @@ export type ElectronIPCServiceEntrypointOptions = {
  * @example
  * ```typescript
  * import {Controller, ServiceContext} from 'lakutata/com/entrypoint'
- * import {IPCEventOfContext} from 'lakutata/adapter/electron'
+ * import {ipcEventOfContext} from 'lakutata/adapter/electron'
  * import {ServiceAction} from 'lakutata/decorator/ctrl'
  * import type {IpcMainInvokeEvent} from 'electron'
  *
@@ -152,12 +152,12 @@ export type ElectronIPCServiceEntrypointOptions = {
  *     //ipcRenderer.invoke('lakutata:service', {cmd: 'window.url'})
  *     @ServiceAction({cmd: 'window.url'})
  *     public async url(): Promise<string | undefined> {
- *         return IPCEventOfContext<IpcMainInvokeEvent>(this.context as ServiceContext)?.sender.getURL()
+ *         return ipcEventOfContext<IpcMainInvokeEvent>(this.context as ServiceContext)?.sender.getURL()
  *     }
  * }
  * ```
  */
-export function IPCEventOfContext<Event extends IPCInvokeEvent = IPCInvokeEvent>(context: ServiceContext): Event | undefined {
+export function ipcEventOfContext<Event extends IPCInvokeEvent = IPCInvokeEvent>(context: ServiceContext): Event | undefined {
     return (context as ServiceContext & { event?: Event }).event
 }
 
@@ -174,7 +174,7 @@ async function LoadIPCMain(): Promise<IPCMain> {
     } catch {
         ipcMain = undefined
     }
-    if (!ipcMain) throw new Error('ElectronIPCServiceEntrypoint runs in the main process of Electron (or is given its ipcMain)')
+    if (!ipcMain) throw new Error('electronIPCServiceEntrypoint runs in the main process of Electron (or is given its ipcMain)')
     return ipcMain
 }
 
@@ -198,13 +198,13 @@ async function LoadIPCMain(): Promise<IPCMain> {
  * stops, the new invocations resolve to an `EntrypointStoppedException` error; once the requests in progress end, the
  * IPC handlers are removed.
  * @param options The adapter options; by default it serves the channel `'lakutata:service'` on Electron's `ipcMain`.
- * @returns The adapter, to give to the `service` option of `BuildEntrypoints`.
+ * @returns The adapter, to give to the `service` option of `buildEntrypoints`.
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+ * import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
  * import {ServiceAction} from 'lakutata/decorator/ctrl'
- * import {ElectronIPCServiceEntrypoint} from 'lakutata/adapter/electron'
+ * import {electronIPCServiceEntrypoint} from 'lakutata/adapter/electron'
  * import type {IpcRenderer, IpcRendererEvent} from 'electron'
  *
  * class EchoController extends Controller {
@@ -219,9 +219,9 @@ async function LoadIPCMain(): Promise<IPCMain> {
  *     id: 'desktop.app',
  *     name: 'Desktop',
  *     components: {
- *         entrypoint: BuildEntrypoints({
+ *         entrypoint: buildEntrypoints({
  *             controllers: [EchoController],
- *             service: ElectronIPCServiceEntrypoint()
+ *             service: electronIPCServiceEntrypoint()
  *         })
  *     }
  * })
@@ -236,7 +236,7 @@ async function LoadIPCMain(): Promise<IPCMain> {
  * console.log(await ipcRenderer.invoke('lakutata:service', {cmd: 'echo', text: 'hi'}, clientId))
  * ```
  */
-export function ElectronIPCServiceEntrypoint(options: ElectronIPCServiceEntrypointOptions = {}): EntrypointAdapter<ServiceContext> {
+export function electronIPCServiceEntrypoint(options: ElectronIPCServiceEntrypointOptions = {}): EntrypointAdapter<ServiceContext> {
     const channel: string = options.channel ?? 'lakutata:service'
     const eventChannel: string = `${channel}:event`
     const subscribeChannel: string = `${channel}:subscribe`

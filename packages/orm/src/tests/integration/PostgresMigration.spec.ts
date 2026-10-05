@@ -62,9 +62,9 @@ describe('The migrations of a PostgreSQL database', {skip: SERVER ? false : 'POS
     const generate = (columns: Record<string, unknown>): SpawnSyncReturns<string> => spawnSync(process.execPath, ['--input-type=module', '-e', [
         `import {Application} from '${import.meta.resolve('@lakutata/core')}'`,
         `import {EntitySchema} from '${new URL('../../exports/ORM.js', import.meta.url)}'`,
-        `import {BuildDatabaseOptions} from '${new URL('../../exports/DatabaseComponent.js', import.meta.url)}'`,
+        `import {buildDatabaseOptions} from '${new URL('../../exports/DatabaseComponent.js', import.meta.url)}'`,
         `const Device = new EntitySchema({name: 'device', columns: ${JSON.stringify(columns)}})`,
-        `Application.run({id: 'migration.test', name: 'MigrationTest', components: {db: BuildDatabaseOptions({...${JSON.stringify(options())}, entities: [Device]})}})`
+        `Application.run({id: 'migration.test', name: 'MigrationTest', components: {db: buildDatabaseOptions({...${JSON.stringify(options())}, entities: [Device]})}})`
     ].join('\n')], {cwd: project, env: {...process.env, MIGRATION_GENERATE: 'migrations'}, encoding: 'utf8', timeout: 60000})
 
     /**
@@ -159,10 +159,10 @@ describe('The migrations of a PostgreSQL database', {skip: SERVER ? false : 'POS
         const command = (env: Record<string, string>): SpawnSyncReturns<string> => {
             const result: SpawnSyncReturns<string> = spawnSync(process.execPath, ['--input-type=module', '-e', [
                 `import {Application} from '${import.meta.resolve('@lakutata/core')}'`,
-                `import {BuildDatabaseOptions} from '${new URL('../../exports/DatabaseComponent.js', import.meta.url)}'`,
+                `import {buildDatabaseOptions} from '${new URL('../../exports/DatabaseComponent.js', import.meta.url)}'`,
                 ...files.map((file: string, index: number): string => `import * as migration${index} from '${pathToFileURL(path.join(project, 'migrations', file)).href}'`),
                 `const migrations = [${files.map((_file: string, index: number): string => `...Object.values(migration${index})`).join(', ')}]`,
-                `Application.run({id: 'migration.test', name: 'MigrationTest', components: {db: BuildDatabaseOptions({...${JSON.stringify(options())}, migrations: migrations})}})`
+                `Application.run({id: 'migration.test', name: 'MigrationTest', components: {db: buildDatabaseOptions({...${JSON.stringify(options())}, migrations: migrations})}})`
             ].join('\n')], {cwd: project, env: {...process.env, ...env}, encoding: 'utf8', timeout: 60000})
             return {...result, stdout: stripVTControlCharacters(result.stdout), stderr: stripVTControlCharacters(result.stderr)}
         }

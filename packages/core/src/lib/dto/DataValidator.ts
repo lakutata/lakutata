@@ -20,9 +20,9 @@ import {CustomHelpers} from '../validation/interfaces/CustomHelpers.js'
 import {FunctionSchema} from '../validation/interfaces/FunctionSchema.js'
 import {BinarySchema} from '../validation/interfaces/BinarySchema.js'
 import {As} from '@lakutata/utils/As'
-import {IsGlobString} from '@lakutata/utils/IsGlobString'
-import {IsHTML} from '@lakutata/utils/IsHTML'
-import {IsXML} from '@lakutata/utils/IsXML'
+import {isGlobString} from '@lakutata/utils/IsGlobString'
+import {isHTML} from '@lakutata/utils/IsHTML'
+import {isXML} from '@lakutata/utils/IsXML'
 import {ErrorReport} from '../validation/interfaces/ErrorReport.js'
 
 import {ReferenceOptions} from '../validation/interfaces/ReferenceOptions.js'
@@ -182,7 +182,7 @@ export class DataValidator {
      */
     public static Glob<TSchema = string>(): StringSchema<TSchema> {
         return this.String<TSchema>().custom(pure((value: TSchema, helpers: CustomHelpers) => {
-            if (typeof value === 'string' && IsGlobString(value)) return value
+            if (typeof value === 'string' && isGlobString(value)) return value
             return helpers.error('any.invalid')
 
         }), 'Glob Validation')
@@ -216,7 +216,7 @@ export class DataValidator {
      */
     public static HttpDocument<TSchema = string>(): StringSchema<TSchema> {
         return this.String<TSchema>().custom(pure((value: TSchema, helpers: CustomHelpers) => {
-            if (typeof value === 'string' && (IsHTML(value) || IsXML(value))) return value
+            if (typeof value === 'string' && (isHTML(value) || isXML(value))) return value
             return helpers.error('any.invalid')
         }), 'HttpDocument Validation')
     }

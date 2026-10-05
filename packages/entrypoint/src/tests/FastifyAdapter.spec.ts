@@ -9,7 +9,7 @@ import {Container, DTO, Exception} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
 import {
     ActionInvocation,
-    BuildEntrypoints,
+    buildEntrypoints,
     Controller,
     Entrypoint,
     MiddlewareHandler,
@@ -17,7 +17,7 @@ import {
     Result
 } from '../exports/Entrypoint.js'
 import {GET, POST} from '../exports/CTRLDecorators.js'
-import {FastifyHTTPEntrypoint, FastifyHTTPEntrypointOptions, FastifyJSONEnvelope} from '../exports/FastifyAdapter.js'
+import {fastifyHTTPEntrypoint, FastifyHTTPEntrypointOptions, fastifyJSONEnvelope} from '../exports/FastifyAdapter.js'
 
 class DeviceDTO extends DTO {
     @Expect(DTO.String().required())
@@ -98,10 +98,10 @@ class DeviceController extends Controller {
 async function Start(options: FastifyHTTPEntrypointOptions = {}, entrypointOptions: Record<string, unknown> = {}): Promise<{ url: string, container: Container }> {
     let server: Server | undefined
     const container: Container = new Container()
-    await container.set(Entrypoint, BuildEntrypoints({
+    await container.set(Entrypoint, buildEntrypoints({
         controllers: [DeviceController],
         ...entrypointOptions,
-        http: FastifyHTTPEntrypoint({
+        http: fastifyHTTPEntrypoint({
             port: 0,
             host: '127.0.0.1',
             ...options,
@@ -172,7 +172,7 @@ describe('Fastify adapter', (): void => {
                 app.get('/health', async (): Promise<unknown> => ({status: 'ok'}))
             },
             fallback: (request, reply): unknown => reply.type('text/html').send(`<page ${request.url}>`),
-            respond: FastifyJSONEnvelope({errorStatus: 200})
+            respond: fastifyJSONEnvelope({errorStatus: 200})
         })
         assert.deepStrictEqual(await (await fetch(`${url}/health`)).json(), {status: 'ok'})
         assert.strictEqual(await (await fetch(`${url}/about`)).text(), '<page /about>')
@@ -192,7 +192,7 @@ describe('Fastify adapter', (): void => {
                     if (!request.headers['x-token']) throw new UnauthorizedException('Not logged in')
                 })
             },
-            respond: FastifyJSONEnvelope({actionErrorStatus: 200})
+            respond: fastifyJSONEnvelope({actionErrorStatus: 200})
         })
         const token: RequestInit = {headers: {'x-token': 'a'}}
         const unauthorized: Response = await fetch(`${url}/device/a`)
@@ -245,15 +245,15 @@ describe('Fastify adapter', (): void => {
     it('fails to start on an occupied port', async (): Promise<void> => {
         let server: Server | undefined
         const first: Container = new Container()
-        await first.set(Entrypoint, BuildEntrypoints({
+        await first.set(Entrypoint, buildEntrypoints({
             controllers: [DeviceController],
-            http: FastifyHTTPEntrypoint({port: 0, host: '127.0.0.1', before: (app, context): void => {
+            http: fastifyHTTPEntrypoint({port: 0, host: '127.0.0.1', before: (app, context): void => {
                 server = context.server
             }})
         }))
         const port: number = (server!.address() as AddressInfo).port
         const second: Container = new Container()
-        await assert.rejects(second.set(Entrypoint, BuildEntrypoints({controllers: [DeviceController], http: FastifyHTTPEntrypoint({port: port, host: '127.0.0.1'})})), {code: 'EADDRINUSE'})
+        await assert.rejects(second.set(Entrypoint, buildEntrypoints({controllers: [DeviceController], http: fastifyHTTPEntrypoint({port: port, host: '127.0.0.1'})})), {code: 'EADDRINUSE'})
         await second.destroy()
         await first.destroy()
     })
@@ -261,9 +261,9 @@ describe('Fastify adapter', (): void => {
     it('listens on every interface by default', async (): Promise<void> => {
         let server: Server | undefined
         const container: Container = new Container()
-        await container.set(Entrypoint, BuildEntrypoints({
+        await container.set(Entrypoint, buildEntrypoints({
             controllers: [DeviceController],
-            http: FastifyHTTPEntrypoint({port: 0, before: (app, context): void => {
+            http: fastifyHTTPEntrypoint({port: 0, before: (app, context): void => {
                 server = context.server
             }})
         }))

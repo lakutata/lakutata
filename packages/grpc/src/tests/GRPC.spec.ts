@@ -6,7 +6,7 @@ import http2, {type IncomingHttpHeaders} from 'node:http2'
 import {gzipSync} from 'node:zlib'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import {Decode, Encode, FormatGRPCTimeout, GRPCConnection, GRPCError, GRPCServer, GRPCStatus, ParseGRPCTimeout, type GRPCServerCall, type Message, type Schema} from '../exports/GRPC.js'
+import {decode, encode, formatGRPCTimeout, GRPCConnection, GRPCError, GRPCServer, GRPCStatus, parseGRPCTimeout, type GRPCServerCall, type Message, type Schema} from '../exports/GRPC.js'
 import {CreateTestCertificates, OpenSSLAvailable, type TestCertificates} from './support/Certificates.js'
 
 const Text: Schema = {text: {no: 1, type: 'string'}, count: {no: 2, type: 'uint32'}}
@@ -52,19 +52,19 @@ describe('The gRPC client and server', (): void => {
     })
 
     it('encodes and decodes the messages', (): void => {
-        assert.deepStrictEqual(Decode(Text, Encode(Text, {text: 'héllo', count: 300})), {text: 'héllo', count: 300})
-        assert.deepStrictEqual(Decode(Text, Encode(Text, {text: '', count: 0})), {})
+        assert.deepStrictEqual(decode(Text, encode(Text, {text: 'héllo', count: 300})), {text: 'héllo', count: 300})
+        assert.deepStrictEqual(decode(Text, encode(Text, {text: '', count: 0})), {})
         //The 64-bit integers: numbers while safe, bigints beyond, signed or not
         const Wide: Schema = {unsigned: {no: 1, type: 'uint64'}, signed: {no: 2, type: 'int64'}, small: {no: 3, type: 'uint64'}, negative: {no: 4, type: 'int64'}}
-        assert.deepStrictEqual(Decode(Wide, Encode(Wide, {unsigned: 2n ** 64n - 1n, signed: -(2n ** 62n), small: 42, negative: -1})), {unsigned: 2n ** 64n - 1n, signed: -(2n ** 62n), small: 42, negative: -1})
+        assert.deepStrictEqual(decode(Wide, encode(Wide, {unsigned: 2n ** 64n - 1n, signed: -(2n ** 62n), small: 42, negative: -1})), {unsigned: 2n ** 64n - 1n, signed: -(2n ** 62n), small: 42, negative: -1})
         //A map value equal to its default: the default of its type
         const Flags: Schema = {flags: {no: 1, type: 'bool', map: true}, blobs: {no: 2, type: 'bytes', map: true}}
-        assert.deepStrictEqual(Decode(Flags, Encode(Flags, {flags: {on: true, off: false}, blobs: {empty: Buffer.alloc(0)}})), {flags: {on: true, off: false}, blobs: {empty: Buffer.alloc(0)}})
+        assert.deepStrictEqual(decode(Flags, encode(Flags, {flags: {on: true, off: false}, blobs: {empty: Buffer.alloc(0)}})), {flags: {on: true, off: false}, blobs: {empty: Buffer.alloc(0)}})
         //The timeouts in the largest unit fitting 8 digits
-        assert.strictEqual(FormatGRPCTimeout(1500), '1500m')
-        assert.strictEqual(FormatGRPCTimeout(30 * 24 * 3600 * 1000), '2592000S')
-        assert.strictEqual(FormatGRPCTimeout(10 * 365 * 24 * 3600 * 1000), '5256000M')
-        assert.strictEqual(ParseGRPCTimeout(FormatGRPCTimeout(10 * 365 * 24 * 3600 * 1000)), 10 * 365 * 24 * 3600 * 1000)
+        assert.strictEqual(formatGRPCTimeout(1500), '1500m')
+        assert.strictEqual(formatGRPCTimeout(30 * 24 * 3600 * 1000), '2592000S')
+        assert.strictEqual(formatGRPCTimeout(10 * 365 * 24 * 3600 * 1000), '5256000M')
+        assert.strictEqual(parseGRPCTimeout(formatGRPCTimeout(10 * 365 * 24 * 3600 * 1000)), 10 * 365 * 24 * 3600 * 1000)
     })
 
     it('takes the addresses of host:port, refuses TLS over the unix sockets', async (): Promise<void> => {
@@ -205,7 +205,7 @@ describe('The gRPC client and server', (): void => {
                     client.close()
                 }
             }
-            const encoded: Buffer = Buffer.from(Encode(Text, {text: 'raw'}))
+            const encoded: Buffer = Buffer.from(encode(Text, {text: 'raw'}))
             const plainFrame: Buffer = Buffer.concat([Buffer.from([0, 0, 0, 0, encoded.length]), encoded])
             const accepting = await raw({'grpc-accept-encoding': 'identity,gzip'}, plainFrame)
             assert.strictEqual(accepting.headers['grpc-encoding'], 'gzip')

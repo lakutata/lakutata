@@ -10,15 +10,15 @@
  * `value` is a function with a `prototype`.
  * @example
  * ```typescript
- * import {IsSubclassOf} from 'lakutata/utils'
+ * import {isSubclassOf} from 'lakutata/utils'
  *
  * class Animal {}
  * class Dog extends Animal {}
  *
- * console.log(IsSubclassOf(Dog, Animal), IsSubclassOf(Animal, Animal), IsSubclassOf(new Dog(), Animal))
+ * console.log(isSubclassOf(Dog, Animal), isSubclassOf(Animal, Animal), isSubclassOf(new Dog(), Animal))
  * //true false false
  * ```
  */
-export function IsSubclassOf(value: unknown, base: Function): boolean {
+export function isSubclassOf(value: unknown, base: Function): boolean {
     return typeof value === 'function' && !!value.prototype && value.prototype instanceof base
 }

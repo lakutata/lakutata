@@ -184,15 +184,15 @@ function CloneValue(value: unknown, seen: Map<unknown, unknown>): unknown {
  * @returns The clone, of the value's type.
  * @example
  * ```typescript
- * import {CloneDeep} from 'lakutata/utils'
+ * import {cloneDeep} from 'lakutata/utils'
  *
  * const settings: {retries: number, hosts: string[]} = {retries: 3, hosts: ['a', 'b']}
- * const copy: {retries: number, hosts: string[]} = CloneDeep(settings)
+ * const copy: {retries: number, hosts: string[]} = cloneDeep(settings)
  * copy.hosts.push('c')
  * console.log(settings.hosts, copy.hosts)
  * //['a', 'b'] ['a', 'b', 'c']
  * ```
  */
-export function CloneDeep<T>(value: T): T {
+export function cloneDeep<T>(value: T): T {
     return CloneValue(value, new Map()) as T
 }

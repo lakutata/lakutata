@@ -1,5 +1,5 @@
 import type {Controller} from '@lakutata/entrypoint'
-import {SetPrefix} from '@lakutata/entrypoint/channel'
+import {setPrefix} from '@lakutata/entrypoint/channel'
 import {type DBusPropertyDefinition, type DBusSignalDefinition, SetDBusInterfaceDeclaration} from '../lib/Declarations.js'
 
 /**
@@ -15,13 +15,13 @@ export type DBusInterfaceOptions = {
      */
     path: string
     /**
-     * The signals of the interface, declared with {@link DefineDBusSignal} and emitted with
+     * The signals of the interface, declared with {@link defineDBusSignal} and emitted with
      * {@link DBusObjectManager.emitSignal}.
      * @default []
      */
     signals?: DBusSignalDefinition<any>[]
     /**
-     * The properties of the interface, declared with {@link DefineDBusProperty} and set with
+     * The properties of the interface, declared with {@link defineDBusProperty} and set with
      * {@link DBusObjectManager.setPropertyValue}.
      * @default []
      */
@@ -33,7 +33,7 @@ export type DBusInterfaceOptions = {
  * properties of the options are its other members, on the objects at `options.path`. The controllers declaring the same
  * path are served by the same objects, each one interface; a subclass inherits the declaration of its parent class.
  * The objects also implement `org.freedesktop.DBus.Properties`, `Introspectable` and `Peer`, and the root object `/`
- * implements `ObjectManager`. Nothing is served until a {@link DBusEntrypoint} runs.
+ * implements `ObjectManager`. Nothing is served until a {@link dbusEntrypoint} runs.
  * @param name The name of the interface (`'com.example.Device'`): two or more elements separated by dots, made of
  * letters, digits and `_`, not starting with a digit; 255 characters at most.
  * @param options The object path (or template) of the interface, its signals and its properties.
@@ -44,7 +44,7 @@ export type DBusInterfaceOptions = {
  * import {DTO} from 'lakutata'
  * import {Controller} from 'lakutata/com/entrypoint'
  * import {Expect, Return} from 'lakutata/decorator/dto'
- * import {DBusInterface, DBusMethod, DefineDBusProperty, DefineDBusSignal} from '@lakutata/dbus'
+ * import {DBusInterface, DBusMethod, defineDBusProperty, defineDBusSignal} from '@lakutata/dbus'
  *
  * class DeviceSnDTO extends DTO {
  *     @Expect(DTO.String().required())
@@ -59,8 +59,8 @@ export type DBusInterfaceOptions = {
  *     public online: boolean
  * }
  *
- * export const DeviceChanged = DefineDBusSignal('Changed', StatusDTO)
- * export const DeviceState = DefineDBusProperty<string>('State', 's', {initial: 'idle'})
+ * export const DeviceChanged = defineDBusSignal('Changed', StatusDTO)
+ * export const DeviceState = defineDBusProperty<string>('State', 's', {initial: 'idle'})
  *
  * //Served by the objects /com/example/Devices/A1, /com/example/Devices/B2… added with DBusObjectManager
  * @DBusInterface('com.example.Device', {path: '/com/example/Devices/{sn}', signals: [DeviceChanged], properties: [DeviceState]})
@@ -83,6 +83,6 @@ export function DBusInterface<ClassConstructor extends typeof Controller>(name: 
             properties: options.properties ?? []
         })
         //The methods of the controller are addressed at its interface and its path
-        SetPrefix(target, {dbus: {path: options.path, interface: name}})
+        setPrefix(target, {dbus: {path: options.path, interface: name}})
     }
 }

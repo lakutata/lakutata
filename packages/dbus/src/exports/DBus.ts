@@ -5,17 +5,17 @@ export {type DBusContextParams} from '../types/DBusContextParams.js'
 export {DBusInterface, type DBusInterfaceOptions} from '../decorators/DBusInterface.js'
 export {DBusMethod, type DBusMethodOptions} from '../decorators/DBusMethod.js'
 export {
-    DefineDBusSignal,
-    DefineDBusProperty,
+    defineDBusSignal,
+    defineDBusProperty,
     type DBusSignalDefinition,
     type DBusPropertyDefinition,
     type DBusPropertyOptions,
     type DBusInterfaceDeclaration
 } from '../lib/Declarations.js'
-export {DBusEntrypoint, type DBusEntrypointOptions} from '../adapters/DBusEntrypoint.js'
+export {dbusEntrypoint, type DBusEntrypointOptions} from '../adapters/DBusEntrypoint.js'
 export {DBusObjectManager, type DBusPropertyWrite} from '../components/DBusObjectManager.js'
 //The DBus client
-export {DBusClientComponent, BuildDBusClientOptions, buildDBusClientOptions} from '../components/DBusClientComponent.js'
+export {DBusClientComponent, buildDBusClientOptions} from '../components/DBusClientComponent.js'
 export type {DBusClientOptions} from '../lib/DBusClientOptions.js'
 //The DBus SDK
 export {

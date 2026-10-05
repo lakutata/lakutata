@@ -33,7 +33,7 @@ function SplitOptions(options: MCPPromptOptions): [MCPMetadata, ActionOptions<MC
  * through the entrypoint's middlewares, the DTO validation and the access control. The prompt's name is prefixed by
  * its controller's `@Prefix({mcp})`, joined with `_`, as the tools.
  *
- * The result is converted by {@link ToPromptResult}: a string is a message of the user, an array the messages (strings
+ * The result is converted by {@link toPromptResult}: a string is a message of the user, an array the messages (strings
  * for the user, or `{role, content}`), a `GetPromptResult` is sent as it is. An error thrown by the action is a
  * protocol error: "invalid parameters" for the client errors (a `statusCode` from 400 to 499), an internal error
  * otherwise.

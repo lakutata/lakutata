@@ -19,14 +19,14 @@ function htmlEscape(strings: string | TemplateStringsArray, ...values: any[]): s
 }
 
 /**
- * Thrown by `Templating` when a placeholder has no value (its value is `undefined`) and `ignoreMissing` is off. Its
+ * Thrown by `templating` when a placeholder has no value (its value is `undefined`) and `ignoreMissing` is off. Its
  * `name` is `'MissingValueError'`.
  * @example
  * ```typescript
- * import {MissingValueError, Templating} from 'lakutata/utils'
+ * import {MissingValueError, templating} from 'lakutata/utils'
  *
  * try {
- *     Templating('Hello {user.name}', {user: {}})
+ *     templating('Hello {user.name}', {user: {}})
  * } catch (error) {
  *     if (error instanceof MissingValueError) console.log(error.key, '|', error.message)
  *     //user.name | Missing a value for the placeholder: user.name
@@ -47,7 +47,7 @@ export class MissingValueError extends Error {
 }
 
 /**
- * The options of `Templating`.
+ * The options of `templating`.
  */
 export interface TemplatingOptions {
     /**
@@ -79,17 +79,17 @@ export interface TemplatingOptions {
  * @throws {MissingValueError} When a placeholder has no value and `ignoreMissing` is off.
  * @example
  * ```typescript
- * import {Templating} from 'lakutata/utils'
+ * import {templating} from 'lakutata/utils'
  *
- * console.log(Templating('Hello {user.name}, you have {count} messages', {user: {name: 'Ada'}, count: 3}))
+ * console.log(templating('Hello {user.name}, you have {count} messages', {user: {name: 'Ada'}, count: 3}))
  * //Hello Ada, you have 3 messages
- * console.log(Templating('<p>{{comment}}</p>', {comment: '<b>hi</b>'}))
+ * console.log(templating('<p>{{comment}}</p>', {comment: '<b>hi</b>'}))
  * //<p>&lt;b&gt;hi&lt;/b&gt;</p>
- * console.log(Templating('{0} and {1}, {missing}', ['tea', 'cake'], {ignoreMissing: true}))
+ * console.log(templating('{0} and {1}, {missing}', ['tea', 'cake'], {ignoreMissing: true}))
  * //tea and cake, {missing}
  * ```
  */
-export function Templating(template: string, data: object | any[], {
+export function templating(template: string, data: object | any[], {
     ignoreMissing = false,
     transform = ({value}) => value
 }: TemplatingOptions = {}) {

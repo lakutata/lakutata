@@ -11,13 +11,13 @@ import {LoadObjectOptions} from '../../options/LoadObjectOptions.js'
 import {As} from '@lakutata/utils/As'
 import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
 import {DefineObjectType, ObjectType} from '../base/internal/ObjectType.js'
-import {NonceString} from '@lakutata/utils/NonceString'
+import {nonceString} from '@lakutata/utils/NonceString'
 import {CheckObjectOptions} from '../base/internal/ObjectOptionsCheck.js'
 import {CurrentMode} from '../foundation/BasicInfo.js'
 import {MODULE_INITIALIZATION} from '../base/internal/ModuleInitialization.js'
 
-export const MODULE_INITIALIZED: string = `_$.MODULE.INITIALIZED_${NonceString()}`
-export const MODULE_INITIALIZE_ERROR: string = `_$.MODULE.INITIALIZE_ERROR_${NonceString()}`
+export const MODULE_INITIALIZED: string = `_$.MODULE.INITIALIZED_${nonceString()}`
+export const MODULE_INITIALIZE_ERROR: string = `_$.MODULE.INITIALIZE_ERROR_${nonceString()}`
 
 /**
  * The initialization of a module and its settlement

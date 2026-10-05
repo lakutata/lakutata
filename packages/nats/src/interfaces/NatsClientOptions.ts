@@ -1,7 +1,7 @@
 import {Codec} from 'nats'
 
 /**
- * The options of the {@link NATS} component, given to {@link BuildNatsClientOptions}. They are validated when the
+ * The options of the {@link NATS} component, given to {@link buildNatsClientOptions}. They are validated when the
  * component is created: an invalid value fails it.
  */
 export interface NatsClientOptions {
@@ -11,9 +11,9 @@ export interface NatsClientOptions {
      */
     servers: string | string[]
     /**
-     * The codec encoding and decoding every payload: {@link MessagePackCodec}, {@link JSONCodec}, or any object with
+     * The codec encoding and decoding every payload: {@link messagePackCodec}, {@link jsonCodec}, or any object with
      * `encode(value)` and `decode(bytes)`. All the applications exchanging messages on a subject must use the same one.
-     * @default MessagePackCodec()
+     * @default messagePackCodec()
      */
     codec?: Codec<unknown>
     /**

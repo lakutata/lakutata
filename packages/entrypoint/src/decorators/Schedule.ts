@@ -1,11 +1,11 @@
 import {Controller, type ControllerProperty} from '../lib/Controller.js'
 import {MethodDecorator} from '@lakutata/core'
-import {RegisterControllerAction} from '../lib/ControllerEntrypoint.js'
+import {registerControllerAction} from '../lib/ControllerEntrypoint.js'
 import {ActionOptions} from '../lib/ActionOptions.js'
-import {GetActionDTOAndOptions} from '../lib/GetActionDTOAndOptions.js'
+import {getActionDTOAndOptions} from '../lib/GetActionDTOAndOptions.js'
 import {ScheduleContext} from '../context/ScheduleContext.js'
 import {ScheduleChannel} from '../channel/BuiltinChannels.js'
-import {Cron, ParseDuration} from '../lib/schedule/Cron.js'
+import {Cron, parseDuration} from '../lib/schedule/Cron.js'
 
 /**
  * When a scheduled action runs (`@Schedule`): every interval (`every`) or at the times of a cron expression (`cron`),
@@ -69,7 +69,7 @@ function ScheduleAddress(schedule: string | ScheduleOptions): Record<string, str
         //A text is an interval ("30s") when it is one, a cron expression otherwise
         let every: number | undefined
         try {
-            every = ParseDuration(schedule)
+            every = parseDuration(schedule)
         } catch {
             every = undefined
         }
@@ -79,7 +79,7 @@ function ScheduleAddress(schedule: string | ScheduleOptions): Record<string, str
     }
     const address: Record<string, string | number | boolean> = {}
     if (options.every !== undefined) {
-        address.every = ParseDuration(options.every)
+        address.every = parseDuration(options.every)
         address.schedule = `every ${typeof options.every === 'number' ? `${options.every}ms` : options.every}`
     } else if (options.cron !== undefined) {
         //The expression is checked now, not at the first run
@@ -101,7 +101,7 @@ function ScheduleAddress(schedule: string | ScheduleOptions): Record<string, str
 }
 
 /**
- * Run the controller method on a schedule, when the entrypoint has a schedule adapter (`schedule: ScheduleEntrypoint()`
+ * Run the controller method on a schedule, when the entrypoint has a schedule adapter (`schedule: scheduleEntrypoint()`
  * of `lakutata/com/entrypoint`). The runs start once the application launched and the runs in progress end before it
  * stops. Each run has its own request scope and goes through the middlewares and the access control like a request; the
  * method receives an empty input, and `this.context` is a `ScheduleContext` (its schedule, its planned time and its run
@@ -115,7 +115,7 @@ function ScheduleAddress(schedule: string | ScheduleOptions): Record<string, str
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildEntrypoints, Controller, ScheduleContext, ScheduleEntrypoint} from 'lakutata/com/entrypoint'
+ * import {buildEntrypoints, Controller, ScheduleContext, scheduleEntrypoint} from 'lakutata/com/entrypoint'
  * import {Schedule} from 'lakutata/decorator/ctrl'
  *
  * class JobController extends Controller {
@@ -140,9 +140,9 @@ function ScheduleAddress(schedule: string | ScheduleOptions): Record<string, str
  *     id: 'jobs.app',
  *     name: 'Jobs',
  *     components: {
- *         entrypoint: BuildEntrypoints({
+ *         entrypoint: buildEntrypoints({
  *             controllers: [JobController],
- *             schedule: ScheduleEntrypoint({onError: (error: unknown): void => console.error(error)})
+ *             schedule: scheduleEntrypoint({onError: (error: unknown): void => console.error(error)})
  *         })
  *     },
  *     bootstrap: ['entrypoint']
@@ -152,7 +152,7 @@ function ScheduleAddress(schedule: string | ScheduleOptions): Record<string, str
 export function Schedule<ClassPrototype extends Controller, Method>(schedule: string | ScheduleOptions): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
 /**
  * Run the controller method on a schedule, with action options, when the entrypoint has a schedule adapter
- * (`schedule: ScheduleEntrypoint()`). Each run has its own request scope and goes through the middlewares and the access
+ * (`schedule: scheduleEntrypoint()`). Each run has its own request scope and goes through the middlewares and the access
  * control like a request; the method receives an empty input and `this.context` is a `ScheduleContext`. An error thrown
  * is given to the adapter's `onError`, or logged, and the next runs go on.
  * @param schedule A duration text (`'30s'`, `'1h30m'`) for an interval, any other text for a cron expression
@@ -169,8 +169,8 @@ export function Schedule<ClassPrototype extends Controller, Method>(schedule: st
 export function Schedule<ClassPrototype extends Controller, Method>(schedule: string | ScheduleOptions, actionOptions: ActionOptions<ScheduleContext>): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>>
 export function Schedule<ClassPrototype extends Controller, Method>(schedule: string | ScheduleOptions, actionOptions?: ActionOptions<ScheduleContext>): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>> {
     return (target: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>, descriptor: TypedPropertyDescriptor<Method>): TypedPropertyDescriptor<Method> => {
-        const [dtoConstructor, options] = GetActionDTOAndOptions(actionOptions ?? {})
-        RegisterControllerAction(ScheduleChannel, target, propertyKey, ScheduleAddress(schedule), dtoConstructor, options)
+        const [dtoConstructor, options] = getActionDTOAndOptions(actionOptions ?? {})
+        registerControllerAction(ScheduleChannel, target, propertyKey, ScheduleAddress(schedule), dtoConstructor, options)
         return descriptor
     }
 }

@@ -11,13 +11,13 @@
  * `number`.
  * @example
  * ```typescript
- * import {HexToSigned} from 'lakutata/utils'
+ * import {hexToSigned} from 'lakutata/utils'
  *
- * console.log(HexToSigned('7F'), HexToSigned('80'), HexToSigned('FFFF'), HexToSigned('00FF'), HexToSigned('0x00FF'))
+ * console.log(hexToSigned('7F'), hexToSigned('80'), hexToSigned('FFFF'), hexToSigned('00FF'), hexToSigned('0x00FF'))
  * //127 -128 -1 255 255
  * ```
  */
-export function HexToSigned(hex: string): number {
+export function hexToSigned(hex: string): number {
     const digits: string = hex.startsWith('0x') || hex.startsWith('0X') ? hex.slice(2) : hex
     if (!/^[0-9a-fA-F]+$/.test(digits)) throw new SyntaxError(`Invalid hexadecimal string: "${hex}"`)
     const signedNumber: bigint = BigInt.asIntN(digits.length * 4, BigInt(`0x${digits}`))

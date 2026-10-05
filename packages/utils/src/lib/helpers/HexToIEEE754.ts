@@ -10,13 +10,13 @@ import {readIEEE754} from './internal/IEEE754.js'
  * @throws {RangeError} When `hex` does not have 8 or 16 digits.
  * @example
  * ```typescript
- * import {HexToIEEE754} from 'lakutata/utils'
+ * import {hexToIEEE754} from 'lakutata/utils'
  *
- * console.log(HexToIEEE754('3F800000'), HexToIEEE754('40490FDB'), HexToIEEE754('0x3FF0000000000000'))
+ * console.log(hexToIEEE754('3F800000'), hexToIEEE754('40490FDB'), hexToIEEE754('0x3FF0000000000000'))
  * //1 3.1415927410125732 1
  * ```
  */
-export function HexToIEEE754(hex: string): number {
+export function hexToIEEE754(hex: string): number {
     const digits: string = hex.startsWith('0x') || hex.startsWith('0X') ? hex.slice(2) : hex
     if (!/^[0-9a-fA-F]*$/.test(digits)) throw new SyntaxError(`Invalid hexadecimal string: "${hex}"`)
     if (digits.length !== 8 && digits.length !== 16) throw new RangeError(`An IEEE 754 number has 8 or 16 hexadecimal digits, "${hex}" has ${digits.length}`)

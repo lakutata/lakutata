@@ -3,7 +3,7 @@ import {
     DI_TARGET_CONSTRUCTOR_AUTOLOAD,
     DI_TARGET_CONSTRUCTOR_INJECTS
 } from '../../../constants/DIMetadataKey.js'
-import {ObjectConstructor} from '@lakutata/utils/ObjectConstructor'
+import {objectConstructor} from '@lakutata/utils/ObjectConstructor'
 import {MergedDeclarations, OwnDeclarations, REMOVED} from './MemberDeclarations.js'
 import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
 
@@ -27,7 +27,7 @@ export type ObjectInjectionMap = Map<string | symbol, {
  * @constructor
  */
 export function SetObjectInjectItem<ClassPrototype extends BaseObject>(target: ClassPrototype, propertyKey: string | symbol, name: string | symbol | Function, transform: InjectionTransformFunction): void {
-    OwnDeclarations(DI_TARGET_CONSTRUCTOR_INJECTS, ObjectConstructor(target)).set(propertyKey, {
+    OwnDeclarations(DI_TARGET_CONSTRUCTOR_INJECTS, objectConstructor(target)).set(propertyKey, {
         name: name,
         transform: transform
     })
@@ -40,7 +40,7 @@ export function SetObjectInjectItem<ClassPrototype extends BaseObject>(target: C
  * @constructor
  */
 export function RemoveObjectInjectItem<ClassPrototype extends BaseObject>(target: ClassPrototype, propertyKey: string | symbol): void {
-    OwnDeclarations(DI_TARGET_CONSTRUCTOR_INJECTS, ObjectConstructor(target)).set(propertyKey, REMOVED)
+    OwnDeclarations(DI_TARGET_CONSTRUCTOR_INJECTS, objectConstructor(target)).set(propertyKey, REMOVED)
 }
 
 /**
@@ -50,7 +50,7 @@ export function RemoveObjectInjectItem<ClassPrototype extends BaseObject>(target
  * @constructor
  */
 export function GetObjectInjectItemsByPrototype<ClassPrototype extends BaseObject>(target: ClassPrototype): ObjectInjectionMap {
-    return MergedDeclarations(DI_TARGET_CONSTRUCTOR_INJECTS, ObjectConstructor(target))
+    return MergedDeclarations(DI_TARGET_CONSTRUCTOR_INJECTS, objectConstructor(target))
 }
 
 /**

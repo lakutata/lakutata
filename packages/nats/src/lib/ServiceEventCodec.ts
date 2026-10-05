@@ -1,4 +1,4 @@
-import {MD5} from '@lakutata/utils'
+import {md5} from '@lakutata/utils'
 import * as querystring from 'node:querystring'
 
 export interface ServiceEventData {
@@ -7,7 +7,7 @@ export interface ServiceEventData {
 
 export class ServiceEventCodec {
     protected static hashEventName(serviceId: string, eventName: string): string {
-        return MD5(querystring.encode({
+        return md5(querystring.encode({
             serviceId: serviceId,
             eventName: eventName
         })).toString('hex')

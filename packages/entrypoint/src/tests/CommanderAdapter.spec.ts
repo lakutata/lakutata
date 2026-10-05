@@ -3,9 +3,9 @@ import assert from 'node:assert'
 import {PassThrough, Readable} from 'node:stream'
 import {Container, DTO, Exception} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
-import {BuildEntrypoints, Controller, Entrypoint, Result} from '../exports/Entrypoint.js'
+import {buildEntrypoints, Controller, Entrypoint, Result} from '../exports/Entrypoint.js'
 import {CLIAction, Prefix} from '../exports/CTRLDecorators.js'
-import {CommanderCLIEntrypoint, CommanderCLIEntrypointOptions, type CLIText} from '../exports/CommanderAdapter.js'
+import {commanderCLIEntrypoint, CommanderCLIEntrypointOptions, type CLIText} from '../exports/CommanderAdapter.js'
 
 class DeviceDTO extends DTO {
     @Expect(DTO.String().required().description('The serial number'))
@@ -222,9 +222,9 @@ async function Run(argv: string[], options: CommanderCLIEntrypointOptions = {}, 
         exited = resolve
     })
     const container: Container = new Container()
-    await container.set(Entrypoint, BuildEntrypoints({
+    await container.set(Entrypoint, buildEntrypoints({
         controllers: [DeviceController, ToolController],
-        cli: CommanderCLIEntrypoint({bin: 'tool', version: '1.2.3', interactive: false, ...options, argv: argv, stdout: stdout, stderr: stderr, exit: (value: number): void => exited(value)})
+        cli: commanderCLIEntrypoint({bin: 'tool', version: '1.2.3', interactive: false, ...options, argv: argv, stdout: stdout, stderr: stderr, exit: (value: number): void => exited(value)})
     }))
     const result: number | undefined = await Promise.race([code, new Promise<undefined>((resolve: (value?: undefined) => void): unknown => setTimeout(resolve, wait))])
     await container.destroy()
@@ -302,9 +302,9 @@ describe('Commander adapter', (): void => {
             const stdout = Collector()
             let code: number | undefined
             const container: Container = new Container()
-            await container.set(Entrypoint, BuildEntrypoints({
+            await container.set(Entrypoint, buildEntrypoints({
                 controllers: [PackController],
-                cli: CommanderCLIEntrypoint({bin: 'tool', interactive: false, groups: {'pack': 'Pack the application', 'pack linux': 'Pack it for Linux'}, translate: translate, argv: argv, stdout: stdout, stderr: stdout, exit: (value: number): void => {
+                cli: commanderCLIEntrypoint({bin: 'tool', interactive: false, groups: {'pack': 'Pack the application', 'pack linux': 'Pack it for Linux'}, translate: translate, argv: argv, stdout: stdout, stderr: stdout, exit: (value: number): void => {
                     code = value
                 }})
             }))
@@ -368,9 +368,9 @@ describe('Commander adapter', (): void => {
         const run = async (argv: string[]): Promise<string> => {
             const stdout = Collector()
             const container: Container = new Container()
-            await container.set(Entrypoint, BuildEntrypoints({
+            await container.set(Entrypoint, buildEntrypoints({
                 controllers: [GreetController],
-                cli: CommanderCLIEntrypoint({bin: 'tool', version: '1.2.3', description: 'A sample tool', interactive: false, translate: translate, argv: argv, stdout: stdout, stderr: stdout, exit: (): undefined => undefined})
+                cli: commanderCLIEntrypoint({bin: 'tool', version: '1.2.3', description: 'A sample tool', interactive: false, translate: translate, argv: argv, stdout: stdout, stderr: stdout, exit: (): undefined => undefined})
             }))
             await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 300))
             await container.destroy()
@@ -388,7 +388,7 @@ describe('Commander adapter', (): void => {
         const english: string = await (async (): Promise<string> => {
             const stdout = Collector()
             const container: Container = new Container()
-            await container.set(Entrypoint, BuildEntrypoints({controllers: [GreetController], cli: CommanderCLIEntrypoint({bin: 'tool', interactive: false, argv: ['greet', '--help'], stdout: stdout, stderr: stdout, exit: (): undefined => undefined})}))
+            await container.set(Entrypoint, buildEntrypoints({controllers: [GreetController], cli: commanderCLIEntrypoint({bin: 'tool', interactive: false, argv: ['greet', '--help'], stdout: stdout, stderr: stdout, exit: (): undefined => undefined})}))
             await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 300))
             await container.destroy()
             return stdout.text()
@@ -408,9 +408,9 @@ describe('Commander adapter', (): void => {
             exited = resolve
         })
         const container: Container = new Container()
-        await container.set(Entrypoint, BuildEntrypoints({
+        await container.set(Entrypoint, buildEntrypoints({
             controllers: [GreetController],
-            cli: CommanderCLIEntrypoint({argv: ['greet', 'Ada'], interactive: true, translate: () => (text: CLIText): string => CHINESE[text.key] ?? text.text, stdin: stdin, stdout: stdout, stderr: process.stderr, exit: (value: number): void => exited(value)})
+            cli: commanderCLIEntrypoint({argv: ['greet', 'Ada'], interactive: true, translate: () => (text: CLIText): string => CHINESE[text.key] ?? text.text, stdin: stdin, stdout: stdout, stderr: process.stderr, exit: (value: number): void => exited(value)})
         }))
         await typing
         const result: number | undefined = await Promise.race([code, new Promise<undefined>((resolve: (value?: undefined) => void): unknown => setTimeout(resolve, 1000))])
@@ -435,9 +435,9 @@ describe('Commander adapter', (): void => {
             exited = resolve
         })
         const container: Container = new Container()
-        await container.set(Entrypoint, BuildEntrypoints({
+        await container.set(Entrypoint, buildEntrypoints({
             controllers: [ToolController],
-            cli: CommanderCLIEntrypoint({argv: ['login'], interactive: true, stdin: stdin, stdout: stdout, stderr: process.stderr, exit: (value: number): void => exited(value)})
+            cli: commanderCLIEntrypoint({argv: ['login'], interactive: true, stdin: stdin, stdout: stdout, stderr: process.stderr, exit: (value: number): void => exited(value)})
         }))
         await typing
         const result: number | undefined = await Promise.race([code, new Promise<undefined>((resolve: (value?: undefined) => void): unknown => setTimeout(resolve, 1000))])

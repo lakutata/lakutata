@@ -22,14 +22,14 @@ npm install lakutata @lakutata/dbus
 
 ### A D-Bus service
 
-`DBusEntrypoint` is the `dbus` adapter of the entrypoint. A controller declared with `@DBusInterface` serves an
+`dbusEntrypoint` is the `dbus` adapter of the entrypoint. A controller declared with `@DBusInterface` serves an
 interface at an object path; its `@DBusMethod` actions are the interface's methods.
 
 ```typescript
 import {Application, DTO} from 'lakutata'
-import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
 import {Expect, Return} from 'lakutata/decorator/dto'
-import {DBusEntrypoint, DBusInterface, DBusMethod} from '@lakutata/dbus'
+import {dbusEntrypoint, DBusInterface, DBusMethod} from '@lakutata/dbus'
 
 class ConfigureDTO extends DTO {
     @Expect(DTO.String().required())
@@ -60,9 +60,9 @@ Application.run(() => ({
     id: 'devices.app',
     name: 'Devices',
     components: {
-        entrypoint: BuildEntrypoints({
+        entrypoint: buildEntrypoints({
             controllers: [ManagerController],
-            dbus: DBusEntrypoint({bus: 'session', service: 'com.example.DeviceService'})
+            dbus: dbusEntrypoint({bus: 'session', service: 'com.example.DeviceService'})
         })
     },
     bootstrap: ['entrypoint']
@@ -86,7 +86,7 @@ Application.run(() => ({
 ### The adapter
 
 ```text
-dbus: DBusEntrypoint({bus: 'system', service: 'com.example.DeviceService', replaceExisting: true})
+dbus: dbusEntrypoint({bus: 'system', service: 'com.example.DeviceService', replaceExisting: true})
 ```
 
 - `bus`: `'session'` (default, the address in `DBUS_SESSION_BUS_ADDRESS`), `'system'` (`DBUS_SYSTEM_BUS_ADDRESS`, else
@@ -122,8 +122,8 @@ import {
     DBusInterface,
     DBusMethod,
     DBusObjectManager,
-    DefineDBusProperty,
-    DefineDBusSignal,
+    defineDBusProperty,
+    defineDBusSignal,
     type DBusPropertyWrite
 } from '@lakutata/dbus'
 
@@ -140,9 +140,9 @@ class StatusDTO extends DTO {
     public online: boolean
 }
 
-export const DeviceChanged = DefineDBusSignal<StatusDTO>('Changed', StatusDTO)
-export const DeviceState = DefineDBusProperty<string>('State', 's', {initial: 'idle'})
-export const DeviceLevel = DefineDBusProperty<number>('Level', 'i', {writable: true, initial: 1, schema: DTO.Number().integer().min(0).max(10)})
+export const DeviceChanged = defineDBusSignal<StatusDTO>('Changed', StatusDTO)
+export const DeviceState = defineDBusProperty<string>('State', 's', {initial: 'idle'})
+export const DeviceLevel = defineDBusProperty<number>('Level', 'i', {writable: true, initial: 1, schema: DTO.Number().integer().min(0).max(10)})
 
 @DBusInterface('com.example.Device', {path: '/com/example/Devices/{sn}', signals: [DeviceChanged], properties: [DeviceState, DeviceLevel]})
 export class DeviceController extends Controller {
@@ -222,25 +222,25 @@ Application
     })
 ```
 
-`BuildDBusClientOptions(options)` builds the same declaration from typed options:
-`dbus: BuildDBusClientOptions({busAddress: 'unix:path=/var/run/dbus/system_bus_socket'})`.
+`buildDBusClientOptions(options)` builds the same declaration from typed options:
+`dbus: buildDBusClientOptions({busAddress: 'unix:path=/var/run/dbus/system_bus_socket'})`.
 
 ## API
 
 | Export | What it is |
 |---|---|
-| `DBusEntrypoint`, `DBusEntrypointOptions` | The adapter of the entrypoint (its `dbus` option): the bus, the service name |
+| `dbusEntrypoint`, `DBusEntrypointOptions` | The adapter of the entrypoint (its `dbus` option): the bus, the service name |
 | `DBusInterface`, `DBusInterfaceOptions` | Class decorator: a controller served as a D-Bus interface at an object path or path template |
 | `DBusMethod`, `DBusMethodOptions` | Method decorator: an action served as a method of the interface, the type of its result |
-| `DefineDBusSignal`, `DBusSignalDefinition` | Declares a signal, its DTO or signature |
-| `DefineDBusProperty`, `DBusPropertyDefinition`, `DBusPropertyOptions` | Declares a property: its signature, `writable`, `initial`, `schema` |
+| `defineDBusSignal`, `DBusSignalDefinition` | Declares a signal, its DTO or signature |
+| `defineDBusProperty`, `DBusPropertyDefinition`, `DBusPropertyOptions` | Declares a property: its signature, `writable`, `initial`, `schema` |
 | `DBusInterfaceDeclaration` | The declaration `@DBusInterface` records |
 | `DBusObjectManager` | The objects of the templates, the property values and the signals: `addObject`, `removeObject`, `hasObject`, `objects`, `setPropertyValue`, `getPropertyValue`, `emitSignal`; the `propertyWritten` event |
 | `DBusPropertyWrite` | A property written by a client, the argument of `propertyWritten` |
 | `DBusContext`, `DBusContextParams`, `DBUS_CONTEXT_TYPE` | The context of the method calls: `path`, `interface`, `member` |
 | `DBusChannel` | The definition of the `dbus` channel, for the custom adapters |
 | `DBusClientComponent` | The client: `invoke`, `interface`, `interfaceSignal`, `object`, `service`, `services`, `listNames`, `listServices`, `nameHasOwner`, `getNameOwner`, `addMatch`, the connection events |
-| `BuildDBusClientOptions`, `DBusClientOptions` | The client's declaration and options (`buildDBusClientOptions`, its name in 2.x, is a deprecated alias): `busAddress`, `timeout`, `callTimeout`, `decode` (`DecodeOpts` of `dbus-sdk`; the 64-bit integers are numbers by default) |
+| `buildDBusClientOptions`, `DBusClientOptions` | The client's declaration and options: `busAddress`, `timeout`, `callTimeout`, `decode` (`DecodeOpts` of `dbus-sdk`; the 64-bit integers are numbers by default) |
 | `DBus`, `DBusRemoteInterface`, `DBusObject`, `DBusService`, `LocalService`, `LocalObject`, `LocalInterface`, `DBusSignedValue`, `DBusSignalEmitter`, `Signature`, `createDBusError`, `RequestNameFlags`, `RequestNameResultCode`, `BusNameBasicInfo`, `ConnectOpts`, `DecodeOpts`, `InvokeOpts` | Re-exported from dbus-sdk 2 (`DBusRemoteInterface` is its `DBusInterface`; see its MIGRATION.md for the changes from 1.x) |
 
 The typings document each declaration with examples.
@@ -249,7 +249,7 @@ The typings document each declaration with examples.
 
 | Error | When |
 |---|---|
-| `TypeError` | An invalid interface, member or service name, or object path, when the class is declared or `DBusEntrypoint()` is called; `DBusObjectManager.addObject()` with a template; the start of the adapter, when a `@DBusMethod` belongs to a controller without `@DBusInterface` |
+| `TypeError` | An invalid interface, member or service name, or object path, when the class is declared or `dbusEntrypoint()` is called; `DBusObjectManager.addObject()` with a template; the start of the adapter, when a `@DBusMethod` belongs to a controller without `@DBusInterface` |
 | `Error` (`The DBus name … is owned by another service`) | The adapter's start, when another connection owns the service name; the entrypoint fails to start |
 | The errors of dbus-sdk (`UnknownBusAddressError`, a connection error…) | The adapter's start or the client's creation, when the bus cannot be reached; the client's calls, when a method answers a D-Bus error |
 | `InvalidValueException` (from `lakutata`) | `setPropertyValue()` or `emitSignal()` with a value its schema or DTO refuses; the client's options when it is created |

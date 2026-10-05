@@ -1,5 +1,5 @@
 import {Controller} from '../lib/Controller.js'
-import {PrefixOptions, SetPrefix} from '../lib/Prefix.js'
+import {PrefixOptions, setPrefix} from '../lib/Prefix.js'
 
 /**
  * Prefix the addresses of a controller's actions, and of the controllers extending it unless they declare their own
@@ -43,5 +43,5 @@ import {PrefixOptions, SetPrefix} from '../lib/Prefix.js'
  * ```
  */
 export function Prefix<ClassConstructor extends typeof Controller>(options: PrefixOptions): (target: ClassConstructor) => void {
-    return (target: ClassConstructor): void => SetPrefix(target, options)
+    return (target: ClassConstructor): void => setPrefix(target, options)
 }

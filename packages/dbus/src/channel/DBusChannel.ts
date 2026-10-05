@@ -1,13 +1,13 @@
 import type {ActionPattern} from '@lakutata/core'
 import {ControllerActionNotFoundException, type BaseContext, type EntrypointAdapter} from '@lakutata/entrypoint'
-import {DefineChannel, GetChannel, HasChannel, type ChannelDefinition, type ChannelEntry, type ChannelMatch, type ChannelMatcher} from '@lakutata/entrypoint/channel'
+import {defineChannel, getChannel, hasChannel, type ChannelDefinition, type ChannelEntry, type ChannelMatch, type ChannelMatcher} from '@lakutata/entrypoint/channel'
 import {DBUS_CONTEXT_TYPE, DBusContext} from '../context/DBusContext.js'
 import {CheckInterfaceName, CheckMemberName, CheckPathTemplate, CompilePathTemplate, PathTemplate} from '../lib/Names.js'
 
 declare module '@lakutata/entrypoint' {
     interface EntrypointOptions {
         /**
-         * The D-Bus adapters, built by `DBusEntrypoint()`: one, or several for several buses or service names.
+         * The D-Bus adapters, built by `dbusEntrypoint()`: one, or several for several buses or service names.
          * @default undefined (no D-Bus adapter)
          */
         dbus?: EntrypointAdapter<DBusContext> | EntrypointAdapter<DBusContext>[]
@@ -45,10 +45,10 @@ function AddressKey(interfaceName: string, member: string, path: string): string
  * The definition of the D-Bus channel of the entrypoint, named `dbus`: its actions are the methods of D-Bus interfaces,
  * addressed by `{member, interface, path}` (the method name from `@DBusMethod`, the interface and the path template from
  * `@DBusInterface`). A call matches an action by its interface, its method and its object path; a call matching none
- * fails with `ControllerActionNotFoundException`. `@DBusMethod` and {@link DBusEntrypoint} use it: an application only
+ * fails with `ControllerActionNotFoundException`. `@DBusMethod` and {@link dbusEntrypoint} use it: an application only
  * needs it to write an adapter of its own.
  */
-export const DBusChannel: ChannelDefinition = HasChannel('dbus') ? GetChannel('dbus') : DefineChannel({
+export const DBusChannel: ChannelDefinition = hasChannel('dbus') ? getChannel('dbus') : defineChannel({
     name: 'dbus',
     kind: 'request',
     contextType: DBUS_CONTEXT_TYPE,

@@ -1,9 +1,9 @@
 import type {ApplicationOptions} from 'lakutata'
-import {BuildEntrypoints} from 'lakutata/com/entrypoint'
-import {ExpressHTTPEntrypoint} from 'lakutata/adapter/express'
+import {buildEntrypoints} from 'lakutata/com/entrypoint'
+import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
 import {ExampleController} from '../controllers/ExampleController.js'
 //@if i18n
-import {BuildI18nOptions, I18nMiddleware} from 'lakutata/com/i18n'
+import {buildI18nOptions, I18nMiddleware} from 'lakutata/com/i18n'
 import en from '../locales/en.json' with {type: 'json'}
 import zhCN from '../locales/zh-CN.json' with {type: 'json'}
 //@end
@@ -20,15 +20,15 @@ export function Config(port: number = Number(process.env.PORT ?? 8080)): Applica
         components: {
             //@if i18n
             //The messages of the languages (src/locales), bundled with the code; created by the first request
-            i18n: BuildI18nOptions({messages: {'en': en, 'zh-CN': zhCN}}),
+            i18n: buildI18nOptions({messages: {'en': en, 'zh-CN': zhCN}}),
             //@end
-            entrypoint: BuildEntrypoints({
+            entrypoint: buildEntrypoints({
                 controllers: [ExampleController],
                 //@if i18n
                 //The messages in the language of each request: ?lang=, the cookie lang, Accept-Language
                 middlewares: [I18nMiddleware],
                 //@end
-                http: ExpressHTTPEntrypoint({port: port})
+                http: expressHTTPEntrypoint({port: port})
             })
         },
         bootstrap: ['entrypoint']

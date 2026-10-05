@@ -27,7 +27,7 @@ export type NativeRuntimeConfig = {
 }
 
 /**
- * The global symbol of the packed applications giving the directory of their resources (ResourcesPath of lakutata)
+ * The global symbol of the packed applications giving the directory of their resources (resourcesPath of lakutata)
  */
 export const PACKAGED: string = 'lakutata.packaged'
 
@@ -181,7 +181,7 @@ export function LakutataEnvironmentFile(nodeRequire: NodeJS.Require): void {
 }
 
 /**
- * The source given to the top of every bundle: it is packed (IsPackaged of lakutata), its resources are in a directory
+ * The source given to the top of every bundle: it is packed (isPackaged of lakutata), its resources are in a directory
  * next to it, or in the resources of a packaged Electron application (outside of its archive); its environment file is
  * loaded (LAKUTATA_ENV_FILE)
  * @param directory the directory of the resources, relative to the bundle

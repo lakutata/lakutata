@@ -1,6 +1,6 @@
 import type {DTO, MethodDecorator} from '@lakutata/core'
 import type {Controller} from '@lakutata/entrypoint'
-import {ActionOptions, GetActionDTOAndOptions, RegisterControllerAction} from '@lakutata/entrypoint/channel'
+import {ActionOptions, getActionDTOAndOptions, registerControllerAction} from '@lakutata/entrypoint/channel'
 import {DBusChannel} from '../channel/DBusChannel.js'
 import type {DBusContext} from '../context/DBusContext.js'
 import {SchemaSignature} from '../lib/Signature.js'
@@ -122,11 +122,11 @@ export function DBusMethod<ClassPrototype extends Controller, Method, DTOConstru
         const isDTO: boolean = typeof dtoConstructorOrOptions === 'function'
         const {returns, ...actionOptions} = (isDTO ? options : dtoConstructorOrOptions as DBusMethodOptions | undefined) ?? {}
         const [dtoConstructor, validatedOptions] = isDTO
-            ? GetActionDTOAndOptions(dtoConstructorOrOptions as DTOConstructor, actionOptions)
-            : GetActionDTOAndOptions(actionOptions)
+            ? getActionDTOAndOptions(dtoConstructorOrOptions as DTOConstructor, actionOptions)
+            : getActionDTOAndOptions(actionOptions)
         const pattern: Record<string, string> = {member: name}
         if (returns !== undefined) pattern.returns = typeof returns === 'string' ? returns : SchemaSignature(returns)
-        RegisterControllerAction(DBusChannel, target, propertyKey as never, pattern, dtoConstructor, validatedOptions)
+        registerControllerAction(DBusChannel, target, propertyKey as never, pattern, dtoConstructor, validatedOptions)
         return descriptor
     }
 }

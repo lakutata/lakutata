@@ -10,14 +10,14 @@ import type {MessageKey, MessageParams} from '../types/I18nMessages.js'
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildI18nOptions, type I18n, type ITranslator} from 'lakutata/com/i18n'
+ * import {buildI18nOptions, type I18n, type ITranslator} from 'lakutata/com/i18n'
  *
  * Application
  *     .run(() => ({
  *         id: 'i18n.app',
  *         name: 'I18n',
  *         components: {
- *             i18n: BuildI18nOptions({
+ *             i18n: buildI18nOptions({
  *                 messages: {
  *                     'en': {order: {count: '{count, plural, =0 {No orders} one {# order} other {# orders}}'}},
  *                     'de': {order: {count: '{count, plural, =0 {Keine Bestellungen} one {# Bestellung} other {# Bestellungen}}'}}

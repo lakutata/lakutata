@@ -4,7 +4,7 @@
  */
 
 /**
- * How `SortArray` sorts: by which properties, in which order.
+ * How `sortArray` sorts: by which properties, in which order.
  */
 export interface SortArrayOptions<Computed> {
     /**
@@ -155,24 +155,24 @@ function Sort<T>(array: T[], options: Partial<SortSettings> = {}): T[] {
  * @throws {TypeError} When sorting by a property of an item which is `null` or `undefined` (not an object).
  * @example
  * ```typescript
- * import {SortArray} from 'lakutata/utils'
+ * import {sortArray} from 'lakutata/utils'
  *
  * type Person = {name: string, age: number}
  *
  * const people: Person[] = [{name: 'Bob', age: 30}, {name: 'Ada', age: 30}, {name: 'Cy', age: 20}]
  * //The oldest first, by name among the same age
- * SortArray(people, {by: ['age', 'name'], order: ['desc', 'asc']})
+ * sortArray(people, {by: ['age', 'name'], order: ['desc', 'asc']})
  * console.log(people.map((person: Person): string => person.name))
  * //['Ada', 'Bob', 'Cy']
  * //A computed key: the length of the name
- * SortArray(people, {by: 'length', computed: {length: (person: Person): number => person.name.length}})
+ * sortArray(people, {by: 'length', computed: {length: (person: Person): number => person.name.length}})
  * console.log(people.map((person: Person): string => person.name))
  * //['Cy', 'Ada', 'Bob']
- * console.log(SortArray([3, null, 1, 2]))
+ * console.log(sortArray([3, null, 1, 2]))
  * //[1, 2, 3, null]
  * ```
  */
-export function SortArray<T = any>(array: T[], ...options: SortArrayOptions<T>[]): T[] {
+export function sortArray<T = any>(array: T[], ...options: SortArrayOptions<T>[]): T[] {
     if (options.length < 2) {
         const sortOptions: { [key: string]: any } = {order: 'asc'}
         //The options given, the defaults of the sort kept for the others
@@ -193,7 +193,7 @@ export function SortArray<T = any>(array: T[], ...options: SortArrayOptions<T>[]
         const field: string = opt.by as any
         sortsOptions.by.push(field)
         sortsOptions.order.push(field)
-        sortsOptions.customOrders[field] = SortArray(array, opt).map((value: any): any => value[field])
+        sortsOptions.customOrders[field] = sortArray(array, opt).map((value: any): any => value[field])
     })
     return Sort(array, sortsOptions)
 }

@@ -25,12 +25,12 @@ injects are scoped to the request too.
 
 ```typescript
 import {Application, DTO} from 'lakutata'
-import {BuildEntrypoints, Controller, ScheduleEntrypoint} from 'lakutata/com/entrypoint'
+import {buildEntrypoints, Controller, scheduleEntrypoint} from 'lakutata/com/entrypoint'
 import {CLIAction, GET, POST, Schedule, ServiceAction} from 'lakutata/decorator/ctrl'
 import {Expect} from 'lakutata/decorator/dto'
-import {ExpressHTTPEntrypoint} from 'lakutata/adapter/express'
-import {CommanderCLIEntrypoint} from 'lakutata/adapter/commander'
-import {SocketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
+import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
+import {commanderCLIEntrypoint} from 'lakutata/adapter/commander'
+import {socketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
 
 class GetOrderDTO extends DTO {
     //The route parameters and the query are strings: strict(false) converts them
@@ -71,12 +71,12 @@ Application.run(() => ({
     id: 'orders.app',
     name: 'Orders',
     components: {
-        entrypoint: BuildEntrypoints({
+        entrypoint: buildEntrypoints({
             controllers: [OrderController],
-            http: ExpressHTTPEntrypoint({port: 8080}),
-            cli: CommanderCLIEntrypoint(),
-            service: SocketIOServiceEntrypoint({port: 8081}),
-            schedule: ScheduleEntrypoint()
+            http: expressHTTPEntrypoint({port: 8080}),
+            cli: commanderCLIEntrypoint(),
+            service: socketIOServiceEntrypoint({port: 8081}),
+            schedule: scheduleEntrypoint()
         })
     },
     bootstrap: ['entrypoint']
@@ -134,7 +134,7 @@ Each decorator takes its address, then optionally the DTO class of the input, th
 @Schedule(schedule, options?)
 ```
 
-The method runs on a schedule when the entrypoint has a schedule adapter (`schedule: ScheduleEntrypoint()`). The
+The method runs on a schedule when the entrypoint has a schedule adapter (`schedule: scheduleEntrypoint()`). The
 schedule is a duration (`'30s'`, `'1h30m'`, an interval), a cron expression (`'0 */5 * * * *'`, 5 or 6 fields, or a
 macro such as `'@daily'`), or the options `{every}` or `{cron, timezone}` with:
 
@@ -145,7 +145,7 @@ macro such as `'@daily'`), or the options `{every}` or `{cron, timezone}` with:
 
 Each run has its own scope and goes through the middlewares and the access control; the method receives an empty
 input, `this.context` is a `ScheduleContext` (its `schedule`, its planned time, its `run` number). An error thrown is
-given to the `onError` option of `ScheduleEntrypoint`, or logged, and the next runs go on.
+given to the `onError` option of `scheduleEntrypoint`, or logged, and the next runs go on.
 
 ```typescript
 import {Controller, ScheduleContext} from 'lakutata/com/entrypoint'
@@ -197,7 +197,7 @@ class UserController extends Controller {
 ## 3. Middlewares and access control
 
 A middleware runs around an action, before its input validation and its access control: a function
-`(invocation, next) => Promise<unknown>` or a `Middleware` class. They are given to `BuildEntrypoints({middlewares})`
+`(invocation, next) => Promise<unknown>` or a `Middleware` class. They are given to `buildEntrypoints({middlewares})`
 (every action), to an adapter's `middlewares` option, to `@UseMiddlewares(...)` on a controller class or a method, and to
 the `middlewares` action option.
 
@@ -223,7 +223,7 @@ class HealthController extends Controller {
 }
 ```
 
-An action declared with `{acl: true}` is checked by the rules given to `BuildEntrypoints({rules})`: `AccessControlRule`
+An action declared with `{acl: true}` is checked by the rules given to `buildEntrypoints({rules})`: `AccessControlRule`
 subclasses, created for each request, whose `rule()` resolving `false` denies it with an `AccessDeniedException` (HTTP
 403). The `rule` action option is the action's own rule.
 
@@ -252,46 +252,46 @@ class UserController extends Controller {
 ```
 
 The groups of an action must be declared in `httpActionGroups`, `cliActionGroups` or `serviceActionGroups` of
-`BuildEntrypoints`. `shutdownTimeout` (default 30000 ms) is the time given to the running requests when the entrypoint
+`buildEntrypoints`. `shutdownTimeout` (default 30000 ms) is the time given to the running requests when the entrypoint
 stops.
 
 ## 4. The transports
 
-| Option of `BuildEntrypoints` | Adapter | Subpath | Install |
+| Option of `buildEntrypoints` | Adapter | Subpath | Install |
 |---|---|---|---|
-| `http` | `ExpressHTTPEntrypoint({port})` | `lakutata/adapter/express` | `express` |
-| `http` | `FastifyHTTPEntrypoint({port})` | `lakutata/adapter/fastify` | `fastify` |
-| `cli` | `CommanderCLIEntrypoint()` | `lakutata/adapter/commander` | `commander` (`@inquirer/prompts` for the prompts) |
-| `service` | `SocketIOServiceEntrypoint({port})` | `lakutata/adapter/socket.io` | `socket.io` |
-| `service` | `JSONRPCServiceEntrypoint()` (HTTP, WebSocket, stdio) | `lakutata/adapter/jsonrpc` | `ws` for WebSocket |
-| `service` | `ElectronIPCServiceEntrypoint()` | `lakutata/adapter/electron` | (Electron) |
-| `service` | `HTTPServiceEntrypoint({port})` (`POST /`, events by SSE) | `lakutata/com/entrypoint` | |
-| `service` | `GRPCServiceEntrypoint({port})` | `@lakutata/grpc/service` | `@lakutata/grpc` |
-| `service` | `NatsServiceEntrypoint('nats')` | `@lakutata/nats` | `@lakutata/nats` |
-| `schedule` | `ScheduleEntrypoint()` | `lakutata/com/entrypoint` | |
+| `http` | `expressHTTPEntrypoint({port})` | `lakutata/adapter/express` | `express` |
+| `http` | `fastifyHTTPEntrypoint({port})` | `lakutata/adapter/fastify` | `fastify` |
+| `cli` | `commanderCLIEntrypoint()` | `lakutata/adapter/commander` | `commander` (`@inquirer/prompts` for the prompts) |
+| `service` | `socketIOServiceEntrypoint({port})` | `lakutata/adapter/socket.io` | `socket.io` |
+| `service` | `jsonRPCServiceEntrypoint()` (HTTP, WebSocket, stdio) | `lakutata/adapter/jsonrpc` | `ws` for WebSocket |
+| `service` | `electronIPCServiceEntrypoint()` | `lakutata/adapter/electron` | (Electron) |
+| `service` | `httpServiceEntrypoint({port})` (`POST /`, events by SSE) | `lakutata/com/entrypoint` | |
+| `service` | `grpcServiceEntrypoint({port})` | `@lakutata/grpc/service` | `@lakutata/grpc` |
+| `service` | `natsServiceEntrypoint('nats')` | `@lakutata/nats` | `@lakutata/nats` |
+| `schedule` | `scheduleEntrypoint()` | `lakutata/com/entrypoint` | |
 
-Each option takes one adapter or an array of adapters. `BuildHTTPEntrypoint`, `BuildCLIEntrypoint` and
-`BuildServiceEntrypoint` (from `lakutata/com/entrypoint`) type an entrypoint function in the style of lakutata 2.x, to
+Each option takes one adapter or an array of adapters. `buildHTTPEntrypoint`, `buildCLIEntrypoint` and
+`buildServiceEntrypoint` (from `lakutata/com/entrypoint`) type an entrypoint function in the style of lakutata 2.x, to
 plug another library; `EntrypointAdapter` (from `@lakutata/entrypoint/channel`) is the interface of the adapters.
 
 ### From an entrypoint function of 2.x to the HTTP adapters
 
-An HTTP entrypoint function of 2.x (`BuildHTTPEntrypoint`) keeps working: it is called in the startup of the entrypoint
+An HTTP entrypoint function of 2.x (`buildHTTPEntrypoint`) keeps working: it is called in the startup of the entrypoint
 (the objects it gets, such as an authenticator injecting the entrypoint, are available) and awaited, so the application
-launches once its server listens. To move it to `ExpressHTTPEntrypoint`:
+launches once its server listens. To move it to `expressHTTPEntrypoint`:
 
 - the middlewares and the routes of the application (CORS, compression, a health check, the authenticator, a web UI) go
   into its `before` hook, which gets the objects with `module.getObject()`; the body parsers are its `body` option
   (`{limit: '100mb'}`); the `keepAliveTimeout`/`headersTimeout` of the server its `server` option;
 - the input built from the request (the query, the body, a value of the session) is its `input` option;
-- the `{errno, errMsg, data}` envelope is `JSONEnvelope()`. The applications of 2.x usually answered the errors of the
+- the `{errno, errMsg, data}` envelope is `jsonEnvelope()`. The applications of 2.x usually answered the errors of the
   actions with 200 and the errors of their express middlewares (`next(error)`: an authenticator's 401) with their
-  status: `JSONEnvelope({actionErrorStatus: 200})` does the same — `errorStatus: 200` would answer the 401 with 200 too,
+  status: `jsonEnvelope({actionErrorStatus: 200})` does the same — `errorStatus: 200` would answer the 401 with 200 too,
   which the clients redirecting to the login page on a 401 would miss.
 
 ```typescript
-import {BuildEntrypoints} from 'lakutata/com/entrypoint'
-import {ExpressHTTPEntrypoint, JSONEnvelope} from 'lakutata/adapter/express'
+import {buildEntrypoints} from 'lakutata/com/entrypoint'
+import {expressHTTPEntrypoint, jsonEnvelope} from 'lakutata/adapter/express'
 import type {Express, NextFunction, Request, Response} from 'express'
 
 class Unauthorized extends Error {
@@ -300,9 +300,9 @@ class Unauthorized extends Error {
     public readonly statusCode: number = 401
 }
 
-export const entrypoint = BuildEntrypoints({
+export const entrypoint = buildEntrypoints({
     controllers: [],
-    http: ExpressHTTPEntrypoint({
+    http: expressHTTPEntrypoint({
         port: 3000,
         body: {limit: '100mb'},
         before: async (app: Express): Promise<void> => {
@@ -311,22 +311,22 @@ export const entrypoint = BuildEntrypoints({
             app.use((request: Request, _response: Response, next: NextFunction): void => request.headers.authorization ? next() : next(new Unauthorized('Not logged in')))
         },
         //The errors of the actions answered with 200 in the envelope, as in 2.x
-        respond: JSONEnvelope({actionErrorStatus: 200})
+        respond: jsonEnvelope({actionErrorStatus: 200})
     })
 })
 ```
 
-`FastifyHTTPEntrypoint` takes the same options (`FastifyJSONEnvelope({actionErrorStatus: 200})`, the authenticator
+`fastifyHTTPEntrypoint` takes the same options (`fastifyJSONEnvelope({actionErrorStatus: 200})`, the authenticator
 being a hook of fastify). A responder of its own receives the origin of each error as the fourth argument of its
 `error` (`'action'` or `'request'`).
 
 ### The clients of the service actions and their events
 
 The service adapters with clients give the id of the client of a request to its context, `ServiceContext.clientId`:
-`ElectronIPCServiceEntrypoint` (each page of a window), `SocketIOServiceEntrypoint` (each socket, its id given when it
-connects by its `auth.id` or its `id` header), `HTTPServiceEntrypoint` (the `id` header of the `POST` requests, the `id`
-header or query of the event stream `GET /events`), `JSONRPCServiceEntrypoint` over WebSocket and stdio, and
-`GRPCServiceEntrypoint` (the `id` metadata). The entrypoint pushes events to a client with `notify(clientId, event,
+`electronIPCServiceEntrypoint` (each page of a window), `socketIOServiceEntrypoint` (each socket, its id given when it
+connects by its `auth.id` or its `id` header), `httpServiceEntrypoint` (the `id` header of the `POST` requests, the `id`
+header or query of the event stream `GET /events`), `jsonRPCServiceEntrypoint` over WebSocket and stdio, and
+`grpcServiceEntrypoint` (the `id` metadata). The entrypoint pushes events to a client with `notify(clientId, event,
 ...args)` (it returns whether a client received it) or to every client with `broadcast(event, ...args)` (it returns the
 number of clients):
 
@@ -354,7 +354,7 @@ sockets with `socket.on(event, listener)`, the HTTP clients with the Server-Sent
 
 ### JSON-RPC 2.0
 
-`JSONRPCServiceEntrypoint` serves the service actions over JSON-RPC 2.0: the method and the params (by name) of a
+`jsonRPCServiceEntrypoint` serves the service actions over JSON-RPC 2.0: the method and the params (by name) of a
 request are the pattern and the input of an action, `{"method": "order.get", "params": {"id": 1}}` being dispatched as
 `{method: 'order.get', id: 1}` (`methodField` names the field, `toPattern(method, params)` maps them to other patterns,
 `positionalParams` accepts the params by position). The batches and the notifications follow the specification; the
@@ -366,30 +366,30 @@ input ends (`end: 'application'`).
 
 ```text
 service: [
-    JSONRPCServiceEntrypoint({port: 4000, path: '/rpc'}),
-    JSONRPCServiceEntrypoint({transport: 'websocket', port: 4001}),
-    JSONRPCServiceEntrypoint({transport: 'stdio', framing: 'content-length'})
+    jsonRPCServiceEntrypoint({port: 4000, path: '/rpc'}),
+    jsonRPCServiceEntrypoint({transport: 'websocket', port: 4001}),
+    jsonRPCServiceEntrypoint({transport: 'stdio', framing: 'content-length'})
 ]
 ```
 
 ### gRPC and NATS
 
-`GRPCServiceEntrypoint` (`@lakutata/grpc/service`) serves the service actions over gRPC: the service
+`grpcServiceEntrypoint` (`@lakutata/grpc/service`) serves the service actions over gRPC: the service
 `lakutata.service.v1.Service` (`SERVICE_PROTO`, for the clients of other languages) invokes an action with the JSON of
-its pattern and input, and streams the events of a client. `GRPCServiceProxy`, declared with `BuildGRPCServiceProxy`,
+its pattern and input, and streams the events of a client. `GRPCServiceProxy`, declared with `buildGRPCServiceProxy`,
 invokes the actions of a remote application and listens to its events. The deadline of a call aborts its action
 (`this.signal`). See the README of `@lakutata/grpc`.
 
 ```typescript
 import {Application} from 'lakutata'
-import {BuildGRPCServiceProxy, type GRPCServiceProxy} from '@lakutata/grpc/service'
+import {buildGRPCServiceProxy, type GRPCServiceProxy} from '@lakutata/grpc/service'
 
 Application
     .run(() => ({
         id: 'shop.app',
         name: 'Shop',
         components: {
-            orders: BuildGRPCServiceProxy({address: 'orders.internal:50051'})
+            orders: buildGRPCServiceProxy({address: 'orders.internal:50051'})
         }
     }))
     .onLaunched(async (app: Application): Promise<void> => {
@@ -399,6 +399,6 @@ Application
     })
 ```
 
-`NatsServiceEntrypoint` (`@lakutata/nats`) serves them over NATS, on the subject of the application id, the instances
-sharing a queue group; `ServiceProxy`, declared with `BuildServiceProxy`, invokes them. See the README of
+`natsServiceEntrypoint` (`@lakutata/nats`) serves them over NATS, on the subject of the application id, the instances
+sharing a queue group; `ServiceProxy`, declared with `buildServiceProxy`, invokes them. See the README of
 `@lakutata/nats`.

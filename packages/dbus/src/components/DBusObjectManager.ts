@@ -38,7 +38,7 @@ export type DBusPropertyWrite = {
      */
     readonly interface: string
     /**
-     * The property's definition, to compare with the one built by `DefineDBusProperty`.
+     * The property's definition, to compare with the one built by `defineDBusProperty`.
      */
     readonly property: DBusPropertyDefinition<any>
     /**
@@ -57,7 +57,7 @@ export const STORE: unique symbol = Symbol('DBUS.OBJECT.MANAGER.STORE')
  * (`@Inject(DBusObjectManager)`) or get it (`getObject(DBusObjectManager)`) from any object: it is autoloaded, a
  * singleton of the application, and needs no registration.
  *
- * Its state lives in the application, not on the bus: the objects added before a {@link DBusEntrypoint} starts are
+ * Its state lives in the application, not on the bus: the objects added before a {@link dbusEntrypoint} starts are
  * exported when it starts, and every running D-Bus adapter whose interfaces match a path exports the object. The
  * clients are told of the objects added and removed by the `org.freedesktop.DBus.ObjectManager` interface of the root
  * object (`InterfacesAdded`, `InterfacesRemoved`).
@@ -67,11 +67,11 @@ export const STORE: unique symbol = Symbol('DBUS.OBJECT.MANAGER.STORE')
  * ```typescript
  * import {Component} from 'lakutata'
  * import {Inject} from 'lakutata/decorator/di'
- * import {DBusObjectManager, DefineDBusProperty, DefineDBusSignal, type DBusPropertyWrite} from '@lakutata/dbus'
+ * import {DBusObjectManager, defineDBusProperty, defineDBusSignal, type DBusPropertyWrite} from '@lakutata/dbus'
  *
- * export const DeviceState = DefineDBusProperty<string>('State', 's', {initial: 'idle'})
- * export const DeviceLevel = DefineDBusProperty<number>('Level', 'i', {writable: true, initial: 1})
- * export const DeviceRemoved = DefineDBusSignal<string>('Removed', 's')
+ * export const DeviceState = defineDBusProperty<string>('State', 's', {initial: 'idle'})
+ * export const DeviceLevel = defineDBusProperty<number>('Level', 'i', {writable: true, initial: 1})
+ * export const DeviceRemoved = defineDBusSignal<string>('Removed', 's')
  *
  * //Declared in the components of the application, with the controllers of the interfaces at /com/example/Devices/{sn}
  * export class Devices extends Component {

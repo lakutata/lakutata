@@ -5,19 +5,19 @@ import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {io, type Socket} from 'socket.io-client'
 import {Application, DTO, Provider, type ILogger} from '../../../exports/Lakutata.js'
-import {AccessControlRule, BuildEntrypoints, ContextType, Controller, ScheduleEntrypoint, type ActionInvocation, type HTTPContext, type Next} from '../../../exports/EntrypointComponent.js'
-import {ExpressHTTPEntrypoint, JSONEnvelope, StaticUI} from '../../../exports/ExpressAdapter.js'
-import {FastifyHTTPEntrypoint, FastifyJSONEnvelope} from '../../../exports/FastifyAdapter.js'
-import {SocketIOServiceEntrypoint} from '../../../exports/SocketIOAdapter.js'
-import {CommanderCLIEntrypoint} from '../../../exports/CommanderAdapter.js'
-import {ElectronIPCServiceEntrypoint, type IPCMain} from '../../../exports/ElectronAdapter.js'
+import {AccessControlRule, buildEntrypoints, ContextType, Controller, scheduleEntrypoint, type ActionInvocation, type HTTPContext, type Next} from '../../../exports/EntrypointComponent.js'
+import {expressHTTPEntrypoint, jsonEnvelope, staticUI} from '../../../exports/ExpressAdapter.js'
+import {fastifyHTTPEntrypoint, fastifyJSONEnvelope} from '../../../exports/FastifyAdapter.js'
+import {socketIOServiceEntrypoint} from '../../../exports/SocketIOAdapter.js'
+import {commanderCLIEntrypoint} from '../../../exports/CommanderAdapter.js'
+import {electronIPCServiceEntrypoint, type IPCMain} from '../../../exports/ElectronAdapter.js'
 import {CLIAction, GET, POST, Schedule, ServiceAction} from '../../../exports/CTRLDecorators.js'
 import {Configurable, Inject} from '../../../exports/DIDecorators.js'
 import {Accept, Expect} from '../../../exports/DTODecorators.js'
 import {Column, Entity, PrimaryGeneratedColumn} from '../../../exports/ORMDecorators.js'
 import type {MigrationInterface, QueryRunner, Repository} from '../../../exports/ORM.js'
-import {BuildDatabaseOptions, Database} from '../../../exports/DatabaseComponent.js'
-import {BuildCacherOptions, Cacher} from '../../../exports/CacherComponent.js'
+import {buildDatabaseOptions, Database} from '../../../exports/DatabaseComponent.js'
+import {buildCacherOptions, Cacher} from '../../../exports/CacherComponent.js'
 import {PasswordHash} from '../../../exports/PasswordHashProvider.js'
 import {FreePort, MemoryStream, RunChecks} from '../support/Scenario.js'
 
@@ -204,19 +204,19 @@ Application
         name: 'IntegrationService',
         components: {
             log: {pretty: false, sync: true, destinations: [logs]},
-            db: BuildDatabaseOptions({type: 'sqlite', database: ':memory:', entities: [Order], synchronize: false, migrationsRun: true, migrations: [CreateOrder1700000000000]}),
-            cache: BuildCacherOptions({}),
-            entrypoint: BuildEntrypoints({
+            db: buildDatabaseOptions({type: 'sqlite', database: ':memory:', entities: [Order], synchronize: false, migrationsRun: true, migrations: [CreateOrder1700000000000]}),
+            cache: buildCacherOptions({}),
+            entrypoint: buildEntrypoints({
                 controllers: [OrderController],
                 rules: [AdminRule],
                 middlewares: [CountInvocations],
                 http: [
-                    ExpressHTTPEntrypoint({port: expressPort, host: '127.0.0.1', respond: JSONEnvelope({errorStatus: 200}), fallback: StaticUI(ui, {spa: true})}),
-                    FastifyHTTPEntrypoint({port: fastifyPort, host: '127.0.0.1', respond: FastifyJSONEnvelope({errorStatus: 200})})
+                    expressHTTPEntrypoint({port: expressPort, host: '127.0.0.1', respond: jsonEnvelope({errorStatus: 200}), fallback: staticUI(ui, {spa: true})}),
+                    fastifyHTTPEntrypoint({port: fastifyPort, host: '127.0.0.1', respond: fastifyJSONEnvelope({errorStatus: 200})})
                 ],
-                service: [SocketIOServiceEntrypoint({port: ioPort, host: '127.0.0.1'}), ElectronIPCServiceEntrypoint({ipcMain: ipcMain})],
-                schedule: ScheduleEntrypoint(),
-                cli: CommanderCLIEntrypoint({bin: 'service', argv: ['count-orders'], interactive: false, stdout: cliOutput, exit: (code: number): void => cliExited(code)})
+                service: [socketIOServiceEntrypoint({port: ioPort, host: '127.0.0.1'}), electronIPCServiceEntrypoint({ipcMain: ipcMain})],
+                schedule: scheduleEntrypoint(),
+                cli: commanderCLIEntrypoint({bin: 'service', argv: ['count-orders'], interactive: false, stdout: cliOutput, exit: (code: number): void => cliExited(code)})
             })
         },
         providers: {

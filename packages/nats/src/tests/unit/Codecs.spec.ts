@@ -1,13 +1,13 @@
 import {describe, it} from 'node:test'
 import {expect} from '../support/Expect.js'
 import {Codec} from 'nats'
-import {JSONCodec, MessagePackCodec} from '../../exports/Nats.js'
+import {jsonCodec, messagePackCodec} from '../../exports/Nats.js'
 
 //Both codecs share the same invariants: both first sanitize via JSON and wrap in a [d] array,
 //So special values (undefined / Date / BigInt) must behave identically; only the binary format differs
 const codecs: Array<{name: string, make: () => Codec<any>}> = [
-    {name: 'MessagePackCodec', make: MessagePackCodec},
-    {name: 'JSONCodec', make: JSONCodec}
+    {name: 'messagePackCodec', make: messagePackCodec},
+    {name: 'jsonCodec', make: jsonCodec}
 ]
 
 for (const {name, make} of codecs) {

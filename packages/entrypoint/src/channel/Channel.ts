@@ -58,7 +58,7 @@ export interface ChannelMatcher {
 /**
  * A channel: how the actions declare their addresses and how a request finds its action. The entrypoint package
  * defines `http`, `cli`, `service` and `schedule`; a package providing another transport defines its channel with
- * {@link DefineChannel} and registers the actions of its decorators with `RegisterControllerAction`.
+ * {@link defineChannel} and registers the actions of its decorators with `registerControllerAction`.
  */
 export interface ChannelDefinition {
     /**
@@ -139,11 +139,11 @@ const channels: Map<string, ChannelDefinition> = new Map()
  * @example
  * ```typescript
  * import {Controller, ControllerActionNotFoundException, type BaseContext, type ControllerProperty} from 'lakutata/com/entrypoint'
- * import {DefineChannel, RegisterControllerAction, type ChannelEntry} from '@lakutata/entrypoint/channel'
+ * import {defineChannel, registerControllerAction, type ChannelEntry} from '@lakutata/entrypoint/channel'
  * import {FlexibleDTO} from 'lakutata/dtos'
  *
  * //A channel of the messages of a queue, addressed by their topic
- * export const QueueChannel = DefineChannel({
+ * export const QueueChannel = defineChannel({
  *     name: 'queue',
  *     kind: 'delivery',
  *     contextType: 'QUEUE',
@@ -161,12 +161,12 @@ const channels: Map<string, ChannelDefinition> = new Map()
  * //The decorator declaring the actions of the channel
  * export function OnMessage(topic: string) {
  *     return <ClassPrototype extends Controller>(target: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>): void => {
- *         RegisterControllerAction(QueueChannel, target, propertyKey, {topic: topic}, FlexibleDTO, {})
+ *         registerControllerAction(QueueChannel, target, propertyKey, {topic: topic}, FlexibleDTO, {})
  *     }
  * }
  * ```
  */
-export function DefineChannel<Definition extends ChannelDefinition>(definition: Definition): Definition {
+export function defineChannel<Definition extends ChannelDefinition>(definition: Definition): Definition {
     const defined: ChannelDefinition | undefined = channels.get(definition.name)
     if (defined && defined !== definition) throw new InvalidChannelException('The channel "{0}" is already defined', [definition.name])
     channels.set(definition.name, definition)
@@ -180,13 +180,13 @@ export function DefineChannel<Definition extends ChannelDefinition>(definition: 
  * @throws {InvalidChannelException} When no channel has the name.
  * @example
  * ```typescript
- * import {GetChannel, type ChannelDefinition} from '@lakutata/entrypoint/channel'
+ * import {getChannel, type ChannelDefinition} from '@lakutata/entrypoint/channel'
  *
- * const http: ChannelDefinition = GetChannel('http')
+ * const http: ChannelDefinition = getChannel('http')
  * console.log(http.kind, http.contextType) //request HTTP
  * ```
  */
-export function GetChannel(name: string): ChannelDefinition {
+export function getChannel(name: string): ChannelDefinition {
     const definition: ChannelDefinition | undefined = channels.get(name)
     if (!definition) throw new InvalidChannelException('The channel "{0}" is not defined', [name])
     return definition
@@ -198,13 +198,13 @@ export function GetChannel(name: string): ChannelDefinition {
  * @returns `true` when a channel has the name.
  * @example
  * ```typescript
- * import {HasChannel} from '@lakutata/entrypoint/channel'
+ * import {hasChannel} from '@lakutata/entrypoint/channel'
  *
- * console.log(HasChannel('schedule')) //true
- * console.log(HasChannel('queue')) //false until a package defines it
+ * console.log(hasChannel('schedule')) //true
+ * console.log(hasChannel('queue')) //false until a package defines it
  * ```
  */
-export function HasChannel(name: string): boolean {
+export function hasChannel(name: string): boolean {
     return channels.has(name)
 }
 
@@ -215,15 +215,15 @@ export function HasChannel(name: string): boolean {
  * @example
  * ```typescript
  * import {ContextType, type BaseContext} from 'lakutata/com/entrypoint'
- * import {GetChannelByContextType} from '@lakutata/entrypoint/channel'
+ * import {getChannelByContextType} from '@lakutata/entrypoint/channel'
  *
  * declare const context: BaseContext
  *
- * console.log(GetChannelByContextType(ContextType.SERVICE)?.name) //service
- * console.log(GetChannelByContextType(context.type)?.name)
+ * console.log(getChannelByContextType(ContextType.SERVICE)?.name) //service
+ * console.log(getChannelByContextType(context.type)?.name)
  * ```
  */
-export function GetChannelByContextType(contextType: string): ChannelDefinition | undefined {
+export function getChannelByContextType(contextType: string): ChannelDefinition | undefined {
     for (const definition of channels.values()) if (definition.contextType === contextType) return definition
     return undefined
 }

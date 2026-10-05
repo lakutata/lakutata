@@ -1,7 +1,7 @@
 /**
  * The application's message keys and their arguments, declared by the application to type-check {@link I18n.t} and
  * the translators: a wrong key or a missing argument is then a compilation error. `lakutata i18n types` (or
- * {@link GenerateMessageTypes}) generates the declaration from the messages of the default language, or it is written
+ * {@link generateMessageTypes}) generates the declaration from the messages of the default language, or it is written
  * by hand, in the module the application imports the i18n from:
  *
  *     declare module 'lakutata/com/i18n' {

@@ -8,8 +8,8 @@ import {stripVTControlCharacters} from 'node:util'
 import {Container} from '@lakutata/core'
 import {BaseEntity, DataSource, EntitySchema, type MigrationInterface, type QueryRunner} from '../exports/ORM.js'
 import {Column, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn} from '../exports/ORMDecorators.js'
-import {BuildDatabaseOptions, Database} from '../exports/DatabaseComponent.js'
-import {BuildDatabaseOptions as BuildDatabaseProviderOptions, Database as DatabaseProvider} from '../exports/DatabaseProvider.js'
+import {buildDatabaseOptions, Database} from '../exports/DatabaseComponent.js'
+import {buildDatabaseOptions as BuildDatabaseProviderOptions, Database as DatabaseProvider} from '../exports/DatabaseProvider.js'
 
 @Entity()
 class Author extends BaseEntity {
@@ -108,7 +108,7 @@ async function inDirectory(fn: (directory: string) => Promise<void>): Promise<vo
 describe('The ORM', (): void => {
 
     it('builds the options of the database components and providers', (): void => {
-        assert.deepStrictEqual(BuildDatabaseOptions({type: 'sqlite', database: ':memory:'}), {class: Database, options: {type: 'sqlite', database: ':memory:'}})
+        assert.deepStrictEqual(buildDatabaseOptions({type: 'sqlite', database: ':memory:'}), {class: Database, options: {type: 'sqlite', database: ':memory:'}})
         assert.strictEqual(BuildDatabaseProviderOptions({type: 'sqlite', database: ':memory:'}).class, DatabaseProvider)
     })
 
@@ -211,10 +211,10 @@ describe('The ORM', (): void => {
             const databases: string[] = options.databases ?? ['db']
             const script: string = [
                 `import {Application} from '${import.meta.resolve('@lakutata/core')}'`,
-                `import {BuildDatabaseOptions} from '${new URL('../exports/DatabaseComponent.js', import.meta.url)}'`,
+                `import {buildDatabaseOptions} from '${new URL('../exports/DatabaseComponent.js', import.meta.url)}'`,
                 'class CreateNote1700000000000 { name = \'CreateNote1700000000000\'; async up(q) { await q.query(\'CREATE TABLE "note" ("id" integer PRIMARY KEY)\') } async down(q) { await q.query(\'DROP TABLE "note"\') } }',
                 `class CreateTag1700000000001 { name = 'CreateTag1700000000001'; async up(q) { ${options.failing ? 'throw new Error(\'the tag fails\')' : 'await q.query(\'CREATE TABLE "tag" ("id" integer PRIMARY KEY)\')'} } async down(q) { await q.query('DROP TABLE "tag"') } }`,
-                `const components = Object.fromEntries(${JSON.stringify(databases)}.map((name) => [name, BuildDatabaseOptions({type: 'sqlite', database: name + '.db', migrations: [CreateNote1700000000000, CreateTag1700000000001]${options.transactionMode ? `, migrationsTransactionMode: '${options.transactionMode}'` : ''}})]))`,
+                `const components = Object.fromEntries(${JSON.stringify(databases)}.map((name) => [name, buildDatabaseOptions({type: 'sqlite', database: name + '.db', migrations: [CreateNote1700000000000, CreateTag1700000000001]${options.transactionMode ? `, migrationsTransactionMode: '${options.transactionMode}'` : ''}})]))`,
                 'Application.run({id: \'migration.test\', name: \'MigrationTest\', components: components})'
             ].join('\n')
             const base: NodeJS.ProcessEnv = Object.fromEntries(Object.entries(process.env).filter(([name]): boolean => !name.toUpperCase().startsWith('MIGRATION_')))
@@ -310,12 +310,12 @@ describe('The ORM', (): void => {
          * @param dependencies the dependencies of the project
          * @param title the options of the column title of Note
          */
-        async function generate(directory: string, dependencies: Record<string, string>, title: Record<string, string> = {}, objects: string = 'components: {db: BuildDatabaseOptions({type: \'sqlite\', database: \'project.db\', entities: [Note]})}'): Promise<SpawnSyncReturns<string>> {
+        async function generate(directory: string, dependencies: Record<string, string>, title: Record<string, string> = {}, objects: string = 'components: {db: buildDatabaseOptions({type: \'sqlite\', database: \'project.db\', entities: [Note]})}'): Promise<SpawnSyncReturns<string>> {
             await writeFile(path.join(directory, 'package.json'), JSON.stringify({name: 'project', type: 'module', dependencies: dependencies}))
             const script: string = [
                 `import {Application} from '${import.meta.resolve('@lakutata/core')}'`,
                 `import {EntitySchema} from '${new URL('../exports/ORM.js', import.meta.url)}'`,
-                `import {BuildDatabaseOptions} from '${new URL('../exports/DatabaseComponent.js', import.meta.url)}'`,
+                `import {buildDatabaseOptions} from '${new URL('../exports/DatabaseComponent.js', import.meta.url)}'`,
                 `import {Database as DatabaseProvider} from '${new URL('../exports/DatabaseProvider.js', import.meta.url)}'`,
                 `const Note = new EntitySchema({name: 'note', columns: {id: {type: Number, primary: true, generated: true}, title: {type: String, ...${JSON.stringify(title)}}}})`,
                 `Application.run({id: 'migration.test', name: 'MigrationTest', ${objects}})`
@@ -372,7 +372,7 @@ describe('The ORM', (): void => {
             //The second database has the schema already
             const dataSource: DataSource = await new DataSource({type: 'sqlite', database: path.join(directory, 'second.db'), entities: [Note], synchronize: true}).initialize()
             await dataSource.destroy()
-            const result: SpawnSyncReturns<string> = await generate(directory, {'@lakutata/orm': '2.0.126'}, {}, 'components: {first: BuildDatabaseOptions({type: \'sqlite\', database: \'first.db\', entities: [Note]}), second: BuildDatabaseOptions({type: \'sqlite\', database: \'second.db\', entities: [Note]})}')
+            const result: SpawnSyncReturns<string> = await generate(directory, {'@lakutata/orm': '2.0.126'}, {}, 'components: {first: buildDatabaseOptions({type: \'sqlite\', database: \'first.db\', entities: [Note]}), second: buildDatabaseOptions({type: \'sqlite\', database: \'second.db\', entities: [Note]})}')
             assert.strictEqual(result.status, 0, result.stdout + result.stderr)
             assert.deepStrictEqual((await readdir(path.join(directory, 'migrations'))).map((file: string): string => file.replace(/^\d+/, '')), ['-first.ts'])
         }))

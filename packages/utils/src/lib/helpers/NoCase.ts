@@ -1,7 +1,7 @@
 import {type Locale, Split, ToLower} from './internal/CaseWords.js'
 
 /**
- * How a string is split into words by the case conversions (`NoCase`, `CamelCase`).
+ * How a string is split into words by the case conversions (`noCase`, `camelCase`).
  */
 export interface SplitOptions {
     /**
@@ -12,7 +12,7 @@ export interface SplitOptions {
 }
 
 /**
- * The options of `NoCase`: how the words are split, and the locale of their lower case.
+ * The options of `noCase`: how the words are split, and the locale of their lower case.
  */
 export interface NoCaseOptions extends SplitOptions {
     /**
@@ -33,15 +33,15 @@ export interface NoCaseOptions extends SplitOptions {
  * @returns The lower case words, separated by spaces.
  * @example
  * ```typescript
- * import {NoCase} from 'lakutata/utils'
+ * import {noCase} from 'lakutata/utils'
  *
- * console.log(NoCase('helloWorld_fooBar-BAZ'))
+ * console.log(noCase('helloWorld_fooBar-BAZ'))
  * //hello world foo bar baz
- * console.log(NoCase('XMLHttpRequest'), '|', NoCase('version2Beta', {separateNumbers: true}))
+ * console.log(noCase('XMLHttpRequest'), '|', noCase('version2Beta', {separateNumbers: true}))
  * //xml http request | version 2 beta
  * ```
  */
-export function NoCase(input: string, options?: NoCaseOptions): string {
+export function noCase(input: string, options?: NoCaseOptions): string {
     return Split(input, options)
         .map(ToLower(options?.locale))
         .join(' ')

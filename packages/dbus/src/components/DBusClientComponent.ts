@@ -21,14 +21,14 @@ import {Configurable} from '@lakutata/core/decorator/di'
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildDBusClientOptions, DBusClientComponent} from '@lakutata/dbus'
+ * import {buildDBusClientOptions, DBusClientComponent} from '@lakutata/dbus'
  *
  * Application
  *     .run(() => ({
  *         id: 'client.app',
  *         name: 'Client',
  *         components: {
- *             dbus: BuildDBusClientOptions({busAddress: 'unix:path=/var/run/dbus/system_bus_socket', timeout: 5000})
+ *             dbus: buildDBusClientOptions({busAddress: 'unix:path=/var/run/dbus/system_bus_socket', timeout: 5000})
  *         }
  *     }))
  *     .onLaunched(async (app: Application): Promise<void> => {
@@ -37,7 +37,7 @@ import {Configurable} from '@lakutata/core/decorator/di'
  *     })
  * ```
  */
-export const BuildDBusClientOptions: ComponentOptionsBuilder<DBusClientOptions> = (options: DBusClientOptions): ComponentOptions<DBusClientOptions> => ({
+export const buildDBusClientOptions: ComponentOptionsBuilder<DBusClientOptions> = (options: DBusClientOptions): ComponentOptions<DBusClientOptions> => ({
     class: DBusClientComponent,
     busAddress: options.busAddress,
     timeout: options.timeout,
@@ -46,22 +46,8 @@ export const BuildDBusClientOptions: ComponentOptionsBuilder<DBusClientOptions> 
 })
 
 /**
- * The name of {@link BuildDBusClientOptions} in lakutata 2.x, in camel case: the functions exported by the packages
- * of lakutata are named in Pascal case (CONTRIBUTING.md, "Naming").
- * @deprecated Use {@link BuildDBusClientOptions}; this alias will be removed in a later major version.
- * @example
- * ```typescript
- * import {BuildDBusClientOptions} from '@lakutata/dbus'
- *
- * //Was: buildDBusClientOptions({...})
- * export const components = {dbus: BuildDBusClientOptions({busAddress: 'unix:path=/var/run/dbus/system_bus_socket'})}
- * ```
- */
-export const buildDBusClientOptions: ComponentOptionsBuilder<DBusClientOptions> = BuildDBusClientOptions
-
-/**
  * A D-Bus client: a connection to a bus, to call the services on it, read their objects, properties and introspection,
- * and listen to their signals. Declare it in the `components` of an application with {@link BuildDBusClientOptions}
+ * and listen to their signals. Declare it in the `components` of an application with {@link buildDBusClientOptions}
  * (or `{class: DBusClientComponent, busAddress: …}`) and get it with `getObject()` or `@Inject`; it is a singleton
  * component. It connects when it is created, so a bus that cannot be reached fails its creation; it disconnects when it
  * is destroyed (the application stopping). It is a thin layer over the `DBus` connection of `dbus-sdk`, whose classes

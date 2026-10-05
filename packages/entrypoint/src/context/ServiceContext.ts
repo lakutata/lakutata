@@ -1,15 +1,15 @@
-import {CloneDeep} from '@lakutata/utils'
+import {cloneDeep} from '@lakutata/utils'
 import {DTO, type ActionPattern} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
 import {BaseContext, type ContextParams, ContextType} from './BaseContext.js'
 import {type ServiceContextParams} from '../types/ServiceContextParams.js'
 
 /**
- * The context of a message received by a service adapter (`SocketIOServiceEntrypoint`, `JSONRPCServiceEntrypoint`,
- * `ElectronIPCServiceEntrypoint`, `HTTPServiceEntrypoint`): `this.context` of a controller action declared with
+ * The context of a message received by a service adapter (`socketIOServiceEntrypoint`, `jsonRPCServiceEntrypoint`,
+ * `electronIPCServiceEntrypoint`, `httpServiceEntrypoint`): `this.context` of a controller action declared with
  * `@ServiceAction`, when it runs for a message. Its `input` is the whole message, matched against the actions'
  * patterns; its `data` is the message without the keys of the matched pattern. The adapters' helpers give the
- * transport objects (`SocketOfContext`, `HTTPRequestOfContext`, `IPCEventOfContext`, `JSONRPCRequestOfContext`).
+ * transport objects (`socketOfContext`, `httpRequestOfContext`, `ipcEventOfContext`, `jsonRPCRequestOfContext`).
  * @example
  * ```typescript
  * import {Controller, ServiceContext} from 'lakutata/com/entrypoint'
@@ -55,7 +55,7 @@ export class ServiceContext<T extends Record<string, any> = {}> extends BaseCont
      */
     constructor(params: ContextParams<ServiceContextParams>) {
         //A deep copy: the pattern keys removed from the data once matched, nested ones included, stay in the input
-        params = {...params, input: CloneDeep(params.data ?? {})}
+        params = {...params, input: cloneDeep(params.data ?? {})}
         super(params)
     }
 }

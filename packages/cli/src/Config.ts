@@ -1,7 +1,7 @@
 import type {ApplicationOptions} from 'lakutata'
-import {BuildEntrypoints} from 'lakutata/com/entrypoint'
-import {CommanderCLIEntrypoint} from 'lakutata/adapter/commander'
-import {BuildI18nOptions, CommanderTranslator} from 'lakutata/com/i18n'
+import {buildEntrypoints} from 'lakutata/com/entrypoint'
+import {commanderCLIEntrypoint} from 'lakutata/adapter/commander'
+import {buildI18nOptions, commanderTranslator} from 'lakutata/com/i18n'
 import zhCN from './locales/zh-CN.json' with {type: 'json'}
 import zhTW from './locales/zh-TW.json' with {type: 'json'}
 import {CommandLineController} from './controllers/CommandLineController.js'
@@ -40,16 +40,16 @@ export function Config(): ApplicationOptions {
         name: 'lakutata-cli',
         components: {
             //The help and the prompts in the language of the user (LAKUTATA_LANG, LC_ALL, LANG)
-            i18n: BuildI18nOptions({messages: MESSAGES}),
-            entrypoint: BuildEntrypoints({
+            i18n: buildI18nOptions({messages: MESSAGES}),
+            entrypoint: buildEntrypoints({
                 controllers: CONTROLLERS,
                 middlewares: [LanguageMiddleware],
-                cli: CommanderCLIEntrypoint({
+                cli: commanderCLIEntrypoint({
                     bin: 'lakutata',
                     description: tool.description,
                     version: tool.version,
                     groups: COMMAND_GROUPS,
-                    translate: CommanderTranslator({environment: LANGUAGE_VARIABLE})
+                    translate: commanderTranslator({environment: LANGUAGE_VARIABLE})
                 })
             })
         },

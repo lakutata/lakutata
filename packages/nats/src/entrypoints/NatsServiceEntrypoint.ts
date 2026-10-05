@@ -6,7 +6,7 @@ import type {NATS} from '../components/NATS.js'
 import {ServiceEventCodec} from '../lib/ServiceEventCodec.js'
 
 /**
- * The options of {@link NatsServiceEntrypoint}.
+ * The options of {@link natsServiceEntrypoint}.
  */
 export type NatsServiceEntrypointOptions = {
     /**
@@ -51,14 +51,14 @@ export type NatsServiceEntrypointOptions = {
  * @param natsComponentName The name of the NATS component, as registered in the components; the entrypoint fails to
  * start when it is not registered.
  * @param options The subject, the queue group, the adapter name and its middlewares.
- * @returns The adapter, to give to the `service` option of `BuildEntrypoints`.
+ * @returns The adapter, to give to the `service` option of `buildEntrypoints`.
  * @example
  * ```typescript
  * import {Application, DTO} from 'lakutata'
- * import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+ * import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
  * import {ServiceAction} from 'lakutata/decorator/ctrl'
  * import {Expect} from 'lakutata/decorator/dto'
- * import {BuildNatsClientOptions, NatsServiceEntrypoint} from '@lakutata/nats'
+ * import {buildNatsClientOptions, natsServiceEntrypoint} from '@lakutata/nats'
  *
  * class GetOrderDTO extends DTO {
  *     @Expect(DTO.Number().integer().required())
@@ -78,17 +78,17 @@ export type NatsServiceEntrypointOptions = {
  *     id: 'order.service',
  *     name: 'OrderService',
  *     components: {
- *         nats: BuildNatsClientOptions({servers: 'nats://127.0.0.1:4222'}),
- *         entrypoint: BuildEntrypoints({
+ *         nats: buildNatsClientOptions({servers: 'nats://127.0.0.1:4222'}),
+ *         entrypoint: buildEntrypoints({
  *             controllers: [OrderController],
- *             service: NatsServiceEntrypoint('nats')
+ *             service: natsServiceEntrypoint('nats')
  *         })
  *     },
  *     bootstrap: ['entrypoint']
  * })
  * ```
  */
-export function NatsServiceEntrypoint(natsComponentName: string, options: NatsServiceEntrypointOptions = {}): EntrypointAdapter<ServiceContext> {
+export function natsServiceEntrypoint(natsComponentName: string, options: NatsServiceEntrypointOptions = {}): EntrypointAdapter<ServiceContext> {
     let subscription: Subscription | undefined
     let nats: NATS | undefined
     let subject: string | undefined
@@ -131,20 +131,20 @@ export function NatsServiceEntrypoint(natsComponentName: string, options: NatsSe
 }
 
 /**
- * The former name of {@link NatsServiceEntrypoint}, kept for the applications written for 2.x; it behaves the same.
+ * The former name of {@link natsServiceEntrypoint}, kept for the applications written for 2.x; it behaves the same.
  * @param natsComponentName The name of the NATS component, as registered in the components.
  * @param options The subject, the queue group, the adapter name and its middlewares.
- * @returns The adapter, to give to the `service` option of `BuildEntrypoints`.
+ * @returns The adapter, to give to the `service` option of `buildEntrypoints`.
  * @example
  * ```typescript
- * import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
- * import {SetupNatsServiceEntrypoint} from '@lakutata/nats'
+ * import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+ * import {setupNatsServiceEntrypoint} from '@lakutata/nats'
  *
  * class OrderController extends Controller {
  * }
  *
- * //The same as NatsServiceEntrypoint('nats')
- * export const entrypoint = BuildEntrypoints({controllers: [OrderController], service: SetupNatsServiceEntrypoint('nats')})
+ * //The same as natsServiceEntrypoint('nats')
+ * export const entrypoint = buildEntrypoints({controllers: [OrderController], service: setupNatsServiceEntrypoint('nats')})
  * ```
  */
-export const SetupNatsServiceEntrypoint: (natsComponentName: string, options?: NatsServiceEntrypointOptions) => EntrypointAdapter<ServiceContext> = NatsServiceEntrypoint
+export const setupNatsServiceEntrypoint: (natsComponentName: string, options?: NatsServiceEntrypointOptions) => EntrypointAdapter<ServiceContext> = natsServiceEntrypoint

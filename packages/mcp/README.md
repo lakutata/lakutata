@@ -26,17 +26,17 @@ the protocol is implemented by `@modelcontextprotocol/server`, a dependency.
 
 ### An MCP server
 
-`StdioMCPEntrypoint` and `HTTPMCPEntrypoint` are the `mcp` adapters of the entrypoint. An action is a tool only when it
+`stdioMCPEntrypoint` and `httpMCPEntrypoint` are the `mcp` adapters of the entrypoint. An action is a tool only when it
 is declared as one with `@MCPTool`: the tools are given to a model, so nothing is exposed by default. A method may also
 be an HTTP, CLI or service action at the same time.
 
 ```typescript
 import {Application, DTO} from 'lakutata'
-import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
 import {Prefix} from 'lakutata/decorator/ctrl'
 import {Expect} from 'lakutata/decorator/dto'
 import {Logger} from 'lakutata/com/logger'
-import {MCPTool, StdioMCPEntrypoint} from '@lakutata/mcp'
+import {MCPTool, stdioMCPEntrypoint} from '@lakutata/mcp'
 
 class DeviceSnDTO extends DTO {
     @Expect(DTO.String().required().description('The serial number of the device'))
@@ -72,9 +72,9 @@ Application.run(() => ({
     components: {
         //Over stdio, the standard output belongs to the protocol
         log: {class: Logger, destinations: [process.stderr]},
-        entrypoint: BuildEntrypoints({
+        entrypoint: buildEntrypoints({
             controllers: [DeviceController],
-            mcp: StdioMCPEntrypoint({instructions: 'Check the status of a device before rebooting it.'})
+            mcp: stdioMCPEntrypoint({instructions: 'Check the status of a device before rebooting it.'})
         })
     },
     bootstrap: ['entrypoint']
@@ -228,7 +228,7 @@ running MCP adapters of the application (not those of another application of the
   kept in its memory: the instances of an application behind a load balancer share a bus of notifications
   (`bus: ServerEventBus`, over Redis, NATS…) so that every client is notified, whatever instance it listens to.
 
-### StdioMCPEntrypoint
+### stdioMCPEntrypoint
 
 The client runs the application as its subprocess and talks to it over its standard input and output. The application
 exits when the client closes the input (`exitOnClose: false` to keep it running).
@@ -239,7 +239,7 @@ such as `log: {class: Logger, destinations: [process.stderr]}`.
 Options: `serverName` (the application's name by default), `serverVersion` (`'1.0.0'`), `instructions` (given to the
 model), `stdin` and `stdout` (the process's by default), `exitOnClose` (`true`), `name` and `middlewares`.
 
-### HTTPMCPEntrypoint
+### httpMCPEntrypoint
 
 A Streamable HTTP endpoint (`path`, `/mcp` by default) serving the revision 2026-07-28 of the protocol, and the clients
 of the revisions of 2025 without sessions (`legacy: 'reject'` to refuse them).
@@ -247,8 +247,8 @@ of the revisions of 2025 without sessions (`legacy: 'reject'` to refuse them).
 ```typescript
 import type {IncomingMessage} from 'node:http'
 import {Application} from 'lakutata'
-import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
-import {HTTPMCPEntrypoint, MCPTool, StdioMCPEntrypoint, type MCPAuthInfo} from '@lakutata/mcp'
+import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+import {httpMCPEntrypoint, MCPTool, stdioMCPEntrypoint, type MCPAuthInfo} from '@lakutata/mcp'
 
 class ClockController extends Controller {
     @MCPTool('now', {description: 'The current time of the server', readOnly: true})
@@ -268,12 +268,12 @@ Application.run(() => ({
     id: 'clock.app',
     name: 'Clock',
     components: {
-        entrypoint: BuildEntrypoints({
+        entrypoint: buildEntrypoints({
             controllers: [ClockController],
             //Both transports at once
             mcp: [
-                StdioMCPEntrypoint(),
-                HTTPMCPEntrypoint({port: 3000, authenticate: VerifyToken})
+                stdioMCPEntrypoint(),
+                httpMCPEntrypoint({port: 3000, authenticate: VerifyToken})
             ]
         })
     },
@@ -294,14 +294,14 @@ Application.run(() => ({
 #### Sharing the port of another HTTP server
 
 With `listen: false`, the adapter opens no port: its `handler` is mounted on another server, such as the application
-of `ExpressHTTPEntrypoint` (it also works with a Next.js custom server or `node:http`). The routes, the middlewares and
+of `expressHTTPEntrypoint` (it also works with a Next.js custom server or `node:http`). The routes, the middlewares and
 the port of that server apply; a body already parsed by it (`express.json()`) is used as it is.
 
 ```typescript
 import {Application} from 'lakutata'
-import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
-import {ExpressHTTPEntrypoint} from 'lakutata/adapter/express'
-import {HTTPMCPEntrypoint, MCPTool} from '@lakutata/mcp'
+import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
+import {httpMCPEntrypoint, MCPTool} from '@lakutata/mcp'
 
 class ClockController extends Controller {
     @MCPTool('now', {description: 'The current time of the server', readOnly: true})
@@ -310,15 +310,15 @@ class ClockController extends Controller {
     }
 }
 
-const mcp = HTTPMCPEntrypoint({listen: false, allowedHosts: ['localhost', 'mcp.example.com']})
+const mcp = httpMCPEntrypoint({listen: false, allowedHosts: ['localhost', 'mcp.example.com']})
 
 Application.run(() => ({
     id: 'clock.app',
     name: 'Clock',
     components: {
-        entrypoint: BuildEntrypoints({
+        entrypoint: buildEntrypoints({
             controllers: [ClockController],
-            http: ExpressHTTPEntrypoint({
+            http: expressHTTPEntrypoint({
                 port: 8080,
                 before: (app): void => {
                     app.all('/mcp', mcp.handler)
@@ -337,8 +337,8 @@ of the mounting server is not known to the adapter. Until the adapter started, a
 
 ### Other transports
 
-`BuildMCPServer(runtime, info)` builds the MCP server of the actions of a channel runtime, to be connected to another
-transport by a custom adapter; `ToToolResult`, `ToErrorResult`, `ToResourceResult` and `ToPromptResult` convert the
+`buildMCPServer(runtime, info)` builds the MCP server of the actions of a channel runtime, to be connected to another
+transport by a custom adapter; `toToolResult`, `toErrorResult`, `toResourceResult` and `toPromptResult` convert the
 results as the adapters do.
 
 ## API
@@ -348,12 +348,12 @@ results as the adapters do.
 | `MCPTool`, `MCPToolOptions` | Method decorator: an action served as a tool; `title`, the hints, `output` |
 | `MCPResource`, `MCPResourceOptions` | Method decorator: an action served as a resource at a URI or URI template; `resourceName`, `title`, `mimeType`, `audience`, `priority` |
 | `MCPPrompt`, `MCPPromptOptions` | Method decorator: an action served as a prompt; `title` |
-| `StdioMCPEntrypoint`, `StdioMCPEntrypointOptions` | The stdio adapter, for the clients running the application as their subprocess |
-| `HTTPMCPEntrypoint`, `HTTPMCPEntrypointOptions`, `HTTPMCPEntrypointAdapter` | The Streamable HTTP adapter, and its `handler` for another server |
+| `stdioMCPEntrypoint`, `StdioMCPEntrypointOptions` | The stdio adapter, for the clients running the application as their subprocess |
+| `httpMCPEntrypoint`, `HTTPMCPEntrypointOptions`, `HTTPMCPEntrypointAdapter` | The Streamable HTTP adapter, and its `handler` for another server |
 | `MCPNotifier` | Notifies the clients: `resourceUpdated`, `resourcesChanged`, `toolsChanged`, `promptsChanged` |
 | `MCPContext`, `MCPContextParams`, `MCP_CONTEXT_TYPE`, `MCPRequestKind`, `MCPAuthInfo` | The context of the requests: `kind`, `name`, `uri`, `sessionId`, `authInfo`, `progress()` |
-| `BuildMCPServer`, `MCPServerInfo` | The MCP server of a channel runtime, for the custom adapters; the server's name, version and instructions |
-| `ToToolResult`, `ToErrorResult`, `ToResourceResult`, `ToPromptResult` | The conversions of the actions' results and errors |
+| `buildMCPServer`, `MCPServerInfo` | The MCP server of a channel runtime, for the custom adapters; the server's name, version and instructions |
+| `toToolResult`, `toErrorResult`, `toResourceResult`, `toPromptResult` | The conversions of the actions' results and errors |
 | `MCPMetadata` | The MCP metadata of an action, read by the adapters |
 | `MCPChannel` | The definition of the `mcp` channel, for the custom adapters |
 | `ServerEventBus`, `ServerEvent` | Re-exported from `@modelcontextprotocol/server`: the bus of the notifications (`bus` option) |
@@ -365,7 +365,7 @@ The typings document each declaration with examples.
 | Error | When |
 |---|---|
 | `TypeError` | When a class is declared: a tool or prompt name which is not 1 to 128 letters, digits, `_`, `-` or `.`, a resource URI without a scheme; when converting a result: an event stream (`Result.events()`), or a file returned by a prompt |
-| `Error` (`EADDRINUSE`…) | The start of `HTTPMCPEntrypoint`, when its server cannot listen: the entrypoint fails to start |
+| `Error` (`EADDRINUSE`…) | The start of `httpMCPEntrypoint`, when its server cannot listen: the entrypoint fails to start |
 | An error thrown by a tool | A result with `isError: true` and the text `errno: message`, given to the model |
 | An error thrown by a resource or a prompt | A protocol error: invalid parameters (`-32602`) for a 4xx `statusCode`, an internal error (`-32603`) otherwise; its message `errno: message` |
 | `ControllerActionNotFoundException` (from `lakutata/com/entrypoint`) | A request for a tool, resource or prompt no action serves |

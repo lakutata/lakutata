@@ -12,13 +12,13 @@ import {As} from './As.js'
  * @returns `true` when the value has the syntax of an explicit path, `false` otherwise.
  * @example
  * ```typescript
- * import {IsPath} from 'lakutata/utils'
+ * import {isPath} from 'lakutata/utils'
  *
- * console.log(IsPath('/var/log'), IsPath('./config.json'), IsPath('config.json'), IsPath('https://example.com'))
+ * console.log(isPath('/var/log'), isPath('./config.json'), isPath('config.json'), isPath('https://example.com'))
  * //true true false false
  * ```
  */
-export function IsPath(inp: string | PathLike): boolean {
+export function isPath(inp: string | PathLike): boolean {
     try {
         const pathRegex: RegExp = new RegExp('^(\\/|\\.\\.?\\/|([A-Za-z]:)?\\\\)([^\\\\\\/:*?"<>|\\r\\n]+[\\\\\\/])*[^\\\\\\/:*?"<>|\\r\\n]*$')
         return pathRegex.test(As<string>(inp))

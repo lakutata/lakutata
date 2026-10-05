@@ -10,14 +10,14 @@ import {Expect} from '@lakutata/core/decorator/dto'
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildCacherOptions} from 'lakutata/com/cacher'
+ * import {buildCacherOptions} from 'lakutata/com/cacher'
  *
  * Application.run(() => ({
  *     id: 'tiered-cache.app',
  *     name: 'TieredCache',
  *     components: {
  *         //A memory tier in front of Redis
- *         cache: BuildCacherOptions({
+ *         cache: buildCacherOptions({
  *             stores: [
  *                 {type: 'memory', sweepInterval: 30000},
  *                 {type: 'redis', host: '127.0.0.1', namespace: 'app'}

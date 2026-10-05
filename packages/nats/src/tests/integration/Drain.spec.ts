@@ -2,20 +2,20 @@ import {after, before, it} from 'node:test'
 import {expect} from '../support/Expect.js'
 import {describeNats as describe, destroyApp, runApp, ensureNats, stopNats} from '../support/App.js'
 import {Application} from '@lakutata/core'
-import {BuildEntrypoints, Controller} from '@lakutata/entrypoint'
+import {buildEntrypoints, Controller} from '@lakutata/entrypoint'
 import {ServiceAction} from '@lakutata/entrypoint/decorator/ctrl'
-import {Delay} from '@lakutata/utils'
+import {delay} from '@lakutata/utils'
 import {
-    BuildNatsClientOptions,
-    BuildServiceProxy,
+    buildNatsClientOptions,
+    buildServiceProxy,
     ServiceProxy,
-    SetupNatsServiceEntrypoint
+    setupNatsServiceEntrypoint
 } from '../../exports/Nats.js'
 
 class SlowController extends Controller {
     @ServiceAction({cmd: 'slow'})
     public async slow(inp: {cmd: string, value: number}): Promise<{done: number}> {
-        await Delay(250) //Simulate processing time
+        await delay(250) //Simulate processing time
         return {done: inp.value}
     }
 }
@@ -41,14 +41,14 @@ describe('graceful shutdown drain', (): void => {
             id: 'it.drain.app',
             name: 'ITDrain',
             components: {
-                nats: BuildNatsClientOptions({servers: natsUrl}),
-                entrypoint: BuildEntrypoints({
+                nats: buildNatsClientOptions({servers: natsUrl}),
+                entrypoint: buildEntrypoints({
                     controllers: [SlowController],
-                    service: SetupNatsServiceEntrypoint('nats')
+                    service: setupNatsServiceEntrypoint('nats')
                 })
             },
             providers: {
-                self: BuildServiceProxy({serviceId: 'it.drain.app', natsComponentName: 'nats'})
+                self: buildServiceProxy({serviceId: 'it.drain.app', natsComponentName: 'nats'})
             },
             bootstrap: ['entrypoint']
         })
@@ -56,7 +56,7 @@ describe('graceful shutdown drain', (): void => {
 
         //Fire a slow request (not awaited) so it enters the "processing" state
         const inflight: Promise<any> = self.invoke({cmd: 'slow', value: 42}, 10000)
-        await Delay(60) //Ensure the handler has started processing (still within the 250ms delay)
+        await delay(60) //Ensure the handler has started processing (still within the 250ms delay)
 
         //Trigger graceful shutdown: drain should wait for in-flight processing and the reply instead of cutting off immediately
         const stopping: Promise<void> = destroyApp(app)

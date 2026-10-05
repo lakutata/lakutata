@@ -4,11 +4,11 @@ import type {AddressInfo} from 'node:net'
 import type {Server} from 'node:http'
 import express from 'express'
 import {Container} from '@lakutata/core'
-import {BuildEntrypoints, Controller, Entrypoint} from '@lakutata/entrypoint'
+import {buildEntrypoints, Controller, Entrypoint} from '@lakutata/entrypoint'
 import {GET} from '@lakutata/entrypoint/decorator/ctrl'
-import {ExpressHTTPEntrypoint} from '@lakutata/entrypoint/adapter/express'
+import {expressHTTPEntrypoint} from '@lakutata/entrypoint/adapter/express'
 import {Client, StreamableHTTPClientTransport} from '@modelcontextprotocol/client'
-import {HTTPMCPEntrypoint, HTTPMCPEntrypointAdapter} from '../exports/MCP.js'
+import {httpMCPEntrypoint, HTTPMCPEntrypointAdapter} from '../exports/MCP.js'
 import {DeviceController, ToolController} from './support/Tools.js'
 
 class HealthController extends Controller {
@@ -24,11 +24,11 @@ class HealthController extends Controller {
  */
 async function Start(parseBody: boolean): Promise<{ url: string, container: Container }> {
     let server: Server | undefined
-    const mcp: HTTPMCPEntrypointAdapter = HTTPMCPEntrypoint({listen: false})
+    const mcp: HTTPMCPEntrypointAdapter = httpMCPEntrypoint({listen: false})
     const container: Container = new Container()
-    await container.set(Entrypoint, BuildEntrypoints({
+    await container.set(Entrypoint, buildEntrypoints({
         controllers: [DeviceController, ToolController, HealthController],
-        http: ExpressHTTPEntrypoint({
+        http: expressHTTPEntrypoint({
             port: 0,
             host: '127.0.0.1',
             before: (app, context): void => {

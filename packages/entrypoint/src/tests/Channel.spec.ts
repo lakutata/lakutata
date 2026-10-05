@@ -6,8 +6,8 @@ import {Autoload, Inject, Singleton} from '@lakutata/core/decorator/di'
 import {
     ActionInvocation,
     BaseContext,
-    BuildEntrypoints,
-    BuildServiceEntrypoint,
+    buildEntrypoints,
+    buildServiceEntrypoint,
     ChannelActionInfo,
     ChannelRuntime,
     Controller,
@@ -19,7 +19,7 @@ import {
     ServiceContext,
     ServiceEntrypointHandler
 } from '../exports/Entrypoint.js'
-import {ChannelDefinition, ChannelEntry, ChannelMatch, DefineChannel, GetActionDTOAndOptions, RegisterControllerAction} from '../exports/Channel.js'
+import {ChannelDefinition, ChannelEntry, ChannelMatch, defineChannel, getActionDTOAndOptions, registerControllerAction} from '../exports/Channel.js'
 import {Prefix, ServiceAction, UseMiddlewares} from '../exports/CTRLDecorators.js'
 
 class TestContext extends BaseContext {
@@ -37,7 +37,7 @@ class TestContext extends BaseContext {
 /**
  * A channel addressed by path templates such as "/device/{sn}"
  */
-const TestChannel: ChannelDefinition = DefineChannel({
+const TestChannel: ChannelDefinition = defineChannel({
     name: 'test',
     kind: 'request',
     contextType: 'TEST',
@@ -68,8 +68,8 @@ const TestChannel: ChannelDefinition = DefineChannel({
  */
 function TestAction(path: string, dto?: typeof DTO) {
     return (target: Controller, propertyKey: string): void => {
-        const [dtoConstructor, options] = GetActionDTOAndOptions(dto)
-        RegisterControllerAction(TestChannel, target, propertyKey as never, {path: path}, dtoConstructor, options)
+        const [dtoConstructor, options] = getActionDTOAndOptions(dto)
+        registerControllerAction(TestChannel, target, propertyKey as never, {path: path}, dtoConstructor, options)
     }
 }
 
@@ -139,7 +139,7 @@ class DeviceController extends Controller {
  */
 async function Create(options: Record<string, unknown>): Promise<{ entrypoint: Entrypoint, container: Container }> {
     const container: Container = new Container()
-    const entrypoint: Entrypoint = await container.set(Entrypoint, BuildEntrypoints({controllers: [DeviceController], ...options} as never))
+    const entrypoint: Entrypoint = await container.set(Entrypoint, buildEntrypoints({controllers: [DeviceController], ...options} as never))
     return {entrypoint: entrypoint, container: container}
 }
 
@@ -183,7 +183,7 @@ describe('Channels', (): void => {
         }
         let modern: ChannelRuntime | undefined
         const {container} = await Create({
-            service: [BuildServiceEntrypoint((module, handler, registerDestroy): void => {
+            service: [buildServiceEntrypoint((module, handler, registerDestroy): void => {
                 legacy = handler
                 registerDestroy((): void => {
                     legacyStopped = true
@@ -208,9 +208,9 @@ describe('Channels', (): void => {
         let guarded: Guard | undefined
         const container: Container = new Container()
         await container.registerNamed('guard', Guard)
-        await container.setNamed('entrypoint', Entrypoint, BuildEntrypoints({
+        await container.setNamed('entrypoint', Entrypoint, buildEntrypoints({
             controllers: [DeviceController],
-            service: BuildServiceEntrypoint(async (): Promise<void> => {
+            service: buildServiceEntrypoint(async (): Promise<void> => {
                 guarded = await container.get<Guard>('guard')
             })
         }))
@@ -221,9 +221,9 @@ describe('Channels', (): void => {
 
     it('fail the startup of the entrypoint when a 2.x builder fails', async (): Promise<void> => {
         const container: Container = new Container()
-        await assert.rejects(container.set(Entrypoint, BuildEntrypoints({
+        await assert.rejects(container.set(Entrypoint, buildEntrypoints({
             controllers: [DeviceController],
-            service: BuildServiceEntrypoint(async (): Promise<void> => {
+            service: buildServiceEntrypoint(async (): Promise<void> => {
                 throw new Error('listen EADDRINUSE')
             })
         })), /EADDRINUSE/)
@@ -232,8 +232,8 @@ describe('Channels', (): void => {
 
     it('reject the options which are not adapters of their channel', async (): Promise<void> => {
         await assert.rejects(Create({test: {channel: 'service', start: (): void => undefined}}), InvalidEntrypointAdapterException)
-        await assert.rejects(Create({htpp: BuildServiceEntrypoint((): void => undefined)}), InvalidEntrypointAdapterException)
-        await assert.rejects(Create({test: BuildServiceEntrypoint((): void => undefined)}), InvalidEntrypointAdapterException)
+        await assert.rejects(Create({htpp: buildServiceEntrypoint((): void => undefined)}), InvalidEntrypointAdapterException)
+        await assert.rejects(Create({test: buildServiceEntrypoint((): void => undefined)}), InvalidEntrypointAdapterException)
         await assert.rejects(Create({unknown: {channel: 'unknown', start: (): void => undefined}}), InvalidEntrypointAdapterException)
     })
 
@@ -241,8 +241,8 @@ describe('Channels', (): void => {
         const adapter: EntrypointAdapter = {channel: 'nats', start: (): void => undefined}
         assert.ok(Entrypoint.acceptsOption('nats', adapter))
         assert.ok(Entrypoint.acceptsOption('nats', [adapter, adapter]))
-        assert.ok(Entrypoint.acceptsOption('service', BuildServiceEntrypoint((): void => undefined)))
-        assert.ok(!Entrypoint.acceptsOption('htpp', BuildServiceEntrypoint((): void => undefined)))
+        assert.ok(Entrypoint.acceptsOption('service', buildServiceEntrypoint((): void => undefined)))
+        assert.ok(!Entrypoint.acceptsOption('htpp', buildServiceEntrypoint((): void => undefined)))
         assert.ok(!Entrypoint.acceptsOption('nats', [adapter, 1]))
         assert.ok(!Entrypoint.acceptsOption('timeout', 1000))
     })
@@ -273,7 +273,7 @@ describe('Channels', (): void => {
                 (await runtime.module?.getObject<DeviceRegistry>(DeviceRegistry) ?? await container.get(DeviceRegistry)).bound.push('test')
             }
         }
-        await container.set(Entrypoint, BuildEntrypoints({controllers: [DeviceController], test: adapter} as never))
+        await container.set(Entrypoint, buildEntrypoints({controllers: [DeviceController], test: adapter} as never))
         assert.deepStrictEqual(registry.bound, ['test'])
         await container.destroy()
     })

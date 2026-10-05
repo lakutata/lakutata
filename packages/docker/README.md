@@ -22,10 +22,10 @@ npm install ssh2
 | Connection | Options | Needs |
 |---|---|---|
 | The Docker of the environment (default) | none: `DOCKER_HOST`, `DOCKER_TLS_VERIFY`, `DOCKER_CERT_PATH`, `DOCKER_CLIENT_TIMEOUT`, else the local socket | nothing |
-| Unix socket / Windows named pipe | `socketPath` (`BuildDockerSocketConnectionOptions`) | access to the socket (the `docker` group) |
-| TCP, plain HTTP | `host`, `port` (`BuildDockerHttpConnectionOptions`) | a daemon listening on TCP (`-H tcp://0.0.0.0:2375`) |
-| TCP, HTTPS | `host`, `port`, `ca`, `cert`, `key` as PEM contents (`BuildDockerHttpsConnectionOptions`) | a daemon with TLS (`--tlsverify`) |
-| SSH | `host`, `port`, `username`, `sshAuthAgent` (`BuildDockerSSHConnectionOptions`) | `ssh2` locally; the Docker CLI remotely; a key in the SSH agent |
+| Unix socket / Windows named pipe | `socketPath` (`buildDockerSocketConnectionOptions`) | access to the socket (the `docker` group) |
+| TCP, plain HTTP | `host`, `port` (`buildDockerHttpConnectionOptions`) | a daemon listening on TCP (`-H tcp://0.0.0.0:2375`) |
+| TCP, HTTPS | `host`, `port`, `ca`, `cert`, `key` as PEM contents (`buildDockerHttpsConnectionOptions`) | a daemon with TLS (`--tlsverify`) |
+| SSH | `host`, `port`, `username`, `sshAuthAgent` (`buildDockerSSHConnectionOptions`) | `ssh2` locally; the Docker CLI remotely; a key in the SSH agent |
 
 ## Usage
 
@@ -77,9 +77,9 @@ Application
 import {readFileSync} from 'node:fs'
 import {Application} from 'lakutata'
 import {
-    BuildDockerHttpsConnectionOptions,
-    BuildDockerSocketConnectionOptions,
-    BuildDockerSSHConnectionOptions,
+    buildDockerHttpsConnectionOptions,
+    buildDockerSocketConnectionOptions,
+    buildDockerSSHConnectionOptions,
     Docker
 } from 'lakutata/com/docker'
 
@@ -88,9 +88,9 @@ Application.run(() => ({
     name: 'Docker',
     components: {
         //A socket, with a request timeout of 60 s
-        local: BuildDockerSocketConnectionOptions({socketPath: '/var/run/docker.sock', timeout: 60000}),
+        local: buildDockerSocketConnectionOptions({socketPath: '/var/run/docker.sock', timeout: 60000}),
         //TLS: the PEM contents, not the file paths
-        remote: BuildDockerHttpsConnectionOptions({
+        remote: buildDockerHttpsConnectionOptions({
             host: 'docker.example.com',
             port: 2376,
             ca: readFileSync('/etc/docker/certs/ca.pem'),
@@ -98,7 +98,7 @@ Application.run(() => ({
             key: readFileSync('/etc/docker/certs/key.pem')
         }),
         //SSH: authenticated by the SSH agent (SSH_AUTH_SOCK)
-        builder: BuildDockerSSHConnectionOptions({host: 'build.example.com', port: 22, username: 'deploy'}),
+        builder: buildDockerSSHConnectionOptions({host: 'build.example.com', port: 22, username: 'deploy'}),
         //The options as they are, with a fixed API version
         pinned: {class: Docker, version: '1.47'}
     }
@@ -269,14 +269,14 @@ await docker.removeNetwork(network.id)
 | `DockerImage` | An image: `id`, `repoTags`, `platform`, `size`, `config`; `tag()`, `export()`, `push()`, `remove()`, `run()` |
 | `DockerContainer` | A container: its settings and `state`; `start()`, `stop()`, `restart()`, `pause()`, `unpause()`, `kill()`, `remove()`, `update()`, `commit()`, `exec()`, `createTTY()`, `logs()`, `stats()`, `exportDirectory()` |
 | `DockerContainerTTY` | An interactive command with a TTY: `raw`, `readable`, `writable`, `onData()`, `write()`, `resize()` |
-| `BuildDockerConnectionOptions`, `BuildDockerSocketConnectionOptions`, `BuildDockerHttpConnectionOptions`, `BuildDockerHttpsConnectionOptions`, `BuildDockerSSHConnectionOptions` | Build the component options for each kind of connection |
+| `buildDockerConnectionOptions`, `buildDockerSocketConnectionOptions`, `buildDockerHttpConnectionOptions`, `buildDockerHttpsConnectionOptions`, `buildDockerSSHConnectionOptions` | Build the component options for each kind of connection |
 | `IDockerConnectionOptions`, `IDockerSocketConnectionOptions`, `IDockerHttpConnectionOptions`, `IDockerHttpsConnectionOptions`, `IDockerSSHConnectionOptions`, `IDockerKeyObject` | The connection options |
 | `ImagePullOptions`, `ImageBuildOptions`, `ImageImportOptions`, `ImageExportOptions`, `ImageTagOptions`, `ImagePushOptions`, `ImageRemoveOptions` | The options of the image operations |
 | `ContainerSettingOptions`, `ContainerStopOptions`, `ContainerKillOptions`, `ContainerRemoveOptions`, `ContainerCommitOptions`, `ContainerExecOptions`, `ContainerCreateTTYOptions`, `ContainerTTYConsoleSizeOptions`, `ContainerLogsOptions`, `ContainerExportDirectoryOptions` | The options of the container operations |
 | `NetworkCreateOptions`, `DockerPruneOptions`, `DockerAuthOptions` | The options of the networks, of `prune()`, and the registry credentials |
 | `ContainerState`, `ContainerPort`, `ContainerBind`, `ContainerDevice`, `ContainerNetwork`, `ContainerCapability`, `ContainerRestartPolicy`, `ContainerStats`, `ContainerConfig`, `ContainerExecResult` | The types of the containers, and the result of `exec()` |
 | `ImageConfig`, `ImageExposePort`, `RepositoryTag`, `NetworkInfo`, `DockerOutputCallback` | The types of the images, the networks and the progress messages |
-| `ParseRepositoryTag`, `ParseEnvToRecord` | Split an image reference into repository and tag; turn `NAME=value` entries into a record |
+| `parseRepositoryTag`, `parseEnvToRecord` | Split an image reference into repository and tag; turn `NAME=value` entries into a record |
 | `DockerConnectionException`, `DockerContainerNotFoundException`, `DockerImageNotFoundException`, `DockerImagePullException`, `DockerImageBuildException`, `DockerImageImportException`, `DockerImagePushException`, `DockerImageRepoTagNotFoundException`, `DockerNetworkNotFoundException`, `DockerRequestException` | The exceptions |
 
 All are exported by `lakutata/com/docker` and `@lakutata/docker`. The typings document each declaration with examples.

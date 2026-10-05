@@ -1,7 +1,7 @@
 import {DTO, Exception} from '@lakutata/core'
 import {Expect, Return} from '@lakutata/core/decorator/dto'
 import {Controller} from '@lakutata/entrypoint'
-import {DBusContext, DBusInterface, DBusMethod, DefineDBusProperty, DefineDBusSignal} from '../../exports/DBus.js'
+import {DBusContext, DBusInterface, DBusMethod, defineDBusProperty, defineDBusSignal} from '../../exports/DBus.js'
 import {DBusUInt32} from 'dbus-sdk'
 
 export class DeviceDTO extends DTO {
@@ -27,11 +27,11 @@ export class OfflineException extends Exception {
     public errno: string = 'E_OFFLINE'
 }
 
-export const DeviceChanged = DefineDBusSignal('Changed', StatusDTO)
+export const DeviceChanged = defineDBusSignal('Changed', StatusDTO)
 
-export const DeviceState = DefineDBusProperty<string>('State', 's', {initial: 'idle'})
+export const DeviceState = defineDBusProperty<string>('State', 's', {initial: 'idle'})
 
-export const DeviceLevel = DefineDBusProperty<number>('Level', 'i', {writable: true, initial: 1, schema: DTO.Number().integer().min(0).max(10)})
+export const DeviceLevel = defineDBusProperty<number>('Level', 'i', {writable: true, initial: 1, schema: DTO.Number().integer().min(0).max(10)})
 
 /**
  * The contexts seen by the methods

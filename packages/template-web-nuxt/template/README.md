@@ -58,11 +58,11 @@ them. The migrations are written into `packages/app/src/migrations`, compiled wi
 databases, run when they connect:
 
 ```typescript
-import {BuildDatabaseOptions} from 'lakutata/com/database'
+import {buildDatabaseOptions} from 'lakutata/com/database'
 import {Migrations1788773616343} from '../migrations/1788773616343-db.js'
 
 components: {
-    db: BuildDatabaseOptions({
+    db: buildDatabaseOptions({
         type: 'postgres',
         url: process.env.DATABASE_URL,
         entities: [/* the entities */],

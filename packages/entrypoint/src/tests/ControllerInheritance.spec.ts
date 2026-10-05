@@ -1,7 +1,7 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {Container} from '@lakutata/core'
-import {BuildEntrypoints, BuildServiceEntrypoint, Controller, Entrypoint, ServiceContext, type ServiceEntrypointHandler} from '../exports/Entrypoint.js'
+import {buildEntrypoints, buildServiceEntrypoint, Controller, Entrypoint, ServiceContext, type ServiceEntrypointHandler} from '../exports/Entrypoint.js'
 import {ServiceAction} from '../exports/CTRLDecorators.js'
 
 class BaseController extends Controller {
@@ -39,9 +39,9 @@ class LeafController extends MiddleController {
 async function Handler(controllers: (typeof Controller)[]): Promise<{ handler: ServiceEntrypointHandler, container: Container }> {
     let handler: ServiceEntrypointHandler | undefined
     const container: Container = new Container()
-    await container.set(Entrypoint, BuildEntrypoints({
+    await container.set(Entrypoint, buildEntrypoints({
         controllers: controllers as never,
-        service: BuildServiceEntrypoint((module, serviceHandler): void => {
+        service: buildServiceEntrypoint((module, serviceHandler): void => {
             handler = serviceHandler
         })
     }))

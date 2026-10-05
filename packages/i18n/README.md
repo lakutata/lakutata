@@ -13,15 +13,15 @@ umbrella package `lakutata` re-exports it as `lakutata/com/i18n`.
 npm install lakutata
 ```
 
-The component needs nothing more. `I18nMiddleware` and `CommanderTranslator` use the entrypoint component
+The component needs nothing more. `I18nMiddleware` and `commanderTranslator` use the entrypoint component
 (`lakutata/com/entrypoint`, the optional peer dependency `@lakutata/entrypoint`), included in `lakutata`.
 
 ## Usage
 
 ### The component and its messages
 
-Register the component with `BuildI18nOptions()` in the `components` of the application, named `i18n` (the name the
-middleware and `CommanderTranslator` use), and give it its messages:
+Register the component with `buildI18nOptions()` in the `components` of the application, named `i18n` (the name the
+middleware and `commanderTranslator` use), and give it its messages:
 
 - `directory`: one or several directories (a path, or an alias of the application such as `@locales`) read when the
   component is created. A language is a JSON file named by its tag (`en.json`, `zh-CN.json`), or a directory named by
@@ -35,7 +35,7 @@ cannot contain `.`.
 
 ```typescript
 import {Application} from 'lakutata'
-import {BuildI18nOptions, type I18n} from 'lakutata/com/i18n'
+import {buildI18nOptions, type I18n} from 'lakutata/com/i18n'
 
 Application
     .alias({'@locales': '/srv/shop/locales'})
@@ -43,7 +43,7 @@ Application
         id: 'shop.app',
         name: 'Shop',
         components: {
-            i18n: BuildI18nOptions({
+            i18n: buildI18nOptions({
                 directory: '@locales',
                 messages: {
                     'en': {order: {count: '{count, plural, =0 {No orders} one {# order} other {# orders}}', total: 'Total: {price, number, currency}'}},
@@ -102,11 +102,11 @@ controller, the `@Scoped` providers, the access control rules) inject the same `
 
 ```typescript
 import {Application} from 'lakutata'
-import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
-import {ExpressHTTPEntrypoint} from 'lakutata/adapter/express'
+import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
 import {CLIAction, GET} from 'lakutata/decorator/ctrl'
 import {Inject} from 'lakutata/decorator/di'
-import {BuildI18nOptions, I18nMiddleware, Translator} from 'lakutata/com/i18n'
+import {buildI18nOptions, I18nMiddleware, Translator} from 'lakutata/com/i18n'
 
 class OrderController extends Controller {
     @Inject(Translator)
@@ -126,16 +126,16 @@ Application.run(() => ({
     id: 'shop.app',
     name: 'Shop',
     components: {
-        i18n: BuildI18nOptions({
+        i18n: buildI18nOptions({
             messages: {
                 'en': {order: {count: '{count, plural, one {# order} other {# orders}}'}},
                 'zh-CN': {order: {count: '{count} 个订单'}}
             }
         }),
-        entrypoint: BuildEntrypoints({
+        entrypoint: buildEntrypoints({
             controllers: [OrderController],
             middlewares: [I18nMiddleware],
-            http: ExpressHTTPEntrypoint({port: 3000})
+            http: expressHTTPEntrypoint({port: 3000})
         })
     },
     bootstrap: ['entrypoint']
@@ -252,17 +252,17 @@ throw new OrderNotFoundException('Order {id} not found', {id: 7})
 
 ### The command line help
 
-`CommanderTranslator()` translates the help and the prompts of the Commander adapter with the messages under `cli`
+`commanderTranslator()` translates the help and the prompts of the Commander adapter with the messages under `cli`
 (`cli.description`, `cli.commands.<command>.description`, `cli.commands.<command>.arguments.<name>`,
 `cli.commands.<command>.options.<property>`, `cli.help.usage`, `cli.help.options`, `cli.help.default`,
 `cli.prompt.json`…), in the language of the environment; a text without a message stays in English:
 
 ```typescript
 import {Application} from 'lakutata'
-import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
-import {CommanderCLIEntrypoint} from 'lakutata/adapter/commander'
+import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+import {commanderCLIEntrypoint} from 'lakutata/adapter/commander'
 import {CLIAction} from 'lakutata/decorator/ctrl'
-import {BuildI18nOptions, CommanderTranslator, I18nMiddleware} from 'lakutata/com/i18n'
+import {buildI18nOptions, commanderTranslator, I18nMiddleware} from 'lakutata/com/i18n'
 
 class GreetController extends Controller {
     @CLIAction('greet', {description: 'Greet someone'})
@@ -275,16 +275,16 @@ Application.run(() => ({
     id: 'tool.app',
     name: 'Tool',
     components: {
-        i18n: BuildI18nOptions({
+        i18n: buildI18nOptions({
             messages: {
                 'zh-CN': {cli: {commands: {greet: {description: '问候某人'}}, help: {usage: '用法：', options: '选项：'}}}
             }
         }),
-        entrypoint: BuildEntrypoints({
+        entrypoint: buildEntrypoints({
             controllers: [GreetController],
             middlewares: [I18nMiddleware],
             //TOOL_LANG=zh-CN tool --help, or LANG=zh_CN.UTF-8
-            cli: CommanderCLIEntrypoint({bin: 'tool', translate: CommanderTranslator({environment: 'TOOL_LANG'})})
+            cli: commanderCLIEntrypoint({bin: 'tool', translate: commanderTranslator({environment: 'TOOL_LANG'})})
         })
     },
     bootstrap: ['entrypoint']
@@ -293,14 +293,14 @@ Application.run(() => ({
 
 ### Checking the translations
 
-`LoadCatalogs`, `CheckCatalogs` and `GenerateMessageTypes` are the functions behind `lakutata i18n check` and
+`loadCatalogs`, `checkCatalogs` and `generateMessageTypes` are the functions behind `lakutata i18n check` and
 `lakutata i18n types`, for a script or the CI:
 
 ```typescript
-import {CheckCatalogs, LoadCatalogs, type CatalogIssue, type Catalogs} from 'lakutata/com/i18n'
+import {checkCatalogs, loadCatalogs, type CatalogIssue, type Catalogs} from 'lakutata/com/i18n'
 
-const catalogs: Catalogs = await LoadCatalogs(['./locales'])
-const issues: CatalogIssue[] = CheckCatalogs(catalogs, 'en')
+const catalogs: Catalogs = await loadCatalogs(['./locales'])
+const issues: CatalogIssue[] = checkCatalogs(catalogs, 'en')
 for (const issue of issues) console.log(`${issue.level} ${issue.locale} ${issue.key}: ${issue.message}`)
 if (issues.some((issue: CatalogIssue): boolean => issue.level === 'error')) process.exitCode = 1
 ```
@@ -310,18 +310,18 @@ if (issues.some((issue: CatalogIssue): boolean => issue.level === 'error')) proc
 | Export | What it is |
 |---|---|
 | `I18n` | The component: `t`, `has`, `format`, `translator`, `negotiate`, `addMessages`, `getLocales`, `getDefaultLocale`, `getKeys`, `getTimeZone` |
-| `BuildI18nOptions` | Builds the component options of `I18n` |
+| `buildI18nOptions` | Builds the component options of `I18n` |
 | `I18nOptions` | The options: `directory`, `messages`, `locales`, `defaultLocale`, `fallback`, `missing`, `currency`, `timeZone`, `validationMessages` |
 | `Translator` | The scoped provider injected in the objects of a request, in the request's language |
 | `ITranslator` | A translator of one language: `locale`, `t`, `has`, `format`, `number`, `date` |
 | `LocaleTranslator` | The `ITranslator` given by `I18n.translator()` |
 | `I18nMiddleware` | The entrypoint middleware choosing the language of each request (`lakutata/com/i18n`, `@lakutata/i18n/middleware`) |
-| `CommanderTranslator`, `CommanderTranslatorOptions` | The translation of the Commander CLI help, and its options (`lakutata/com/i18n`, `@lakutata/i18n/middleware`) |
+| `commanderTranslator`, `CommanderTranslatorOptions` | The translation of the Commander CLI help, and its options (`lakutata/com/i18n`, `@lakutata/i18n/middleware`) |
 | `I18nMessages`, `MessageKey`, `MessageParams` | The declaration of the application's keys and arguments, and the types derived from it |
 | `NestedMessages`, `Catalogs` | The messages of a language nested by key parts; the loaded messages by language and key |
-| `LoadCatalogs`, `CheckCatalogs`, `CatalogIssue`, `GenerateMessageTypes` | Load the message directories, check the translations, generate the key types |
-| `NormalizeLocale`, `ParseAcceptLanguage`, `EnvironmentLocales`, `NegotiateLocale`, `FallbackChain` | The language tag helpers |
-| `ParseMessage`, `MessageArguments`, `MessagePart` | The ICU MessageFormat parser and the arguments of a message |
+| `loadCatalogs`, `checkCatalogs`, `CatalogIssue`, `generateMessageTypes` | Load the message directories, check the translations, generate the key types |
+| `normalizeLocale`, `parseAcceptLanguage`, `environmentLocales`, `negotiateLocale`, `fallbackChain` | The language tag helpers |
+| `parseMessage`, `messageArguments`, `MessagePart` | The ICU MessageFormat parser and the arguments of a message |
 | `I18nCatalogException`, `I18nMessageSyntaxException`, `I18nMissingKeyException`, `I18nMissingParameterException`, `I18nTranslatorException` | The exceptions |
 
 All are exported by `lakutata/com/i18n`; `@lakutata/i18n` exports them except the middleware ones, exported by
@@ -331,8 +331,8 @@ All are exported by `lakutata/com/i18n`; `@lakutata/i18n` exports them except th
 
 | Exception | When |
 |---|---|
-| `I18nCatalogException` (`E_I18N_CATALOG`) | The component's creation, `addMessages()` or `LoadCatalogs()`: a missing directory, invalid JSON, a file or directory name which is not a language tag, an invalid key or value, an option which is not a language tag, an alias without an application; `GenerateMessageTypes()`: the default language has no messages |
-| `I18nMessageSyntaxException` (`E_I18N_MESSAGE_SYNTAX`) | A message is not valid ICU MessageFormat, when it is first used (or parsed by `format()`, `ParseMessage()`, `GenerateMessageTypes()`) |
+| `I18nCatalogException` (`E_I18N_CATALOG`) | The component's creation, `addMessages()` or `loadCatalogs()`: a missing directory, invalid JSON, a file or directory name which is not a language tag, an invalid key or value, an option which is not a language tag, an alias without an application; `generateMessageTypes()`: the default language has no messages |
+| `I18nMessageSyntaxException` (`E_I18N_MESSAGE_SYNTAX`) | A message is not valid ICU MessageFormat, when it is first used (or parsed by `format()`, `parseMessage()`, `generateMessageTypes()`) |
 | `I18nMissingKeyException` (`E_I18N_MISSING_KEY`) | `t()`: no message has the key, with `missing: 'throw'` |
 | `I18nMissingParameterException` (`E_I18N_MISSING_PARAMETER`) | `t()`, `format()`: an argument is missing, or a currency argument has no currency, with `missing: 'throw'` |
 | `I18nTranslatorException` (`E_I18N_TRANSLATOR`) | The `Translator` is used without the `I18nMiddleware`, or out of a request |
@@ -343,5 +343,5 @@ All are exported by `lakutata/com/i18n`; `@lakutata/i18n` exports them except th
 - `doc/en/I18n.md` of the package `lakutata` (Chinese in `doc/zh`): the guide of the internationalization.
 - `@lakutata/entrypoint` (`lakutata/com/entrypoint`): the controllers, the middlewares and the adapters.
 - `@lakutata/core` (`lakutata`): the components, `Application`, the DTO validation and its languages
-  (`LoadValidationMessages`, `RegisterValidationMessages`, `RunInValidationLanguage`).
+  (`loadValidationMessages`, `registerValidationMessages`, `runInValidationLanguage`).
 - `@lakutata/cli`: the `lakutata i18n check`, `lakutata i18n types` and `lakutata i18n add` commands.

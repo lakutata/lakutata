@@ -20,13 +20,13 @@ type Packaged = {
  * @returns `true` when packed, `false` when it runs from its sources or its build (in development).
  * @example
  * ```typescript
- * import {IsPackaged} from 'lakutata'
+ * import {isPackaged} from 'lakutata'
  *
  * //The updates are only checked by the released builds
- * if (IsPackaged()) console.log('Running the released build')
+ * if (isPackaged()) console.log('Running the released build')
  * ```
  */
-export function IsPackaged(): boolean {
+export function isPackaged(): boolean {
     return !!(globalThis as Record<symbol, unknown>)[PACKAGED]
 }
 
@@ -38,13 +38,13 @@ export function IsPackaged(): boolean {
  * @example
  * ```typescript
  * import path from 'node:path'
- * import {ResourcesPath} from 'lakutata'
+ * import {resourcesPath} from 'lakutata'
  *
  * //The web UI served by the application: its packed copy, or its build in development
- * const resources: string | undefined = ResourcesPath()
+ * const resources: string | undefined = resourcesPath()
  * const ui: string = resources ? path.join(resources, 'ui') : path.resolve('ui', 'dist')
  * ```
  */
-export function ResourcesPath(): string | undefined {
+export function resourcesPath(): string | undefined {
     return ((globalThis as Record<symbol, unknown>)[PACKAGED] as Packaged | undefined)?.resources()
 }

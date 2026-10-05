@@ -12,7 +12,7 @@ import {RouteNotFoundException} from '../../exceptions/RouteNotFoundException.js
 import {ExpressResponder, JSONResponder} from './Responders.js'
 
 /**
- * What the `before` hook of {@link ExpressHTTPEntrypoint} receives besides the express application: the entrypoint's
+ * What the `before` hook of {@link expressHTTPEntrypoint} receives besides the express application: the entrypoint's
  * module, the HTTP server (not listening yet) and the routes the actions will occupy.
  */
 export type ExpressHookContext = {
@@ -22,7 +22,7 @@ export type ExpressHookContext = {
     readonly module: Module
     /**
      * The HTTP server serving the express application. It does not listen yet when the hook runs; attach other servers
-     * to it there (such as a socket.io server, see the `server` option of `SocketIOServiceEntrypoint`).
+     * to it there (such as a socket.io server, see the `server` option of `socketIOServiceEntrypoint`).
      */
     readonly server: Server
     /**
@@ -42,7 +42,7 @@ export type ExpressHookContext = {
 }
 
 /**
- * The options of {@link ExpressHTTPEntrypoint}.
+ * The options of {@link expressHTTPEntrypoint}.
  */
 export type ExpressHTTPEntrypointOptions = {
     /**
@@ -96,7 +96,7 @@ export type ExpressHTTPEntrypointOptions = {
     before?: (app: Express, context: ExpressHookContext) => void | Promise<void>
     /**
      * The handler of the requests that match no action and whose path is outside the action prefixes, such as the pages
-     * of a web application (see {@link StaticUI}). The unmatched requests inside the action prefixes, and all of them
+     * of a web application (see {@link staticUI}). The unmatched requests inside the action prefixes, and all of them
      * without a fallback, are answered with a `RouteNotFoundException` (404).
      */
     fallback?: RequestHandler
@@ -157,13 +157,13 @@ function EventFrame(data: unknown, event?: string, id?: string): string {
  * given up to one second after they settle to send their responses before the remaining connections are closed.
  * @param options The adapter options; by default it listens on port 80 of all the interfaces with a new express
  * application.
- * @returns The adapter, to give to the `http` option of `BuildEntrypoints`.
+ * @returns The adapter, to give to the `http` option of `buildEntrypoints`.
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+ * import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
  * import {GET, POST} from 'lakutata/decorator/ctrl'
- * import {ExpressHTTPEntrypoint, StaticUI} from 'lakutata/adapter/express'
+ * import {expressHTTPEntrypoint, staticUI} from 'lakutata/adapter/express'
  *
  * class UserController extends Controller {
  *     //GET /users/1?verbose=true: the route parameter id merged over the query
@@ -183,9 +183,9 @@ function EventFrame(data: unknown, event?: string, id?: string): string {
  *     id: 'web.app',
  *     name: 'Web',
  *     components: {
- *         entrypoint: BuildEntrypoints({
+ *         entrypoint: buildEntrypoints({
  *             controllers: [UserController],
- *             http: ExpressHTTPEntrypoint({
+ *             http: expressHTTPEntrypoint({
  *                 port: 8080,
  *                 body: {limit: '5mb'},
  *                 //The application's own routes, before the actions
@@ -193,14 +193,14 @@ function EventFrame(data: unknown, event?: string, id?: string): string {
  *                     app.get('/health', (request, response): void => void response.send('ok'))
  *                 },
  *                 //The pages of the UI built in ./ui/dist, for the paths outside /users
- *                 fallback: StaticUI('./ui/dist')
+ *                 fallback: staticUI('./ui/dist')
  *             })
  *         })
  *     }
  * })
  * ```
  */
-export function ExpressHTTPEntrypoint(options: ExpressHTTPEntrypointOptions = {}): EntrypointAdapter<HTTPContext> {
+export function expressHTTPEntrypoint(options: ExpressHTTPEntrypointOptions = {}): EntrypointAdapter<HTTPContext> {
     const respond: ExpressResponder = options.respond ?? JSONResponder
     const input: (request: Request) => Record<string, unknown> = options.input ?? ((request: Request): Record<string, unknown> => ({...(request.query as Record<string, unknown>), ...(request.body && typeof request.body === 'object' ? request.body : {})}))
     const streams: Set<AbortController> = new Set()

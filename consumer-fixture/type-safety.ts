@@ -5,11 +5,11 @@
 // Known gaps, not checked in 2.x either: a component declared as a provider (Component extends Provider), an
 // unknown property of a DTO (DTO has an index signature).
 import {Application, Component, Provider, DTO, BaseObject} from 'lakutata'
-import {BuildEntrypoints, BuildHTTPEntrypoint, Controller} from 'lakutata/com/entrypoint'
-import {BuildDatabaseOptions} from 'lakutata/com/database'
+import {buildEntrypoints, buildHTTPEntrypoint, Controller} from 'lakutata/com/entrypoint'
+import {buildDatabaseOptions} from 'lakutata/com/database'
 import {Logger} from 'lakutata/com/logger'
 import {Expect} from 'lakutata/decorator/dto'
-import {BuildI18nOptions, type I18n} from 'lakutata/com/i18n'
+import {buildI18nOptions, type I18n} from 'lakutata/com/i18n'
 
 class MyComponent extends Component {
     public hello(): string {
@@ -47,8 +47,8 @@ Application
         components: {
             log: {class: Logger},
             my: {class: MyComponent},
-            db: BuildDatabaseOptions({type: 'mysql', host: 'localhost', database: 'test'}),
-            entrypoint: BuildEntrypoints({controllers: [MyController]})
+            db: buildDatabaseOptions({type: 'mysql', host: 'localhost', database: 'test'}),
+            entrypoint: buildEntrypoints({controllers: [MyController]})
         },
         providers: {
             mine: {class: MyProvider}
@@ -70,9 +70,9 @@ Application.run({id: 1, name: 'App'})
 // @ts-expect-error E02 id is missing
 Application.run({name: 'App'})
 // @ts-expect-error E03 an option of the database is misspelled
-Application.run({id: 'a', name: 'b', components: {db: BuildDatabaseOptions({type: 'mysql', host: 'h', databasee: 'x'})}})
+Application.run({id: 'a', name: 'b', components: {db: buildDatabaseOptions({type: 'mysql', host: 'h', databasee: 'x'})}})
 // @ts-expect-error E04 an unknown database type
-Application.run({id: 'a', name: 'b', components: {db: BuildDatabaseOptions({type: 'mysqlx'})}})
+Application.run({id: 'a', name: 'b', components: {db: buildDatabaseOptions({type: 'mysqlx'})}})
 // @ts-expect-error E05 a provider declared as a component
 Application.run({id: 'a', name: 'b', components: {x: {class: MyProvider}}})
 // @ts-expect-error E07 a class which is not a BaseObject
@@ -90,20 +90,20 @@ Application.run({id: 'a', name: 'b'}).onLaunched(async (app: Application): Promi
     (await app.getObject(MyComponent)).helo()
 })
 // @ts-expect-error E13 a controller which is not a controller
-BuildEntrypoints({controllers: [MyComponent]})
+buildEntrypoints({controllers: [MyComponent]})
 // @ts-expect-error E14 a controller which is not a class
-BuildEntrypoints({controllers: ['MyController']})
+buildEntrypoints({controllers: ['MyController']})
 // @ts-expect-error E16 a component class which is not a class
 Application.run({id: 'a', name: 'b', components: {x: {class: 'MyComponent'}}})
 export const unused: BaseObject | undefined = undefined
 // @ts-expect-error E17 a channel misspelled
-BuildEntrypoints({controllers: [MyController], htpp: BuildHTTPEntrypoint((): void => undefined)})
+buildEntrypoints({controllers: [MyController], htpp: buildHTTPEntrypoint((): void => undefined)})
 // @ts-expect-error E18 a channel which is a number
-BuildEntrypoints({controllers: [MyController], http: 123})
+buildEntrypoints({controllers: [MyController], http: 123})
 // @ts-expect-error E19 a rule which is a number
-BuildEntrypoints({controllers: [MyController], rules: [123]})
+buildEntrypoints({controllers: [MyController], rules: [123]})
 // @ts-expect-error E20 an option of the entrypoint misspelled
-BuildEntrypoints({controllers: [MyController], controlers: [MyController]})
+buildEntrypoints({controllers: [MyController], controlers: [MyController]})
 
 //The keys of the messages declared by the application: a key misspelled, an argument missing or of another type
 declare module 'lakutata/com/i18n' {
@@ -121,4 +121,4 @@ i18n.translator('zh-CN').t('order.count', {})
 // @ts-expect-error E23 an argument of a message of another type
 i18n.t('order.count', {count: 'many'})
 // @ts-expect-error E24 an option of the i18n component misspelled
-BuildI18nOptions({directroy: '@locales'})
+buildI18nOptions({directroy: '@locales'})

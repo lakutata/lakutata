@@ -58,15 +58,15 @@ const CONTROLLER_PREFIX: symbol = Symbol('ENTRYPOINT.CONTROLLER.PREFIX')
  * @example
  * ```typescript
  * import {Controller} from 'lakutata/com/entrypoint'
- * import {SetPrefix} from '@lakutata/entrypoint/channel'
+ * import {setPrefix} from '@lakutata/entrypoint/channel'
  *
  * //A decorator of a "queue" channel prefixing the topics of a controller
  * export function TopicPrefix(topic: string) {
- *     return (target: typeof Controller): void => SetPrefix(target, {topic: topic})
+ *     return (target: typeof Controller): void => setPrefix(target, {topic: topic})
  * }
  * ```
  */
-export function SetPrefix(controller: Function, options: PrefixOptions): void {
+export function setPrefix(controller: Function, options: PrefixOptions): void {
     const own: PrefixOptions | undefined = Reflect.getOwnMetadata(CONTROLLER_PREFIX, controller)
     Reflect.defineMetadata(CONTROLLER_PREFIX, PrefixOptions.validate({...own, ...options}), controller)
 }
@@ -80,7 +80,7 @@ export function SetPrefix(controller: Function, options: PrefixOptions): void {
  * ```typescript
  * import {Controller} from 'lakutata/com/entrypoint'
  * import {Prefix} from 'lakutata/decorator/ctrl'
- * import {GetPrefix} from '@lakutata/entrypoint/channel'
+ * import {getPrefix} from '@lakutata/entrypoint/channel'
  *
  * @Prefix({route: '/users'})
  * class UserController extends Controller {
@@ -89,10 +89,10 @@ export function SetPrefix(controller: Function, options: PrefixOptions): void {
  * class AdminController extends UserController {
  * }
  *
- * console.log(GetPrefix(AdminController)?.route) //'/users'
+ * console.log(getPrefix(AdminController)?.route) //'/users'
  * ```
  */
-export function GetPrefix(controller: Function): PrefixOptions | undefined {
+export function getPrefix(controller: Function): PrefixOptions | undefined {
     for (let current: any = controller; current && current !== Function.prototype; current = Object.getPrototypeOf(current)) {
         const prefix: PrefixOptions | undefined = Reflect.getOwnMetadata(CONTROLLER_PREFIX, current)
         if (prefix) return prefix

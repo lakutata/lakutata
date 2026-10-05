@@ -4,7 +4,7 @@ import {DTO} from '@lakutata/core'
 import {type CLIContextParams} from '../types/CLIContextParams.js'
 
 /**
- * The context of a command run by a CLI adapter (`CommanderCLIEntrypoint`): `this.context` of a controller action
+ * The context of a command run by a CLI adapter (`commanderCLIEntrypoint`): `this.context` of a controller action
  * declared with `@CLIAction`, when it runs as a command. Its `data` holds the positional arguments and the options of
  * the command, before their validation.
  * @example

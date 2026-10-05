@@ -29,12 +29,12 @@ A store whose package is missing fails the cache's creation with `CacheDriverNot
 
 ### A cache in an application
 
-Register the `Cacher` component with `BuildCacherOptions`, then get it with `getObject()` or `@Inject`. Without
+Register the `Cacher` component with `buildCacherOptions`, then get it with `getObject()` or `@Inject`. Without
 `stores`, it caches in memory.
 
 ```typescript
 import {Application} from 'lakutata'
-import {BuildCacherOptions, type Cacher} from 'lakutata/com/cacher'
+import {buildCacherOptions, type Cacher} from 'lakutata/com/cacher'
 
 Application
     .run(() => ({
@@ -42,7 +42,7 @@ Application
         name: 'Cache',
         components: {
             //Entries expire after 10 minutes unless a write gives another TTL
-            cache: BuildCacherOptions({ttl: 600000})
+            cache: buildCacherOptions({ttl: 600000})
         }
     }))
     .onLaunched(async (app: Application): Promise<void> => {
@@ -95,13 +95,13 @@ class WeatherService extends Component {
 
 ```typescript
 import {Application} from 'lakutata'
-import {BuildCacherOptions} from 'lakutata/com/cacher'
+import {buildCacherOptions} from 'lakutata/com/cacher'
 
 Application.run(() => ({
     id: 'tiers.app',
     name: 'Tiers',
     components: {
-        cache: BuildCacherOptions({
+        cache: buildCacherOptions({
             //Read from the first store holding the key; written to and deleted from both
             stores: [
                 {type: 'file', filename: './cache/local.json'},
@@ -146,7 +146,7 @@ cache.on('error', (error: Error): void => console.error('Cache store error', err
 | Export | What it is |
 |---|---|
 | `Cacher` | The component: `set`, `get`, `multipleSet`, `multipleGet`, `getTTL`, `wrap`, `del`, `multipleDel`, `clear`, the events `set`, `del`, `clear`, `refresh`, `error` |
-| `BuildCacherOptions` | Builds the component options of a `Cacher` |
+| `buildCacherOptions` | Builds the component options of a `Cacher` |
 | `CacherOptions` | The options: `stores`, `ttl`, `refreshThreshold`, `refreshAllStores`, `nonBlocking` |
 | `CacheStoreOptions` | The options of one store, told apart by `type` |
 | `MemoryCacheOptions`, `FileCacheOptions`, `RedisCacheOptions`, `MemcacheCacheOptions`, `MongoCacheOptions`, `SqliteCacheOptions`, `PostgresCacheOptions`, `MysqlCacheOptions` | The options of each store |

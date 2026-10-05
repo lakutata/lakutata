@@ -3,7 +3,7 @@ import {BaseObject} from '../../lib/base/BaseObject.js'
 import assert from 'node:assert'
 import {Container} from '../../lib/core/Container.js'
 import {MethodNotFoundException} from '../../exceptions/MethodNotFoundException.js'
-import {IsPromiseLike} from '@lakutata/utils/IsPromiseLike'
+import {isPromiseLike} from '@lakutata/utils/IsPromiseLike'
 import {OBJECT_ID} from '../../options/LoadObjectOptions.js'
 import {Configurable} from '../../decorators/di/Configurable.js'
 import {DTO} from '../../lib/dto/DTO.js'
@@ -55,7 +55,7 @@ await describe('BaseObject Test', async function (): Promise<void> {
         {[OBJECT_ID]: TORIRC_SYMBOL, class: TestObjectRegisteredInRootContainer}
     ])
     await it('new BaseObject\'s constructor returns promise-like object', async (): Promise<void> => {
-        assert.equal(IsPromiseLike(new TestObject({})), true)
+        assert.equal(isPromiseLike(new TestObject({})), true)
     })
     await it('get class name by static getter className', async (): Promise<void> => {
         assert.equal(TestObject.className, TestObject.name)

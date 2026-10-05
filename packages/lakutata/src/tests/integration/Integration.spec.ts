@@ -11,7 +11,7 @@ import {CHECK_PREFIX, type CheckResult} from './support/Scenario.js'
  */
 const SCENARIOS: { file: string, title: string, electron?: boolean, output?: RegExp[], skip?: string | false }[] = [
     {file: 'Service', title: 'a service of the 3.0 adapters (Express with its user interface, Fastify, Socket.IO, Commander, Electron IPC, schedule) and of the components (database, cache, logger, password hash)'},
-    {file: 'Legacy', title: 'an application of the entrypoints of lakutata 2.x (BuildHTTPEntrypoint with Express, BuildServiceEntrypoint, BuildCLIEntrypoint)'},
+    {file: 'Legacy', title: 'an application of the entrypoints of lakutata 2.x (buildHTTPEntrypoint with Express, buildServiceEntrypoint, buildCLIEntrypoint)'},
     {
         file: 'Electron',
         title: 'an Electron application as the ones of the templates: its windows invoke the actions over IPC, it ends with its main window (Electron of the repository)',
@@ -19,7 +19,7 @@ const SCENARIOS: { file: string, title: string, electron?: boolean, output?: Reg
         output: [/DONE the application ended with its window/],
         skip: process.platform === 'linux' && !process.env.DISPLAY ? 'no display (xvfb-run)' : false
     },
-    {file: 'Data', title: 'the data: pagination (PaginationSearchDTO, Paginator), FlexibleDTO, the results validated, JSON Schema, the timezone'},
+    {file: 'Data', title: 'the data: pagination (PaginationSearchDTO, paginator), FlexibleDTO, the results validated, JSON Schema, the timezone'},
     {file: 'Security', title: 'the security: HMAC (a webhook middleware), the Crypt and Mac providers with their keys rotated, the encryptions by key and by password, the password hashes'},
     {file: 'I18n', title: 'the i18n: the messages of the languages in the directory of an alias, the requests of HTTP, Socket.IO and the command line answered in their languages, their validation errors too'},
     {file: 'Objects', title: 'the objects: the aliases, the lifetimes in the requests, a database provider, a module, @Autoload, @Before and @After, a Logger component, the monitors'},

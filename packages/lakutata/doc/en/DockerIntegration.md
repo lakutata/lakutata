@@ -18,10 +18,10 @@ remote host.
 | Connection | Options |
 |---|---|
 | The Docker of the environment (default) | none: `DOCKER_HOST`, `DOCKER_TLS_VERIFY`, `DOCKER_CERT_PATH`, `DOCKER_CLIENT_TIMEOUT`, else the local socket |
-| Unix socket / Windows named pipe | `socketPath` (`BuildDockerSocketConnectionOptions`) |
-| TCP, plain HTTP | `host`, `port` (`BuildDockerHttpConnectionOptions`) |
-| TCP, HTTPS | `host`, `port`, `ca`, `cert`, `key` as PEM contents (`BuildDockerHttpsConnectionOptions`) |
-| SSH | `host`, `port`, `username`, `sshAuthAgent` (`BuildDockerSSHConnectionOptions`) |
+| Unix socket / Windows named pipe | `socketPath` (`buildDockerSocketConnectionOptions`) |
+| TCP, plain HTTP | `host`, `port` (`buildDockerHttpConnectionOptions`) |
+| TCP, HTTPS | `host`, `port`, `ca`, `cert`, `key` as PEM contents (`buildDockerHttpsConnectionOptions`) |
+| SSH | `host`, `port`, `username`, `sshAuthAgent` (`buildDockerSSHConnectionOptions`) |
 
 When it is created, the component pings the daemon and negotiates the API version: an unreachable daemon fails the
 launch with `DockerConnectionException`. `timeout` (milliseconds) is the time a request may stay idle.
@@ -29,7 +29,7 @@ launch with `DockerConnectionException`. `timeout` (milliseconds) is the time a 
 ```typescript
 import {readFileSync} from 'node:fs'
 import {Application} from 'lakutata'
-import {BuildDockerHttpsConnectionOptions, BuildDockerSocketConnectionOptions, Docker} from 'lakutata/com/docker'
+import {buildDockerHttpsConnectionOptions, buildDockerSocketConnectionOptions, Docker} from 'lakutata/com/docker'
 
 Application.run(() => ({
     id: 'docker.app',
@@ -38,9 +38,9 @@ Application.run(() => ({
         //The Docker of the environment: DOCKER_HOST, else the local socket
         docker: {class: Docker},
         //A socket, with a request timeout of 60 s
-        local: BuildDockerSocketConnectionOptions({socketPath: '/var/run/docker.sock', timeout: 60000}),
+        local: buildDockerSocketConnectionOptions({socketPath: '/var/run/docker.sock', timeout: 60000}),
         //TLS: the PEM contents, not the file paths
-        remote: BuildDockerHttpsConnectionOptions({
+        remote: buildDockerHttpsConnectionOptions({
             host: 'docker.example.com',
             port: 2376,
             ca: readFileSync('/etc/docker/certs/ca.pem'),

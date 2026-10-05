@@ -1,4 +1,4 @@
-import {ObjectParentConstructors} from '@lakutata/utils/ObjectParentConstructors'
+import {objectParentConstructors} from '@lakutata/utils/ObjectParentConstructors'
 
 /**
  * The declaration of a property removed by a class: a subclass declaring the property otherwise (an injection
@@ -33,7 +33,7 @@ export function OwnDeclarations<Declaration>(metadataKey: string | symbol, targe
  */
 export function MergedDeclarations<Declaration>(metadataKey: string | symbol, target: Function): Map<string | symbol, Declaration> {
     const merged: Map<string | symbol, Declaration> = new Map()
-    for (const constructor of [...ObjectParentConstructors(target).reverse(), target]) {
+    for (const constructor of [...objectParentConstructors(target).reverse(), target]) {
         const own: OwnDeclarations<Declaration> | undefined = Reflect.getOwnMetadata(metadataKey, constructor)
         own?.forEach((declaration: Declaration | typeof REMOVED, propertyKey: string | symbol): void => {
             if (declaration === REMOVED) {

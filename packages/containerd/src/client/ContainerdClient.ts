@@ -1,5 +1,5 @@
 import {randomBytes} from 'node:crypto'
-import {GRPCConnection, GRPCError, GRPCStatus, type CallOptions, Decode, type Message, type Schema} from '@lakutata/grpc'
+import {GRPCConnection, GRPCError, GRPCStatus, type CallOptions, decode, type Message, type Schema} from '@lakutata/grpc'
 import * as M from './Messages.js'
 
 /**
@@ -478,7 +478,7 @@ export class ContainerdClient {
                     namespace: envelope.namespace ?? '',
                     topic: envelope.topic ?? '',
                     type: type,
-                    event: schema && envelope.event?.value ? Decode(schema, envelope.event.value) : {}
+                    event: schema && envelope.event?.value ? decode(schema, envelope.event.value) : {}
                 }
             }
         } catch (error: unknown) {

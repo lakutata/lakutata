@@ -8,7 +8,7 @@ import {ServiceResponseCodec, type ServiceResponse} from '../../lib/ServiceRespo
 import {EntrypointStoppedException} from '../../exceptions/EntrypointStoppedException.js'
 
 /**
- * The options of {@link SocketIOServiceEntrypoint}.
+ * The options of {@link socketIOServiceEntrypoint}.
  */
 export type SocketIOServiceEntrypointOptions = {
     /**
@@ -26,7 +26,7 @@ export type SocketIOServiceEntrypointOptions = {
      */
     namespace?: string
     /**
-     * An HTTP server to attach the socket.io server to (such as the one of `ExpressHTTPEntrypoint`, given to its
+     * An HTTP server to attach the socket.io server to (such as the one of `expressHTTPEntrypoint`, given to its
      * `before` hook), or a function returning it when the adapter starts. The adapter then does not listen itself, and
      * when it stops it disconnects the sockets but leaves the HTTP server to its owner.
      * @default a server of its own, listening on `port`
@@ -66,7 +66,7 @@ export type SocketIOServiceEntrypointOptions = {
 }
 
 /**
- * Get the socket.io socket that sent a service action's request, when {@link SocketIOServiceEntrypoint} serves it (to
+ * Get the socket.io socket that sent a service action's request, when {@link socketIOServiceEntrypoint} serves it (to
  * read its handshake, join it to rooms, emit to it…).
  * @param context The service action's context (`this.context` in a controller).
  * @returns The socket, or `undefined` when another adapter serves the request.
@@ -74,18 +74,18 @@ export type SocketIOServiceEntrypointOptions = {
  * ```typescript
  * import {Controller, ServiceContext} from 'lakutata/com/entrypoint'
  * import {ServiceAction} from 'lakutata/decorator/ctrl'
- * import {SocketOfContext} from 'lakutata/adapter/socket.io'
+ * import {socketOfContext} from 'lakutata/adapter/socket.io'
  *
  * class RoomController extends Controller {
  *     //socket.emit('message', {cmd: 'room.join', room: 'lobby'}, (response) => …)
  *     @ServiceAction({cmd: 'room.join'})
  *     public async join(input: {room: string}): Promise<void> {
- *         await SocketOfContext(this.context as ServiceContext)?.join(input.room)
+ *         await socketOfContext(this.context as ServiceContext)?.join(input.room)
  *     }
  * }
  * ```
  */
-export function SocketOfContext(context: ServiceContext): Socket | undefined {
+export function socketOfContext(context: ServiceContext): Socket | undefined {
     return (context as ServiceContext & { socket?: Socket }).socket
 }
 
@@ -118,13 +118,13 @@ function ClientId(socket: Socket): string {
  * stops, the new requests are answered with an `EntrypointStoppedException` error; once the requests in progress end,
  * the socket.io server is closed (the sockets disconnected, with the attached HTTP server left open).
  * @param options The adapter options; by default it listens on port 3000 of all the interfaces with a server of its own.
- * @returns The adapter, to give to the `service` option of `BuildEntrypoints`.
+ * @returns The adapter, to give to the `service` option of `buildEntrypoints`.
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+ * import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
  * import {ServiceAction} from 'lakutata/decorator/ctrl'
- * import {SocketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
+ * import {socketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
  * import {io} from 'socket.io-client'
  *
  * class EchoController extends Controller {
@@ -138,9 +138,9 @@ function ClientId(socket: Socket): string {
  *     id: 'echo.service',
  *     name: 'Echo',
  *     components: {
- *         entrypoint: BuildEntrypoints({
+ *         entrypoint: buildEntrypoints({
  *             controllers: [EchoController],
- *             service: SocketIOServiceEntrypoint({port: 3000, options: {cors: {origin: '*'}}})
+ *             service: socketIOServiceEntrypoint({port: 3000, options: {cors: {origin: '*'}}})
  *         })
  *     }
  * })
@@ -154,7 +154,7 @@ function ClientId(socket: Socket): string {
  * })
  * ```
  */
-export function SocketIOServiceEntrypoint(options: SocketIOServiceEntrypointOptions = {}): EntrypointAdapter<ServiceContext> {
+export function socketIOServiceEntrypoint(options: SocketIOServiceEntrypointOptions = {}): EntrypointAdapter<ServiceContext> {
     const event: string = options.event ?? 'message'
     let io: SocketIOServer | undefined
     let namespace: Namespace | undefined

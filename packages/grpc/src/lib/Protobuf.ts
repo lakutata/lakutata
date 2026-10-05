@@ -4,10 +4,10 @@
  * - `bytes`: a `Uint8Array` (or a string, written as UTF-8); decoded as a `Buffer`.
  * - `bool`: a boolean.
  * - `int32`, `uint32`, `int64`, `uint64`, `enum`: varints, written from a `number` (truncated to an integer) or a
- *   `bigint`, decoded as a `number`, or a `bigint` for the 64-bit integers beyond 2^53 (see {@link Decode}).
+ *   `bigint`, decoded as a `number`, or a `bigint` for the 64-bit integers beyond 2^53 (see {@link decode}).
  *
  * The other protobuf types (`sint32`/`sint64` with their zigzag encoding, `fixed32`, `fixed64`, `sfixed*`, `float`,
- * `double`) are not supported: a schema cannot declare them, and {@link Decode} skips them only as unknown fields.
+ * `double`) are not supported: a schema cannot declare them, and {@link decode} skips them only as unknown fields.
  */
 export type ScalarType = 'string' | 'bytes' | 'bool' | 'int32' | 'int64' | 'uint32' | 'uint64' | 'enum'
 
@@ -145,7 +145,7 @@ function WriteLength(bytes: number[], no: number, data: Uint8Array): void {
  * @param value
  */
 function WriteValue(bytes: number[], field: Field, value: unknown): void {
-    if (typeof field.type === 'object') return WriteLength(bytes, field.no, Encode(field.type, value as Message))
+    if (typeof field.type === 'object') return WriteLength(bytes, field.no, encode(field.type, value as Message))
     if (field.type === 'string') return WriteLength(bytes, field.no, Buffer.from(String(value), 'utf8'))
     if (field.type === 'bytes') return WriteLength(bytes, field.no, value instanceof Uint8Array ? value : Buffer.from(value as string))
     WriteVarint(bytes, field.no * 8 + WireType.VARINT)
@@ -182,7 +182,7 @@ function IsDefault(field: Field, value: unknown): boolean {
  * @returns The encoded bytes (empty for a message with only default values).
  * @example
  * ```typescript
- * import {Decode, Encode, type Message, type Schema} from '@lakutata/grpc'
+ * import {decode, encode, type Message, type Schema} from '@lakutata/grpc'
  *
  * //message Point { int32 x = 1; int32 y = 2; }
  * const Point: Schema = {x: {no: 1, type: 'int32'}, y: {no: 2, type: 'int32'}}
@@ -194,18 +194,18 @@ function IsDefault(field: Field, value: unknown): boolean {
  *     started: {no: 4, type: 'uint64'}
  * }
  *
- * const bytes: Uint8Array = Encode(Route, {
+ * const bytes: Uint8Array = encode(Route, {
  *     name: 'home',
  *     points: [{x: 1, y: 2}, {x: -3, y: 0}],
  *     labels: {zone: 'eu'},
  *     //Nanoseconds: a bigint keeps the 64 bits
  *     started: 1700000000000000000n
  * })
- * const route: Message = Decode(Route, bytes)
+ * const route: Message = decode(Route, bytes)
  * console.log(route.points) //[{x: 1, y: 2}, {x: -3}]: y = 0 is a default value, not written
  * ```
  */
-export function Encode(schema: Schema, message: Message = {}): Uint8Array {
+export function encode(schema: Schema, message: Message = {}): Uint8Array {
     const bytes: number[] = []
     for (const [name, field] of Object.entries(schema).sort(([, a], [, b]): number => a.no - b.no)) {
         const value: unknown = message[name]
@@ -213,7 +213,7 @@ export function Encode(schema: Schema, message: Message = {}): Uint8Array {
         if (field.map) {
             //The entries: a message of a key (1) and a value (2)
             const entry: Schema = {key: {no: 1, type: 'string'}, value: {no: 2, type: field.type}}
-            for (const [key, item] of Object.entries(value as Record<string, unknown>)) WriteLength(bytes, field.no, Encode(entry, {key: key, value: item}))
+            for (const [key, item] of Object.entries(value as Record<string, unknown>)) WriteLength(bytes, field.no, encode(entry, {key: key, value: item}))
             continue
         }
         if (field.repeated) {
@@ -261,7 +261,7 @@ function ReadValue(field: Field, wire: number, buffer: Uint8Array, position: { o
         const data: Uint8Array = buffer.subarray(position.offset, position.offset + length)
         if (data.length < length) throw new Error('The protobuf message is truncated')
         position.offset += length
-        if (typeof field.type === 'object') return Decode(field.type, data)
+        if (typeof field.type === 'object') return decode(field.type, data)
         if (field.type === 'string') return Buffer.from(data).toString('utf8')
         return Buffer.from(data)
     }
@@ -317,18 +317,18 @@ function DefaultValue(field: Field): unknown {
  * type its schema type cannot have, or a wire type is unknown (the deprecated groups included).
  * @example
  * ```typescript
- * import {Decode, Encode, type Message, type Schema} from '@lakutata/grpc'
+ * import {decode, encode, type Message, type Schema} from '@lakutata/grpc'
  *
  * //message Image { string name = 1; int64 size = 2; repeated string tags = 3; }
  * const Image: Schema = {name: {no: 1, type: 'string'}, size: {no: 2, type: 'int64'}, tags: {no: 3, type: 'string', repeated: true}}
  *
- * const image: Message = Decode(Image, Encode(Image, {name: 'alpine'}))
+ * const image: Message = decode(Image, encode(Image, {name: 'alpine'}))
  * console.log(image.name) //alpine
  * console.log(image.size ?? 0) //0: a default value is not written, so it is absent
  * console.log(image.tags) //[]
  * ```
  */
-export function Decode(schema: Schema, buffer: Uint8Array): Message {
+export function decode(schema: Schema, buffer: Uint8Array): Message {
     const byNumber: Map<number, [string, Field]> = new Map(Object.entries(schema).map(([name, field]): [number, [string, Field]] => [field.no, [name, field]]))
     const message: Message = {}
     for (const [name, field] of Object.entries(schema)) {

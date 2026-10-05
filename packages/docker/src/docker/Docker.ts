@@ -7,7 +7,7 @@ import {DockerImageNotFoundException} from './exceptions/DockerImageNotFoundExce
 import {ImagePullOptions} from './options/image/ImagePullOptions.js'
 import {Accept} from '@lakutata/core/decorator/dto'
 import {DockerImagePullException} from './exceptions/DockerImagePullException.js'
-import {IsAbortError} from '@lakutata/utils'
+import {isAbortError} from '@lakutata/utils'
 import {ImageBuildOptions} from './options/image/ImageBuildOptions.js'
 import {DockerImageBuildException} from './exceptions/DockerImageBuildException.js'
 import {IDockerKeyObject} from './interfaces/IDockerKeyObject.js'
@@ -361,7 +361,7 @@ export class Docker extends Component {
             //A tag or a digest
             return await this.getImage(tag.includes(':') ? `${options.repo}@${tag}` : `${options.repo}:${tag}`)
         } catch (e: any) {
-            if (IsAbortError(e)) throw new DockerImagePullException('The pull of {0} was aborted: the Docker component was destroyed', [options.repo])
+            if (isAbortError(e)) throw new DockerImagePullException('The pull of {0} was aborted: the Docker component was destroyed', [options.repo])
             throw new DockerImagePullException(e.message)
         }
     }
@@ -427,7 +427,7 @@ export class Docker extends Component {
             if (!imageId) throw new DockerImageBuildException('Build image failed')
             return await this.getImage(imageId)
         } catch (e: any) {
-            if (IsAbortError(e)) throw new DockerImageBuildException('The build was aborted: the Docker component was destroyed')
+            if (isAbortError(e)) throw new DockerImageBuildException('The build was aborted: the Docker component was destroyed')
             if (e instanceof DockerImageBuildException) throw e
             throw new DockerImageBuildException(e.message)
         }
@@ -536,7 +536,7 @@ export class Docker extends Component {
             }))
             return containers.filter((container: DockerContainer | undefined): container is DockerContainer => !!container)
         } catch (e) {
-            if (!IsAbortError(e)) throw e
+            if (!isAbortError(e)) throw e
             return []
         }
     }
@@ -671,7 +671,7 @@ export class Docker extends Component {
             const rawNetworks: Record<string, any>[] = await this.#client.listNetworks(undefined, this.#abortController.signal)
             return rawNetworks.map((rawNetwork: Record<string, any>): NetworkInfo => this.#networkInfo(rawNetwork))
         } catch (e) {
-            if (!IsAbortError(e)) throw e
+            if (!isAbortError(e)) throw e
             return []
         }
     }

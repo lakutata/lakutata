@@ -15,14 +15,14 @@ const COMPARISON_KEY: Buffer = randomBytes(32)
  * @returns `true` when both values hold the same bytes.
  * @example
  * ```typescript
- * import {TimingSafeEqual} from 'lakutata/security'
+ * import {constantTimeEqual} from 'lakutata/security'
  *
  * declare const presentedApiKey: string
  *
- * if (!TimingSafeEqual(presentedApiKey, process.env.API_KEY ?? '')) throw new Error('Unauthorized')
+ * if (!constantTimeEqual(presentedApiKey, process.env.API_KEY ?? '')) throw new Error('Unauthorized')
  * ```
  */
-export function TimingSafeEqual(a: string | Uint8Array, b: string | Uint8Array): boolean {
+export function constantTimeEqual(a: string | Uint8Array, b: string | Uint8Array): boolean {
     const digestA: Buffer = createHmac('sha256', COMPARISON_KEY).update(a).digest()
     const digestB: Buffer = createHmac('sha256', COMPARISON_KEY).update(b).digest()
     return timingSafeEqual(digestA, digestB)

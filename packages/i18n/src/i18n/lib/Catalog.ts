@@ -2,7 +2,7 @@ import {existsSync} from 'node:fs'
 import {readdir, readFile} from 'node:fs/promises'
 import path from 'node:path'
 import {I18nCatalogException} from '../exceptions/I18nCatalogException.js'
-import {NormalizeLocale} from './Locale.js'
+import {normalizeLocale} from './Locale.js'
 
 /**
  * The messages of a language, nested by the parts of their keys: `{order: {count: '...'}}` holds the key
@@ -12,8 +12,8 @@ import {NormalizeLocale} from './Locale.js'
 export type NestedMessages = { [key: string]: string | NestedMessages }
 
 /**
- * Loaded messages, by canonical language tag then by full key (`order.count`), as {@link LoadCatalogs} gives them to
- * {@link CheckCatalogs} and {@link GenerateMessageTypes}.
+ * Loaded messages, by canonical language tag then by full key (`order.count`), as {@link loadCatalogs} gives them to
+ * {@link checkCatalogs} and {@link generateMessageTypes}.
  */
 export type Catalogs = Map<string, Map<string, string>>
 
@@ -52,7 +52,7 @@ export function MergeMessages(catalogs: Catalogs, locale: string, messages: Map<
  * @param file
  */
 function LocaleOfName(name: string, file: string): string {
-    const locale: string | undefined = NormalizeLocale(name)
+    const locale: string | undefined = normalizeLocale(name)
     if (!locale || locale.toLowerCase() !== name.toLowerCase().replace(/_/g, '-')) throw new I18nCatalogException(`${file}: "${name}" is not the tag of a language (en, zh-CN, zh-Hant-TW)`)
     return locale
 }

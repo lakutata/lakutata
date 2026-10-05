@@ -11,17 +11,17 @@
 | 连接方式 | 选项 |
 |---|---|
 | 环境中的 Docker（默认） | 无：读取 `DOCKER_HOST`、`DOCKER_TLS_VERIFY`、`DOCKER_CERT_PATH`、`DOCKER_CLIENT_TIMEOUT`，否则使用本地套接字 |
-| Unix 套接字 / Windows 命名管道 | `socketPath`（`BuildDockerSocketConnectionOptions`） |
-| TCP，HTTP | `host`、`port`（`BuildDockerHttpConnectionOptions`） |
-| TCP，HTTPS | `host`、`port`，以及 PEM 内容形式的 `ca`、`cert`、`key`（`BuildDockerHttpsConnectionOptions`） |
-| SSH | `host`、`port`、`username`、`sshAuthAgent`（`BuildDockerSSHConnectionOptions`） |
+| Unix 套接字 / Windows 命名管道 | `socketPath`（`buildDockerSocketConnectionOptions`） |
+| TCP，HTTP | `host`、`port`（`buildDockerHttpConnectionOptions`） |
+| TCP，HTTPS | `host`、`port`，以及 PEM 内容形式的 `ca`、`cert`、`key`（`buildDockerHttpsConnectionOptions`） |
+| SSH | `host`、`port`、`username`、`sshAuthAgent`（`buildDockerSSHConnectionOptions`） |
 
 组件创建时会 ping 守护进程并协商 API 版本：守护进程不可达时启动失败，抛出 `DockerConnectionException`。`timeout`（毫秒）是请求允许空闲的时间。
 
 ```typescript
 import {readFileSync} from 'node:fs'
 import {Application} from 'lakutata'
-import {BuildDockerHttpsConnectionOptions, BuildDockerSocketConnectionOptions, Docker} from 'lakutata/com/docker'
+import {buildDockerHttpsConnectionOptions, buildDockerSocketConnectionOptions, Docker} from 'lakutata/com/docker'
 
 Application.run(() => ({
     id: 'docker.app',
@@ -30,9 +30,9 @@ Application.run(() => ({
         //环境中的 Docker：DOCKER_HOST，否则为本地套接字
         docker: {class: Docker},
         //套接字，请求超时 60 秒
-        local: BuildDockerSocketConnectionOptions({socketPath: '/var/run/docker.sock', timeout: 60000}),
+        local: buildDockerSocketConnectionOptions({socketPath: '/var/run/docker.sock', timeout: 60000}),
         //TLS：传入 PEM 内容，而不是文件路径
-        remote: BuildDockerHttpsConnectionOptions({
+        remote: buildDockerHttpsConnectionOptions({
             host: 'docker.example.com',
             port: 2376,
             ca: readFileSync('/etc/docker/certs/ca.pem'),

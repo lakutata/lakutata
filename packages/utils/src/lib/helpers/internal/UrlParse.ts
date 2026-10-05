@@ -29,7 +29,7 @@ const IGNORE: Record<string, number> = {hash: 1, query: 1}
 //----------------------------------------------------------------------------------------------------------------------
 //querystringify
 
-function Decode(input: string): string | null {
+function decode(input: string): string | null {
     try {
         return decodeURIComponent(input.replace(/\+/g, ' '))
     } catch {
@@ -37,7 +37,7 @@ function Decode(input: string): string | null {
     }
 }
 
-function Encode(input: any): string | null {
+function encode(input: any): string | null {
     try {
         return encodeURIComponent(input)
     } catch {
@@ -54,8 +54,8 @@ export function ParseQuery(query: string): Record<string, string> {
     const result: Record<string, string> = {}
     let part: RegExpExecArray | null
     while ((part = parser.exec(query))) {
-        const key: string | null = Decode(part[1])
-        const value: string | null = Decode(part[2])
+        const key: string | null = decode(part[1])
+        const value: string | null = decode(part[2])
         //The existing properties are not overridden (the built-in ones such as toString or __proto__ included)
         if (key === null || value === null || key in result) continue
         result[key] = value
@@ -77,8 +77,8 @@ export function StringifyQuery(obj: Record<string, any>, prefix?: string | boole
         let value: any = obj[key]
         //Empty for null, undefined and NaN
         if (!value && (value === null || value === undefined || isNaN(value))) value = ''
-        const encodedKey: string | null = Encode(key)
-        const encodedValue: string | null = Encode(value)
+        const encodedKey: string | null = encode(key)
+        const encodedValue: string | null = encode(value)
         if (encodedKey === null || encodedValue === null) continue
         pairs.push(encodedKey + '=' + encodedValue)
     }

@@ -3,10 +3,10 @@ import assert from 'node:assert'
 import EventEmitter from 'node:events'
 import {Container, DTO} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
-import {ActionInvocation, BuildEntrypoints, Controller, Entrypoint, MiddlewareHandler, Next, ServiceContext} from '../exports/Entrypoint.js'
+import {ActionInvocation, buildEntrypoints, Controller, Entrypoint, MiddlewareHandler, Next, ServiceContext} from '../exports/Entrypoint.js'
 import {ServiceAction} from '../exports/CTRLDecorators.js'
-import {ElectronIPCServiceEntrypoint, IPCEventOfContext, IPCMain} from '../exports/ElectronAdapter.js'
-import {SocketIOServiceEntrypoint} from '../exports/SocketIOAdapter.js'
+import {electronIPCServiceEntrypoint, ipcEventOfContext, IPCMain} from '../exports/ElectronAdapter.js'
+import {socketIOServiceEntrypoint} from '../exports/SocketIOAdapter.js'
 import type {AddressInfo} from 'node:net'
 import {io as Connect, type Socket as ClientSocket} from 'socket.io-client'
 
@@ -70,7 +70,7 @@ class EchoController extends Controller {
 
     @ServiceAction({cmd: 'echo'}, EchoDTO)
     public async echo(input: EchoDTO): Promise<unknown> {
-        return {value: input.value, renderer: (IPCEventOfContext(this.context as ServiceContext)?.sender as any)?.id}
+        return {value: input.value, renderer: (ipcEventOfContext(this.context as ServiceContext)?.sender as any)?.id}
     }
 
     @ServiceAction({cmd: 'whoami'})
@@ -114,7 +114,7 @@ function PageEvent(page: Page): Record<string, unknown> {
  */
 async function Start(ipcMain: FakeIPCMain, entrypointOptions: Record<string, unknown> = {}): Promise<Container> {
     const container: Container = new Container()
-    await container.set(Entrypoint, BuildEntrypoints({controllers: [EchoController], ...entrypointOptions, service: ElectronIPCServiceEntrypoint({ipcMain: ipcMain})}))
+    await container.set(Entrypoint, buildEntrypoints({controllers: [EchoController], ...entrypointOptions, service: electronIPCServiceEntrypoint({ipcMain: ipcMain})}))
     return container
 }
 
@@ -189,11 +189,11 @@ describe('Electron adapter', (): void => {
         const ipcMain: FakeIPCMain = new FakeIPCMain()
         let port: number = 0
         const container: Container = new Container()
-        await container.set(Entrypoint, BuildEntrypoints({
+        await container.set(Entrypoint, buildEntrypoints({
             controllers: [EchoController],
             service: [
-                ElectronIPCServiceEntrypoint({ipcMain: ipcMain}),
-                SocketIOServiceEntrypoint({port: 0, host: '127.0.0.1', event: 'request', listening: (io, server): void => {
+                electronIPCServiceEntrypoint({ipcMain: ipcMain}),
+                socketIOServiceEntrypoint({port: 0, host: '127.0.0.1', event: 'request', listening: (io, server): void => {
                     port = (server!.address() as AddressInfo).port
                 }})
             ]
@@ -228,7 +228,7 @@ describe('Electron adapter', (): void => {
 
     it('fails to start outside of the main process of Electron', async (): Promise<void> => {
         const container: Container = new Container()
-        await assert.rejects(container.set(Entrypoint, BuildEntrypoints({controllers: [EchoController], service: ElectronIPCServiceEntrypoint()})), /main process of Electron/)
+        await assert.rejects(container.set(Entrypoint, buildEntrypoints({controllers: [EchoController], service: electronIPCServiceEntrypoint()})), /main process of Electron/)
         await container.destroy()
     })
 })

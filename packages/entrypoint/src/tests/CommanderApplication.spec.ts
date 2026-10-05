@@ -2,10 +2,10 @@ import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {PassThrough} from 'node:stream'
 import {Application, Component} from '@lakutata/core'
-import {BuildEntrypoints, Controller, Entrypoint} from '../exports/Entrypoint.js'
+import {buildEntrypoints, Controller, Entrypoint} from '../exports/Entrypoint.js'
 import {CLIAction} from '../exports/CTRLDecorators.js'
-import {CommanderCLIEntrypoint} from '../exports/CommanderAdapter.js'
-import {ExpressHTTPEntrypoint} from '../exports/ExpressAdapter.js'
+import {commanderCLIEntrypoint} from '../exports/CommanderAdapter.js'
+import {expressHTTPEntrypoint} from '../exports/ExpressAdapter.js'
 
 //The entrypoint is a default component of the lakutata package, not of the core
 Application.preset({components: {entrypoint: {class: Entrypoint}}})
@@ -47,10 +47,10 @@ describe('Commander adapter in an application', (): void => {
                 components: {
                     slow: {class: SlowComponent},
                     //The CLI adapter comes first and the entrypoint is bootstrapped first: the command still waits for the others
-                    entrypoint: BuildEntrypoints({
+                    entrypoint: buildEntrypoints({
                         controllers: [ToolController],
-                        cli: CommanderCLIEntrypoint({argv: ['ping'], interactive: false, stdout: stdout, exit: resolve}),
-                        http: ExpressHTTPEntrypoint({
+                        cli: commanderCLIEntrypoint({argv: ['ping'], interactive: false, stdout: stdout, exit: resolve}),
+                        http: expressHTTPEntrypoint({
                             port: 0,
                             host: '127.0.0.1',
                             before: async (): Promise<void> => {

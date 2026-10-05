@@ -3,13 +3,13 @@ import {existsSync, mkdtempSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {Application, Component, DTO, Module, Provider, type ModuleOptions} from '../../../exports/Lakutata.js'
-import {BuildEntrypoints, Controller} from '../../../exports/EntrypointComponent.js'
-import {ExpressHTTPEntrypoint, JSONEnvelope} from '../../../exports/ExpressAdapter.js'
+import {buildEntrypoints, Controller} from '../../../exports/EntrypointComponent.js'
+import {expressHTTPEntrypoint, jsonEnvelope} from '../../../exports/ExpressAdapter.js'
 import {GET} from '../../../exports/CTRLDecorators.js'
 import {Autoload, Configurable, Inject, Scoped, Transient} from '../../../exports/DIDecorators.js'
 import {After, Before} from '../../../exports/ASSTDecorators.js'
 import {Column, Entity, PrimaryGeneratedColumn} from '../../../exports/ORMDecorators.js'
-import {BuildDatabaseOptions as BuildDatabaseProviderOptions, Database as DatabaseProvider} from '../../../exports/DatabaseProvider.js'
+import {buildDatabaseOptions as BuildDatabaseProviderOptions, Database as DatabaseProvider} from '../../../exports/DatabaseProvider.js'
 import {Logger} from '../../../exports/LoggerComponent.js'
 import {CpuMonitor, EventLoopMonitor, HttpRequestMonitor, MemoryMonitor} from '../../../exports/MonitorComponent.js'
 import {UUID} from '../../../exports/Utils.js'
@@ -166,9 +166,9 @@ Application
             memory: {class: MemoryMonitor},
             eventLoop: {class: EventLoopMonitor},
             httpRequests: {class: HttpRequestMonitor},
-            entrypoint: BuildEntrypoints({
+            entrypoint: buildEntrypoints({
                 controllers: [ObjectController],
-                http: ExpressHTTPEntrypoint({port: port, host: '127.0.0.1', respond: JSONEnvelope({errorStatus: 200})})
+                http: expressHTTPEntrypoint({port: port, host: '127.0.0.1', respond: jsonEnvelope({errorStatus: 200})})
             })
         },
         //The modules are objects of the application

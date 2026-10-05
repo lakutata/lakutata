@@ -6,8 +6,8 @@ import {ServiceContext} from './context/ServiceContext.js'
 import {ScheduleContext} from './context/ScheduleContext.js'
 import {ActionDetails, ActionPatternMap, BindControllerToComponent, GetComponentControllerActionMap} from './lib/ControllerEntrypoint.js'
 import {Controller} from './lib/Controller.js'
-import {As, CloneDeep, DevNull} from '@lakutata/utils'
-import {GetMethodReturnSchema} from '@lakutata/core/decorator/dto'
+import {As, cloneDeep, DevNull} from '@lakutata/utils'
+import {getMethodReturnSchema} from '@lakutata/core/decorator/dto'
 import {DuplicateActionNameException} from './exceptions/DuplicateActionNameException.js'
 import {AccessControl} from './lib/AccessControl.js'
 import {BaseContext, ContextType} from './context/BaseContext.js'
@@ -24,8 +24,8 @@ import {
     MiddlewareDefinition,
     ValidateMiddlewares
 } from './lib/Middleware.js'
-import {ChannelDefinition, ChannelEntry, ChannelMatch, ChannelMatcher, DefineChannel, GetChannel, GetChannelByContextType, HasChannel} from './channel/Channel.js'
-import {ChannelActionInfo, ChannelRuntime, CommandMap, DispatchOptions, EntrypointAdapter, IsEntrypointAdapter} from './channel/EntrypointAdapter.js'
+import {ChannelDefinition, ChannelEntry, ChannelMatch, ChannelMatcher, defineChannel, getChannel, getChannelByContextType, hasChannel} from './channel/Channel.js'
+import {ChannelActionInfo, ChannelRuntime, commandMap, DispatchOptions, EntrypointAdapter, isEntrypointAdapter} from './channel/EntrypointAdapter.js'
 import {InvalidEntrypointAdapterException} from './exceptions/InvalidEntrypointAdapterException.js'
 import {EntrypointStoppedException} from './exceptions/EntrypointStoppedException.js'
 import './channel/BuiltinChannels.js'
@@ -45,7 +45,7 @@ export {type ScheduleContextParams} from './types/ScheduleContextParams.js'
  * A CLI entrypoint in the style of lakutata 2.x: a function the entrypoint calls once when it starts (initialized: the
  * objects it gets may inject the entrypoint), which reads the command line and runs its commands through the handler.
  * A promise it returns is awaited, its rejection fails the entrypoint's startup (2.x did not await it). Prefer an
- * adapter (`CommanderCLIEntrypoint` of `lakutata/adapter/commander`) for new code.
+ * adapter (`commanderCLIEntrypoint` of `lakutata/adapter/commander`) for new code.
  * @param module The module owning the entrypoint (the application).
  * @param cliMap The CLI actions' commands, each with the JSON schema of its input.
  * @param handler Runs a command: dispatches a {@link CLIContext} to the matching action.
@@ -56,8 +56,8 @@ export type CLIEntrypoint = (module: Module, cliMap: CLIMap, handler: CLIEntrypo
  * An HTTP entrypoint in the style of lakutata 2.x: a function the entrypoint calls once when it starts (initialized:
  * the objects it gets, such as an authenticator of the requests, may inject the entrypoint), which starts a server and
  * passes its requests to the handler. A promise it returns is awaited, its rejection fails the entrypoint's startup
- * (2.x did not await it). Prefer an adapter (`ExpressHTTPEntrypoint` of `lakutata/adapter/express`,
- * `FastifyHTTPEntrypoint` of `lakutata/adapter/fastify`) for new code.
+ * (2.x did not await it). Prefer an adapter (`expressHTTPEntrypoint` of `lakutata/adapter/express`,
+ * `fastifyHTTPEntrypoint` of `lakutata/adapter/fastify`) for new code.
  * @param module The module owning the entrypoint (the application).
  * @param routeMap The HTTP actions' routes, each with its methods.
  * @param handler Runs a request: dispatches an {@link HTTPContext} to the matching action.
@@ -68,7 +68,7 @@ export type HTTPEntrypoint = (module: Module, routeMap: HTTPRouteMap, handler: H
  * A service entrypoint in the style of lakutata 2.x: a function the entrypoint calls once when it starts (initialized:
  * the objects it gets may inject the entrypoint), which receives the service requests of a transport and passes them
  * to the handler. A promise it returns is awaited, its rejection fails the entrypoint's startup (2.x did not await it).
- * Prefer an adapter (`SocketIOServiceEntrypoint`, `JSONRPCServiceEntrypoint`, `ElectronIPCServiceEntrypoint`) for new code.
+ * Prefer an adapter (`socketIOServiceEntrypoint`, `jsonRPCServiceEntrypoint`, `electronIPCServiceEntrypoint`) for new code.
  * @param module The module owning the entrypoint (the application).
  * @param handler Runs a request: dispatches a {@link ServiceContext} to the action whose pattern matches its input.
  * @param registerDestroy Registers a function run when the entrypoint stops.
@@ -138,7 +138,7 @@ export type EntrypointDestroyerRegistrar = (destroyer: EntrypointDestroyer) => v
  * (the packages providing a channel add their key to this interface by declaration merging); an adapter given under
  * another channel's key, or a key which is neither an option nor an adapter, fails the entrypoint's initialization
  * with an `InvalidEntrypointAdapterException`.
- * Build them with {@link BuildEntrypoints}.
+ * Build them with {@link buildEntrypoints}.
  */
 export interface EntrypointOptions {
     /**
@@ -171,7 +171,7 @@ export interface EntrypointOptions {
      */
     cliActionGroups?: Record<string, string>
     /**
-     * The adapters (or 2.x entrypoint functions) receiving the CLI requests, such as `CommanderCLIEntrypoint()`.
+     * The adapters (or 2.x entrypoint functions) receiving the CLI requests, such as `commanderCLIEntrypoint()`.
      */
     cli?: CLIEntrypoint | EntrypointAdapter<CLIContext> | (CLIEntrypoint | EntrypointAdapter<CLIContext>)[]
     /**
@@ -181,7 +181,7 @@ export interface EntrypointOptions {
      */
     httpActionGroups?: Record<string, string>
     /**
-     * The adapters (or 2.x entrypoint functions) receiving the HTTP requests, such as `ExpressHTTPEntrypoint()`.
+     * The adapters (or 2.x entrypoint functions) receiving the HTTP requests, such as `expressHTTPEntrypoint()`.
      */
     http?: HTTPEntrypoint | EntrypointAdapter<HTTPContext> | (HTTPEntrypoint | EntrypointAdapter<HTTPContext>)[]
     /**
@@ -191,11 +191,11 @@ export interface EntrypointOptions {
      */
     serviceActionGroups?: Record<string, string>
     /**
-     * The adapters (or 2.x entrypoint functions) receiving the service requests, such as `SocketIOServiceEntrypoint()`.
+     * The adapters (or 2.x entrypoint functions) receiving the service requests, such as `socketIOServiceEntrypoint()`.
      */
     service?: ServiceEntrypoint | EntrypointAdapter<ServiceContext> | (ServiceEntrypoint | EntrypointAdapter<ServiceContext>)[]
     /**
-     * The schedule adapter running the actions declared with `@Schedule` (`ScheduleEntrypoint()`); without it they
+     * The schedule adapter running the actions declared with `@Schedule` (`scheduleEntrypoint()`); without it they
      * never run.
      */
     schedule?: EntrypointAdapter<ScheduleContext> | EntrypointAdapter<ScheduleContext>[]
@@ -308,11 +308,11 @@ export interface EntrypointActions<T extends BaseActionInfo> {
  * Type a CLI entrypoint in the style of lakutata 2.x; the function is returned as it is.
  * @param entrypoint The function the entrypoint calls when it starts, with the module, the commands, the request
  * handler and the destroyer registrar.
- * @returns The same function, to give to the `cli` option of {@link BuildEntrypoints}.
+ * @returns The same function, to give to the `cli` option of {@link buildEntrypoints}.
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildCLIEntrypoint, BuildEntrypoints, CLIContext, Controller} from 'lakutata/com/entrypoint'
+ * import {buildCLIEntrypoint, buildEntrypoints, CLIContext, Controller} from 'lakutata/com/entrypoint'
  * import {CLIAction} from 'lakutata/decorator/ctrl'
  *
  * class VersionController extends Controller {
@@ -326,10 +326,10 @@ export interface EntrypointActions<T extends BaseActionInfo> {
  *     id: 'tool.app',
  *     name: 'Tool',
  *     components: {
- *         entrypoint: BuildEntrypoints({
+ *         entrypoint: buildEntrypoints({
  *             controllers: [VersionController],
  *             //Run the command given as the first argument once the entrypoint starts
- *             cli: BuildCLIEntrypoint(async (module, cliMap, handler): Promise<void> => {
+ *             cli: buildCLIEntrypoint(async (module, cliMap, handler): Promise<void> => {
  *                 const command: string = process.argv[2] ?? 'version'
  *                 if (cliMap.has(command)) console.log(await handler(new CLIContext({command: command, data: {}})))
  *             })
@@ -338,18 +338,18 @@ export interface EntrypointActions<T extends BaseActionInfo> {
  * }))
  * ```
  */
-export const BuildCLIEntrypoint: (entrypoint: CLIEntrypoint) => CLIEntrypoint = (entrypoint: CLIEntrypoint): CLIEntrypoint => entrypoint
+export const buildCLIEntrypoint: (entrypoint: CLIEntrypoint) => CLIEntrypoint = (entrypoint: CLIEntrypoint): CLIEntrypoint => entrypoint
 
 /**
  * Type an HTTP entrypoint in the style of lakutata 2.x; the function is returned as it is.
  * @param entrypoint The function the entrypoint calls when it starts, with the module, the routes, the request handler
  * and the destroyer registrar.
- * @returns The same function, to give to the `http` option of {@link BuildEntrypoints}.
+ * @returns The same function, to give to the `http` option of {@link buildEntrypoints}.
  * @example
  * ```typescript
  * import {createServer, type Server} from 'node:http'
  * import {Application} from 'lakutata'
- * import {BuildEntrypoints, BuildHTTPEntrypoint, Controller, HTTPContext} from 'lakutata/com/entrypoint'
+ * import {buildEntrypoints, buildHTTPEntrypoint, Controller, HTTPContext} from 'lakutata/com/entrypoint'
  * import {GET} from 'lakutata/decorator/ctrl'
  *
  * class HealthController extends Controller {
@@ -363,9 +363,9 @@ export const BuildCLIEntrypoint: (entrypoint: CLIEntrypoint) => CLIEntrypoint = 
  *     id: 'api.app',
  *     name: 'API',
  *     components: {
- *         entrypoint: BuildEntrypoints({
+ *         entrypoint: buildEntrypoints({
  *             controllers: [HealthController],
- *             http: BuildHTTPEntrypoint((module, routeMap, handler, registerDestroy): void => {
+ *             http: buildHTTPEntrypoint((module, routeMap, handler, registerDestroy): void => {
  *                 const server: Server = createServer(async (request, response): Promise<void> => {
  *                     const route: string = (request.url ?? '/').split('?')[0]
  *                     const method: string = request.method ?? 'GET'
@@ -389,18 +389,18 @@ export const BuildCLIEntrypoint: (entrypoint: CLIEntrypoint) => CLIEntrypoint = 
  * }))
  * ```
  */
-export const BuildHTTPEntrypoint: (entrypoint: HTTPEntrypoint) => HTTPEntrypoint = (entrypoint: HTTPEntrypoint): HTTPEntrypoint => entrypoint
+export const buildHTTPEntrypoint: (entrypoint: HTTPEntrypoint) => HTTPEntrypoint = (entrypoint: HTTPEntrypoint): HTTPEntrypoint => entrypoint
 
 /**
  * Type a service entrypoint in the style of lakutata 2.x; the function is returned as it is.
  * @param entrypoint The function the entrypoint calls when it starts, with the module, the request handler and the
  * destroyer registrar.
- * @returns The same function, to give to the `service` option of {@link BuildEntrypoints}.
+ * @returns The same function, to give to the `service` option of {@link buildEntrypoints}.
  * @example
  * ```typescript
  * import {EventEmitter} from 'node:events'
  * import {Application} from 'lakutata'
- * import {BuildEntrypoints, BuildServiceEntrypoint, Controller, ServiceContext} from 'lakutata/com/entrypoint'
+ * import {buildEntrypoints, buildServiceEntrypoint, Controller, ServiceContext} from 'lakutata/com/entrypoint'
  * import {ServiceAction} from 'lakutata/decorator/ctrl'
  *
  * declare const bus: EventEmitter
@@ -416,10 +416,10 @@ export const BuildHTTPEntrypoint: (entrypoint: HTTPEntrypoint) => HTTPEntrypoint
  *     id: 'math.app',
  *     name: 'Math',
  *     components: {
- *         entrypoint: BuildEntrypoints({
+ *         entrypoint: buildEntrypoints({
  *             controllers: [MathController],
  *             //Each message of the bus is a request: its data matched against the patterns of the actions
- *             service: BuildServiceEntrypoint((module, handler, registerDestroy): void => {
+ *             service: buildServiceEntrypoint((module, handler, registerDestroy): void => {
  *                 const listener = async (data: Record<string, any>, reply: (result: unknown) => void): Promise<void> => {
  *                     reply(await handler(new ServiceContext({data: data})))
  *                 }
@@ -431,7 +431,7 @@ export const BuildHTTPEntrypoint: (entrypoint: HTTPEntrypoint) => HTTPEntrypoint
  * }))
  * ```
  */
-export const BuildServiceEntrypoint: (entrypoint: ServiceEntrypoint) => ServiceEntrypoint = (entrypoint: ServiceEntrypoint): ServiceEntrypoint => entrypoint
+export const buildServiceEntrypoint: (entrypoint: ServiceEntrypoint) => ServiceEntrypoint = (entrypoint: ServiceEntrypoint): ServiceEntrypoint => entrypoint
 
 /**
  * Type the options of the {@link Entrypoint} component; they are returned as they are. The applications of the
@@ -441,10 +441,10 @@ export const BuildServiceEntrypoint: (entrypoint: ServiceEntrypoint) => ServiceE
  * @example
  * ```typescript
  * import {Application, DTO} from 'lakutata'
- * import {BuildEntrypoints, Controller, ScheduleEntrypoint} from 'lakutata/com/entrypoint'
+ * import {buildEntrypoints, Controller, scheduleEntrypoint} from 'lakutata/com/entrypoint'
  * import {GET, POST, Schedule} from 'lakutata/decorator/ctrl'
  * import {Expect} from 'lakutata/decorator/dto'
- * import {ExpressHTTPEntrypoint} from 'lakutata/adapter/express'
+ * import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
  *
  * class CreateOrderDTO extends DTO {
  *     @Expect(DTO.String().required())
@@ -471,18 +471,18 @@ export const BuildServiceEntrypoint: (entrypoint: ServiceEntrypoint) => ServiceE
  *     id: 'shop.app',
  *     name: 'Shop',
  *     components: {
- *         entrypoint: BuildEntrypoints({
+ *         entrypoint: buildEntrypoints({
  *             controllers: [OrderController],
  *             httpActionGroups: {orders: 'Orders'},
  *             shutdownTimeout: 10000,
- *             http: ExpressHTTPEntrypoint({port: 3000}),
- *             schedule: ScheduleEntrypoint()
+ *             http: expressHTTPEntrypoint({port: 3000}),
+ *             schedule: scheduleEntrypoint()
  *         })
  *     }
  * }))
  * ```
  */
-export const BuildEntrypoints: (options: EntrypointOptions) => EntrypointOptions = (options: EntrypointOptions): EntrypointOptions => options
+export const buildEntrypoints: (options: EntrypointOptions) => EntrypointOptions = (options: EntrypointOptions): EntrypointOptions => options
 
 /**
  * A dispatchable action: its details, its information and its middlewares (controller, options, method)
@@ -541,7 +541,7 @@ const LEGACY_CHANNELS: Set<string> = new Set(['cli', 'http', 'service'])
  * schedule, and the channels of other packages), each received by the adapters configured for its channel.
  *
  * The applications of the `lakutata` package declare it as the component `entrypoint`: configure it with
- * {@link BuildEntrypoints}. When it initializes, it registers the controllers and checks their actions (their groups and
+ * {@link buildEntrypoints}. When it initializes, it registers the controllers and checks their actions (their groups and
  * the uniqueness of their names); then, in its startup, it starts the adapters in order (the objects their hooks get may
  * inject the entrypoint; the objects getting the entrypoint wait for its adapters); it is ready (the adapters acting on
  * their own, such as the schedules, begin) once the application has launched. Each request runs in a scope of its own: its middlewares,
@@ -554,11 +554,11 @@ const LEGACY_CHANNELS: Set<string> = new Set(['cli', 'http', 'service'])
  * @example
  * ```typescript
  * import {Application, Component} from 'lakutata'
- * import {BuildEntrypoints, Controller, Entrypoint, ServiceContext} from 'lakutata/com/entrypoint'
+ * import {buildEntrypoints, Controller, Entrypoint, ServiceContext} from 'lakutata/com/entrypoint'
  * import {GET, ServiceAction} from 'lakutata/decorator/ctrl'
  * import {Inject} from 'lakutata/decorator/di'
- * import {ExpressHTTPEntrypoint} from 'lakutata/adapter/express'
- * import {SocketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
+ * import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
+ * import {socketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
  *
  * class ChatController extends Controller {
  *     @Inject('entrypoint')
@@ -583,10 +583,10 @@ const LEGACY_CHANNELS: Set<string> = new Set(['cli', 'http', 'service'])
  *         id: 'chat.app',
  *         name: 'Chat',
  *         components: {
- *             entrypoint: BuildEntrypoints({
+ *             entrypoint: buildEntrypoints({
  *                 controllers: [ChatController],
- *                 http: ExpressHTTPEntrypoint({port: 3000}),
- *                 service: SocketIOServiceEntrypoint({port: 3001})
+ *                 http: expressHTTPEntrypoint({port: 3000}),
+ *                 service: socketIOServiceEntrypoint({port: 3001})
  *             })
  *         }
  *     }))
@@ -609,7 +609,7 @@ export class Entrypoint extends Component {
      */
     public static acceptsOption(name: string, value: unknown): boolean {
         const items: unknown[] = Array.isArray(value) ? value : [value]
-        return items.every((item: unknown): boolean => IsEntrypointAdapter(item) || (typeof item === 'function' && LEGACY_CHANNELS.has(name)))
+        return items.every((item: unknown): boolean => isEntrypointAdapter(item) || (typeof item === 'function' && LEGACY_CHANNELS.has(name)))
     }
 
     /**
@@ -734,7 +734,7 @@ export class Entrypoint extends Component {
             BindControllerToComponent(this, controllerConstructor)
             return this.container.register(controllerConstructor)
         }))
-        GetComponentControllerActionMap(this).forEach((actions: ActionPatternMap, channel: string): unknown => this.#channels.set(channel, this.createChannelState(GetChannel(channel), actions)))
+        GetComponentControllerActionMap(this).forEach((actions: ActionPatternMap, channel: string): unknown => this.#channels.set(channel, this.createChannelState(getChannel(channel), actions)))
         this.checkActions('CLI', this.#channels.get('cli')?.infos, this.cliActionGroups, 'cliActionGroups')
         this.checkActions('HTTP', this.#channels.get('http')?.infos, this.httpActionGroups, 'httpActionGroups')
         this.checkActions('Service', this.#channels.get('service')?.infos, this.serviceActionGroups, 'serviceActionGroups')
@@ -822,10 +822,10 @@ export class Entrypoint extends Component {
             for (const item of Array.isArray(value) ? value : [value]) {
                 if (typeof item === 'function' && LEGACY_CHANNELS.has(key)) {
                     adapters.push(this.legacyAdapter(key, item))
-                } else if (IsEntrypointAdapter(item)) {
+                } else if (isEntrypointAdapter(item)) {
                     if (item.channel !== key) throw new InvalidEntrypointAdapterException('The option "{key}" is given an adapter of the channel "{channel}"', {key: key, channel: item.channel})
-                    if (item.definition) DefineChannel(item.definition)
-                    if (!HasChannel(key)) throw new InvalidEntrypointAdapterException('The channel "{key}" of an adapter is not defined', {key: key})
+                    if (item.definition) defineChannel(item.definition)
+                    if (!hasChannel(key)) throw new InvalidEntrypointAdapterException('The channel "{key}" of an adapter is not defined', {key: key})
                     adapters.push(item)
                 } else {
                     throw new InvalidEntrypointAdapterException('The option "{key}" is not an entrypoint option nor an adapter', {key: key})
@@ -864,7 +864,7 @@ export class Entrypoint extends Component {
                             return callback(runtime.module, routeMap, handler, registerDestroy)
                         }
                         case 'cli':
-                            return callback(runtime.module, CommandMap(runtime.actions), handler, registerDestroy)
+                            return callback(runtime.module, commandMap(runtime.actions), handler, registerDestroy)
                         default:
                             return callback(runtime.module, handler, registerDestroy)
                     }
@@ -903,7 +903,7 @@ export class Entrypoint extends Component {
             entries.push({
                 details: details,
                 info: info,
-                address: {...info, address: details.pattern, dto: details.dtoConstructor, returnSchema: GetMethodReturnSchema(details.constructor.prototype, As<string | symbol>(details.method))},
+                address: {...info, address: details.pattern, dto: details.dtoConstructor, returnSchema: getMethodReturnSchema(details.constructor.prototype, As<string | symbol>(details.method))},
                 middlewares: [
                     ...GetClassMiddlewares(details.constructor),
                     ...details.middlewares,
@@ -948,7 +948,7 @@ export class Entrypoint extends Component {
      * @protected
      */
     protected async startAdapter(adapter: EntrypointAdapter<any>): Promise<void> {
-        const definition: ChannelDefinition = GetChannel(adapter.channel)
+        const definition: ChannelDefinition = getChannel(adapter.channel)
         let state: ChannelState | undefined = this.#channels.get(definition.name)
         if (!state) {
             state = this.createChannelState(definition, new Map())
@@ -1029,7 +1029,7 @@ export class Entrypoint extends Component {
         //The parameters of the address take precedence over the data of the request
         const data: Record<string, any> = params && Object.keys(params).length ? {...context.data, ...params} : context.data
         //The input is detached from the context, whose values are proxies validating their changes
-        const input: Record<string, any> = CloneDeep(await this.validateInput(details.dtoConstructor, data, context.locale))
+        const input: Record<string, any> = cloneDeep(await this.validateInput(details.dtoConstructor, data, context.locale))
         await this.runAccessControl(this.rules, container, As(context), input, details)
         return await controller.getMethod(As(details.method))(input)
     }
@@ -1236,7 +1236,7 @@ export class Entrypoint extends Component {
      */
     protected async runAccessControl(rules: IBaseObjectConstructor<AccessControlRule>[], runtimeContainer: Container, context: CLIContext | HTTPContext | ServiceContext, input: Record<string, any>, details: ActionDetails): Promise<void> {
         const [allowed, exception] = await this.accessControl.run(rules, runtimeContainer, context, input, details, (type: ContextType | string): BaseActionInfo[] => {
-            const channel: ChannelDefinition | undefined = GetChannelByContextType(type)
+            const channel: ChannelDefinition | undefined = getChannelByContextType(type)
             return channel ? this.actionInfos(channel.name) : []
         })
         if (!allowed) throw exception

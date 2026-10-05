@@ -24,7 +24,7 @@ describe('The builder of the applications', (): void => {
 
     before((): void => {
         project = mkdtempSync(path.join(tmpdir(), 'lakutata-builder-'))
-        //An application reading its resource where the packed applications are told it is (ResourcesPath of lakutata)
+        //An application reading its resource where the packed applications are told it is (resourcesPath of lakutata)
         Write('package.json', JSON.stringify({name: '@acme/reader', version: '1.0.0', main: 'build/index.js', lakutata: {resources: [{from: 'data', to: 'texts'}]}}))
         Write('data/hello.txt', 'Hello')
         Write('build/index.js', `const resources = globalThis[Symbol.for('lakutata.packaged')].resources()

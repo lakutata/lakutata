@@ -7,12 +7,12 @@ import {createHash} from 'node:crypto'
  * @returns The 20-byte digest, as a `Buffer`: call `.toString('hex')` or `.toString('base64')` for its text form.
  * @example
  * ```typescript
- * import {SHA1} from 'lakutata/utils'
+ * import {sha1} from 'lakutata/utils'
  *
- * console.log(SHA1('hello').toString('hex'))
+ * console.log(sha1('hello').toString('hex'))
  * //aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d
  * ```
  */
-export function SHA1(message: string): Buffer {
+export function sha1(message: string): Buffer {
     return createHash('sha1').update(Buffer.from(message)).digest()
 }

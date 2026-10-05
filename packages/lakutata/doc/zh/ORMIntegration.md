@@ -4,8 +4,8 @@
 
 | 子路径 | 内容 |
 |---|---|
-| `lakutata/com/database` | `Database` 组件（整个应用共享一个连接）和 `BuildDatabaseOptions` |
-| `lakutata/provider/database` | `Database` 提供者（每次解析都有自己的连接）和 `BuildDatabaseOptions` |
+| `lakutata/com/database` | `Database` 组件（整个应用共享一个连接）和 `buildDatabaseOptions` |
+| `lakutata/provider/database` | `Database` 提供者（每次解析都有自己的连接）和 `buildDatabaseOptions` |
 | `lakutata/decorator/orm` | TypeORM 的实体装饰器（`@Entity`、`@Column`、关系等） |
 | `lakutata/orm` | TypeORM 的 API：`Repository`、`EntityManager`、`QueryRunner`、查询操作符、`BaseEntity`、迁移、错误类 |
 
@@ -31,12 +31,12 @@ npm install lakutata pg
 
 ## 2. Database 组件
 
-`BuildDatabaseOptions` 用 TypeORM 的连接选项（`DataSourceOptions`，原样传给 TypeORM）声明一个 `Database` 组件。组件在创建时连接数据库（列入 `bootstrap` 时在启动阶段连接；连接失败会使启动失败），在应用停止时断开。其他对象按名称注入它。
+`buildDatabaseOptions` 用 TypeORM 的连接选项（`DataSourceOptions`，原样传给 TypeORM）声明一个 `Database` 组件。组件在创建时连接数据库（列入 `bootstrap` 时在启动阶段连接；连接失败会使启动失败），在应用停止时断开。其他对象按名称注入它。
 
 ```typescript
 import {Application, Component} from 'lakutata'
 import {Inject} from 'lakutata/decorator/di'
-import {BuildDatabaseOptions, Database} from 'lakutata/com/database'
+import {buildDatabaseOptions, Database} from 'lakutata/com/database'
 import {Column, CreateDateColumn, Entity, PrimaryGeneratedColumn} from 'lakutata/decorator/orm'
 
 @Entity('users')
@@ -82,7 +82,7 @@ Application
         id: 'com.example.users',
         name: 'Users',
         components: {
-            db: BuildDatabaseOptions({
+            db: buildDatabaseOptions({
                 type: 'postgres',
                 host: process.env.DB_HOST ?? 'localhost',
                 port: 5432,
@@ -255,7 +255,7 @@ class Signup extends Component {
 
 ```typescript
 import {Application} from 'lakutata'
-import {BuildDatabaseOptions, Database} from 'lakutata/provider/database'
+import {buildDatabaseOptions, Database} from 'lakutata/provider/database'
 
 Application
     .run(() => ({
@@ -263,7 +263,7 @@ Application
         name: 'Reports',
         providers: {
             reports: {
-                ...BuildDatabaseOptions({type: 'postgres', url: process.env.REPORTS_URL}),
+                ...buildDatabaseOptions({type: 'postgres', url: process.env.REPORTS_URL}),
                 entities: [Report]
             }
         }
@@ -284,8 +284,8 @@ Application.run(() => ({
     id: 'com.example.shop',
     name: 'Shop',
     components: {
-        db: BuildDatabaseOptions({type: 'postgres', url: process.env.DATABASE_URL, entities: [User, Order, OrderLine]}),
-        analytics: BuildDatabaseOptions({type: 'mysql', url: process.env.ANALYTICS_URL, entities: [Visit]})
+        db: buildDatabaseOptions({type: 'postgres', url: process.env.DATABASE_URL, entities: [User, Order, OrderLine]}),
+        analytics: buildDatabaseOptions({type: 'mysql', url: process.env.ANALYTICS_URL, entities: [Visit]})
     },
     bootstrap: ['db', 'analytics']
 }))

@@ -1,15 +1,15 @@
 import express, {type NextFunction, type Request, type RequestHandler, type Response} from 'express'
 import path from 'node:path'
-import {ParseDuration} from '../../lib/schedule/Cron.js'
+import {parseDuration} from '../../lib/schedule/Cron.js'
 
 /**
- * The options of {@link StaticUI}.
+ * The options of {@link staticUI}.
  */
 export type StaticUIOptions = {
     /**
      * Serve a single-page application: a GET or HEAD request accepting HTML, whose path has no file extension and
      * matches no file, is answered with the index (the client-side router handles the path). With `false`, such a
-     * request is passed on (a 404 behind `ExpressHTTPEntrypoint`).
+     * request is passed on (a 404 behind `expressHTTPEntrypoint`).
      * @default true
      */
     spa?: boolean
@@ -48,14 +48,14 @@ export function IsHashedAsset(file: string): boolean {
  */
 export function AssetsMaxAge(value: string | number | undefined): number {
     if (value === undefined) return 31536000
-    const seconds: number = typeof value === 'number' || /^\d+(?:\.\d+)?$/.test(value) ? Number(value) : ParseDuration(value) / 1000
+    const seconds: number = typeof value === 'number' || /^\d+(?:\.\d+)?$/.test(value) ? Number(value) : parseDuration(value) / 1000
     if (!Number.isFinite(seconds) || seconds < 0) throw new RangeError(`Invalid assetsMaxAge "${value}": a number of seconds or a duration ("30d")`)
     return Math.floor(seconds)
 }
 
 /**
  * Create an express handler serving a built web UI (the `dist` directory of a Vite application): its files, and its
- * index for the paths of its client-side routes. Given as the `fallback` of {@link ExpressHTTPEntrypoint}, it never
+ * index for the paths of its client-side routes. Given as the `fallback` of {@link expressHTTPEntrypoint}, it never
  * receives the paths of the actions. It needs the optional peer dependency `express`.
  *
  * The files with a content hash in their name are cached for a long time (`assetsMaxAge`), the other files and the
@@ -67,9 +67,9 @@ export function AssetsMaxAge(value: string | number | undefined): number {
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+ * import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
  * import {GET} from 'lakutata/decorator/ctrl'
- * import {ExpressHTTPEntrypoint, StaticUI} from 'lakutata/adapter/express'
+ * import {expressHTTPEntrypoint, staticUI} from 'lakutata/adapter/express'
  *
  * class DeviceController extends Controller {
  *     //GET /api/devices answers the action; GET /settings answers the index of the UI
@@ -83,18 +83,18 @@ export function AssetsMaxAge(value: string | number | undefined): number {
  *     id: 'console.app',
  *     name: 'Console',
  *     components: {
- *         entrypoint: BuildEntrypoints({
+ *         entrypoint: buildEntrypoints({
  *             controllers: [DeviceController],
- *             http: ExpressHTTPEntrypoint({
+ *             http: expressHTTPEntrypoint({
  *                 port: 8080,
- *                 fallback: StaticUI('./ui/dist', {assetsMaxAge: 86400})
+ *                 fallback: staticUI('./ui/dist', {assetsMaxAge: 86400})
  *             })
  *         })
  *     }
  * })
  * ```
  */
-export function StaticUI(directory: string, options: StaticUIOptions = {}): RequestHandler {
+export function staticUI(directory: string, options: StaticUIOptions = {}): RequestHandler {
     const root: string = path.resolve(directory)
     const index: string = options.index ?? 'index.html'
     const maxAge: number = AssetsMaxAge(options.assetsMaxAge)

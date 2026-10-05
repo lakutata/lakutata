@@ -1,14 +1,14 @@
 import {after, afterEach, before, it} from 'node:test'
 import assert from 'node:assert'
 import {Container, type ComponentOptions, type ModuleOptions} from '@lakutata/core'
-import {BuildEntrypoints, Entrypoint, type ActionInvocation, type MiddlewareHandler, type Next} from '@lakutata/entrypoint'
+import {buildEntrypoints, Entrypoint, type ActionInvocation, type MiddlewareHandler, type Next} from '@lakutata/entrypoint'
 import {
-    BuildDBusClientOptions,
+    buildDBusClientOptions,
     DBus,
     DBusClientComponent,
     DBusClientOptions,
     DBusContext,
-    DBusEntrypoint,
+    dbusEntrypoint,
     DBusEntrypointOptions,
     DBusObjectManager,
     DBusPropertyWrite
@@ -38,10 +38,10 @@ function Sleep(ms: number): Promise<void> {
  */
 async function Start(options: Partial<DBusEntrypointOptions> = {}, entrypointOptions: Record<string, unknown> = {}): Promise<{ container: Container, manager: DBusObjectManager, client: DBus }> {
     const container: Container = new Container()
-    await container.set(Entrypoint, BuildEntrypoints({
+    await container.set(Entrypoint, buildEntrypoints({
         controllers: [ManagerController, DeviceController],
         ...entrypointOptions,
-        dbus: DBusEntrypoint({bus: bus.socket, service: SERVICE, ...options})
+        dbus: dbusEntrypoint({bus: bus.socket, service: SERVICE, ...options})
     }))
     const manager: DBusObjectManager = await container.get(DBusObjectManager)
     const client: DBus = await DBus.connect({socket: bus.socket})
@@ -151,8 +151,8 @@ describeBus('DBus adapter', (): void => {
         await container.destroy()
     })
 
-    it('declares the client with BuildDBusClientOptions', async (): Promise<void> => {
-        const options: ComponentOptions<DBusClientOptions> = BuildDBusClientOptions({busAddress: `unix:path=${bus.socket}`, timeout: 5000})
+    it('declares the client with buildDBusClientOptions', async (): Promise<void> => {
+        const options: ComponentOptions<DBusClientOptions> = buildDBusClientOptions({busAddress: `unix:path=${bus.socket}`, timeout: 5000})
         //The declaration is accepted by the components of a module
         const components: ModuleOptions['components'] = {dbus: options}
         assert.strictEqual(components!.dbus, options)
@@ -248,7 +248,7 @@ describeBus('DBus adapter', (): void => {
         first.manager.addObject('/com/example/Devices/D4')
         //Another entrypoint of the same application cannot own the name
         const second: Container = new Container()
-        await assert.rejects(second.set(Entrypoint, BuildEntrypoints({controllers: [ManagerController], dbus: DBusEntrypoint({bus: bus.socket, service: SERVICE})})), /owned by another service/)
+        await assert.rejects(second.set(Entrypoint, buildEntrypoints({controllers: [ManagerController], dbus: dbusEntrypoint({bus: bus.socket, service: SERVICE})})), /owned by another service/)
         await second.destroy()
         await first.client.disconnect()
         await first.container.destroy()

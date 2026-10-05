@@ -5,13 +5,13 @@
  * @returns The values by name (`{PATH: '/usr/bin', MODE: 'a=b'}`).
  * @example
  * ```typescript
- * import {ParseEnvToRecord} from 'lakutata/com/docker'
+ * import {parseEnvToRecord} from 'lakutata/com/docker'
  *
- * const env: Record<string, string> = ParseEnvToRecord(['PATH=/usr/bin', 'MODE=a=b', 'EMPTY='])
+ * const env: Record<string, string> = parseEnvToRecord(['PATH=/usr/bin', 'MODE=a=b', 'EMPTY='])
  * console.log(env) //{PATH: '/usr/bin', MODE: 'a=b', EMPTY: ''}
  * ```
  */
-export function ParseEnvToRecord(rawEnv?: string[] | null): Record<string, string> {
+export function parseEnvToRecord(rawEnv?: string[] | null): Record<string, string> {
     const environments: Record<string, string> = {}
     for (const envString of rawEnv ?? []) {
         const splitPos: number = envString.indexOf('=')

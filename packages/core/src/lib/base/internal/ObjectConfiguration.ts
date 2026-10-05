@@ -2,7 +2,7 @@ import {BaseObject} from '../BaseObject.js'
 import {DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES} from '../../../constants/DIMetadataKey.js'
 import {DTO} from '../../dto/DTO.js'
 import {Schema} from '../../validation/types/Schema.js'
-import {ObjectConstructor} from '@lakutata/utils/ObjectConstructor'
+import {objectConstructor} from '@lakutata/utils/ObjectConstructor'
 import {MergedDeclarations, OwnDeclarations, REMOVED} from './MemberDeclarations.js'
 
 export type ObjectConfigurablePropertyMap<DataType = any> = Map<string | symbol, {
@@ -19,7 +19,7 @@ export type ObjectConfigurablePropertyMap<DataType = any> = Map<string | symbol,
  * @constructor
  */
 export function SetObjectConfigurableProperty<ClassPrototype extends BaseObject, DataType>(target: ClassPrototype, propertyKey: string | symbol, schema: Schema<DataType> = DTO.Any(), fn?: (value: DataType) => DataType | Promise<DataType>): void {
-    OwnDeclarations(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, ObjectConstructor(target)).set(propertyKey, {
+    OwnDeclarations(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, objectConstructor(target)).set(propertyKey, {
         schema: schema,
         fn: fn ? fn : (value: DataType) => value
     })
@@ -32,7 +32,7 @@ export function SetObjectConfigurableProperty<ClassPrototype extends BaseObject,
  * @constructor
  */
 export function RemoveObjectConfigurableProperty<ClassPrototype extends BaseObject>(target: ClassPrototype, propertyKey: string | symbol): void {
-    OwnDeclarations(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, ObjectConstructor(target)).set(propertyKey, REMOVED)
+    OwnDeclarations(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, objectConstructor(target)).set(propertyKey, REMOVED)
 }
 
 /**
@@ -42,5 +42,5 @@ export function RemoveObjectConfigurableProperty<ClassPrototype extends BaseObje
  * @constructor
  */
 export function GetObjectConfigurableProperties<ClassPrototype extends BaseObject>(target: ClassPrototype): ObjectConfigurablePropertyMap {
-    return MergedDeclarations(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, ObjectConstructor(target))
+    return MergedDeclarations(DI_TARGET_CONSTRUCTOR_CONFIGURABLE_PROPERTIES, objectConstructor(target))
 }

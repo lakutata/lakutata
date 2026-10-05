@@ -8,13 +8,13 @@
  * its precision as a `number`.
  * @example
  * ```typescript
- * import {HexToUnsigned} from 'lakutata/utils'
+ * import {hexToUnsigned} from 'lakutata/utils'
  *
- * console.log(HexToUnsigned('FF'), HexToUnsigned('0x0100'), HexToUnsigned('FFFFFFFF'))
+ * console.log(hexToUnsigned('FF'), hexToUnsigned('0x0100'), hexToUnsigned('FFFFFFFF'))
  * //255 256 4294967295
  * ```
  */
-export function HexToUnsigned(hex: string): number {
+export function hexToUnsigned(hex: string): number {
     const digits: string = hex.startsWith('0x') || hex.startsWith('0X') ? hex.slice(2) : hex
     if (!/^[0-9a-fA-F]+$/.test(digits)) throw new SyntaxError(`Invalid hexadecimal string: "${hex}"`)
     const unsignedNumber: bigint = BigInt(`0x${digits}`)

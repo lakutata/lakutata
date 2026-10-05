@@ -12,13 +12,13 @@ import {Expect} from '@lakutata/core/decorator/dto'
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildCacherOptions} from 'lakutata/com/cacher'
+ * import {buildCacherOptions} from 'lakutata/com/cacher'
  *
  * Application.run(() => ({
  *     id: 'redis-cache.app',
  *     name: 'RedisCache',
  *     components: {
- *         cache: BuildCacherOptions({
+ *         cache: buildCacherOptions({
  *             stores: {
  *                 type: 'redis',
  *                 host: '127.0.0.1',

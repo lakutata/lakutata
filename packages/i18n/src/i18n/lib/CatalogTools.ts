@@ -1,11 +1,11 @@
-import {DefaultValidationMessages} from '@lakutata/core'
+import {defaultValidationMessages} from '@lakutata/core'
 import {LoadDirectory, type Catalogs} from './Catalog.js'
 import {I18nCatalogException} from '../exceptions/I18nCatalogException.js'
-import {NormalizeLocale} from './Locale.js'
-import {MessageArguments, ParseMessage, type MessagePart} from './MessageFormat.js'
+import {normalizeLocale} from './Locale.js'
+import {messageArguments, parseMessage, type MessagePart} from './MessageFormat.js'
 
 /**
- * A problem found by {@link CheckCatalogs} in the messages.
+ * A problem found by {@link checkCatalogs} in the messages.
  */
 export type CatalogIssue = {
     /**
@@ -44,13 +44,13 @@ const VALIDATION_PREFIX: string = 'validation.'
  * or a key is invalid.
  * @example
  * ```typescript
- * import {LoadCatalogs, type Catalogs} from 'lakutata/com/i18n'
+ * import {loadCatalogs, type Catalogs} from 'lakutata/com/i18n'
  *
- * const catalogs: Catalogs = await LoadCatalogs(['./locales'])
+ * const catalogs: Catalogs = await loadCatalogs(['./locales'])
  * for (const [locale, messages] of catalogs) console.log(locale, messages.size)
  * ```
  */
-export async function LoadCatalogs(directories: string[]): Promise<Catalogs> {
+export async function loadCatalogs(directories: string[]): Promise<Catalogs> {
     const catalogs: Catalogs = new Map()
     for (const directory of directories) await LoadDirectory(catalogs, directory)
     return catalogs
@@ -73,7 +73,7 @@ function TemplateVariables(template: string): Set<string> {
  */
 function Parse(issues: CatalogIssue[], locale: string, key: string, message: string): Map<string, string> | undefined {
     try {
-        return MessageArguments(ParseMessage(message, `${locale}: ${key}`))
+        return messageArguments(parseMessage(message, `${locale}: ${key}`))
     } catch (error) {
         issues.push({level: 'error', locale: locale, key: key, message: (error as Error).message})
         return undefined
@@ -89,25 +89,25 @@ function Parse(issues: CatalogIssue[], locale: string, key: string, message: str
  *   message not used, a message identical to the default one and containing letters (not translated yet).
  *
  * The `validation.*` messages are not compared between languages; they need not exist in the default language.
- * @param catalogs The messages, as {@link LoadCatalogs} gives them.
+ * @param catalogs The messages, as {@link loadCatalogs} gives them.
  * @param defaultLocale The default language tag, normalized (`zh_CN` is `zh-CN`).
  * @returns The issues, by language in alphabetical order; empty when everything is right. Only one error when the
  * default language has no messages.
  * @example
  * ```typescript
- * import {CheckCatalogs, LoadCatalogs, type CatalogIssue} from 'lakutata/com/i18n'
+ * import {checkCatalogs, loadCatalogs, type CatalogIssue} from 'lakutata/com/i18n'
  *
- * const issues: CatalogIssue[] = CheckCatalogs(await LoadCatalogs(['./locales']), 'en')
+ * const issues: CatalogIssue[] = checkCatalogs(await loadCatalogs(['./locales']), 'en')
  * for (const issue of issues) console.log(`${issue.level} ${issue.locale} ${issue.key}: ${issue.message}`)
  * if (issues.some((issue: CatalogIssue): boolean => issue.level === 'error')) process.exitCode = 1
  * ```
  */
-export function CheckCatalogs(catalogs: Catalogs, defaultLocale: string): CatalogIssue[] {
+export function checkCatalogs(catalogs: Catalogs, defaultLocale: string): CatalogIssue[] {
     const issues: CatalogIssue[] = []
-    const base: string = NormalizeLocale(defaultLocale) ?? defaultLocale
+    const base: string = normalizeLocale(defaultLocale) ?? defaultLocale
     const defaults: Map<string, string> | undefined = catalogs.get(base)
     if (!defaults) return [{level: 'error', locale: base, key: '', message: `There are no messages of the default language ${base} (${[...catalogs.keys()].join(', ') || 'no language'})`}]
-    const validation: Record<string, string> = DefaultValidationMessages()
+    const validation: Record<string, string> = defaultValidationMessages()
     //The arguments of the default messages
     const baseArguments: Map<string, Map<string, string> | undefined> = new Map()
     for (const [key, message] of defaults) {
@@ -193,7 +193,7 @@ function Literal(value: string): string {
  * bigint` for `{n, number}`, `number` for a plural, `string` for a select, `Date | number | string` for a date or a
  * time, any scalar for a plain argument; a currency argument without its currency adds an optional `currency`. The
  * `validation.*` messages are left out.
- * @param catalogs The messages, as {@link LoadCatalogs} gives them.
+ * @param catalogs The messages, as {@link loadCatalogs} gives them.
  * @param defaultLocale The default language tag, whose messages are declared.
  * @param moduleName The module the application imports the i18n from, which the declaration augments:
  * `'lakutata/com/i18n'` by default, `'@lakutata/i18n'` for the applications importing the package directly.
@@ -203,20 +203,20 @@ function Literal(value: string): string {
  * @example
  * ```typescript
  * import {writeFile} from 'node:fs/promises'
- * import {GenerateMessageTypes, LoadCatalogs} from 'lakutata/com/i18n'
+ * import {generateMessageTypes, loadCatalogs} from 'lakutata/com/i18n'
  *
- * await writeFile('src/i18n.d.ts', GenerateMessageTypes(await LoadCatalogs(['./locales']), 'en'))
+ * await writeFile('src/i18n.d.ts', generateMessageTypes(await loadCatalogs(['./locales']), 'en'))
  * ```
  */
-export function GenerateMessageTypes(catalogs: Catalogs, defaultLocale: string, moduleName: string = 'lakutata/com/i18n'): string {
-    const base: string = NormalizeLocale(defaultLocale) ?? defaultLocale
+export function generateMessageTypes(catalogs: Catalogs, defaultLocale: string, moduleName: string = 'lakutata/com/i18n'): string {
+    const base: string = normalizeLocale(defaultLocale) ?? defaultLocale
     const defaults: Map<string, string> | undefined = catalogs.get(base)
     if (!defaults) throw new I18nCatalogException(`There are no messages of the default language ${base}`)
     const lines: string[] = []
     for (const key of [...defaults.keys()].filter((name: string): boolean => !name.startsWith(VALIDATION_PREFIX)).sort()) {
-        const parts: MessagePart[] = ParseMessage(defaults.get(key)!, `${base}: ${key}`)
-        const fields: string[] = [...MessageArguments(parts)].map(([name, type]): string => `${/^[A-Za-z_$][\w$]*$/.test(name) ? name : Literal(name)}: ${ArgumentType(type)}`)
-        if (HasCurrency(parts) && !MessageArguments(parts).has('currency')) fields.push('currency?: string')
+        const parts: MessagePart[] = parseMessage(defaults.get(key)!, `${base}: ${key}`)
+        const fields: string[] = [...messageArguments(parts)].map(([name, type]): string => `${/^[A-Za-z_$][\w$]*$/.test(name) ? name : Literal(name)}: ${ArgumentType(type)}`)
+        if (HasCurrency(parts) && !messageArguments(parts).has('currency')) fields.push('currency?: string')
         lines.push(`        ${Literal(key)}: ${fields.length ? `{ ${fields.join(', ')} }` : 'Record<string, never>'}`)
     }
     return `//Generated by lakutata i18n types from the messages of ${base}: the keys of the messages and their arguments

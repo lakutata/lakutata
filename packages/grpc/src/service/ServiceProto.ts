@@ -2,7 +2,7 @@ import type {Schema} from '../lib/Protobuf.js'
 
 /**
  * The `.proto` definition (proto3) of the gRPC service `lakutata.service.v1.Service` served by
- * `GRPCServiceEntrypoint`: write it to a `.proto` file to generate the clients of the other languages (`protoc`,
+ * `grpcServiceEntrypoint`: write it to a `.proto` file to generate the clients of the other languages (`protoc`,
  * grpcio-tools), or give it to `grpcurl -proto`.
  *
  * - `Invoke(InvokeRequest) returns (InvokeResponse)`: `data` is the UTF-8 JSON of the action's pattern and input;

@@ -2,27 +2,30 @@
 
 ## Naming
 
-The names of lakutata follow one rule: **what a module exports at its top level is named in Pascal case, the members
-of an object in camel case.** The functions are thus named as in C# or Go, the methods and the properties as in
-JavaScript:
+The functions of lakutata are named in camel case, as JavaScript's own; the classes, the types, the decorators and four
+helpers are named in Pascal case:
 
 | Declaration | Case | Examples |
 |---|---|---|
+| Functions exported by a module (helpers, option builders, adapters) | camel | `buildEntrypoints`, `expressHTTPEntrypoint`, `delay`, `md5`, `isEmptyObject` |
 | Classes, interfaces, types, enums | Pascal | `Application`, `ActionPattern`, `HTTPErrorOrigin` |
-| Functions exported by a module (helpers, option builders) | Pascal | `DevNull`, `As`, `UUID`, `BuildEntrypoints`, `BuildNatsClientOptions` |
-| Decorators | Pascal | `@Inject`, `@Configurable`, `@ServiceAction` |
+| Decorators | Pascal | `@Inject`, `@Configurable`, `@ServiceAction`, `@Synchronized` |
+| The helpers `As`, `DevNull`, `Glob` and `GlobSync` | Pascal | see below |
 | Methods and properties | camel | `getObject()`, `appName`, `startup()` |
 | Option keys | camel | `shutdownSignals`, `actionErrorStatus` |
 | Constants of a module | upper snake | `DBUS_CONTEXT_TYPE` |
-| Acronyms | kept in capitals | `HTTPContext`, `IsHTML`, `UUID` (not `HttpContext`) |
 
-The functions are not in camel case, as JavaScript's own are, because their names would collide with the names a reader
-or a tool knows already: `devNull` is a string of `node:os` (the path of the null device), `as` is a keyword of
-TypeScript, `uuid` is a package of npm (a dependency of lakutata). Their Pascal case tells at once that a function is
-lakutata's. A name in camel case met in the 2.x packages (`buildNatsClientOptions`, `buildDBusClientOptions`) is kept as
-a deprecated alias of its Pascal case name until a later major version.
+Acronyms are kept in capitals inside a name (`HTTPContext`, `isHTML`, `buildHTTPEntrypoint`, not `HttpContext`); a name
+starting with an acronym starts it in lower case (`md5`, `httpServiceEntrypoint`, `jsonRPCServiceEntrypoint`).
 
-The names of the libraries lakutata re-exports (TypeORM, dbus-sdk) are kept as they are.
+`As`, `DevNull`, `Glob` and `GlobSync` stay in Pascal case: in camel case they would be `as` (a keyword of TypeScript),
+`devNull` (a string of `node:os`, the path of the null device) and `glob`/`globSync` (the functions of `node:fs`, which
+match the same patterns). A function whose camel case name would be the name of a function of Node.js doing something
+else gets another name (`constantTimeEqual`, not `timingSafeEqual` of `node:crypto`, which throws for values of
+different lengths).
+
+The names of the libraries lakutata re-exports (TypeORM, dbus-sdk) are kept as they are. The functions of 2.x renamed in
+camel case have no alias: the projects and the SDKs built on 2.x rename their calls when they move to 3.0.
 
 ## Documenting the public API
 

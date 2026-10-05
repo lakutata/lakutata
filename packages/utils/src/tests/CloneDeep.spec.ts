@@ -1,6 +1,6 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
-import {CloneDeep} from '../exports/Utils.js'
+import {cloneDeep} from '../exports/Utils.js'
 
 class Point {
     constructor(public x: number, public y: number) {
@@ -11,15 +11,15 @@ class Point {
     }
 }
 
-describe('CloneDeep', (): void => {
+describe('cloneDeep', (): void => {
 
     it('returns the primitives as they are', (): void => {
-        for (const value of [1, 'a', true, null, undefined, 10n, Symbol.for('s')]) assert.strictEqual(CloneDeep(value), value)
+        for (const value of [1, 'a', true, null, undefined, 10n, Symbol.for('s')]) assert.strictEqual(cloneDeep(value), value)
     })
 
     it('clones the objects and the arrays deeply', (): void => {
         const value: { a: number[], b: { c: { d: string } } } = {a: [1, 2], b: {c: {d: 'x'}}}
-        const clone: typeof value = CloneDeep(value)
+        const clone: typeof value = cloneDeep(value)
         assert.deepStrictEqual(clone, value)
         assert.notStrictEqual(clone.a, value.a)
         assert.notStrictEqual(clone.b.c, value.b.c)
@@ -28,7 +28,7 @@ describe('CloneDeep', (): void => {
     })
 
     it('keeps the prototypes of the instances', (): void => {
-        const clone: Point = CloneDeep(new Point(3, 4))
+        const clone: Point = cloneDeep(new Point(3, 4))
         assert.ok(clone instanceof Point)
         assert.strictEqual(clone.length, 5)
     })
@@ -43,7 +43,7 @@ describe('CloneDeep', (): void => {
             set: new Set<object>([{v: 2}]),
             error: new TypeError('failure')
         }
-        const clone: Record<string, any> = CloneDeep(value)
+        const clone: Record<string, any> = cloneDeep(value)
         assert.ok(clone.date instanceof Date && clone.date.getTime() === 1000 && clone.date !== value.date)
         assert.ok(clone.regex instanceof RegExp && clone.regex.source === 'a+' && clone.regex.flags === 'gi')
         assert.ok(clone.url instanceof URL && clone.url.href === value.url.href && clone.url !== value.url)
@@ -64,7 +64,7 @@ describe('CloneDeep', (): void => {
         Object.defineProperty(value, 'computed', {get(): number {
             return 42
         }, enumerable: true, configurable: true})
-        const clone: Record<PropertyKey, any> = CloneDeep(value)
+        const clone: Record<PropertyKey, any> = cloneDeep(value)
         assert.strictEqual(clone.self, clone)
         assert.deepStrictEqual(clone[symbol], {s: 1})
         assert.notStrictEqual(clone[symbol], value[symbol])
@@ -87,7 +87,7 @@ describe('CloneDeep', (): void => {
                 writes.push(input)
             }
         }
-        const clone: Record<string, any> = CloneDeep(value)
+        const clone: Record<string, any> = cloneDeep(value)
         assert.deepStrictEqual(clone.nested, {v: 1})
         assert.notStrictEqual(clone.nested, nested)
         clone.sink = 3
@@ -98,7 +98,7 @@ describe('CloneDeep', (): void => {
         const weakMap: WeakMap<object, number> = new WeakMap([[{}, 1]])
         const weakSet: WeakSet<object> = new WeakSet()
         const promise: Promise<number> = Promise.resolve(5)
-        const clone: Record<string, any> = CloneDeep({weakMap: weakMap, weakSet: weakSet, promise: promise})
+        const clone: Record<string, any> = cloneDeep({weakMap: weakMap, weakSet: weakSet, promise: promise})
         assert.strictEqual(clone.weakMap, weakMap)
         assert.strictEqual(clone.weakSet, weakSet)
         assert.strictEqual(clone.promise, promise)
@@ -107,23 +107,23 @@ describe('CloneDeep', (): void => {
 
     it('clones the frozen, sealed and non-extensible objects as such', (): void => {
         const frozen: { a: { b: number }, list: readonly number[] } = Object.freeze({a: {b: 1}, list: Object.freeze([1, 2])})
-        const clone: typeof frozen = CloneDeep(frozen)
+        const clone: typeof frozen = cloneDeep(frozen)
         assert.deepStrictEqual(clone, frozen)
         assert.notStrictEqual(clone, frozen)
         assert.ok(Object.isFrozen(clone) && Object.isFrozen(clone.list))
         //The nested object was not frozen
         assert.ok(!Object.isFrozen(clone.a))
-        assert.ok(Object.isSealed(CloneDeep(Object.seal({a: 1}))) && !Object.isFrozen(CloneDeep(Object.seal({a: 1}))))
-        assert.ok(!Object.isExtensible(CloneDeep(Object.preventExtensions({a: 1}))))
-        assert.ok(Object.isExtensible(CloneDeep({a: 1})))
+        assert.ok(Object.isSealed(cloneDeep(Object.seal({a: 1}))) && !Object.isFrozen(cloneDeep(Object.seal({a: 1}))))
+        assert.ok(!Object.isExtensible(cloneDeep(Object.preventExtensions({a: 1}))))
+        assert.ok(Object.isExtensible(cloneDeep({a: 1})))
         //A frozen instance keeps its class
-        assert.ok(CloneDeep(Object.freeze(new Point(1, 2))) instanceof Point)
+        assert.ok(cloneDeep(Object.freeze(new Point(1, 2))) instanceof Point)
     })
 
     it('keeps the properties of the arrays', (): void => {
         const value: number[] & { label?: string } = [1, 2, 3]
         value.label = 'numbers'
-        const clone: typeof value = CloneDeep(value)
+        const clone: typeof value = cloneDeep(value)
         assert.ok(Array.isArray(clone))
         assert.deepStrictEqual([...clone], [1, 2, 3])
         assert.strictEqual(clone.label, 'numbers')
@@ -138,7 +138,7 @@ describe('CloneDeep', (): void => {
             }
         })
         const value: Record<string, any> = proxy({nested: proxy({list: proxy([1, 2])}), date: new Date(5)})
-        const clone: Record<string, any> = CloneDeep(value)
+        const clone: Record<string, any> = cloneDeep(value)
         assert.deepStrictEqual(clone as unknown, {nested: {list: [1, 2]}, date: new Date(5)})
         writes.length = 0
         clone.nested.list.push(3)
@@ -156,7 +156,7 @@ describe('CloneDeep', (): void => {
         class Bytes extends Uint8Array {
         }
         const subclass: Bytes = new Bytes([4, 5])
-        const clone = CloneDeep({bytes: bytes, floats: floats, view: view, buffer: buffer, dataView: dataView, subclass: subclass, text: new String('s'), number: new Number(5), flag: new Boolean(false)})
+        const clone = cloneDeep({bytes: bytes, floats: floats, view: view, buffer: buffer, dataView: dataView, subclass: subclass, text: new String('s'), number: new Number(5), flag: new Boolean(false)})
         assert.deepStrictEqual(Array.from(clone.bytes), [1, 2, 3])
         assert.ok(clone.bytes instanceof Uint8Array && clone.bytes !== bytes && clone.bytes.buffer !== bytes.buffer)
         assert.deepStrictEqual(Array.from(clone.floats), [1.5, -2])

@@ -1,5 +1,5 @@
 /**
- * An image reference split into its repository and its tag, as {@link ParseRepositoryTag} returns it.
+ * An image reference split into its repository and its tag, as {@link parseRepositoryTag} returns it.
  */
 export type RepositoryTag = {
     /**

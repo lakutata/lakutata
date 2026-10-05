@@ -158,12 +158,12 @@ await container.destroy()
 | `Container` | `lakutata` | The IoC container: `set`, `get`, `getShared`, `register`, `createScope`, `destroy` |
 | `DTO` | `lakutata` | Validated data classes and the schema builders |
 | `Exception` | `lakutata` | The base of the exceptions of the framework (`errno`, `statusCode`) |
-| `IsPackaged`, `ResourcesPath` | `lakutata` | Whether the application runs packed, and its resources directory |
-| `RegisterValidationMessages`, `RunInValidationLanguage`… | `lakutata` | The languages of the validation messages |
+| `isPackaged`, `resourcesPath` | `lakutata` | Whether the application runs packed, and its resources directory |
+| `registerValidationMessages`, `runInValidationLanguage`… | `lakutata` | The languages of the validation messages |
 | `Inject`, `Configurable`, `Autoload`, `Singleton`, `Scoped`, `Transient`, `Lifetime` | `lakutata/decorator/di` | Dependency injection and lifetimes |
 | `Expect`, `Accept`, `Return`, `IndexSignature` | `lakutata/decorator/dto` | DTO fields, method argument and return validation |
 | `Before`, `After` | `lakutata/decorator/asst` | Functions run before and after a method |
-| `PaginationSearchDTO`, `PaginationResultDTO`, `Paginator`, `FlexibleDTO`, `toJsonSchema`, `fromJsonSchema` | `lakutata/dtos` | Pagination, open DTOs and JSON Schema conversion |
+| `PaginationSearchDTO`, `PaginationResultDTO`, `paginator`, `FlexibleDTO`, `toJsonSchema`, `fromJsonSchema` | `lakutata/dtos` | Pagination, open DTOs and JSON Schema conversion |
 | `ConsoleLogger`, `ILogger` | `lakutata/com/logger` | The logger interface and its console implementation |
 
 The typings document each declaration with examples.

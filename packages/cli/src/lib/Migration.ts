@@ -1,7 +1,7 @@
 import {existsSync} from 'node:fs'
 import {mkdir, readdir, readFile, writeFile} from 'node:fs/promises'
 import path from 'node:path'
-import {CamelCase} from 'lakutata/utils'
+import {camelCase} from 'lakutata/utils'
 import {LaunchEnvironment} from './Environment.js'
 import {SpawnCommand} from './Processes.js'
 
@@ -156,7 +156,7 @@ export async function CreateMigration(options: CreateMigrationOptions): Promise<
     const timestamp: number = options.timestamp ?? Date.now()
     const manifest: Record<string, Record<string, string> | undefined> = JSON.parse(await readFile(path.join(options.directory, 'package.json'), 'utf8'))
     const module: string = manifest.dependencies?.['@lakutata/orm'] || manifest.devDependencies?.['@lakutata/orm'] ? '@lakutata/orm' : 'lakutata/orm'
-    const camel: string = CamelCase(options.name)
+    const camel: string = camelCase(options.name)
     const className: string = `${camel.charAt(0).toUpperCase()}${camel.slice(1)}${timestamp}`
     const file: string = path.join(options.dir, `${timestamp}-${options.name}.ts`)
     await mkdir(path.resolve(options.directory, options.dir), {recursive: true})

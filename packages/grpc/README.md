@@ -2,8 +2,8 @@
 
 gRPC for the lakutata framework, written in TypeScript over the HTTP/2 of Node.js, without native addon nor generated
 code: a client (`GRPCConnection`: unix sockets, TCP, TLS and mutual TLS; unary, server streaming and bidirectional
-calls), a server (`GRPCServer`), and a protobuf codec driven by schemas (`Encode`, `Decode`). The subpath
-`@lakutata/grpc/service` serves the service actions of an application over gRPC (`GRPCServiceEntrypoint`, the service
+calls), a server (`GRPCServer`), and a protobuf codec driven by schemas (`encode`, `decode`). The subpath
+`@lakutata/grpc/service` serves the service actions of an application over gRPC (`grpcServiceEntrypoint`, the service
 `lakutata.service.v1.Service` of `SERVICE_PROTO`, callable from any language) and invokes them from another application
 (`GRPCServiceProxy`). The containerd component (`@lakutata/containerd`) and its BuildKit builds use it. The umbrella
 package `lakutata` does not re-export it: import it from `@lakutata/grpc` and `@lakutata/grpc/service`.
@@ -26,15 +26,15 @@ npm install lakutata @lakutata/grpc
 
 ### The service actions over gRPC
 
-`GRPCServiceEntrypoint` is the `service` adapter of the entrypoint: the application's `@ServiceAction`s are invoked
+`grpcServiceEntrypoint` is the `service` adapter of the entrypoint: the application's `@ServiceAction`s are invoked
 over gRPC, by their patterns, as over the other service transports.
 
 ```typescript
 import {Application} from 'lakutata'
-import {BuildEntrypoints, Controller, Entrypoint, ServiceContext} from 'lakutata/com/entrypoint'
+import {buildEntrypoints, Controller, Entrypoint, ServiceContext} from 'lakutata/com/entrypoint'
 import {ServiceAction} from 'lakutata/decorator/ctrl'
 import {Inject} from 'lakutata/decorator/di'
-import {GRPCServiceEntrypoint} from '@lakutata/grpc/service'
+import {grpcServiceEntrypoint} from '@lakutata/grpc/service'
 
 class OrderController extends Controller {
     @Inject('entrypoint')
@@ -58,22 +58,22 @@ Application.run(() => ({
     id: 'orders.service',
     name: 'Orders',
     components: {
-        entrypoint: BuildEntrypoints({
+        entrypoint: buildEntrypoints({
             controllers: [OrderController],
             //Port 50051 on all the interfaces by default; socketPath for a unix socket, tls for TLS
-            service: GRPCServiceEntrypoint({port: 50051, compression: 'gzip'})
+            service: grpcServiceEntrypoint({port: 50051, compression: 'gzip'})
         })
     },
     bootstrap: ['entrypoint']
 }))
 ```
 
-Another application invokes them with `GRPCServiceProxy`, a component registered with `BuildGRPCServiceProxy`:
+Another application invokes them with `GRPCServiceProxy`, a component registered with `buildGRPCServiceProxy`:
 
 ```typescript
 import {Application} from 'lakutata'
 import {ServiceInvokeException} from 'lakutata/com/entrypoint'
-import {BuildGRPCServiceProxy, type GRPCServiceProxy} from '@lakutata/grpc/service'
+import {buildGRPCServiceProxy, type GRPCServiceProxy} from '@lakutata/grpc/service'
 
 Application
     .run(() => ({
@@ -81,7 +81,7 @@ Application
         name: 'Shop',
         components: {
             //host:port, tcp://host:port, /path or unix:///path
-            orders: BuildGRPCServiceProxy({address: 'orders.internal:50051'})
+            orders: buildGRPCServiceProxy({address: 'orders.internal:50051'})
         }
     }))
     .onLaunched(async (app: Application): Promise<void> => {
@@ -101,7 +101,7 @@ Application
 ```
 
 - The client's id is the `id` metadata of its calls (`ServiceContext.clientId` in the actions); the proxy sends its
-  `clientId` (a random UUID by default). `GRPCCallOfContext(context)` gives an action the whole gRPC call: its
+  `clientId` (a random UUID by default). `grpcCallOfContext(context)` gives an action the whole gRPC call: its
   metadata, its deadline.
 - An action's signal is aborted when the client cancels the call or its deadline passes: the call then ends with
   `CANCELLED` or `DEADLINE_EXCEEDED`.
@@ -269,7 +269,7 @@ A `Schema` replaces the `.proto` and its generated code: the fields of a message
 numbers and types.
 
 ```typescript
-import {Decode, Encode, type Message, type Schema} from '@lakutata/grpc'
+import {decode, encode, type Message, type Schema} from '@lakutata/grpc'
 
 //message Point { int32 x = 1; int32 y = 2; }
 const Point: Schema = {x: {no: 1, type: 'int32'}, y: {no: 2, type: 'int32'}}
@@ -282,7 +282,7 @@ const Route: Schema = {
     data: {no: 5, type: 'bytes'}
 }
 
-const bytes: Uint8Array = Encode(Route, {
+const bytes: Uint8Array = encode(Route, {
     name: 'home',
     points: [{x: 1, y: 2}],
     labels: {zone: 'eu'},
@@ -290,7 +290,7 @@ const bytes: Uint8Array = Encode(Route, {
     started: 1700000000000000000n,
     data: Buffer.from('raw')
 })
-const route: Message = Decode(Route, bytes)
+const route: Message = decode(Route, bytes)
 console.log(route.name, route.points, route.labels, route.started, route.data)
 ```
 
@@ -307,7 +307,7 @@ console.log(route.name, route.points, route.labels, route.started, route.data)
 - The repeated varints are written packed, and read packed or not; the maps have string keys only.
 - The fields the schema does not declare are skipped. `sint32`/`sint64`, the fixed types, `float` and `double` are not
   supported.
-- `Decode` throws an `Error` on truncated bytes or a wire type its schema does not expect.
+- `decode` throws an `Error` on truncated bytes or a wire type its schema does not expect.
 
 ## API
 
@@ -321,12 +321,12 @@ console.log(route.name, route.points, route.labels, route.started, route.data)
 | `GRPCTLSOptions`, `GRPCServerTLSOptions` | `@lakutata/grpc` | The TLS options of a connection and of a server |
 | `GRPCMessageOptions`, `GRPCCompression` | `@lakutata/grpc` | The size limit and compression of the messages |
 | `GRPCError`, `GRPCStatus` | `@lakutata/grpc` | The failure of a call and the status codes |
-| `ParseGRPCTimeout`, `FormatGRPCTimeout` | `@lakutata/grpc` | The `grpc-timeout` header from and to milliseconds |
-| `Encode`, `Decode` | `@lakutata/grpc` | The protobuf codec |
+| `parseGRPCTimeout`, `formatGRPCTimeout` | `@lakutata/grpc` | The `grpc-timeout` header from and to milliseconds |
+| `encode`, `decode` | `@lakutata/grpc` | The protobuf codec |
 | `Schema`, `Field`, `ScalarType`, `Message` | `@lakutata/grpc` | The message definitions and the messages |
-| `GRPCServiceEntrypoint`, `GRPCServiceEntrypointOptions` | `@lakutata/grpc/service` | The service adapter serving the service actions over gRPC |
-| `GRPCCallOfContext` | `@lakutata/grpc/service` | The gRPC call of a service context |
-| `GRPCServiceProxy`, `BuildGRPCServiceProxy`, `BuildGRPCServiceProxyOptions` | `@lakutata/grpc/service` | The client component of a service: `invoke`, `on`, `once`, `off`, `id` |
+| `grpcServiceEntrypoint`, `GRPCServiceEntrypointOptions` | `@lakutata/grpc/service` | The service adapter serving the service actions over gRPC |
+| `grpcCallOfContext` | `@lakutata/grpc/service` | The gRPC call of a service context |
+| `GRPCServiceProxy`, `buildGRPCServiceProxy`, `BuildGRPCServiceProxyOptions` | `@lakutata/grpc/service` | The client component of a service: `invoke`, `on`, `once`, `off`, `id` |
 | `SERVICE_PROTO`, `SERVICE_METHODS` | `@lakutata/grpc/service` | The `.proto` of the service and its method paths |
 
 The typings document each declaration with examples.
@@ -338,7 +338,7 @@ The typings document each declaration with examples.
 | `GRPCError` (`code`: a `GRPCStatus`, `path`) | A call fails: the server's status, or `UNAVAILABLE` (connection failed or lost, no status), `CANCELLED` (signal aborted, stream cancelled, call closed), `DEADLINE_EXCEEDED` (timeout passed), `RESOURCE_EXHAUSTED` (a message over `maxMessageSize`), `INTERNAL` (a message which cannot be decompressed or decoded), `UNKNOWN` (an HTTP status other than 200). A server handler throws it to end its call with its status. |
 | `ServiceInvokeException` (`E_SERVICE_INVOKE`, from `lakutata/com/entrypoint`) | `GRPCServiceProxy.invoke()`: the remote action failed; it carries the remote error's message and properties (`errno`…) |
 | `EntrypointStoppedException` (`E_ENTRYPOINT_STOPPED`) | An invocation arrived while the service's entrypoint is stopping (received by the proxy as a `ServiceInvokeException` with this errno) |
-| `Error` | `new GRPCConnection()` with an address which is not a unix socket path nor a `tcp://` URL; `Decode()` with truncated or unexpected bytes; `GRPCServer.listen()` with the listen error (`EADDRINUSE`) |
+| `Error` | `new GRPCConnection()` with an address which is not a unix socket path nor a `tcp://` URL; `decode()` with truncated or unexpected bytes; `GRPCServer.listen()` with the listen error (`EADDRINUSE`) |
 
 A server answers a call to an unknown method or with an unsupported compression with `UNIMPLEMENTED`, a request over
 its `maxMessageSize` with `RESOURCE_EXHAUSTED`, and a call past its deadline with `DEADLINE_EXCEEDED`.

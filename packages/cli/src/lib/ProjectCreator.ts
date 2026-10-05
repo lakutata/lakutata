@@ -3,7 +3,7 @@ import {cp, readdir, readFile, rename, stat, writeFile} from 'node:fs/promises'
 import path from 'node:path'
 import {Component} from 'lakutata'
 import {Autoload, Inject, Singleton} from 'lakutata/decorator/di'
-import {Templating} from 'lakutata/utils'
+import {templating} from 'lakutata/utils'
 import {type PreparedTemplate, TemplateCatalog, type TemplateSource} from './TemplateCatalog.js'
 import {type PackageManager, Run} from './Processes.js'
 import {Done, Step, Warn} from './Output.js'
@@ -130,7 +130,7 @@ export class ProjectCreator extends Component {
             const content: Buffer = await readFile(target)
             if (!IsText(content)) continue
             const raw: string = content.toString('utf8')
-            const filled: string = Templating(ApplyFeatureBlocks(raw, features, file), fields, {ignoreMissing: true})
+            const filled: string = templating(ApplyFeatureBlocks(raw, features, file), fields, {ignoreMissing: true})
             if (filled !== raw) await writeFile(target, filled)
         }
     }

@@ -6,10 +6,10 @@ import {Server as SocketIOServer} from 'socket.io'
 import {io as Connect, type ManagerOptions, type Socket as ClientSocket, type SocketOptions} from 'socket.io-client'
 import {Container, DTO} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
-import {ActionInvocation, BuildEntrypoints, Controller, Entrypoint, MiddlewareHandler, Next, ServiceContext} from '../exports/Entrypoint.js'
+import {ActionInvocation, buildEntrypoints, Controller, Entrypoint, MiddlewareHandler, Next, ServiceContext} from '../exports/Entrypoint.js'
 import {GET, ServiceAction} from '../exports/CTRLDecorators.js'
-import {ExpressHTTPEntrypoint} from '../exports/ExpressAdapter.js'
-import {SocketIOServiceEntrypoint, SocketIOServiceEntrypointOptions, SocketOfContext} from '../exports/SocketIOAdapter.js'
+import {expressHTTPEntrypoint} from '../exports/ExpressAdapter.js'
+import {socketIOServiceEntrypoint, SocketIOServiceEntrypointOptions, socketOfContext} from '../exports/SocketIOAdapter.js'
 
 class EchoDTO extends DTO {
     @Expect(DTO.Number().required())
@@ -24,7 +24,7 @@ class EchoController extends Controller {
 
     @ServiceAction({cmd: 'echo'}, EchoDTO)
     public async echo(input: EchoDTO): Promise<unknown> {
-        return {value: input.value, socket: SocketOfContext(this.context as ServiceContext)?.id}
+        return {value: input.value, socket: socketOfContext(this.context as ServiceContext)?.id}
     }
 
     @ServiceAction({cmd: 'fire'}, EchoDTO)
@@ -57,10 +57,10 @@ class EchoController extends Controller {
 async function Start(options: SocketIOServiceEntrypointOptions = {}, entrypointOptions: Record<string, unknown> = {}): Promise<{ url: string, container: Container }> {
     let port: number = 0
     const container: Container = new Container()
-    await container.set(Entrypoint, BuildEntrypoints({
+    await container.set(Entrypoint, buildEntrypoints({
         controllers: [EchoController],
         ...entrypointOptions,
-        service: SocketIOServiceEntrypoint({
+        service: socketIOServiceEntrypoint({
             port: 0,
             host: '127.0.0.1',
             ...options,
@@ -163,12 +163,12 @@ describe('Socket.IO adapter', (): void => {
     it('shares the server of the express adapter', async (): Promise<void> => {
         let server: Server | undefined
         const container: Container = new Container()
-        await container.set(Entrypoint, BuildEntrypoints({
+        await container.set(Entrypoint, buildEntrypoints({
             controllers: [EchoController],
-            http: ExpressHTTPEntrypoint({port: 0, host: '127.0.0.1', before: (app, context): void => {
+            http: expressHTTPEntrypoint({port: 0, host: '127.0.0.1', before: (app, context): void => {
                 server = context.server
             }}),
-            service: SocketIOServiceEntrypoint({server: (): Server => server!})
+            service: socketIOServiceEntrypoint({server: (): Server => server!})
         }))
         const url: string = `http://127.0.0.1:${(server!.address() as AddressInfo).port}`
         const client: ClientSocket = await Client(url)
@@ -199,7 +199,7 @@ describe('Socket.IO adapter', (): void => {
         await new Promise<void>((resolve: () => void): unknown => server.listen(0, '127.0.0.1', resolve))
         const url: string = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
         const container: Container = new Container()
-        await container.set(Entrypoint, BuildEntrypoints({controllers: [EchoController], service: SocketIOServiceEntrypoint({io: io})}))
+        await container.set(Entrypoint, buildEntrypoints({controllers: [EchoController], service: socketIOServiceEntrypoint({io: io})}))
         const client: ClientSocket = await Client(url)
         try {
             assert.strictEqual((await Request(client, {cmd: 'echo', value: 1})).success, true)

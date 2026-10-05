@@ -92,15 +92,15 @@ function StrictCheck(str: string): boolean {
  * @returns `true` when the string has glob syntax, `false` otherwise.
  * @example
  * ```typescript
- * import {IsGlobString} from 'lakutata/utils'
+ * import {isGlobString} from 'lakutata/utils'
  *
- * console.log(IsGlobString('src/**\/*.ts'), IsGlobString('src/{a,b}.ts'))
+ * console.log(isGlobString('src/**\/*.ts'), isGlobString('src/{a,b}.ts'))
  * //true true
- * console.log(IsGlobString('src/index.ts'), IsGlobString('\\*.ts'), IsGlobString('a?b'))
+ * console.log(isGlobString('src/index.ts'), isGlobString('\\*.ts'), isGlobString('a?b'))
  * //false false true
  * ```
  */
-export function IsGlobString(inp: string): boolean {
+export function isGlobString(inp: string): boolean {
     if (typeof inp !== 'string' || inp === '') return false
     if (IsExtglob(inp)) return true
     //The ? wildcard of Glob, wherever it is (the strict check only sees it after ], ., + or ))

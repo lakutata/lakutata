@@ -1,10 +1,10 @@
 import path from 'node:path'
-import {Component, DTO, LoadValidationMessages, RegisterValidationMessages, type ComponentOptions, type ComponentOptionsBuilder} from '@lakutata/core'
+import {Component, DTO, loadValidationMessages, registerValidationMessages, type ComponentOptions, type ComponentOptionsBuilder} from '@lakutata/core'
 import {Configurable} from '@lakutata/core/decorator/di'
 import type {I18nOptions} from './interfaces/I18nOptions.js'
 import {FlattenMessages, LoadDirectory, MergeMessages, type Catalogs, type NestedMessages} from './lib/Catalog.js'
-import {FallbackChain, NegotiateLocale, NormalizeLocale} from './lib/Locale.js'
-import {FormatMessage, ParseMessage, type FormatContext, type MessagePart} from './lib/MessageFormat.js'
+import {fallbackChain, negotiateLocale, normalizeLocale} from './lib/Locale.js'
+import {FormatMessage, parseMessage, type FormatContext, type MessagePart} from './lib/MessageFormat.js'
 import {LocaleTranslator} from './lib/LocaleTranslator.js'
 import type {ITranslator} from './interfaces/ITranslator.js'
 import type {MessageKey, MessageParams} from './types/I18nMessages.js'
@@ -13,7 +13,7 @@ import {I18nMissingKeyException} from './exceptions/I18nMissingKeyException.js'
 
 /**
  * Build the component options of an {@link I18n} component, to register it in the `components` of an application.
- * Name it `i18n`: the {@link I18nMiddleware} and {@link CommanderTranslator} use the component of that name by
+ * Name it `i18n`: the {@link I18nMiddleware} and {@link commanderTranslator} use the component of that name by
  * default. The options are validated when the component is created, not here.
  * @param options Where the messages come from (`directory`, `messages`), the default language, the fallbacks, the
  * behavior on a missing message, the currency and time zone of the formatted arguments, the validation messages.
@@ -22,7 +22,7 @@ import {I18nMissingKeyException} from './exceptions/I18nMissingKeyException.js'
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildI18nOptions, type I18n} from 'lakutata/com/i18n'
+ * import {buildI18nOptions, type I18n} from 'lakutata/com/i18n'
  *
  * Application
  *     .alias({'@locales': '/srv/shop/locales'})
@@ -30,7 +30,7 @@ import {I18nMissingKeyException} from './exceptions/I18nMissingKeyException.js'
  *         id: 'shop.app',
  *         name: 'Shop',
  *         components: {
- *             i18n: BuildI18nOptions({
+ *             i18n: buildI18nOptions({
  *                 //locales/en.json, locales/zh-CN.json, or a directory per language
  *                 directory: '@locales',
  *                 defaultLocale: 'en',
@@ -47,7 +47,7 @@ import {I18nMissingKeyException} from './exceptions/I18nMissingKeyException.js'
  *     })
  * ```
  */
-export const BuildI18nOptions: ComponentOptionsBuilder<I18nOptions> = (options?: I18nOptions): ComponentOptions<I18nOptions> => ({
+export const buildI18nOptions: ComponentOptionsBuilder<I18nOptions> = (options?: I18nOptions): ComponentOptions<I18nOptions> => ({
     class: I18n,
     directory: options?.directory,
     locales: options?.locales,
@@ -63,7 +63,7 @@ export const BuildI18nOptions: ComponentOptionsBuilder<I18nOptions> = (options?:
 /**
  * The internationalization component: the application's messages in each language, by key, written in ICU
  * MessageFormat (arguments, numbers, currencies, dates, plurals, selects), formatted in their language by the `Intl`
- * of Node.js. Register it in the `components` of an application with {@link BuildI18nOptions}, named `i18n`, and get
+ * of Node.js. Register it in the `components` of an application with {@link buildI18nOptions}, named `i18n`, and get
  * it with `getObject()` or `@Inject('i18n')`. In a request, inject the {@link Translator} instead (the
  * {@link I18nMiddleware} gives it the request's language); out of a request, call {@link I18n.t} with a language or
  * use {@link I18n.translator}.
@@ -71,20 +71,20 @@ export const BuildI18nOptions: ComponentOptionsBuilder<I18nOptions> = (options?:
  * When it is created, the component loads the messages of its `directory` option, then adds the ones of its `messages`
  * option, and registers the validation messages of its languages. A message missing in a language is looked up in the
  * languages it falls back to: its `fallback` languages, its less specific tags (`zh-Hant-TW`, `zh-Hant`, `zh`), then
- * the default language (see {@link FallbackChain}). A message is always formatted in the language asked, even when it
+ * the default language (see {@link fallbackChain}). A message is always formatted in the language asked, even when it
  * comes from a fallback. A key found nowhere throws {@link I18nMissingKeyException}, or gives the key itself with the
  * `missing: 'key'` option (the default when `NODE_ENV` is `production`).
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildI18nOptions, type I18n} from 'lakutata/com/i18n'
+ * import {buildI18nOptions, type I18n} from 'lakutata/com/i18n'
  *
  * Application
  *     .run(() => ({
  *         id: 'shop.app',
  *         name: 'Shop',
  *         components: {
- *             i18n: BuildI18nOptions({
+ *             i18n: buildI18nOptions({
  *                 messages: {
  *                     'en': {order: {count: '{count, plural, =0 {No orders} one {# order} other {# orders}}', total: 'Total: {price, number, currency}'}},
  *                     'zh-CN': {order: {count: '{count, plural, =0 {暂无订单} other {# 个订单}}'}}
@@ -230,16 +230,16 @@ export class I18n extends Component {
         for (const locale of locales) {
             const messages: Record<string, string> = {}
             //The languages it falls back to first, its own messages replacing theirs
-            for (const tag of FallbackChain(locale, this.#fallbacks, this.#default).reverse()) {
+            for (const tag of fallbackChain(locale, this.#fallbacks, this.#default).reverse()) {
                 if (this.validationMessages) {
-                    if (!builtIns.has(tag)) builtIns.set(tag, await LoadValidationMessages(tag))
+                    if (!builtIns.has(tag)) builtIns.set(tag, await loadValidationMessages(tag))
                     Object.assign(messages, builtIns.get(tag))
                 }
                 this.#catalogs.get(tag)?.forEach((message: string, key: string): void => {
                     if (key.startsWith(prefix)) messages[key.slice(prefix.length)] = message
                 })
             }
-            if (Object.keys(messages).length) RegisterValidationMessages(locale, messages)
+            if (Object.keys(messages).length) registerValidationMessages(locale, messages)
         }
     }
 
@@ -251,7 +251,7 @@ export class I18n extends Component {
      * @throws {I18nCatalogException} When the tag is not a language tag.
      */
     protected locale(tag: string, option: string): string {
-        const locale: string | undefined = NormalizeLocale(tag)
+        const locale: string | undefined = normalizeLocale(tag)
         if (!locale) throw new I18nCatalogException(`${option}: "${tag}" is not the tag of a language (en, zh-CN, zh-Hant-TW)`)
         return locale
     }
@@ -338,7 +338,7 @@ export class I18n extends Component {
      * @returns The full keys (`order.count`), in their loading order; empty for a language without messages.
      */
     public getKeys(locale: string): string[] {
-        return [...(this.#catalogs.get(NormalizeLocale(locale) ?? locale)?.keys() ?? [])]
+        return [...(this.#catalogs.get(normalizeLocale(locale) ?? locale)?.keys() ?? [])]
     }
 
     /**
@@ -372,7 +372,7 @@ export class I18n extends Component {
         if (!this.locales) this.#supported = this.discovered()
         //The validation messages changed: the language's built-in ones when it is new, its validation.* messages
         if (known && ![...flattened.keys()].some((key: string): boolean => key.startsWith('validation.'))) return Promise.resolve()
-        const changed: string[] = [...new Set([...this.#supported, ...this.#catalogs.keys()])].filter((candidate: string): boolean => FallbackChain(candidate, this.#fallbacks, this.#default).includes(tag))
+        const changed: string[] = [...new Set([...this.#supported, ...this.#catalogs.keys()])].filter((candidate: string): boolean => fallbackChain(candidate, this.#fallbacks, this.#default).includes(tag))
         return this.registerValidationMessages(changed)
     }
 
@@ -393,14 +393,14 @@ export class I18n extends Component {
     }
 
     /**
-     * Choose the supported language for the requested ones (see {@link NegotiateLocale}): for each requested language
+     * Choose the supported language for the requested ones (see {@link negotiateLocale}): for each requested language
      * in turn, the same tag, then its language alone (`en-GB` gives `en`), then another tag of its language (`pt-PT`
      * gives `pt-BR`).
      * @param requested The requested language tags, preferred first; the invalid ones are skipped.
      * @returns A supported language, or the default language when none matches.
      */
     public negotiate(requested: string[]): string {
-        return NegotiateLocale(requested, this.#supported, this.#default)
+        return negotiateLocale(requested, this.#supported, this.#default)
     }
 
     /**
@@ -411,12 +411,12 @@ export class I18n extends Component {
      * @throws {I18nMessageSyntaxException} When the message found is not valid ICU MessageFormat.
      */
     protected message(key: string, locale: string): { parts: MessagePart[], locale: string } | undefined {
-        for (const tag of FallbackChain(locale, this.#fallbacks, this.#default)) {
+        for (const tag of fallbackChain(locale, this.#fallbacks, this.#default)) {
             const message: string | undefined = this.#catalogs.get(tag)?.get(key)
             if (message === undefined) continue
             const cacheKey: string = `${tag}\u0000${key}`
             let parts: MessagePart[] | undefined = this.#parsed.get(cacheKey)
-            if (!parts) this.#parsed.set(cacheKey, parts = ParseMessage(message, `${tag}: ${key}`))
+            if (!parts) this.#parsed.set(cacheKey, parts = parseMessage(message, `${tag}: ${key}`))
             return {parts: parts, locale: tag}
         }
         return undefined
@@ -429,7 +429,7 @@ export class I18n extends Component {
      * @returns `true` when {@link I18n.t} finds a message for the key in that language.
      */
     public has(key: string, locale: string = this.#default): boolean {
-        return FallbackChain(NormalizeLocale(locale) ?? this.#default, this.#fallbacks, this.#default).some((tag: string): boolean => !!this.#catalogs.get(tag)?.has(key))
+        return fallbackChain(normalizeLocale(locale) ?? this.#default, this.#fallbacks, this.#default).some((tag: string): boolean => !!this.#catalogs.get(tag)?.has(key))
     }
 
     /**
@@ -449,10 +449,10 @@ export class I18n extends Component {
      * @throws {I18nMessageSyntaxException} When the message is not valid ICU MessageFormat.
      */
     public t<K extends MessageKey>(key: K, params?: MessageParams<K>, locale: string = this.#default): string {
-        const tag: string = NormalizeLocale(locale) ?? this.#default
+        const tag: string = normalizeLocale(locale) ?? this.#default
         const message: { parts: MessagePart[], locale: string } | undefined = this.message(key, tag)
         if (!message) {
-            const missing: string = `No message "${key}" in ${FallbackChain(tag, this.#fallbacks, this.#default).join(', ')}`
+            const missing: string = `No message "${key}" in ${fallbackChain(tag, this.#fallbacks, this.#default).join(', ')}`
             if (this.missingMode() === 'throw') throw new I18nMissingKeyException(missing)
             this.warn(missing)
             return key
@@ -474,8 +474,8 @@ export class I18n extends Component {
      * the `missing` mode is `'throw'`.
      */
     public format(message: string, params?: Record<string, unknown>, locale: string = this.#default): string {
-        const tag: string = NormalizeLocale(locale) ?? this.#default
-        return FormatMessage(ParseMessage(message), params ?? {}, this.context(tag), `message "${message}"`)
+        const tag: string = normalizeLocale(locale) ?? this.#default
+        return FormatMessage(parseMessage(message), params ?? {}, this.context(tag), `message "${message}"`)
     }
 
     /**
@@ -485,6 +485,6 @@ export class I18n extends Component {
      * @returns The translator, a {@link LocaleTranslator}.
      */
     public translator(locale: string): ITranslator {
-        return new LocaleTranslator(this, NormalizeLocale(locale) ?? this.#default)
+        return new LocaleTranslator(this, normalizeLocale(locale) ?? this.#default)
     }
 }

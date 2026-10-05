@@ -1,6 +1,6 @@
 import type {DTO} from '@lakutata/core'
 import type {Controller} from '@lakutata/entrypoint'
-import {ActionOptions, GetActionDTOAndOptions, RegisterControllerAction} from '@lakutata/entrypoint/channel'
+import {ActionOptions, getActionDTOAndOptions, registerControllerAction} from '@lakutata/entrypoint/channel'
 import {MCPChannel} from '../channel/MCPChannel.js'
 import type {MCPContext, MCPRequestKind} from '../context/MCPContext.js'
 import {type MCPMetadata, RegisterMCPMetadata} from './Metadata.js'
@@ -27,10 +27,10 @@ export function RegisterMCPAction<Options extends ActionOptions<MCPContext>>(
     const isDTO: boolean = typeof dtoConstructorOrOptions === 'function'
     const [metadata, actionOptions] = split((isDTO ? options : dtoConstructorOrOptions as Options | undefined) ?? {} as Options)
     const [dtoConstructor, validatedOptions] = isDTO
-        ? GetActionDTOAndOptions(dtoConstructorOrOptions as typeof DTO, actionOptions)
-        : GetActionDTOAndOptions(actionOptions)
+        ? getActionDTOAndOptions(dtoConstructorOrOptions as typeof DTO, actionOptions)
+        : getActionDTOAndOptions(actionOptions)
     const pattern: Record<string, string> = {[kind]: address}
     const metadataId: string | undefined = RegisterMCPMetadata(metadata)
     if (metadataId) pattern.metadata = metadataId
-    RegisterControllerAction(MCPChannel, target, propertyKey as never, pattern, dtoConstructor, validatedOptions)
+    registerControllerAction(MCPChannel, target, propertyKey as never, pattern, dtoConstructor, validatedOptions)
 }

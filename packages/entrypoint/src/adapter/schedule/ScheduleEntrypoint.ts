@@ -5,7 +5,7 @@ import {ScheduleChannel} from '../../channel/BuiltinChannels.js'
 import {Cron} from '../../lib/schedule/Cron.js'
 
 /**
- * The options of {@link ScheduleEntrypoint}.
+ * The options of {@link scheduleEntrypoint}.
  */
 export type ScheduleEntrypointOptions = {
     /**
@@ -76,11 +76,11 @@ type ActionState = {
  * When the entrypoint stops, no new run starts, the kept locks are released and the entrypoint waits for the runs in
  * progress (aborting them after its `shutdownTimeout`).
  * @param options The adapter options.
- * @returns The adapter, to give to the `schedule` option of `BuildEntrypoints`.
+ * @returns The adapter, to give to the `schedule` option of `buildEntrypoints`.
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildEntrypoints, Controller, ScheduleContext, ScheduleEntrypoint} from 'lakutata/com/entrypoint'
+ * import {buildEntrypoints, Controller, ScheduleContext, scheduleEntrypoint} from 'lakutata/com/entrypoint'
  * import {Schedule} from 'lakutata/decorator/ctrl'
  *
  * class MaintenanceController extends Controller {
@@ -101,9 +101,9 @@ type ActionState = {
  *     id: 'worker.app',
  *     name: 'Worker',
  *     components: {
- *         entrypoint: BuildEntrypoints({
+ *         entrypoint: buildEntrypoints({
  *             controllers: [MaintenanceController],
- *             schedule: ScheduleEntrypoint({
+ *             schedule: scheduleEntrypoint({
  *                 onError: (error, action): void => console.error(`${action.name} failed`, error),
  *                 onSkip: (action, scheduledAt, reason): void => console.warn(`${action.name} skipped (${reason})`)
  *             })
@@ -112,7 +112,7 @@ type ActionState = {
  * })
  * ```
  */
-export function ScheduleEntrypoint(options: ScheduleEntrypointOptions = {}): EntrypointAdapter<ScheduleContext> {
+export function scheduleEntrypoint(options: ScheduleEntrypointOptions = {}): EntrypointAdapter<ScheduleContext> {
     const timers: Set<NodeJS.Timeout> = new Set()
     let stopped: boolean = false
     //The locks of the runs ended, kept a while: released at once when the adapter stops

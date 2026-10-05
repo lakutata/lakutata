@@ -6,7 +6,7 @@ import {ControllerActionNotFoundException} from '../../exceptions/ControllerActi
 import {EntrypointStoppedException} from '../../exceptions/EntrypointStoppedException.js'
 
 /**
- * The error codes of the JSON-RPC 2.0 responses sent by {@link JSONRPCServiceEntrypoint}.
+ * The error codes of the JSON-RPC 2.0 responses sent by {@link jsonRPCServiceEntrypoint}.
  */
 export const JSONRPCErrorCode = {
     /**
@@ -89,7 +89,7 @@ export type JSONRPCResponse = {
 }
 
 /**
- * How {@link JSONRPCServiceEntrypoint} maps a JSON-RPC request to a service action's pattern and input.
+ * How {@link jsonRPCServiceEntrypoint} maps a JSON-RPC request to a service action's pattern and input.
  */
 export type JSONRPCMappingOptions = {
     /**
@@ -112,7 +112,7 @@ export type JSONRPCMappingOptions = {
 }
 
 /**
- * The JSON-RPC request behind a service action's request, as {@link JSONRPCRequestOfContext} returns it.
+ * The JSON-RPC request behind a service action's request, as {@link jsonRPCRequestOfContext} returns it.
  */
 export type JSONRPCRequestInfo = {
     /**
@@ -130,7 +130,7 @@ export type JSONRPCRequestInfo = {
 }
 
 /**
- * Get the JSON-RPC request behind a service action's request, when {@link JSONRPCServiceEntrypoint} serves it (to
+ * Get the JSON-RPC request behind a service action's request, when {@link jsonRPCServiceEntrypoint} serves it (to
  * tell a notification from a request, or read the transport).
  * @param context The service action's context (`this.context` in a controller).
  * @returns The request's method, id and transport, or `undefined` when another adapter serves the request.
@@ -138,19 +138,19 @@ export type JSONRPCRequestInfo = {
  * ```typescript
  * import {Controller, ServiceContext} from 'lakutata/com/entrypoint'
  * import {ServiceAction} from 'lakutata/decorator/ctrl'
- * import {JSONRPCRequestOfContext, type JSONRPCRequestInfo} from 'lakutata/adapter/jsonrpc'
+ * import {jsonRPCRequestOfContext, type JSONRPCRequestInfo} from 'lakutata/adapter/jsonrpc'
  *
  * class LogController extends Controller {
  *     //{"jsonrpc": "2.0", "method": "log.write", "params": {"line": "started"}}: a notification, no id
  *     @ServiceAction({method: 'log.write'})
  *     public async write(input: {line: string}): Promise<void> {
- *         const request: JSONRPCRequestInfo | undefined = JSONRPCRequestOfContext(this.context as ServiceContext)
+ *         const request: JSONRPCRequestInfo | undefined = jsonRPCRequestOfContext(this.context as ServiceContext)
  *         console.log(`${request?.transport}: ${input.line}`)
  *     }
  * }
  * ```
  */
-export function JSONRPCRequestOfContext(context: ServiceContext): JSONRPCRequestInfo | undefined {
+export function jsonRPCRequestOfContext(context: ServiceContext): JSONRPCRequestInfo | undefined {
     return (context as ServiceContext & { jsonrpc?: JSONRPCRequestInfo }).jsonrpc
 }
 

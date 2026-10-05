@@ -1,5 +1,5 @@
 import {Controller, type ControllerProperty} from './Controller.js'
-import {ObjectConstructor, As, ObjectParentConstructors, ObjectHash, GetObjectNestingDepth, UUID} from '@lakutata/utils'
+import {objectConstructor, As, objectParentConstructors, objectHash, getObjectNestingDepth, UUID} from '@lakutata/utils'
 import {IBaseObjectConstructor, ActionPattern, JSONSchema, InvalidActionPatternDepthException, DTO, Component} from '@lakutata/core'
 import {ActionOptions} from './ActionOptions.js'
 import {CLIContext} from '../context/CLIContext.js'
@@ -7,8 +7,8 @@ import {ServiceContext} from '../context/ServiceContext.js'
 import {HTTPContext} from '../context/HTTPContext.js'
 import type {AccessControlRuleHandler} from './AccessControlRule.js'
 import {MiddlewareDefinition, ValidateMiddlewares} from './Middleware.js'
-import {GetPrefix, PrefixOptions} from './Prefix.js'
-import {ChannelDefinition, GetChannel} from '../channel/Channel.js'
+import {getPrefix, PrefixOptions} from './Prefix.js'
+import {ChannelDefinition, getChannel} from '../channel/Channel.js'
 import {CLIChannel, HTTPChannel, ServiceChannel} from '../channel/BuiltinChannels.js'
 
 export type ActionPatternMap = Map<ActionPattern, ActionDetails>
@@ -116,7 +116,7 @@ function ChannelActionsKey(channel: string): string {
  * @param extra
  */
 function getActionInfo<ClassPrototype extends Controller>(controllerPrototype: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>, actionOptions: ActionOptions<any>, extra: string): ActionInfo {
-    const action: string = `${As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype)).className}:${String(propertyKey)}`
+    const action: string = `${As<IBaseObjectConstructor<Controller>>(objectConstructor(controllerPrototype)).className}:${String(propertyKey)}`
     const id: string = UUID.v5(`${action}:${extra}`, UUID.NIL)
     const name: string = actionOptions.name ? actionOptions.name : action
     const description: string = actionOptions.description ? actionOptions.description : ''
@@ -136,7 +136,7 @@ function getActionInfo<ClassPrototype extends Controller>(controllerPrototype: C
  * @param actionPattern
  */
 function ValidateActionPatternDefinition(actionPattern: ActionPattern): ActionPattern {
-    const depth: number = GetObjectNestingDepth(actionPattern)
+    const depth: number = getObjectNestingDepth(actionPattern)
     if (depth > 2) throw new InvalidActionPatternDepthException('The maximum nesting depth of ActionPattern objects cannot be greater than 2 levels. The current nesting depth of the object is {0} levels', [depth])
     return actionPattern
 }
@@ -151,7 +151,7 @@ function GetInternalControllerActionPatternMap(channel: string, target: IBaseObj
     const key: string = ChannelActionsKey(channel)
     const internalActionPatternMap: InternalActionPatternMap = new Map()
     //From the farthest parent: the closest declaration of an action wins
-    ObjectParentConstructors(target).reverse().forEach(parentConstructor => {
+    objectParentConstructors(target).reverse().forEach(parentConstructor => {
         const parentActionPatternMap: InternalActionPatternMap = Reflect.getOwnMetadata(key, parentConstructor) || new Map()
         parentActionPatternMap.forEach((value: InternalActionPatternMapValue, hash: string) => internalActionPatternMap.set(hash, value))
     })
@@ -165,7 +165,7 @@ function GetInternalControllerActionPatternMap(channel: string, target: IBaseObj
  */
 export function GetControllerChannels(target: IBaseObjectConstructor<Controller>): string[] {
     const names: Set<string> = new Set()
-    for (const constructor of [target, ...ObjectParentConstructors(target)]) {
+    for (const constructor of [target, ...objectParentConstructors(target)]) {
         const own: Set<string> | undefined = Reflect.getOwnMetadata(CONTROLLER_CHANNELS, constructor)
         own?.forEach((name: string): unknown => names.add(name))
     }
@@ -183,7 +183,7 @@ export function GetControllerChannels(target: IBaseObjectConstructor<Controller>
 export function RegisterChannelAction(channel: ChannelDefinition, target: IBaseObjectConstructor<Controller>, actionPattern: ActionPattern, details: ActionDetails): void {
     actionPattern = ValidateActionPatternDefinition(channel.validate ? channel.validate(actionPattern) : actionPattern)
     const internalActionPatternMap: InternalActionPatternMap = GetInternalControllerActionPatternMap(channel.name, target)
-    internalActionPatternMap.set(ObjectHash(actionPattern), {
+    internalActionPatternMap.set(objectHash(actionPattern), {
         pattern: actionPattern,
         details: {...details, pattern: actionPattern}
     })
@@ -197,31 +197,31 @@ export function RegisterChannelAction(channel: ChannelDefinition, target: IBaseO
  * (the built-in `@HTTPAction`, `@CLIAction` and `@ServiceAction` call it). The action is served by the controller class
  * and its subclasses registered in an entrypoint. Registering the same address again for the class replaces the
  * previous action.
- * @param channel The channel's definition (see {@link DefineChannel}).
+ * @param channel The channel's definition (see {@link defineChannel}).
  * @param controllerPrototype The prototype of the controller class (the decorator's target).
  * @param propertyKey The name of the method running the action.
  * @param actionPattern The action's address, checked by the channel's `validate`; at most 2 levels of nesting.
  * @param dtoConstructor The DTO validating the action's input (`FlexibleDTO` to accept any input).
  * @param actionOptions The action's options (name, description, groups, access control, middlewares); give them
- * validated (as {@link GetActionDTOAndOptions} returns them).
+ * validated (as {@link getActionDTOAndOptions} returns them).
  * @throws {InvalidActionPatternDepthException} When the address is nested more than 2 levels deep.
  * @throws {InvalidMiddlewareException} When a middleware of the options is neither a function nor a `Middleware` subclass.
  * @example
  * ```typescript
  * import {DTO} from 'lakutata'
  * import {Controller, type ControllerProperty} from 'lakutata/com/entrypoint'
- * import {GetActionDTOAndOptions, GetChannel, RegisterControllerAction, type ActionOptions} from '@lakutata/entrypoint/channel'
+ * import {getActionDTOAndOptions, getChannel, registerControllerAction, type ActionOptions} from '@lakutata/entrypoint/channel'
  *
  * //A decorator declaring the actions of a "queue" channel defined by its package
  * export function OnMessage(topic: string, dtoOrOptions?: typeof DTO | ActionOptions<any>, options?: ActionOptions<any>) {
  *     return <ClassPrototype extends Controller>(target: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>): void => {
- *         const [dtoConstructor, actionOptions] = GetActionDTOAndOptions(dtoOrOptions, options)
- *         RegisterControllerAction(GetChannel('queue'), target, propertyKey, {topic: topic}, dtoConstructor, actionOptions)
+ *         const [dtoConstructor, actionOptions] = getActionDTOAndOptions(dtoOrOptions, options)
+ *         registerControllerAction(getChannel('queue'), target, propertyKey, {topic: topic}, dtoConstructor, actionOptions)
  *     }
  * }
  * ```
  */
-export function RegisterControllerAction<ClassPrototype extends Controller, DTOConstructor extends typeof DTO = typeof DTO>(
+export function registerControllerAction<ClassPrototype extends Controller, DTOConstructor extends typeof DTO = typeof DTO>(
     channel: ChannelDefinition,
     controllerPrototype: ClassPrototype,
     propertyKey: ControllerProperty<ClassPrototype>,
@@ -229,7 +229,7 @@ export function RegisterControllerAction<ClassPrototype extends Controller, DTOC
     dtoConstructor: DTOConstructor,
     actionOptions: ActionOptions<any>
 ): void {
-    const constructor: IBaseObjectConstructor<Controller> = As<IBaseObjectConstructor<Controller>>(ObjectConstructor(controllerPrototype))
+    const constructor: IBaseObjectConstructor<Controller> = As<IBaseObjectConstructor<Controller>>(objectConstructor(controllerPrototype))
     const actionInfo: ActionInfo = getActionInfo(controllerPrototype, propertyKey, actionOptions, channel.identify(actionPattern))
     RegisterChannelAction(channel, constructor, actionPattern, {
         ...actionInfo,
@@ -251,7 +251,7 @@ export function RegisterControllerAction<ClassPrototype extends Controller, DTOC
  */
 export function BindControllerToComponent(component: Component, controllerConstructor: IBaseObjectConstructor<Controller>): void {
     const totalInternalActionPatternMap: Map<string, InternalActionPatternMap> = Reflect.getOwnMetadata(COMPONENT_CTRL_MAP, component) || new Map()
-    const prefix: PrefixOptions | undefined = GetPrefix(controllerConstructor)
+    const prefix: PrefixOptions | undefined = getPrefix(controllerConstructor)
     //The actions inherited from a parent controller are run by the registered controller
     const bind = (channel: ChannelDefinition, value: InternalActionPatternMapValue): [string, InternalActionPatternMapValue] => {
         const details: ActionDetails = {...value.details, constructor: controllerConstructor}
@@ -266,10 +266,10 @@ export function BindControllerToComponent(component: Component, controllerConstr
         details.pattern = pattern
         const actionInfo: ActionInfo = {id: details.id, acl: details.acl, action: action, name: details.name, description: details.description, groups: details.groups, rule: details.rule}
         details.getActionInfo = (): ActionInfo => actionInfo
-        return [ObjectHash(pattern), {pattern: pattern, details: details}]
+        return [objectHash(pattern), {pattern: pattern, details: details}]
     }
     for (const name of GetControllerChannels(controllerConstructor)) {
-        const channel: ChannelDefinition = GetChannel(name)
+        const channel: ChannelDefinition = getChannel(name)
         const map: InternalActionPatternMap = totalInternalActionPatternMap.get(name) ?? new Map()
         GetInternalControllerActionPatternMap(name, controllerConstructor).forEach((value: InternalActionPatternMapValue, hash: string): void => {
             const [prefixedHash, bound] = bind(channel, value)
@@ -314,7 +314,7 @@ export function RegisterHTTPAction<ClassPrototype extends Controller, DTOConstru
     dtoConstructor: DTOConstructor,
     actionOptions: ActionOptions<HTTPContext>
 ): void {
-    methods.forEach((method: string): void => RegisterControllerAction(HTTPChannel, controllerPrototype, propertyKey, {route: route, method: method}, dtoConstructor, actionOptions))
+    methods.forEach((method: string): void => registerControllerAction(HTTPChannel, controllerPrototype, propertyKey, {route: route, method: method}, dtoConstructor, actionOptions))
 }
 
 /**
@@ -333,7 +333,7 @@ export function RegisterCLIAction<ClassPrototype extends Controller, DTOConstruc
     dtoConstructor: DTOConstructor,
     actionOptions: ActionOptions<CLIContext>
 ): void {
-    RegisterControllerAction(CLIChannel, controllerPrototype, propertyKey, {command: command}, dtoConstructor, actionOptions)
+    registerControllerAction(CLIChannel, controllerPrototype, propertyKey, {command: command}, dtoConstructor, actionOptions)
 }
 
 /**
@@ -352,5 +352,5 @@ export function RegisterServiceAction<ClassPrototype extends Controller, DTOCons
     dtoConstructor: DTOConstructor,
     actionOptions: ActionOptions<ServiceContext>
 ): void {
-    RegisterControllerAction(ServiceChannel, controllerPrototype, propertyKey, pattern, dtoConstructor, actionOptions)
+    registerControllerAction(ServiceChannel, controllerPrototype, propertyKey, pattern, dtoConstructor, actionOptions)
 }

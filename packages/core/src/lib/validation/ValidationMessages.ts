@@ -6,30 +6,30 @@ import {VLD} from './VLD.js'
 /**
  * Register the validation error messages of a language, by error code (`any.required`, `string.min`). The messages are
  * merged into the ones already registered for the language, replacing those with the same code. A validation in the
- * language (run in `RunInValidationLanguage()`, or given the `errors.language` option) uses them; the codes without a
+ * language (run in `runInValidationLanguage()`, or given the `errors.language` option) uses them; the codes without a
  * message in the language keep the default (English) one.
  * @param language The language tag, like `fr` or `zh-CN`, matched exactly (case-sensitive) by the validations.
  * @param messages The message templates by error code, like `{'any.required': '{{#label}} est requis'}`: `{{#label}}`,
- * `{{#limit}}`… are replaced by the context of the error (see `DefaultValidationMessages()` for the codes and their
+ * `{{#limit}}`… are replaced by the context of the error (see `defaultValidationMessages()` for the codes and their
  * variables).
  * @throws {SchemaDefinitionException} When a message is not a string, or its template is invalid.
  * @remarks The templates are compiled once, when registered: register the languages when the application starts.
  * @example
  * ```typescript
- * import {DTO, RegisterValidationMessages, RunInValidationLanguage} from 'lakutata'
+ * import {DTO, registerValidationMessages, runInValidationLanguage} from 'lakutata'
  *
- * RegisterValidationMessages('fr', {
+ * registerValidationMessages('fr', {
  *     'any.required': '{{#label}} est requis',
  *     'string.min': '{{#label}} doit contenir au moins {{#limit}} caractères'
  * })
  *
- * RunInValidationLanguage('fr', (): void => {
+ * runInValidationLanguage('fr', (): void => {
  *     //Throws: "name" est requis
  *     DTO.validate({}, DTO.Object({name: DTO.String().min(2).required()}))
  * })
  * ```
  */
-export function RegisterValidationMessages(language: string, messages: Record<string, string>): void {
+export function registerValidationMessages(language: string, messages: Record<string, string>): void {
     const compiled: Record<string, unknown> = As<Record<string, unknown>>(compile({[language]: messages}))
     //In place: the settings of the validations reuse the messages of the defaults
     const registered: Record<string, Record<string, unknown>> = As<Record<string, Record<string, unknown>>>(defaults.messages)
@@ -37,23 +37,23 @@ export function RegisterValidationMessages(language: string, messages: Record<st
 }
 
 /**
- * The languages with validation error messages registered by `RegisterValidationMessages()`.
+ * The languages with validation error messages registered by `registerValidationMessages()`.
  * @returns The language tags, in registration order; empty until a language is registered (the default English
  * messages are not listed).
  * @example
  * ```typescript
- * import {RegisterValidationMessages, ValidationLanguages} from 'lakutata'
+ * import {registerValidationMessages, validationLanguages} from 'lakutata'
  *
- * RegisterValidationMessages('de', {'any.required': '{{#label}} ist erforderlich'})
- * console.log(ValidationLanguages()) //['de']
+ * registerValidationMessages('de', {'any.required': '{{#label}} ist erforderlich'})
+ * console.log(validationLanguages()) //['de']
  * ```
  */
-export function ValidationLanguages(): string[] {
+export function validationLanguages(): string[] {
     return Object.keys(As<Record<string, unknown>>(defaults.messages))
 }
 
 /**
- * The language tags with built-in validation error messages, which `LoadValidationMessages()` loads (`en`: the
+ * The language tags with built-in validation error messages, which `loadValidationMessages()` loads (`en`: the
  * default messages).
  */
 export const BUILT_IN_VALIDATION_LANGUAGES: readonly string[] = Object.freeze([
@@ -64,7 +64,7 @@ export const BUILT_IN_VALIDATION_LANGUAGES: readonly string[] = Object.freeze([
  * The loaders of the built-in messages, by language: static imports, bundled with the applications
  */
 const LOADERS: Record<string, () => Promise<{ default: Record<string, string> }>> = {
-    'en': async (): Promise<{ default: Record<string, string> }> => ({default: DefaultValidationMessages()}),
+    'en': async (): Promise<{ default: Record<string, string> }> => ({default: defaultValidationMessages()}),
     'zh-CN': () => import('./messages/zh-CN.js'),
     'zh-TW': () => import('./messages/zh-TW.js'),
     'ja': () => import('./messages/ja.js'),
@@ -94,14 +94,14 @@ const LOADERS: Record<string, () => Promise<{ default: Record<string, string> }>
  * @returns One of `BUILT_IN_VALIDATION_LANGUAGES`, or undefined for a language without built-in messages.
  * @example
  * ```typescript
- * import {BuiltInValidationLanguage} from 'lakutata'
+ * import {builtInValidationLanguage} from 'lakutata'
  *
- * console.log(BuiltInValidationLanguage('zh-HK')) //zh-TW
- * console.log(BuiltInValidationLanguage('pt_PT')) //pt-BR
- * console.log(BuiltInValidationLanguage('sv')) //undefined
+ * console.log(builtInValidationLanguage('zh-HK')) //zh-TW
+ * console.log(builtInValidationLanguage('pt_PT')) //pt-BR
+ * console.log(builtInValidationLanguage('sv')) //undefined
  * ```
  */
-export function BuiltInValidationLanguage(language: string): string | undefined {
+export function builtInValidationLanguage(language: string): string | undefined {
     const tag: string = language.replace(/_/g, '-').toLowerCase()
     const exact: string | undefined = Object.keys(LOADERS).find((candidate: string): boolean => candidate.toLowerCase() === tag)
     if (exact) return exact
@@ -112,23 +112,23 @@ export function BuiltInValidationLanguage(language: string): string | undefined 
 
 /**
  * Load the built-in validation error messages of a language, the ones of its closest built-in language
- * (`BuiltInValidationLanguage()`). They are loaded on demand, so an application only loads the languages it uses; they
- * are not registered: pass them to `RegisterValidationMessages()`.
+ * (`builtInValidationLanguage()`). They are loaded on demand, so an application only loads the languages it uses; they
+ * are not registered: pass them to `registerValidationMessages()`.
  * @param language A language tag, like `fr` or `zh-Hant`.
  * @returns A copy of the message templates by error code (for `en`, the default messages), or undefined for a language
  * without built-in messages.
  * @example
  * ```typescript
- * import {LoadValidationMessages, RegisterValidationMessages} from 'lakutata'
+ * import {loadValidationMessages, registerValidationMessages} from 'lakutata'
  *
  * for (const language of ['fr', 'zh-CN']) {
- *     const messages: Record<string, string> | undefined = await LoadValidationMessages(language)
- *     if (messages) RegisterValidationMessages(language, messages)
+ *     const messages: Record<string, string> | undefined = await loadValidationMessages(language)
+ *     if (messages) registerValidationMessages(language, messages)
  * }
  * ```
  */
-export async function LoadValidationMessages(language: string): Promise<Record<string, string> | undefined> {
-    const builtIn: string | undefined = BuiltInValidationLanguage(language)
+export async function loadValidationMessages(language: string): Promise<Record<string, string> | undefined> {
+    const builtIn: string | undefined = builtInValidationLanguage(language)
     return builtIn ? {...(await LOADERS[builtIn]()).default} : undefined
 }
 
@@ -138,13 +138,13 @@ export async function LoadValidationMessages(language: string): Promise<Record<s
  * `{'any.required': '{{#label}} is required', …}`.
  * @example
  * ```typescript
- * import {DefaultValidationMessages} from 'lakutata'
+ * import {defaultValidationMessages} from 'lakutata'
  *
- * const messages: Record<string, string> = DefaultValidationMessages()
+ * const messages: Record<string, string> = defaultValidationMessages()
  * console.log(messages['string.min']) //{{#label}} length must be at least {{#limit}} characters long
  * ```
  */
-export function DefaultValidationMessages(): Record<string, string> {
+export function defaultValidationMessages(): Record<string, string> {
     const messages: Record<string, string> = {}
     //The types of the validation, its extensions (bigint) too
     const types: Record<string, { _definition: { messages?: Record<string, { source: string }> } }> = As<{ types: () => Record<string, any> }>(VLD).types()

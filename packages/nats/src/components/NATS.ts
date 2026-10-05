@@ -17,7 +17,7 @@ import {NatsInternalServerException} from '../exceptions/NatsInternalServerExcep
 import {NatsBulkException} from '../exceptions/NatsBulkException.js'
 import {NatsClientOptions} from '../interfaces/NatsClientOptions.js'
 import {ServiceEventCodec, ServiceEventData} from '../lib/ServiceEventCodec.js'
-import {MessagePackCodec} from '../codecs/MessagePackCodec.js'
+import {messagePackCodec} from '../codecs/MessagePackCodec.js'
 import {randomUUID} from 'node:crypto'
 
 //The headers of the bulk channel protocol (in the headers, the payload is left untouched)
@@ -35,14 +35,14 @@ const BULK_PROBE: string = '_LKT.BULK.' //The subjects of the capability probes:
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildNatsClientOptions, type NATS} from '@lakutata/nats'
+ * import {buildNatsClientOptions, type NATS} from '@lakutata/nats'
  *
  * Application
  *     .run({
  *         id: 'notifier.app',
  *         name: 'Notifier',
  *         components: {
- *             nats: BuildNatsClientOptions({
+ *             nats: buildNatsClientOptions({
  *                 servers: ['nats://10.0.0.1:4222', 'nats://10.0.0.2:4222'],
  *                 user: 'notifier',
  *                 pass: 'secret',
@@ -58,7 +58,7 @@ const BULK_PROBE: string = '_LKT.BULK.' //The subjects of the capability probes:
  *     })
  * ```
  */
-export const BuildNatsClientOptions: ComponentOptionsBuilder<NatsClientOptions> = (options: NatsClientOptions): ComponentOptions<NatsClientOptions> => {
+export const buildNatsClientOptions: ComponentOptionsBuilder<NatsClientOptions> = (options: NatsClientOptions): ComponentOptions<NatsClientOptions> => {
     return {
         class: NATS,
         servers: options.servers,
@@ -83,24 +83,10 @@ export const BuildNatsClientOptions: ComponentOptionsBuilder<NatsClientOptions> 
 }
 
 /**
- * The name of {@link BuildNatsClientOptions} in lakutata 2.x, in camel case: the functions exported by the packages
- * of lakutata are named in Pascal case (CONTRIBUTING.md, "Naming").
- * @deprecated Use {@link BuildNatsClientOptions}; this alias will be removed in a later major version.
- * @example
- * ```typescript
- * import {BuildNatsClientOptions} from '@lakutata/nats'
- *
- * //Was: buildNatsClientOptions({...})
- * export const components = {nats: BuildNatsClientOptions({servers: 'nats://127.0.0.1:4222'})}
- * ```
- */
-export const buildNatsClientOptions: ComponentOptionsBuilder<NatsClientOptions> = BuildNatsClientOptions
-
-/**
  * The NATS component: a connection to a NATS server (or cluster) to publish messages, subscribe to subjects, send
  * requests and answer them, and emit and receive the service events. Register it in the `components` of an application
- * with {@link BuildNatsClientOptions} (or `{class: NATS, ...options}`) and get it with `getObject()` or `@Inject`; it is
- * a singleton. The service entrypoint ({@link NatsServiceEntrypoint}) and the service proxies ({@link ServiceProxy})
+ * with {@link buildNatsClientOptions} (or `{class: NATS, ...options}`) and get it with `getObject()` or `@Inject`; it is
+ * a singleton. The service entrypoint ({@link natsServiceEntrypoint}) and the service proxies ({@link ServiceProxy})
  * use it by its component name.
  *
  * It connects when it is created: a server which cannot be reached within the `timeout` option fails its creation, and
@@ -109,7 +95,7 @@ export const buildNatsClientOptions: ComponentOptionsBuilder<NatsClientOptions> 
  * with the NATS client error `CONNECTION_CLOSED`. When it is destroyed, it drains its connections: the subscriptions stop receiving, the messages
  * in progress are handled and the outgoing ones flushed before the connections close.
  *
- * Every payload is encoded with the codec ({@link MessagePackCodec} by default). A payload larger than the server's
+ * Every payload is encoded with the codec ({@link messagePackCodec} by default). A payload larger than the server's
  * `max_payload` (1 MiB by default) cannot be sent as a message: a request or a response of 90% of it or more is relayed
  * through a JetStream object store when both sides enabled the bulk channel (the `bulk` option, on by default, which
  * needs JetStream on the server), as a reference the receiving side reads transparently. The published messages and the
@@ -121,14 +107,14 @@ export const buildNatsClientOptions: ComponentOptionsBuilder<NatsClientOptions> 
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildNatsClientOptions, type NATS} from '@lakutata/nats'
+ * import {buildNatsClientOptions, type NATS} from '@lakutata/nats'
  *
  * Application
  *     .run({
  *         id: 'pricing.app',
  *         name: 'Pricing',
  *         components: {
- *             nats: BuildNatsClientOptions({servers: 'nats://127.0.0.1:4222', name: 'pricing'})
+ *             nats: buildNatsClientOptions({servers: 'nats://127.0.0.1:4222', name: 'pricing'})
  *         }
  *     })
  *     .onLaunched(async (app: Application): Promise<void> => {
@@ -161,12 +147,12 @@ export class NATS extends Component {
 
     /**
      * The codec encoding and decoding every payload.
-     * @default MessagePackCodec()
+     * @default messagePackCodec()
      */
     @Configurable(DTO.Object({
         encode: DTO.Function().arity(1).required(),
         decode: DTO.Function().arity(1).required()
-    }).optional().default(MessagePackCodec()))
+    }).optional().default(messagePackCodec()))
     protected readonly codec: Codec<unknown>
 
     /**

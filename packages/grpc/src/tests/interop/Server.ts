@@ -6,9 +6,9 @@ import {writeFileSync} from 'node:fs'
 import type {AddressInfo} from 'node:net'
 import {Container, DTO, Exception} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
-import {BuildEntrypoints, Controller, Entrypoint, type ServiceContext} from '@lakutata/entrypoint'
+import {buildEntrypoints, Controller, Entrypoint, type ServiceContext} from '@lakutata/entrypoint'
 import {ServiceAction} from '@lakutata/entrypoint/decorator/ctrl'
-import {GRPCServiceEntrypoint, SERVICE_PROTO} from '../../exports/GRPCService.js'
+import {grpcServiceEntrypoint, SERVICE_PROTO} from '../../exports/GRPCService.js'
 
 class OrderDTO extends DTO {
     @Expect(DTO.Number().required())
@@ -48,9 +48,9 @@ class InteropController extends Controller {
 if (process.argv[2]) writeFileSync(process.argv[2], SERVICE_PROTO)
 const container: Container = new Container()
 //Used by the actions once the service listens
-const entrypoint: Entrypoint = await container.set(Entrypoint, BuildEntrypoints({
+const entrypoint: Entrypoint = await container.set(Entrypoint, buildEntrypoints({
     controllers: [InteropController],
-    service: GRPCServiceEntrypoint({
+    service: grpcServiceEntrypoint({
         port: Number(process.env.PORT ?? 0),
         host: '0.0.0.0',
         maxMessageSize: 1024 * 1024,

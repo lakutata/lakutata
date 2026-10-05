@@ -12,7 +12,7 @@ import {Configurable} from '@lakutata/core/decorator/di'
 import {AccessDeniedException} from '../exceptions/AccessDeniedException.js'
 import {ActionDetails, type ActionInfo} from './ControllerEntrypoint.js'
 import {AccessControlRule, AccessControlRuleHandler} from './AccessControlRule.js'
-import {As, IsSubclassOf} from '@lakutata/utils'
+import {As, isSubclassOf} from '@lakutata/utils'
 
 /**
  * The access control of the entrypoint's actions: it checks a request to an action declared with `acl: true` against
@@ -144,7 +144,7 @@ export class AccessControl extends BaseObject {
      */
     protected async match(): Promise<boolean> {
         for (const rule of this.rules) {
-            if (IsSubclassOf(rule, AccessControlRule)) {
+            if (isSubclassOf(rule, AccessControlRule)) {
                 const RuleObjectConstructor: IBaseObjectConstructor<AccessControlRule> = As<IBaseObjectConstructor<AccessControlRule>>(rule)
                 const ruleObjectInstance: AccessControlRule = await this.runtimeContainer.build(RuleObjectConstructor, {
                     actions: this.actions,

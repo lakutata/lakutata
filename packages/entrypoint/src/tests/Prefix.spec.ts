@@ -2,10 +2,10 @@ import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {Container, type IBaseObjectConstructor} from '@lakutata/core'
 import {
-    BuildCLIEntrypoint,
-    BuildEntrypoints,
-    BuildHTTPEntrypoint,
-    BuildServiceEntrypoint,
+    buildCLIEntrypoint,
+    buildEntrypoints,
+    buildHTTPEntrypoint,
+    buildServiceEntrypoint,
     CLIContext,
     CLIEntrypointHandler,
     CLIMap,
@@ -73,14 +73,14 @@ type Created = {
  */
 async function Create(controllers: IBaseObjectConstructor<Controller>[]): Promise<Created> {
     const created: Partial<Created> = {container: new Container()}
-    created.entrypoint = await created.container!.set(Entrypoint, BuildEntrypoints({
+    created.entrypoint = await created.container!.set(Entrypoint, buildEntrypoints({
         controllers: controllers,
-        service: BuildServiceEntrypoint((module, handler): unknown => created.service = handler),
-        cli: BuildCLIEntrypoint((module, cliMap, handler): unknown => {
+        service: buildServiceEntrypoint((module, handler): unknown => created.service = handler),
+        cli: buildCLIEntrypoint((module, cliMap, handler): unknown => {
             created.commands = cliMap
             return created.cli = handler
         }),
-        http: BuildHTTPEntrypoint((module, routeMap): unknown => created.routes = routeMap)
+        http: buildHTTPEntrypoint((module, routeMap): unknown => created.routes = routeMap)
     }))
     return created as Created
 }

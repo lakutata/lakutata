@@ -41,25 +41,25 @@ for (const [member, packages] of [['createClient', ['redis', '@redis/client']], 
 // nats (the NATS component of @lakutata/nats) — named imports of the CJS nats client
 const natsPackage = await import('../packages/nats/dist/esm/exports/Nats.js')
 await check('@lakutata/nats loads the nats client', () => {
-    if (typeof natsPackage.NATS !== 'function' || typeof natsPackage.NatsServiceEntrypoint !== 'function') throw new Error('NATS exports missing')
+    if (typeof natsPackage.NATS !== 'function' || typeof natsPackage.natsServiceEntrypoint !== 'function') throw new Error('NATS exports missing')
     if (typeof natsPackage.StringCodec !== 'function') throw new Error('nats StringCodec missing')
 })
 
 // commander (CLI adapter, ESM only) — required by the CJS build of the adapter
 await check('CJS commander adapter loads', () => {
-    if (typeof requireCJS('../packages/entrypoint/dist/cjs/exports/CommanderAdapter.js').CommanderCLIEntrypoint !== 'function') throw new Error('CommanderCLIEntrypoint missing')
+    if (typeof requireCJS('../packages/entrypoint/dist/cjs/exports/CommanderAdapter.js').commanderCLIEntrypoint !== 'function') throw new Error('commanderCLIEntrypoint missing')
 })
 
 // MCP SDK (the MCP channel) — required by the CJS build of @lakutata/mcp
 await check('CJS @lakutata/mcp loads the MCP server', () => {
     const mcp = requireCJS('../packages/mcp/dist/cjs/exports/MCP.js')
-    if (typeof mcp.HTTPMCPEntrypoint !== 'function' || typeof mcp.BuildMCPServer !== 'function') throw new Error('MCP exports missing')
+    if (typeof mcp.httpMCPEntrypoint !== 'function' || typeof mcp.buildMCPServer !== 'function') throw new Error('MCP exports missing')
 })
 
 // dbus-sdk (the DBus channel) — required by the CJS build of @lakutata/dbus
 await check('CJS @lakutata/dbus loads dbus-sdk', () => {
     const dbus = requireCJS('../packages/dbus/dist/cjs/exports/DBus.js')
-    if (typeof dbus.DBusEntrypoint !== 'function' || typeof dbus.LocalService !== 'function') throw new Error('DBus exports missing')
+    if (typeof dbus.dbusEntrypoint !== 'function' || typeof dbus.LocalService !== 'function') throw new Error('DBus exports missing')
 })
 // dbus-sdk named imports under ESM
 const dbusPackage = await import('../packages/dbus/dist/esm/exports/DBus.js')
@@ -86,7 +86,7 @@ await check('CJS @lakutata/mutex loads', () => {
 // @lakutata/grpc — the gRPC over HTTP/2 of containerd, BuildKit and the service actions
 await check('CJS @lakutata/grpc loads', () => {
     if (typeof requireCJS('../packages/grpc/dist/cjs/exports/GRPC.js').GRPCServer !== 'function') throw new Error('GRPCServer missing')
-    if (typeof requireCJS('../packages/grpc/dist/cjs/exports/GRPCService.js').GRPCServiceEntrypoint !== 'function') throw new Error('GRPCServiceEntrypoint missing')
+    if (typeof requireCJS('../packages/grpc/dist/cjs/exports/GRPCService.js').grpcServiceEntrypoint !== 'function') throw new Error('grpcServiceEntrypoint missing')
 })
 
 // @lakutata/containerd — the client of the API of containerd (gRPC over HTTP/2) is integrated
@@ -100,15 +100,15 @@ await check('@lakutata/containerd loads under ESM', () => {
 
 // @lakutata/i18n: its CJS build formats with Intl
 await check('CJS @lakutata/i18n parses and formats', () => {
-    const {ParseMessage, I18n} = requireCJS('../packages/i18n/dist/cjs/exports/I18n.js')
-    if (typeof I18n !== 'function' || ParseMessage('{n, plural, other {# items}}').length !== 1) throw new Error('I18n missing')
+    const {parseMessage, I18n} = requireCJS('../packages/i18n/dist/cjs/exports/I18n.js')
+    if (typeof I18n !== 'function' || parseMessage('{n, plural, other {# items}}').length !== 1) throw new Error('I18n missing')
     if (typeof requireCJS('../packages/i18n/dist/cjs/exports/I18nMiddleware.js').I18nMiddleware !== 'function') throw new Error('I18nMiddleware missing')
 })
 
 // The SDKs bundled with lakutata 2.x require the framework through the interop of Rollup: the default of a module marked
 // __esModule (the CJS entries of 3.0) is the entry itself (scripts/package-build/cjs-package.mjs)
 const InteropDefault = (e) => e && e.__esModule ? e : {default: e}
-for (const [name, entry, member] of [['lakutata', 'lakutata/dist/cjs/exports/Lakutata.js', 'DTO'], ['lakutata/decorator/dto', 'lakutata/dist/cjs/exports/DTODecorators.js', 'Expect'], ['@lakutata/nats', 'nats/dist/cjs/exports/Nats.js', 'NATS'], ['@lakutata/utils/helper/*', 'utils/dist/cjs/lib/helpers/UniqueArray.js', 'UniqueArray']]) {
+for (const [name, entry, member] of [['lakutata', 'lakutata/dist/cjs/exports/Lakutata.js', 'DTO'], ['lakutata/decorator/dto', 'lakutata/dist/cjs/exports/DTODecorators.js', 'Expect'], ['@lakutata/nats', 'nats/dist/cjs/exports/Nats.js', 'NATS'], ['@lakutata/utils/helper/*', 'utils/dist/cjs/lib/helpers/UniqueArray.js', 'uniqueArray']]) {
     await check(`CJS ${name} through the interop of the 2.x bundles`, () => {
         const required = requireCJS(`../packages/${entry}`)
         if (InteropDefault(required).default !== required || typeof required.default[member] !== 'function') throw new Error(`${member} missing from the default`)

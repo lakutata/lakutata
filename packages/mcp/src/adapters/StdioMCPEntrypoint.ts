@@ -5,12 +5,12 @@ import type {McpServer} from '@modelcontextprotocol/server'
 import {StdioServerTransport} from '@modelcontextprotocol/server/stdio'
 import {MCPChannel} from '../channel/MCPChannel.js'
 import type {MCPContext} from '../context/MCPContext.js'
-import {BuildMCPServer, type MCPServerInfo} from '../lib/MCPServer.js'
+import {buildMCPServer, type MCPServerInfo} from '../lib/MCPServer.js'
 import {ATTACH} from '../lib/Notifications.js'
 import {MCPNotifier} from '../components/MCPNotifier.js'
 
 /**
- * The options of {@link StdioMCPEntrypoint}: the server's description (`serverName`, `serverVersion`,
+ * The options of {@link stdioMCPEntrypoint}: the server's description (`serverName`, `serverVersion`,
  * `instructions`), its streams, and whether the application exits with its client.
  */
 export type StdioMCPEntrypointOptions = MCPServerInfo & {
@@ -65,13 +65,13 @@ function ApplicationOf(module: unknown): Application | undefined {
  * client closes the input, unless `exitOnClose` is `false`. The adapter stops gracefully with the entrypoint: the
  * responses of the requests in progress are sent, then the transport closes.
  * @param options The server's description, its streams and `exitOnClose`; none by default.
- * @returns The adapter, to give to the `mcp` option of `BuildEntrypoints()`.
+ * @returns The adapter, to give to the `mcp` option of `buildEntrypoints()`.
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+ * import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
  * import {Logger} from 'lakutata/com/logger'
- * import {MCPTool, StdioMCPEntrypoint} from '@lakutata/mcp'
+ * import {MCPTool, stdioMCPEntrypoint} from '@lakutata/mcp'
  *
  * class ClockController extends Controller {
  *     @MCPTool('now', {description: 'The current time of the server, as an ISO string', readOnly: true})
@@ -87,16 +87,16 @@ function ApplicationOf(module: unknown): Application | undefined {
  *     components: {
  *         //The standard output belongs to the protocol
  *         log: {class: Logger, destinations: [process.stderr]},
- *         entrypoint: BuildEntrypoints({
+ *         entrypoint: buildEntrypoints({
  *             controllers: [ClockController],
- *             mcp: StdioMCPEntrypoint({serverName: 'clock', serverVersion: '1.0.0', instructions: 'Use now to read the time.'})
+ *             mcp: stdioMCPEntrypoint({serverName: 'clock', serverVersion: '1.0.0', instructions: 'Use now to read the time.'})
  *         })
  *     },
  *     bootstrap: ['entrypoint']
  * }))
  * ```
  */
-export function StdioMCPEntrypoint(options: StdioMCPEntrypointOptions = {}): EntrypointAdapter<MCPContext> {
+export function stdioMCPEntrypoint(options: StdioMCPEntrypointOptions = {}): EntrypointAdapter<MCPContext> {
     const stdin: Readable = options.stdin ?? process.stdin
     let server: McpServer | undefined
     let stopped: boolean = false
@@ -110,7 +110,7 @@ export function StdioMCPEntrypoint(options: StdioMCPEntrypointOptions = {}): Ent
         start: async (runtime: ChannelRuntime<MCPContext>): Promise<void> => {
             //The URIs of the resources the client subscribed to
             const subscriptions: Set<string> = new Set()
-            const session: McpServer = BuildMCPServer(runtime, options, subscriptions)
+            const session: McpServer = buildMCPServer(runtime, options, subscriptions)
             server = session
             await session.connect(new StdioServerTransport(stdin, options.stdout ?? process.stdout))
             const send = (notification: Promise<void>): unknown => notification.catch((): undefined => undefined)

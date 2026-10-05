@@ -16,7 +16,7 @@ const BCRYPT_HASH: RegExp = /^\$2[aby]\$(0[4-9]|[12]\d|3[01])\$[./A-Za-z0-9]{53}
 /**
  * The password hashing provider: hashes passwords with bcrypt (a new random 16-byte salt per hash, the `$2b$` variant)
  * and checks a password against a stored hash. Use it for user passwords: bcrypt is deliberately slow, so a stolen hash
- * is costly to brute-force. Do not use it to hash tokens or keys (use {@link HMAC}) or to encrypt (use {@link Crypt}).
+ * is costly to brute-force. Do not use it to hash tokens or keys (use {@link hmac}) or to encrypt (use {@link Crypt}).
  *
  * Declare it in the `providers` of the application (`{class: PasswordHash, saltRounds: 12}`) and get it with `@Inject`
  * or `getObject()`; it is scoped, like every provider. A hash is a 60-character string (`$2b$10$` then the salt and the

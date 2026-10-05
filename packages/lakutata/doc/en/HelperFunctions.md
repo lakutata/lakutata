@@ -8,17 +8,17 @@ the details and the errors they throw.
 
 ```typescript
 import {Application, Component, Time} from 'lakutata'
-import {ObjectHash, RandomString, Templating, UUID} from 'lakutata/utils'
+import {objectHash, randomString, templating, UUID} from 'lakutata/utils'
 
 class Invitations extends Component {
     public invite(email: string): { id: string, code: string, key: string, message: string } {
         const expires: Time = new Time().timezone('Europe/Paris').add(7, 'days').endOf('day')
         return {
             id: UUID.v4(),
-            code: RandomString(6, 'numeric'),
+            code: randomString(6, 'numeric'),
             //The same invitation always gives the same key
-            key: ObjectHash({email: email}),
-            message: Templating('Your invitation to {app} expires on {date}', {app: 'Lakutata', date: expires.format('LL')})
+            key: objectHash({email: email}),
+            message: templating('Your invitation to {app} expires on {date}', {app: 'Lakutata', date: expires.format('LL')})
         }
     }
 }
@@ -41,33 +41,33 @@ Application
 
 | Helper | What it does |
 |---|---|
-| `CamelCase(text)` | Converts a string of any case into camelCase |
-| `NoCase(text, options?)` | Converts a string of any case into lower case words separated by spaces |
-| `Templating(template, data, options?)` | Fills the `{key}` placeholders, and the `{{key}}` ones HTML-escaped; `MissingValueError` for a missing value unless `ignoreMissing` |
-| `RandomString(length?, charset?)` | A random string, from a named character set (`'alphanumeric'`, `'alphabetic'`, `'numeric'`, `'hex'`, `'binary'`, `'octal'`) or a custom one |
-| `NonceString()` | A random string of 32 letters and digits |
+| `camelCase(text)` | Converts a string of any case into camelCase |
+| `noCase(text, options?)` | Converts a string of any case into lower case words separated by spaces |
+| `templating(template, data, options?)` | Fills the `{key}` placeholders, and the `{{key}}` ones HTML-escaped; `MissingValueError` for a missing value unless `ignoreMissing` |
+| `randomString(length?, charset?)` | A random string, from a named character set (`'alphanumeric'`, `'alphabetic'`, `'numeric'`, `'hex'`, `'binary'`, `'octal'`) or a custom one |
+| `nonceString()` | A random string of 32 letters and digits |
 
 ## 2. Objects, arrays and sets
 
 | Helper | What it does |
 |---|---|
 | `ObjectPath.get()`, `.set()`, `.has()` | Reads, sets and tests a nested property by its path (`'a.b[0].c'`) |
-| `CloneDeep(value)` | Deep copy, the classes, collections and circular references kept |
-| `ObjectHash(value, options?)` | A hash of a value by its content, whatever the order of its keys |
-| `SortArray(array, ...options)` | Sorts an array in place, by its items or their properties (`by`, `order`, `customOrders`, `computed`) |
-| `SortKeys(object, options?)` | A copy of a plain object with its keys sorted by a comparison (`deep`, `compare`) |
-| `SortObject(object, options?)` | A copy of a plain object with its keys in alphabetical order (`deep`, `order: 'asc' \| 'desc'`) |
-| `UniqueArray(array)` | The array without its duplicates |
-| `MergeArray`, `MergeSet`, `MergeMap` | Merge two arrays, sets or maps into a new one |
-| `ArrayToSet`, `SetToArray`, `ObjectToMap` | Conversions between collections |
-| `GetObjectPropertyPaths`, `GetObjectNestingDepth`, `IsEmptyObject` | The paths of the leaf values of an object, its depth, whether it has no own property |
-| `ObjectConstructor`, `ObjectPrototype`, `ObjectParentConstructor(s)`, `IsSubclassOf` | Classes and their ancestors |
+| `cloneDeep(value)` | Deep copy, the classes, collections and circular references kept |
+| `objectHash(value, options?)` | A hash of a value by its content, whatever the order of its keys |
+| `sortArray(array, ...options)` | Sorts an array in place, by its items or their properties (`by`, `order`, `customOrders`, `computed`) |
+| `sortKeys(object, options?)` | A copy of a plain object with its keys sorted by a comparison (`deep`, `compare`) |
+| `sortObject(object, options?)` | A copy of a plain object with its keys in alphabetical order (`deep`, `order: 'asc' \| 'desc'`) |
+| `uniqueArray(array)` | The array without its duplicates |
+| `mergeArray`, `mergeSet`, `mergeMap` | Merge two arrays, sets or maps into a new one |
+| `arrayToSet`, `setToArray`, `objectToMap` | Conversions between collections |
+| `getObjectPropertyPaths`, `getObjectNestingDepth`, `isEmptyObject` | The paths of the leaf values of an object, its depth, whether it has no own property |
+| `objectConstructor`, `objectPrototype`, `objectParentConstructor(s)`, `isSubclassOf` | Classes and their ancestors |
 | `Statistics` | Means, quantiles, deviations, regressions, distributions and random samples of numbers |
 
 ```typescript
-import {CamelCase, NoCase, ObjectPath, SortArray, SortObject, Templating, UniqueArray} from 'lakutata/utils'
+import {camelCase, noCase, ObjectPath, sortArray, sortObject, templating, uniqueArray} from 'lakutata/utils'
 
-console.log(CamelCase('user_id'), '|', NoCase('XMLHttpRequest'))
+console.log(camelCase('user_id'), '|', noCase('XMLHttpRequest'))
 //userId | xml http request
 
 const config: Record<string, any> = {db: {hosts: [{name: 'primary', port: 5432}]}}
@@ -75,17 +75,17 @@ console.log(ObjectPath.get<number>(config, 'db.hosts[0].port'))
 //5432
 
 //{{name}} escapes the HTML, {name} does not
-console.log(Templating('<p>Hello {{name}}</p>', {name: '<b>Ada</b>'}))
+console.log(templating('<p>Hello {{name}}</p>', {name: '<b>Ada</b>'}))
 //<p>Hello &lt;b&gt;Ada&lt;/b&gt;</p>
 
 type Person = { name: string, age: number }
 const people: Person[] = [{name: 'Bob', age: 30}, {name: 'Ada', age: 30}, {name: 'Cy', age: 20}]
 //In place: the oldest first, by name among the same age
-SortArray(people, {by: ['age', 'name'], order: ['desc', 'asc']})
+sortArray(people, {by: ['age', 'name'], order: ['desc', 'asc']})
 console.log(people.map((person: Person): string => person.name))
 //['Ada', 'Bob', 'Cy']
 
-console.log(UniqueArray([3, 1, 3, 2]), Object.keys(SortObject({b: 1, a: 2})))
+console.log(uniqueArray([3, 1, 3, 2]), Object.keys(sortObject({b: 1, a: 2})))
 //[3, 1, 2] ['a', 'b']
 ```
 
@@ -93,24 +93,24 @@ console.log(UniqueArray([3, 1, 3, 2]), Object.keys(SortObject({b: 1, a: 2})))
 
 | Helper | What it does |
 |---|---|
-| `MD5(text)`, `SHA1(text)`, `SHA256(text)` | The digest of a string, as a `Buffer` (for checksums; for passwords and secrets, see [Security](Security.md)) |
+| `md5(text)`, `sha1(text)`, `sha256(text)` | The digest of a string, as a `Buffer` (for checksums; for passwords and secrets, see [Security](Security.md)) |
 | `MessagePack` | Serializes values to and from MessagePack bytes or strings |
 | `UUID` | Generates (`v1`, `v3`, `v4`, `v5`, `v6`), validates, parses and stringifies UUIDs |
 | `URLBuilder` | Parses a URL of any scheme into its attributes, or builds one from them |
-| `HexToUnsigned`, `UnsignedToHex(value, bits = 32)` | Hexadecimal and unsigned integers (8 to 128 bits) |
-| `HexToSigned`, `SignedToHex(value, bits = 32)` | Hexadecimal and signed integers (two's complement) |
-| `HexToIEEE754`, `IEEE754ToHex` | Hexadecimal and IEEE 754 floating point numbers |
+| `hexToUnsigned`, `unsignedToHex(value, bits = 32)` | Hexadecimal and unsigned integers (8 to 128 bits) |
+| `hexToSigned`, `signedToHex(value, bits = 32)` | Hexadecimal and signed integers (two's complement) |
+| `hexToIEEE754`, `ieee754ToHex` | Hexadecimal and IEEE 754 floating point numbers |
 | `IP`, `IPv4`, `IPv6` | Validate, convert and compare IP addresses and CIDR blocks |
 
 ```typescript
-import {HexToSigned, MD5, ObjectHash, SHA256, SignedToHex, UUID} from 'lakutata/utils'
+import {hexToSigned, md5, objectHash, sha256, signedToHex, UUID} from 'lakutata/utils'
 
-console.log(SHA256('hello').toString('hex').slice(0, 16), MD5('hello').length)
+console.log(sha256('hello').toString('hex').slice(0, 16), md5('hello').length)
 //2cf24dba5fb0a30e 16
 //Deeply equal values give the same hash, whatever the order of their keys
-console.log(ObjectHash({a: 1, b: 2}) === ObjectHash({b: 2, a: 1}))
+console.log(objectHash({a: 1, b: 2}) === objectHash({b: 2, a: 1}))
 //true
-console.log(SignedToHex(-2, 16), HexToSigned('FFFE'))
+console.log(signedToHex(-2, 16), hexToSigned('FFFE'))
 //FFFE -2
 console.log(UUID.validate(UUID.v4()))
 //true
@@ -120,26 +120,26 @@ console.log(UUID.validate(UUID.v4()))
 
 | Helper | What it does |
 |---|---|
-| `Delay(ms)` | Waits for a number of milliseconds |
-| `GracefulExit` | Exits the process once cleanup functions have run |
-| `PathExists(path)`, `IsPath(text)` | Whether a file or directory exists; whether a string is written as a path |
-| `Glob(patterns, options?)`, `GlobSync`, `IsGlobString` | The files matching glob patterns; whether a string is a glob pattern |
-| `IsPromise`, `IsPromiseLike`, `IsAbortError` | Whether a value is a promise or a thenable; whether an error is an abort error of Node.js |
-| `IsSymbol`, `IsNativeFunction`, `IsHTML`, `IsXML` | Type guards |
+| `delay(ms)` | Waits for a number of milliseconds |
+| `gracefulExit` | Exits the process once cleanup functions have run |
+| `pathExists(path)`, `isPath(text)` | Whether a file or directory exists; whether a string is written as a path |
+| `Glob(patterns, options?)`, `GlobSync`, `isGlobString` | The files matching glob patterns; whether a string is a glob pattern |
+| `isPromise`, `isPromiseLike`, `isAbortError` | Whether a value is a promise or a thenable; whether an error is an abort error of Node.js |
+| `isSymbol`, `isNativeFunction`, `isHTML`, `isXML` | Type guards |
 | `As<T>(value)`, `DevNull(...args)` | A cast for the type checker only; a function ignoring its arguments |
 
 ```typescript
-import {Delay, Glob, PathExists, Statistics} from 'lakutata/utils'
+import {delay, Glob, pathExists, Statistics} from 'lakutata/utils'
 
-if (await PathExists('./src')) {
+if (await pathExists('./src')) {
     const sources: string[] = await Glob('src/**/*.ts')
     console.log(`${sources.length} TypeScript files`)
 }
-await Delay(100)
+await delay(100)
 const latencies: number[] = [12, 15, 11, 90, 14, 13]
 console.log(Statistics.median(latencies), Statistics.quantile(latencies, 0.9))
 //13.5 90
 ```
 
 The guards (`Is*`) return `false` instead of throwing; the other helpers throw the standard JavaScript errors
-(`RangeError`, `TypeError`), and `Templating()` a `MissingValueError`.
+(`RangeError`, `TypeError`), and `templating()` a `MissingValueError`.

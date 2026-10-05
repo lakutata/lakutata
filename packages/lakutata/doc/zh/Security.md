@@ -8,7 +8,7 @@
 
 ```typescript
 import {Application} from 'lakutata'
-import {Crypt, GenerateSecret, Mac, PasswordHash} from 'lakutata/security'
+import {Crypt, generateSecret, Mac, PasswordHash} from 'lakutata/security'
 
 Application
     .run(() => ({
@@ -18,8 +18,8 @@ Application
             //saltRounds：4 到 31，默认 10
             passwordHash: {class: PasswordHash, saltRounds: 12},
             //第一个密钥用于签名和加密，所有密钥都可用于验证和解密
-            mac: {class: Mac, keys: [process.env.MAC_KEY ?? GenerateSecret()], algorithm: 'sha256'},
-            crypt: {class: Crypt, keys: [process.env.CRYPT_KEY ?? GenerateSecret(), process.env.CRYPT_PREVIOUS_KEY ?? GenerateSecret()]}
+            mac: {class: Mac, keys: [process.env.MAC_KEY ?? generateSecret()], algorithm: 'sha256'},
+            crypt: {class: Crypt, keys: [process.env.CRYPT_KEY ?? generateSecret(), process.env.CRYPT_PREVIOUS_KEY ?? generateSecret()]}
         }
     }))
     .onLaunched(async (app: Application): Promise<void> => {
@@ -45,7 +45,7 @@ Application
 ```
 
 - **密码**：`PasswordHash.hash()` 拒绝 UTF-8 编码超过 72 字节的密码（bcrypt 会忽略超出的字节），抛出 `PasswordTooLongException`；对这类密码，`validate()` 返回 `false`。哈希值请原样保存，并用 `validate()` 校验，不要用 `===` 比较。
-- **密钥**：`Mac` 和 `Crypt` 的密钥是至少 16 个字符的字符串。请用 `GenerateSecret()` 生成（32 个随机字节，base64url）：把密码当作密钥使用容易被暴力破解。
+- **密钥**：`Mac` 和 `Crypt` 的密钥是至少 16 个字符的字符串。请用 `generateSecret()` 生成（32 个随机字节，base64url）：把密码当作密钥使用容易被暴力破解。
 - **密钥轮换**：把新密钥放在最前面，在仍需读取旧密钥签名或加密的数据期间保留旧密钥。
 - **格式**：签名和加密数据都是不带填充的 base64url 字符串，可以安全地用于 URL 和 Cookie。
 
@@ -54,43 +54,43 @@ Application
 | 需求 | 使用 |
 |---|---|
 | 保存用户密码，登录时校验 | `PasswordHash`（bcrypt：慢且加盐） |
-| 检测篡改（Cookie、链接、webhook） | `Mac`、`HMAC()` / `VerifyHMAC()` |
-| 隐藏数据并能读回 | `Crypt`、`EncryptByKey()` / `DecryptByKey()` |
-| 用人输入的口令加密 | `EncryptByPassword()` / `DecryptByPassword()`（scrypt） |
-| 生成密钥或令牌 | `GenerateSecret()` |
-| 比较收到的秘密与预期值 | `TimingSafeEqual()` |
+| 检测篡改（Cookie、链接、webhook） | `Mac`、`hmac()` / `verifyHMAC()` |
+| 隐藏数据并能读回 | `Crypt`、`encryptByKey()` / `decryptByKey()` |
+| 用人输入的口令加密 | `encryptByPassword()` / `decryptByPassword()`（scrypt） |
+| 生成密钥或令牌 | `generateSecret()` |
+| 比较收到的秘密与预期值 | `constantTimeEqual()` |
 
 ## 3. 函数
 
 ```typescript
 import {
-    DecryptByKey,
-    DecryptByPassword,
-    EncryptByKey,
-    EncryptByPassword,
-    GenerateSecret,
-    HMAC,
-    TimingSafeEqual,
-    VerifyHMAC
+    decryptByKey,
+    decryptByPassword,
+    encryptByKey,
+    encryptByPassword,
+    generateSecret,
+    hmac,
+    constantTimeEqual,
+    verifyHMAC
 } from 'lakutata/security'
 
-const key: string = GenerateSecret()
+const key: string = generateSecret()
 
 //签名（'sha256'、'sha384'、'sha512'）
 const body: string = JSON.stringify({order: 42})
-const signature: string = HMAC(body, key, 'sha512')
-console.log(VerifyHMAC(body, signature, key, 'sha512'))
+const signature: string = hmac(body, key, 'sha512')
+console.log(verifyHMAC(body, signature, key, 'sha512'))
 
 //用随机密钥加密，可以用当前或之前的密钥解密
-const encrypted: string = EncryptByKey('card ending 4242', key)
-console.log(DecryptByKey(encrypted, [key, GenerateSecret()]).toString('utf8'))
+const encrypted: string = encryptByKey('card ending 4242', key)
+console.log(decryptByKey(encrypted, [key, generateSecret()]).toString('utf8'))
 
 //用口令加密（scrypt，异步）
-const backup: string = await EncryptByPassword('backup contents', 'a long passphrase')
-console.log((await DecryptByPassword(backup, 'a long passphrase')).toString('utf8'))
+const backup: string = await encryptByPassword('backup contents', 'a long passphrase')
+console.log((await decryptByPassword(backup, 'a long passphrase')).toString('utf8'))
 
 //以恒定时间比较收到的令牌
-console.log(TimingSafeEqual('presented-token', process.env.API_TOKEN ?? ''))
+console.log(constantTimeEqual('presented-token', process.env.API_TOKEN ?? ''))
 ```
 
 ## 4. 错误
@@ -99,7 +99,7 @@ console.log(TimingSafeEqual('presented-token', process.env.API_TOKEN ?? ''))
 |---|---|
 | `PasswordTooLongException` | `PasswordHash.hash()` 的密码 UTF-8 编码超过 72 字节 |
 | `InvalidSignatureException` | `Mac.unsignMessage()` 的消息被篡改、没有签名或由未知密钥签名 |
-| `DecryptionFailedException` | `Crypt.decrypt()`、`decryptString()`、`DecryptByKey()`、`DecryptByPassword()`：密钥或口令错误，数据被篡改或截断 |
+| `DecryptionFailedException` | `Crypt.decrypt()`、`decryptString()`、`decryptByKey()`、`decryptByPassword()`：密钥或口令错误，数据被篡改或截断 |
 | `InvalidObjectOptionsException`（来自 `lakutata`） | 应用启动时提供者的选项不合法：没有密钥、密钥短于 16 个字符、未知算法、`saltRounds` 不在 4 到 31 之间 |
 
-`verify()`、`VerifyHMAC()`、`validate()` 和 `TimingSafeEqual()` 遇到错误或格式不正确的签名、哈希或秘密时返回 `false`，而不是抛出异常。
+`verify()`、`verifyHMAC()`、`validate()` 和 `constantTimeEqual()` 遇到错误或格式不正确的签名、哈希或秘密时返回 `false`，而不是抛出异常。

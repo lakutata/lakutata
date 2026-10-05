@@ -25,14 +25,14 @@ import {type MigrationRunOptions} from '../types/MigrationRunOptions.js'
 /**
  * Build the registration of a {@link Database} provider, for the `providers` of the application options: the provider
  * class with its TypeORM connection options. Its `entities` option, added to the entities of the connection options,
- * is set by spreading the registration: `{...BuildDatabaseOptions(options), entities: [User]}`.
+ * is set by spreading the registration: `{...buildDatabaseOptions(options), entities: [User]}`.
  * @param options The TypeORM connection options (`DataSourceOptions`): the driver `type`, the connection settings, the
  * `entities`, the `migrations`, `synchronize`, `migrationsRun`, `logging`… Passed to TypeORM as they are.
  * @returns The registration `{class: Database, options}`.
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildDatabaseOptions} from 'lakutata/provider/database'
+ * import {buildDatabaseOptions} from 'lakutata/provider/database'
  * import {Column, Entity, PrimaryGeneratedColumn} from 'lakutata/decorator/orm'
  *
  * @Entity()
@@ -50,14 +50,14 @@ import {type MigrationRunOptions} from '../types/MigrationRunOptions.js'
  *     providers: {
  *         //A new PostgreSQL connection each time reports is resolved, closed with its owner
  *         reports: {
- *             ...BuildDatabaseOptions({type: 'postgres', url: 'postgres://postgres:secret@localhost:5432/reports'}),
+ *             ...buildDatabaseOptions({type: 'postgres', url: 'postgres://postgres:secret@localhost:5432/reports'}),
  *             entities: [Report]
  *         }
  *     }
  * }))
  * ```
  */
-export const BuildDatabaseOptions: (options: DataSourceOptions) => {
+export const buildDatabaseOptions: (options: DataSourceOptions) => {
     class: typeof Database
     options: DataSourceOptions
 } = (options: DataSourceOptions) => ({
@@ -69,7 +69,7 @@ export const BuildDatabaseOptions: (options: DataSourceOptions) => {
  * A database connection of its own: a transient provider wrapping a TypeORM `DataSource`, with the API of the
  * `Database` component of `lakutata/com/database`.
  *
- * Register it in the `providers` of the application options with {@link BuildDatabaseOptions}. Each resolution
+ * Register it in the `providers` of the application options with {@link buildDatabaseOptions}. Each resolution
  * (`@Inject('reports')`, `getObject('reports')`) creates a new instance, even within one scope: it opens its own
  * connection (its own pool) while it is created, and closes it when it is destroyed with the object or the container
  * which created it. It suits a short use (a job, a script, a tenant database); the requests of a busy application
@@ -79,7 +79,7 @@ export const BuildDatabaseOptions: (options: DataSourceOptions) => {
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildDatabaseOptions, Database} from 'lakutata/provider/database'
+ * import {buildDatabaseOptions, Database} from 'lakutata/provider/database'
  * import {Column, Entity, PrimaryGeneratedColumn} from 'lakutata/decorator/orm'
  *
  * @Entity()
@@ -97,7 +97,7 @@ export const BuildDatabaseOptions: (options: DataSourceOptions) => {
  *         name: 'Reports',
  *         providers: {
  *             reports: {
- *                 ...BuildDatabaseOptions({type: 'postgres', url: 'postgres://postgres:secret@localhost:5432/reports', synchronize: true}),
+ *                 ...buildDatabaseOptions({type: 'postgres', url: 'postgres://postgres:secret@localhost:5432/reports', synchronize: true}),
  *                 entities: [Report]
  *             }
  *         }
@@ -132,7 +132,7 @@ export class Database extends Provider {
     #datasource: DataSource
 
     /**
-     * The TypeORM connection options, given by the registration (see {@link BuildDatabaseOptions}). Not validated by
+     * The TypeORM connection options, given by the registration (see {@link buildDatabaseOptions}). Not validated by
      * lakutata: TypeORM checks them while connecting.
      */
     @Configurable()

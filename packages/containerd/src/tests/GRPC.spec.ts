@@ -4,7 +4,7 @@ import http2, {type Http2Server, type ServerHttp2Stream, type IncomingHttpHeader
 import {mkdtemp, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import {GRPCConnection, GRPCError, GRPCStatus, Decode, Encode, type Message} from '@lakutata/grpc'
+import {GRPCConnection, GRPCError, GRPCStatus, decode, encode, type Message} from '@lakutata/grpc'
 import {ContainerdClient, IsGRPCError} from '../client/ContainerdClient.js'
 import * as M from '../client/Messages.js'
 
@@ -60,25 +60,25 @@ describe('The gRPC client of containerd', (): void => {
             const requests: Buffer[] = await Frames(stream)
             switch (method) {
                 case '/containerd.services.version.v1.Version/Version':
-                    return reply([Frame(Encode(M.VersionResponse, {version: '1.7.0', revision: 'test'}))])
+                    return reply([Frame(encode(M.VersionResponse, {version: '1.7.0', revision: 'test'}))])
                 case '/containerd.services.images.v1.Images/Get':
-                    return reply([], GRPCStatus.NOT_FOUND, `image "${Decode(M.GetImageRequest, requests[0]).name}": not found`)
+                    return reply([], GRPCStatus.NOT_FOUND, `image "${decode(M.GetImageRequest, requests[0]).name}": not found`)
                 case '/containerd.services.content.v1.Content/Read': {
                     //Its chunks in a frame split over writes
-                    const frames: Buffer = Buffer.concat(['ab', 'cd', 'ef'].map((data: string): Buffer => Frame(Encode(M.ReadContentResponse, {data: Buffer.from(data)}))))
+                    const frames: Buffer = Buffer.concat(['ab', 'cd', 'ef'].map((data: string): Buffer => Frame(encode(M.ReadContentResponse, {data: Buffer.from(data)}))))
                     return reply([frames.subarray(0, 3), frames.subarray(3, 11), frames.subarray(11)])
                 }
                 case '/containerd.services.content.v1.Content/Write': {
-                    const writes: Message[] = requests.map((request: Buffer): Message => Decode(M.WriteContentRequest, request))
+                    const writes: Message[] = requests.map((request: Buffer): Message => decode(M.WriteContentRequest, request))
                     const data: string = writes.filter((write: Message): boolean => write.action === M.WriteAction.WRITE).map((write: Message): string => Buffer.from(write.data).toString()).join('')
                     const commit: Message = writes[writes.length - 1]
-                    return reply(writes.map((write: Message): Buffer => Frame(Encode(M.WriteContentResponse, {action: write.action, offset: data.length, digest: write.action === M.WriteAction.COMMIT ? commit.expected : ''}))))
+                    return reply(writes.map((write: Message): Buffer => Frame(encode(M.WriteContentResponse, {action: write.action, offset: data.length, digest: write.action === M.WriteAction.COMMIT ? commit.expected : ''}))))
                 }
                 case '/containerd.services.content.v1.Content/Info':
                     return reply([], GRPCStatus.NOT_FOUND, 'not found')
                 case '/containerd.services.events.v1.Events/Subscribe':
                     stream.respond({':status': 200, 'content-type': 'application/grpc'})
-                    stream.write(Frame(Encode(M.Envelope, {namespace: 'test', topic: '/tasks/exit', event: {typeUrl: 'containerd.events.TaskExit', value: Encode(M.EVENTS['containerd.events.TaskExit'], {containerId: 'c', exitStatus: 3})}})))
+                    stream.write(Frame(encode(M.Envelope, {namespace: 'test', topic: '/tasks/exit', event: {typeUrl: 'containerd.events.TaskExit', value: encode(M.EVENTS['containerd.events.TaskExit'], {containerId: 'c', exitStatus: 3})}})))
                     return
                 default:
                     return reply([], GRPCStatus.UNIMPLEMENTED, `unknown ${method}`)

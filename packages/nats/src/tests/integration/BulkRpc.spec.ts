@@ -2,15 +2,15 @@ import {after, before, it} from 'node:test'
 import {expect} from '../support/Expect.js'
 import {describeNats as describe, destroyApp, runApp, ensureNats, stopNats} from '../support/App.js'
 import {Application} from '@lakutata/core'
-import {BuildEntrypoints, Controller} from '@lakutata/entrypoint'
+import {buildEntrypoints, Controller} from '@lakutata/entrypoint'
 import {ServiceAction} from '@lakutata/entrypoint/decorator/ctrl'
 import {
-    BuildNatsClientOptions,
-    BuildServiceProxy,
+    buildNatsClientOptions,
+    buildServiceProxy,
     NatsBulkException,
     ServiceInvokeException,
     ServiceProxy,
-    SetupNatsServiceEntrypoint
+    setupNatsServiceEntrypoint
 } from '../../exports/Nats.js'
 
 //1.5MB: larger than max_payload (default 1MB), so a successful transfer proves it went through the Object Store rather than directly
@@ -50,22 +50,22 @@ describe('S2 RPC large data relay', (): void => {
             id: 'it.bulkrpc.app',
             name: 'ITBulkRpc',
             components: {
-                nats: BuildNatsClientOptions({servers: n.url}), //bulk defaults to true (server + self client)
-                natsLegacy: BuildNatsClientOptions({servers: n.url, bulk: false}), //Simulates a client without bulk support
+                nats: buildNatsClientOptions({servers: n.url}), //bulk defaults to true (server + self client)
+                natsLegacy: buildNatsClientOptions({servers: n.url, bulk: false}), //Simulates a client without bulk support
                 //Uses a different bucket: the server puts the large response into its own bucket, this client cannot fetch it from its own bucket, simulating an unresolvable reference
-                natsMismatch: BuildNatsClientOptions({servers: n.url, bulkBucket: 'mismatch-bucket'}),
+                natsMismatch: buildNatsClientOptions({servers: n.url, bulkBucket: 'mismatch-bucket'}),
                 //A client which never requested the service: its capability unknown
-                natsCold: BuildNatsClientOptions({servers: n.url}),
-                entrypoint: BuildEntrypoints({
+                natsCold: buildNatsClientOptions({servers: n.url}),
+                entrypoint: buildEntrypoints({
                     controllers: [BulkController],
-                    service: SetupNatsServiceEntrypoint('nats')
+                    service: setupNatsServiceEntrypoint('nats')
                 })
             },
             providers: {
-                self: BuildServiceProxy({serviceId: 'it.bulkrpc.app', natsComponentName: 'nats'}),
-                legacy: BuildServiceProxy({serviceId: 'it.bulkrpc.app', natsComponentName: 'natsLegacy'}),
-                mismatch: BuildServiceProxy({serviceId: 'it.bulkrpc.app', natsComponentName: 'natsMismatch'}),
-                cold: BuildServiceProxy({serviceId: 'it.bulkrpc.app', natsComponentName: 'natsCold'})
+                self: buildServiceProxy({serviceId: 'it.bulkrpc.app', natsComponentName: 'nats'}),
+                legacy: buildServiceProxy({serviceId: 'it.bulkrpc.app', natsComponentName: 'natsLegacy'}),
+                mismatch: buildServiceProxy({serviceId: 'it.bulkrpc.app', natsComponentName: 'natsMismatch'}),
+                cold: buildServiceProxy({serviceId: 'it.bulkrpc.app', natsComponentName: 'natsCold'})
             },
             bootstrap: ['entrypoint']
         })

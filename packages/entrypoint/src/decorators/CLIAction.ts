@@ -2,13 +2,13 @@ import {Controller, type ControllerProperty} from '../lib/Controller.js'
 import {MethodDecorator, DTO} from '@lakutata/core'
 import {RegisterCLIAction} from '../lib/ControllerEntrypoint.js'
 import {ActionOptions} from '../lib/ActionOptions.js'
-import {GetActionDTOAndOptions} from '../lib/GetActionDTOAndOptions.js'
+import {getActionDTOAndOptions} from '../lib/GetActionDTOAndOptions.js'
 import {CLIContext} from '../context/CLIContext.js'
 
 /**
- * Expose the controller method as a CLI command, run by the CLI adapters of the entrypoint (`CommanderCLIEntrypoint`).
+ * Expose the controller method as a CLI command, run by the CLI adapters of the entrypoint (`commanderCLIEntrypoint`).
  * Without a DTO, the command has no options and its input is accepted as it is.
- * On a command, the CLI adapter (`CommanderCLIEntrypoint`) assembles the input from the positional arguments and the
+ * On a command, the CLI adapter (`commanderCLIEntrypoint`) assembles the input from the positional arguments and the
  * options, each value parsed by the type of its property; the middlewares run, the input is validated against the DTO
  * (the defaults applied), the access control runs when `acl` is set, then the method receives the validated input as a
  * plain object.
@@ -23,10 +23,10 @@ import {CLIContext} from '../context/CLIContext.js'
  * @example
  * ```typescript
  * import {Application, DTO} from 'lakutata'
- * import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+ * import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
  * import {CLIAction} from 'lakutata/decorator/ctrl'
  * import {Expect} from 'lakutata/decorator/dto'
- * import {CommanderCLIEntrypoint} from 'lakutata/adapter/commander'
+ * import {commanderCLIEntrypoint} from 'lakutata/adapter/commander'
  *
  * class GreetDTO extends DTO {
  *     //The positional argument <name>
@@ -56,9 +56,9 @@ import {CLIContext} from '../context/CLIContext.js'
  *     id: 'greet.app',
  *     name: 'Greet',
  *     components: {
- *         entrypoint: BuildEntrypoints({
+ *         entrypoint: buildEntrypoints({
  *             controllers: [GreetController],
- *             cli: CommanderCLIEntrypoint()
+ *             cli: commanderCLIEntrypoint()
  *         })
  *     },
  *     bootstrap: ['entrypoint']
@@ -124,7 +124,7 @@ export function CLIAction<ClassPrototype extends Controller, Method, DTOConstruc
 
 export function CLIAction<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(command: string, dtoConstructorOrOptions?: DTOConstructor | ActionOptions<CLIContext>, options?: ActionOptions<CLIContext>): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>> {
     return (target: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>, descriptor: TypedPropertyDescriptor<Method>): TypedPropertyDescriptor<Method> => {
-        const [dtoConstructor, actionOptions] = GetActionDTOAndOptions(dtoConstructorOrOptions, options)
+        const [dtoConstructor, actionOptions] = getActionDTOAndOptions(dtoConstructorOrOptions, options)
         RegisterCLIAction(command, target, propertyKey, dtoConstructor, ActionOptions.validate(actionOptions))
         return descriptor
     }

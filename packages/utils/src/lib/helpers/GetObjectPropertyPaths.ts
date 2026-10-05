@@ -34,12 +34,12 @@ function PropertyPaths(target: Record<string, any>, basePath: string, ancestors:
  * @throws {TypeError} When `target` is `null` or `undefined`.
  * @example
  * ```typescript
- * import {GetObjectPropertyPaths} from 'lakutata/utils'
+ * import {getObjectPropertyPaths} from 'lakutata/utils'
  *
- * console.log(GetObjectPropertyPaths({a: 1, b: {c: 2, d: {e: 3}}, list: [4, 5], none: null}))
+ * console.log(getObjectPropertyPaths({a: 1, b: {c: 2, d: {e: 3}}, list: [4, 5], none: null}))
  * //['a', 'b.c', 'b.d.e', 'list.0', 'list.1', 'none']
  * ```
  */
-export function GetObjectPropertyPaths(target: Record<string, any>, basePath: string = ''): string[] {
+export function getObjectPropertyPaths(target: Record<string, any>, basePath: string = ''): string[] {
     return PropertyPaths(target, basePath, new Set())
 }

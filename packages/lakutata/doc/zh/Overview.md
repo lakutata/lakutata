@@ -30,10 +30,10 @@ npm install lakutata                      # 或在已有项目中安装框架
 
 ```typescript
 import {Application, DTO, type ILogger} from 'lakutata'
-import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
 import {GET, ServiceAction} from 'lakutata/decorator/ctrl'
 import {Expect} from 'lakutata/decorator/dto'
-import {ExpressHTTPEntrypoint} from 'lakutata/adapter/express'
+import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
 
 class GreetDTO extends DTO {
     @Expect(DTO.String().optional().default('world'))
@@ -54,9 +54,9 @@ Application
         id: 'com.example.greeter',
         name: 'Greeter',
         components: {
-            entrypoint: BuildEntrypoints({
+            entrypoint: buildEntrypoints({
                 controllers: [GreetController],
-                http: ExpressHTTPEntrypoint({port: 8080})
+                http: expressHTTPEntrypoint({port: 8080})
             })
         },
         bootstrap: ['entrypoint']
@@ -68,12 +68,12 @@ Application
 
 | 子路径 | 内容 |
 |---|---|
-| `lakutata` | `Application`、`Module`、`Component`、`Provider`、`BaseObject`、`Container`、`DTO`、`Exception`、`Time`、`IsPackaged`、`ResourcesPath`、校验消息 |
+| `lakutata` | `Application`、`Module`、`Component`、`Provider`、`BaseObject`、`Container`、`DTO`、`Exception`、`Time`、`isPackaged`、`resourcesPath`、校验消息 |
 | `lakutata/decorator/di` | `@Inject`、`@Configurable`、`@Autoload`、`@Singleton`、`@Scoped`、`@Transient`、`@Lifetime` |
 | `lakutata/decorator/dto` | `@Expect`、`@Accept`、`@Return`、`@IndexSignature` |
 | `lakutata/decorator/asst` | `@Before`、`@After` |
-| `lakutata/dtos` | `PaginationSearchDTO`、`PaginationResultDTO`、`Paginator`、`FlexibleDTO`、JSON Schema 转换 |
-| `lakutata/com/entrypoint` | `Entrypoint`、`BuildEntrypoints`、`Controller`、各种上下文、`Result`、访问控制、中间件、`HTTPServiceEntrypoint`、`ScheduleEntrypoint` |
+| `lakutata/dtos` | `PaginationSearchDTO`、`PaginationResultDTO`、`paginator`、`FlexibleDTO`、JSON Schema 转换 |
+| `lakutata/com/entrypoint` | `Entrypoint`、`buildEntrypoints`、`Controller`、各种上下文、`Result`、访问控制、中间件、`httpServiceEntrypoint`、`scheduleEntrypoint` |
 | `lakutata/decorator/ctrl` | `@HTTPAction`、`@GET`…`@OPTIONS`、`@CLIAction`、`@ServiceAction`、`@Schedule`、`@Prefix`、`@UseMiddlewares` |
 | `lakutata/adapter/express`、`lakutata/adapter/fastify` | HTTP 传输 |
 | `lakutata/adapter/commander` | CLI 传输 |

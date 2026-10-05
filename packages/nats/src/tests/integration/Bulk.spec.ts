@@ -2,7 +2,7 @@ import {after, before, it} from 'node:test'
 import {expect} from '../support/Expect.js'
 import {describeNats as describe, destroyApp, runApp, ensureNats, stopNats} from '../support/App.js'
 import {Application} from '@lakutata/core'
-import {BuildNatsClientOptions, NATS, NatsBulkException} from '../../exports/Nats.js'
+import {buildNatsClientOptions, NATS, NatsBulkException} from '../../exports/Nats.js'
 import {millis, StorageType} from 'nats'
 
 /**
@@ -21,10 +21,10 @@ describe('S1 bulk basic capabilities', (): void => {
             id: 'it.bulk.app',
             name: 'ITBulk',
             components: {
-                nats: BuildNatsClientOptions({servers: n.url, bulk: true, bulkBucket: 'test-bulk', bulkTTL: 60000}),
-                natsNoBulk: BuildNatsClientOptions({servers: n.url, bulk: false}),
+                nats: buildNatsClientOptions({servers: n.url, bulk: true, bulkBucket: 'test-bulk', bulkTTL: 60000}),
+                natsNoBulk: buildNatsClientOptions({servers: n.url, bulk: false}),
                 //No bulk* options given (unique name to avoid bucket name collisions), to verify the defaults
-                natsDefaults: BuildNatsClientOptions({servers: n.url, name: 'defaults'})
+                natsDefaults: buildNatsClientOptions({servers: n.url, name: 'defaults'})
             }
         })
         nats = await app.getObject<NATS>('nats')

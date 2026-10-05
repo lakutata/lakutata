@@ -1,11 +1,11 @@
 import type {Request, Response} from 'express'
-import {DescribeError, type HTTPErrorOrigin, StatusOfError} from '../../lib/HTTPErrors.js'
+import {describeError, type HTTPErrorOrigin, statusOfError} from '../../lib/HTTPErrors.js'
 
-export {DescribeError, StatusOfError, type HTTPErrorOrigin}
+export {describeError, statusOfError, type HTTPErrorOrigin}
 
 /**
- * How {@link ExpressHTTPEntrypoint} writes the results and the errors of the actions (its `respond` option). Implement
- * it to give the responses another shape; {@link JSONResponder} is the default, {@link JSONEnvelope} wraps them in an
+ * How {@link expressHTTPEntrypoint} writes the results and the errors of the actions (its `respond` option). Implement
+ * it to give the responses another shape; {@link JSONResponder} is the default, {@link jsonEnvelope} wraps them in an
  * envelope. The file results and the event streams are not written by the responder.
  */
 export interface ExpressResponder {
@@ -32,9 +32,9 @@ export interface ExpressResponder {
 }
 
 /**
- * The default responder of {@link ExpressHTTPEntrypoint}: a result is sent as JSON, no result as an empty 204 (or the
- * status set by a `StatusResult`); an error is sent as `{errno, errMsg}` (see `DescribeError`) with its HTTP status
- * (see `StatusOfError`: the first 4xx status in its cause chain, its own status, or 500).
+ * The default responder of {@link expressHTTPEntrypoint}: a result is sent as JSON, no result as an empty 204 (or the
+ * status set by a `StatusResult`); an error is sent as `{errno, errMsg}` (see `describeError`) with its HTTP status
+ * (see `statusOfError`: the first 4xx status in its cause chain, its own status, or 500).
  */
 export const JSONResponder: ExpressResponder = {
     success: (response: Response, data: unknown): void => {
@@ -45,17 +45,17 @@ export const JSONResponder: ExpressResponder = {
         response.json(data)
     },
     error: (response: Response, error: unknown): void => {
-        response.status(StatusOfError(error)).json(DescribeError(error))
+        response.status(statusOfError(error)).json(describeError(error))
     }
 }
 
 /**
- * The options of {@link JSONEnvelope}.
+ * The options of {@link jsonEnvelope}.
  */
 export type JSONEnvelopeOptions = {
     /**
      * The HTTP status of every error response, such as 200 for the clients that read the errors from the envelope.
-     * @default the error's own status (see `StatusOfError`)
+     * @default the error's own status (see `statusOfError`)
      */
     errorStatus?: number
     /**
@@ -68,18 +68,18 @@ export type JSONEnvelopeOptions = {
 }
 
 /**
- * Create a responder for {@link ExpressHTTPEntrypoint} that wraps every response in the envelope
+ * Create a responder for {@link expressHTTPEntrypoint} that wraps every response in the envelope
  * `{errno, errMsg, data}`: a result as `{errno: null, errMsg: null, data}` (`data` is `null` when the action returned
  * nothing, and its status is not turned into 204), an error as `{errno, errMsg, data: null}` with the error's status,
  * the `errorStatus` option, or for the errors of the actions the `actionErrorStatus` option.
  * @param options The envelope options.
- * @returns The responder, to give to the `respond` option of `ExpressHTTPEntrypoint`.
+ * @returns The responder, to give to the `respond` option of `expressHTTPEntrypoint`.
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+ * import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
  * import {GET} from 'lakutata/decorator/ctrl'
- * import {ExpressHTTPEntrypoint, JSONEnvelope} from 'lakutata/adapter/express'
+ * import {expressHTTPEntrypoint, jsonEnvelope} from 'lakutata/adapter/express'
  *
  * class PingController extends Controller {
  *     //GET /ping answers {"errno": null, "errMsg": null, "data": "pong"}
@@ -93,24 +93,24 @@ export type JSONEnvelopeOptions = {
  *     id: 'web.app',
  *     name: 'Web',
  *     components: {
- *         entrypoint: BuildEntrypoints({
+ *         entrypoint: buildEntrypoints({
  *             controllers: [PingController],
  *             //The errors of the actions answered with 200 too (as the applications of lakutata 2.x), the routes not
  *             //found and the errors of the express middlewares with their status (404, 401…)
- *             http: ExpressHTTPEntrypoint({port: 8080, respond: JSONEnvelope({actionErrorStatus: 200})})
+ *             http: expressHTTPEntrypoint({port: 8080, respond: jsonEnvelope({actionErrorStatus: 200})})
  *         })
  *     }
  * })
  * ```
  */
-export function JSONEnvelope(options: JSONEnvelopeOptions = {}): ExpressResponder {
+export function jsonEnvelope(options: JSONEnvelopeOptions = {}): ExpressResponder {
     return {
         success: (response: Response, data: unknown): void => {
             response.json({errno: null, errMsg: null, data: data === undefined ? null : data})
         },
         error: (response: Response, error: unknown, _request: Request, origin?: HTTPErrorOrigin): void => {
             const status: number | undefined = origin === 'action' ? options.actionErrorStatus ?? options.errorStatus : options.errorStatus
-            response.status(status ?? StatusOfError(error)).json({...DescribeError(error), data: null})
+            response.status(status ?? statusOfError(error)).json({...describeError(error), data: null})
         }
     }
 }

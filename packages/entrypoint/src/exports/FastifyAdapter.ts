@@ -1,4 +1,4 @@
-export {FastifyHTTPEntrypoint, type FastifyHTTPEntrypointOptions, type FastifyHookContext} from '../adapter/fastify/FastifyHTTPEntrypoint.js'
-export {FastifyJSONResponder, FastifyJSONEnvelope, type FastifyResponder, type FastifyJSONEnvelopeOptions} from '../adapter/fastify/Responders.js'
-export {StatusOfError, DescribeError, type HTTPErrorOrigin} from '../lib/HTTPErrors.js'
+export {fastifyHTTPEntrypoint, type FastifyHTTPEntrypointOptions, type FastifyHookContext} from '../adapter/fastify/FastifyHTTPEntrypoint.js'
+export {FastifyJSONResponder, fastifyJSONEnvelope, type FastifyResponder, type FastifyJSONEnvelopeOptions} from '../adapter/fastify/Responders.js'
+export {statusOfError, describeError, type HTTPErrorOrigin} from '../lib/HTTPErrors.js'
 export {type ErrorDescription} from '../types/ErrorDescription.js'

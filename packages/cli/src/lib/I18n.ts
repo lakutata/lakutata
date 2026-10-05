@@ -1,7 +1,7 @@
 import {existsSync} from 'node:fs'
 import {mkdir, readdir, readFile, writeFile} from 'node:fs/promises'
 import path from 'node:path'
-import {NormalizeLocale} from 'lakutata/com/i18n'
+import {normalizeLocale} from 'lakutata/com/i18n'
 
 /**
  * The messages of the validation (validation.json, the validation key of a file): not copied to a new language, which
@@ -50,9 +50,9 @@ async function CopyDirectory(source: string, target: string, root: boolean): Pro
  * @return the files written
  */
 export async function AddLocale(directory: string, locale: string, defaultLocale: string): Promise<string[]> {
-    const tag: string | undefined = NormalizeLocale(locale)
+    const tag: string | undefined = normalizeLocale(locale)
     if (!tag) throw new Error(`"${locale}" is not the tag of a language (en, zh-CN, zh-Hant-TW)`)
-    const base: string = NormalizeLocale(defaultLocale) ?? defaultLocale
+    const base: string = normalizeLocale(defaultLocale) ?? defaultLocale
     if (tag === base) throw new Error(`${tag} is the default language`)
     if (existsSync(path.join(directory, `${tag}.json`)) || existsSync(path.join(directory, tag))) throw new Error(`The messages of ${tag} exist already in ${directory}`)
     if (existsSync(path.join(directory, `${base}.json`))) {

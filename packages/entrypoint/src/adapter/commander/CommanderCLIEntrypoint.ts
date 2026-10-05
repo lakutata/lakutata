@@ -26,7 +26,7 @@ export type PropertySchema = {
 }
 
 /**
- * A text of the help or of the prompts of {@link CommanderCLIEntrypoint}, given to its `translate` function.
+ * A text of the help or of the prompts of {@link commanderCLIEntrypoint}, given to its `translate` function.
  */
 export type CLIText = {
     /**
@@ -53,7 +53,7 @@ export type CLIText = {
 export type CLITranslate = (text: CLIText) => string
 
 /**
- * The options of {@link CommanderCLIEntrypoint}.
+ * The options of {@link commanderCLIEntrypoint}.
  */
 export type CommanderCLIEntrypointOptions = {
     /**
@@ -136,7 +136,7 @@ export type CommanderCLIEntrypointOptions = {
     /**
      * Translate the texts of the help and of the prompts (the program, command, argument and option descriptions, the
      * help titles) into the user's language: given the entrypoint's module when the arguments are parsed, it returns the
-     * translating function (`CommanderTranslator` of `lakutata/com/i18n` returns the one of an i18n component). The
+     * translating function (`commanderTranslator` of `lakutata/com/i18n` returns the one of an i18n component). The
      * command and option names are never translated.
      * @default the English texts
      */
@@ -294,14 +294,14 @@ function ErrorMessage(error: unknown): string {
  * the prompts and the event streams end.
  * @param options The adapter options; by default it parses `process.argv`, prompts in a terminal, and exits the
  * application once the command ended.
- * @returns The adapter, to give to the `cli` option of `BuildEntrypoints`.
+ * @returns The adapter, to give to the `cli` option of `buildEntrypoints`.
  * @example
  * ```typescript
  * import {Application, DTO} from 'lakutata'
- * import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+ * import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
  * import {CLIAction} from 'lakutata/decorator/ctrl'
  * import {Expect} from 'lakutata/decorator/dto'
- * import {CommanderCLIEntrypoint} from 'lakutata/adapter/commander'
+ * import {commanderCLIEntrypoint} from 'lakutata/adapter/commander'
  *
  * class GreetDTO extends DTO {
  *     @Expect(DTO.String().required().description('The name to greet'))
@@ -327,15 +327,15 @@ function ErrorMessage(error: unknown): string {
  *     id: 'tool.app',
  *     name: 'Tool',
  *     components: {
- *         entrypoint: BuildEntrypoints({
+ *         entrypoint: buildEntrypoints({
  *             controllers: [GreetController],
- *             cli: CommanderCLIEntrypoint({bin: 'tool', description: 'A greeting tool', version: '1.0.0'})
+ *             cli: commanderCLIEntrypoint({bin: 'tool', description: 'A greeting tool', version: '1.0.0'})
  *         })
  *     }
  * })
  * ```
  */
-export function CommanderCLIEntrypoint(options: CommanderCLIEntrypointOptions = {}): EntrypointAdapter<CLIContext> {
+export function commanderCLIEntrypoint(options: CommanderCLIEntrypointOptions = {}): EntrypointAdapter<CLIContext> {
     const stdout: NodeJS.WritableStream = options.stdout ?? process.stdout
     const stderr: NodeJS.WritableStream = options.stderr ?? process.stderr
     const stdin: NodeJS.ReadableStream = options.stdin ?? process.stdin

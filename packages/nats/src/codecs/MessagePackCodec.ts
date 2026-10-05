@@ -13,15 +13,15 @@ import {MessagePack} from '@lakutata/utils'
  * @returns The codec.
  * @example
  * ```typescript
- * import {MessagePackCodec} from '@lakutata/nats'
+ * import {messagePackCodec} from '@lakutata/nats'
  *
- * const codec = MessagePackCodec()
+ * const codec = messagePackCodec()
  * const bytes: Uint8Array = codec.encode({id: 1, tags: ['a', 'b']})
  * console.log(codec.decode(bytes)) //{id: 1, tags: ['a', 'b']}
  * console.log(codec.decode(codec.encode(undefined))) //null
  * ```
  */
-export function MessagePackCodec(): Codec<any> {
+export function messagePackCodec(): Codec<any> {
     return {
         encode(d: any): Uint8Array {
             return MessagePack.encode(JSON.parse(JSON.stringify([d])))

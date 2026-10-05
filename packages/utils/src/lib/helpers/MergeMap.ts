@@ -6,13 +6,13 @@
  * @returns A new map of the entries of both.
  * @example
  * ```typescript
- * import {MergeMap} from 'lakutata/utils'
+ * import {mergeMap} from 'lakutata/utils'
  *
- * const merged: Map<string, number> = MergeMap(new Map([['a', 1], ['b', 2]]), new Map([['a', 9], ['c', 3]]))
+ * const merged: Map<string, number> = mergeMap(new Map([['a', 1], ['b', 2]]), new Map([['a', 9], ['c', 3]]))
  * console.log([...merged])
  * //[['a', 9], ['b', 2], ['c', 3]]
  * ```
  */
-export function MergeMap<K1, V1, K2, V2>(m1: Map<K1, V1>, m2: Map<K2, V2>): Map<K1 | K2, V1 | V2> {
+export function mergeMap<K1, V1, K2, V2>(m1: Map<K1, V1>, m2: Map<K2, V2>): Map<K1 | K2, V1 | V2> {
     return new Map<K1 | K2, V1 | V2>([...m1, ...m2])
 }

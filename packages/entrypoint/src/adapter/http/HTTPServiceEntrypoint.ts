@@ -8,7 +8,7 @@ import {ServiceResponseCodec, type ServiceResponse} from '../../lib/ServiceRespo
 import {EntrypointStoppedException} from '../../exceptions/EntrypointStoppedException.js'
 
 /**
- * The options of {@link HTTPServiceEntrypoint}.
+ * The options of {@link httpServiceEntrypoint}.
  */
 export type HTTPServiceEntrypointOptions = {
     /**
@@ -47,24 +47,24 @@ export type HTTPServiceEntrypointOptions = {
 }
 
 /**
- * Get the HTTP request carrying a service action's request, when {@link HTTPServiceEntrypoint} serves it (to read its
+ * Get the HTTP request carrying a service action's request, when {@link httpServiceEntrypoint} serves it (to read its
  * headers, its remote address…).
  * @param context The service action's context (`this.context` in a controller).
  * @returns The Node.js HTTP request, or `undefined` when another adapter serves the request.
  * @example
  * ```typescript
- * import {Controller, HTTPRequestOfContext, ServiceContext} from 'lakutata/com/entrypoint'
+ * import {Controller, httpRequestOfContext, ServiceContext} from 'lakutata/com/entrypoint'
  * import {ServiceAction} from 'lakutata/decorator/ctrl'
  *
  * class WhoAmIController extends Controller {
  *     @ServiceAction({cmd: 'whoami'})
  *     public async whoami(): Promise<string | undefined> {
- *         return HTTPRequestOfContext(this.context as ServiceContext)?.socket.remoteAddress
+ *         return httpRequestOfContext(this.context as ServiceContext)?.socket.remoteAddress
  *     }
  * }
  * ```
  */
-export function HTTPRequestOfContext(context: ServiceContext): IncomingMessage | undefined {
+export function httpRequestOfContext(context: ServiceContext): IncomingMessage | undefined {
     return (context as ServiceContext & { request?: IncomingMessage }).request
 }
 
@@ -135,11 +135,11 @@ async function ReadBody(request: IncomingMessage, limit: number): Promise<string
  * requests are answered with an `EntrypointStoppedException` error; once the requests in progress end, the event
  * streams are closed and the server shuts down.
  * @param options The adapter options; by default it listens on port 3000 of all the interfaces, on the path `/`.
- * @returns The adapter, to give to the `service` option of `BuildEntrypoints`.
+ * @returns The adapter, to give to the `service` option of `buildEntrypoints`.
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {BuildEntrypoints, Controller, HTTPServiceEntrypoint} from 'lakutata/com/entrypoint'
+ * import {buildEntrypoints, Controller, httpServiceEntrypoint} from 'lakutata/com/entrypoint'
  * import {ServiceAction} from 'lakutata/decorator/ctrl'
  *
  * class EchoController extends Controller {
@@ -153,9 +153,9 @@ async function ReadBody(request: IncomingMessage, limit: number): Promise<string
  *     id: 'echo.service',
  *     name: 'Echo',
  *     components: {
- *         entrypoint: BuildEntrypoints({
+ *         entrypoint: buildEntrypoints({
  *             controllers: [EchoController],
- *             service: HTTPServiceEntrypoint({port: 3000, path: '/rpc'})
+ *             service: httpServiceEntrypoint({port: 3000, path: '/rpc'})
  *         })
  *     }
  * })
@@ -170,7 +170,7 @@ async function ReadBody(request: IncomingMessage, limit: number): Promise<string
  * //The events pushed to client-1: GET http://localhost:3000/rpc/events?id=client-1 (text/event-stream)
  * ```
  */
-export function HTTPServiceEntrypoint(options: HTTPServiceEntrypointOptions = {}): EntrypointAdapter<ServiceContext> {
+export function httpServiceEntrypoint(options: HTTPServiceEntrypointOptions = {}): EntrypointAdapter<ServiceContext> {
     const base: string = (options.path ?? '/').replace(/\/+$/, '')
     const requestPath: string = base || '/'
     const eventsPath: string = `${base}/events`

@@ -9,21 +9,21 @@
  * @example
  * ```typescript
  * import {setTimeout as sleep} from 'node:timers/promises'
- * import {IsAbortError} from 'lakutata/utils'
+ * import {isAbortError} from 'lakutata/utils'
  *
  * try {
  *     await sleep(1000, undefined, {signal: AbortSignal.timeout(10)})
  * } catch (error) {
- *     console.log(IsAbortError(error))
+ *     console.log(isAbortError(error))
  *     //true
  * }
  * const controller: AbortController = new AbortController()
  * controller.abort()
- * console.log(IsAbortError(controller.signal.reason), IsAbortError(undefined))
+ * console.log(isAbortError(controller.signal.reason), isAbortError(undefined))
  * //true false
  * ```
  */
-export function IsAbortError(error: Error | any): boolean {
+export function isAbortError(error: Error | any): boolean {
     if (error === null || error === undefined) return false
     return error.name === 'AbortError' || error.code === 'ABORT_ERR'
 }

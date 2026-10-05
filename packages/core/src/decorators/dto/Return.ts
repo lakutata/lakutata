@@ -7,7 +7,7 @@ import {Schema} from '../../lib/validation/types/Schema.js'
  * Validate the result of each call of the method (awaited for an async method) against a schema; the caller then
  * receives the validated value (defaults applied, the keys without schema removed). A DTO class validates the result
  * against its schema: the caller receives a plain object. The schema is also published for the entrypoints describing
- * the results of their actions (see `GetMethodReturnSchema`).
+ * the results of their actions (see `getMethodReturnSchema`).
  * @param def The schema of the result: a DTO class or a schema (`DTO.Number()`).
  * @returns The method decorator; the decorated method cannot be reassigned.
  * @throws {InvalidMethodReturnException} From a call, when the method returns `undefined` (whatever the schema), or a
