@@ -1,5 +1,5 @@
 import type {FastifyReply, FastifyRequest} from 'fastify'
-import {DescribeError, StatusOfError} from '../../lib/HTTPErrors.js'
+import {DescribeError, type HTTPErrorOrigin, StatusOfError} from '../../lib/HTTPErrors.js'
 
 /**
  * How {@link FastifyHTTPEntrypoint} writes the results and the errors of the actions (its `respond` option). Implement
@@ -17,14 +17,16 @@ export interface FastifyResponder {
     success(reply: FastifyReply, data: unknown, request: FastifyRequest): void
 
     /**
-     * Write an error: a failed action (validation, access control, its own exception), an error of fastify (a body too
-     * large), or a request matching no route (`RouteNotFoundException`). Not called for an action once the reply is
-     * sent, nor after the client left.
+     * Write an error: a failed action (validation, access control, its own exception), an error of fastify (a hook such
+     * as an authenticator, a body too large), or a request matching no route (`RouteNotFoundException`). Not called for
+     * an action once the reply is sent, nor after the client left.
      * @param reply The fastify reply to send.
      * @param error The thrown error.
      * @param request The fastify request being answered.
+     * @param origin Where the error comes from: `'action'` (the dispatch of an action failed) or `'request'` (a hook,
+     * an error of fastify, a route not found); see `HTTPErrorOrigin`.
      */
-    error(reply: FastifyReply, error: unknown, request: FastifyRequest): void
+    error(reply: FastifyReply, error: unknown, request: FastifyRequest, origin?: HTTPErrorOrigin): void
 }
 
 /**
@@ -64,13 +66,20 @@ export type FastifyJSONEnvelopeOptions = {
      * @default the error's own status (see `StatusOfError`)
      */
     errorStatus?: number
+    /**
+     * The HTTP status of the errors of the actions only (their dispatch failed: validation, access control, their own
+     * exceptions), over `errorStatus`; the errors of the hooks (an authenticator's 401), of fastify and the routes not
+     * found keep theirs. 200 answers as the applications of lakutata 2.x usually did.
+     * @default `errorStatus`
+     */
+    actionErrorStatus?: number
 }
 
 /**
  * Create a responder for {@link FastifyHTTPEntrypoint} that wraps every response in the envelope
  * `{errno, errMsg, data}`: a result as `{errno: null, errMsg: null, data}` (`data` is `null` when the action returned
- * nothing, and its status is not turned into 204), an error as `{errno, errMsg, data: null}` with the error's status or
- * the `errorStatus` option.
+ * nothing, and its status is not turned into 204), an error as `{errno, errMsg, data: null}` with the error's status,
+ * the `errorStatus` option, or for the errors of the actions the `actionErrorStatus` option.
  * @param options The envelope options.
  * @returns The responder, to give to the `respond` option of `FastifyHTTPEntrypoint`.
  * @example
@@ -94,8 +103,9 @@ export type FastifyJSONEnvelopeOptions = {
  *     components: {
  *         entrypoint: BuildEntrypoints({
  *             controllers: [PingController],
- *             //The errors answered with 200 too: {"errno": "E_ROUTE_NOT_FOUND", "errMsg": "…", "data": null}
- *             http: FastifyHTTPEntrypoint({port: 8080, respond: FastifyJSONEnvelope({errorStatus: 200})})
+ *             //The errors of the actions answered with 200 too (as the applications of lakutata 2.x), the routes not
+ *             //found and the errors of the hooks with their status (404, 401…)
+ *             http: FastifyHTTPEntrypoint({port: 8080, respond: FastifyJSONEnvelope({actionErrorStatus: 200})})
  *         })
  *     }
  * })
@@ -104,8 +114,9 @@ export type FastifyJSONEnvelopeOptions = {
 export function FastifyJSONEnvelope(options: FastifyJSONEnvelopeOptions = {}): FastifyResponder {
     return {
         success: (reply: FastifyReply, data: unknown): void => SendJSON(reply, {errno: null, errMsg: null, data: data === undefined ? null : data}),
-        error: (reply: FastifyReply, error: unknown): void => {
-            reply.code(options.errorStatus ?? StatusOfError(error))
+        error: (reply: FastifyReply, error: unknown, _request: FastifyRequest, origin?: HTTPErrorOrigin): void => {
+            const status: number | undefined = origin === 'action' ? options.actionErrorStatus ?? options.errorStatus : options.errorStatus
+            reply.code(status ?? StatusOfError(error))
             SendJSON(reply, {...DescribeError(error), data: null})
         }
     }

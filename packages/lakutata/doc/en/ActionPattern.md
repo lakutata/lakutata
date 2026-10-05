@@ -274,6 +274,52 @@ Each option takes one adapter or an array of adapters. `BuildHTTPEntrypoint`, `B
 `BuildServiceEntrypoint` (from `lakutata/com/entrypoint`) type an entrypoint function in the style of lakutata 2.x, to
 plug another library; `EntrypointAdapter` (from `@lakutata/entrypoint/channel`) is the interface of the adapters.
 
+### From an entrypoint function of 2.x to the HTTP adapters
+
+An HTTP entrypoint function of 2.x (`BuildHTTPEntrypoint`) keeps working: it is called in the startup of the entrypoint
+(the objects it gets, such as an authenticator injecting the entrypoint, are available) and awaited, so the application
+launches once its server listens. To move it to `ExpressHTTPEntrypoint`:
+
+- the middlewares and the routes of the application (CORS, compression, a health check, the authenticator, a web UI) go
+  into its `before` hook, which gets the objects with `module.getObject()`; the body parsers are its `body` option
+  (`{limit: '100mb'}`); the `keepAliveTimeout`/`headersTimeout` of the server its `server` option;
+- the input built from the request (the query, the body, a value of the session) is its `input` option;
+- the `{errno, errMsg, data}` envelope is `JSONEnvelope()`. The applications of 2.x usually answered the errors of the
+  actions with 200 and the errors of their express middlewares (`next(error)`: an authenticator's 401) with their
+  status: `JSONEnvelope({actionErrorStatus: 200})` does the same — `errorStatus: 200` would answer the 401 with 200 too,
+  which the clients redirecting to the login page on a 401 would miss.
+
+```typescript
+import {BuildEntrypoints} from 'lakutata/com/entrypoint'
+import {ExpressHTTPEntrypoint, JSONEnvelope} from 'lakutata/adapter/express'
+import type {Express, NextFunction, Request, Response} from 'express'
+
+class Unauthorized extends Error {
+    public readonly errno: string = 'E_UNAUTHORIZED'
+
+    public readonly statusCode: number = 401
+}
+
+export const entrypoint = BuildEntrypoints({
+    controllers: [],
+    http: ExpressHTTPEntrypoint({
+        port: 3000,
+        body: {limit: '100mb'},
+        before: async (app: Express): Promise<void> => {
+            app.get('/health', (_request: Request, response: Response): unknown => response.json({status: 'ok'}))
+            //The authenticator of the requests: its errors keep their status (401)
+            app.use((request: Request, _response: Response, next: NextFunction): void => request.headers.authorization ? next() : next(new Unauthorized('Not logged in')))
+        },
+        //The errors of the actions answered with 200 in the envelope, as in 2.x
+        respond: JSONEnvelope({actionErrorStatus: 200})
+    })
+})
+```
+
+`FastifyHTTPEntrypoint` takes the same options (`FastifyJSONEnvelope({actionErrorStatus: 200})`, the authenticator
+being a hook of fastify). A responder of its own receives the origin of each error as the fourth argument of its
+`error` (`'action'` or `'request'`).
+
 ### The clients of the service actions and their events
 
 The service adapters with clients give the id of the client of a request to its context, `ServiceContext.clientId`:

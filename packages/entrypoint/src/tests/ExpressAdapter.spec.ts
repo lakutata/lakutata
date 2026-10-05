@@ -28,6 +28,12 @@ class DeviceDTO extends DTO {
     public name?: string
 }
 
+class UnauthorizedException extends Exception {
+    public errno: string = 'E_UNAUTHORIZED'
+
+    public readonly statusCode: number = 401
+}
+
 class MissingException extends Exception {
     public errno: string = 'E_MISSING'
 
@@ -176,6 +182,26 @@ describe('Express adapter', (): void => {
         assert.strictEqual(unknownAction.status, 200)
         assert.deepStrictEqual(await unknownAction.json(), {errno: 'E_ROUTE_NOT_FOUND', errMsg: 'Route /device not found', data: null})
         assert.deepStrictEqual(await (await fetch(`${url}/device/a`)).json(), {errno: null, errMsg: null, data: {sn: 'a'}})
+        await container.destroy()
+    })
+
+    it('answers the errors of the actions with the status of the envelope, the others with theirs', async (): Promise<void> => {
+        const {url, container} = await Start({
+            //An authenticator of the requests, as the applications of lakutata 2.x add it
+            before: (app): void => {
+                app.use((request, _response, next): void => request.headers['x-token'] ? next() : next(new UnauthorizedException('Not logged in')))
+            },
+            respond: JSONEnvelope({actionErrorStatus: 200})
+        })
+        const token: RequestInit = {headers: {'x-token': 'a'}}
+        const unauthorized: Response = await fetch(`${url}/device/a`)
+        assert.strictEqual(unauthorized.status, 401)
+        assert.deepStrictEqual(await unauthorized.json(), {errno: 'E_UNAUTHORIZED', errMsg: 'Not logged in', data: null})
+        const failed: Response = await fetch(`${url}/missing`, token)
+        assert.strictEqual(failed.status, 200)
+        assert.deepStrictEqual(await failed.json(), {errno: 'E_MISSING', errMsg: 'Nothing here', data: null})
+        assert.strictEqual((await fetch(`${url}/device`, token)).status, 404)
+        assert.deepStrictEqual(await (await fetch(`${url}/device/a`, token)).json(), {errno: null, errMsg: null, data: {sn: 'a'}})
         await container.destroy()
     })
 

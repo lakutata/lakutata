@@ -331,7 +331,7 @@ export function FastifyHTTPEntrypoint(options: FastifyHTTPEntrypointOptions = {}
             const result: unknown = await runtime.dispatchTo(action, context, {signal: abortController.signal, params: {...(request.params as Record<string, unknown>)}})
             if (!abortController.signal.aborted) await output(result, request, reply)
         } catch (error: unknown) {
-            if (!reply.sent && !reply.raw.headersSent && !abortController.signal.aborted) respond.error(reply, error, request)
+            if (!reply.sent && !reply.raw.headersSent && !abortController.signal.aborted) respond.error(reply, error, request, 'action')
         }
         //The client left: nothing is sent, the request is done for fastify (it is not waited for when fastify closes)
         if (abortController.signal.aborted && !reply.sent) {
@@ -367,7 +367,7 @@ export function FastifyHTTPEntrypoint(options: FastifyHTTPEntrypointOptions = {}
             fastify.setNotFoundHandler((request: FastifyRequest, reply: FastifyReply): unknown => {
                 const requestPath: string = request.url.split('?')[0]
                 if (options.fallback && !isActionPath(requestPath)) return options.fallback(request, reply)
-                return respond.error(reply, new RouteNotFoundException('Route {route} not found', {route: requestPath}), request)
+                return respond.error(reply, new RouteNotFoundException('Route {route} not found', {route: requestPath}), request, 'request')
             })
             //The responses in progress are waited for when the adapter closes
             fastify.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
@@ -380,7 +380,7 @@ export function FastifyHTTPEntrypoint(options: FastifyHTTPEntrypointOptions = {}
             fastify.addHook('onResponse', async (): Promise<void> => {
                 if (stopping) setImmediate((): unknown => fastify.server.closeIdleConnections())
             })
-            fastify.setErrorHandler((error: unknown, request: FastifyRequest, reply: FastifyReply): unknown => respond.error(reply, error, request))
+            fastify.setErrorHandler((error: unknown, request: FastifyRequest, reply: FastifyReply): unknown => respond.error(reply, error, request, 'request'))
             //The adapter starts once the server listens (an occupied port fails the start)
             //Every interface by default, as the other adapters (fastify listens on localhost only)
             if (options.host !== undefined) {

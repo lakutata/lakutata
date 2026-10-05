@@ -320,7 +320,7 @@ export function ExpressHTTPEntrypoint(options: ExpressHTTPEntrypointOptions = {}
             if (!abortController.signal.aborted) await output(result, request, response)
         }
         dispatch().catch((error: unknown): void => {
-            if (!response.headersSent && !abortController.signal.aborted) respond.error(response, error, request)
+            if (!response.headersSent && !abortController.signal.aborted) respond.error(response, error, request, 'action')
         })
     }
 
@@ -346,10 +346,10 @@ export function ExpressHTTPEntrypoint(options: ExpressHTTPEntrypointOptions = {}
             }
             const fallback: RequestHandler | undefined = options.fallback
             if (fallback) app.use((request: Request, response: Response, next: NextFunction): unknown => isActionPath(request.path) ? next() : fallback(request, response, next))
-            app.use((request: Request, response: Response): void => respond.error(response, new RouteNotFoundException('Route {route} not found', {route: request.path}), request))
+            app.use((request: Request, response: Response): void => respond.error(response, new RouteNotFoundException('Route {route} not found', {route: request.path}), request, 'request'))
             app.use((error: unknown, request: Request, response: Response, next: NextFunction): void => {
                 if (response.headersSent) return next(error)
-                respond.error(response, error, request)
+                respond.error(response, error, request, 'request')
             })
             //The adapter starts once the server listens (an occupied port fails the start)
             await new Promise<void>((resolve: () => void, reject: (error: Error) => void): void => {

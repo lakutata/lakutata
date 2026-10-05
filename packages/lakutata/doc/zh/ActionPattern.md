@@ -234,6 +234,43 @@ class UserController extends Controller {
 
 每个选项可以是一个适配器或适配器数组。`lakutata/com/entrypoint` 中的 `BuildHTTPEntrypoint`、`BuildCLIEntrypoint` 和 `BuildServiceEntrypoint` 用于以 lakutata 2.x 的风格编写入口函数，以接入其他库；`EntrypointAdapter`（来自 `@lakutata/entrypoint/channel`）是适配器的接口。
 
+### 从 2.x 的入口函数迁移到 HTTP 适配器
+
+2.x 的 HTTP 入口函数（`BuildHTTPEntrypoint`）仍然可以使用：它在入口的启动阶段被调用（此时它获取的对象，比如注入了入口的 Authenticator，都可以正常获取），并且会被等待，所以应用在它的服务开始监听之后才算启动完成。迁移到 `ExpressHTTPEntrypoint` 时：
+
+- 应用自己的中间件和路由（CORS、压缩、健康检查、Authenticator、Web UI）放进 `before` 钩子，钩子里用 `module.getObject()` 获取对象；请求体解析用 `body` 选项（`{limit: '100mb'}`）；服务器的 `keepAliveTimeout`/`headersTimeout` 用 `server` 选项；
+- 从请求构造动作输入（查询参数、请求体、会话中的值）用 `input` 选项；
+- `{errno, errMsg, data}` 封套用 `JSONEnvelope()`。2.x 的应用通常对动作的错误返回 200，而对 Express 中间件的错误（`next(error)`，比如 Authenticator 的 401）使用错误自带的状态码：`JSONEnvelope({actionErrorStatus: 200})` 的行为与此相同。如果用 `errorStatus: 200`，401 也会变成 200，按 401 跳转登录页的前端就会失效。
+
+```typescript
+import {BuildEntrypoints} from 'lakutata/com/entrypoint'
+import {ExpressHTTPEntrypoint, JSONEnvelope} from 'lakutata/adapter/express'
+import type {Express, NextFunction, Request, Response} from 'express'
+
+class Unauthorized extends Error {
+    public readonly errno: string = 'E_UNAUTHORIZED'
+
+    public readonly statusCode: number = 401
+}
+
+export const entrypoint = BuildEntrypoints({
+    controllers: [],
+    http: ExpressHTTPEntrypoint({
+        port: 3000,
+        body: {limit: '100mb'},
+        before: async (app: Express): Promise<void> => {
+            app.get('/health', (_request: Request, response: Response): unknown => response.json({status: 'ok'}))
+            //请求的鉴权：它的错误保留自带的状态码（401）
+            app.use((request: Request, _response: Response, next: NextFunction): void => request.headers.authorization ? next() : next(new Unauthorized('Not logged in')))
+        },
+        //动作的错误在封套中以 200 返回，与 2.x 相同
+        respond: JSONEnvelope({actionErrorStatus: 200})
+    })
+})
+```
+
+`FastifyHTTPEntrypoint` 的选项相同（使用 `FastifyJSONEnvelope({actionErrorStatus: 200})`，Authenticator 写成 Fastify 的钩子）。自定义的响应器可以从 `error` 的第四个参数得到每个错误的来源（`'action'` 或 `'request'`）。
+
 ### 服务动作的客户端与推送事件
 
 带客户端的服务适配器会把请求所属客户端的 id 放入上下文的 `ServiceContext.clientId`：`ElectronIPCServiceEntrypoint`（窗口中的每个页面）、`SocketIOServiceEntrypoint`（每个 socket，连接时通过 `auth.id` 或 `id` 请求头给出 id）、`HTTPServiceEntrypoint`（`POST` 请求的 `id` 请求头，事件流 `GET /events` 的 `id` 请求头或查询参数）、WebSocket 和 stdio 上的 `JSONRPCServiceEntrypoint`，以及 `GRPCServiceEntrypoint`（`id` 元数据）。入口组件用 `notify(clientId, event, ...args)` 向某个客户端推送事件（返回是否有客户端收到），用 `broadcast(event, ...args)` 向所有客户端推送（返回客户端数量）：

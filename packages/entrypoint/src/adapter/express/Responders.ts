@@ -1,7 +1,7 @@
 import type {Request, Response} from 'express'
-import {DescribeError, StatusOfError} from '../../lib/HTTPErrors.js'
+import {DescribeError, type HTTPErrorOrigin, StatusOfError} from '../../lib/HTTPErrors.js'
 
-export {DescribeError, StatusOfError}
+export {DescribeError, StatusOfError, type HTTPErrorOrigin}
 
 /**
  * How {@link ExpressHTTPEntrypoint} writes the results and the errors of the actions (its `respond` option). Implement
@@ -19,13 +19,16 @@ export interface ExpressResponder {
     success(response: Response, data: unknown, request: Request): void
 
     /**
-     * Write an error: a failed action (validation, access control, its own exception), or a request matching no
-     * route (`RouteNotFoundException`). Not called once the response headers are sent, nor after the client left.
+     * Write an error: a failed action (validation, access control, its own exception), an error passed by an express
+     * middleware (`next(error)`: an authenticator), or a request matching no route (`RouteNotFoundException`). Not
+     * called once the response headers are sent, nor after the client left.
      * @param response The express response to write.
      * @param error The thrown error.
      * @param request The express request being answered.
+     * @param origin Where the error comes from: `'action'` (the dispatch of an action failed) or `'request'` (an
+     * express middleware, a route not found); see {@link HTTPErrorOrigin}.
      */
-    error(response: Response, error: unknown, request: Request): void
+    error(response: Response, error: unknown, request: Request, origin?: HTTPErrorOrigin): void
 }
 
 /**
@@ -55,13 +58,20 @@ export type JSONEnvelopeOptions = {
      * @default the error's own status (see `StatusOfError`)
      */
     errorStatus?: number
+    /**
+     * The HTTP status of the errors of the actions only (their dispatch failed: validation, access control, their own
+     * exceptions), over `errorStatus`; the errors of the express middlewares (an authenticator's 401) and the routes
+     * not found keep theirs. 200 answers as the applications of lakutata 2.x usually did.
+     * @default `errorStatus`
+     */
+    actionErrorStatus?: number
 }
 
 /**
  * Create a responder for {@link ExpressHTTPEntrypoint} that wraps every response in the envelope
  * `{errno, errMsg, data}`: a result as `{errno: null, errMsg: null, data}` (`data` is `null` when the action returned
- * nothing, and its status is not turned into 204), an error as `{errno, errMsg, data: null}` with the error's status or
- * the `errorStatus` option.
+ * nothing, and its status is not turned into 204), an error as `{errno, errMsg, data: null}` with the error's status,
+ * the `errorStatus` option, or for the errors of the actions the `actionErrorStatus` option.
  * @param options The envelope options.
  * @returns The responder, to give to the `respond` option of `ExpressHTTPEntrypoint`.
  * @example
@@ -85,8 +95,9 @@ export type JSONEnvelopeOptions = {
  *     components: {
  *         entrypoint: BuildEntrypoints({
  *             controllers: [PingController],
- *             //The errors answered with 200 too: {"errno": "E_ROUTE_NOT_FOUND", "errMsg": "…", "data": null}
- *             http: ExpressHTTPEntrypoint({port: 8080, respond: JSONEnvelope({errorStatus: 200})})
+ *             //The errors of the actions answered with 200 too (as the applications of lakutata 2.x), the routes not
+ *             //found and the errors of the express middlewares with their status (404, 401…)
+ *             http: ExpressHTTPEntrypoint({port: 8080, respond: JSONEnvelope({actionErrorStatus: 200})})
  *         })
  *     }
  * })
@@ -97,8 +108,9 @@ export function JSONEnvelope(options: JSONEnvelopeOptions = {}): ExpressResponde
         success: (response: Response, data: unknown): void => {
             response.json({errno: null, errMsg: null, data: data === undefined ? null : data})
         },
-        error: (response: Response, error: unknown): void => {
-            response.status(options.errorStatus ?? StatusOfError(error)).json({...DescribeError(error), data: null})
+        error: (response: Response, error: unknown, _request: Request, origin?: HTTPErrorOrigin): void => {
+            const status: number | undefined = origin === 'action' ? options.actionErrorStatus ?? options.errorStatus : options.errorStatus
+            response.status(status ?? StatusOfError(error)).json({...DescribeError(error), data: null})
         }
     }
 }
