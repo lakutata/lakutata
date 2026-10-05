@@ -12,7 +12,8 @@
 // --skip-gates does not run the checks (a rehearsal)
 
 import {execFileSync} from 'node:child_process'
-import {readFileSync} from 'node:fs'
+import {existsSync, readFileSync, renameSync} from 'node:fs'
+import path from 'node:path'
 import {parseArgs} from 'node:util'
 import {fileURLToPath} from 'node:url'
 
@@ -64,6 +65,14 @@ console.log(`Release ${current} → ${version} (dist-tag ${channel}${options.reg
 
 run('npm', ['run', 'rebuild'])
 if (!options['skip-gates']) for (const gate of GATES) run('npm', ['run', gate])
-run('npx', ['lerna', 'version', version, '--yes', ...(options['no-git'] ? ['--no-git-tag-version'] : [])])
+//The lockfile of the workspace is not versioned (.gitignore): lerna would update it and add it to the commit
+const lockfile = path.join(ROOT, 'package-lock.json')
+const aside = `${lockfile}.release`
+if (existsSync(lockfile)) renameSync(lockfile, aside)
+try {
+    run('npx', ['lerna', 'version', version, '--yes', ...(options['no-git'] ? ['--no-git-tag-version'] : [])])
+} finally {
+    if (existsSync(aside)) renameSync(aside, lockfile)
+}
 run('npx', ['lerna', 'publish', 'from-package', '--yes', '--dist-tag', channel, ...(options.registry ? ['--registry', options.registry] : [])])
 console.log(`\nReleased ${version}${options['no-git'] ? '' : `: push the commit and the tag v${version} when ready (git push --follow-tags)`}`)
