@@ -1,7 +1,8 @@
 import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
 import {execFileSync} from 'node:child_process'
-import {existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync} from 'node:fs'
+import {createRequire} from 'node:module'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {buildExecutable, bundleProject} from '../index.js'
@@ -15,6 +16,39 @@ function writeProject(project: string, files: Record<string, string>): void {
     for (const [file, content] of Object.entries(files)) {
         mkdirSync(path.dirname(path.join(project, file)), {recursive: true})
         writeFileSync(path.join(project, file), content)
+    }
+}
+
+/**
+ * Link packages of the repository into the node_modules of a project (the pools of workers of the tests, never named by
+ * the builder)
+ * @param project
+ * @param names
+ */
+function linkPackages(project: string, names: string[]): void {
+    const require: NodeJS.Require = createRequire(import.meta.url)
+    for (const name of names) {
+        //The directory of the package: the one of its entry holding its package.json (its exports may hide it)
+        let root: string = path.dirname(require.resolve(name))
+        while (!existsSync(path.join(root, 'package.json')) || JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')).name !== name) root = path.dirname(root)
+        const target: string = path.join(project, 'node_modules', name)
+        mkdirSync(path.dirname(target), {recursive: true})
+        symlinkSync(realpathSync(root), target, 'dir')
+    }
+}
+
+/**
+ * Run a bundle without the sources of its project: what it prints
+ * @param project
+ * @param bundle
+ * @param sources the directories of the project moved away while it runs
+ */
+function runWithout(project: string, bundle: string, sources: string[]): string {
+    for (const source of sources) renameSync(path.join(project, source), path.join(project, `${source}.off`))
+    try {
+        return execFileSync(process.execPath, [bundle], {cwd: tmpdir(), timeout: 60000}).toString().trim()
+    } finally {
+        for (const source of sources) renameSync(path.join(project, `${source}.off`), path.join(project, source))
     }
 }
 
@@ -147,6 +181,121 @@ parentPort.postMessage('module ' + workerData)
         assert.strictEqual(execFileSync(process.execPath, [result.outfile], {cwd: tmpdir()}).toString().trim(), 'module url,module dirname,module meta')
     })
 
+    it('follows the paths to scripts wherever they are given: the options of the pools of workers, the properties of the classes, fork, require', async (): Promise<void> => {
+        const project: string = path.join(work, 'anywhere')
+        writeProject(project, {
+            'package.json': JSON.stringify({name: 'anywhere', version: '1.0.0', main: 'build/index.js'}),
+            'build/index.js': `const path = require('node:path')
+const {fork} = require('node:child_process')
+const worker_threads_1 = require('node:worker_threads')
+const {Piscina} = require('piscina')
+const workerpool = require('workerpool')
+const {Tinypool} = require('tinypool')
+//The consumers of a queue named Worker, as the ones of the queues of jobs: not threads, not warned of
+class Worker {
+    constructor(queue, processor) {
+        this.queue = queue
+        this.processor = processor
+    }
+}
+class Predictions {
+    workerPath = path.resolve(__dirname, '..', 'workers', 'predict.js')
+    constructor() {
+        this.legacyPath = path.join(__dirname, 'lib', 'legacy.js')
+    }
+    predict(n) {
+        return answer(new worker_threads_1.Worker(this.workerPath, {workerData: n}))
+    }
+    legacy() {
+        return answer(new worker_threads_1.Worker(this.legacyPath))
+    }
+}
+function answer(worker) {
+    return new Promise((resolve, reject) => worker.once('message', resolve).once('error', reject))
+}
+async function main() {
+    new Worker('extraction', async () => undefined)
+    const piscina = new Piscina({filename: require.resolve(path.resolve(__dirname, 'lib/Double'))})
+    const pool = workerpool.pool(path.join(__dirname, 'lib', 'pooled.js'))
+    const tinypool = new Tinypool({filename: path.resolve(__dirname, 'lib', 'Double.js')})
+    const predictions = new Predictions()
+    const child = fork(path.join(__dirname, 'child.js'))
+    //Listened to at once: the child answers when it starts
+    const forked = answer(child)
+    const lines = [
+        'piscina ' + await piscina.run(2),
+        //Its pool does not answer under Bun, bundled or not
+        process.versions.bun ? 'workerpool skipped' : 'workerpool ' + await pool.exec('triple', [2]),
+        'tinypool ' + await tinypool.run(3),
+        'property ' + await predictions.predict(5),
+        'assigned ' + await predictions.legacy(),
+        'fork ' + await forked,
+        'require ' + require(path.join(__dirname, 'lib', 'plugin.js')).name
+    ]
+    await piscina.destroy()
+    await pool.terminate()
+    await tinypool.destroy()
+    child.disconnect()
+    console.log(lines.join('\\n'))
+}
+main()
+`,
+            'build/lib/Double.js': 'module.exports = (n) => n * 2\n',
+            'build/lib/pooled.js': 'require(\'workerpool\').worker({triple: (n) => n * 3})\n',
+            'build/lib/legacy.js': 'require(\'node:worker_threads\').parentPort.postMessage(\'legacy\')\n',
+            'build/lib/plugin.js': 'module.exports = {name: \'plugin\'}\n',
+            'build/child.js': 'process.send(\'child\')\n',
+            'workers/predict.js': 'const {parentPort, workerData} = require(\'node:worker_threads\')\nparentPort.postMessage(workerData * 10)\n'
+        })
+        linkPackages(project, ['piscina', 'workerpool', 'tinypool'])
+        const result = await bundleProject({project: project})
+        assert.deepStrictEqual(result.warnings, [])
+        //The scripts of the application, and the ones of the pools (their workers, the children of the processes)
+        for (const script of ['build/child.js', 'build/lib/Double.js', 'build/lib/legacy.js', 'build/lib/plugin.js', 'build/lib/pooled.js', 'workers/predict.js']) assert.ok(result.workers.includes(script), script)
+        assert.ok(result.workers.some((script: string): boolean => script.endsWith('piscina/dist/worker.js')))
+        //The packages linked from outside of the project are named from their node_modules in the tree
+        const workers: string = path.join(result.nativeDirectory!, '.lakutata', 'workers')
+        assert.ok(existsSync(path.join(workers, 'node_modules', 'piscina', 'dist', 'worker.js')))
+        assert.strictEqual(runWithout(project, result.outfile, ['build', 'workers', 'node_modules']), [
+            'piscina 4', 'workerpool 6', 'tinypool 6', 'property 50', 'assigned legacy', 'fork child', 'require plugin'
+        ].join('\n'))
+    })
+
+    it('runs the scripts of an executable started for them (fork()) instead of the application, in the executables of Node.js', async (): Promise<void> => {
+        const project: string = path.join(work, 'anywhere')
+        const result = await buildExecutable({project: project, outdir: path.join(project, 'executable')})
+        assert.strictEqual(execFileSync(result.file, [], {cwd: tmpdir(), env: {PATH: '', LAKUTATA_NATIVE_DIR: path.join(work, 'anywhere-node')}, timeout: 60000}).toString().trim(), [
+            'piscina 4', 'workerpool 6', 'tinypool 6', 'property 50', 'assigned legacy', 'fork child', 'require plugin'
+        ].join('\n'))
+    })
+
+    it('runs the scripts of an executable started for them (fork()) instead of the application, in the executables of Bun', {skip: !hasBun() && 'Bun is not installed'}, async (): Promise<void> => {
+        const project: string = path.join(work, 'anywhere')
+        const result = await buildExecutable({project: project, outdir: path.join(project, 'executable-bun'), runtime: 'bun'})
+        assert.strictEqual(execFileSync(result.file, [], {cwd: tmpdir(), env: {PATH: '', LAKUTATA_NATIVE_DIR: path.join(work, 'anywhere-bun')}, timeout: 60000}).toString().trim(), [
+            'piscina 4', 'workerpool skipped', 'tinypool 6', 'property 50', 'assigned legacy', 'fork child', 'require plugin'
+        ].join('\n'))
+    })
+
+    it('warns of the scripts bundled with the application and run on their own too', async (): Promise<void> => {
+        const project: string = path.join(work, 'twice')
+        writeProject(project, {
+            'package.json': JSON.stringify({name: 'twice', version: '1.0.0', main: 'build/index.js'}),
+            'build/index.js': `const {Worker} = require('node:worker_threads')
+const helper = require('./helper.js')
+new Worker(require('node:path').join(__dirname, 'helper.js')).once('message', (message) => console.log(helper.name, message))
+`,
+            'build/helper.js': `module.exports = {name: 'helper'}
+const {parentPort} = require('node:worker_threads')
+if (parentPort) parentPort.postMessage('in a worker')
+`
+        })
+        const result = await bundleProject({project: project})
+        assert.deepStrictEqual(result.warnings.length, 1)
+        assert.match(result.warnings[0], /^build\/helper\.js: is bundled with the application and run on its own/)
+        assert.strictEqual(execFileSync(process.execPath, [result.outfile], {cwd: tmpdir()}).toString().trim(), 'helper in a worker')
+    })
+
     it('warns of the workers whose scripts it cannot follow, in the modules of the application', async (): Promise<void> => {
         const project: string = path.join(work, 'warned')
         writeProject(project, {
@@ -167,8 +316,9 @@ require('pool').run(file)
         })
         const result = await bundleProject({project: project})
         assert.ok(existsSync(result.outfile))
-        assert.deepStrictEqual(result.workers, [])
-        assert.deepStrictEqual(result.warnings.map((warning: string): string => warning.replace(/: .*/, '')), ['build/index.js:4', 'build/index.js:5', 'build/index.js:6', 'build/index.js:8'])
+        //The path of the variable is followed, whatever starts its worker
+        assert.deepStrictEqual(result.workers, ['build/worker.js'])
+        assert.deepStrictEqual(result.warnings.map((warning: string): string => warning.replace(/: .*/, '')), ['build/index.js:4', 'build/index.js:5', 'build/index.js:6'])
         assert.match(result.warnings[0], /cannot be followed \(file\)/)
         assert.match(result.warnings[1], /current directory of the process/)
         assert.match(result.warnings[2], /is not found/)

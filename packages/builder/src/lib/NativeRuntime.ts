@@ -151,7 +151,9 @@ export function lakutataNativeRequire(nodeRequire: NodeJS.Require, config: Nativ
     }
     const tree = (): NodeJS.Require => treeRequire ??= createRequire(path.join(locate(), 'index.js'))
 
-    const require = ((id: string): unknown => fromTree(id) ? tree()(id) : nodeRequire(id)) as NodeJS.Require & { lakutataNative(key: string): unknown, lakutataWorker(key: string): string, lakutataWorkerURL(key: string): string }
+    //The files loaded by their paths (the scripts of the tree): the require of an executable of Node.js loads the modules of
+    //node only
+    const require = ((id: string): unknown => fromTree(id) ? tree()(id) : path.isAbsolute(id) ? createRequire(id)(id) : nodeRequire(id)) as NodeJS.Require & { lakutataNative(key: string): unknown, lakutataWorker(key: string): string, lakutataWorkerURL(key: string): string, lakutataScript(): boolean }
     require.resolve = ((id: string, options?: { paths?: string[] }): string => fromTree(id) ? tree().resolve(id, options) : nodeRequire.resolve(id, options)) as NodeJS.RequireResolve
     require.cache = nodeRequire.cache
     require.main = nodeRequire.main
@@ -166,6 +168,20 @@ export function lakutataNativeRequire(nodeRequire: NodeJS.Require, config: Nativ
     const workers = (key: string): string => path.join(locate(), '.lakutata', 'workers', ...key.split('/'))
     require.lakutataWorker = workers
     require.lakutataWorkerURL = (key: string): string => (nodeRequire('node:url') as typeof import('node:url')).pathToFileURL(workers(key) + path.sep).href
+    //An executable started to run a script of its tree (fork(), spawn(process.execPath, [script]): process.execPath is the
+    //executable): it runs the script as node runs it, the application not started
+    require.lakutataScript = (): boolean => {
+        if (!config.embedded || config.root !== undefined) return false
+        const scripts: string = path.join(locate(), '.lakutata', 'workers') + path.sep
+        const at: number = [1, 2].find((index: number): boolean => !!process.argv[index] && path.resolve(process.argv[index]).startsWith(scripts)) ?? -1
+        if (at < 0) return false
+        const script: string = path.resolve(process.argv[at])
+        process.argv.splice(1, at - 1)
+        //The main module of node (require.main); Bun loads it by a require (its Module._load does nothing)
+        if (process.versions.bun) createRequire(script)(script)
+        else (nodeRequire('node:module') as { _load(request: string, parent: unknown, isMain: boolean): unknown })._load(script, null, true)
+        return true
+    }
     //The resources of an executable are extracted with the tree (PACKAGED, EMBEDDED_RESOURCES)
     if (config.embedded) (globalThis as Record<symbol, unknown>)[Symbol.for('lakutata.packaged')] = {resources: (): string => path.join(locate(), '.lakutata', 'resources')}
     return require

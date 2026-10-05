@@ -212,26 +212,32 @@ files by paths which cannot be followed (`require(path.join(__dirname, name))`) 
 maps, the TypeScript sources and the documentation of the packages are left out. The addons of
 the application itself (`require('./x.node')`, `createRequire(import.meta.url)('./x.node')`) are there too.
 
-The scripts of the workers (`worker_threads`) are not followed by the bundler (`new Worker()` takes a path): they are
-found while the application is bundled, each bundled with what it loads (a CommonJS file, whatever the type of the
-project) into the native tree (`dist/<name>.native/.lakutata/workers/`, their directories as in the project), and the
-paths giving them are rewritten to them. The paths followed are the ones from the module starting the worker:
+The scripts the application runs on their own by their paths are not followed by the bundler: the scripts of its
+workers (`new Worker()`, the pools of workers given a file), of its child processes (`fork()`), the modules it loads by
+their paths (`require(path.join(__dirname, 'x.js'))`). A path to a script (a `.js` or `.cjs` file) given from its module
+is found wherever it is written, in the modules of the application and in the ones of its packages (the scripts of the
+pools of workers): the script is bundled on its own with what it loads (a CommonJS file, whatever the type of the
+project) into the native tree (`dist/<name>.native/.lakutata/workers/`, its directories as in the project, the packages
+linked from outside of it under `node_modules/`), and the expression rewritten to it. The paths followed:
 
 | Path | |
 |---|---|
 | `new URL('./worker.js', import.meta.url)` | the URL of the module (as Vite); `pathToFileURL(__filename)` too |
+| `import.meta.url + '/../worker.js'` | a text of the URL of the module |
 | `path.join(__dirname, 'worker.js')`, `path.resolve(__dirname, …)` | `import.meta.dirname`, `path.dirname(fileURLToPath(import.meta.url))` too |
 | `__dirname + '/worker.js'`, `` `${__dirname}/worker.js` `` | |
-| `require.resolve('./worker.js')` | |
+| `require.resolve('./worker')`, `require.resolve(path.resolve(__dirname, '../lib/worker'))` | the extension found as node finds it |
 | `` path.join(__dirname, 'jobs', `${name}.js`) ``, `` new URL(`./jobs/${name}.js`, import.meta.url) `` | known in part: every script of the directory its pattern matches (an expression matches a part of a name), its expression kept |
 
-The path may be given by a constant (`const script = path.join(__dirname, 'worker.js')`), and the code of tsc
-(`(0, node_path_1.join)(__dirname, 'worker.js')`) is followed. The workers whose scripts cannot be followed are warned
-of with their file and line, in the modules of the application (the packages start workers from the paths their users
-give): a path known at run time only (`new Worker(file)`), or a path relative to the current directory of the process
-(`new Worker('./worker.js')`, which node reads from there, not from the module); their scripts are shipped as resources
-(`lakutata.resources`), or given from the directory of their module. The workers running a source (`eval: true`) need
-nothing.
+The code of tsc (`(0, node_path_1.join)(__dirname, 'worker.js')`) is followed. The paths to other files (a directory, a
+data file) are left as they are: they are resources (below). A script also imported by the application is warned of:
+it is bundled twice, its module apart in each (its state, its classes). The workers of node (`worker_threads`) whose
+scripts cannot be followed are warned of with their file and line, in the modules of the application (the packages start
+workers from the paths their users give): a path known at run time only (`new Worker(file)`, a variable or a property of
+a class holding one of the paths above is followed), or a path relative to the current directory of the process
+(`new Worker('./worker.js')`, which node reads from there, not from the module); their scripts are given from the
+directory of their module, or shipped as resources (`lakutata.resources`). The workers running a source (`eval: true`)
+need nothing.
 
 The resources of the application, the files it reads at run time (the built pages of a web application, templates,
 data), are declared by the `lakutata.resources` of its `package.json`, as the `extraResources` of electron-builder:
@@ -276,7 +282,9 @@ first run, it extracts them into its cache directory (`~/.cache/<name>`, `~/Libr
 `%LOCALAPPDATA%\<name>\Cache` on Windows, or `LAKUTATA_NATIVE_DIR`; the temporary directory when it cannot be written),
 in a directory named after their content:
 the next runs load them from there, the versions of the program do not share it. The addons need the system libraries they were built for (the
-glibc version of the Linux prebuilt addons).
+glibc version of the Linux prebuilt addons). The child processes of an executable run it (`process.execPath`): started
+for one of its scripts (`fork(path.join(__dirname, 'child.js'))`, `spawn(process.execPath, [script])`), it runs the
+script as node does (its arguments, `require.main`), not the application.
 
 The executables of macOS are signed ad hoc. The ones of Windows made by Node.js keep the signature of `node.exe`, which
 does not match anymore: sign them before distributing them.

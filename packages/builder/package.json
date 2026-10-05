@@ -48,5 +48,10 @@
     "*.md",
     "LICENSE",
     "package.json"
-  ]
+  ],
+  "devDependencies": {
+    "piscina": "^5.3.2",
+    "tinypool": "^2.2.0",
+    "workerpool": "^10.0.3"
+  }
 }

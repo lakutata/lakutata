@@ -168,11 +168,12 @@ export async function bundleProject(options: BundleOptions): Promise<BundleResul
     const {build} = await import('esbuild')
     //The application, and each script of its workers (the bundler does not follow new Worker()): their native packages
     //gathered into one tree, the workers they start found too
-    const bundle = async (input: string, output: string): Promise<string> => {
+    const bundle = async (input: string, output: string): Promise<{ code: string, inputs: Set<string> }> => {
         const result = await build({
             entryPoints: [input],
             outfile: output,
             write: false,
+            metafile: true,
             bundle: true,
             platform: 'node',
             target: `node${process.versions.node.split('.')[0]}`,
@@ -197,17 +198,24 @@ export async function bundleProject(options: BundleOptions): Promise<BundleResul
             const hint: string = messages.some((message: string): boolean => message.includes('Top-level await')) ? '\nThe bundles are CommonJS modules, without top-level await: await in an async function' : ''
             throw new Error(`The bundle failed:\n  ${messages.length ? messages.join('\n  ') : error.message}${hint}`)
         })
-        return result.outputFiles[0].text
+        //The files bundled (their real paths; the modules of the plugins are in their namespaces)
+        const inputs: Set<string> = new Set(Object.keys(result.metafile.inputs).filter((input: string): boolean => !/^[a-z-]+:/.test(input)).map((input: string): string => {
+            const absolute: string = path.resolve(input)
+            return existsSync(absolute) ? realpathSync(absolute) : absolute
+        }))
+        return {code: result.outputFiles[0].text, inputs: inputs}
     }
-    let code: string = await bundle(entry, outfile)
+    const application = await bundle(entry, outfile)
+    let code: string = application.code
     const base: string = path.basename(outfile, path.extname(outfile))
     const nativeDirectory: string = path.resolve(path.dirname(outfile), options.directories?.native ?? `${base}.native`)
     const resourcesDirectory: string = path.resolve(path.dirname(outfile), options.directories?.resources ?? `${base}.resources`)
     //The scripts of the workers, until the ones they start are bundled too
     const scripts: Map<string, string> = new Map()
     for (let pending: [string, string][] = [...workers.scripts]; pending.length; pending = [...workers.scripts].filter(([at]): boolean => !scripts.has(at))) {
-        for (const [at, script] of pending) scripts.set(at, await bundle(script, path.join(nativeDirectory, ...at.split('/'))))
+        for (const [at, script] of pending) scripts.set(at, (await bundle(script, path.join(nativeDirectory, ...at.split('/')))).code)
     }
+    workers.warnBundled(application.inputs)
     const embedded: boolean = options.native === 'embedded'
     let native: NativeTree | undefined = await collector.collect()
     const resources = resourceFiles(project, manifest)
@@ -231,6 +239,11 @@ export async function bundleProject(options: BundleOptions): Promise<BundleResul
     if (embedded && resources.files.length) {
         const files: NativeFile[] = [...native?.files ?? [], ...resources.files.map((file: NativeFile): NativeFile => ({...file, path: `${EMBEDDED_RESOURCES}/${file.path}`}))]
         native = {modules: native?.modules ?? [], files: files, links: native?.links ?? [], hash: hashNativeTree(files, native?.links ?? [])}
+    }
+    if (native && embedded) {
+        //An executable runs the scripts of its tree it is started for (fork()) instead of the application
+        const hashbang: string = /^#![^\n]*\n/.exec(code)?.[0] ?? ''
+        code = `${hashbang}if (!require.lakutataScript()) {\n${code.slice(hashbang.length)}\n}\n`
     }
     if (native) {
         //The require loading the native packages is the first code, after the hashbang
@@ -259,7 +272,7 @@ export async function bundleProject(options: BundleOptions): Promise<BundleResul
         nativeDirectory: native && !embedded ? nativeDirectory : undefined,
         resources: resources.declared,
         resourcesDirectory: resources.files.length && !embedded ? resourcesDirectory : undefined,
-        workers: [...new Set([...scripts.keys()].map((at: string): string => path.relative(realpathSync(project), workers.scripts.get(at)!).split(path.sep).join('/')))].sort(),
+        workers: [...new Set([...scripts.keys()].map((at: string): string => workers.nameOf(workers.scripts.get(at)!)))].sort(),
         warnings: workers.warnings
     }
 }
