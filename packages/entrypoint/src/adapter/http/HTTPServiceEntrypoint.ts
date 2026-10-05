@@ -6,6 +6,7 @@ import {ServiceContext} from '../../context/ServiceContext.js'
 import {ServiceChannel} from '../../channel/BuiltinChannels.js'
 import {ServiceResponseCodec, type ServiceResponse} from '../../lib/ServiceResponseCodec.js'
 import {EntrypointStoppedException} from '../../exceptions/EntrypointStoppedException.js'
+import {trackConnections} from '../../lib/Connections.js'
 
 /**
  * The options of {@link httpServiceEntrypoint}.
@@ -133,7 +134,8 @@ async function readBody(request: IncomingMessage, limit: number): Promise<string
  *
  * When a client disconnects before its response, the action's abort signal fires. When the entrypoint stops, the new
  * requests are answered with an `EntrypointStoppedException` error; once the requests in progress end, the event
- * streams are closed and the server shuts down.
+ * streams are closed and the server shuts down, closing its remaining connections (the ones taken over by an upgrade of
+ * the application too).
  * @param options The adapter options; by default it listens on port 3000 of all the interfaces, on the path `/`.
  * @returns The adapter, to give to the `service` option of `buildEntrypoints`.
  * @example
@@ -176,6 +178,7 @@ export function httpServiceEntrypoint(options: HTTPServiceEntrypointOptions = {}
     const eventsPath: string = `${base}/events`
     const limit: number = options.limit ?? 10 * 1024 * 1024
     let server: Server | undefined
+    let destroyConnections: (() => void) | undefined
     let stopping: boolean = false
     let keepAlive: NodeJS.Timeout | undefined
     //The event streams of each client (a client may listen several times)
@@ -258,6 +261,7 @@ export function httpServiceEntrypoint(options: HTTPServiceEntrypointOptions = {}
             //The event streams kept open by the proxies
             keepAlive = setInterval((): void => clients.forEach((streams: Set<ServerResponse>): void => streams.forEach((stream: ServerResponse): unknown => stream.write(': keep-alive\n\n'))), 15000)
             keepAlive.unref()
+            destroyConnections = trackConnections(server)
             await new Promise<void>((resolve: () => void, reject: (error: Error) => void): void => {
                 server!.once('error', reject).listen(options.port ?? 3000, options.host, (): void => {
                     server!.off('error', reject)
@@ -277,6 +281,8 @@ export function httpServiceEntrypoint(options: HTTPServiceEntrypointOptions = {}
             if (!server) return
             const closing: Promise<void> = new Promise<void>((resolve: () => void): void => void server!.close((): void => resolve()))
             server.closeAllConnections()
+            //The connections taken over by an upgrade (a WebSocket) are not closed by closeAllConnections() and hold the close of the server
+            destroyConnections?.()
             await closing
         },
         notify: (clientId: string, event: string, args: unknown[]): boolean => {

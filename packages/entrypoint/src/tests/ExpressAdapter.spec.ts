@@ -2,6 +2,7 @@ import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import type {AddressInfo} from 'node:net'
 import type {Server} from 'node:http'
+import {durationOf, takeOverUpgrades, upgrade} from './support/Upgrade.js'
 import {mkdir, mkdtemp, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
@@ -248,6 +249,28 @@ describe('Express adapter', (): void => {
         assert.strictEqual(broken.status, 500)
         assert.deepStrictEqual(await broken.json(), {errno: 'E_UNKNOWN', errMsg: 'No clock', data: null})
         await failing.container.destroy()
+    })
+
+    it('stops with the connections taken over by an upgrade (a WebSocket), and answers the upgrades nobody takes over', {timeout: 10000}, async (): Promise<void> => {
+        //Without a listener of the upgrades, an upgrade request is answered as any request
+        const plain = await start()
+        const answered = await upgrade(plain.url)
+        assert.match(answered.status, /^HTTP\/1\.1 404/)
+        answered.socket.destroy()
+        await plain.container.destroy()
+        //A WebSocket of the application held the close of the server forever
+        let stopped: boolean = false
+        const {url, container} = await start({
+            before: (_app, {server}): void => takeOverUpgrades(server),
+            stop: (): void => {
+                stopped = true
+            }
+        })
+        const {socket, status} = await upgrade(url)
+        assert.strictEqual(status, 'HTTP/1.1 101 Switching Protocols')
+        assert.ok(await durationOf((): Promise<void> => container.destroy()) < 3000)
+        assert.ok(stopped)
+        await new Promise((resolve: (value: unknown) => void): unknown => socket.destroyed ? resolve(true) : socket.once('close', resolve))
     })
 
     it('runs the middlewares of the adapter and aborts the requests of the clients who left', async (): Promise<void> => {

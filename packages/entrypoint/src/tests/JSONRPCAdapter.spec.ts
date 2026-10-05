@@ -2,6 +2,7 @@ import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import type {AddressInfo} from 'node:net'
 import {PassThrough} from 'node:stream'
+import {durationOf, takeOverUpgrades, upgrade} from './support/Upgrade.js'
 import {Container, DTO, Exception} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
 import {buildEntrypoints, Controller, Entrypoint, httpRequestOfContext, ServiceContext} from '../exports/Entrypoint.js'
@@ -64,8 +65,9 @@ async function start(options: JSONRPCServiceEntrypointOptions): Promise<{ port: 
             port: 0,
             host: '127.0.0.1',
             ...options,
-            listening: (server): void => {
+            listening: async (server): Promise<void> => {
                 port = (server.address() as AddressInfo).port
+                await options.listening?.(server)
             }
         })
     }))
@@ -206,6 +208,23 @@ describe('The JSON-RPC 2.0 service adapter', (): void => {
             silent.terminate()
             await container.destroy()
         }
+    })
+
+    it('stops with the WebSockets not answering their close and the connections taken over by an upgrade', {timeout: 15000}, async (): Promise<void> => {
+        //A WebSocket of the transport not reading the close of the server
+        const {WebSocket} = await import('ws')
+        const ws = await start({transport: 'websocket'})
+        const silent = new WebSocket(`ws://127.0.0.1:${ws.port}/`, {headers: {id: 'silent'}})
+        await new Promise((resolve, reject): unknown => silent.once('open', resolve).once('error', reject))
+        ;(silent as unknown as { _socket: { pause(): void } })._socket.pause()
+        assert.ok(await durationOf((): Promise<void> => ws.container.destroy()) < 3000)
+        silent.terminate()
+        //A connection of the HTTP transport taken over by an upgrade of the application
+        const http = await start({transport: 'http', listening: (server): void => takeOverUpgrades(server)})
+        const {socket, status} = await upgrade(`http://127.0.0.1:${http.port}`)
+        assert.strictEqual(status, 'HTTP/1.1 101 Switching Protocols')
+        assert.ok(await durationOf((): Promise<void> => http.container.destroy()) < 3000)
+        socket.destroy()
     })
 
     it('ends once the input of stdio ends, its requests in progress answered', async (): Promise<void> => {

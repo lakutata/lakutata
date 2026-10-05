@@ -7,6 +7,7 @@ import type {ServiceContext} from '../../context/ServiceContext.js'
 import {ServiceChannel} from '../../channel/BuiltinChannels.js'
 import {JSONRPCErrorCode, JSONRPCProtocol, type JSONRPCDispatch, type JSONRPCMappingOptions, type JSONRPCResponse} from './JSONRPCProtocol.js'
 import {applicationOf} from '../../lib/ApplicationOf.js'
+import {trackConnections} from '../../lib/Connections.js'
 
 /**
  * The options of {@link jsonRPCServiceEntrypoint}: its transport, and how the requests map to the service actions (see
@@ -234,7 +235,8 @@ type WebSocketLike = {
  *
  * When an HTTP client disconnects before its response, the action's abort signal fires. When the entrypoint stops,
  * stdio stops reading, the new requests are answered with `STOPPING`, and once the requests in progress are answered
- * the WebSocket connections are closed (code 1001) and the server shuts down.
+ * the WebSocket connections are closed (code 1001; the ones not answering within a second are terminated) and the
+ * server shuts down, closing its remaining connections (the ones taken over by an upgrade of the application too).
  * @param options The adapter options; by default it serves HTTP on port 3000 of all the interfaces, on the path `/`.
  * @returns The adapter, to give to the `service` option of `buildEntrypoints`.
  * @example
@@ -289,6 +291,7 @@ export function jsonRPCServiceEntrypoint(options: JSONRPCServiceEntrypointOption
     const path: string = (options.path ?? '/').replace(/(.)\/+$/, '$1')
     let stopping: boolean = false
     let server: Server | undefined
+    let destroyConnections: (() => void) | undefined
     let webSocketServer: { close(callback?: () => void): void, clients: Set<WebSocketLike> } | undefined
     let stopReading: (() => void) | undefined
     let heartbeat: NodeJS.Timeout | undefined
@@ -324,6 +327,7 @@ export function jsonRPCServiceEntrypoint(options: JSONRPCServiceEntrypointOption
     }
 
     const listen = async (target: Server): Promise<void> => {
+        destroyConnections = trackConnections(target)
         await new Promise<void>((resolve: () => void, reject: (error: Error) => void): void => {
             target.once('error', reject).listen(options.port ?? 3000, options.host, (): void => {
                 target.off('error', reject)
@@ -428,12 +432,24 @@ export function jsonRPCServiceEntrypoint(options: JSONRPCServiceEntrypointOption
             await Promise.allSettled([...inProgress])
             clients.clear()
             if (webSocketServer) {
-                webSocketServer.clients.forEach((socket: WebSocketLike): void => socket.close(1001, 'The service stops'))
-                await new Promise<void>((resolve: () => void): void => webSocketServer!.close((): void => resolve()))
+                //The WebSockets are given a second to answer their close, then the ones not answering are terminated (the
+                //close of the server waits for them all)
+                const sockets: Set<WebSocketLike> = webSocketServer.clients
+                const closedSockets: Promise<void> = new Promise<void>((resolve: () => void): void => webSocketServer!.close((): void => resolve()))
+                sockets.forEach((socket: WebSocketLike): void => socket.close(1001, 'The service stops'))
+                let timer: NodeJS.Timeout | undefined
+                await Promise.race([closedSockets, new Promise((resolve: (value: unknown) => void): void => {
+                    timer = setTimeout(resolve, 1000)
+                })])
+                clearTimeout(timer)
+                sockets.forEach((socket: WebSocketLike): void => socket.terminate())
+                await closedSockets
             }
             if (!server) return
             const closing: Promise<void> = new Promise<void>((resolve: () => void): void => void server!.close((): void => resolve()))
             server.closeAllConnections()
+            //The WebSockets not answering their close, and the connections taken over by an upgrade of the application, hold the close of the server
+            destroyConnections?.()
             await closing
         },
         notify: (clientId: string, event: string, args: unknown[]): boolean => {

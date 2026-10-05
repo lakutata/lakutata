@@ -1,6 +1,7 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import type {AddressInfo} from 'node:net'
+import {durationOf, takeOverUpgrades, upgrade} from './support/Upgrade.js'
 import {Container, DTO} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
 import {buildEntrypoints, Controller, Entrypoint, httpRequestOfContext, httpServiceEntrypoint, type HTTPServiceEntrypointOptions, Result, ServiceContext, type FileResult, type StatusResult} from '../exports/Entrypoint.js'
@@ -65,8 +66,9 @@ async function start(options: HTTPServiceEntrypointOptions = {}): Promise<{ url:
             port: 0,
             host: '127.0.0.1',
             ...options,
-            listening: (server): void => {
+            listening: async (server): Promise<void> => {
                 port = (server.address() as AddressInfo).port
+                await options.listening?.(server)
             }
         })
     }))
@@ -203,5 +205,13 @@ describe('HTTP service adapter', (): void => {
         assert.deepStrictEqual(await inProgress, {status: 200, success: true, error: null, payload: 'slow'})
         await destroyed
         await assert.rejects(stream.next(), /The stream ended|terminated|aborted/)
+    })
+
+    it('stops with the connections taken over by an upgrade (a WebSocket of the application)', {timeout: 10000}, async (): Promise<void> => {
+        const {url, container} = await start({listening: (server): void => takeOverUpgrades(server)})
+        const {socket, status} = await upgrade(url)
+        assert.strictEqual(status, 'HTTP/1.1 101 Switching Protocols')
+        assert.ok(await durationOf((): Promise<void> => container.destroy()) < 3000)
+        await new Promise((resolve: (value: unknown) => void): unknown => socket.destroyed ? resolve(true) : socket.once('close', resolve))
     })
 })

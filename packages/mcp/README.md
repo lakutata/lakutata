@@ -289,7 +289,8 @@ Application.run(() => ({
 - `maxRequestBodySize` (4 MiB by default) answers `413` to larger bodies; `server` holds the options of the
   `node:http` server; `listening(server)` is called once it listens.
 - It stops gracefully with the entrypoint: the calls in progress end (a second at most) before the server closes, then
-  the streams of the subscriptions are closed.
+  the streams of the subscriptions and the remaining connections are closed (the ones taken over by an upgrade of the
+  application too).
 
 #### Sharing the port of another HTTP server
 

@@ -10,6 +10,7 @@ import {HTTPContext} from '../../context/HTTPContext.js'
 import {HTTPChannel} from '../../channel/BuiltinChannels.js'
 import {EventsResult, FileResult, StatusResult} from '../../lib/Result.js'
 import {RouteNotFoundException} from '../../exceptions/RouteNotFoundException.js'
+import {trackConnections} from '../../lib/Connections.js'
 import {FastifyJSONResponder, type FastifyResponder} from './Responders.js'
 
 /**
@@ -176,7 +177,8 @@ function isFastifyInstance(value: unknown): value is FastifyInstance {
  * When the client disconnects before the response, the action's abort signal fires and nothing is written. When the
  * entrypoint stops, fastify stops accepting connections and answers the new requests with 503, the event streams end,
  * and the requests in progress are given up to one second after they settle to send their responses before the
- * remaining connections are closed.
+ * remaining connections are closed — the connections taken over by an upgrade (the WebSockets of the application) too,
+ * which would hold the stop forever.
  * @param options The adapter options; by default it listens on port 80 with a new fastify instance.
  * @returns The adapter, to give to the `http` option of `buildEntrypoints`.
  * @example
@@ -228,6 +230,7 @@ export function fastifyHTTPEntrypoint(options: FastifyHTTPEntrypointOptions = {}
     }))
     const streams: Set<AbortController> = new Set()
     let app: FastifyInstance | undefined
+    let destroyConnections: (() => void) | undefined
     let closed: Promise<void> | undefined
     let stopping: boolean = false
     //The responses not sent yet
@@ -349,6 +352,7 @@ export function fastifyHTTPEntrypoint(options: FastifyHTTPEntrypointOptions = {}
         start: async (runtime: ChannelRuntime<HTTPContext>): Promise<void> => {
             const fastify: FastifyInstance = isFastifyInstance(options.fastify) ? options.fastify : Fastify(options.fastify as FastifyServerOptions ?? {})
             app = fastify
+            destroyConnections = trackConnections(fastify.server)
             const routes: Map<string, Set<string>> = new Map()
             for (const action of runtime.actions) routes.set(action.address.route, (routes.get(action.address.route) ?? new Set()).add(String(action.address.method).toUpperCase()))
             const actionPrefixes: string[] = actionPrefixesOf(routes.keys())
@@ -409,6 +413,8 @@ export function fastifyHTTPEntrypoint(options: FastifyHTTPEntrypointOptions = {}
             })])
             clearTimeout(timer)
             app?.server.closeAllConnections()
+            //The connections taken over by an upgrade (a WebSocket) are not closed by closeAllConnections() and hold the close of the server
+            destroyConnections?.()
             await closed
             await options.stop?.()
         }

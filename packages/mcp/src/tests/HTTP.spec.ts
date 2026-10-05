@@ -2,6 +2,7 @@ import {before, describe, it} from 'node:test'
 import assert from 'node:assert'
 import type {AddressInfo} from 'node:net'
 import {request as httpRequest, type IncomingMessage, type Server} from 'node:http'
+import {durationOf, takeOverUpgrades, upgrade} from './support/Upgrade.js'
 import {Container} from '@lakutata/core'
 import {buildEntrypoints, Entrypoint, type ActionInvocation, type MiddlewareHandler, type Next} from '@lakutata/entrypoint'
 import {Client, StreamableHTTPClientTransport} from '@modelcontextprotocol/client'
@@ -24,8 +25,9 @@ async function start(options: HTTPMCPEntrypointOptions = {}, entrypointOptions: 
             serverName: 'devices',
             serverVersion: '2.0.0',
             ...options,
-            listening: (listening: Server): void => {
+            listening: async (listening: Server): Promise<void> => {
                 server = listening
+                await options.listening?.(listening)
             }
         })
     }))
@@ -66,6 +68,14 @@ for (const suiteEra of ['legacy', 'auto'] as const) describe(`HTTP MCP adapter (
 
     before((): void => {
         era = suiteEra
+    })
+
+    it('stops with the connections taken over by an upgrade (a WebSocket of the application)', {timeout: 10000}, async (): Promise<void> => {
+        const {url, container} = await start({listening: (server: Server): void => takeOverUpgrades(server)})
+        const {socket, status} = await upgrade(url)
+        assert.strictEqual(status, 'HTTP/1.1 101 Switching Protocols')
+        assert.ok(await durationOf((): Promise<void> => container.destroy()) < 3000)
+        socket.destroy()
     })
 
     it('lists the actions as tools', async (): Promise<void> => {

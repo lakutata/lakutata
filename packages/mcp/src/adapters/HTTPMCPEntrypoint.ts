@@ -13,6 +13,7 @@ import {MCPChannel} from '../channel/MCPChannel.js'
 import type {MCPAuthInfo, MCPContext} from '../context/MCPContext.js'
 import {buildMCPServer, type MCPServerInfo} from '../lib/MCPServer.js'
 import {ATTACH} from '../lib/Notifications.js'
+import {trackConnections} from '../lib/Connections.js'
 import {MCPNotifier} from '../components/MCPNotifier.js'
 
 /**
@@ -218,7 +219,7 @@ async function writeResponse(webResponse: Response, response: ServerResponse): P
  * The clients of 2026-07-28 listening for changes (`subscriptions/listen`) are notified of what the application's
  * `MCPNotifier` reports; the clients of 2025 are not. The adapter stops gracefully with the entrypoint: it refuses the
  * new requests (`503`), gives the calls in progress a second to answer, then ends the subscription streams and closes
- * the connections.
+ * the connections (the ones taken over by an upgrade of the application too).
  * @param options Where the server listens, the checks of the requests, the protocol revisions it serves; none by
  * default.
  * @returns The adapter, to give to the `mcp` option of `buildEntrypoints()`, with its `handler`.
@@ -268,6 +269,7 @@ export function httpMCPEntrypoint(options: HTTPMCPEntrypointOptions = {}): HTTPM
     const allowedHosts: string[] | undefined = options.allowedHosts === false ? undefined : options.allowedHosts ?? (loopback ? localhostAllowedHostnames() : undefined)
     const allowedOrigins: string[] | undefined = options.allowedOrigins === false ? undefined : options.allowedOrigins ?? (loopback ? localhostAllowedOrigins() : undefined)
     let server: Server | undefined
+    let destroyConnections: (() => void) | undefined
     let handler: McpHttpHandler | undefined
     let closed: Promise<void> | undefined
     let stopping: boolean = false
@@ -370,6 +372,7 @@ export function httpMCPEntrypoint(options: HTTPMCPEntrypointOptions = {}): HTTPM
             })
             if (!listen) return
             server = createServer(options.server ?? {}, handle)
+            destroyConnections = trackConnections(server)
             await new Promise<void>((resolve: () => void, reject: (error: Error) => void): void => {
                 server!.once('error', reject).listen(options.port ?? 3000, host, (): void => {
                     server!.off('error', reject)
@@ -397,6 +400,8 @@ export function httpMCPEntrypoint(options: HTTPMCPEntrypointOptions = {}): HTTPM
             clearTimeout(timer)
             await handler?.close()
             server?.closeAllConnections()
+            //The connections taken over by an upgrade (a WebSocket) are not closed by closeAllConnections() and hold the close of the server
+            destroyConnections?.()
             await closed
         }
     }

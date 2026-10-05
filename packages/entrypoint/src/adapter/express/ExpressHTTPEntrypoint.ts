@@ -9,6 +9,7 @@ import {HTTPContext} from '../../context/HTTPContext.js'
 import {HTTPChannel} from '../../channel/BuiltinChannels.js'
 import {EventsResult, FileResult, StatusResult} from '../../lib/Result.js'
 import {RouteNotFoundException} from '../../exceptions/RouteNotFoundException.js'
+import {trackConnections} from '../../lib/Connections.js'
 import {ExpressResponder, JSONResponder} from './Responders.js'
 
 /**
@@ -154,7 +155,8 @@ function eventFrame(data: unknown, event?: string, id?: string): string {
  *
  * When the client disconnects before the response, the action's abort signal fires and nothing is written. When the
  * entrypoint stops, the server stops accepting connections, the event streams end, and the requests in progress are
- * given up to one second after they settle to send their responses before the remaining connections are closed.
+ * given up to one second after they settle to send their responses before the remaining connections are closed — the
+ * connections taken over by an upgrade (the WebSockets of the application) too, which would hold the stop forever.
  * @param options The adapter options; by default it listens on port 80 of all the interfaces with a new express
  * application.
  * @returns The adapter, to give to the `http` option of `buildEntrypoints`.
@@ -205,6 +207,7 @@ export function expressHTTPEntrypoint(options: ExpressHTTPEntrypointOptions = {}
     const input: (request: Request) => Record<string, unknown> = options.input ?? ((request: Request): Record<string, unknown> => ({...(request.query as Record<string, unknown>), ...(request.body && typeof request.body === 'object' ? request.body : {})}))
     const streams: Set<AbortController> = new Set()
     let server: Server | undefined
+    let destroyConnections: (() => void) | undefined
     let closed: Promise<void> | undefined
     let stopping: boolean = false
     //The responses of the actions not sent yet
@@ -332,6 +335,7 @@ export function expressHTTPEntrypoint(options: ExpressHTTPEntrypointOptions = {}
         start: async (runtime: ChannelRuntime<HTTPContext>): Promise<void> => {
             const app: Express = options.app ?? express()
             server = createServer(options.server ?? {}, app)
+            destroyConnections = trackConnections(server)
             const routes: Map<string, Set<string>> = new Map()
             for (const action of runtime.actions) routes.set(action.address.route, (routes.get(action.address.route) ?? new Set()).add(action.address.method))
             const actionPrefixes: string[] = actionPrefixesOf(routes.keys())
@@ -375,6 +379,8 @@ export function expressHTTPEntrypoint(options: ExpressHTTPEntrypointOptions = {}
             })])
             clearTimeout(timer)
             server?.closeAllConnections()
+            //The connections taken over by an upgrade (a WebSocket) are not closed by closeAllConnections() and hold the close of the server
+            destroyConnections?.()
             await closed
             await options.stop?.()
         }
