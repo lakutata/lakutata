@@ -6,7 +6,7 @@ import {Delay} from '@lakutata/utils'
 import {Inject} from '@lakutata/core/decorator/di'
 import {BuildEntrypoints, Controller} from '@lakutata/entrypoint'
 import {ServiceAction} from '@lakutata/entrypoint/decorator/ctrl'
-import {buildNatsClientOptions, BuildServiceProxy, NATS, NatsServiceEntrypoint, ServiceProxy} from '../../exports/Nats.js'
+import {BuildNatsClientOptions, BuildServiceProxy, NATS, NatsServiceEntrypoint, ServiceProxy} from '../../exports/Nats.js'
 
 class ProxyController extends Controller {
     @Inject('peer')
@@ -30,7 +30,7 @@ describe('service proxy lifetime', (): void => {
             id: 'it.proxy.app',
             name: 'ITProxy',
             components: {
-                nats: buildNatsClientOptions({servers: n.url, bulk: false}),
+                nats: BuildNatsClientOptions({servers: n.url, bulk: false}),
                 entrypoint: BuildEntrypoints({controllers: [ProxyController], service: NatsServiceEntrypoint('nats')})
             },
             providers: {

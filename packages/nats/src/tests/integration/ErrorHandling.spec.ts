@@ -7,7 +7,7 @@ import {ServiceAction} from '@lakutata/entrypoint/decorator/ctrl'
 import {Delay} from '@lakutata/utils'
 import {Codec} from 'nats'
 import {
-    buildNatsClientOptions,
+    BuildNatsClientOptions,
     BuildServiceProxy,
     NATS,
     NatsRequestTimeoutException,
@@ -62,8 +62,8 @@ describe('error handling / crash protection / reply guard', (): void => {
             id: 'it.errhandling.app',
             name: 'ITErrHandling',
             components: {
-                nats: buildNatsClientOptions({servers: n.url}),
-                natsBad: buildNatsClientOptions({servers: n.url, codec: badCodec}),
+                nats: BuildNatsClientOptions({servers: n.url}),
+                natsBad: BuildNatsClientOptions({servers: n.url, codec: badCodec}),
                 entrypoint: BuildEntrypoints({
                     controllers: [TestController],
                     service: SetupNatsServiceEntrypoint('nats')

@@ -1,7 +1,7 @@
 export {NatsServiceEntrypoint, SetupNatsServiceEntrypoint, type NatsServiceEntrypointOptions} from '../entrypoints/NatsServiceEntrypoint.js'
 export {ServiceProxy, BuildServiceProxy, type BuildServiceProxyOptions} from '../providers/ServiceProxy.js'
 export {RetentionPolicy} from 'nats'
-export {NATS, buildNatsClientOptions} from '../components/NATS.js'
+export {NATS, BuildNatsClientOptions, buildNatsClientOptions} from '../components/NATS.js'
 export {JSONCodec} from '../codecs/JSONCodec.js'
 export {MessagePackCodec} from '../codecs/MessagePackCodec.js'
 export {StringCodec} from 'nats'

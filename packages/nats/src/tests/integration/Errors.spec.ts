@@ -4,7 +4,7 @@ import {describeNats as describe, destroyApp, runApp, ensureNats, stopNats} from
 import {Application} from '@lakutata/core'
 import {Delay} from '@lakutata/utils'
 import {
-    buildNatsClientOptions,
+    BuildNatsClientOptions,
     NATS,
     NatsNoRespondersAvailableException,
     NatsRequestTimeoutException
@@ -24,7 +24,7 @@ describe('NATS.request error mapping', (): void => {
         app = await runApp({
             id: 'it.errors.app',
             name: 'ITErrors',
-            components: {nats: buildNatsClientOptions({servers: n.url})}
+            components: {nats: BuildNatsClientOptions({servers: n.url})}
         })
         nats = await app.getObject<NATS>('nats')
         //A subscription that never responds, used to trigger a request timeout (408)

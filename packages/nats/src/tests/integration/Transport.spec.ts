@@ -3,7 +3,7 @@ import {expect} from '../support/Expect.js'
 import {describeNats as describe, destroyApp, runApp, ensureNats, stopNats} from '../support/App.js'
 import {Application} from '@lakutata/core'
 import {Delay} from '@lakutata/utils'
-import {buildNatsClientOptions, JSONCodec, NATS} from '../../exports/Nats.js'
+import {BuildNatsClientOptions, JSONCodec, NATS} from '../../exports/Nats.js'
 
 /**
  * Transport layer: explicit codec selection, queue load balancing, subscribe iterator mode.
@@ -21,9 +21,9 @@ describe('transport: codec / queue / subscribe', (): void => {
             id: 'it.transport.app',
             name: 'ITTransport',
             components: {
-                nats: buildNatsClientOptions({servers: n.url}),
-                natsJson: buildNatsClientOptions({servers: n.url, codec: JSONCodec()}),
-                nats2: buildNatsClientOptions({servers: n.url})
+                nats: BuildNatsClientOptions({servers: n.url}),
+                natsJson: BuildNatsClientOptions({servers: n.url, codec: JSONCodec()}),
+                nats2: BuildNatsClientOptions({servers: n.url})
             }
         })
         nats = await app.getObject<NATS>('nats')

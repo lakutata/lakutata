@@ -43,14 +43,14 @@ export type BuildServiceProxyOptions = {
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {buildNatsClientOptions, BuildServiceProxy, type ServiceProxy} from '@lakutata/nats'
+ * import {BuildNatsClientOptions, BuildServiceProxy, type ServiceProxy} from '@lakutata/nats'
  *
  * Application
  *     .run({
  *         id: 'shop.app',
  *         name: 'Shop',
  *         components: {
- *             nats: buildNatsClientOptions({servers: 'nats://127.0.0.1:4222'})
+ *             nats: BuildNatsClientOptions({servers: 'nats://127.0.0.1:4222'})
  *         },
  *         providers: {
  *             //The actions and the events of the application whose id is "order.service"
@@ -91,7 +91,7 @@ export const BuildServiceProxy: ProviderOptionsBuilder<BuildServiceProxyOptions>
  * ```typescript
  * import {Application, Component} from 'lakutata'
  * import {Inject} from 'lakutata/decorator/di'
- * import {buildNatsClientOptions, BuildServiceProxy, ServiceInvokeException, type ServiceProxy} from '@lakutata/nats'
+ * import {BuildNatsClientOptions, BuildServiceProxy, ServiceInvokeException, type ServiceProxy} from '@lakutata/nats'
  *
  * type Order = {id: number, total: number}
  *
@@ -118,7 +118,7 @@ export const BuildServiceProxy: ProviderOptionsBuilder<BuildServiceProxyOptions>
  *         id: 'billing.app',
  *         name: 'Billing',
  *         components: {
- *             nats: buildNatsClientOptions({servers: 'nats://127.0.0.1:4222'}),
+ *             nats: BuildNatsClientOptions({servers: 'nats://127.0.0.1:4222'}),
  *             billing: {class: Billing}
  *         },
  *         providers: {

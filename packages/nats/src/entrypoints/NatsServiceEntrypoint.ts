@@ -58,7 +58,7 @@ export type NatsServiceEntrypointOptions = {
  * import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
  * import {ServiceAction} from 'lakutata/decorator/ctrl'
  * import {Expect} from 'lakutata/decorator/dto'
- * import {buildNatsClientOptions, NatsServiceEntrypoint} from '@lakutata/nats'
+ * import {BuildNatsClientOptions, NatsServiceEntrypoint} from '@lakutata/nats'
  *
  * class GetOrderDTO extends DTO {
  *     @Expect(DTO.Number().integer().required())
@@ -78,7 +78,7 @@ export type NatsServiceEntrypointOptions = {
  *     id: 'order.service',
  *     name: 'OrderService',
  *     components: {
- *         nats: buildNatsClientOptions({servers: 'nats://127.0.0.1:4222'}),
+ *         nats: BuildNatsClientOptions({servers: 'nats://127.0.0.1:4222'}),
  *         entrypoint: BuildEntrypoints({
  *             controllers: [OrderController],
  *             service: NatsServiceEntrypoint('nats')

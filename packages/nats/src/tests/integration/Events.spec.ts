@@ -3,7 +3,7 @@ import {expect} from '../support/Expect.js'
 import {describeNats as describe, destroyApp, runApp, ensureNats, stopNats} from '../support/App.js'
 import {Application} from '@lakutata/core'
 import {Delay} from '@lakutata/utils'
-import {buildNatsClientOptions, NATS} from '../../exports/Nats.js'
+import {BuildNatsClientOptions, NATS} from '../../exports/Nats.js'
 
 /**
  * Verifies the service event bus: on / once / off / off-all / onlySingleClientReceived (queue distribution).
@@ -21,8 +21,8 @@ describe('service events', (): void => {
             id: 'it.events.app',
             name: 'ITEvents',
             components: {
-                nats: buildNatsClientOptions({servers: n.url}),
-                nats2: buildNatsClientOptions({servers: n.url})
+                nats: BuildNatsClientOptions({servers: n.url}),
+                nats2: BuildNatsClientOptions({servers: n.url})
             }
         })
         nats = await app.getObject<NATS>('nats')

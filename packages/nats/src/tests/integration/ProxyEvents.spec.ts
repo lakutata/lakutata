@@ -4,7 +4,7 @@ import {describeNats as describe, destroyApp, runApp, ensureNats, stopNats} from
 import {Application} from '@lakutata/core'
 import {BuildEntrypoints, Controller, Entrypoint} from '@lakutata/entrypoint'
 import {Delay} from '@lakutata/utils'
-import {BuildServiceProxy, buildNatsClientOptions, NATS, NatsServiceEntrypoint, ServiceProxy} from '../../exports/Nats.js'
+import {BuildServiceProxy, BuildNatsClientOptions, NATS, NatsServiceEntrypoint, ServiceProxy} from '../../exports/Nats.js'
 
 class OrderController extends Controller {
 }
@@ -25,7 +25,7 @@ describe('service events through the proxies', (): void => {
             id: 'it.proxy-events.app',
             name: 'ITProxyEvents',
             components: {
-                nats: buildNatsClientOptions({servers: n.url}),
+                nats: BuildNatsClientOptions({servers: n.url}),
                 entrypoint: BuildEntrypoints({controllers: [OrderController], service: NatsServiceEntrypoint('nats', {subject: 'it.custom.orders'})})
             },
             providers: {

@@ -222,8 +222,8 @@ Application
     })
 ```
 
-`buildDBusClientOptions(options)` builds the same declaration from typed options:
-`dbus: buildDBusClientOptions({busAddress: 'unix:path=/var/run/dbus/system_bus_socket'})`.
+`BuildDBusClientOptions(options)` builds the same declaration from typed options:
+`dbus: BuildDBusClientOptions({busAddress: 'unix:path=/var/run/dbus/system_bus_socket'})`.
 
 ## API
 
@@ -240,7 +240,7 @@ Application
 | `DBusContext`, `DBusContextParams`, `DBUS_CONTEXT_TYPE` | The context of the method calls: `path`, `interface`, `member` |
 | `DBusChannel` | The definition of the `dbus` channel, for the custom adapters |
 | `DBusClientComponent` | The client: `invoke`, `interface`, `interfaceSignal`, `object`, `service`, `services`, `listNames`, `listServices`, `nameHasOwner`, `getNameOwner`, `addMatch`, the connection events |
-| `buildDBusClientOptions`, `DBusClientOptions` | The client's declaration and options: `busAddress`, `timeout`, `callTimeout`, `decode` (`DecodeOpts` of `dbus-sdk`; the 64-bit integers are numbers by default) |
+| `BuildDBusClientOptions`, `DBusClientOptions` | The client's declaration and options (`buildDBusClientOptions`, its name in 2.x, is a deprecated alias): `busAddress`, `timeout`, `callTimeout`, `decode` (`DecodeOpts` of `dbus-sdk`; the 64-bit integers are numbers by default) |
 | `DBus`, `DBusRemoteInterface`, `DBusObject`, `DBusService`, `LocalService`, `LocalObject`, `LocalInterface`, `DBusSignedValue`, `DBusSignalEmitter`, `Signature`, `createDBusError`, `RequestNameFlags`, `RequestNameResultCode`, `BusNameBasicInfo`, `ConnectOpts`, `DecodeOpts`, `InvokeOpts` | Re-exported from dbus-sdk 2 (`DBusRemoteInterface` is its `DBusInterface`; see its MIGRATION.md for the changes from 1.x) |
 
 The typings document each declaration with examples.

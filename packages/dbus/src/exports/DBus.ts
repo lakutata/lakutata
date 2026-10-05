@@ -15,7 +15,7 @@ export {
 export {DBusEntrypoint, type DBusEntrypointOptions} from '../adapters/DBusEntrypoint.js'
 export {DBusObjectManager, type DBusPropertyWrite} from '../components/DBusObjectManager.js'
 //The DBus client
-export {DBusClientComponent, buildDBusClientOptions} from '../components/DBusClientComponent.js'
+export {DBusClientComponent, BuildDBusClientOptions, buildDBusClientOptions} from '../components/DBusClientComponent.js'
 export type {DBusClientOptions} from '../lib/DBusClientOptions.js'
 //The DBus SDK
 export {

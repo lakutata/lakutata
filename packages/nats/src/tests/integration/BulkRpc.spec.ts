@@ -5,7 +5,7 @@ import {Application} from '@lakutata/core'
 import {BuildEntrypoints, Controller} from '@lakutata/entrypoint'
 import {ServiceAction} from '@lakutata/entrypoint/decorator/ctrl'
 import {
-    buildNatsClientOptions,
+    BuildNatsClientOptions,
     BuildServiceProxy,
     NatsBulkException,
     ServiceInvokeException,
@@ -50,12 +50,12 @@ describe('S2 RPC large data relay', (): void => {
             id: 'it.bulkrpc.app',
             name: 'ITBulkRpc',
             components: {
-                nats: buildNatsClientOptions({servers: n.url}), //bulk defaults to true (server + self client)
-                natsLegacy: buildNatsClientOptions({servers: n.url, bulk: false}), //Simulates a client without bulk support
+                nats: BuildNatsClientOptions({servers: n.url}), //bulk defaults to true (server + self client)
+                natsLegacy: BuildNatsClientOptions({servers: n.url, bulk: false}), //Simulates a client without bulk support
                 //Uses a different bucket: the server puts the large response into its own bucket, this client cannot fetch it from its own bucket, simulating an unresolvable reference
-                natsMismatch: buildNatsClientOptions({servers: n.url, bulkBucket: 'mismatch-bucket'}),
+                natsMismatch: BuildNatsClientOptions({servers: n.url, bulkBucket: 'mismatch-bucket'}),
                 //A client which never requested the service: its capability unknown
-                natsCold: buildNatsClientOptions({servers: n.url}),
+                natsCold: BuildNatsClientOptions({servers: n.url}),
                 entrypoint: BuildEntrypoints({
                     controllers: [BulkController],
                     service: SetupNatsServiceEntrypoint('nats')

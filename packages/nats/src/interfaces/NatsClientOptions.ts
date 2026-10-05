@@ -1,7 +1,7 @@
 import {Codec} from 'nats'
 
 /**
- * The options of the {@link NATS} component, given to {@link buildNatsClientOptions}. They are validated when the
+ * The options of the {@link NATS} component, given to {@link BuildNatsClientOptions}. They are validated when the
  * component is created: an invalid value fails it.
  */
 export interface NatsClientOptions {

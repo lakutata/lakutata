@@ -1,5 +1,29 @@
 # Contributing
 
+## Naming
+
+The names of lakutata follow one rule: **what a module exports at its top level is named in Pascal case, the members
+of an object in camel case.** The functions are thus named as in C# or Go, the methods and the properties as in
+JavaScript:
+
+| Declaration | Case | Examples |
+|---|---|---|
+| Classes, interfaces, types, enums | Pascal | `Application`, `ActionPattern`, `HTTPErrorOrigin` |
+| Functions exported by a module (helpers, option builders) | Pascal | `DevNull`, `As`, `UUID`, `BuildEntrypoints`, `BuildNatsClientOptions` |
+| Decorators | Pascal | `@Inject`, `@Configurable`, `@ServiceAction` |
+| Methods and properties | camel | `getObject()`, `appName`, `startup()` |
+| Option keys | camel | `shutdownSignals`, `actionErrorStatus` |
+| Constants of a module | upper snake | `DBUS_CONTEXT_TYPE` |
+| Acronyms | kept in capitals | `HTTPContext`, `IsHTML`, `UUID` (not `HttpContext`) |
+
+The functions are not in camel case, as JavaScript's own are, because their names would collide with the names a reader
+or a tool knows already: `devNull` is a string of `node:os` (the path of the null device), `as` is a keyword of
+TypeScript, `uuid` is a package of npm (a dependency of lakutata). Their Pascal case tells at once that a function is
+lakutata's. A name in camel case met in the 2.x packages (`buildNatsClientOptions`, `buildDBusClientOptions`) is kept as
+a deprecated alias of its Pascal case name until a later major version.
+
+The names of the libraries lakutata re-exports (TypeORM, dbus-sdk) are kept as they are.
+
 ## Documenting the public API
 
 The applications built on lakutata are more and more written by AI agents, which learn a package from what is

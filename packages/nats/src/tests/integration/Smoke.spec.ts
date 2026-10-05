@@ -6,7 +6,7 @@ import {BuildEntrypoints, Controller} from '@lakutata/entrypoint'
 import {ServiceAction} from '@lakutata/entrypoint/decorator/ctrl'
 import {Delay} from '@lakutata/utils'
 import {
-    buildNatsClientOptions,
+    BuildNatsClientOptions,
     BuildServiceProxy,
     NATS,
     ServiceProxy,
@@ -36,7 +36,7 @@ describe('Phase 0 smoke', (): void => {
             id: 'smoke.app',
             name: 'Smoke',
             components: {
-                nats: buildNatsClientOptions({servers: process.env.NATS_URL!}),
+                nats: BuildNatsClientOptions({servers: process.env.NATS_URL!}),
                 entrypoint: BuildEntrypoints({
                     controllers: [EchoController],
                     service: SetupNatsServiceEntrypoint('nats')

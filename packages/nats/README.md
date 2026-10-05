@@ -26,19 +26,19 @@ docker run -d --name nats -p 4222:4222 nats:2.12-alpine -js
 
 ### The NATS component
 
-Register the `NATS` component with `buildNatsClientOptions`, then get it with `getObject()` or `@Inject`. It connects
+Register the `NATS` component with `BuildNatsClientOptions`, then get it with `getObject()` or `@Inject`. It connects
 when it is created: an unreachable server fails the application's start (after `timeout`, 20 seconds by default).
 
 ```typescript
 import {Application} from 'lakutata'
-import {buildNatsClientOptions, type NATS} from '@lakutata/nats'
+import {BuildNatsClientOptions, type NATS} from '@lakutata/nats'
 
 Application
     .run({
         id: 'pricing.app',
         name: 'Pricing',
         components: {
-            nats: buildNatsClientOptions({servers: 'nats://127.0.0.1:4222', name: 'pricing'})
+            nats: BuildNatsClientOptions({servers: 'nats://127.0.0.1:4222', name: 'pricing'})
         }
     })
     .onLaunched(async (app: Application): Promise<void> => {
@@ -87,13 +87,13 @@ encoding. Any object with `encode(value): Uint8Array` and `decode(bytes)` can be
 
 ```typescript
 import {Application} from 'lakutata'
-import {buildNatsClientOptions, JSONCodec} from '@lakutata/nats'
+import {BuildNatsClientOptions, JSONCodec} from '@lakutata/nats'
 
 Application.run({
     id: 'json.app',
     name: 'JSON',
     components: {
-        nats: buildNatsClientOptions({servers: 'nats://127.0.0.1:4222', codec: JSONCodec()})
+        nats: BuildNatsClientOptions({servers: 'nats://127.0.0.1:4222', codec: JSONCodec()})
     }
 })
 ```
@@ -109,7 +109,7 @@ import {Application, DTO} from 'lakutata'
 import {BuildEntrypoints, Controller} from 'lakutata/com/entrypoint'
 import {ServiceAction} from 'lakutata/decorator/ctrl'
 import {Expect} from 'lakutata/decorator/dto'
-import {buildNatsClientOptions, NatsServiceEntrypoint, type NATS} from '@lakutata/nats'
+import {BuildNatsClientOptions, NatsServiceEntrypoint, type NATS} from '@lakutata/nats'
 
 class GetOrderDTO extends DTO {
     @Expect(DTO.Number().integer().required())
@@ -129,7 +129,7 @@ Application
         id: 'order.service',
         name: 'OrderService',
         components: {
-            nats: buildNatsClientOptions({servers: 'nats://127.0.0.1:4222'}),
+            nats: BuildNatsClientOptions({servers: 'nats://127.0.0.1:4222'}),
             entrypoint: BuildEntrypoints({
                 controllers: [OrderController],
                 //Subject "order.service" (the application id), queue group "order.service.serviceQueue"
@@ -167,7 +167,7 @@ by the requests: declare one per service with `BuildServiceProxy` in the `provid
 ```typescript
 import {Application} from 'lakutata'
 import {
-    buildNatsClientOptions,
+    BuildNatsClientOptions,
     BuildServiceProxy,
     NatsRequestTimeoutException,
     ServiceInvokeException,
@@ -179,7 +179,7 @@ Application
         id: 'billing.app',
         name: 'Billing',
         components: {
-            nats: buildNatsClientOptions({servers: 'nats://127.0.0.1:4222'})
+            nats: BuildNatsClientOptions({servers: 'nats://127.0.0.1:4222'})
         },
         providers: {
             orderService: BuildServiceProxy({natsComponentName: 'nats', serviceId: 'order.service'})
@@ -237,13 +237,13 @@ receiver reads the object and deletes it. The callbacks, the actions and `invoke
 
 ```typescript
 import {Application} from 'lakutata'
-import {buildNatsClientOptions} from '@lakutata/nats'
+import {BuildNatsClientOptions} from '@lakutata/nats'
 
 Application.run({
     id: 'report.service',
     name: 'ReportService',
     components: {
-        nats: buildNatsClientOptions({
+        nats: BuildNatsClientOptions({
             servers: 'nats://127.0.0.1:4222',
             //The same bucket in every application exchanging large payloads
             bulkBucket: 'lkt-bulk-shared',
@@ -263,7 +263,7 @@ Application.run({
 | Export | What it is |
 |---|---|
 | `NATS` | The component: `publish`, `request`, `subscribe`, `emitServiceEvent`, `onServiceEvent`, `onceServiceEvent`, `offServiceEvent`, the bulk channel (`bulkEnabled`, `bulkThreshold`, `headersSupported`, `putBulk`, `getBulk`, `deleteBulk`, `bulkStatus`), the event `error` |
-| `buildNatsClientOptions` | Builds the component options of a `NATS` component |
+| `BuildNatsClientOptions` | Builds the component options of a `NATS` component (`buildNatsClientOptions`, its name in 2.x, is a deprecated alias) |
 | `NatsClientOptions` | Its options: the connection, the codec and the bulk channel |
 | `SubscribeOptions` | The options of `subscribe()`: `queue`, `max`, `iterator`, `errorResponse` |
 | `MessagePackCodec`, `JSONCodec` | The codecs of the payloads |

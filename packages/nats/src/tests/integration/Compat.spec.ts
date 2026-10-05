@@ -6,7 +6,7 @@ import {BuildEntrypoints, Controller} from '@lakutata/entrypoint'
 import {ServiceAction} from '@lakutata/entrypoint/decorator/ctrl'
 import {connect, NatsConnection} from 'nats'
 import {
-    buildNatsClientOptions,
+    BuildNatsClientOptions,
     BuildServiceProxy,
     MessagePackCodec,
     ServiceProxy,
@@ -45,7 +45,7 @@ describe('old/new version compatibility (bare NATS simulating the real legacy ve
             id: 'it.compat.app',
             name: 'ITCompat',
             components: {
-                nats: buildNatsClientOptions({servers: n.url}), //New version (bulk defaults to true)
+                nats: BuildNatsClientOptions({servers: n.url}), //New version (bulk defaults to true)
                 entrypoint: BuildEntrypoints({
                     controllers: [EchoController],
                     service: SetupNatsServiceEntrypoint('nats') //New version server, serviceId = appId

@@ -6,7 +6,7 @@ import {BuildEntrypoints, Controller} from '@lakutata/entrypoint'
 import {ServiceAction} from '@lakutata/entrypoint/decorator/ctrl'
 import {Delay} from '@lakutata/utils'
 import {
-    buildNatsClientOptions,
+    BuildNatsClientOptions,
     BuildServiceProxy,
     ServiceProxy,
     SetupNatsServiceEntrypoint
@@ -41,7 +41,7 @@ describe('graceful shutdown drain', (): void => {
             id: 'it.drain.app',
             name: 'ITDrain',
             components: {
-                nats: buildNatsClientOptions({servers: natsUrl}),
+                nats: BuildNatsClientOptions({servers: natsUrl}),
                 entrypoint: BuildEntrypoints({
                     controllers: [SlowController],
                     service: SetupNatsServiceEntrypoint('nats')

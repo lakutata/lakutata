@@ -6,7 +6,7 @@ import {BuildEntrypoints, Controller} from '@lakutata/entrypoint'
 import {ServiceAction} from '@lakutata/entrypoint/decorator/ctrl'
 import {Delay} from '@lakutata/utils'
 import {
-    buildNatsClientOptions,
+    BuildNatsClientOptions,
     BuildServiceProxy,
     NatsNoRespondersAvailableException,
     NatsRequestTimeoutException,
@@ -50,7 +50,7 @@ describe('#7 NoResponders safe retry', (): void => {
             id: 'it.retry.app',
             name: 'ITRetry',
             components: {
-                nats: buildNatsClientOptions({servers: n.url}),
+                nats: BuildNatsClientOptions({servers: n.url}),
                 entrypoint: BuildEntrypoints({
                     controllers: [RetryController],
                     service: SetupNatsServiceEntrypoint('nats')

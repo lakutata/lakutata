@@ -3,7 +3,7 @@ import assert from 'node:assert'
 import {Container, type ComponentOptions, type ModuleOptions} from '@lakutata/core'
 import {BuildEntrypoints, Entrypoint, type ActionInvocation, type MiddlewareHandler, type Next} from '@lakutata/entrypoint'
 import {
-    buildDBusClientOptions,
+    BuildDBusClientOptions,
     DBus,
     DBusClientComponent,
     DBusClientOptions,
@@ -151,8 +151,8 @@ describeBus('DBus adapter', (): void => {
         await container.destroy()
     })
 
-    it('declares the client with buildDBusClientOptions', async (): Promise<void> => {
-        const options: ComponentOptions<DBusClientOptions> = buildDBusClientOptions({busAddress: `unix:path=${bus.socket}`, timeout: 5000})
+    it('declares the client with BuildDBusClientOptions', async (): Promise<void> => {
+        const options: ComponentOptions<DBusClientOptions> = BuildDBusClientOptions({busAddress: `unix:path=${bus.socket}`, timeout: 5000})
         //The declaration is accepted by the components of a module
         const components: ModuleOptions['components'] = {dbus: options}
         assert.strictEqual(components!.dbus, options)

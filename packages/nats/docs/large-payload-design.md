@@ -53,7 +53,7 @@
 **`bulk` 默认 `true`:NATS 客户端启动时默认建立 bulk 连接 + 准备 Object Store 旁路。**
 
 ```ts
-nats: buildNatsClientOptions({
+nats: BuildNatsClientOptions({
     servers: '...',
     bulk: true    // 默认 true:启动即建 bulk 连接 + 准备 Object Store 旁路
 })

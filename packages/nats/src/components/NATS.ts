@@ -35,14 +35,14 @@ const BULK_PROBE: string = '_LKT.BULK.' //The subjects of the capability probes:
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {buildNatsClientOptions, type NATS} from '@lakutata/nats'
+ * import {BuildNatsClientOptions, type NATS} from '@lakutata/nats'
  *
  * Application
  *     .run({
  *         id: 'notifier.app',
  *         name: 'Notifier',
  *         components: {
- *             nats: buildNatsClientOptions({
+ *             nats: BuildNatsClientOptions({
  *                 servers: ['nats://10.0.0.1:4222', 'nats://10.0.0.2:4222'],
  *                 user: 'notifier',
  *                 pass: 'secret',
@@ -58,7 +58,7 @@ const BULK_PROBE: string = '_LKT.BULK.' //The subjects of the capability probes:
  *     })
  * ```
  */
-export const buildNatsClientOptions: ComponentOptionsBuilder<NatsClientOptions> = (options: NatsClientOptions): ComponentOptions<NatsClientOptions> => {
+export const BuildNatsClientOptions: ComponentOptionsBuilder<NatsClientOptions> = (options: NatsClientOptions): ComponentOptions<NatsClientOptions> => {
     return {
         class: NATS,
         servers: options.servers,
@@ -83,9 +83,23 @@ export const buildNatsClientOptions: ComponentOptionsBuilder<NatsClientOptions> 
 }
 
 /**
+ * The name of {@link BuildNatsClientOptions} in lakutata 2.x, in camel case: the functions exported by the packages
+ * of lakutata are named in Pascal case (CONTRIBUTING.md, "Naming").
+ * @deprecated Use {@link BuildNatsClientOptions}; this alias will be removed in a later major version.
+ * @example
+ * ```typescript
+ * import {BuildNatsClientOptions} from '@lakutata/nats'
+ *
+ * //Was: buildNatsClientOptions({...})
+ * export const components = {nats: BuildNatsClientOptions({servers: 'nats://127.0.0.1:4222'})}
+ * ```
+ */
+export const buildNatsClientOptions: ComponentOptionsBuilder<NatsClientOptions> = BuildNatsClientOptions
+
+/**
  * The NATS component: a connection to a NATS server (or cluster) to publish messages, subscribe to subjects, send
  * requests and answer them, and emit and receive the service events. Register it in the `components` of an application
- * with {@link buildNatsClientOptions} (or `{class: NATS, ...options}`) and get it with `getObject()` or `@Inject`; it is
+ * with {@link BuildNatsClientOptions} (or `{class: NATS, ...options}`) and get it with `getObject()` or `@Inject`; it is
  * a singleton. The service entrypoint ({@link NatsServiceEntrypoint}) and the service proxies ({@link ServiceProxy})
  * use it by its component name.
  *
@@ -107,14 +121,14 @@ export const buildNatsClientOptions: ComponentOptionsBuilder<NatsClientOptions> 
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {buildNatsClientOptions, type NATS} from '@lakutata/nats'
+ * import {BuildNatsClientOptions, type NATS} from '@lakutata/nats'
  *
  * Application
  *     .run({
  *         id: 'pricing.app',
  *         name: 'Pricing',
  *         components: {
- *             nats: buildNatsClientOptions({servers: 'nats://127.0.0.1:4222', name: 'pricing'})
+ *             nats: BuildNatsClientOptions({servers: 'nats://127.0.0.1:4222', name: 'pricing'})
  *         }
  *     })
  *     .onLaunched(async (app: Application): Promise<void> => {

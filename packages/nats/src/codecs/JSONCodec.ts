@@ -1,7 +1,7 @@
 import {Codec} from 'nats'
 
 /**
- * Create the JSON codec of the NATS messages, for the `codec` option of {@link buildNatsClientOptions}. A value is sent
+ * Create the JSON codec of the NATS messages, for the `codec` option of {@link BuildNatsClientOptions}. A value is sent
  * as the UTF-8 JSON text of a one-element array (`{id: 1}` is sent as `[{"id":1}]`), so that every value, `null` and
  * the strings included, has a JSON form; the peers written in other languages wrap and unwrap that array.
  *
@@ -13,14 +13,14 @@ import {Codec} from 'nats'
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {buildNatsClientOptions, JSONCodec} from '@lakutata/nats'
+ * import {BuildNatsClientOptions, JSONCodec} from '@lakutata/nats'
  *
  * Application.run({
  *     id: 'json.app',
  *     name: 'JSON',
  *     components: {
  *         //Readable messages, for peers which do not speak MessagePack
- *         nats: buildNatsClientOptions({servers: 'nats://127.0.0.1:4222', codec: JSONCodec()})
+ *         nats: BuildNatsClientOptions({servers: 'nats://127.0.0.1:4222', codec: JSONCodec()})
  *     }
  * })
  *

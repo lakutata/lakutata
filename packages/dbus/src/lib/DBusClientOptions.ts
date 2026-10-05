@@ -1,7 +1,7 @@
 import type {DecodeOpts} from 'dbus-sdk'
 
 /**
- * The options of {@link buildDBusClientOptions}: the bus a {@link DBusClientComponent} connects to, and how it decodes
+ * The options of {@link BuildDBusClientOptions}: the bus a {@link DBusClientComponent} connects to, and how it decodes
  * the replies.
  */
 export interface DBusClientOptions {
