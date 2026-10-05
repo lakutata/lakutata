@@ -2,13 +2,12 @@
 // tree clean, the packages rebuilt and checked, their version bumped by lerna (committed and tagged, not pushed), then
 // published from their package.json with the dist-tag of the channel.
 //
-// Run: node scripts/publishing/release.mjs <alpha|beta|latest> [--version <version>] [--registry <url>] [--no-git]
-//      [--skip-gates]
+// Run: node scripts/publishing/release.mjs <alpha|beta|latest> [--version <version>] [--registry <url>] [--skip-gates]
 // alpha/beta: the next prerelease of the channel (3.0.0-beta.1 → 3.0.0-beta.2); the first one of a version is given
 //             with --version (--version 3.0.0-beta.0)
 // latest:     the release of the current prerelease (3.0.0-beta.4 → 3.0.0), or the version given
-// --registry  publishes to another registry (a local registry, to rehearse a release)
-// --no-git    bumps the versions without committing nor tagging them (a rehearsal: git checkout restores them)
+// --registry  publishes to another registry (a local registry, to rehearse a release on a branch of its own: its commit
+//             and its tag are deleted with the branch)
 // --skip-gates does not run the checks (a rehearsal)
 
 import {execFileSync} from 'node:child_process'
@@ -23,7 +22,6 @@ const {values: options, positionals: [channel]} = parseArgs({
     options: {
         'version': {type: 'string'},
         'registry': {type: 'string'},
-        'no-git': {type: 'boolean', default: false},
         'skip-gates': {type: 'boolean', default: false}
     }
 })
@@ -70,9 +68,9 @@ const lockfile = path.join(ROOT, 'package-lock.json')
 const aside = `${lockfile}.release`
 if (existsSync(lockfile)) renameSync(lockfile, aside)
 try {
-    run('npx', ['lerna', 'version', version, '--yes', ...(options['no-git'] ? ['--no-git-tag-version'] : [])])
+    run('npx', ['lerna', 'version', version, '--yes'])
 } finally {
     if (existsSync(aside)) renameSync(aside, lockfile)
 }
 run('npx', ['lerna', 'publish', 'from-package', '--yes', '--dist-tag', channel, ...(options.registry ? ['--registry', options.registry] : [])])
-console.log(`\nReleased ${version}${options['no-git'] ? '' : `: push the commit and the tag v${version} when ready (git push --follow-tags)`}`)
+console.log(`\nReleased ${version}: push the commit and the tag v${version} when ready (git push --follow-tags)`)
