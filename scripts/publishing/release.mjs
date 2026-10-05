@@ -1,6 +1,8 @@
 // The release of the packages of the workspace (lakutata and @lakutata/*, one version, lerna in fixed mode): the working
 // tree clean, the packages rebuilt and checked, their version bumped by lerna (committed and tagged, not pushed), then
-// published from their package.json with the dist-tag of the channel.
+// published by npm, one after the other in the order of their dependencies, with the dist-tag of the channel. npm, not
+// lerna publish: lerna asks for a one-time password when the registry asks for a second factor, npm authenticates in the
+// browser. Run again once the version is tagged (a publication interrupted), it publishes the packages not published yet.
 //
 // Run: node scripts/publishing/release.mjs <alpha|beta|latest> [--version <version>] [--registry <url>] [--skip-gates]
 // alpha/beta: the next prerelease of the channel (3.0.0-beta.1 → 3.0.0-beta.2); the first one of a version is given
@@ -36,10 +38,24 @@ const REGISTRY = options.registry ?? 'https://registry.npmjs.org/'
  * @param command
  * @param args
  * @param env the variables added to the environment
+ * @param cwd
  */
-function run(command, args, env = {}) {
-    console.log(`\n› ${command} ${args.join(' ')}`)
-    execFileSync(command, args, {cwd: ROOT, stdio: 'inherit', env: {...process.env, ...env}})
+function run(command, args, env = {}, cwd = ROOT) {
+    console.log(`\n› ${command} ${args.join(' ')}${cwd === ROOT ? '' : ` (${path.relative(ROOT, cwd)})`}`)
+    execFileSync(command, args, {cwd: cwd, stdio: 'inherit', env: {...process.env, ...env}})
+}
+
+/**
+ * Whether a version of a package is in the registry
+ * @param name
+ * @param version
+ */
+function published(name, version) {
+    try {
+        return execFileSync('npm', ['view', `${name}@${version}`, 'version', '--registry', REGISTRY], {cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore']}).trim() === version
+    } catch {
+        return false
+    }
 }
 
 /**
@@ -60,22 +76,34 @@ function nextVersion(current) {
 if (!['alpha', 'beta', 'latest'].includes(channel)) throw new Error('The channel is alpha, beta or latest')
 if (execFileSync('git', ['status', '--porcelain'], {cwd: ROOT, encoding: 'utf8'}).trim()) throw new Error('The working tree is not clean: commit or stash the changes first')
 const current = JSON.parse(readFileSync(new URL('../../lerna.json', import.meta.url), 'utf8')).version
-const version = nextVersion(current)
+//The version of the commit already tagged: its publication is resumed
+const tagged = execFileSync('git', ['tag', '--points-at', 'HEAD'], {cwd: ROOT, encoding: 'utf8'}).split('\n').includes(`v${current}`)
+const resumed = tagged && (!options.version || options.version === current)
+const version = resumed ? current : nextVersion(current)
 if (channel === 'latest' && version.includes('-')) throw new Error(`${version} is a prerelease: release it with its channel`)
 if (channel !== 'latest' && !version.includes(`-${channel}.`)) throw new Error(`${version} is not a prerelease of the channel ${channel}`)
-console.log(`Release ${current} → ${version} (dist-tag ${channel}, registry ${REGISTRY})`)
+console.log(resumed ? `Release ${version}, tagged already: the packages not published yet (dist-tag ${channel}, registry ${REGISTRY})` : `Release ${current} → ${version} (dist-tag ${channel}, registry ${REGISTRY})`)
 
 run('npm', ['run', 'rebuild'])
-if (!options['skip-gates']) for (const gate of GATES) run('npm', ['run', gate])
-//The lockfile of the workspace is not versioned (.gitignore): lerna would update it and add it to the commit
-const lockfile = path.join(ROOT, 'package-lock.json')
-const aside = `${lockfile}.release`
-if (existsSync(lockfile)) renameSync(lockfile, aside)
-try {
-    run('npx', ['lerna', 'version', version, '--yes'])
-} finally {
-    if (existsSync(aside)) renameSync(aside, lockfile)
+if (!resumed) {
+    if (!options['skip-gates']) for (const gate of GATES) run('npm', ['run', gate])
+    //The lockfile of the workspace is not versioned (.gitignore): lerna would update it and add it to the commit
+    const lockfile = path.join(ROOT, 'package-lock.json')
+    const aside = `${lockfile}.release`
+    if (existsSync(lockfile)) renameSync(lockfile, aside)
+    try {
+        run('npx', ['lerna', 'version', version, '--yes'])
+    } finally {
+        if (existsSync(aside)) renameSync(aside, lockfile)
+    }
 }
-//The packages of the scope are public (a scoped package is restricted by default when first published)
-run('npx', ['lerna', 'publish', 'from-package', '--yes', '--dist-tag', channel, '--registry', REGISTRY], {npm_config_access: 'public'})
+const packages = JSON.parse(execFileSync('npx', ['lerna', 'list', '--toposort', '--json'], {cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore']}))
+for (const {name, location} of packages) {
+    if (published(name, version)) {
+        console.log(`\n${name}@${version} is published already`)
+        continue
+    }
+    //The packages of the scope are public (a scoped package is restricted by default when first published)
+    run('npm', ['publish', '--tag', channel, '--access', 'public', '--registry', REGISTRY], {}, location)
+}
 console.log(`\nReleased ${version}: push the commit and the tag v${version} when ready (git push --follow-tags)`)
