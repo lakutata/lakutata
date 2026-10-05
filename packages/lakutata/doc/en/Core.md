@@ -48,10 +48,16 @@ object is ready:
 2. its `@Configurable` properties get their configured values, validated (and converted) by their schemas; a property
    not configured keeps its initializer, else the default of its schema;
 3. its `init()` runs (an error thrown here fails the creation);
-4. once the application has launched, its `launched()` runs (not awaited; its errors are logged).
+4. its `startup()` runs, once it can be got by the other objects: the requesters wait for it (and fail with its error),
+   except the objects got from within it, directly or through the objects they create, which get the object at once —
+   so an object it gets may inject it (an entrypoint starts its adapters there, their hooks getting an authenticator
+   which injects the entrypoint). It is named `startup` so that the classes with a `start()` method of their own (the
+   containers of `@lakutata/docker`) are not started by the framework;
+5. once the application has launched (and the object started), its `launched()` runs (not awaited; its errors are
+   logged).
 
-At its teardown (`dispose()`, or the teardown of the object, scope or application that created it) its
-`beforeDestroy()` runs, then the objects it created are destroyed, then its `destroy()` runs. Each object owns a
+At its teardown (`dispose()`, or the teardown of the object, scope or application that created it), once its
+`startup()` ended, its `beforeDestroy()` runs, then the objects it created are destroyed, then its `destroy()` runs. Each object owns a
 container: the objects it creates with `this.getObject()` are destroyed with it.
 
 ```typescript

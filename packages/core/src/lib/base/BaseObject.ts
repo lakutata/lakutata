@@ -20,6 +20,7 @@ import {DevNull} from '@lakutata/utils/DevNull'
 import {DefineObjectType, GetObjectType, ObjectType, RegisterBaseObject} from './internal/ObjectType.js'
 import {Module} from '../core/Module.js'
 import {WhenApplicationLaunched} from './internal/ApplicationLaunch.js'
+import {RunObjectStartup, WaitForObjectStartup, WaitForObjectStartupEnd} from './internal/ObjectStartup.js'
 import {ReportLaunchedError} from '../foundation/LifecycleErrorReporter.js'
 import {DependencyInjectionException} from '../../exceptions/di/DependencyInjectionException.js'
 import {ObjectDestroyedException} from '../../exceptions/ObjectDestroyedException.js'
@@ -59,7 +60,8 @@ type ObjectState = 'constructing' | 'ready' | 'destroying' | 'destroyed'
  * An object is never created with `new`: the container creates it (`getObject()`, `buildObject()`, the module options),
  * asynchronously: its `@Inject` properties are resolved, its `@Configurable` properties get their configured values
  * (validated and transformed by their schemas; a property not configured keeps its initializer, else the default of
- * its schema), then its `init()` runs. Once its application has launched, its `launched()` runs. At its teardown
+ * its schema), then its `init()` runs, then its `startup()` (the object is given to its requesters once started, except
+ * to the call chain of its startup). Once its application has launched, its `launched()` runs. At its teardown
  * (`dispose()`, or the teardown of the object, scope or application which created it) its `beforeDestroy()` runs, then
  * the objects it created are destroyed, then its `destroy()` runs. Each object owns a container: the objects it
  * creates are destroyed with it.
@@ -213,7 +215,12 @@ export class BaseObject extends AsyncConstructor {
      * @private
      */
     #runBeforeDestroy(): Promise<void> {
-        return this.#beforeDestroying ??= (async (): Promise<void> => await this.beforeDestroy())()
+        return this.#beforeDestroying ??= (async (): Promise<void> => {
+            //An object stops once its startup ended
+            const startupEnd: Promise<void> | undefined = WaitForObjectStartupEnd(this)
+            if (startupEnd) await startupEnd
+            await this.beforeDestroy()
+        })()
     }
 
     /**
@@ -272,6 +279,8 @@ export class BaseObject extends AsyncConstructor {
         //A teardown which happened during the initialization wins, the object never becomes ready
         this.#assertNotDestroyed()
         this.#state = 'ready'
+        //The startup runs once the object can be got, its requesters wait for it (see startup())
+        if (this.startup !== BaseObject.prototype.startup) void RunObjectStartup(this, (): Promise<void> => this.startup())
         if (this.launched !== BaseObject.prototype.launched) this.#scheduleLaunched()
     }
 
@@ -290,7 +299,8 @@ export class BaseObject extends AsyncConstructor {
                 ReportLaunchedError(error, this.className)
             }
         }
-        void (WhenApplicationLaunched(this) ?? Promise.resolve()).then(run)
+        //Once started: an object whose startup failed is not called
+        void (WhenApplicationLaunched(this) ?? Promise.resolve()).then((): Promise<void> => WaitForObjectStartup(this)).then(run, DevNull)
     }
 
     /**
@@ -324,6 +334,9 @@ export class BaseObject extends AsyncConstructor {
         this.#state = 'destroying'
         this.#destroying = (async (): Promise<void> => {
             const errors: unknown[] = []
+            //An object is destroyed once its startup ended (its startup itself destroying it does not wait)
+            const startupEnd: Promise<void> | undefined = WaitForObjectStartupEnd(this)
+            if (startupEnd) await startupEnd
             //The object stops its work while the objects it created are still alive (unless the teardown of its
             //container already did it, then its errors were reported)
             if (this.#beforeDestroying) {
@@ -365,6 +378,42 @@ export class BaseObject extends AsyncConstructor {
      * @protected
      */
     protected async init(): Promise<void> {
+        //To be override in child class
+    }
+
+    /**
+     * Start the object's work once it is initialized and can be got by the other objects (listen on a port, start the
+     * adapters of an entrypoint); override it. The objects getting it (`getObject()`, `@Inject`, a bootstrap step, the
+     * container's `get()` and `set()`) wait until it completes, and fail with its error; but the objects got from
+     * within it, directly or through the objects they create, get the object at once (initialized, not started yet),
+     * so an object it gets may inject it. Its `launched()` runs once it completed (not when it failed); its teardown
+     * waits for it to end. A module's runs once its bootstrap ran (the application's, once it launched). The name of
+     * the hook is `startup` so that the classes having a `start()` method of their own (a container of Docker) are not
+     * started by the framework.
+     * @returns Resolves once the object started.
+     * @protected
+     * @example
+     * ```typescript
+     * import {createServer, type Server} from 'node:http'
+     * import {Component} from 'lakutata'
+     *
+     * export class StatusServer extends Component {
+     *     #server: Server = createServer((_request, response): void => void response.end('ok'))
+     *
+     *     //The objects getting the server get it listening; a port in use fails them
+     *     protected async startup(): Promise<void> {
+     *         await new Promise<void>((resolve, reject): void => {
+     *             this.#server.once('error', reject).listen(8080, resolve)
+     *         })
+     *     }
+     *
+     *     protected async destroy(): Promise<void> {
+     *         await new Promise((resolve): unknown => this.#server.close(resolve))
+     *     }
+     * }
+     * ```
+     */
+    protected async startup(): Promise<void> {
         //To be override in child class
     }
 

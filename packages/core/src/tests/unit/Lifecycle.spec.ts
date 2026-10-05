@@ -573,4 +573,130 @@ await describe('Lifecycle Test', async function (): Promise<void> {
             return true
         })
     })
+
+    await describe('startup()', async (): Promise<void> => {
+        await it('is waited for by the objects getting the object', async (): Promise<void> => {
+            const order: string[] = []
+
+            class Server extends Component {
+                public listening: boolean = false
+
+                protected async init(): Promise<void> {
+                    order.push('init')
+                }
+
+                protected async startup(): Promise<void> {
+                    await sleep(20)
+                    this.listening = true
+                    order.push('startup')
+                }
+
+                protected async launched(): Promise<void> {
+                    order.push('launched')
+                }
+            }
+
+            const root: Container = new Container()
+            const server: Server = await root.set(Server)
+            assert.ok(server.listening)
+            assert.strictEqual(await root.get(Server), server)
+            await sleep(5)
+            assert.deepStrictEqual(order, ['init', 'startup', 'launched'])
+            await root.destroy()
+        })
+
+        await it('gives the object at once to the objects got from within it', async (): Promise<void> => {
+            class Server extends Component {
+                public guard: Guard | undefined
+
+                public started: boolean = false
+
+                protected async startup(): Promise<void> {
+                    this.guard = await this.getObject<Guard>('guard')
+                    this.started = true
+                }
+            }
+
+            //An authenticator injecting the entrypoint, got by the entrypoint's startup
+            class Guard extends Component {
+                @Inject('server')
+                public readonly server: Component
+            }
+
+            const root: Container = new Container()
+            await root.registerNamed('guard', Guard)
+            const starting: Promise<Server> = root.setNamed('server', Server)
+            const server: Server | string = await Promise.race([starting, sleep(3000).then((): string => 'deadlocked')])
+            assert.notStrictEqual(server, 'deadlocked')
+            assert.ok((server as Server).started)
+            //The guard got the server initialized, not started yet
+            assert.strictEqual((server as Server).guard!.server, server)
+            await root.destroy()
+        })
+
+        await it('fails the objects getting the object with its error, its launched() not called', async (): Promise<void> => {
+            let launched: boolean = false
+
+            class Busy extends Component {
+                protected async startup(): Promise<void> {
+                    throw new Error('port in use')
+                }
+
+                protected async launched(): Promise<void> {
+                    launched = true
+                }
+            }
+
+            const root: Container = new Container()
+            await assert.rejects(root.set(Busy), /port in use/)
+            await assert.rejects(root.get(Busy), /port in use/)
+            await sleep(5)
+            assert.strictEqual(launched, false)
+            await root.destroy()
+        })
+
+        await it('ends before the object is destroyed', async (): Promise<void> => {
+            const order: string[] = []
+
+            class Slow extends Component {
+                protected async startup(): Promise<void> {
+                    await sleep(30)
+                    order.push('started')
+                }
+
+                protected async destroy(): Promise<void> {
+                    order.push('destroyed')
+                }
+            }
+
+            const root: Container = new Container()
+            await root.register(Slow)
+            const getting: Promise<Slow> = root.get(Slow)
+            await sleep(5)
+            await root.destroy()
+            await getting.catch((): undefined => undefined)
+            assert.deepStrictEqual(order, ['started', 'destroyed'])
+        })
+
+        await it('lets the call chain of a startup no longer skip the wait once it ended', async (): Promise<void> => {
+            let later: Promise<unknown> | undefined
+
+            class Looping extends Component {
+                public startups: number = 0
+
+                protected async startup(): Promise<void> {
+                    this.startups++
+                    //A timer begun by the startup keeps its call chain
+                    later = new Promise((resolve): unknown => setTimeout((): unknown => resolve(this.getObject('looping')), 10))
+                }
+            }
+
+            const root: Container = new Container()
+            const looping: Looping = await root.setNamed('looping', Looping)
+            assert.strictEqual(await later, looping)
+            assert.strictEqual(looping.startups, 1)
+            await root.destroy()
+        })
+    })
 })
+

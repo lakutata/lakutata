@@ -22,6 +22,7 @@ import {pathToFileURL} from 'url'
 import {isClass} from '../ioc/Utils.js'
 import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
 import {MODULE_INITIALIZATION} from '../base/internal/ModuleInitialization.js'
+import {WaitForObjectStartup} from '../base/internal/ObjectStartup.js'
 import {LifetimeType} from '../ioc/Lifetime.js'
 import {ReportDestroyError} from '../foundation/LifecycleErrorReporter.js'
 import {ThrowWarning} from '../foundation/ThrowWarning.js'
@@ -500,6 +501,7 @@ export class Container {
         if (!shared && registration && lifetime === 'SCOPED' && !IsEmptyObject(configurableRecords)) {
             const configured: T = await this.processResolved(this.#dic.build<T>(registration), registrationName, configurableRecords)
             AppendObjectWeakRefs(this.#dic, configured)
+            await WaitForObjectStartup(configured)
             return configured
         }
         let resolver: Container = this
@@ -513,6 +515,7 @@ export class Container {
         resolver.#assertNotDestroyed()
         const object: T = await resolver.processResolved(resolver.#dic.resolve(registrationName), registrationName, configurableRecords)
         await this.#waitForModule(object)
+        await WaitForObjectStartup(object)
         return object
     }
 
@@ -643,6 +646,7 @@ export class Container {
         this.#assertNotDestroyed()
         const builtObject: T = await this.processResolved(this.#dic.build<T>(target, this.buildResolverOptions(target)), ConstructorSymbol(target), configurableRecords)
         AppendObjectWeakRefs(this.#dic, builtObject)
+        await WaitForObjectStartup(builtObject)
         return builtObject
     }
 
