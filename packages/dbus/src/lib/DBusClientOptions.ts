@@ -1,3 +1,5 @@
+import type {DecodeOpts} from 'dbus-sdk'
+
 /**
  * The options of {@link buildDBusClientOptions}: the bus a {@link DBusClientComponent} connects to, and how it decodes
  * the replies.
@@ -15,13 +17,15 @@ export interface DBusClientOptions {
      */
     timeout?: number
     /**
-     * Return the replies as `dbus-sdk` typed values (`DBusSignedValue`) instead of plain JavaScript values.
-     * @default false
+     * How long a call may wait for its reply, in milliseconds (a positive integer); a call's own `timeout` overrides it.
+     * @default dbus-sdk's default
      */
-    advancedResponse?: boolean
+    callTimeout?: number
     /**
-     * Convert the 64-bit integers of the replies from `bigint` to `number`; the values beyond 2^53 lose precision.
-     * @default true
+     * How the replies and the signals are decoded (`DecodeOpts` of `dbus-sdk`): `types` (`'none'`, `'variants'`,
+     * `'all'`: where the values keep their D-Bus types as typed values), `dictionaries` (`'object'` or `'map'`),
+     * `int64` (`'number'` or `'bigint'`).
+     * @default {int64: 'number'} (the 64-bit integers as numbers when they are safe integers, else bigints)
      */
-    convertBigIntToNumber?: boolean
+    decode?: DecodeOpts
 }

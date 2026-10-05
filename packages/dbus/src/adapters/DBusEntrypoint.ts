@@ -1,7 +1,7 @@
 import EventEmitter from 'node:events'
 import {FlexibleDTO} from '@lakutata/core/dtos'
 import type {ChannelActionInfo, ChannelRuntime, EntrypointAdapter, MiddlewareDefinition} from '@lakutata/entrypoint'
-import {DBusSignedValue, LocalInterface, LocalObject, LocalService, RequestNameFlags, RequestNameResultCode, type ConnectOpts} from 'dbus-sdk'
+import {LocalInterface, LocalObject, LocalService, RequestNameFlags, RequestNameResultCode, type ConnectOpts} from 'dbus-sdk'
 import {DBusChannel} from '../channel/DBusChannel.js'
 import {DBusContext} from '../context/DBusContext.js'
 import {ATTACH, DBusObjectManager, type DBusObjectSink, STORE} from '../components/DBusObjectManager.js'
@@ -304,12 +304,12 @@ export function DBusEntrypoint(options: DBusEntrypointOptions): EntrypointAdapte
                     emitters.forEach(({emitter}): unknown => emitter.emit(signal.name, Encodable(data)))
                     return true
                 },
-                propertyChanged: (path: string, property: DBusPropertyDefinition<any>, value: unknown): void => {
+                propertyChanged: (path: string, property: DBusPropertyDefinition<any>): void => {
                     const object: ExportedObject | undefined = exported.get(path)
                     const interfaces: string[] | undefined = object?.properties.get(property)
                     if (!object || !interfaces) return
-                    const signed: DBusSignedValue = DBusSignedValue.parse(property.type, Encodable(value))[0]
-                    interfaces.forEach((name: string): void => object.object.propertiesInterface.emitPropertiesChanged(name, {[property.name]: signed}, []))
+                    //The interfaces read the new value with their getters (the manager stored it), typed by the property
+                    interfaces.forEach((name: string): void => object.object.getInterface(name)?.emitPropertiesChanged(property.name))
                 }
             }
             detach = manager[ATTACH](sink)

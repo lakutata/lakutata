@@ -29,7 +29,7 @@
     "test:unit": "npm run compile && node --test \"dist/esm/tests/*.spec.js\""
   },
   "dependencies": {
-    "dbus-sdk": "^1.0.16"
+    "dbus-sdk": "^2.0.1"
   },
   "peerDependencies": {
     "@lakutata/core": "2.0.126",

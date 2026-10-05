@@ -26,12 +26,14 @@ export {
     LocalInterface,
     LocalObject,
     LocalService,
-    CreateDBusError,
+    createDBusError,
     DBusSignedValue,
     DBusSignalEmitter,
     Signature,
     RequestNameFlags,
     RequestNameResultCode,
+    type BusNameBasicInfo,
     type ConnectOpts,
+    type DecodeOpts,
     type InvokeOpts
 } from 'dbus-sdk'

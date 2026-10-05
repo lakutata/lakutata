@@ -16,8 +16,6 @@ npm install lakutata @lakutata/dbus
 - It needs a D-Bus daemon, as on Linux: the system bus (`/var/run/dbus/system_bus_socket`), the session bus of a
   desktop session (`DBUS_SESSION_BUS_ADDRESS`), or a private `dbus-daemon`. Owning a name on the system bus needs a bus
   policy allowing it (a file of `/etc/dbus-1/system.d/`).
-- dbus-sdk builds a native module (`native-machine-id`) with node-gyp when it is installed: a recent node-gyp is needed
-  with Python 3.12 or later.
 - Node.js 22 or later; its peer dependencies `@lakutata/core` and `@lakutata/entrypoint` come with `lakutata`.
 
 ## Usage
@@ -220,7 +218,7 @@ Application
         console.log(await device.property.State.get())
         device.signal.on('Changed', (data: unknown): void => console.log(data))
         //The events of the connection
-        dbus.on('NameOwnerChanged', (name: string, oldOwner: string, newOwner: string): void => console.log(name, oldOwner, newOwner))
+        dbus.on('nameOwnerChanged', (name: string, oldOwner: string, newOwner: string): void => console.log(name, oldOwner, newOwner))
     })
 ```
 
@@ -242,8 +240,8 @@ Application
 | `DBusContext`, `DBusContextParams`, `DBUS_CONTEXT_TYPE` | The context of the method calls: `path`, `interface`, `member` |
 | `DBusChannel` | The definition of the `dbus` channel, for the custom adapters |
 | `DBusClientComponent` | The client: `invoke`, `interface`, `interfaceSignal`, `object`, `service`, `services`, `listNames`, `listServices`, `nameHasOwner`, `getNameOwner`, `addMatch`, the connection events |
-| `buildDBusClientOptions`, `DBusClientOptions` | The client's declaration and options: `busAddress`, `timeout`, `advancedResponse`, `convertBigIntToNumber` |
-| `DBus`, `DBusRemoteInterface`, `DBusObject`, `DBusService`, `LocalService`, `LocalObject`, `LocalInterface`, `DBusSignedValue`, `DBusSignalEmitter`, `Signature`, `CreateDBusError`, `RequestNameFlags`, `RequestNameResultCode`, `ConnectOpts`, `InvokeOpts` | Re-exported from dbus-sdk (`DBusRemoteInterface` is its `DBusInterface`) |
+| `buildDBusClientOptions`, `DBusClientOptions` | The client's declaration and options: `busAddress`, `timeout`, `callTimeout`, `decode` (`DecodeOpts` of `dbus-sdk`; the 64-bit integers are numbers by default) |
+| `DBus`, `DBusRemoteInterface`, `DBusObject`, `DBusService`, `LocalService`, `LocalObject`, `LocalInterface`, `DBusSignedValue`, `DBusSignalEmitter`, `Signature`, `createDBusError`, `RequestNameFlags`, `RequestNameResultCode`, `BusNameBasicInfo`, `ConnectOpts`, `DecodeOpts`, `InvokeOpts` | Re-exported from dbus-sdk 2 (`DBusRemoteInterface` is its `DBusInterface`; see its MIGRATION.md for the changes from 1.x) |
 
 The typings document each declaration with examples.
 

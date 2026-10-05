@@ -6,8 +6,8 @@ import {
     DBusObject,
     DBusService,
     DBusSignalEmitter,
-    InvokeOpts,
-    ServiceBasicInfo
+    type DecodeOpts,
+    InvokeOpts
 } from 'dbus-sdk'
 import {Component, DTO, type ComponentOptions, type ComponentOptionsBuilder} from '@lakutata/core'
 import type {DBusClientOptions} from '../lib/DBusClientOptions.js'
@@ -41,8 +41,8 @@ export const buildDBusClientOptions: ComponentOptionsBuilder<DBusClientOptions> 
     class: DBusClientComponent,
     busAddress: options.busAddress,
     timeout: options.timeout,
-    advancedResponse: options.advancedResponse,
-    convertBigIntToNumber: options.convertBigIntToNumber
+    callTimeout: options.callTimeout,
+    decode: options.decode
 })
 
 /**
@@ -53,7 +53,7 @@ export const buildDBusClientOptions: ComponentOptionsBuilder<DBusClientOptions> 
  * is destroyed (the application stopping). It is a thin layer over the `DBus` connection of `dbus-sdk`, whose classes
  * (`DBusService`, `DBusObject`, `DBusRemoteInterface`…) its methods return.
  *
- * Its `on`, `once`, `off` and `removeListener` listen to the connection's events (`'NameOwnerChanged'`,
+ * Its `on`, `once`, `off` and `removeListener` listen to the connection's events (`'nameOwnerChanged'`,
  * `'connectionClose'`…), not to events of the component.
  * @example
  * ```typescript
@@ -85,7 +85,7 @@ export const buildDBusClientOptions: ComponentOptionsBuilder<DBusClientOptions> 
  *         console.log(await device.method.Status({sn: 'A1'}))
  *         console.log(await device.property.State.get())
  *         device.signal.on('Changed', (data: unknown): void => console.log(data))
- *         dbus.on('NameOwnerChanged', (name: string, oldOwner: string, newOwner: string): void => console.log(name, oldOwner, newOwner))
+ *         dbus.on('nameOwnerChanged', (name: string, oldOwner: string, newOwner: string): void => console.log(name, oldOwner, newOwner))
  *     })
  * ```
  */
@@ -108,20 +108,24 @@ export class DBusClientComponent extends Component {
     protected readonly timeout: number
 
     /**
-     * Return the replies as `dbus-sdk` typed values (`DBusSignedValue`, which keep their D-Bus types) instead of plain
-     * JavaScript values.
-     * @default false
+     * How long a call may wait for its reply, in milliseconds (a positive integer); a call's own `timeout` overrides it.
+     * @default dbus-sdk's default
      */
-    @Configurable(DTO.Boolean().optional().default(false))
-    protected readonly advancedResponse: boolean
+    @Configurable(DTO.Number().positive().integer().optional())
+    protected readonly callTimeout: number
 
     /**
-     * Convert the 64-bit integers of the replies (`x`, `t`) from `bigint` to `number`; the values beyond 2^53 lose
-     * precision.
-     * @default true
+     * How the replies and the signals are decoded (`DecodeOpts` of `dbus-sdk`): `types` (`'none'`, `'variants'`,
+     * `'all'`: where the values keep their D-Bus types as typed values), `dictionaries` (`'object'` or `'map'`),
+     * `int64` (`'number'` or `'bigint'`). A call's own `decode` overrides it.
+     * @default {int64: 'number'} (the 64-bit integers as numbers when they are safe integers, else bigints)
      */
-    @Configurable(DTO.Boolean().optional().default(true))
-    protected readonly convertBigIntToNumber: boolean
+    @Configurable(DTO.Object({
+        types: DTO.String().valid('none', 'variants', 'all').optional(),
+        dictionaries: DTO.String().valid('object', 'map').optional(),
+        int64: DTO.String().valid('bigint', 'number').optional()
+    }).optional())
+    protected readonly decode: DecodeOpts
 
     /**
      * The `dbus-sdk` connection to the bus, open from the component's creation to its destruction; the subclasses use
@@ -144,8 +148,9 @@ export class DBusClientComponent extends Component {
         this.dbus = await DBus.connect({
             busAddress: this.busAddress,
             timeout: this.timeout,
-            advancedResponse: this.advancedResponse,
-            convertBigIntToNumber: this.convertBigIntToNumber
+            callTimeout: this.callTimeout,
+            //The 64-bit integers are numbers unless the decoding says otherwise (as the client of lakutata 2.x)
+            decode: {int64: 'number', ...this.decode}
         })
     }
 
@@ -159,56 +164,48 @@ export class DBusClientComponent extends Component {
     /**
      * Call a method without waiting for its reply (the call is flagged as expecting none): its errors are not reported.
      * @param opts The service, the object path, the interface and the method to call, with the signature and the
-     * arguments of the call.
-     * @param noReply `true`.
+     * arguments of the call, and `noReply: true`.
+     * @throws {Error} An `InvalidValueError` or a `SignatureError` of `dbus-sdk` when the arguments do not fit the
+     * signature.
      */
-    public invoke(opts: InvokeOpts, noReply: true): void
+    public invoke(opts: InvokeOpts & { noReply: true }): void
     /**
      * Call a method and wait for its reply.
      * @param opts The service, the object path, the interface and the method to call, with the signature (`'sa{sv}'`)
-     * and the arguments of the call.
-     * @param noReply `false`.
+     * and the arguments of the call; its `timeout` and `decode` override the component's.
      * @returns The output arguments of the method, in order (an empty array for a method returning nothing).
-     * @throws {Error} When the method replies with a D-Bus error (its name and message), or the connection fails.
+     * @throws {Error} When the method replies with a D-Bus error (its name and message), the call times out, the
+     * arguments do not fit the signature, or the connection closes.
      */
-    public async invoke(opts: InvokeOpts, noReply: false): Promise<any[]>
-    /**
-     * Call a method and wait for its reply.
-     * @param opts The service, the object path, the interface and the method to call, with the signature (`'sa{sv}'`)
-     * and the arguments of the call.
-     * @returns The output arguments of the method, in order (an empty array for a method returning nothing).
-     * @throws {Error} When the method replies with a D-Bus error (its name and message), or the connection fails.
-     */
-    public async invoke(opts: InvokeOpts): Promise<any[]>
-    public invoke(opts: InvokeOpts, noReply: boolean = false): Promise<any[]> | void {
-        if (noReply) return this.dbus.invoke(opts, true)
-        return this.dbus.invoke(opts, false)
+    public async invoke(opts: InvokeOpts & { noReply?: false }): Promise<any[]>
+    public invoke(opts: InvokeOpts): Promise<any[]> | void {
+        return this.dbus.invoke(opts)
     }
 
     /**
-     * Listen to the connection's `'online'` event, emitted when a bus name gets an owner (a service comes online):
+     * Listen to the connection's `'serviceOnline'` event, emitted when a bus name gets an owner (a service comes online):
      * the listener is called every time it is emitted.
-     * @param eventName The event, `'online'`.
+     * @param eventName The event, `'serviceOnline'`.
      * @param listener The listener; its arguments: the bus name.
      * @returns The component, for chaining.
      */
-    public on(eventName: 'online', listener: (name: string) => void): this
+    public on(eventName: 'serviceOnline', listener: (name: string) => void): this
     /**
-     * Listen to the connection's `'offline'` event, emitted when a service name loses its owner (the service goes
+     * Listen to the connection's `'serviceOffline'` event, emitted when a service name loses its owner (the service goes
      * offline): the listener is called every time it is emitted.
-     * @param eventName The event, `'offline'`.
+     * @param eventName The event, `'serviceOffline'`.
      * @param listener The listener; its arguments: the bus name.
      * @returns The component, for chaining.
      */
-    public on(eventName: 'offline', listener: (name: string) => void): this
+    public on(eventName: 'serviceOffline', listener: (name: string) => void): this
     /**
-     * Listen to the connection's `'replaced'` event, emitted when the owner of a service name changes from one
+     * Listen to the connection's `'serviceReplaced'` event, emitted when the owner of a service name changes from one
      * connection to another: the listener is called every time it is emitted.
-     * @param eventName The event, `'replaced'`.
+     * @param eventName The event, `'serviceReplaced'`.
      * @param listener The listener; its arguments: the bus name.
      * @returns The component, for chaining.
      */
-    public on(eventName: 'replaced', listener: (name: string) => void): this
+    public on(eventName: 'serviceReplaced', listener: (name: string) => void): this
     /**
      * Listen to the connection's `'methodCall'` event, emitted when a method call addressed to this connection is
      * received: the listener is called every time it is emitted.
@@ -218,29 +215,29 @@ export class DBusClientComponent extends Component {
      */
     public on(eventName: 'methodCall', listener: (message: DBusMessage) => void): this
     /**
-     * Listen to the connection's `'NameOwnerChanged'` event, emitted when the bus announces that the owner of a name
+     * Listen to the connection's `'nameOwnerChanged'` event, emitted when the bus announces that the owner of a name
      * changed (an empty owner means none): the listener is called every time it is emitted.
-     * @param eventName The event, `'NameOwnerChanged'`.
+     * @param eventName The event, `'nameOwnerChanged'`.
      * @param listener The listener; its arguments: the name, its previous owner and its new owner (unique names).
      * @returns The component, for chaining.
      */
-    public on(eventName: 'NameOwnerChanged', listener: (name: string, oldOwner: string, newOwner: string) => void): this
+    public on(eventName: 'nameOwnerChanged', listener: (name: string, oldOwner: string, newOwner: string) => void): this
     /**
-     * Listen to the connection's `'NameLost'` event, emitted when this connection loses a name it owned: the listener is
+     * Listen to the connection's `'nameLost'` event, emitted when this connection loses a name it owned: the listener is
      * called every time it is emitted.
-     * @param eventName The event, `'NameLost'`.
+     * @param eventName The event, `'nameLost'`.
      * @param listener The listener; its arguments: the name lost.
      * @returns The component, for chaining.
      */
-    public on(eventName: 'NameLost', listener: (name: string) => void): this
+    public on(eventName: 'nameLost', listener: (name: string) => void): this
     /**
-     * Listen to the connection's `'NameAcquired'` event, emitted when this connection acquires a name (its unique name
+     * Listen to the connection's `'nameAcquired'` event, emitted when this connection acquires a name (its unique name
      * at least, when it connects): the listener is called every time it is emitted.
-     * @param eventName The event, `'NameAcquired'`.
+     * @param eventName The event, `'nameAcquired'`.
      * @param listener The listener; its arguments: the name acquired.
      * @returns The component, for chaining.
      */
-    public on(eventName: 'NameAcquired', listener: (name: string) => void): this
+    public on(eventName: 'nameAcquired', listener: (name: string) => void): this
     /**
      * Listen to the connection's `'connectionClose'` event, emitted when the connection to the bus closes: the listener
      * is called every time it is emitted.
@@ -263,29 +260,29 @@ export class DBusClientComponent extends Component {
     }
 
     /**
-     * Listen once to the connection's `'online'` event, emitted when a service name gets an owner (the service comes
+     * Listen once to the connection's `'serviceOnline'` event, emitted when a service name gets an owner (the service comes
      * online): the listener is called the next time it is emitted.
-     * @param eventName The event, `'online'`.
+     * @param eventName The event, `'serviceOnline'`.
      * @param listener The listener; its arguments: the bus name.
      * @returns The component, for chaining.
      */
-    public once(eventName: 'online', listener: (name: string) => void): this
+    public once(eventName: 'serviceOnline', listener: (name: string) => void): this
     /**
-     * Listen once to the connection's `'offline'` event, emitted when a service name loses its owner (the service goes
+     * Listen once to the connection's `'serviceOffline'` event, emitted when a service name loses its owner (the service goes
      * offline): the listener is called the next time it is emitted.
-     * @param eventName The event, `'offline'`.
+     * @param eventName The event, `'serviceOffline'`.
      * @param listener The listener; its arguments: the bus name.
      * @returns The component, for chaining.
      */
-    public once(eventName: 'offline', listener: (name: string) => void): this
+    public once(eventName: 'serviceOffline', listener: (name: string) => void): this
     /**
-     * Listen once to the connection's `'replaced'` event, emitted when the owner of a service name changes from one
+     * Listen once to the connection's `'serviceReplaced'` event, emitted when the owner of a service name changes from one
      * connection to another: the listener is called the next time it is emitted.
-     * @param eventName The event, `'replaced'`.
+     * @param eventName The event, `'serviceReplaced'`.
      * @param listener The listener; its arguments: the bus name.
      * @returns The component, for chaining.
      */
-    public once(eventName: 'replaced', listener: (name: string) => void): this
+    public once(eventName: 'serviceReplaced', listener: (name: string) => void): this
     /**
      * Listen once to the connection's `'methodCall'` event, emitted when a method call addressed to this connection is
      * received: the listener is called the next time it is emitted.
@@ -295,29 +292,29 @@ export class DBusClientComponent extends Component {
      */
     public once(eventName: 'methodCall', listener: (message: DBusMessage) => void): this
     /**
-     * Listen once to the connection's `'NameOwnerChanged'` event, emitted when the bus announces that the owner of a
+     * Listen once to the connection's `'nameOwnerChanged'` event, emitted when the bus announces that the owner of a
      * name changed (an empty owner means none): the listener is called the next time it is emitted.
-     * @param eventName The event, `'NameOwnerChanged'`.
+     * @param eventName The event, `'nameOwnerChanged'`.
      * @param listener The listener; its arguments: the name, its previous owner and its new owner (unique names).
      * @returns The component, for chaining.
      */
-    public once(eventName: 'NameOwnerChanged', listener: (name: string, oldOwner: string, newOwner: string) => void): this
+    public once(eventName: 'nameOwnerChanged', listener: (name: string, oldOwner: string, newOwner: string) => void): this
     /**
-     * Listen once to the connection's `'NameLost'` event, emitted when this connection loses a name it owned: the
+     * Listen once to the connection's `'nameLost'` event, emitted when this connection loses a name it owned: the
      * listener is called the next time it is emitted.
-     * @param eventName The event, `'NameLost'`.
+     * @param eventName The event, `'nameLost'`.
      * @param listener The listener; its arguments: the name lost.
      * @returns The component, for chaining.
      */
-    public once(eventName: 'NameLost', listener: (name: string) => void): this
+    public once(eventName: 'nameLost', listener: (name: string) => void): this
     /**
-     * Listen once to the connection's `'NameAcquired'` event, emitted when this connection acquires a name (its unique
+     * Listen once to the connection's `'nameAcquired'` event, emitted when this connection acquires a name (its unique
      * name at least, when it connects): the listener is called the next time it is emitted.
-     * @param eventName The event, `'NameAcquired'`.
+     * @param eventName The event, `'nameAcquired'`.
      * @param listener The listener; its arguments: the name acquired.
      * @returns The component, for chaining.
      */
-    public once(eventName: 'NameAcquired', listener: (name: string) => void): this
+    public once(eventName: 'nameAcquired', listener: (name: string) => void): this
     /**
      * Listen once to the connection's `'connectionClose'` event, emitted when the connection to the bus closes: the
      * listener is called the next time it is emitted.
@@ -340,26 +337,26 @@ export class DBusClientComponent extends Component {
     }
 
     /**
-     * Stop listening to the connection's `'online'` event: remove a listener added with `on` or `once`.
-     * @param eventName The event, `'online'`.
+     * Stop listening to the connection's `'serviceOnline'` event: remove a listener added with `on` or `once`.
+     * @param eventName The event, `'serviceOnline'`.
      * @param listener The listener to remove, as it was added.
      * @returns The component, for chaining.
      */
-    public off(eventName: 'online', listener: (name: string) => void): this
+    public off(eventName: 'serviceOnline', listener: (name: string) => void): this
     /**
-     * Stop listening to the connection's `'offline'` event: remove a listener added with `on` or `once`.
-     * @param eventName The event, `'offline'`.
+     * Stop listening to the connection's `'serviceOffline'` event: remove a listener added with `on` or `once`.
+     * @param eventName The event, `'serviceOffline'`.
      * @param listener The listener to remove, as it was added.
      * @returns The component, for chaining.
      */
-    public off(eventName: 'offline', listener: (name: string) => void): this
+    public off(eventName: 'serviceOffline', listener: (name: string) => void): this
     /**
-     * Stop listening to the connection's `'replaced'` event: remove a listener added with `on` or `once`.
-     * @param eventName The event, `'replaced'`.
+     * Stop listening to the connection's `'serviceReplaced'` event: remove a listener added with `on` or `once`.
+     * @param eventName The event, `'serviceReplaced'`.
      * @param listener The listener to remove, as it was added.
      * @returns The component, for chaining.
      */
-    public off(eventName: 'replaced', listener: (name: string) => void): this
+    public off(eventName: 'serviceReplaced', listener: (name: string) => void): this
     /**
      * Stop listening to the connection's `'methodCall'` event: remove a listener added with `on` or `once`.
      * @param eventName The event, `'methodCall'`.
@@ -368,26 +365,26 @@ export class DBusClientComponent extends Component {
      */
     public off(eventName: 'methodCall', listener: (message: DBusMessage) => void): this
     /**
-     * Stop listening to the connection's `'NameOwnerChanged'` event: remove a listener added with `on` or `once`.
-     * @param eventName The event, `'NameOwnerChanged'`.
+     * Stop listening to the connection's `'nameOwnerChanged'` event: remove a listener added with `on` or `once`.
+     * @param eventName The event, `'nameOwnerChanged'`.
      * @param listener The listener to remove, as it was added.
      * @returns The component, for chaining.
      */
-    public off(eventName: 'NameOwnerChanged', listener: (name: string, oldOwner: string, newOwner: string) => void): this
+    public off(eventName: 'nameOwnerChanged', listener: (name: string, oldOwner: string, newOwner: string) => void): this
     /**
-     * Stop listening to the connection's `'NameLost'` event: remove a listener added with `on` or `once`.
-     * @param eventName The event, `'NameLost'`.
+     * Stop listening to the connection's `'nameLost'` event: remove a listener added with `on` or `once`.
+     * @param eventName The event, `'nameLost'`.
      * @param listener The listener to remove, as it was added.
      * @returns The component, for chaining.
      */
-    public off(eventName: 'NameLost', listener: (name: string) => void): this
+    public off(eventName: 'nameLost', listener: (name: string) => void): this
     /**
-     * Stop listening to the connection's `'NameAcquired'` event: remove a listener added with `on` or `once`.
-     * @param eventName The event, `'NameAcquired'`.
+     * Stop listening to the connection's `'nameAcquired'` event: remove a listener added with `on` or `once`.
+     * @param eventName The event, `'nameAcquired'`.
      * @param listener The listener to remove, as it was added.
      * @returns The component, for chaining.
      */
-    public off(eventName: 'NameAcquired', listener: (name: string) => void): this
+    public off(eventName: 'nameAcquired', listener: (name: string) => void): this
     /**
      * Stop listening to the connection's `'connectionClose'` event: remove a listener added with `on` or `once`.
      * @param eventName The event, `'connectionClose'`.
@@ -408,26 +405,26 @@ export class DBusClientComponent extends Component {
     }
 
     /**
-     * Stop listening to the connection's `'online'` event: remove a listener added with `on` or `once`.
-     * @param eventName The event, `'online'`.
+     * Stop listening to the connection's `'serviceOnline'` event: remove a listener added with `on` or `once`.
+     * @param eventName The event, `'serviceOnline'`.
      * @param listener The listener to remove, as it was added.
      * @returns The component, for chaining (same as `off`).
      */
-    public removeListener(eventName: 'online', listener: (name: string) => void): this
+    public removeListener(eventName: 'serviceOnline', listener: (name: string) => void): this
     /**
-     * Stop listening to the connection's `'offline'` event: remove a listener added with `on` or `once`.
-     * @param eventName The event, `'offline'`.
+     * Stop listening to the connection's `'serviceOffline'` event: remove a listener added with `on` or `once`.
+     * @param eventName The event, `'serviceOffline'`.
      * @param listener The listener to remove, as it was added.
      * @returns The component, for chaining (same as `off`).
      */
-    public removeListener(eventName: 'offline', listener: (name: string) => void): this
+    public removeListener(eventName: 'serviceOffline', listener: (name: string) => void): this
     /**
-     * Stop listening to the connection's `'replaced'` event: remove a listener added with `on` or `once`.
-     * @param eventName The event, `'replaced'`.
+     * Stop listening to the connection's `'serviceReplaced'` event: remove a listener added with `on` or `once`.
+     * @param eventName The event, `'serviceReplaced'`.
      * @param listener The listener to remove, as it was added.
      * @returns The component, for chaining (same as `off`).
      */
-    public removeListener(eventName: 'replaced', listener: (name: string) => void): this
+    public removeListener(eventName: 'serviceReplaced', listener: (name: string) => void): this
     /**
      * Stop listening to the connection's `'methodCall'` event: remove a listener added with `on` or `once`.
      * @param eventName The event, `'methodCall'`.
@@ -436,26 +433,26 @@ export class DBusClientComponent extends Component {
      */
     public removeListener(eventName: 'methodCall', listener: (message: DBusMessage) => void): this
     /**
-     * Stop listening to the connection's `'NameOwnerChanged'` event: remove a listener added with `on` or `once`.
-     * @param eventName The event, `'NameOwnerChanged'`.
+     * Stop listening to the connection's `'nameOwnerChanged'` event: remove a listener added with `on` or `once`.
+     * @param eventName The event, `'nameOwnerChanged'`.
      * @param listener The listener to remove, as it was added.
      * @returns The component, for chaining (same as `off`).
      */
-    public removeListener(eventName: 'NameOwnerChanged', listener: (name: string, oldOwner: string, newOwner: string) => void): this
+    public removeListener(eventName: 'nameOwnerChanged', listener: (name: string, oldOwner: string, newOwner: string) => void): this
     /**
-     * Stop listening to the connection's `'NameLost'` event: remove a listener added with `on` or `once`.
-     * @param eventName The event, `'NameLost'`.
+     * Stop listening to the connection's `'nameLost'` event: remove a listener added with `on` or `once`.
+     * @param eventName The event, `'nameLost'`.
      * @param listener The listener to remove, as it was added.
      * @returns The component, for chaining (same as `off`).
      */
-    public removeListener(eventName: 'NameLost', listener: (name: string) => void): this
+    public removeListener(eventName: 'nameLost', listener: (name: string) => void): this
     /**
-     * Stop listening to the connection's `'NameAcquired'` event: remove a listener added with `on` or `once`.
-     * @param eventName The event, `'NameAcquired'`.
+     * Stop listening to the connection's `'nameAcquired'` event: remove a listener added with `on` or `once`.
+     * @param eventName The event, `'nameAcquired'`.
      * @param listener The listener to remove, as it was added.
      * @returns The component, for chaining (same as `off`).
      */
-    public removeListener(eventName: 'NameAcquired', listener: (name: string) => void): this
+    public removeListener(eventName: 'nameAcquired', listener: (name: string) => void): this
     /**
      * Stop listening to the connection's `'connectionClose'` event: remove a listener added with `on` or `once`.
      * @param eventName The event, `'connectionClose'`.
@@ -539,12 +536,13 @@ export class DBusClientComponent extends Component {
      * List the services of the bus: its well-known names (the unique names `:1.42` left out), with their details.
      * @returns The services and their details.
      */
-    public async listServices(): Promise<ServiceBasicInfo[]> {
+    public async listServices(): Promise<BusNameBasicInfo[]> {
         return this.dbus.listServices()
     }
 
     /**
-     * Get every service of the bus, to browse their objects.
+     * Get the services of the bus which are running, to browse their objects (the activatable services which are not
+     * running are left out, not started: get one with {@link service} to start it).
      * @returns The services.
      */
     public async services(): Promise<DBusService[]> {

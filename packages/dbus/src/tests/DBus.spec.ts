@@ -167,6 +167,36 @@ describeBus('DBus adapter', (): void => {
         }
     })
 
+    it('encodes the Maps and the typed values of the results', async (): Promise<void> => {
+        const {client} = await Start()
+        //The keys of a Map keep their types, the 64-bit integers are bigints for the clients decoding them so
+        assert.deepStrictEqual((await Call(client, '/com/example/Manager', 'com.example.Manager', 'Counters'))[0], {1: 10n, 2: 20n})
+        const [size] = await client.invoke({service: SERVICE, objectPath: '/com/example/Manager', interface: 'com.example.Manager', method: 'Size', decode: {types: 'variants'}})
+        assert.strictEqual(size.signature, 'u')
+        assert.strictEqual(size.value, 7)
+    })
+
+    it('listens to the events of the bus, calls without reply and decodes the 64-bit integers as numbers', async (): Promise<void> => {
+        const container: Container = new Container()
+        try {
+            const dbus: DBusClientComponent = await container.setNamed('dbus', DBusClientComponent, {busAddress: `unix:path=${bus.socket}`})
+            const online: string[] = []
+            const owners: string[] = []
+            dbus.on('serviceOnline', (name: string): unknown => online.push(name))
+            dbus.on('nameOwnerChanged', (name: string): unknown => owners.push(name))
+            await Sleep(100)
+            await Start()
+            await Sleep(100)
+            assert.ok(online.includes(SERVICE))
+            assert.ok(owners.includes(SERVICE))
+            assert.strictEqual(dbus.invoke({service: SERVICE, objectPath: '/com/example/Manager', interface: 'com.example.Manager', method: 'Reset', noReply: true}), undefined)
+            const [counters] = await dbus.invoke({service: SERVICE, objectPath: '/com/example/Manager', interface: 'com.example.Manager', method: 'Counters'})
+            assert.deepStrictEqual(counters, {1: 10, 2: 20})
+        } finally {
+            await container.destroy()
+        }
+    })
+
     it('serves the properties', async (): Promise<void> => {
         const {container, manager, client} = await Start()
         manager.addObject('/com/example/Devices/B2')

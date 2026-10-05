@@ -2,6 +2,7 @@ import {DTO, Exception} from '@lakutata/core'
 import {Expect, Return} from '@lakutata/core/decorator/dto'
 import {Controller} from '@lakutata/entrypoint'
 import {DBusContext, DBusInterface, DBusMethod, DefineDBusProperty, DefineDBusSignal} from '../../exports/DBus.js'
+import {DBusUInt32} from 'dbus-sdk'
 
 export class DeviceDTO extends DTO {
     @Expect(DTO.String().required())
@@ -54,6 +55,18 @@ export class ManagerController extends Controller {
 
     @DBusMethod('Reset')
     public async reset(): Promise<void> {
+    }
+
+    //A dictionary whose keys are integers, its values 64-bit integers
+    @DBusMethod('Counters', {returns: 'a{ix}'})
+    public async counters(): Promise<Map<number, bigint>> {
+        return new Map([[1, 10n], [2, 20n]])
+    }
+
+    //A variant keeping the type given by the action
+    @DBusMethod('Size', {returns: 'v'})
+    public async size(): Promise<DBusUInt32> {
+        return new DBusUInt32(7)
     }
 
     @DBusMethod('Slow', {returns: 's'})
