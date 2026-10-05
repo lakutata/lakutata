@@ -67,7 +67,9 @@ describe('error handling / crash protection / reply guard', (): void => {
                 entrypoint: BuildEntrypoints({
                     controllers: [TestController],
                     service: SetupNatsServiceEntrypoint('nats')
-                }),
+                })
+            },
+            providers: {
                 self: BuildServiceProxy({serviceId: 'it.errhandling.app', natsComponentName: 'nats'})
             },
             bootstrap: ['entrypoint']

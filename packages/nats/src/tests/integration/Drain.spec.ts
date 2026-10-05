@@ -45,7 +45,9 @@ describe('graceful shutdown drain', (): void => {
                 entrypoint: BuildEntrypoints({
                     controllers: [SlowController],
                     service: SetupNatsServiceEntrypoint('nats')
-                }),
+                })
+            },
+            providers: {
                 self: BuildServiceProxy({serviceId: 'it.drain.app', natsComponentName: 'nats'})
             },
             bootstrap: ['entrypoint']

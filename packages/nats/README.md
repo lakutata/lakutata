@@ -161,8 +161,8 @@ Application
 
 ### Invoking a service: the service proxy
 
-A `ServiceProxy` component invokes the actions of one remote service and listens to its events. Declare one per
-service with `BuildServiceProxy`.
+A `ServiceProxy` invokes the actions of one remote service and listens to its events. It is a singleton provider, shared
+by the requests: declare one per service with `BuildServiceProxy` in the `providers` of the application, as in 2.x.
 
 ```typescript
 import {Application} from 'lakutata'
@@ -179,7 +179,9 @@ Application
         id: 'billing.app',
         name: 'Billing',
         components: {
-            nats: buildNatsClientOptions({servers: 'nats://127.0.0.1:4222'}),
+            nats: buildNatsClientOptions({servers: 'nats://127.0.0.1:4222'})
+        },
+        providers: {
             orderService: BuildServiceProxy({natsComponentName: 'nats', serviceId: 'order.service'})
         }
     })
@@ -269,8 +271,8 @@ Application.run({
 | `NatsServiceEntrypoint` | The service adapter of an entrypoint served over NATS |
 | `SetupNatsServiceEntrypoint` | Its 2.x name |
 | `NatsServiceEntrypointOptions` | Its options: `subject`, `queue`, `name`, `middlewares` |
-| `ServiceProxy` | The component invoking the actions of a remote service and listening to its events |
-| `BuildServiceProxy` | Builds the component options of a `ServiceProxy` |
+| `ServiceProxy` | The singleton provider invoking the actions of a remote service and listening to its events |
+| `BuildServiceProxy` | Builds the provider options of a `ServiceProxy` |
 | `BuildServiceProxyOptions` | Its options: `natsComponentName`, `serviceId`, `maxRetries`, `retryDelay` |
 | `ServiceInvokeException` and the `Nats*Exception` classes | See [Errors](#errors) |
 

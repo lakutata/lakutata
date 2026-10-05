@@ -1,5 +1,5 @@
-import {ActionPattern, Application, Component, ComponentOptionsBuilder, DTO} from '@lakutata/core'
-import {Configurable, Inject} from '@lakutata/core/decorator/di'
+import {ActionPattern, Application, DTO, Provider, type ProviderOptionsBuilder} from '@lakutata/core'
+import {Configurable, Inject, Singleton} from '@lakutata/core/decorator/di'
 import {Delay} from '@lakutata/utils'
 import {NATS} from '../components/NATS.js'
 import {ServiceResponseCodec} from '@lakutata/entrypoint/channel'
@@ -34,12 +34,12 @@ export type BuildServiceProxyOptions = {
 }
 
 /**
- * Build the component options of a {@link ServiceProxy}, to register it in the `components` of an application under the
- * name of your choice; declare one per remote service. The options are validated when the component is created, not
- * here.
+ * Build the provider options of a {@link ServiceProxy}, to register it in the `providers` of an application under the
+ * name of your choice (as in 2.x); declare one per remote service. The options are validated when the proxy is created,
+ * not here.
  * @param options The NATS component to use, the id of the remote service, and the retries of the requests nobody
  * received.
- * @returns The component options (`{class: ServiceProxy, ...options}`).
+ * @returns The provider options (`{class: ServiceProxy, ...options}`).
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
@@ -50,7 +50,9 @@ export type BuildServiceProxyOptions = {
  *         id: 'shop.app',
  *         name: 'Shop',
  *         components: {
- *             nats: buildNatsClientOptions({servers: 'nats://127.0.0.1:4222'}),
+ *             nats: buildNatsClientOptions({servers: 'nats://127.0.0.1:4222'})
+ *         },
+ *         providers: {
  *             //The actions and the events of the application whose id is "order.service"
  *             orderService: BuildServiceProxy({natsComponentName: 'nats', serviceId: 'order.service', maxRetries: 5})
  *         }
@@ -61,7 +63,7 @@ export type BuildServiceProxyOptions = {
  *     })
  * ```
  */
-export const BuildServiceProxy: ComponentOptionsBuilder<BuildServiceProxyOptions> = (options: BuildServiceProxyOptions) => {
+export const BuildServiceProxy: ProviderOptionsBuilder<BuildServiceProxyOptions> = (options: BuildServiceProxyOptions) => {
     return {
         class: ServiceProxy,
         natsComponentName: options.natsComponentName,
@@ -73,9 +75,10 @@ export const BuildServiceProxy: ComponentOptionsBuilder<BuildServiceProxyOptions
 
 /**
  * The proxy of a remote service served by {@link NatsServiceEntrypoint}: it invokes the service's actions and listens to
- * its events, over a {@link NATS} component. Register it in the `components` of an application with
- * {@link BuildServiceProxy}, one per remote service, and get it with `getObject()` or `@Inject`; it is a singleton. It
- * resolves its NATS component when it is created (which fails when that component is not registered).
+ * its events, over a {@link NATS} component. Register it in the `providers` of an application with
+ * {@link BuildServiceProxy} (as in 2.x), one per remote service, and get it with `getObject()` or `@Inject`; it is a
+ * singleton provider, shared by the scopes. It resolves its NATS component when it is created (which fails when that
+ * component is not registered).
  *
  * An invocation is a NATS request to the service id, answered by one instance of the service (its queue group): the
  * action's result is returned, the action's failure thrown as a `ServiceInvokeException` carrying the remote error's
@@ -116,8 +119,10 @@ export const BuildServiceProxy: ComponentOptionsBuilder<BuildServiceProxyOptions
  *         name: 'Billing',
  *         components: {
  *             nats: buildNatsClientOptions({servers: 'nats://127.0.0.1:4222'}),
- *             orderService: BuildServiceProxy({natsComponentName: 'nats', serviceId: 'order.service'}),
  *             billing: {class: Billing}
+ *         },
+ *         providers: {
+ *             orderService: BuildServiceProxy({natsComponentName: 'nats', serviceId: 'order.service'})
  *         }
  *     })
  *     .onLaunched(async (app: Application): Promise<void> => {
@@ -129,7 +134,8 @@ export const BuildServiceProxy: ComponentOptionsBuilder<BuildServiceProxyOptions
  *     })
  * ```
  */
-export class ServiceProxy extends Component {
+@Singleton()
+export class ServiceProxy extends Provider {
     /**
      * The application the proxy belongs to, to resolve its NATS component.
      */

@@ -40,7 +40,9 @@ describe('Phase 0 smoke', (): void => {
                 entrypoint: BuildEntrypoints({
                     controllers: [EchoController],
                     service: SetupNatsServiceEntrypoint('nats')
-                }),
+                })
+            },
+            providers: {
                 self: BuildServiceProxy({serviceId: 'smoke.app', natsComponentName: 'nats'})
             },
             bootstrap: ['entrypoint']

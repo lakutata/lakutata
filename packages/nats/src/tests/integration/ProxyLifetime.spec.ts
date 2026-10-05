@@ -19,7 +19,7 @@ class ProxyController extends Controller {
 }
 
 /**
- * The service proxies are components: one instance shared by the requests, its event subscriptions end with it
+ * The service proxies are singleton providers (as in 2.x): one instance shared by the requests, its event subscriptions end with it
  */
 describe('service proxy lifetime', (): void => {
     let app: Application
@@ -31,7 +31,9 @@ describe('service proxy lifetime', (): void => {
             name: 'ITProxy',
             components: {
                 nats: buildNatsClientOptions({servers: n.url, bulk: false}),
-                entrypoint: BuildEntrypoints({controllers: [ProxyController], service: NatsServiceEntrypoint('nats')}),
+                entrypoint: BuildEntrypoints({controllers: [ProxyController], service: NatsServiceEntrypoint('nats')})
+            },
+            providers: {
                 peer: BuildServiceProxy({serviceId: 'it.proxy.app', natsComponentName: 'nats'}),
                 listener: BuildServiceProxy({serviceId: 'it.proxy.app', natsComponentName: 'nats'})
             },

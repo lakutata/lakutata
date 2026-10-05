@@ -26,7 +26,9 @@ describe('service events through the proxies', (): void => {
             name: 'ITProxyEvents',
             components: {
                 nats: buildNatsClientOptions({servers: n.url}),
-                entrypoint: BuildEntrypoints({controllers: [OrderController], service: NatsServiceEntrypoint('nats', {subject: 'it.custom.orders'})}),
+                entrypoint: BuildEntrypoints({controllers: [OrderController], service: NatsServiceEntrypoint('nats', {subject: 'it.custom.orders'})})
+            },
+            providers: {
                 first: BuildServiceProxy({serviceId: 'it.custom.orders', natsComponentName: 'nats'}),
                 second: BuildServiceProxy({serviceId: 'it.custom.orders', natsComponentName: 'nats'})
             },
