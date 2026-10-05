@@ -205,7 +205,7 @@ the `middlewares` action option.
 import {type ActionInvocation, Controller, type Next} from 'lakutata/com/entrypoint'
 import {GET, UseMiddlewares} from 'lakutata/decorator/ctrl'
 
-async function Timing(invocation: ActionInvocation, next: Next): Promise<unknown> {
+async function timing(invocation: ActionInvocation, next: Next): Promise<unknown> {
     const started: number = Date.now()
     try {
         return await next()
@@ -214,7 +214,7 @@ async function Timing(invocation: ActionInvocation, next: Next): Promise<unknown
     }
 }
 
-@UseMiddlewares(Timing)
+@UseMiddlewares(timing)
 class HealthController extends Controller {
     @GET('/health')
     public async health(): Promise<string> {
@@ -248,7 +248,7 @@ class UserController extends Controller {
     }
 }
 
-//BuildEntrypoints({controllers: [UserController], rules: [AdminRule], httpActionGroups: {admin: 'Administration'}})
+//buildEntrypoints({controllers: [UserController], rules: [AdminRule], httpActionGroups: {admin: 'Administration'}})
 ```
 
 The groups of an action must be declared in `httpActionGroups`, `cliActionGroups` or `serviceActionGroups` of

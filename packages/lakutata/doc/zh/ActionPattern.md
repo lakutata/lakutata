@@ -171,7 +171,7 @@ class UserController extends Controller {
 import {type ActionInvocation, Controller, type Next} from 'lakutata/com/entrypoint'
 import {GET, UseMiddlewares} from 'lakutata/decorator/ctrl'
 
-async function Timing(invocation: ActionInvocation, next: Next): Promise<unknown> {
+async function timing(invocation: ActionInvocation, next: Next): Promise<unknown> {
     const started: number = Date.now()
     try {
         return await next()
@@ -180,7 +180,7 @@ async function Timing(invocation: ActionInvocation, next: Next): Promise<unknown
     }
 }
 
-@UseMiddlewares(Timing)
+@UseMiddlewares(timing)
 class HealthController extends Controller {
     @GET('/health')
     public async health(): Promise<string> {
@@ -212,7 +212,7 @@ class UserController extends Controller {
     }
 }
 
-//BuildEntrypoints({controllers: [UserController], rules: [AdminRule], httpActionGroups: {admin: 'Administration'}})
+//buildEntrypoints({controllers: [UserController], rules: [AdminRule], httpActionGroups: {admin: 'Administration'}})
 ```
 
 动作的分组必须在 `buildEntrypoints` 的 `httpActionGroups`、`cliActionGroups` 或 `serviceActionGroups` 中声明。`shutdownTimeout`（默认 30000 毫秒）是入口停止时留给正在处理的请求的时间。

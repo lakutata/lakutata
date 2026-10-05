@@ -258,7 +258,7 @@ class ClockController extends Controller {
 }
 
 //Throwing answers 401
-function VerifyToken(request: IncomingMessage): MCPAuthInfo {
+function verifyToken(request: IncomingMessage): MCPAuthInfo {
     const token: string = request.headers.authorization?.replace(/^Bearer /, '') ?? ''
     if (token !== process.env.MCP_TOKEN) throw new Error('Invalid token')
     return {token: token, clientId: 'assistant', scopes: []}
@@ -273,7 +273,7 @@ Application.run(() => ({
             //Both transports at once
             mcp: [
                 stdioMCPEntrypoint(),
-                httpMCPEntrypoint({port: 3000, authenticate: VerifyToken})
+                httpMCPEntrypoint({port: 3000, authenticate: verifyToken})
             ]
         })
     },

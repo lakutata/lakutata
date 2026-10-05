@@ -111,7 +111,7 @@ import {buildEntrypoints, Controller, type ActionInvocation, type Next} from 'la
 import {GET, UseMiddlewares} from 'lakutata/decorator/ctrl'
 
 //Runs around the action: before its input validation and its access control
-async function Timing(invocation: ActionInvocation, next: Next): Promise<unknown> {
+async function timing(invocation: ActionInvocation, next: Next): Promise<unknown> {
     const started: number = Date.now()
     try {
         return await next()
@@ -120,7 +120,7 @@ async function Timing(invocation: ActionInvocation, next: Next): Promise<unknown
     }
 }
 
-@UseMiddlewares(Timing)
+@UseMiddlewares(timing)
 class HealthController extends Controller {
     @GET('/health')
     public async health(): Promise<string> {
@@ -132,7 +132,7 @@ Application.run(() => ({
     id: 'health.app',
     name: 'Health',
     components: {
-        entrypoint: buildEntrypoints({controllers: [HealthController], middlewares: [Timing]})
+        entrypoint: buildEntrypoints({controllers: [HealthController], middlewares: [timing]})
     }
 }))
 ```
