@@ -144,11 +144,7 @@ Application
             headers: body ? {'content-type': 'application/json'} : {},
             body: body ? JSON.stringify(body) : undefined
         })).json() as APIResponse
-        //The 2.x builders are not awaited (as in 2.x): the server of the HTTP builder listens once it got its objects
-        for (let attempt: number = 0; attempt < 100; attempt++) {
-            if (await request('GET', '/health').then((): boolean => true, (): boolean => false)) break
-            await new Promise((resolve): unknown => setTimeout(resolve, 50))
-        }
+        //The 2.x builders are awaited in the entrypoint's startup: the server listens once the application launched
 
         await check('the HTTP entrypoint gets the objects of the module', async (): Promise<void> => {
             assert.deepStrictEqual(await request('GET', '/health'), {errno: null, errMsg: null, data: {database: true}})

@@ -198,7 +198,7 @@ describe('Channels', (): void => {
         assert.ok(legacyStopped)
     })
 
-    it('do not wait for the 2.x asynchronous builders: their objects may inject the entrypoint', async (): Promise<void> => {
+    it('run the 2.x builders in the startup: the objects they get may inject the entrypoint', async (): Promise<void> => {
         //An authenticator of the requests injecting the entrypoint, got by the builder
         class Guard extends Component {
             @Inject('entrypoint')
@@ -214,8 +214,19 @@ describe('Channels', (): void => {
                 guarded = await container.get<Guard>('guard')
             })
         }))
-        for (let attempt = 0; attempt < 50 && !guarded; attempt++) await new Promise((resolve): unknown => setImmediate(resolve))
+        //The builder is awaited: the entrypoint is got once it completed
         assert.ok(guarded?.entrypoint instanceof Entrypoint)
+        await container.destroy()
+    })
+
+    it('fail the startup of the entrypoint when a 2.x builder fails', async (): Promise<void> => {
+        const container: Container = new Container()
+        await assert.rejects(container.set(Entrypoint, BuildEntrypoints({
+            controllers: [DeviceController],
+            service: BuildServiceEntrypoint(async (): Promise<void> => {
+                throw new Error('listen EADDRINUSE')
+            })
+        })), /EADDRINUSE/)
         await container.destroy()
     })
 

@@ -40,12 +40,12 @@ export {type CLIContextParams} from './types/CLIContextParams.js'
 export {type ServiceContextParams} from './types/ServiceContextParams.js'
 export {type ScheduleContextParams} from './types/ScheduleContextParams.js'
 
-//The builders of the entrypoints of lakutata 2.x: called when the entrypoint starts, their promises not awaited, as in 2.x
+//The builders of the entrypoints of lakutata 2.x: called in the entrypoint's startup, their promises awaited
 /**
- * A CLI entrypoint in the style of lakutata 2.x: a function the entrypoint calls once when it starts, which reads the
- * command line and runs its commands through the handler. Its result is ignored; a promise it returns is not awaited (as
- * 2.x: the entrypoint initializes meanwhile), its rejection being an uncaught exception of the application. Prefer an adapter
- * (`CommanderCLIEntrypoint` of `lakutata/adapter/commander`) for new code.
+ * A CLI entrypoint in the style of lakutata 2.x: a function the entrypoint calls once when it starts (initialized: the
+ * objects it gets may inject the entrypoint), which reads the command line and runs its commands through the handler.
+ * A promise it returns is awaited, its rejection fails the entrypoint's startup (2.x did not await it). Prefer an
+ * adapter (`CommanderCLIEntrypoint` of `lakutata/adapter/commander`) for new code.
  * @param module The module owning the entrypoint (the application).
  * @param cliMap The CLI actions' commands, each with the JSON schema of its input.
  * @param handler Runs a command: dispatches a {@link CLIContext} to the matching action.
@@ -53,10 +53,11 @@ export {type ScheduleContextParams} from './types/ScheduleContextParams.js'
  */
 export type CLIEntrypoint = (module: Module, cliMap: CLIMap, handler: CLIEntrypointHandler, registerDestroy: EntrypointDestroyerRegistrar) => unknown
 /**
- * An HTTP entrypoint in the style of lakutata 2.x: a function the entrypoint calls once when it starts, which starts a
- * server and passes its requests to the handler. Its result is ignored; a promise it returns is not awaited (as
- * 2.x: the entrypoint initializes meanwhile), its rejection being an uncaught exception of the application. Prefer an adapter (`ExpressHTTPEntrypoint` of
- * `lakutata/adapter/express`, `FastifyHTTPEntrypoint` of `lakutata/adapter/fastify`) for new code.
+ * An HTTP entrypoint in the style of lakutata 2.x: a function the entrypoint calls once when it starts (initialized:
+ * the objects it gets, such as an authenticator of the requests, may inject the entrypoint), which starts a server and
+ * passes its requests to the handler. A promise it returns is awaited, its rejection fails the entrypoint's startup
+ * (2.x did not await it). Prefer an adapter (`ExpressHTTPEntrypoint` of `lakutata/adapter/express`,
+ * `FastifyHTTPEntrypoint` of `lakutata/adapter/fastify`) for new code.
  * @param module The module owning the entrypoint (the application).
  * @param routeMap The HTTP actions' routes, each with its methods.
  * @param handler Runs a request: dispatches an {@link HTTPContext} to the matching action.
@@ -64,10 +65,10 @@ export type CLIEntrypoint = (module: Module, cliMap: CLIMap, handler: CLIEntrypo
  */
 export type HTTPEntrypoint = (module: Module, routeMap: HTTPRouteMap, handler: HTTPEntrypointHandler, registerDestroy: EntrypointDestroyerRegistrar) => unknown
 /**
- * A service entrypoint in the style of lakutata 2.x: a function the entrypoint calls once when it starts, which
- * receives the service requests of a transport and passes them to the handler. Its result is ignored; a promise it returns is not awaited (as
- * 2.x: the entrypoint initializes meanwhile), its rejection being an uncaught exception of the application. Prefer an
- * adapter (`SocketIOServiceEntrypoint`, `JSONRPCServiceEntrypoint`, `ElectronIPCServiceEntrypoint`) for new code.
+ * A service entrypoint in the style of lakutata 2.x: a function the entrypoint calls once when it starts (initialized:
+ * the objects it gets may inject the entrypoint), which receives the service requests of a transport and passes them
+ * to the handler. A promise it returns is awaited, its rejection fails the entrypoint's startup (2.x did not await it).
+ * Prefer an adapter (`SocketIOServiceEntrypoint`, `JSONRPCServiceEntrypoint`, `ElectronIPCServiceEntrypoint`) for new code.
  * @param module The module owning the entrypoint (the application).
  * @param handler Runs a request: dispatches a {@link ServiceContext} to the action whose pattern matches its input.
  * @param registerDestroy Registers a function run when the entrypoint stops.
@@ -540,9 +541,10 @@ const LEGACY_CHANNELS: Set<string> = new Set(['cli', 'http', 'service'])
  * schedule, and the channels of other packages), each received by the adapters configured for its channel.
  *
  * The applications of the `lakutata` package declare it as the component `entrypoint`: configure it with
- * {@link BuildEntrypoints}. When it initializes, it registers the controllers, checks their actions (their groups and
- * the uniqueness of their names) and starts the adapters in order; it is ready (the adapters acting on their own, such
- * as the schedules, begin) once the application has launched. Each request runs in a scope of its own: its middlewares,
+ * {@link BuildEntrypoints}. When it initializes, it registers the controllers and checks their actions (their groups and
+ * the uniqueness of their names); then, in its startup, it starts the adapters in order (the objects their hooks get may
+ * inject the entrypoint; the objects getting the entrypoint wait for its adapters); it is ready (the adapters acting on
+ * their own, such as the schedules, begin) once the application has launched. Each request runs in a scope of its own: its middlewares,
  * then a new controller instance receiving its context and signal, the validation of its input, the access control
  * and the action; the scope is destroyed when the request ends.
  *
@@ -711,7 +713,13 @@ export class Entrypoint extends Component {
     })
 
     /**
-     * Register the controllers and the middleware classes, check the actions and start the adapters in order.
+     * The adapters to start, once the entrypoint is initialized
+     */
+    #adapters: EntrypointAdapter<any>[] = []
+
+    /**
+     * Register the controllers and the middleware classes and check the actions: once initialized, the entrypoint can be
+     * got by the other objects (its actions listed by `getHttpActions()`…), the adapters start in {@link startup}.
      * @throws {InvalidMiddlewareException} When a middleware is neither a function nor a {@link Middleware} subclass.
      * @throws {InvalidEntrypointAdapterException} When an option is neither an entrypoint option nor an adapter of its
      * channel.
@@ -721,7 +729,7 @@ export class Entrypoint extends Component {
      */
     protected async init(): Promise<void> {
         ValidateMiddlewares(this.middlewares)
-        const adapters: EntrypointAdapter<any>[] = this.configuredAdapters()
+        const adapters: EntrypointAdapter<any>[] = this.#adapters = this.configuredAdapters()
         await Promise.all(this.controllers.map((controllerConstructor: IBaseObjectConstructor<Controller>): Promise<void> => {
             BindControllerToComponent(this, controllerConstructor)
             return this.container.register(controllerConstructor)
@@ -738,7 +746,16 @@ export class Entrypoint extends Component {
         this.#channels.forEach((state: ChannelState): void => state.entries.forEach((entry: ActionEntry): void => addMiddlewareClasses(entry.middlewares)))
         adapters.forEach((adapter: EntrypointAdapter<any>): void => addMiddlewareClasses(ValidateMiddlewares(adapter.middlewares ?? [])))
         await Promise.all([...middlewareClasses].map((middlewareClass: IBaseObjectConstructor<Middleware>): Promise<void> => this.container.register(middlewareClass)))
-        for (const adapter of adapters) await this.startAdapter(adapter)
+    }
+
+    /**
+     * Start the adapters in order, once the entrypoint is initialized: the objects their hooks get (an authenticator of
+     * the requests adding its middleware to an HTTP server) may inject the entrypoint. The objects getting the
+     * entrypoint wait for the adapters, and fail when one fails to start (a port in use).
+     * @protected
+     */
+    protected async startup(): Promise<void> {
+        for (const adapter of this.#adapters) await this.startAdapter(adapter)
     }
 
     /**
@@ -819,11 +836,11 @@ export class Entrypoint extends Component {
     }
 
     /**
-     * Wrap a 2.x entrypoint function in an adapter: it is called when the adapter starts, and the promise of an
-     * asynchronous builder is not awaited, as 2.x called it (a builder getting objects which inject the entrypoint —
-     * such as an authenticator of the requests — would wait for the entrypoint being initialized otherwise). A
-     * synchronous builder throwing fails the entrypoint's initialization; the rejection of an asynchronous one is an
-     * uncaught exception of the application, as in 2.x. Its registered destroyers run when the adapter stops.
+     * Wrap a 2.x entrypoint function in an adapter: it is called when the adapter starts, in the entrypoint's
+     * {@link startup} (the entrypoint initialized: the objects it gets may inject the entrypoint, as in 2.x), and the
+     * promise of an asynchronous builder is awaited — its failure fails the entrypoint's startup, so the application's
+     * launch (2.x did not await it: the application launched without its server, the failure an unhandled rejection).
+     * Its registered destroyers run when the adapter stops.
      * @param channel The channel: `cli`, `http` or `service`.
      * @param callback The {@link CLIEntrypoint}, {@link HTTPEntrypoint} or {@link ServiceEntrypoint}.
      * @returns The adapter.
@@ -832,10 +849,9 @@ export class Entrypoint extends Component {
     protected legacyAdapter(channel: string, callback: Function): EntrypointAdapter<any> {
         const destroyers: EntrypointDestroyer[] = []
         const registerDestroy: EntrypointDestroyerRegistrar = (destroyer: EntrypointDestroyer): unknown => destroyers.push(destroyer)
-        let stopped: boolean = false
         return {
             channel: channel,
-            start: (runtime: ChannelRuntime<any>): void => {
+            start: async (runtime: ChannelRuntime<any>): Promise<void> => {
                 const handler = (context: BaseContext, abortController?: AbortController): Promise<unknown> => runtime.dispatch(context, {signal: abortController?.signal})
                 const run = (): unknown => {
                     switch (channel) {
@@ -853,19 +869,9 @@ export class Entrypoint extends Component {
                             return callback(runtime.module, handler, registerDestroy)
                     }
                 }
-                //Called now, its promise not awaited (as 2.x): an asynchronous builder getting objects which inject the
-                //entrypoint goes on once the entrypoint is initialized
-                //A synchronous builder throwing fails the entrypoint's initialization
-                const result: unknown = run()
-                if (result instanceof Promise) result.catch((error: unknown): void => {
-                    //An uncaught exception of the application, as the rejected builders of 2.x
-                    if (!stopped) setImmediate((): never => {
-                        throw error
-                    })
-                })
+                await run()
             },
             stop: async (): Promise<void> => {
-                stopped = true
                 await Promise.all(destroyers.map((destroyer: EntrypointDestroyer): Promise<void> => Promise.resolve(destroyer())))
             }
         }

@@ -5,7 +5,8 @@ import type {Server} from 'node:http'
 import {mkdir, mkdtemp, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import {Container, DTO, Exception} from '@lakutata/core'
+import {Component, Container, DTO, Exception} from '@lakutata/core'
+import {Inject} from '@lakutata/core/decorator/di'
 import {Expect} from '@lakutata/core/decorator/dto'
 import {
     ActionInvocation,
@@ -254,5 +255,31 @@ describe('Express adapter', (): void => {
         await assert.rejects(second.set(Entrypoint, BuildEntrypoints({controllers: [DeviceController], http: ExpressHTTPEntrypoint({port: port, host: '127.0.0.1'})})), {code: 'EADDRINUSE'})
         await second.destroy()
         await first.destroy()
+    })
+
+    it('starts when its before hook gets an object injecting the entrypoint', async (): Promise<void> => {
+        //An authenticator of the requests, its express middleware added in the hook
+        class Guard extends Component {
+            @Inject('entrypoint')
+            public readonly entrypoint: Entrypoint
+        }
+
+        const container: Container = new Container()
+        await container.registerNamed('guard', Guard)
+        let guarded: Guard | undefined
+        const starting: Promise<unknown> = container.setNamed('entrypoint', Entrypoint, BuildEntrypoints({
+            controllers: [DeviceController],
+            http: ExpressHTTPEntrypoint({
+                port: 0,
+                host: '127.0.0.1',
+                before: async (): Promise<void> => {
+                    guarded = await container.get<Guard>('guard')
+                }
+            })
+        }))
+        const timeout: Promise<string> = new Promise((resolve): unknown => setTimeout(resolve, 5000, 'deadlocked').unref())
+        assert.notStrictEqual(await Promise.race([starting.then((): string => 'started'), timeout]), 'deadlocked')
+        assert.ok(guarded?.entrypoint instanceof Entrypoint)
+        await container.destroy()
     })
 })
