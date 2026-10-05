@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/lerna/schemas/lerna-schema.json",
+  "version": "2.0.126",
+  "npmClient": "npm",
+  "command": {
+    "version": {
+      "exact": true,
+      "forcePublish": true,
+      "message": "chore: release v%s",
+      "push": false,
+      "conventionalCommits": false
+    }
+  }
+}
