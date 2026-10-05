@@ -8,7 +8,7 @@ export * from '../providers/Crypt.js'
  * Functions
  */
 export * from '../functions/TimingSafeEqual.js'
-export * from '../functions/GenerateKey.js'
+export * from '../functions/GenerateSecret.js'
 export * from '../functions/HMAC.js'
 export * from '../functions/Encryption.js'
 /**

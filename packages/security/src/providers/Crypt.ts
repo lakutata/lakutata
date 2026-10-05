@@ -17,7 +17,7 @@ import {DecryptByKey, EncryptByKey} from '../functions/Encryption.js'
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {Crypt, DecryptionFailedException, GenerateKey} from 'lakutata/security'
+ * import {Crypt, DecryptionFailedException, GenerateSecret} from 'lakutata/security'
  *
  * Application
  *     .run(() => ({
@@ -25,7 +25,7 @@ import {DecryptByKey, EncryptByKey} from '../functions/Encryption.js'
  *         name: 'Vault',
  *         providers: {
  *             //The keys come from the environment: the new key first, the previous one kept to decrypt
- *             crypt: {class: Crypt, keys: [process.env.CRYPT_KEY ?? GenerateKey(), process.env.CRYPT_PREVIOUS_KEY ?? GenerateKey()]}
+ *             crypt: {class: Crypt, keys: [process.env.CRYPT_KEY ?? GenerateSecret(), process.env.CRYPT_PREVIOUS_KEY ?? GenerateSecret()]}
  *         }
  *     }))
  *     .onLaunched(async (app: Application): Promise<void> => {
@@ -45,7 +45,7 @@ export class Crypt extends Provider {
     /**
      * The secret keys, at least one, each a string of at least 16 characters used as its UTF-8 bytes (it is not decoded
      * from base64). The first key encrypts, every key decrypts: to rotate, put the new key first and keep the previous
-     * ones while data encrypted with them is still read. Use random keys, such as the output of {@link GenerateKey}: the
+     * ones while data encrypted with them is still read. Use random keys, such as the output of {@link GenerateSecret}: the
      * key derivation is fast, so a low-entropy key (a password) is open to brute force; to encrypt with a password, use
      * {@link EncryptByPassword}. Required.
      */

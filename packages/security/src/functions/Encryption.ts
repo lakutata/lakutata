@@ -93,7 +93,7 @@ function open(part: { header: Buffer, iv: Buffer, tag: Buffer, ciphertext: Buffe
  * 12-byte IV, so encrypting the same data twice gives different outputs. The {@link Crypt} provider does the same with
  * configured keys and key rotation.
  *
- * The key must be random (see {@link GenerateKey}): its derivation is fast, so a password used as a key is open to
+ * The key must be random (see {@link GenerateSecret}): its derivation is fast, so a password used as a key is open to
  * brute force; use {@link EncryptByPassword} for passwords. The function refuses an empty key, but does not check
  * the key's length or strength otherwise.
  * @param data The data to encrypt: a string (encrypted as its UTF-8 bytes) or bytes.
@@ -104,9 +104,9 @@ function open(part: { header: Buffer, iv: Buffer, tag: Buffer, ciphertext: Buffe
  * @throws {RangeError} When the key is empty.
  * @example
  * ```typescript
- * import {DecryptByKey, EncryptByKey, GenerateKey} from 'lakutata/security'
+ * import {DecryptByKey, EncryptByKey, GenerateSecret} from 'lakutata/security'
  *
- * const key: string = process.env.CRYPT_KEY ?? GenerateKey()
+ * const key: string = process.env.CRYPT_KEY ?? GenerateSecret()
  * const encrypted: string = EncryptByKey('card ending 4242', key)
  * console.log(DecryptByKey(encrypted, key).toString('utf8'))
  * ```

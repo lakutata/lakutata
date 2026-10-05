@@ -8,7 +8,7 @@
 
 ```typescript
 import {Application} from 'lakutata'
-import {Crypt, GenerateKey, Mac, PasswordHash} from 'lakutata/security'
+import {Crypt, GenerateSecret, Mac, PasswordHash} from 'lakutata/security'
 
 Application
     .run(() => ({
@@ -18,8 +18,8 @@ Application
             //saltRounds：4 到 31，默认 10
             passwordHash: {class: PasswordHash, saltRounds: 12},
             //第一个密钥用于签名和加密，所有密钥都可用于验证和解密
-            mac: {class: Mac, keys: [process.env.MAC_KEY ?? GenerateKey()], algorithm: 'sha256'},
-            crypt: {class: Crypt, keys: [process.env.CRYPT_KEY ?? GenerateKey(), process.env.CRYPT_PREVIOUS_KEY ?? GenerateKey()]}
+            mac: {class: Mac, keys: [process.env.MAC_KEY ?? GenerateSecret()], algorithm: 'sha256'},
+            crypt: {class: Crypt, keys: [process.env.CRYPT_KEY ?? GenerateSecret(), process.env.CRYPT_PREVIOUS_KEY ?? GenerateSecret()]}
         }
     }))
     .onLaunched(async (app: Application): Promise<void> => {
@@ -45,7 +45,7 @@ Application
 ```
 
 - **密码**：`PasswordHash.hash()` 拒绝 UTF-8 编码超过 72 字节的密码（bcrypt 会忽略超出的字节），抛出 `PasswordTooLongException`；对这类密码，`validate()` 返回 `false`。哈希值请原样保存，并用 `validate()` 校验，不要用 `===` 比较。
-- **密钥**：`Mac` 和 `Crypt` 的密钥是至少 16 个字符的字符串。请用 `GenerateKey()` 生成（32 个随机字节，base64url）：把密码当作密钥使用容易被暴力破解。
+- **密钥**：`Mac` 和 `Crypt` 的密钥是至少 16 个字符的字符串。请用 `GenerateSecret()` 生成（32 个随机字节，base64url）：把密码当作密钥使用容易被暴力破解。
 - **密钥轮换**：把新密钥放在最前面，在仍需读取旧密钥签名或加密的数据期间保留旧密钥。
 - **格式**：签名和加密数据都是不带填充的 base64url 字符串，可以安全地用于 URL 和 Cookie。
 
@@ -57,7 +57,7 @@ Application
 | 检测篡改（Cookie、链接、webhook） | `Mac`、`HMAC()` / `VerifyHMAC()` |
 | 隐藏数据并能读回 | `Crypt`、`EncryptByKey()` / `DecryptByKey()` |
 | 用人输入的口令加密 | `EncryptByPassword()` / `DecryptByPassword()`（scrypt） |
-| 生成密钥或令牌 | `GenerateKey()` |
+| 生成密钥或令牌 | `GenerateSecret()` |
 | 比较收到的秘密与预期值 | `TimingSafeEqual()` |
 
 ## 3. 函数
@@ -68,13 +68,13 @@ import {
     DecryptByPassword,
     EncryptByKey,
     EncryptByPassword,
-    GenerateKey,
+    GenerateSecret,
     HMAC,
     TimingSafeEqual,
     VerifyHMAC
 } from 'lakutata/security'
 
-const key: string = GenerateKey()
+const key: string = GenerateSecret()
 
 //签名（'sha256'、'sha384'、'sha512'）
 const body: string = JSON.stringify({order: 42})
@@ -83,7 +83,7 @@ console.log(VerifyHMAC(body, signature, key, 'sha512'))
 
 //用随机密钥加密，可以用当前或之前的密钥解密
 const encrypted: string = EncryptByKey('card ending 4242', key)
-console.log(DecryptByKey(encrypted, [key, GenerateKey()]).toString('utf8'))
+console.log(DecryptByKey(encrypted, [key, GenerateSecret()]).toString('utf8'))
 
 //用口令加密（scrypt，异步）
 const backup: string = await EncryptByPassword('backup contents', 'a long passphrase')

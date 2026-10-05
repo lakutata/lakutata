@@ -17,7 +17,7 @@ import {InvalidSignatureException} from '../exceptions/InvalidSignatureException
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
- * import {GenerateKey, InvalidSignatureException, Mac} from 'lakutata/security'
+ * import {GenerateSecret, InvalidSignatureException, Mac} from 'lakutata/security'
  *
  * Application
  *     .run(() => ({
@@ -25,7 +25,7 @@ import {InvalidSignatureException} from '../exceptions/InvalidSignatureException
  *         name: 'Links',
  *         providers: {
  *             //The keys come from the environment: the new key first, the previous one kept to verify
- *             mac: {class: Mac, keys: [process.env.MAC_KEY ?? GenerateKey(), process.env.MAC_PREVIOUS_KEY ?? GenerateKey()]}
+ *             mac: {class: Mac, keys: [process.env.MAC_KEY ?? GenerateSecret(), process.env.MAC_PREVIOUS_KEY ?? GenerateSecret()]}
  *         }
  *     }))
  *     .onLaunched(async (app: Application): Promise<void> => {
@@ -48,7 +48,7 @@ export class Mac extends Provider {
     /**
      * The secret keys, at least one, each a string of at least 16 characters used as its UTF-8 bytes (it is not decoded
      * from base64). The first key signs, every key verifies: to rotate, put the new key first and keep the previous ones
-     * while their signatures are still presented. Use random keys, such as the output of {@link GenerateKey}, not
+     * while their signatures are still presented. Use random keys, such as the output of {@link GenerateSecret}, not
      * passwords. Required.
      */
     @Configurable(DTO.Array().items(DTO.String().min(16)).min(1).required())

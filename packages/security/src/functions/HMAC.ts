@@ -13,15 +13,15 @@ export type HMACAlgorithm = 'sha256' | 'sha384' | 'sha512'
  * does the same with configured keys and key rotation.
  * @param data The data to sign: a string (signed as its UTF-8 bytes) or bytes.
  * @param key The secret key: a string (used as its UTF-8 bytes, not decoded) or bytes, not empty. Use a random key of
- * 32 bytes, such as {@link GenerateKey} returns.
+ * 32 bytes, such as {@link GenerateSecret} returns.
  * @param algorithm The hash function; `'sha256'` by default.
  * @returns The HMAC, base64url encoded without padding.
  * @throws {RangeError} When the key is empty.
  * @example
  * ```typescript
- * import {GenerateKey, HMAC, VerifyHMAC} from 'lakutata/security'
+ * import {GenerateSecret, HMAC, VerifyHMAC} from 'lakutata/security'
  *
- * const key: string = process.env.WEBHOOK_KEY ?? GenerateKey()
+ * const key: string = process.env.WEBHOOK_KEY ?? GenerateSecret()
  * const body: string = JSON.stringify({order: 42, status: 'paid'})
  * //Sent in a header along with the body
  * const signature: string = HMAC(body, key, 'sha256')

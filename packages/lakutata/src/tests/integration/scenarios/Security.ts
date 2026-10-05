@@ -11,7 +11,7 @@ import {
     DecryptionFailedException,
     EncryptByKey,
     EncryptByPassword,
-    GenerateKey,
+    GenerateSecret,
     HMAC,
     InvalidSignatureException,
     Mac,
@@ -25,7 +25,7 @@ import {FreePort, RunChecks} from '../support/Scenario.js'
 /**
  * The key of the webhooks, shared with their sender
  */
-const WEBHOOK_KEY: string = GenerateKey()
+const WEBHOOK_KEY: string = GenerateSecret()
 
 /**
  * The webhooks are signed: HMAC of their body in the header x-signature
@@ -48,7 +48,7 @@ class WebhookController extends Controller {
     }
 }
 
-const [port, oldKey, newKey] = [await FreePort(), GenerateKey(), GenerateKey()]
+const [port, oldKey, newKey] = [await FreePort(), GenerateSecret(), GenerateSecret()]
 
 Application
     .run(() => ({
@@ -80,9 +80,9 @@ Application
         })).json()
 
         await check('the keys generated are random and of their size', (): void => {
-            assert.strictEqual(Buffer.from(GenerateKey(), 'base64url').length, 32)
-            assert.strictEqual(Buffer.from(GenerateKey(64), 'base64url').length, 64)
-            assert.notStrictEqual(GenerateKey(), GenerateKey())
+            assert.strictEqual(Buffer.from(GenerateSecret(), 'base64url').length, 32)
+            assert.strictEqual(Buffer.from(GenerateSecret(64), 'base64url').length, 64)
+            assert.notStrictEqual(GenerateSecret(), GenerateSecret())
         })
 
         await check('the data are signed and verified by HMAC, constant in time', (): void => {
@@ -90,7 +90,7 @@ Application
             assert.strictEqual(signature, HMAC('payload', WEBHOOK_KEY))
             assert.ok(VerifyHMAC('payload', signature, WEBHOOK_KEY))
             assert.ok(!VerifyHMAC('payload!', signature, WEBHOOK_KEY))
-            assert.ok(!VerifyHMAC('payload', signature, GenerateKey()))
+            assert.ok(!VerifyHMAC('payload', signature, GenerateSecret()))
             assert.notStrictEqual(HMAC('payload', WEBHOOK_KEY, 'sha512'), signature)
             assert.ok(TimingSafeEqual('abc', 'abc'))
             assert.ok(!TimingSafeEqual('abc', 'abd'))

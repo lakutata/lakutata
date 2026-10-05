@@ -10,15 +10,15 @@ import {randomBytes} from 'node:crypto'
  * @throws {RangeError} When `bytes` is negative or larger than 2^31 - 1.
  * @example
  * ```typescript
- * import {GenerateKey} from 'lakutata/security'
+ * import {GenerateSecret} from 'lakutata/security'
  *
  * //A 256-bit key, for MAC_KEY or CRYPT_KEY
- * console.log(GenerateKey())
+ * console.log(GenerateSecret())
  * //A 128-bit token
- * const token: string = GenerateKey(16)
+ * const token: string = GenerateSecret(16)
  * console.log(token)
  * ```
  */
-export function GenerateKey(bytes: number = 32): string {
+export function GenerateSecret(bytes: number = 32): string {
     return randomBytes(bytes).toString('base64url')
 }

@@ -534,7 +534,7 @@
     "DecryptionFailedException",
     "EncryptByKey",
     "EncryptByPassword",
-    "GenerateKey",
+    "GenerateSecret",
     "HMAC",
     "InvalidSignatureException",
     "Mac",

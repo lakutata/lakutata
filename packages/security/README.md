@@ -22,7 +22,7 @@ with `getObject()` or `@Inject`. They are scoped, like every provider.
 
 ```typescript
 import {Application} from 'lakutata'
-import {Crypt, GenerateKey, Mac, PasswordHash} from 'lakutata/security'
+import {Crypt, GenerateSecret, Mac, PasswordHash} from 'lakutata/security'
 
 Application
     .run(() => ({
@@ -31,8 +31,8 @@ Application
         providers: {
             passwordHash: {class: PasswordHash, saltRounds: 12},
             //The first key signs and encrypts, every key verifies and decrypts
-            mac: {class: Mac, keys: [process.env.MAC_KEY ?? GenerateKey()], algorithm: 'sha256'},
-            crypt: {class: Crypt, keys: [process.env.CRYPT_KEY ?? GenerateKey(), process.env.CRYPT_PREVIOUS_KEY ?? GenerateKey()]}
+            mac: {class: Mac, keys: [process.env.MAC_KEY ?? GenerateSecret()], algorithm: 'sha256'},
+            crypt: {class: Crypt, keys: [process.env.CRYPT_KEY ?? GenerateSecret(), process.env.CRYPT_PREVIOUS_KEY ?? GenerateSecret()]}
         }
     }))
     .onLaunched(async (app: Application): Promise<void> => {
@@ -57,7 +57,7 @@ Application
 | Detect tampering (cookies, links, webhooks) | `Mac`, `HMAC()` / `VerifyHMAC()` | no: fast, needs a random key | base64url HMAC (43 characters with SHA-256) |
 | Hide and protect data, read it back | `Crypt`, `EncryptByKey()` / `DecryptByKey()` | no: needs a random key | base64url: version, salt, IV, tag, ciphertext |
 | Encrypt with a passphrase typed by a person | `EncryptByPassword()` / `DecryptByPassword()` | yes, for encryption (scrypt) | same format, another version |
-| Generate a key or a token | `GenerateKey()` | — | base64url random bytes (32 by default) |
+| Generate a key or a token | `GenerateSecret()` | — | base64url random bytes (32 by default) |
 | Compare a secret received with the expected one | `TimingSafeEqual()` | no: use `PasswordHash.validate()` | boolean |
 
 - **Passwords**: `PasswordHash.hash()` rejects passwords longer than 72 bytes in UTF-8 (bcrypt ignores the following
@@ -65,7 +65,7 @@ Application
   its cost (`saltRounds`, 4 to 31, 10 by default: each extra round doubles the time); store the hash as is and check it
   with `validate()`, never with `===`. `validate()` gives `false` for a value which is not a bcrypt hash.
 - **Keys**: the keys of `Mac` and `Crypt` are strings of at least 16 characters, used as their UTF-8 bytes. Generate
-  them with `GenerateKey()` (32 random bytes): the key derivations of `Mac`, `Crypt` and `EncryptByKey()` are fast, so a
+  them with `GenerateSecret()` (32 random bytes): the key derivations of `Mac`, `Crypt` and `EncryptByKey()` are fast, so a
   password used as a key is open to brute force. The functions refuse an empty key with a `RangeError`, but do not
   check the key's length otherwise.
 - **Key rotation**: put the new key first and keep the previous ones while the data they signed or encrypted is read;
@@ -81,13 +81,13 @@ import {
     DecryptByPassword,
     EncryptByKey,
     EncryptByPassword,
-    GenerateKey,
+    GenerateSecret,
     HMAC,
     TimingSafeEqual,
     VerifyHMAC
 } from 'lakutata/security'
 
-const key: string = GenerateKey()
+const key: string = GenerateSecret()
 
 //Signatures: the raw body and its signature, sent in a header
 const body: string = JSON.stringify({order: 42})
@@ -96,7 +96,7 @@ console.log(VerifyHMAC(body, signature, key, 'sha512'))
 
 //Encryption with a random key, decrypted with the current or a previous key
 const encrypted: string = EncryptByKey('card ending 4242', key)
-console.log(DecryptByKey(encrypted, [key, GenerateKey()]).toString('utf8'))
+console.log(DecryptByKey(encrypted, [key, GenerateSecret()]).toString('utf8'))
 
 //Encryption with a passphrase (scrypt, asynchronous)
 const backup: string = await EncryptByPassword('backup contents', 'a long passphrase')
@@ -117,7 +117,7 @@ console.log(TimingSafeEqual('presented-token', process.env.API_TOKEN ?? ''))
 | `HMACAlgorithm` | The hash functions of the signatures: `'sha256'`, `'sha384'`, `'sha512'` |
 | `EncryptByKey`, `DecryptByKey` | Authenticated encryption with a random key (HKDF-SHA256 per message) |
 | `EncryptByPassword`, `DecryptByPassword` | Authenticated encryption with a password (scrypt) |
-| `GenerateKey` | A random key or token, base64url |
+| `GenerateSecret` | A random key or token, base64url |
 | `TimingSafeEqual` | Compare two secrets in constant time, whatever their lengths |
 | `PasswordTooLongException`, `InvalidSignatureException`, `DecryptionFailedException` | The exceptions |
 
@@ -131,7 +131,7 @@ All are exported by `lakutata/security` and `@lakutata/security`. The typings do
 | `InvalidSignatureException` (`E_INVALID_SIGNATURE`) | `Mac.unsignMessage()` with a message changed, unsigned or signed by an unknown key |
 | `DecryptionFailedException` (`E_DECRYPTION_FAILED`) | `Crypt.decrypt()`, `decryptString()`, `DecryptByKey()`, `DecryptByPassword()`: a wrong key or password, changed or truncated data |
 | `InvalidObjectOptionsException` (from `lakutata`) | The application starts with invalid provider options: no key, a key shorter than 16 characters, an unknown algorithm, `saltRounds` outside 4 to 31 (`InvalidValueException` when the provider is created outside the checked options, as in a bare `Container`) |
-| `RangeError` | `GenerateKey()` with a negative or too large number of bytes; `HMAC()`, `VerifyHMAC()`, `EncryptByKey()`, `DecryptByKey()` with an empty key |
+| `RangeError` | `GenerateSecret()` with a negative or too large number of bytes; `HMAC()`, `VerifyHMAC()`, `EncryptByKey()`, `DecryptByKey()` with an empty key |
 
 The exceptions have the HTTP status 500 unless the application maps them; `verify()`, `VerifyHMAC()` (given a key),
 `validate()` and `TimingSafeEqual()` return `false` for a wrong or malformed signature, hash or secret instead of

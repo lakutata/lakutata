@@ -8,7 +8,7 @@ import {
     DecryptionFailedException,
     EncryptByKey,
     EncryptByPassword,
-    GenerateKey,
+    GenerateSecret,
     HMAC,
     InvalidSignatureException,
     Mac,
@@ -16,8 +16,8 @@ import {
     VerifyHMAC
 } from '../exports/Security.js'
 
-const OLD_KEY: string = GenerateKey()
-const NEW_KEY: string = GenerateKey()
+const OLD_KEY: string = GenerateSecret()
+const NEW_KEY: string = GenerateSecret()
 
 /**
  * The encrypted data with one byte changed
@@ -41,9 +41,9 @@ describe('Security functions', (): void => {
     })
 
     it('generate random keys', (): void => {
-        assert.match(GenerateKey(), /^[\w-]{43}$/)
-        assert.strictEqual(Buffer.from(GenerateKey(64), 'base64url').length, 64)
-        assert.notStrictEqual(GenerateKey(), GenerateKey())
+        assert.match(GenerateSecret(), /^[\w-]{43}$/)
+        assert.strictEqual(Buffer.from(GenerateSecret(64), 'base64url').length, 64)
+        assert.notStrictEqual(GenerateSecret(), GenerateSecret())
     })
 
     it('sign and verify data', (): void => {

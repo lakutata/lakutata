@@ -12,7 +12,7 @@ read from the environment, then get them with `getObject()` or `@Inject`.
 
 ```typescript
 import {Application} from 'lakutata'
-import {Crypt, GenerateKey, Mac, PasswordHash} from 'lakutata/security'
+import {Crypt, GenerateSecret, Mac, PasswordHash} from 'lakutata/security'
 
 Application
     .run(() => ({
@@ -22,8 +22,8 @@ Application
             //saltRounds: 4 to 31, 10 by default
             passwordHash: {class: PasswordHash, saltRounds: 12},
             //The first key signs and encrypts, every key verifies and decrypts
-            mac: {class: Mac, keys: [process.env.MAC_KEY ?? GenerateKey()], algorithm: 'sha256'},
-            crypt: {class: Crypt, keys: [process.env.CRYPT_KEY ?? GenerateKey(), process.env.CRYPT_PREVIOUS_KEY ?? GenerateKey()]}
+            mac: {class: Mac, keys: [process.env.MAC_KEY ?? GenerateSecret()], algorithm: 'sha256'},
+            crypt: {class: Crypt, keys: [process.env.CRYPT_KEY ?? GenerateSecret(), process.env.CRYPT_PREVIOUS_KEY ?? GenerateSecret()]}
         }
     }))
     .onLaunched(async (app: Application): Promise<void> => {
@@ -51,7 +51,7 @@ Application
 - **Passwords**: `PasswordHash.hash()` rejects the passwords longer than 72 bytes in UTF-8 (bcrypt ignores the
   following bytes) with `PasswordTooLongException`, and `validate()` gives `false` for them. Store the hash as it is and
   check it with `validate()`, never with `===`.
-- **Keys**: the keys of `Mac` and `Crypt` are strings of at least 16 characters. Generate them with `GenerateKey()` (32
+- **Keys**: the keys of `Mac` and `Crypt` are strings of at least 16 characters. Generate them with `GenerateSecret()` (32
   random bytes, base64url): a password used as a key is open to brute force.
 - **Key rotation**: put the new key first and keep the previous ones while the data they signed or encrypted is still
   read.
@@ -65,7 +65,7 @@ Application
 | Detect tampering (cookies, links, webhooks) | `Mac`, `HMAC()` / `VerifyHMAC()` |
 | Hide data and read it back | `Crypt`, `EncryptByKey()` / `DecryptByKey()` |
 | Encrypt with a passphrase typed by a person | `EncryptByPassword()` / `DecryptByPassword()` (scrypt) |
-| Generate a key or a token | `GenerateKey()` |
+| Generate a key or a token | `GenerateSecret()` |
 | Compare a secret received with the expected one | `TimingSafeEqual()` |
 
 ## 3. The functions
@@ -76,13 +76,13 @@ import {
     DecryptByPassword,
     EncryptByKey,
     EncryptByPassword,
-    GenerateKey,
+    GenerateSecret,
     HMAC,
     TimingSafeEqual,
     VerifyHMAC
 } from 'lakutata/security'
 
-const key: string = GenerateKey()
+const key: string = GenerateSecret()
 
 //Signatures ('sha256', 'sha384', 'sha512')
 const body: string = JSON.stringify({order: 42})
@@ -91,7 +91,7 @@ console.log(VerifyHMAC(body, signature, key, 'sha512'))
 
 //Encryption with a random key, decrypted with the current or a previous key
 const encrypted: string = EncryptByKey('card ending 4242', key)
-console.log(DecryptByKey(encrypted, [key, GenerateKey()]).toString('utf8'))
+console.log(DecryptByKey(encrypted, [key, GenerateSecret()]).toString('utf8'))
 
 //Encryption with a passphrase (scrypt, asynchronous)
 const backup: string = await EncryptByPassword('backup contents', 'a long passphrase')
