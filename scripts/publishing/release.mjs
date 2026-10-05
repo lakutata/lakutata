@@ -6,8 +6,9 @@
 // alpha/beta: the next prerelease of the channel (3.0.0-beta.1 → 3.0.0-beta.2); the first one of a version is given
 //             with --version (--version 3.0.0-beta.0)
 // latest:     the release of the current prerelease (3.0.0-beta.4 → 3.0.0), or the version given
-// --registry  publishes to another registry (a local registry, to rehearse a release on a branch of its own: its commit
-//             and its tag are deleted with the branch)
+// --registry  the registry published to: https://registry.npmjs.org/ by default (not the registry of the npm
+//             configuration, a mirror maybe), another one to rehearse a release (a local registry, on a branch of its own:
+//             its commit and its tag are deleted with the branch)
 // --skip-gates does not run the checks (a rehearsal)
 
 import {execFileSync} from 'node:child_process'
@@ -28,14 +29,17 @@ const {values: options, positionals: [channel]} = parseArgs({
 //The checks run before the version is bumped: a failure leaves the repository as it was
 const GATES = ['lint', 'test:unit', 'test:types', 'test:api-surface', 'test:api-docs', 'test:cjs-interop', 'test:installed']
 
+const REGISTRY = options.registry ?? 'https://registry.npmjs.org/'
+
 /**
  * Run a command in the repository, its output shown
  * @param command
  * @param args
+ * @param env the variables added to the environment
  */
-function run(command, args) {
+function run(command, args, env = {}) {
     console.log(`\n› ${command} ${args.join(' ')}`)
-    execFileSync(command, args, {cwd: ROOT, stdio: 'inherit'})
+    execFileSync(command, args, {cwd: ROOT, stdio: 'inherit', env: {...process.env, ...env}})
 }
 
 /**
@@ -59,7 +63,7 @@ const current = JSON.parse(readFileSync(new URL('../../lerna.json', import.meta.
 const version = nextVersion(current)
 if (channel === 'latest' && version.includes('-')) throw new Error(`${version} is a prerelease: release it with its channel`)
 if (channel !== 'latest' && !version.includes(`-${channel}.`)) throw new Error(`${version} is not a ${channel} prerelease`)
-console.log(`Release ${current} → ${version} (dist-tag ${channel}${options.registry ? `, registry ${options.registry}` : ''})`)
+console.log(`Release ${current} → ${version} (dist-tag ${channel}, registry ${REGISTRY})`)
 
 run('npm', ['run', 'rebuild'])
 if (!options['skip-gates']) for (const gate of GATES) run('npm', ['run', gate])
@@ -72,5 +76,6 @@ try {
 } finally {
     if (existsSync(aside)) renameSync(aside, lockfile)
 }
-run('npx', ['lerna', 'publish', 'from-package', '--yes', '--dist-tag', channel, ...(options.registry ? ['--registry', options.registry] : [])])
+//The packages of the scope are public (a scoped package is restricted by default when first published)
+run('npx', ['lerna', 'publish', 'from-package', '--yes', '--dist-tag', channel, '--registry', REGISTRY], {npm_config_access: 'public'})
 console.log(`\nReleased ${version}: push the commit and the tag v${version} when ready (git push --follow-tags)`)

@@ -6,7 +6,7 @@
     "version": {
       "exact": true,
       "forcePublish": true,
-      "message": "chore: release v%s",
+      "message": "chore: release %s",
       "push": false,
       "conventionalCommits": false
     }
