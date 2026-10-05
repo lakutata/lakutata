@@ -53,7 +53,7 @@ function nextVersion(current) {
         if (!prerelease) throw new Error(`${current} is not a prerelease: give the version to release with --version`)
         return prerelease[1]
     }
-    if (!prerelease || prerelease[2] !== channel) throw new Error(`${current} is not a ${channel} prerelease: give the first one with --version (--version 3.0.0-${channel}.0)`)
+    if (!prerelease || prerelease[2] !== channel) throw new Error(`${current} is not a prerelease of the channel ${channel}: give the first one with --version (--version 3.0.0-${channel}.0)`)
     return `${prerelease[1]}-${channel}.${Number(prerelease[3]) + 1}`
 }
 
@@ -62,7 +62,7 @@ if (execFileSync('git', ['status', '--porcelain'], {cwd: ROOT, encoding: 'utf8'}
 const current = JSON.parse(readFileSync(new URL('../../lerna.json', import.meta.url), 'utf8')).version
 const version = nextVersion(current)
 if (channel === 'latest' && version.includes('-')) throw new Error(`${version} is a prerelease: release it with its channel`)
-if (channel !== 'latest' && !version.includes(`-${channel}.`)) throw new Error(`${version} is not a ${channel} prerelease`)
+if (channel !== 'latest' && !version.includes(`-${channel}.`)) throw new Error(`${version} is not a prerelease of the channel ${channel}`)
 console.log(`Release ${current} → ${version} (dist-tag ${channel}, registry ${REGISTRY})`)
 
 run('npm', ['run', 'rebuild'])
