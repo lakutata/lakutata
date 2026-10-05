@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/core",
-  "version": "2.0.126",
+  "version": "3.0.0-beta.0",
   "description": "Core of the lakutata IoC framework (IoC/DI, BaseObject, DTO/validation, decorators, console logger, monitor).",
   "type": "module",
   "main": "./dist/cjs/exports/Core.js",
@@ -83,7 +83,7 @@
     "test:engine-types": "node scripts/check-engine-types.mjs"
   },
   "dependencies": {
-    "@lakutata/utils": "2.0.126",
+    "@lakutata/utils": "3.0.0-beta.0",
     "reflect-metadata": "0.2.2"
   },
   "engines": {

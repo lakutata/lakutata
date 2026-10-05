@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/monitor",
-  "version": "2.0.126",
+  "version": "3.0.0-beta.0",
   "description": "The monitors of the lakutata framework: the CPU, the memory, the event loop and the HTTP requests of the process, on the histograms of Node.js.",
   "type": "module",
   "main": "./dist/cjs/exports/Monitor.js",
@@ -29,7 +29,7 @@
     "test:unit": "npm run compile && node --test \"dist/esm/tests/*.spec.js\""
   },
   "peerDependencies": {
-    "@lakutata/core": "2.0.126"
+    "@lakutata/core": "3.0.0-beta.0"
   },
   "engines": {
     "node": ">=22"

@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/grpc",
-  "version": "2.0.126",
+  "version": "3.0.0-beta.0",
   "description": "gRPC for the lakutata framework: its client and its server over HTTP/2 with a schema-driven protobuf codec (no native addon), and the service entrypoint and the service proxy of the service actions over gRPC.",
   "type": "module",
   "main": "./dist/cjs/exports/GRPC.js",
@@ -40,8 +40,8 @@
     "test:interop": "sh test-env/interop.sh"
   },
   "peerDependencies": {
-    "@lakutata/core": "2.0.126",
-    "@lakutata/entrypoint": "2.0.126"
+    "@lakutata/core": "3.0.0-beta.0",
+    "@lakutata/entrypoint": "3.0.0-beta.0"
   },
   "peerDependenciesMeta": {
     "@lakutata/core": {

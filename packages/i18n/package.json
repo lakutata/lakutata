@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/i18n",
-  "version": "2.0.126",
+  "version": "3.0.0-beta.0",
   "description": "The internationalization of the lakutata framework: the messages of each language by their keys (ICU MessageFormat), the language of each request, the messages of the validation.",
   "type": "module",
   "main": "./dist/cjs/exports/I18n.js",
@@ -39,8 +39,8 @@
     "test:unit": "npm run compile && node --test \"dist/esm/tests/*.spec.js\""
   },
   "peerDependencies": {
-    "@lakutata/core": "2.0.126",
-    "@lakutata/entrypoint": "2.0.126"
+    "@lakutata/core": "3.0.0-beta.0",
+    "@lakutata/entrypoint": "3.0.0-beta.0"
   },
   "peerDependenciesMeta": {
     "@lakutata/entrypoint": {

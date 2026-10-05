@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/template-web-react",
-  "version": "2.0.126",
+  "version": "3.0.0-beta.0",
   "description": "The React web template of the lakutata projects: an HTTP API serving a React single-page application built with Vite, deployed as a Docker image.",
   "keywords": [
     "lakutata",

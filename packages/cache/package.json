@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/cache",
-  "version": "2.0.126",
+  "version": "3.0.0-beta.0",
   "description": "The cache component of the lakutata framework (memory, file, Redis, Memcache, MongoDB, SQLite, PostgreSQL, MySQL stores).",
   "type": "module",
   "main": "./dist/cjs/exports/Cache.js",
@@ -30,8 +30,8 @@
     "test:stores": "npm run compile && CACHE_TEST_STORES=1 node --test --test-concurrency=1 \"dist/esm/tests/stores/*.spec.js\""
   },
   "peerDependencies": {
-    "@lakutata/core": "2.0.126",
-    "@lakutata/utils": "2.0.126",
+    "@lakutata/core": "3.0.0-beta.0",
+    "@lakutata/utils": "3.0.0-beta.0",
     "memjs": "^1.3.2",
     "mongodb": ">=6.0.0",
     "mysql2": "^3.0.0",

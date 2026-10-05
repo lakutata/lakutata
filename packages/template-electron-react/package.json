@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/template-electron-react",
-  "version": "2.0.126",
+  "version": "3.0.0-beta.0",
   "description": "The Electron template of the lakutata projects with React: the main process is a lakutata application serving the actions of its controllers to the React renderer (Vite) over IPC, packaged by electron-builder.",
   "keywords": [
     "lakutata",
