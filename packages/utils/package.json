@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/utils",
-  "version": "3.0.0-beta.2",
+  "version": "3.0.0-beta.3",
   "description": "Utilities of the lakutata framework: Time and the helpers.",
   "type": "module",
   "main": "./dist/cjs/exports/Utils.js",

@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/builder",
-  "version": "3.0.0-beta.2",
+  "version": "3.0.0-beta.3",
   "description": "The builder of the applications of the lakutata framework: their bundles, their executables (Node.js, Bun) with their native addons and their resources.",
   "type": "module",
   "main": "./dist/esm/index.js",

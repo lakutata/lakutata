@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/template-service",
-  "version": "3.0.0-beta.2",
+  "version": "3.0.0-beta.3",
   "description": "The service template of the lakutata projects: an HTTP API deployed as a Docker image.",
   "keywords": [
     "lakutata",
