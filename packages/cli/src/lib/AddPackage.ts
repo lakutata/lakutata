@@ -9,7 +9,7 @@ import {Workspace, type WorkspacePackage} from './workspace/Workspace.js'
 const NATIVE_VERSIONS: Record<string, string> = {
     'node-addon-api': '^8.9.2',
     'node-gyp-build': '^4.8.4',
-    'node-gyp': '^13.1.0',
+    'node-gyp': '^12.4.0',
     'cmake-js': '^8.0.0',
     '@napi-rs/cli': '^3.10.6'
 }
