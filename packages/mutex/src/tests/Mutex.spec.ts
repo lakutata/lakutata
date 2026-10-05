@@ -210,7 +210,31 @@ describe('The locks', (): void => {
         assert.ok(await files.release('b', taker))
     })
 
-    it('gives up waiting at its timeout when the store is unreachable', async (): Promise<void> => {
+    it('tries once with a timeout of 0, the round trip of a slow store included', async (): Promise<void> => {
+        //A store answering in 20 ms: the attempt is not cut short by the timeout
+        const acquire: MemoryMutexDriver['acquire'] = MemoryMutexDriver.prototype.acquire
+        MemoryMutexDriver.prototype.acquire = async function (this: MemoryMutexDriver, name: string, ttl: number): ReturnType<MemoryMutexDriver['acquire']> {
+            await sleep(20)
+            return acquire.call(this, name, ttl)
+        }
+        const {mutex, container} = await Instance({type: 'memory'})
+        try {
+            for (let round: number = 0; round < 20; round++) {
+                //Free: acquired, every time
+                const lock: MutexLock = await mutex.acquire('slow', {timeout: 0})
+                //Held: refused after the one attempt, without waiting
+                const started: number = Date.now()
+                await assert.rejects(mutex.acquire('slow', {timeout: 0}), MutexTimeoutException)
+                assert.ok(Date.now() - started < 500, `${Date.now() - started} ms`)
+                await lock.release()
+            }
+        } finally {
+            MemoryMutexDriver.prototype.acquire = acquire
+            await container.destroy()
+        }
+    })
+
+    it('gives up waiting when the store does not answer, its attempt given a second', async (): Promise<void> => {
         const {mutex, container} = await Instance({type: 'redis', host: '127.0.0.1', port: 1})
         try {
             const started: number = Date.now()

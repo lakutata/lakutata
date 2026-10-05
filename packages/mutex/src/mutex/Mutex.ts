@@ -20,6 +20,12 @@ import {MutexLostException} from './exceptions/MutexLostException.js'
 import {MutexDriverException} from './exceptions/MutexDriverException.js'
 
 /**
+ * The time an attempt sent to the store is given to answer, past the deadline of the wait too: a timeout of 0 tries
+ * once (a round trip of the store is not cut short), and a store which does not answer still ends the wait
+ */
+const ATTEMPT_GRACE: number = 1000
+
+/**
  * The `driver` option of a {@link Mutex}: the store holding the locks, told apart by `type`. The store decides who
  * shares the locks: `'memory'` the components of one process, `'file'` the processes of one host, `'redis'`,
  * `'postgres'` and `'mysql'` every instance connected to the same server.
@@ -39,7 +45,9 @@ export type MutexAcquireOptions = {
     ttl?: number
     /**
      * How long to wait for the lock, in milliseconds: `0` tries once, `Infinity` waits until it is acquired. When the
-     * time is up, the call rejects with {@link MutexTimeoutException}.
+     * time is up, the call rejects with {@link MutexTimeoutException}. An attempt sent to the store is given at least a
+     * second to answer, even past the time: a short timeout (`0` included) is not cut short by the round trip of a store
+     * (a file, a network), while a store which does not answer still ends the wait.
      * @default the component's `timeout` option (10000)
      */
     timeout?: number
@@ -306,21 +314,23 @@ export class Mutex extends Component {
     }
 
     /**
-     * An attempt of {@link Mutex.acquire}, bounded by its deadline: an attempt hanging (the store unreachable) fails at
-     * the deadline, the lock it acquires later released.
+     * An attempt of {@link Mutex.acquire}, bounded by its deadline but given at least a second to answer (the round trip
+     * of a store is not cut short, a timeout of 0 tries once): an attempt hanging (the store unreachable) fails then, the
+     * lock it acquires later released.
      * @param name The lock name.
      * @param options The options of the acquisition (its `ttl`).
      * @param deadline The time the wait ends, in milliseconds since the epoch.
      * @param timeout The timeout of the wait, in milliseconds, for the message of its exception.
      * @returns The lock acquired, or `undefined` when another holder has it.
-     * @throws {MutexTimeoutException} When the attempt does not end before the deadline.
+     * @throws {MutexTimeoutException} When the attempt does not answer before the deadline and its second of grace.
      * @protected
      */
     protected async attempt(name: string, options: MutexAcquireOptions, deadline: number, timeout: number): Promise<MutexLock | undefined> {
         const attempt: Promise<MutexLock | undefined> = this.tryAcquire(name, options)
         let timer: NodeJS.Timeout | undefined
+        //Given the time left, and at least ATTEMPT_GRACE: the deadline ends the wait, not an attempt answering
         const expired: Promise<'expired'> = new Promise((resolve: (value: 'expired') => void): void => {
-            timer = setTimeout((): void => resolve('expired'), Math.max(0, deadline - Date.now()))
+            timer = setTimeout((): void => resolve('expired'), Math.max(deadline - Date.now(), ATTEMPT_GRACE))
         })
         try {
             const result: MutexLock | undefined | 'expired' = await Promise.race([attempt, expired])
@@ -328,7 +338,7 @@ export class Mutex extends Component {
         } finally {
             clearTimeout(timer)
         }
-        //Too late: a lock acquired after the deadline is released
+        //The store did not answer: a lock it acquires later is released
         attempt.then((late: MutexLock | undefined): unknown => late?.release(), (): undefined => undefined)
         throw new MutexTimeoutException(`The lock ${name} is not acquired in ${timeout} ms`)
     }
