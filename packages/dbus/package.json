@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/dbus",
-  "version": "3.0.0-beta.1",
+  "version": "3.0.0-beta.2",
   "description": "The DBus channel of the lakutata framework: controller actions served as the methods, properties and signals of DBus objects, and the DBus client component.",
   "type": "module",
   "main": "./dist/cjs/exports/DBus.js",
@@ -32,8 +32,8 @@
     "dbus-sdk": "^2.0.1"
   },
   "peerDependencies": {
-    "@lakutata/core": "3.0.0-beta.1",
-    "@lakutata/entrypoint": "3.0.0-beta.1"
+    "@lakutata/core": "3.0.0-beta.2",
+    "@lakutata/entrypoint": "3.0.0-beta.2"
   },
   "engines": {
     "node": ">=22"

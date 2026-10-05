@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/template-web-next",
-  "version": "3.0.0-beta.1",
+  "version": "3.0.0-beta.2",
   "description": "The Next.js web template of the lakutata projects: an HTTP API serving a Next.js application from the same process, deployed as a Docker image.",
   "keywords": [
     "lakutata",

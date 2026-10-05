@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/template-default",
-  "version": "3.0.0-beta.1",
+  "version": "3.0.0-beta.2",
   "description": "The default template of the lakutata projects: a minimal application serving HTTP actions.",
   "keywords": [
     "lakutata",

@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/mcp",
-  "version": "3.0.0-beta.1",
+  "version": "3.0.0-beta.2",
   "description": "The MCP channel of the lakutata framework: controller actions served as the tools of a Model Context Protocol server, over stdio or HTTP.",
   "type": "module",
   "main": "./dist/cjs/exports/MCP.js",
@@ -32,8 +32,8 @@
     "@modelcontextprotocol/server": "^2.1.0"
   },
   "peerDependencies": {
-    "@lakutata/core": "3.0.0-beta.1",
-    "@lakutata/entrypoint": "3.0.0-beta.1"
+    "@lakutata/core": "3.0.0-beta.2",
+    "@lakutata/entrypoint": "3.0.0-beta.2"
   },
   "engines": {
     "node": ">=22"
