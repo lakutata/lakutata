@@ -23,7 +23,7 @@
 | `@Scoped()` | 每个作用域一个（`container.createScope()`；入口的每次请求是一个作用域，根容器本身也是一个作用域） |
 | `@Transient()` | 每次解析都新建，从不缓存 |
 
-子类继承父类的生命周期类型。`Component` 和 `Module` 锁定了自己的类型：子类声明其他类型会抛出 `LifetimeLockedException`；`Provider` 可以是 `@Transient`，但不能是 `@Singleton`（需要单例时请使用 `Component`）。`@Lifetime('SINGLETON' | 'SCOPED' | 'TRANSIENT', lock)` 是这三个装饰器的完整写法。
+子类继承父类的生命周期类型。`Component` 和 `Module` 锁定了自己的类型：子类声明其他类型会抛出 `LifetimeLockedException`；`Provider` 默认是 `@Scoped`，也可以声明为 `@Transient` 或 `@Singleton`（与 2.x 相同：一个实例由各作用域共享，例如 `@lakutata/nats` 的 `ServiceProxy`）；长期持有资源（连接、订阅、服务器）的对象更适合用 `Component`。单例注入作用域对象时，拿到的是创建它的那个作用域的实例。`@Lifetime('SINGLETON' | 'SCOPED' | 'TRANSIENT', lock)` 是这三个装饰器的完整写法。
 
 ### 作用域
 

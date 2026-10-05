@@ -315,26 +315,27 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         }, LifetimeLockedException)
     })
 
-    await it('providers cannot be singletons', async (): Promise<void> => {
-        assert.throws((): void => {
-            @Singleton()
-            class SingletonProvider extends Provider {
-            }
+    await it('providers may be singletons, scoped or transient (as in 2.x)', async (): Promise<void> => {
+        @Singleton()
+        class SingletonProvider extends Provider {
+        }
 
-            void SingletonProvider
-        }, LifetimeLockedException)
-        assert.doesNotThrow((): void => {
-            @Transient()
-            class TransientProvider extends Provider {
-            }
+        @Transient()
+        class TransientProvider extends Provider {
+        }
 
-            @Scoped()
-            class ScopedProvider extends Provider {
-            }
+        @Scoped()
+        class ScopedProvider extends Provider {
+        }
 
-            void TransientProvider
-            void ScopedProvider
-        })
+        const root: Container = new Container()
+        await root.load([SingletonProvider, TransientProvider, ScopedProvider])
+        const scope: Container = root.createScope()
+        //The singleton is shared by the scopes, the scoped provider is one per scope
+        assert.strictEqual(await scope.get(SingletonProvider), await root.get(SingletonProvider))
+        assert.notStrictEqual(await scope.get(ScopedProvider), await root.get(ScopedProvider))
+        assert.notStrictEqual(await root.get(TransientProvider), await root.get(TransientProvider))
+        await root.destroy()
     })
 
     await it('an object disposed while initializing does not come back to life', async (): Promise<void> => {

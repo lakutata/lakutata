@@ -128,8 +128,8 @@ transient class in the requesting container. The mark is not inherited.
 | `@Transient(lock?)` | per resolution | `BaseObject` |
 
 `@Lifetime('SINGLETON' | 'SCOPED' | 'TRANSIENT', lock?)` is their long form. With `lock` set to `true`, the subclasses
-cannot declare another lifetime (a `LifetimeLockedException` is thrown when they are defined); a `Provider` cannot be a
-singleton.
+cannot declare another lifetime (a `LifetimeLockedException` is thrown when they are defined). A `Provider` may be a
+singleton, as in 2.x.
 
 ```typescript
 import {Provider} from 'lakutata'

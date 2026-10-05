@@ -27,7 +27,10 @@ Every object of an application is created by an IoC container, never with `new`.
 | `@Transient()` | per resolution, never cached |
 
 Subclasses inherit the lifetime. `Component` and `Module` lock theirs: a subclass declaring another one throws a
-`LifetimeLockedException`; a `Provider` can be `@Transient` but never `@Singleton` (use a `Component`).
+`LifetimeLockedException`. A `Provider` is `@Scoped` by default and may be declared `@Transient` or `@Singleton` (as in
+2.x: one instance shared by the scopes, such as the `ServiceProxy` of `@lakutata/nats`); a long-lived object owning
+resources (connections, subscriptions, servers) is rather a `Component`. A singleton injecting a scoped object keeps the
+instance of the scope which created it.
 `@Lifetime('SINGLETON' | 'SCOPED' | 'TRANSIENT', lock)` is the long form of the three decorators.
 
 ### Scopes

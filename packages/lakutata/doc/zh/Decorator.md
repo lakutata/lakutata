@@ -109,7 +109,7 @@ Application.run(() => ({
 | `@Scoped(lock?)` | 每个作用域一个（入口的一次请求） | `Provider`、`Controller`（锁定） |
 | `@Transient(lock?)` | 每次解析一个 | `BaseObject` |
 
-`@Lifetime('SINGLETON' | 'SCOPED' | 'TRANSIENT', lock?)` 是它们的完整写法。`lock` 为 `true` 时，子类不能声明其他生命周期类型（子类定义时抛出 `LifetimeLockedException`）；`Provider` 不能是单例。
+`@Lifetime('SINGLETON' | 'SCOPED' | 'TRANSIENT', lock?)` 是它们的完整写法。`lock` 为 `true` 时，子类不能声明其他生命周期类型（子类定义时抛出 `LifetimeLockedException`）；`Provider` 可以是单例（与 2.x 相同）。
 
 ```typescript
 import {Provider} from 'lakutata'

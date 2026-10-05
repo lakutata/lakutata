@@ -4,9 +4,11 @@ import {DefineObjectType, ObjectType} from '../base/internal/ObjectType.js'
 
 /**
  * The base class of the providers: the functional units living in a scope, such as a request (a repository, a
- * password hasher, a client configured per request). Its lifetime is `@Scoped`: one instance per scope (the root
- * container being a scope too); a provider may be declared `@Transient`, never `@Singleton` (a
- * {@link LifetimeLockedException} is thrown: a long-lived shared object is a {@link Component}).
+ * password hasher, a client configured per request). Its lifetime is `@Scoped` by default: one instance per scope (the
+ * root container being a scope too). A provider may be declared `@Transient`, or `@Singleton` (one instance shared by
+ * the scopes, as in 2.x: a client of a remote service); a long-lived object owning resources (connections,
+ * subscriptions, servers) and emitting events is rather a {@link Component}. A singleton provider injecting a scoped
+ * object keeps the instance of the scope which created it.
  *
  * Declare it in the `providers` of the application or module options, under a name, with its options; get it with
  * `@Inject` or `getObject()`. It is created on first request, with the async construction of {@link BaseObject}.

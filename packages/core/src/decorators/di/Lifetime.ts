@@ -2,21 +2,19 @@ import {BaseObject} from '../../lib/base/BaseObject.js'
 import {ClassDecorator} from '../../types/ClassDecorator.js'
 import {LifetimeType} from '../../lib/ioc/Lifetime.js'
 import {SetObjectLifetime} from '../../lib/ioc/ObjectLifetime.js'
-import {GetObjectType, ObjectType} from '../../lib/base/internal/ObjectType.js'
-import {LifetimeLockedException} from '../../exceptions/di/LifetimeLockedException.js'
 
 /**
  * Set how the container shares the instances of a class: `SINGLETON` (one instance, created once by the container
  * registering the class and shared by all its users), `SCOPED` (one instance per scope, a request of an entrypoint), or
  * `TRANSIENT` (a new instance on each request, never cached). Subclasses inherit the lifetime. `BaseObject` is
- * transient, `Provider` scoped, `Component` and `Module` are locked singletons. Prefer the shorthands `@Singleton()`,
+ * transient, `Provider` scoped (a provider may be a singleton, scoped or transient), `Component` and `Module` are
+ * locked singletons. Prefer the shorthands `@Singleton()`,
  * `@Scoped()` and `@Transient()`.
  * @param lifetime The lifetime: `'SINGLETON'`, `'SCOPED'` or `'TRANSIENT'`.
  * @param lock Whether the subclasses are forbidden to change the lifetime (they may still declare the same one).
  * Default `false`.
  * @returns The class decorator.
- * @throws {LifetimeLockedException} When the class is defined, if a parent class locked another lifetime, or if a
- * provider is given a singleton lifetime (a provider is scoped or transient; use a component for a singleton).
+ * @throws {LifetimeLockedException} When the class is defined, if a parent class locked another lifetime.
  * @example
  * ```typescript
  * import {BaseObject} from 'lakutata'
@@ -30,12 +28,7 @@ import {LifetimeLockedException} from '../../exceptions/di/LifetimeLockedExcepti
  * ```
  */
 export function Lifetime<ClassConstructor extends typeof BaseObject>(lifetime: LifetimeType, lock: boolean = false): ClassDecorator<ClassConstructor> {
-    return (target: ClassConstructor): ClassConstructor => {
-        //A provider is a functional unit living in a scope, a long-lived shared object must be a component
-        if (lifetime !== 'SCOPED' && lifetime !== 'TRANSIENT' && GetObjectType(target) === ObjectType.Provider)
-            throw new LifetimeLockedException('[{0}] A provider can only be scoped or transient, use a component for a singleton', [target.className])
-        return SetObjectLifetime(target, lifetime, lock)
-    }
+    return (target: ClassConstructor): ClassConstructor => SetObjectLifetime(target, lifetime, lock)
 }
 
 /**
@@ -44,8 +37,7 @@ export function Lifetime<ClassConstructor extends typeof BaseObject>(lifetime: L
  * @param lock Whether the subclasses are forbidden to change the lifetime (they may still declare the same one).
  * Default `false`.
  * @returns The class decorator.
- * @throws {LifetimeLockedException} When the class is defined, if a parent class locked another lifetime, or if the
- * class is a provider (a provider is scoped or transient; use a component for a singleton).
+ * @throws {LifetimeLockedException} When the class is defined, if a parent class locked another lifetime.
  * @example
  * ```typescript
  * import {BaseObject} from 'lakutata'
