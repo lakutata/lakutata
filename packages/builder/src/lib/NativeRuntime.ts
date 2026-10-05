@@ -24,6 +24,11 @@ export type NativeRuntimeConfig = {
      * in its .lakutata/resources), or a directory next to the bundle
      */
     embedded: boolean
+    /**
+     * The tree from the directory of the bundle, for the scripts of the workers, which run from the tree (its
+     * .lakutata/workers): the tree is not looked for (nor extracted)
+     */
+    root?: string
 }
 
 /**
@@ -121,7 +126,9 @@ export function lakutataNativeRequire(nodeRequire: NodeJS.Require, config: Nativ
 
     const locate = (): string => {
         if (root) return root
-        if (config.embedded) {
+        if (config.root !== undefined) {
+            root = path.resolve(__dirname, config.root)
+        } else if (config.embedded) {
             try {
                 root = extract(cacheDirectory())
             } catch (error) {
@@ -144,7 +151,7 @@ export function lakutataNativeRequire(nodeRequire: NodeJS.Require, config: Nativ
     }
     const tree = (): NodeJS.Require => treeRequire ??= createRequire(path.join(locate(), 'index.js'))
 
-    const require = ((id: string): unknown => fromTree(id) ? tree()(id) : nodeRequire(id)) as NodeJS.Require & { lakutataNative(key: string): unknown }
+    const require = ((id: string): unknown => fromTree(id) ? tree()(id) : nodeRequire(id)) as NodeJS.Require & { lakutataNative(key: string): unknown, lakutataWorker(key: string): string, lakutataWorkerURL(key: string): string }
     require.resolve = ((id: string, options?: { paths?: string[] }): string => fromTree(id) ? tree().resolve(id, options) : nodeRequire.resolve(id, options)) as NodeJS.RequireResolve
     require.cache = nodeRequire.cache
     require.main = nodeRequire.main
@@ -155,6 +162,10 @@ export function lakutataNativeRequire(nodeRequire: NodeJS.Require, config: Nativ
         process.dlopen(addon as NodeJS.Module, path.join(locate(), ...key.split('/')))
         return addon.exports
     }
+    //The scripts of the workers of the application, bundled into the tree (WORKERS_DIRECTORY): the directory of a key, its URL
+    const workers = (key: string): string => path.join(locate(), '.lakutata', 'workers', ...key.split('/'))
+    require.lakutataWorker = workers
+    require.lakutataWorkerURL = (key: string): string => (nodeRequire('node:url') as typeof import('node:url')).pathToFileURL(workers(key) + path.sep).href
     //The resources of an executable are extracted with the tree (PACKAGED, EMBEDDED_RESOURCES)
     if (config.embedded) (globalThis as Record<symbol, unknown>)[Symbol.for('lakutata.packaged')] = {resources: (): string => path.join(locate(), '.lakutata', 'resources')}
     return require

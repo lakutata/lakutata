@@ -212,6 +212,27 @@ files by paths which cannot be followed (`require(path.join(__dirname, name))`) 
 maps, the TypeScript sources and the documentation of the packages are left out. The addons of
 the application itself (`require('./x.node')`, `createRequire(import.meta.url)('./x.node')`) are there too.
 
+The scripts of the workers (`worker_threads`) are not followed by the bundler (`new Worker()` takes a path): they are
+found while the application is bundled, each bundled with what it loads (a CommonJS file, whatever the type of the
+project) into the native tree (`dist/<name>.native/.lakutata/workers/`, their directories as in the project), and the
+paths giving them are rewritten to them. The paths followed are the ones from the module starting the worker:
+
+| Path | |
+|---|---|
+| `new URL('./worker.js', import.meta.url)` | the URL of the module (as Vite); `pathToFileURL(__filename)` too |
+| `path.join(__dirname, 'worker.js')`, `path.resolve(__dirname, …)` | `import.meta.dirname`, `path.dirname(fileURLToPath(import.meta.url))` too |
+| `__dirname + '/worker.js'`, `` `${__dirname}/worker.js` `` | |
+| `require.resolve('./worker.js')` | |
+| `` path.join(__dirname, 'jobs', `${name}.js`) ``, `` new URL(`./jobs/${name}.js`, import.meta.url) `` | known in part: every script of the directory its pattern matches (an expression matches a part of a name), its expression kept |
+
+The path may be given by a constant (`const script = path.join(__dirname, 'worker.js')`), and the code of tsc
+(`(0, node_path_1.join)(__dirname, 'worker.js')`) is followed. The workers whose scripts cannot be followed are warned
+of with their file and line, in the modules of the application (the packages start workers from the paths their users
+give): a path known at run time only (`new Worker(file)`), or a path relative to the current directory of the process
+(`new Worker('./worker.js')`, which node reads from there, not from the module); their scripts are shipped as resources
+(`lakutata.resources`), or given from the directory of their module. The workers running a source (`eval: true`) need
+nothing.
+
 The resources of the application, the files it reads at run time (the built pages of a web application, templates,
 data), are declared by the `lakutata.resources` of its `package.json`, as the `extraResources` of electron-builder:
 
@@ -250,9 +271,10 @@ linux/arm64`, as the cross builds of the templates).
 | `--layout <file\|directory>` | one file (by default), or a directory: `dist/<name>/` holding the executable, its native addons (`native/`) and its resources (`resources/`), loaded from there without extraction (the installers, the images) |
 | `--entry`, `--no-minify`, `--external` | as `lakutata package bundle` |
 
-The native addons and the resources are embedded in the executable (`--layout file`): at its first run, it extracts them
-into its cache directory (`~/.cache/<name>`, `~/Library/Caches/<name>` on macOS, `%LOCALAPPDATA%\<name>\Cache` on Windows,
-or `LAKUTATA_NATIVE_DIR`; the temporary directory when it cannot be written), in a directory named after their content:
+The native addons, the scripts of the workers and the resources are embedded in the executable (`--layout file`): at its
+first run, it extracts them into its cache directory (`~/.cache/<name>`, `~/Library/Caches/<name>` on macOS,
+`%LOCALAPPDATA%\<name>\Cache` on Windows, or `LAKUTATA_NATIVE_DIR`; the temporary directory when it cannot be written),
+in a directory named after their content:
 the next runs load them from there, the versions of the program do not share it. The addons need the system libraries they were built for (the
 glibc version of the Linux prebuilt addons).
 

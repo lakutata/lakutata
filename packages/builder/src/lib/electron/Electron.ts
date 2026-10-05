@@ -233,6 +233,7 @@ export async function buildElectronInstaller(project: string, manifest: Record<s
             outfile: path.join(application, 'main.cjs'),
             directories: {native: path.join(work, 'main.native'), resources: path.join(work, 'main.resources')}
         })
+        warnings.push(...bundle.warnings)
         const maintainer: string = platform === 'linux' ? packageMaintainer(author, name, warnings) : author ?? name
         //The packages of fpm need a homepage
         let homepage: string | undefined = config.homepage ?? (typeof manifest.homepage === 'string' ? manifest.homepage : undefined)
@@ -338,6 +339,7 @@ export async function buildElectronInstaller(project: string, manifest: Record<s
             platform: `${process.platform}-${process.arch}`,
             size: bundle.size,
             native: bundle.native?.modules ?? [],
+            workers: bundle.workers,
             resources: bundle.resources,
             runtime: `Electron v${electronVersion}`,
             warnings: []

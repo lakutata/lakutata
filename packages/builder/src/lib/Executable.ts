@@ -36,6 +36,10 @@ export type ExecutableResult = {
      */
     native: string[]
     /**
+     * The scripts of the workers of the application (their files, from the project), with the native addons
+     */
+    workers: string[]
+    /**
      * The resources of the application (their paths in the resources)
      */
     resources: string[]
@@ -236,7 +240,7 @@ export async function buildExecutable(options: ExecutableOptions): Promise<Execu
         //ignores the case), whose signature it writes beside the executable (_CodeSignature)
         const made: string = path.join(work, 'executable', path.basename(file))
         await mkdir(path.dirname(made), {recursive: true})
-        const warnings: string[] = []
+        const warnings: string[] = [...bundle.warnings]
         //The icon of the application: the one of the executables of Windows (the ones of macOS and Linux have none)
         const application = applicationIcon(project, manifest)
         const icon: Buffer | undefined = application && process.platform === 'win32' ? icoFile(application.image) : undefined
@@ -249,6 +253,7 @@ export async function buildExecutable(options: ExecutableOptions): Promise<Execu
             platform: `${process.platform === 'win32' ? 'win' : process.platform}-${process.arch}`,
             size: (await stat(file)).size,
             native: bundle.native?.modules ?? [],
+            workers: bundle.workers,
             resources: bundle.resources,
             directory: directory ? target : undefined,
             runtime: runtime,

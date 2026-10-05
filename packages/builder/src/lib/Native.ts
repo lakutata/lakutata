@@ -7,12 +7,22 @@ import {gzipSync} from 'node:zlib'
 import type {BuildResult, Plugin, PluginBuild} from 'esbuild'
 
 /**
- * A file of the native tree: its path in the tree ("/" separated) and where it is read
+ * A file of the native tree: its path in the tree ("/" separated) and where it is read, or its content (a script of a
+ * worker, bundled)
  */
 export type NativeFile = {
     path: string
     source: string
     mode: number
+    content?: Buffer
+}
+
+/**
+ * The content of a file of the native tree
+ * @param file
+ */
+function contentOf(file: NativeFile): Buffer {
+    return file.content ?? readFileSync(file.source)
 }
 
 /**
@@ -292,8 +302,10 @@ export class NativeCollector {
 
     /**
      * The plugin of the bundle: the native packages are external, the addons of the application are loaded from the tree
+     * @param transforms the transformations of the sources of the modules (the paths of the workers), giving their new
+     * source or undefined
      */
-    public plugin(): Plugin {
+    public plugin(transforms: ((source: string, file: string) => string | undefined)[] = []): Plugin {
         return {
             name: 'lakutata-native',
             setup: (build: PluginBuild): void => {
@@ -324,10 +336,20 @@ export class NativeCollector {
                 })
                 //The requires of the ES modules are the one of the bundle: esbuild follows what they load (the addons)
                 build.onLoad({filter: /\.(c|m)?js$/}, async (args) => {
-                    const source: string = await readFile(args.path, 'utf8')
-                    if (!MODULE_REQUIRE.test(source)) return undefined
-                    MODULE_REQUIRE.lastIndex = 0
-                    return {contents: source.replace(MODULE_REQUIRE, 'require'), loader: 'js', resolveDir: path.dirname(args.path)}
+                    let source: string = await readFile(args.path, 'utf8')
+                    let changed: boolean = false
+                    if (MODULE_REQUIRE.test(source)) {
+                        MODULE_REQUIRE.lastIndex = 0
+                        source = source.replace(MODULE_REQUIRE, 'require')
+                        changed = true
+                    }
+                    for (const transform of transforms) {
+                        const transformed: string | undefined = transform(source, args.path)
+                        if (transformed === undefined) continue
+                        source = transformed
+                        changed = true
+                    }
+                    return changed ? {contents: source, loader: 'js', resolveDir: path.dirname(args.path)} : undefined
                 })
                 //The addons of the application are loaded by the require of the bundle, from the extracted tree
                 build.onLoad({filter: /.*/, namespace: 'lakutata-native'}, (args) => ({
@@ -530,7 +552,7 @@ export class NativeCollector {
  */
 export function hashNativeTree(files: NativeFile[], links: NativeLink[]): string {
     const hash = createHash('sha256')
-    for (const file of files) hash.update(`${file.path}\0${file.mode}\0`).update(readFileSync(file.source))
+    for (const file of files) hash.update(`${file.path}\0${file.mode}\0`).update(contentOf(file))
     for (const link of links) hash.update(`${link.path}\0${link.target}\0`)
     return hash.digest('hex').slice(0, 16)
 }
@@ -545,7 +567,7 @@ export async function writeNativeTree(tree: NativeTree, directory: string): Prom
     for (const file of tree.files) {
         const target: string = path.join(directory, ...file.path.split('/'))
         await mkdir(path.dirname(target), {recursive: true})
-        await writeFile(target, readFileSync(file.source), {mode: file.mode})
+        await writeFile(target, contentOf(file), {mode: file.mode})
     }
     for (const link of tree.links) {
         const at: string = path.join(directory, ...link.path.split('/'))
@@ -566,7 +588,7 @@ export function packNativeTree(tree: NativeTree): { index: NativeIndex, data: Bu
     const files: NativeIndex['files'] = []
     let offset: number = 0
     for (const file of tree.files) {
-        const content: Buffer = readFileSync(file.source)
+        const content: Buffer = contentOf(file)
         files.push({path: file.path, offset: offset, size: content.length, mode: file.mode})
         chunks.push(content)
         offset += content.length

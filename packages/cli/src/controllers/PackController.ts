@@ -27,9 +27,14 @@ export class PackController extends Controller {
         const {bundleProject} = await loadBuilder(process.cwd())
         const result: BundleResult = await bundleProject({project: process.cwd(), entry: input.entry, outfile: input.outfile, minify: input.minify, external: input.external})
         done(`${path.relative(process.cwd(), result.outfile)} (${megabytes(result.size)}): node ${path.relative(process.cwd(), result.outfile)}`)
-        //The native addons are next to the bundle, which is distributed with them
-        if (result.nativeDirectory) done(`${path.relative(process.cwd(), result.nativeDirectory)}: the native addons (${result.native!.modules.join(', ') || 'of the application'}), distributed with the bundle`)
+        //The native addons and the scripts of the workers are next to the bundle, which is distributed with them
+        if (result.nativeDirectory) {
+            const addons: boolean = !!result.native!.modules.length || result.native!.files.some((file): boolean => file.path.endsWith('.node'))
+            const contents: string[] = [...addons ? [`the native addons (${result.native!.modules.join(', ') || 'of the application'})`] : [], ...result.workers.length ? [`the scripts of the workers (${result.workers.join(', ')})`] : []]
+            done(`${path.relative(process.cwd(), result.nativeDirectory)}: ${contents.join(' and ')}, distributed with the bundle`)
+        }
         if (result.resourcesDirectory) done(`${path.relative(process.cwd(), result.resourcesDirectory)}: the resources (${result.resources.join(', ')}), distributed with the bundle`)
+        for (const warning of result.warnings) warn(warning)
         return undefined
     }
 
@@ -40,6 +45,7 @@ export class PackController extends Controller {
         step(`${result.runtime} embedded`)
         if (result.native.length) step(result.directory ? `Native addons next to the executable: ${result.native.join(', ')}` : `Native addons embedded, extracted at the first run: ${result.native.join(', ')}`)
         if (result.resources.length) step(result.directory ? `Resources next to the executable: ${result.resources.join(', ')}` : `Resources embedded, extracted at the first run: ${result.resources.join(', ')}`)
+        if (result.workers.length) step(result.directory ? `Scripts of the workers next to the executable: ${result.workers.join(', ')}` : `Scripts of the workers embedded, extracted at the first run: ${result.workers.join(', ')}`)
         for (const warning of result.warnings) warn(warning)
         if (result.directory) done(`${path.relative(process.cwd(), result.directory)}: the executable and what it loads, distributed together`)
         done(`${path.relative(process.cwd(), result.file)} (${result.platform}, ${megabytes(result.size)})`)

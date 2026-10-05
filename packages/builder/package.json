@@ -23,6 +23,7 @@
     "test:installer:windows": "npm run compile && node --test dist/esm/tests/InstallerWindows.spec.js"
   },
   "dependencies": {
+    "acorn": "^8.19.0",
     "esbuild": "^0.28.2",
     "postject": "^1.0.0-alpha.6",
     "resedit": "^1.7.2"

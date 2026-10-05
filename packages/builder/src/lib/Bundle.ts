@@ -1,8 +1,9 @@
-import {existsSync, readdirSync, statSync} from 'node:fs'
+import {existsSync, readdirSync, realpathSync, statSync} from 'node:fs'
 import {chmod, cp, mkdir, readFile, rm, stat, writeFile} from 'node:fs/promises'
 import path from 'node:path'
 import {hashNativeTree, NativeCollector, type NativeFile, type NativeTree, writeNativeTree} from './Native.js'
 import {EMBEDDED_RESOURCES, nativeBanner, packagedBanner} from './NativeRuntime.js'
+import {WORKERS_DIRECTORY, WorkerCollector} from './Workers.js'
 
 /**
  * The application bundled into one file
@@ -74,6 +75,14 @@ export type BundleResult = {
      */
     resources: string[]
     resourcesDirectory?: string
+    /**
+     * The scripts of the workers of the application (their files, from the project), bundled into the native tree
+     */
+    workers: string[]
+    /**
+     * What the bundle cannot follow: the scripts of the workers given by paths known at run time only
+     */
+    warnings: string[]
 }
 
 /**
@@ -154,43 +163,68 @@ export async function bundleProject(options: BundleOptions): Promise<BundleResul
     if (!existsSync(entry)) throw new Error(`The entry ${path.relative(process.cwd(), entry) || entry} does not exist: build the project first`)
     const outfile: string = path.resolve(project, options.outfile ?? path.join('dist', `${name}.cjs`))
     const collector: NativeCollector = new NativeCollector(project, options.runtime)
+    const workers: WorkerCollector = new WorkerCollector(project)
     //esbuild is loaded by the commands which need it
     const {build} = await import('esbuild')
-    const result = await build({
-        entryPoints: [entry],
-        outfile: outfile,
-        write: false,
-        bundle: true,
-        platform: 'node',
-        target: `node${process.versions.node.split('.')[0]}`,
-        format: 'cjs',
-        minify: options.minify ?? true,
-        //The names of the classes are the ones of the objects of the container and of the errors
-        keepNames: true,
-        external: options.external ?? [],
-        //The dynamic imports of the modules left out are requires (the require of the bundle loads the native ones)
-        supported: {'dynamic-import': false},
-        banner: {js: `var ${IMPORT_META_URL}=require('node:url').pathToFileURL(__filename).href;`},
-        define: {
-            'import.meta.url': IMPORT_META_URL,
-            //Bun replaces process.env.NODE_ENV with the mode of its build: the one of the run is read
-            ...options.runtime === 'bun' ? {'process.env.NODE_ENV': 'globalThis.process.env.NODE_ENV'} : {}
-        },
-        plugins: [collector.plugin()],
-        logLevel: 'silent'
-    }).catch((error: Error & { errors?: { text: string, location?: { file: string, line: number } }[] }): never => {
-        const messages: string[] = (error.errors ?? []).map(({text, location}): string => location ? `${location.file}:${location.line}: ${text}` : text)
-        //The bundles are CommonJS, which the executables of Node.js run
-        const hint: string = messages.some((message: string): boolean => message.includes('Top-level await')) ? '\nThe bundles are CommonJS modules, without top-level await: await in an async function' : ''
-        throw new Error(`The bundle failed:\n  ${messages.length ? messages.join('\n  ') : error.message}${hint}`)
-    })
-    let code: string = result.outputFiles[0].text
-    const embedded: boolean = options.native === 'embedded'
-    let native: NativeTree | undefined = await collector.collect()
-    const resources = resourceFiles(project, manifest)
+    //The application, and each script of its workers (the bundler does not follow new Worker()): their native packages
+    //gathered into one tree, the workers they start found too
+    const bundle = async (input: string, output: string): Promise<string> => {
+        const result = await build({
+            entryPoints: [input],
+            outfile: output,
+            write: false,
+            bundle: true,
+            platform: 'node',
+            target: `node${process.versions.node.split('.')[0]}`,
+            format: 'cjs',
+            minify: options.minify ?? true,
+            //The names of the classes are the ones of the objects of the container and of the errors
+            keepNames: true,
+            external: options.external ?? [],
+            //The dynamic imports of the modules left out are requires (the require of the bundle loads the native ones)
+            supported: {'dynamic-import': false},
+            banner: {js: `var ${IMPORT_META_URL}=require('node:url').pathToFileURL(__filename).href;`},
+            define: {
+                'import.meta.url': IMPORT_META_URL,
+                //Bun replaces process.env.NODE_ENV with the mode of its build: the one of the run is read
+                ...options.runtime === 'bun' ? {'process.env.NODE_ENV': 'globalThis.process.env.NODE_ENV'} : {}
+            },
+            plugins: [collector.plugin([(source: string, file: string): string | undefined => workers.transform(source, file)])],
+            logLevel: 'silent'
+        }).catch((error: Error & { errors?: { text: string, location?: { file: string, line: number } }[] }): never => {
+            const messages: string[] = (error.errors ?? []).map(({text, location}): string => location ? `${location.file}:${location.line}: ${text}` : text)
+            //The bundles are CommonJS, which the executables of Node.js run
+            const hint: string = messages.some((message: string): boolean => message.includes('Top-level await')) ? '\nThe bundles are CommonJS modules, without top-level await: await in an async function' : ''
+            throw new Error(`The bundle failed:\n  ${messages.length ? messages.join('\n  ') : error.message}${hint}`)
+        })
+        return result.outputFiles[0].text
+    }
+    let code: string = await bundle(entry, outfile)
     const base: string = path.basename(outfile, path.extname(outfile))
     const nativeDirectory: string = path.resolve(path.dirname(outfile), options.directories?.native ?? `${base}.native`)
     const resourcesDirectory: string = path.resolve(path.dirname(outfile), options.directories?.resources ?? `${base}.resources`)
+    //The scripts of the workers, until the ones they start are bundled too
+    const scripts: Map<string, string> = new Map()
+    for (let pending: [string, string][] = [...workers.scripts]; pending.length; pending = [...workers.scripts].filter(([at]): boolean => !scripts.has(at))) {
+        for (const [at, script] of pending) scripts.set(at, await bundle(script, path.join(nativeDirectory, ...at.split('/'))))
+    }
+    const embedded: boolean = options.native === 'embedded'
+    let native: NativeTree | undefined = await collector.collect()
+    const resources = resourceFiles(project, manifest)
+    if (scripts.size) {
+        //The scripts run from the tree: their require loads the native packages from it, their resources are the ones of
+        //the application (an executable gives them from the tree it extracted)
+        const modules: string[] = native?.modules ?? []
+        const files: NativeFile[] = [{path: `${WORKERS_DIRECTORY}/package.json`, source: manifestFile, mode: 0o644, content: Buffer.from('{"type": "commonjs"}\n')}]
+        for (const [at, script] of [...scripts].sort(([a], [b]): number => a.localeCompare(b))) {
+            const directory: string = path.dirname(path.join(nativeDirectory, ...at.split('/')))
+            const banner: string = packagedBanner(path.relative(directory, resourcesDirectory).split(path.sep).join('/')) +
+                nativeBanner({name: name, hash: '', directory: '', modules: modules, embedded: embedded, root: path.relative(directory, nativeDirectory).split(path.sep).join('/')})
+            files.push({path: at, source: workers.scripts.get(at)!, mode: 0o644, content: Buffer.from(prepend(script, banner))})
+        }
+        const all: NativeFile[] = [...native?.files ?? [], ...files]
+        native = {modules: modules, files: all, links: native?.links ?? [], hash: hashNativeTree(all, native?.links ?? [])}
+    }
     await rm(nativeDirectory, {recursive: true, force: true})
     await rm(resourcesDirectory, {recursive: true, force: true})
     //The resources of an executable are extracted with its native tree
@@ -224,6 +258,8 @@ export async function bundleProject(options: BundleOptions): Promise<BundleResul
         native: native,
         nativeDirectory: native && !embedded ? nativeDirectory : undefined,
         resources: resources.declared,
-        resourcesDirectory: resources.files.length && !embedded ? resourcesDirectory : undefined
+        resourcesDirectory: resources.files.length && !embedded ? resourcesDirectory : undefined,
+        workers: [...new Set([...scripts.keys()].map((at: string): string => path.relative(realpathSync(project), workers.scripts.get(at)!).split(path.sep).join('/')))].sort(),
+        warnings: workers.warnings
     }
 }

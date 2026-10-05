@@ -16,7 +16,9 @@ await buildInstaller({project: process.cwd()})
 ```
 
 The application is compiled first (`tsc`, which emits the metadata of the decorators). The bundle is one CommonJS file
-(esbuild); the native addons, which cannot be bundled, are gathered with what they load at run time into a native tree;
+(esbuild); the native addons, which cannot be bundled, are gathered with what they load at run time into a native tree,
+with the scripts of the workers (`new Worker()`, which the bundler does not follow: found, bundled, their paths
+rewritten; the ones it cannot follow are in the `warnings` of the result);
 the resources of the application (the `lakutata.resources` of its `package.json`) are found at run time by
 `resourcesPath()` of lakutata. The installers are configured by the `lakutata.installer` of the `package.json`. See the
 documentation of `lakutata package bundle`, `lakutata package exe` and `lakutata package installer` in `@lakutata/cli`.
