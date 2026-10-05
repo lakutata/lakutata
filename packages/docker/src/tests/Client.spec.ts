@@ -43,14 +43,14 @@ function varint(value: number): Buffer {
     return Buffer.from(bytes)
 }
 
-function readField(number: number, value: number | string | Buffer): Buffer {
+function encodeField(number: number, value: number | string | Buffer): Buffer {
     if (typeof value === 'number') return Buffer.concat([varint(number << 3), varint(value)])
     const bytes: Buffer = Buffer.isBuffer(value) ? value : Buffer.from(value)
     return Buffer.concat([varint((number << 3) | 2), varint(bytes.length), bytes])
 }
 
 function timestamp(milliseconds: number): Buffer {
-    return Buffer.concat([readField(1, Math.floor(milliseconds / 1000)), readField(2, (milliseconds % 1000) * 1e6)])
+    return Buffer.concat([encodeField(1, Math.floor(milliseconds / 1000)), encodeField(2, (milliseconds % 1000) * 1e6)])
 }
 
 /**
@@ -92,18 +92,18 @@ describe('The client of the Docker Engine API', (): void => {
         assert.strictEqual(real.vertexes[0].name, 'exporting to image')
         assert.ok(real.vertexes[0].started! > 1.7e12 && real.vertexes[0].completed! >= real.vertexes[0].started!)
         const progress: BuildKitProgress = new BuildKitProgress()
-        const from: Buffer = Buffer.concat([readField(1, 'sha256:from'), readField(3, '[1/3] FROM alpine'), readField(4, 1)])
-        const run: (fields: Buffer[]) => Buffer = (fields: Buffer[]): Buffer => Buffer.concat([readField(1, 'sha256:run'), readField(3, '[2/3] RUN echo a > /b'), ...fields])
+        const from: Buffer = Buffer.concat([encodeField(1, 'sha256:from'), encodeField(3, '[1/3] FROM alpine'), encodeField(4, 1)])
+        const run: (fields: Buffer[]) => Buffer = (fields: Buffer[]): Buffer => Buffer.concat([encodeField(1, 'sha256:run'), encodeField(3, '[2/3] RUN echo a > /b'), ...fields])
         const lines: string[] = [
-            ...progress.lines(decodeBuildKitStatus(aux(readField(1, from), readField(1, run([readField(5, timestamp(1000))]))))),
+            ...progress.lines(decodeBuildKitStatus(aux(encodeField(1, from), encodeField(1, run([encodeField(5, timestamp(1000))]))))),
             //An output line cut between two statuses, then the step done
-            ...progress.lines(decodeBuildKitStatus(aux(readField(3, Buffer.concat([readField(1, 'sha256:run'), readField(3, 1), readField(4, 'line one\nline t')]))))),
-            ...progress.lines(decodeBuildKitStatus(aux(readField(3, Buffer.concat([readField(1, 'sha256:run'), readField(3, 1), readField(4, 'wo\nlast')]))))),
-            ...progress.lines(decodeBuildKitStatus(aux(readField(1, run([readField(5, timestamp(1000)), readField(6, timestamp(3500))]))))),
+            ...progress.lines(decodeBuildKitStatus(aux(encodeField(3, Buffer.concat([encodeField(1, 'sha256:run'), encodeField(3, 1), encodeField(4, 'line one\nline t')]))))),
+            ...progress.lines(decodeBuildKitStatus(aux(encodeField(3, Buffer.concat([encodeField(1, 'sha256:run'), encodeField(3, 1), encodeField(4, 'wo\nlast')]))))),
+            ...progress.lines(decodeBuildKitStatus(aux(encodeField(1, run([encodeField(5, timestamp(1000)), encodeField(6, timestamp(3500))]))))),
             //A step failed, and a warning
             ...progress.lines(decodeBuildKitStatus(aux(
-                readField(1, Buffer.concat([readField(1, 'sha256:fail'), readField(3, '[3/3] RUN exit 3'), readField(5, timestamp(4000)), readField(6, timestamp(4200)), readField(7, 'exit code: 3')])),
-                readField(4, Buffer.concat([readField(1, 'sha256:fail'), readField(2, 1), readField(3, 'JSONArgsRecommended')]))
+                encodeField(1, Buffer.concat([encodeField(1, 'sha256:fail'), encodeField(3, '[3/3] RUN exit 3'), encodeField(5, timestamp(4000)), encodeField(6, timestamp(4200)), encodeField(7, 'exit code: 3')])),
+                encodeField(4, Buffer.concat([encodeField(1, 'sha256:fail'), encodeField(2, 1), encodeField(3, 'JSONArgsRecommended')]))
             )))
         ]
         assert.deepStrictEqual(lines, [

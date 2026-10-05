@@ -37,7 +37,7 @@ const HOOKS_LOG: string = 'C:\\ProgramData\\hello-hooks.log'
  * What the scripts of the application were run with: the moment, what the installer does, whether the files of the
  * application are installed, their directory
  */
-function installerHooks(): string[] {
+function hookRuns(): string[] {
     return existsSync(HOOKS_LOG) ? readFileSync(HOOKS_LOG, 'utf8').split(/\r?\n/).filter(Boolean) : []
 }
 
@@ -150,7 +150,7 @@ describe('The installers of Windows', {skip: !INSTALL && 'LAKUTATA_WINDOWS_INSTA
             const custom: string[] = kind === 'nsis' ? ['customInstall'] : []
             const installed: string[] = [line('preinstall', 'install', false), line('postinstall', 'install', true), ...custom]
             const upgraded: string[] = [line('preinstall', 'upgrade', kind === 'nsis'), line('postinstall', 'upgrade', true), ...custom]
-            assert.deepStrictEqual(installerHooks(), installed)
+            assert.deepStrictEqual(hookRuns(), installed)
             //Started by the installation, as its virtual account, in its directory, with its environment, its resources
             //and its addon
             const answer = await awaitAnswer()
@@ -174,7 +174,7 @@ describe('The installers of Windows', {skip: !INSTALL && 'LAKUTATA_WINDOWS_INSTA
             assert.strictEqual(install('1.0.1'), '0')
             assert.strictEqual((await awaitAnswer()).greeting, 'Bonjour')
             assert.strictEqual(installedVersion(), '1.0.1')
-            assert.deepStrictEqual(installerHooks(), [...installed, ...upgraded])
+            assert.deepStrictEqual(hookRuns(), [...installed, ...upgraded])
             //Removed: its service, its files and its PATH removed, its data and its environment kept
             assert.strictEqual(powerShell(kind === 'nsis'
                 ? `$p = Start-Process -FilePath '${INSTALL_DIRECTORY}\\uninstall.exe' -ArgumentList '/S' -Wait -PassThru; $p.ExitCode`
@@ -182,8 +182,8 @@ describe('The installers of Windows', {skip: !INSTALL && 'LAKUTATA_WINDOWS_INSTA
             //The uninstaller of NSIS ends while its copy removes the files
             for (let attempt = 0; attempt < 30 && powerShell(`Test-Path '${INSTALL_DIRECTORY}'`) === 'True'; attempt++) await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 500))
             assert.strictEqual(powerShell(`Test-Path '${INSTALL_DIRECTORY}'`), 'False')
-            for (let attempt = 0; attempt < 30 && installerHooks().length < installed.length + upgraded.length + 2; attempt++) await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 500))
-            assert.deepStrictEqual(installerHooks(), [...installed, ...upgraded, line('preremove', 'remove', true), line('postremove', 'remove', false)])
+            for (let attempt = 0; attempt < 30 && hookRuns().length < installed.length + upgraded.length + 2; attempt++) await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 500))
+            assert.deepStrictEqual(hookRuns(), [...installed, ...upgraded, line('preremove', 'remove', true), line('postremove', 'remove', false)])
             assert.strictEqual(powerShell(`[bool](Get-Service hello-service -ErrorAction SilentlyContinue)`), 'False')
             assert.ok(!machinePath().includes(INSTALL_DIRECTORY))
             assert.strictEqual(installedVersion(), '')

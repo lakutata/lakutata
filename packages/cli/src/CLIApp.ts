@@ -2,6 +2,6 @@
 //Before the application changes the environment
 import './lib/Environment.js'
 import {Application} from 'lakutata'
-import {installerConfig} from './Config.js'
+import {config} from './Config.js'
 
-Application.run(installerConfig())
+Application.run(config())

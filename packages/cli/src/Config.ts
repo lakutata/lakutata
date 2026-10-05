@@ -33,7 +33,7 @@ export const MESSAGES = {'zh-CN': zhCN, 'zh-TW': zhTW}
 /**
  * The application of the tool
  */
-export function installerConfig(): ApplicationOptions {
+export function config(): ApplicationOptions {
     const tool = toolPackage()
     return {
         id: 'cli.lakutata.app',

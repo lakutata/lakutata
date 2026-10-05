@@ -58,9 +58,9 @@ function randomPath(): string | string[] {
  * A copy of the plain objects and the arrays of a value (the other values as they are)
  * @param value
  */
-function copyPackages(value: unknown): unknown {
-    if (Array.isArray(value)) return value.map(copyPackages)
-    if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) return Object.fromEntries(Object.entries(value).map(([key, item]: [string, unknown]): [string, unknown] => [key, copyPackages(item)]))
+function copyValue(value: unknown): unknown {
+    if (Array.isArray(value)) return value.map(copyValue)
+    if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) return Object.fromEntries(Object.entries(value).map(([key, item]: [string, unknown]): [string, unknown] => [key, copyValue(item)]))
     return value
 }
 
@@ -71,7 +71,7 @@ function copyPackages(value: unknown): unknown {
  * @param path
  */
 function outcomeOf(unset: (obj: any, path: any) => unknown, input: unknown, path: string | string[]): string {
-    const object: unknown = copyPackages(input)
+    const object: unknown = copyValue(input)
     try {
         const result: unknown = unset(object, path)
         return inspect({result: result, object: object}, {depth: 8, sorted: true})
@@ -91,7 +91,7 @@ describe('UnsetValue', (): void => {
             const path: string | string[] = randomPath()
             const expected: string = outcomeOf(upstreamUnset, subject, path)
             assert.strictEqual(outcomeOf(unsetValue, subject, path), expected, `${inspect(subject, {depth: 6})} ${inspect(path)}`)
-            if (expected !== inspect({result: true, object: copyPackages(subject)}, {depth: 8, sorted: true})) removed++
+            if (expected !== inspect({result: true, object: copyValue(subject)}, {depth: 8, sorted: true})) removed++
         }
         assert.ok(removed > 2000, `removed ${removed}`)
     })

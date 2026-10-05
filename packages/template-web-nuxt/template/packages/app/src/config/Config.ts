@@ -17,7 +17,7 @@ import zhCN from '../locales/zh-CN.json' with {type: 'json'}
  * The options of the service
  * @param port the port of the HTTP server, the PORT environment variable or 8080 by default
  */
-export function installerConfig(port: number = Number(process.env.PORT ?? 8080)): ApplicationOptions {
+export function config(port: number = Number(process.env.PORT ?? 8080)): ApplicationOptions {
     //The build of Nitro of the ui package is in the resources of the application packed (lakutata.resources)
     const resources: string | undefined = resourcesPath()
     return {

@@ -1,7 +1,7 @@
 import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
 import {Application} from 'lakutata'
-import {installerConfig} from '../config/Config.js'
+import {config} from '../config/Config.js'
 
 const PORT: number = Number(process.env.TEST_PORT ?? 18081)
 
@@ -12,7 +12,7 @@ describe('{$APP_NAME}', (): void => {
     before(async (): Promise<void> => {
         process.env.API_TOKEN = 'test-token'
         app = await new Promise<Application>((resolve: (app: Application) => void): void => {
-            Application.run(installerConfig(PORT)).onLaunched((launched: Application): void => resolve(launched))
+            Application.run(config(PORT)).onLaunched((launched: Application): void => resolve(launched))
         })
     })
 

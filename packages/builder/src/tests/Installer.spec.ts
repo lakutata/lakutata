@@ -85,7 +85,7 @@ async function until(container: string, script: string): Promise<string> {
  * What the scripts of the application were run with (their log)
  * @param container
  */
-function installerHooks(container: string): string[] {
+function hookRuns(container: string): string[] {
     return exec(container, 'cat /tmp/hello-hooks.log 2>/dev/null || true').split('\n').filter(Boolean)
 }
 
@@ -195,7 +195,7 @@ node -e "import('@lakutata/builder').then(b => b.buildInstaller({project: '/w', 
             const own = (lines: string[]): string[] => system === 'debian'
                 ? [...lines, ...lines.some((line: string): boolean => line.startsWith('postinstall')) ? ['native-postinstall configure'] : []]
                 : lines.map((line: string): string => line.replace(/^postinstall/, 'rpm-postinstall'))
-            assert.deepStrictEqual(installerHooks(container), own(INSTALLED))
+            assert.deepStrictEqual(hookRuns(container), own(INSTALLED))
             //Started by the installation, as its user, in its directory, with its environment, its resources and its addon
             const answer = JSON.parse(await until(container, 'curl -sf http://127.0.0.1:18080/'))
             assert.deepStrictEqual({...answer, arch: undefined}, {greeting: 'Hi', mode: 'production', user: 'hello-service', cwd: '/var/lib/hello-service', text: 'Hello', arch: undefined})
@@ -214,10 +214,10 @@ node -e "import('@lakutata/builder').then(b => b.buildInstaller({project: '/w', 
             assert.strictEqual(JSON.parse(await until(container, 'curl -sf http://127.0.0.1:18080/')).greeting, 'Bonjour')
             assert.match(exec(container, system === 'debian' ? "dpkg-query -W -f='${Version}' hello-service" : "rpm -q --qf '%{VERSION}' hello-service"), /^1\.0\.1/)
             //The removal of the version replaced runs no script of the application
-            assert.deepStrictEqual(installerHooks(container), [...own(INSTALLED), ...own(UPGRADED)])
+            assert.deepStrictEqual(hookRuns(container), [...own(INSTALLED), ...own(UPGRADED)])
             //Removed, it is stopped, its files removed
             exec(container, system === 'debian' ? 'apt-get remove -y -qq hello-service >/dev/null' : 'dnf remove -y -q hello-service >/dev/null')
-            assert.deepStrictEqual(installerHooks(container), [...own(INSTALLED), ...own(UPGRADED), ...REMOVED])
+            assert.deepStrictEqual(hookRuns(container), [...own(INSTALLED), ...own(UPGRADED), ...REMOVED])
             assert.notStrictEqual(spawnSync('docker', ['exec', container, 'systemctl', 'is-active', 'hello-service'], {encoding: 'utf8'}).stdout.trim(), 'active')
             assert.strictEqual(exec(container, 'ls /opt/hello-service /usr/bin/hello /usr/lib/systemd/system/hello-service.service 2>/dev/null | wc -l').trim(), '0')
             spawnSync('docker', ['rm', '-f', container])
@@ -260,14 +260,14 @@ node -e "import('@lakutata/builder').then(b => b.buildInstaller({project: '/w', 
         must('docker', ['run', ...PLATFORM_ARGS, '-d', '--name', container, '-v', `${out}:/out:ro`, 'archlinux:latest', 'sleep', 'infinity'])
         const install = (version: string): string => exec(container, `pacman -U --noconfirm /out/${version}/hello-service-${version}-1-x86_64.pkg.tar.zst >/dev/null`)
         install('1.0.0')
-        assert.deepStrictEqual(installerHooks(container), INSTALLED)
+        assert.deepStrictEqual(hookRuns(container), INSTALLED)
         assert.match(exec(container, 'hello hello'), /^Hello x64\n$/)
         assert.strictEqual(exec(container, 'id -u hello-service >/dev/null && echo created').trim(), 'created')
         //The upgrades of pacman run their own scripts, which run the ones of the installation of the application
         install('1.0.1')
-        assert.deepStrictEqual(installerHooks(container), [...INSTALLED, ...UPGRADED])
+        assert.deepStrictEqual(hookRuns(container), [...INSTALLED, ...UPGRADED])
         exec(container, 'pacman -R --noconfirm hello-service >/dev/null')
-        assert.deepStrictEqual(installerHooks(container), [...INSTALLED, ...UPGRADED, ...REMOVED])
+        assert.deepStrictEqual(hookRuns(container), [...INSTALLED, ...UPGRADED, ...REMOVED])
         assert.strictEqual(exec(container, 'ls /opt/hello-service /usr/bin/hello 2>/dev/null | wc -l').trim(), '0')
         spawnSync('docker', ['rm', '-f', container])
     })
@@ -280,7 +280,7 @@ node -e "import('@lakutata/builder').then(b => b.buildInstaller({project: '/w', 
         must('docker', ['run', ...PLATFORM_ARGS, '-d', '--init', '--name', container, '-v', `${out}:/out:ro`, image])
         exec(container, 'openrc default >/dev/null 2>&1 || true')
         exec(container, 'apk add --allow-untrusted -q /out/1.0.0/hello-service-1.0.0-r0.*.apk')
-        assert.deepStrictEqual(installerHooks(container), INSTALLED)
+        assert.deepStrictEqual(hookRuns(container), INSTALLED)
         const answer = JSON.parse(await until(container, 'curl -sf http://127.0.0.1:18080/'))
         assert.deepStrictEqual({...answer, arch: undefined}, {greeting: 'Hi', mode: 'production', user: 'hello-service', cwd: '/var/lib/hello-service', text: 'Hello', arch: undefined})
         assert.match(exec(container, 'hello hello'), /^Hello (arm64|x64)\n$/)
@@ -290,9 +290,9 @@ node -e "import('@lakutata/builder').then(b => b.buildInstaller({project: '/w', 
         exec(container, 'apk add --allow-untrusted -q /out/1.0.1/hello-service-1.0.1-r0.*.apk')
         assert.strictEqual(JSON.parse(await until(container, 'curl -sf http://127.0.0.1:18080/')).greeting, 'Bonjour')
         //The upgrades of apk run their own scripts, which run the ones of the installation of the application
-        assert.deepStrictEqual(installerHooks(container), [...INSTALLED, ...UPGRADED])
+        assert.deepStrictEqual(hookRuns(container), [...INSTALLED, ...UPGRADED])
         exec(container, 'apk del -q hello-service')
-        assert.deepStrictEqual(installerHooks(container), [...INSTALLED, ...UPGRADED, ...REMOVED])
+        assert.deepStrictEqual(hookRuns(container), [...INSTALLED, ...UPGRADED, ...REMOVED])
         assert.strictEqual(exec(container, 'ls /opt/hello-service /usr/bin/hello /etc/init.d/hello-service 2>/dev/null | wc -l').trim(), '0')
         assert.notStrictEqual(spawnSync('docker', ['exec', container, 'curl', '-sf', 'http://127.0.0.1:18080/']).status, 0)
         spawnSync('docker', ['rm', '-f', container])

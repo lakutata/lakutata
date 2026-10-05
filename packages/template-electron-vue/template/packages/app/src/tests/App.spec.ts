@@ -3,7 +3,7 @@ import assert from 'node:assert'
 import {createServer, type Server} from 'node:net'
 import {Application} from 'lakutata'
 import type {IPCMain} from 'lakutata/adapter/electron'
-import {installerConfig} from '../config/Config.js'
+import {config} from '../config/Config.js'
 
 /**
  * The ipcMain of the tests: the actions are invoked as the renderer invokes them, without Electron
@@ -51,7 +51,7 @@ describe('{$APP_NAME}', (): void => {
         //@end
         devPort = await freePort()
         app = await new Promise<Application>((resolve: (app: Application) => void): void => {
-            Application.run(installerConfig({window: false, ipcMain: ipcMain, devPort: devPort})).onLaunched((launched: Application): void => resolve(launched))
+            Application.run(config({window: false, ipcMain: ipcMain, devPort: devPort})).onLaunched((launched: Application): void => resolve(launched))
         })
     })
 

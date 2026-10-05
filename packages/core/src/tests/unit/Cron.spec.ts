@@ -35,7 +35,7 @@ function randomValue(): string {
 /**
  * A random field: a value, a range, a step, a list of them, or an nth weekday
  */
-function readField(depth: number = 0): string {
+function randomField(depth: number = 0): string {
     switch (Math.floor(random() * (depth ? 5 : 7))) {
         case 0:
         case 1:
@@ -47,7 +47,7 @@ function readField(depth: number = 0): string {
         case 4:
             return `${randomValue()}#${pick(['1', '2', '5', '6', '0', 'x', '1#2', ''])}`
         default:
-            return Array.from({length: 2 + Math.floor(random() * 3)}, (): string => readField(depth + 1)).join(',')
+            return Array.from({length: 2 + Math.floor(random() * 3)}, (): string => randomField(depth + 1)).join(',')
     }
 }
 
@@ -56,7 +56,7 @@ function readField(depth: number = 0): string {
  */
 function expression(): string {
     //Mostly valid fields: an expression is invalid as soon as one of its fields is
-    const fields: string[] = Array.from({length: pick([4, 5, 5, 5, 5, 6, 6, 6, 6, 7])}, (): string => random() < 0.85 ? pick(['*', '1', '*/5', '1-5', '1,3']) : readField())
+    const fields: string[] = Array.from({length: pick([4, 5, 5, 5, 5, 6, 6, 6, 6, 7])}, (): string => random() < 0.85 ? pick(['*', '1', '*/5', '1-5', '1,3']) : randomField())
     return pick(['', ' ', '  ']) + fields.join(pick([' ', ' ', '  ', '\t'])) + pick(['', ' '])
 }
 

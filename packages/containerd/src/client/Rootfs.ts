@@ -69,7 +69,7 @@ export async function readRootfsFile(mounts: SnapshotMount[], file: string, dept
  * The entries of a file of the database of the users or of the groups (name:x:id:…)
  * @param content
  */
-function readEntries(content: Buffer | undefined): string[][] {
+function parseEntries(content: Buffer | undefined): string[][] {
     if (!content) return []
     return content.toString('utf8').split('\n').filter((line: string): boolean => !!line.trim() && !line.startsWith('#')).map((line: string): string[] => line.split(':'))
 }
@@ -81,7 +81,7 @@ function readEntries(content: Buffer | undefined): string[][] {
  */
 export async function resolveUser(mounts: SnapshotMount[], user: string | undefined): Promise<ProcessUser> {
     const [userPart, groupPart] = (user ?? '').split(':')
-    const passwd: string[][] = readEntries(await readRootfsFile(mounts, '/etc/passwd'))
+    const passwd: string[][] = parseEntries(await readRootfsFile(mounts, '/etc/passwd'))
     let uid: number = 0
     let gid: number = 0
     let home: string = '/'
@@ -104,7 +104,7 @@ export async function resolveUser(mounts: SnapshotMount[], user: string | undefi
         const root: string[] | undefined = passwd.find((fields: string[]): boolean => fields[2] === '0')
         if (root) home = root[5] || '/'
     }
-    const groups: string[][] = readEntries(await readRootfsFile(mounts, '/etc/group'))
+    const groups: string[][] = parseEntries(await readRootfsFile(mounts, '/etc/group'))
     if (groupPart) {
         const entry: string[] | undefined = groups.find((fields: string[]): boolean => fields[0] === groupPart)
         if (entry) gid = Number(entry[2])

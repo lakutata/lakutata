@@ -2,7 +2,7 @@ import {Application, resourcesPath, type ILogger} from 'lakutata'
 import electron from 'electron'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {installerConfig} from './config/Config.js'
+import {config} from './config/Config.js'
 
 /**
  * The directory of the preload script and of the built renderer: the resources of the packaged application
@@ -20,7 +20,7 @@ if (!electron.app.requestSingleInstanceLock()) {
     electron.app.exit(0)
 } else {
     Application
-        .run(installerConfig({
+        .run(config({
             directory: directory,
             renderer: renderer,
             mode: electron.app.isPackaged ? 'production' : 'development',

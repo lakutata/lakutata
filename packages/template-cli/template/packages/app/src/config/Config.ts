@@ -12,7 +12,7 @@ import zhCN from '../locales/zh-CN.json' with {type: 'json'}
 /**
  * The options of the tool
  */
-export function installerConfig(): ApplicationOptions {
+export function config(): ApplicationOptions {
     return {
         id: '{$APP_ID}',
         name: '{$APP_NAME}',

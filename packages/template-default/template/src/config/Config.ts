@@ -12,7 +12,7 @@ import zhCN from '../locales/zh-CN.json' with {type: 'json'}
  * The options of the application
  * @param port the port of the HTTP server, the PORT environment variable or 8080 by default
  */
-export function installerConfig(port: number = Number(process.env.PORT ?? 8080)): ApplicationOptions {
+export function config(port: number = Number(process.env.PORT ?? 8080)): ApplicationOptions {
     return {
         id: '{$APP_ID}',
         name: '{$APP_NAME}',

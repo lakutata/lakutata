@@ -17,7 +17,7 @@ let root: string
  * @param delay
  * @param code the exit code
  */
-function runScript(name: string, delay: number, code: number = 0): string {
+function loggingScript(name: string, delay: number, code: number = 0): string {
     return `node -e "const f=require('node:fs');const log=require('node:path').resolve('../../events.log');f.appendFileSync(log,'start ${name} '+Date.now()+'\\n');setTimeout(()=>{f.appendFileSync(log,'end ${name} '+Date.now()+'\\n');console.log('built ${name}');process.exit(${code})},${delay})"`
 }
 
@@ -39,10 +39,10 @@ function writePackage(directory: string, manifest: Record<string, unknown>, inde
 function sicService(failing?: string): void {
     writePackage('.', {name: 'root', private: true, workspaces: ['packages/*']})
     writeFileSync(path.join(root, 'lerna.json'), JSON.stringify({$schema: 'node_modules/lerna/schemas/lerna-schema.json', version: '0.0.16'}, null, 2))
-    writePackage('packages/ui', {name: 'ui', version: '0.0.16', scripts: {rebuild: runScript('ui', 300, failing === 'ui' ? 1 : 0)}})
-    writePackage('packages/app', {name: 'app', version: '0.0.16', dependencies: {ui: '^0.0.16', express: '^5.0.0'}, scripts: {rebuild: runScript('app', 100, failing === 'app' ? 1 : 0)}}, 4)
-    writePackage('packages/proxy', {name: '@x/sic', version: '0.0.16', dependencies: {app: '^0.0.16'}, devDependencies: {ui: '0.0.16'}, scripts: {rebuild: runScript('proxy', 50)}})
-    writePackage('packages/tools', {name: 'tools', version: '0.0.16', scripts: {rebuild: runScript('tools', 50)}})
+    writePackage('packages/ui', {name: 'ui', version: '0.0.16', scripts: {rebuild: loggingScript('ui', 300, failing === 'ui' ? 1 : 0)}})
+    writePackage('packages/app', {name: 'app', version: '0.0.16', dependencies: {ui: '^0.0.16', express: '^5.0.0'}, scripts: {rebuild: loggingScript('app', 100, failing === 'app' ? 1 : 0)}}, 4)
+    writePackage('packages/proxy', {name: '@x/sic', version: '0.0.16', dependencies: {app: '^0.0.16'}, devDependencies: {ui: '0.0.16'}, scripts: {rebuild: loggingScript('proxy', 50)}})
+    writePackage('packages/tools', {name: 'tools', version: '0.0.16', scripts: {rebuild: loggingScript('tools', 50)}})
     writePackage('packages/types', {name: 'types', version: '0.0.16'})
 }
 

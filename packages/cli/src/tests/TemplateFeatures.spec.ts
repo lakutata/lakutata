@@ -13,7 +13,7 @@ let work: string
  * @param directory
  * @param files the files, by path relative to the directory
  */
-function listFiles(directory: string, files: Record<string, unknown>): void {
+function writeFiles(directory: string, files: Record<string, unknown>): void {
     for (const [file, content] of Object.entries(files)) {
         mkdirSync(path.dirname(path.join(directory, file)), {recursive: true})
         writeFileSync(path.join(directory, file), typeof content === 'string' ? content : `${JSON.stringify(content, null, 2)}\n`)
@@ -73,7 +73,7 @@ describe('The features of the templates', (): void => {
 
     it('are enabled by lakutata create --with, their files added, their blocks kept; the others removed', async (): Promise<void> => {
         const template: string = path.join(work, 'template-demo')
-        listFiles(template, {
+        writeFiles(template, {
             'package.json': {name: 'template-demo', lakutata: {template: 'demo', features: {i18n: 'Messages in several languages'}}},
             'template/package.json': {name: '{$APP_ID}', scripts: {build: 'tsc'}},
             'template/_gitignore': 'node_modules\n',

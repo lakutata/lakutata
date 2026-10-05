@@ -88,7 +88,7 @@ async function invoke(url: string, data: unknown, clientId?: string): Promise<an
  * The events of a stream (Server-Sent Events), as they are received
  * @param url
  */
-async function scriptEvents(url: string): Promise<{ next: () => Promise<{ event: string, data: unknown }>, close: () => void }> {
+async function streamEvents(url: string): Promise<{ next: () => Promise<{ event: string, data: unknown }>, close: () => void }> {
     const aborted: AbortController = new AbortController()
     const response: Response = await fetch(url, {signal: aborted.signal})
     assert.match(response.headers.get('content-type')!, /^text\/event-stream/)
@@ -146,10 +146,10 @@ describe('HTTP service adapter', (): void => {
 
     it('streams the events pushed to the clients (Server-Sent Events), to every client', async (): Promise<void> => {
         const {url, container, entrypoint} = await start()
-        const tool = await scriptEvents(`${url}/events?id=postman`)
+        const tool = await streamEvents(`${url}/events?id=postman`)
         //Its id given first, an id given by the adapter without it
         assert.deepStrictEqual(await tool.next(), {event: 'client', data: ['postman']})
-        const anonymous = await scriptEvents(`${url}/events`)
+        const anonymous = await streamEvents(`${url}/events`)
         const {data: [id]} = await anonymous.next() as { data: string[] }
         assert.match(id, /^[0-9a-f-]{36}$/)
         assert.strictEqual(entrypoint.notify('postman', 'progress', 1, {step: 'a'}), true)
@@ -194,7 +194,7 @@ describe('HTTP service adapter', (): void => {
 
     it('stops gracefully, its streams closed', async (): Promise<void> => {
         const {url, container} = await start()
-        const stream = await scriptEvents(`${url}/events?id=desk`)
+        const stream = await streamEvents(`${url}/events?id=desk`)
         await stream.next()
         const inProgress: Promise<any> = invoke(url, {cmd: 'slow'})
         await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 20))
