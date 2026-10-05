@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/entrypoint",
-  "version": "3.0.0-beta.0",
+  "version": "3.0.0-beta.1",
   "description": "The entrypoint component of the lakutata framework: controllers and the dispatch of the CLI, HTTP and service actions.",
   "type": "module",
   "main": "./dist/cjs/exports/Entrypoint.js",
@@ -110,8 +110,8 @@
   },
   "peerDependencies": {
     "@inquirer/prompts": "^7.0.0 || ^8.0.0",
-    "@lakutata/core": "3.0.0-beta.0",
-    "@lakutata/utils": "3.0.0-beta.0",
+    "@lakutata/core": "3.0.0-beta.1",
+    "@lakutata/utils": "3.0.0-beta.1",
     "commander": "^12.0.0 || ^13.0.0 || ^14.0.0 || ^15.0.0",
     "express": "^4.21.0 || ^5.0.0",
     "fastify": "^5.0.0",

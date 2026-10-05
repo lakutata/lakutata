@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/cli",
-  "version": "3.0.0-beta.0",
+  "version": "3.0.0-beta.1",
   "description": "The command line tool of the lakutata framework: create the projects from the templates, run and version the packages of the workspaces, bundle the applications and make their executables (with @lakutata/builder).",
   "type": "module",
   "bin": {
@@ -16,10 +16,10 @@
   "dependencies": {
     "@inquirer/prompts": "^8.7.2",
     "commander": "^15.0.0",
-    "lakutata": "3.0.0-beta.0"
+    "lakutata": "3.0.0-beta.1"
   },
   "peerDependencies": {
-    "@lakutata/builder": "3.0.0-beta.0"
+    "@lakutata/builder": "3.0.0-beta.1"
   },
   "peerDependenciesMeta": {
     "@lakutata/builder": {
@@ -27,7 +27,7 @@
     }
   },
   "devDependencies": {
-    "@lakutata/builder": "3.0.0-beta.0"
+    "@lakutata/builder": "3.0.0-beta.1"
   },
   "engines": {
     "node": ">=22.12"

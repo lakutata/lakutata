@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/orm",
-  "version": "3.0.0-beta.0",
+  "version": "3.0.0-beta.1",
   "description": "The ORM of the lakutata framework, on TypeORM: the Database component and provider, the entity decorators and the generation of the migrations.",
   "type": "module",
   "main": "./dist/cjs/exports/ORM.js",
@@ -66,8 +66,8 @@
     "typeorm": "0.3.31"
   },
   "peerDependencies": {
-    "@lakutata/core": "3.0.0-beta.0",
-    "@lakutata/utils": "3.0.0-beta.0"
+    "@lakutata/core": "3.0.0-beta.1",
+    "@lakutata/utils": "3.0.0-beta.1"
   },
   "engines": {
     "node": ">=22"
