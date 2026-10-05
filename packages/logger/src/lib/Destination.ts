@@ -3,7 +3,27 @@ import {writeSync} from 'node:fs'
 //The buffered text written at once
 const HIGH_WATER_MARK: number = 16384
 
-const SLEEPER: Int32Array = new Int32Array(new SharedArrayBuffer(4))
+/**
+ * The array the writes wait on while a pipe is full, created when first needed: SharedArrayBuffer is missing where the
+ * logger may be loaded without logging (a renderer of Electron which is not cross-origin isolated)
+ */
+let sleeper: Int32Array | undefined
+
+/**
+ * Wait synchronously
+ * @param ms
+ */
+function SleepSync(ms: number): void {
+    if (typeof SharedArrayBuffer === 'function') {
+        sleeper ??= new Int32Array(new SharedArrayBuffer(4))
+        Atomics.wait(sleeper, 0, 0, ms)
+        return
+    }
+    const until: number = Date.now() + ms
+    while (Date.now() < until) {
+        //Busy wait, without SharedArrayBuffer
+    }
+}
 
 /**
  * A destination of the log lines, buffered unless synchronous
@@ -42,7 +62,7 @@ export class Destination {
             } catch (e) {
                 if ((e as NodeJS.ErrnoException).code !== 'EAGAIN') throw e
                 //A pipe is full, wait for its reader
-                Atomics.wait(SLEEPER, 0, 0, 10)
+                SleepSync(10)
             }
         }
     }

@@ -46,6 +46,21 @@ await container.destroy()`)
         assert.match(output, /ERROR \(Unknown\/\d+\): with error\n {4}err: \{\n {6}"type": "Error",/)
     })
 
+    it('loads where SharedArrayBuffer is missing (a preload script of Electron requiring the framework)', (): void => {
+        //Required as the preload scripts do (an import of node:fs by Node.js itself needs SharedArrayBuffer)
+        const output: string = execFileSync(process.execPath, ['--input-type=commonjs', '-e', `
+delete globalThis.SharedArrayBuffer
+const {PassThrough} = require('node:stream')
+const {Destination} = require(${JSON.stringify(fileURLToPath(new URL('../../cjs/lib/Destination.js', import.meta.url)))})
+const stream = new PassThrough()
+let text = ''
+stream.on('data', (chunk) => text += chunk)
+new Destination(stream, true).write('without shared memory')
+console.log(text)
+`], {cwd: fileURLToPath(new URL('.', import.meta.url)), encoding: 'utf8'})
+        assert.match(output, /without shared memory/)
+    })
+
     it('writes the buffered lines when the process exits', (): void => {
         const output: string = RunChild(`
 const logger = await new Container().set(Logger, {colorize: false})
