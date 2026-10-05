@@ -1,5 +1,6 @@
 import type {Request, Response} from 'express'
 import {describeError, type HTTPErrorOrigin, statusOfError} from '../../lib/HTTPErrors.js'
+import {envelopeOf, errorExtraOf} from '../../lib/Envelope.js'
 
 export {describeError, statusOfError, type HTTPErrorOrigin}
 
@@ -65,13 +66,24 @@ export type JSONEnvelopeOptions = {
      * @default `errorStatus`
      */
     actionErrorStatus?: number
+    /**
+     * The extra fields of the envelope, such as the `timestamp`, `nonce` or `requestId` of the envelopes of the
+     * applications of lakutata 2.x: called for each response (a result or an error), its fields added after `errno`,
+     * `errMsg` and `data`, which they never replace. When it throws, a result is answered as an error, and an error
+     * without the extra fields.
+     * @param request The express request being answered.
+     * @returns The fields to add to the envelope.
+     * @default no extra field
+     */
+    extra?: (request: Request) => Record<string, unknown>
 }
 
 /**
  * Create a responder for {@link expressHTTPEntrypoint} that wraps every response in the envelope
  * `{errno, errMsg, data}`: a result as `{errno: null, errMsg: null, data}` (`data` is `null` when the action returned
  * nothing, and its status is not turned into 204), an error as `{errno, errMsg, data: null}` with the error's status,
- * the `errorStatus` option, or for the errors of the actions the `actionErrorStatus` option.
+ * the `errorStatus` option, or for the errors of the actions the `actionErrorStatus` option; the `extra` option adds
+ * fields to both.
  * @param options The envelope options.
  * @returns The responder, to give to the `respond` option of `expressHTTPEntrypoint`.
  * @example
@@ -96,8 +108,15 @@ export type JSONEnvelopeOptions = {
  *         entrypoint: buildEntrypoints({
  *             controllers: [PingController],
  *             //The errors of the actions answered with 200 too (as the applications of lakutata 2.x), the routes not
- *             //found and the errors of the express middlewares with their status (404, 401…)
- *             http: expressHTTPEntrypoint({port: 8080, respond: jsonEnvelope({actionErrorStatus: 200})})
+ *             //found and the errors of the express middlewares with their status (404, 401…); every envelope with
+ *             //its timestamp ({"errno": null, "errMsg": null, "data": "pong", "timestamp": 1767225600000})
+ *             http: expressHTTPEntrypoint({
+ *                 port: 8080,
+ *                 respond: jsonEnvelope({
+ *                     actionErrorStatus: 200,
+ *                     extra: (): Record<string, unknown> => ({timestamp: Date.now()})
+ *                 })
+ *             })
  *         })
  *     }
  * })
@@ -105,12 +124,12 @@ export type JSONEnvelopeOptions = {
  */
 export function jsonEnvelope(options: JSONEnvelopeOptions = {}): ExpressResponder {
     return {
-        success: (response: Response, data: unknown): void => {
-            response.json({errno: null, errMsg: null, data: data === undefined ? null : data})
+        success: (response: Response, data: unknown, request: Request): void => {
+            response.json(envelopeOf({errno: null, errMsg: null, data: data === undefined ? null : data}, options.extra?.(request)))
         },
-        error: (response: Response, error: unknown, _request: Request, origin?: HTTPErrorOrigin): void => {
+        error: (response: Response, error: unknown, request: Request, origin?: HTTPErrorOrigin): void => {
             const status: number | undefined = origin === 'action' ? options.actionErrorStatus ?? options.errorStatus : options.errorStatus
-            response.status(status ?? statusOfError(error)).json({...describeError(error), data: null})
+            response.status(status ?? statusOfError(error)).json(envelopeOf({...describeError(error), data: null}, errorExtraOf(options.extra, request)))
         }
     }
 }

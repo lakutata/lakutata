@@ -287,7 +287,11 @@ launches once its server listens. To move it to `expressHTTPEntrypoint`:
 - the `{errno, errMsg, data}` envelope is `jsonEnvelope()`. The applications of 2.x usually answered the errors of the
   actions with 200 and the errors of their express middlewares (`next(error)`: an authenticator's 401) with their
   status: `jsonEnvelope({actionErrorStatus: 200})` does the same — `errorStatus: 200` would answer the 401 with 200 too,
-  which the clients redirecting to the login page on a 401 would miss.
+  which the clients redirecting to the login page on a 401 would miss;
+- the other fields of the envelope of the application (`timestamp`, `nonce`, a request id) are given by its `extra`
+  option, called for each response, results and errors: `jsonEnvelope({actionErrorStatus: 200, extra: () =>
+  ({timestamp: Date.now()})})`. They are added after `errno`, `errMsg` and `data`, which they never replace — no
+  responder of its own is needed to keep them.
 
 ```typescript
 import {buildEntrypoints} from 'lakutata/com/entrypoint'
@@ -310,13 +314,13 @@ export const entrypoint = buildEntrypoints({
             //The authenticator of the requests: its errors keep their status (401)
             app.use((request: Request, _response: Response, next: NextFunction): void => request.headers.authorization ? next() : next(new Unauthorized('Not logged in')))
         },
-        //The errors of the actions answered with 200 in the envelope, as in 2.x
-        respond: jsonEnvelope({actionErrorStatus: 200})
+        //The errors of the actions answered with 200 in the envelope, as in 2.x, with its timestamp
+        respond: jsonEnvelope({actionErrorStatus: 200, extra: (): Record<string, unknown> => ({timestamp: Date.now()})})
     })
 })
 ```
 
-`fastifyHTTPEntrypoint` takes the same options (`fastifyJSONEnvelope({actionErrorStatus: 200})`, the authenticator
+`fastifyHTTPEntrypoint` takes the same options (`fastifyJSONEnvelope({actionErrorStatus: 200, extra})`, the authenticator
 being a hook of fastify). A responder of its own receives the origin of each error as the fourth argument of its
 `error` (`'action'` or `'request'`).
 

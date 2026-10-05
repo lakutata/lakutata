@@ -240,7 +240,8 @@ class UserController extends Controller {
 
 - 应用自己的中间件和路由（CORS、压缩、健康检查、Authenticator、Web UI）放进 `before` 钩子，钩子里用 `module.getObject()` 获取对象；请求体解析用 `body` 选项（`{limit: '100mb'}`）；服务器的 `keepAliveTimeout`/`headersTimeout` 用 `server` 选项；
 - 从请求构造动作输入（查询参数、请求体、会话中的值）用 `input` 选项；
-- `{errno, errMsg, data}` 封套用 `jsonEnvelope()`。2.x 的应用通常对动作的错误返回 200，而对 Express 中间件的错误（`next(error)`，比如 Authenticator 的 401）使用错误自带的状态码：`jsonEnvelope({actionErrorStatus: 200})` 的行为与此相同。如果用 `errorStatus: 200`，401 也会变成 200，按 401 跳转登录页的前端就会失效。
+- `{errno, errMsg, data}` 封套用 `jsonEnvelope()`。2.x 的应用通常对动作的错误返回 200，而对 Express 中间件的错误（`next(error)`，比如 Authenticator 的 401）使用错误自带的状态码：`jsonEnvelope({actionErrorStatus: 200})` 的行为与此相同。如果用 `errorStatus: 200`，401 也会变成 200，按 401 跳转登录页的前端就会失效；
+- 应用封套里的其他字段（`timestamp`、`nonce`、请求 ID）用 `extra` 选项给出。它在每次响应时调用，成功和错误的响应都会带上这些字段：`jsonEnvelope({actionErrorStatus: 200, extra: () => ({timestamp: Date.now()})})`。这些字段排在 `errno`、`errMsg`、`data` 之后，不会覆盖这三个字段，因此不需要为了保留它们自己实现响应器。
 
 ```typescript
 import {buildEntrypoints} from 'lakutata/com/entrypoint'
@@ -263,13 +264,13 @@ export const entrypoint = buildEntrypoints({
             //请求的鉴权：它的错误保留自带的状态码（401）
             app.use((request: Request, _response: Response, next: NextFunction): void => request.headers.authorization ? next() : next(new Unauthorized('Not logged in')))
         },
-        //动作的错误在封套中以 200 返回，与 2.x 相同
-        respond: jsonEnvelope({actionErrorStatus: 200})
+        //动作的错误在封套中以 200 返回，与 2.x 相同，并带上时间戳
+        respond: jsonEnvelope({actionErrorStatus: 200, extra: (): Record<string, unknown> => ({timestamp: Date.now()})})
     })
 })
 ```
 
-`fastifyHTTPEntrypoint` 的选项相同（使用 `fastifyJSONEnvelope({actionErrorStatus: 200})`，Authenticator 写成 Fastify 的钩子）。自定义的响应器可以从 `error` 的第四个参数得到每个错误的来源（`'action'` 或 `'request'`）。
+`fastifyHTTPEntrypoint` 的选项相同（使用 `fastifyJSONEnvelope({actionErrorStatus: 200, extra})`，Authenticator 写成 Fastify 的钩子）。自定义的响应器可以从 `error` 的第四个参数得到每个错误的来源（`'action'` 或 `'request'`）。
 
 ### 服务动作的客户端与推送事件
 

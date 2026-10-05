@@ -1,5 +1,6 @@
 import type {FastifyReply, FastifyRequest} from 'fastify'
 import {describeError, type HTTPErrorOrigin, statusOfError} from '../../lib/HTTPErrors.js'
+import {envelopeOf, errorExtraOf} from '../../lib/Envelope.js'
 
 /**
  * How {@link fastifyHTTPEntrypoint} writes the results and the errors of the actions (its `respond` option). Implement
@@ -73,13 +74,24 @@ export type FastifyJSONEnvelopeOptions = {
      * @default `errorStatus`
      */
     actionErrorStatus?: number
+    /**
+     * The extra fields of the envelope, such as the `timestamp`, `nonce` or `requestId` of the envelopes of the
+     * applications of lakutata 2.x: called for each response (a result or an error), its fields added after `errno`,
+     * `errMsg` and `data`, which they never replace. When it throws, a result is answered as an error, and an error
+     * without the extra fields.
+     * @param request The fastify request being answered.
+     * @returns The fields to add to the envelope.
+     * @default no extra field
+     */
+    extra?: (request: FastifyRequest) => Record<string, unknown>
 }
 
 /**
  * Create a responder for {@link fastifyHTTPEntrypoint} that wraps every response in the envelope
  * `{errno, errMsg, data}`: a result as `{errno: null, errMsg: null, data}` (`data` is `null` when the action returned
  * nothing, and its status is not turned into 204), an error as `{errno, errMsg, data: null}` with the error's status,
- * the `errorStatus` option, or for the errors of the actions the `actionErrorStatus` option.
+ * the `errorStatus` option, or for the errors of the actions the `actionErrorStatus` option; the `extra` option adds
+ * fields to both.
  * @param options The envelope options.
  * @returns The responder, to give to the `respond` option of `fastifyHTTPEntrypoint`.
  * @example
@@ -104,8 +116,15 @@ export type FastifyJSONEnvelopeOptions = {
  *         entrypoint: buildEntrypoints({
  *             controllers: [PingController],
  *             //The errors of the actions answered with 200 too (as the applications of lakutata 2.x), the routes not
- *             //found and the errors of the hooks with their status (404, 401…)
- *             http: fastifyHTTPEntrypoint({port: 8080, respond: fastifyJSONEnvelope({actionErrorStatus: 200})})
+ *             //found and the errors of the hooks with their status (404, 401…); every envelope with
+ *             //its timestamp ({"errno": null, "errMsg": null, "data": "pong", "timestamp": 1767225600000})
+ *             http: fastifyHTTPEntrypoint({
+ *                 port: 8080,
+ *                 respond: fastifyJSONEnvelope({
+ *                     actionErrorStatus: 200,
+ *                     extra: (): Record<string, unknown> => ({timestamp: Date.now()})
+ *                 })
+ *             })
  *         })
  *     }
  * })
@@ -113,11 +132,11 @@ export type FastifyJSONEnvelopeOptions = {
  */
 export function fastifyJSONEnvelope(options: FastifyJSONEnvelopeOptions = {}): FastifyResponder {
     return {
-        success: (reply: FastifyReply, data: unknown): void => sendJSON(reply, {errno: null, errMsg: null, data: data === undefined ? null : data}),
-        error: (reply: FastifyReply, error: unknown, _request: FastifyRequest, origin?: HTTPErrorOrigin): void => {
+        success: (reply: FastifyReply, data: unknown, request: FastifyRequest): void => sendJSON(reply, envelopeOf({errno: null, errMsg: null, data: data === undefined ? null : data}, options.extra?.(request))),
+        error: (reply: FastifyReply, error: unknown, request: FastifyRequest, origin?: HTTPErrorOrigin): void => {
             const status: number | undefined = origin === 'action' ? options.actionErrorStatus ?? options.errorStatus : options.errorStatus
             reply.code(status ?? statusOfError(error))
-            sendJSON(reply, {...describeError(error), data: null})
+            sendJSON(reply, envelopeOf({...describeError(error), data: null}, errorExtraOf(options.extra, request)))
         }
     }
 }

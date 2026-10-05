@@ -205,6 +205,51 @@ describe('Express adapter', (): void => {
         await container.destroy()
     })
 
+    it('adds the extra fields to the envelopes, after errno, errMsg and data which they never replace', async (): Promise<void> => {
+        let count: number = 0
+        const {url, container} = await start({
+            before: (app): void => {
+                app.use((request, _response, next): void => request.headers['x-token'] ? next() : next(new UnauthorizedException('Not logged in')))
+            },
+            respond: jsonEnvelope({
+                actionErrorStatus: 200,
+                //Given for each response: a counter, a header of the request, and the fields of the envelope (ignored)
+                extra: (request): Record<string, unknown> => ({
+                    timestamp: ++count,
+                    requestId: request.headers['x-request-id'] ?? null,
+                    errno: 'E_EXTRA',
+                    data: 'extra'
+                })
+            })
+        })
+        const headers: RequestInit = {headers: {'x-token': 'a', 'x-request-id': 'r1'}}
+        const result: unknown = await (await fetch(`${url}/device/a`, headers)).json()
+        assert.deepStrictEqual(result, {errno: null, errMsg: null, data: {sn: 'a'}, timestamp: 1, requestId: 'r1'})
+        assert.deepStrictEqual(Object.keys(result as object), ['errno', 'errMsg', 'data', 'timestamp', 'requestId'])
+        const failed: Response = await fetch(`${url}/missing`, headers)
+        assert.strictEqual(failed.status, 200)
+        assert.deepStrictEqual(await failed.json(), {errno: 'E_MISSING', errMsg: 'Nothing here', data: null, timestamp: 2, requestId: 'r1'})
+        const unauthorized: Response = await fetch(`${url}/device/a`)
+        assert.strictEqual(unauthorized.status, 401)
+        assert.deepStrictEqual(await unauthorized.json(), {errno: 'E_UNAUTHORIZED', errMsg: 'Not logged in', data: null, timestamp: 3, requestId: null})
+        const notFound: Response = await fetch(`${url}/device`, headers)
+        assert.strictEqual(notFound.status, 404)
+        assert.deepStrictEqual((await notFound.json() as Record<string, unknown>).timestamp, 4)
+        await container.destroy()
+        //Extra fields failing: a result is answered as an error, an error without the extra fields
+        const failing = await start({
+            respond: jsonEnvelope({
+                extra: (): Record<string, unknown> => {
+                    throw new Error('No clock')
+                }
+            })
+        })
+        const broken: Response = await fetch(`${failing.url}/device/a`)
+        assert.strictEqual(broken.status, 500)
+        assert.deepStrictEqual(await broken.json(), {errno: 'E_UNKNOWN', errMsg: 'No clock', data: null})
+        await failing.container.destroy()
+    })
+
     it('runs the middlewares of the adapter and aborts the requests of the clients who left', async (): Promise<void> => {
         const trace: string[] = []
         const traced = (name: string): MiddlewareHandler => async (invocation: ActionInvocation, next: Next): Promise<unknown> => {
