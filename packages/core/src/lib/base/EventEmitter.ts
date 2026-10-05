@@ -44,7 +44,7 @@ export const DefaultEventEmitterOptions: TEventEmitterOptions = {
  * The name given to the emitter: a symbol is a namespace of one part, the wildcard emitter splitting only the strings
  * @param event
  */
-function EventName<T>(event: T): T | symbol[] {
+function eventName<T>(event: T): T | symbol[] {
     return typeof event === 'symbol' ? [event] : event
 }
 
@@ -55,45 +55,45 @@ export class EventEmitter {
     }
 
     public emit(event: string | symbol | event[], ...values: any[]): boolean {
-        return Reflect.getMetadata(this.constructor.name, this).emit(EventName(event), ...values)
+        return Reflect.getMetadata(this.constructor.name, this).emit(eventName(event), ...values)
     }
 
     public async emitRequest(event: string | symbol | event[], ...values: any[]): Promise<any[]> {
-        return Reflect.getMetadata(this.constructor.name, this).emitAsync(EventName(event), ...values)
+        return Reflect.getMetadata(this.constructor.name, this).emitAsync(eventName(event), ...values)
     }
 
     public addListener(event: string | symbol | event[], listener: ListenerFn): this {
-        Reflect.getMetadata(this.constructor.name, this).addListener(EventName(event), listener)
+        Reflect.getMetadata(this.constructor.name, this).addListener(eventName(event), listener)
         return this
     }
 
     public on(event: string | symbol | event[], listener: ListenerFn): this {
-        Reflect.getMetadata(this.constructor.name, this).on(EventName(event), listener, onOptions)
+        Reflect.getMetadata(this.constructor.name, this).on(eventName(event), listener, onOptions)
         return this
     }
 
     public prependListener(event: string | symbol | event[], listener: ListenerFn): this {
-        Reflect.getMetadata(this.constructor.name, this).prependListener(EventName(event), listener, onOptions)
+        Reflect.getMetadata(this.constructor.name, this).prependListener(eventName(event), listener, onOptions)
         return this
     }
 
     public once(event: string | symbol | event[], listener: ListenerFn): this {
-        Reflect.getMetadata(this.constructor.name, this).once(EventName(event), listener, onOptions)
+        Reflect.getMetadata(this.constructor.name, this).once(eventName(event), listener, onOptions)
         return this
     }
 
     public prependOnceListener(event: string | symbol | event[], listener: ListenerFn): this {
-        Reflect.getMetadata(this.constructor.name, this).prependOnceListener(EventName(event), listener, onOptions)
+        Reflect.getMetadata(this.constructor.name, this).prependOnceListener(eventName(event), listener, onOptions)
         return this
     }
 
     public many(event: string | symbol | event[], timesToListen: number, listener: ListenerFn): this {
-        Reflect.getMetadata(this.constructor.name, this).many(EventName(event), timesToListen, listener, onOptions)
+        Reflect.getMetadata(this.constructor.name, this).many(eventName(event), timesToListen, listener, onOptions)
         return this
     }
 
     public prependMany(event: string | symbol | event[], timesToListen: number, listener: ListenerFn): this {
-        Reflect.getMetadata(this.constructor.name, this).prependMany(EventName(event), timesToListen, listener, onOptions)
+        Reflect.getMetadata(this.constructor.name, this).prependMany(eventName(event), timesToListen, listener, onOptions)
         return this
     }
 
@@ -113,17 +113,17 @@ export class EventEmitter {
     }
 
     public removeListener(event: string | symbol | event[], listener: ListenerFn): this {
-        Reflect.getMetadata(this.constructor.name, this).removeListener(EventName(event), listener)
+        Reflect.getMetadata(this.constructor.name, this).removeListener(eventName(event), listener)
         return this
     }
 
     public off(event: string | symbol | event[], listener: ListenerFn): this {
-        Reflect.getMetadata(this.constructor.name, this).off(EventName(event), listener)
+        Reflect.getMetadata(this.constructor.name, this).off(eventName(event), listener)
         return this
     }
 
     public removeAllListeners(event?: string | symbol | event[] | undefined): this {
-        Reflect.getMetadata(this.constructor.name, this).removeAllListeners(EventName(event))
+        Reflect.getMetadata(this.constructor.name, this).removeAllListeners(eventName(event))
         return this
     }
 
@@ -144,14 +144,14 @@ export class EventEmitter {
     public listenerCount(event?: string | symbol | event[] | undefined): number {
         //Without an event, the listeners of every event (2.x threw: an event is required with the wildcards)
         if (event === undefined) return Reflect.getMetadata(this.constructor.name, this).countAllListeners()
-        return Reflect.getMetadata(this.constructor.name, this).listenerCount(EventName(event))
+        return Reflect.getMetadata(this.constructor.name, this).listenerCount(eventName(event))
     }
 
     public listeners(event?: string | symbol | event[] | undefined): ListenerFn[] {
         const emitter: EventEmitter2 = Reflect.getMetadata(this.constructor.name, this)
         //Without an event, the listeners of every event (the wildcard emitter requires one)
         if (event === undefined) return emitter.eventNames(true).flatMap((name: string | symbol | event[]): ListenerFn[] => emitter.listeners(name as event[]))
-        return emitter.listeners(EventName(event) as event[])
+        return emitter.listeners(eventName(event) as event[])
     }
 
     public listenersAny(): ListenerFn[] {
@@ -163,7 +163,7 @@ export class EventEmitter {
         const emitter: EventEmitter2 = Reflect.getMetadata(this.constructor.name, this)
         //Without an event, whether any event has a listener
         if (event === undefined) return emitter.countAllListeners() > 0
-        return emitter.hasListeners(EventName(event) as any).valueOf()
+        return emitter.hasListeners(eventName(event) as any).valueOf()
     }
 }
 
@@ -174,12 +174,12 @@ export class EventEmitter {
 export class SynchronousEventEmitter extends EventEmitter {
 
     public on(event: string | symbol | event[], listener: ListenerFn): this {
-        Reflect.getMetadata(this.constructor.name, this).on(EventName(event), listener)
+        Reflect.getMetadata(this.constructor.name, this).on(eventName(event), listener)
         return this
     }
 
     public once(event: string | symbol | event[], listener: ListenerFn): this {
-        Reflect.getMetadata(this.constructor.name, this).once(EventName(event), listener)
+        Reflect.getMetadata(this.constructor.name, this).once(eventName(event), listener)
         return this
     }
 }

@@ -20,7 +20,7 @@ export const ISO_WEEK: WeekRules = {dow: 1, doy: 4}
  * Whether a year is a leap year
  * @param year
  */
-export function IsLeapYear(year: number): boolean {
+export function isLeapYear(year: number): boolean {
     return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0
 }
 
@@ -28,8 +28,8 @@ export function IsLeapYear(year: number): boolean {
  * The number of days of a year
  * @param year
  */
-export function DaysInYear(year: number): number {
-    return IsLeapYear(year) ? 366 : 365
+export function daysInYear(year: number): number {
+    return isLeapYear(year) ? 366 : 365
 }
 
 /**
@@ -37,11 +37,11 @@ export function DaysInYear(year: number): number {
  * @param year
  * @param month
  */
-export function DaysInMonth(year: number, month: number): number {
+export function daysInMonth(year: number, month: number): number {
     if (isNaN(year) || isNaN(month)) return NaN
     const monthOfYear: number = ((month % 12) + 12) % 12
     year += (month - monthOfYear) / 12
-    return monthOfYear === 1 ? (IsLeapYear(year) ? 29 : 28) : 31 - ((monthOfYear % 7) % 2)
+    return monthOfYear === 1 ? (isLeapYear(year) ? 29 : 28) : 31 - ((monthOfYear % 7) % 2)
 }
 
 /**
@@ -54,7 +54,7 @@ export function DaysInMonth(year: number, month: number): number {
  * @param seconds
  * @param milliseconds
  */
-export function LocalMilliseconds(year: number, month: number, date: number = 1, hours: number = 0, minutes: number = 0, seconds: number = 0, milliseconds: number = 0): number {
+export function localMilliseconds(year: number, month: number, date: number = 1, hours: number = 0, minutes: number = 0, seconds: number = 0, milliseconds: number = 0): number {
     const local: Date = new Date(0)
     local.setUTCFullYear(year, month, date)
     local.setUTCHours(hours, minutes, seconds, milliseconds)
@@ -65,9 +65,9 @@ export function LocalMilliseconds(year: number, month: number, date: number = 1,
  * The day of the year (1 to 366) of local milliseconds
  * @param local
  */
-export function DayOfYear(local: number): number {
+export function dayOfYearOf(local: number): number {
     const date: Date = new Date(local)
-    return Math.round((LocalMilliseconds(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) - LocalMilliseconds(date.getUTCFullYear(), 0, 1)) / 864e5) + 1
+    return Math.round((localMilliseconds(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) - localMilliseconds(date.getUTCFullYear(), 0, 1)) / 864e5) + 1
 }
 
 /**
@@ -78,7 +78,7 @@ export function DayOfYear(local: number): number {
 function firstWeekOffset(year: number, rules: WeekRules): number {
     //The day of January always in the first week
     const firstWeekDay: number = 7 + rules.dow - rules.doy
-    const firstWeekDayOfWeek: number = (7 + new Date(LocalMilliseconds(year, 0, firstWeekDay)).getUTCDay() - rules.dow) % 7
+    const firstWeekDayOfWeek: number = (7 + new Date(localMilliseconds(year, 0, firstWeekDay)).getUTCDay() - rules.dow) % 7
     return -firstWeekDayOfWeek + firstWeekDay - 1
 }
 
@@ -87,8 +87,8 @@ function firstWeekOffset(year: number, rules: WeekRules): number {
  * @param year
  * @param rules
  */
-export function WeeksInYear(year: number, rules: WeekRules): number {
-    return (DaysInYear(year) - firstWeekOffset(year, rules) + firstWeekOffset(year + 1, rules)) / 7
+export function weeksInYear(year: number, rules: WeekRules): number {
+    return (daysInYear(year) - firstWeekOffset(year, rules) + firstWeekOffset(year + 1, rules)) / 7
 }
 
 /**
@@ -96,11 +96,11 @@ export function WeeksInYear(year: number, rules: WeekRules): number {
  * @param local
  * @param rules
  */
-export function WeekOfYear(local: number, rules: WeekRules): { week: number, year: number } {
+export function weekOfYear(local: number, rules: WeekRules): { week: number, year: number } {
     const year: number = new Date(local).getUTCFullYear()
-    const week: number = Math.floor((DayOfYear(local) - firstWeekOffset(year, rules) - 1) / 7) + 1
-    if (week < 1) return {week: week + WeeksInYear(year - 1, rules), year: year - 1}
-    if (week > WeeksInYear(year, rules)) return {week: week - WeeksInYear(year, rules), year: year + 1}
+    const week: number = Math.floor((dayOfYearOf(local) - firstWeekOffset(year, rules) - 1) / 7) + 1
+    if (week < 1) return {week: week + weeksInYear(year - 1, rules), year: year - 1}
+    if (week > weeksInYear(year, rules)) return {week: week - weeksInYear(year, rules), year: year + 1}
     return {week, year}
 }
 
@@ -111,10 +111,10 @@ export function WeekOfYear(local: number, rules: WeekRules): { week: number, yea
  * @param weekday the day of the week (0 is Sunday)
  * @param rules
  */
-export function DayOfYearFromWeeks(year: number, week: number, weekday: number, rules: WeekRules): { year: number, dayOfYear: number } {
+export function dayOfYearFromWeeks(year: number, week: number, weekday: number, rules: WeekRules): { year: number, dayOfYear: number } {
     const localWeekday: number = (7 + weekday - rules.dow) % 7
     const dayOfYear: number = 1 + 7 * (week - 1) + localWeekday + firstWeekOffset(year, rules)
-    if (dayOfYear <= 0) return {year: year - 1, dayOfYear: DaysInYear(year - 1) + dayOfYear}
-    if (dayOfYear > DaysInYear(year)) return {year: year + 1, dayOfYear: dayOfYear - DaysInYear(year)}
+    if (dayOfYear <= 0) return {year: year - 1, dayOfYear: daysInYear(year - 1) + dayOfYear}
+    if (dayOfYear > daysInYear(year)) return {year: year + 1, dayOfYear: dayOfYear - daysInYear(year)}
     return {year, dayOfYear}
 }

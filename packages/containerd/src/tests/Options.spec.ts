@@ -12,7 +12,7 @@ import {
     ContainerdContainerStateException,
     ContainerdPathNotFoundException
 } from '../exports/Containerd.js'
-import {ContainerdError} from '../containerd/lib/ContainerdErrors.js'
+import {containerdError} from '../containerd/lib/ContainerdErrors.js'
 
 describe('The options and the errors of the containerd component', (): void => {
 
@@ -45,12 +45,12 @@ describe('The options and the errors of the containerd component', (): void => {
     })
 
     it('throws the exceptions of the errors of the client', (): void => {
-        assert.ok(ContainerdError(Object.assign(new Error('missing'), {code: 'PATH_NOT_FOUND'})) instanceof ContainerdPathNotFoundException)
-        assert.ok(ContainerdError(Object.assign(new Error('not running'), {code: 'NOT_RUNNING'})) instanceof ContainerdContainerStateException)
-        assert.ok(ContainerdError(Object.assign(new Error('swap'), {code: 'INVALID_VALUE'})) instanceof InvalidValueException)
+        assert.ok(containerdError(Object.assign(new Error('missing'), {code: 'PATH_NOT_FOUND'})) instanceof ContainerdPathNotFoundException)
+        assert.ok(containerdError(Object.assign(new Error('not running'), {code: 'NOT_RUNNING'})) instanceof ContainerdContainerStateException)
+        assert.ok(containerdError(Object.assign(new Error('swap'), {code: 'INVALID_VALUE'})) instanceof InvalidValueException)
         //The errors of containerd are the ones of the store first
         const error: GRPCError = new GRPCError(GRPCStatus.NOT_FOUND, 'not found', '')
-        assert.strictEqual(ContainerdError(error), error)
+        assert.strictEqual(containerdError(error), error)
     })
 
     it('fails its creation when TLS is given to the BuildKit of a unix socket', (): void => {

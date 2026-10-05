@@ -13,7 +13,7 @@ import {buildDatabaseOptions as BuildDatabaseProviderOptions, Database as Databa
 import {Logger} from '../../../exports/LoggerComponent.js'
 import {CpuMonitor, EventLoopMonitor, HttpRequestMonitor, MemoryMonitor} from '../../../exports/MonitorComponent.js'
 import {UUID} from '../../../exports/Utils.js'
-import {FreePort, MemoryStream, RunChecks} from '../support/Scenario.js'
+import {freePort, MemoryStream, runChecks} from '../support/Scenario.js'
 
 @Entity('visit')
 class Visit {
@@ -147,7 +147,7 @@ class ObjectController extends Controller {
     }
 }
 
-const port: number = await FreePort()
+const port: number = await freePort()
 const scenario: string = mkdtempSync(path.join(tmpdir(), 'lakutata-objects-'))
 const audit: MemoryStream = new MemoryStream()
 const connections: unknown[] = []
@@ -182,7 +182,7 @@ Application
         },
         bootstrap: ['accounting', 'httpRequests', 'entrypoint']
     }))
-    .onLaunched((app: Application): Promise<void> => RunChecks(app, async (check): Promise<void> => {
+    .onLaunched((app: Application): Promise<void> => runChecks(app, async (check): Promise<void> => {
         const objects = async (): Promise<Record<string, any>> => (await (await fetch(`http://127.0.0.1:${port}/objects`)).json() as { data: Record<string, any> }).data
 
         await check('the aliases resolve the paths, an alias of an alias too, their directories created', (): void => {

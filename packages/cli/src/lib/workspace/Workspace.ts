@@ -1,7 +1,7 @@
 import {existsSync} from 'node:fs'
 import {readdir, readFile, writeFile} from 'node:fs/promises'
 import path from 'node:path'
-import {NewestVersion} from '../Registry.js'
+import {newestVersion} from '../Registry.js'
 
 /**
  * The fields of the dependencies of a package
@@ -55,7 +55,7 @@ export type WorkspacePackage = {
  * @param name
  * @param pattern
  */
-export function MatchName(name: string, pattern: string): boolean {
+export function matchName(name: string, pattern: string): boolean {
     return new RegExp(`^${pattern.split('*').map((part: string): string => part.replace(/[.+?^${}()|[\]\\/]/g, '\\$&')).join('.*')}$`).test(name)
 }
 
@@ -64,7 +64,7 @@ export function MatchName(name: string, pattern: string): boolean {
  * @param root
  * @param pattern
  */
-async function ExpandPattern(root: string, pattern: string): Promise<string[]> {
+async function expandPattern(root: string, pattern: string): Promise<string[]> {
     const segments: string[] = pattern.replace(/^\.\//, '').replace(/\/+$/, '').split('/').filter((segment: string): boolean => !!segment)
     const walk = async (directory: string, index: number): Promise<string[]> => {
         if (index === segments.length) return [directory]
@@ -84,7 +84,7 @@ async function ExpandPattern(root: string, pattern: string): Promise<string[]> {
             found.push(...await walk(directory, index + 1))
             for (const entry of entries) found.push(...await walk(path.join(directory, entry), index))
         } else {
-            for (const entry of entries) if (MatchName(entry, segment)) found.push(...await walk(path.join(directory, entry), index + 1))
+            for (const entry of entries) if (matchName(entry, segment)) found.push(...await walk(path.join(directory, entry), index + 1))
         }
         return found
     }
@@ -95,7 +95,7 @@ async function ExpandPattern(root: string, pattern: string): Promise<string[]> {
  * The patterns of the packages of a pnpm workspace
  * @param file
  */
-async function PnpmPatterns(file: string): Promise<string[]> {
+async function pnpmPatterns(file: string): Promise<string[]> {
     const patterns: string[] = []
     let inPackages: boolean = false
     for (const line of (await readFile(file, 'utf8')).split('\n')) {
@@ -131,7 +131,7 @@ export class Workspace {
                 const manifest: JSONFile = await JSONFile.read(manifestFile)
                 const declared: unknown = manifest.data.workspaces
                 let patterns: string[] | undefined = Array.isArray(declared) ? declared : Array.isArray((declared as any)?.packages) ? (declared as any).packages : undefined
-                if (!patterns && existsSync(path.join(directory, 'pnpm-workspace.yaml'))) patterns = await PnpmPatterns(path.join(directory, 'pnpm-workspace.yaml'))
+                if (!patterns && existsSync(path.join(directory, 'pnpm-workspace.yaml'))) patterns = await pnpmPatterns(path.join(directory, 'pnpm-workspace.yaml'))
                 if (patterns) return await this.load(directory, manifest, patterns)
             }
             if (path.dirname(directory) === directory) throw new Error(`${path.resolve(start)} is not in a workspace (a package.json declaring "workspaces", or a pnpm-workspace.yaml)`)
@@ -146,8 +146,8 @@ export class Workspace {
      */
     protected static async load(root: string, manifest: JSONFile, patterns: string[]): Promise<Workspace> {
         const included: Set<string> = new Set()
-        for (const pattern of patterns.filter((pattern: string): boolean => !pattern.startsWith('!'))) for (const directory of await ExpandPattern(root, pattern)) included.add(directory)
-        for (const pattern of patterns.filter((pattern: string): boolean => pattern.startsWith('!'))) for (const directory of await ExpandPattern(root, pattern.slice(1))) included.delete(directory)
+        for (const pattern of patterns.filter((pattern: string): boolean => !pattern.startsWith('!'))) for (const directory of await expandPattern(root, pattern)) included.add(directory)
+        for (const pattern of patterns.filter((pattern: string): boolean => pattern.startsWith('!'))) for (const directory of await expandPattern(root, pattern.slice(1))) included.delete(directory)
         const packages: WorkspacePackage[] = []
         for (const directory of [...included].sort()) {
             if (!existsSync(path.join(directory, 'package.json'))) continue
@@ -224,6 +224,6 @@ export class Workspace {
      * The fixed version of the workspace: the one of lerna.json, of the root package.json, or the highest of the packages
      */
     public get version(): string | undefined {
-        return this.lerna?.data.version ?? this.manifest.data.version ?? NewestVersion(this.packages.map((pkg: WorkspacePackage): string | undefined => pkg.version).filter((version: string | undefined): version is string => !!version))
+        return this.lerna?.data.version ?? this.manifest.data.version ?? newestVersion(this.packages.map((pkg: WorkspacePackage): string | undefined => pkg.version).filter((version: string | undefined): version is string => !!version))
     }
 }

@@ -4,7 +4,7 @@ import {expressHTTPEntrypoint, jsonEnvelope} from 'lakutata/adapter/express'
 import compression from 'compression'
 import path from 'node:path'
 import renderUI, {type UIHandler} from 'ui'
-import {Authenticate} from '../middlewares/Authenticate.js'
+import {authenticate} from '../middlewares/Authenticate.js'
 import {ExampleController} from '../controllers/ExampleController.js'
 import {HealthController} from '../controllers/HealthController.js'
 //@if i18n
@@ -17,7 +17,7 @@ import zhCN from '../locales/zh-CN.json' with {type: 'json'}
  * The options of the service
  * @param port the port of the HTTP server, the PORT environment variable or 8080 by default
  */
-export function Config(port: number = Number(process.env.PORT ?? 8080)): ApplicationOptions {
+export function installerConfig(port: number = Number(process.env.PORT ?? 8080)): ApplicationOptions {
     //The standalone build of next of the ui package is in the resources of the application packed (lakutata.resources)
     const resources: string | undefined = resourcesPath()
     //The pages are compiled on demand in development, served from the build of next in production
@@ -43,7 +43,7 @@ export function Config(port: number = Number(process.env.PORT ?? 8080)): Applica
                     respond: jsonEnvelope({errorStatus: 200}),
                     body: {limit: '100mb'},
                     server: {keepAliveTimeout: 60000, headersTimeout: 65000},
-                    middlewares: [Authenticate],
+                    middlewares: [authenticate],
                     before: (app, {server}): void => {
                         app.use(compression())
                         ui.attach(server)

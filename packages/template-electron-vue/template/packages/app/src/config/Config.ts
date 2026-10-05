@@ -39,7 +39,7 @@ export type ConfigOptions = {
  * The options of the application
  * @param options
  */
-export function Config(options: ConfigOptions = {}): ApplicationOptions {
+export function installerConfig(options: ConfigOptions = {}): ApplicationOptions {
     return {
         id: '{$APP_ID}',
         name: '{$APP_NAME}',

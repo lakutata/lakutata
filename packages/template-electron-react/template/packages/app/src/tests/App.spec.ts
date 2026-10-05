@@ -3,7 +3,7 @@ import assert from 'node:assert'
 import {createServer, type Server} from 'node:net'
 import {Application} from 'lakutata'
 import type {IPCMain} from 'lakutata/adapter/electron'
-import {Config} from '../config/Config.js'
+import {installerConfig} from '../config/Config.js'
 
 /**
  * The ipcMain of the tests: the actions are invoked as the renderer invokes them, without Electron
@@ -24,14 +24,14 @@ const sender = {once: (): void => undefined, off: (): void => undefined, send: (
  * Invoke an action as the renderer does (window.ipc.invoke)
  * @param data
  */
-function Invoke(data: Record<string, unknown>): Promise<any> {
+function invoke(data: Record<string, unknown>): Promise<any> {
     return (handlers.get('lakutata:service') as (event: unknown, data: unknown, clientId: string) => Promise<unknown>)({sender: sender}, data, 'page')
 }
 
 /**
  * A free port, the one of the HTTP entrypoint of the development
  */
-async function FreePort(): Promise<number> {
+async function freePort(): Promise<number> {
     const server: Server = createServer()
     await new Promise<void>((resolve: () => void): unknown => server.listen(0, '127.0.0.1', resolve))
     const port: number = (server.address() as { port: number }).port
@@ -49,9 +49,9 @@ describe('{$APP_NAME}', (): void => {
         //The actions answer in the language of the environment: English for the tests
         process.env.LC_ALL = 'en_US.UTF-8'
         //@end
-        devPort = await FreePort()
+        devPort = await freePort()
         app = await new Promise<Application>((resolve: (app: Application) => void): void => {
-            Application.run(Config({window: false, ipcMain: ipcMain, devPort: devPort})).onLaunched((launched: Application): void => resolve(launched))
+            Application.run(installerConfig({window: false, ipcMain: ipcMain, devPort: devPort})).onLaunched((launched: Application): void => resolve(launched))
         })
     })
 
@@ -60,14 +60,14 @@ describe('{$APP_NAME}', (): void => {
     })
 
     it('serves the actions to the renderer', async (): Promise<void> => {
-        assert.deepStrictEqual(await Invoke({cmd: 'greet', name: 'you'}), {success: true, error: null, payload: {message: 'Hello, you!'}})
+        assert.deepStrictEqual(await invoke({cmd: 'greet', name: 'you'}), {success: true, error: null, payload: {message: 'Hello, you!'}})
     })
 
     //@if i18n
     it('serves the actions in the language of the environment', async (): Promise<void> => {
         process.env.LC_ALL = 'zh_CN.UTF-8'
         try {
-            assert.deepStrictEqual(await Invoke({cmd: 'greet', name: 'you'}), {success: true, error: null, payload: {message: '你好，you！'}})
+            assert.deepStrictEqual(await invoke({cmd: 'greet', name: 'you'}), {success: true, error: null, payload: {message: '你好，you！'}})
         } finally {
             process.env.LC_ALL = 'en_US.UTF-8'
         }
@@ -78,7 +78,7 @@ describe('{$APP_NAME}', (): void => {
         //The page subscribed to the events
         listeners.get('lakutata:service:subscribe')!({sender: sender}, 'page')
         received.length = 0
-        await Invoke({cmd: 'greet', name: 'you'})
+        await invoke({cmd: 'greet', name: 'you'})
         assert.deepStrictEqual(received, [['lakutata:service:event', 'greeted', ['you']]])
     })
 
@@ -98,12 +98,12 @@ describe('{$APP_NAME}', (): void => {
     })
 
     it('refuses an invalid input', async (): Promise<void> => {
-        const response = await Invoke({cmd: 'greet'})
+        const response = await invoke({cmd: 'greet'})
         assert.strictEqual(response.success, false)
         assert.match(response.error.message, /name/)
     })
 
     it('refuses an unknown action', async (): Promise<void> => {
-        assert.strictEqual((await Invoke({cmd: 'unknown'})).success, false)
+        assert.strictEqual((await invoke({cmd: 'unknown'})).success, false)
     })
 })

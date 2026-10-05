@@ -21,9 +21,9 @@ import {
     asFunction
 } from './Resolvers.js'
 import {isClass, nameValueToObject} from './Utils.js'
-import {GetObjectLifetime} from './ObjectLifetime.js'
+import {getObjectLifetime} from './ObjectLifetime.js'
 import {As} from '@lakutata/utils/As'
-import {AppendObjectWeakRefs} from './ObjectWeakRefs.js'
+import {appendObjectWeakRefs} from './ObjectWeakRefs.js'
 
 /**
  * The container returned from createContainer has some methods and properties.
@@ -609,7 +609,7 @@ function createContainerInternal<
              * 用于加载配置对象至注入项目内
              */
             //判断是否为瞬态模式的注册项目调用，若为瞬态模式的注册项目调用，则应找个地方记录下来，以便在容器销毁时对残留的瞬态对象实例销毁
-            if (GetObjectLifetime(resolved.constructor) === Lifetime.TRANSIENT) AppendObjectWeakRefs(this, resolved)
+            if (getObjectLifetime(resolved.constructor) === Lifetime.TRANSIENT) appendObjectWeakRefs(this, resolved)
             return resolved
         } catch (err) {
             // When we get an error we need to reset the stack. Mutate the existing array rather than

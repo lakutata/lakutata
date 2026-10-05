@@ -2,7 +2,7 @@ import {link, mkdir, readFile, rename, stat, unlink, writeFile} from 'node:fs/pr
 import {hostname} from 'node:os'
 import path from 'node:path'
 import {MutexDriver, type DriverLock} from './MutexDriver.js'
-import {LockToken, NameDigest} from '../lib/Names.js'
+import {lockToken, nameDigest} from '../lib/Names.js'
 
 /**
  * The content of a lock file: its holder (its token, its process and its host), its expiration
@@ -19,7 +19,7 @@ type LockFile = {
  * Whether a process of this host runs
  * @param pid
  */
-function ProcessRuns(pid: number): boolean {
+function processRuns(pid: number): boolean {
     try {
         process.kill(pid, 0)
         return true
@@ -78,7 +78,7 @@ export class FileMutexDriver extends MutexDriver {
      * @returns The file path.
      */
     protected file(name: string): string {
-        return path.join(this.directory, `${NameDigest(this.prefix + name)}.lock`)
+        return path.join(this.directory, `${nameDigest(this.prefix + name)}.lock`)
     }
 
     /**
@@ -101,7 +101,7 @@ export class FileMutexDriver extends MutexDriver {
      * @returns Whether it may be taken over.
      */
     protected stale(lock: LockFile): boolean {
-        return lock.expires <= Date.now() || (lock.host === this.#host && lock.pid !== process.pid && !ProcessRuns(lock.pid))
+        return lock.expires <= Date.now() || (lock.host === this.#host && lock.pid !== process.pid && !processRuns(lock.pid))
     }
 
     /**
@@ -126,7 +126,7 @@ export class FileMutexDriver extends MutexDriver {
      * @returns Whether the file was removed.
      */
     protected async take(file: string, token: string | undefined): Promise<boolean> {
-        const taken: string = `${file}.${LockToken()}`
+        const taken: string = `${file}.${lockToken()}`
         try {
             await rename(file, taken)
         } catch {
@@ -154,7 +154,7 @@ export class FileMutexDriver extends MutexDriver {
     public async acquire(name: string, ttl: number): Promise<DriverLock | undefined> {
         await mkdir(this.directory, {recursive: true})
         const file: string = this.file(name)
-        const lock: DriverLock = {token: LockToken()}
+        const lock: DriverLock = {token: lockToken()}
         const content: string = JSON.stringify({name: name, token: lock.token, pid: process.pid, host: this.#host, expires: Date.now() + ttl} satisfies LockFile)
         for (let attempt = 0; attempt < 2; attempt++) {
             try {
@@ -198,7 +198,7 @@ export class FileMutexDriver extends MutexDriver {
         if (current?.token !== lock.token || current.expires <= Date.now()) return false
         //Taken away (renamed: only one taker has it) and checked, renewed, then given back without replacing a lock
         //acquired meanwhile (linked: it fails when the file exists)
-        const taken: string = `${file}.${LockToken()}`
+        const taken: string = `${file}.${lockToken()}`
         try {
             await rename(file, taken)
         } catch {

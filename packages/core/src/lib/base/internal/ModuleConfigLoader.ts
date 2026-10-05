@@ -10,7 +10,7 @@ import {
     OverridableObjectTargetConfigNotFoundException
 } from '../../../exceptions/di/OverridableObjectTargetConfigNotFoundException.js'
 import {As} from '@lakutata/utils/As'
-import {GetObjectType, ObjectType} from './ObjectType.js'
+import {getObjectType, ObjectType} from './ObjectType.js'
 import {InvalidObjectTypeException} from '../../../exceptions/InvalidObjectTypeException.js'
 import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
 import {arrayToSet} from '@lakutata/utils/ArrayToSet'
@@ -63,7 +63,7 @@ export class ModuleConfigLoader {
      * @protected
      */
     protected validateObjectType<ClassConstructor extends IBaseObjectConstructor>(expectObjectType: ObjectType, target: ClassConstructor, id?: string): ClassConstructor {
-        const objectType: ObjectType = GetObjectType(target)
+        const objectType: ObjectType = getObjectType(target)
         if (objectType === expectObjectType) return target
         //The objects declared in the wrong configuration name the configuration they belong to
         const expected: string = expectObjectType.toLowerCase()

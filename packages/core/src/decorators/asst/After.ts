@@ -1,5 +1,5 @@
 import {MethodDecorator} from '../../types/MethodDecorator.js'
-import {AfterFunction, RegisterAfterFunction} from '../../lib/base/internal/MethodAssistantFunction.js'
+import {AfterFunction, registerAfterFunction} from '../../lib/base/internal/MethodAssistantFunction.js'
 
 /**
  * Run a function after each call of the decorated method, with its result. The function is called with the instance as
@@ -28,5 +28,5 @@ import {AfterFunction, RegisterAfterFunction} from '../../lib/base/internal/Meth
  * ```
  */
 export function After<ClassPrototype extends Object, Method extends (...args: any[]) => unknown>(afterFunc: AfterFunction<ClassPrototype, Method>): MethodDecorator<ClassPrototype, Method> {
-    return (target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<Method>): TypedPropertyDescriptor<Method> => RegisterAfterFunction<ClassPrototype, Method>(target, propertyKey, descriptor, afterFunc)
+    return (target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<Method>): TypedPropertyDescriptor<Method> => registerAfterFunction<ClassPrototype, Method>(target, propertyKey, descriptor, afterFunc)
 }

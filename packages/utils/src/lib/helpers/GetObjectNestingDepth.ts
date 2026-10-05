@@ -3,7 +3,7 @@
  * @param target
  * @param ancestors
  */
-function NestingDepth(target: Object, ancestors: Set<Object>): number {
+function nestingDepthOf(target: Object, ancestors: Set<Object>): number {
     const keys: string[] = Object.keys(target)
     if (!keys.length) return 0
     ancestors.add(target)
@@ -11,7 +11,7 @@ function NestingDepth(target: Object, ancestors: Set<Object>): number {
     for (const key of keys) {
         const value: unknown = target[key]
         //null is a leaf, and so is an object containing itself (a circular reference)
-        if (typeof value === 'object' && value !== null && !ancestors.has(value)) nestingDepth = Math.max(nestingDepth, NestingDepth(value, ancestors))
+        if (typeof value === 'object' && value !== null && !ancestors.has(value)) nestingDepth = Math.max(nestingDepth, nestingDepthOf(value, ancestors))
     }
     ancestors.delete(target)
     return 1 + nestingDepth
@@ -37,5 +37,5 @@ function NestingDepth(target: Object, ancestors: Set<Object>): number {
  * ```
  */
 export function getObjectNestingDepth(target: Object): number {
-    return NestingDepth(target, new Set())
+    return nestingDepthOf(target, new Set())
 }

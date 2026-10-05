@@ -1,6 +1,6 @@
 import {BaseObject} from '../../lib/base/BaseObject.js'
 import {ClassDecorator} from '../../types/ClassDecorator.js'
-import {MarkObjectAsAutoload} from '../../lib/base/internal/ObjectInjection.js'
+import {markObjectAsAutoload} from '../../lib/base/internal/ObjectInjection.js'
 
 /**
  * Let the container register the class on first use: when the class is requested (by `getObject(TheClass)` or
@@ -33,5 +33,5 @@ import {MarkObjectAsAutoload} from '../../lib/base/internal/ObjectInjection.js'
  * ```
  */
 export function Autoload<ClassConstructor extends typeof BaseObject>(): ClassDecorator<ClassConstructor> {
-    return (target: ClassConstructor): ClassConstructor => MarkObjectAsAutoload(target)
+    return (target: ClassConstructor): ClassConstructor => markObjectAsAutoload(target)
 }

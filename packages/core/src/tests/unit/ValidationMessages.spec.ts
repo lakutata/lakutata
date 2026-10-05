@@ -20,7 +20,7 @@ class OrderDTO extends DTO {
  * @param data
  * @param language
  */
-async function ErrorOf(data: Record<string, unknown>, language?: string): Promise<string> {
+async function errorOf(data: Record<string, unknown>, language?: string): Promise<string> {
     try {
         await OrderDTO.validateAsync(data, language ? {errors: {language: language}} : {})
     } catch (error) {
@@ -32,21 +32,21 @@ async function ErrorOf(data: Record<string, unknown>, language?: string): Promis
 describe('The messages of the validation errors', (): void => {
     it('are given in the language of the validation once registered, the default ones otherwise', async (): Promise<void> => {
         //Nothing registered: the language changes nothing
-        assert.strictEqual(await ErrorOf({amount: 1}, 'zh-CN'), '"customer" is required')
+        assert.strictEqual(await errorOf({amount: 1}, 'zh-CN'), '"customer" is required')
         registerValidationMessages('zh-CN', {'any.required': '{{#label}} 为必填项'})
         assert.ok(validationLanguages().includes('zh-CN'))
-        assert.strictEqual(await ErrorOf({amount: 1}, 'zh-CN'), '"customer" 为必填项')
+        assert.strictEqual(await errorOf({amount: 1}, 'zh-CN'), '"customer" 为必填项')
         //A code without a message of the language: the default one
-        assert.strictEqual(await ErrorOf({customer: 'Ada', amount: 101}, 'zh-CN'), '"amount" must be less than or equal to 100')
+        assert.strictEqual(await errorOf({customer: 'Ada', amount: 101}, 'zh-CN'), '"amount" must be less than or equal to 100')
         //Without the language, or in another one: the default messages
-        assert.strictEqual(await ErrorOf({amount: 1}), '"customer" is required')
-        assert.strictEqual(await ErrorOf({amount: 1}, 'fr'), '"customer" is required')
+        assert.strictEqual(await errorOf({amount: 1}), '"customer" is required')
+        assert.strictEqual(await errorOf({amount: 1}, 'fr'), '"customer" is required')
     })
 
     it('are added to the ones of the language, the same codes replaced', async (): Promise<void> => {
         registerValidationMessages('zh-CN', {'any.required': '缺少 {{#label}}', 'number.max': '{{#label}} 不能大于 {{#limit}}'})
-        assert.strictEqual(await ErrorOf({amount: 1}, 'zh-CN'), '缺少 "customer"')
-        assert.strictEqual(await ErrorOf({customer: 'Ada', amount: 101}, 'zh-CN'), '"amount" 不能大于 100')
+        assert.strictEqual(await errorOf({amount: 1}, 'zh-CN'), '缺少 "customer"')
+        assert.strictEqual(await errorOf({customer: 'Ada', amount: 101}, 'zh-CN'), '"amount" 不能大于 100')
         //The valid values are not changed by the language
         assert.deepStrictEqual({...await OrderDTO.validateAsync({customer: 'Ada', amount: 1}, {errors: {language: 'zh-CN'}})}, {customer: 'Ada', amount: 1})
     })
@@ -56,7 +56,7 @@ describe('The messages of the validation errors', (): void => {
  * The variables of a template: #name
  * @param template
  */
-function Variables(template: string): string[] {
+function variables(template: string): string[] {
     return [...new Set(template.match(/#[A-Za-z]+/g) ?? [])].sort()
 }
 
@@ -98,7 +98,7 @@ describe('The built-in messages of the validation errors', (): void => {
             assert.ok(messages, language)
             assert.deepStrictEqual(Object.keys(messages).sort(), Object.keys(defaults).sort(), language)
             for (const [code, template] of Object.entries(defaults)) {
-                assert.deepStrictEqual(Variables(messages[code]), Variables(template), `${language} ${code}: ${messages[code]}`)
+                assert.deepStrictEqual(variables(messages[code]), variables(template), `${language} ${code}: ${messages[code]}`)
             }
         }
     })
@@ -149,7 +149,7 @@ class Orders {
  * The message of an error
  * @param fn
  */
-async function Failure(fn: () => unknown): Promise<string> {
+async function failure(fn: () => unknown): Promise<string> {
     try {
         await fn()
     } catch (error) {
@@ -166,22 +166,22 @@ describe('The language of the validations of the code running', (): void => {
         await runInValidationLanguage('ja', async (): Promise<void> => {
             assert.strictEqual(currentValidationLanguage(), 'ja')
             //An explicit validation, a validation of the arguments of a method (async, sync), a nested asynchronous call
-            assert.strictEqual(await Failure((): Promise<unknown> => OrderDTO.validateAsync({amount: 1})), '"customer" は必須です')
-            assert.strictEqual(await Failure((): unknown => OrderDTO.validate({amount: 1})), '"customer" は必須です')
-            assert.match(await Failure((): Promise<unknown> => orders.take(101)), /は 100 以下にしてください/)
-            const english: string = await Failure((): unknown => runInValidationLanguage('en', (): unknown => orders.label(1 as unknown as string)))
-            const japanese: string = await Failure((): unknown => orders.label(1 as unknown as string))
+            assert.strictEqual(await failure((): Promise<unknown> => OrderDTO.validateAsync({amount: 1})), '"customer" は必須です')
+            assert.strictEqual(await failure((): unknown => OrderDTO.validate({amount: 1})), '"customer" は必須です')
+            assert.match(await failure((): Promise<unknown> => orders.take(101)), /は 100 以下にしてください/)
+            const english: string = await failure((): unknown => runInValidationLanguage('en', (): unknown => orders.label(1 as unknown as string)))
+            const japanese: string = await failure((): unknown => orders.label(1 as unknown as string))
             assert.match(english, /must be a string/)
             assert.ok(japanese !== english && /^Method \[label\]/.test(japanese), japanese)
             await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 1))
-            assert.strictEqual(await Failure((): Promise<unknown> => OrderDTO.validateAsync({amount: 1})), '"customer" は必須です')
+            assert.strictEqual(await failure((): Promise<unknown> => OrderDTO.validateAsync({amount: 1})), '"customer" は必須です')
             //The language given by the validation, the valid values
-            assert.strictEqual(await Failure((): Promise<unknown> => OrderDTO.validateAsync({amount: 1}, {errors: {language: 'en'}})), '"customer" is required')
+            assert.strictEqual(await failure((): Promise<unknown> => OrderDTO.validateAsync({amount: 1}, {errors: {language: 'en'}})), '"customer" is required')
             assert.strictEqual(await orders.take(5), 5)
             assert.deepStrictEqual({...await OrderDTO.validateAsync({customer: 'Ada', amount: 1})}, {customer: 'Ada', amount: 1})
         })
         //Out of it: the default messages
-        assert.strictEqual(await Failure((): Promise<unknown> => OrderDTO.validateAsync({amount: 1})), '"customer" is required')
+        assert.strictEqual(await failure((): Promise<unknown> => OrderDTO.validateAsync({amount: 1})), '"customer" is required')
     })
 })
 

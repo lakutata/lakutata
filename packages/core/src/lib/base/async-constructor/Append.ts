@@ -1,6 +1,6 @@
 import {isPromiseLike} from '@lakutata/utils/IsPromiseLike'
 
-export function AppendAsyncConstructor<T, U extends any[]>(target: T, asyncConstructor: (...args: U) => PromiseLike<void>, args?: U): void {
+export function appendAsyncConstructor<T, U extends any[]>(target: T, asyncConstructor: (...args: U) => PromiseLike<void>, args?: U): void {
     async function applyAsyncConstructor(): Promise<T> {
         await Promise.resolve()
         await Reflect.apply(asyncConstructor, target, args !== null && args !== undefined ? args : [])

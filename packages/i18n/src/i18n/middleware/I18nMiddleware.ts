@@ -4,7 +4,7 @@ import {Inject} from '@lakutata/core/decorator/di'
 import {ContextType, httpRequestOfContext, Middleware, type ActionInvocation, type BaseContext, type HTTPContext, type Next, type ServiceContext} from '@lakutata/entrypoint'
 import type {I18n} from '../I18n.js'
 import {Translator} from '../Translator.js'
-import {normalizeLocale, parseAcceptLanguage, ProcessLocales} from '../lib/Locale.js'
+import {normalizeLocale, parseAcceptLanguage, processLocales} from '../lib/Locale.js'
 
 /**
  * The headers and the query of a Socket.IO connection (its handshake)
@@ -160,7 +160,7 @@ export class I18nMiddleware extends Middleware {
             if (request) return this.fromRequest(request)
         }
         if (context.type === ContextType.CLI || context.type === ContextType.SERVICE) {
-            return ProcessLocales(this.environmentVariable)
+            return processLocales(this.environmentVariable)
         }
         return []
     }

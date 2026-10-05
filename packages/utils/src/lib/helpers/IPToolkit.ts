@@ -106,7 +106,7 @@ export interface IPv6Result {
  * @param cidr
  * @param maxLength
  */
-function SplitCIDR(cidr: string, maxLength: number): { ip: string, length: number } | false {
+function splitCIDR(cidr: string, maxLength: number): { ip: string, length: number } | false {
     const parts: string[] = cidr.split('/')
     if (parts.length !== 2 || !/^\d{1,3}$/.test(parts[1])) return false
     const length: number = Number(parts[1])
@@ -469,7 +469,7 @@ export class IPv4 {
     public static parseCIDR(cidr: string): IPv4Subnet | false {
         if (typeof cidr !== 'string') return false
 
-        const split: { ip: string, length: number } | false = SplitCIDR(cidr, 32)
+        const split: { ip: string, length: number } | false = splitCIDR(cidr, 32)
         if (split === false || !this.isValidIP(split.ip)) return false
         const ip: string = split.ip
         const mask: number = split.length
@@ -874,7 +874,7 @@ export class IPv6 {
      */
     public static parseCIDR(cidr: string): IPv6Subnet | false {
         if (typeof cidr !== 'string') return false
-        const split: { ip: string, length: number } | false = SplitCIDR(cidr, 128)
+        const split: { ip: string, length: number } | false = splitCIDR(cidr, 128)
         if (split === false || !this.isValidIP(split.ip)) return false
         const ip: string = split.ip
         const prefixLength: number = split.length

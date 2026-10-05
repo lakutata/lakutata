@@ -7,7 +7,7 @@ import {isGlobString} from '../exports/Utils.js'
  * A pseudo random generator with a seed (mulberry32)
  * @param seed
  */
-function Random(seed: number): () => number {
+function seededRandom(seed: number): () => number {
     return (): number => {
         seed = (seed + 0x6D2B79F5) | 0
         let t: number = Math.imul(seed ^ (seed >>> 15), 1 | seed)
@@ -16,14 +16,14 @@ function Random(seed: number): () => number {
     }
 }
 
-const random: () => number = Random(20261002)
+const random: () => number = seededRandom(20261002)
 
 const pick = <T>(values: T[]): T => values[Math.floor(random() * values.length)]
 
 /**
  * A random string of the characters of the globs, their escapes and other characters
  */
-function Candidate(): string {
+function randomCandidate(): string {
     const pieces: string[] = ['a', 'b', '/', '.', '*', '**', '?', '!', '@', '+', '[', ']', '{', '}', '(', ')', '|', ',', '\\', '\\*', '\\[', '\\{', '\\(', '-', ':', '=', '^', '$', '.js', 'dir/', '!(x)', '@(a|b)', '+(y)', '?(z)', '*(w)', '[abc]', '{a,b}', '(?:x)', '(a|b)', ' ']
     return Array.from({length: Math.floor(random() * 7)}, (): string => pick(pieces)).join('')
 }
@@ -33,7 +33,7 @@ describe('isGlobString', (): void => {
     it('recognizes the globs as is-glob, and the ? wildcard of Glob anywhere', (): void => {
         const counts: Record<string, number> = {true: 0, false: 0}
         for (let run: number = 0; run < 20000; run++) {
-            const candidate: string = Candidate()
+            const candidate: string = randomCandidate()
             //is-glob only sees a ? after ], ., + or )
             const expected: boolean = upstreamIsGlob(candidate) || candidate.replace(/\\./g, '').includes('?')
             assert.strictEqual(isGlobString(candidate), expected, JSON.stringify(candidate))

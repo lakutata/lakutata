@@ -13,7 +13,7 @@ export class UnauthorizedException extends Exception {
  * @param invocation
  * @param next
  */
-export async function Authenticate(invocation: ActionInvocation, next: Next): Promise<unknown> {
+export async function authenticate(invocation: ActionInvocation, next: Next): Promise<unknown> {
     const token: string | undefined = process.env.API_TOKEN
     const context: HTTPContext = invocation.context as HTTPContext
     if (!token || context.route === '/health') return next()

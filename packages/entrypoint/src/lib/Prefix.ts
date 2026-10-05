@@ -105,7 +105,7 @@ export function getPrefix(controller: Function): PrefixOptions | undefined {
  * @param prefix
  * @param route
  */
-export function PrefixRoute(prefix: string, route: string): string {
+export function prefixRoute(prefix: string, route: string): string {
     const segments: string[] = [prefix, route].map((part: string): string => part.replace(/^\/+|\/+$/g, '')).filter(Boolean)
     return `/${segments.join('/')}`
 }
@@ -115,7 +115,7 @@ export function PrefixRoute(prefix: string, route: string): string {
  * @param prefix
  * @param command
  */
-export function PrefixCommand(prefix: string, command: string): string {
+export function prefixCommand(prefix: string, command: string): string {
     return command ? `${prefix}:${command}` : prefix
 }
 
@@ -125,13 +125,13 @@ export function PrefixCommand(prefix: string, command: string): string {
  * @param pattern
  * @param path
  */
-export function PrefixPattern(prefix: ActionPattern, pattern: ActionPattern, path: string = ''): ActionPattern {
+export function prefixPattern(prefix: ActionPattern, pattern: ActionPattern, path: string = ''): ActionPattern {
     const merged: ActionPattern = {...pattern}
     for (const [key, value] of Object.entries(prefix)) {
         if (!(key in merged)) {
             merged[key] = value
         } else if (value !== null && typeof value === 'object' && merged[key] !== null && typeof merged[key] === 'object') {
-            merged[key] = PrefixPattern(value, merged[key], `${path}${key}.`)
+            merged[key] = prefixPattern(value, merged[key], `${path}${key}.`)
         } else if (merged[key] !== value) {
             throw new InvalidPrefixException('The pattern prefix sets "{key}" to {prefix}, the pattern sets it to {pattern}', {
                 key: `${path}${key}`,

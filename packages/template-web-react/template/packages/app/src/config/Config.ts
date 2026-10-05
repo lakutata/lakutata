@@ -5,7 +5,7 @@ import compression from 'compression'
 import {existsSync} from 'node:fs'
 import {createRequire} from 'node:module'
 import path from 'node:path'
-import {Authenticate} from '../middlewares/Authenticate.js'
+import {authenticate} from '../middlewares/Authenticate.js'
 import {ExampleController} from '../controllers/ExampleController.js'
 import {HealthController} from '../controllers/HealthController.js'
 //@if i18n
@@ -19,7 +19,7 @@ import zhCN from '../locales/zh-CN.json' with {type: 'json'}
  * in the resources of the packed application (lakutata package bundle, lakutata package exe: the "lakutata.resources" of its
  * package.json), else in the ui package
  */
-function UIDirectory(): string | undefined {
+function uiDirectory(): string | undefined {
     const resources: string | undefined = resourcesPath()
     try {
         const directory: string = resources ? path.join(resources, 'ui') : path.join(path.dirname(createRequire(import.meta.url).resolve('ui/package.json')), 'dist')
@@ -33,7 +33,7 @@ function UIDirectory(): string | undefined {
  * The options of the service
  * @param port the port of the HTTP server, the PORT environment variable or 8080 by default
  */
-export function Config(port: number = Number(process.env.PORT ?? 8080)): ApplicationOptions {
+export function installerConfig(port: number = Number(process.env.PORT ?? 8080)): ApplicationOptions {
     return {
         id: '{$APP_ID}',
         name: '{$APP_NAME}',
@@ -55,10 +55,10 @@ export function Config(port: number = Number(process.env.PORT ?? 8080)): Applica
                     respond: jsonEnvelope({errorStatus: 200}),
                     body: {limit: '100mb'},
                     server: {keepAliveTimeout: 60000, headersTimeout: 65000},
-                    middlewares: [Authenticate],
+                    middlewares: [authenticate],
                     before: (app): void => void app.use(compression()),
                     //The paths outside of the actions are the pages of the application
-                    fallback: ((directory: string | undefined) => directory ? staticUI(directory) : undefined)(UIDirectory())
+                    fallback: ((directory: string | undefined) => directory ? staticUI(directory) : undefined)(uiDirectory())
                 })
             })
         },

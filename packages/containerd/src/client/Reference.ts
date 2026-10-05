@@ -30,7 +30,7 @@ const DEFAULT_REGISTRY: string = 'docker.io'
  * localhost
  * @param reference
  */
-export function ParseReference(reference: string): ImageReference {
+export function parseReference(reference: string): ImageReference {
     const raw: string = reference.trim()
     if (!raw || /\s/.test(raw)) throw new Error(`The reference of an image "${reference}" is not valid`)
     let rest: string = raw
@@ -71,9 +71,9 @@ export function ParseReference(reference: string): ImageReference {
  * the reference itself when it is not one
  * @param reference
  */
-export function ImageName(reference: string): string {
+export function imageName(reference: string): string {
     try {
-        return ParseReference(reference).name
+        return parseReference(reference).name
     } catch {
         return reference
     }

@@ -116,7 +116,7 @@ export type ExpressHTTPEntrypointOptions = {
  * The first segments of the routes
  * @param routes
  */
-function ActionPrefixes(routes: Iterable<string>): string[] {
+function actionPrefixesOf(routes: Iterable<string>): string[] {
     const prefixes: Set<string> = new Set()
     for (const route of routes) {
         const segment: string | undefined = route.split('/').find((part: string): boolean => !!part)
@@ -132,7 +132,7 @@ function ActionPrefixes(routes: Iterable<string>): string[] {
  * @param event
  * @param id
  */
-function EventFrame(data: unknown, event?: string, id?: string): string {
+function eventFrame(data: unknown, event?: string, id?: string): string {
     let frame: string = ''
     if (id !== undefined) frame += `id: ${id}\n`
     if (event !== undefined) frame += `event: ${event}\n`
@@ -230,7 +230,7 @@ export function expressHTTPEntrypoint(options: ExpressHTTPEntrypointOptions = {}
         response.on('close', close)
         try {
             await result.producer((data: unknown, event?: string, id?: string): void => {
-                if (!abortController.signal.aborted) response.write(EventFrame(data, event, id))
+                if (!abortController.signal.aborted) response.write(eventFrame(data, event, id))
             }, abortController.signal)
         } catch {
             //The stream is already started, its error ends it
@@ -334,7 +334,7 @@ export function expressHTTPEntrypoint(options: ExpressHTTPEntrypointOptions = {}
             server = createServer(options.server ?? {}, app)
             const routes: Map<string, Set<string>> = new Map()
             for (const action of runtime.actions) routes.set(action.address.route, (routes.get(action.address.route) ?? new Set()).add(action.address.method))
-            const actionPrefixes: string[] = ActionPrefixes(routes.keys())
+            const actionPrefixes: string[] = actionPrefixesOf(routes.keys())
             const isActionPath = (requestPath: string): boolean => actionPrefixes.some((prefix: string): boolean => requestPath === prefix || requestPath.startsWith(`${prefix}/`))
             await options.before?.(app, {module: runtime.module, server: server, routes: routes, actionPrefixes: actionPrefixes, isActionPath: isActionPath})
             if (options.body !== false) app.use(express.json({limit: options.body?.limit ?? '1mb'}), express.urlencoded({extended: true, limit: options.body?.limit ?? '1mb'}))

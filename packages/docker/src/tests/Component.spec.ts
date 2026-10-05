@@ -20,7 +20,7 @@ import {
  * The inspection of an image by the fake daemon
  * @param id
  */
-function ImageInspection(id: string): Record<string, unknown> {
+function imageInspection(id: string): Record<string, unknown> {
     return {Id: id, RepoTags: ['app:1'], Created: '2026-01-01T00:00:00Z', Architecture: 'arm64', Os: 'linux', Size: 1, Config: {Env: []}}
 }
 
@@ -67,7 +67,7 @@ describe('The Docker component with a fake daemon', (): void => {
                 if (pathname === '/build') return void response.end(JSON.stringify({error: 'The build failed'}))
                 if (/^\/images\/.*missing.*\/json$/.test(pathname) || pathname === '/images/sha256:removed/json') return void json(404, {message: `No such image: ${pathname.split('/')[2]}`})
                 let match: RegExpExecArray | null
-                if ((match = /^\/images\/(.+)\/json$/.exec(pathname))) return void json(200, ImageInspection(match[1].startsWith('sha256:') ? match[1] : 'sha256:app'))
+                if ((match = /^\/images\/(.+)\/json$/.exec(pathname))) return void json(200, imageInspection(match[1].startsWith('sha256:') ? match[1] : 'sha256:app'))
                 if (/^\/images\/.+\/push$/.test(pathname)) return void response.end(JSON.stringify({status: 'Pushed'}))
                 if (/^\/images\/.+\/tag$/.test(pathname)) return void response.writeHead(201).end()
                 if (pathname === '/containers/missing/json') return void json(404, {message: 'No such container: missing'})

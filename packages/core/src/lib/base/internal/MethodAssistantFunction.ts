@@ -16,7 +16,7 @@ export type AfterFunction<ClassPrototype extends Object, Method extends (...args
  * @param beforeFunction
  * @constructor
  */
-export function RegisterBeforeFunction<ClassPrototype extends Object, Method extends (...args: any[]) => unknown>(target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<Method>, beforeFunction: BeforeFunction<ClassPrototype, Method>): TypedPropertyDescriptor<Method> {
+export function registerBeforeFunction<ClassPrototype extends Object, Method extends (...args: any[]) => unknown>(target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<Method>, beforeFunction: BeforeFunction<ClassPrototype, Method>): TypedPropertyDescriptor<Method> {
     descriptor.value = registerAssistantFunctionToMethod(target, propertyKey, applicabilityCheck(descriptor.value, beforeFunction), {
         before: beforeFunction
     })
@@ -31,7 +31,7 @@ export function RegisterBeforeFunction<ClassPrototype extends Object, Method ext
  * @param afterFunction
  * @constructor
  */
-export function RegisterAfterFunction<ClassPrototype extends Object, Method extends (...args: any[]) => unknown>(target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<Method>, afterFunction: AfterFunction<ClassPrototype, Method>): TypedPropertyDescriptor<Method> {
+export function registerAfterFunction<ClassPrototype extends Object, Method extends (...args: any[]) => unknown>(target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<Method>, afterFunction: AfterFunction<ClassPrototype, Method>): TypedPropertyDescriptor<Method> {
     descriptor.value = registerAssistantFunctionToMethod(target, propertyKey, applicabilityCheck(descriptor.value, afterFunction), {
         after: afterFunction
     })

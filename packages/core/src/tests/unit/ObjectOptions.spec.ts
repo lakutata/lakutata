@@ -41,7 +41,7 @@ class Checked extends Component {
  * Initialize a module of the given options: its initialization error and the warnings emitted while it initializes
  * @param options
  */
-async function InitializeModule(options: ModuleOptions): Promise<{ module: Module, error?: Error, warnings: string[] }> {
+async function initializeModule(options: ModuleOptions): Promise<{ module: Module, error?: Error, warnings: string[] }> {
     const warnings: string[] = []
     const listener = (warning: Error): number => warnings.push(warning.message)
     process.on('warning', listener)
@@ -75,7 +75,7 @@ describe('The check of the options of the declared objects', (): void => {
     after((): void => printers.forEach((printer: NodeJS.WarningListener): unknown => process.on('warning', printer)))
 
     it('accepts the valid options, the inherited configurable properties and the options of the declarations', async (): Promise<void> => {
-        const {error, warnings} = await InitializeModule({
+        const {error, warnings} = await initializeModule({
             components: {service: {class: Service, level: 'error', port: 8080, debug: true, id: 'ignored'}},
             objects: {anonymous: [{class: Service, port: undefined}]}
         })
@@ -84,7 +84,7 @@ describe('The check of the options of the declared objects', (): void => {
     })
 
     it('fails on the invalid values of the objects never created, listing them all', async (): Promise<void> => {
-        const {module, error} = await InitializeModule({
+        const {module, error} = await initializeModule({
             components: {
                 first: {class: Service, level: 'verbose'},
                 second: {class: Service, port: 0, debug: 'yes'}
@@ -101,7 +101,7 @@ describe('The check of the options of the declared objects', (): void => {
     })
 
     it('warns of the options which are not configurable properties, unless the class accepts them', async (): Promise<void> => {
-        const {module, error, warnings} = await InitializeModule({
+        const {module, error, warnings} = await initializeModule({
             components: {
                 service: {class: Service, levle: 'error'},
                 channels: {class: Channels, 'channel.http': {}, chanel: {}}
@@ -119,13 +119,13 @@ describe('The check of the options of the declared objects', (): void => {
     })
 
     it('leaves the values validated by external rules to the objects', async (): Promise<void> => {
-        const {module, error} = await InitializeModule({components: {checked: {class: Checked, name: 'value'}}})
+        const {module, error} = await initializeModule({components: {checked: {class: Checked, name: 'value'}}})
         assert.strictEqual(error, undefined)
         await assert.rejects(module.getObject('checked'), /rejected by the external rule/)
     })
 
     it('does not check the options when the module disables the check', async (): Promise<void> => {
-        const {module, error, warnings} = await InitializeModule({
+        const {module, error, warnings} = await initializeModule({
             checkOptions: false,
             components: {service: {class: Service, level: 'verbose', levle: 'error'}}
         })

@@ -1,4 +1,4 @@
-import {AddMiddlewares, MiddlewareDefinition, ValidateMiddlewares} from '../lib/Middleware.js'
+import {addMiddlewares, MiddlewareDefinition, validateMiddlewares} from '../lib/Middleware.js'
 
 /**
  * Add middlewares to all the actions of a controller (on the class) or to one action (on the method). A middleware is a
@@ -51,6 +51,6 @@ import {AddMiddlewares, MiddlewareDefinition, ValidateMiddlewares} from '../lib/
  * ```
  */
 export function UseMiddlewares(...middlewares: MiddlewareDefinition[]): (target: object, propertyKey?: string | symbol, descriptor?: PropertyDescriptor) => void {
-    ValidateMiddlewares(middlewares)
-    return (target: object, propertyKey?: string | symbol): void => AddMiddlewares(target, propertyKey, middlewares)
+    validateMiddlewares(middlewares)
+    return (target: object, propertyKey?: string | symbol): void => addMiddlewares(target, propertyKey, middlewares)
 }

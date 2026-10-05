@@ -1,6 +1,6 @@
 import {SerializedCacheStore, SerializedEntry} from './SerializedCacheStore.js'
 import {MemcacheCacheOptions} from '../options/MemcacheCacheOptions.js'
-import {LoadDriver} from '../lib/LoadDriver.js'
+import {loadDriver} from '../lib/LoadDriver.js'
 
 interface MemcacheClient {
     get(key: string): Promise<{ value: Buffer | null }>
@@ -51,7 +51,7 @@ export class MemcacheStore extends SerializedCacheStore {
     }
 
     public async connect(): Promise<void> {
-        const driver: MemcacheDriver = await LoadDriver<MemcacheDriver>('Client', 'memjs')
+        const driver: MemcacheDriver = await loadDriver<MemcacheDriver>('Client', 'memjs')
         const options: MemcacheCacheOptions = this.options
         this.client = driver.Client.create(`${options.host}:${options.port ?? 11211}`, {
             username: options.username,

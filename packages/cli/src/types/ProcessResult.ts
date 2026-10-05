@@ -1,5 +1,5 @@
 /**
- * The result of a command run (Run())
+ * The result of a command run (runCommand())
  */
 export type ProcessResult = {
     /**

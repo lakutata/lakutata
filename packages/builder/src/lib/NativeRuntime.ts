@@ -57,7 +57,7 @@ export const BUN_NATIVE_ASSETS: string = 'lakutata.native'
  * @param nodeRequire
  * @param config
  */
-export function LakutataNativeRequire(nodeRequire: NodeJS.Require, config: NativeRuntimeConfig): NodeJS.Require {
+export function lakutataNativeRequire(nodeRequire: NodeJS.Require, config: NativeRuntimeConfig): NodeJS.Require {
     const path: typeof import('node:path') = nodeRequire('node:path')
     const fs: typeof import('node:fs') = nodeRequire('node:fs')
     const os: typeof import('node:os') = nodeRequire('node:os')
@@ -167,7 +167,7 @@ export function LakutataNativeRequire(nodeRequire: NodeJS.Require, config: Nativ
  * of the bundle: it uses nothing but its argument and the modules of node
  * @param nodeRequire
  */
-export function LakutataEnvironmentFile(nodeRequire: NodeJS.Require): void {
+export function lakutataEnvironmentFile(nodeRequire: NodeJS.Require): void {
     const file: string | undefined = process.env.LAKUTATA_ENV_FILE
     if (!file) return
     const fs: typeof import('node:fs') = nodeRequire('node:fs')
@@ -186,14 +186,14 @@ export function LakutataEnvironmentFile(nodeRequire: NodeJS.Require): void {
  * loaded (LAKUTATA_ENV_FILE)
  * @param directory the directory of the resources, relative to the bundle
  */
-export function PackagedBanner(directory: string): string {
-    return `globalThis[Symbol.for(${JSON.stringify(PACKAGED)})]={resources:function(){var p=require('node:path'),l=p.join(__dirname,${JSON.stringify(directory)}),r=process.resourcesPath;return require('node:fs').existsSync(l)||!r?l:p.join(r,${JSON.stringify(directory)})}};(${LakutataEnvironmentFile.toString()})(require);\n`
+export function packagedBanner(directory: string): string {
+    return `globalThis[Symbol.for(${JSON.stringify(PACKAGED)})]={resources:function(){var p=require('node:path'),l=p.join(__dirname,${JSON.stringify(directory)}),r=process.resourcesPath;return require('node:fs').existsSync(l)||!r?l:p.join(r,${JSON.stringify(directory)})}};(${lakutataEnvironmentFile.toString()})(require);\n`
 }
 
 /**
  * The source given to the top of a bundle: its require loads the native packages from the tree
  * @param config
  */
-export function NativeBanner(config: NativeRuntimeConfig): string {
-    return `var require = (${LakutataNativeRequire.toString()})(require, ${JSON.stringify(config)});\n`
+export function nativeBanner(config: NativeRuntimeConfig): string {
+    return `var require = (${lakutataNativeRequire.toString()})(require, ${JSON.stringify(config)});\n`
 }

@@ -3,7 +3,7 @@ import {cpSync, existsSync, mkdirSync, symlinkSync, writeFileSync} from 'node:fs
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {stripVTControlCharacters} from 'node:util'
-import {SpawnCommand} from '../../lib/Processes.js'
+import {spawnCommand} from '../../lib/Processes.js'
 
 export const CLI: string = fileURLToPath(new URL('../../CLIApp.js', import.meta.url))
 export const ROOT: string = path.resolve(fileURLToPath(new URL('.', import.meta.url)), '../../../../../..')
@@ -12,7 +12,7 @@ export const ROOT: string = path.resolve(fileURLToPath(new URL('.', import.meta.
  * Whether a command runs on the machine
  * @param command
  */
-export function Has(command: string): boolean {
+export function has(command: string): boolean {
     try {
         execFileSync(command, ['--version'], {stdio: 'ignore'})
         return true
@@ -25,8 +25,8 @@ export function Has(command: string): boolean {
  * Whether a C++ compiler is installed: the one of the Visual Studio Build Tools on Windows (its C++ tools, found by
  * vswhere)
  */
-function Cpp(): boolean {
-    if (process.platform !== 'win32') return Has('c++')
+function cpp(): boolean {
+    if (process.platform !== 'win32') return has('c++')
     const vswhere: string = path.join(process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)', 'Microsoft Visual Studio', 'Installer', 'vswhere.exe')
     try {
         return execFileSync(vswhere, ['-products', '*', '-requiresAny', '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64', 'Microsoft.VisualStudio.Component.VC.Tools.ARM64', '-property', 'installationPath']).toString().trim() !== ''
@@ -39,7 +39,7 @@ function Cpp(): boolean {
  * Run the C compiler of Visual Studio (cl, lib) in its environment (vcvarsall, the architecture of node)
  * @param commands
  */
-export function VisualCpp(commands: string[]): void {
+export function visualCpp(commands: string[]): void {
     const vswhere: string = path.join(process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)', 'Microsoft Visual Studio', 'Installer', 'vswhere.exe')
     const installation: string = execFileSync(vswhere, ['-latest', '-products', '*', '-property', 'installationPath']).toString().trim()
     const vcvars: string = path.join(installation, 'VC', 'Auxiliary', 'Build', 'vcvarsall.bat')
@@ -50,9 +50,9 @@ export function VisualCpp(commands: string[]): void {
  * The toolchains of the build systems of the native addons (a C++ compiler, CMake, cargo)
  */
 export const TOOLCHAINS: Record<string, boolean> = {
-    gyp: Cpp(),
-    cmake: Cpp() && Has('cmake'),
-    rust: Has('cargo')
+    gyp: cpp(),
+    cmake: cpp() && has('cmake'),
+    rust: has('cargo')
 }
 
 /**
@@ -62,10 +62,10 @@ export const TOOLCHAINS: Record<string, boolean> = {
  * @param cwd
  * @param variables its environment variables
  */
-export function Run(command: string, args: string[], cwd: string, variables: Record<string, string> = {}): Promise<{ code: number, output: string }> {
+export function runIn(command: string, args: string[], cwd: string, variables: Record<string, string> = {}): Promise<{ code: number, output: string }> {
     const {NODE_TEST_CONTEXT, ...env} = process.env
     void NODE_TEST_CONTEXT
-    return RunCommand(command, args, cwd, {...env, npm_config_user_agent: '', ...variables})
+    return runCommand(command, args, cwd, {...env, npm_config_user_agent: '', ...variables})
 }
 
 /**
@@ -76,9 +76,9 @@ export function Run(command: string, args: string[], cwd: string, variables: Rec
  * @param env
  * @param timeout
  */
-export function RunCommand(command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv, timeout: number = 300000): Promise<{ code: number, output: string }> {
+export function runCommand(command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv, timeout: number = 300000): Promise<{ code: number, output: string }> {
     return new Promise((resolve: (result: { code: number, output: string }) => void): void => {
-        const child = SpawnCommand(command, args, {cwd: cwd, env: env})
+        const child = spawnCommand(command, args, {cwd: cwd, env: env})
         let output: string = ''
         child.stdout!.on('data', (chunk: Buffer): unknown => output += chunk.toString())
         child.stderr!.on('data', (chunk: Buffer): unknown => output += chunk.toString())
@@ -98,7 +98,7 @@ export function RunCommand(command: string, args: string[], cwd: string, env: No
  * @param name
  * @param script the JavaScript file of the command, or a command of the node_modules/.bin of the repository
  */
-export function LinkCommand(bin: string, name: string, script: string): void {
+export function linkCommand(bin: string, name: string, script: string): void {
     if (process.platform !== 'win32') return symlinkSync(script, path.join(bin, name))
     const command: string = existsSync(`${script}.cmd`) ? `@call "${script}.cmd" %*` : `@node "${script}" %*`
     writeFileSync(path.join(bin, `${name}.cmd`), `${command}\r\n`)
@@ -110,7 +110,7 @@ export function LinkCommand(bin: string, name: string, script: string): void {
  * @param work the directory of the workspaces
  * @param name
  */
-export function Workspace(work: string, name: string): string {
+export function workspace(work: string, name: string): string {
     const root: string = path.join(work, name)
     mkdirSync(path.join(root, 'packages', 'app'), {recursive: true})
     writeFileSync(path.join(root, 'package.json'), JSON.stringify({name: name, version: '1.2.3', private: true, workspaces: ['packages/*']}, null, 2))
@@ -121,7 +121,7 @@ export function Workspace(work: string, name: string): string {
     for (const module of ['typescript', 'node-gyp-build', 'node-gyp', 'cmake-js', '@napi-rs/cli', '@types/node']) symlinkSync(path.join(ROOT, 'node_modules', module), path.join(root, 'node_modules', module), 'dir')
     //Copied, as installed: gyp includes its targets by paths relative to the package
     cpSync(path.join(ROOT, 'node_modules', 'node-addon-api'), path.join(root, 'node_modules', 'node-addon-api'), {recursive: true})
-    for (const bin of ['tsc', 'node-gyp', 'node-gyp-build', 'cmake-js', 'napi']) LinkCommand(path.join(root, 'node_modules', '.bin'), bin, path.join(ROOT, 'node_modules', '.bin', bin))
-    LinkCommand(path.join(root, 'node_modules', '.bin'), 'lakutata', CLI)
+    for (const bin of ['tsc', 'node-gyp', 'node-gyp-build', 'cmake-js', 'napi']) linkCommand(path.join(root, 'node_modules', '.bin'), bin, path.join(ROOT, 'node_modules', '.bin', bin))
+    linkCommand(path.join(root, 'node_modules', '.bin'), 'lakutata', CLI)
     return root
 }

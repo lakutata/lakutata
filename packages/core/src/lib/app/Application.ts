@@ -3,8 +3,8 @@ import {Container} from '../core/Container.js'
 import {ApplicationConfigLoader} from './ApplicationConfigLoader.js'
 import {ApplicationOptions} from '../../options/ApplicationOptions.js'
 import {Alias} from '../core/Alias.js'
-import {GetAppId, GetAppName, GetBasicInfo} from '../foundation/BasicInfo.js'
-import {SetLifecycleErrorReporter} from '../foundation/LifecycleErrorReporter.js'
+import {getAppId, getAppName, getBasicInfo} from '../foundation/BasicInfo.js'
+import {setLifecycleErrorReporter} from '../foundation/LifecycleErrorReporter.js'
 import {ILogger} from '../../interfaces/ILogger.js'
 import {ConsoleLogger} from '../../components/ConsoleLogger.js'
 import {Accept} from '../../decorators/dto/Accept.js'
@@ -15,11 +15,11 @@ import {existsSync} from 'node:fs'
 import {constants} from 'node:os'
 import {As} from '@lakutata/utils/As'
 import {SynchronousEventEmitter} from '../base/EventEmitter.js'
-import {type MigrationCommand, ReadMigrationCommand} from './MigrationCommand.js'
+import {type MigrationCommand, readMigrationCommand} from './MigrationCommand.js'
 import {type ApplicationExitReason} from '../../types/ApplicationExitReason.js'
 import {BootstrapOption, ModuleOptions} from '../../options/ModuleOptions.js'
-import {DeclareApplicationClass, MarkApplicationLaunched} from '../base/internal/ApplicationLaunch.js'
-import {EndProcess, IsEnding} from '../foundation/EndProcess.js'
+import {declareApplicationClass, markApplicationLaunched} from '../base/internal/ApplicationLaunch.js'
+import {endProcess, isEnding} from '../foundation/EndProcess.js'
 
 //The handlers are method signatures, so a handler may declare the logger implementation it expects (such as Logger)
 /**
@@ -306,7 +306,7 @@ export class Application extends Module {
             const logger: ILogger = await this.getLogger()
             let exitCode: number | undefined | void = await handler(error, logger)
             if (typeof exitCode !== 'number') exitCode = 1
-            return EndProcess(exitCode)
+            return endProcess(exitCode)
         })
         return this.launch()
     }
@@ -381,7 +381,7 @@ export class Application extends Module {
      */
     protected static processFatalException(error: Error): void {
         //The errors of the code still running once the application is destroyed (it is ending)
-        if (IsEnding()) return
+        if (isEnding()) return
         if (!this.eventEmitter.listenerCount(ApplicationState.FatalException)) {
             return process.nextTick(async (): Promise<void> => {
                 const exception: Error = new Error('FatalException', {cause: error})
@@ -391,7 +391,7 @@ export class Application extends Module {
                 } catch (e) {
                     console.error(exception, e)
                 }
-                return EndProcess(1)
+                return endProcess(1)
             })
         }
         this.eventEmitter.emit(ApplicationState.FatalException, error)
@@ -430,9 +430,9 @@ export class Application extends Module {
                 const reason: ApplicationExitReason = signal ? {code: exitCode ? exitCode : 0, signal: signal} : {code: exitCode ? exitCode : 0}
                 await this.eventEmitter.emitRequest(ApplicationState.Done, app, reason)
                 await rootContainer.destroy()
-                EndProcess(exitCode ? exitCode : 0)
+                endProcess(exitCode ? exitCode : 0)
             } catch (e) {
-                EndProcess(1)
+                endProcess(1)
             }
         })
         this.environmentVariableMap.forEach((value, key) => process.env[key] = value)
@@ -454,7 +454,7 @@ export class Application extends Module {
         //The commands of the migrations of the databases: the application connects its databases, does the command and exits
         let migrationCommand: MigrationCommand | undefined
         try {
-            migrationCommand = ReadMigrationCommand(process.env)
+            migrationCommand = readMigrationCommand(process.env)
         } catch (error) {
             //A command of the migrations fails with the code 1, the tools running it know it
             console.error((error as Error).message)
@@ -545,8 +545,8 @@ export class Application extends Module {
                         launchedCallbackRemover.bind(As<Application>(target))()
                         //The errors of the lifecycle of the objects (cascaded destruction, launched hooks) are reported through the application logger
                         const logger: ILogger = await As<Application>(target).getLogger()
-                        SetLifecycleErrorReporter((error: Error, message: string): void => logger.warn(error, message))
-                        MarkApplicationLaunched(target)
+                        setLifecycleErrorReporter((error: Error, message: string): void => logger.warn(error, message))
+                        markApplicationLaunched(target)
                         //The application launched is the one the signals end (its launched handlers may receive them)
                         Reflect.set(this, 'appInstance', target)
                         this.eventEmitter.emit(ApplicationState.Launched, As<Application>(target))
@@ -612,7 +612,7 @@ export class Application extends Module {
      * options are loaded.
      */
     public static get appId(): string {
-        return GetAppId()
+        return getAppId()
     }
 
     /**
@@ -620,21 +620,21 @@ export class Application extends Module {
      * its options are loaded.
      */
     public static get appName(): string {
-        return GetAppName()
+        return getAppName()
     }
 
     /**
      * The ID of the application (its `id` option).
      */
     public get appId(): string {
-        return GetAppId()
+        return getAppId()
     }
 
     /**
      * The name of the application (its `name` option).
      */
     public get appName(): string {
-        return GetAppName()
+        return getAppName()
     }
 
     /**
@@ -642,7 +642,7 @@ export class Application extends Module {
      * variable.
      */
     public get timezone(): string {
-        return GetBasicInfo().timezone
+        return getBasicInfo().timezone
     }
 
     /**
@@ -672,4 +672,4 @@ export class Application extends Module {
     }
 }
 
-DeclareApplicationClass(Application)
+declareApplicationClass(Application)

@@ -1,7 +1,7 @@
 import {existsSync} from 'node:fs'
 import path from 'node:path'
-import {Run} from '../Processes.js'
-import {Warn} from '../Output.js'
+import {runCommand} from '../Processes.js'
+import {warn} from '../Output.js'
 import {DEPENDENCY_FIELDS, type JSONFile, type Workspace, type WorkspacePackage} from './Workspace.js'
 import {type ProcessResult} from '../../types/ProcessResult.js'
 
@@ -13,7 +13,7 @@ const VERSION: RegExp = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/
  * @param bump a bump, or a version
  * @param preid the identifier of the prereleases ("beta"), none by default
  */
-export function NextVersion(current: string, bump: string, preid?: string): string {
+export function nextVersion(current: string, bump: string, preid?: string): string {
     if (VERSION.test(bump)) return bump
     const matched: RegExpExecArray | null = VERSION.exec(current)
     if (!matched) throw new Error(`The current version "${current}" is not a version`)
@@ -54,7 +54,7 @@ export function NextVersion(current: string, bump: string, preid?: string): stri
  * @param range
  * @param version
  */
-export function UpdateRange(range: string, version: string): string {
+export function updateRange(range: string, version: string): string {
     const matched: RegExpExecArray | null = /^(workspace:)?(\^|~|>=|<=|>|<|=)?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/.exec(range)
     return matched ? `${matched[1] ?? ''}${matched[2] ?? ''}${version}` : range
 }
@@ -82,11 +82,11 @@ export type VersionPlan = {
  * @param bump
  * @param preid
  */
-export function PlanVersion(workspace: Workspace, bump: string, preid?: string): VersionPlan {
+export function planVersion(workspace: Workspace, bump: string, preid?: string): VersionPlan {
     const from: string = workspace.version ?? '0.0.0'
     return {
         from: from,
-        to: NextVersion(from, bump, preid),
+        to: nextVersion(from, bump, preid),
         packages: workspace.packages.map((pkg: WorkspacePackage): { name: string, from: string | undefined } => ({name: pkg.name, from: pkg.version}))
     }
 }
@@ -97,7 +97,7 @@ export function PlanVersion(workspace: Workspace, bump: string, preid?: string):
  * @param plan
  * @param options
  */
-export async function ApplyVersion(workspace: Workspace, plan: VersionPlan, options: VersionOptions = {}): Promise<string[]> {
+export async function applyVersion(workspace: Workspace, plan: VersionPlan, options: VersionOptions = {}): Promise<string[]> {
     const names: Set<string> = new Set(workspace.packages.map((pkg: WorkspacePackage): string => pkg.name))
     const changed: JSONFile[] = []
     for (const pkg of workspace.packages) {
@@ -105,7 +105,7 @@ export async function ApplyVersion(workspace: Workspace, plan: VersionPlan, opti
         data.version = plan.to
         for (const field of DEPENDENCY_FIELDS) {
             for (const [name, range] of Object.entries<string>(data[field] ?? {})) {
-                if (names.has(name)) data[field][name] = UpdateRange(range, plan.to)
+                if (names.has(name)) data[field][name] = updateRange(range, plan.to)
             }
         }
         changed.push(pkg.manifest)
@@ -121,7 +121,7 @@ export async function ApplyVersion(workspace: Workspace, plan: VersionPlan, opti
     //The root package.json may depend on the packages too
     for (const field of DEPENDENCY_FIELDS) {
         for (const [name, range] of Object.entries<string>(workspace.manifest.data[field] ?? {})) {
-            if (names.has(name)) workspace.manifest.data[field][name] = UpdateRange(range, plan.to)
+            if (names.has(name)) workspace.manifest.data[field][name] = updateRange(range, plan.to)
         }
     }
     if (!changed.includes(workspace.manifest)) changed.push(workspace.manifest)
@@ -133,15 +133,15 @@ export async function ApplyVersion(workspace: Workspace, plan: VersionPlan, opti
         {file: 'pnpm-lock.yaml', command: 'pnpm', args: ['install', '--lockfile-only', '--ignore-scripts']}
     ].find((candidate): boolean => existsSync(path.join(workspace.root, candidate.file)))
     if (lock) {
-        const result = await Run(lock.command, lock.args, workspace.root).catch((error: Error): ProcessResult => ({code: 1, output: error.message}))
+        const result = await runCommand(lock.command, lock.args, workspace.root).catch((error: Error): ProcessResult => ({code: 1, output: error.message}))
         if (result.code === 0) files.push(path.join(workspace.root, lock.file))
-        else Warn(`The lock file ${lock.file} is not updated (run ${lock.command} install): ${result.output.trim().split('\n').slice(-3).join(' ')}`)
+        else warn(`The lock file ${lock.file} is not updated (run ${lock.command} install): ${result.output.trim().split('\n').slice(-3).join(' ')}`)
     } else if (existsSync(path.join(workspace.root, 'yarn.lock'))) {
-        Warn('yarn.lock is not updated: run yarn install')
+        warn('yarn.lock is not updated: run yarn install')
     }
     if (options.git) {
         const git = async (args: string[]): Promise<void> => {
-            const result = await Run('git', args, workspace.root)
+            const result = await runCommand('git', args, workspace.root)
             if (result.code !== 0) throw new Error(`git ${args[0]} failed: ${result.output.trim()}`)
         }
         await git(['add', ...files])

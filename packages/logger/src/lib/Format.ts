@@ -1,5 +1,5 @@
 //Derived from the upstream projects listed in THIRD_PARTY_NOTICES.md (rewritten in TypeScript)
-import {Stringify} from './Stringify.js'
+import {stringify} from './Stringify.js'
 
 /**
  * Format a log message with its arguments: %s, %d, %f, %i, %o, %O, %j and %%
@@ -7,14 +7,14 @@ import {Stringify} from './Stringify.js'
  * @param template
  * @param args
  */
-export function Format(template: unknown, args: unknown[]): unknown {
+export function format(template: unknown, args: unknown[]): unknown {
     if (typeof template === 'object' && template !== null) {
         const count: number = args.length + 1
         if (count === 1) return template
         //Serialize the object and the arguments after the first one (the behavior of 2.x)
         const objects: (string | undefined)[] = new Array(count)
-        objects[0] = Stringify(template)
-        for (let index: number = 1; index < count; index++) objects[index] = Stringify(args[index])
+        objects[0] = stringify(template)
+        for (let index: number = 1; index < count; index++) objects[index] = stringify(args[index])
         return objects.join(' ')
     }
     if (typeof template !== 'string' || !args.length) return template
@@ -55,7 +55,7 @@ export function Format(template: unknown, args: unknown[]): unknown {
                     } else if (typeof value === 'function') {
                         result += value.name || '<anonymous>'
                     } else {
-                        result += Stringify(value)
+                        result += stringify(value)
                     }
                     last = index + 2
                     index++

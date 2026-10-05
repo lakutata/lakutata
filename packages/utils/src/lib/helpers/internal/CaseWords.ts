@@ -18,7 +18,7 @@ const SPLIT_REPLACE_VALUE = '$1\0$2'
 /**
  * Split any cased input strings into an array of words.
  */
-export function Split(input: string, options?: SplitOptions): string[] {
+export function split(input: string, options?: SplitOptions): string[] {
     let result = input
         .replace(SPLIT_LOWER_UPPER_RE, SPLIT_REPLACE_VALUE)
         .replace(SPLIT_UPPER_UPPER_RE, SPLIT_REPLACE_VALUE)
@@ -44,7 +44,7 @@ export function Split(input: string, options?: SplitOptions): string[] {
 /**
  * The lower case of the words in a locale (false: without locale)
  */
-export function ToLower(locale: Locale): (input: string) => string {
+export function toLower(locale: Locale): (input: string) => string {
     return locale === false
         ? (input) => input.toLowerCase()
         : (input) => input.toLocaleLowerCase(locale)
@@ -53,7 +53,7 @@ export function ToLower(locale: Locale): (input: string) => string {
 /**
  * The upper case of the words in a locale (false: without locale)
  */
-export function ToUpper(locale: Locale): (input: string) => string {
+export function toUpper(locale: Locale): (input: string) => string {
     return locale === false
         ? (input) => input.toUpperCase()
         : (input) => input.toLocaleUpperCase(locale)

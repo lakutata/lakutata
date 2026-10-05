@@ -4,11 +4,11 @@ import {Accept} from '@lakutata/core/decorator/dto'
 import {ContainerdClient, type ContainerdEvent} from '../client/ContainerdClient.js'
 import {ImageStore} from '../client/ImageStore.js'
 import {ContainerStore, type ContainerMount} from '../client/ContainerStore.js'
-import {FormatPlatform, HostPlatform, ParsePlatform, SupportedPlatforms, type Platform} from '../client/Platforms.js'
-import {ParseReference} from '../client/Reference.js'
+import {formatPlatform, hostPlatform, parsePlatform, supportedPlatforms, type Platform} from '../client/Platforms.js'
+import {parseReference} from '../client/Reference.js'
 import {DEFAULT_NETWORK, NetworkStore, type CNINetwork, type PortMapping} from '../client/Networks.js'
 import {GRPCConnection, type Message} from '@lakutata/grpc'
-import {BuildKitBuild, BuildKitPlatforms, BuildKitVersion} from '../client/BuildKit.js'
+import {buildKitBuild, buildKitPlatforms, buildKitVersion} from '../client/BuildKit.js'
 import {mkdir, rm} from 'node:fs/promises'
 import path from 'node:path'
 import {randomBytes} from 'node:crypto'
@@ -24,7 +24,7 @@ import {ContainerdVolumeNotFoundException} from './exceptions/ContainerdVolumeNo
 import {ContainerdVolumeInUseException} from './exceptions/ContainerdVolumeInUseException.js'
 import {VolumeStore, type Volume} from '../client/Volumes.js'
 import {Time} from '@lakutata/utils/Time'
-import {ContainerdError} from './lib/ContainerdErrors.js'
+import {containerdError} from './lib/ContainerdErrors.js'
 import {ImagePullOptions} from './options/image/ImagePullOptions.js'
 import {ImageImportOptions} from './options/image/ImageImportOptions.js'
 import {ImageExportOptions} from './options/image/ImageExportOptions.js'
@@ -255,7 +255,7 @@ export class Containerd extends Component {
             throw new ContainerdConnectionException(`Cannot connect to containerd (${this.socketPath}): ${e.message}`)
         }
         //The platforms of the machine unpacked by the pulls and the imports
-        this.#images = new ImageStore(this.#client, this.snapshotter, path.join(this.dataRoot, 'tmp'), (): Platform[] => this.#platforms.map(ParsePlatform))
+        this.#images = new ImageStore(this.#client, this.snapshotter, path.join(this.dataRoot, 'tmp'), (): Platform[] => this.#platforms.map(parsePlatform))
         this.#networks = new NetworkStore(this.cniConfigPath, this.cniPath)
         this.#containers = new ContainerStore(this.#client, this.#images, this.#networks, {
             snapshotter: this.snapshotter,
@@ -264,7 +264,7 @@ export class Containerd extends Component {
             dataRoot: this.dataRoot,
             logMaxSize: this.logMaxSize
         })
-        this.#platforms = SupportedPlatforms().map(FormatPlatform)
+        this.#platforms = supportedPlatforms().map(formatPlatform)
     }
 
     /**
@@ -288,7 +288,7 @@ export class Containerd extends Component {
      */
     protected registryOptions(reference?: string, auth?: RegistryCredentials): RegistryOptions {
         const credentials: Record<string, RegistryCredentials> = {...this.registryAuths ?? {}}
-        if (reference && auth) credentials[ParseReference(reference).registry] = auth
+        if (reference && auth) credentials[parseReference(reference).registry] = auth
         return {credentials: credentials, insecure: this.insecureRegistries ?? [], signal: this.#abortController.signal}
     }
 
@@ -318,7 +318,7 @@ export class Containerd extends Component {
      * @returns The platforms detected, as {@link Containerd.supportedPlatforms} returns them from now on.
      */
     public detectPlatforms(): string[] {
-        this.#platforms = SupportedPlatforms().map(FormatPlatform)
+        this.#platforms = supportedPlatforms().map(formatPlatform)
         return this.supportedPlatforms()
     }
 
@@ -392,7 +392,7 @@ export class Containerd extends Component {
     public async pullImage(options: ImagePullOptions): Promise<ContainerdImage> {
         let platforms: Platform[] | 'all' | undefined
         if (options.platform === 'all' || (Array.isArray(options.platform) && options.platform.includes('all'))) platforms = 'all'
-        else if (options.platform) platforms = (Array.isArray(options.platform) ? options.platform : [options.platform]).map(ParsePlatform)
+        else if (options.platform) platforms = (Array.isArray(options.platform) ? options.platform : [options.platform]).map(parsePlatform)
         let name: string
         try {
             name = await this.#images.pull(options.image, {
@@ -402,7 +402,7 @@ export class Containerd extends Component {
                 progress: options.progressCallback
             })
         } catch (error: unknown) {
-            throw ContainerdError(error, ContainerdImagePullException)
+            throw containerdError(error, ContainerdImagePullException)
         }
         return await this.getImage(name)
     }
@@ -414,7 +414,7 @@ export class Containerd extends Component {
      */
     public async buildkitVersion(): Promise<{ package: string, version: string, revision: string }> {
         try {
-            return await BuildKitVersion(this.#buildkit)
+            return await buildKitVersion(this.#buildkit)
         } catch (error: unknown) {
             throw new ContainerdImageBuildException(`Cannot connect to BuildKit (${this.buildkitAddress}): ${(error as Error).message}`)
         }
@@ -428,7 +428,7 @@ export class Containerd extends Component {
      */
     public async buildkitPlatforms(): Promise<string[]> {
         try {
-            return (await BuildKitPlatforms(this.#buildkit)).map(FormatPlatform)
+            return (await buildKitPlatforms(this.#buildkit)).map(formatPlatform)
         } catch (error: unknown) {
             throw new ContainerdImageBuildException(`Cannot connect to BuildKit (${this.buildkitAddress}): ${(error as Error).message}`)
         }
@@ -448,14 +448,14 @@ export class Containerd extends Component {
      */
     @Accept(ImageBuildOptions.required())
     public async buildImage(options: ImageBuildOptions): Promise<ContainerdImage> {
-        const name: string = ParseReference(options.repoTag).name
-        const platforms: Platform[] = options.platform ? (Array.isArray(options.platform) ? options.platform : [options.platform]).map(ParsePlatform) : [HostPlatform()]
+        const name: string = parseReference(options.repoTag).name
+        const platforms: Platform[] = options.platform ? (Array.isArray(options.platform) ? options.platform : [options.platform]).map(parsePlatform) : [hostPlatform()]
         const temporary: string = path.join(this.dataRoot, 'tmp')
         await mkdir(temporary, {recursive: true})
         const archive: string = path.join(temporary, `lakutata-build-${randomBytes(8).toString('hex')}.tar`)
         const registry: RegistryOptions = this.registryOptions(options.repoTag, options.auth)
         try {
-            await BuildKitBuild(this.#buildkit, {
+            await buildKitBuild(this.#buildkit, {
                 context: options.workdir,
                 dockerfile: options.dockerfile,
                 target: options.target || undefined,
@@ -498,7 +498,7 @@ export class Containerd extends Component {
         try {
             names = await this.#images.import(options.source, {name: options.name, unpack: options.unpack})
         } catch (error: unknown) {
-            throw ContainerdError(error, ContainerdImageImportException)
+            throw containerdError(error, ContainerdImageImportException)
         }
         return await Promise.all(names.map((name: string): Promise<ContainerdImage> => this.getImage(name)))
     }
@@ -517,7 +517,7 @@ export class Containerd extends Component {
         try {
             await this.#images.export(names, options.destination)
         } catch (error: unknown) {
-            throw ContainerdError(error, ContainerdImageExportException)
+            throw containerdError(error, ContainerdImageExportException)
         }
     }
 
@@ -687,7 +687,7 @@ export class Containerd extends Component {
         try {
             record = await this.#containers.create({
                 image: options.image,
-                platform: options.platform ? ParsePlatform(options.platform) : undefined,
+                platform: options.platform ? parsePlatform(options.platform) : undefined,
                 name: options.name,
                 hostname: options.hostname,
                 cmd: options.cmd,
@@ -727,7 +727,7 @@ export class Containerd extends Component {
                 dns: options.dns
             })
         } catch (error: unknown) {
-            throw ContainerdError(error)
+            throw containerdError(error)
         }
         //Its settings: the ones it is created again with by its update
         await this.#containers.writeSettings(record.id, Object.fromEntries(Object.entries(options).filter(([, value]): boolean => value !== undefined && typeof value !== 'function')))
@@ -869,7 +869,7 @@ export class Containerd extends Component {
                 if (used.has(image.name)) continue
                 const dangling: boolean = (() => {
                     try {
-                        return !ParseReference(image.name).tag
+                        return !parseReference(image.name).tag
                     } catch {
                         return true
                     }

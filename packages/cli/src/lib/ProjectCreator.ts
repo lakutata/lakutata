@@ -5,10 +5,10 @@ import {Component} from 'lakutata'
 import {Autoload, Inject, Singleton} from 'lakutata/decorator/di'
 import {templating} from 'lakutata/utils'
 import {type PreparedTemplate, TemplateCatalog, type TemplateSource} from './TemplateCatalog.js'
-import {type PackageManager, Run} from './Processes.js'
-import {Done, Step, Warn} from './Output.js'
-import {ApplyFeatureBlocks, ApplyFeatureFiles, ProjectPath} from './TemplateFeatures.js'
-import {FrameworkVersion} from './Versions.js'
+import {type PackageManager, runCommand} from './Processes.js'
+import {done, step, warn} from './Output.js'
+import {applyFeatureBlocks, applyFeatureFiles, projectPath} from './TemplateFeatures.js'
+import {frameworkVersion} from './Versions.js'
 import {type ProcessResult} from '../types/ProcessResult.js'
 
 /**
@@ -46,7 +46,7 @@ const SKIPPED: string[] = ['node_modules', '.git']
  * Whether a file is text: no NUL byte in its beginning
  * @param content
  */
-function IsText(content: Buffer): boolean {
+function isText(content: Buffer): boolean {
     return !content.subarray(0, 8000).includes(0)
 }
 
@@ -55,11 +55,11 @@ function IsText(content: Buffer): boolean {
  * @param directory
  * @param base
  */
-async function ListFiles(directory: string, base: string = directory): Promise<string[]> {
+async function listFiles(directory: string, base: string = directory): Promise<string[]> {
     const files: string[] = []
     for (const entry of await readdir(directory, {withFileTypes: true})) {
         const target: string = path.join(directory, entry.name)
-        if (entry.isDirectory()) files.push(...await ListFiles(target, base))
+        if (entry.isDirectory()) files.push(...await listFiles(target, base))
         else if (entry.isFile()) files.push(path.relative(base, target))
     }
     return files
@@ -107,9 +107,9 @@ export class ProjectCreator extends Component {
             filter: (source: string): boolean => !SKIPPED.includes(path.basename(source))
         })
         const files: string[] = []
-        for (const file of await ListFiles(directory)) {
+        for (const file of await listFiles(directory)) {
             //"_gitignore" becomes ".gitignore"
-            const renamed: string = ProjectPath(file)
+            const renamed: string = projectPath(file)
             if (renamed !== file) await rename(path.join(directory, file), path.join(directory, renamed))
             files.push(renamed)
         }
@@ -128,9 +128,9 @@ export class ProjectCreator extends Component {
         for (const file of files) {
             const target: string = path.join(directory, file)
             const content: Buffer = await readFile(target)
-            if (!IsText(content)) continue
+            if (!isText(content)) continue
             const raw: string = content.toString('utf8')
-            const filled: string = templating(ApplyFeatureBlocks(raw, features, file), fields, {ignoreMissing: true})
+            const filled: string = templating(applyFeatureBlocks(raw, features, file), fields, {ignoreMissing: true})
             if (filled !== raw) await writeFile(target, filled)
         }
     }
@@ -140,7 +140,7 @@ export class ProjectCreator extends Component {
      * @param source
      */
     public async prepare(source: TemplateSource): Promise<PreparedTemplate> {
-        Step('Getting the template')
+        step('Getting the template')
         return await this.catalog.prepare(source)
     }
 
@@ -155,36 +155,36 @@ export class ProjectCreator extends Component {
         for (const feature of plan.features) {
             if (!(feature in template.features)) throw new Error(`The template has no feature ${feature}`)
             const directory: string = path.join(template.featuresDirectory, feature)
-            if (existsSync(directory)) files.push(...await ApplyFeatureFiles(directory, plan.directory))
+            if (existsSync(directory)) files.push(...await applyFeatureFiles(directory, plan.directory))
         }
-        Done(`Template ${template.label} copied (${files.length} files${plan.features.length ? `, with ${plan.features.join(', ')}` : ''})`)
+        done(`Template ${template.label} copied (${files.length} files${plan.features.length ? `, with ${plan.features.join(', ')}` : ''})`)
         await this.fill(plan.directory, files, {
             $APP_NAME: plan.name,
             $APP_ID: plan.id,
             $APP_DESC: plan.description,
             $APP_AUTHOR: plan.author,
             $APP_LICENSE: plan.license,
-            $LAKUTATA_VERSION: FrameworkVersion()
+            $LAKUTATA_VERSION: frameworkVersion()
         }, new Set(plan.features))
-        Done('Project information filled')
+        done('Project information filled')
         if (plan.packageManager !== 'none') {
-            Step(`Installing the dependencies with ${plan.packageManager}`)
+            step(`Installing the dependencies with ${plan.packageManager}`)
             let result: ProcessResult
             try {
-                result = await Run(plan.packageManager, ['install'], plan.directory)
+                result = await runCommand(plan.packageManager, ['install'], plan.directory)
             } catch (error: unknown) {
                 throw new Error(`${plan.packageManager} cannot be run: ${(error as Error).message}`, {cause: error})
             }
             if (result.code !== 0) throw new Error(`${plan.packageManager} install failed:\n${result.output.trim().split('\n').slice(-20).join('\n')}`)
-            Done('Dependencies installed')
+            done('Dependencies installed')
         }
         if (plan.git) {
             try {
-                const result = await Run('git', ['init'], plan.directory)
-                if (result.code === 0) Done('Git repository initialized')
-                else Warn(`git init failed: ${result.output.trim()}`)
+                const result = await runCommand('git', ['init'], plan.directory)
+                if (result.code === 0) done('Git repository initialized')
+                else warn(`git init failed: ${result.output.trim()}`)
             } catch {
-                Warn('git is not installed, the git repository is not initialized')
+                warn('git is not installed, the git repository is not initialized')
             }
         }
     }

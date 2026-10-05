@@ -2,7 +2,7 @@ import type {ActionPattern} from '@lakutata/core'
 import {ControllerActionNotFoundException, type BaseContext, type EntrypointAdapter} from '@lakutata/entrypoint'
 import {defineChannel, getChannel, hasChannel, type ChannelDefinition, type ChannelEntry, type ChannelMatch, type ChannelMatcher} from '@lakutata/entrypoint/channel'
 import {DBUS_CONTEXT_TYPE, DBusContext} from '../context/DBusContext.js'
-import {CheckInterfaceName, CheckMemberName, CheckPathTemplate, CompilePathTemplate, PathTemplate} from '../lib/Names.js'
+import {checkInterfaceName, checkMemberName, checkPathTemplate, compilePathTemplate, PathTemplate} from '../lib/Names.js'
 
 declare module '@lakutata/entrypoint' {
     interface EntrypointOptions {
@@ -37,7 +37,7 @@ declare module '@lakutata/entrypoint' {
  * @param member
  * @param path
  */
-function AddressKey(interfaceName: string, member: string, path: string): string {
+function addressKey(interfaceName: string, member: string, path: string): string {
     return `${interfaceName}.${member}@${path}`
 }
 
@@ -53,12 +53,12 @@ export const DBusChannel: ChannelDefinition = hasChannel('dbus') ? getChannel('d
     kind: 'request',
     contextType: DBUS_CONTEXT_TYPE,
     validate: (pattern: ActionPattern): ActionPattern => {
-        CheckMemberName(pattern.member, 'method')
-        if (pattern.interface !== undefined) CheckInterfaceName(pattern.interface)
-        if (pattern.path !== undefined) CheckPathTemplate(pattern.path)
+        checkMemberName(pattern.member, 'method')
+        if (pattern.interface !== undefined) checkInterfaceName(pattern.interface)
+        if (pattern.path !== undefined) checkPathTemplate(pattern.path)
         return pattern
     },
-    identify: (pattern: ActionPattern): string => AddressKey(pattern.interface ?? '?', pattern.member, pattern.path ?? '?'),
+    identify: (pattern: ActionPattern): string => addressKey(pattern.interface ?? '?', pattern.member, pattern.path ?? '?'),
     describe: (pattern: ActionPattern): Record<string, unknown> => {
         const {returns, ...address} = pattern
         return returns === undefined ? address : {...address, returns: returns}
@@ -71,7 +71,7 @@ export const DBusChannel: ChannelDefinition = hasChannel('dbus') ? getChannel('d
     createMatcher: (entries: ChannelEntry[]): ChannelMatcher => {
         const templates: { entry: ChannelEntry, template: PathTemplate }[] = entries
             .filter((entry: ChannelEntry): boolean => entry.details.pattern.path !== undefined)
-            .map((entry: ChannelEntry): { entry: ChannelEntry, template: PathTemplate } => ({entry: entry, template: CompilePathTemplate(entry.details.pattern.path)}))
+            .map((entry: ChannelEntry): { entry: ChannelEntry, template: PathTemplate } => ({entry: entry, template: compilePathTemplate(entry.details.pattern.path)}))
         return {
             match: (context: BaseContext): ChannelMatch | undefined => {
                 const {path, interface: interfaceName, member} = context as DBusContext

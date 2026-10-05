@@ -32,8 +32,8 @@ import {
 import {BaseObject} from '../../lib/base/BaseObject.js'
 import {Inject} from '../../decorators/di/Inject.js'
 import {Expect} from '../../decorators/dto/Expect.js'
-import {ConstructorSymbol, ResolveConstructorNameBySymbol} from '../../lib/ioc/ConstructorSymbol.js'
-import {IsDTO} from '../../lib/dto/ObjectSchemaValidation.js'
+import {constructorSymbol, resolveConstructorNameBySymbol} from '../../lib/ioc/ConstructorSymbol.js'
+import {isDTO} from '../../lib/dto/ObjectSchemaValidation.js'
 import {DTO} from '../../lib/dto/DTO.js'
 import {Alias} from '../../lib/core/Alias.js'
 
@@ -114,7 +114,7 @@ await describe('Singleton Integrity (G4)', async (): Promise<void> => {
                 @Expect(DTO.String().optional())
                 public field?: string
             }
-            assert.equal(IsDTO(ProbeDTO), true)
+            assert.equal(isDTO(ProbeDTO), true)
             //POST-SPLIT: a duplicated DTO_CONSTRUCTOR makes IsDTO false and
             //@Configurable validation silently skips.
         })
@@ -123,16 +123,16 @@ await describe('Singleton Integrity (G4)', async (): Promise<void> => {
     await describe('ConstructorSymbol name map (G4-10)', async (): Promise<void> => {
         await it('ConstructorSymbol + ResolveConstructorNameBySymbol round-trip via the module-level Map', (): void => {
             class ProbeObject extends BaseObject {}
-            const sym: symbol = ConstructorSymbol(ProbeObject)
+            const sym: symbol = constructorSymbol(ProbeObject)
             assert.equal(typeof sym, 'symbol')
-            assert.equal(ResolveConstructorNameBySymbol(sym), 'ProbeObject')
+            assert.equal(resolveConstructorNameBySymbol(sym), 'ProbeObject')
             //POST-SPLIT: the module-level symbolConstructorMap lives in one
             //module instance; a duplicated core leaves the symbol absent from
             //core's map -> DI registration names corrupt.
         })
         await it('ConstructorSymbol is stable across calls for the same class', (): void => {
             class StableObject extends BaseObject {}
-            assert.equal(ConstructorSymbol(StableObject), ConstructorSymbol(StableObject))
+            assert.equal(constructorSymbol(StableObject), constructorSymbol(StableObject))
         })
     })
 

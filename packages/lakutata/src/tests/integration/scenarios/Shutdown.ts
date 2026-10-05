@@ -8,7 +8,7 @@ import {expressHTTPEntrypoint, jsonEnvelope} from '../../../exports/ExpressAdapt
 import {GET} from '../../../exports/CTRLDecorators.js'
 import {Inject} from '../../../exports/DIDecorators.js'
 import {buildDatabaseOptions, Database} from '../../../exports/DatabaseComponent.js'
-import {FreePort, RunChecks} from '../support/Scenario.js'
+import {freePort, runChecks} from '../support/Scenario.js'
 
 /**
  * A component telling its destruction
@@ -38,7 +38,7 @@ class SlowController extends Controller {
     }
 }
 
-const port: number = await FreePort()
+const port: number = await freePort()
 const url = (route: string): string => `http://127.0.0.1:${port}${route}`
 
 Application
@@ -56,7 +56,7 @@ Application
         },
         bootstrap: ['recorder', 'db', 'entrypoint']
     }))
-    .onLaunched((app: Application): Promise<void> => RunChecks(app, async (check): Promise<void> => {
+    .onLaunched((app: Application): Promise<void> => runChecks(app, async (check): Promise<void> => {
         await check('the application serves its requests before it exits', async (): Promise<void> => {
             assert.strictEqual(((await (await fetch(url('/fast'))).json()) as { data: string }).data, 'fast')
         })

@@ -7,7 +7,7 @@ import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync}
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {FrameworkVersion, ToolMajor} from '../lib/Versions.js'
+import {frameworkVersion, toolMajor} from '../lib/Versions.js'
 
 const CLI: string = fileURLToPath(new URL('../CLIApp.js', import.meta.url))
 
@@ -34,7 +34,7 @@ let base: string
  * Pack a directory into a gzipped tar archive
  * @param directory its files are under its name in the archive
  */
-function Pack(directory: string): Buffer {
+function pack(directory: string): Buffer {
     const archive: string = `${directory}.tgz`
     //Without the AppleDouble files of macOS, as the archives of the registry and of GitHub
     execFileSync('tar', ['-czf', archive, '-C', path.dirname(directory), path.basename(directory)], {env: {...process.env, COPYFILE_DISABLE: '1'}})
@@ -45,7 +45,7 @@ function Pack(directory: string): Buffer {
  * The archive of a template package: "package/" with its package.json and the files of the template in "package/template/"
  * @param marker a text telling the version apart
  */
-function TemplatePackage(marker: string): Buffer {
+function templatePackage(marker: string): Buffer {
     const root: string = path.join(work, 'packs', marker, 'package')
     mkdirSync(path.join(root, 'template', 'src'), {recursive: true})
     writeFileSync(path.join(root, 'package.json'), JSON.stringify({name: '@lakutata/template-default', version: marker}))
@@ -54,29 +54,29 @@ function TemplatePackage(marker: string): Buffer {
     writeFileSync(path.join(root, 'template', '_gitignore'), 'node_modules\n')
     //A binary file is not filled
     writeFileSync(path.join(root, 'template', 'logo.bin'), Buffer.from([0, 1, 2, 123, 36, 65, 80, 80, 125]))
-    return Pack(root)
+    return pack(root)
 }
 
 /**
  * The archive of a package of another author, without template/: the package is the template
  */
-function OtherPackage(): Buffer {
+function otherPackage(): Buffer {
     const root: string = path.join(work, 'packs', 'other', 'package')
     mkdirSync(root, {recursive: true})
     writeFileSync(path.join(root, 'package.json'), JSON.stringify({name: '{$APP_ID}', private: true}))
     writeFileSync(path.join(root, 'index.js'), 'export default \'{$APP_NAME}\'\n')
-    return Pack(root)
+    return pack(root)
 }
 
 /**
  * The archive of a GitHub repository: a root directory "<repo>-<ref>" with the template
  */
-function Repository(): Buffer {
+function repositoryArchive(): Buffer {
     const root: string = path.join(work, 'packs', 'github', 'my-template-main')
     mkdirSync(root, {recursive: true})
     writeFileSync(path.join(root, 'package.json'), JSON.stringify({name: '{$APP_ID}', private: true}))
     writeFileSync(path.join(root, 'README.md'), '# {$APP_NAME}\n')
-    return Pack(root)
+    return pack(root)
 }
 
 /**
@@ -84,7 +84,7 @@ function Repository(): Buffer {
  * @param args
  * @param cwd
  */
-function Run(args: string[], cwd: string = work): Promise<{ code: number, stdout: string, stderr: string }> {
+function runCommand(args: string[], cwd: string = work): Promise<{ code: number, stdout: string, stderr: string }> {
     return new Promise((resolve: (result: { code: number, stdout: string, stderr: string }) => void): void => {
         execFile(process.execPath, [CLI, ...args], {
             cwd: cwd,
@@ -102,13 +102,13 @@ function Run(args: string[], cwd: string = work): Promise<{ code: number, stdout
 describe('The command line tool', (): void => {
 
     //The versions of the template: an older and the newest of the major version of the tool, and the next major version
-    const major: number = ToolMajor()
+    const major: number = toolMajor()
     const versions: string[] = [`${major}.0.1`, `${major}.9.0`, `${major + 1}.0.0`, `${major}.10.0-beta.1`]
 
     before(async (): Promise<void> => {
-        const tarballs: Map<string, Buffer> = new Map(versions.map((version: string): [string, Buffer] => [version, TemplatePackage(version)]))
-        const other: Buffer = OtherPackage()
-        const repository: Buffer = Repository()
+        const tarballs: Map<string, Buffer> = new Map(versions.map((version: string): [string, Buffer] => [version, templatePackage(version)]))
+        const other: Buffer = otherPackage()
+        const repository: Buffer = repositoryArchive()
         server = createServer((request: IncomingMessage, response: ServerResponse): void => {
             const url: URL = new URL(request.url!, 'http://localhost')
             requests.push(url.pathname)
@@ -144,13 +144,13 @@ describe('The command line tool', (): void => {
     it('lists the official templates of the catalog, and keeps it', async (): Promise<void> => {
         //Without the catalog nor its cache, the templates known by the tool
         registryAvailable = false
-        const builtin = await Run(['templates'])
+        const builtin = await runCommand(['templates'])
         registryAvailable = true
         assert.strictEqual(builtin.code, 0, builtin.stderr)
         assert.match(builtin.stderr, /the templates known by the tool are listed/)
         assert.match(builtin.stdout, /default/)
         requests = []
-        const listed = await Run(['templates'])
+        const listed = await runCommand(['templates'])
         assert.strictEqual(listed.code, 0, listed.stderr)
         assert.match(listed.stdout, /default\s+The default template\n\s+service\s+The service template/)
         assert.match(listed.stdout, /npm:<package>, github:<owner>\/<repo>, or a directory/)
@@ -158,10 +158,10 @@ describe('The command line tool', (): void => {
         assert.doesNotMatch(listed.stdout, /Another major version/)
         //The catalog is cached, --refresh fetches it again, the cache is used when the registry cannot be reached
         requests = []
-        await Run(['templates'])
+        await runCommand(['templates'])
         assert.deepStrictEqual(requests, [])
         registryAvailable = false
-        const offline = await Run(['templates', '--refresh'])
+        const offline = await runCommand(['templates', '--refresh'])
         registryAvailable = true
         assert.match(offline.stderr, /the catalog of .* is used/)
         assert.match(offline.stdout, /service/)
@@ -169,12 +169,12 @@ describe('The command line tool', (): void => {
 
     it('creates a project from the newest official template of the major version of the tool', async (): Promise<void> => {
         requests = []
-        const result = await Run(['create', '--name', 'Demo', '--description', 'A demo app', '--author', 'Alex', '--package-manager', 'npm', '--yes'])
+        const result = await runCommand(['create', '--name', 'Demo', '--description', 'A demo app', '--author', 'Alex', '--package-manager', 'npm', '--yes'])
         assert.strictEqual(result.code, 0, result.stderr)
         assert.ok(requests.includes(`/tarballs/default/${major}.9.0`), requests.join(', '))
         assert.match(result.stdout, new RegExp(`Template @lakutata/template-default@${major}\\.9\\.0 copied \\(4 files\\)`))
         const directory: string = path.join(work, 'Demo')
-        assert.deepStrictEqual(JSON.parse(readFileSync(path.join(directory, 'package.json'), 'utf8')), {name: 'demo', description: 'A demo app', author: 'Alex', license: 'UNLICENSED', appName: 'Demo', lakutata: `^${FrameworkVersion()}`, private: true})
+        assert.deepStrictEqual(JSON.parse(readFileSync(path.join(directory, 'package.json'), 'utf8')), {name: 'demo', description: 'A demo app', author: 'Alex', license: 'UNLICENSED', appName: 'Demo', lakutata: `^${frameworkVersion()}`, private: true})
         assert.strictEqual(readFileSync(path.join(directory, 'src', 'App.ts'), 'utf8'), `console.log('Demo', '${major}.9.0')\n`)
         assert.deepStrictEqual([...readFileSync(path.join(directory, 'logo.bin'))], [0, 1, 2, 123, 36, 65, 80, 80, 125])
         //The npm packages cannot hold .gitignore
@@ -187,7 +187,7 @@ describe('The command line tool', (): void => {
 
     it('creates the projects from the cached template when the registry cannot be reached', async (): Promise<void> => {
         registryAvailable = false
-        const result = await Run(['create', '--name', 'Offline', '--package-manager', 'none', '--no-git'])
+        const result = await runCommand(['create', '--name', 'Offline', '--package-manager', 'none', '--no-git'])
         registryAvailable = true
         assert.strictEqual(result.code, 0, result.stderr)
         assert.match(result.stderr, new RegExp(`the cached @lakutata/template-default@${major}\\.9\\.0 is used`))
@@ -195,15 +195,15 @@ describe('The command line tool', (): void => {
     })
 
     it('creates the projects from the other templates', async (): Promise<void> => {
-        const fromNpm = await Run(['create', '--name', 'fromnpm', '--template', 'npm:@me/template@1.0.0', '--package-manager', 'none', '--no-git'])
+        const fromNpm = await runCommand(['create', '--name', 'fromnpm', '--template', 'npm:@me/template@1.0.0', '--package-manager', 'none', '--no-git'])
         assert.strictEqual(fromNpm.code, 0, fromNpm.stderr)
         assert.strictEqual(readFileSync(path.join(work, 'fromnpm', 'index.js'), 'utf8'), 'export default \'fromnpm\'\n')
-        const fromGitHub = await Run(['create', '--name', 'fromgithub', '--template', 'github:me/my-template', '--package-manager', 'none', '--no-git'])
+        const fromGitHub = await runCommand(['create', '--name', 'fromgithub', '--template', 'github:me/my-template', '--package-manager', 'none', '--no-git'])
         assert.strictEqual(fromGitHub.code, 0, fromGitHub.stderr)
         assert.strictEqual(readFileSync(path.join(work, 'fromgithub', 'README.md'), 'utf8'), '# fromgithub\n')
         //A local template package: its template/ directory
         const local: string = path.join(work, 'packs', `${major}.0.1`, 'package')
-        const fromDirectory = await Run(['create', '--name', 'fromdir', '--template', local, '--package-manager', 'none', '--no-git'])
+        const fromDirectory = await runCommand(['create', '--name', 'fromdir', '--template', local, '--package-manager', 'none', '--no-git'])
         assert.strictEqual(fromDirectory.code, 0, fromDirectory.stderr)
         assert.strictEqual(readFileSync(path.join(work, 'fromdir', 'src', 'App.ts'), 'utf8'), `console.log('fromdir', '${major}.0.1')\n`)
         assert.ok(existsSync(path.join(work, 'fromdir', '.gitignore')))
@@ -213,28 +213,28 @@ describe('The command line tool', (): void => {
         const directory: string = path.join(work, 'existing')
         mkdirSync(directory)
         writeFileSync(path.join(directory, 'README.md'), 'kept')
-        const created = await Run(['create', '--name', 'here', '--path', directory, '--init', '--package-manager', 'none', '--no-git'], directory)
+        const created = await runCommand(['create', '--name', 'here', '--path', directory, '--init', '--package-manager', 'none', '--no-git'], directory)
         assert.strictEqual(created.code, 0, created.stderr)
         assert.strictEqual(readFileSync(path.join(directory, 'README.md'), 'utf8'), 'kept')
         assert.strictEqual(JSON.parse(readFileSync(path.join(directory, 'package.json'), 'utf8')).name, 'here')
     })
 
     it('fails with the errors of the arguments', async (): Promise<void> => {
-        const notEmpty = await Run(['create', '--name', 'Demo', '--package-manager', 'none'])
+        const notEmpty = await runCommand(['create', '--name', 'Demo', '--package-manager', 'none'])
         assert.strictEqual(notEmpty.code, 1)
         assert.match(notEmpty.stderr, /is not empty/)
-        const unknown = await Run(['create', '--name', 'x', '--template', 'nope', '--package-manager', 'none'])
+        const unknown = await runCommand(['create', '--name', 'x', '--template', 'nope', '--package-manager', 'none'])
         assert.strictEqual(unknown.code, 1)
         assert.match(unknown.stderr, /The template "nope" does not exist \(@lakutata\/template-nope is not on .*\), the templates are: default, service/)
-        const invalid = await Run(['create', '--name', 'bad name!'])
+        const invalid = await runCommand(['create', '--name', 'bad name!'])
         assert.strictEqual(invalid.code, 1)
-        const missing = await Run(['create'])
+        const missing = await runCommand(['create'])
         assert.strictEqual(missing.code, 1)
         assert.match(missing.stderr, /required option '--name <value>'/)
     })
 
     it('shows the versions', async (): Promise<void> => {
-        const info = await Run(['info'])
+        const info = await runCommand(['info'])
         assert.strictEqual(info.code, 0, info.stderr)
         assert.match(info.stdout, /Framework\s+lakutata \S+ \(latest 9\.9\.9\)/)
     })

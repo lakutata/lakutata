@@ -1,5 +1,5 @@
 import {readFile} from 'node:fs/promises'
-import {ApplyEdits, IndentUnit, LineEnd, LineIndent, NativeSyntaxError, type TextEdit} from './TextEdits.js'
+import {applyEdits, indentUnit, lineEndOf, lineIndent, NativeSyntaxError, type TextEdit} from './TextEdits.js'
 
 /**
  * An argument of a command of CMake: bracket ([=[…]=]), quoted ("…") or unquoted, with its place in the text
@@ -207,7 +207,7 @@ export class CMakeDocument {
 
     constructor(public readonly file: string, public readonly text: string) {
         this.commands = new CMakeParser(file, text).parse()
-        this.indent = IndentUnit(text)
+        this.indent = indentUnit(text)
     }
 
     public static async read(file: string): Promise<CMakeDocument> {
@@ -222,7 +222,7 @@ export class CMakeDocument {
      * The document with its changes (parsed again)
      */
     public applied(): CMakeDocument {
-        return new CMakeDocument(this.file, ApplyEdits(this.text, this.edits))
+        return new CMakeDocument(this.file, applyEdits(this.text, this.edits))
     }
 
     /**
@@ -296,18 +296,18 @@ export class CMakeDocument {
             const block: CMakeCommand | undefined = this.conditionBlock(target, condition)
             if (block) {
                 const last: CMakeCommand = this.commands[this.commands.indexOf(block) - 1]
-                const indent: string = this.commands[this.commands.indexOf(block) - 1].depth === 1 ? LineIndent(this.text, last.start) : LineIndent(this.text, block.start) + this.indent
-                this.edits.push({offset: LineEnd(this.text, last.end), remove: 0, insert: `\n${lines.map((line: string): string => `${indent}${line}`).join('\n')}`})
+                const indent: string = this.commands[this.commands.indexOf(block) - 1].depth === 1 ? lineIndent(this.text, last.start) : lineIndent(this.text, block.start) + this.indent
+                this.edits.push({offset: lineEndOf(this.text, last.end), remove: 0, insert: `\n${lines.map((line: string): string => `${indent}${line}`).join('\n')}`})
                 return
             }
         }
         //The block of a condition: the if blocks of the target are followed by the next one
         const anchor: CMakeCommand = this.blockEnd(about.at(-1)!)
-        const indent: string = LineIndent(this.text, anchor.start)
+        const indent: string = lineIndent(this.text, anchor.start)
         const block: string = condition === undefined
             ? lines.map((line: string): string => `${indent}${line}`).join('\n')
             : [`${indent}if(${condition})`, ...lines.map((line: string): string => `${indent}${this.indent}${line}`), `${indent}endif()`].join('\n')
-        this.edits.push({offset: LineEnd(this.text, anchor.end), remove: 0, insert: `\n${block}`})
+        this.edits.push({offset: lineEndOf(this.text, anchor.end), remove: 0, insert: `\n${block}`})
     }
 
     /**
@@ -361,6 +361,6 @@ export class CMakeDocument {
  * An argument of CMake for a value: quoted when it has spaces, semicolons, parentheses or quotes
  * @param value
  */
-export function CMakeArgumentText(value: string): string {
+export function cMakeArgumentText(value: string): string {
     return /[\s;()#"\\]/.test(value) && !/^\$<.*>$/.test(value) ? `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"` : value
 }

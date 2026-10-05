@@ -346,7 +346,7 @@ class FrameReader {
  * @param message
  * @param compression
  */
-function Frame(schema: Schema, message: Message, compression: GRPCCompression = 'identity'): Buffer {
+function encodeFrame(schema: Schema, message: Message, compression: GRPCCompression = 'identity'): Buffer {
     let data: Uint8Array = encode(schema, message)
     const compressed: boolean = compression !== 'identity'
     if (compression === 'gzip') data = gzipSync(data)
@@ -362,7 +362,7 @@ function Frame(schema: Schema, message: Message, compression: GRPCCompression = 
  * The status of a call, from its trailers (or its headers, a response of trailers only)
  * @param headers
  */
-function Status(headers: IncomingHttpHeaders): { code: number, message: string } | undefined {
+function statusOf(headers: IncomingHttpHeaders): { code: number, message: string } | undefined {
     const code: string | string[] | undefined = headers['grpc-status']
     if (code === undefined) return undefined
     const raw: string | string[] = headers['grpc-message'] ?? ''
@@ -600,7 +600,7 @@ export class GRPCConnection {
         let status: { code: number, message: string } | undefined
         stream.on('response', (headers: IncomingHttpHeaders & IncomingHttpStatusHeader): void => {
             if (headers[':status'] !== 200) status = {code: GRPCStatus.UNKNOWN, message: `HTTP status ${headers[':status']}`}
-            status = Status(headers) ?? status
+            status = statusOf(headers) ?? status
             reader.encoding = String(headers['grpc-encoding'] ?? 'identity')
         })
         stream.on('data', (chunk: Buffer): void => {
@@ -612,7 +612,7 @@ export class GRPCConnection {
             }
         })
         stream.on('trailers', (trailers: IncomingHttpHeaders): void => {
-            status = Status(trailers) ?? status
+            status = statusOf(trailers) ?? status
         })
         stream.on('error', (error: Error): void => queue.finish(new GRPCError(GRPCStatus.UNAVAILABLE, error.message, path)))
         stream.on('close', (): void => {
@@ -641,7 +641,7 @@ export class GRPCConnection {
         const stream: ClientHttp2Stream = this.open(path, options)
         const queue: MessageQueue = new MessageQueue((): void => undefined)
         this.read(path, stream, responseSchema, queue)
-        stream.end(Frame(requestSchema, request, this.messageOptions.compression))
+        stream.end(encodeFrame(requestSchema, request, this.messageOptions.compression))
         let response: Message | undefined
         for await (const message of queue) response ??= message
         return response ?? {}
@@ -663,7 +663,7 @@ export class GRPCConnection {
         const stream: ClientHttp2Stream = this.open(path, options)
         const queue: MessageQueue = new MessageQueue((): void => void stream.close(http2.constants.NGHTTP2_CANCEL))
         this.read(path, stream, responseSchema, queue)
-        stream.end(Frame(requestSchema, request, this.messageOptions.compression))
+        stream.end(encodeFrame(requestSchema, request, this.messageOptions.compression))
         return queue
     }
 
@@ -701,7 +701,7 @@ export class GRPCConnection {
         return {
             send: async (message: Message): Promise<void> => {
                 if (stream.closed || stream.destroyed) throw new GRPCError(GRPCStatus.CANCELLED, 'The call is closed', path)
-                if (!stream.write(Frame(requestSchema, message, this.messageOptions.compression))) {
+                if (!stream.write(encodeFrame(requestSchema, message, this.messageOptions.compression))) {
                     await new Promise<void>((resolve: () => void): void => {
                         const done = (): void => {
                             stream.off('drain', done).off('close', done)
@@ -916,7 +916,7 @@ export class GRPCServerCall {
     public async send(schema: Schema, message: Message): Promise<void> {
         if (this.#finished || this.stream.destroyed) throw new GRPCError(GRPCStatus.CANCELLED, 'The call is closed', this.path)
         this.respond()
-        if (!this.stream.write(Frame(schema, message, this.#compression))) {
+        if (!this.stream.write(encodeFrame(schema, message, this.#compression))) {
             await new Promise<void>((resolve: () => void): void => {
                 const done = (): void => {
                     this.stream.off('drain', done).off('close', done)

@@ -164,7 +164,7 @@ export function ipcEventOfContext<Event extends IPCInvokeEvent = IPCInvokeEvent>
 /**
  * The ipcMain of the main process of Electron
  */
-async function LoadIPCMain(): Promise<IPCMain> {
+async function loadIPCMain(): Promise<IPCMain> {
     let ipcMain: IPCMain | undefined
     try {
         //Electron is not a dependency: it is loaded where it runs
@@ -295,7 +295,7 @@ export function electronIPCServiceEntrypoint(options: ElectronIPCServiceEntrypoi
         name: options.name,
         middlewares: options.middlewares,
         start: async (runtime: ChannelRuntime<ServiceContext>): Promise<void> => {
-            ipcMain = options.ipcMain ?? await LoadIPCMain()
+            ipcMain = options.ipcMain ?? await loadIPCMain()
             ipcMain.on?.(subscribeChannel, (event: IPCInvokeEvent, clientId: unknown): unknown => register(event, clientId))
             ipcMain.handle(channel, async (event: IPCInvokeEvent, data: unknown, clientId: unknown): Promise<ServiceResponse> => {
                 if (stopping) return ServiceResponseCodec.encodeError(new EntrypointStoppedException('The entrypoint is stopping'))

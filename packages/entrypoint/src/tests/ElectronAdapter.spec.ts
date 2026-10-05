@@ -42,7 +42,7 @@ class FakeIPCMain implements IPCMain {
      * @param args
      */
     public send(channel: string, page: Page, ...args: unknown[]): void {
-        this.listeners.get(channel)?.(PageEvent(page), ...args)
+        this.listeners.get(channel)?.(pageEvent(page), ...args)
     }
 
     /**
@@ -55,7 +55,7 @@ class FakeIPCMain implements IPCMain {
     public async invoke(channel: string, sender: EventEmitter | Page, data: unknown, clientId?: string): Promise<any> {
         const handler = this.handlers.get(channel)
         if (!handler) throw new Error(`No handler registered for '${channel}'`)
-        return await handler(sender instanceof EventEmitter ? {sender: sender} : PageEvent(sender), data, clientId)
+        return await handler(sender instanceof EventEmitter ? {sender: sender} : pageEvent(sender), data, clientId)
     }
 }
 
@@ -89,7 +89,7 @@ class EchoController extends Controller {
  * A renderer
  * @param id
  */
-function Renderer(id: number): EventEmitter & { received: unknown[][] } {
+function createRenderer(id: number): EventEmitter & { received: unknown[][] } {
     const received: unknown[][] = []
     return Object.assign(new EventEmitter(), {id: id, received: received, sendToFrame: (...args: unknown[]): unknown => received.push(args)})
 }
@@ -103,7 +103,7 @@ type Page = { renderer: EventEmitter, processId: number, frameId: number }
  * The event of the IPC sent by a page (of the main frame of its window)
  * @param page
  */
-function PageEvent(page: Page): Record<string, unknown> {
+function pageEvent(page: Page): Record<string, unknown> {
     return {sender: page.renderer, processId: page.processId, frameId: page.frameId, senderFrame: {parent: null}}
 }
 
@@ -112,7 +112,7 @@ function PageEvent(page: Page): Record<string, unknown> {
  * @param ipcMain
  * @param entrypointOptions
  */
-async function Start(ipcMain: FakeIPCMain, entrypointOptions: Record<string, unknown> = {}): Promise<Container> {
+async function start(ipcMain: FakeIPCMain, entrypointOptions: Record<string, unknown> = {}): Promise<Container> {
     const container: Container = new Container()
     await container.set(Entrypoint, buildEntrypoints({controllers: [EchoController], ...entrypointOptions, service: electronIPCServiceEntrypoint({ipcMain: ipcMain})}))
     return container
@@ -122,9 +122,9 @@ describe('Electron adapter', (): void => {
 
     it('answers the invocations of the renderers', async (): Promise<void> => {
         const ipcMain: FakeIPCMain = new FakeIPCMain()
-        const container: Container = await Start(ipcMain)
-        assert.deepStrictEqual(await ipcMain.invoke('lakutata:service', Renderer(7), {cmd: 'echo', value: 3}), {success: true, error: null, payload: {value: 3, renderer: 7}})
-        const invalid = await ipcMain.invoke('lakutata:service', Renderer(7), {cmd: 'echo', value: 'x'})
+        const container: Container = await start(ipcMain)
+        assert.deepStrictEqual(await ipcMain.invoke('lakutata:service', createRenderer(7), {cmd: 'echo', value: 3}), {success: true, error: null, payload: {value: 3, renderer: 7}})
+        const invalid = await ipcMain.invoke('lakutata:service', createRenderer(7), {cmd: 'echo', value: 'x'})
         assert.strictEqual(invalid.success, false)
         assert.strictEqual(invalid.error.errno, 'E_INVALID_VALUE')
         await container.destroy()
@@ -140,11 +140,11 @@ describe('Electron adapter', (): void => {
             signals.push(invocation.signal!)
             return next()
         }
-        const container: Container = await Start(ipcMain, {middlewares: [traced('global')]})
-        await ipcMain.invoke('lakutata:service', Renderer(1), {cmd: 'echo', value: 1})
+        const container: Container = await start(ipcMain, {middlewares: [traced('global')]})
+        await ipcMain.invoke('lakutata:service', createRenderer(1), {cmd: 'echo', value: 1})
         assert.deepStrictEqual(trace, ['global'])
         signals = []
-        const renderer: EventEmitter = Renderer(2)
+        const renderer: EventEmitter = createRenderer(2)
         const pending: Promise<any> = ipcMain.invoke('lakutata:service', renderer, {cmd: 'slow'})
         await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 20))
         renderer.emit('destroyed')
@@ -155,10 +155,10 @@ describe('Electron adapter', (): void => {
 
     it('pushes the events to the pages by their client ids, to every page, as long as they are loaded', async (): Promise<void> => {
         const ipcMain: FakeIPCMain = new FakeIPCMain()
-        const container: Container = await Start(ipcMain)
+        const container: Container = await start(ipcMain)
         const entrypoint: Entrypoint = await container.get(Entrypoint)
         //Two windows: the main frames of their renderers have the same id (the ones of the frames are the ones of their process)
-        const [first, second] = [Renderer(1), Renderer(2)]
+        const [first, second] = [createRenderer(1), createRenderer(2)]
         const one: Page = {renderer: first, processId: 5, frameId: 1}
         const two: Page = {renderer: second, processId: 6, frameId: 1}
         ipcMain.send('lakutata:service:subscribe', one, 'one')
@@ -180,7 +180,7 @@ describe('Electron adapter', (): void => {
         assert.strictEqual(entrypoint.notify('two', 'progress'), false)
         assert.strictEqual(entrypoint.broadcast('all'), 1)
         //The requests without client id
-        assert.deepStrictEqual(await ipcMain.invoke('lakutata:service', Renderer(4), {cmd: 'whoami'}), {success: true, error: null, payload: undefined})
+        assert.deepStrictEqual(await ipcMain.invoke('lakutata:service', createRenderer(4), {cmd: 'whoami'}), {success: true, error: null, payload: undefined})
         await container.destroy()
         assert.strictEqual(ipcMain.listeners.size, 0)
     })
@@ -199,7 +199,7 @@ describe('Electron adapter', (): void => {
             ]
         }))
         const entrypoint: Entrypoint = await container.get(Entrypoint)
-        const window: EventEmitter & { received: unknown[][] } = Renderer(1)
+        const window: EventEmitter & { received: unknown[][] } = createRenderer(1)
         ipcMain.send('lakutata:service:subscribe', {renderer: window, processId: 5, frameId: 1}, 'window')
         const tool: ClientSocket = Connect(`http://127.0.0.1:${port}`, {transports: ['websocket'], reconnection: false, extraHeaders: {id: 'postman'}})
         await new Promise<void>((resolve: () => void): unknown => tool.once('connect', resolve))
@@ -216,11 +216,11 @@ describe('Electron adapter', (): void => {
 
     it('stops gracefully', async (): Promise<void> => {
         const ipcMain: FakeIPCMain = new FakeIPCMain()
-        const container: Container = await Start(ipcMain)
-        const inProgress: Promise<any> = ipcMain.invoke('lakutata:service', Renderer(1), {cmd: 'slow'})
+        const container: Container = await start(ipcMain)
+        const inProgress: Promise<any> = ipcMain.invoke('lakutata:service', createRenderer(1), {cmd: 'slow'})
         await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 20))
         const destroyed: Promise<void> = container.destroy()
-        const refused = await ipcMain.invoke('lakutata:service', Renderer(1), {cmd: 'echo', value: 1})
+        const refused = await ipcMain.invoke('lakutata:service', createRenderer(1), {cmd: 'echo', value: 1})
         assert.strictEqual(refused.error.errno, 'E_ENTRYPOINT_STOPPED')
         assert.deepStrictEqual(await inProgress, {success: true, error: null, payload: 'slow'})
         await destroyed

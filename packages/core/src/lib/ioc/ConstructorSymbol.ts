@@ -4,7 +4,7 @@ import {IConstructor} from '../../interfaces/IConstructor.js'
 
 const symbolConstructorMap: Map<symbol, string> = new Map()
 
-export function ConstructorSymbol<T>(constructor: IConstructor<T>): symbol {
+export function constructorSymbol<T>(constructor: IConstructor<T>): symbol {
     if (!Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_SYMBOL, constructor)) {
         const uuidSymbol: symbol = Symbol(randomUUID())
         symbolConstructorMap.set(uuidSymbol, constructor.name)
@@ -13,7 +13,7 @@ export function ConstructorSymbol<T>(constructor: IConstructor<T>): symbol {
     return Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_SYMBOL, constructor)
 }
 
-export function ResolveConstructorNameBySymbol(symbol: symbol): string | symbol {
+export function resolveConstructorNameBySymbol(symbol: symbol): string | symbol {
     const realName: string | undefined = symbolConstructorMap.get(symbol)
     if (realName) return realName
     return symbol

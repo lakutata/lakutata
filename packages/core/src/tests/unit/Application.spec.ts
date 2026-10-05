@@ -36,7 +36,7 @@ const bootstrapped = []
  * handler prints the result
  * @param script
  */
-function RunApplication(script: string): { status: number | null, result: any, output: string } {
+function runApplication(script: string): { status: number | null, result: any, output: string } {
     const run: SpawnSyncReturns<string> = spawnSync(process.execPath, ['--input-type=module', '-e', CLASSES + script], {
         cwd: PACKAGE_DIRECTORY,
         encoding: 'utf8',
@@ -65,13 +65,13 @@ const PRINT: string = `
 describe('The applications', (): void => {
 
     it('have no preset object: they log to the console without "log" component', (): void => {
-        const {status, result, output} = RunApplication(`Application.run({id: 'test', name: 'Test'})${PRINT}`)
+        const {status, result, output} = runApplication(`Application.run({id: 'test', name: 'Test'})${PRINT}`)
         assert.strictEqual(status, 0, output)
         assert.deepStrictEqual(result, {identity: ['test', 'Test'], logger: 'ConsoleLogger', log: null, service: false, bootstrapped: []})
     })
 
     it('load the preset objects, and run the preset bootstrap first', (): void => {
-        const {status, result, output} = RunApplication(`
+        const {status, result, output} = runApplication(`
 Application.preset({
     components: {log: {class: MemoryLogger}, service: {class: Service}},
     bootstrap: ['log', async () => bootstrapped.push('preset')]
@@ -82,7 +82,7 @@ Application.run({id: 'test', name: 'Test', bootstrap: [async () => bootstrapped.
     })
 
     it('replace the preset objects by the objects of the same name given to run, or add their options', (): void => {
-        const {status, result, output} = RunApplication(`
+        const {status, result, output} = runApplication(`
 Application.preset({components: {log: {class: MemoryLogger}, service: {class: Service}}})
 Application.run({id: 'test', name: 'Test', components: {log: {class: OtherLogger}, service: {}}})${PRINT}`)
         assert.strictEqual(status, 0, output)
@@ -90,7 +90,7 @@ Application.run({id: 'test', name: 'Test', components: {log: {class: OtherLogger
     })
 
     it('call launched() once the application has launched, right after the initialization of the objects created then, not for the objects destroyed before', (): void => {
-        const {status, result, output} = RunApplication(`
+        const {status, result, output} = runApplication(`
 const order = []
 class Early extends Component { async launched() { order.push('early launched') } }
 class Late extends Component { async launched() { order.push('late launched') } }
@@ -115,7 +115,7 @@ Application.run({
     })
 
     it('add each preset to the previous ones', (): void => {
-        const {status, result, output} = RunApplication(`
+        const {status, result, output} = runApplication(`
 const first = async () => bootstrapped.push('first')
 Application.preset({components: {log: {class: MemoryLogger}}, bootstrap: [first]})
 Application.preset({components: {log: {class: OtherLogger}, service: {class: Service}}, bootstrap: [first, async () => bootstrapped.push('second')]})
@@ -143,15 +143,15 @@ const application = Application.run({
 })`
 
         it('exit with the code 1 without handler, the error logged, though objects keep the process alive', (): void => {
-            const run = RunApplication(FAILING)
+            const run = runApplication(FAILING)
             assert.strictEqual(run.status, 1, run.output)
             assert.match(run.output, /FatalException/)
             assert.match(run.output, /the database is down/)
         })
 
         it('exit with the code of the handler, 1 when it gives none', (): void => {
-            assert.strictEqual(RunApplication(`${FAILING}.onFatalException(() => 3)`).status, 3)
-            const handled = RunApplication(`${FAILING}.onFatalException((error, logger) => console.log('HANDLED ' + error.message))`)
+            assert.strictEqual(runApplication(`${FAILING}.onFatalException(() => 3)`).status, 3)
+            const handled = runApplication(`${FAILING}.onFatalException((error, logger) => console.log('HANDLED ' + error.message))`)
             assert.strictEqual(handled.status, 1, handled.output)
             assert.match(handled.output, /HANDLED the database is down/)
         })
@@ -165,7 +165,7 @@ const application = Application.run({
          * @param signals
          * @param ready the line telling when to send the signals
          */
-        function Signal(script: string, signals: NodeJS.Signals[], ready: string = 'READY'): Promise<{ code: number | null, signal: NodeJS.Signals | null, output: string }> {
+        function runWithSignals(script: string, signals: NodeJS.Signals[], ready: string = 'READY'): Promise<{ code: number | null, signal: NodeJS.Signals | null, output: string }> {
             return new Promise((resolve): void => {
                 const child = spawn(process.execPath, ['--input-type=module', '-e', CLASSES + script], {cwd: PACKAGE_DIRECTORY})
                 let output: string = ''
@@ -191,7 +191,7 @@ const application = Application.run({
          * @param options the options of the application
          * @param hang the destruction of the component never ends
          */
-        const APPLICATION = (options: string = '', hang: boolean = false): string => `
+        const application = (options: string = '', hang: boolean = false): string => `
 class Keeper extends Component {
     async init() { this.timer = setInterval(() => undefined, 1000) }
     async destroy() {
@@ -206,7 +206,7 @@ Application.run({id: 'signals.app', name: 'SignalsApp', components: {keeper: {cl
 
         it('end gracefully on SIGTERM and SIGINT: the objects destroyed, done, the code 0', {skip: POSIX_SIGNALS}, async (): Promise<void> => {
             for (const signal of ['SIGTERM', 'SIGINT'] as NodeJS.Signals[]) {
-                const run = await Signal(APPLICATION(), [signal])
+                const run = await runWithSignals(application(), [signal])
                 assert.strictEqual(run.code, 0, `${signal}: ${run.output}`)
                 //The done handler is told the signal, before the objects are destroyed
                 assert.match(run.output, new RegExp(`DONE \\{"code":0,"signal":"${signal}"\\}[\\s\\S]*DESTROYED keeper`), signal)
@@ -214,14 +214,14 @@ Application.run({id: 'signals.app', name: 'SignalsApp', components: {keeper: {cl
         })
 
         it('end at once on a second signal, the shutdown hanging, with the code 128 + the number of the signal', {skip: POSIX_SIGNALS}, async (): Promise<void> => {
-            const run = await Signal(APPLICATION('', true), ['SIGTERM', 'SIGTERM'])
+            const run = await runWithSignals(application('', true), ['SIGTERM', 'SIGTERM'])
             assert.strictEqual(run.code, 143, run.output)
             assert.match(run.output, /DESTROYED keeper/)
-            assert.strictEqual((await Signal(APPLICATION('', true), ['SIGINT', 'SIGINT'])).code, 130)
+            assert.strictEqual((await runWithSignals(application('', true), ['SIGINT', 'SIGINT'])).code, 130)
         })
 
         it('launch once: the handlers added after the launch do not launch it again, a launched handler is called at once', (): void => {
-            const run = RunApplication(`
+            const run = runApplication(`
 let launches = 0
 class Counter extends Component {
     async init() { launches++ }
@@ -242,7 +242,7 @@ Application.run({id: 'once.app', name: 'OnceApp', components: {counter: {class: 
         })
 
         it('tell the done handler the exit code given to exit(), without signal', (): void => {
-            const run = RunApplication(`
+            const run = runApplication(`
 Application.run({id: 'exit.app', name: 'ExitApp'})
     .onLaunched((app) => app.exit(3))
     .onDone((app, logger, reason) => console.log('DONE ' + JSON.stringify(reason)))`)
@@ -253,7 +253,7 @@ Application.run({id: 'exit.app', name: 'ExitApp'})
         it('exit by itself once its objects are destroyed, else after a moment, with the code given to exit()', (): void => {
             //Ended by process.exit at once, node crashes on Windows while the connections of fetch close
             const started: number = Date.now()
-            const kept = RunApplication(`
+            const kept = runApplication(`
 Application.run({id: 'exit.app', name: 'ExitApp'})
     .onLaunched((app) => {
         //An object of the application keeping the process running
@@ -265,7 +265,7 @@ Application.run({id: 'exit.app', name: 'ExitApp'})
         })
 
         it('end at once on a signal received while the application launches', {skip: POSIX_SIGNALS}, async (): Promise<void> => {
-            const run = await Signal(`
+            const run = await runWithSignals(`
 class Slow extends Component {
     async init() {
         console.log('LAUNCHING')
@@ -278,15 +278,15 @@ Application.run({id: 'signals.app', name: 'SignalsApp', components: {slow: {clas
         })
 
         it('listen to the signals given, or to none', {skip: POSIX_SIGNALS}, async (): Promise<void> => {
-            const custom = await Signal(APPLICATION(`, shutdownSignals: ['SIGUSR2']`), ['SIGUSR2'])
+            const custom = await runWithSignals(application(`, shutdownSignals: ['SIGUSR2']`), ['SIGUSR2'])
             assert.strictEqual(custom.code, 0, custom.output)
             assert.match(custom.output, /DONE/)
             //Not listened: Node.js ends the process at once, nothing destroyed
-            const none = await Signal(APPLICATION(', shutdownSignals: false'), ['SIGTERM'])
+            const none = await runWithSignals(application(', shutdownSignals: false'), ['SIGTERM'])
             assert.strictEqual(none.signal, 'SIGTERM', none.output)
             assert.doesNotMatch(none.output, /DESTROYED|DONE/)
             //The signals which cannot be caught are rejected
-            const invalid = RunApplication(`Application.run({id: 'signals.app', name: 'SignalsApp', shutdownSignals: ['SIGKILL']})`)
+            const invalid = runApplication(`Application.run({id: 'signals.app', name: 'SignalsApp', shutdownSignals: ['SIGKILL']})`)
             assert.strictEqual(invalid.status, 1, invalid.output)
             assert.match(invalid.output, /shutdownSignals/)
         })

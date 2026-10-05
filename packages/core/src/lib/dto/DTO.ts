@@ -1,14 +1,14 @@
 import {DataValidator} from './DataValidator.js'
 import {
-    DefineObjectAsDTO, GetCachedDTOSchema, GetObjectIndexSignatureSchemaByConstructor, InvalidateDTOSchemas,
-    GetObjectIndexSignatureSchemaByPrototype,
-    GetObjectSchemaByConstructor,
-    GetObjectSchemaByPrototype,
-    SetObjectPropertySchema,
-    SetObjectSchemaRefinement
+    defineObjectAsDTO, getCachedDTOSchema, getObjectIndexSignatureSchemaByConstructor, invalidateDTOSchemas,
+    getObjectIndexSignatureSchemaByPrototype,
+    getObjectSchemaByConstructor,
+    getObjectSchemaByPrototype,
+    setObjectPropertySchema,
+    setObjectSchemaRefinement
 } from './ObjectSchemaValidation.js'
 import {InvalidValueException} from '../../exceptions/dto/InvalidValueException.js'
-import {WithCause} from '../helpers/internal/WithCause.js'
+import {withCause} from '../helpers/internal/WithCause.js'
 import {ValidationOptions} from '../validation/interfaces/ValidationOptions.js'
 import {VLD, VLDMethods} from '../validation/VLD.js'
 import type {Base} from '../validation/engine/schema/base.js'
@@ -29,9 +29,9 @@ import {type KeysChild} from '../validation/engine/schema/types/keys.js'
  * @param target
  */
 function getObjectSchema<ClassPrototype extends DTO>(target: ClassPrototype): Schema {
-    return GetCachedDTOSchema(instanceSchemaCache, objectConstructor(target), (): Schema => {
-        const indexSignatureSchema: Schema | null = GetObjectIndexSignatureSchemaByPrototype(target)
-        const objectSchema: ObjectSchema<ClassPrototype> = GetObjectSchemaByPrototype(target)
+    return getCachedDTOSchema(instanceSchemaCache, objectConstructor(target), (): Schema => {
+        const indexSignatureSchema: Schema | null = getObjectIndexSignatureSchemaByPrototype(target)
+        const objectSchema: ObjectSchema<ClassPrototype> = getObjectSchemaByPrototype(target)
         return indexSignatureSchema ? objectSchema.pattern(DTO.String(), indexSignatureSchema) : objectSchema
     })
 }
@@ -83,7 +83,7 @@ function arePropertiesIndependent(objectSchema: Base): boolean {
  * @param propertyKey
  */
 function getPropertySchema<U extends DTO>(instance: U, propertyKey: string): Schema | null {
-    const schemas: Map<string, Schema | null> = GetCachedDTOSchema(propertySchemaCache, objectConstructor(instance), (): Map<string, Schema | null> => new Map())
+    const schemas: Map<string, Schema | null> = getCachedDTOSchema(propertySchemaCache, objectConstructor(instance), (): Map<string, Schema | null> => new Map())
     let schema: Schema | null | undefined = schemas.get(propertyKey)
     if (schema !== undefined) return schema
     schema = null
@@ -264,7 +264,7 @@ const DTODescriptionSymbol: symbol = Symbol('DTO.DESCRIPTION')
  * console.log(customer.name, data.address.city, CustomerDTO.isValid({name: ''}))
  * ```
  */
-@(<ClassConstructor extends typeof DTO>(target: ClassConstructor): ClassConstructor => DefineObjectAsDTO(target))
+@(<ClassConstructor extends typeof DTO>(target: ClassConstructor): ClassConstructor => defineObjectAsDTO(target))
 export class DTO extends DataValidator {
 
     /**
@@ -301,7 +301,7 @@ export class DTO extends DataValidator {
             Object.keys(validProps).forEach((propertyKey: string) => Reflect.set(this, propertyKey, validProps[propertyKey]))
 
         } catch (e) {
-            throw WithCause(new InvalidValueException((As<Error>(e).message)), e)
+            throw withCause(new InvalidValueException((As<Error>(e).message)), e)
         }
         return DTOInstanceProxy
     }
@@ -371,8 +371,8 @@ export class DTO extends DataValidator {
         const name: string = options.name || imported.title || `${BaseDTO.name}FromJsonSchema`
         //A named subclass
         const GeneratedDTO: T = As<T>({[name]: class extends BaseDTO {}}[name])
-        for (const [propertyKey, propertySchema] of Object.entries(imported.keys)) SetObjectPropertySchema(GeneratedDTO.prototype, propertyKey, As<Schema>(propertySchema))
-        SetObjectSchemaRefinement(GeneratedDTO, (objectSchema: ObjectSchema): ObjectSchema => As<ObjectSchema>(imported.refine(As(objectSchema))))
+        for (const [propertyKey, propertySchema] of Object.entries(imported.keys)) setObjectPropertySchema(GeneratedDTO.prototype, propertyKey, As<Schema>(propertySchema))
+        setObjectSchemaRefinement(GeneratedDTO, (objectSchema: ObjectSchema): ObjectSchema => As<ObjectSchema>(imported.refine(As(objectSchema))))
         if (imported.description) GeneratedDTO.description(imported.description)
         return GeneratedDTO
     }
@@ -412,7 +412,7 @@ export class DTO extends DataValidator {
      */
     public static description(desc: string): typeof DTO {
         Reflect.defineMetadata(DTODescriptionSymbol, desc, this)
-        InvalidateDTOSchemas()
+        invalidateDTOSchemas()
         return this
     }
 
@@ -423,9 +423,9 @@ export class DTO extends DataValidator {
      * @returns The object schema; the same instance until a schema declaration changes.
      */
     public static Schema(): ObjectSchema {
-        return GetCachedDTOSchema(classSchemaCache, this, (): ObjectSchema => {
-            const objectSchema: ObjectSchema = GetObjectSchemaByConstructor(this)
-            const indexSignatureSchema: Schema | null = GetObjectIndexSignatureSchemaByConstructor(this)
+        return getCachedDTOSchema(classSchemaCache, this, (): ObjectSchema => {
+            const objectSchema: ObjectSchema = getObjectSchemaByConstructor(this)
+            const indexSignatureSchema: Schema | null = getObjectIndexSignatureSchemaByConstructor(this)
             const description: string | undefined = Reflect.getOwnMetadata(DTODescriptionSymbol, this)
             const finalSchema: ObjectSchema = indexSignatureSchema ? objectSchema.pattern(DTO.String(), indexSignatureSchema) : objectSchema
             return description === undefined ? finalSchema : finalSchema.description(description)

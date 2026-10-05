@@ -7,7 +7,7 @@ import {isXML} from '../exports/Utils.js'
  * The validation of the upstream (fast-xml-parser 4.5.3), the reference of the port
  * @param xml
  */
-function Upstream(xml: string): boolean {
+function upstream(xml: string): boolean {
     return XMLValidator.validate(xml, {allowBooleanAttributes: true}) === true
 }
 
@@ -19,16 +19,16 @@ function Upstream(xml: string): boolean {
  *   rejects the XML declarations after it
  * @param xml
  */
-function Reference(xml: string): boolean {
+function reference(xml: string): boolean {
     if (/<\?xml[ ?]/.test(xml.substring(xml.indexOf('<', xml.indexOf('<') + 1)))) return false
-    return Upstream(xml.replace(/<([^\s<>/!?"'=]+)((?:\s(?:[^<>"']|"[^"]*"|'[^']*')*?)?)\/>/g, '<$1$2></$1>'))
+    return upstream(xml.replace(/<([^\s<>/!?"'=]+)((?:\s(?:[^<>"']|"[^"]*"|'[^']*')*?)?)\/>/g, '<$1$2></$1>'))
 }
 
 /**
  * A pseudo random generator with a seed (mulberry32), so the generated documents are the same on every run
  * @param seed
  */
-function Random(seed: number): () => number {
+function seededRandom(seed: number): () => number {
     return (): number => {
         seed = (seed + 0x6D2B79F5) | 0
         let t: number = Math.imul(seed ^ (seed >>> 15), 1 | seed)
@@ -72,7 +72,7 @@ describe('isXML', (): void => {
     })
 
     it('validates as the upstream validator, with its bugs fixed', (): void => {
-        const random: () => number = Random(20261001)
+        const random: () => number = seededRandom(20261001)
         let valid: number = 0
         //The documents the fix changes: the upstream accepts them
         let fixed: number = 0
@@ -80,9 +80,9 @@ describe('isXML', (): void => {
             const length: number = 1 + Math.floor(random() * 12)
             let xml: string = ''
             for (let piece: number = 0; piece < length; piece++) xml += PIECES[Math.floor(random() * PIECES.length)]
-            const expected: boolean = Reference(xml)
+            const expected: boolean = reference(xml)
             if (expected) valid++
-            if (expected !== Upstream(xml)) fixed++
+            if (expected !== upstream(xml)) fixed++
             assert.strictEqual(isXML(xml), expected, JSON.stringify(xml))
         }
         //The generated documents are valid and invalid

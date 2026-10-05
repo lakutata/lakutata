@@ -27,7 +27,7 @@ export type CleanResult = {
  * closing bracket are removed outside of the strings
  * @param text
  */
-function StripJSONC(text: string): string {
+function stripJSONC(text: string): string {
     let output: string = ''
     for (let index: number = 0; index < text.length; index++) {
         const char: string = text[index]
@@ -66,7 +66,7 @@ function StripJSONC(text: string): string {
  * @param from the configuration extending it
  * @param specifier
  */
-function ExtendedConfiguration(from: string, specifier: string): string | undefined {
+function extendedConfiguration(from: string, specifier: string): string | undefined {
     if (specifier.startsWith('.') || path.isAbsolute(specifier)) {
         const file: string = path.resolve(path.dirname(from), specifier)
         return [file, `${file}.json`].find((candidate: string): boolean => existsSync(candidate) && !candidate.endsWith(path.sep))
@@ -88,14 +88,14 @@ function ExtendedConfiguration(from: string, specifier: string): string | undefi
  * @param file
  * @param depth
  */
-async function ConfigurationOutputs(file: string, depth: number = 0): Promise<{ outDir?: string, declarationDir?: string }> {
-    const configuration: { extends?: string | string[], compilerOptions?: Record<string, unknown> } = JSON.parse(StripJSONC(await readFile(file, 'utf8')))
+async function configurationOutputs(file: string, depth: number = 0): Promise<{ outDir?: string, declarationDir?: string }> {
+    const configuration: { extends?: string | string[], compilerOptions?: Record<string, unknown> } = JSON.parse(stripJSONC(await readFile(file, 'utf8')))
     let outputs: { outDir?: string, declarationDir?: string } = {}
     const extended: string[] = configuration.extends === undefined ? [] : Array.isArray(configuration.extends) ? configuration.extends : [configuration.extends]
     if (depth < 8) {
         for (const specifier of extended) {
-            const parent: string | undefined = ExtendedConfiguration(file, specifier)
-            if (parent) outputs = {...outputs, ...await ConfigurationOutputs(parent, depth + 1)}
+            const parent: string | undefined = extendedConfiguration(file, specifier)
+            if (parent) outputs = {...outputs, ...await configurationOutputs(parent, depth + 1)}
         }
     }
     for (const option of ['outDir', 'declarationDir'] as const) {
@@ -110,10 +110,10 @@ async function ConfigurationOutputs(file: string, depth: number = 0): Promise<{ 
  * @param directory
  * @return the directories, relative to the package
  */
-export async function OutputDirectories(directory: string): Promise<string[]> {
+export async function outputDirectories(directory: string): Promise<string[]> {
     const file: string = path.join(directory, 'tsconfig.json')
     if (!existsSync(file)) throw new Error(`${directory} has no tsconfig.json: give the paths removed (lakutata clean <paths...>)`)
-    const outputs: { outDir?: string, declarationDir?: string } = await ConfigurationOutputs(file)
+    const outputs: { outDir?: string, declarationDir?: string } = await configurationOutputs(file)
     const directories: string[] = [...new Set([outputs.outDir, outputs.declarationDir].filter((output: string | undefined): output is string => !!output))]
     if (!directories.length) throw new Error(`The tsconfig.json of ${directory} gives no outDir: give the paths removed (lakutata clean <paths...>)`)
     return directories.map((output: string): string => path.relative(directory, output))
@@ -125,7 +125,7 @@ export async function OutputDirectories(directory: string): Promise<string[]> {
  * @param directory the directory of the package
  * @param paths relative to the package
  */
-export async function Clean(directory: string, paths: string[]): Promise<CleanResult> {
+export async function clean(directory: string, paths: string[]): Promise<CleanResult> {
     const root: string = path.resolve(directory)
     const targets: { relative: string, absolute: string }[] = paths.map((target: string): { relative: string, absolute: string } => {
         const absolute: string = path.resolve(root, target)

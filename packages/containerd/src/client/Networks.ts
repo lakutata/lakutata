@@ -225,13 +225,13 @@ exit 0
  * The integer of an address of IPv4
  * @param address
  */
-function IPv4ToNumber(address: string): number {
+function iPv4ToNumber(address: string): number {
     const parts: number[] = address.split('.').map(Number)
     if (parts.length !== 4 || parts.some((part: number): boolean => !Number.isInteger(part) || part < 0 || part > 255)) throw new Error(`The address ${address} is not an address of IPv4`)
     return ((parts[0] << 24) >>> 0) + (parts[1] << 16) + (parts[2] << 8) + parts[3]
 }
 
-function NumberToIPv4(value: number): string {
+function numberToIPv4(value: number): string {
     return [value >>> 24, (value >>> 16) & 255, (value >>> 8) & 255, value & 255].join('.')
 }
 
@@ -239,31 +239,31 @@ function NumberToIPv4(value: number): string {
  * The first and the last addresses of a subnet (CIDR of IPv4)
  * @param cidr
  */
-export function ParseSubnet(cidr: string): { network: number, broadcast: number, prefix: number, cidr: string } {
+export function parseSubnet(cidr: string): { network: number, broadcast: number, prefix: number, cidr: string } {
     const [address, prefixText] = cidr.split('/')
     const prefix: number = Number(prefixText)
     if (!Number.isInteger(prefix) || prefix < 8 || prefix > 30) throw new Error(`The subnet ${cidr} is not a CIDR of IPv4 (/8 to /30)`)
     const mask: number = prefix === 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0
-    const network: number = (IPv4ToNumber(address) & mask) >>> 0
-    return {network: network, broadcast: (network | (~mask >>> 0)) >>> 0, prefix: prefix, cidr: `${NumberToIPv4(network)}/${prefix}`}
+    const network: number = (iPv4ToNumber(address) & mask) >>> 0
+    return {network: network, broadcast: (network | (~mask >>> 0)) >>> 0, prefix: prefix, cidr: `${numberToIPv4(network)}/${prefix}`}
 }
 
 /**
  * The integer of an address of IPv6
  * @param address
  */
-function IPv6ToBigInt(address: string): bigint {
+function iPv6ToBigInt(address: string): bigint {
     if (!isIPv6(address)) throw new Error(`The address ${address} is not an address of IPv6`)
     const [head, tail] = address.split('::') as [string, string | undefined]
     //An address of IPv4 at its end (::ffff:1.2.3.4)
-    const ipv4 = (part: string): string[] => part.includes('.') ? [(IPv4ToNumber(part) >>> 16).toString(16), (IPv4ToNumber(part) & 0xffff).toString(16)] : [part]
+    const ipv4 = (part: string): string[] => part.includes('.') ? [(iPv4ToNumber(part) >>> 16).toString(16), (iPv4ToNumber(part) & 0xffff).toString(16)] : [part]
     const headGroups: string[] = head ? head.split(':').flatMap(ipv4) : []
     const tailGroups: string[] = tail ? tail.split(':').flatMap(ipv4) : []
     const groups: string[] = tail === undefined ? headGroups : [...headGroups, ...Array(8 - headGroups.length - tailGroups.length).fill('0'), ...tailGroups]
     return groups.reduce((value: bigint, group: string): bigint => (value << 16n) | BigInt(parseInt(group || '0', 16)), 0n)
 }
 
-function BigIntToIPv6(value: bigint): string {
+function bigIntToIPv6(value: bigint): string {
     const groups: string[] = []
     for (let index = 7; index >= 0; index--) groups.push(((value >> BigInt(index * 16)) & 0xffffn).toString(16))
     //The longest run of zeros compressed
@@ -281,13 +281,13 @@ function BigIntToIPv6(value: bigint): string {
  * A subnet of IPv6 (CIDR): its network, its prefix, its first address
  * @param cidr
  */
-export function ParseIPv6Subnet(cidr: string): { cidr: string, first: string, network: bigint, last: bigint } {
+export function parseIPv6Subnet(cidr: string): { cidr: string, first: string, network: bigint, last: bigint } {
     const [address, prefixText] = cidr.split('/')
     const prefix: number = Number(prefixText)
     if (!Number.isInteger(prefix) || prefix < 8 || prefix > 126) throw new Error(`The subnet ${cidr} is not a CIDR of IPv6 (/8 to /126)`)
     const mask: bigint = ((1n << 128n) - 1n) ^ ((1n << BigInt(128 - prefix)) - 1n)
-    const network: bigint = IPv6ToBigInt(address) & mask
-    return {cidr: `${BigIntToIPv6(network)}/${prefix}`, first: BigIntToIPv6(network + 1n), network: network, last: network | (((1n << 128n) - 1n) ^ mask)}
+    const network: bigint = iPv6ToBigInt(address) & mask
+    return {cidr: `${bigIntToIPv6(network)}/${prefix}`, first: bigIntToIPv6(network + 1n), network: network, last: network | (((1n << 128n) - 1n) ^ mask)}
 }
 
 /**
@@ -295,9 +295,9 @@ export function ParseIPv6Subnet(cidr: string): { cidr: string, first: string, ne
  * @param a
  * @param b
  */
-function Overlap(a: string, b: string): boolean {
+function overlap(a: string, b: string): boolean {
     try {
-        const [x, y] = [ParseSubnet(a), ParseSubnet(b)]
+        const [x, y] = [parseSubnet(a), parseSubnet(b)]
         return x.network <= y.broadcast && y.network <= x.broadcast
     } catch {
         return false
@@ -309,7 +309,7 @@ function Overlap(a: string, b: string): boolean {
  * or of busybox); what the system cannot remove is left
  * @param bridge
  */
-function RemoveBridge(bridge: string): void {
+function removeBridge(bridge: string): void {
     for (const chain of ['CNI-ISOLATION-STAGE-1', 'CNI-ISOLATION-STAGE-2']) {
         const rules = spawnSync('iptables', ['-w', '-S', chain], {encoding: 'utf8'})
         if (rules.error || rules.status !== 0) continue
@@ -507,7 +507,7 @@ export class NetworkStore {
     protected freeSubnet(used: string[]): string {
         for (let third = 1; third < 256; third++) {
             const subnet: string = `10.4.${third}.0/24`
-            if (!used.some((other: string): boolean => Overlap(subnet, other))) return subnet
+            if (!used.some((other: string): boolean => overlap(subnet, other))) return subnet
         }
         throw new Error('No subnet of 10.4.0.0/16 is free: give the subnet of the network')
     }
@@ -524,28 +524,28 @@ export class NetworkStore {
         const driver: string = options.driver ?? 'bridge'
         if (!this.plugin(driver)) throw new Error(`The CNI plugin ${driver} is not installed (${this.cniPath.join(', ')})`)
         const used: string[] = [DEFAULT_SUBNET, ...networks.flatMap((network: CNINetwork): string[] => network.subnets)]
-        const subnet = ParseSubnet(options.subnet ?? this.freeSubnet(used))
-        const overlapping: string | undefined = used.find((other: string): boolean => Overlap(subnet.cidr, other))
+        const subnet = parseSubnet(options.subnet ?? this.freeSubnet(used))
+        const overlapping: string | undefined = used.find((other: string): boolean => overlap(subnet.cidr, other))
         if (options.subnet && overlapping) throw Object.assign(new Error(`The subnet ${subnet.cidr} overlaps the one of another network (${overlapping})`), {code: 'CONFLICT'})
-        const gateway: string = options.gateway ?? NumberToIPv4(subnet.network + 1)
-        const gatewayNumber: number = IPv4ToNumber(gateway)
+        const gateway: string = options.gateway ?? numberToIPv4(subnet.network + 1)
+        const gatewayNumber: number = iPv4ToNumber(gateway)
         if (gatewayNumber <= subnet.network || gatewayNumber >= subnet.broadcast) throw new Error(`The gateway ${gateway} is not in the subnet ${subnet.cidr}`)
         const range: Record<string, string> = {gateway: gateway, subnet: subnet.cidr}
         if (options.ipRange) {
-            const ipRange = ParseSubnet(options.ipRange)
+            const ipRange = parseSubnet(options.ipRange)
             if (ipRange.network < subnet.network || ipRange.broadcast > subnet.broadcast) throw new Error(`The range ${options.ipRange} is not in the subnet ${subnet.cidr}`)
-            range.rangeStart = NumberToIPv4(Math.max(ipRange.network + 1, subnet.network + 1))
-            range.rangeEnd = NumberToIPv4(Math.min(ipRange.broadcast - 1, subnet.broadcast - 1))
+            range.rangeStart = numberToIPv4(Math.max(ipRange.network + 1, subnet.network + 1))
+            range.rangeEnd = numberToIPv4(Math.min(ipRange.broadcast - 1, subnet.broadcast - 1))
         }
         const ipam: Record<string, any> = {ranges: [[range]], routes: options.internal ? [] : [{dst: '0.0.0.0/0'}], type: 'host-local', dataDir: IPAM_DATA_DIR}
         if (options.ipv6Subnet) {
-            const ipv6 = ParseIPv6Subnet(options.ipv6Subnet)
+            const ipv6 = parseIPv6Subnet(options.ipv6Subnet)
             const ipv6Gateway: string = options.ipv6Gateway ?? ipv6.first
-            const gateway6: bigint = IPv6ToBigInt(ipv6Gateway)
+            const gateway6: bigint = iPv6ToBigInt(ipv6Gateway)
             if (gateway6 <= ipv6.network || gateway6 > ipv6.last) throw new Error(`The gateway ${ipv6Gateway} is not in the subnet ${ipv6.cidr}`)
             const overlapping6: CNINetwork | undefined = networks.find((network: CNINetwork): boolean => network.subnets.some((other: string): boolean => {
                 try {
-                    const known = ParseIPv6Subnet(other)
+                    const known = parseIPv6Subnet(other)
                     return known.network <= ipv6.last && ipv6.network <= known.last
                 } catch {
                     return false
@@ -582,7 +582,7 @@ export class NetworkStore {
         if (network.labels['nerdctl/default-network'] === 'true') throw Object.assign(new Error(`The network ${network.name} is the default one`), {code: 'CONFLICT'})
         await rm(network.file, {force: true})
         const main: Record<string, any> = network.plugins[0] ?? {}
-        if (main.type === 'bridge' && typeof main.bridge === 'string' && /^[\w.-]+$/.test(main.bridge)) RemoveBridge(main.bridge)
+        if (main.type === 'bridge' && typeof main.bridge === 'string' && /^[\w.-]+$/.test(main.bridge)) removeBridge(main.bridge)
         if (main.ipam?.dataDir === IPAM_DATA_DIR) await rm(path.join(IPAM_DATA_DIR, network.name), {recursive: true, force: true})
     }
 

@@ -90,7 +90,7 @@ export const ServiceEvent: Schema = {
  * The bytes of a value of JSON (none for undefined)
  * @param value
  */
-export function JSONBytes(value: unknown): Buffer | undefined {
+export function jsonBytes(value: unknown): Buffer | undefined {
     return value === undefined ? undefined : Buffer.from(JSON.stringify(value))
 }
 
@@ -98,6 +98,6 @@ export function JSONBytes(value: unknown): Buffer | undefined {
  * The value of the bytes of JSON (undefined for none)
  * @param bytes
  */
-export function FromJSONBytes(bytes: Uint8Array | undefined): unknown {
+export function fromJSONBytes(bytes: Uint8Array | undefined): unknown {
     return bytes?.length ? JSON.parse(Buffer.from(bytes).toString('utf8')) : undefined
 }

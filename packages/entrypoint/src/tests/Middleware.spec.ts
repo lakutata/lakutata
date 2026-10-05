@@ -34,7 +34,7 @@ let trace: string[] = []
  * A middleware function writing its name before and after the rest of the pipeline
  * @param name
  */
-const Trace = (name: string): MiddlewareHandler => async (invocation: ActionInvocation, next: Next): Promise<unknown> => {
+const traceMiddleware = (name: string): MiddlewareHandler => async (invocation: ActionInvocation, next: Next): Promise<unknown> => {
     trace.push(`>${name}`)
     const result: unknown = await next()
     trace.push(`<${name}`)
@@ -61,7 +61,7 @@ class NameDTO extends DTO {
     public name: string
 }
 
-@UseMiddlewares(Trace('base'))
+@UseMiddlewares(traceMiddleware('base'))
 class BaseController extends Controller {
     @Inject(RequestCounter)
     protected readonly counter: RequestCounter
@@ -72,12 +72,12 @@ class BaseController extends Controller {
     }
 }
 
-@UseMiddlewares(Trace('controller'), CountRequest)
+@UseMiddlewares(traceMiddleware('controller'), CountRequest)
 @UseMiddlewares(CountRequest)
 class TestController extends BaseController {
 
-    @UseMiddlewares(Trace('method'))
-    @ServiceAction({act: 'hello'}, NameDTO, {middlewares: [Trace('options')]})
+    @UseMiddlewares(traceMiddleware('method'))
+    @ServiceAction({act: 'hello'}, NameDTO, {middlewares: [traceMiddleware('options')]})
     @CLIAction('hello', NameDTO)
     @GET('/hello', NameDTO)
     public async hello(input: NameDTO): Promise<string> {
@@ -112,7 +112,7 @@ type Handlers = {
  * Create an entrypoint with global middlewares, return its handlers
  * @param middlewares
  */
-async function Create(middlewares: unknown[] = [Trace('global')]): Promise<{ handlers: Handlers, container: Container }> {
+async function create(middlewares: unknown[] = [traceMiddleware('global')]): Promise<{ handlers: Handlers, container: Container }> {
     const handlers: Partial<Handlers> = {}
     const container: Container = new Container()
     await container.load([RequestCounter])
@@ -130,22 +130,22 @@ async function Create(middlewares: unknown[] = [Trace('global')]): Promise<{ han
  * A service request
  * @param input
  */
-function Service(input: Record<string, unknown>): ServiceContext {
+function service(input: Record<string, unknown>): ServiceContext {
     return new ServiceContext({data: input})
 }
 
 describe('Middlewares', (): void => {
 
     it('run around the actions, in the order of their levels', async (): Promise<void> => {
-        const {handlers, container} = await Create()
+        const {handlers, container} = await create()
         trace = []
-        assert.strictEqual(await handlers.service(Service({act: 'hello', name: 'a'})), 'hello a')
+        assert.strictEqual(await handlers.service(service({act: 'hello', name: 'a'})), 'hello a')
         assert.deepStrictEqual(trace, ['>global', '>base', '>controller', 'count:1', 'count:2', '>options', '>method', 'action:2', '<method', '<options', '<controller', '<base', '<global'])
         await container.destroy()
     })
 
     it('run for every transport', async (): Promise<void> => {
-        const {handlers, container} = await Create()
+        const {handlers, container} = await create()
         trace = []
         assert.strictEqual(await handlers.cli(new CLIContext({command: 'hello', data: {name: 'b'}})), 'hello b')
         const request: IncomingMessage = new IncomingMessage(new Socket())
@@ -157,10 +157,10 @@ describe('Middlewares', (): void => {
     })
 
     it('create the middleware classes in the container of each request', async (): Promise<void> => {
-        const {handlers, container} = await Create([])
+        const {handlers, container} = await create([])
         trace = []
-        await handlers.service(Service({act: 'hello', name: 'a'}))
-        await handlers.service(Service({act: 'hello', name: 'a'}))
+        await handlers.service(service({act: 'hello', name: 'a'}))
+        await handlers.service(service({act: 'hello', name: 'a'}))
         //The counter is shared by the middleware and the controller within a request only
         assert.deepStrictEqual(trace.filter((step: string): boolean => step.startsWith('action')), ['action:2', 'action:2'])
         await container.destroy()
@@ -174,21 +174,21 @@ describe('Middlewares', (): void => {
                 return {action: invocation.action.name, error: (e as Error).name}
             }
         }
-        const {handlers, container} = await Create([wrap])
+        const {handlers, container} = await create([wrap])
         trace = []
-        assert.deepStrictEqual(await handlers.service(Service({act: 'cached'})), {action: 'TestController:cached', data: 'from cache'})
+        assert.deepStrictEqual(await handlers.service(service({act: 'cached'})), {action: 'TestController:cached', data: 'from cache'})
         //The action is not run
         assert.ok(!trace.includes('action'))
         //The input is validated after the middlewares
-        assert.deepStrictEqual(await handlers.service(Service({act: 'hello'})), {action: 'TestController:hello', error: 'InvalidValueException'})
-        assert.deepStrictEqual(await handlers.service(Service({act: 'twice'})), {action: 'TestController:twice', error: MiddlewareNextCalledException.name})
+        assert.deepStrictEqual(await handlers.service(service({act: 'hello'})), {action: 'TestController:hello', error: 'InvalidValueException'})
+        assert.deepStrictEqual(await handlers.service(service({act: 'twice'})), {action: 'TestController:twice', error: MiddlewareNextCalledException.name})
         await container.destroy()
     })
 
     it('run the inherited actions with the registered controller', async (): Promise<void> => {
-        const {handlers, container} = await Create([])
+        const {handlers, container} = await create([])
         trace = []
-        assert.strictEqual(await handlers.service(Service({act: 'inherited'})), 'TestController')
+        assert.strictEqual(await handlers.service(service({act: 'inherited'})), 'TestController')
         assert.deepStrictEqual(trace, ['>base', '>controller', 'count:1', 'count:2', '<controller', '<base'])
         await container.destroy()
     })
@@ -199,6 +199,6 @@ describe('Middlewares', (): void => {
 
         assert.throws((): unknown => UseMiddlewares(NotMiddleware as unknown as MiddlewareHandler), InvalidMiddlewareException)
         assert.throws((): unknown => UseMiddlewares('name' as unknown as MiddlewareHandler)({}), InvalidMiddlewareException)
-        await assert.rejects(Create([NotMiddleware]), InvalidMiddlewareException)
+        await assert.rejects(create([NotMiddleware]), InvalidMiddlewareException)
     })
 })

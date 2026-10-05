@@ -1,6 +1,6 @@
 import {BaseObject} from '../BaseObject.js'
 import {DI_TARGET_ID} from '../../../constants/DIMetadataKey.js'
-import {ConstructorSymbol} from '../../ioc/ConstructorSymbol.js'
+import {constructorSymbol} from '../../ioc/ConstructorSymbol.js'
 import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
 import {As} from '@lakutata/utils/As'
 
@@ -11,7 +11,7 @@ import {As} from '@lakutata/utils/As'
  * @param configurableRecords
  * @constructor
  */
-export function SetConfigurableRecords<ClassConstructor extends typeof BaseObject>(target: ClassConstructor, registrationName: string | symbol, configurableRecords: Record<string, any>): void {
+export function setConfigurableRecords<ClassConstructor extends typeof BaseObject>(target: ClassConstructor, registrationName: string | symbol, configurableRecords: Record<string, any>): void {
     if (Reflect.hasOwnMetadata(registrationName, target)) Reflect.deleteMetadata(registrationName, target)
     Reflect.defineMetadata(registrationName, configurableRecords, target)
 }
@@ -21,7 +21,7 @@ export function SetConfigurableRecords<ClassConstructor extends typeof BaseObjec
  * @param target
  * @constructor
  */
-export function GetConfigurableRecords<ClassConstructor extends typeof BaseObject>(target: ClassConstructor, registrationName: string | symbol): Record<string, any> {
+export function getConfigurableRecords<ClassConstructor extends typeof BaseObject>(target: ClassConstructor, registrationName: string | symbol): Record<string, any> {
     const configurableRecords: Record<string, any> = Reflect.getOwnMetadata(registrationName, target)
     if (configurableRecords) return configurableRecords
     return {}
@@ -33,7 +33,7 @@ export function GetConfigurableRecords<ClassConstructor extends typeof BaseObjec
  * @param id
  * @constructor
  */
-export function SetIdToInstance<ClassInstance extends BaseObject>(target: ClassInstance, id: string | symbol): void {
+export function setIdToInstance<ClassInstance extends BaseObject>(target: ClassInstance, id: string | symbol): void {
     Reflect.defineMetadata(DI_TARGET_ID, id, target)
 }
 
@@ -42,10 +42,10 @@ export function SetIdToInstance<ClassInstance extends BaseObject>(target: ClassI
  * @param target
  * @constructor
  */
-export function GetIdFromInstance<ClassInstance extends BaseObject>(target: ClassInstance): string | symbol | undefined {
+export function getIdFromInstance<ClassInstance extends BaseObject>(target: ClassInstance): string | symbol | undefined {
     const id: string | symbol | undefined = Reflect.getOwnMetadata(DI_TARGET_ID, target)
     if (typeof id === 'string') return id
-    if (ConstructorSymbol(As<IBaseObjectConstructor>(target.constructor)) !== id) return id
+    if (constructorSymbol(As<IBaseObjectConstructor>(target.constructor)) !== id) return id
     return undefined
 }
 
@@ -54,7 +54,7 @@ export function GetIdFromInstance<ClassInstance extends BaseObject>(target: Clas
  * @param target
  * @constructor
  */
-export function GetRegistrationNameFromInstance<ClassInstance extends BaseObject>(target: ClassInstance): string | symbol | undefined {
+export function getRegistrationNameFromInstance<ClassInstance extends BaseObject>(target: ClassInstance): string | symbol | undefined {
     return Reflect.getOwnMetadata(DI_TARGET_ID, target)
 }
 
@@ -64,7 +64,7 @@ export function GetRegistrationNameFromInstance<ClassInstance extends BaseObject
  * @param configurableRecords
  * @constructor
  */
-export function SetConfigurableRecordsToInstance<ClassInstance extends BaseObject>(target: ClassInstance, configurableRecords: Record<string, any>): void {
+export function setConfigurableRecordsToInstance<ClassInstance extends BaseObject>(target: ClassInstance, configurableRecords: Record<string, any>): void {
     Reflect.defineMetadata(target.$uuid, configurableRecords, target)
 }
 
@@ -73,7 +73,7 @@ export function SetConfigurableRecordsToInstance<ClassInstance extends BaseObjec
  * @param target
  * @constructor
  */
-export function GetConfigurableRecordsFromInstance<ClassInstance extends BaseObject>(target: ClassInstance): Record<string, any> {
+export function getConfigurableRecordsFromInstance<ClassInstance extends BaseObject>(target: ClassInstance): Record<string, any> {
     const configurableRecords: Record<string, any> = Reflect.getOwnMetadata(target.$uuid, target)
     if (configurableRecords) return configurableRecords
     return {}

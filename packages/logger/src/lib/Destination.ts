@@ -13,7 +13,7 @@ let sleeper: Int32Array | undefined
  * Wait synchronously
  * @param ms
  */
-function SleepSync(ms: number): void {
+function sleepSync(ms: number): void {
     if (typeof SharedArrayBuffer === 'function') {
         sleeper ??= new Int32Array(new SharedArrayBuffer(4))
         Atomics.wait(sleeper, 0, 0, ms)
@@ -62,7 +62,7 @@ export class Destination {
             } catch (e) {
                 if ((e as NodeJS.ErrnoException).code !== 'EAGAIN') throw e
                 //A pipe is full, wait for its reader
-                SleepSync(10)
+                sleepSync(10)
             }
         }
     }

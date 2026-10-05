@@ -1,21 +1,21 @@
 import {readFile} from 'node:fs/promises'
 import {createRequire} from 'node:module'
 import path from 'node:path'
-import {LatestManifest} from './Registry.js'
+import {latestManifest} from './Registry.js'
 
 const require: NodeJS.Require = createRequire(import.meta.url)
 
 /**
  * The package.json of the tool
  */
-export function ToolPackage(): { name: string, version: string, description: string } {
+export function toolPackage(): { name: string, version: string, description: string } {
     return require('../../../package.json')
 }
 
 /**
  * The version of the framework used by the tool
  */
-export function FrameworkVersion(): string {
+export function frameworkVersion(): string {
     return require('lakutata/package.json').version
 }
 
@@ -23,22 +23,22 @@ export function FrameworkVersion(): string {
  * The latest version of a package on the registry, undefined when it cannot be fetched
  * @param name
  */
-export async function LatestVersion(name: string): Promise<string | undefined> {
-    return (await LatestManifest(name))?.version
+export async function latestVersion(name: string): Promise<string | undefined> {
+    return (await latestManifest(name))?.version
 }
 
 /**
  * The major version of the tool: the templates of the same major version are used
  */
-export function ToolMajor(): number {
-    return Number(ToolPackage().version.split('.')[0])
+export function toolMajor(): number {
+    return Number(toolPackage().version.split('.')[0])
 }
 
 /**
  * The version of the framework of the project of a directory (its dependency, and the installed one)
  * @param directory
  */
-export async function ProjectFrameworkVersion(directory: string): Promise<{ project: string, declared?: string, installed?: string } | undefined> {
+export async function projectFrameworkVersion(directory: string): Promise<{ project: string, declared?: string, installed?: string } | undefined> {
     for (let current: string = path.resolve(directory); ; current = path.dirname(current)) {
         try {
             const pkg: Record<string, any> = JSON.parse(await readFile(path.join(current, 'package.json'), 'utf8'))

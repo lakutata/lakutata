@@ -3,12 +3,12 @@ import {chmod, mkdir, mkdtemp, rm, stat, writeFile} from 'node:fs/promises'
 import {createRequire} from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
-import {BundleProject, type BundleResult} from '../Bundle.js'
+import {bundleProject, type BundleResult} from '../Bundle.js'
 import type {ExecutableResult} from '../Executable.js'
-import {ApplicationIcon, IcnsFile, IcoFile, WriteLinuxIcons} from '../Icons.js'
+import {applicationIcon, icnsFile, icoFile, writeLinuxIcons} from '../Icons.js'
 import type {InstallerConfig, InstallerOptions, InstallerResult} from '../Installer.js'
-import {Action} from '../linux/Linux.js'
-import {EmbeddedShell, EncodedShell, INSTALLER_HOOKS, ResolveScripts, type InstallerHook, type PlatformScripts, type ScriptFile, type TargetScripts} from '../Scripts.js'
+import {scriptAction} from '../linux/Linux.js'
+import {embeddedShell, encodedShell, INSTALLER_HOOKS, resolveScripts, type InstallerHook, type PlatformScripts, type ScriptFile, type TargetScripts} from '../Scripts.js'
 
 /**
  * The installers of the Electron applications by default, the ones of electron-builder (its targets) otherwise
@@ -21,7 +21,7 @@ const ELECTRON_TARGETS: Record<'linux' | 'mac' | 'win', string[]> = {linux: ['de
  * user); the installer of NSIS but the postremove one (its uninstaller ends with the removal of the files)
  * @param platform
  */
-function ElectronHooks(platform: 'linux' | 'mac' | 'win'): (target: string) => readonly InstallerHook[] {
+function electronHooks(platform: 'linux' | 'mac' | 'win'): (target: string) => readonly InstallerHook[] {
     return (target: string): readonly InstallerHook[] => {
         if (platform === 'linux') return target === 'deb' || target === 'rpm' ? INSTALLER_HOOKS : []
         if (platform === 'mac') return target === 'pkg' ? ['preinstall', 'postinstall'] : []
@@ -34,11 +34,11 @@ function ElectronHooks(platform: 'linux' | 'mac' | 'win'): (target: string) => r
  * @param base
  * @param over
  */
-function Merge(base: Record<string, any>, over: Record<string, any>): Record<string, any> {
+function merge(base: Record<string, any>, over: Record<string, any>): Record<string, any> {
     const merged: Record<string, any> = {...base}
     for (const [key, value] of Object.entries(over)) {
         const plain = (item: unknown): item is Record<string, any> => !!item && typeof item === 'object' && !Array.isArray(item)
-        merged[key] = plain(value) && plain(merged[key]) ? Merge(merged[key], value) : value
+        merged[key] = plain(value) && plain(merged[key]) ? merge(merged[key], value) : value
     }
     return merged
 }
@@ -49,7 +49,7 @@ function Merge(base: Record<string, any>, over: Record<string, any>): Record<str
  * @param name
  * @param warnings
  */
-function Maintainer(maintainer: string | undefined, name: string, warnings: string[]): string {
+function packageMaintainer(maintainer: string | undefined, name: string, warnings: string[]): string {
     if (maintainer && /<[^>]+@[^>]+>/.test(maintainer)) return maintainer
     warnings.push(`The packages of Linux need the email of their maintainer ("Name <email>": the author of the package.json, or lakutata.installer.maintainer): ${name}@localhost is given`)
     return `${maintainer || name} <${name}@localhost>`
@@ -65,11 +65,11 @@ function Maintainer(maintainer: string | undefined, name: string, warnings: stri
  * @param templates the directory of the templates of electron-builder
  * @param directory where they are written
  */
-async function FpmScripts(target: 'deb' | 'rpm', scripts: TargetScripts, prefix: string, templates: string, directory: string): Promise<Record<string, unknown>> {
+async function fpmScripts(target: 'deb' | 'rpm', scripts: TargetScripts, prefix: string, templates: string, directory: string): Promise<Record<string, unknown>> {
     const options: Record<string, unknown> = {}
     const fpm: string[] = []
     await mkdir(directory, {recursive: true})
-    const part = (hook: InstallerHook, script: ScriptFile): string[] => [Action(target, hook), 'if [ -n "$lakutata_action" ]; then', ...EncodedShell(script, prefix, '"$lakutata_action"'), 'fi']
+    const part = (hook: InstallerHook, script: ScriptFile): string[] => [scriptAction(target, hook), 'if [ -n "$lakutata_action" ]; then', ...encodedShell(script, prefix, '"$lakutata_action"'), 'fi']
     for (const hook of INSTALLER_HOOKS) {
         const script: ScriptFile | undefined = scripts.hooks[hook]
         if (!script) continue
@@ -95,7 +95,7 @@ async function FpmScripts(target: 'deb' | 'rpm', scripts: TargetScripts, prefix:
  * @param prefix the application (/Applications/<product>.app)
  * @param directory where they are written
  */
-async function PkgScripts(scripts: TargetScripts, prefix: string, directory: string): Promise<string> {
+async function pkgScripts(scripts: TargetScripts, prefix: string, directory: string): Promise<string> {
     await mkdir(directory, {recursive: true})
     const action: string = '"$INSTALLER_TEMP/lakutata-action"'
     const quoted: string = `'${prefix.replace(/'/g, `'\\''`)}'`
@@ -107,7 +107,7 @@ async function PkgScripts(scripts: TargetScripts, prefix: string, directory: str
         ...once('preinstall'),
         `if [ -e ${quoted} ]; then lakutata_action=upgrade; else lakutata_action=install; fi`,
         `if [ -n "$INSTALLER_TEMP" ]; then echo "$lakutata_action" > ${action}; fi`,
-        ...scripts.hooks.preinstall ? EmbeddedShell(scripts.hooks.preinstall, prefix, '"$lakutata_action"') : [],
+        ...scripts.hooks.preinstall ? embeddedShell(scripts.hooks.preinstall, prefix, '"$lakutata_action"') : [],
         ''
     ].join('\n'))
     await chmod(path.join(directory, 'preinstall'), 0o755)
@@ -117,7 +117,7 @@ async function PkgScripts(scripts: TargetScripts, prefix: string, directory: str
             'set -e',
             ...once('postinstall'),
             `lakutata_action="$(cat ${action} 2>/dev/null || echo install)"`,
-            ...EmbeddedShell(scripts.hooks.postinstall, prefix, '"$lakutata_action"'),
+            ...embeddedShell(scripts.hooks.postinstall, prefix, '"$lakutata_action"'),
             ''
         ].join('\n'))
         await chmod(path.join(directory, 'postinstall'), 0o755)
@@ -133,7 +133,7 @@ async function PkgScripts(scripts: TargetScripts, prefix: string, directory: str
  * @param scripts
  * @param directory where it is written, with the scripts (marked as UTF-8 for Windows PowerShell)
  */
-async function NsisInclude(scripts: TargetScripts, directory: string): Promise<string | undefined> {
+async function nsisInclude(scripts: TargetScripts, directory: string): Promise<string | undefined> {
     const hooks = scripts.hooks
     if (!hooks.preinstall && !hooks.postinstall && !hooks.preremove) return scripts.include && path.resolve(scripts.include.file)
     await mkdir(directory, {recursive: true})
@@ -190,7 +190,7 @@ async function NsisInclude(scripts: TargetScripts, directory: string): Promise<s
  * @param config
  * @param options
  */
-export async function BuildElectronInstaller(project: string, manifest: Record<string, any>, config: InstallerConfig, options: InstallerOptions): Promise<InstallerResult> {
+export async function buildElectronInstaller(project: string, manifest: Record<string, any>, config: InstallerConfig, options: InstallerOptions): Promise<InstallerResult> {
     if (config.service) throw new Error('An Electron application is not a service (lakutata.installer.service): it runs in the session of its user')
     const platform: 'linux' | 'mac' | 'win' = process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'win' : 'linux'
     const warnings: string[] = []
@@ -220,12 +220,12 @@ export async function BuildElectronInstaller(project: string, manifest: Record<s
     const author: string | undefined = config.maintainer ?? (typeof manifest.author === 'string' ? manifest.author : manifest.author?.name && (manifest.author.email ? `${manifest.author.name} <${manifest.author.email}>` : manifest.author.name))
     //Where the installers put the application
     const prefix: string = platform === 'linux' ? `/opt/${sanitizeFileName(productName)}` : platform === 'mac' ? `/Applications/${productName}.app` : ''
-    const scripts: Record<string, TargetScripts> = ResolveScripts(project, platform, config[platform] as PlatformScripts | undefined, targets, warnings, ElectronHooks(platform), false)
+    const scripts: Record<string, TargetScripts> = resolveScripts(project, platform, config[platform] as PlatformScripts | undefined, targets, warnings, electronHooks(platform), false)
     const work: string = await mkdtemp(path.join(os.tmpdir(), 'lakutata-electron-'))
     try {
         //The application of electron-builder: its main process, its package.json; its native addons and its resources next to it
         const application: string = path.join(work, 'app')
-        const bundle: BundleResult = await BundleProject({
+        const bundle: BundleResult = await bundleProject({
             project: project,
             entry: options.entry,
             minify: options.minify,
@@ -233,7 +233,7 @@ export async function BuildElectronInstaller(project: string, manifest: Record<s
             outfile: path.join(application, 'main.cjs'),
             directories: {native: path.join(work, 'main.native'), resources: path.join(work, 'main.resources')}
         })
-        const maintainer: string = platform === 'linux' ? Maintainer(author, name, warnings) : author ?? name
+        const maintainer: string = platform === 'linux' ? packageMaintainer(author, name, warnings) : author ?? name
         //The packages of fpm need a homepage
         let homepage: string | undefined = config.homepage ?? (typeof manifest.homepage === 'string' ? manifest.homepage : undefined)
         if (!homepage && platform === 'linux') {
@@ -258,28 +258,28 @@ export async function BuildElectronInstaller(project: string, manifest: Record<s
         for (const target of targets) {
             const resolved: TargetScripts | undefined = scripts[target]
             if (!resolved) continue
-            if (platform === 'linux' && (target === 'deb' || target === 'rpm') && Object.keys(resolved.hooks).length) own[target] = await FpmScripts(target, resolved, prefix, templates, path.join(work, 'scripts'))
-            if (platform === 'mac' && target === 'pkg' && Object.keys(resolved.hooks).length) own.pkg = {scripts: await PkgScripts(resolved, prefix, path.join(work, 'pkg-scripts'))}
+            if (platform === 'linux' && (target === 'deb' || target === 'rpm') && Object.keys(resolved.hooks).length) own[target] = await fpmScripts(target, resolved, prefix, templates, path.join(work, 'scripts'))
+            if (platform === 'mac' && target === 'pkg' && Object.keys(resolved.hooks).length) own.pkg = {scripts: await pkgScripts(resolved, prefix, path.join(work, 'pkg-scripts'))}
             if (platform === 'win' && target === 'nsis') {
-                const include: string | undefined = await NsisInclude({...resolved, include: resolved.include && {...resolved.include, file: path.resolve(project, resolved.include.file)}}, path.join(work, 'nsis'))
+                const include: string | undefined = await nsisInclude({...resolved, include: resolved.include && {...resolved.include, file: path.resolve(project, resolved.include.file)}}, path.join(work, 'nsis'))
                 if (include) own.nsis = {include: include}
             }
         }
         //The icon of the application, in the formats of the platform: icns (macOS), ico (Windows), the PNG of each size (Linux)
-        const appIcon = ApplicationIcon(project, manifest)
+        const appIcon = applicationIcon(project, manifest)
         const icons: Record<string, unknown> = {}
         if (appIcon) {
             const directory: string = path.join(work, 'icons')
             await mkdir(directory, {recursive: true})
             if (platform === 'mac') {
                 if (appIcon.image.width < 1024) warnings.push(`The icon of the application ${path.relative(project, appIcon.file)} is ${appIcon.image.width} pixels: 1024 make the icons of the Retina screens of macOS`)
-                await writeFile(path.join(directory, 'icon.icns'), IcnsFile(appIcon.image))
+                await writeFile(path.join(directory, 'icon.icns'), icnsFile(appIcon.image))
                 icons.mac = {icon: path.join(directory, 'icon.icns')}
             } else if (platform === 'win') {
-                await writeFile(path.join(directory, 'icon.ico'), IcoFile(appIcon.image))
+                await writeFile(path.join(directory, 'icon.ico'), icoFile(appIcon.image))
                 icons.win = {icon: path.join(directory, 'icon.ico')}
             } else {
-                await WriteLinuxIcons(appIcon.image, path.join(directory, 'linux'))
+                await writeLinuxIcons(appIcon.image, path.join(directory, 'linux'))
                 icons.linux = {icon: path.join(directory, 'linux')}
             }
         }
@@ -310,7 +310,7 @@ export async function BuildElectronInstaller(project: string, manifest: Record<s
                 if ((electronConfig as Record<string, any>)[target]?.[option] !== undefined && (own[target] as Record<string, unknown>)[option] !== undefined) throw new Error(`lakutata.installer.electron.${target}.${option} replaces what runs the scripts of the application: give the script to lakutata.installer.${platform}.scripts`)
             }
         }
-        const merged: Record<string, any> = Merge(generated, electronConfig as Record<string, any>)
+        const merged: Record<string, any> = merge(generated, electronConfig as Record<string, any>)
         //The 7-Zip of electron-builder filters the executables of ARM64 by its ARM64 filter, which the installers of NSIS
         //do not extract (they leave them out): the BCJ filter is the one they extract
         const filter: boolean = platform === 'win' && process.arch === 'arm64' && process.env.ELECTRON_BUILDER_7Z_FILTER === undefined

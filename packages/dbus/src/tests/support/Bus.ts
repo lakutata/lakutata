@@ -25,7 +25,7 @@ export type TestBus = {
 /**
  * Start a private bus listening on a socket of a temporary directory
  */
-export async function StartBus(): Promise<TestBus> {
+export async function startBus(): Promise<TestBus> {
     const directory: string = mkdtempSync(path.join(tmpdir(), 'lakutata-dbus-'))
     const socket: string = path.join(directory, 'bus.sock')
     const config: string = path.join(directory, 'bus.conf')

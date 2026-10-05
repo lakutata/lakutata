@@ -1,4 +1,4 @@
-import {ThrowWarning} from './ThrowWarning.js'
+import {throwWarning} from './ThrowWarning.js'
 
 /**
  * A reporter of the errors of the lifecycle of the objects which have no caller to throw them to: the errors of a
@@ -7,7 +7,7 @@ import {ThrowWarning} from './ThrowWarning.js'
 export type LifecycleErrorReporter = (error: Error, message: string) => void
 
 const defaultLifecycleErrorReporter: LifecycleErrorReporter = (error: Error, message: string): void => {
-    ThrowWarning(`${message}: ${error.stack ? error.stack : error.message}`)
+    throwWarning(`${message}: ${error.stack ? error.stack : error.message}`)
 }
 
 let lifecycleErrorReporter: LifecycleErrorReporter = defaultLifecycleErrorReporter
@@ -18,7 +18,7 @@ let lifecycleErrorReporter: LifecycleErrorReporter = defaultLifecycleErrorReport
  * @param reporter
  * @constructor
  */
-export function SetLifecycleErrorReporter(reporter?: LifecycleErrorReporter): void {
+export function setLifecycleErrorReporter(reporter?: LifecycleErrorReporter): void {
     lifecycleErrorReporter = reporter ? reporter : defaultLifecycleErrorReporter
 }
 
@@ -54,7 +54,7 @@ function report(errors: Error[], message: string): void {
  * @param objectName name of the object whose teardown failed
  * @constructor
  */
-export function ReportDestroyError(error: unknown, objectName?: string): void {
+export function reportDestroyError(error: unknown, objectName?: string): void {
     const context: string | undefined = objectName && !(error instanceof AggregateError) ? `Failed to destroy object "${objectName}"` : undefined
     report(flatten(error, context), 'An error occurred while destroying an object')
 }
@@ -65,6 +65,6 @@ export function ReportDestroyError(error: unknown, objectName?: string): void {
  * @param objectName
  * @constructor
  */
-export function ReportLaunchedError(error: unknown, objectName: string): void {
+export function reportLaunchedError(error: unknown, objectName: string): void {
     report(flatten(error, `Failed to run the launched() hook of object "${objectName}"`), 'An error occurred in the launched() hook of an object')
 }

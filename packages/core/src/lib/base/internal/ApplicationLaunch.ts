@@ -19,7 +19,7 @@ const waiting: WeakMap<object, { promise: Promise<void>, resolve: () => void }> 
  * Declare the application class
  * @param target
  */
-export function DeclareApplicationClass(target: Function): void {
+export function declareApplicationClass(target: Function): void {
     applicationClass = target
 }
 
@@ -27,7 +27,7 @@ export function DeclareApplicationClass(target: Function): void {
  * Mark an application as launched: every object and the bootstrap of the application are ready
  * @param application
  */
-export function MarkApplicationLaunched(application: object): void {
+export function markApplicationLaunched(application: object): void {
     launched.add(application)
     waiting.get(application)?.resolve()
     waiting.delete(application)
@@ -38,7 +38,7 @@ export function MarkApplicationLaunched(application: object): void {
  * @param object
  * @return undefined when the object does not belong to an application (such as the objects of a bare container)
  */
-export function WhenApplicationLaunched(object: object): Promise<void> | undefined {
+export function whenApplicationLaunched(object: object): Promise<void> | undefined {
     let target: any = object
     while (target && !(applicationClass && target instanceof As<any>(applicationClass))) target = target.getParent?.()
     if (!target) return undefined

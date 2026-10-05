@@ -11,7 +11,7 @@ import {ContainerdPathNotFoundException} from '../exceptions/ContainerdPathNotFo
  * @param error
  * @param fallback the exception of the operation
  */
-export function ContainerdError(error: unknown, fallback?: new (message: string) => Error): Error {
+export function containerdError(error: unknown, fallback?: new (message: string) => Error): Error {
     const message: string = (error as Error)?.message ?? String(error)
     switch ((error as { code?: unknown })?.code) {
         case 'NOT_FOUND':

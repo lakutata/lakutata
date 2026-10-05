@@ -3,7 +3,7 @@ import type {Controller} from '@lakutata/entrypoint'
 import {ActionOptions, getActionDTOAndOptions, registerControllerAction} from '@lakutata/entrypoint/channel'
 import {DBusChannel} from '../channel/DBusChannel.js'
 import type {DBusContext} from '../context/DBusContext.js'
-import {SchemaSignature} from '../lib/Signature.js'
+import {schemaSignature} from '../lib/Signature.js'
 
 /**
  * The options of {@link DBusMethod}: the options of a controller action (`name`, `description`, `acl`, `rule`,
@@ -125,7 +125,7 @@ export function DBusMethod<ClassPrototype extends Controller, Method, DTOConstru
             ? getActionDTOAndOptions(dtoConstructorOrOptions as DTOConstructor, actionOptions)
             : getActionDTOAndOptions(actionOptions)
         const pattern: Record<string, string> = {member: name}
-        if (returns !== undefined) pattern.returns = typeof returns === 'string' ? returns : SchemaSignature(returns)
+        if (returns !== undefined) pattern.returns = typeof returns === 'string' ? returns : schemaSignature(returns)
         registerControllerAction(DBusChannel, target, propertyKey as never, pattern, dtoConstructor, validatedOptions)
         return descriptor
     }

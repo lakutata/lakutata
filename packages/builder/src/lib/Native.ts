@@ -94,7 +94,7 @@ type PackageInfo = {
  * The name of the package of a module specifier ("@scope/name/sub/path" → "@scope/name"), undefined for a path
  * @param specifier
  */
-export function SpecifierPackage(specifier: string): string | undefined {
+export function specifierPackage(specifier: string): string | undefined {
     if (specifier.startsWith('.') || path.isAbsolute(specifier)) return undefined
     const parts: string[] = specifier.split('/')
     return specifier.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0]
@@ -104,7 +104,7 @@ export function SpecifierPackage(specifier: string): string | undefined {
  * The files of a package directory, without the packages it holds (node_modules)
  * @param directory
  */
-function PackageFiles(directory: string): string[] {
+function packageFiles(directory: string): string[] {
     const files: string[] = []
     const walk = (current: string): void => {
         for (const entry of readdirSync(current, {withFileTypes: true})) {
@@ -130,7 +130,7 @@ function PackageFiles(directory: string): string[] {
  * @param directory
  * @param name
  */
-function Lookups(directory: string, name: string): string[] {
+function lookupDirectories(directory: string, name: string): string[] {
     const parts: string[] = directory.split('/')
     const lookups: string[] = []
     for (let index: number = parts.length; index >= 0; index--) {
@@ -228,7 +228,7 @@ export class NativeCollector {
             let info: PackageInfo | undefined
             try {
                 const manifest: Record<string, any> = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'))
-                const files: string[] = PackageFiles(root)
+                const files: string[] = packageFiles(root)
                 info = {
                     root: root,
                     name: manifest.name,
@@ -303,7 +303,7 @@ export class NativeCollector {
                     if (!file) return undefined
                     const root: string | undefined = this.packageRoot(file)
                     if (this.isNative(root)) {
-                        const name: string | undefined = SpecifierPackage(args.path)
+                        const name: string | undefined = specifierPackage(args.path)
                         if (!name) throw new Error(`${args.importer} loads ${args.path} of the native package ${this.package(root)!.name} by its path: load it by its name`)
                         const external = this.externals.get(name) ?? {root: root, entries: new Set<string>()}
                         external.entries.add(file)
@@ -381,7 +381,7 @@ export class NativeCollector {
                             if (!file || ADDON.test(file)) return {path: args.path, external: true}
                             const dependency: string | undefined = this.packageRoot(file)
                             //The package it requires by this name (the ones it does not declare too)
-                            const name: string | undefined = SpecifierPackage(args.path)
+                            const name: string | undefined = specifierPackage(args.path)
                             const importer: string | undefined = args.importer ? this.packageRoot(realpathSync(args.importer)) : undefined
                             if (name && importer && dependency && importer !== dependency) this.requires(importer).set(name, dependency)
                             if (dependency !== current.root && this.isNative(dependency)) {
@@ -410,7 +410,7 @@ export class NativeCollector {
             }
             //The packages it declares which its code names: the ones it loads by requires esbuild does not follow
             //(createRequire(import.meta.url)('node-gyp-build')), not the ones installing it (node-gyp, prebuild-install)
-            const sources: string = (result ? Object.keys(result.metafile.inputs).map((input: string): string => realpathSync(path.resolve(input))) : PackageFiles(current.root))
+            const sources: string = (result ? Object.keys(result.metafile.inputs).map((input: string): string => realpathSync(path.resolve(input))) : packageFiles(current.root))
                 .filter((file: string): boolean => this.packageRoot(file) === current.root && /\.[cm]?[jt]s$/.test(file))
                 .map((file: string): string => readFileSync(file, 'utf8'))
                 .join('\n')
@@ -474,7 +474,7 @@ export class NativeCollector {
                 }
                 for (const [name, dependency] of [...needed].sort(([a], [b]): number => a.localeCompare(b))) {
                     if (dependency === root || !included.has(dependency)) continue
-                    const found: string | undefined = Lookups(directory, name).find((lookup: string): boolean => placed.has(lookup))
+                    const found: string | undefined = lookupDirectories(directory, name).find((lookup: string): boolean => placed.has(lookup))
                     if (found !== undefined && placed.get(found) === dependency) continue
                     place(found === undefined ? `node_modules/${name}` : `${directory}/node_modules/${name}`, dependency)
                 }
@@ -500,7 +500,7 @@ export class NativeCollector {
      * @param root
      */
     protected packageFiles(root: string): string[] {
-        const files: string[] = PackageFiles(root).filter((file: string): boolean => !UNUSED.test(file))
+        const files: string[] = packageFiles(root).filter((file: string): boolean => !UNUSED.test(file))
         const loaded: Set<string> | undefined = this.loaded.get(root)
         if (!loaded || this.whole.has(root) || this.package(root)?.libraries) return files
         return files.filter((file: string): boolean => !SCRIPT.test(file) || loaded.has(file))
@@ -519,7 +519,7 @@ export class NativeCollector {
             for (const file of this.packageFiles(root)) files.push({path: `${directory}/${path.relative(root, file).split(path.sep).join('/')}`, source: file, mode: statSync(file).mode & 0o777})
         }
         for (const [key, file] of this.addons) files.push({path: key, source: file, mode: statSync(file).mode & 0o777})
-        return {modules: [...this.externals.keys()].sort(), files: files, links: [], hash: HashNativeTree(files, [])}
+        return {modules: [...this.externals.keys()].sort(), files: files, links: [], hash: hashNativeTree(files, [])}
     }
 }
 
@@ -528,7 +528,7 @@ export class NativeCollector {
  * @param files
  * @param links
  */
-export function HashNativeTree(files: NativeFile[], links: NativeLink[]): string {
+export function hashNativeTree(files: NativeFile[], links: NativeLink[]): string {
     const hash = createHash('sha256')
     for (const file of files) hash.update(`${file.path}\0${file.mode}\0`).update(readFileSync(file.source))
     for (const link of links) hash.update(`${link.path}\0${link.target}\0`)
@@ -540,7 +540,7 @@ export function HashNativeTree(files: NativeFile[], links: NativeLink[]): string
  * @param tree
  * @param directory
  */
-export async function WriteNativeTree(tree: NativeTree, directory: string): Promise<void> {
+export async function writeNativeTree(tree: NativeTree, directory: string): Promise<void> {
     await rm(directory, {recursive: true, force: true})
     for (const file of tree.files) {
         const target: string = path.join(directory, ...file.path.split('/'))
@@ -561,7 +561,7 @@ export async function WriteNativeTree(tree: NativeTree, directory: string): Prom
  * Pack a native tree into the assets of an executable: its gzipped files and their index
  * @param tree
  */
-export function PackNativeTree(tree: NativeTree): { index: NativeIndex, data: Buffer } {
+export function packNativeTree(tree: NativeTree): { index: NativeIndex, data: Buffer } {
     const chunks: Buffer[] = []
     const files: NativeIndex['files'] = []
     let offset: number = 0

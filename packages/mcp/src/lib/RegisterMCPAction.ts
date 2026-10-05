@@ -3,7 +3,7 @@ import type {Controller} from '@lakutata/entrypoint'
 import {ActionOptions, getActionDTOAndOptions, registerControllerAction} from '@lakutata/entrypoint/channel'
 import {MCPChannel} from '../channel/MCPChannel.js'
 import type {MCPContext, MCPRequestKind} from '../context/MCPContext.js'
-import {type MCPMetadata, RegisterMCPMetadata} from './Metadata.js'
+import {type MCPMetadata, registerMCPMetadata} from './Metadata.js'
 
 /**
  * Register an action of the MCP channel
@@ -15,7 +15,7 @@ import {type MCPMetadata, RegisterMCPMetadata} from './Metadata.js'
  * @param options
  * @param split takes the MCP metadata out of the options, the rest are the options of the action
  */
-export function RegisterMCPAction<Options extends ActionOptions<MCPContext>>(
+export function registerMCPAction<Options extends ActionOptions<MCPContext>>(
     kind: MCPRequestKind,
     address: string,
     target: Controller,
@@ -30,7 +30,7 @@ export function RegisterMCPAction<Options extends ActionOptions<MCPContext>>(
         ? getActionDTOAndOptions(dtoConstructorOrOptions as typeof DTO, actionOptions)
         : getActionDTOAndOptions(actionOptions)
     const pattern: Record<string, string> = {[kind]: address}
-    const metadataId: string | undefined = RegisterMCPMetadata(metadata)
+    const metadataId: string | undefined = registerMCPMetadata(metadata)
     if (metadataId) pattern.metadata = metadataId
     registerControllerAction(MCPChannel, target, propertyKey as never, pattern, dtoConstructor, validatedOptions)
 }

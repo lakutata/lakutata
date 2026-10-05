@@ -61,7 +61,7 @@ type SortSettings = {
  * An array of a value (array-back)
  * @param input
  */
-function Arrayify(input: any): any[] {
+function arrayify(input: any): any[] {
     if (Array.isArray(input)) return input
     if (input === undefined) return []
     if ((typeof input === 'object' && input !== null && typeof input.length === 'number') || input instanceof Set) return Array.from(input)
@@ -72,7 +72,7 @@ function Arrayify(input: any): any[] {
  * Not undefined, null nor NaN (typical)
  * @param input
  */
-function IsDefinedValue(input: any): boolean {
+function isDefinedValue(input: any): boolean {
     return input !== undefined && input !== null && !Number.isNaN(input)
 }
 
@@ -80,9 +80,9 @@ function IsDefinedValue(input: any): boolean {
  * The comparison of the items of sort-array
  * @param options
  */
-function CompareFunction(options: SortSettings): (xIn: any, yIn: any, byIndex?: number) => number {
-    const by: any[] = Arrayify(options.by)
-    const order: any[] = Arrayify(options.order)
+function compareFunction(options: SortSettings): (xIn: any, yIn: any, byIndex?: number) => number {
+    const by: any[] = arrayify(options.by)
+    const order: any[] = arrayify(options.order)
     const {customOrders, computed} = options
     const compare = (xIn: any, yIn: any, byIndex: number = 0): number => {
         const currOrder: any = order[byIndex] || 'asc'
@@ -105,17 +105,17 @@ function CompareFunction(options: SortSettings): (xIn: any, yIn: any, byIndex?: 
             result = currOrder === 'asc' ? 1 : currOrder === 'desc' ? -1 : 0
         } else if (x === undefined && y === null) {
             result = currOrder === 'asc' ? -1 : currOrder === 'desc' ? 1 : 0
-        } else if (x === null && IsDefinedValue(y)) {
+        } else if (x === null && isDefinedValue(y)) {
             result = options.nullRank
-        } else if (x === undefined && IsDefinedValue(y)) {
+        } else if (x === undefined && isDefinedValue(y)) {
             result = options.undefinedRank
-        } else if (Number.isNaN(x) && IsDefinedValue(y)) {
+        } else if (Number.isNaN(x) && isDefinedValue(y)) {
             result = options.nanRank
-        } else if (y === null && IsDefinedValue(x)) {
+        } else if (y === null && isDefinedValue(x)) {
             result = -options.nullRank
-        } else if (y === undefined && IsDefinedValue(x)) {
+        } else if (y === undefined && isDefinedValue(x)) {
             result = -options.undefinedRank
-        } else if (Number.isNaN(y) && IsDefinedValue(x)) {
+        } else if (Number.isNaN(y) && isDefinedValue(x)) {
             result = -options.nanRank
         } else {
             result = x < y ? -1 : x > y ? 1 : 0
@@ -132,10 +132,10 @@ function CompareFunction(options: SortSettings): (xIn: any, yIn: any, byIndex?: 
  * @param array
  * @param options
  */
-function Sort<T>(array: T[], options: Partial<SortSettings> = {}): T[] {
+function sort<T>(array: T[], options: Partial<SortSettings> = {}): T[] {
     const settings: SortSettings = Object.assign({computed: {}, customOrders: {}, nullRank: 1, undefinedRank: 1, nanRank: 1}, options)
     //The comparison is called with two arguments (the byIndex of the first property)
-    const compare: (xIn: any, yIn: any, byIndex?: number) => number = CompareFunction(settings)
+    const compare: (xIn: any, yIn: any, byIndex?: number) => number = compareFunction(settings)
     array.sort((x: T, y: T): number => compare(x, y))
     return array
 }
@@ -181,7 +181,7 @@ export function sortArray<T = any>(array: T[], ...options: SortArrayOptions<T>[]
                 if (options[0][key] !== undefined) sortOptions[key] = options[0][key]
             }
         }
-        return Sort(array, sortOptions)
+        return sort(array, sortOptions)
     }
     const sortsOptions: { [key: string]: any } = {
         by: [],
@@ -195,5 +195,5 @@ export function sortArray<T = any>(array: T[], ...options: SortArrayOptions<T>[]
         sortsOptions.order.push(field)
         sortsOptions.customOrders[field] = sortArray(array, opt).map((value: any): any => value[field])
     })
-    return Sort(array, sortsOptions)
+    return sort(array, sortsOptions)
 }

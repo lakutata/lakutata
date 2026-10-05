@@ -1,27 +1,27 @@
 import {AsyncConstructor} from './async-constructor/AsyncConstructor.js'
 import {Transient} from '../../decorators/di/Lifetime.js'
 import {MethodNotFoundException} from '../../exceptions/MethodNotFoundException.js'
-import {Container, containerSymbol, RegisterTeardownHook} from '../core/Container.js'
+import {Container, containerSymbol, registerTeardownHook} from '../core/Container.js'
 import {randomUUID} from 'node:crypto'
-import {GetConfigurableRecordsFromInstance, GetIdFromInstance, GetRegistrationNameFromInstance} from './internal/ConfigurableRecordsInjection.js'
-import {GetObjectConfigurableProperties} from './internal/ObjectConfiguration.js'
+import {getConfigurableRecordsFromInstance, getIdFromInstance, getRegistrationNameFromInstance} from './internal/ConfigurableRecordsInjection.js'
+import {getObjectConfigurableProperties} from './internal/ObjectConfiguration.js'
 import {
-    GetObjectInjectItemsByPrototype,
+    getObjectInjectItemsByPrototype,
     InjectionTransformFunction,
     type ObjectInjectionMap
 } from './internal/ObjectInjection.js'
-import {SetObjectContainerGetter} from './internal/ObjectContainer.js'
+import {setObjectContainerGetter} from './internal/ObjectContainer.js'
 import {DTO} from '../dto/DTO.js'
 import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
 import {isSymbol} from '@lakutata/utils/IsSymbol'
 import {objectConstructor} from '@lakutata/utils/ObjectConstructor'
 import {As} from '@lakutata/utils/As'
 import {DevNull} from '@lakutata/utils/DevNull'
-import {DefineObjectType, GetObjectType, ObjectType, RegisterBaseObject} from './internal/ObjectType.js'
+import {DefineObjectType, getObjectType, ObjectType, registerBaseObject} from './internal/ObjectType.js'
 import {Module} from '../core/Module.js'
-import {WhenApplicationLaunched} from './internal/ApplicationLaunch.js'
-import {RunObjectStartup, WaitForObjectStartup, WaitForObjectStartupEnd} from './internal/ObjectStartup.js'
-import {ReportLaunchedError} from '../foundation/LifecycleErrorReporter.js'
+import {whenApplicationLaunched} from './internal/ApplicationLaunch.js'
+import {runObjectStartup, waitForObjectStartup, waitForObjectStartupEnd} from './internal/ObjectStartup.js'
+import {reportLaunchedError} from '../foundation/LifecycleErrorReporter.js'
 import {DependencyInjectionException} from '../../exceptions/di/DependencyInjectionException.js'
 import {ObjectDestroyedException} from '../../exceptions/ObjectDestroyedException.js'
 
@@ -127,9 +127,9 @@ export class BaseObject extends AsyncConstructor {
      * @private
      */
     async #loadConfigurableRecords(): Promise<void> {
-        const configurableRecords: Record<string, any> = GetConfigurableRecordsFromInstance(this)
+        const configurableRecords: Record<string, any> = getConfigurableRecordsFromInstance(this)
         const setConfigurableValuePromises: Promise<void>[] = []
-        GetObjectConfigurableProperties(this).forEach((schemaAndFn, propertyKey): void => {
+        getObjectConfigurableProperties(this).forEach((schemaAndFn, propertyKey): void => {
             if (isSymbol(propertyKey)) return
             const configured: unknown = configurableRecords[As<string>(propertyKey)]
             const value: unknown = configured !== undefined ? configured : this[propertyKey]
@@ -150,7 +150,7 @@ export class BaseObject extends AsyncConstructor {
      * @private
      */
     async #applyInjection(): Promise<void> {
-        const objectInjectionMap: ObjectInjectionMap = GetObjectInjectItemsByPrototype(this)
+        const objectInjectionMap: ObjectInjectionMap = getObjectInjectItemsByPrototype(this)
         const injectionPromises: Promise<void>[] = []
         objectInjectionMap.forEach((info: {
             name: string | symbol | Function
@@ -183,7 +183,7 @@ export class BaseObject extends AsyncConstructor {
      * @private
      */
     #setObjectId(): void {
-        const id: string | symbol | undefined = GetIdFromInstance(this)
+        const id: string | symbol | undefined = getIdFromInstance(this)
         this.#objectId = id ? id : anonymousId
     }
 
@@ -202,11 +202,11 @@ export class BaseObject extends AsyncConstructor {
             await this[__init]()
         })
         this.#container = new Container(cradleProxy[containerSymbol], this)
-        SetObjectContainerGetter(this, this.#container)
+        setObjectContainerGetter(this, this.#container)
         //The teardown of the container may start before the teardown of the object (the teardown of its owner destroys
         //the containers of the objects first), so beforeDestroy() runs when the teardown of the container starts
         if (this.beforeDestroy !== BaseObject.prototype.beforeDestroy) {
-            RegisterTeardownHook(this.#container, (): Promise<void> => this.#beforeDestroying ? Promise.resolve() : this.#runBeforeDestroy())
+            registerTeardownHook(this.#container, (): Promise<void> => this.#beforeDestroying ? Promise.resolve() : this.#runBeforeDestroy())
         }
     }
 
@@ -217,7 +217,7 @@ export class BaseObject extends AsyncConstructor {
     #runBeforeDestroy(): Promise<void> {
         return this.#beforeDestroying ??= (async (): Promise<void> => {
             //An object stops once its startup ended
-            const startupEnd: Promise<void> | undefined = WaitForObjectStartupEnd(this)
+            const startupEnd: Promise<void> | undefined = waitForObjectStartupEnd(this)
             if (startupEnd) await startupEnd
             await this.beforeDestroy()
         })()
@@ -280,7 +280,7 @@ export class BaseObject extends AsyncConstructor {
         this.#assertNotDestroyed()
         this.#state = 'ready'
         //The startup runs once the object can be got, its requesters wait for it (see startup())
-        if (this.startup !== BaseObject.prototype.startup) void RunObjectStartup(this, (): Promise<void> => this.startup())
+        if (this.startup !== BaseObject.prototype.startup) void runObjectStartup(this, (): Promise<void> => this.startup())
         if (this.launched !== BaseObject.prototype.launched) this.#scheduleLaunched()
     }
 
@@ -294,13 +294,13 @@ export class BaseObject extends AsyncConstructor {
         const run = (): void => {
             if (token !== this.#launchedToken || this.#state !== 'ready') return
             try {
-                Promise.resolve(this.launched()).catch((error: unknown): void => ReportLaunchedError(error, this.className))
+                Promise.resolve(this.launched()).catch((error: unknown): void => reportLaunchedError(error, this.className))
             } catch (error) {
-                ReportLaunchedError(error, this.className)
+                reportLaunchedError(error, this.className)
             }
         }
         //Once started: an object whose startup failed is not called
-        void (WhenApplicationLaunched(this) ?? Promise.resolve()).then((): Promise<void> => WaitForObjectStartup(this)).then(run, DevNull)
+        void (whenApplicationLaunched(this) ?? Promise.resolve()).then((): Promise<void> => waitForObjectStartup(this)).then(run, DevNull)
     }
 
     /**
@@ -335,7 +335,7 @@ export class BaseObject extends AsyncConstructor {
         this.#destroying = (async (): Promise<void> => {
             const errors: unknown[] = []
             //An object is destroyed once its startup ended (its startup itself destroying it does not wait)
-            const startupEnd: Promise<void> | undefined = WaitForObjectStartupEnd(this)
+            const startupEnd: Promise<void> | undefined = waitForObjectStartupEnd(this)
             if (startupEnd) await startupEnd
             //The object stops its work while the objects it created are still alive (unless the teardown of its
             //container already did it, then its errors were reported)
@@ -542,7 +542,7 @@ export class BaseObject extends AsyncConstructor {
      * @protected
      */
     protected getConfigurableRecords(): Record<string, any> {
-        return {...GetConfigurableRecordsFromInstance(this)}
+        return {...getConfigurableRecordsFromInstance(this)}
     }
 
     /**
@@ -561,7 +561,7 @@ export class BaseObject extends AsyncConstructor {
      */
     protected getModule(): Module {
         let parent: BaseObject | undefined = this.getParent()
-        while (parent && GetObjectType(As<IBaseObjectConstructor>(objectConstructor(parent))) !== ObjectType.Module) {
+        while (parent && getObjectType(As<IBaseObjectConstructor>(objectConstructor(parent))) !== ObjectType.Module) {
             parent = parent.getParent()
         }
         return As<Module>(parent)
@@ -682,7 +682,7 @@ export class BaseObject extends AsyncConstructor {
             await this[__destroy]()
         } finally {
             //A disposed cached object (singleton, scoped) is dropped, so the container creates a new one next time
-            const registrationName: string | symbol | undefined = GetRegistrationNameFromInstance(this)
+            const registrationName: string | symbol | undefined = getRegistrationNameFromInstance(this)
             if (registrationName !== undefined) this.#container.parent?.forget(registrationName, this)
         }
     }
@@ -696,4 +696,4 @@ export class BaseObject extends AsyncConstructor {
     }
 }
 
-RegisterBaseObject(BaseObject)
+registerBaseObject(BaseObject)

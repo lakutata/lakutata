@@ -11,7 +11,7 @@ class TestException extends Exception {
  * A pseudo random generator with a seed (mulberry32)
  * @param seed
  */
-function Random(seed: number): () => number {
+function seededRandom(seed: number): () => number {
     return (): number => {
         seed = (seed + 0x6D2B79F5) | 0
         let t: number = Math.imul(seed ^ (seed >>> 15), 1 | seed)
@@ -20,7 +20,7 @@ function Random(seed: number): () => number {
     }
 }
 
-const random: () => number = Random(20261002)
+const random: () => number = seededRandom(20261002)
 
 const pick = <T>(values: T[]): T => values[Math.floor(random() * values.length)]
 
@@ -29,7 +29,7 @@ const PLACEHOLDERS: string[] = ['%s', '%d', '%i', '%f', '%j', '%o', '%O', '%c']
 /**
  * A random argument of any type
  */
-function Argument(): unknown {
+function argument(): unknown {
     const circular: Record<string, unknown> = {a: 1}
     circular.self = circular
     return pick([
@@ -47,7 +47,7 @@ describe('The messages of the exceptions', (): void => {
             const template: string = tokens.join('') + pick(['', '%', ' end'])
             const consuming: number = (template.match(/%[sdifjoOc%x]/g) ?? []).filter((match: string): boolean => PLACEHOLDERS.includes(match)).length
             //No argument more than the placeholders: util.format() would append it
-            const args: unknown[] = Array.from({length: 1 + Math.floor(random() * Math.max(consuming, 1))}, Argument).slice(0, Math.max(consuming, 1))
+            const args: unknown[] = Array.from({length: 1 + Math.floor(random() * Math.max(consuming, 1))}, argument).slice(0, Math.max(consuming, 1))
             if (consuming === 0 && args.length) continue
             let expected: string
             try {

@@ -12,7 +12,7 @@ let ending: boolean = false
  * @param code
  * @param grace the time it is given to exit by itself
  */
-export function EndProcess(code: number, grace: number = 500): void {
+export function endProcess(code: number, grace: number = 500): void {
     if (ending) return
     ending = true
     process.exitCode = code
@@ -22,6 +22,6 @@ export function EndProcess(code: number, grace: number = 500): void {
 /**
  * Whether the process is ending: the errors of the code still running are not the ones of the application
  */
-export function IsEnding(): boolean {
+export function isEnding(): boolean {
     return ending
 }

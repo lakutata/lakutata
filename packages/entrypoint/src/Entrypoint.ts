@@ -4,7 +4,7 @@ import {CLIContext} from './context/CLIContext.js'
 import {HTTPContext} from './context/HTTPContext.js'
 import {ServiceContext} from './context/ServiceContext.js'
 import {ScheduleContext} from './context/ScheduleContext.js'
-import {ActionDetails, ActionPatternMap, BindControllerToComponent, GetComponentControllerActionMap} from './lib/ControllerEntrypoint.js'
+import {ActionDetails, ActionPatternMap, bindControllerToComponent, getComponentControllerActionMap} from './lib/ControllerEntrypoint.js'
 import {Controller} from './lib/Controller.js'
 import {As, cloneDeep, DevNull} from '@lakutata/utils'
 import {getMethodReturnSchema} from '@lakutata/core/decorator/dto'
@@ -15,14 +15,14 @@ import {AccessControlRule} from './lib/AccessControlRule.js'
 import {InvalidActionGroupException} from './exceptions/InvalidActionGroupException.js'
 import {
     ActionInvocation,
-    ComposeMiddlewares,
-    GetClassMiddlewares,
-    GetMethodMiddlewares,
+    composeMiddlewares,
+    getClassMiddlewares,
+    getMethodMiddlewares,
     InvocationRunner,
-    IsMiddlewareClass,
+    isMiddlewareClass,
     Middleware,
     MiddlewareDefinition,
-    ValidateMiddlewares
+    validateMiddlewares
 } from './lib/Middleware.js'
 import {ChannelDefinition, ChannelEntry, ChannelMatch, ChannelMatcher, defineChannel, getChannel, getChannelByContextType, hasChannel} from './channel/Channel.js'
 import {ChannelActionInfo, ChannelRuntime, commandMap, DispatchOptions, EntrypointAdapter, isEntrypointAdapter} from './channel/EntrypointAdapter.js'
@@ -515,7 +515,7 @@ type InflightRequest = {
  * The promises of the requests in progress (a request is in progress before its promise is created)
  * @param requests
  */
-function Promises(requests: Iterable<InflightRequest>): Promise<unknown>[] {
+function promises(requests: Iterable<InflightRequest>): Promise<unknown>[] {
     return [...requests].map((request: InflightRequest): Promise<unknown> | undefined => request.promise).filter((promise: Promise<unknown> | undefined): promise is Promise<unknown> => !!promise)
 }
 
@@ -728,23 +728,23 @@ export class Entrypoint extends Component {
      * @protected
      */
     protected async init(): Promise<void> {
-        ValidateMiddlewares(this.middlewares)
+        validateMiddlewares(this.middlewares)
         const adapters: EntrypointAdapter<any>[] = this.#adapters = this.configuredAdapters()
         await Promise.all(this.controllers.map((controllerConstructor: IBaseObjectConstructor<Controller>): Promise<void> => {
-            BindControllerToComponent(this, controllerConstructor)
+            bindControllerToComponent(this, controllerConstructor)
             return this.container.register(controllerConstructor)
         }))
-        GetComponentControllerActionMap(this).forEach((actions: ActionPatternMap, channel: string): unknown => this.#channels.set(channel, this.createChannelState(getChannel(channel), actions)))
+        getComponentControllerActionMap(this).forEach((actions: ActionPatternMap, channel: string): unknown => this.#channels.set(channel, this.createChannelState(getChannel(channel), actions)))
         this.checkActions('CLI', this.#channels.get('cli')?.infos, this.cliActionGroups, 'cliActionGroups')
         this.checkActions('HTTP', this.#channels.get('http')?.infos, this.httpActionGroups, 'httpActionGroups')
         this.checkActions('Service', this.#channels.get('service')?.infos, this.serviceActionGroups, 'serviceActionGroups')
         for (const [name, state] of this.#channels) if (!LEGACY_CHANNELS.has(name)) this.checkActions(name, state.infos)
         //The middleware classes are created in the container of each request
         const middlewareClasses: Set<IBaseObjectConstructor<Middleware>> = new Set()
-        const addMiddlewareClasses = (middlewares: MiddlewareDefinition[]): void => middlewares.filter(IsMiddlewareClass).forEach((middlewareClass: IBaseObjectConstructor<Middleware>): unknown => middlewareClasses.add(middlewareClass))
+        const addMiddlewareClasses = (middlewares: MiddlewareDefinition[]): void => middlewares.filter(isMiddlewareClass).forEach((middlewareClass: IBaseObjectConstructor<Middleware>): unknown => middlewareClasses.add(middlewareClass))
         addMiddlewareClasses(this.middlewares)
         this.#channels.forEach((state: ChannelState): void => state.entries.forEach((entry: ActionEntry): void => addMiddlewareClasses(entry.middlewares)))
-        adapters.forEach((adapter: EntrypointAdapter<any>): void => addMiddlewareClasses(ValidateMiddlewares(adapter.middlewares ?? [])))
+        adapters.forEach((adapter: EntrypointAdapter<any>): void => addMiddlewareClasses(validateMiddlewares(adapter.middlewares ?? [])))
         await Promise.all([...middlewareClasses].map((middlewareClass: IBaseObjectConstructor<Middleware>): Promise<void> => this.container.register(middlewareClass)))
     }
 
@@ -905,9 +905,9 @@ export class Entrypoint extends Component {
                 info: info,
                 address: {...info, address: details.pattern, dto: details.dtoConstructor, returnSchema: getMethodReturnSchema(details.constructor.prototype, As<string | symbol>(details.method))},
                 middlewares: [
-                    ...GetClassMiddlewares(details.constructor),
+                    ...getClassMiddlewares(details.constructor),
                     ...details.middlewares,
-                    ...GetMethodMiddlewares(details.constructor, As<string | symbol>(details.method))
+                    ...getMethodMiddlewares(details.constructor, As<string | symbol>(details.method))
                 ]
             })
         })
@@ -961,7 +961,7 @@ export class Entrypoint extends Component {
         const runnerOf = (entry: ActionEntry): InvocationRunner => {
             let runner: InvocationRunner | undefined = runners.get(entry)
             if (!runner) {
-                runner = ComposeMiddlewares([...outerMiddlewares, ...entry.middlewares], (invocation: ActionInvocation): Promise<unknown> => this.runAction(entry.details, invocation))
+                runner = composeMiddlewares([...outerMiddlewares, ...entry.middlewares], (invocation: ActionInvocation): Promise<unknown> => this.runAction(entry.details, invocation))
                 runners.set(entry, runner)
             }
             return runner
@@ -1003,12 +1003,12 @@ export class Entrypoint extends Component {
         const timeout: Promise<void> = new Promise((resolve: () => void): void => {
             timer = setTimeout(resolve, this.shutdownTimeout)
         })
-        await Promise.race([Promise.allSettled(Promises(started.inflight)), timeout])
+        await Promise.race([Promise.allSettled(promises(started.inflight)), timeout])
         clearTimeout(timer)
         const pending: InflightRequest[] = [...started.inflight]
         pending.forEach((request: InflightRequest): void => request.abortController.abort(new EntrypointStoppedException('The entrypoint stopped before the request completed')))
         //The aborted requests settle at once
-        await Promise.allSettled(Promises(pending))
+        await Promise.allSettled(promises(pending))
     }
 
     /**

@@ -4,7 +4,7 @@
  * @param timeout ms
  * @param message
  */
-export async function WithTimeout<T>(promise: Promise<T>, timeout: number, message: string): Promise<T> {
+export async function withTimeout<T>(promise: Promise<T>, timeout: number, message: string): Promise<T> {
     let timer: NodeJS.Timeout | undefined
     try {
         return await Promise.race([

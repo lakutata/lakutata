@@ -15,7 +15,7 @@ export type Palette = {
  * @param close
  * @param open
  */
-function ReplaceClose(text: string, index: number, close: string, open: string): string {
+function replaceClose(text: string, index: number, close: string, open: string): string {
     let result: string = ''
     let tail: string = text
     while (index >= 0) {
@@ -31,7 +31,7 @@ function ReplaceClose(text: string, index: number, close: string, open: string):
  * @param open
  * @param close
  */
-function Color(open: number, close: number): Colorize {
+function color(open: number, close: number): Colorize {
     const openSequence: string = `\x1b[${open}m`
     const closeSequence: string = `\x1b[${close}m`
     return (input: unknown): string => {
@@ -39,20 +39,20 @@ function Color(open: number, close: number): Colorize {
         if (input === '' || input === undefined) return ''
         const text: string = `${input}`
         const index: number = text.indexOf(closeSequence, openSequence.length + 1)
-        return index < 0 ? openSequence + text + closeSequence : openSequence + ReplaceClose(text, index, closeSequence, openSequence) + closeSequence
+        return index < 0 ? openSequence + text + closeSequence : openSequence + replaceClose(text, index, closeSequence, openSequence) + closeSequence
     }
 }
 
-const PLAIN: Colorize = (input: unknown): string => input as string
+const plain: Colorize = (input: unknown): string => input as string
 
 export const PLAIN_PALETTE: Palette = {
-    level: {default: PLAIN, 60: PLAIN, 50: PLAIN, 40: PLAIN, 30: PLAIN, 20: PLAIN, 10: PLAIN},
-    message: PLAIN,
-    property: PLAIN
+    level: {default: plain, 60: plain, 50: plain, 40: plain, 30: plain, 20: plain, 10: plain},
+    message: plain,
+    property: plain
 }
 
 export const COLOR_PALETTE: Palette = {
-    level: {default: Color(37, 39), 60: Color(41, 49), 50: Color(31, 39), 40: Color(33, 39), 30: Color(32, 39), 20: Color(34, 39), 10: Color(90, 39)},
-    message: Color(36, 39),
-    property: Color(35, 39)
+    level: {default: color(37, 39), 60: color(41, 49), 50: color(31, 39), 40: color(33, 39), 30: color(32, 39), 20: color(34, 39), 10: color(90, 39)},
+    message: color(36, 39),
+    property: color(35, 39)
 }

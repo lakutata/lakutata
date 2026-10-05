@@ -1,6 +1,6 @@
 import {DTO} from '../../lib/dto/DTO.js'
 import {MethodDecorator} from '../../types/MethodDecorator.js'
-import {SetMethodReturnValueValidator} from '../../lib/dto/MethodValidation.js'
+import {setMethodReturnValueValidator} from '../../lib/dto/MethodValidation.js'
 import {Schema} from '../../lib/validation/types/Schema.js'
 
 /**
@@ -39,5 +39,5 @@ import {Schema} from '../../lib/validation/types/Schema.js'
  * ```
  */
 export function Return<ClassPrototype, DTOConstructor extends typeof DTO, Method>(def: DTOConstructor | Schema): MethodDecorator<ClassPrototype, Method> {
-    return (target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<Method>): TypedPropertyDescriptor<any> => SetMethodReturnValueValidator(target, propertyKey, descriptor, def)
+    return (target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<Method>): TypedPropertyDescriptor<any> => setMethodReturnValueValidator(target, propertyKey, descriptor, def)
 }

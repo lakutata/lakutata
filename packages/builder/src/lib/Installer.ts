@@ -1,15 +1,15 @@
 import {readFile, mkdtemp, mkdir, rm, writeFile} from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import {ProgramName} from './Bundle.js'
-import {BuildElectronInstaller} from './electron/Electron.js'
-import {BuildExecutable, type ExecutableResult} from './Executable.js'
-import {ApplicationIcon, IcoFile} from './Icons.js'
-import {Libc} from './Platform.js'
-import {ResolveScripts, type InstallerScripts, type NativeScripts, type PlatformScripts, type TargetScripts} from './Scripts.js'
-import {BuildLinuxPackages, LINUX_TARGETS, type LinuxTarget} from './linux/Linux.js'
-import {BuildMacPackages, MAC_TARGETS, type MacTarget} from './mac/Mac.js'
-import {BuildWindowsPackages, WINDOWS_TARGETS, type WindowsTarget} from './win/Windows.js'
+import {programName} from './Bundle.js'
+import {buildElectronInstaller} from './electron/Electron.js'
+import {buildExecutable, type ExecutableResult} from './Executable.js'
+import {applicationIcon, icoFile} from './Icons.js'
+import {detectLibc} from './Platform.js'
+import {resolveScripts, type InstallerScripts, type NativeScripts, type PlatformScripts, type TargetScripts} from './Scripts.js'
+import {buildLinuxPackages, LINUX_TARGETS, type LinuxTarget} from './linux/Linux.js'
+import {buildMacPackages, MAC_TARGETS, type MacTarget} from './mac/Mac.js'
+import {buildWindowsPackages, WINDOWS_TARGETS, type WindowsTarget} from './win/Windows.js'
 
 /**
  * The service an installer registers (systemd, OpenRC): the application runs at the start of the system
@@ -224,7 +224,7 @@ export type InstallerPlan = {
  * The maintainer of the package.json: its author
  * @param author
  */
-function Author(author: unknown): string | undefined {
+function packageAuthor(author: unknown): string | undefined {
     if (typeof author === 'string' && author.trim()) return author.trim()
     if (author && typeof author === 'object' && typeof (author as { name?: unknown }).name === 'string') {
         const {name, email} = author as { name: string, email?: string }
@@ -237,7 +237,7 @@ function Author(author: unknown): string | undefined {
  * The configuration of the installers of a project, checked
  * @param manifest
  */
-function Config(manifest: Record<string, any>): InstallerConfig {
+function installerConfig(manifest: Record<string, any>): InstallerConfig {
     const config: unknown = manifest.lakutata?.installer ?? {}
     if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('The installers of the application (lakutata.installer of its package.json) must be an object')
     return config as InstallerConfig
@@ -250,15 +250,15 @@ function Config(manifest: Record<string, any>): InstallerConfig {
  * OpenRC, launchd)
  * @param options
  */
-export async function BuildInstaller(options: InstallerOptions): Promise<InstallerResult> {
+export async function buildInstaller(options: InstallerOptions): Promise<InstallerResult> {
     const project: string = path.resolve(options.project)
     const manifest: Record<string, any> = JSON.parse(await readFile(path.join(project, 'package.json'), 'utf8'))
-    const config: InstallerConfig = Config(manifest)
-    if (config.runtime === 'electron') return BuildElectronInstaller(project, manifest, config, options)
+    const config: InstallerConfig = installerConfig(manifest)
+    if (config.runtime === 'electron') return buildElectronInstaller(project, manifest, config, options)
     const mac: boolean = process.platform === 'darwin'
     const windows: boolean = process.platform === 'win32'
     if (process.platform !== 'linux' && !mac && !windows) throw new Error(`The installers of ${process.platform} are not supported: the ones of Linux are made on Linux, the ones of macOS on macOS, the ones of Windows on Windows`)
-    const libc: 'glibc' | 'musl' | undefined = Libc()
+    const libc: 'glibc' | 'musl' | undefined = detectLibc()
     const targets: string[] = options.targets?.length ? options.targets
         : mac ? config.mac?.targets ?? ['pkg', 'tar.gz']
             : windows ? config.win?.targets ?? ['nsis', 'msi', 'zip']
@@ -277,13 +277,13 @@ export async function BuildInstaller(options: InstallerOptions): Promise<Install
         if (target === 'apk' && libc !== 'musl') throw new Error('The apk packages are made on Alpine (musl): the executables made on the systems of the glibc do not run there')
         if (['deb', 'rpm', 'archlinux'].includes(target) && libc !== 'glibc') throw new Error(`The ${target} packages are made on a system of the glibc: the executables made on Alpine (musl) do not run there`)
     }
-    const program: string = ProgramName(manifest)
+    const program: string = programName(manifest)
     const name: string = config.name ?? program.toLowerCase()
     if (!/^[a-z0-9][a-z0-9+.-]*$/.test(name)) throw new Error(`The name of the package "${name}" must be lower case letters, digits, "+", "-" and "." (lakutata.installer.name)`)
     const version: string = String(manifest.version ?? '')
     if (!/^\d+\.\d+\.\d+/.test(version)) throw new Error(`The version of the package "${version}" must be a version (1.2.3) of the package.json`)
     const warnings: string[] = []
-    let maintainer: string | undefined = config.maintainer ?? Author(manifest.author)
+    let maintainer: string | undefined = config.maintainer ?? packageAuthor(manifest.author)
     if (!maintainer) {
         maintainer = name
         warnings.push(`The packages have no maintainer: give it (the author of the package.json, or lakutata.installer.maintainer)`)
@@ -293,17 +293,17 @@ export async function BuildInstaller(options: InstallerOptions): Promise<Install
     const service: ServiceOptions | undefined = config.service === true ? {} : config.service || undefined
     if (service?.name !== undefined && !/^[A-Za-z0-9_.@-]+$/.test(service.name)) throw new Error(`The name of the service "${service.name}" must be letters, digits, "_", ".", "@" and "-"`)
     const platform: 'linux' | 'mac' | 'win' = mac ? 'mac' : windows ? 'win' : 'linux'
-    const scripts: Record<string, TargetScripts> = ResolveScripts(project, platform, config[platform] as PlatformScripts | undefined, targets, warnings)
-    const application = ApplicationIcon(project, manifest)
+    const scripts: Record<string, TargetScripts> = resolveScripts(project, platform, config[platform] as PlatformScripts | undefined, targets, warnings)
+    const application = applicationIcon(project, manifest)
     const work: string = await mkdtemp(path.join(os.tmpdir(), 'lakutata-installer-'))
     try {
         //The icon of the installers of Windows (the executable has it too)
         let icon: string | undefined
         if (windows && application) {
             icon = path.join(work, 'icon.ico')
-            await writeFile(icon, IcoFile(application.image))
+            await writeFile(icon, icoFile(application.image))
         }
-        const executable: ExecutableResult = await BuildExecutable({
+        const executable: ExecutableResult = await buildExecutable({
             project: project,
             entry: options.entry,
             minify: options.minify,
@@ -346,9 +346,9 @@ export async function BuildInstaller(options: InstallerOptions): Promise<Install
         }
         const outdir: string = path.resolve(project, options.outdir ?? path.join('dist', 'installer'))
         await mkdir(outdir, {recursive: true})
-        const files = mac ? await BuildMacPackages(plan, targets as MacTarget[], path.join(work, 'mac'), outdir)
-            : windows ? await BuildWindowsPackages(plan, targets as WindowsTarget[], path.join(work, 'win'), outdir)
-                : await BuildLinuxPackages(plan, targets as LinuxTarget[], path.join(work, 'linux'), outdir)
+        const files = mac ? await buildMacPackages(plan, targets as MacTarget[], path.join(work, 'mac'), outdir)
+            : windows ? await buildWindowsPackages(plan, targets as WindowsTarget[], path.join(work, 'win'), outdir)
+                : await buildLinuxPackages(plan, targets as LinuxTarget[], path.join(work, 'linux'), outdir)
         return {name: name, version: version, files: files, executable: executable, warnings: warnings}
     } finally {
         await rm(work, {recursive: true, force: true})

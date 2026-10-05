@@ -8,20 +8,20 @@ import path from 'node:path'
 import {PassThrough, Readable} from 'node:stream'
 import {gunzipSync} from 'node:zlib'
 import {extract} from 'tar-stream'
-import {DockerStreamDecoder, DockerStreamType, FollowProgress, ReadMultiplexed} from '../client/DockerStreams.js'
-import {BuildKitProgress, DecodeBuildKitStatus} from '../client/BuildKitProgress.js'
+import {DockerStreamDecoder, DockerStreamType, followProgress, readMultiplexed} from '../client/DockerStreams.js'
+import {BuildKitProgress, decodeBuildKitStatus} from '../client/BuildKitProgress.js'
 import {DockerIgnore} from '../client/DockerIgnore.js'
-import {PackBuildContext} from '../client/BuildContext.js'
-import {DefaultConnectionOptions, DockerConnection} from '../client/DockerConnection.js'
+import {packBuildContext} from '../client/BuildContext.js'
+import {defaultConnectionOptions, DockerConnection} from '../client/DockerConnection.js'
 import {DockerRequestError} from '../client/DockerRequestError.js'
-import {ParseBaseImages} from '../docker/lib/ParseBaseImages.js'
+import {parseBaseImages} from '../docker/lib/ParseBaseImages.js'
 
 /**
  * A frame of a multiplexed output
  * @param type
  * @param content
  */
-function Frame(type: DockerStreamType, content: string): Buffer {
+function encodeFrame(type: DockerStreamType, content: string): Buffer {
     const header: Buffer = Buffer.alloc(8)
     header.writeUInt8(type, 0)
     header.writeUInt32BE(Buffer.byteLength(content), 4)
@@ -31,7 +31,7 @@ function Frame(type: DockerStreamType, content: string): Buffer {
 /**
  * A protobuf encoder of the messages of the tests: a varint, and the fields
  */
-function Varint(value: number): Buffer {
+function varint(value: number): Buffer {
     const bytes: number[] = []
     let rest: bigint = BigInt(value)
     do {
@@ -43,34 +43,34 @@ function Varint(value: number): Buffer {
     return Buffer.from(bytes)
 }
 
-function Field(number: number, value: number | string | Buffer): Buffer {
-    if (typeof value === 'number') return Buffer.concat([Varint(number << 3), Varint(value)])
+function readField(number: number, value: number | string | Buffer): Buffer {
+    if (typeof value === 'number') return Buffer.concat([varint(number << 3), varint(value)])
     const bytes: Buffer = Buffer.isBuffer(value) ? value : Buffer.from(value)
-    return Buffer.concat([Varint((number << 3) | 2), Varint(bytes.length), bytes])
+    return Buffer.concat([varint((number << 3) | 2), varint(bytes.length), bytes])
 }
 
-function Timestamp(milliseconds: number): Buffer {
-    return Buffer.concat([Field(1, Math.floor(milliseconds / 1000)), Field(2, (milliseconds % 1000) * 1e6)])
+function timestamp(milliseconds: number): Buffer {
+    return Buffer.concat([readField(1, Math.floor(milliseconds / 1000)), readField(2, (milliseconds % 1000) * 1e6)])
 }
 
 /**
  * The aux of a status of BuildKit
  * @param fields
  */
-function Aux(...fields: Buffer[]): string {
+function aux(...fields: Buffer[]): string {
     return Buffer.concat(fields).toString('base64')
 }
 
 describe('The client of the Docker Engine API', (): void => {
 
     it('decodes the multiplexed outputs, whatever their chunks', async (): Promise<void> => {
-        const stream: Buffer = Buffer.concat([Frame(DockerStreamType.STDOUT, 'out 1\n'), Frame(DockerStreamType.STDERR, 'err\n'), Frame(DockerStreamType.STDOUT, 'out 2\n')])
+        const stream: Buffer = Buffer.concat([encodeFrame(DockerStreamType.STDOUT, 'out 1\n'), encodeFrame(DockerStreamType.STDERR, 'err\n'), encodeFrame(DockerStreamType.STDOUT, 'out 2\n')])
         //Cut in chunks of 3 bytes: the headers and the contents are split
         const chunks: Buffer[] = []
         for (let offset: number = 0; offset < stream.length; offset += 3) chunks.push(stream.subarray(offset, offset + 3))
-        const read = await ReadMultiplexed(Readable.from(chunks))
+        const read = await readMultiplexed(Readable.from(chunks))
         assert.deepStrictEqual(read, {output: 'out 1\nerr\nout 2\n', stdout: 'out 1\nout 2\n', stderr: 'err\n'})
-        assert.deepStrictEqual(await ReadMultiplexed(stream), read)
+        assert.deepStrictEqual(await readMultiplexed(stream), read)
         //Piped, the contents only
         const decoded: Buffer[] = []
         for await (const chunk of Readable.from(chunks).pipe(new DockerStreamDecoder())) decoded.push(chunk)
@@ -79,31 +79,31 @@ describe('The client of the Docker Engine API', (): void => {
 
     it('follows the JSON lines of the progresses, whatever their chunks', async (): Promise<void> => {
         const seen: unknown[] = []
-        const objects = await FollowProgress(Readable.from(['{"status":"a"}\n{"sta', 'tus":"b"}\r\nnot json\n\n{"error":"c"}']), (object: unknown): unknown => seen.push(object))
+        const objects = await followProgress(Readable.from(['{"status":"a"}\n{"sta', 'tus":"b"}\r\nnot json\n\n{"error":"c"}']), (object: unknown): unknown => seen.push(object))
         assert.deepStrictEqual(objects, [{status: 'a'}, {status: 'b'}, {error: 'c'}])
         assert.deepStrictEqual(seen, objects)
     })
 
     it('decodes the progress of the builds of BuildKit, as docker build --progress=plain shows it', (): void => {
         //A status of Docker 29: the export of an image, done
-        const real = DecodeBuildKitStatus('CnkKR3NoYTI1NjpmMWM5ZDIzNTNhOWRlZjgwOTI2OGRmMjhhMjU4YzExNTA2ODcxMWE0ZmFiYzM1MjNkOGJhZDIxOTgyMDc3MjFjGhJleHBvcnRpbmcgdG8gaW1hZ2UqDAiHqvTVBhCkiIjYAzIMCIiq9NUGEJbpiKcB')
+        const real = decodeBuildKitStatus('CnkKR3NoYTI1NjpmMWM5ZDIzNTNhOWRlZjgwOTI2OGRmMjhhMjU4YzExNTA2ODcxMWE0ZmFiYzM1MjNkOGJhZDIxOTgyMDc3MjFjGhJleHBvcnRpbmcgdG8gaW1hZ2UqDAiHqvTVBhCkiIjYAzIMCIiq9NUGEJbpiKcB')
         assert.strictEqual(real.vertexes.length, 1)
         assert.strictEqual(real.vertexes[0].digest, 'sha256:f1c9d2353a9def809268df28a258c115068711a4fabc3523d8bad2198207721c')
         assert.strictEqual(real.vertexes[0].name, 'exporting to image')
         assert.ok(real.vertexes[0].started! > 1.7e12 && real.vertexes[0].completed! >= real.vertexes[0].started!)
         const progress: BuildKitProgress = new BuildKitProgress()
-        const from: Buffer = Buffer.concat([Field(1, 'sha256:from'), Field(3, '[1/3] FROM alpine'), Field(4, 1)])
-        const run: (fields: Buffer[]) => Buffer = (fields: Buffer[]): Buffer => Buffer.concat([Field(1, 'sha256:run'), Field(3, '[2/3] RUN echo a > /b'), ...fields])
+        const from: Buffer = Buffer.concat([readField(1, 'sha256:from'), readField(3, '[1/3] FROM alpine'), readField(4, 1)])
+        const run: (fields: Buffer[]) => Buffer = (fields: Buffer[]): Buffer => Buffer.concat([readField(1, 'sha256:run'), readField(3, '[2/3] RUN echo a > /b'), ...fields])
         const lines: string[] = [
-            ...progress.lines(DecodeBuildKitStatus(Aux(Field(1, from), Field(1, run([Field(5, Timestamp(1000))]))))),
+            ...progress.lines(decodeBuildKitStatus(aux(readField(1, from), readField(1, run([readField(5, timestamp(1000))]))))),
             //An output line cut between two statuses, then the step done
-            ...progress.lines(DecodeBuildKitStatus(Aux(Field(3, Buffer.concat([Field(1, 'sha256:run'), Field(3, 1), Field(4, 'line one\nline t')]))))),
-            ...progress.lines(DecodeBuildKitStatus(Aux(Field(3, Buffer.concat([Field(1, 'sha256:run'), Field(3, 1), Field(4, 'wo\nlast')]))))),
-            ...progress.lines(DecodeBuildKitStatus(Aux(Field(1, run([Field(5, Timestamp(1000)), Field(6, Timestamp(3500))]))))),
+            ...progress.lines(decodeBuildKitStatus(aux(readField(3, Buffer.concat([readField(1, 'sha256:run'), readField(3, 1), readField(4, 'line one\nline t')]))))),
+            ...progress.lines(decodeBuildKitStatus(aux(readField(3, Buffer.concat([readField(1, 'sha256:run'), readField(3, 1), readField(4, 'wo\nlast')]))))),
+            ...progress.lines(decodeBuildKitStatus(aux(readField(1, run([readField(5, timestamp(1000)), readField(6, timestamp(3500))]))))),
             //A step failed, and a warning
-            ...progress.lines(DecodeBuildKitStatus(Aux(
-                Field(1, Buffer.concat([Field(1, 'sha256:fail'), Field(3, '[3/3] RUN exit 3'), Field(5, Timestamp(4000)), Field(6, Timestamp(4200)), Field(7, 'exit code: 3')])),
-                Field(4, Buffer.concat([Field(1, 'sha256:fail'), Field(2, 1), Field(3, 'JSONArgsRecommended')]))
+            ...progress.lines(decodeBuildKitStatus(aux(
+                readField(1, Buffer.concat([readField(1, 'sha256:fail'), readField(3, '[3/3] RUN exit 3'), readField(5, timestamp(4000)), readField(6, timestamp(4200)), readField(7, 'exit code: 3')])),
+                readField(4, Buffer.concat([readField(1, 'sha256:fail'), readField(2, 1), readField(3, 'JSONArgsRecommended')]))
             )))
         ]
         assert.deepStrictEqual(lines, [
@@ -150,8 +150,8 @@ describe('The client of the Docker Engine API', (): void => {
             '  registry.example.com:5000/team/app:1.0',
             'COPY --from=build /app /app'
         ].join('\n')
-        assert.deepStrictEqual(ParseBaseImages(dockerfile), ['node:22-alpine', 'registry.example.com:5000/team/app:1.0'])
-        assert.deepStrictEqual(ParseBaseImages(dockerfile, {NODE: '20', REGISTRY: 'ghcr.io/me'}), ['node:20-alpine', 'ghcr.io/me/private:1', 'registry.example.com:5000/team/app:1.0'])
+        assert.deepStrictEqual(parseBaseImages(dockerfile), ['node:22-alpine', 'registry.example.com:5000/team/app:1.0'])
+        assert.deepStrictEqual(parseBaseImages(dockerfile, {NODE: '20', REGISTRY: 'ghcr.io/me'}), ['node:20-alpine', 'ghcr.io/me/private:1', 'registry.example.com:5000/team/app:1.0'])
     })
 
     describe('The context of the builds', (): void => {
@@ -174,7 +174,7 @@ describe('The client of the Docker Engine API', (): void => {
          * The entries of a packed context
          * @param stream
          */
-        async function Entries(stream: NodeJS.ReadableStream): Promise<string[]> {
+        async function readEntries(stream: NodeJS.ReadableStream): Promise<string[]> {
             const archive: Buffer = Buffer.concat(await Readable.from(stream).toArray())
             const entries: string[] = []
             const extractor = extract()
@@ -190,7 +190,7 @@ describe('The client of the Docker Engine API', (): void => {
         }
 
         it('packs each file once, the directories with their files, without the excluded ones', async (): Promise<void> => {
-            const entries: string[] = await Entries(PackBuildContext({directory: directory, entries: ['Dockerfile', 'src', 'src/lib', './src/lib/a.txt', 'src/secret.key', 'src/link.txt'], always: ['Dockerfile']}))
+            const entries: string[] = await readEntries(packBuildContext({directory: directory, entries: ['Dockerfile', 'src', 'src/lib', './src/lib/a.txt', 'src/secret.key', 'src/link.txt'], always: ['Dockerfile']}))
             assert.deepStrictEqual(entries, [
                 'file Dockerfile',
                 'directory src',
@@ -199,11 +199,11 @@ describe('The client of the Docker Engine API', (): void => {
                 'symlink src/link.txt -> lib/a.txt'
             ])
             //Excluded by .dockerignore, without always
-            assert.ok(!(await Entries(PackBuildContext({directory: directory, entries: ['Dockerfile']}))).includes('file Dockerfile'))
+            assert.ok(!(await readEntries(packBuildContext({directory: directory, entries: ['Dockerfile']}))).includes('file Dockerfile'))
         })
 
         it('fails the context when a file cannot be packed, instead of ending it', async (): Promise<void> => {
-            await assert.rejects(Entries(PackBuildContext({directory: directory, entries: ['src', 'missing.txt']})), /ENOENT/)
+            await assert.rejects(readEntries(packBuildContext({directory: directory, entries: ['src', 'missing.txt']})), /ENOENT/)
         })
     })
 
@@ -234,7 +234,7 @@ describe('The client of the Docker Engine API', (): void => {
             server.on('upgrade', (request: IncomingMessage, socket: Socket): void => {
                 requests.push(request)
                 socket.write('HTTP/1.1 101 UPGRADED\r\nConnection: Upgrade\r\nUpgrade: tcp\r\n\r\n')
-                socket.write(Frame(DockerStreamType.STDOUT, 'hijacked\n'))
+                socket.write(encodeFrame(DockerStreamType.STDOUT, 'hijacked\n'))
                 socket.end()
             })
             await new Promise((resolve: (value: unknown) => void): unknown => server.listen(socketPath, (): void => resolve(undefined)))
@@ -313,7 +313,7 @@ describe('The client of the Docker Engine API', (): void => {
             const connection: DockerConnection = new DockerConnection({socketPath: socketPath, version: '1.56'})
             requests = []
             const stream = await connection.hijack({method: 'POST', path: '/exec/x/start', body: {Detach: false, Tty: false}, statusCodes: {200: true}})
-            assert.strictEqual((await ReadMultiplexed(stream)).output, 'hijacked\n')
+            assert.strictEqual((await readMultiplexed(stream)).output, 'hijacked\n')
             assert.strictEqual(requests[0].headers.upgrade, 'tcp')
             connection.close()
         })
@@ -339,13 +339,13 @@ describe('The client of the Docker Engine API', (): void => {
             const saved: string | undefined = process.env.DOCKER_HOST
             try {
                 process.env.DOCKER_HOST = 'tcp://docker.example.com:2376'
-                assert.deepStrictEqual({...DefaultConnectionOptions()}, {host: 'docker.example.com', port: '2376', protocol: 'https'})
+                assert.deepStrictEqual({...defaultConnectionOptions()}, {host: 'docker.example.com', port: '2376', protocol: 'https'})
                 process.env.DOCKER_HOST = 'tcp://docker.example.com:2375'
-                assert.strictEqual(DefaultConnectionOptions().protocol, 'http')
+                assert.strictEqual(defaultConnectionOptions().protocol, 'http')
                 process.env.DOCKER_HOST = 'unix:///run/user/1000/docker.sock'
-                assert.deepStrictEqual(DefaultConnectionOptions(), {socketPath: '/run/user/1000/docker.sock'})
+                assert.deepStrictEqual(defaultConnectionOptions(), {socketPath: '/run/user/1000/docker.sock'})
                 process.env.DOCKER_HOST = 'ssh://deploy@docker.example.com:2222'
-                assert.deepStrictEqual({...DefaultConnectionOptions()}, {host: 'docker.example.com', port: '2222', protocol: 'ssh', username: 'deploy'})
+                assert.deepStrictEqual({...defaultConnectionOptions()}, {host: 'docker.example.com', port: '2222', protocol: 'ssh', username: 'deploy'})
             } finally {
                 if (saved === undefined) delete process.env.DOCKER_HOST
                 else process.env.DOCKER_HOST = saved

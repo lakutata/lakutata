@@ -31,7 +31,7 @@ export type BuildContextOptions = {
  * The path of an entry of the archive ("/" separated, relative)
  * @param entry
  */
-function EntryName(entry: string): string {
+function entryName(entry: string): string {
     return path.posix.normalize(entry.split(path.sep).join('/')).replace(/^(\.\/)+/, '').replace(/\/+$/, '')
 }
 
@@ -40,7 +40,7 @@ function EntryName(entry: string): string {
  * skipped. An error of the packing (a file which cannot be read, or changes while it is read) is an error of the stream
  * @param options
  */
-export function PackBuildContext(options: BuildContextOptions): Gzip {
+export function packBuildContext(options: BuildContextOptions): Gzip {
     const archive: Pack = TarPack()
     const gzip: Gzip = createGzip()
     archive.once('error', (error: Error): unknown => gzip.destroy(error))
@@ -53,7 +53,7 @@ export function PackBuildContext(options: BuildContextOptions): Gzip {
         } catch {
             //No .dockerignore
         }
-        const always: Set<string> = new Set((options.always ?? []).map(EntryName))
+        const always: Set<string> = new Set((options.always ?? []).map(entryName))
         const packed: Set<string> = new Set()
         const add = async (name: string): Promise<void> => {
             if (!name || name === '.' || name.startsWith('../') || packed.has(name)) return
@@ -74,7 +74,7 @@ export function PackBuildContext(options: BuildContextOptions): Gzip {
             }
             //The sockets and the pipes are not packed
         }
-        for (const entry of options.entries) await add(EntryName(entry))
+        for (const entry of options.entries) await add(entryName(entry))
         archive.finalize()
     })().catch((error: Error): unknown => gzip.destroy(error))
     return gzip

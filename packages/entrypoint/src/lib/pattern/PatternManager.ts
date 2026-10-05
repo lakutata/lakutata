@@ -55,7 +55,7 @@ export type PatternManagerOptions = {
 /**
  * A dictionary without prototype: the values of the subjects are never the properties of Object ("constructor"…)
  */
-function Dictionary<T>(): Record<string, T> {
+function dictionary<T>(): Record<string, T> {
     return Object.create(null)
 }
 
@@ -88,7 +88,7 @@ export class PatternManager {
      * @param glob
      */
     protected globNode(node: PatternNode, key: string, glob: GlobPattern): PatternNode {
-        const globs: Record<string, GlobBranch[]> = node.globs ??= Dictionary<GlobBranch[]>()
+        const globs: Record<string, GlobBranch[]> = node.globs ??= dictionary<GlobBranch[]>()
         const branches: GlobBranch[] = globs[key] ??= []
         let branch: GlobBranch | undefined = branches.find((candidate: GlobBranch): boolean => candidate.glob.glob === glob.glob)
         if (!branch) branches.push(branch = {glob: glob, node: {}})
@@ -117,7 +117,7 @@ export class PatternManager {
             } else if (!node.key) {
                 //The end of the path: the key is the last one
                 node.key = key
-                node.values = Dictionary<PatternNode>()
+                node.values = dictionary<PatternNode>()
                 node = glob ? this.globNode(node, key, glob) : node.values[value] = {}
             } else if (key < node.key) {
                 //The key orders before the key of the node: the node moves to the star node of the key
@@ -125,9 +125,9 @@ export class PatternManager {
                 node.star = {key: node.key, values: node.values}
                 if (star) node.star.star = star
                 if (globs) node.star.globs = globs
-                if (node.globs) node.globs = Dictionary<GlobBranch[]>()
+                if (node.globs) node.globs = dictionary<GlobBranch[]>()
                 node.key = key
-                node.values = Dictionary<PatternNode>()
+                node.values = dictionary<PatternNode>()
                 node = glob ? this.globNode(node, key, glob) : node.values[value] = {}
             } else {
                 //The key orders after the key of the node: it is in the path of the patterns without the key of the node

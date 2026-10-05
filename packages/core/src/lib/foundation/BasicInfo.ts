@@ -1,5 +1,5 @@
 import {As} from '@lakutata/utils/As'
-import {ThrowWarning} from './ThrowWarning.js'
+import {throwWarning} from './ThrowWarning.js'
 
 type BasicInfo = {
     appId: string
@@ -13,7 +13,7 @@ type BasicInfo = {
  * mode of their build (Bun: "development"), the mode of the run would be lost
  * @param name
  */
-function Variable(name: string): string | undefined {
+function variable(name: string): string | undefined {
     return process.env[name]
 }
 
@@ -21,7 +21,7 @@ function Variable(name: string): string | undefined {
  * A mode of the environment (development or production, in any case), undefined for the other values
  * @param value
  */
-function ModeOf(value: string | undefined): 'development' | 'production' | undefined {
+function modeOf(value: string | undefined): 'development' | 'production' | undefined {
     const mode: string | undefined = value?.trim().toLowerCase()
     return mode === 'development' || mode === 'production' ? mode : undefined
 }
@@ -32,25 +32,25 @@ function ModeOf(value: string | undefined): 'development' | 'production' | undef
  * which is not a mode is warned of and left; a NODE_ENV which is not a mode (test) is left
  * @param configured the mode of the options of the application
  */
-export function ResolveMode(configured?: 'development' | 'production'): 'development' | 'production' {
-    const mode: 'development' | 'production' | undefined = ModeOf(Variable('MODE'))
+export function resolveMode(configured?: 'development' | 'production'): 'development' | 'production' {
+    const mode: 'development' | 'production' | undefined = modeOf(variable('MODE'))
     if (mode) return mode
-    if (Variable('MODE')?.trim()) ThrowWarning(`The MODE environment variable "${Variable('MODE')}" is not a mode (development, production), it is ignored`)
-    return ModeOf(Variable('NODE_ENV')) ?? configured ?? 'development'
+    if (variable('MODE')?.trim()) throwWarning(`The MODE environment variable "${variable('MODE')}" is not a mode (development, production), it is ignored`)
+    return modeOf(variable('NODE_ENV')) ?? configured ?? 'development'
 }
 
 /**
  * The mode of the application running: the one written to MODE and NODE_ENV when it launched, development otherwise
  */
-export function CurrentMode(): 'development' | 'production' {
-    return ModeOf(Variable('MODE')) ?? ModeOf(Variable('NODE_ENV')) ?? 'development'
+export function currentMode(): 'development' | 'production' {
+    return modeOf(variable('MODE')) ?? modeOf(variable('NODE_ENV')) ?? 'development'
 }
 
 /**
  * Whether a time zone is known by the runtime: the canonical IANA names and their aliases ("UTC", "Etc/GMT+8", "US/Eastern")
  * @param timezone
  */
-function IsTimezone(timezone: string): boolean {
+function isTimezone(timezone: string): boolean {
     try {
         new Intl.DateTimeFormat('en-US', {timeZone: timezone})
         return true
@@ -65,10 +65,10 @@ function IsTimezone(timezone: string): boolean {
  * @param timezone
  * @constructor
  */
-export function ValidateTimezone(timezone: string): string {
+export function validateTimezone(timezone: string): string {
     const defaultTimezone: string = Intl.DateTimeFormat().resolvedOptions().timeZone
-    if (!IsTimezone(timezone)) {
-        ThrowWarning(`The passed time zone "${timezone}" is invalid, use the default time zone "${defaultTimezone}"`)
+    if (!isTimezone(timezone)) {
+        throwWarning(`The passed time zone "${timezone}" is invalid, use the default time zone "${defaultTimezone}"`)
         return defaultTimezone
     }
     return timezone
@@ -79,30 +79,30 @@ export function ValidateTimezone(timezone: string): string {
  * @param info
  * @constructor
  */
-export function SetBasicInfo(info: BasicInfo): BasicInfo {
+export function setBasicInfo(info: BasicInfo): BasicInfo {
     process.env.appId = info.appId
     process.env.appName = info.appName
     const timezone: string = info.timezone === 'auto' ? Intl.DateTimeFormat().resolvedOptions().timeZone : info.timezone
-    process.env.TZ = ValidateTimezone(timezone)
+    process.env.TZ = validateTimezone(timezone)
     //The mode in both variables: the libraries read NODE_ENV, the applications MODE too
     process.env.NODE_ENV = info.mode
     process.env.MODE = info.mode
-    return GetBasicInfo()
+    return getBasicInfo()
 }
 
 /**
- * Get application id (reads a single environment variable, much cheaper than GetBasicInfo())
+ * Get application id (reads a single environment variable, much cheaper than getBasicInfo())
  * @constructor
  */
-export function GetAppId(): string {
+export function getAppId(): string {
     return process.env.appId || 'Unknown'
 }
 
 /**
- * Get application name (reads a single environment variable, much cheaper than GetBasicInfo())
+ * Get application name (reads a single environment variable, much cheaper than getBasicInfo())
  * @constructor
  */
-export function GetAppName(): string {
+export function getAppName(): string {
     return process.env.appName || 'Unknown'
 }
 
@@ -110,11 +110,11 @@ export function GetAppName(): string {
  * Get application basic info
  * @constructor
  */
-export function GetBasicInfo(): BasicInfo {
+export function getBasicInfo(): BasicInfo {
     return {
-        appId: GetAppId(),
-        appName: GetAppName(),
+        appId: getAppId(),
+        appName: getAppName(),
         timezone: As<string>(process.env.TZ),
-        mode: CurrentMode()
+        mode: currentMode()
     }
 }

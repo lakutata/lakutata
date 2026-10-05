@@ -1,4 +1,4 @@
-import {CacheStore, CacheStoreSetEntry, ExpiresOf, IsExpired} from './CacheStore.js'
+import {CacheStore, CacheStoreSetEntry, expiresOf, isExpired} from './CacheStore.js'
 import {CacheEntry} from '../lib/Serializer.js'
 
 /**
@@ -43,7 +43,7 @@ export class MemoryStore extends CacheStore {
     protected read(key: string): CacheEntry | undefined {
         const entry: CacheEntry | undefined = this.entries.get(key)
         if (entry === undefined) return undefined
-        if (IsExpired(entry)) {
+        if (isExpired(entry)) {
             this.entries.delete(key)
             return undefined
         }
@@ -59,11 +59,11 @@ export class MemoryStore extends CacheStore {
     }
 
     public async set(key: string, value: unknown, ttl?: number): Promise<void> {
-        this.entries.set(key, {value: value, expires: ExpiresOf(ttl)})
+        this.entries.set(key, {value: value, expires: expiresOf(ttl)})
     }
 
     public async setMany(entries: CacheStoreSetEntry[]): Promise<void> {
-        for (const entry of entries) this.entries.set(entry.key, {value: entry.value, expires: ExpiresOf(entry.ttl)})
+        for (const entry of entries) this.entries.set(entry.key, {value: entry.value, expires: expiresOf(entry.ttl)})
     }
 
     public async delete(key: string): Promise<boolean> {

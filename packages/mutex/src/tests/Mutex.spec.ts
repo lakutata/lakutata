@@ -13,7 +13,7 @@ import {FileMutexDriver, MemoryMutexDriver, Mutex, MutexLock, MutexLostException
  * @param driver
  * @param options
  */
-async function Instance(driver: MutexDriverOptions, options: Record<string, unknown> = {}): Promise<{ mutex: Mutex, container: Container }> {
+async function instance(driver: MutexDriverOptions, options: Record<string, unknown> = {}): Promise<{ mutex: Mutex, container: Container }> {
     const container: Container = new Container()
     const mutex: Mutex = await container.set(Mutex, {driver: driver, ...options})
     return {mutex: mutex, container: container}
@@ -35,7 +35,7 @@ describe('The locks', (): void => {
         const driver = (): MutexDriverOptions => type === 'file' ? {type: 'file', directory: directory} : {type: 'memory'}
 
         it(`excludes, waits for and releases the locks (${type})`, async (): Promise<void> => {
-            const {mutex, container} = await Instance(driver())
+            const {mutex, container} = await instance(driver())
             try {
                 const lock: MutexLock = (await mutex.tryAcquire('order:1'))!
                 assert.ok(lock.held)
@@ -63,7 +63,7 @@ describe('The locks', (): void => {
         })
 
         it(`runs the functions one at a time (${type})`, async (): Promise<void> => {
-            const {mutex, container} = await Instance(driver(), {retryDelay: 5})
+            const {mutex, container} = await instance(driver(), {retryDelay: 5})
             try {
                 let running: number = 0
                 let most: number = 0
@@ -95,8 +95,8 @@ describe('The locks', (): void => {
         })
 
         it(`renews the locks held, loses the ones which expired (${type})`, async (): Promise<void> => {
-            const first = await Instance(driver(), {ttl: 150})
-            const second = await Instance(driver(), {ttl: 150})
+            const first = await instance(driver(), {ttl: 150})
+            const second = await instance(driver(), {ttl: 150})
             try {
                 const lock: MutexLock = (await first.mutex.tryAcquire('renewed'))!
                 //Held longer than its time: renewed
@@ -120,8 +120,8 @@ describe('The locks', (): void => {
         })
 
         it(`releases the locks of a component destroyed (${type})`, async (): Promise<void> => {
-            const first = await Instance(driver())
-            const second = await Instance(driver())
+            const first = await instance(driver())
+            const second = await instance(driver())
             try {
                 assert.ok(await first.mutex.tryAcquire('destroyed'))
                 assert.strictEqual(await second.mutex.tryAcquire('destroyed'), undefined)
@@ -134,7 +134,7 @@ describe('The locks', (): void => {
     }
 
     it('gives increasing fencing tokens', async (): Promise<void> => {
-        const {mutex, container} = await Instance({type: 'memory'})
+        const {mutex, container} = await instance({type: 'memory'})
         try {
             const first: MutexLock = (await mutex.tryAcquire('fenced'))!
             await first.release()
@@ -158,7 +158,7 @@ describe('The locks', (): void => {
             setInterval(() => undefined, 1000)
         `)
         const child: ChildProcess = spawn(process.execPath, [script], {stdio: ['ignore', 'pipe', 'inherit']})
-        const {mutex, container} = await Instance({type: 'file', directory: directory})
+        const {mutex, container} = await instance({type: 'file', directory: directory})
         try {
             await new Promise<void>((resolve: () => void): unknown => child.stdout!.once('data', (): void => resolve()))
             assert.strictEqual(await mutex.tryAcquire('device:serial'), undefined)
@@ -179,8 +179,8 @@ describe('The locks', (): void => {
     })
 
     it('renews a lock at the pace of its last time to live', async (): Promise<void> => {
-        const {mutex, container} = await Instance({type: 'memory'})
-        const other = await Instance({type: 'memory'})
+        const {mutex, container} = await instance({type: 'memory'})
+        const other = await instance({type: 'memory'})
         try {
             const lock: MutexLock = (await mutex.tryAcquire('shortened', {ttl: 3000}))!
             //Shortened: renewed every 50 ms from now on, not every second
@@ -217,7 +217,7 @@ describe('The locks', (): void => {
             await sleep(20)
             return acquire.call(this, name, ttl)
         }
-        const {mutex, container} = await Instance({type: 'memory'})
+        const {mutex, container} = await instance({type: 'memory'})
         try {
             for (let round: number = 0; round < 20; round++) {
                 //Free: acquired, every time
@@ -235,7 +235,7 @@ describe('The locks', (): void => {
     })
 
     it('gives up waiting when the store does not answer, its attempt given a second', async (): Promise<void> => {
-        const {mutex, container} = await Instance({type: 'redis', host: '127.0.0.1', port: 1})
+        const {mutex, container} = await instance({type: 'redis', host: '127.0.0.1', port: 1})
         try {
             const started: number = Date.now()
             await assert.rejects(mutex.acquire('unreachable', {timeout: 300}), MutexTimeoutException)
@@ -246,6 +246,6 @@ describe('The locks', (): void => {
     })
 
     it('refuses the invalid table names in the options', async (): Promise<void> => {
-        await assert.rejects(Instance({type: 'postgres', host: 'localhost', database: 'db', username: 'u', password: 'p', mode: 'table', table: 'locks; DROP TABLE users'} as MutexDriverOptions), {name: 'InvalidValueException'})
+        await assert.rejects(instance({type: 'postgres', host: 'localhost', database: 'db', username: 'u', password: 'p', mode: 'table', table: 'locks; DROP TABLE users'} as MutexDriverOptions), {name: 'InvalidValueException'})
     })
 })

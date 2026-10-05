@@ -36,7 +36,7 @@ export type StaticUIOptions = {
  * @param file
  * @internal
  */
-export function IsHashedAsset(file: string): boolean {
+export function isHashedAsset(file: string): boolean {
     const matched: RegExpExecArray | null = /[.-]([0-9A-Za-z_-]{8,})\.(?:js|mjs|css|woff2?|png|jpe?g|svg|gif|webp|avif)$/.exec(file)
     return !!matched && /[0-9A-Z]/.test(matched[1])
 }
@@ -46,7 +46,7 @@ export function IsHashedAsset(file: string): boolean {
  * @param value
  * @internal
  */
-export function AssetsMaxAge(value: string | number | undefined): number {
+export function assetsMaxAge(value: string | number | undefined): number {
     if (value === undefined) return 31536000
     const seconds: number = typeof value === 'number' || /^\d+(?:\.\d+)?$/.test(value) ? Number(value) : parseDuration(value) / 1000
     if (!Number.isFinite(seconds) || seconds < 0) throw new RangeError(`Invalid assetsMaxAge "${value}": a number of seconds or a duration ("30d")`)
@@ -97,11 +97,11 @@ export function AssetsMaxAge(value: string | number | undefined): number {
 export function staticUI(directory: string, options: StaticUIOptions = {}): RequestHandler {
     const root: string = path.resolve(directory)
     const index: string = options.index ?? 'index.html'
-    const maxAge: number = AssetsMaxAge(options.assetsMaxAge)
+    const maxAge: number = assetsMaxAge(options.assetsMaxAge)
     const files: RequestHandler = express.static(root, {
         index: false,
         setHeaders: (response: Response, file: string): void => {
-            if (IsHashedAsset(file)) response.setHeader('Cache-Control', `public, max-age=${maxAge}, immutable`)
+            if (isHashedAsset(file)) response.setHeader('Cache-Control', `public, max-age=${maxAge}, immutable`)
             else response.setHeader('Cache-Control', 'no-cache')
         }
     })

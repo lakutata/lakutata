@@ -7,7 +7,7 @@ import {UUID} from '../exports/Utils.js'
  * A pseudo random generator with a seed (mulberry32)
  * @param seed
  */
-function Random(seed: number): () => number {
+function seededRandom(seed: number): () => number {
     return (): number => {
         seed = (seed + 0x6D2B79F5) | 0
         let t: number = Math.imul(seed ^ (seed >>> 15), 1 | seed)
@@ -16,7 +16,7 @@ function Random(seed: number): () => number {
     }
 }
 
-const random: () => number = Random(20261002)
+const random: () => number = seededRandom(20261002)
 
 const pick = <T>(values: T[]): T => values[Math.floor(random() * values.length)]
 
@@ -26,7 +26,7 @@ const bytes = (length: number): Uint8Array => Uint8Array.from({length: length}, 
  * The result or the error of a function (the arrays as arrays)
  * @param fn
  */
-function Outcome(fn: () => unknown): { value?: unknown, error?: string } {
+function outcomeOf(fn: () => unknown): { value?: unknown, error?: string } {
     try {
         const value: unknown = fn()
         return {value: value instanceof Uint8Array ? Array.from(value) : value}
@@ -42,8 +42,8 @@ function Outcome(fn: () => unknown): { value?: unknown, error?: string } {
  * @param buf
  * @param offset
  */
-function Checked(fn: () => unknown, buf: Uint8Array | undefined, offset: number | undefined): { value?: unknown, error?: string } {
-    const outcome: { value?: unknown, error?: string } = Outcome(fn)
+function checked(fn: () => unknown, buf: Uint8Array | undefined, offset: number | undefined): { value?: unknown, error?: string } {
+    const outcome: { value?: unknown, error?: string } = outcomeOf(fn)
     const start: number = offset ?? 0
     if (outcome.error === undefined && buf && (start < 0 || start + 16 > buf.length)) return {error: `RangeError: UUID byte range ${start}:${start + 15} is out of buffer bounds`}
     return outcome
@@ -52,7 +52,7 @@ function Checked(fn: () => unknown, buf: Uint8Array | undefined, offset: number 
 /**
  * A random string: UUIDs of every version (valid or not), the nil and max UUIDs, other strings
  */
-function Candidate(): unknown {
+function randomCandidate(): unknown {
     const hex = (length: number): string => Array.from({length: length}, (): string => pick([...'0123456789abcdefABCDEF'])).join('')
     switch (Math.floor(random() * 6)) {
         case 0:
@@ -74,13 +74,13 @@ describe('UUID', (): void => {
 
     it('validates, parses and stringifies as uuid', (): void => {
         for (let run: number = 0; run < 5000; run++) {
-            const candidate: any = Candidate()
-            assert.deepStrictEqual(Outcome((): unknown => UUID.validate(candidate)), Outcome((): unknown => upstream.validate(candidate)), String(candidate))
-            assert.deepStrictEqual(Outcome((): unknown => UUID.version(candidate)), Outcome((): unknown => upstream.version(candidate)), String(candidate))
-            assert.deepStrictEqual(Outcome((): unknown => UUID.parse(candidate)), Outcome((): unknown => upstream.parse(candidate)), String(candidate))
+            const candidate: any = randomCandidate()
+            assert.deepStrictEqual(outcomeOf((): unknown => UUID.validate(candidate)), outcomeOf((): unknown => upstream.validate(candidate)), String(candidate))
+            assert.deepStrictEqual(outcomeOf((): unknown => UUID.version(candidate)), outcomeOf((): unknown => upstream.version(candidate)), String(candidate))
+            assert.deepStrictEqual(outcomeOf((): unknown => UUID.parse(candidate)), outcomeOf((): unknown => upstream.parse(candidate)), String(candidate))
             const array: Uint8Array = random() < 0.5 ? bytes(pick([16, 20])) : Uint8Array.from(upstream.parse(upstream.v4()))
             const offset: number = pick([0, 0, 2, 4])
-            assert.deepStrictEqual(Outcome((): unknown => UUID.stringify(array, offset)), Outcome((): unknown => upstream.stringify(array, offset)))
+            assert.deepStrictEqual(outcomeOf((): unknown => UUID.stringify(array, offset)), outcomeOf((): unknown => upstream.stringify(array, offset)))
         }
     })
 
@@ -101,8 +101,8 @@ describe('UUID', (): void => {
                 const portedBuffer: Uint8Array | undefined = useBuffer ? new Uint8Array(size) : undefined
                 const upstreamBuffer: Uint8Array | undefined = useBuffer ? new Uint8Array(size) : undefined
                 assert.deepStrictEqual(
-                    Outcome((): unknown => (UUID as any)[generate]({...options}, portedBuffer, offset)),
-                    Checked((): unknown => (upstream as any)[generate]({...options}, upstreamBuffer, offset), upstreamBuffer, offset),
+                    outcomeOf((): unknown => (UUID as any)[generate]({...options}, portedBuffer, offset)),
+                    checked((): unknown => (upstream as any)[generate]({...options}, upstreamBuffer, offset), upstreamBuffer, offset),
                     `${generate} ${JSON.stringify(options, (_: string, value: unknown): unknown => value instanceof Uint8Array ? Array.from(value) : value)} ${offset}`
                 )
             }
@@ -113,8 +113,8 @@ describe('UUID', (): void => {
                 const upstreamBuffer: Uint8Array | undefined = useBuffer ? new Uint8Array(20) : undefined
                 const start: number | undefined = offset && offset > 0 ? offset : undefined
                 assert.deepStrictEqual(
-                    Outcome((): unknown => (UUID as any)[generate](name, namespace, portedBuffer, start)),
-                    Checked((): unknown => (upstream as any)[generate](name, namespace, upstreamBuffer, start), upstreamBuffer, start),
+                    outcomeOf((): unknown => (UUID as any)[generate](name, namespace, portedBuffer, start)),
+                    checked((): unknown => (upstream as any)[generate](name, namespace, upstreamBuffer, start), upstreamBuffer, start),
                     `${generate} ${String(name)} ${String(namespace)}`
                 )
             }

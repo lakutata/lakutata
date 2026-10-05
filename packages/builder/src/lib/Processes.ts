@@ -5,7 +5,7 @@ import path from 'node:path'
  * An argument of a command run by cmd.exe (Windows): quoted as the programs read their arguments
  * @param arg
  */
-function Quoted(arg: string): string {
+function quoted(arg: string): string {
     if (/^[\w\-.:/\\=@,+]+$/.test(arg)) return arg
     return `"${arg.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, '$1$1')}"`
 }
@@ -18,8 +18,8 @@ function Quoted(arg: string): string {
  * @param args
  * @param options
  */
-export function SpawnCommand(command: string, args: string[], options: SpawnOptions): ChildProcess {
-    if (process.platform === 'win32' && !path.isAbsolute(command)) return spawn([command, ...args].map(Quoted).join(' '), {...options, shell: true})
+export function spawnCommand(command: string, args: string[], options: SpawnOptions): ChildProcess {
+    if (process.platform === 'win32' && !path.isAbsolute(command)) return spawn([command, ...args].map(quoted).join(' '), {...options, shell: true})
     return spawn(command, args, options)
 }
 
@@ -30,9 +30,9 @@ export function SpawnCommand(command: string, args: string[], options: SpawnOpti
  * @param cwd
  * @return the exit code and the output
  */
-export function Run(command: string, args: string[], cwd: string): Promise<{ code: number, output: string }> {
+export function runCommand(command: string, args: string[], cwd: string): Promise<{ code: number, output: string }> {
     return new Promise((resolve: (result: { code: number, output: string }) => void, reject: (error: Error) => void): void => {
-        const child = SpawnCommand(command, args, {cwd: cwd})
+        const child = spawnCommand(command, args, {cwd: cwd})
         let output: string = ''
         //Piped (the default stdio)
         child.stdout!.on('data', (chunk: Buffer): unknown => output += chunk.toString())

@@ -51,7 +51,7 @@ if (MYSQL) {
  * @param store
  * @param options
  */
-async function Instances(store: Store, options: Record<string, unknown> = {}): Promise<{ first: Mutex, second: Mutex, destroy: () => Promise<void> }> {
+async function instances(store: Store, options: Record<string, unknown> = {}): Promise<{ first: Mutex, second: Mutex, destroy: () => Promise<void> }> {
     const containers: Container[] = [new Container(), new Container()]
     const [first, second] = await Promise.all(containers.map((container: Container): Promise<Mutex> => container.set(Mutex, {driver: store.driver, retryDelay: 10, ...options})))
     return {first: first, second: second, destroy: async (): Promise<void> => void await Promise.all(containers.map((container: Container): Promise<void> => container.destroy()))}
@@ -61,7 +61,7 @@ describe('The locks of the stores', {skip: !stores.length && 'test-env/run.sh ru
 
     for (const store of stores) {
         it(`excludes the instances, waits and releases (${store.title})`, async (): Promise<void> => {
-            const {first, second, destroy} = await Instances(store)
+            const {first, second, destroy} = await instances(store)
             try {
                 const name: string = `exclusive:${Date.now()}`
                 const lock: MutexLock = (await first.tryAcquire(name))!
@@ -81,7 +81,7 @@ describe('The locks of the stores', {skip: !stores.length && 'test-env/run.sh ru
         })
 
         it(`runs the functions of the instances one at a time (${store.title})`, async (): Promise<void> => {
-            const {first, second, destroy} = await Instances(store)
+            const {first, second, destroy} = await instances(store)
             try {
                 let running: number = 0
                 let most: number = 0
@@ -103,7 +103,7 @@ describe('The locks of the stores', {skip: !stores.length && 'test-env/run.sh ru
         })
 
         it(`releases the locks of an instance destroyed (${store.title})`, async (): Promise<void> => {
-            const {first, second, destroy} = await Instances(store)
+            const {first, second, destroy} = await instances(store)
             const other: Container = new Container()
             try {
                 const name: string = `destroyed:${Date.now()}`
@@ -119,7 +119,7 @@ describe('The locks of the stores', {skip: !stores.length && 'test-env/run.sh ru
 
         if (store.fenced) {
             it(`gives increasing fencing tokens (${store.title})`, async (): Promise<void> => {
-                const {first, second, destroy} = await Instances(store)
+                const {first, second, destroy} = await instances(store)
                 try {
                     const name: string = `fenced:${Date.now()}`
                     const a: MutexLock = (await first.tryAcquire(name))!
@@ -134,7 +134,7 @@ describe('The locks of the stores', {skip: !stores.length && 'test-env/run.sh ru
 
         if (store.expiring) {
             it(`renews the locks held, takes over the ones expired (${store.title})`, async (): Promise<void> => {
-                const {first, second, destroy} = await Instances(store, {ttl: 300})
+                const {first, second, destroy} = await instances(store, {ttl: 300})
                 const raw: MutexDriver = store.raw()
                 try {
                     const name: string = `expiring:${Date.now()}`
@@ -162,7 +162,7 @@ describe('The locks of the stores', {skip: !stores.length && 'test-env/run.sh ru
 
         if (store.kill) {
             it(`loses the locks of a connection closed (${store.title})`, async (): Promise<void> => {
-                const {first, second, destroy} = await Instances(store)
+                const {first, second, destroy} = await instances(store)
                 try {
                     const name: string = `connection:${Date.now()}`
                     const lock: MutexLock = (await first.tryAcquire(name))!

@@ -1,6 +1,6 @@
 import {Controller, type ControllerProperty} from '../lib/Controller.js'
 import {MethodDecorator, DTO} from '@lakutata/core'
-import {RegisterCLIAction} from '../lib/ControllerEntrypoint.js'
+import {registerCLIAction} from '../lib/ControllerEntrypoint.js'
 import {ActionOptions} from '../lib/ActionOptions.js'
 import {getActionDTOAndOptions} from '../lib/GetActionDTOAndOptions.js'
 import {CLIContext} from '../context/CLIContext.js'
@@ -125,7 +125,7 @@ export function CLIAction<ClassPrototype extends Controller, Method, DTOConstruc
 export function CLIAction<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(command: string, dtoConstructorOrOptions?: DTOConstructor | ActionOptions<CLIContext>, options?: ActionOptions<CLIContext>): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>> {
     return (target: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>, descriptor: TypedPropertyDescriptor<Method>): TypedPropertyDescriptor<Method> => {
         const [dtoConstructor, actionOptions] = getActionDTOAndOptions(dtoConstructorOrOptions, options)
-        RegisterCLIAction(command, target, propertyKey, dtoConstructor, ActionOptions.validate(actionOptions))
+        registerCLIAction(command, target, propertyKey, dtoConstructor, ActionOptions.validate(actionOptions))
         return descriptor
     }
 }

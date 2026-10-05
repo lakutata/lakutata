@@ -2,15 +2,15 @@ import type {ActionPattern} from '@lakutata/core'
 import {getObjectPropertyPaths, uniqueArray} from '@lakutata/utils'
 import {ChannelDefinition, ChannelEntry, ChannelMatch, ChannelMatcher, defineChannel} from './Channel.js'
 import {PatternManager} from '../lib/pattern/PatternManager.js'
-import {StringifyPattern} from '../lib/StringifyPattern.js'
-import {PrefixCommand, PrefixPattern, PrefixRoute} from '../lib/Prefix.js'
+import {stringifyPattern} from '../lib/StringifyPattern.js'
+import {prefixCommand, prefixPattern, prefixRoute} from '../lib/Prefix.js'
 import {ContextType, type BaseContext} from '../context/BaseContext.js'
 import type {HTTPContext} from '../context/HTTPContext.js'
 import type {CLIContext} from '../context/CLIContext.js'
 import type {ServiceContext} from '../context/ServiceContext.js'
 import type {ScheduleContext} from '../context/ScheduleContext.js'
 import {ControllerActionNotFoundException} from '../exceptions/ControllerActionNotFoundException.js'
-import {UnsetValue} from '../lib/UnsetValue.js'
+import {unsetValue} from '../lib/UnsetValue.js'
 
 /**
  * A lookup by exact key, falling back to the glob patterns
@@ -18,7 +18,7 @@ import {UnsetValue} from '../lib/UnsetValue.js'
  * @param key
  * @param subject
  */
-function ExactMatcher(entries: ChannelEntry[], key: (pattern: ActionPattern) => string, subject: (context: BaseContext) => ActionPattern): ChannelMatcher {
+function exactMatcher(entries: ChannelEntry[], key: (pattern: ActionPattern) => string, subject: (context: BaseContext) => ActionPattern): ChannelMatcher {
     const exact: Map<string, ChannelEntry> = new Map()
     const patterns: PatternManager = new PatternManager()
     for (const entry of entries) {
@@ -38,7 +38,7 @@ function ExactMatcher(entries: ChannelEntry[], key: (pattern: ActionPattern) => 
  * The key of an HTTP action
  * @param pattern
  */
-function HTTPKey(pattern: ActionPattern): string {
+function httpKey(pattern: ActionPattern): string {
     return `${pattern.method}\u0000${pattern.route}`
 }
 
@@ -51,8 +51,8 @@ export const HTTPChannel: ChannelDefinition = defineChannel({
     contextType: ContextType.HTTP,
     identify: (pattern: ActionPattern): string => pattern.route,
     describe: (pattern: ActionPattern): Record<string, unknown> => ({route: pattern.route}),
-    prefix: (prefix, pattern: ActionPattern): ActionPattern | undefined => prefix.route === undefined ? undefined : {...pattern, route: PrefixRoute(prefix.route, pattern.route)},
-    createMatcher: (entries: ChannelEntry[]): ChannelMatcher => ExactMatcher(entries, HTTPKey, (context: BaseContext): ActionPattern => ({
+    prefix: (prefix, pattern: ActionPattern): ActionPattern | undefined => prefix.route === undefined ? undefined : {...pattern, route: prefixRoute(prefix.route, pattern.route)},
+    createMatcher: (entries: ChannelEntry[]): ChannelMatcher => exactMatcher(entries, httpKey, (context: BaseContext): ActionPattern => ({
         route: (context as HTTPContext).route,
         method: (context as HTTPContext).method
     })),
@@ -68,8 +68,8 @@ export const CLIChannel: ChannelDefinition = defineChannel({
     contextType: ContextType.CLI,
     identify: (pattern: ActionPattern): string => pattern.command,
     describe: (pattern: ActionPattern): Record<string, unknown> => ({command: pattern.command}),
-    prefix: (prefix, pattern: ActionPattern): ActionPattern | undefined => prefix.command === undefined ? undefined : {command: PrefixCommand(prefix.command, pattern.command)},
-    createMatcher: (entries: ChannelEntry[]): ChannelMatcher => ExactMatcher(entries, (pattern: ActionPattern): string => pattern.command, (context: BaseContext): ActionPattern => ({command: (context as CLIContext).command})),
+    prefix: (prefix, pattern: ActionPattern): ActionPattern | undefined => prefix.command === undefined ? undefined : {command: prefixCommand(prefix.command, pattern.command)},
+    createMatcher: (entries: ChannelEntry[]): ChannelMatcher => exactMatcher(entries, (pattern: ActionPattern): string => pattern.command, (context: BaseContext): ActionPattern => ({command: (context as CLIContext).command})),
     notFound: (): Error => new ControllerActionNotFoundException('Command not found')
 })
 
@@ -80,9 +80,9 @@ export const ServiceChannel: ChannelDefinition = defineChannel({
     name: 'service',
     kind: 'request',
     contextType: ContextType.SERVICE,
-    identify: (pattern: ActionPattern): string => StringifyPattern(pattern),
+    identify: (pattern: ActionPattern): string => stringifyPattern(pattern),
     describe: (pattern: ActionPattern): Record<string, unknown> => ({pattern: pattern}),
-    prefix: (prefix, pattern: ActionPattern): ActionPattern | undefined => prefix.pattern === undefined ? undefined : PrefixPattern(prefix.pattern, pattern),
+    prefix: (prefix, pattern: ActionPattern): ActionPattern | undefined => prefix.pattern === undefined ? undefined : prefixPattern(prefix.pattern, pattern),
     createMatcher: (entries: ChannelEntry[]): ChannelMatcher => {
         const patterns: PatternManager = new PatternManager()
         for (const entry of entries) patterns.add(entry.details.pattern, entry)
@@ -96,14 +96,14 @@ export const ServiceChannel: ChannelDefinition = defineChannel({
     //The keys of the pattern are not a part of the action input
     prepare: (entry: ChannelEntry, context: BaseContext): void => {
         const patternPaths: string[] = getObjectPropertyPaths(entry.details.pattern)
-        patternPaths.forEach((path: string): unknown => UnsetValue(context.data, path))
+        patternPaths.forEach((path: string): unknown => unsetValue(context.data, path))
         const checkPatternPaths: string[] = uniqueArray(patternPaths
             .map((path: string): string => path.substring(0, path.lastIndexOf('.')))
             .filter((path: string): boolean => !!path))
         checkPatternPaths.forEach((path: string): void => {
             let target: ActionPattern = context.data
             path.split('.').forEach((key: string): unknown => target = target[key] ? target[key] : undefined)
-            if (target && !Object.keys(target).length) UnsetValue(context.data, path)
+            if (target && !Object.keys(target).length) unsetValue(context.data, path)
         })
     },
     notFound: (): Error => new ControllerActionNotFoundException('Controller action not found')

@@ -36,7 +36,7 @@ class LeafController extends MiddleController {
  * The handler of the service actions of the controllers
  * @param controllers
  */
-async function Handler(controllers: (typeof Controller)[]): Promise<{ handler: ServiceEntrypointHandler, container: Container }> {
+async function createHandler(controllers: (typeof Controller)[]): Promise<{ handler: ServiceEntrypointHandler, container: Container }> {
     let handler: ServiceEntrypointHandler | undefined
     const container: Container = new Container()
     await container.set(Entrypoint, buildEntrypoints({
@@ -52,7 +52,7 @@ describe('The actions of the subclasses of the controllers', (): void => {
 
     it('are the closest declarations: a subclass without actions runs the actions declared again by its parent', async (): Promise<void> => {
         for (const [controller, version] of [[MiddleController, 'middle'], [LeafController, 'middle'], [BaseController, 'base']] as const) {
-            const {handler, container} = await Handler([controller])
+            const {handler, container} = await createHandler([controller])
             assert.strictEqual(await handler(new ServiceContext({data: {act: 'version'}})), version, controller.name)
             //The actions not declared again are inherited
             assert.strictEqual(await handler(new ServiceContext({data: {act: 'name'}})), 'base name', controller.name)

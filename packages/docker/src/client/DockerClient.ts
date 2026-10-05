@@ -34,7 +34,7 @@ const NO_SUCH_NETWORK: Record<number, string> = {404: 'no such network'}
  * (the network errors, the aborts) are given as they are
  * @param error
  */
-export function DockerException(error: unknown): unknown {
+export function dockerException(error: unknown): unknown {
     if (!(error instanceof DockerRequestError)) return error
     if (error.statusCode === 404) {
         //"No such container: x", "No such image: x", "network x not found" (also in the failure of a start)
@@ -80,7 +80,7 @@ export class DockerClient {
         try {
             return await this.connection.request<T>(request)
         } catch (e) {
-            throw DockerException(e)
+            throw dockerException(e)
         }
     }
 
@@ -92,7 +92,7 @@ export class DockerClient {
         try {
             return await this.connection.stream(request)
         } catch (e) {
-            throw DockerException(e)
+            throw dockerException(e)
         }
     }
 
@@ -104,7 +104,7 @@ export class DockerClient {
         try {
             return await this.connection.hijack(request)
         } catch (e) {
-            throw DockerException(e)
+            throw dockerException(e)
         }
     }
 

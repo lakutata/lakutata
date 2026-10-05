@@ -11,7 +11,7 @@ import {LifetimeType} from './Lifetime.js'
  * @param target
  * @constructor
  */
-export function GetObjectLifetime<ClassConstructor extends IConstructor>(target: ClassConstructor): LifetimeType {
+export function getObjectLifetime<ClassConstructor extends IConstructor>(target: ClassConstructor): LifetimeType {
     return Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_LIFETIME, target)
 }
 
@@ -20,7 +20,7 @@ export function GetObjectLifetime<ClassConstructor extends IConstructor>(target:
  * @param target
  * @constructor
  */
-export function GetObjectLifetimeLocked<ClassConstructor extends IConstructor>(target: ClassConstructor): boolean {
+export function getObjectLifetimeLocked<ClassConstructor extends IConstructor>(target: ClassConstructor): boolean {
     return !!Reflect.getMetadata(DI_TARGET_CONSTRUCTOR_LIFETIME_LOCK, target)
 }
 
@@ -31,9 +31,9 @@ export function GetObjectLifetimeLocked<ClassConstructor extends IConstructor>(t
  * @param lock
  * @constructor
  */
-export function SetObjectLifetime<ClassConstructor extends IConstructor>(target: ClassConstructor, lifetime: LifetimeType, lock: boolean = false): ClassConstructor {
+export function setObjectLifetime<ClassConstructor extends IConstructor>(target: ClassConstructor, lifetime: LifetimeType, lock: boolean = false): ClassConstructor {
     //A locked lifetime can be declared again, but never changed
-    if (GetObjectLifetimeLocked(target) && GetObjectLifetime(target) !== lifetime) throw new LifetimeLockedException('[{0}] Object lifecycle settings cannot be applied because the parent object lifecycle of the current operation object is locked', [target.name])
+    if (getObjectLifetimeLocked(target) && getObjectLifetime(target) !== lifetime) throw new LifetimeLockedException('[{0}] Object lifecycle settings cannot be applied because the parent object lifecycle of the current operation object is locked', [target.name])
     if (lock) Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_LIFETIME_LOCK, true, target)
     Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_LIFETIME, lifetime, target)
     return target

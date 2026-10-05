@@ -8,7 +8,7 @@ import {Inject} from '../../decorators/di/Inject.js'
 import {Autoload} from '../../decorators/di/Autoload.js'
 import {Configurable} from '../../decorators/di/Configurable.js'
 import {DTO} from '../../lib/dto/DTO.js'
-import {GetObjectContainer} from '../../lib/base/internal/ObjectContainer.js'
+import {getObjectContainer} from '../../lib/base/internal/ObjectContainer.js'
 import v8 from 'node:v8'
 import vm from 'node:vm'
 
@@ -101,11 +101,11 @@ class AutoloadUser extends BaseObject {
 
 class LongLived extends Component {
     public async buildJob(): Promise<WeakRef<Container>> {
-        return new WeakRef(GetObjectContainer(await this.buildObject(Job)))
+        return new WeakRef(getObjectContainer(await this.buildObject(Job)))
     }
 
     public async resolveJob(): Promise<WeakRef<Container>> {
-        return new WeakRef(GetObjectContainer(await this.getObject(Job)))
+        return new WeakRef(getObjectContainer(await this.getObject(Job)))
     }
 }
 

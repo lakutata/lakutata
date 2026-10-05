@@ -29,7 +29,7 @@ export type Check = (name: string, fn: () => unknown | Promise<unknown>) => Prom
  * @param end how the application ends once its checks passed (it exits with the code 0 by default; an Electron
  * application ends with its window)
  */
-export async function RunChecks(app: Application, checks: (check: Check) => Promise<void>, end: () => unknown = (): void => app.exit(0)): Promise<void> {
+export async function runChecks(app: Application, checks: (check: Check) => Promise<void>, end: () => unknown = (): void => app.exit(0)): Promise<void> {
     let failed: boolean = false
     const tell = (result: CheckResult): void => {
         if (!result.ok) failed = true
@@ -55,7 +55,7 @@ export async function RunChecks(app: Application, checks: (check: Check) => Prom
 /**
  * A free port of the loopback interface
  */
-export function FreePort(): Promise<number> {
+export function freePort(): Promise<number> {
     return new Promise((resolve: (port: number) => void, reject: (error: Error) => void): void => {
         const server: Server = createServer()
         server.once('error', reject)

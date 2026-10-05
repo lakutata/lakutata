@@ -47,7 +47,7 @@ export type StdioMCPEntrypointOptions = MCPServerInfo & {
  * The application a module belongs to
  * @param module
  */
-function ApplicationOf(module: unknown): Application | undefined {
+function applicationOf(module: unknown): Application | undefined {
     let target: any = module
     while (target && !(target instanceof Application)) target = target.getParent?.()
     return target
@@ -125,7 +125,7 @@ export function stdioMCPEntrypoint(options: StdioMCPEntrypointOptions = {}): Ent
             //The client closed its end: the application ends with it
             onEnd = (): void => {
                 if (stopped || options.exitOnClose === false) return
-                const application: Application | undefined = ApplicationOf(runtime.module)
+                const application: Application | undefined = applicationOf(runtime.module)
                 if (application) application.exit(0)
             }
             stdin.once('end', onEnd)

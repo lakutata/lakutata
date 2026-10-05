@@ -6,7 +6,7 @@ import {DBusSignedValue} from 'dbus-sdk'
  * the scalars have their own types, the other values are variants
  * @param schema
  */
-export function SchemaSignature(schema: Schema | typeof DTO): string {
+export function schemaSignature(schema: Schema | typeof DTO): string {
     const target: any = typeof schema === 'function' ? (schema as typeof DTO).Schema() : schema
     switch (target?.type) {
         case 'object':
@@ -32,14 +32,14 @@ export function SchemaSignature(schema: Schema | typeof DTO): string {
  * keep their types)
  * @param value
  */
-export function Encodable(value: unknown): unknown {
+export function toEncodable(value: unknown): unknown {
     if (value instanceof Date) return value.toISOString()
     if (value instanceof DBusSignedValue) return value
-    if (Array.isArray(value)) return value.filter((item: unknown): boolean => item !== undefined && item !== null).map(Encodable)
-    if (value instanceof Map) return new Map([...value].filter(([, item]): boolean => item !== undefined && item !== null).map(([key, item]): [unknown, unknown] => [key, Encodable(item)]))
+    if (Array.isArray(value)) return value.filter((item: unknown): boolean => item !== undefined && item !== null).map(toEncodable)
+    if (value instanceof Map) return new Map([...value].filter(([, item]): boolean => item !== undefined && item !== null).map(([key, item]): [unknown, unknown] => [key, toEncodable(item)]))
     if (value && typeof value === 'object' && !Buffer.isBuffer(value) && !(value instanceof Uint8Array)) {
         const encodable: Record<string, unknown> = {}
-        for (const [key, item] of Object.entries(value)) if (item !== undefined && item !== null) encodable[key] = Encodable(item)
+        for (const [key, item] of Object.entries(value)) if (item !== undefined && item !== null) encodable[key] = toEncodable(item)
         return encodable
     }
     return value

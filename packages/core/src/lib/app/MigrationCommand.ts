@@ -29,7 +29,7 @@ export type MigrationCommand = {
  * The command of the migrations given by the environment, its variables named in any case
  * @param env
  */
-export function ReadMigrationCommand(env: NodeJS.ProcessEnv): MigrationCommand | undefined {
+export function readMigrationCommand(env: NodeJS.ProcessEnv): MigrationCommand | undefined {
     const variables: Map<string, string> = new Map()
     for (const name in env) if (name.toUpperCase().startsWith('MIGRATION_') && env[name] !== undefined) variables.set(name.toUpperCase(), env[name]!)
     const flag = (name: string): boolean => ['1', 'true', 'yes'].includes((variables.get(name) ?? '').toLowerCase())

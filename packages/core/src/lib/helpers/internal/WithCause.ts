@@ -3,7 +3,7 @@
  * @param exception
  * @param cause
  */
-export function WithCause<T extends Error>(exception: T, cause: unknown): T {
+export function withCause<T extends Error>(exception: T, cause: unknown): T {
     exception.cause = cause
     return exception
 }

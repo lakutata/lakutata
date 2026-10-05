@@ -1,6 +1,6 @@
 import {existsSync} from 'node:fs'
 import {readFile} from 'node:fs/promises'
-import {ApplyEdits, LineEnd, LineIndent, NativeSyntaxError, type TextEdit} from './TextEdits.js'
+import {applyEdits, lineEndOf, lineIndent, NativeSyntaxError, type TextEdit} from './TextEdits.js'
 
 /**
  * A value of TOML (1.0), with its place in the text
@@ -268,7 +268,7 @@ class TomlParser {
  * A key of TOML: bare when it can be, otherwise literal ('…'), or basic ("…") when it has a quote
  * @param key
  */
-export function TomlKey(key: string): string {
+export function tomlKey(key: string): string {
     if (/^[A-Za-z0-9_-]+$/.test(key)) return key
     return key.includes('\'') ? JSON.stringify(key) : `'${key}'`
 }
@@ -277,7 +277,7 @@ export function TomlKey(key: string): string {
  * A string of TOML (basic)
  * @param value
  */
-export function TomlStringText(value: string): string {
+export function tomlStringText(value: string): string {
     return JSON.stringify(value)
 }
 
@@ -306,7 +306,7 @@ export class TomlDocument {
     }
 
     public applied(): TomlDocument {
-        return new TomlDocument(this.file, ApplyEdits(this.text, this.edits))
+        return new TomlDocument(this.file, applyEdits(this.text, this.edits))
     }
 
     /**
@@ -342,11 +342,11 @@ export class TomlDocument {
         const items: string[] = current === undefined ? [] : current.split(separator).filter((item: string): boolean => item.trim() !== '')
         const missing: string[] = values.filter((value: string, index: number): boolean => !items.includes(value) && values.indexOf(value) === index)
         if (!missing.length) return false
-        const rendered: string = TomlStringText([...items, ...missing].join(separator))
+        const rendered: string = tomlStringText([...items, ...missing].join(separator))
         const table: TomlTable | undefined = this.table(path)
         if (!table) {
             const blank: string = !this.text.length ? '' : this.text.endsWith('\n\n') ? '' : this.text.endsWith('\n') ? '\n' : '\n\n'
-            this.edits.push({offset: this.text.length, remove: 0, insert: `${blank}[${path.map(TomlKey).join('.')}]\n${TomlKey(key)} = ${rendered}\n`})
+            this.edits.push({offset: this.text.length, remove: 0, insert: `${blank}[${path.map(tomlKey).join('.')}]\n${tomlKey(key)} = ${rendered}\n`})
             return true
         }
         const entry: TomlEntry | undefined = table.entries.find((candidate: TomlEntry): boolean => candidate.key.length === 1 && candidate.key[0] === key)
@@ -356,11 +356,11 @@ export class TomlDocument {
         }
         //After the last entry of the table, or its header
         const last: TomlEntry | undefined = table.entries.at(-1)
-        const after: number = LineEnd(this.text, last ? last.value.end : table.headerEnd)
-        const indent: string = last ? LineIndent(this.text, last.start) : ''
+        const after: number = lineEndOf(this.text, last ? last.value.end : table.headerEnd)
+        const indent: string = last ? lineIndent(this.text, last.start) : ''
         this.edits.push(after < this.text.length
-            ? {offset: after, remove: 0, insert: `\n${indent}${TomlKey(key)} = ${rendered}`}
-            : {offset: after, remove: 0, insert: `${this.text.endsWith('\n') ? '' : '\n'}${indent}${TomlKey(key)} = ${rendered}\n`})
+            ? {offset: after, remove: 0, insert: `\n${indent}${tomlKey(key)} = ${rendered}`}
+            : {offset: after, remove: 0, insert: `${this.text.endsWith('\n') ? '' : '\n'}${indent}${tomlKey(key)} = ${rendered}\n`})
         return true
     }
 }

@@ -8,7 +8,7 @@ import {DI_TARGET_CONTAINER} from '../../../constants/DIMetadataKey.js'
  * @param container
  * @constructor
  */
-export function SetObjectContainerGetter<ClassPrototype extends BaseObject>(target: ClassPrototype, container: Container): void {
+export function setObjectContainerGetter<ClassPrototype extends BaseObject>(target: ClassPrototype, container: Container): void {
     Reflect.defineMetadata(DI_TARGET_CONTAINER, () => container, target)
 }
 
@@ -17,7 +17,7 @@ export function SetObjectContainerGetter<ClassPrototype extends BaseObject>(targ
  * @param target
  * @constructor
  */
-export function GetObjectContainer<ClassPrototype extends BaseObject>(target: ClassPrototype): Container {
+export function getObjectContainer<ClassPrototype extends BaseObject>(target: ClassPrototype): Container {
     const containerGetter: () => Container = Reflect.getOwnMetadata(DI_TARGET_CONTAINER, target)
     return containerGetter()
 }

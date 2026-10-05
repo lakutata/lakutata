@@ -114,7 +114,7 @@ export type HTTPMCPEntrypointOptions = MCPServerInfo & {
  * Whether a host is a loopback address
  * @param host
  */
-function IsLoopback(host: string): boolean {
+function isLoopback(host: string): boolean {
     return ['127.0.0.1', 'localhost', '::1', '[::1]'].includes(host.toLowerCase())
 }
 
@@ -140,7 +140,7 @@ export type HTTPMCPEntrypointAdapter = EntrypointAdapter<MCPContext> & {
  * @param request
  * @param limit
  */
-async function ReadBody(request: IncomingMessage, limit: number): Promise<Buffer | undefined> {
+async function readBody(request: IncomingMessage, limit: number): Promise<Buffer | undefined> {
     const chunks: Buffer[] = []
     let size: number = 0
     for await (const chunk of request) {
@@ -157,7 +157,7 @@ async function ReadBody(request: IncomingMessage, limit: number): Promise<Buffer
  * @param body
  * @param signal
  */
-function WebRequest(request: IncomingMessage, body: Buffer | undefined, signal: AbortSignal): Request {
+function toWebRequest(request: IncomingMessage, body: Buffer | undefined, signal: AbortSignal): Request {
     const headers: Headers = new Headers()
     for (const [name, value] of Object.entries(request.headers)) {
         if (Array.isArray(value)) value.forEach((item: string): void => headers.append(name, item))
@@ -177,7 +177,7 @@ function WebRequest(request: IncomingMessage, body: Buffer | undefined, signal: 
  * @param webResponse
  * @param response
  */
-async function WriteResponse(webResponse: Response, response: ServerResponse): Promise<void> {
+async function writeResponse(webResponse: Response, response: ServerResponse): Promise<void> {
     const headers: Record<string, string | string[]> = {}
     webResponse.headers.forEach((value: string, name: string): void => {
         headers[name] = value
@@ -264,7 +264,7 @@ export function httpMCPEntrypoint(options: HTTPMCPEntrypointOptions = {}): HTTPM
     const host: string = options.host ?? '127.0.0.1'
     const path: string = options.path ?? '/mcp'
     //The host of a mounting server is not known: its names are checked when they are given
-    const loopback: boolean = listen && IsLoopback(host)
+    const loopback: boolean = listen && isLoopback(host)
     const allowedHosts: string[] | undefined = options.allowedHosts === false ? undefined : options.allowedHosts ?? (loopback ? localhostAllowedHostnames() : undefined)
     const allowedOrigins: string[] | undefined = options.allowedOrigins === false ? undefined : options.allowedOrigins ?? (loopback ? localhostAllowedOrigins() : undefined)
     let server: Server | undefined
@@ -298,7 +298,7 @@ export function httpMCPEntrypoint(options: HTTPMCPEntrypointOptions = {}): HTTPM
             parsedBody = (request as { body?: unknown }).body
             body = parsedBody === undefined ? undefined : Buffer.from(JSON.stringify(parsedBody))
         } else {
-            body = await ReadBody(request, options.maxRequestBodySize ?? 4 * 1024 * 1024)
+            body = await readBody(request, options.maxRequestBodySize ?? 4 * 1024 * 1024)
             if (!body) {
                 response.writeHead(413, {'Content-Type': 'application/json'}).end(JSON.stringify({error: 'payload_too_large'}))
                 return
@@ -310,10 +310,10 @@ export function httpMCPEntrypoint(options: HTTPMCPEntrypointOptions = {}): HTTPM
             }
         }
         state.subscription = (parsedBody as { method?: unknown } | undefined)?.method === 'subscriptions/listen'
-        const webRequest: Request = WebRequest(request, body, abortController.signal)
+        const webRequest: Request = toWebRequest(request, body, abortController.signal)
         const rejected: Response | undefined = (allowedHosts ? hostHeaderValidationResponse(webRequest, allowedHosts) : undefined)
             ?? (allowedOrigins ? originValidationResponse(webRequest, allowedOrigins) : undefined)
-        if (rejected) return await WriteResponse(rejected, response)
+        if (rejected) return await writeResponse(rejected, response)
         let authInfo: MCPAuthInfo | undefined
         try {
             authInfo = await options.authenticate?.(request)
@@ -322,7 +322,7 @@ export function httpMCPEntrypoint(options: HTTPMCPEntrypointOptions = {}): HTTPM
                 .end(JSON.stringify({error: 'unauthorized', error_description: (error as Error)?.message ?? String(error)}))
             return
         }
-        await WriteResponse(await handler!.fetch(webRequest, {authInfo: authInfo, parsedBody: parsedBody}), response)
+        await writeResponse(await handler!.fetch(webRequest, {authInfo: authInfo, parsedBody: parsedBody}), response)
     }
 
     /**

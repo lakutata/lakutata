@@ -1,7 +1,7 @@
 import {BaseObject} from '../../lib/base/BaseObject.js'
 import {ClassDecorator} from '../../types/ClassDecorator.js'
 import {LifetimeType} from '../../lib/ioc/Lifetime.js'
-import {SetObjectLifetime} from '../../lib/ioc/ObjectLifetime.js'
+import {setObjectLifetime} from '../../lib/ioc/ObjectLifetime.js'
 
 /**
  * Set how the container shares the instances of a class: `SINGLETON` (one instance, created once by the container
@@ -28,7 +28,7 @@ import {SetObjectLifetime} from '../../lib/ioc/ObjectLifetime.js'
  * ```
  */
 export function Lifetime<ClassConstructor extends typeof BaseObject>(lifetime: LifetimeType, lock: boolean = false): ClassDecorator<ClassConstructor> {
-    return (target: ClassConstructor): ClassConstructor => SetObjectLifetime(target, lifetime, lock)
+    return (target: ClassConstructor): ClassConstructor => setObjectLifetime(target, lifetime, lock)
 }
 
 /**

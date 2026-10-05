@@ -1,6 +1,6 @@
 import assert from 'node:assert'
 
-type Matchers = {
+type matchers = {
     toBe(expected: unknown): void
     toEqual(expected: unknown): void
     toBeInstanceOf(expected: Function): void
@@ -18,7 +18,7 @@ type Matchers = {
  * @param actual
  * @param negated
  */
-function Matchers(actual: any, negated: boolean): Matchers {
+function matchers(actual: any, negated: boolean): matchers {
     const check = (passed: boolean, message: string): void => assert.ok(negated ? !passed : passed, negated ? `not: ${message}` : message)
     return {
         toBe: (expected: unknown): void => negated ? assert.notStrictEqual(actual, expected) : assert.strictEqual(actual, expected),
@@ -50,6 +50,6 @@ function Matchers(actual: any, negated: boolean): Matchers {
  * Jest style assertions on node:assert, for the tests ported from the bun test runner
  * @param actual
  */
-export function expect(actual: unknown): Matchers & { not: Matchers } {
-    return {...Matchers(actual, false), not: Matchers(actual, true)}
+export function expect(actual: unknown): matchers & { not: matchers } {
+    return {...matchers(actual, false), not: matchers(actual, true)}
 }

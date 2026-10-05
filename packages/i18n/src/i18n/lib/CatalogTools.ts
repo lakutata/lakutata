@@ -1,5 +1,5 @@
 import {defaultValidationMessages} from '@lakutata/core'
-import {LoadDirectory, type Catalogs} from './Catalog.js'
+import {loadDirectory, type Catalogs} from './Catalog.js'
 import {I18nCatalogException} from '../exceptions/I18nCatalogException.js'
 import {normalizeLocale} from './Locale.js'
 import {messageArguments, parseMessage, type MessagePart} from './MessageFormat.js'
@@ -52,7 +52,7 @@ const VALIDATION_PREFIX: string = 'validation.'
  */
 export async function loadCatalogs(directories: string[]): Promise<Catalogs> {
     const catalogs: Catalogs = new Map()
-    for (const directory of directories) await LoadDirectory(catalogs, directory)
+    for (const directory of directories) await loadDirectory(catalogs, directory)
     return catalogs
 }
 
@@ -60,7 +60,7 @@ export async function loadCatalogs(directories: string[]): Promise<Catalogs> {
  * The variables of a template of the validation (#label, #limit)
  * @param template
  */
-function TemplateVariables(template: string): Set<string> {
+function templateVariables(template: string): Set<string> {
     return new Set(template.match(/#[A-Za-z]+/g) ?? [])
 }
 
@@ -71,7 +71,7 @@ function TemplateVariables(template: string): Set<string> {
  * @param key
  * @param message
  */
-function Parse(issues: CatalogIssue[], locale: string, key: string, message: string): Map<string, string> | undefined {
+function parse(issues: CatalogIssue[], locale: string, key: string, message: string): Map<string, string> | undefined {
     try {
         return messageArguments(parseMessage(message, `${locale}: ${key}`))
     } catch (error) {
@@ -111,7 +111,7 @@ export function checkCatalogs(catalogs: Catalogs, defaultLocale: string): Catalo
     //The arguments of the default messages
     const baseArguments: Map<string, Map<string, string> | undefined> = new Map()
     for (const [key, message] of defaults) {
-        if (!key.startsWith(VALIDATION_PREFIX)) baseArguments.set(key, Parse(issues, base, key, message))
+        if (!key.startsWith(VALIDATION_PREFIX)) baseArguments.set(key, parse(issues, base, key, message))
     }
     for (const [locale, messages] of [...catalogs.entries()].sort(([a], [b]): number => a.localeCompare(b))) {
         for (const [key, message] of messages) {
@@ -121,8 +121,8 @@ export function checkCatalogs(catalogs: Catalogs, defaultLocale: string): Catalo
                     issues.push({level: 'error', locale: locale, key: key, message: `"${code}" is not a code of the validation errors`})
                     continue
                 }
-                const known: Set<string> = TemplateVariables(validation[code])
-                const unknown: string[] = [...TemplateVariables(message)].filter((variable: string): boolean => !known.has(variable))
+                const known: Set<string> = templateVariables(validation[code])
+                const unknown: string[] = [...templateVariables(message)].filter((variable: string): boolean => !known.has(variable))
                 if (unknown.length) issues.push({level: 'error', locale: locale, key: key, message: `${unknown.join(', ')} ${unknown.length > 1 ? 'are not variables' : 'is not a variable'} of "${code}" (${[...known].join(', ')})`})
                 continue
             }
@@ -131,7 +131,7 @@ export function checkCatalogs(catalogs: Catalogs, defaultLocale: string): Catalo
                 issues.push({level: 'error', locale: locale, key: key, message: `The default language ${base} has no message "${key}"`})
                 continue
             }
-            const args: Map<string, string> | undefined = Parse(issues, locale, key, message)
+            const args: Map<string, string> | undefined = parse(issues, locale, key, message)
             const expected: Map<string, string> | undefined = baseArguments.get(key)
             if (!args || !expected) continue
             const added: string[] = [...args.keys()].filter((name: string): boolean => !expected.has(name))
@@ -152,7 +152,7 @@ export function checkCatalogs(catalogs: Catalogs, defaultLocale: string): Catalo
  * The TypeScript type of an argument of a message, by its use
  * @param type
  */
-function ArgumentType(type: string): string {
+function argumentType(type: string): string {
     switch (type) {
         case 'number':
             return 'number | bigint'
@@ -174,16 +174,16 @@ function ArgumentType(type: string): string {
  * give it)
  * @param parts
  */
-function HasCurrency(parts: MessagePart[]): boolean {
+function hasCurrency(parts: MessagePart[]): boolean {
     return parts.some((part: MessagePart): boolean => typeof part !== 'string' && part.type !== 'pound' &&
-        ((part.type === 'number' && part.style === 'currency') || ('options' in part && Object.values(part.options).some(HasCurrency))))
+        ((part.type === 'number' && part.style === 'currency') || ('options' in part && Object.values(part.options).some(hasCurrency))))
 }
 
 /**
  * A string literal of TypeScript
  * @param value
  */
-function Literal(value: string): string {
+function literal(value: string): string {
     return `'${value.replace(/\\/g, '\\\\').replace(/'/g, '\\\'')}'`
 }
 
@@ -215,14 +215,14 @@ export function generateMessageTypes(catalogs: Catalogs, defaultLocale: string, 
     const lines: string[] = []
     for (const key of [...defaults.keys()].filter((name: string): boolean => !name.startsWith(VALIDATION_PREFIX)).sort()) {
         const parts: MessagePart[] = parseMessage(defaults.get(key)!, `${base}: ${key}`)
-        const fields: string[] = [...messageArguments(parts)].map(([name, type]): string => `${/^[A-Za-z_$][\w$]*$/.test(name) ? name : Literal(name)}: ${ArgumentType(type)}`)
-        if (HasCurrency(parts) && !messageArguments(parts).has('currency')) fields.push('currency?: string')
-        lines.push(`        ${Literal(key)}: ${fields.length ? `{ ${fields.join(', ')} }` : 'Record<string, never>'}`)
+        const fields: string[] = [...messageArguments(parts)].map(([name, type]): string => `${/^[A-Za-z_$][\w$]*$/.test(name) ? name : literal(name)}: ${argumentType(type)}`)
+        if (hasCurrency(parts) && !messageArguments(parts).has('currency')) fields.push('currency?: string')
+        lines.push(`        ${literal(key)}: ${fields.length ? `{ ${fields.join(', ')} }` : 'Record<string, never>'}`)
     }
     return `//Generated by lakutata i18n types from the messages of ${base}: the keys of the messages and their arguments
-import ${Literal(moduleName)}
+import ${literal(moduleName)}
 
-declare module ${Literal(moduleName)} {
+declare module ${literal(moduleName)} {
     interface I18nMessages {
 ${lines.join('\n')}
     }

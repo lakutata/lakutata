@@ -1,7 +1,7 @@
 import {Provider, DTO} from '@lakutata/core'
 import {Transient, Configurable} from '@lakutata/core/decorator/di'
 import type {DockerClient} from '../../client/DockerClient.js'
-import {DockerStreamDecoder, ReadMultiplexed} from '../../client/DockerStreams.js'
+import {DockerStreamDecoder, readMultiplexed} from '../../client/DockerStreams.js'
 import {isAbortError, As, uniqueArray} from '@lakutata/utils'
 import {randomBytes} from 'node:crypto'
 import {setTimeout as sleep} from 'node:timers/promises'
@@ -39,7 +39,7 @@ import {type IdResponse} from '../../client/types/IdResponse.js'
 import {type PortBinding} from '../../client/types/PortBinding.js'
 import {DockerImageNotFoundException} from '../exceptions/DockerImageNotFoundException.js'
 import {DockerContainerNotFoundException} from '../exceptions/DockerContainerNotFoundException.js'
-import {EngineBinds, EngineDevices, EngineEndpoints, EnginePortBindings, EngineRestartPolicy, ParseRestartPolicy} from './EngineSettings.js'
+import {engineBinds, engineDevices, engineEndpoints, enginePortBindings, engineRestartPolicy, parseRestartPolicy} from './EngineSettings.js'
 
 /**
  * A container of the Docker daemon, with its settings and its state as inspected, and its operations: start, stop,
@@ -341,7 +341,7 @@ export class DockerContainer extends Provider {
             })) : []
             this.memoryLimit = inspectInfo.HostConfig.Memory ? inspectInfo.HostConfig.Memory : 0
             this.privileged = !!inspectInfo.HostConfig.Privileged
-            this.restartPolicy = ParseRestartPolicy(inspectInfo.HostConfig.RestartPolicy)
+            this.restartPolicy = parseRestartPolicy(inspectInfo.HostConfig.RestartPolicy)
             this.cgroup = inspectInfo.HostConfig.Cgroup
             this.cgroupParent = inspectInfo.HostConfig.CgroupParent
             this.pidMode = inspectInfo.HostConfig.PidMode
@@ -508,7 +508,7 @@ export class DockerContainer extends Provider {
             } else if (key === 'cpuSet' && changes.cpuSet!.length) {
                 resources.CpusetCpus = changes.cpuSet!.join(',')
             } else if (key === 'restartPolicy') {
-                resources.RestartPolicy = EngineRestartPolicy(changes.restartPolicy || 'no')
+                resources.RestartPolicy = engineRestartPolicy(changes.restartPolicy || 'no')
             } else {
                 recreated = true
             }
@@ -548,15 +548,15 @@ export class DockerContainer extends Provider {
             if (hostConfig.MemorySwap !== -1) hostConfig.MemorySwap = 0
         }
         if (changes.cpuSet) hostConfig.CpusetCpus = changes.cpuSet.join(',')
-        if (changes.restartPolicy !== undefined) hostConfig.RestartPolicy = EngineRestartPolicy(changes.restartPolicy || 'no')
+        if (changes.restartPolicy !== undefined) hostConfig.RestartPolicy = engineRestartPolicy(changes.restartPolicy || 'no')
         if (changes.OOMKillDisable !== undefined) hostConfig.OomKillDisable = changes.OOMKillDisable
         if (changes.capabilities) hostConfig.CapAdd = changes.capabilities
         if (changes.cgroup !== undefined) hostConfig.Cgroup = changes.cgroup
         if (changes.cgroupParent !== undefined) hostConfig.CgroupParent = changes.cgroupParent
         if (changes.pidMode !== undefined) hostConfig.PidMode = changes.pidMode
-        if (changes.devices) hostConfig.Devices = EngineDevices(changes.devices)
+        if (changes.devices) hostConfig.Devices = engineDevices(changes.devices)
         if (changes.ports) {
-            hostConfig.PortBindings = EnginePortBindings(changes.ports)
+            hostConfig.PortBindings = enginePortBindings(changes.ports)
             config.ExposedPorts = {...config.ExposedPorts, ...Object.fromEntries(Object.keys(hostConfig.PortBindings).map((port: string): [string, object] => [port, {}]))}
         } else {
             //Each host port once
@@ -567,7 +567,7 @@ export class DockerContainer extends Provider {
         }
         if (changes.binds) {
             //The bind mounts replaced (their source is a host path), the volumes kept
-            hostConfig.Binds = [...(hostConfig.Binds ?? []).filter((bind: string): boolean => !/^(\/|[a-zA-Z]:\\)/.test(bind)), ...EngineBinds(changes.binds)]
+            hostConfig.Binds = [...(hostConfig.Binds ?? []).filter((bind: string): boolean => !/^(\/|[a-zA-Z]:\\)/.test(bind)), ...engineBinds(changes.binds)]
             hostConfig.Mounts = (hostConfig.Mounts ?? []).filter((mount: Record<string, any>): boolean => mount.Type !== 'bind')
         }
         //The anonymous volumes mounted again by their names: the old container is removed without them
@@ -584,7 +584,7 @@ export class DockerContainer extends Provider {
         }))]
         let endpoints: Record<string, Record<string, unknown>>
         if (changes.networks) {
-            endpoints = EngineEndpoints(changes.networks)
+            endpoints = engineEndpoints(changes.networks)
             if (changes.networks.length && !/^(host|none|container:)/.test(hostConfig.NetworkMode ?? '')) hostConfig.NetworkMode = changes.networks[0].networkName
         } else {
             //The networks kept as configured: their static addresses only (IPAMConfig), the others assigned again
@@ -730,7 +730,7 @@ export class DockerContainer extends Provider {
         })
         //Without TTY, the output is multiplexed: stdout and stderr apart
         const duplex: Duplex = await this.getClient().startExec(exec.Id, {Detach: false, Tty: false})
-        const {stdout, stderr} = await ReadMultiplexed(duplex)
+        const {stdout, stderr} = await readMultiplexed(duplex)
         //The exit code is set once the process is reaped, which may follow the end of its output
         let inspectInfo: Record<string, any> = await this.getClient().inspectExec(exec.Id)
         for (let attempt: number = 0; (inspectInfo.Running || inspectInfo.ExitCode === null) && attempt < 200; attempt++) {

@@ -93,7 +93,7 @@ const BYTE_TO_HEX: string[] = Array.from({length: 256}, (_: unknown, i: number):
 const RANDOM_POOL: Uint8Array = new Uint8Array(256)
 let poolPointer: number = RANDOM_POOL.length
 
-function Rng(): Uint8Array {
+function rng(): Uint8Array {
     if (poolPointer > RANDOM_POOL.length - 16) {
         randomFillSync(RANDOM_POOL)
         poolPointer = 0
@@ -127,13 +127,13 @@ export function parse(uuid: string): Uint8Array {
  * @param arr
  * @param offset
  */
-function UnsafeStringify(arr: ArrayLike<number>, offset: number = 0): string {
+function unsafeStringify(arr: ArrayLike<number>, offset: number = 0): string {
     const hex = (index: number): string => BYTE_TO_HEX[arr[offset + index]]
     return (hex(0) + hex(1) + hex(2) + hex(3) + '-' + hex(4) + hex(5) + '-' + hex(6) + hex(7) + '-' + hex(8) + hex(9) + '-' + hex(10) + hex(11) + hex(12) + hex(13) + hex(14) + hex(15)).toLowerCase()
 }
 
 export function stringify(arr: ArrayLike<number>, offset: number = 0): string {
-    const uuid: string = UnsafeStringify(arr, offset)
+    const uuid: string = unsafeStringify(arr, offset)
     if (!validate(uuid)) throw TypeError('Stringified UUID is invalid')
     return uuid
 }
@@ -145,7 +145,7 @@ type V1State = { msecs?: number, nsecs?: number, node?: Uint8Array, clockseq?: n
 
 const V1_STATE: V1State = {}
 
-function UpdateV1State(state: V1State, now: number, rnds: Uint8Array): V1State {
+function updateV1State(state: V1State, now: number, rnds: Uint8Array): V1State {
     state.msecs ??= -Infinity
     state.nsecs ??= 0
     if (now === state.msecs) {
@@ -168,7 +168,7 @@ function UpdateV1State(state: V1State, now: number, rnds: Uint8Array): V1State {
     return state
 }
 
-function V1Bytes(rnds: Uint8Array, msecs?: number, nsecs?: number, clockseq?: number, node?: Uint8Array, buf?: Uint8Array, offset: number = 0): Uint8Array {
+function v1Bytes(rnds: Uint8Array, msecs?: number, nsecs?: number, clockseq?: number, node?: Uint8Array, buf?: Uint8Array, offset: number = 0): Uint8Array {
     if (rnds.length < 16) throw new Error('Random bytes length must be >= 16')
     if (!buf) {
         buf = new Uint8Array(16)
@@ -205,33 +205,33 @@ export function v1(options?: Version1Options, buf?: Uint8Array, offset?: number)
         if (keys.length === 1 && keys[0] === '_v6') options = undefined
     }
     if (options) {
-        bytes = V1Bytes(options.random ?? options.rng?.() ?? Rng(), options.msecs, options.nsecs, options.clockseq, options.node, buf, offset)
+        bytes = v1Bytes(options.random ?? options.rng?.() ?? rng(), options.msecs, options.nsecs, options.clockseq, options.node, buf, offset)
     } else {
         const now: number = Date.now()
-        const rnds: Uint8Array = Rng()
-        UpdateV1State(V1_STATE, now, rnds)
-        bytes = V1Bytes(rnds, V1_STATE.msecs, V1_STATE.nsecs, isV6 ? undefined : V1_STATE.clockseq, isV6 ? undefined : V1_STATE.node, buf, offset)
+        const rnds: Uint8Array = rng()
+        updateV1State(V1_STATE, now, rnds)
+        bytes = v1Bytes(rnds, V1_STATE.msecs, V1_STATE.nsecs, isV6 ? undefined : V1_STATE.clockseq, isV6 ? undefined : V1_STATE.node, buf, offset)
     }
-    return buf ?? UnsafeStringify(bytes)
+    return buf ?? unsafeStringify(bytes)
 }
 
 /**
  * The bytes of a string (UTF-8)
  * @param str
  */
-function StringToBytes(str: string): Uint8Array {
+function stringToBytes(str: string): Uint8Array {
     str = unescape(encodeURIComponent(str))
     const bytes: Uint8Array = new Uint8Array(str.length)
     for (let i: number = 0; i < str.length; ++i) bytes[i] = str.charCodeAt(i)
     return bytes
 }
 
-function Hash(algorithm: 'md5' | 'sha1'): (bytes: Uint8Array) => Uint8Array {
+function hashFunction(algorithm: 'md5' | 'sha1'): (bytes: Uint8Array) => Uint8Array {
     return (bytes: Uint8Array): Uint8Array => createHash(algorithm).update(bytes).digest()
 }
 
-function V35(version: number, hash: (bytes: Uint8Array) => Uint8Array, value: string | Uint8Array, namespace: UUIDTypes, buf?: Uint8Array, offset?: number): any {
-    const valueBytes: Uint8Array = typeof value === 'string' ? StringToBytes(value) : value
+function v35(version: number, hash: (bytes: Uint8Array) => Uint8Array, value: string | Uint8Array, namespace: UUIDTypes, buf?: Uint8Array, offset?: number): any {
+    const valueBytes: Uint8Array = typeof value === 'string' ? stringToBytes(value) : value
     const namespaceBytes: Uint8Array = typeof namespace === 'string' ? parse(namespace) : namespace
     if (typeof namespace === 'string') namespace = parse(namespace)
     if (namespace?.length !== 16) throw TypeError('Namespace must be array-like (16 iterable integer values, 0-255)')
@@ -248,21 +248,21 @@ function V35(version: number, hash: (bytes: Uint8Array) => Uint8Array, value: st
         for (let i: number = 0; i < 16; ++i) buf[offset + i] = bytes[i]
         return buf
     }
-    return UnsafeStringify(bytes)
+    return unsafeStringify(bytes)
 }
 
 export function v3(value: string | Uint8Array, namespace: UUIDTypes, buf?: Uint8Array, offset?: number): any {
-    return V35(0x30, Hash('md5'), value, namespace, buf, offset)
+    return v35(0x30, hashFunction('md5'), value, namespace, buf, offset)
 }
 
 export function v5(value: string | Uint8Array, namespace: UUIDTypes, buf?: Uint8Array, offset?: number): any {
-    return V35(0x50, Hash('sha1'), value, namespace, buf, offset)
+    return v35(0x50, hashFunction('sha1'), value, namespace, buf, offset)
 }
 
 export function v4(options?: Version4Options, buf?: Uint8Array, offset?: number): any {
     if (!buf && !options) return randomUUID()
     options = options || {}
-    const source: Uint8Array = options.random ?? options.rng?.() ?? Rng()
+    const source: Uint8Array = options.random ?? options.rng?.() ?? rng()
     if (source.length < 16) throw new Error('Random bytes length must be >= 16')
     //A copy: the bytes of the caller are not changed (the upstream sets their version and variant bits)
     const rnds: Uint8Array = source.slice(0, 16)
@@ -274,14 +274,14 @@ export function v4(options?: Version4Options, buf?: Uint8Array, offset?: number)
         for (let i: number = 0; i < 16; ++i) buf[offset + i] = rnds[i]
         return buf
     }
-    return UnsafeStringify(rnds)
+    return unsafeStringify(rnds)
 }
 
 /**
  * The bytes of a v6 UUID of the bytes of a v1 UUID
  * @param b
  */
-function V1ToV6(b: Uint8Array): Uint8Array {
+function v1ToV6(b: Uint8Array): Uint8Array {
     return Uint8Array.of(
         ((b[6] & 0x0f) << 4) | ((b[7] >> 4) & 0x0f), ((b[7] & 0x0f) << 4) | ((b[4] & 0xf0) >> 4), ((b[4] & 0x0f) << 4) | ((b[5] & 0xf0) >> 4),
         ((b[5] & 0x0f) << 4) | ((b[0] & 0xf0) >> 4), ((b[0] & 0x0f) << 4) | ((b[1] & 0xf0) >> 4), ((b[1] & 0x0f) << 4) | ((b[2] & 0xf0) >> 4),
@@ -293,12 +293,12 @@ export function v6(options?: Version6Options, buf?: Uint8Array, offset?: number)
     options ??= {}
     offset ??= 0
     let bytes: Uint8Array = v1({...options, _v6: true}, new Uint8Array(16))
-    bytes = V1ToV6(bytes)
+    bytes = v1ToV6(bytes)
     if (buf) {
         //Checked before writing (the upstream writes the bytes which fit)
         if (offset < 0 || offset + 16 > buf.length) throw new RangeError(`UUID byte range ${offset}:${offset + 15} is out of buffer bounds`)
         for (let i: number = 0; i < 16; i++) buf[offset + i] = bytes[i]
         return buf
     }
-    return UnsafeStringify(bytes)
+    return unsafeStringify(bytes)
 }

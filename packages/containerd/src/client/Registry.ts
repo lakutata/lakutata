@@ -41,7 +41,7 @@ export const MediaTypes = {
  * Whether a media type is the one of an index (of the manifests of the platforms)
  * @param mediaType
  */
-export function IsIndex(mediaType: string): boolean {
+export function isIndex(mediaType: string): boolean {
     return mediaType === MediaTypes.OCI_INDEX || mediaType === MediaTypes.DOCKER_LIST
 }
 
@@ -49,7 +49,7 @@ export function IsIndex(mediaType: string): boolean {
  * Whether a media type is the one of a manifest (of an image of a platform)
  * @param mediaType
  */
-export function IsManifest(mediaType: string): boolean {
+export function isManifest(mediaType: string): boolean {
     return mediaType === MediaTypes.OCI_MANIFEST || mediaType === MediaTypes.DOCKER_MANIFEST
 }
 
@@ -57,7 +57,7 @@ export function IsManifest(mediaType: string): boolean {
  * The digest of bytes
  * @param data
  */
-export function Digest(data: Uint8Array): string {
+export function digestOf(data: Uint8Array): string {
     return `sha256:${createHash('sha256').update(data).digest('hex')}`
 }
 
@@ -65,7 +65,7 @@ export function Digest(data: Uint8Array): string {
  * The parameters of a challenge of WWW-Authenticate (Bearer realm="…",service="…",scope="…")
  * @param header
  */
-function Challenge(header: string): { scheme: string, params: Record<string, string> } {
+function parseChallenge(header: string): { scheme: string, params: Record<string, string> } {
     const space: number = header.indexOf(' ')
     const scheme: string = (space < 0 ? header : header.slice(0, space)).toLowerCase()
     const params: Record<string, string> = {}
@@ -77,7 +77,7 @@ function Challenge(header: string): { scheme: string, params: Record<string, str
  * The basic authorization of credentials
  * @param credentials
  */
-function BasicAuthorization(credentials: RegistryCredentials | undefined): string | undefined {
+function basicAuthorization(credentials: RegistryCredentials | undefined): string | undefined {
     return credentials?.username !== undefined ? `Basic ${Buffer.from(`${credentials.username}:${credentials.password ?? ''}`).toString('base64')}` : undefined
 }
 
@@ -88,7 +88,7 @@ function BasicAuthorization(credentials: RegistryCredentials | undefined): strin
  * @param credentials
  * @param signal
  */
-export async function FetchRegistryToken(params: { realm: string, service?: string, scopes: string[] }, credentials?: RegistryCredentials, signal?: AbortSignal): Promise<{ token: string, expiresIn?: number, issuedAt?: number } | undefined> {
+export async function fetchRegistryToken(params: { realm: string, service?: string, scopes: string[] }, credentials?: RegistryCredentials, signal?: AbortSignal): Promise<{ token: string, expiresIn?: number, issuedAt?: number } | undefined> {
     const url: URL = new URL(params.realm)
     if (params.service) url.searchParams.set('service', params.service)
     for (const scope of params.scopes) url.searchParams.append('scope', scope)
@@ -102,7 +102,7 @@ export async function FetchRegistryToken(params: { realm: string, service?: stri
             signal: signal
         })
     } else {
-        const basic: string | undefined = BasicAuthorization(credentials)
+        const basic: string | undefined = basicAuthorization(credentials)
         response = await fetch(url, {headers: basic ? {Authorization: basic} : {}, signal: signal})
     }
     if (!response.ok) throw new RegistryError(`The registry ${url.host} refuses the authentication (${response.status}): ${(await response.text()).slice(0, 200)}`, response.status)
@@ -156,11 +156,11 @@ export class RegistryClient {
      * @param scope
      */
     protected async authorize(challenge: string, scope: string): Promise<string | undefined> {
-        const {scheme, params} = Challenge(challenge)
+        const {scheme, params} = parseChallenge(challenge)
         const credentials: RegistryCredentials | undefined = this.credentials()
-        if (scheme === 'basic') return BasicAuthorization(credentials)
+        if (scheme === 'basic') return basicAuthorization(credentials)
         if (scheme !== 'bearer' || !params.realm) return undefined
-        const token = await FetchRegistryToken({realm: params.realm, service: params.service, scopes: [scope]}, credentials, this.options.signal)
+        const token = await fetchRegistryToken({realm: params.realm, service: params.service, scopes: [scope]}, credentials, this.options.signal)
         return token ? `Bearer ${token.token}` : undefined
     }
 
@@ -218,7 +218,7 @@ export class RegistryClient {
         const accept: string = [MediaTypes.OCI_INDEX, MediaTypes.DOCKER_LIST, MediaTypes.OCI_MANIFEST, MediaTypes.DOCKER_MANIFEST].join(', ')
         const response: Response = await this.check(await this.request(`/manifests/${reference}`, {headers: {Accept: accept}}), `The manifest ${reference}`)
         const data: Buffer = Buffer.from(await response.arrayBuffer())
-        const digest: string = Digest(data)
+        const digest: string = digestOf(data)
         if (reference.startsWith('sha256:') && reference !== digest) throw new RegistryError(`The manifest ${reference} has the digest ${digest}`, 0)
         const mediaType: string = response.headers.get('content-type')?.split(';')[0].trim() || (JSON.parse(data.toString('utf8')) as { mediaType?: string }).mediaType || MediaTypes.OCI_MANIFEST
         return {descriptor: {mediaType: mediaType, digest: digest, size: data.length}, data: data}
@@ -231,7 +231,7 @@ export class RegistryClient {
     public async fetchManifest(descriptor: ContentDescriptor): Promise<Buffer> {
         const response: Response = await this.check(await this.request(`/manifests/${descriptor.digest}`, {headers: {Accept: descriptor.mediaType}}), `The manifest ${descriptor.digest}`)
         const data: Buffer = Buffer.from(await response.arrayBuffer())
-        if (Digest(data) !== descriptor.digest) throw new RegistryError(`The manifest ${descriptor.digest} has the digest ${Digest(data)}`, 0)
+        if (digestOf(data) !== descriptor.digest) throw new RegistryError(`The manifest ${descriptor.digest} has the digest ${digestOf(data)}`, 0)
         return data
     }
 

@@ -3,11 +3,11 @@ import {BaseObject} from '../../lib/base/BaseObject.js'
 import {
     InjectionName,
     InjectionTransformFunction,
-    SetObjectInjectItem
+    setObjectInjectItem
 } from '../../lib/base/internal/ObjectInjection.js'
 import {isClass} from '../../lib/ioc/Utils.js'
 import {As} from '@lakutata/utils/As'
-import {RemoveObjectConfigurableProperty} from '../../lib/base/internal/ObjectConfiguration.js'
+import {removeObjectConfigurableProperty} from '../../lib/base/internal/ObjectConfiguration.js'
 
 /**
  * Inject into the property the object registered in the container under the property's name.
@@ -112,8 +112,8 @@ export function Inject<ClassPrototype extends BaseObject>(nameOrTransform?: Inje
             }
         }
         //A class is kept as it is: the container resolves it by its constructor symbol, and autoloads it when it is marked so
-        SetObjectInjectItem(target, propertyKey, injectionName, injectionTransform)
+        setObjectInjectItem(target, propertyKey, injectionName, injectionTransform)
         //The property is injected, not configured: a configurable property of the parents is removed
-        RemoveObjectConfigurableProperty(target, propertyKey)
+        removeObjectConfigurableProperty(target, propertyKey)
     }
 }

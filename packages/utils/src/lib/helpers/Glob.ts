@@ -1,7 +1,7 @@
 import {readdirSync, realpathSync, statSync, type Dirent} from 'node:fs'
 import {readdir, realpath, stat} from 'node:fs/promises'
 import path from 'node:path'
-import {CompileSegment, ExpandBraces, type GlobSegment} from './internal/GlobPattern.js'
+import {compileSegment, expandBraces, type GlobSegment} from './internal/GlobPattern.js'
 
 /**
  * The options of {@link Glob} and {@link GlobSync}.
@@ -100,8 +100,8 @@ interface Settings {
  * @param prefix
  * @param name
  */
-function JoinRelative(prefix: string, name: string): string {
-    return prefix ? JoinName(prefix, name) : name
+function joinRelative(prefix: string, name: string): string {
+    return prefix ? joinName(prefix, name) : name
 }
 
 /**
@@ -110,7 +110,7 @@ function JoinRelative(prefix: string, name: string): string {
  * @param directory
  * @param name
  */
-function JoinName(directory: string, name: string): string {
+function joinName(directory: string, name: string): string {
     return directory.endsWith(path.sep) ? directory + name : directory + path.sep + name
 }
 
@@ -119,14 +119,14 @@ function JoinName(directory: string, name: string): string {
  * @param pattern
  * @param settings
  */
-function CompilePattern(pattern: string, settings: Settings): CompiledPattern {
+function compilePattern(pattern: string, settings: Settings): CompiledPattern {
     const absolute: boolean = path.isAbsolute(pattern)
     const root: string = absolute ? path.parse(pattern).root : ''
     const rest: string = pattern.substring(root.length)
     const parts: string[] = rest.split('/')
     const directoryOnly: boolean = parts.length > 1 && parts[parts.length - 1] === ''
     const names: string[] = parts.filter((part: string, index: number): boolean => part !== '' || index === 0 && parts.length === 1)
-    const segments: GlobSegment[] = names.map((name: string): GlobSegment => CompileSegment(name, settings.nocase))
+    const segments: GlobSegment[] = names.map((name: string): GlobSegment => compileSegment(name, settings.nocase))
     //The names at the start are resolved (with "." and ".."), the walk starts after them
     let base: string = absolute ? root : settings.cwd
     let prefix: string = absolute ? root : ''
@@ -144,12 +144,12 @@ function CompilePattern(pattern: string, settings: Settings): CompiledPattern {
  * @param pattern
  * @param nocase
  */
-function CompileIgnore(pattern: string, nocase: boolean): RegExp[] {
+function compileIgnore(pattern: string, nocase: boolean): RegExp[] {
     const GLOBSTAR: string = '\u0000'
-    return ExpandBraces(pattern.replace(/^\.\//, '')).map((expanded: string): RegExp => {
+    return expandBraces(pattern.replace(/^\.\//, '')).map((expanded: string): RegExp => {
         const source: string = expanded.split('/').filter((part: string): boolean => part !== '').map((part: string): string => {
             if (part === '**') return GLOBSTAR
-            const segment: GlobSegment = CompileSegment(part, false)
+            const segment: GlobSegment = compileSegment(part, false)
             return segment.type === 'pattern' ? segment.regex.source.slice(1, -1) : segment.type === 'name' ? segment.name.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&') : GLOBSTAR
         }).join('/')
             //"**" is zero or more directories: alone, at the start, between two segments, at the end (with the directory)
@@ -167,7 +167,7 @@ function CompileIgnore(pattern: string, nocase: boolean): RegExp[] {
  * @param settings
  * @param emit receives the path of each match and whether it is a directory
  */
-function* WalkPattern(pattern: CompiledPattern, settings: Settings, emit: (relative: string, absolute: string, directory: boolean) => void): Walk {
+function* walkPattern(pattern: CompiledPattern, settings: Settings, emit: (relative: string, absolute: string, directory: boolean) => void): Walk {
     /**
      * The entries of a directory (empty when it cannot be read)
      * @param directory
@@ -180,7 +180,7 @@ function* WalkPattern(pattern: CompiledPattern, settings: Settings, emit: (relat
             const link: boolean = dirent.isSymbolicLink()
             let isDirectory: boolean = dirent.isDirectory()
             if (link) {
-                const target: { isDirectory(): boolean } | null = (yield {type: 'stat', path: JoinName(directory, dirent.name)}) as { isDirectory(): boolean } | null
+                const target: { isDirectory(): boolean } | null = (yield {type: 'stat', path: joinName(directory, dirent.name)}) as { isDirectory(): boolean } | null
                 isDirectory = !!target && target.isDirectory()
             }
             entries.push({name: dirent.name, directory: isDirectory, link: link})
@@ -205,7 +205,7 @@ function* WalkPattern(pattern: CompiledPattern, settings: Settings, emit: (relat
      * @param real the real path of its directory
      */
     function* realOf(entry: Entry, child: string, real: string): Generator<FileSystemRequest, string | null, unknown> {
-        if (!entry.link) return JoinName(real, entry.name)
+        if (!entry.link) return joinName(real, entry.name)
         return (yield {type: 'realpath', path: child}) as string | null
     }
 
@@ -235,8 +235,8 @@ function* WalkPattern(pattern: CompiledPattern, settings: Settings, emit: (relat
             //One more directory
             for (const entry of entries) {
                 if (!visible(entry.name, false)) continue
-                const child: string = JoinName(directory, entry.name)
-                const childRelative: string = JoinRelative(relative, entry.name)
+                const child: string = joinName(directory, entry.name)
+                const childRelative: string = joinRelative(relative, entry.name)
                 if (!entry.directory) {
                     if (last) emit(childRelative, child, false)
                     continue
@@ -272,8 +272,8 @@ function* WalkPattern(pattern: CompiledPattern, settings: Settings, emit: (relat
         for (const candidate of candidates) {
             //"." and ".." are resolved, the names read from the directory are joined as they are
             const special: boolean = candidate.name === '.' || candidate.name === '..'
-            const child: string = special ? path.join(directory, candidate.name) : JoinName(directory, candidate.name)
-            const childRelative: string = special ? (relative ? path.join(relative, candidate.name) : candidate.name) : JoinRelative(relative, candidate.name)
+            const child: string = special ? path.join(directory, candidate.name) : joinName(directory, candidate.name)
+            const childRelative: string = special ? (relative ? path.join(relative, candidate.name) : candidate.name) : joinRelative(relative, candidate.name)
             if (last) {
                 emit(childRelative, child, candidate.directory)
             } else if (candidate.directory) {
@@ -299,7 +299,7 @@ function* WalkPattern(pattern: CompiledPattern, settings: Settings, emit: (relat
  * The settings of the options
  * @param options
  */
-function Configure(options: GlobOptions): Settings {
+function configure(options: GlobOptions): Settings {
     const nocase: boolean = options.nocase ?? (process.platform === 'darwin' || process.platform === 'win32')
     const ignore: string[] = options.ignore === undefined ? [] : Array.isArray(options.ignore) ? options.ignore : [options.ignore]
     return {
@@ -309,7 +309,7 @@ function Configure(options: GlobOptions): Settings {
         nodir: options.nodir ?? false,
         follow: options.follow ?? false,
         nocase: nocase,
-        ignore: ignore.flatMap((pattern: string): RegExp[] => CompileIgnore(pattern, nocase))
+        ignore: ignore.flatMap((pattern: string): RegExp[] => compileIgnore(pattern, nocase))
     }
 }
 
@@ -318,15 +318,15 @@ function Configure(options: GlobOptions): Settings {
  * @param patterns
  * @param options
  */
-function Prepare(patterns: string | string[], options: GlobOptions): { walks: Walk[], results: () => string[] } {
-    const settings: Settings = Configure(options)
+function prepare(patterns: string | string[], options: GlobOptions): { walks: Walk[], results: () => string[] } {
+    const settings: Settings = configure(options)
     const found: Map<string, string> = new Map()
     const walks: Walk[] = []
     for (const pattern of Array.isArray(patterns) ? patterns : [patterns]) {
-        for (const expanded of ExpandBraces(pattern)) {
-            const compiled: CompiledPattern = CompilePattern(expanded, settings)
+        for (const expanded of expandBraces(pattern)) {
+            const compiled: CompiledPattern = compilePattern(expanded, settings)
             const absolutePattern: boolean = path.isAbsolute(expanded)
-            walks.push(WalkPattern(compiled, settings, (relative: string, absolute: string, directory: boolean): void => {
+            walks.push(walkPattern(compiled, settings, (relative: string, absolute: string, directory: boolean): void => {
                 if (settings.nodir && directory) return
                 if (compiled.directoryOnly && !directory) return
                 if (settings.ignore.length) {
@@ -345,7 +345,7 @@ function Prepare(patterns: string | string[], options: GlobOptions): { walks: Wa
  * Answer a request synchronously
  * @param request
  */
-function AnswerSync(request: FileSystemRequest): unknown {
+function answerSync(request: FileSystemRequest): unknown {
     try {
         switch (request.type) {
             case 'readdir':
@@ -364,7 +364,7 @@ function AnswerSync(request: FileSystemRequest): unknown {
  * Answer a request asynchronously
  * @param request
  */
-async function AnswerAsync(request: FileSystemRequest): Promise<unknown> {
+async function answerAsync(request: FileSystemRequest): Promise<unknown> {
     try {
         switch (request.type) {
             case 'readdir':
@@ -405,10 +405,10 @@ async function AnswerAsync(request: FileSystemRequest): Promise<unknown> {
  * ```
  */
 export async function Glob(pattern: string | string[], options: GlobOptions = {}): Promise<string[]> {
-    const {walks, results} = Prepare(pattern, options)
+    const {walks, results} = prepare(pattern, options)
     for (const walk of walks) {
         let answer: unknown
-        for (let request: IteratorResult<FileSystemRequest, void> = walk.next(); !request.done; request = walk.next(answer)) answer = await AnswerAsync(request.value)
+        for (let request: IteratorResult<FileSystemRequest, void> = walk.next(); !request.done; request = walk.next(answer)) answer = await answerAsync(request.value)
     }
     return results()
 }
@@ -432,10 +432,10 @@ export async function Glob(pattern: string | string[], options: GlobOptions = {}
  * ```
  */
 export function GlobSync(pattern: string | string[], options: GlobOptions = {}): string[] {
-    const {walks, results} = Prepare(pattern, options)
+    const {walks, results} = prepare(pattern, options)
     for (const walk of walks) {
         let answer: unknown
-        for (let request: IteratorResult<FileSystemRequest, void> = walk.next(); !request.done; request = walk.next(answer)) answer = AnswerSync(request.value)
+        for (let request: IteratorResult<FileSystemRequest, void> = walk.next(); !request.done; request = walk.next(answer)) answer = answerSync(request.value)
     }
     return results()
 }

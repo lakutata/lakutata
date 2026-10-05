@@ -19,6 +19,6 @@ export class LanguageMiddleware extends I18nMiddleware {
  * @param text
  * @param params
  */
-export function Say(i18n: ITranslator, key: string, text: string, params: Record<string, string> = {}): string {
+export function localize(i18n: ITranslator, key: string, text: string, params: Record<string, string> = {}): string {
     return i18n.has(`cli.${key}`) ? i18n.t(`cli.${key}`, params) : text.replace(/\{(\w+)\}/g, (all: string, name: string): string => params[name] ?? all)
 }

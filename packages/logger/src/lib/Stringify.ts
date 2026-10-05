@@ -9,7 +9,7 @@ const TypedArrayToStringTag: (this: unknown) => string | undefined = Object.getO
  * The count of the omitted items
  * @param count
  */
-function ItemCount(count: number): string {
+function itemCount(count: number): string {
     return count === 1 ? '1 item' : `${count} items`
 }
 
@@ -20,7 +20,7 @@ function ItemCount(count: number): string {
  * @param value
  * @param stack
  */
-function SafeStringify(key: string, value: any, stack: object[]): string | undefined {
+function safeStringify(key: string, value: any, stack: object[]): string | undefined {
     switch (typeof value) {
         case 'string':
             return JSON.stringify(value)
@@ -34,7 +34,7 @@ function SafeStringify(key: string, value: any, stack: object[]): string | undef
             if (value === null) return 'null'
             if (typeof value.toJSON === 'function') {
                 value = value.toJSON(key)
-                if (typeof value !== 'object') return SafeStringify(key, value, stack)
+                if (typeof value !== 'object') return safeStringify(key, value, stack)
                 if (value === null) return 'null'
             }
             if (stack.includes(value)) return '"[Circular]"'
@@ -45,9 +45,9 @@ function SafeStringify(key: string, value: any, stack: object[]): string | undef
                 stack.push(value)
                 const count: number = Math.min(value.length, MAXIMUM_BREADTH)
                 for (let index: number = 0; index < count; index++) {
-                    result += `${index ? ',' : ''}${SafeStringify(String(index), value[index], stack) ?? 'null'}`
+                    result += `${index ? ',' : ''}${safeStringify(String(index), value[index], stack) ?? 'null'}`
                 }
-                if (value.length - 1 > MAXIMUM_BREADTH) result += `,"... ${ItemCount(value.length - MAXIMUM_BREADTH - 1)} not stringified"`
+                if (value.length - 1 > MAXIMUM_BREADTH) result += `,"... ${itemCount(value.length - MAXIMUM_BREADTH - 1)} not stringified"`
                 stack.pop()
                 return `[${result}]`
             }
@@ -67,12 +67,12 @@ function SafeStringify(key: string, value: any, stack: object[]): string | undef
             keys.sort()
             stack.push(value)
             for (let index: number = 0; index < count; index++) {
-                const item: string | undefined = SafeStringify(keys[index], value[keys[index]], stack)
+                const item: string | undefined = safeStringify(keys[index], value[keys[index]], stack)
                 if (item === undefined) continue
                 result += `${separator}${JSON.stringify(keys[index])}:${item}`
                 separator = ','
             }
-            if (keyCount > MAXIMUM_BREADTH) result += `${separator}"...":"${ItemCount(keyCount - MAXIMUM_BREADTH)} not stringified"`
+            if (keyCount > MAXIMUM_BREADTH) result += `${separator}"...":"${itemCount(keyCount - MAXIMUM_BREADTH)} not stringified"`
             stack.pop()
             return `{${result}}`
         }
@@ -85,12 +85,12 @@ function SafeStringify(key: string, value: any, stack: object[]): string | undef
  * Serialize a value to JSON, the values JSON cannot serialize are serialized safely
  * @param value
  */
-export function Stringify(value: unknown): string | undefined {
+export function stringify(value: unknown): string | undefined {
     try {
         return JSON.stringify(value)
     } catch {
         try {
-            return SafeStringify('', value, [])
+            return safeStringify('', value, [])
         } catch {
             return '"[unable to serialize, circular reference is too complex to analyze]"'
         }

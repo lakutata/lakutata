@@ -13,7 +13,7 @@ export type TextEdit = {
  * @param text
  * @param edits
  */
-export function ApplyEdits(text: string, edits: TextEdit[]): string {
+export function applyEdits(text: string, edits: TextEdit[]): string {
     //From the end of the text; the edits at the same offset in their order (the last one applied first)
     const sorted: TextEdit[] = edits.map((edit: TextEdit, index: number): [TextEdit, number] => [edit, index])
         .sort((a: [TextEdit, number], b: [TextEdit, number]): number => b[0].offset - a[0].offset || b[1] - a[1])
@@ -28,7 +28,7 @@ export function ApplyEdits(text: string, edits: TextEdit[]): string {
  * @param text
  * @param offset
  */
-export function LineIndent(text: string, offset: number): string {
+export function lineIndent(text: string, offset: number): string {
     const start: number = text.lastIndexOf('\n', offset - 1) + 1
     return /^[ \t]*/.exec(text.slice(start))![0]
 }
@@ -37,7 +37,7 @@ export function LineIndent(text: string, offset: number): string {
  * The unit of indentation of a text: the smallest indentation of its indented lines (two spaces by default)
  * @param text
  */
-export function IndentUnit(text: string): string {
+export function indentUnit(text: string): string {
     let unit: string | undefined
     for (const line of text.split('\n')) {
         const indent: string = /^[ \t]*/.exec(line)![0]
@@ -53,7 +53,7 @@ export function IndentUnit(text: string): string {
  * @param text
  * @param offset
  */
-export function LineStart(text: string, offset: number): number {
+export function lineStart(text: string, offset: number): number {
     return text.lastIndexOf('\n', offset - 1) + 1
 }
 
@@ -62,7 +62,7 @@ export function LineStart(text: string, offset: number): number {
  * @param text
  * @param offset
  */
-export function LineEnd(text: string, offset: number): number {
+export function lineEndOf(text: string, offset: number): number {
     const end: number = text.indexOf('\n', offset)
     return end < 0 ? text.length : end
 }
@@ -73,7 +73,7 @@ export function LineEnd(text: string, offset: number): number {
 export class NativeSyntaxError extends Error {
     constructor(file: string, text: string, offset: number, message: string) {
         const line: number = text.slice(0, offset).split('\n').length
-        const column: number = offset - LineStart(text, offset) + 1
+        const column: number = offset - lineStart(text, offset) + 1
         super(`${file}:${line}:${column}: ${message}`)
     }
 }

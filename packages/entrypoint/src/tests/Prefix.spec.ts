@@ -71,7 +71,7 @@ type Created = {
  * Create an entrypoint with controllers
  * @param controllers
  */
-async function Create(controllers: IBaseObjectConstructor<Controller>[]): Promise<Created> {
+async function create(controllers: IBaseObjectConstructor<Controller>[]): Promise<Created> {
     const created: Partial<Created> = {container: new Container()}
     created.entrypoint = await created.container!.set(Entrypoint, buildEntrypoints({
         controllers: controllers,
@@ -88,7 +88,7 @@ async function Create(controllers: IBaseObjectConstructor<Controller>[]): Promis
 describe('Controller prefixes', (): void => {
 
     it('prefix the routes, the commands and the service patterns', async (): Promise<void> => {
-        const {container, routes, commands, service, cli} = await Create([UserController, OrderController, PlainController])
+        const {container, routes, commands, service, cli} = await create([UserController, OrderController, PlainController])
         assert.deepStrictEqual([...routes.entries()].map(([route, methods]): string => `${[...methods].join(',')} ${route}`).sort(), [
             'delete /orders', 'delete /users', 'get /orders/:id', 'get /plain', 'get /users/:id'
         ])
@@ -102,7 +102,7 @@ describe('Controller prefixes', (): void => {
     })
 
     it('name the prefixed actions after their controllers', async (): Promise<void> => {
-        const {entrypoint, container} = await Create([UserController, OrderController, PlainController])
+        const {entrypoint, container} = await create([UserController, OrderController, PlainController])
         const actions = entrypoint.getHttpActions().actions
         const names: string[] = actions.map((action): string => `${action.name} ${action.route}`).sort()
         assert.deepStrictEqual(names, [
@@ -127,10 +127,10 @@ describe('Controller prefixes', (): void => {
         class BController extends NamedController {
         }
 
-        const {entrypoint, container} = await Create([AController])
+        const {entrypoint, container} = await create([AController])
         assert.deepStrictEqual(entrypoint.getServiceActions().actions.map((action): string => action.name), ['named'])
         await container.destroy()
-        await assert.rejects(Create([AController, BController]), {name: 'DuplicateActionNameException'})
+        await assert.rejects(create([AController, BController]), {name: 'DuplicateActionNameException'})
     })
 
     it('let the routes of one method share its name', async (): Promise<void> => {
@@ -142,23 +142,23 @@ describe('Controller prefixes', (): void => {
             }
         }
 
-        const {entrypoint, container} = await Create([AliasController])
+        const {entrypoint, container} = await create([AliasController])
         assert.deepStrictEqual(entrypoint.getHttpActions().actions.map((action): string => action.name), ['AliasController:get', 'AliasController:get'])
         await container.destroy()
     })
 
     it('keep the actions without prefix as they are', async (): Promise<void> => {
-        const {entrypoint, container} = await Create([PlainController])
+        const {entrypoint, container} = await create([PlainController])
         const [action] = entrypoint.getHttpActions().actions
         assert.strictEqual(action.name, 'PlainController:plain')
-        const reference = await Create([PlainController])
+        const reference = await create([PlainController])
         assert.strictEqual(reference.entrypoint.getHttpActions().actions[0].id, action.id)
         await container.destroy()
         await reference.container.destroy()
     })
 
     it('use the prefixes of the nearest class', async (): Promise<void> => {
-        const {routes, container} = await Create([AdminUserController])
+        const {routes, container} = await create([AdminUserController])
         assert.deepStrictEqual([...routes.keys()].sort(), ['/users', '/users/:id', '/users/admin'])
         await container.destroy()
     })
@@ -171,6 +171,6 @@ describe('Controller prefixes', (): void => {
             }
         }
 
-        await assert.rejects(Create([ConflictController]), InvalidPrefixException)
+        await assert.rejects(create([ConflictController]), InvalidPrefixException)
     })
 })

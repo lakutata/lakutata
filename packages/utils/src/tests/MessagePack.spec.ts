@@ -7,7 +7,7 @@ import {MessagePack} from '../exports/Utils.js'
  * A pseudo random generator with a seed (mulberry32)
  * @param seed
  */
-function Random(seed: number): () => number {
+function seededRandom(seed: number): () => number {
     return (): number => {
         seed = (seed + 0x6D2B79F5) | 0
         let t: number = Math.imul(seed ^ (seed >>> 15), 1 | seed)
@@ -16,7 +16,7 @@ function Random(seed: number): () => number {
     }
 }
 
-const random: () => number = Random(20261001)
+const random: () => number = seededRandom(20261001)
 
 const pick = <T>(values: T[]): T => values[Math.floor(random() * values.length)]
 
@@ -42,7 +42,7 @@ function randomString(): string {
  * A random value
  * @param depth
  */
-function RandomValue(depth: number = 0): unknown {
+function randomValue(depth: number = 0): unknown {
     const kind: number = Math.floor(random() * (depth > 3 ? 9 : 13))
     switch (kind) {
         case 0:
@@ -66,12 +66,12 @@ function RandomValue(depth: number = 0): unknown {
         case 9:
         case 10: {
             const length: number = pick([0, 1, 3, 15, 16, 17])
-            return Array.from({length: length}, (): unknown => RandomValue(depth + 1))
+            return Array.from({length: length}, (): unknown => randomValue(depth + 1))
         }
         default: {
             const object: Record<string, unknown> = {}
             const size: number = pick([0, 1, 4, 15, 16, 20])
-            for (let index: number = 0; index < size; index++) object[pick(['id', 'name', 'value', 'é', 'a'.repeat(17), `k${index}`, randomString().slice(0, 20)])] = RandomValue(depth + 1)
+            for (let index: number = 0; index < size; index++) object[pick(['id', 'name', 'value', 'é', 'a'.repeat(17), `k${index}`, randomString().slice(0, 20)])] = randomValue(depth + 1)
             return pick([object, object, object, new Map([['a', 1]]), new Set([1])])
         }
     }
@@ -81,7 +81,7 @@ function RandomValue(depth: number = 0): unknown {
  * The result or the error of a function
  * @param fn
  */
-function Outcome(fn: () => unknown): { value?: unknown, error?: string } {
+function outcomeOf(fn: () => unknown): { value?: unknown, error?: string } {
     try {
         return {value: fn()}
     } catch (error) {
@@ -96,12 +96,12 @@ const UPSTREAM_ENCODE_OPTIONS = {useBigInt64: true, ignoreUndefined: true} as co
  * entries, a Set as an array of its values
  * @param value
  */
-function Upstreamable(value: unknown): unknown {
-    if (value instanceof Map) return Object.fromEntries([...value].map(([key, item]: [unknown, unknown]): [unknown, unknown] => [key, Upstreamable(item)]))
-    if (value instanceof Set) return [...value].map(Upstreamable)
-    if (Array.isArray(value)) return value.map(Upstreamable)
+function upstreamable(value: unknown): unknown {
+    if (value instanceof Map) return Object.fromEntries([...value].map(([key, item]: [unknown, unknown]): [unknown, unknown] => [key, upstreamable(item)]))
+    if (value instanceof Set) return [...value].map(upstreamable)
+    if (Array.isArray(value)) return value.map(upstreamable)
     if (value !== null && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
-        return Object.fromEntries(Object.entries(value).map(([key, item]: [string, unknown]): [string, unknown] => [key, Upstreamable(item)]))
+        return Object.fromEntries(Object.entries(value).map(([key, item]: [string, unknown]): [string, unknown] => [key, upstreamable(item)]))
     }
     return value
 }
@@ -110,8 +110,8 @@ describe('MessagePack', (): void => {
 
     it('encodes and decodes as @msgpack/msgpack, the maps as objects and the sets as arrays', (): void => {
         for (let run: number = 0; run < 1000; run++) {
-            const value: unknown = RandomValue()
-            const expected: Uint8Array = UpstreamEncode(Upstreamable(value), UPSTREAM_ENCODE_OPTIONS)
+            const value: unknown = randomValue()
+            const expected: Uint8Array = UpstreamEncode(upstreamable(value), UPSTREAM_ENCODE_OPTIONS)
             const encoded: Uint8Array = MessagePack.encode(value)
             assert.ok(Buffer.from(encoded).equals(Buffer.from(expected)), `encoding of run ${run}`)
             assert.deepStrictEqual(MessagePack.decode(expected), UpstreamDecode(expected, {useBigInt64: true}), `decoding of run ${run}`)
@@ -123,13 +123,13 @@ describe('MessagePack', (): void => {
             let bytes: Uint8Array
             if (run % 2) {
                 //A truncated or extended encoding
-                const valid: Uint8Array = UpstreamEncode(RandomValue(), UPSTREAM_ENCODE_OPTIONS)
+                const valid: Uint8Array = UpstreamEncode(randomValue(), UPSTREAM_ENCODE_OPTIONS)
                 bytes = run % 4 === 1 ? valid.subarray(0, Math.floor(random() * valid.length)) : new Uint8Array([...valid, 0xc0])
             } else {
                 bytes = Uint8Array.from({length: Math.floor(random() * 12)}, (): number => Math.floor(random() * 256))
             }
-            const outcome: { value?: unknown, error?: string } = Outcome((): unknown => MessagePack.decode(bytes))
-            const expected: { value?: unknown, error?: string } = Outcome((): unknown => UpstreamDecode(bytes, {useBigInt64: true}))
+            const outcome: { value?: unknown, error?: string } = outcomeOf((): unknown => MessagePack.decode(bytes))
+            const expected: { value?: unknown, error?: string } = outcomeOf((): unknown => UpstreamDecode(bytes, {useBigInt64: true}))
             if (outcome.value instanceof Object && expected.value instanceof UpstreamExtData) {
                 assert.deepStrictEqual({...outcome.value}, {...expected.value})
             } else {

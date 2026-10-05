@@ -9,7 +9,7 @@ const CHARS: Record<string, string> = {'{': '}', '(': ')', '[': ']'}
  * Whether a string has an extglob (@(a), ?(a), !(a), +(a), *(a)) not escaped
  * @param str
  */
-function IsExtglob(str: string): boolean {
+function isExtglob(str: string): boolean {
     if (typeof str !== 'string' || str === '') return false
     let match: RegExpExecArray | null
     while ((match = /(\\).|([@?!+*]\(.*\))/g.exec(str))) {
@@ -23,7 +23,7 @@ function IsExtglob(str: string): boolean {
  * Whether a string has glob characters not escaped (the brackets, braces and parentheses closed)
  * @param str
  */
-function StrictCheck(str: string): boolean {
+function strictCheck(str: string): boolean {
     if (str[0] === '!') return true
     let index: number = 0
     let pipeIndex: number = -2
@@ -102,8 +102,8 @@ function StrictCheck(str: string): boolean {
  */
 export function isGlobString(inp: string): boolean {
     if (typeof inp !== 'string' || inp === '') return false
-    if (IsExtglob(inp)) return true
+    if (isExtglob(inp)) return true
     //The ? wildcard of Glob, wherever it is (the strict check only sees it after ], ., + or ))
     if (inp.replace(/\\./g, '').includes('?')) return true
-    return StrictCheck(inp)
+    return strictCheck(inp)
 }

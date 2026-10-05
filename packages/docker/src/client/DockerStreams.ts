@@ -49,7 +49,7 @@ export class DockerStreamDecoder extends Transform {
  * The output of a multiplexed stream (or buffer), and its outputs by stream
  * @param input
  */
-export async function ReadMultiplexed(input: NodeJS.ReadableStream | Buffer): Promise<{ output: string, stdout: string, stderr: string }> {
+export async function readMultiplexed(input: NodeJS.ReadableStream | Buffer): Promise<{ output: string, stdout: string, stderr: string }> {
     const decoder: DockerStreamDecoder = new DockerStreamDecoder()
     const output: Buffer[] = []
     const streams: Record<number, Buffer[]> = {[DockerStreamType.STDOUT]: [], [DockerStreamType.STDERR]: []}
@@ -77,7 +77,7 @@ export async function ReadMultiplexed(input: NodeJS.ReadableStream | Buffer): Pr
  * @param input
  * @param onProgress
  */
-export async function FollowProgress<T = Record<string, any>>(input: NodeJS.ReadableStream, onProgress?: (progress: T) => void): Promise<T[]> {
+export async function followProgress<T = Record<string, any>>(input: NodeJS.ReadableStream, onProgress?: (progress: T) => void): Promise<T[]> {
     const objects: T[] = []
     let pending: string = ''
     const line = (text: string): void => {

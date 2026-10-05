@@ -18,7 +18,7 @@ export type ProcessUser = {
  * lower ones, bind: its source)
  * @param mounts
  */
-export function LayerDirectories(mounts: SnapshotMount[]): string[] {
+export function layerDirectories(mounts: SnapshotMount[]): string[] {
     const directories: string[] = []
     for (const mount of mounts) {
         if (mount.type === 'bind' || mount.type === 'rbind') {
@@ -42,10 +42,10 @@ export function LayerDirectories(mounts: SnapshotMount[]): string[] {
  * @param file an absolute path in the root file system
  * @param depth
  */
-export async function ReadRootfsFile(mounts: SnapshotMount[], file: string, depth: number = 0): Promise<Buffer | undefined> {
+export async function readRootfsFile(mounts: SnapshotMount[], file: string, depth: number = 0): Promise<Buffer | undefined> {
     if (depth > 8) return undefined
     const relative: string = path.posix.normalize(file).replace(/^\/+/, '')
-    for (const directory of LayerDirectories(mounts)) {
+    for (const directory of layerDirectories(mounts)) {
         const target: string = path.join(directory, relative)
         let stats: Stats
         try {
@@ -57,7 +57,7 @@ export async function ReadRootfsFile(mounts: SnapshotMount[], file: string, dept
         if (stats.isCharacterDevice() && stats.rdev === 0) return undefined
         if (stats.isSymbolicLink()) {
             const link: string = await readlink(target)
-            return await ReadRootfsFile(mounts, link.startsWith('/') ? link : path.posix.join(path.posix.dirname('/' + relative), link), depth + 1)
+            return await readRootfsFile(mounts, link.startsWith('/') ? link : path.posix.join(path.posix.dirname('/' + relative), link), depth + 1)
         }
         if (!stats.isFile()) return undefined
         return await readFile(target)
@@ -69,7 +69,7 @@ export async function ReadRootfsFile(mounts: SnapshotMount[], file: string, dept
  * The entries of a file of the database of the users or of the groups (name:x:id:…)
  * @param content
  */
-function Entries(content: Buffer | undefined): string[][] {
+function readEntries(content: Buffer | undefined): string[][] {
     if (!content) return []
     return content.toString('utf8').split('\n').filter((line: string): boolean => !!line.trim() && !line.startsWith('#')).map((line: string): string[] => line.split(':'))
 }
@@ -79,9 +79,9 @@ function Entries(content: Buffer | undefined): string[][] {
  * @param mounts
  * @param user empty for root
  */
-export async function ResolveUser(mounts: SnapshotMount[], user: string | undefined): Promise<ProcessUser> {
+export async function resolveUser(mounts: SnapshotMount[], user: string | undefined): Promise<ProcessUser> {
     const [userPart, groupPart] = (user ?? '').split(':')
-    const passwd: string[][] = Entries(await ReadRootfsFile(mounts, '/etc/passwd'))
+    const passwd: string[][] = readEntries(await readRootfsFile(mounts, '/etc/passwd'))
     let uid: number = 0
     let gid: number = 0
     let home: string = '/'
@@ -104,7 +104,7 @@ export async function ResolveUser(mounts: SnapshotMount[], user: string | undefi
         const root: string[] | undefined = passwd.find((fields: string[]): boolean => fields[2] === '0')
         if (root) home = root[5] || '/'
     }
-    const groups: string[][] = Entries(await ReadRootfsFile(mounts, '/etc/group'))
+    const groups: string[][] = readEntries(await readRootfsFile(mounts, '/etc/group'))
     if (groupPart) {
         const entry: string[] | undefined = groups.find((fields: string[]): boolean => fields[0] === groupPart)
         if (entry) gid = Number(entry[2])
@@ -146,7 +146,7 @@ export interface FileTree {
  * @param tree
  * @param file
  */
-async function ResolveInTree(tree: FileTree, file: string): Promise<string> {
+async function resolveInTree(tree: FileTree, file: string): Promise<string> {
     const pending: string[] = path.posix.normalize(`/${file}`).split('/').filter(Boolean)
     let current: string = '/'
     let links: number = 0
@@ -179,7 +179,7 @@ export class DirectoryTree implements FileTree {
     }
 
     public resolve(file: string): Promise<string> {
-        return ResolveInTree(this, file)
+        return resolveInTree(this, file)
     }
 
     public async lstat(file: string): Promise<{ stats: Stats, path: string } | undefined> {
@@ -200,7 +200,7 @@ export class DirectoryTree implements FileTree {
  * Whether stats are the ones of a whiteout of overlay (a deletion of a layer)
  * @param stats
  */
-function IsWhiteout(stats: Stats): boolean {
+function isWhiteout(stats: Stats): boolean {
     return stats.isCharacterDevice() && stats.rdev === 0
 }
 
@@ -214,7 +214,7 @@ export class LayersTree implements FileTree {
     }
 
     public resolve(file: string): Promise<string> {
-        return ResolveInTree(this, file)
+        return resolveInTree(this, file)
     }
 
     protected async stat(file: string): Promise<Stats | undefined> {
@@ -231,12 +231,12 @@ export class LayersTree implements FileTree {
             //An ancestor deleted (or replaced by a file) by this layer hides the path in the lower layers
             for (let length = 1; length < parts.length; length++) {
                 const ancestor: Stats | undefined = await this.stat(path.join(layer, ...parts.slice(0, length)))
-                if (ancestor && (IsWhiteout(ancestor) || !ancestor.isDirectory())) return undefined
+                if (ancestor && (isWhiteout(ancestor) || !ancestor.isDirectory())) return undefined
             }
             const real: string = path.join(layer, ...parts)
             const stats: Stats | undefined = await this.stat(real)
             if (!stats) continue
-            return IsWhiteout(stats) ? undefined : {stats: stats, path: real}
+            return isWhiteout(stats) ? undefined : {stats: stats, path: real}
         }
         return undefined
     }
@@ -252,7 +252,7 @@ export class LayersTree implements FileTree {
             for (const name of await readdir(path.join(layer, ...parts))) {
                 if (names.has(name)) continue
                 const entry: Stats | undefined = await this.stat(path.join(layer, ...parts, name))
-                names.set(name, !!entry && !IsWhiteout(entry))
+                names.set(name, !!entry && !isWhiteout(entry))
             }
         }
         return [...names].filter(([, present]): boolean => present).map(([name]): string => name).sort()

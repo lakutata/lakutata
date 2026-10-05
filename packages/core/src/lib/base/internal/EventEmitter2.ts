@@ -79,7 +79,7 @@ type TreeNode = { _listeners?: Listeners | null, [part: string | symbol]: any }
 
 const ownKeys: (target: object) => (string | symbol)[] = Reflect.ownKeys
 
-function Node(): TreeNode {
+function node(): TreeNode {
     return Object.create(null)
 }
 
@@ -150,7 +150,7 @@ export class EventEmitter2 {
         if (conf.removeListener) this._removeListener = conf.removeListener
         if (conf.verboseMemoryLeak) this.verboseMemoryLeak = conf.verboseMemoryLeak
         if (conf.ignoreErrors) this.ignoreErrors = conf.ignoreErrors
-        if (this.wildcard) this.listenerTree = Node()
+        if (this.wildcard) this.listenerTree = node()
     }
 
     protected logPossibleMemoryLeak(count: number, eventName: string | symbol): void {
@@ -274,9 +274,9 @@ export class EventEmitter2 {
                     } else if (branch === currentType) {
                         this.searchListenerTree(handlers, type, xxTree[branch], i + 1, typeLength)
                     } else {
-                        const isolatedBranch: TreeNode = Node()
+                        const isolatedBranch: TreeNode = node()
                         isolatedBranch[branch] = xxTree[branch]
-                        const isolatedTree: TreeNode = Node()
+                        const isolatedTree: TreeNode = node()
                         isolatedTree['**'] = isolatedBranch
                         this.searchListenerTree(handlers, type, isolatedTree, i + 1, typeLength)
                     }
@@ -301,7 +301,7 @@ export class EventEmitter2 {
         let tree: TreeNode = this.listenerTree!
         for (let i: number = 0; i < len; i++) {
             const name: string | symbol = ns[i]
-            tree = tree[name] || (tree[name] = Node())
+            tree = tree[name] || (tree[name] = node())
             if (i === len - 1) {
                 if (!tree._listeners) {
                     tree._listeners = listener

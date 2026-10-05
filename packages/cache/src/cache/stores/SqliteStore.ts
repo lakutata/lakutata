@@ -1,6 +1,6 @@
 import {SerializedCacheStore, SerializedEntry} from './SerializedCacheStore.js'
 import {SqliteCacheOptions} from '../options/SqliteCacheOptions.js'
-import {LoadDriver} from '../lib/LoadDriver.js'
+import {loadDriver} from '../lib/LoadDriver.js'
 
 type SqliteRow = {
     key: string
@@ -25,7 +25,7 @@ interface SqliteDriver {
  * The table name of 2.x: the alphanumeric characters, starting with a letter
  * @param name
  */
-function TableName(name: string): string {
+function tableName(name: string): string {
     const sanitized: string = name.replace(/[^a-zA-Z0-9_]/g, '')
     if (!sanitized) throw new Error('Invalid table name: must contain alphanumeric characters')
     return /^[a-zA-Z]/.test(sanitized) ? sanitized : `_${sanitized}`
@@ -43,7 +43,7 @@ export class SqliteStore extends SerializedCacheStore {
 
     constructor(protected readonly options: SqliteCacheOptions) {
         super(options.namespace)
-        this.table = TableName(options.table)
+        this.table = tableName(options.table)
     }
 
     /**
@@ -69,7 +69,7 @@ export class SqliteStore extends SerializedCacheStore {
     }
 
     public async connect(): Promise<void> {
-        const driver: SqliteDriver = await LoadDriver<SqliteDriver>('Database', 'sqlite3')
+        const driver: SqliteDriver = await loadDriver<SqliteDriver>('Database', 'sqlite3')
         await new Promise<void>((resolve: () => void, reject: (error: Error) => void): void => {
             this.database = new driver.Database(this.options.database, (error: Error | null): void => error ? reject(error) : resolve())
         })

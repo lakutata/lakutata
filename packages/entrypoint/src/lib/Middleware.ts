@@ -128,7 +128,7 @@ const METHOD_MIDDLEWARES: symbol = Symbol('ENTRYPOINT.METHOD.MIDDLEWARES')
  * Whether a middleware is a middleware class
  * @param middleware
  */
-export function IsMiddlewareClass(middleware: MiddlewareDefinition): middleware is IBaseObjectConstructor<Middleware> {
+export function isMiddlewareClass(middleware: MiddlewareDefinition): middleware is IBaseObjectConstructor<Middleware> {
     return isSubclassOf(middleware, Middleware)
 }
 
@@ -136,10 +136,10 @@ export function IsMiddlewareClass(middleware: MiddlewareDefinition): middleware 
  * Check middleware definitions: middleware classes or functions
  * @param middlewares
  */
-export function ValidateMiddlewares(middlewares: unknown[]): MiddlewareDefinition[] {
+export function validateMiddlewares(middlewares: unknown[]): MiddlewareDefinition[] {
     for (const middleware of middlewares) {
         if (typeof middleware !== 'function') throw new InvalidMiddlewareException('A middleware must be a function or a class extending Middleware')
-        if (!IsMiddlewareClass(middleware as MiddlewareDefinition) && /^class[\s{]/.test(Function.prototype.toString.call(middleware)))
+        if (!isMiddlewareClass(middleware as MiddlewareDefinition) && /^class[\s{]/.test(Function.prototype.toString.call(middleware)))
             throw new InvalidMiddlewareException('The middleware class "{0}" does not extend Middleware', [middleware.name])
     }
     return middlewares as MiddlewareDefinition[]
@@ -152,11 +152,11 @@ export function ValidateMiddlewares(middlewares: unknown[]): MiddlewareDefinitio
  * @param propertyKey
  * @param middlewares
  */
-export function AddMiddlewares(target: object, propertyKey: string | symbol | undefined, middlewares: MiddlewareDefinition[]): void {
+export function addMiddlewares(target: object, propertyKey: string | symbol | undefined, middlewares: MiddlewareDefinition[]): void {
     const key: symbol = propertyKey === undefined ? CLASS_MIDDLEWARES : METHOD_MIDDLEWARES
     const existing: MiddlewareDefinition[] = (propertyKey === undefined ? Reflect.getOwnMetadata(key, target) : Reflect.getOwnMetadata(key, target, propertyKey)) || []
     //The decorators are applied from bottom to top
-    const merged: MiddlewareDefinition[] = [...ValidateMiddlewares(middlewares), ...existing]
+    const merged: MiddlewareDefinition[] = [...validateMiddlewares(middlewares), ...existing]
     propertyKey === undefined ? Reflect.defineMetadata(key, merged, target) : Reflect.defineMetadata(key, merged, target, propertyKey)
 }
 
@@ -164,7 +164,7 @@ export function AddMiddlewares(target: object, propertyKey: string | symbol | un
  * The middlewares of a controller class, the ones of its parent classes first
  * @param controller
  */
-export function GetClassMiddlewares(controller: Function): MiddlewareDefinition[] {
+export function getClassMiddlewares(controller: Function): MiddlewareDefinition[] {
     const chain: Function[] = []
     for (let current: any = controller; current && current !== Function.prototype; current = Object.getPrototypeOf(current)) chain.unshift(current)
     return chain.flatMap((constructor: Function): MiddlewareDefinition[] => Reflect.getOwnMetadata(CLASS_MIDDLEWARES, constructor) || [])
@@ -175,7 +175,7 @@ export function GetClassMiddlewares(controller: Function): MiddlewareDefinition[
  * @param controller
  * @param method
  */
-export function GetMethodMiddlewares(controller: Function, method: string | symbol): MiddlewareDefinition[] {
+export function getMethodMiddlewares(controller: Function, method: string | symbol): MiddlewareDefinition[] {
     for (let prototype: any = controller.prototype; prototype; prototype = Object.getPrototypeOf(prototype)) {
         const middlewares: MiddlewareDefinition[] | undefined = Reflect.getOwnMetadata(METHOD_MIDDLEWARES, prototype, method)
         if (middlewares) return middlewares
@@ -188,9 +188,9 @@ export function GetMethodMiddlewares(controller: Function, method: string | symb
  * @param middlewares
  * @param innermost
  */
-export function ComposeMiddlewares(middlewares: MiddlewareDefinition[], innermost: InvocationRunner): InvocationRunner {
+export function composeMiddlewares(middlewares: MiddlewareDefinition[], innermost: InvocationRunner): InvocationRunner {
     return middlewares.reduceRight((next: InvocationRunner, middleware: MiddlewareDefinition): InvocationRunner => {
-        const handle: MiddlewareHandler = IsMiddlewareClass(middleware)
+        const handle: MiddlewareHandler = isMiddlewareClass(middleware)
             ? async (invocation: ActionInvocation, nextStep: Next): Promise<unknown> => (await invocation.container.get(middleware)).handle(invocation, nextStep)
             : middleware
         return (invocation: ActionInvocation): Promise<unknown> => {

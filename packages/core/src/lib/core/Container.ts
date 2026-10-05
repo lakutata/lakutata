@@ -4,33 +4,33 @@ import {
     type NameAndRegistrationPair
 } from '../ioc/DependencyInjectionContainer.js'
 import {__destroy, BaseObject} from '../base/BaseObject.js'
-import {ConstructorSymbol} from '../ioc/ConstructorSymbol.js'
+import {constructorSymbol} from '../ioc/ConstructorSymbol.js'
 import {LoadObjectOptions, OBJECT_ID} from '../../options/LoadObjectOptions.js'
 import {asClass, asValue, type BuildResolver, type BuildResolverOptions, type DisposableResolver, type Resolver} from '../ioc/Resolvers.js'
-import {GetObjectLifetime} from '../ioc/ObjectLifetime.js'
+import {getObjectLifetime} from '../ioc/ObjectLifetime.js'
 import {
-    GetConfigurableRecords,
-    GetRegistrationNameFromInstance,
-    SetConfigurableRecords,
-    SetConfigurableRecordsToInstance, SetIdToInstance
+    getConfigurableRecords,
+    getRegistrationNameFromInstance,
+    setConfigurableRecords,
+    setConfigurableRecordsToInstance, setIdToInstance
 } from '../base/internal/ConfigurableRecordsInjection.js'
 import {DTO} from '../dto/DTO.js'
-import {GetObjectIsAutoload} from '../base/internal/ObjectInjection.js'
+import {getObjectIsAutoload} from '../base/internal/ObjectInjection.js'
 import {Accept} from '../../decorators/dto/Accept.js'
 import {listModules, type ModuleDescriptor} from '../ioc/ListModules.js'
 import {pathToFileURL} from 'url'
 import {isClass} from '../ioc/Utils.js'
 import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
 import {MODULE_INITIALIZATION} from '../base/internal/ModuleInitialization.js'
-import {WaitForObjectStartup} from '../base/internal/ObjectStartup.js'
+import {waitForObjectStartup} from '../base/internal/ObjectStartup.js'
 import {LifetimeType} from '../ioc/Lifetime.js'
-import {ReportDestroyError} from '../foundation/LifecycleErrorReporter.js'
-import {ThrowWarning} from '../foundation/ThrowWarning.js'
+import {reportDestroyError} from '../foundation/LifecycleErrorReporter.js'
+import {throwWarning} from '../foundation/ThrowWarning.js'
 import {isSubclassOf} from '@lakutata/utils/IsSubclassOf'
 import {ObjectDestroyedException} from '../../exceptions/ObjectDestroyedException.js'
 import {As} from '@lakutata/utils/As'
 import {isEmptyObject} from '@lakutata/utils/IsEmptyObject'
-import {AppendObjectWeakRefs, ClearObjectWeakRefs, GetObjectWeakRefs} from '../ioc/ObjectWeakRefs.js'
+import {appendObjectWeakRefs, clearObjectWeakRefs, getObjectWeakRefs} from '../ioc/ObjectWeakRefs.js'
 
 export const containerSymbol: symbol = Symbol('LAKUTATA.DI.CONTAINER.SYMBOL')
 
@@ -45,7 +45,7 @@ const teardownHooks: WeakMap<Container, Set<() => Promise<void>>> = new WeakMap(
  * @param container
  * @param hook
  */
-export function RegisterTeardownHook(container: Container, hook: () => Promise<void>): () => void {
+export function registerTeardownHook(container: Container, hook: () => Promise<void>): () => void {
     let hooks: Set<() => Promise<void>> | undefined = teardownHooks.get(container)
     if (!hooks) teardownHooks.set(container, hooks = new Set())
     hooks.add(hook)
@@ -234,7 +234,7 @@ export class Container {
             await instance.getMethod(__destroy, false)()
         } catch (e) {
             //Cascaded destruction never throws, errors are reported instead
-            ReportDestroyError(e, instance.className)
+            reportDestroyError(e, instance.className)
         }
     }
 
@@ -246,7 +246,7 @@ export class Container {
      * @protected
      */
     protected buildResolverOptions<T extends BaseObject>(target: IBaseObjectConstructor<T>): BuildResolverOptions<T> {
-        const objectLifetime: LifetimeType = GetObjectLifetime(target)
+        const objectLifetime: LifetimeType = getObjectLifetime(target)
         return {
             lifetime: objectLifetime,
             dispose: (instance: BaseObject) => this.disposer(instance)
@@ -266,16 +266,16 @@ export class Container {
     protected async processResolved<T extends BaseObject>(resolved: T | Promise<T>, registrationName: string | symbol, configurableRecords: Record<string, any> = {}): Promise<T> {
         //Only a newly created object gets its id and configurable records, a cached one is already initialized
         const isSubBaseObject: boolean = isSubclassOf(resolved?.constructor, BaseObject)
-        const isNewSubBaseObject: boolean = isSubBaseObject && GetRegistrationNameFromInstance(As<T>(resolved)) === undefined
+        const isNewSubBaseObject: boolean = isSubBaseObject && getRegistrationNameFromInstance(As<T>(resolved)) === undefined
         if (isSubBaseObject && !isNewSubBaseObject && !isEmptyObject(configurableRecords) && process.env.NODE_ENV !== 'production') {
-            ThrowWarning(`The configuration passed for the already created object "${As<T>(resolved).className}" is ignored. Use a scoped or transient object to get an instance with its own configuration.`)
+            throwWarning(`The configuration passed for the already created object "${As<T>(resolved).className}" is ignored. Use a scoped or transient object to get an instance with its own configuration.`)
         }
         if (isNewSubBaseObject) {
-            const presetConfigurableRecords: Record<string, any> = GetConfigurableRecords(As<typeof BaseObject>(resolved.constructor), registrationName)
+            const presetConfigurableRecords: Record<string, any> = getConfigurableRecords(As<typeof BaseObject>(resolved.constructor), registrationName)
             //set id into object instance
-            SetIdToInstance(As<T>(resolved), registrationName)
+            setIdToInstance(As<T>(resolved), registrationName)
             //set configurable records into object instance
-            SetConfigurableRecordsToInstance(As<T>(resolved), {...presetConfigurableRecords, ...configurableRecords})
+            setConfigurableRecordsToInstance(As<T>(resolved), {...presetConfigurableRecords, ...configurableRecords})
         }
         return Promise.resolve(resolved)
     }
@@ -289,11 +289,11 @@ export class Container {
      */
     protected buildNameAndRegistrationPairFromOptions<T extends BaseObject>(options: LoadObjectOptions): NameAndRegistrationPair<T> {
         const pair: NameAndRegistrationPair<T> = {}
-        const id: string | symbol = options[OBJECT_ID] ? options[OBJECT_ID] : ConstructorSymbol(options.class)
+        const id: string | symbol = options[OBJECT_ID] ? options[OBJECT_ID] : constructorSymbol(options.class)
         const configurableRecords: Record<string, any> = {...options, class: void (0)}
         delete configurableRecords.id
         delete configurableRecords.class
-        SetConfigurableRecords(options.class, id, configurableRecords)
+        setConfigurableRecords(options.class, id, configurableRecords)
         pair[id] = this.#createResolver(options.class)
         return pair
     }
@@ -317,7 +317,7 @@ export class Container {
             }
             const pair: NameAndRegistrationPair<T> = {}
             for (const exportObj of Object.values(importResult)) {
-                if (isClass(exportObj) && isSubclassOf(exportObj, BaseObject)) pair[ConstructorSymbol(exportObj)] = this.#createResolver(As<T>(exportObj))
+                if (isClass(exportObj) && isSubclassOf(exportObj, BaseObject)) pair[constructorSymbol(exportObj)] = this.#createResolver(As<T>(exportObj))
             }
             return pair
         }))
@@ -482,12 +482,12 @@ export class Container {
      * @private
      */
     async #get<T extends BaseObject>(inp: string | symbol | IBaseObjectConstructor<T>, configurableRecords: Record<string, any>, shared: boolean): Promise<T> {
-        const registrationName: string | symbol = typeof inp === 'function' ? ConstructorSymbol(inp) : inp
+        const registrationName: string | symbol = typeof inp === 'function' ? constructorSymbol(inp) : inp
         this.#assertNotDestroyed()
-        if (!this.#dic.hasRegistration(registrationName) && typeof inp === 'function' && GetObjectIsAutoload(As<typeof BaseObject>(inp))) {
+        if (!this.#dic.hasRegistration(registrationName) && typeof inp === 'function' && getObjectIsAutoload(As<typeof BaseObject>(inp))) {
             //An autoloaded scoped object is registered in the nearest scope, so it is shared within the request;
             //an autoloaded singleton in the root container, so it is shared by every object of the application
-            const lifetime: LifetimeType = As<LifetimeType>(GetObjectLifetime(As<typeof BaseObject>(inp)))
+            const lifetime: LifetimeType = As<LifetimeType>(getObjectLifetime(As<typeof BaseObject>(inp)))
             const registerContainer: Container = lifetime === 'SCOPED' ? this.#nearestScope() : lifetime === 'SINGLETON' ? this.#root() : this
             await registerContainer.load([{
                 id: registrationName,
@@ -500,8 +500,8 @@ export class Container {
         //so it never replaces the instance shared within the request (unless the shared instance is requested)
         if (!shared && registration && lifetime === 'SCOPED' && !isEmptyObject(configurableRecords)) {
             const configured: T = await this.processResolved(this.#dic.build<T>(registration), registrationName, configurableRecords)
-            AppendObjectWeakRefs(this.#dic, configured)
-            await WaitForObjectStartup(configured)
+            appendObjectWeakRefs(this.#dic, configured)
+            await waitForObjectStartup(configured)
             return configured
         }
         let resolver: Container = this
@@ -515,7 +515,7 @@ export class Container {
         resolver.#assertNotDestroyed()
         const object: T = await resolver.processResolved(resolver.#dic.resolve(registrationName), registrationName, configurableRecords)
         await this.#waitForModule(object)
-        await WaitForObjectStartup(object)
+        await waitForObjectStartup(object)
         return object
     }
 
@@ -558,7 +558,7 @@ export class Container {
      */
     public has<ClassConstructor extends typeof BaseObject>(constructor: ClassConstructor): boolean
     public has<ClassConstructor extends typeof BaseObject>(inp: symbol | string | ClassConstructor): boolean {
-        if (typeof inp === 'function') return this.#dic.hasRegistration(ConstructorSymbol(inp))
+        if (typeof inp === 'function') return this.#dic.hasRegistration(constructorSymbol(inp))
         return this.#dic.hasRegistration(inp)
     }
 
@@ -644,9 +644,9 @@ export class Container {
      */
     public async build<T extends BaseObject>(target: IBaseObjectConstructor<T>, configurableRecords: Record<string, any> = {}): Promise<T> {
         this.#assertNotDestroyed()
-        const builtObject: T = await this.processResolved(this.#dic.build<T>(target, this.buildResolverOptions(target)), ConstructorSymbol(target), configurableRecords)
-        AppendObjectWeakRefs(this.#dic, builtObject)
-        await WaitForObjectStartup(builtObject)
+        const builtObject: T = await this.processResolved(this.#dic.build<T>(target, this.buildResolverOptions(target)), constructorSymbol(target), configurableRecords)
+        appendObjectWeakRefs(this.#dic, builtObject)
+        await waitForObjectStartup(builtObject)
         return builtObject
     }
 
@@ -708,7 +708,7 @@ export class Container {
         const hooks: Set<() => Promise<void>> | undefined = teardownHooks.get(this)
         if (hooks?.size) {
             const results: PromiseSettledResult<void>[] = await Promise.allSettled([...hooks].map((hook: () => Promise<void>): Promise<void> => hook()))
-            results.forEach((result: PromiseSettledResult<void>): unknown => result.status === 'rejected' && ReportDestroyError(result.reason))
+            results.forEach((result: PromiseSettledResult<void>): unknown => result.status === 'rejected' && reportDestroyError(result.reason))
         }
         const subContainers: Container[] = [...this.#subScopeSet]
         this.#subObjectContainerRefs.forEach((ref: WeakRef<Container>): void => {
@@ -719,15 +719,15 @@ export class Container {
         try {
             await this.#dic.dispose()
         } catch (e) {
-            ReportDestroyError(e)
+            reportDestroyError(e)
         }
         const transients: BaseObject[] = []
-        GetObjectWeakRefs<BaseObject>(this.#dic).forEach((ref: WeakRef<BaseObject>): void => {
+        getObjectWeakRefs<BaseObject>(this.#dic).forEach((ref: WeakRef<BaseObject>): void => {
             const transient: BaseObject | undefined = ref.deref()
             if (transient) transients.push(transient)
         })
         await Promise.all(transients.map((transient: BaseObject): Promise<void> => this.disposer(transient)))
-        ClearObjectWeakRefs(this.#dic)
+        clearObjectWeakRefs(this.#dic)
     }
 
     /**

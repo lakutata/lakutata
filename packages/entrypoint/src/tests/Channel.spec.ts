@@ -77,7 +77,7 @@ function TestAction(path: string, dto?: typeof DTO) {
  * An adapter of the test channel, keeping its runtime
  * @param middlewares
  */
-function TestAdapter(middlewares: MiddlewareHandler[] = []): EntrypointAdapter & { runtime?: ChannelRuntime, stopped: boolean } {
+function testAdapter(middlewares: MiddlewareHandler[] = []): EntrypointAdapter & { runtime?: ChannelRuntime, stopped: boolean } {
     const adapter = {
         channel: 'test',
         middlewares: middlewares,
@@ -95,7 +95,7 @@ function TestAdapter(middlewares: MiddlewareHandler[] = []): EntrypointAdapter &
 
 let trace: string[] = []
 
-const Trace = (name: string): MiddlewareHandler => async (invocation: ActionInvocation, next: Next): Promise<unknown> => {
+const traceMiddleware = (name: string): MiddlewareHandler => async (invocation: ActionInvocation, next: Next): Promise<unknown> => {
     trace.push(name)
     return next()
 }
@@ -115,7 +115,7 @@ class DeviceRegistry extends Component {
 }
 
 @Prefix({test: '/device'})
-@UseMiddlewares(Trace('controller'))
+@UseMiddlewares(traceMiddleware('controller'))
 class DeviceController extends Controller {
 
     @TestAction('/{sn}', DeviceDTO)
@@ -137,7 +137,7 @@ class DeviceController extends Controller {
  * Create an entrypoint
  * @param options
  */
-async function Create(options: Record<string, unknown>): Promise<{ entrypoint: Entrypoint, container: Container }> {
+async function create(options: Record<string, unknown>): Promise<{ entrypoint: Entrypoint, container: Container }> {
     const container: Container = new Container()
     const entrypoint: Entrypoint = await container.set(Entrypoint, buildEntrypoints({controllers: [DeviceController], ...options} as never))
     return {entrypoint: entrypoint, container: container}
@@ -146,8 +146,8 @@ async function Create(options: Record<string, unknown>): Promise<{ entrypoint: E
 describe('Channels', (): void => {
 
     it('dispatch the requests of a channel defined by another package', async (): Promise<void> => {
-        const adapter = TestAdapter([Trace('adapter')])
-        const {entrypoint, container} = await Create({middlewares: [Trace('global')], test: adapter})
+        const adapter = testAdapter([traceMiddleware('adapter')])
+        const {entrypoint, container} = await create({middlewares: [traceMiddleware('global')], test: adapter})
         trace = []
         //The parameters of the address are merged into the input, over the data
         assert.deepStrictEqual(await adapter.runtime!.dispatch(new TestContext({path: '/device/sn-1', data: {sn: 'other', name: 'Pump'}})), {sn: 'sn-1', name: 'Pump'})
@@ -161,8 +161,8 @@ describe('Channels', (): void => {
     })
 
     it('dispatch to an action directly, with the parameters given by the transport', async (): Promise<void> => {
-        const adapter = TestAdapter()
-        const {container} = await Create({test: adapter})
+        const adapter = testAdapter()
+        const {container} = await create({test: adapter})
         const action: ChannelActionInfo = adapter.runtime!.actions[0]
         //The schema of the result declared with @Return, given to the channels
         assert.ok(action.returnSchema)
@@ -176,13 +176,13 @@ describe('Channels', (): void => {
         let legacyStopped: boolean = false
         const adapter: EntrypointAdapter = {
             channel: 'service',
-            middlewares: [Trace('service adapter')],
+            middlewares: [traceMiddleware('service adapter')],
             start: (runtime: ChannelRuntime): void => {
                 modern = runtime
             }
         }
         let modern: ChannelRuntime | undefined
-        const {container} = await Create({
+        const {container} = await create({
             service: [buildServiceEntrypoint((module, handler, registerDestroy): void => {
                 legacy = handler
                 registerDestroy((): void => {
@@ -231,10 +231,10 @@ describe('Channels', (): void => {
     })
 
     it('reject the options which are not adapters of their channel', async (): Promise<void> => {
-        await assert.rejects(Create({test: {channel: 'service', start: (): void => undefined}}), InvalidEntrypointAdapterException)
-        await assert.rejects(Create({htpp: buildServiceEntrypoint((): void => undefined)}), InvalidEntrypointAdapterException)
-        await assert.rejects(Create({test: buildServiceEntrypoint((): void => undefined)}), InvalidEntrypointAdapterException)
-        await assert.rejects(Create({unknown: {channel: 'unknown', start: (): void => undefined}}), InvalidEntrypointAdapterException)
+        await assert.rejects(create({test: {channel: 'service', start: (): void => undefined}}), InvalidEntrypointAdapterException)
+        await assert.rejects(create({htpp: buildServiceEntrypoint((): void => undefined)}), InvalidEntrypointAdapterException)
+        await assert.rejects(create({test: buildServiceEntrypoint((): void => undefined)}), InvalidEntrypointAdapterException)
+        await assert.rejects(create({unknown: {channel: 'unknown', start: (): void => undefined}}), InvalidEntrypointAdapterException)
     })
 
     it('accept the adapters and the 2.x callbacks as options, not the misspelled channels nor the other values', (): void => {
@@ -248,13 +248,13 @@ describe('Channels', (): void => {
     })
 
     it('wait for the requests in progress when stopping, and abort them after the timeout', async (): Promise<void> => {
-        const adapter = TestAdapter()
-        const {container} = await Create({test: adapter})
+        const adapter = testAdapter()
+        const {container} = await create({test: adapter})
         const request: Promise<unknown> = adapter.runtime!.dispatch(new TestContext({path: '/device/slow/a', data: {}}))
         await container.destroy()
         assert.strictEqual(await request, 'slow a')
-        const impatient = TestAdapter()
-        const second = await Create({test: impatient, shutdownTimeout: 10})
+        const impatient = testAdapter()
+        const second = await create({test: impatient, shutdownTimeout: 10})
         const aborted: Promise<unknown> = impatient.runtime!.dispatch(new TestContext({path: '/device/slow/b', data: {}}))
         const start: number = Date.now()
         await second.container.destroy()

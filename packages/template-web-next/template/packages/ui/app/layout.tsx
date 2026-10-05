@@ -5,7 +5,7 @@ export const metadata: Metadata = {
     title: '{$APP_NAME}'
 }
 
-export default function RootLayout({children}: { children: ReactNode }) {
+export default function rootLayout({children}: { children: ReactNode }) {
     return (
         <html lang="en">
             <body>{children}</body>

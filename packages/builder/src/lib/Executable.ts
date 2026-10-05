@@ -3,11 +3,11 @@ import {chmod, copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile} from 'no
 import {createRequire} from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
-import {Libc} from './Platform.js'
-import {Run} from './Processes.js'
-import {BundleProject, ProgramName, type BundleOptions, type BundleResult} from './Bundle.js'
-import {ApplicationIcon, IcoFile, SetExecutableIcon} from './Icons.js'
-import {PackNativeTree} from './Native.js'
+import {detectLibc} from './Platform.js'
+import {runCommand} from './Processes.js'
+import {bundleProject, programName, type BundleOptions, type BundleResult} from './Bundle.js'
+import {applicationIcon, icoFile, setExecutableIcon} from './Icons.js'
+import {packNativeTree} from './Native.js'
 import {BUN_NATIVE_ASSETS, NATIVE_DATA_ASSET, NATIVE_INDEX_ASSET} from './NativeRuntime.js'
 
 export type ExecutableOptions = Omit<BundleOptions, 'outfile' | 'native' | 'directories'> & {
@@ -64,8 +64,8 @@ const SEA_FUSE: string = 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2'
  * @param args
  * @param cwd
  */
-async function Must(command: string, args: string[], cwd: string): Promise<void> {
-    const result = await Run(command, args, cwd)
+async function must(command: string, args: string[], cwd: string): Promise<void> {
+    const result = await runCommand(command, args, cwd)
     if (result.code !== 0) throw new Error(`${command} ${args.join(' ')} failed: ${result.output.trim()}`)
 }
 
@@ -74,7 +74,7 @@ async function Must(command: string, args: string[], cwd: string): Promise<void>
  * ("Can't find string offset for section name", the signature of node.exe changed by the injection)
  * @param run
  */
-async function Quiet<T>(run: () => Promise<T>): Promise<T> {
+async function quiet<T>(run: () => Promise<T>): Promise<T> {
     const {log, warn} = console
     console.log = console.warn = (): void => undefined
     try {
@@ -91,7 +91,7 @@ async function Quiet<T>(run: () => Promise<T>): Promise<T> {
  * @param project
  * @return the command, and the version of Bun
  */
-async function FindBun(project: string): Promise<{ command: string, version: string }> {
+async function findBun(project: string): Promise<{ command: string, version: string }> {
     const candidates: string[] = []
     try {
         const root: string = path.dirname(createRequire(path.join(project, 'package.json')).resolve('bun/package.json'))
@@ -102,7 +102,7 @@ async function FindBun(project: string): Promise<{ command: string, version: str
     candidates.push('bun')
     for (const command of candidates) {
         if (command !== 'bun' && !existsSync(command)) continue
-        const result = await Run(command, ['--version'], project).catch((): undefined => undefined)
+        const result = await runCommand(command, ['--version'], project).catch((): undefined => undefined)
         if (result?.code === 0) return {command: command, version: result.output.trim()}
     }
     throw new Error('Bun is not installed: install it in the project (npm install --save-dev bun), or on the system (https://bun.sh)')
@@ -113,7 +113,7 @@ async function FindBun(project: string): Promise<{ command: string, version: str
  * @param work
  * @param icon
  */
-async function WriteIcon(work: string, icon: Buffer): Promise<string> {
+async function writeIcon(work: string, icon: Buffer): Promise<string> {
     const file: string = path.join(work, 'icon.ico')
     await writeFile(file, icon)
     return file
@@ -127,11 +127,11 @@ async function WriteIcon(work: string, icon: Buffer): Promise<string> {
  * @param warnings
  * @param icon the icon of the application (ico, Windows)
  */
-async function EmbedInNode(bundle: BundleResult, work: string, file: string, warnings: string[], icon?: Buffer): Promise<string> {
+async function embedInNode(bundle: BundleResult, work: string, file: string, warnings: string[], icon?: Buffer): Promise<string> {
     const assets: Record<string, string> = {}
     if (bundle.native) {
         //The files of the native packages, extracted by the executable at its first run
-        const {index, data} = PackNativeTree(bundle.native)
+        const {index, data} = packNativeTree(bundle.native)
         assets[NATIVE_DATA_ASSET] = path.join(work, 'native.gz')
         assets[NATIVE_INDEX_ASSET] = path.join(work, 'native.json')
         await writeFile(assets[NATIVE_DATA_ASSET], data)
@@ -148,15 +148,15 @@ async function EmbedInNode(bundle: BundleResult, work: string, file: string, war
         useSnapshot: false,
         assets: assets
     }))
-    await Must(process.execPath, ['--experimental-sea-config', 'sea-config.json'], work)
+    await must(process.execPath, ['--experimental-sea-config', 'sea-config.json'], work)
     const {inject} = await import('postject')
     await copyFile(process.execPath, file)
     //The icon of the application replaces the one of node.exe, before the bundle is embedded
-    if (icon) await SetExecutableIcon(file, icon)
+    if (icon) await setExecutableIcon(file, icon)
     //The signature of macOS is removed before the binary is changed, then made again (ad hoc)
-    if (process.platform === 'darwin') await Must('codesign', ['--remove-signature', file], work)
-    await Quiet((): Promise<void> => inject(file, 'NODE_SEA_BLOB', readFileSync(blob), {sentinelFuse: SEA_FUSE, machoSegmentName: process.platform === 'darwin' ? 'NODE_SEA' : undefined}))
-    if (process.platform === 'darwin') await Must('codesign', ['--sign', '-', '--force', file], work)
+    if (process.platform === 'darwin') await must('codesign', ['--remove-signature', file], work)
+    await quiet((): Promise<void> => inject(file, 'NODE_SEA_BLOB', readFileSync(blob), {sentinelFuse: SEA_FUSE, machoSegmentName: process.platform === 'darwin' ? 'NODE_SEA' : undefined}))
+    if (process.platform === 'darwin') await must('codesign', ['--sign', '-', '--force', file], work)
     //The Authenticode signature of node.exe does not match the executable anymore
     if (process.platform === 'win32') warnings.push(`${path.basename(file)} has the signature of Node.js, which is not valid anymore: sign it (signtool) before distributing it`)
     return `Node.js ${process.version}`
@@ -173,10 +173,10 @@ async function EmbedInNode(bundle: BundleResult, work: string, file: string, war
  * @param file
  * @param icon the icon of the application (ico, Windows)
  */
-async function CompileWithBun(bun: { command: string, version: string }, bundle: BundleResult, work: string, file: string, icon?: Buffer): Promise<string> {
+async function compileWithBun(bun: { command: string, version: string }, bundle: BundleResult, work: string, file: string, icon?: Buffer): Promise<string> {
     let entry: string = bundle.outfile
     if (bundle.native) {
-        const {index, data} = PackNativeTree(bundle.native)
+        const {index, data} = packNativeTree(bundle.native)
         await writeFile(path.join(work, 'native.gz'), data)
         await writeFile(path.join(work, 'native.json'), JSON.stringify(index))
         entry = path.join(work, 'main.mjs')
@@ -188,13 +188,13 @@ async function CompileWithBun(bun: { command: string, version: string }, bundle:
             `require(${JSON.stringify(`./${path.basename(bundle.outfile)}`)})`
         ].join('\n'))
     }
-    await Must(bun.command, [
+    await must(bun.command, [
         'build', entry, '--compile', '--outfile', file,
         //Compiled to the bytecode of JavaScriptCore: it starts without parsing the bundle
         '--bytecode',
         '--compile-autoload-package-json', '--no-compile-autoload-dotenv', '--no-compile-autoload-bunfig',
         //The icon of the application (Windows)
-        ...icon ? [`--windows-icon=${await WriteIcon(work, icon)}`] : []
+        ...icon ? [`--windows-icon=${await writeIcon(work, icon)}`] : []
     ], work)
     return `Bun ${bun.version}`
 }
@@ -206,28 +206,28 @@ async function CompileWithBun(bun: { command: string, version: string }, bundle:
  * built there
  * @param options
  */
-export async function BuildExecutable(options: ExecutableOptions): Promise<ExecutableResult> {
+export async function buildExecutable(options: ExecutableOptions): Promise<ExecutableResult> {
     const project: string = path.resolve(options.project)
     const outdir: string = path.resolve(project, options.outdir ?? 'dist')
     //Bun is found before the application is bundled
-    const bun: { command: string, version: string } | undefined = options.runtime === 'bun' ? await FindBun(project) : undefined
+    const bun: { command: string, version: string } | undefined = options.runtime === 'bun' ? await findBun(project) : undefined
     const work: string = await mkdtemp(path.join(os.tmpdir(), 'lakutata-executable-'))
     try {
         const directory: boolean = options.layout === 'directory'
         //The directory of the executable: dist/<name>, its native tree and its resources written there (the links of
         //the tree are the ones of their directory), the one of the executable alone otherwise
         const manifest: Record<string, any> = JSON.parse(await readFile(path.join(project, 'package.json'), 'utf8'))
-        const target: string = directory ? path.join(outdir, ProgramName(manifest)) : outdir
+        const target: string = directory ? path.join(outdir, programName(manifest)) : outdir
         if (directory) await rm(target, {recursive: true, force: true})
         await mkdir(target, {recursive: true})
-        const bundle: BundleResult = await BundleProject({
+        const bundle: BundleResult = await bundleProject({
             ...options,
             outfile: path.join(work, 'main.cjs'),
             native: directory ? 'directory' : 'embedded',
             directories: {native: path.join(target, 'native'), resources: path.join(target, 'resources')}
         })
         //The executables of Node.js do not load the native addons on musl (postject rewrites their symbols): the ones of Bun do
-        if (!bun && Libc() === 'musl' && bundle.native?.files.some((file): boolean => file.path.endsWith('.node'))) throw new Error('The executables of Node.js do not load native addons on musl (Alpine): make the executable with Bun (--runtime bun, or "runtime": "bun" of lakutata.installer)')
+        if (!bun && detectLibc() === 'musl' && bundle.native?.files.some((file): boolean => file.path.endsWith('.node'))) throw new Error('The executables of Node.js do not load native addons on musl (Alpine): make the executable with Bun (--runtime bun, or "runtime": "bun" of lakutata.installer)')
         const file: string = path.join(target, process.platform === 'win32' ? `${bundle.name}.exe` : bundle.name)
         await rm(file, {force: true})
         //The native tree and the resources of the layout directory are not embedded
@@ -238,9 +238,9 @@ export async function BuildExecutable(options: ExecutableOptions): Promise<Execu
         await mkdir(path.dirname(made), {recursive: true})
         const warnings: string[] = []
         //The icon of the application: the one of the executables of Windows (the ones of macOS and Linux have none)
-        const application = ApplicationIcon(project, manifest)
-        const icon: Buffer | undefined = application && process.platform === 'win32' ? IcoFile(application.image) : undefined
-        const runtime: string = bun ? await CompileWithBun(bun, embedded, work, made, icon) : await EmbedInNode(embedded, work, made, warnings, icon)
+        const application = applicationIcon(project, manifest)
+        const icon: Buffer | undefined = application && process.platform === 'win32' ? icoFile(application.image) : undefined
+        const runtime: string = bun ? await compileWithBun(bun, embedded, work, made, icon) : await embedInNode(embedded, work, made, warnings, icon)
         await copyFile(made, file)
         await chmod(file, 0o755)
         return {

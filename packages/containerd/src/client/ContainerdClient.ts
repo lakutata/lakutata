@@ -70,7 +70,7 @@ export const RESOURCES_TYPE_URL: string = 'types.containerd.io/opencontainers/ru
  * A date of a Timestamp
  * @param timestamp
  */
-export function TimestampDate(timestamp: Message | undefined): Date | undefined {
+export function timestampDate(timestamp: Message | undefined): Date | undefined {
     if (!timestamp) return undefined
     return new Date(Number(timestamp.seconds ?? 0) * 1000 + Math.floor(Number(timestamp.nanos ?? 0) / 1e6))
 }
@@ -80,7 +80,7 @@ export function TimestampDate(timestamp: Message | undefined): Date | undefined 
  * @param error
  * @param code
  */
-export function IsGRPCError(error: unknown, code: number): error is GRPCError {
+export function isGRPCError(error: unknown, code: number): error is GRPCError {
     return error instanceof GRPCError && error.code === code
 }
 
@@ -128,7 +128,7 @@ export class ContainerdClient {
         try {
             return await promise
         } catch (error: unknown) {
-            if (IsGRPCError(error, GRPCStatus.NOT_FOUND)) return undefined
+            if (isGRPCError(error, GRPCStatus.NOT_FOUND)) return undefined
             throw error
         }
     }
@@ -148,7 +148,7 @@ export class ContainerdClient {
         try {
             await this.call('namespaces.v1.Namespaces', 'Create', M.CreateNamespaceRequest, {namespace: {name: this.namespace}}, M.Empty)
         } catch (error: unknown) {
-            if (!IsGRPCError(error, GRPCStatus.ALREADY_EXISTS)) throw error
+            if (!isGRPCError(error, GRPCStatus.ALREADY_EXISTS)) throw error
         }
     }
 
@@ -192,7 +192,7 @@ export class ContainerdClient {
         try {
             return (await this.call('images.v1.Images', 'Create', M.CreateImageRequest, {image: image}, M.ImageResponse, lease)).image
         } catch (error: unknown) {
-            if (!IsGRPCError(error, GRPCStatus.ALREADY_EXISTS)) throw error
+            if (!isGRPCError(error, GRPCStatus.ALREADY_EXISTS)) throw error
             return (await this.call('images.v1.Images', 'Update', M.UpdateImageRequest, {image: image, updateMask: {paths: ['target', 'labels']}}, M.ImageResponse, lease)).image
         }
     }
@@ -284,7 +284,7 @@ export class ContainerdClient {
         } catch (error: unknown) {
             stream.cancel()
             //Written by another writer meanwhile
-            if (IsGRPCError(error, GRPCStatus.ALREADY_EXISTS) || (await this.contentInfo(descriptor.digest))) {
+            if (isGRPCError(error, GRPCStatus.ALREADY_EXISTS) || (await this.contentInfo(descriptor.digest))) {
                 await this.labelContent(descriptor.digest, labels)
                 return
             }
@@ -445,7 +445,7 @@ export class ContainerdClient {
      */
     public async wait(containerId: string, execId: string = '', signal?: AbortSignal): Promise<{ exitStatus: number, exitedAt?: Date }> {
         const response: Message = await this.call('tasks.v1.Tasks', 'Wait', M.ProcessRequest, {containerId: containerId, execId: execId}, M.WaitResponse, undefined, signal)
-        return {exitStatus: response.exitStatus ?? 0, exitedAt: TimestampDate(response.exitedAt)}
+        return {exitStatus: response.exitStatus ?? 0, exitedAt: timestampDate(response.exitedAt)}
     }
 
     /**
@@ -474,7 +474,7 @@ export class ContainerdClient {
                 const type: string = String(envelope.event?.typeUrl ?? '')
                 const schema: Schema | undefined = M.EVENTS[type]
                 yield {
-                    timestamp: TimestampDate(envelope.timestamp) ?? new Date(),
+                    timestamp: timestampDate(envelope.timestamp) ?? new Date(),
                     namespace: envelope.namespace ?? '',
                     topic: envelope.topic ?? '',
                     type: type,
@@ -482,7 +482,7 @@ export class ContainerdClient {
                 }
             }
         } catch (error: unknown) {
-            if (signal?.aborted && IsGRPCError(error, GRPCStatus.CANCELLED)) return
+            if (signal?.aborted && isGRPCError(error, GRPCStatus.CANCELLED)) return
             throw error
         }
     }

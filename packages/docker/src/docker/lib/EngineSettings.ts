@@ -12,7 +12,7 @@ const RESERVED_NETWORKS: string[] = ['bridge', 'host', 'none']
  * The restart policy of the Engine API: "on-failure:3" is the policy on-failure with 3 retries at most
  * @param restartPolicy
  */
-export function EngineRestartPolicy(restartPolicy: ContainerRestartPolicy): { Name: string, MaximumRetryCount?: number } {
+export function engineRestartPolicy(restartPolicy: ContainerRestartPolicy): { Name: string, MaximumRetryCount?: number } {
     const [name, retries] = restartPolicy.split(':')
     return retries === undefined ? {Name: name} : {Name: name, MaximumRetryCount: Number.parseInt(retries, 10)}
 }
@@ -21,7 +21,7 @@ export function EngineRestartPolicy(restartPolicy: ContainerRestartPolicy): { Na
  * The restart policy of a container, from the one of the Engine API
  * @param restartPolicy
  */
-export function ParseRestartPolicy(restartPolicy?: { Name?: string, MaximumRetryCount?: number } | null): ContainerRestartPolicy {
+export function parseRestartPolicy(restartPolicy?: { Name?: string, MaximumRetryCount?: number } | null): ContainerRestartPolicy {
     if (!restartPolicy?.Name) return ''
     if (restartPolicy.Name === 'on-failure' && restartPolicy.MaximumRetryCount) return `on-failure:${restartPolicy.MaximumRetryCount}`
     return restartPolicy.Name as ContainerRestartPolicy
@@ -32,7 +32,7 @@ export function ParseRestartPolicy(restartPolicy?: { Name?: string, MaximumRetry
  * on no host port
  * @param ports
  */
-export function EnginePortBindings(ports: NonNullable<ContainerSettingOptions['ports']>): Record<string, PortBinding[] | null> {
+export function enginePortBindings(ports: NonNullable<ContainerSettingOptions['ports']>): Record<string, PortBinding[] | null> {
     const hostPortsMap: Map<string, Set<number>> = new Map()
     for (const port of ports) {
         const key: string = `${port.port}/${port.type}`
@@ -51,7 +51,7 @@ export function EnginePortBindings(ports: NonNullable<ContainerSettingOptions['p
  * The bind mounts of the Engine API ("hostPath:containerPath:rw")
  * @param binds
  */
-export function EngineBinds(binds: NonNullable<ContainerSettingOptions['binds']>): string[] {
+export function engineBinds(binds: NonNullable<ContainerSettingOptions['binds']>): string[] {
     return binds.map((bind): string => `${bind.hostPath}:${bind.containerPath}:${bind.rw ? 'rw' : 'ro'}`)
 }
 
@@ -59,7 +59,7 @@ export function EngineBinds(binds: NonNullable<ContainerSettingOptions['binds']>
  * The devices of the Engine API
  * @param devices
  */
-export function EngineDevices(devices: NonNullable<ContainerSettingOptions['devices']>): DeviceMapping[] {
+export function engineDevices(devices: NonNullable<ContainerSettingOptions['devices']>): DeviceMapping[] {
     return devices.map((device): DeviceMapping => ({
         PathOnHost: device.hostPath,
         PathInContainer: device.containerPath,
@@ -71,7 +71,7 @@ export function EngineDevices(devices: NonNullable<ContainerSettingOptions['devi
  * The endpoints of the Engine API, by network: the static addresses given, none on the reserved networks
  * @param networks
  */
-export function EngineEndpoints(networks: NonNullable<ContainerSettingOptions['networks']>): Record<string, Record<string, unknown>> {
+export function engineEndpoints(networks: NonNullable<ContainerSettingOptions['networks']>): Record<string, Record<string, unknown>> {
     const endpoints: Record<string, Record<string, unknown>> = {}
     for (const network of networks) {
         endpoints[network.networkName] = RESERVED_NETWORKS.includes(network.networkName)

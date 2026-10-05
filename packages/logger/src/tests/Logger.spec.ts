@@ -12,7 +12,7 @@ import {Logger} from '../exports/Logger.js'
  * Run a script logging to stdout in a child process, return its output
  * @param body
  */
-function RunChild(body: string): string {
+function runChild(body: string): string {
     const script: string = `
 import {Container} from '@lakutata/core'
 import {Logger} from '${new URL('../exports/Logger.js', import.meta.url).href}'
@@ -24,7 +24,7 @@ ${body}
 /**
  * A destination collecting its text
  */
-function Collector(): { stream: PassThrough, text: () => string } {
+function collector(): { stream: PassThrough, text: () => string } {
     const stream: PassThrough = new PassThrough()
     let text: string = ''
     stream.on('data', (chunk: Buffer): unknown => text += chunk.toString())
@@ -34,7 +34,7 @@ function Collector(): { stream: PassThrough, text: () => string } {
 describe('Logger', (): void => {
 
     it('writes the enabled levels to stdout', (): void => {
-        const output: string = RunChild(`
+        const output: string = runChild(`
 const container = new Container()
 const logger = await container.set(Logger, {level: 'info', colorize: false})
 logger.debug('hidden')
@@ -62,7 +62,7 @@ console.log(text)
     })
 
     it('writes the buffered lines when the process exits', (): void => {
-        const output: string = RunChild(`
+        const output: string = runChild(`
 const logger = await new Container().set(Logger, {colorize: false})
 for (let index = 0; index < 1000; index++) logger.info('line %d', index)
 process.exit(0)`)
@@ -71,8 +71,8 @@ process.exit(0)`)
     })
 
     it('writes to its destinations', async (): Promise<void> => {
-        const pretty = Collector()
-        const json = Collector()
+        const pretty = collector()
+        const json = collector()
         const container: Container = new Container()
         const logger: Logger = await container.set(Logger, {destinations: [pretty.stream]})
         const jsonLogger: Logger = await new Container().set(Logger, {pretty: false, level: 'warn', destinations: [json.stream]})
@@ -88,7 +88,7 @@ process.exit(0)`)
     })
 
     it('writes synchronously', async (): Promise<void> => {
-        const destination = Collector()
+        const destination = collector()
         const logger: Logger = await new Container().set(Logger, {sync: true, destinations: [destination.stream]})
         logger.info('now')
         await new Promise((resolve: (value: unknown) => void): unknown => process.nextTick(resolve))
@@ -96,7 +96,7 @@ process.exit(0)`)
     })
 
     it('writes the message of a cause once when the error wrapping it has the same message', async (): Promise<void> => {
-        const json = Collector()
+        const json = collector()
         const logger: Logger = await new Container().set(Logger, {pretty: false, destinations: [json.stream]})
         const validation: Error = new Error('"level" must be a string')
         const wrapped: Error = new Error('"level" must be a string', {cause: validation})
@@ -110,7 +110,7 @@ process.exit(0)`)
         assert.strictEqual(lines[0].err.stack.split('caused by: ').length, 3)
     })
     it('logs the fatal errors above the errors, at once', async (): Promise<void> => {
-        const json = Collector()
+        const json = collector()
         const container: Container = new Container()
         const fatalOnly: Logger = await container.set(Logger, {level: 'fatal', pretty: false, destinations: [json.stream]})
         fatalOnly.error('hidden')
@@ -120,12 +120,12 @@ process.exit(0)`)
         await new Promise((resolve: (value: unknown) => void): unknown => process.nextTick(resolve))
         const lines: Record<string, any>[] = json.text().split('\n').filter(Boolean).map((line: string): Record<string, any> => JSON.parse(line))
         assert.deepStrictEqual(lines.map((line: Record<string, any>): unknown[] => [line.level, line.code, line.msg]), [[60, 3, 'shutting down after a failure']])
-        const silent = Collector()
+        const silent = collector()
         const silentLogger: Logger = await new Container().set(Logger, {level: 'silent', destinations: [silent.stream]})
         silentLogger.fatal(new Error('lost'))
         silentLogger.flush()
         assert.strictEqual(silent.text(), '')
-        const pretty = Collector()
+        const pretty = collector()
         const prettyLogger: Logger = await new Container().set(Logger, {destinations: [pretty.stream]})
         prettyLogger.fatal(new Error('crash'))
         await new Promise((resolve: (value: unknown) => void): unknown => process.nextTick(resolve))
@@ -142,7 +142,7 @@ process.exit(0)`)
         response.setHeader('Set-Cookie', 'session=secret')
         response.setHeader('Content-Type', 'text/plain')
         const logged = async (options: Record<string, unknown>): Promise<Record<string, any>[]> => {
-            const json = Collector()
+            const json = collector()
             const logger: Logger = await new Container().set(Logger, {pretty: false, destinations: [json.stream], ...options})
             logger.info(request, 'request')
             logger.info(response, 'response')

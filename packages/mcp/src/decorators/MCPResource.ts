@@ -3,7 +3,7 @@ import type {Controller} from '@lakutata/entrypoint'
 import type {ActionOptions} from '@lakutata/entrypoint/channel'
 import type {MCPContext} from '../context/MCPContext.js'
 import type {MCPMetadata} from '../lib/Metadata.js'
-import {RegisterMCPAction} from '../lib/RegisterMCPAction.js'
+import {registerMCPAction} from '../lib/RegisterMCPAction.js'
 
 /**
  * The options of {@link MCPResource}: the options of a controller action (`name`, `description`, `acl`, `rule`,
@@ -139,7 +139,7 @@ export function MCPResource<ClassPrototype extends Controller, Method>(uri: stri
 export function MCPResource<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(uri: string, dtoConstructor: DTOConstructor, options: MCPResourceOptions): MethodDecorator<ClassPrototype, Method, any>
 export function MCPResource<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(uri: string, dtoConstructorOrOptions?: DTOConstructor | MCPResourceOptions, options?: MCPResourceOptions): MethodDecorator<ClassPrototype, Method, any> {
     return (target: ClassPrototype, propertyKey: any, descriptor: TypedPropertyDescriptor<Method>): TypedPropertyDescriptor<Method> => {
-        RegisterMCPAction('resource', uri, target, propertyKey, dtoConstructorOrOptions, options, SplitOptions)
+        registerMCPAction('resource', uri, target, propertyKey, dtoConstructorOrOptions, options, SplitOptions)
         return descriptor
     }
 }

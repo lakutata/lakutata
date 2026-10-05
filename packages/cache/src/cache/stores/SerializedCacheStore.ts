@@ -1,5 +1,5 @@
-import {CacheStore, CacheStoreSetEntry, ExpiresOf, IsExpired} from './CacheStore.js'
-import {CacheEntry, Deserialize, Serialize} from '../lib/Serializer.js'
+import {CacheStore, CacheStoreSetEntry, expiresOf, isExpired} from './CacheStore.js'
+import {CacheEntry, deserialize, serialize} from '../lib/Serializer.js'
 
 export type SerializedEntry = {
     key: string
@@ -49,9 +49,9 @@ export abstract class SerializedCacheStore extends CacheStore {
      */
     protected parse(storeKey: string, data: string | undefined): CacheEntry | undefined {
         if (data === undefined) return undefined
-        const entry: CacheEntry | null = Deserialize<CacheEntry | null>(data)
+        const entry: CacheEntry | null = deserialize<CacheEntry | null>(data)
         if (entry === null || typeof entry !== 'object') return undefined
-        if (IsExpired(entry)) {
+        if (isExpired(entry)) {
             this.remove(storeKey).catch((): void => undefined)
             return undefined
         }
@@ -67,8 +67,8 @@ export abstract class SerializedCacheStore extends CacheStore {
      */
     protected serialize(key: string, value: unknown, ttl?: number): SerializedEntry {
         ttl = ttl || undefined
-        const expires: number | undefined = ExpiresOf(ttl)
-        return {key: this.storeKey(key), data: Serialize({value: value, expires: expires}), ttl: ttl, expires: expires}
+        const expires: number | undefined = expiresOf(ttl)
+        return {key: this.storeKey(key), data: serialize({value: value, expires: expires}), ttl: ttl, expires: expires}
     }
 
     public async get(key: string): Promise<CacheEntry | undefined> {

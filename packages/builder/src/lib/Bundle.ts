@@ -1,8 +1,8 @@
 import {existsSync, readdirSync, statSync} from 'node:fs'
 import {chmod, cp, mkdir, readFile, rm, stat, writeFile} from 'node:fs/promises'
 import path from 'node:path'
-import {HashNativeTree, NativeCollector, type NativeFile, type NativeTree, WriteNativeTree} from './Native.js'
-import {EMBEDDED_RESOURCES, NativeBanner, PackagedBanner} from './NativeRuntime.js'
+import {hashNativeTree, NativeCollector, type NativeFile, type NativeTree, writeNativeTree} from './Native.js'
+import {EMBEDDED_RESOURCES, nativeBanner, packagedBanner} from './NativeRuntime.js'
 
 /**
  * The application bundled into one file
@@ -80,7 +80,7 @@ export type BundleResult = {
  * The name of the program of a package: its first bin, or the name of the package without its scope
  * @param manifest
  */
-export function ProgramName(manifest: Record<string, any>): string {
+export function programName(manifest: Record<string, any>): string {
     if (manifest.bin && typeof manifest.bin === 'object') {
         const [name] = Object.keys(manifest.bin)
         if (name) return name
@@ -106,7 +106,7 @@ const BUN_PRELUDE: string = 'var __filename=process.execPath,__dirname=process.g
  * @param project
  * @param manifest
  */
-export function ResourceFiles(project: string, manifest: Record<string, any>): { declared: string[], files: NativeFile[] } {
+export function resourceFiles(project: string, manifest: Record<string, any>): { declared: string[], files: NativeFile[] } {
     const declarations: unknown = manifest.lakutata?.resources
     if (declarations === undefined) return {declared: [], files: []}
     const valid = (declaration: any): declaration is ResourceDeclaration => typeof declaration?.from === 'string' && typeof declaration?.to === 'string' &&
@@ -132,7 +132,7 @@ export function ResourceFiles(project: string, manifest: Record<string, any>): {
  * @param code
  * @param first
  */
-function Prepend(code: string, first: string): string {
+function prepend(code: string, first: string): string {
     const hashbang: RegExpExecArray | null = /^#![^\n]*\n/.exec(code)
     return hashbang ? `${hashbang[0]}${first}${code.slice(hashbang[0].length)}` : `${first}${code}`
 }
@@ -144,12 +144,12 @@ function Prepend(code: string, first: string): string {
  * require of the bundle loads them from
  * @param options
  */
-export async function BundleProject(options: BundleOptions): Promise<BundleResult> {
+export async function bundleProject(options: BundleOptions): Promise<BundleResult> {
     const project: string = path.resolve(options.project)
     const manifestFile: string = path.join(project, 'package.json')
     if (!existsSync(manifestFile)) throw new Error(`${project} has no package.json`)
     const manifest: Record<string, any> = JSON.parse(await readFile(manifestFile, 'utf8'))
-    const name: string = ProgramName(manifest)
+    const name: string = programName(manifest)
     const entry: string = path.resolve(project, options.entry ?? manifest.main ?? 'build/App.js')
     if (!existsSync(entry)) throw new Error(`The entry ${path.relative(process.cwd(), entry) || entry} does not exist: build the project first`)
     const outfile: string = path.resolve(project, options.outfile ?? path.join('dist', `${name}.cjs`))
@@ -187,7 +187,7 @@ export async function BundleProject(options: BundleOptions): Promise<BundleResul
     let code: string = result.outputFiles[0].text
     const embedded: boolean = options.native === 'embedded'
     let native: NativeTree | undefined = await collector.collect()
-    const resources = ResourceFiles(project, manifest)
+    const resources = resourceFiles(project, manifest)
     const base: string = path.basename(outfile, path.extname(outfile))
     const nativeDirectory: string = path.resolve(path.dirname(outfile), options.directories?.native ?? `${base}.native`)
     const resourcesDirectory: string = path.resolve(path.dirname(outfile), options.directories?.resources ?? `${base}.resources`)
@@ -196,12 +196,12 @@ export async function BundleProject(options: BundleOptions): Promise<BundleResul
     //The resources of an executable are extracted with its native tree
     if (embedded && resources.files.length) {
         const files: NativeFile[] = [...native?.files ?? [], ...resources.files.map((file: NativeFile): NativeFile => ({...file, path: `${EMBEDDED_RESOURCES}/${file.path}`}))]
-        native = {modules: native?.modules ?? [], files: files, links: native?.links ?? [], hash: HashNativeTree(files, native?.links ?? [])}
+        native = {modules: native?.modules ?? [], files: files, links: native?.links ?? [], hash: hashNativeTree(files, native?.links ?? [])}
     }
     if (native) {
         //The require loading the native packages is the first code, after the hashbang
-        code = Prepend(code, NativeBanner({name: name, hash: native.hash, directory: path.basename(nativeDirectory), modules: native.modules, embedded: embedded}))
-        if (!embedded) await WriteNativeTree(native, nativeDirectory)
+        code = prepend(code, nativeBanner({name: name, hash: native.hash, directory: path.basename(nativeDirectory), modules: native.modules, embedded: embedded}))
+        if (!embedded) await writeNativeTree(native, nativeDirectory)
     }
     if (!embedded) {
         for (const file of resources.files) {
@@ -210,9 +210,9 @@ export async function BundleProject(options: BundleOptions): Promise<BundleResul
             await cp(file.source, target)
         }
     }
-    code = Prepend(code, PackagedBanner(path.basename(resourcesDirectory)))
+    code = prepend(code, packagedBanner(path.basename(resourcesDirectory)))
     //Before the require of the native tree, which loads the modules of node by it
-    if (options.runtime === 'bun') code = Prepend(code, BUN_PRELUDE)
+    if (options.runtime === 'bun') code = prepend(code, BUN_PRELUDE)
     await mkdir(path.dirname(outfile), {recursive: true})
     await writeFile(outfile, code)
     await chmod(outfile, 0o755)

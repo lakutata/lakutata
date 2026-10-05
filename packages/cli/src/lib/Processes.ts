@@ -11,7 +11,7 @@ export type PackageManager = 'npm' | 'pnpm' | 'yarn'
 /**
  * The package manager running the tool (npx, pnpm dlx, yarn dlx), npm by default
  */
-export function DetectPackageManager(): PackageManager {
+export function detectPackageManager(): PackageManager {
     const agent: string = process.env.npm_config_user_agent ?? ''
     if (agent.startsWith('pnpm')) return 'pnpm'
     if (agent.startsWith('yarn')) return 'yarn'
@@ -22,7 +22,7 @@ export function DetectPackageManager(): PackageManager {
  * An argument of a command run by cmd.exe (Windows): quoted as the programs read their arguments
  * @param arg
  */
-function Quoted(arg: string): string {
+function quoted(arg: string): string {
     if (/^[\w\-.:/\\=@,+]+$/.test(arg)) return arg
     return `"${arg.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, '$1$1')}"`
 }
@@ -35,8 +35,8 @@ function Quoted(arg: string): string {
  * @param args
  * @param options
  */
-export function SpawnCommand(command: string, args: string[], options: SpawnOptions): ChildProcess {
-    if (process.platform === 'win32' && !path.isAbsolute(command)) return spawn([command, ...args].map(Quoted).join(' '), {...options, shell: true})
+export function spawnCommand(command: string, args: string[], options: SpawnOptions): ChildProcess {
+    if (process.platform === 'win32' && !path.isAbsolute(command)) return spawn([command, ...args].map(quoted).join(' '), {...options, shell: true})
     return spawn(command, args, options)
 }
 
@@ -47,9 +47,9 @@ export function SpawnCommand(command: string, args: string[], options: SpawnOpti
  * @param cwd
  * @return the exit code and the output
  */
-export function Run(command: string, args: string[], cwd: string): Promise<ProcessResult> {
+export function runCommand(command: string, args: string[], cwd: string): Promise<ProcessResult> {
     return new Promise((resolve: (result: ProcessResult) => void, reject: (error: Error) => void): void => {
-        const child = SpawnCommand(command, args, {cwd: cwd, env: LaunchEnvironment})
+        const child = spawnCommand(command, args, {cwd: cwd, env: LaunchEnvironment})
         let output: string = ''
         //Piped (the default stdio)
         child.stdout!.on('data', (chunk: Buffer): unknown => output += chunk.toString())

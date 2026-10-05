@@ -49,7 +49,7 @@ function encode(input: any): string | null {
  * Parse a query string (the first value of a key is kept, the keys and values which cannot be decoded are left out)
  * @param query
  */
-export function ParseQuery(query: string): Record<string, string> {
+export function parseQuery(query: string): Record<string, string> {
     const parser: RegExp = /([^=?#&]+)=?([^&]*)/g
     const result: Record<string, string> = {}
     let part: RegExpExecArray | null
@@ -68,7 +68,7 @@ export function ParseQuery(query: string): Record<string, string> {
  * @param obj
  * @param prefix
  */
-export function StringifyQuery(obj: Record<string, any>, prefix?: string | boolean): string {
+export function stringifyQuery(obj: Record<string, any>, prefix?: string | boolean): string {
     prefix = prefix || ''
     if (typeof prefix !== 'string') prefix = '?'
     const pairs: string[] = []
@@ -93,7 +93,7 @@ export function StringifyQuery(obj: Record<string, any>, prefix?: string | boole
  * @param port
  * @param protocol
  */
-function Required(port: any, protocol: string): boolean {
+function required(port: any, protocol: string): boolean {
     protocol = protocol.split(':')[0]
     port = +port
     if (!port) return false
@@ -122,7 +122,7 @@ const RULES: Rule[] = [
     ['#', 'hash'],
     ['?', 'query'],
     //The address left sanitized
-    (address: string, url: UrlParse): string => IsSpecial(url.protocol) ? address.replace(/\\/g, '/') : address,
+    (address: string, url: UrlParse): string => isSpecial(url.protocol) ? address.replace(/\\/g, '/') : address,
     ['/', 'pathname'],
     //Extracted from the front
     ['@', 'auth', 1],
@@ -132,11 +132,11 @@ const RULES: Rule[] = [
     [NaN, 'hostname', undefined, 1, 1]
 ]
 
-function TrimLeft(str: any): string {
+function trimLeft(str: any): string {
     return (str ? str : '').toString().replace(CONTROL_OR_WHITESPACE, '')
 }
 
-function IsSpecial(scheme: string | undefined): boolean {
+function isSpecial(scheme: string | undefined): boolean {
     return scheme === 'file:' || scheme === 'ftp:' || scheme === 'http:' || scheme === 'https:' || scheme === 'ws:' || scheme === 'wss:'
 }
 
@@ -144,7 +144,7 @@ function IsSpecial(scheme: string | undefined): boolean {
  * The default location of the relative URLs: the location of the global object (none in Node.js)
  * @param loc
  */
-function Location(loc?: any): Record<string, any> {
+function defaultLocation(loc?: any): Record<string, any> {
     const location: any = (globalThis as any).location || {}
     loc = loc || location
     let destination: Record<string, any> = {}
@@ -169,8 +169,8 @@ function Location(loc?: any): Record<string, any> {
  * @param address
  * @param location
  */
-function ExtractProtocol(address: string, location?: Record<string, any>): { protocol: string, slashes: boolean, slashesCount: number, rest: string } {
-    address = TrimLeft(address).replace(CRHTLF, '')
+function extractProtocol(address: string, location?: Record<string, any>): { protocol: string, slashes: boolean, slashesCount: number, rest: string } {
+    address = trimLeft(address).replace(CRHTLF, '')
     location = location || {}
     const match: RegExpExecArray = PROTOCOL.exec(address)!
     const protocol: string = match[1] ? match[1].toLowerCase() : ''
@@ -194,14 +194,14 @@ function ExtractProtocol(address: string, location?: Record<string, any>): { pro
     }
     if (protocol === 'file:') {
         if (slashesCount >= 2) rest = rest.slice(2)
-    } else if (IsSpecial(protocol)) {
+    } else if (isSpecial(protocol)) {
         rest = match[4]
     } else if (protocol) {
         if (forwardSlashes) rest = rest.slice(2)
-    } else if (slashesCount >= 2 && IsSpecial(location.protocol)) {
+    } else if (slashesCount >= 2 && isSpecial(location.protocol)) {
         rest = match[4]
     }
-    return {protocol: protocol, slashes: forwardSlashes || IsSpecial(protocol), slashesCount: slashesCount, rest: rest}
+    return {protocol: protocol, slashes: forwardSlashes || isSpecial(protocol), slashesCount: slashesCount, rest: rest}
 }
 
 /**
@@ -209,7 +209,7 @@ function ExtractProtocol(address: string, location?: Record<string, any>): { pro
  * @param relative
  * @param base
  */
-function Resolve(relative: string, base: string): string {
+function resolve(relative: string, base: string): string {
     if (relative === '') return base
     const path: string[] = (base || '/').split('/').slice(0, -1).concat(relative.split('/'))
     let i: number = path.length
@@ -273,7 +273,7 @@ export class UrlParse {
      * @param parser the parser of the query, or true for the default one
      */
     constructor(address: any, location?: any, parser?: any) {
-        address = TrimLeft(address).replace(CRHTLF, '')
+        address = trimLeft(address).replace(CRHTLF, '')
         const instructions: Rule[] = RULES.slice()
         const type: string = typeof location
         const url: UrlParse = this
@@ -282,15 +282,15 @@ export class UrlParse {
             parser = location
             location = null
         }
-        if (parser && typeof parser !== 'function') parser = ParseQuery
-        location = Location(location)
-        const extracted: { protocol: string, slashes: boolean, slashesCount: number, rest: string } = ExtractProtocol(address || '', location)
+        if (parser && typeof parser !== 'function') parser = parseQuery
+        location = defaultLocation(location)
+        const extracted: { protocol: string, slashes: boolean, slashesCount: number, rest: string } = extractProtocol(address || '', location)
         const relative: boolean = !extracted.protocol && !extracted.slashes
         url.slashes = extracted.slashes || relative && location.slashes
         url.protocol = extracted.protocol || location.protocol || ''
         address = extracted.rest
         //Without authority, the URL starts with a path
-        if ((extracted.protocol === 'file:' && (extracted.slashesCount !== 2 || WINDOWS_DRIVE_LETTER.test(address))) || (!extracted.slashes && (extracted.protocol || extracted.slashesCount < 2 || !IsSpecial(url.protocol)))) {
+        if ((extracted.protocol === 'file:' && (extracted.slashesCount !== 2 || WINDOWS_DRIVE_LETTER.test(address))) || (!extracted.slashes && (extracted.protocol || extracted.slashesCount < 2 || !isSpecial(url.protocol)))) {
             instructions[3] = [/(.*)/, 'pathname']
         }
         for (const instruction of instructions) {
@@ -328,12 +328,12 @@ export class UrlParse {
         if (parser) url.query = parser(url.query)
         //A relative URL resolved against the base URL
         if (relative && location.slashes && url.pathname.charAt(0) !== '/' && (url.pathname !== '' || location.pathname !== '')) {
-            url.pathname = Resolve(url.pathname, location.pathname)
+            url.pathname = resolve(url.pathname, location.pathname)
         }
         //A pathname starting with a slash
-        if (url.pathname.charAt(0) !== '/' && IsSpecial(url.protocol)) url.pathname = '/' + url.pathname
+        if (url.pathname.charAt(0) !== '/' && isSpecial(url.protocol)) url.pathname = '/' + url.pathname
         //No default port: the host is the hostname
-        if (!Required(url.port, url.protocol)) {
+        if (!required(url.port, url.protocol)) {
             url.host = url.hostname
             url.port = ''
         }
@@ -348,7 +348,7 @@ export class UrlParse {
             }
             url.auth = url.password ? url.username + ':' + url.password : url.username
         }
-        url.origin = url.protocol !== 'file:' && IsSpecial(url.protocol) && url.host ? url.protocol + '//' + url.host : 'null'
+        url.origin = url.protocol !== 'file:' && isSpecial(url.protocol) && url.host ? url.protocol + '//' + url.host : 'null'
         url.href = url.toString()
     }
 
@@ -362,12 +362,12 @@ export class UrlParse {
         const url: UrlParse = this
         switch (part) {
             case 'query':
-                if (typeof value === 'string' && value.length) value = (fn || ParseQuery)(value)
+                if (typeof value === 'string' && value.length) value = (fn || parseQuery)(value)
                 url[part] = value
                 break
             case 'port':
                 url[part] = value
-                if (!Required(value, url.protocol)) {
+                if (!required(value, url.protocol)) {
                     url.host = url.hostname
                     url[part] = ''
                 } else if (value) {
@@ -419,7 +419,7 @@ export class UrlParse {
         }
         for (const rule of RULES) if (typeof rule !== 'function' && rule[4]) url[rule[1]] = url[rule[1]].toLowerCase()
         url.auth = url.password ? url.username + ':' + url.password : url.username
-        url.origin = url.protocol !== 'file:' && IsSpecial(url.protocol) && url.host ? url.protocol + '//' + url.host : 'null'
+        url.origin = url.protocol !== 'file:' && isSpecial(url.protocol) && url.host ? url.protocol + '//' + url.host : 'null'
         url.href = url.toString()
         return this
     }
@@ -429,12 +429,12 @@ export class UrlParse {
      * @param stringify the stringifier of the query
      */
     public toString(stringify?: QueryStringifier): string {
-        if (!stringify || typeof stringify !== 'function') stringify = StringifyQuery
+        if (!stringify || typeof stringify !== 'function') stringify = stringifyQuery
         const url: UrlParse = this
         let host: string = url.host
         let protocol: string = url.protocol
         if (protocol && protocol.charAt(protocol.length - 1) !== ':') protocol += ':'
-        let result: string = protocol + ((url.protocol && url.slashes) || IsSpecial(url.protocol) ? '//' : '')
+        let result: string = protocol + ((url.protocol && url.slashes) || isSpecial(url.protocol) ? '//' : '')
         if (url.username) {
             result += url.username
             if (url.password) result += ':' + url.password
@@ -442,7 +442,7 @@ export class UrlParse {
         } else if (url.password) {
             result += ':' + url.password
             result += '@'
-        } else if (url.protocol !== 'file:' && IsSpecial(url.protocol) && !host && url.pathname !== '/') {
+        } else if (url.protocol !== 'file:' && isSpecial(url.protocol) && !host && url.pathname !== '/') {
             //The empty userinfo, or an invalid URL would become a valid one with its pathname as host
             result += '@'
         }

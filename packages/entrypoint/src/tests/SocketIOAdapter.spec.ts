@@ -54,7 +54,7 @@ class EchoController extends Controller {
  * @param options
  * @param entrypointOptions
  */
-async function Start(options: SocketIOServiceEntrypointOptions = {}, entrypointOptions: Record<string, unknown> = {}): Promise<{ url: string, container: Container }> {
+async function start(options: SocketIOServiceEntrypointOptions = {}, entrypointOptions: Record<string, unknown> = {}): Promise<{ url: string, container: Container }> {
     let port: number = 0
     const container: Container = new Container()
     await container.set(Entrypoint, buildEntrypoints({
@@ -76,7 +76,7 @@ async function Start(options: SocketIOServiceEntrypointOptions = {}, entrypointO
  * A connected client
  * @param url
  */
-async function Client(url: string, options: Partial<ManagerOptions & SocketOptions> = {}): Promise<ClientSocket> {
+async function connectClient(url: string, options: Partial<ManagerOptions & SocketOptions> = {}): Promise<ClientSocket> {
     const client: ClientSocket = Connect(url, {transports: ['websocket'], reconnection: false, ...options})
     await new Promise<void>((resolve: () => void, reject: (error: Error) => void): void => {
         client.once('connect', resolve).once('connect_error', reject)
@@ -89,19 +89,19 @@ async function Client(url: string, options: Partial<ManagerOptions & SocketOptio
  * @param client
  * @param data
  */
-function Request(client: ClientSocket, data: unknown): Promise<any> {
+function request(client: ClientSocket, data: unknown): Promise<any> {
     return client.timeout(3000).emitWithAck('message', data)
 }
 
 describe('Socket.IO adapter', (): void => {
 
     it('pushes the events to the clients by their ids (given when they connect), to every client', async (): Promise<void> => {
-        const {url, container} = await Start()
+        const {url, container} = await start()
         const entrypoint: Entrypoint = await container.get(Entrypoint)
         //Its id given by its auth, by its header (Postman), its own one otherwise
-        const desk: ClientSocket = await Client(url, {auth: {id: 'desk'}})
-        const tool: ClientSocket = await Client(url, {extraHeaders: {id: 'postman'}})
-        const anonymous: ClientSocket = await Client(url)
+        const desk: ClientSocket = await connectClient(url, {auth: {id: 'desk'}})
+        const tool: ClientSocket = await connectClient(url, {extraHeaders: {id: 'postman'}})
+        const anonymous: ClientSocket = await connectClient(url)
         const whoami = (client: ClientSocket): Promise<any> => client.emitWithAck('message', {cmd: 'whoami'})
         assert.strictEqual((await whoami(desk)).payload, 'desk')
         assert.strictEqual((await whoami(tool)).payload, 'postman')
@@ -124,13 +124,13 @@ describe('Socket.IO adapter', (): void => {
     })
 
     it('answers the requests with the responses of the actions', async (): Promise<void> => {
-        const {url, container} = await Start()
-        const client: ClientSocket = await Client(url)
-        assert.deepStrictEqual(await Request(client, {cmd: 'echo', value: 7}), {success: true, error: null, payload: {value: 7, socket: client.id}})
-        const invalid = await Request(client, {cmd: 'echo', value: 'x'})
+        const {url, container} = await start()
+        const client: ClientSocket = await connectClient(url)
+        assert.deepStrictEqual(await request(client, {cmd: 'echo', value: 7}), {success: true, error: null, payload: {value: 7, socket: client.id}})
+        const invalid = await request(client, {cmd: 'echo', value: 'x'})
         assert.strictEqual(invalid.success, false)
         assert.strictEqual(invalid.error.errno, 'E_INVALID_VALUE')
-        const unknown = await Request(client, {cmd: 'nothing'})
+        const unknown = await request(client, {cmd: 'nothing'})
         assert.strictEqual(unknown.success, false)
         //A request without acknowledgement runs the action
         client.emit('message', {cmd: 'fire', value: 3})
@@ -147,9 +147,9 @@ describe('Socket.IO adapter', (): void => {
             signals.push(invocation.signal!)
             return next()
         }
-        const {url, container} = await Start({middlewares: [traced('adapter')]}, {middlewares: [traced('global')]})
-        const client: ClientSocket = await Client(url)
-        await Request(client, {cmd: 'echo', value: 1})
+        const {url, container} = await start({middlewares: [traced('adapter')]}, {middlewares: [traced('global')]})
+        const client: ClientSocket = await connectClient(url)
+        await request(client, {cmd: 'echo', value: 1})
         assert.deepStrictEqual(trace, ['global', 'adapter'])
         signals = []
         client.emit('message', {cmd: 'slow'}, (): void => undefined)
@@ -171,8 +171,8 @@ describe('Socket.IO adapter', (): void => {
             service: socketIOServiceEntrypoint({server: (): Server => server!})
         }))
         const url: string = `http://127.0.0.1:${(server!.address() as AddressInfo).port}`
-        const client: ClientSocket = await Client(url)
-        assert.strictEqual((await Request(client, {cmd: 'echo', value: 2})).payload.value, 2)
+        const client: ClientSocket = await connectClient(url)
+        assert.strictEqual((await request(client, {cmd: 'echo', value: 2})).payload.value, 2)
         assert.deepStrictEqual(await (await fetch(`${url}/health`)).json(), {status: 'ok'})
         client.disconnect()
         await container.destroy()
@@ -180,13 +180,13 @@ describe('Socket.IO adapter', (): void => {
     })
 
     it('stops gracefully', async (): Promise<void> => {
-        const {url, container} = await Start()
-        const client: ClientSocket = await Client(url)
-        const inProgress: Promise<any> = Request(client, {cmd: 'slow'})
+        const {url, container} = await start()
+        const client: ClientSocket = await connectClient(url)
+        const inProgress: Promise<any> = request(client, {cmd: 'slow'})
         await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 20))
         const destroyed: Promise<void> = container.destroy()
         //The new requests are refused while the requests in progress end
-        const refused = await Request(client, {cmd: 'echo', value: 1})
+        const refused = await request(client, {cmd: 'echo', value: 1})
         assert.strictEqual(refused.error.errno, 'E_ENTRYPOINT_STOPPED')
         assert.deepStrictEqual(await inProgress, {success: true, error: null, payload: 'slow'})
         await destroyed
@@ -200,9 +200,9 @@ describe('Socket.IO adapter', (): void => {
         const url: string = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
         const container: Container = new Container()
         await container.set(Entrypoint, buildEntrypoints({controllers: [EchoController], service: socketIOServiceEntrypoint({io: io})}))
-        const client: ClientSocket = await Client(url)
+        const client: ClientSocket = await connectClient(url)
         try {
-            assert.strictEqual((await Request(client, {cmd: 'echo', value: 1})).success, true)
+            assert.strictEqual((await request(client, {cmd: 'echo', value: 1})).success, true)
             await container.destroy()
             //Still connected to the io, the socket has no listener of the adapter
             const [socket] = await io.fetchSockets()

@@ -1,5 +1,5 @@
 import {type NoCaseOptions} from './NoCase.js'
-import {Split, ToLower, ToUpper} from './internal/CaseWords.js'
+import {split, toLower, toUpper} from './internal/CaseWords.js'
 
 /**
  * Convert a string of any case into camel case (`userId`). The words are found as {@link noCase} finds them: split at
@@ -21,9 +21,9 @@ import {Split, ToLower, ToUpper} from './internal/CaseWords.js'
  * ```
  */
 export function camelCase(input: string, options?: NoCaseOptions): string {
-    const lower = ToLower(options?.locale)
-    const upper = ToUpper(options?.locale)
-    return Split(input, options)
+    const lower = toLower(options?.locale)
+    const upper = toUpper(options?.locale)
+    return split(input, options)
         .map((word, index) => {
             if (index === 0) {
                 return lower(word)

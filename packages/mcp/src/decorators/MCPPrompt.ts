@@ -3,7 +3,7 @@ import type {Controller} from '@lakutata/entrypoint'
 import type {ActionOptions} from '@lakutata/entrypoint/channel'
 import type {MCPContext} from '../context/MCPContext.js'
 import type {MCPMetadata} from '../lib/Metadata.js'
-import {RegisterMCPAction} from '../lib/RegisterMCPAction.js'
+import {registerMCPAction} from '../lib/RegisterMCPAction.js'
 
 /**
  * The options of {@link MCPPrompt}: the options of a controller action (`name`, `description`, `acl`, `rule`,
@@ -102,7 +102,7 @@ export function MCPPrompt<ClassPrototype extends Controller, Method>(name: strin
 export function MCPPrompt<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(name: string, dtoConstructor: DTOConstructor, options: MCPPromptOptions): MethodDecorator<ClassPrototype, Method, any>
 export function MCPPrompt<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(name: string, dtoConstructorOrOptions?: DTOConstructor | MCPPromptOptions, options?: MCPPromptOptions): MethodDecorator<ClassPrototype, Method, any> {
     return (target: ClassPrototype, propertyKey: any, descriptor: TypedPropertyDescriptor<Method>): TypedPropertyDescriptor<Method> => {
-        RegisterMCPAction('prompt', name, target, propertyKey, dtoConstructorOrOptions, options, SplitOptions)
+        registerMCPAction('prompt', name, target, propertyKey, dtoConstructorOrOptions, options, SplitOptions)
         return descriptor
     }
 }

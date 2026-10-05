@@ -1,6 +1,6 @@
 import type {Controller} from '@lakutata/entrypoint'
 import {setPrefix} from '@lakutata/entrypoint/channel'
-import {type DBusPropertyDefinition, type DBusSignalDefinition, SetDBusInterfaceDeclaration} from '../lib/Declarations.js'
+import {type DBusPropertyDefinition, type DBusSignalDefinition, setDBusInterfaceDeclaration} from '../lib/Declarations.js'
 
 /**
  * The options of {@link DBusInterface}: where the interface is served, and its signals and properties.
@@ -76,7 +76,7 @@ export type DBusInterfaceOptions = {
  */
 export function DBusInterface<ClassConstructor extends typeof Controller>(name: string, options: DBusInterfaceOptions): (target: ClassConstructor) => void {
     return (target: ClassConstructor): void => {
-        SetDBusInterfaceDeclaration(target, {
+        setDBusInterfaceDeclaration(target, {
             interface: name,
             path: options.path,
             signals: options.signals ?? [],

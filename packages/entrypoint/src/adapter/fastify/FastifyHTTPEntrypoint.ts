@@ -128,7 +128,7 @@ const CONTENT_TYPES: Record<string, string> = {
  * The first segments of the routes
  * @param routes
  */
-function ActionPrefixes(routes: Iterable<string>): string[] {
+function actionPrefixesOf(routes: Iterable<string>): string[] {
     const prefixes: Set<string> = new Set()
     for (const route of routes) {
         const segment: string | undefined = route.split('/').find((part: string): boolean => !!part)
@@ -144,7 +144,7 @@ function ActionPrefixes(routes: Iterable<string>): string[] {
  * @param event
  * @param id
  */
-function EventFrame(data: unknown, event?: string, id?: string): string {
+function eventFrame(data: unknown, event?: string, id?: string): string {
     let frame: string = ''
     if (id !== undefined) frame += `id: ${id}\n`
     if (event !== undefined) frame += `event: ${event}\n`
@@ -157,7 +157,7 @@ function EventFrame(data: unknown, event?: string, id?: string): string {
  * Whether a value is a fastify instance
  * @param value
  */
-function IsFastifyInstance(value: unknown): value is FastifyInstance {
+function isFastifyInstance(value: unknown): value is FastifyInstance {
     return !!value && typeof (value as FastifyInstance).route === 'function' && typeof (value as FastifyInstance).listen === 'function'
 }
 
@@ -256,7 +256,7 @@ export function fastifyHTTPEntrypoint(options: FastifyHTTPEntrypointOptions = {}
         response.on('close', close)
         try {
             await result.producer((data: unknown, event?: string, id?: string): void => {
-                if (!abortController.signal.aborted) response.write(EventFrame(data, event, id))
+                if (!abortController.signal.aborted) response.write(eventFrame(data, event, id))
             }, abortController.signal)
         } catch {
             //The stream is already started, its error ends it
@@ -347,11 +347,11 @@ export function fastifyHTTPEntrypoint(options: FastifyHTTPEntrypointOptions = {}
         name: options.name,
         middlewares: options.middlewares,
         start: async (runtime: ChannelRuntime<HTTPContext>): Promise<void> => {
-            const fastify: FastifyInstance = IsFastifyInstance(options.fastify) ? options.fastify : Fastify(options.fastify as FastifyServerOptions ?? {})
+            const fastify: FastifyInstance = isFastifyInstance(options.fastify) ? options.fastify : Fastify(options.fastify as FastifyServerOptions ?? {})
             app = fastify
             const routes: Map<string, Set<string>> = new Map()
             for (const action of runtime.actions) routes.set(action.address.route, (routes.get(action.address.route) ?? new Set()).add(String(action.address.method).toUpperCase()))
-            const actionPrefixes: string[] = ActionPrefixes(routes.keys())
+            const actionPrefixes: string[] = actionPrefixesOf(routes.keys())
             const isActionPath = (requestPath: string): boolean => actionPrefixes.some((prefix: string): boolean => requestPath === prefix || requestPath.startsWith(`${prefix}/`))
             await options.before?.(fastify, {module: runtime.module, server: fastify.server, routes: routes, actionPrefixes: actionPrefixes, isActionPath: isActionPath})
             for (const action of runtime.actions) {

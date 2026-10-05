@@ -3,7 +3,7 @@ import {Component} from '../lib/core/Component.js'
 import {Singleton} from '../decorators/di/Lifetime.js'
 import {Configurable} from '../decorators/di/Configurable.js'
 import {DTO} from '../lib/dto/DTO.js'
-import {GetAppName} from '../lib/foundation/BasicInfo.js'
+import {getAppName} from '../lib/foundation/BasicInfo.js'
 import {ILogger} from '../interfaces/ILogger.js'
 
 const LEVELS: Record<string, number> = {trace: 10, debug: 20, info: 30, warn: 40, error: 50, silent: Infinity}
@@ -50,7 +50,7 @@ export class ConsoleLogger extends Component implements ILogger {
         const [first, ...rest] = args
         //An object comes before its message, as in the structured loggers
         const parts: unknown[] = typeof first === 'object' && first !== null && typeof rest[0] === 'string' ? [...rest, first] : args
-        const line: string = `[${new Date().toISOString()}] ${level.toUpperCase()} (${GetAppName()}): ${formatWithOptions({colors: false}, ...parts)}\n`
+        const line: string = `[${new Date().toISOString()}] ${level.toUpperCase()} (${getAppName()}): ${formatWithOptions({colors: false}, ...parts)}\n`
         LEVELS[level] >= LEVELS.warn ? process.stderr.write(line) : process.stdout.write(line)
     }
 

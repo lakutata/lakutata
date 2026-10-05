@@ -33,9 +33,9 @@ await check('@lakutata/orm loads typeorm under ESM', () => {
 })
 
 // Cacher store drivers (optional CJS peers) — loaded by the Cacher driver loader
-const {LoadDriver} = await import('../packages/cache/dist/esm/cache/lib/LoadDriver.js')
+const {loadDriver} = await import('../packages/cache/dist/esm/cache/lib/loadDriver.js')
 for (const [member, packages] of [['createClient', ['redis', '@redis/client']], ['Client', ['memjs']], ['MongoClient', ['mongodb']], ['createPool', ['mysql2']], ['Pool', ['pg']], ['Database', ['sqlite3']]]) {
-    await check(`${packages[0]} driver loads`, async () => { if (typeof (await LoadDriver(member, ...packages))[member] !== 'function') throw new Error(`${member} not callable`) })
+    await check(`${packages[0]} driver loads`, async () => { if (typeof (await loadDriver(member, ...packages))[member] !== 'function') throw new Error(`${member} not callable`) })
 }
 
 // nats (the NATS component of @lakutata/nats) — named imports of the CJS nats client
@@ -107,11 +107,11 @@ await check('CJS @lakutata/i18n parses and formats', () => {
 
 // The SDKs bundled with lakutata 2.x require the framework through the interop of Rollup: the default of a module marked
 // __esModule (the CJS entries of 3.0) is the entry itself (scripts/package-build/cjs-package.mjs)
-const InteropDefault = (e) => e && e.__esModule ? e : {default: e}
+const interopDefault = (e) => e && e.__esModule ? e : {default: e}
 for (const [name, entry, member] of [['lakutata', 'lakutata/dist/cjs/exports/Lakutata.js', 'DTO'], ['lakutata/decorator/dto', 'lakutata/dist/cjs/exports/DTODecorators.js', 'Expect'], ['@lakutata/nats', 'nats/dist/cjs/exports/Nats.js', 'NATS'], ['@lakutata/utils/helper/*', 'utils/dist/cjs/lib/helpers/UniqueArray.js', 'uniqueArray']]) {
     await check(`CJS ${name} through the interop of the 2.x bundles`, () => {
         const required = requireCJS(`../packages/${entry}`)
-        if (InteropDefault(required).default !== required || typeof required.default[member] !== 'function') throw new Error(`${member} missing from the default`)
+        if (interopDefault(required).default !== required || typeof required.default[member] !== 'function') throw new Error(`${member} missing from the default`)
         if (Object.keys(required).includes('default')) throw new Error('the default is enumerated')
     })
 }

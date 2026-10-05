@@ -1,11 +1,11 @@
 import {copyFileSync, lstatSync, mkdirSync, readdirSync, readlinkSync} from 'node:fs'
 import {stat, mkdir, writeFile, rm} from 'node:fs/promises'
 import path from 'node:path'
-import {ArchiveDirectory} from '../Archive.js'
-import {Run} from '../Processes.js'
-import {EnsureTool} from '../Tools.js'
+import {archiveDirectory} from '../Archive.js'
+import {runCommand} from '../Processes.js'
+import {ensureTool} from '../Tools.js'
 import type {InstallerPlan} from '../Installer.js'
-import {EmbeddedShell, INSTALLER_HOOKS, NATIVE_HOOKS, type InstallerHook, type NativeHook, type ScriptFile, type TargetScripts} from '../Scripts.js'
+import {embeddedShell, INSTALLER_HOOKS, NATIVE_HOOKS, type InstallerHook, type NativeHook, type ScriptFile, type TargetScripts} from '../Scripts.js'
 
 /**
  * The packages of Linux: the ones of nFPM, and the archive of the directory of the executable
@@ -29,7 +29,7 @@ const RUNTIME_DEPENDS: Record<Exclude<LinuxTarget, 'tar.gz'>, string[]> = {
 /**
  * The architecture of the packages (the one of Go, which nFPM translates for each package)
  */
-function Arch(): string {
+function packageArch(): string {
     return ({x64: 'amd64', arm64: 'arm64', ia32: '386', arm: 'arm7'} as Record<string, string>)[process.arch] ?? process.arch
 }
 
@@ -48,7 +48,7 @@ const GLOB_CHARACTERS: RegExp = /[*?[\]{}\\]/
  * @param prefix where it is installed
  * @param work where the copies are written
  */
-function Contents(directory: string, prefix: string, work: string): Record<string, unknown>[] {
+function packageContents(directory: string, prefix: string, work: string): Record<string, unknown>[] {
     const contents: Record<string, unknown>[] = []
     let copies: number = 0
     const source = (file: string): string => {
@@ -82,11 +82,11 @@ function Contents(directory: string, prefix: string, work: string): Record<strin
  * @param plan
  * @param target
  */
-function PackageFile(plan: InstallerPlan, target: Exclude<LinuxTarget, 'tar.gz'>): string {
+function packageFile(plan: InstallerPlan, target: Exclude<LinuxTarget, 'tar.gz'>): string {
     const arch: string = ({x64: 'x86_64', arm64: 'aarch64'} as Record<string, string>)[process.arch] ?? process.arch
     switch (target) {
         case 'deb':
-            return `${plan.name}_${plan.version}_${Arch()}.deb`
+            return `${plan.name}_${plan.version}_${packageArch()}.deb`
         case 'rpm':
             return `${plan.name}-${plan.version}-1.${arch}.rpm`
         case 'apk':
@@ -100,7 +100,7 @@ function PackageFile(plan: InstallerPlan, target: Exclude<LinuxTarget, 'tar.gz'>
  * A value in double quotes, as systemd and sh read them
  * @param value
  */
-function DoubleQuoted(value: string): string {
+function doubleQuoted(value: string): string {
     return `"${value.replace(/[\\"$`]/g, '\\$&')}"`
 }
 
@@ -108,7 +108,7 @@ function DoubleQuoted(value: string): string {
  * A value in single quotes, as sh reads them
  * @param value
  */
-function SingleQuoted(value: string): string {
+function singleQuoted(value: string): string {
     return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
@@ -116,8 +116,8 @@ function SingleQuoted(value: string): string {
  * The environment file of the service: its variables, which the administrators change (kept by the upgrades)
  * @param service
  */
-function EnvironmentFile(service: Service): string {
-    return `# The environment of the service ${service.name}, read when it starts (systemctl restart ${service.name})\n${Object.entries(service.env).map(([name, value]: [string, string]): string => `${name}=${DoubleQuoted(value)}`).join('\n')}\n`
+function environmentFile(service: Service): string {
+    return `# The environment of the service ${service.name}, read when it starts (systemctl restart ${service.name})\n${Object.entries(service.env).map(([name, value]: [string, string]): string => `${name}=${doubleQuoted(value)}`).join('\n')}\n`
 }
 
 /**
@@ -125,7 +125,7 @@ function EnvironmentFile(service: Service): string {
  * @param plan
  * @param service
  */
-function SystemdUnit(plan: InstallerPlan, service: Service): string {
+function systemdUnit(plan: InstallerPlan, service: Service): string {
     const root: boolean = service.user === 'root'
     return [
         '[Unit]',
@@ -135,7 +135,7 @@ function SystemdUnit(plan: InstallerPlan, service: Service): string {
         '',
         '[Service]',
         'Type=simple',
-        `ExecStart=${[`${plan.prefix}/${plan.program}`, ...service.args].map(DoubleQuoted).join(' ')}`,
+        `ExecStart=${[`${plan.prefix}/${plan.program}`, ...service.args].map(doubleQuoted).join(' ')}`,
         ...root ? [] : [`User=${service.user}`, `Group=${service.user}`],
         `EnvironmentFile=-/etc/${plan.name}/${plan.name}.env`,
         //Its data: /var/lib/<name>, owned by its user
@@ -158,14 +158,14 @@ function SystemdUnit(plan: InstallerPlan, service: Service): string {
  * @param plan
  * @param service
  */
-function OpenRCScript(plan: InstallerPlan, service: Service): string {
+function openRCScript(plan: InstallerPlan, service: Service): string {
     const root: boolean = service.user === 'root'
     const environment: string = `/etc/${plan.name}/${plan.name}.env`
     return [
         '#!/sbin/openrc-run',
-        `description=${DoubleQuoted(service.description)}`,
-        `command=${DoubleQuoted(`${plan.prefix}/${plan.program}`)}`,
-        `command_args=${DoubleQuoted(service.args.map(SingleQuoted).join(' '))}`,
+        `description=${doubleQuoted(service.description)}`,
+        `command=${doubleQuoted(`${plan.prefix}/${plan.program}`)}`,
+        `command_args=${doubleQuoted(service.args.map(singleQuoted).join(' '))}`,
         ...root ? [] : [`command_user="${service.user}:${service.user}"`],
         `directory="/var/lib/${plan.name}"`,
         ...service.restart === 'no' ? ['command_background="yes"', 'pidfile="/run/${RC_SVCNAME}.pid"'] : ['supervisor="supervise-daemon"', 'respawn_delay=5'],
@@ -192,7 +192,7 @@ function OpenRCScript(plan: InstallerPlan, service: Service): string {
  * @param plan
  * @param target
  */
-function ServiceScripts(plan: InstallerPlan, target: LinuxTarget): { before: Partial<Record<NativeHook, string[]>>, after: Partial<Record<NativeHook, string[]>> } {
+function serviceScripts(plan: InstallerPlan, target: LinuxTarget): { before: Partial<Record<NativeHook, string[]>>, after: Partial<Record<NativeHook, string[]>> } {
     const service: Service | undefined = plan.service
     const before: Partial<Record<NativeHook, string[]>> = {}
     const after: Partial<Record<NativeHook, string[]>> = {}
@@ -252,7 +252,7 @@ function ServiceScripts(plan: InstallerPlan, target: LinuxTarget): { before: Par
  * @param target
  * @param hook
  */
-export function Action(target: Exclude<LinuxTarget, 'tar.gz'>, hook: NativeHook): string {
+export function scriptAction(target: Exclude<LinuxTarget, 'tar.gz'>, hook: NativeHook): string {
     switch (target) {
         case 'deb':
             return {
@@ -276,8 +276,8 @@ export function Action(target: Exclude<LinuxTarget, 'tar.gz'>, hook: NativeHook)
  * @param plan
  * @param target
  */
-function Scripts(plan: InstallerPlan, target: Exclude<LinuxTarget, 'tar.gz'>): Partial<Record<NativeHook, string>> {
-    const service = ServiceScripts(plan, target)
+function packageScripts(plan: InstallerPlan, target: Exclude<LinuxTarget, 'tar.gz'>): Partial<Record<NativeHook, string>> {
+    const service = serviceScripts(plan, target)
     const user: TargetScripts = plan.scripts[target] ?? {hooks: {}, native: {}}
     const hooks: readonly NativeHook[] = target === 'apk' || target === 'archlinux' ? NATIVE_HOOKS : INSTALLER_HOOKS
     const scripts: Partial<Record<NativeHook, string>> = {}
@@ -288,8 +288,8 @@ function Scripts(plan: InstallerPlan, target: Exclude<LinuxTarget, 'tar.gz'>): P
         const lines: string[] = [
             ...service.before[hook] ?? [],
             //Not indented: the lines of the script are the ones of its file
-            ...application ? [Action(target, hook), 'if [ -n "$lakutata_action" ]; then', ...EmbeddedShell(application, plan.prefix, '"$lakutata_action"'), 'fi'] : [],
-            ...native ? EmbeddedShell(native, plan.prefix, '"$@"') : [],
+            ...application ? [scriptAction(target, hook), 'if [ -n "$lakutata_action" ]; then', ...embeddedShell(application, plan.prefix, '"$lakutata_action"'), 'fi'] : [],
+            ...native ? embeddedShell(native, plan.prefix, '"$@"') : [],
             ...service.after[hook] ?? []
         ]
         if (lines.length) scripts[hook] = ['#!/bin/sh', 'set -e', ...lines, ''].join('\n')
@@ -305,31 +305,31 @@ function Scripts(plan: InstallerPlan, target: Exclude<LinuxTarget, 'tar.gz'>): P
  * @param work
  * @param outdir
  */
-export async function BuildLinuxPackages(plan: InstallerPlan, targets: LinuxTarget[], work: string, outdir: string): Promise<{ target: string, file: string, size: number }[]> {
+export async function buildLinuxPackages(plan: InstallerPlan, targets: LinuxTarget[], work: string, outdir: string): Promise<{ target: string, file: string, size: number }[]> {
     await mkdir(work, {recursive: true})
     const files: { target: string, file: string, size: number }[] = []
     const service: Service | undefined = plan.service
     for (const target of targets) {
         if (target === 'tar.gz') {
-            files.push(await ArchiveDirectory(plan, Arch(), work, outdir))
+            files.push(await archiveDirectory(plan, packageArch(), work, outdir))
             continue
         }
         const directory: string = path.join(work, target)
         await mkdir(directory, {recursive: true})
-        const contents: Record<string, unknown>[] = Contents(plan.directory, plan.prefix, directory)
+        const contents: Record<string, unknown>[] = packageContents(plan.directory, plan.prefix, directory)
         if (plan.addToPath) contents.push({src: `${plan.prefix}/${plan.program}`, dst: `/usr/bin/${plan.program}`, type: 'symlink'})
         if (service) {
-            await writeFile(path.join(directory, 'environment'), EnvironmentFile(service))
+            await writeFile(path.join(directory, 'environment'), environmentFile(service))
             contents.push({src: path.join(directory, 'environment'), dst: `/etc/${plan.name}/${plan.name}.env`, type: 'config|noreplace', file_info: {mode: 0o640}})
             if (target === 'apk') {
-                await writeFile(path.join(directory, 'openrc'), OpenRCScript(plan, service))
+                await writeFile(path.join(directory, 'openrc'), openRCScript(plan, service))
                 contents.push({src: path.join(directory, 'openrc'), dst: `/etc/init.d/${service.name}`, file_info: {mode: 0o755}})
             } else {
-                await writeFile(path.join(directory, 'unit'), SystemdUnit(plan, service))
+                await writeFile(path.join(directory, 'unit'), systemdUnit(plan, service))
                 contents.push({src: path.join(directory, 'unit'), dst: `/usr/lib/systemd/system/${service.name}.service`, file_info: {mode: 0o644}})
             }
         }
-        const scripts: Partial<Record<NativeHook, string>> = Scripts(plan, target)
+        const scripts: Partial<Record<NativeHook, string>> = packageScripts(plan, target)
         const common: Record<string, string> = {}
         const specific: Record<string, string> = {}
         for (const [name, content] of Object.entries(scripts) as [NativeHook, string][]) {
@@ -341,7 +341,7 @@ export async function BuildLinuxPackages(plan: InstallerPlan, targets: LinuxTarg
         }
         const config: Record<string, unknown> = {
             name: plan.name,
-            arch: Arch(),
+            arch: packageArch(),
             platform: 'linux',
             version: plan.version,
             maintainer: plan.maintainer,
@@ -359,10 +359,10 @@ export async function BuildLinuxPackages(plan: InstallerPlan, targets: LinuxTarg
         }
         //JSON is YAML
         await writeFile(path.join(directory, 'nfpm.yaml'), JSON.stringify(config, null, 2))
-        const nfpm: string = await EnsureTool('nfpm')
-        const file: string = path.join(outdir, PackageFile(plan, target))
+        const nfpm: string = await ensureTool('nfpm')
+        const file: string = path.join(outdir, packageFile(plan, target))
         await rm(file, {force: true})
-        const packaged = await Run(nfpm, ['package', '--config', path.join(directory, 'nfpm.yaml'), '--packager', target, '--target', file], directory)
+        const packaged = await runCommand(nfpm, ['package', '--config', path.join(directory, 'nfpm.yaml'), '--packager', target, '--target', file], directory)
         if (packaged.code !== 0) throw new Error(`The ${target} package cannot be made: ${packaged.output.trim()}`)
         files.push({target: target, file: file, size: (await stat(file)).size})
     }

@@ -25,7 +25,7 @@ let prompts: Promise<any> | undefined
 /**
  * Load the prompts
  */
-export function LoadPrompts(): Promise<any> {
+export function loadPrompts(): Promise<any> {
     prompts ??= import('@inquirer/prompts').catch((): undefined => undefined)
     return prompts
 }
@@ -34,7 +34,7 @@ export function LoadPrompts(): Promise<any> {
  * The type of a property, without null
  * @param schema
  */
-function TypeOf(schema: PropertySchema): string | undefined {
+function typeOf(schema: PropertySchema): string | undefined {
     const types: string[] = ([] as string[]).concat(schema.type ?? []).filter((type: string): boolean => type !== 'null')
     if (types.length) return types[0]
     if (schema.enum?.length) return typeof schema.enum[0]
@@ -46,7 +46,7 @@ function TypeOf(schema: PropertySchema): string | undefined {
  * @param dto
  * @param property
  */
-function Validator(dto: typeof DTO, property: string): (value: unknown) => Promise<true | string> {
+function validator(dto: typeof DTO, property: string): (value: unknown) => Promise<true | string> {
     let field: any
     try {
         field = (dto.Schema() as any).extract(property).label(property)
@@ -72,18 +72,18 @@ function Validator(dto: typeof DTO, property: string): (value: unknown) => Promi
  * @param describe the description of a property in the language of the user
  * @param say the text of the prompts in the language of the user
  */
-export async function Prompt(action: ChannelActionInfo, data: Record<string, unknown>, streams: PromptStreams, describe: (property: string) => string | undefined = (property: string): string | undefined => (action.jsonSchema as { properties?: Record<string, PropertySchema> }).properties?.[property]?.description, say: (key: string, text: string) => string = (key: string, text: string): string => text): Promise<void> {
+export async function prompt(action: ChannelActionInfo, data: Record<string, unknown>, streams: PromptStreams, describe: (property: string) => string | undefined = (property: string): string | undefined => (action.jsonSchema as { properties?: Record<string, PropertySchema> }).properties?.[property]?.description, say: (key: string, text: string) => string = (key: string, text: string): string => text): Promise<void> {
     const schema: { properties?: Record<string, PropertySchema>, required?: string[] } = action.jsonSchema as any
     const missing: string[] = (schema.required ?? []).filter((property: string): boolean => data[property] === undefined && schema.properties?.[property]?.default === undefined)
     if (!missing.length) return
-    const inquirer: any = await LoadPrompts()
+    const inquirer: any = await loadPrompts()
     if (!inquirer) return
     for (const property of missing) {
         //A prompt ends its output once answered, the output of the adapter is kept open
         const output: PassThrough = new PassThrough()
         output.pipe(streams.output, {end: false})
         try {
-            data[property] = await Ask(inquirer, action, property, schema.properties?.[property] ?? {}, {input: streams.input, output: output, signal: streams.signal}, describe(property), say)
+            data[property] = await ask(inquirer, action, property, schema.properties?.[property] ?? {}, {input: streams.input, output: output, signal: streams.signal}, describe(property), say)
         } finally {
             output.unpipe(streams.output)
         }
@@ -100,10 +100,10 @@ export async function Prompt(action: ChannelActionInfo, data: Record<string, unk
  * @param description the description of the property in the language of the user
  * @param say the text of the prompts in the language of the user
  */
-async function Ask(inquirer: any, action: ChannelActionInfo, property: string, propertySchema: PropertySchema, context: PromptStreams, description: string | undefined, say: (key: string, text: string) => string): Promise<unknown> {
+async function ask(inquirer: any, action: ChannelActionInfo, property: string, propertySchema: PropertySchema, context: PromptStreams, description: string | undefined, say: (key: string, text: string) => string): Promise<unknown> {
     const message: string = description ? `${description} (${property})` : property
-    const validate: (value: unknown) => Promise<true | string> = Validator(action.dto, property)
-    const type: string | undefined = TypeOf(propertySchema)
+    const validate: (value: unknown) => Promise<true | string> = validator(action.dto, property)
+    const type: string | undefined = typeOf(propertySchema)
     const choices = (values: unknown[]): { name: string, value: unknown }[] => values.map((value: unknown): { name: string, value: unknown } => ({name: String(value), value: value}))
     if (type === 'boolean') return await inquirer.confirm({message: message}, context)
     if (propertySchema.enum) return await inquirer.select({message: message, choices: choices(propertySchema.enum)}, context)

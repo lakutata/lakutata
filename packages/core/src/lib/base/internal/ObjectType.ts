@@ -31,7 +31,7 @@ let baseObjectConstructor: Function | undefined
  * @param constructor
  * @constructor
  */
-export function RegisterBaseObject(constructor: Function): void {
+export function registerBaseObject(constructor: Function): void {
     baseObjectConstructor = constructor
 }
 
@@ -41,7 +41,7 @@ export function RegisterBaseObject(constructor: Function): void {
  * @constructor
  */
 export function DefineObjectType<ClassConstructor extends IBaseObjectConstructor>(type: ObjectType): ClassDecorator<ClassConstructor> {
-    return (target: ClassConstructor) => SetObjectType(target, type)
+    return (target: ClassConstructor) => setObjectType(target, type)
 }
 
 /**
@@ -50,7 +50,7 @@ export function DefineObjectType<ClassConstructor extends IBaseObjectConstructor
  * @param type
  * @constructor
  */
-export function SetObjectType<ClassConstructor extends IBaseObjectConstructor>(target: ClassConstructor, type: ObjectType): ClassConstructor {
+export function setObjectType<ClassConstructor extends IBaseObjectConstructor>(target: ClassConstructor, type: ObjectType): ClassConstructor {
     //BaseObject itself is not its own subclass: it is not registered yet when it is decorated
     Reflect.defineMetadata(OBJECT_TYPE, baseObjectConstructor && isSubclassOf(target, baseObjectConstructor) ? type : ObjectType.Unknown, target)
     return target
@@ -61,7 +61,7 @@ export function SetObjectType<ClassConstructor extends IBaseObjectConstructor>(t
  * @param target
  * @constructor
  */
-export function GetObjectType<ClassConstructor extends IBaseObjectConstructor>(target: ClassConstructor): ObjectType {
+export function getObjectType<ClassConstructor extends IBaseObjectConstructor>(target: ClassConstructor): ObjectType {
     if (Reflect.hasOwnMetadata(OBJECT_TYPE, target)) return Reflect.getOwnMetadata(OBJECT_TYPE, target)
     let objectType: ObjectType = ObjectType.Unknown
     for (const parentConstructor of objectParentConstructors(target)) {
@@ -70,6 +70,6 @@ export function GetObjectType<ClassConstructor extends IBaseObjectConstructor>(t
             break
         }
     }
-    SetObjectType(target, objectType)
-    return GetObjectType(target)
+    setObjectType(target, objectType)
+    return getObjectType(target)
 }

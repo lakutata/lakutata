@@ -2,7 +2,7 @@ import type {Module} from '@lakutata/core'
 import type {CLIText, CLITranslate} from '@lakutata/entrypoint/adapter/commander'
 import type {I18n} from '../I18n.js'
 import type {ITranslator} from '../interfaces/ITranslator.js'
-import {ProcessLocales} from '../lib/Locale.js'
+import {processLocales} from '../lib/Locale.js'
 
 /**
  * The options of {@link commanderTranslator}.
@@ -30,7 +30,7 @@ export type CommanderTranslatorOptions = {
  * The English text of a text, its arguments filled
  * @param text
  */
-function English(text: CLIText): string {
+function english(text: CLIText): string {
     return text.text.replace(/\{(\w+)\}/g, (all: string, name: string): string => text.params?.[name] ?? all)
 }
 
@@ -85,10 +85,10 @@ export function commanderTranslator(options: CommanderTranslatorOptions = {}): (
     const prefix: string = options.prefix ?? 'cli'
     return async (module: Module): Promise<CLITranslate> => {
         const i18n: I18n = await module.getObject<I18n>(options.component ?? 'i18n')
-        const translator: ITranslator = i18n.translator(i18n.negotiate(ProcessLocales(options.environment)))
+        const translator: ITranslator = i18n.translator(i18n.negotiate(processLocales(options.environment)))
         return (text: CLIText): string => {
             const key: string = prefix ? `${prefix}.${text.key}` : text.key
-            return translator.has(key) ? translator.t(key, text.params) : English(text)
+            return translator.has(key) ? translator.t(key, text.params) : english(text)
         }
     }
 }

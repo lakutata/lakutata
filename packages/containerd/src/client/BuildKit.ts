@@ -7,9 +7,9 @@ import {finished} from 'node:stream/promises'
 import {GRPCConnection, GRPCError, GRPCServer, GRPCServerCall, GRPCStatus, type BidiStream, type CallOptions, type Message} from '@lakutata/grpc'
 import * as B from './BuildKitMessages.js'
 import {DockerIgnore} from './DockerIgnore.js'
-import {FormatPlatform, NormalizePlatform, type Platform} from './Platforms.js'
-import {FetchRegistryToken, type RegistryCredentials} from './Registry.js'
-import {TimestampDate} from './ContainerdClient.js'
+import {formatPlatform, normalizePlatform, type Platform} from './Platforms.js'
+import {fetchRegistryToken, type RegistryCredentials} from './Registry.js'
+import {timestampDate} from './ContainerdClient.js'
 
 /**
  * The service of BuildKit
@@ -25,7 +25,7 @@ const CHUNK_SIZE: number = 32 * 1024
  * The mode of a file as Go writes it (os.FileMode), the one of the stats of fsutil
  * @param stats
  */
-export function GoFileMode(stats: BigIntStats): number {
+export function goFileMode(stats: BigIntStats): number {
     let mode: number = Number(stats.mode & 0o777n)
     if (stats.isDirectory()) mode |= 0x80000000
     else if (stats.isSymbolicLink()) mode |= 0x08000000
@@ -43,7 +43,7 @@ export function GoFileMode(stats: BigIntStats): number {
  * The expression of a pattern of the paths of fsutil (filepath.Match, ** for any directories)
  * @param pattern
  */
-export function PatternExpression(pattern: string): RegExp {
+export function patternExpression(pattern: string): RegExp {
     const normalized: string = path.posix.normalize(pattern.replace(/\\/g, '/')).replace(/^\/+/, '').replace(/\/+$/, '')
     let expression: string = ''
     for (let index = 0; index < normalized.length; index++) {
@@ -104,7 +104,7 @@ export type SyncFilter = {
  * @param root
  * @param filter
  */
-export async function WalkDirectory(root: string, filter: SyncFilter = {}): Promise<SyncEntry[]> {
+export async function walkDirectory(root: string, filter: SyncFilter = {}): Promise<SyncEntry[]> {
     const include: string[] = [...filter.include ?? []]
     //The targets of the symbolic links followed (the Dockerfile linked)
     for (const follow of filter.followPaths ?? []) {
@@ -119,7 +119,7 @@ export async function WalkDirectory(root: string, filter: SyncFilter = {}): Prom
             //Not there
         }
     }
-    const includes: RegExp[] = include.map(PatternExpression)
+    const includes: RegExp[] = include.map(patternExpression)
     const literals: string[] = include.map((pattern: string): string => path.posix.normalize(pattern).replace(/^\/+/, '').split(/[*?[]/)[0])
     const ignore: DockerIgnore = new DockerIgnore((filter.exclude ?? []).join('\n'))
     const included = (relative: string, directory: boolean): 'yes' | 'parent' | 'no' => {
@@ -148,7 +148,7 @@ export async function WalkDirectory(root: string, filter: SyncFilter = {}): Prom
             if (stats.isSocket()) continue
             const stat: Message = {
                 path: relative,
-                mode: GoFileMode(stats),
+                mode: goFileMode(stats),
                 uid: Number(stats.uid),
                 gid: Number(stats.gid),
                 modTime: stats.mtimeNs
@@ -178,8 +178,8 @@ export async function WalkDirectory(root: string, filter: SyncFilter = {}): Prom
  * @param call
  * @param root
  */
-export async function SendDirectory(call: GRPCServerCall, root: string): Promise<void> {
-    const entries: SyncEntry[] = await WalkDirectory(root, {
+export async function sendDirectory(call: GRPCServerCall, root: string): Promise<void> {
+    const entries: SyncEntry[] = await walkDirectory(root, {
         include: call.metadata('include-patterns'),
         exclude: call.metadata('exclude-patterns'),
         followPaths: call.metadata('followpaths')
@@ -274,7 +274,7 @@ export class BuildKitSession {
             const name: string = call.metadata('dir-name')[0] ?? ''
             const directory: string | undefined = this.options.directories[name]
             if (!directory) throw new GRPCError(GRPCStatus.NOT_FOUND, `The session has no directory ${name}`, call.path)
-            await SendDirectory(call, directory)
+            await sendDirectory(call, directory)
         })
         if (this.options.output) {
             this.#server.method('/moby.filesync.v1.FileSend/DiffCopy', async (call: GRPCServerCall): Promise<void> => {
@@ -299,7 +299,7 @@ export class BuildKitSession {
         })
         this.#server.method('/moby.filesync.v1.Auth/FetchToken', async (call: GRPCServerCall): Promise<void> => {
             const request: Message = await call.request(B.FetchTokenRequest)
-            const token = await FetchRegistryToken({realm: request.realm, service: request.service, scopes: request.scopes ?? []}, this.credentials(request.host ?? ''))
+            const token = await fetchRegistryToken({realm: request.realm, service: request.service, scopes: request.scopes ?? []}, this.credentials(request.host ?? ''))
             if (!token) throw new GRPCError(GRPCStatus.UNAUTHENTICATED, `The registry ${request.host} gives no token`, call.path)
             await call.send(B.FetchTokenResponse, {token: token.token, expiresIn: token.expiresIn ?? 0, issuedAt: token.issuedAt ?? 0})
         })
@@ -389,8 +389,8 @@ export class BuildKitProgress {
         const lines: string[] = []
         for (const vertex of status.vertexes ?? []) {
             const step = this.step(vertex.digest)
-            const started: Date | undefined = TimestampDate(vertex.started)
-            const completed: Date | undefined = TimestampDate(vertex.completed)
+            const started: Date | undefined = timestampDate(vertex.started)
+            const completed: Date | undefined = timestampDate(vertex.completed)
             if (!step.started && (started || vertex.cached)) {
                 step.started = true
                 lines.push(`#${step.number} ${vertex.name}`)
@@ -472,7 +472,7 @@ export type BuildKitBuildOptions = {
  * @param connection
  * @param options
  */
-export async function BuildKitBuild(connection: GRPCConnection, options: BuildKitBuildOptions): Promise<Record<string, string>> {
+export async function buildKitBuild(connection: GRPCConnection, options: BuildKitBuildOptions): Promise<Record<string, string>> {
     const context: string = path.resolve(options.context)
     const dockerfile: string = path.resolve(context, options.dockerfile ?? 'Dockerfile')
     const session: BuildKitSession = new BuildKitSession({
@@ -497,7 +497,7 @@ export async function BuildKitBuild(connection: GRPCConnection, options: BuildKi
     if (options.target) frontendAttrs.target = options.target
     for (const [key, value] of Object.entries(options.buildArgs ?? {})) frontendAttrs[`build-arg:${key}`] = value
     for (const [key, value] of Object.entries(options.labels ?? {})) frontendAttrs[`label:${key}`] = value
-    if (options.platforms?.length) frontendAttrs.platform = options.platforms.map((platform: Platform): string => FormatPlatform(NormalizePlatform(platform))).join(',')
+    if (options.platforms?.length) frontendAttrs.platform = options.platforms.map((platform: Platform): string => formatPlatform(normalizePlatform(platform))).join(',')
     if (options.noCache) frontendAttrs['no-cache'] = ''
     if (options.pull) frontendAttrs['image-resolve-mode'] = 'pull'
     try {
@@ -521,7 +521,7 @@ export async function BuildKitBuild(connection: GRPCConnection, options: BuildKi
  * The version of BuildKit
  * @param connection
  */
-export async function BuildKitVersion(connection: GRPCConnection): Promise<{ package: string, version: string, revision: string }> {
+export async function buildKitVersion(connection: GRPCConnection): Promise<{ package: string, version: string, revision: string }> {
     const response: Message = await connection.unary(`${CONTROL}/Info`, {}, {}, B.InfoResponse)
     return {package: response.buildkitVersion?.package ?? '', version: response.buildkitVersion?.version ?? '', revision: response.buildkitVersion?.revision ?? ''}
 }
@@ -530,13 +530,13 @@ export async function BuildKitVersion(connection: GRPCConnection): Promise<{ pac
  * The platforms the workers of BuildKit build
  * @param connection
  */
-export async function BuildKitPlatforms(connection: GRPCConnection): Promise<Platform[]> {
+export async function buildKitPlatforms(connection: GRPCConnection): Promise<Platform[]> {
     const response: Message = await connection.unary(`${CONTROL}/ListWorkers`, B.ListWorkersRequest, {}, B.ListWorkersResponse)
     const platforms: Platform[] = []
     for (const record of response.record ?? []) {
         for (const platform of record.platforms ?? []) {
-            const normalized: Platform = NormalizePlatform({os: platform.os, architecture: platform.architecture, variant: platform.variant || undefined})
-            if (!platforms.some((known: Platform): boolean => FormatPlatform(known) === FormatPlatform(normalized))) platforms.push(normalized)
+            const normalized: Platform = normalizePlatform({os: platform.os, architecture: platform.architecture, variant: platform.variant || undefined})
+            if (!platforms.some((known: Platform): boolean => formatPlatform(known) === formatPlatform(normalized))) platforms.push(normalized)
         }
     }
     return platforms

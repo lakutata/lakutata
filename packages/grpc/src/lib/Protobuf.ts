@@ -71,7 +71,7 @@ const VARINTS: ReadonlySet<string> = new Set(['bool', 'int32', 'int64', 'uint32'
  * @param bytes
  * @param value
  */
-function WriteVarint(bytes: number[], value: number | bigint): void {
+function writeVarint(bytes: number[], value: number | bigint): void {
     if (typeof value === 'bigint' || value < 0) {
         //Two's complement on 64 bits
         let big: bigint = BigInt.asUintN(64, typeof value === 'bigint' ? value : BigInt(Math.trunc(value)))
@@ -95,8 +95,8 @@ function WriteVarint(bytes: number[], value: number | bigint): void {
  * @param buffer
  * @param position
  */
-function ReadVarint(buffer: Uint8Array, position: { offset: number }): number {
-    return Number(BigInt.asIntN(64, ReadVarintBits(buffer, position)))
+function readVarint(buffer: Uint8Array, position: { offset: number }): number {
+    return Number(BigInt.asIntN(64, readVarintBits(buffer, position)))
 }
 
 /**
@@ -104,7 +104,7 @@ function ReadVarint(buffer: Uint8Array, position: { offset: number }): number {
  * @param buffer
  * @param position
  */
-function ReadVarintBits(buffer: Uint8Array, position: { offset: number }): bigint {
+function readVarintBits(buffer: Uint8Array, position: { offset: number }): bigint {
     let result: bigint = 0n
     let shift: bigint = 0n
     for (; ;) {
@@ -122,7 +122,7 @@ function ReadVarintBits(buffer: Uint8Array, position: { offset: number }): bigin
  * A 64-bit integer: a number when it is a safe integer, a bigint beyond (its precision kept)
  * @param value
  */
-function Integer64(value: bigint): number | bigint {
+function integer64(value: bigint): number | bigint {
     return value >= BigInt(Number.MIN_SAFE_INTEGER) && value <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(value) : value
 }
 
@@ -132,9 +132,9 @@ function Integer64(value: bigint): number | bigint {
  * @param no
  * @param data
  */
-function WriteLength(bytes: number[], no: number, data: Uint8Array): void {
-    WriteVarint(bytes, no * 8 + WireType.LENGTH)
-    WriteVarint(bytes, data.length)
+function writeLength(bytes: number[], no: number, data: Uint8Array): void {
+    writeVarint(bytes, no * 8 + WireType.LENGTH)
+    writeVarint(bytes, data.length)
     for (const byte of data) bytes.push(byte)
 }
 
@@ -144,12 +144,12 @@ function WriteLength(bytes: number[], no: number, data: Uint8Array): void {
  * @param field
  * @param value
  */
-function WriteValue(bytes: number[], field: Field, value: unknown): void {
-    if (typeof field.type === 'object') return WriteLength(bytes, field.no, encode(field.type, value as Message))
-    if (field.type === 'string') return WriteLength(bytes, field.no, Buffer.from(String(value), 'utf8'))
-    if (field.type === 'bytes') return WriteLength(bytes, field.no, value instanceof Uint8Array ? value : Buffer.from(value as string))
-    WriteVarint(bytes, field.no * 8 + WireType.VARINT)
-    WriteVarint(bytes, field.type === 'bool' ? (value ? 1 : 0) : typeof value === 'bigint' ? value : Number(value))
+function writeValue(bytes: number[], field: Field, value: unknown): void {
+    if (typeof field.type === 'object') return writeLength(bytes, field.no, encode(field.type, value as Message))
+    if (field.type === 'string') return writeLength(bytes, field.no, Buffer.from(String(value), 'utf8'))
+    if (field.type === 'bytes') return writeLength(bytes, field.no, value instanceof Uint8Array ? value : Buffer.from(value as string))
+    writeVarint(bytes, field.no * 8 + WireType.VARINT)
+    writeVarint(bytes, field.type === 'bool' ? (value ? 1 : 0) : typeof value === 'bigint' ? value : Number(value))
 }
 
 /**
@@ -157,7 +157,7 @@ function WriteValue(bytes: number[], field: Field, value: unknown): void {
  * @param field
  * @param value
  */
-function IsDefault(field: Field, value: unknown): boolean {
+function isDefault(field: Field, value: unknown): boolean {
     if (value === undefined || value === null) return true
     if (typeof field.type === 'object') return false
     if (field.type === 'string') return value === ''
@@ -213,7 +213,7 @@ export function encode(schema: Schema, message: Message = {}): Uint8Array {
         if (field.map) {
             //The entries: a message of a key (1) and a value (2)
             const entry: Schema = {key: {no: 1, type: 'string'}, value: {no: 2, type: field.type}}
-            for (const [key, item] of Object.entries(value as Record<string, unknown>)) WriteLength(bytes, field.no, encode(entry, {key: key, value: item}))
+            for (const [key, item] of Object.entries(value as Record<string, unknown>)) writeLength(bytes, field.no, encode(entry, {key: key, value: item}))
             continue
         }
         if (field.repeated) {
@@ -222,15 +222,15 @@ export function encode(schema: Schema, message: Message = {}): Uint8Array {
             if (typeof field.type === 'string' && VARINTS.has(field.type)) {
                 //Packed
                 const packed: number[] = []
-                for (const item of items) WriteVarint(packed, field.type === 'bool' ? (item ? 1 : 0) : typeof item === 'bigint' ? item : Number(item))
-                WriteLength(bytes, field.no, Uint8Array.from(packed))
+                for (const item of items) writeVarint(packed, field.type === 'bool' ? (item ? 1 : 0) : typeof item === 'bigint' ? item : Number(item))
+                writeLength(bytes, field.no, Uint8Array.from(packed))
             } else {
-                for (const item of items) WriteValue(bytes, field, item)
+                for (const item of items) writeValue(bytes, field, item)
             }
             continue
         }
-        if (IsDefault(field, value)) continue
-        WriteValue(bytes, field, value)
+        if (isDefault(field, value)) continue
+        writeValue(bytes, field, value)
     }
     return Uint8Array.from(bytes)
 }
@@ -242,13 +242,13 @@ export function encode(schema: Schema, message: Message = {}): Uint8Array {
  * @param buffer
  * @param position
  */
-function ReadValue(field: Field, wire: number, buffer: Uint8Array, position: { offset: number }): unknown {
+function readValue(field: Field, wire: number, buffer: Uint8Array, position: { offset: number }): unknown {
     if (wire === WireType.VARINT) {
-        const bits: bigint = ReadVarintBits(buffer, position)
+        const bits: bigint = readVarintBits(buffer, position)
         if (field.type === 'bool') return bits !== 0n
         //The 64-bit integers: signed or unsigned, numbers while they are safe integers, bigints beyond
-        if (field.type === 'uint64') return Integer64(bits)
-        if (field.type === 'int64') return Integer64(BigInt.asIntN(64, bits))
+        if (field.type === 'uint64') return integer64(bits)
+        if (field.type === 'int64') return integer64(BigInt.asIntN(64, bits))
         const value: number = Number(BigInt.asIntN(64, bits))
         if (field.type === 'uint32') return value >>> 0
         if (field.type === 'int32') return value | 0
@@ -257,7 +257,7 @@ function ReadValue(field: Field, wire: number, buffer: Uint8Array, position: { o
     if (wire === WireType.LENGTH) {
         //A varint field given as bytes (the packed repeated fields are read before)
         if (typeof field.type === 'string' && VARINTS.has(field.type)) throw new Error(`The protobuf field ${field.no} has the wire type ${wire}, which the schema does not expect`)
-        const length: number = ReadVarint(buffer, position)
+        const length: number = readVarint(buffer, position)
         const data: Uint8Array = buffer.subarray(position.offset, position.offset + length)
         if (data.length < length) throw new Error('The protobuf message is truncated')
         position.offset += length
@@ -274,13 +274,13 @@ function ReadValue(field: Field, wire: number, buffer: Uint8Array, position: { o
  * @param buffer
  * @param position
  */
-function Skip(wire: number, buffer: Uint8Array, position: { offset: number }): void {
-    if (wire === WireType.VARINT) ReadVarint(buffer, position)
+function skip(wire: number, buffer: Uint8Array, position: { offset: number }): void {
+    if (wire === WireType.VARINT) readVarint(buffer, position)
     else if (wire === WireType.FIXED64) position.offset += 8
     else if (wire === WireType.FIXED32) position.offset += 4
     else if (wire === WireType.LENGTH) {
         //The length read before the offset is taken (reading it moves the offset)
-        const length: number = ReadVarint(buffer, position)
+        const length: number = readVarint(buffer, position)
         position.offset += length
     }
     else throw new Error(`The protobuf message has the unknown wire type ${wire}`)
@@ -290,7 +290,7 @@ function Skip(wire: number, buffer: Uint8Array, position: { offset: number }): v
  * The default value of a field, not written when it has it
  * @param field
  */
-function DefaultValue(field: Field): unknown {
+function defaultValue(field: Field): unknown {
     if (typeof field.type === 'object') return {}
     if (field.type === 'string') return ''
     if (field.type === 'bool') return false
@@ -337,28 +337,28 @@ export function decode(schema: Schema, buffer: Uint8Array): Message {
     }
     const position: { offset: number } = {offset: 0}
     while (position.offset < buffer.length) {
-        const tag: number = ReadVarint(buffer, position)
+        const tag: number = readVarint(buffer, position)
         const no: number = Math.floor(tag / 8)
         const wire: number = tag % 8
         const known: [string, Field] | undefined = byNumber.get(no)
         if (!known) {
-            Skip(wire, buffer, position)
+            skip(wire, buffer, position)
             continue
         }
         const [name, field] = known
         if (field.map) {
-            const entry: Message = ReadValue({no: no, type: {key: {no: 1, type: 'string'}, value: {no: 2, type: field.type}}}, wire, buffer, position) as Message
+            const entry: Message = readValue({no: no, type: {key: {no: 1, type: 'string'}, value: {no: 2, type: field.type}}}, wire, buffer, position) as Message
             //A value equal to its default is not written: the default of its type
-            message[name][entry.key ?? ''] = entry.value ?? DefaultValue(field)
+            message[name][entry.key ?? ''] = entry.value ?? defaultValue(field)
         } else if (field.repeated && wire === WireType.LENGTH && typeof field.type === 'string' && VARINTS.has(field.type)) {
             //Packed
-            const length: number = ReadVarint(buffer, position)
+            const length: number = readVarint(buffer, position)
             const end: number = position.offset + length
-            while (position.offset < end) message[name].push(ReadValue(field, WireType.VARINT, buffer, position))
+            while (position.offset < end) message[name].push(readValue(field, WireType.VARINT, buffer, position))
         } else if (field.repeated) {
-            message[name].push(ReadValue(field, wire, buffer, position))
+            message[name].push(readValue(field, wire, buffer, position))
         } else {
-            message[name] = ReadValue(field, wire, buffer, position)
+            message[name] = readValue(field, wire, buffer, position)
         }
     }
     return message

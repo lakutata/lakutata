@@ -1,6 +1,6 @@
 import {readFile} from 'node:fs/promises'
 import path from 'node:path'
-import {ApplyEdits, IndentUnit, LineEnd, LineIndent, NativeSyntaxError, type TextEdit} from './TextEdits.js'
+import {applyEdits, indentUnit, lineEndOf, lineIndent, NativeSyntaxError, type TextEdit} from './TextEdits.js'
 
 /**
  * A value of a gyp file: the Python literals gyp evaluates (its dictionaries, lists, strings and numbers; gyp
@@ -239,7 +239,7 @@ export class GypDocument {
         const root: GypNode = new GypParser(file, text).parse()
         if (root.kind !== 'dict') throw new NativeSyntaxError(file, text, root.start, 'a gyp file is a dictionary')
         this.root = root
-        this.indent = IndentUnit(text)
+        this.indent = indentUnit(text)
         const strings: string[] = text.match(/(?<![\w\\])['"]/g) ?? []
         this.quote = strings.filter((quote: string): boolean => quote === '"').length > strings.filter((quote: string): boolean => quote === '\'').length ? '"' : '\''
     }
@@ -316,12 +316,12 @@ export class GypDocument {
                 return
             }
             //Before the closing bracket, on lines of their own, after the comments of the empty container
-            const indent: string = LineIndent(this.text, container.close) + this.indent
+            const indent: string = lineIndent(this.text, container.close) + this.indent
             const lineStart: number = this.text.lastIndexOf('\n', container.close - 1) + 1
             const lines: string = texts.map((text): string => `${indent}${text(indent)}`).join(',\n')
             this.edits.push(/^[ \t]*$/.test(this.text.slice(lineStart, container.close))
                 ? {offset: lineStart, remove: 0, insert: `${lines}\n`}
-                : {offset: container.close, remove: 0, insert: `\n${lines}\n${LineIndent(this.text, container.close)}`})
+                : {offset: container.close, remove: 0, insert: `\n${lines}\n${lineIndent(this.text, container.close)}`})
             return
         }
         //After the last item and its comma
@@ -332,10 +332,10 @@ export class GypDocument {
             this.edits.push({offset: after, remove: 0, insert: `${hasComma ? '' : ','} ${texts.map((text): string => text('')).join(', ')}${hasComma ? ',' : ''}`})
             return
         }
-        const indent: string = LineIndent(this.text, last.start)
+        const indent: string = lineIndent(this.text, last.start)
         const lines: string = texts.map((text): string => `${indent}${text(indent)}`).join(',\n')
         //After the line of the last item, its comment kept on it (its comma added after the item)
-        const lineEnd: number = LineEnd(this.text, after)
+        const lineEnd: number = lineEndOf(this.text, after)
         if (lineEnd < container.close && /^[ \t]*(#.*)?$/.test(this.text.slice(after, lineEnd))) {
             if (!hasComma) this.edits.push({offset: last.end, remove: 0, insert: ','})
             this.edits.push({offset: lineEnd, remove: 0, insert: `\n${lines}${hasComma ? ',' : ''}`})
@@ -348,7 +348,7 @@ export class GypDocument {
      * The document with its changes (parsed again)
      */
     public applied(): GypDocument {
-        return new GypDocument(this.file, ApplyEdits(this.text, this.edits))
+        return new GypDocument(this.file, applyEdits(this.text, this.edits))
     }
 
     /**
@@ -399,7 +399,7 @@ export class GypDocument {
  * The normalized text of a condition of gyp (OS=="mac" and OS == 'mac' are the same condition)
  * @param condition
  */
-export function NormalizeCondition(condition: string): string {
+export function normalizeCondition(condition: string): string {
     return condition.replace(/\s+/g, '').replace(/'/g, '"')
 }
 
@@ -409,7 +409,7 @@ export function NormalizeCondition(condition: string): string {
  * @param file
  * @param name the name of the target, the only one by default
  */
-export async function FindGypTarget(file: string, name?: string): Promise<{ document: GypDocument, target: GypDict }> {
+export async function findGypTarget(file: string, name?: string): Promise<{ document: GypDocument, target: GypDict }> {
     const found: { document: GypDocument, target: GypDict }[] = []
     const visited: Set<string> = new Set()
     const visit = async (current: string): Promise<void> => {

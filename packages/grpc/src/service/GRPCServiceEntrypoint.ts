@@ -4,7 +4,7 @@ import {EntrypointStoppedException, ServiceContext, type EntrypointAdapter, type
 import {ServiceChannel, ServiceResponseCodec, type ChannelRuntime, type ServiceResponse} from '@lakutata/entrypoint/channel'
 import {GRPCError, GRPCServer, GRPCStatus, type GRPCCompression, type GRPCServerCall, type GRPCServerTLSOptions} from '../lib/GRPC.js'
 import type {Message} from '../lib/Protobuf.js'
-import {EventsRequest, FromJSONBytes, InvokeRequest, InvokeResponse, JSONBytes, SERVICE_METHODS, ServiceEvent} from './ServiceProto.js'
+import {EventsRequest, fromJSONBytes, InvokeRequest, InvokeResponse, jsonBytes, SERVICE_METHODS, ServiceEvent} from './ServiceProto.js'
 
 /**
  * The options of {@link grpcServiceEntrypoint}: where its gRPC server listens, its TLS, its message size limit and
@@ -159,7 +159,7 @@ export function grpcServiceEntrypoint(options: GRPCServiceEntrypointOptions = {}
     const clients: Map<string, Set<GRPCServerCall>> = new Map()
 
     const send = (call: GRPCServerCall, event: string, args: unknown[]): void => {
-        call.send(ServiceEvent, {event: event, args: JSONBytes(args)}).catch((): undefined => undefined)
+        call.send(ServiceEvent, {event: event, args: jsonBytes(args)}).catch((): undefined => undefined)
     }
 
     /**
@@ -176,7 +176,7 @@ export function grpcServiceEntrypoint(options: GRPCServiceEntrypointOptions = {}
             try {
                 let data: unknown
                 try {
-                    data = FromJSONBytes(request.data) ?? {}
+                    data = fromJSONBytes(request.data) ?? {}
                 } catch {
                     throw new Error('The data of the request is not JSON')
                 }
@@ -189,7 +189,7 @@ export function grpcServiceEntrypoint(options: GRPCServiceEntrypointOptions = {}
         }
         //Its deadline exceeded meanwhile: already answered
         if (call.finished) return
-        await call.send(InvokeResponse, {success: response.success, payload: JSONBytes(response.payload ?? undefined), error: JSONBytes(response.error ?? undefined)})
+        await call.send(InvokeResponse, {success: response.success, payload: jsonBytes(response.payload ?? undefined), error: jsonBytes(response.error ?? undefined)})
     }
 
     /**

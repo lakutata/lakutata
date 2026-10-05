@@ -6,7 +6,7 @@ import {createRequire} from 'node:module'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {WriteElectronFixture, WriteServiceFixture} from './support/Fixture.js'
+import {writeElectronFixture, writeServiceFixture} from './support/Fixture.js'
 
 /**
  * The installers are made and installed in containers (Docker): the packages of the systems of the glibc on Debian,
@@ -33,7 +33,7 @@ const BUILDER: string = fileURLToPath(new URL('../../../', import.meta.url))
  * @param input
  * @param cwd
  */
-function Must(command: string, args: string[], input?: string, cwd?: string): string {
+function must(command: string, args: string[], input?: string, cwd?: string): string {
     const result = spawnSync(command, args, {input: input, cwd: cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024})
     if (result.status !== 0) throw new Error(`${command} ${args.join(' ')} failed (${result.status}):\n${result.stdout}${result.stderr}`)
     return result.stdout
@@ -44,8 +44,8 @@ function Must(command: string, args: string[], input?: string, cwd?: string): st
  * @param container
  * @param script
  */
-function Exec(container: string, script: string): string {
-    return Must('docker', ['exec', '-i', container, 'sh', '-s'], script)
+function exec(container: string, script: string): string {
+    return must('docker', ['exec', '-i', container, 'sh', '-s'], script)
 }
 
 /**
@@ -53,9 +53,9 @@ function Exec(container: string, script: string): string {
  * @param name
  * @param dockerfile
  */
-function Image(name: string, dockerfile: string): string {
+function systemImage(name: string, dockerfile: string): string {
     const tag: string = `lakutata-test-${name}${PLATFORM ? `-${PLATFORM.replace(/\//g, '-')}` : ''}`
-    Must('docker', ['build', ...PLATFORM_ARGS, '-q', '-t', tag, '-'], dockerfile)
+    must('docker', ['build', ...PLATFORM_ARGS, '-q', '-t', tag, '-'], dockerfile)
     return tag
 }
 
@@ -64,7 +64,7 @@ function Image(name: string, dockerfile: string): string {
  * @param container
  * @param script
  */
-async function Until(container: string, script: string): Promise<string> {
+async function until(container: string, script: string): Promise<string> {
     let last: string = ''
     //Longer on the platforms emulated (Rosetta)
     for (let attempt = 0; attempt < (PLATFORM ? 240 : 60); attempt++) {
@@ -85,8 +85,8 @@ async function Until(container: string, script: string): Promise<string> {
  * What the scripts of the application were run with (their log)
  * @param container
  */
-function Hooks(container: string): string[] {
-    return Exec(container, 'cat /tmp/hello-hooks.log 2>/dev/null || true').split('\n').filter(Boolean)
+function installerHooks(container: string): string[] {
+    return exec(container, 'cat /tmp/hello-hooks.log 2>/dev/null || true').split('\n').filter(Boolean)
 }
 
 /**
@@ -109,29 +109,29 @@ describe('The installers of Linux', {skip: !DOCKER && 'LAKUTATA_DOCKER=1 runs th
         const fixture: string = path.join(work, 'fixture')
         //The builder, installed from its package
         mkdirSync(fixture, {recursive: true})
-        Must('npm', ['pack', '--silent', '--pack-destination', fixture], undefined, BUILDER)
+        must('npm', ['pack', '--silent', '--pack-destination', fixture], undefined, BUILDER)
         const tarball: string = readdirSync(fixture).find((name: string): boolean => name.endsWith('.tgz'))!
-        WriteServiceFixture(fixture, {'@lakutata/builder': `file:./${tarball}`})
+        writeServiceFixture(fixture, {'@lakutata/builder': `file:./${tarball}`})
         //The packages of the two versions (the upgrades), made on the systems of the glibc and of musl
         const build: string = `set -e
 cp -R /fixture /w && cd /w
 npm install --no-audit --no-fund >/dev/null 2>&1
 for version in 1.0.0 1.0.1; do
     node -e "const p = require('/w/package.json'); p.version = process.argv[1]; require('fs').writeFileSync('/w/package.json', JSON.stringify(p))" $version
-    node -e "import('@lakutata/builder').then(b => b.BuildInstaller({project: '/w', targets: process.argv.slice(1), outdir: '/out/' + require('/w/package.json').version}))" "$@"
+    node -e "import('@lakutata/builder').then(b => b.buildInstaller({project: '/w', targets: process.argv.slice(1), outdir: '/out/' + require('/w/package.json').version}))" "$@"
 done
 `
-        Must('docker', ['run', ...PLATFORM_ARGS, '--rm', '-i', '-v', `${fixture}:/fixture:ro`, '-v', `${out}:/out`, 'node:24-bookworm', 'sh', '-s', '--', 'deb', 'rpm', 'archlinux', 'tar.gz'], build)
+        must('docker', ['run', ...PLATFORM_ARGS, '--rm', '-i', '-v', `${fixture}:/fixture:ro`, '-v', `${out}:/out`, 'node:24-bookworm', 'sh', '-s', '--', 'deb', 'rpm', 'archlinux', 'tar.gz'], build)
         //On Alpine (musl), the executables of Node.js do not load native addons: the ones of Bun do
         const alpine: string = build.replace('npm install', `node -e "const p = require('/w/package.json'); p.lakutata.installer.runtime = 'bun'; p.devDependencies = {bun: '1.4.2'}; require('fs').writeFileSync('/w/package.json', JSON.stringify(p))"
 npm install`)
-        Must('docker', ['run', ...PLATFORM_ARGS, '--rm', '-i', '-v', `${fixture}:/fixture:ro`, '-v', `${out}:/out`, 'node:24-alpine', 'sh', '-s', '--', 'apk'], `apk add --no-cache python3 make g++ >/dev/null\n${alpine}`)
+        must('docker', ['run', ...PLATFORM_ARGS, '--rm', '-i', '-v', `${fixture}:/fixture:ro`, '-v', `${out}:/out`, 'node:24-alpine', 'sh', '-s', '--', 'apk'], `apk add --no-cache python3 make g++ >/dev/null\n${alpine}`)
         //The packages of the Electron application (electron-builder), its packages of fpm made by the fpm of the system
         const desk: string = path.join(work, 'desk')
         const require = createRequire(import.meta.url)
-        WriteElectronFixture(desk, {electron: require('electron/package.json').version, builder: require('electron-builder/package.json').version}, {'@lakutata/builder': `file:./${tarball}`})
+        writeElectronFixture(desk, {electron: require('electron/package.json').version, builder: require('electron-builder/package.json').version}, {'@lakutata/builder': `file:./${tarball}`})
         cpSync(path.join(fixture, tarball), path.join(desk, tarball))
-        Must('docker', ['run', ...PLATFORM_ARGS, '--rm', '-i', '-v', `${desk}:/desk:ro`, '-v', `${out}:/out`, 'node:24-bookworm', 'sh', '-s'], `set -e
+        must('docker', ['run', ...PLATFORM_ARGS, '--rm', '-i', '-v', `${desk}:/desk:ro`, '-v', `${out}:/out`, 'node:24-bookworm', 'sh', '-s'], `set -e
 apt-get update -qq && apt-get install -y -qq --no-install-recommends ruby ruby-dev rpm build-essential >/dev/null 2>&1
 gem install fpm --no-document >/dev/null 2>&1
 export USE_SYSTEM_FPM=true
@@ -139,12 +139,12 @@ cp -R /desk /w && cd /w
 npm install --no-audit --no-fund >/dev/null 2>&1
 for version in 1.0.0 1.0.1; do
     node -e "const p = require('/w/package.json'); p.version = process.argv[1]; require('fs').writeFileSync('/w/package.json', JSON.stringify(p))" $version
-    node -e "import('@lakutata/builder').then(b => b.BuildInstaller({project: '/w', outdir: '/out/desk/' + require('/w/package.json').version}))" >/dev/null
+    node -e "import('@lakutata/builder').then(b => b.buildInstaller({project: '/w', outdir: '/out/desk/' + require('/w/package.json').version}))" >/dev/null
 done
 `)
-        refused = Must('docker', ['run', ...PLATFORM_ARGS, '--rm', '-i', '-v', `${fixture}:/fixture:ro`, 'node:24-alpine', 'sh', '-s'], `apk add --no-cache python3 make g++ >/dev/null
+        refused = must('docker', ['run', ...PLATFORM_ARGS, '--rm', '-i', '-v', `${fixture}:/fixture:ro`, 'node:24-alpine', 'sh', '-s'], `apk add --no-cache python3 make g++ >/dev/null
 cp -R /fixture /w && cd /w && npm install --no-audit --no-fund >/dev/null 2>&1
-node -e "import('@lakutata/builder').then(b => b.BuildInstaller({project: '/w', targets: ['apk']})).then(() => console.log('made'), error => console.log(error.message))"
+node -e "import('@lakutata/builder').then(b => b.buildInstaller({project: '/w', targets: ['apk']})).then(() => console.log('made'), error => console.log(error.message))"
 `)
     })
 
@@ -170,7 +170,7 @@ node -e "import('@lakutata/builder').then(b => b.BuildInstaller({project: '/w', 
             `hello-service_1.0.0_${arch}.deb`
         ].sort())
         //The archive is the directory of the executable
-        const listed: string = Must('tar', ['-tzf', path.join(out, '1.0.0', `hello-service-1.0.0-linux-${arch}.tar.gz`)])
+        const listed: string = must('tar', ['-tzf', path.join(out, '1.0.0', `hello-service-1.0.0-linux-${arch}.tar.gz`)])
         assert.match(listed, /hello-service-1\.0\.0-linux-\w+\/hello\n/)
         assert.match(listed, /\/resources\/texts\/hello\.txt/)
         assert.match(listed, /\/native\/.*addon\.node/)
@@ -180,46 +180,46 @@ node -e "import('@lakutata/builder').then(b => b.BuildInstaller({project: '/w', 
         //The systemd of Fedora does not run its services on the platforms emulated (Rosetta): its bus is not connected
         it(`installs on ${system} the program and its service (systemd), upgrades and removes them`, {skip: system === 'fedora' && PLATFORM === 'linux/amd64' && process.arch === 'arm64' && 'the systemd of Fedora does not run under Rosetta'}, async (): Promise<void> => {
             const image: string = system === 'debian'
-                ? Image('debian-systemd', 'FROM debian:12\nRUN apt-get update -qq && apt-get install -y -qq systemd systemd-sysv curl >/dev/null && rm -rf /var/lib/apt/lists/*\nCMD ["/sbin/init"]\n')
-                : Image('fedora-systemd', 'FROM fedora:41\nRUN dnf install -y -q systemd curl >/dev/null && dnf clean all\nCMD ["/usr/sbin/init"]\n')
+                ? systemImage('debian-systemd', 'FROM debian:12\nRUN apt-get update -qq && apt-get install -y -qq systemd systemd-sysv curl >/dev/null && rm -rf /var/lib/apt/lists/*\nCMD ["/sbin/init"]\n')
+                : systemImage('fedora-systemd', 'FROM fedora:41\nRUN dnf install -y -q systemd curl >/dev/null && dnf clean all\nCMD ["/usr/sbin/init"]\n')
             const container: string = `lakutata-installer-${system}`
             spawnSync('docker', ['rm', '-f', container])
-            Must('docker', ['run', ...PLATFORM_ARGS, '-d', '--name', container, '--privileged', '--cgroupns=host', '-v', '/sys/fs/cgroup:/sys/fs/cgroup:rw', '-v', `${out}:/out:ro`, image])
-            await Until(container, 'systemctl is-system-running --wait >/dev/null 2>&1 || systemctl is-system-running | grep -q degraded')
+            must('docker', ['run', ...PLATFORM_ARGS, '-d', '--name', container, '--privileged', '--cgroupns=host', '-v', '/sys/fs/cgroup:/sys/fs/cgroup:rw', '-v', `${out}:/out:ro`, image])
+            await until(container, 'systemctl is-system-running --wait >/dev/null 2>&1 || systemctl is-system-running | grep -q degraded')
             const install = (version: string): string => system === 'debian'
                 ? `apt-get install -y -qq /out/${version}/hello-service_${version}_*.deb >/dev/null`
                 : `dnf install -y -q /out/${version}/hello-service-${version}-1.*.rpm >/dev/null`
-            Exec(container, install('1.0.0'))
+            exec(container, install('1.0.0'))
             //The scripts of the application: the postinstall one of rpm replaces the one of Linux, the native one of deb is
             //given the arguments of dpkg
             const own = (lines: string[]): string[] => system === 'debian'
                 ? [...lines, ...lines.some((line: string): boolean => line.startsWith('postinstall')) ? ['native-postinstall configure'] : []]
                 : lines.map((line: string): string => line.replace(/^postinstall/, 'rpm-postinstall'))
-            assert.deepStrictEqual(Hooks(container), own(INSTALLED))
+            assert.deepStrictEqual(installerHooks(container), own(INSTALLED))
             //Started by the installation, as its user, in its directory, with its environment, its resources and its addon
-            const answer = JSON.parse(await Until(container, 'curl -sf http://127.0.0.1:18080/'))
+            const answer = JSON.parse(await until(container, 'curl -sf http://127.0.0.1:18080/'))
             assert.deepStrictEqual({...answer, arch: undefined}, {greeting: 'Hi', mode: 'production', user: 'hello-service', cwd: '/var/lib/hello-service', text: 'Hello', arch: undefined})
             assert.match(answer.arch, /^(arm64|x64)$/)
-            assert.strictEqual(Exec(container, 'systemctl is-enabled hello-service').trim(), 'enabled')
+            assert.strictEqual(exec(container, 'systemctl is-enabled hello-service').trim(), 'enabled')
             //Its resources named as the chunks of Turbopack
-            assert.strictEqual(Exec(container, "cat '/opt/hello-service/resources/texts/[root-of-the-server]__chunk.js'"), 'chunk')
+            assert.strictEqual(exec(container, "cat '/opt/hello-service/resources/texts/[root-of-the-server]__chunk.js'"), 'chunk')
             //The program in the PATH
-            assert.match(Exec(container, 'hello hello'), /^Hello (arm64|x64)\n$/)
+            assert.match(exec(container, 'hello hello'), /^Hello (arm64|x64)\n$/)
             //The administrators change its environment
-            Exec(container, `sed -i 's/^GREETING=.*/GREETING="Bonjour"/' /etc/hello-service/hello-service.env && systemctl restart hello-service`)
-            assert.strictEqual(JSON.parse(await Until(container, 'curl -sf http://127.0.0.1:18080/')).greeting, 'Bonjour')
+            exec(container, `sed -i 's/^GREETING=.*/GREETING="Bonjour"/' /etc/hello-service/hello-service.env && systemctl restart hello-service`)
+            assert.strictEqual(JSON.parse(await until(container, 'curl -sf http://127.0.0.1:18080/')).greeting, 'Bonjour')
             //Upgraded, it runs again, its environment kept
-            Exec(container, install('1.0.1'))
-            assert.strictEqual(Exec(container, 'systemctl is-active hello-service').trim(), 'active')
-            assert.strictEqual(JSON.parse(await Until(container, 'curl -sf http://127.0.0.1:18080/')).greeting, 'Bonjour')
-            assert.match(Exec(container, system === 'debian' ? "dpkg-query -W -f='${Version}' hello-service" : "rpm -q --qf '%{VERSION}' hello-service"), /^1\.0\.1/)
+            exec(container, install('1.0.1'))
+            assert.strictEqual(exec(container, 'systemctl is-active hello-service').trim(), 'active')
+            assert.strictEqual(JSON.parse(await until(container, 'curl -sf http://127.0.0.1:18080/')).greeting, 'Bonjour')
+            assert.match(exec(container, system === 'debian' ? "dpkg-query -W -f='${Version}' hello-service" : "rpm -q --qf '%{VERSION}' hello-service"), /^1\.0\.1/)
             //The removal of the version replaced runs no script of the application
-            assert.deepStrictEqual(Hooks(container), [...own(INSTALLED), ...own(UPGRADED)])
+            assert.deepStrictEqual(installerHooks(container), [...own(INSTALLED), ...own(UPGRADED)])
             //Removed, it is stopped, its files removed
-            Exec(container, system === 'debian' ? 'apt-get remove -y -qq hello-service >/dev/null' : 'dnf remove -y -q hello-service >/dev/null')
-            assert.deepStrictEqual(Hooks(container), [...own(INSTALLED), ...own(UPGRADED), ...REMOVED])
+            exec(container, system === 'debian' ? 'apt-get remove -y -qq hello-service >/dev/null' : 'dnf remove -y -q hello-service >/dev/null')
+            assert.deepStrictEqual(installerHooks(container), [...own(INSTALLED), ...own(UPGRADED), ...REMOVED])
             assert.notStrictEqual(spawnSync('docker', ['exec', container, 'systemctl', 'is-active', 'hello-service'], {encoding: 'utf8'}).stdout.trim(), 'active')
-            assert.strictEqual(Exec(container, 'ls /opt/hello-service /usr/bin/hello /usr/lib/systemd/system/hello-service.service 2>/dev/null | wc -l').trim(), '0')
+            assert.strictEqual(exec(container, 'ls /opt/hello-service /usr/bin/hello /usr/lib/systemd/system/hello-service.service 2>/dev/null | wc -l').trim(), '0')
             spawnSync('docker', ['rm', '-f', container])
         })
     }
@@ -228,26 +228,26 @@ node -e "import('@lakutata/builder').then(b => b.BuildInstaller({project: '/w', 
         it(`installs on ${system} the Electron application (electron-builder), upgrades and removes it, running its scripts`, (): void => {
             const container: string = `lakutata-installer-desk-${system}`
             spawnSync('docker', ['rm', '-f', container])
-            Must('docker', ['run', ...PLATFORM_ARGS, '-d', '--name', container, '-v', `${out}:/out:ro`, system === 'debian' ? 'debian:12' : 'fedora:41', 'sleep', 'infinity'])
-            const install = (version: string): string => Exec(container, system === 'debian'
+            must('docker', ['run', ...PLATFORM_ARGS, '-d', '--name', container, '-v', `${out}:/out:ro`, system === 'debian' ? 'debian:12' : 'fedora:41', 'sleep', 'infinity'])
+            const install = (version: string): string => exec(container, system === 'debian'
                 ? `apt-get update -qq >/dev/null && apt-get install -y -qq /out/desk/${version}/hello-desk_${version}_*.deb >/dev/null 2>&1`
                 : `dnf install -y -q /out/desk/${version}/hello-desk-${version}.*.rpm >/dev/null 2>&1`)
-            const hooks = (): string[] => Exec(container, 'cat /tmp/hello-desk-hooks.log 2>/dev/null || true').split('\n').filter(Boolean)
+            const hooks = (): string[] => exec(container, 'cat /tmp/hello-desk-hooks.log 2>/dev/null || true').split('\n').filter(Boolean)
             //Its ${...} are the ones of the script, not the ones of the templates of electron-builder
             const line = (hook: string, action: string, files: boolean): string => `${hook} ${action} ${files ? 'files' : 'nofiles'} /opt/Hello Desk kept`
             install('1.0.0')
             assert.deepStrictEqual(hooks(), [line('preinstall', 'install', false), line('postinstall', 'install', true)])
             //What the script of electron-builder does: the program in the PATH, the sandbox of Chromium
-            assert.match(Exec(container, 'readlink -f /usr/bin/hello-desk'), /^\/opt\/Hello Desk\/hello-desk\n$/)
-            assert.match(Exec(container, 'stat -c %a "/opt/Hello Desk/chrome-sandbox"'), /^(4755|755)\n$/)
+            assert.match(exec(container, 'readlink -f /usr/bin/hello-desk'), /^\/opt\/Hello Desk\/hello-desk\n$/)
+            assert.match(exec(container, 'stat -c %a "/opt/Hello Desk/chrome-sandbox"'), /^(4755|755)\n$/)
             //The icons of the application, in its sizes
-            assert.strictEqual(Exec(container, 'ls /usr/share/icons/hicolor/256x256/apps/hello-desk.png /usr/share/icons/hicolor/16x16/apps/hello-desk.png | wc -l').trim(), '2')
-            assert.strictEqual(Exec(container, 'cat "/opt/Hello Desk/resources/main.resources/texts/hello.txt"'), 'Hello')
+            assert.strictEqual(exec(container, 'ls /usr/share/icons/hicolor/256x256/apps/hello-desk.png /usr/share/icons/hicolor/16x16/apps/hello-desk.png | wc -l').trim(), '2')
+            assert.strictEqual(exec(container, 'cat "/opt/Hello Desk/resources/main.resources/texts/hello.txt"'), 'Hello')
             install('1.0.1')
             assert.deepStrictEqual(hooks(), [line('preinstall', 'install', false), line('postinstall', 'install', true), line('preinstall', 'upgrade', true), line('postinstall', 'upgrade', true)])
-            Exec(container, system === 'debian' ? 'apt-get remove -y -qq hello-desk >/dev/null 2>&1' : 'dnf remove -y -q hello-desk >/dev/null 2>&1')
+            exec(container, system === 'debian' ? 'apt-get remove -y -qq hello-desk >/dev/null 2>&1' : 'dnf remove -y -q hello-desk >/dev/null 2>&1')
             assert.deepStrictEqual(hooks(), [line('preinstall', 'install', false), line('postinstall', 'install', true), line('preinstall', 'upgrade', true), line('postinstall', 'upgrade', true), line('preremove', 'remove', true), line('postremove', 'remove', false)])
-            assert.strictEqual(Exec(container, 'ls /usr/bin/hello-desk 2>/dev/null | wc -l').trim(), '0')
+            assert.strictEqual(exec(container, 'ls /usr/bin/hello-desk 2>/dev/null | wc -l').trim(), '0')
             spawnSync('docker', ['rm', '-f', container])
         })
     }
@@ -257,43 +257,43 @@ node -e "import('@lakutata/builder').then(b => b.BuildInstaller({project: '/w', 
         const container: string = 'lakutata-installer-archlinux'
         spawnSync('docker', ['rm', '-f', container])
         //Its service is not run (no systemd): its scripts are, its user created
-        Must('docker', ['run', ...PLATFORM_ARGS, '-d', '--name', container, '-v', `${out}:/out:ro`, 'archlinux:latest', 'sleep', 'infinity'])
-        const install = (version: string): string => Exec(container, `pacman -U --noconfirm /out/${version}/hello-service-${version}-1-x86_64.pkg.tar.zst >/dev/null`)
+        must('docker', ['run', ...PLATFORM_ARGS, '-d', '--name', container, '-v', `${out}:/out:ro`, 'archlinux:latest', 'sleep', 'infinity'])
+        const install = (version: string): string => exec(container, `pacman -U --noconfirm /out/${version}/hello-service-${version}-1-x86_64.pkg.tar.zst >/dev/null`)
         install('1.0.0')
-        assert.deepStrictEqual(Hooks(container), INSTALLED)
-        assert.match(Exec(container, 'hello hello'), /^Hello x64\n$/)
-        assert.strictEqual(Exec(container, 'id -u hello-service >/dev/null && echo created').trim(), 'created')
+        assert.deepStrictEqual(installerHooks(container), INSTALLED)
+        assert.match(exec(container, 'hello hello'), /^Hello x64\n$/)
+        assert.strictEqual(exec(container, 'id -u hello-service >/dev/null && echo created').trim(), 'created')
         //The upgrades of pacman run their own scripts, which run the ones of the installation of the application
         install('1.0.1')
-        assert.deepStrictEqual(Hooks(container), [...INSTALLED, ...UPGRADED])
-        Exec(container, 'pacman -R --noconfirm hello-service >/dev/null')
-        assert.deepStrictEqual(Hooks(container), [...INSTALLED, ...UPGRADED, ...REMOVED])
-        assert.strictEqual(Exec(container, 'ls /opt/hello-service /usr/bin/hello 2>/dev/null | wc -l').trim(), '0')
+        assert.deepStrictEqual(installerHooks(container), [...INSTALLED, ...UPGRADED])
+        exec(container, 'pacman -R --noconfirm hello-service >/dev/null')
+        assert.deepStrictEqual(installerHooks(container), [...INSTALLED, ...UPGRADED, ...REMOVED])
+        assert.strictEqual(exec(container, 'ls /opt/hello-service /usr/bin/hello 2>/dev/null | wc -l').trim(), '0')
         spawnSync('docker', ['rm', '-f', container])
     })
 
     it('installs on Alpine the program and its service (OpenRC), upgrades and removes them', async (): Promise<void> => {
-        const image: string = Image('alpine-openrc', 'FROM alpine:3.20\nRUN apk add --no-cache openrc curl >/dev/null && mkdir -p /run/openrc && touch /run/openrc/softlevel\nCMD ["sleep", "infinity"]\n')
+        const image: string = systemImage('alpine-openrc', 'FROM alpine:3.20\nRUN apk add --no-cache openrc curl >/dev/null && mkdir -p /run/openrc && touch /run/openrc/softlevel\nCMD ["sleep", "infinity"]\n')
         const container: string = 'lakutata-installer-alpine'
         spawnSync('docker', ['rm', '-f', container])
         //An init reaping the processes (OpenRC waits for its supervisor to end), as on the systems
-        Must('docker', ['run', ...PLATFORM_ARGS, '-d', '--init', '--name', container, '-v', `${out}:/out:ro`, image])
-        Exec(container, 'openrc default >/dev/null 2>&1 || true')
-        Exec(container, 'apk add --allow-untrusted -q /out/1.0.0/hello-service-1.0.0-r0.*.apk')
-        assert.deepStrictEqual(Hooks(container), INSTALLED)
-        const answer = JSON.parse(await Until(container, 'curl -sf http://127.0.0.1:18080/'))
+        must('docker', ['run', ...PLATFORM_ARGS, '-d', '--init', '--name', container, '-v', `${out}:/out:ro`, image])
+        exec(container, 'openrc default >/dev/null 2>&1 || true')
+        exec(container, 'apk add --allow-untrusted -q /out/1.0.0/hello-service-1.0.0-r0.*.apk')
+        assert.deepStrictEqual(installerHooks(container), INSTALLED)
+        const answer = JSON.parse(await until(container, 'curl -sf http://127.0.0.1:18080/'))
         assert.deepStrictEqual({...answer, arch: undefined}, {greeting: 'Hi', mode: 'production', user: 'hello-service', cwd: '/var/lib/hello-service', text: 'Hello', arch: undefined})
-        assert.match(Exec(container, 'hello hello'), /^Hello (arm64|x64)\n$/)
-        assert.strictEqual(Exec(container, "cat '/opt/hello-service/resources/texts/[root-of-the-server]__chunk.js'"), 'chunk')
-        Exec(container, `sed -i 's/^GREETING=.*/GREETING="Bonjour"/' /etc/hello-service/hello-service.env && rc-service hello-service restart >/dev/null 2>&1`)
-        assert.strictEqual(JSON.parse(await Until(container, 'curl -sf http://127.0.0.1:18080/')).greeting, 'Bonjour')
-        Exec(container, 'apk add --allow-untrusted -q /out/1.0.1/hello-service-1.0.1-r0.*.apk')
-        assert.strictEqual(JSON.parse(await Until(container, 'curl -sf http://127.0.0.1:18080/')).greeting, 'Bonjour')
+        assert.match(exec(container, 'hello hello'), /^Hello (arm64|x64)\n$/)
+        assert.strictEqual(exec(container, "cat '/opt/hello-service/resources/texts/[root-of-the-server]__chunk.js'"), 'chunk')
+        exec(container, `sed -i 's/^GREETING=.*/GREETING="Bonjour"/' /etc/hello-service/hello-service.env && rc-service hello-service restart >/dev/null 2>&1`)
+        assert.strictEqual(JSON.parse(await until(container, 'curl -sf http://127.0.0.1:18080/')).greeting, 'Bonjour')
+        exec(container, 'apk add --allow-untrusted -q /out/1.0.1/hello-service-1.0.1-r0.*.apk')
+        assert.strictEqual(JSON.parse(await until(container, 'curl -sf http://127.0.0.1:18080/')).greeting, 'Bonjour')
         //The upgrades of apk run their own scripts, which run the ones of the installation of the application
-        assert.deepStrictEqual(Hooks(container), [...INSTALLED, ...UPGRADED])
-        Exec(container, 'apk del -q hello-service')
-        assert.deepStrictEqual(Hooks(container), [...INSTALLED, ...UPGRADED, ...REMOVED])
-        assert.strictEqual(Exec(container, 'ls /opt/hello-service /usr/bin/hello /etc/init.d/hello-service 2>/dev/null | wc -l').trim(), '0')
+        assert.deepStrictEqual(installerHooks(container), [...INSTALLED, ...UPGRADED])
+        exec(container, 'apk del -q hello-service')
+        assert.deepStrictEqual(installerHooks(container), [...INSTALLED, ...UPGRADED, ...REMOVED])
+        assert.strictEqual(exec(container, 'ls /opt/hello-service /usr/bin/hello /etc/init.d/hello-service 2>/dev/null | wc -l').trim(), '0')
         assert.notStrictEqual(spawnSync('docker', ['exec', container, 'curl', '-sf', 'http://127.0.0.1:18080/']).status, 0)
         spawnSync('docker', ['rm', '-f', container])
     })

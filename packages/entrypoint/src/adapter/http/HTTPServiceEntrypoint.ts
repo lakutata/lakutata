@@ -82,7 +82,7 @@ const CORS_HEADERS: OutgoingHttpHeaders = {
  * @param request
  * @param url
  */
-function ClientId(request: IncomingMessage, url: URL): string | undefined {
+function clientIdOf(request: IncomingMessage, url: URL): string | undefined {
     const given: string | string[] | null | undefined = request.headers.id ?? url.searchParams.get('id')
     const id: string | undefined = Array.isArray(given) ? given[0] : given ?? undefined
     return id && id.length <= 200 ? id : undefined
@@ -94,7 +94,7 @@ function ClientId(request: IncomingMessage, url: URL): string | undefined {
  * @param status
  * @param body
  */
-function Reply(response: ServerResponse, status: number, body: unknown): void {
+function reply(response: ServerResponse, status: number, body: unknown): void {
     if (response.headersSent || response.writableEnded) return
     response.writeHead(status, {...CORS_HEADERS, 'Content-Type': 'application/json; charset=utf-8'}).end(JSON.stringify(body))
 }
@@ -104,7 +104,7 @@ function Reply(response: ServerResponse, status: number, body: unknown): void {
  * @param request
  * @param limit
  */
-async function ReadBody(request: IncomingMessage, limit: number): Promise<string> {
+async function readBody(request: IncomingMessage, limit: number): Promise<string> {
     const chunks: Buffer[] = []
     let size: number = 0
     for await (const chunk of request) {
@@ -198,7 +198,7 @@ export function httpServiceEntrypoint(options: HTTPServiceEntrypointOptions = {}
      * @param url
      */
     const listen = (request: IncomingMessage, response: ServerResponse, url: URL): void => {
-        const clientId: string = ClientId(request, url) ?? randomUUID()
+        const clientId: string = clientIdOf(request, url) ?? randomUUID()
         response.writeHead(200, {...CORS_HEADERS, 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive'})
         //Its id, given to the requests of the client (their header id)
         write(response, 'client', [clientId])
@@ -218,7 +218,7 @@ export function httpServiceEntrypoint(options: HTTPServiceEntrypointOptions = {}
      * @param url
      */
     const invoke = async (runtime: ChannelRuntime<ServiceContext>, request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> => {
-        if (stopping) return Reply(response, 200, ServiceResponseCodec.encodeError(new EntrypointStoppedException('The entrypoint is stopping')))
+        if (stopping) return reply(response, 200, ServiceResponseCodec.encodeError(new EntrypointStoppedException('The entrypoint is stopping')))
         //Aborted when its client leaves before its response
         const aborted: AbortController = new AbortController()
         response.once('close', (): void => {
@@ -226,20 +226,20 @@ export function httpServiceEntrypoint(options: HTTPServiceEntrypointOptions = {}
         })
         let data: unknown
         try {
-            const body: string = await ReadBody(request, limit)
+            const body: string = await readBody(request, limit)
             data = body ? JSON.parse(body) : {}
         } catch (error: unknown) {
             //413 for a body larger than the limit, 400 for a body which is not JSON
-            return Reply(response, (error as { statusCode?: number }).statusCode ?? 400, ServiceResponseCodec.encodeError(error instanceof SyntaxError ? new Error('The body of the request is not JSON') : error))
+            return reply(response, (error as { statusCode?: number }).statusCode ?? 400, ServiceResponseCodec.encodeError(error instanceof SyntaxError ? new Error('The body of the request is not JSON') : error))
         }
         let result: ServiceResponse
         try {
-            const context: ServiceContext = new ServiceContext({data: data && typeof data === 'object' ? data as Record<string, unknown> : {}, request: request, clientId: ClientId(request, url)})
+            const context: ServiceContext = new ServiceContext({data: data && typeof data === 'object' ? data as Record<string, unknown> : {}, request: request, clientId: clientIdOf(request, url)})
             result = ServiceResponseCodec.encode(await runtime.dispatch(context, {signal: aborted.signal}), false)
         } catch (error: unknown) {
             result = ServiceResponseCodec.encodeError(error)
         }
-        Reply(response, 200, result)
+        reply(response, 200, result)
     }
 
     return {
@@ -253,7 +253,7 @@ export function httpServiceEntrypoint(options: HTTPServiceEntrypointOptions = {}
                 if (request.method === 'OPTIONS') return void response.writeHead(204, CORS_HEADERS).end()
                 if (request.method === 'GET' && url.pathname === eventsPath) return listen(request, response, url)
                 if (request.method === 'POST' && url.pathname === requestPath) return void invoke(runtime, request, response, url)
-                Reply(response, 404, {success: false, error: {message: `POST ${requestPath} invokes the actions, GET ${eventsPath} streams their events`}, payload: null})
+                reply(response, 404, {success: false, error: {message: `POST ${requestPath} invokes the actions, GET ${eventsPath} streams their events`}, payload: null})
             })
             //The event streams kept open by the proxies
             keepAlive = setInterval((): void => clients.forEach((streams: Set<ServerResponse>): void => streams.forEach((stream: ServerResponse): unknown => stream.write(': keep-alive\n\n'))), 15000)

@@ -1,4 +1,4 @@
-export default function Home() {
+export default function home() {
     return (
         <main>
             <h1>{$APP_NAME}</h1>

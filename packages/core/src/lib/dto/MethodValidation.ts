@@ -1,12 +1,12 @@
 import {DTO} from './DTO.js'
-import {IsDTO} from './ObjectSchemaValidation.js'
+import {isDTO} from './ObjectSchemaValidation.js'
 import {isAsyncFunction} from 'node:util/types'
 import {InvalidMethodAcceptException} from '../../exceptions/dto/InvalidMethodAcceptException.js'
 import {InvalidMethodReturnException} from '../../exceptions/dto/InvalidMethodReturnException.js'
 import {Schema} from '../validation/types/Schema.js'
 import {ArraySchema} from '../validation/interfaces/ArraySchema.js'
 import {As} from '@lakutata/utils/As'
-import {WithCause} from '../helpers/internal/WithCause.js'
+import {withCause} from '../helpers/internal/WithCause.js'
 
 /**
  * For validate method accept arguments
@@ -16,9 +16,9 @@ import {WithCause} from '../helpers/internal/WithCause.js'
  * @param defs
  * @constructor
  */
-export function SetMethodAcceptArgumentsValidator<ClassPrototype, DTOConstructor extends typeof DTO>(target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<any>, defs: (DTOConstructor | Schema)[]): TypedPropertyDescriptor<any> {
+export function setMethodAcceptArgumentsValidator<ClassPrototype, DTOConstructor extends typeof DTO>(target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<any>, defs: (DTOConstructor | Schema)[]): TypedPropertyDescriptor<any> {
     const argumentSchemas: Schema[] = []
-    defs.forEach((def: DTOConstructor | Schema) => argumentSchemas.push(IsDTO(As<DTOConstructor>(def)) ? As<DTOConstructor>(def).Schema() : As<Schema>(def)))
+    defs.forEach((def: DTOConstructor | Schema) => argumentSchemas.push(isDTO(As<DTOConstructor>(def)) ? As<DTOConstructor>(def).Schema() : As<Schema>(def)))
     descriptor.writable = false
     const originalMethod: (...args: any[]) => any | Promise<any> = descriptor.value
     //The arguments may be undefined (an optional argument given as undefined): sparse, each one checked by its schema
@@ -30,7 +30,7 @@ export function SetMethodAcceptArgumentsValidator<ClassPrototype, DTOConstructor
             try {
                 args = await DTO.validateAsync(args, schema.concat(DTO.Array().sparse(true).ordered(...new Array(argumentCount >= 0 ? argumentCount : 0).fill(DTO.Any()))))
             } catch (e) {
-                throw WithCause(new InvalidMethodAcceptException('Method [{propertyKey}] accept argument {reason}', {
+                throw withCause(new InvalidMethodAcceptException('Method [{propertyKey}] accept argument {reason}', {
                     propertyKey: propertyKey,
                     reason: (e as Error).message
                 }), e)
@@ -43,7 +43,7 @@ export function SetMethodAcceptArgumentsValidator<ClassPrototype, DTOConstructor
             try {
                 args = DTO.validate(args, schema.concat(DTO.Array().sparse(true).ordered(...new Array(argumentCount >= 0 ? argumentCount : 0).fill(DTO.Any()))))
             } catch (e) {
-                throw WithCause(new InvalidMethodAcceptException('Method [{propertyKey}] accept argument {reason}', {
+                throw withCause(new InvalidMethodAcceptException('Method [{propertyKey}] accept argument {reason}', {
                     propertyKey: propertyKey,
                     reason: (e as Error).message
                 }), e)
@@ -94,8 +94,8 @@ export function getMethodReturnSchema(target: object, propertyKey: string | symb
  * @param def
  * @constructor
  */
-export function SetMethodReturnValueValidator<ClassPrototype, DTOConstructor extends typeof DTO>(target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<any>, def: DTOConstructor | Schema): TypedPropertyDescriptor<any> {
-    const schema: Schema = IsDTO(As<DTOConstructor>(def)) ? As<DTOConstructor>(def).Schema() : As<Schema>(def)
+export function setMethodReturnValueValidator<ClassPrototype, DTOConstructor extends typeof DTO>(target: ClassPrototype, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<any>, def: DTOConstructor | Schema): TypedPropertyDescriptor<any> {
+    const schema: Schema = isDTO(As<DTOConstructor>(def)) ? As<DTOConstructor>(def).Schema() : As<Schema>(def)
     Reflect.defineMetadata(METHOD_RETURN_SCHEMA, schema, As<object>(target), propertyKey)
     descriptor.writable = false
     const originalMethod: (...args: any[]) => any | Promise<any> = descriptor.value
@@ -108,7 +108,7 @@ export function SetMethodReturnValueValidator<ClassPrototype, DTOConstructor ext
             try {
                 return await DTO.validateAsync(asyncResult, schema)
             } catch (e) {
-                throw WithCause(new InvalidMethodReturnException('Method [{propertyKey}] return value {reason}', {
+                throw withCause(new InvalidMethodReturnException('Method [{propertyKey}] return value {reason}', {
                     propertyKey: propertyKey,
                     reason: (e as Error).message
                 }), e)
@@ -123,7 +123,7 @@ export function SetMethodReturnValueValidator<ClassPrototype, DTOConstructor ext
             try {
                 return DTO.validate(syncResult, schema)
             } catch (e) {
-                throw WithCause(new InvalidMethodReturnException('Method [{propertyKey}] return value {reason}', {
+                throw withCause(new InvalidMethodReturnException('Method [{propertyKey}] return value {reason}', {
                     propertyKey: propertyKey,
                     reason: (e as Error).message
                 }), e)

@@ -1,7 +1,7 @@
 import {ActionPattern} from '@lakutata/core'
 import {sortArray} from '@lakutata/utils'
 
-function PatternToArrayPair(pattern: ActionPattern | any): any {
+function patternToArrayPair(pattern: ActionPattern | any): any {
     switch (typeof pattern) {
         case 'string':
             return pattern
@@ -21,7 +21,7 @@ function PatternToArrayPair(pattern: ActionPattern | any): any {
             if (Array.isArray(pattern)) {
                 const arrayData: any[] = []
                 sortArray(pattern, {order: 'asc'}).forEach((item: any) => {
-                    const newItem: any = PatternToArrayPair(item)
+                    const newItem: any = patternToArrayPair(item)
                     if (newItem === undefined) return
                     arrayData.push(newItem)
                 })
@@ -30,7 +30,7 @@ function PatternToArrayPair(pattern: ActionPattern | any): any {
                 const keys: string[] = sortArray(Object.keys(pattern), {order: 'asc'})
                 const data: any[] = []
                 keys.forEach((key: string) => {
-                    const item: any = PatternToArrayPair(pattern[key])
+                    const item: any = patternToArrayPair(pattern[key])
                     if (item === undefined) return
                     data.push([key, item])
                 })
@@ -47,8 +47,8 @@ function PatternToArrayPair(pattern: ActionPattern | any): any {
  * @param pattern
  * @constructor
  */
-export function StringifyPattern(pattern: ActionPattern): string {
-    let pairArr: any[] = PatternToArrayPair(pattern)
+export function stringifyPattern(pattern: ActionPattern): string {
+    let pairArr: any[] = patternToArrayPair(pattern)
     while (pairArr.find((value: any) => Array.isArray(value))) pairArr = pairArr.flat()
     return pairArr.join(':')
 }

@@ -10,7 +10,7 @@ import {sortArray, type SortArrayOptions} from '../exports/Utils.js'
  * @param arr
  * @param options
  */
-function UpstreamSortArray<T = any>(arr: T[], ...options: SortArrayOptions<T>[]): T[] {
+function legacySortArray<T = any>(arr: T[], ...options: SortArrayOptions<T>[]): T[] {
     if (options.length < 2) {
         const sortOptions: { [key: string]: any } = {order: 'asc'}
         if (options.length) {
@@ -26,7 +26,7 @@ function UpstreamSortArray<T = any>(arr: T[], ...options: SortArrayOptions<T>[])
             const field: string = opt.by as any
             sortsOptions.by.push(field)
             sortsOptions.order.push(field)
-            sortsOptions.customOrders[field] = UpstreamSortArray(arr, opt).map((value: any): any => value[field])
+            sortsOptions.customOrders[field] = legacySortArray(arr, opt).map((value: any): any => value[field])
         }
     })
     return (upstreamSortArray as any)(arr, sortsOptions)
@@ -36,7 +36,7 @@ function UpstreamSortArray<T = any>(arr: T[], ...options: SortArrayOptions<T>[])
  * A pseudo random generator with a seed (mulberry32)
  * @param seed
  */
-function Random(seed: number): () => number {
+function seededRandom(seed: number): () => number {
     return (): number => {
         seed = (seed + 0x6D2B79F5) | 0
         let t: number = Math.imul(seed ^ (seed >>> 15), 1 | seed)
@@ -45,7 +45,7 @@ function Random(seed: number): () => number {
     }
 }
 
-const random: () => number = Random(20261002)
+const random: () => number = seededRandom(20261002)
 
 const pick = <T>(values: T[]): T => values[Math.floor(random() * values.length)]
 
@@ -54,7 +54,7 @@ const scalar = (): unknown => pick([3, 1, 2, 10, -1, 0, 1.5, 'x', 'z', 'a', 'B',
 /**
  * A random array: of objects (properties of any values, missing ones) or of scalars
  */
-function RandomArray(): unknown[] {
+function randomArray(): unknown[] {
     const objects: boolean = random() < 0.6
     return Array.from({length: Math.floor(random() * 9)}, (): unknown => {
         if (!objects) return scalar()
@@ -68,7 +68,7 @@ function RandomArray(): unknown[] {
 /**
  * Random options
  */
-function Options(): SortArrayOptions<any> {
+function randomOptions(): SortArrayOptions<any> {
     const options: Record<string, unknown> = {}
     if (random() < 0.7) options.by = pick(['a', 'b', 'c', ['a', 'b'], ['b', 'c', 'a'], 'computedA', 'missing', ''])
     if (random() < 0.7) options.order = pick(['asc', 'desc', 'custom', 'a', ['asc', 'desc'], ['desc', 'custom'], 'unknown', undefined])
@@ -85,7 +85,7 @@ function Options(): SortArrayOptions<any> {
  * @param input
  * @param options
  */
-function Outcome(sort: (arr: unknown[], ...options: SortArrayOptions<any>[]) => unknown[], input: unknown[], options: SortArrayOptions<any>[]): string {
+function outcomeOf(sort: (arr: unknown[], ...options: SortArrayOptions<any>[]) => unknown[], input: unknown[], options: SortArrayOptions<any>[]): string {
     const arr: unknown[] = input.slice()
     try {
         const result: unknown[] = sort(arr, ...options)
@@ -100,10 +100,10 @@ describe('sortArray', (): void => {
     it('sorts as the SortArray of 2.x, in place', (): void => {
         const counts: Record<string, number> = {sorted: 0, error: 0}
         for (let run: number = 0; run < 10000; run++) {
-            const input: unknown[] = RandomArray()
-            const options: SortArrayOptions<any>[] = Array.from({length: pick([0, 1, 1, 1, 2, 3])}, Options)
-            const expected: string = Outcome(UpstreamSortArray, input, options)
-            assert.strictEqual(Outcome(sortArray, input, options), expected, `${inspect(input)} ${inspect(options, {depth: 3})}`)
+            const input: unknown[] = randomArray()
+            const options: SortArrayOptions<any>[] = Array.from({length: pick([0, 1, 1, 1, 2, 3])}, randomOptions)
+            const expected: string = outcomeOf(legacySortArray, input, options)
+            assert.strictEqual(outcomeOf(sortArray, input, options), expected, `${inspect(input)} ${inspect(options, {depth: 3})}`)
             counts[expected.startsWith('{ error') ? 'error' : 'sorted']++
         }
         //The errors are rare: the items which are not objects, sorted by a property

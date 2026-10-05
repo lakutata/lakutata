@@ -24,7 +24,7 @@ const ENTRY_POINTS: string[] = Object.entries(JSON.parse(readFileSync(path.join(
  * @param entryPoint
  * @param format
  */
-function LoadFirst(entryPoint: string, format: 'esm' | 'cjs'): SpawnSyncReturns<string> {
+function loadFirst(entryPoint: string, format: 'esm' | 'cjs'): SpawnSyncReturns<string> {
     return spawnSync(process.execPath, format === 'esm'
         ? ['--input-type=module', '-e', `await import('${entryPoint}')`]
         : ['--input-type=commonjs', '-e', `require('${entryPoint}')`], {cwd: PACKAGE_DIRECTORY, encoding: 'utf8'})
@@ -39,7 +39,7 @@ describe('The entry points', (): void => {
     for (const entryPoint of ENTRY_POINTS) {
         for (const format of ['esm', 'cjs'] as const) {
             it(`loads ${entryPoint} first (${format})`, (): void => {
-                const result: SpawnSyncReturns<string> = LoadFirst(entryPoint, format)
+                const result: SpawnSyncReturns<string> = loadFirst(entryPoint, format)
                 assert.strictEqual(result.status, 0, result.stderr)
             })
         }

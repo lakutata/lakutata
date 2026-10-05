@@ -4,7 +4,7 @@ import {execFileSync} from 'node:child_process'
 import {cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import {CLI, Has, Run, TOOLCHAINS, VisualCpp, Workspace} from './support/Workspace.js'
+import {CLI, has, runIn, TOOLCHAINS, visualCpp, workspace} from './support/Workspace.js'
 
 let work: string
 
@@ -23,7 +23,7 @@ const SYSTEM: string = WINDOWS ? 'shlwapi' : 'z'
  * on macOS), a header (deps/include/answer.h); for the Macs with Intel and with Apple silicon
  * @param directory
  */
-function Libraries(directory: string): void {
+function libraries(directory: string): void {
     const deps: string = path.join(directory, 'deps')
     mkdirSync(path.join(deps, 'lib'), {recursive: true})
     mkdirSync(path.join(deps, 'include'), {recursive: true})
@@ -32,7 +32,7 @@ function Libraries(directory: string): void {
     writeFileSync(path.join(deps, 'shared.c'), `${WINDOWS ? '__declspec(dllexport) ' : ''}const char *from_dynamic(void) { return "dynamic"; }\n`)
     if (WINDOWS) {
         //The DLL and its import library (shared.lib), which the linker of Windows links
-        return VisualCpp([
+        return visualCpp([
             `cl /nologo /c /Fo"${path.join(deps, 'fixed.obj')}" "${path.join(deps, 'fixed.c')}"`,
             `lib /nologo /OUT:"${path.join(deps, 'lib', STATIC)}" "${path.join(deps, 'fixed.obj')}"`,
             `cl /nologo /LD /Fe"${path.join(deps, 'lib', DYNAMIC)}" "${path.join(deps, 'shared.c')}" /link /IMPLIB:"${path.join(deps, 'lib', 'shared.lib')}"`
@@ -52,7 +52,7 @@ function Libraries(directory: string): void {
  * definition, CoreFoundation on macOS
  * @param source
  */
-function CallLibrariesInCpp(source: string): string {
+function callLibrariesInCpp(source: string): string {
     return source
         .replace('#include <napi.h>\n', `#include <napi.h>
 #include <string>
@@ -98,7 +98,7 @@ static std::string Framework() {
  * The Rust of the addon calling its libraries: zlib, the static and the dynamic libraries, CoreFoundation on macOS
  * @param source
  */
-function CallLibrariesInRust(source: string): string {
+function callLibrariesInRust(source: string): string {
     return `use std::ffi::{c_char, CStr};
 
 extern "C" {
@@ -156,24 +156,24 @@ describe('lakutata native', (): void => {
 
     for (const build of ['gyp', 'cmake', 'rust']) {
         it(`links the libraries of the system, of pkg-config, the frameworks, the static and the dynamic libraries of the package to an addon built by ${build}, once`, {skip: TOOLCHAINS[build] ? false : `no toolchain of ${build}`}, async (): Promise<void> => {
-            const root: string = Workspace(work, `native-${build}`)
-            assert.strictEqual((await Run(process.execPath, [CLI, 'add', 'addon', '--native', build], root)).code, 0)
+            const root: string = workspace(work, `native-${build}`)
+            assert.strictEqual((await runIn(process.execPath, [CLI, 'add', 'addon', '--native', build], root)).code, 0)
             const directory: string = path.join(root, 'packages', 'addon')
-            Libraries(directory)
+            libraries(directory)
             const commands: string[][] = [
                 ['link', SYSTEM],
                 ['link', `deps/lib/${STATIC}`],
                 ['link', `deps/lib/${DYNAMIC}`],
                 ...(MAC ? [['link', 'CoreFoundation', '--framework']] : []),
                 ...(build === 'rust' ? [] : [
-                    ...(Has('pkg-config') ? [['link', 'zlib', '--pkg-config']] : []),
+                    ...(has('pkg-config') ? [['link', 'zlib', '--pkg-config']] : []),
                     ['include', 'deps/include'],
                     ['define', 'TRACE_LEVEL=3']
                 ])
             ]
             const buildFile: string = ({gyp: 'binding.gyp', cmake: 'CMakeLists.txt', rust: '.cargo/config.toml'} as Record<string, string>)[build]
             for (const command of commands) {
-                const changed = await Run(process.execPath, [CLI, 'native', ...command], directory)
+                const changed = await runIn(process.execPath, [CLI, 'native', ...command], directory)
                 assert.strictEqual(changed.code, 0, changed.output)
                 assert.match(changed.output, new RegExp(`\\(${build}\\): ${buildFile.replace(/\./g, '\\.')}`), changed.output)
             }
@@ -181,7 +181,7 @@ describe('lakutata native', (): void => {
             const files: string[] = [buildFile, 'package.json']
             const before: string[] = files.map((file: string): string => readFileSync(path.join(directory, file), 'utf8'))
             for (const command of commands) {
-                const unchanged = await Run(process.execPath, [CLI, 'native', ...command], directory)
+                const unchanged = await runIn(process.execPath, [CLI, 'native', ...command], directory)
                 assert.strictEqual(unchanged.code, 0, unchanged.output)
                 assert.match(unchanged.output, /is already in the build/)
             }
@@ -196,15 +196,15 @@ describe('lakutata native', (): void => {
                     assert.match(environment, /^\[env\]\nLAKUTATA_NATIVE = "rustc-link-lib=z"\nLAKUTATA_NATIVE_UNIX = "rustc-link-search=native=deps\/lib;rustc-link-lib=static=fixed"\n/)
                 }
                 //The headers and the definitions of C are not the ones of Rust
-                const refused = await Run(process.execPath, [CLI, 'native', 'include', 'deps/include'], directory)
+                const refused = await runIn(process.execPath, [CLI, 'native', 'include', 'deps/include'], directory)
                 assert.notStrictEqual(refused.code, 0)
                 assert.match(refused.output, /no directory of headers of C/)
-                writeFileSync(path.join(directory, 'rust', 'lib.rs'), CallLibrariesInRust(readFileSync(path.join(directory, 'rust', 'lib.rs'), 'utf8')))
+                writeFileSync(path.join(directory, 'rust', 'lib.rs'), callLibrariesInRust(readFileSync(path.join(directory, 'rust', 'lib.rs'), 'utf8')))
             } else {
-                writeFileSync(path.join(directory, 'cpp', 'binding.cc'), CallLibrariesInCpp(readFileSync(path.join(directory, 'cpp', 'binding.cc'), 'utf8')))
+                writeFileSync(path.join(directory, 'cpp', 'binding.cc'), callLibrariesInCpp(readFileSync(path.join(directory, 'cpp', 'binding.cc'), 'utf8')))
             }
 
-            const built = await Run('npm', ['run', 'rebuild'], directory)
+            const built = await runIn('npm', ['run', 'rebuild'], directory)
             assert.strictEqual(built.code, 0, built.output)
             const release: string = path.join(directory, 'build', 'Release')
             assert.ok(existsSync(path.join(release, DYNAMIC)), built.output)
@@ -217,26 +217,26 @@ describe('lakutata native', (): void => {
             const moved: string = path.join(work, `moved-${build}`)
             cpSync(release, moved, {recursive: true})
             rmSync(path.join(directory, 'deps'), {recursive: true})
-            const ran = await Run(process.execPath, ['-e', `console.log(require(${JSON.stringify(path.join(moved, 'addon.node'))}).greet('test'))`], tmpdir())
+            const ran = await runIn(process.execPath, ['-e', `console.log(require(${JSON.stringify(path.join(moved, 'addon.node'))}).greet('test'))`], tmpdir())
             assert.strictEqual(ran.code, 0, ran.output)
             assert.match(ran.output, new RegExp(`Hello, test \\(${WINDOWS ? 'shlwapi 1' : 'zlib \\d+\\.\\d+[\\w.-]*'}, static, dynamic, 43${MAC ? ', framework 9' : ''}\\)`), ran.output)
         })
     }
 
     it('refuses a directory which is not a native addon, a library missing, a framework of another platform', async (): Promise<void> => {
-        const root: string = Workspace(work, 'refused')
-        const notNative = await Run(process.execPath, [CLI, 'native', 'link', 'z'], path.join(root, 'packages', 'app'))
+        const root: string = workspace(work, 'refused')
+        const notNative = await runIn(process.execPath, [CLI, 'native', 'link', 'z'], path.join(root, 'packages', 'app'))
         assert.notStrictEqual(notNative.code, 0)
         assert.match(notNative.output, /is not a native addon \(no binding\.gyp, CMakeLists\.txt nor Cargo\.toml\)/)
-        assert.strictEqual((await Run(process.execPath, [CLI, 'add', 'addon', '--native'], root)).code, 0)
+        assert.strictEqual((await runIn(process.execPath, [CLI, 'add', 'addon', '--native'], root)).code, 0)
         const directory: string = path.join(root, 'packages', 'addon')
-        const missing = await Run(process.execPath, [CLI, 'native', 'link', 'deps/lib/libmissing.a'], directory)
+        const missing = await runIn(process.execPath, [CLI, 'native', 'link', 'deps/lib/libmissing.a'], directory)
         assert.notStrictEqual(missing.code, 0)
         assert.match(missing.output, /deps\/lib\/libmissing\.a does not exist/)
-        const framework = await Run(process.execPath, [CLI, 'native', 'link', 'IOKit', '--framework', '--platform', 'linux'], directory)
+        const framework = await runIn(process.execPath, [CLI, 'native', 'link', 'IOKit', '--framework', '--platform', 'linux'], directory)
         assert.notStrictEqual(framework.code, 0)
         assert.match(framework.output, /The frameworks are the libraries of macOS/)
-        const crate = await Run(process.execPath, [CLI, 'native', 'link', 'libc', '--crate'], directory)
+        const crate = await runIn(process.execPath, [CLI, 'native', 'link', 'libc', '--crate'], directory)
         assert.notStrictEqual(crate.code, 0)
         assert.match(crate.output, /The crates are the libraries of the Rust addons/)
     })

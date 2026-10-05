@@ -1,7 +1,7 @@
 import {SerializedCacheStore, SerializedEntry} from './SerializedCacheStore.js'
 import {RedisCacheOptions} from '../options/RedisCacheOptions.js'
-import {LoadDriver} from '../lib/LoadDriver.js'
-import {WithTimeout} from '../lib/WithTimeout.js'
+import {loadDriver} from '../lib/LoadDriver.js'
+import {withTimeout} from '../lib/WithTimeout.js'
 
 interface RedisCommands<R> {
     set(key: string, value: string): R
@@ -53,7 +53,7 @@ interface RedisDriver {
  * Escape the glob pattern characters of a SCAN match
  * @param text
  */
-function EscapeGlob(text: string): string {
+function escapeGlob(text: string): string {
     return text.replace(/[*?[\]\\]/g, '\\$&')
 }
 
@@ -80,7 +80,7 @@ export class RedisStore extends SerializedCacheStore {
     }
 
     public async connect(): Promise<void> {
-        const driver: RedisDriver = await LoadDriver<RedisDriver>('createClient', 'redis', '@redis/client')
+        const driver: RedisDriver = await loadDriver<RedisDriver>('createClient', 'redis', '@redis/client')
         const options: RedisCacheOptions = this.options
         const throwOnConnectError: boolean = options.throwOnConnectError !== false
         let connected: boolean = false
@@ -109,7 +109,7 @@ export class RedisStore extends SerializedCacheStore {
             connected = true
         })
         try {
-            await WithTimeout(this.client.connect(), options.connectTimeout ?? 5000, `Redis connection timed out after ${options.connectTimeout ?? 5000}ms`)
+            await withTimeout(this.client.connect(), options.connectTimeout ?? 5000, `Redis connection timed out after ${options.connectTimeout ?? 5000}ms`)
         } catch (e) {
             if (!throwOnConnectError) return this.onError(e as Error)
             await this.disconnect()
@@ -165,7 +165,7 @@ export class RedisStore extends SerializedCacheStore {
             await this.client.flushDb()
             return
         }
-        const match: string = this.namespace ? `${EscapeGlob(this.namespace + this.separator)}*` : '*'
+        const match: string = this.namespace ? `${escapeGlob(this.namespace + this.separator)}*` : '*'
         let batch: string[] = []
         const deletions: Promise<number>[] = []
         for await (const scanned of this.client.scanIterator({MATCH: match, COUNT: this.clearBatchSize, TYPE: 'string'})) {

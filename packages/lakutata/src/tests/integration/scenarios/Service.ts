@@ -19,7 +19,7 @@ import type {MigrationInterface, QueryRunner, Repository} from '../../../exports
 import {buildDatabaseOptions, Database} from '../../../exports/DatabaseComponent.js'
 import {buildCacherOptions, Cacher} from '../../../exports/CacherComponent.js'
 import {PasswordHash} from '../../../exports/PasswordHashProvider.js'
-import {FreePort, MemoryStream, RunChecks} from '../support/Scenario.js'
+import {freePort, MemoryStream, runChecks} from '../support/Scenario.js'
 
 @Entity('order')
 class Order {
@@ -133,7 +133,7 @@ const ui: string = mkdtempSync(path.join(tmpdir(), 'lakutata-ui-'))
 writeFileSync(path.join(ui, 'index.html'), '<!doctype html><title>orders</title><div id="app"></div>')
 writeFileSync(path.join(ui, 'main.js'), 'console.log("orders")')
 
-async function CountInvocations(invocation: ActionInvocation, next: Next): Promise<unknown> {
+async function countInvocations(invocation: ActionInvocation, next: Next): Promise<unknown> {
     invocations.push(invocation.action.name)
     return await next()
 }
@@ -191,7 +191,7 @@ class OrderController extends Controller {
     }
 }
 
-const [expressPort, fastifyPort, ioPort] = [await FreePort(), await FreePort(), await FreePort()]
+const [expressPort, fastifyPort, ioPort] = [await freePort(), await freePort(), await freePort()]
 const logs: MemoryStream = new MemoryStream()
 const cliOutput: MemoryStream = new MemoryStream()
 let cliExited: (code: number) => void
@@ -209,7 +209,7 @@ Application
             entrypoint: buildEntrypoints({
                 controllers: [OrderController],
                 rules: [AdminRule],
-                middlewares: [CountInvocations],
+                middlewares: [countInvocations],
                 http: [
                     expressHTTPEntrypoint({port: expressPort, host: '127.0.0.1', respond: jsonEnvelope({errorStatus: 200}), fallback: staticUI(ui, {spa: true})}),
                     fastifyHTTPEntrypoint({port: fastifyPort, host: '127.0.0.1', respond: fastifyJSONEnvelope({errorStatus: 200})})
@@ -225,7 +225,7 @@ Application
         },
         bootstrap: ['db', 'entrypoint']
     }))
-    .onLaunched((app: Application): Promise<void> => RunChecks(app, async (check): Promise<void> => {
+    .onLaunched((app: Application): Promise<void> => runChecks(app, async (check): Promise<void> => {
         const post = async (port: number, route: string, body: unknown, headers: Record<string, string> = {}): Promise<any> => await (await fetch(`http://127.0.0.1:${port}${route}`, {method: 'POST', headers: {'content-type': 'application/json', ...headers}, body: JSON.stringify(body)})).json()
         const get = async (port: number, route: string, headers: Record<string, string> = {}): Promise<any> => await (await fetch(`http://127.0.0.1:${port}${route}`, {headers: headers})).json()
 

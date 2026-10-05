@@ -1,7 +1,7 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {isValidCron as UpstreamIsValidCron} from 'cron-validator'
-import {IsValidCron} from '../../lib/dto/internal/CronValidator.js'
+import {isValidCron} from '../../lib/dto/internal/CronValidator.js'
 import {DTO} from '../../lib/dto/DTO.js'
 import {type CronOptions} from '../../types/CronOptions.js'
 
@@ -9,7 +9,7 @@ import {type CronOptions} from '../../types/CronOptions.js'
  * A pseudo random generator with a seed (mulberry32)
  * @param seed
  */
-function Random(seed: number): () => number {
+function seededRandom(seed: number): () => number {
     return (): number => {
         seed = (seed + 0x6D2B79F5) | 0
         let t: number = Math.imul(seed ^ (seed >>> 15), 1 | seed)
@@ -18,14 +18,14 @@ function Random(seed: number): () => number {
     }
 }
 
-const random: () => number = Random(20261002)
+const random: () => number = seededRandom(20261002)
 
 const pick = <T>(values: T[]): T => values[Math.floor(random() * values.length)]
 
 /**
  * A random value of a field: in and out of the ranges of the fields, names, blanks, nth weekdays and invalid text
  */
-function Value(): string {
+function randomValue(): string {
     return pick([
         String(Math.floor(random() * 62)), String(Math.floor(random() * 8)), '0', '1', '7', '12', '13', '23', '24', '31', '32', '59', '60', '99',
         '*', '?', 'jan', 'JAN', 'Feb', 'dec', 'xyz', 'mon', 'MON', 'Fri', 'sun', 'sat', 'thu', 'L', 'W', '1*', '01', '-1', '', 'jan1'
@@ -35,28 +35,28 @@ function Value(): string {
 /**
  * A random field: a value, a range, a step, a list of them, or an nth weekday
  */
-function Field(depth: number = 0): string {
+function readField(depth: number = 0): string {
     switch (Math.floor(random() * (depth ? 5 : 7))) {
         case 0:
         case 1:
-            return Value()
+            return randomValue()
         case 2:
-            return `${Value()}-${Value()}`
+            return `${randomValue()}-${randomValue()}`
         case 3:
-            return `${pick([Value(), `${Value()}-${Value()}`, '*'])}/${pick(['1', '2', '5', '15', '0', '', 'a', 'mon', '*', '2/3'])}`
+            return `${pick([randomValue(), `${randomValue()}-${randomValue()}`, '*'])}/${pick(['1', '2', '5', '15', '0', '', 'a', 'mon', '*', '2/3'])}`
         case 4:
-            return `${Value()}#${pick(['1', '2', '5', '6', '0', 'x', '1#2', ''])}`
+            return `${randomValue()}#${pick(['1', '2', '5', '6', '0', 'x', '1#2', ''])}`
         default:
-            return Array.from({length: 2 + Math.floor(random() * 3)}, (): string => Field(depth + 1)).join(',')
+            return Array.from({length: 2 + Math.floor(random() * 3)}, (): string => readField(depth + 1)).join(',')
     }
 }
 
 /**
  * A random expression: four to seven fields, with random spaces
  */
-function Expression(): string {
+function expression(): string {
     //Mostly valid fields: an expression is invalid as soon as one of its fields is
-    const fields: string[] = Array.from({length: pick([4, 5, 5, 5, 5, 6, 6, 6, 6, 7])}, (): string => random() < 0.85 ? pick(['*', '1', '*/5', '1-5', '1,3']) : Field())
+    const fields: string[] = Array.from({length: pick([4, 5, 5, 5, 5, 6, 6, 6, 6, 7])}, (): string => random() < 0.85 ? pick(['*', '1', '*/5', '1-5', '1,3']) : readField())
     return pick(['', ' ', '  ']) + fields.join(pick([' ', ' ', '  ', '\t'])) + pick(['', ' '])
 }
 
@@ -78,7 +78,7 @@ for (let mask: number = 0; mask < 32; mask++) {
  * The options of DTO.Cron() given to cron-validator by 2.x: its defaults for the options not given
  * @param options
  */
-function DefaultsOf2x(options?: CronOptions): CronOptions {
+function defaultsOf2x(options?: CronOptions): CronOptions {
     const given: CronOptions = {...options}
     given.alias = given.alias !== undefined ? given.alias : false
     given.seconds = given.seconds !== undefined ? given.seconds : true
@@ -92,10 +92,10 @@ describe('Cron', (): void => {
     it('validates as cron-validator', (): void => {
         const counts: Record<string, number> = {true: 0, false: 0}
         for (let run: number = 0; run < 3000; run++) {
-            const cron: string = Expression()
+            const cron: string = expression()
             for (const options of OPTIONS) {
                 const expected: boolean = UpstreamIsValidCron(cron, options)
-                assert.strictEqual(IsValidCron(cron, options), expected, `${JSON.stringify(cron)} ${JSON.stringify(options)}`)
+                assert.strictEqual(isValidCron(cron, options), expected, `${JSON.stringify(cron)} ${JSON.stringify(options)}`)
                 counts[String(expected)]++
             }
         }
@@ -111,15 +111,15 @@ describe('Cron', (): void => {
             '0 0 * * *  ', '  0 0 * * *', '0 0 * *', '0 0 0 0 * * *', ''
         ]
         for (const cron of expressions) {
-            for (const options of OPTIONS) assert.strictEqual(IsValidCron(cron, options), UpstreamIsValidCron(cron, options), `${JSON.stringify(cron)} ${JSON.stringify(options)}`)
+            for (const options of OPTIONS) assert.strictEqual(isValidCron(cron, options), UpstreamIsValidCron(cron, options), `${JSON.stringify(cron)} ${JSON.stringify(options)}`)
         }
     })
 
     it('validates DTO.Cron() as 2.x: cron-validator with the defaults of 2.x', (): void => {
         for (let run: number = 0; run < 500; run++) {
-            const cron: string = Expression()
+            const cron: string = expression()
             for (const options of OPTIONS) {
-                const expected: boolean = UpstreamIsValidCron(cron, DefaultsOf2x(options))
+                const expected: boolean = UpstreamIsValidCron(cron, defaultsOf2x(options))
                 assert.strictEqual(DTO.isValid(cron, DTO.Cron(options)), expected, `${JSON.stringify(cron)} ${JSON.stringify(options)}`)
             }
         }

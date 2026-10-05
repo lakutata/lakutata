@@ -37,7 +37,7 @@ const tarballs = new Map(PACKAGES.map(name => {
  * @param tsconfig
  * @param source
  */
-function Project(name, packageJson, tsconfig, source) {
+function createProject(name, packageJson, tsconfig, source) {
     const project = path.join(work, name)
     const modules = path.join(project, 'node_modules')
     mkdirSync(path.join(project, 'src'), {recursive: true})
@@ -70,7 +70,7 @@ function Project(name, packageJson, tsconfig, source) {
  * @param name
  * @param fn
  */
-function Check(name, fn) {
+function check(name, fn) {
     try {
         fn()
         console.log('  ok  ' + name)
@@ -128,8 +128,8 @@ Application.run({
  */
 const EXTENDED = {extends: 'lakutata/tsconfig.json', compilerOptions: {rootDir: 'src', outDir: 'build'}, include: ['src']}
 
-Check('the exported tsconfig.json has no path of the framework', () => {
-    const project = Project('show-config', {name: 'show-config', private: true}, {extends: 'lakutata/tsconfig.json'}, 'export {}\n')
+check('the exported tsconfig.json has no path of the framework', () => {
+    const project = createProject('show-config', {name: 'show-config', private: true}, {extends: 'lakutata/tsconfig.json'}, 'export {}\n')
     const config = JSON.parse(execFileSync(process.execPath, [TSC, '--showConfig'], {cwd: project}).toString()).compilerOptions
     for (const option of ['rootDir', 'outDir', 'baseUrl', 'paths']) if (option in config) throw new Error(`The exported configuration sets ${option}: ${JSON.stringify(config[option])}`)
     if (!config.experimentalDecorators || !config.emitDecoratorMetadata) throw new Error('The exported configuration does not enable the decorators and their metadata')
@@ -141,18 +141,18 @@ Check('the exported tsconfig.json has no path of the framework', () => {
  * Compile an application and run it: it launches (its onLaunched handler logs its name), then it is stopped
  * @param project
  */
-function CompileAndRun(project) {
+function compileAndRun(project) {
     execFileSync(process.execPath, [TSC, '-p', project], {cwd: project})
     const run = spawnSync(process.execPath, ['build/App.js'], {cwd: project, timeout: 8000, killSignal: 'SIGKILL'})
     const output = `${run.stdout}${run.stderr}`
     if (!/Installed/.test(output)) throw new Error(`The application did not launch:\n${output}`)
 }
 
-Check('an ESM application extending lakutata/tsconfig.json compiles and runs', () => {
-    CompileAndRun(Project('esm', {name: 'esm-app', private: true, type: 'module'}, EXTENDED, SOURCE))
+check('an ESM application extending lakutata/tsconfig.json compiles and runs', () => {
+    compileAndRun(createProject('esm', {name: 'esm-app', private: true, type: 'module'}, EXTENDED, SOURCE))
 })
 
-Check('an ESM application extending lakutata/tsconfig.json imports JSON (with its import attributes)', () => {
+check('an ESM application extending lakutata/tsconfig.json imports JSON (with its import attributes)', () => {
     const source = `import {Application} from 'lakutata'
 import type {ILogger} from 'lakutata'
 import messages from './messages.json' with {type: 'json'}
@@ -162,13 +162,13 @@ Application.run({id: 'installed.json', name: messages.name}).onLaunched((app: Ap
     app.exit(0)
 })
 `
-    const project = Project('esm-json', {name: 'esm-json-app', private: true, type: 'module'}, EXTENDED, source)
+    const project = createProject('esm-json', {name: 'esm-json-app', private: true, type: 'module'}, EXTENDED, source)
     writeFileSync(path.join(project, 'src', 'messages.json'), JSON.stringify({name: 'Installed'}))
-    CompileAndRun(project)
+    compileAndRun(project)
 })
 
-Check('a CommonJS application extending lakutata/tsconfig.json compiles and runs', () => {
-    CompileAndRun(Project('cjs', {name: 'cjs-app', private: true}, EXTENDED, SOURCE))
+check('a CommonJS application extending lakutata/tsconfig.json compiles and runs', () => {
+    compileAndRun(createProject('cjs', {name: 'cjs-app', private: true}, EXTENDED, SOURCE))
 })
 
 rmSync(work, {recursive: true, force: true})

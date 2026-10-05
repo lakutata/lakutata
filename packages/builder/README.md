@@ -4,15 +4,15 @@ The builder of the applications of the lakutata framework, used by the `bundle` 
 `@lakutata/cli`, and usable from the scripts of a project:
 
 ```js
-import {BuildExecutable, BuildInstaller, BundleProject} from '@lakutata/builder'
+import {buildExecutable, buildInstaller, bundleProject} from '@lakutata/builder'
 
 //dist/<name>.cjs, run by node, its native addons and its resources next to it
-await BundleProject({project: process.cwd()})
+await bundleProject({project: process.cwd()})
 //dist/<name>, which runs without Node.js: Node.js (by default) or Bun embedded, one file or a directory
-await BuildExecutable({project: process.cwd(), runtime: 'node', layout: 'directory'})
+await buildExecutable({project: process.cwd(), runtime: 'node', layout: 'directory'})
 //dist/installer: the installers of the platform (deb, rpm, apk, archlinux, tar.gz on Linux; pkg, tar.gz on macOS;
 //nsis, msi, zip on Windows), its service registered
-await BuildInstaller({project: process.cwd()})
+await buildInstaller({project: process.cwd()})
 ```
 
 The application is compiled first (`tsc`, which emits the metadata of the decorators). The bundle is one CommonJS file

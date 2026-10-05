@@ -13,7 +13,7 @@ import {calls, DeviceController, ToolController} from './support/Tools.js'
  * @param options
  * @param entrypointOptions
  */
-async function Start(options: HTTPMCPEntrypointOptions = {}, entrypointOptions: Record<string, unknown> = {}): Promise<{ url: string, container: Container }> {
+async function start(options: HTTPMCPEntrypointOptions = {}, entrypointOptions: Record<string, unknown> = {}): Promise<{ url: string, container: Container }> {
     let server: Server | undefined
     const container: Container = new Container()
     await container.set(Entrypoint, buildEntrypoints({
@@ -42,7 +42,7 @@ let era: 'legacy' | 'auto' = 'legacy'
  * @param url
  * @param headers
  */
-async function Connect(url: string, headers: Record<string, string> = {}): Promise<Client> {
+async function connect(url: string, headers: Record<string, string> = {}): Promise<Client> {
     const client: Client = new Client({name: 'test', version: '1.0.0'}, {versionNegotiation: {mode: era}})
     await client.connect(new StreamableHTTPClientTransport(new URL(url), {requestInit: {headers: headers}}))
     return client
@@ -53,7 +53,7 @@ async function Connect(url: string, headers: Record<string, string> = {}): Promi
  * @param url
  * @param headers
  */
-function PostStatus(url: string, headers: Record<string, string>): Promise<number> {
+function postStatus(url: string, headers: Record<string, string>): Promise<number> {
     return new Promise((resolve: (status: number) => void, reject: (error: Error) => void): void => {
         httpRequest(url, {method: 'POST', headers: {'Content-Type': 'application/json', ...headers}}, (response: IncomingMessage): void => {
             response.resume()
@@ -69,8 +69,8 @@ for (const suiteEra of ['legacy', 'auto'] as const) describe(`HTTP MCP adapter (
     })
 
     it('lists the actions as tools', async (): Promise<void> => {
-        const {url, container} = await Start()
-        const client: Client = await Connect(url)
+        const {url, container} = await start()
+        const client: Client = await connect(url)
         const tools = (await client.listTools()).tools
         assert.deepStrictEqual(tools.map((tool): string => tool.name).sort(), ['count', 'device_reboot', 'device_status', 'device_touch', 'echo', 'instance', 'mistyped', 'picture', 'raw', 'slow'])
         const status = tools.find((tool): boolean => tool.name === 'device_status')!
@@ -86,8 +86,8 @@ for (const suiteEra of ['legacy', 'auto'] as const) describe(`HTTP MCP adapter (
     })
 
     it('calls the tools', async (): Promise<void> => {
-        const {url, container} = await Start()
-        const client: Client = await Connect(url)
+        const {url, container} = await start()
+        const client: Client = await connect(url)
         const status = await client.callTool({name: 'device_status', arguments: {sn: 'A1'}})
         assert.deepStrictEqual(status.structuredContent, {sn: 'A1', online: true})
         assert.deepStrictEqual(JSON.parse((status.content as any)[0].text), {sn: 'A1', online: true})
@@ -108,8 +108,8 @@ for (const suiteEra of ['legacy', 'auto'] as const) describe(`HTTP MCP adapter (
     })
 
     it('reads the resources', async (): Promise<void> => {
-        const {url, container} = await Start()
-        const client: Client = await Connect(url)
+        const {url, container} = await start()
+        const client: Client = await connect(url)
         assert.deepStrictEqual((await client.listResources()).resources, [{uri: 'device://catalog', name: 'catalog', title: 'The device catalog'}])
         const templates = (await client.listResourceTemplates()).resourceTemplates
         assert.deepStrictEqual(templates, [{uriTemplate: 'device://{sn}/status', name: 'DeviceController:statusResource', description: 'The status of a device', mimeType: 'application/json', annotations: {audience: ['assistant']}}])
@@ -126,8 +126,8 @@ for (const suiteEra of ['legacy', 'auto'] as const) describe(`HTTP MCP adapter (
 
     //The stateless serving of the 2025 clients has no stream to push the notifications on
     it('notifies the subscriptions of the changes of the resources', {skip: suiteEra === 'legacy'}, async (): Promise<void> => {
-        const {url, container} = await Start()
-        const client: Client = await Connect(url)
+        const {url, container} = await start()
+        const client: Client = await connect(url)
         const updated: string[] = []
         client.setNotificationHandler('notifications/resources/updated', (notification): void => void updated.push(notification.params.uri))
         const subscription = await client.listen({resourceSubscriptions: ['device://A1/status']})
@@ -150,13 +150,13 @@ for (const suiteEra of ['legacy', 'auto'] as const) describe(`HTTP MCP adapter (
 
     //The notifications of an application reach its own adapters only
     it('notifies the clients of the application only', {skip: suiteEra === 'legacy'}, async (): Promise<void> => {
-        const first = await Start()
-        const second = await Start()
-        const client: Client = await Connect(second.url)
+        const first = await start()
+        const second = await start()
+        const client: Client = await connect(second.url)
         const updated: string[] = []
         client.setNotificationHandler('notifications/resources/updated', (notification): void => void updated.push(notification.params.uri))
         const subscription = await client.listen({resourceSubscriptions: ['device://A1/status']})
-        const other: Client = await Connect(first.url)
+        const other: Client = await connect(first.url)
         await other.callTool({name: 'device_touch', arguments: {sn: 'A1'}})
         await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 100))
         assert.deepStrictEqual(updated, [])
@@ -171,8 +171,8 @@ for (const suiteEra of ['legacy', 'auto'] as const) describe(`HTTP MCP adapter (
     })
 
     it('gets the prompts', async (): Promise<void> => {
-        const {url, container} = await Start()
-        const client: Client = await Connect(url)
+        const {url, container} = await start()
+        const client: Client = await connect(url)
         const prompts = (await client.listPrompts()).prompts
         const diagnose = prompts.find((prompt): boolean => prompt.name === 'device_diagnose')!
         assert.strictEqual(diagnose.title, 'Diagnose a device')
@@ -193,8 +193,8 @@ for (const suiteEra of ['legacy', 'auto'] as const) describe(`HTTP MCP adapter (
     })
 
     it('gives the errors to the model', async (): Promise<void> => {
-        const {url, container} = await Start()
-        const client: Client = await Connect(url)
+        const {url, container} = await start()
+        const client: Client = await connect(url)
         const offline = await client.callTool({name: 'device_reboot', arguments: {sn: 'off'}})
         assert.strictEqual(offline.isError, true)
         assert.deepStrictEqual(offline.content, [{type: 'text', text: 'E_OFFLINE: The device off is offline'}])
@@ -212,8 +212,8 @@ for (const suiteEra of ['legacy', 'auto'] as const) describe(`HTTP MCP adapter (
             trace.push(`${name}:${(invocation.context as MCPContext).type}:${(invocation.context as MCPContext).name}`)
             return next()
         }
-        const {url, container} = await Start({middlewares: [traced('adapter')]}, {middlewares: [traced('global')]})
-        const client: Client = await Connect(url)
+        const {url, container} = await start({middlewares: [traced('adapter')]}, {middlewares: [traced('global')]})
+        const client: Client = await connect(url)
         const progress: unknown[] = []
         const counted = await client.callTool({name: 'count', arguments: {}}, {onprogress: (value: unknown): unknown => progress.push(value)})
         assert.deepStrictEqual(counted.content, [{type: 'text', text: 'counted'}])
@@ -224,32 +224,32 @@ for (const suiteEra of ['legacy', 'auto'] as const) describe(`HTTP MCP adapter (
     })
 
     it('authenticates the requests and validates the hosts', async (): Promise<void> => {
-        const {url, container} = await Start({
+        const {url, container} = await start({
             authenticate: (request): { token: string, clientId: string, scopes: string[] } => {
                 const token: string | undefined = request.headers.authorization?.replace(/^Bearer /, '')
                 if (token !== 'secret') throw new Error('Invalid token')
                 return {token: token, clientId: 'agent', scopes: ['devices']}
             }
         })
-        await assert.rejects(Connect(url))
+        await assert.rejects(connect(url))
         const unauthorized: Response = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'})
         assert.strictEqual(unauthorized.status, 401)
         assert.strictEqual(unauthorized.headers.get('www-authenticate'), 'Bearer')
-        const client: Client = await Connect(url, {Authorization: 'Bearer secret'})
+        const client: Client = await connect(url, {Authorization: 'Bearer secret'})
         calls.length = 0
         await client.callTool({name: 'device_status', arguments: {sn: 'A1'}})
         assert.deepStrictEqual(JSON.parse(JSON.stringify(calls)), [{kind: 'tool', name: 'device_status', type: 'MCP', authInfo: {token: 'secret', clientId: 'agent', scopes: ['devices']}}])
         //A foreign host is refused (DNS rebinding)
-        assert.strictEqual(await PostStatus(url, {'Host': 'evil.example.com', 'Authorization': 'Bearer secret'}), 403)
-        assert.strictEqual(await PostStatus(url, {'Origin': 'http://evil.example.com', 'Authorization': 'Bearer secret'}), 403)
+        assert.strictEqual(await postStatus(url, {'Host': 'evil.example.com', 'Authorization': 'Bearer secret'}), 403)
+        assert.strictEqual(await postStatus(url, {'Origin': 'http://evil.example.com', 'Authorization': 'Bearer secret'}), 403)
         assert.strictEqual((await fetch(url.replace('/mcp', '/other'))).status, 404)
         await client.close()
         await container.destroy()
     })
 
     it('stops gracefully', async (): Promise<void> => {
-        const {url, container} = await Start()
-        const client: Client = await Connect(url)
+        const {url, container} = await start()
+        const client: Client = await connect(url)
         const inProgress = client.callTool({name: 'slow', arguments: {}})
         await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 30))
         await container.destroy()

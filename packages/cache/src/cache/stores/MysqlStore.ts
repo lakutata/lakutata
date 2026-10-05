@@ -1,7 +1,7 @@
 import {SerializedCacheStore, SerializedEntry} from './SerializedCacheStore.js'
 import {MysqlCacheOptions} from '../options/MysqlCacheOptions.js'
-import {LoadDriver} from '../lib/LoadDriver.js'
-import {LikePrefix} from '../lib/LikePrefix.js'
+import {loadDriver} from '../lib/LoadDriver.js'
+import {likePrefix} from '../lib/LikePrefix.js'
 
 type MysqlRow = {
     id: string
@@ -35,7 +35,7 @@ export class MysqlStore extends SerializedCacheStore {
     }
 
     public async connect(): Promise<void> {
-        const driver: MysqlDriver = await LoadDriver<MysqlDriver>('createPool', 'mysql2')
+        const driver: MysqlDriver = await loadDriver<MysqlDriver>('createPool', 'mysql2')
         const options: MysqlCacheOptions = this.options
         this.pool = driver.createPool({
             host: options.host,
@@ -89,7 +89,7 @@ export class MysqlStore extends SerializedCacheStore {
 
     public async clear(): Promise<void> {
         if (this.namespace) {
-            await this.pool.query(`DELETE FROM ${this.table} WHERE id LIKE ? ESCAPE '!'`, [LikePrefix(this.namespace)])
+            await this.pool.query(`DELETE FROM ${this.table} WHERE id LIKE ? ESCAPE '!'`, [likePrefix(this.namespace)])
         } else {
             await this.pool.query(`DELETE FROM ${this.table}`)
         }

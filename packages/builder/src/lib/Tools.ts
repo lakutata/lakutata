@@ -3,7 +3,7 @@ import {existsSync} from 'node:fs'
 import {chmod, mkdir, mkdtemp, rename, rm, writeFile} from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import {Run} from './Processes.js'
+import {runCommand} from './Processes.js'
 
 /**
  * A tool the builder downloads (as electron-builder downloads its tools): its version, and the archives of its releases
@@ -24,7 +24,7 @@ type Tool = {
  * @param archive
  * @param sha256
  */
-function Windows(archive: string, sha256: string): Record<string, { archive: string, sha256: string }> {
+function windows(archive: string, sha256: string): Record<string, { archive: string, sha256: string }> {
     return {'win32-x64': {archive: archive, sha256: sha256}, 'win32-arm64': {archive: archive, sha256: sha256}}
 }
 
@@ -47,28 +47,28 @@ const TOOLS: Record<'nfpm' | 'winsw' | 'nsis' | 'wix', Tool> = {
         version: '2.12.0',
         executable: 'WinSW.NET461.exe',
         url: (archive: string): string => `https://github.com/winsw/winsw/releases/download/v2.12.0/${archive}`,
-        archives: Windows('WinSW.NET461.exe', 'b5066b7bbdfba1293e5d15cda3caaea88fbeab35bd5b38c41c913d492aadfc4f')
+        archives: windows('WinSW.NET461.exe', 'b5066b7bbdfba1293e5d15cda3caaea88fbeab35bd5b38c41c913d492aadfc4f')
     },
     //The installers of Windows (.exe): https://nsis.sourceforge.io
     nsis: {
         version: '3.13',
         executable: 'nsis-3.13/makensis.exe',
         url: (archive: string): string => `https://sourceforge.net/projects/nsis/files/NSIS%203/3.13/${archive}/download`,
-        archives: Windows('nsis-3.13.zip', 'ba63dffc4410ee89193e1cb5a41989991bd77c61068da17e3156d136b7b0b3d8')
+        archives: windows('nsis-3.13.zip', 'ba63dffc4410ee89193e1cb5a41989991bd77c61068da17e3156d136b7b0b3d8')
     },
     //The packages of Windows Installer (.msi), candle and light: https://github.com/wixtoolset/wix3
     wix: {
         version: '3.14.1',
         executable: 'candle.exe',
         url: (archive: string): string => `https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/${archive}`,
-        archives: Windows('wix314-binaries.zip', '6ac824e1642d6f7277d0ed7ea09411a508f6116ba6fae0aa5f2c7daa2ff43d31')
+        archives: windows('wix314-binaries.zip', '6ac824e1642d6f7277d0ed7ea09411a508f6116ba6fae0aa5f2c7daa2ff43d31')
     }
 }
 
 /**
  * The directory of the cache of lakutata (the one of its tool): LAKUTATA_CACHE_DIR, else ~/.cache/lakutata
  */
-export function CacheDirectory(): string {
+export function cacheDirectory(): string {
     return process.env.LAKUTATA_CACHE_DIR ?? path.join(process.env.XDG_CACHE_HOME ?? path.join(os.homedir(), '.cache'), 'lakutata')
 }
 
@@ -78,14 +78,14 @@ export function CacheDirectory(): string {
  * cache and checked with its sha256
  * @param name
  */
-export async function EnsureTool(name: keyof typeof TOOLS): Promise<string> {
+export async function ensureTool(name: keyof typeof TOOLS): Promise<string> {
     const given: string | undefined = process.env[`LAKUTATA_${name.toUpperCase()}`]
     if (given) return given
     const tool: Tool = TOOLS[name]
     const platform: string = `${process.platform}-${process.arch}`
     const release = tool.archives[platform]
     if (!release) throw new Error(`${name} ${tool.version} has no release for ${platform}: give its executable (LAKUTATA_${name.toUpperCase()})`)
-    const directory: string = path.join(CacheDirectory(), 'tools', `${name}-${tool.version}-${platform}`)
+    const directory: string = path.join(cacheDirectory(), 'tools', `${name}-${tool.version}-${platform}`)
     const executable: string = path.join(directory, ...tool.executable.split('/'))
     if (existsSync(executable)) return executable
     //SourceForge answers the browsers with its page, the tools with the file
@@ -103,7 +103,7 @@ export async function EnsureTool(name: keyof typeof TOOLS): Promise<string> {
         await writeFile(path.join(temporary, release.archive), archive)
         //An archive (tar.gz, zip: the tar of Windows reads them), or the executable itself
         if (/\.(tar\.gz|zip)$/.test(release.archive)) {
-            const extracted = await Run('tar', ['-xf', release.archive], temporary)
+            const extracted = await runCommand('tar', ['-xf', release.archive], temporary)
             if (extracted.code !== 0) throw new Error(`The archive of ${name} cannot be extracted: ${extracted.output.trim()}`)
             await rm(path.join(temporary, release.archive))
         }

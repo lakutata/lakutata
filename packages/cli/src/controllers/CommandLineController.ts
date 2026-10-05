@@ -6,18 +6,18 @@ import {Translator} from 'lakutata/com/i18n'
 import {CreateProjectDTO} from '../dtos/CreateProjectDTO.js'
 import {ListTemplatesDTO} from '../dtos/ListTemplatesDTO.js'
 import {CleanDTO} from '../dtos/CleanDTO.js'
-import {Clean, OutputDirectories, type CleanResult} from '../lib/Clean.js'
+import {clean, outputDirectories, type CleanResult} from '../lib/Clean.js'
 import {TemplateCatalog, type PreparedTemplate, type TemplateInfo, type TemplateSource} from '../lib/TemplateCatalog.js'
 import {ProjectCreator, type ProjectPlan} from '../lib/ProjectCreator.js'
-import {DetectPackageManager} from '../lib/Processes.js'
-import {Done, Styled, Table} from '../lib/Output.js'
-import {FrameworkVersion, LatestVersion, ProjectFrameworkVersion, ToolPackage} from '../lib/Versions.js'
-import {Say} from '../lib/Language.js'
+import {detectPackageManager} from '../lib/Processes.js'
+import {done, styled, table} from '../lib/Output.js'
+import {frameworkVersion, latestVersion, projectFrameworkVersion, toolPackage} from '../lib/Versions.js'
+import {localize} from '../lib/Language.js'
 
 /**
  * Whether the tool runs in a terminal, where it asks the questions
  */
-function Interactive(): boolean {
+function interactive(): boolean {
     return !!process.stdin.isTTY && !!process.stdout.isTTY
 }
 
@@ -61,10 +61,10 @@ export class CommandLineController extends Controller {
             if (unknown.length) throw new Error(`The template has no feature ${unknown.join(', ')} (${available.length ? `its features: ${available.join(', ')}` : 'it has no feature'})`)
             return features
         }
-        if (!available.length || !Interactive() || input.yes) return []
+        if (!available.length || !interactive() || input.yes) return []
         const {checkbox} = await import('@inquirer/prompts')
         return await checkbox({
-            message: Say(this.i18n, 'prompts.features', 'The features of the project'),
+            message: localize(this.i18n, 'prompts.features', 'The features of the project'),
             choices: available.map((feature: string): { name: string, value: string } => ({name: `${feature}: ${template.features[feature]}`, value: feature}))
         })
     }
@@ -87,12 +87,12 @@ export class CommandLineController extends Controller {
             template: template,
             directory: directory,
             init: input.init,
-            packageManager: input.packageManager ?? DetectPackageManager(),
+            packageManager: input.packageManager ?? detectPackageManager(),
             git: input.git,
             features: features
         }
-        const say = (key: string, text: string, params?: Record<string, string>): string => Say(this.i18n, key, text, params)
-        process.stdout.write(Table([
+        const say = (key: string, text: string, params?: Record<string, string>): string => localize(this.i18n, key, text, params)
+        process.stdout.write(table([
             [say('plan.name', 'Name'), plan.name],
             [say('plan.id', 'ID'), plan.id],
             [say('plan.description', 'Description'), plan.description || '-'],
@@ -104,7 +104,7 @@ export class CommandLineController extends Controller {
             [say('plan.dependencies', 'Dependencies'), plan.packageManager === 'none' ? say('plan.notInstalled', 'not installed') : say('plan.installed', 'installed with {manager}', {manager: plan.packageManager})],
             [say('plan.git', 'Git'), plan.git ? say('plan.initialized', 'initialized') : say('plan.notInitialized', 'not initialized')]
         ], say('plan.title', 'The project')))
-        if (Interactive() && !input.yes) {
+        if (interactive() && !input.yes) {
             const {confirm} = await import('@inquirer/prompts')
             if (!await confirm({message: say('prompts.create', 'Create the project?'), default: true})) return say('prompts.notCreated', 'The project is not created')
         }
@@ -112,13 +112,13 @@ export class CommandLineController extends Controller {
         //The path of the project from the current directory, or its absolute path when it is elsewhere
         const relative: string = path.relative(process.cwd(), directory)
         const location: string = !relative || relative.startsWith('..') ? directory : relative
-        return `\n${Styled('green', 'The project is created')} in ${directory}\n${relative ? `\n  cd ${location}\n` : ''}`
+        return `\n${styled('green', 'The project is created')} in ${directory}\n${relative ? `\n  cd ${location}\n` : ''}`
     }
 
     @CLIAction('templates', ListTemplatesDTO, {description: 'List the project templates'})
     public async templates(input: ListTemplatesDTO): Promise<string> {
         const templates: TemplateInfo[] = await this.catalog.list(input.refresh)
-        return `${Table(templates.map((template: TemplateInfo): [string, string] => [template.name, `${template.description}${template.features?.length ? ` (features: ${template.features.join(', ')})` : ''}`]), 'The templates (lakutata create --template <name>)')}
+        return `${table(templates.map((template: TemplateInfo): [string, string] => [template.name, `${template.description}${template.features?.length ? ` (features: ${template.features.join(', ')})` : ''}`]), 'The templates (lakutata create --template <name>)')}
 Other templates: --template npm:<package>, github:<owner>/<repo>, or a directory
 The features of a template are enabled by lakutata create --with <features>
 `
@@ -127,24 +127,24 @@ The features of a template are enabled by lakutata create --with <features>
     @CLIAction('clean [paths...]', CleanDTO, {description: 'Remove paths of the package of the current directory, on every platform (the outDir of its tsconfig.json by default)'})
     public async clean(input: CleanDTO): Promise<undefined> {
         const directory: string = process.cwd()
-        const paths: string[] = input.paths?.length ? input.paths : await OutputDirectories(directory)
-        const result: CleanResult = await Clean(directory, paths)
-        Done(result.removed.length ? `Removed ${result.removed.join(', ')}` : `Nothing to remove (${result.missing.join(', ')})`)
+        const paths: string[] = input.paths?.length ? input.paths : await outputDirectories(directory)
+        const result: CleanResult = await clean(directory, paths)
+        done(result.removed.length ? `Removed ${result.removed.join(', ')}` : `Nothing to remove (${result.missing.join(', ')})`)
         return undefined
     }
 
     @CLIAction('info', {description: 'Show the versions of the tool and of the framework'})
     public async info(): Promise<string> {
-        const tool = ToolPackage()
-        const [latestTool, latestFramework] = await Promise.all([LatestVersion(tool.name), LatestVersion('lakutata')])
-        const project = await ProjectFrameworkVersion(process.cwd())
+        const tool = toolPackage()
+        const [latestTool, latestFramework] = await Promise.all([latestVersion(tool.name), latestVersion('lakutata')])
+        const project = await projectFrameworkVersion(process.cwd())
         const latest = (version: string | undefined): string => version ? ` (latest ${version})` : ''
         const rows: [string, string][] = [
             ['Tool', `${tool.name} ${tool.version}${latest(latestTool)}`],
-            ['Framework', `lakutata ${FrameworkVersion()}${latest(latestFramework)}`],
+            ['Framework', `lakutata ${frameworkVersion()}${latest(latestFramework)}`],
             ['Node.js', `${process.version} (${process.platform} ${process.arch})`]
         ]
         if (project) rows.push(['Project', `${project.project}: lakutata ${project.installed ?? 'not installed'} (${project.declared})`])
-        return Table(rows)
+        return table(rows)
     }
 }

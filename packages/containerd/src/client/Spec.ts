@@ -102,7 +102,7 @@ export type DeviceCgroupRule = {
  * Parse a rule of the devices of a cgroup as Docker writes it: "c 188:* rwm", "b 8:16 r", "a *:* rwm"
  * @param rule
  */
-export function ParseDeviceCgroupRule(rule: string): DeviceCgroupRule {
+export function parseDeviceCgroupRule(rule: string): DeviceCgroupRule {
     const match: RegExpMatchArray | null = rule.trim().match(/^([acb]) (\*|\d+):(\*|\d+) ([rwm]{1,3})$/)
     if (!match || new Set(match[4]).size !== match[4].length) throw new Error(`The rule of the devices "${rule}" is not valid ("c 188:* rwm": a type a, c or b, the major and the minor numbers or *, the access of r, w and m)`)
     return {
@@ -178,7 +178,7 @@ export type SpecOptions = {
  * The capability of a name (NET_ADMIN, CAP_NET_ADMIN)
  * @param name
  */
-function Capability(name: string): string {
+function normalizeCapability(name: string): string {
     const upper: string = name.trim().toUpperCase()
     return upper.startsWith('CAP_') ? upper : `CAP_${upper}`
 }
@@ -188,12 +188,12 @@ function Capability(name: string): string {
  * the ones dropped (ALL drops all)
  * @param options
  */
-export function Capabilities(options: Pick<SpecOptions, 'privileged' | 'capAdd' | 'capDrop'>): string[] {
+export function containerCapabilities(options: Pick<SpecOptions, 'privileged' | 'capAdd' | 'capDrop'>): string[] {
     let capabilities: Set<string> = new Set(options.privileged ? ALL_CAPABILITIES : DEFAULT_CAPABILITIES)
-    const drop: string[] = (options.capDrop ?? []).map(Capability)
+    const drop: string[] = (options.capDrop ?? []).map(normalizeCapability)
     if (drop.includes('CAP_ALL')) capabilities = new Set()
     else drop.forEach((capability: string): unknown => capabilities.delete(capability))
-    const add: string[] = (options.capAdd ?? []).map(Capability)
+    const add: string[] = (options.capAdd ?? []).map(normalizeCapability)
     if (add.includes('CAP_ALL')) ALL_CAPABILITIES.forEach((capability: string): unknown => capabilities.add(capability))
     else add.forEach((capability: string): unknown => capabilities.add(capability))
     return [...capabilities]
@@ -203,8 +203,8 @@ export function Capabilities(options: Pick<SpecOptions, 'privileged' | 'capAdd' 
  * The specification of the runtime (OCI) of a container on Linux, as containerd and nerdctl generate it
  * @param options
  */
-export function GenerateSpec(options: SpecOptions): Record<string, any> {
-    const capabilities: string[] = Capabilities(options)
+export function generateSpec(options: SpecOptions): Record<string, any> {
+    const capabilities: string[] = containerCapabilities(options)
     const namespaces: { type: string, path?: string }[] = [{type: 'mount'}, {type: 'uts'}]
     if (!options.pidHost) namespaces.push({type: 'pid'})
     if (!options.ipcHost) namespaces.push({type: 'ipc'})
@@ -293,7 +293,7 @@ export function GenerateSpec(options: SpecOptions): Record<string, any> {
  * @param spec the specification of the container
  * @param options
  */
-export function ExecProcessSpec(spec: Record<string, any>, options: { args: string[], env?: string[], cwd?: string, uid?: number, gid?: number, additionalGids?: number[], terminal?: boolean }): Record<string, any> {
+export function execProcessSpec(spec: Record<string, any>, options: { args: string[], env?: string[], cwd?: string, uid?: number, gid?: number, additionalGids?: number[], terminal?: boolean }): Record<string, any> {
     const process: Record<string, any> = structuredClone(spec.process ?? {})
     process.args = options.args
     process.terminal = !!options.terminal

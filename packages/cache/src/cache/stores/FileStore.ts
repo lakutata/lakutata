@@ -2,7 +2,7 @@ import {mkdir, readFile, rename, writeFile} from 'node:fs/promises'
 import path from 'node:path'
 import {SerializedCacheStore, SerializedEntry} from './SerializedCacheStore.js'
 import {FileCacheOptions} from '../options/FileCacheOptions.js'
-import {Deserialize, Serialize} from '../lib/Serializer.js'
+import {deserialize, serialize} from '../lib/Serializer.js'
 
 type FileRecord = {
     expire?: number
@@ -79,7 +79,7 @@ export class FileStore extends SerializedCacheStore {
      */
     protected async save(): Promise<void> {
         this.removeExpired()
-        const content: string = Serialize({cache: [...this.records], lastExpire: this.lastExpire})
+        const content: string = serialize({cache: [...this.records], lastExpire: this.lastExpire})
         const temporary: string = `${this.filename}.${process.pid}.tmp`
         await mkdir(path.dirname(this.filename), {recursive: true})
         await writeFile(temporary, content)
@@ -94,7 +94,7 @@ export class FileStore extends SerializedCacheStore {
             if ((e as NodeJS.ErrnoException).code === 'ENOENT') return
             throw e
         }
-        const content: FileContent = Deserialize<FileContent>(text)
+        const content: FileContent = deserialize<FileContent>(text)
         this.records = new Map(Array.isArray(content.cache) ? content.cache : Object.entries(content.cache))
         if (typeof content.lastExpire === 'number') this.lastExpire = content.lastExpire
     }

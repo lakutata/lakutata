@@ -20,7 +20,7 @@ const UNCLONABLE: Set<object> = new Set<object>([WeakSet.prototype, WeakMap.prot
  * The built-in prototype an object is based on
  * @param value
  */
-function BuiltInPrototype(value: object): object {
+function builtInPrototype(value: object): object {
     if (Array.isArray(value)) return Array.prototype
     if (value instanceof Buffer) return Buffer.prototype
     if (value instanceof Date) return Date.prototype
@@ -48,7 +48,7 @@ function BuiltInPrototype(value: object): object {
  * @param value
  * @param builtIn
  */
-function CloneBase(value: object, builtIn: object): object {
+function cloneBase(value: object, builtIn: object): object {
     const prototype: (object & { isImmutable?: boolean }) | null = Object.getPrototypeOf(value)
     if (prototype && prototype.isImmutable) return value
     if (builtIn === Array.prototype) {
@@ -74,7 +74,7 @@ function CloneBase(value: object, builtIn: object): object {
  * The clone of binary data or of a boxed primitive, with the prototype of the value; undefined for the other values
  * @param value
  */
-function CloneData(value: object): object | undefined {
+function cloneData(value: object): object | undefined {
     let clone: object
     if (value instanceof ArrayBuffer) {
         clone = value.slice(0)
@@ -100,17 +100,17 @@ function CloneData(value: object): object | undefined {
  * @param value
  * @param seen the clones of the objects already cloned
  */
-function CloneValue(value: unknown, seen: Map<unknown, unknown>): unknown {
+function cloneValue(value: unknown, seen: Map<unknown, unknown>): unknown {
     if (typeof value !== 'object' || value === null) return value
     if (seen.has(value)) return seen.get(value)
     if (!(value instanceof Buffer)) {
-        const data: object | undefined = CloneData(value)
+        const data: object | undefined = cloneData(value)
         if (data) {
             seen.set(value, data)
             return data
         }
     }
-    const builtIn: object = BuiltInPrototype(value)
+    const builtIn: object = builtInPrototype(value)
     if (UNCLONABLE.has(builtIn)) return value
     switch (builtIn) {
         case Buffer.prototype:
@@ -122,14 +122,14 @@ function CloneValue(value: unknown, seen: Map<unknown, unknown>): unknown {
         case URL.prototype:
             return new URL(value as URL)
     }
-    const clone: object = CloneBase(value, builtIn)
+    const clone: object = cloneBase(value, builtIn)
     if (clone === value) return value
     //The value may contain itself
     seen.set(value, clone)
     if (builtIn === Set.prototype) {
-        for (const item of value as Set<unknown>) (clone as Set<unknown>).add(CloneValue(item, seen))
+        for (const item of value as Set<unknown>) (clone as Set<unknown>).add(cloneValue(item, seen))
     } else if (builtIn === Map.prototype) {
-        for (const [key, item] of value as Map<unknown, unknown>) (clone as Map<unknown, unknown>).set(key, CloneValue(item, seen))
+        for (const [key, item] of value as Map<unknown, unknown>) (clone as Map<unknown, unknown>).set(key, cloneValue(item, seen))
     }
     const source: Record<PropertyKey, unknown> = value as Record<PropertyKey, unknown>
     for (const key of Reflect.ownKeys(value)) {
@@ -143,15 +143,15 @@ function CloneValue(value: unknown, seen: Map<unknown, unknown>): unknown {
         const descriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(value, key)
         if (descriptor && descriptor.get) {
             //The value read by the getter, cloned into a property of the same enumerability
-            Object.defineProperty(clone, key, {enumerable: descriptor.enumerable, writable: true, configurable: true, value: CloneValue(source[key], seen)})
+            Object.defineProperty(clone, key, {enumerable: descriptor.enumerable, writable: true, configurable: true, value: cloneValue(source[key], seen)})
         } else if (descriptor && descriptor.set) {
             //A setter alone has no value to read
             Object.defineProperty(clone, key, descriptor)
         } else if (descriptor && descriptor.enumerable) {
-            (clone as Record<PropertyKey, unknown>)[key] = CloneValue(source[key], seen)
+            (clone as Record<PropertyKey, unknown>)[key] = cloneValue(source[key], seen)
         } else {
             //A non enumerable property, or a property without descriptor (a proxy may expose one)
-            Object.defineProperty(clone, key, {enumerable: !descriptor, writable: true, configurable: true, value: CloneValue(source[key], seen)})
+            Object.defineProperty(clone, key, {enumerable: !descriptor, writable: true, configurable: true, value: cloneValue(source[key], seen)})
         }
     }
     //Locked as the value, once filled
@@ -194,5 +194,5 @@ function CloneValue(value: unknown, seen: Map<unknown, unknown>): unknown {
  * ```
  */
 export function cloneDeep<T>(value: T): T {
-    return CloneValue(value, new Map()) as T
+    return cloneValue(value, new Map()) as T
 }

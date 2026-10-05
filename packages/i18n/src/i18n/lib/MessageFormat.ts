@@ -366,7 +366,7 @@ export function messageArguments(parts: MessagePart[]): Map<string, string> {
  */
 const FORMATTERS: Map<string, Intl.NumberFormat | Intl.DateTimeFormat | Intl.PluralRules> = new Map()
 
-function Formatter<T extends Intl.NumberFormat | Intl.DateTimeFormat | Intl.PluralRules>(kind: new (locale: string, options: any) => T, locale: string, options: object): T {
+function cachedFormatter<T extends Intl.NumberFormat | Intl.DateTimeFormat | Intl.PluralRules>(kind: new (locale: string, options: any) => T, locale: string, options: object): T {
     const key: string = `${kind.name}|${locale}|${JSON.stringify(options)}`
     let formatter = FORMATTERS.get(key)
     if (!formatter) {
@@ -380,7 +380,7 @@ function Formatter<T extends Intl.NumberFormat | Intl.DateTimeFormat | Intl.Plur
  * A date of a value: a Date, a timestamp, a date string, or an object giving one (lakutata Time: valueOf)
  * @param value
  */
-function DateOf(value: unknown): Date {
+function dateOf(value: unknown): Date {
     if (value instanceof Date) return value
     if (value !== null && typeof value === 'object' && typeof (value as { toDate?: unknown }).toDate === 'function') return (value as { toDate: () => Date }).toDate()
     return new Date(value as any)
@@ -393,7 +393,7 @@ function DateOf(value: unknown): Date {
  * @param context
  * @param source where the message is (its key), for the errors
  */
-export function FormatMessage(parts: MessagePart[], params: Record<string, unknown>, context: FormatContext, source: string = 'message'): string {
+export function formatMessage(parts: MessagePart[], params: Record<string, unknown>, context: FormatContext, source: string = 'message'): string {
     const format = (items: MessagePart[], pound?: number): string => {
         let text: string = ''
         for (const part of items) {
@@ -402,7 +402,7 @@ export function FormatMessage(parts: MessagePart[], params: Record<string, unkno
                 continue
             }
             if (part.type === 'pound') {
-                text += Formatter(Intl.NumberFormat, context.locale, {}).format(pound ?? 0)
+                text += cachedFormatter(Intl.NumberFormat, context.locale, {}).format(pound ?? 0)
                 continue
             }
             const value: unknown = params[part.name]
@@ -416,21 +416,21 @@ export function FormatMessage(parts: MessagePart[], params: Record<string, unkno
             switch (part.type) {
                 case 'argument':
                     text += typeof value === 'number' || typeof value === 'bigint'
-                        ? Formatter(Intl.NumberFormat, context.locale, {}).format(value)
-                        : value instanceof Date ? Formatter(Intl.DateTimeFormat, context.locale, {timeZone: context.timeZone}).format(value) : String(value)
+                        ? cachedFormatter(Intl.NumberFormat, context.locale, {}).format(value)
+                        : value instanceof Date ? cachedFormatter(Intl.DateTimeFormat, context.locale, {timeZone: context.timeZone}).format(value) : String(value)
                     break
                 case 'number':
-                    text += Formatter(Intl.NumberFormat, context.locale, NumberOptions(part.style, params, context, source)).format(value as number)
+                    text += cachedFormatter(Intl.NumberFormat, context.locale, numberOptions(part.style, params, context, source)).format(value as number)
                     break
                 case 'date':
                 case 'time':
-                    text += Formatter(Intl.DateTimeFormat, context.locale, {[part.type === 'date' ? 'dateStyle' : 'timeStyle']: part.style ?? 'medium', timeZone: context.timeZone}).format(DateOf(value))
+                    text += cachedFormatter(Intl.DateTimeFormat, context.locale, {[part.type === 'date' ? 'dateStyle' : 'timeStyle']: part.style ?? 'medium', timeZone: context.timeZone}).format(dateOf(value))
                     break
                 case 'plural':
                 case 'selectordinal': {
                     const count: number = Number(value)
                     const exact: MessagePart[] | undefined = part.options[`=${count}`]
-                    const rule: string = Formatter(Intl.PluralRules, context.locale, {type: part.type === 'plural' ? 'cardinal' : 'ordinal'}).select(count - part.offset)
+                    const rule: string = cachedFormatter(Intl.PluralRules, context.locale, {type: part.type === 'plural' ? 'cardinal' : 'ordinal'}).select(count - part.offset)
                     text += format(exact ?? part.options[rule] ?? part.options.other, count - part.offset)
                     break
                 }
@@ -451,7 +451,7 @@ export function FormatMessage(parts: MessagePart[], params: Record<string, unkno
  * @param context
  * @param source
  */
-function NumberOptions(style: string | undefined, params: Record<string, unknown>, context: FormatContext, source: string): Intl.NumberFormatOptions {
+function numberOptions(style: string | undefined, params: Record<string, unknown>, context: FormatContext, source: string): Intl.NumberFormatOptions {
     if (style === 'integer') return {maximumFractionDigits: 0}
     if (style === 'percent') return {style: 'percent'}
     if (style?.startsWith('currency')) {

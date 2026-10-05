@@ -5,11 +5,11 @@ import path from 'node:path'
 import {Component} from 'lakutata'
 import {Autoload, Singleton} from 'lakutata/decorator/di'
 import {Settings} from './Settings.js'
-import {Warn} from './Output.js'
-import {CachedPackage, DownloadPackage, MajorManifest, type PackageVersion, ResolvePackage} from './Registry.js'
-import {ExtractTarGz, Under} from './Tar.js'
-import {ToolMajor} from './Versions.js'
-import {ReadTemplateFeatures} from './TemplateFeatures.js'
+import {warn} from './Output.js'
+import {cachedPackage, downloadPackage, majorManifest, type PackageVersion, resolvePackage} from './Registry.js'
+import {extractTarGz, under} from './Tar.js'
+import {toolMajor} from './Versions.js'
+import {readTemplateFeatures} from './TemplateFeatures.js'
 
 /**
  * An official template
@@ -124,17 +124,17 @@ export class TemplateCatalog extends Component {
         const cache: CatalogCache | undefined = await this.readCache()
         if (cache && !refresh && Date.now() - cache.updatedAt < CACHE_TTL) return cache.templates
         //The catalog of the major version of the tool (its templates are the ones of this major version)
-        const templates: unknown = (await MajorManifest(CATALOG_PACKAGE, ToolMajor()))?.lakutata?.templates
+        const templates: unknown = (await majorManifest(CATALOG_PACKAGE, toolMajor()))?.lakutata?.templates
         if (Array.isArray(templates)) {
             await mkdir(path.dirname(this.cacheFile), {recursive: true})
             await writeFile(this.cacheFile, JSON.stringify({updatedAt: Date.now(), registry: Settings.registry, templates: templates} satisfies CatalogCache, null, 2))
             return templates
         }
         if (cache) {
-            Warn(`The catalog of the templates cannot be fetched from ${Settings.registry}, the catalog of ${new Date(cache.updatedAt).toLocaleString()} is used`)
+            warn(`The catalog of the templates cannot be fetched from ${Settings.registry}, the catalog of ${new Date(cache.updatedAt).toLocaleString()} is used`)
             return cache.templates
         }
-        Warn(`The catalog of the templates cannot be fetched from ${Settings.registry}, the templates known by the tool are listed`)
+        warn(`The catalog of the templates cannot be fetched from ${Settings.registry}, the templates known by the tool are listed`)
         return BUILTIN_TEMPLATES
     }
 
@@ -170,24 +170,24 @@ export class TemplateCatalog extends Component {
      */
     protected async preparePackage(source: Extract<TemplateSource, { kind: 'npm' }>, work: string): Promise<string> {
         //An official template has the major version of the tool
-        const wanted: string | number | undefined = source.version ?? (source.official ? ToolMajor() : undefined)
+        const wanted: string | number | undefined = source.version ?? (source.official ? toolMajor() : undefined)
         let pkg: PackageVersion | undefined
         try {
-            pkg = await ResolvePackage(source.package, wanted)
+            pkg = await resolvePackage(source.package, wanted)
         } catch (error: unknown) {
-            const cached = typeof wanted === 'string' ? undefined : await CachedPackage(source.package, wanted)
+            const cached = typeof wanted === 'string' ? undefined : await cachedPackage(source.package, wanted)
             if (!cached) throw error
-            Warn(`${(error as Error).message}, the cached ${source.package}@${cached.version} is used`)
-            await ExtractTarGz(cached.archive, work, Under('package'))
+            warn(`${(error as Error).message}, the cached ${source.package}@${cached.version} is used`)
+            await extractTarGz(cached.archive, work, under('package'))
             return `${source.package}@${cached.version}`
         }
         if (!pkg) {
             const names: string = source.official ? `, the templates are: ${(await this.list()).map((info: TemplateInfo): string => info.name).join(', ')}` : ''
             throw new Error(`The template ${source.official ? `"${source.package.replace('@lakutata/template-', '')}" ` : ''}does not exist (${source.package} is not on ${Settings.registry})${names}`)
         }
-        const archive: Buffer = await DownloadPackage(pkg)
+        const archive: Buffer = await downloadPackage(pkg)
         const version: string = pkg.version
-        await ExtractTarGz(archive, work, Under('package'))
+        await extractTarGz(archive, work, under('package'))
         return `${source.package}@${version}`
     }
 
@@ -203,7 +203,7 @@ export class TemplateCatalog extends Component {
         return {
             label: label,
             root: packaged ? path.join(directory, 'template') : directory,
-            features: packaged ? await ReadTemplateFeatures(directory) : {},
+            features: packaged ? await readTemplateFeatures(directory) : {},
             featuresDirectory: path.join(directory, 'features'),
             cleanup: cleanup
         }
@@ -228,7 +228,7 @@ export class TemplateCatalog extends Component {
                 const response: Response = await fetch(url, {headers: {'User-Agent': 'lakutata-cli'}, signal: AbortSignal.timeout(60000)})
                 if (!response.ok) throw new Error(`The template ${source.repository} cannot be downloaded from ${url}: ${response.status} ${response.statusText}`)
                 //The archives of GitHub have a root directory
-                await ExtractTarGz(Buffer.from(await response.arrayBuffer()), work, Under(1))
+                await extractTarGz(Buffer.from(await response.arrayBuffer()), work, under(1))
                 label = `github:${source.repository}${source.ref ? `#${source.ref}` : ''}`
             }
             return await this.prepared(work, label, cleanup)

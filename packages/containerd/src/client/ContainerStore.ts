@@ -7,17 +7,17 @@ import {pack as tarPack, type Header, type Pack} from 'tar-stream'
 import path from 'node:path'
 import {Readable} from 'node:stream'
 import {setTimeout as sleep} from 'node:timers/promises'
-import {ContainerdClient, IsGRPCError, PROCESS_TYPE_URL, SPEC_TYPE_URL, TimestampDate, type SnapshotMount} from './ContainerdClient.js'
+import {ContainerdClient, isGRPCError, PROCESS_TYPE_URL, SPEC_TYPE_URL, timestampDate, type SnapshotMount} from './ContainerdClient.js'
 import {GRPCStatus, decode, encode, type Message} from '@lakutata/grpc'
 import * as M from './Messages.js'
-import {FormatPlatform, HostPlatform, ParsePlatform, type Platform} from './Platforms.js'
-import {ChainIds, ImageStore, type ImageConfigChanges, type ResolvedImage} from './ImageStore.js'
+import {formatPlatform, hostPlatform, parsePlatform, type Platform} from './Platforms.js'
+import {chainIds, ImageStore, type ImageConfigChanges, type ResolvedImage} from './ImageStore.js'
 import {ProcessFifo} from './Fifo.js'
 import {VolumeStore, type Volume} from './Volumes.js'
 import {DEFAULT_NETWORK, NetworkStore, type CNINetwork, type ContainerNetworkInterface, type PortMapping} from './Networks.js'
-import {DirectoryTree, LayerDirectories, LayersTree, ResolveUser, type FileTree, type ProcessUser} from './Rootfs.js'
-import {Capabilities, ExecProcessSpec, GenerateSpec, ParseDeviceCgroupRule, type SpecDevice, type SpecMount} from './Spec.js'
-import {DefaultSeccompProfile, SeccompSupported, type SeccompProfile} from './Seccomp.js'
+import {DirectoryTree, layerDirectories, LayersTree, resolveUser, type FileTree, type ProcessUser} from './Rootfs.js'
+import {containerCapabilities, execProcessSpec, generateSpec, parseDeviceCgroupRule, type SpecDevice, type SpecMount} from './Spec.js'
+import {defaultSeccompProfile, seccompSupported, type SeccompProfile} from './Seccomp.js'
 
 /**
  * The labels of the containers: the ones of nerdctl (nerdctl ps, nerdctl logs know them), the ones of the restart
@@ -190,7 +190,7 @@ type StoredState = {
  * @param content
  * @param ownNetwork
  */
-export function ResolvConf(content: string, ownNetwork: boolean): string {
+export function resolvConf(content: string, ownNetwork: boolean): string {
     if (!ownNetwork) return content
     const lines: string[] = content.split('\n').filter((line: string): boolean => !/^\s*nameserver\s+(127\.|::1\s*$)/.test(line))
     while (lines.length && !lines[lines.length - 1].trim()) lines.pop()
@@ -202,7 +202,7 @@ export function ResolvConf(content: string, ownNetwork: boolean): string {
  * An error of the runtime refusing the profile of seccomp of a container (a runc built without seccomp), with what to do
  * @param error
  */
-export function SeccompHint(error: unknown): unknown {
+export function seccompHint(error: unknown): unknown {
     const message: string = (error as Error)?.message ?? ''
     if (!/seccomp/i.test(message) || !/not (supported|enabled)/i.test(message)) return error
     return Object.assign(error as Error, {message: `${message} (the runtime of this machine does not filter the system calls with seccomp: create the container with the profile of seccomp unconfined)`})
@@ -274,7 +274,7 @@ export type ContainerResourceUpdate = {
  * The number of a signal (SIGTERM, TERM, 15)
  * @param signal
  */
-export function SignalNumber(signal: string | number): number {
+export function signalNumber(signal: string | number): number {
     if (typeof signal === 'number') return signal
     if (/^\d+$/.test(signal)) return Number(signal)
     const name: string = signal.toUpperCase().startsWith('SIG') ? signal.toUpperCase() : `SIG${signal.toUpperCase()}`
@@ -289,7 +289,7 @@ let swapLimitSupported: boolean | undefined
  * Whether the kernel limits the swap of the cgroups (Docker discards the swap limits otherwise): the files of the swap
  * limits, in the cgroups below the root on cgroup v2 (the root has none)
  */
-export function SwapLimitSupported(): boolean {
+export function isSwapLimitSupported(): boolean {
     if (swapLimitSupported !== undefined) return swapLimitSupported
     if (existsSync('/sys/fs/cgroup/cgroup.controllers')) {
         try {
@@ -309,15 +309,15 @@ export function SwapLimitSupported(): boolean {
  * @param memory
  * @param memorySwap
  */
-export function SwapLimit(memory: number | undefined, memorySwap: number | undefined): number | undefined {
-    if (!memory || !SwapLimitSupported()) return undefined
+export function swapLimit(memory: number | undefined, memorySwap: number | undefined): number | undefined {
+    if (!memory || !isSwapLimitSupported()) return undefined
     return memorySwap === -1 || (memorySwap && memorySwap > 0) ? memorySwap : memory * 2
 }
 
 /**
  * The CPUs of the machine online, as a cpuset writes them (0-3,6)
  */
-async function OnlineCpus(): Promise<string> {
+async function onlineCpuSet(): Promise<string> {
     return (await readFile('/sys/devices/system/cpu/online', 'utf8').catch((): string => '')).trim() || `0-${availableParallelism() - 1}`
 }
 
@@ -326,10 +326,10 @@ async function OnlineCpus(): Promise<string> {
  * as bigints, the statistics are numbers
  * @param value
  */
-function Counters<T>(value: T): T {
+function metricCounters<T>(value: T): T {
     if (typeof value === 'bigint') return Number(value) as T
-    if (Array.isArray(value)) return value.map(Counters) as T
-    if (value && typeof value === 'object' && !(value instanceof Uint8Array)) return Object.fromEntries(Object.entries(value).map(([key, item]): [string, unknown] => [key, Counters(item)])) as T
+    if (Array.isArray(value)) return value.map(metricCounters) as T
+    if (value && typeof value === 'object' && !(value instanceof Uint8Array)) return Object.fromEntries(Object.entries(value).map(([key, item]): [string, unknown] => [key, metricCounters(item)])) as T
     return value
 }
 
@@ -395,8 +395,8 @@ export class ContainerStore {
                 throw new Error(`The profile of seccomp ${profile} is not read: ${(error as Error).message}`, {cause: error})
             }
         }
-        if (!SeccompSupported()) return undefined
-        return DefaultSeccompProfile(Capabilities(options))
+        if (!seccompSupported()) return undefined
+        return defaultSeccompProfile(containerCapabilities(options))
     }
 
     /**
@@ -576,7 +576,7 @@ export class ContainerStore {
      * @param options
      */
     public async create(options: ContainerCreateOptions): Promise<Message> {
-        const platform: Platform = options.platform ?? HostPlatform()
+        const platform: Platform = options.platform ?? hostPlatform()
         const resolved: ResolvedImage = await this.images.resolve(options.image, platform)
         const id: string = randomBytes(32).toString('hex')
         const name: string = options.name ?? `${resolved.name.split('/').pop()!.split(/[:@]/)[0].replace(/[^a-zA-Z0-9_.-]/g, '')}-${id.slice(0, 5)}`
@@ -590,11 +590,11 @@ export class ContainerStore {
         const lease: string = await this.client.createLease()
         const stateDir: string = this.stateDir(id)
         try {
-            const chain: string[] = ChainIds(resolved.config.rootfs?.diff_ids ?? [])
+            const chain: string[] = chainIds(resolved.config.rootfs?.diff_ids ?? [])
             const parent: string = chain[chain.length - 1] ?? ''
             if (parent && !(await this.client.statSnapshot(this.options.snapshotter, parent))) await this.images.unpack(resolved.manifest, lease)
             const mounts: SnapshotMount[] = await this.client.prepareSnapshot(this.options.snapshotter, id, parent, {}, lease)
-            const user: ProcessUser = await ResolveUser(mounts, options.user ?? resolved.config.config?.User)
+            const user: ProcessUser = await resolveUser(mounts, options.user ?? resolved.config.config?.User)
             //The environment: the one of the image, PATH, HOSTNAME, HOME, the one given
             const env: Map<string, string> = new Map([['PATH', '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin']])
             for (const entry of resolved.config.config?.Env ?? []) env.set(entry.split('=')[0], entry.slice(entry.indexOf('=') + 1))
@@ -611,7 +611,7 @@ export class ContainerStore {
             //The hosts of the networks of CNI: the address of the container added by its hook
             await writeFile(path.join(stateDir, 'hosts.base'), hosts.join('\n') + '\n')
             await writeFile(path.join(stateDir, 'hosts'), hosts.join('\n') + '\n')
-            await writeFile(path.join(stateDir, 'resolv.conf'), options.dns?.length ? options.dns.map((server: string): string => `nameserver ${server}`).join('\n') + '\n' : ResolvConf(await readFile('/etc/resolv.conf', 'utf8').catch((): string => ''), network !== 'host'))
+            await writeFile(path.join(stateDir, 'resolv.conf'), options.dns?.length ? options.dns.map((server: string): string => `nameserver ${server}`).join('\n') + '\n' : resolvConf(await readFile('/etc/resolv.conf', 'utf8').catch((): string => ''), network !== 'host'))
             await writeFile(path.join(stateDir, 'hostname'), hostname + '\n')
             await writeFile(this.logFile(id), '')
             const specMounts: SpecMount[] = [
@@ -647,7 +647,7 @@ export class ContainerStore {
                     poststop: [{path: '/bin/sh', args: ['sh', hook, 'del', stateDir], timeout: 120}]
                 }
             }
-            const spec: Record<string, any> = GenerateSpec({
+            const spec: Record<string, any> = generateSpec({
                 id: id,
                 namespace: this.client.namespace,
                 args: this.args(resolved, options),
@@ -665,7 +665,7 @@ export class ContainerStore {
                 seccomp: await this.seccomp(options),
                 mounts: specMounts,
                 devices: devices,
-                deviceCgroupRules: (options.deviceCgroupRules ?? []).map(ParseDeviceCgroupRule),
+                deviceCgroupRules: (options.deviceCgroupRules ?? []).map(parseDeviceCgroupRule),
                 network: {mode: network},
                 hooks: hooks,
                 pidHost: options.pidHost,
@@ -673,7 +673,7 @@ export class ContainerStore {
                 cgroupNamespace: (options.cgroupns ?? 'private') === 'private' && existsSync('/sys/fs/cgroup/cgroup.controllers'),
                 cgroupsPath: this.options.cgroupManager === 'systemd' ? `system.slice:lakutata:${id}` : `/${this.client.namespace}/${id}`,
                 memory: options.memory,
-                memorySwap: SwapLimit(options.memory, options.memorySwap),
+                memorySwap: swapLimit(options.memory, options.memorySwap),
                 cpuQuota: options.cpus ? Math.round(options.cpus * 100000) : undefined,
                 cpuShares: options.cpuShares,
                 cpuset: options.cpuset,
@@ -688,7 +688,7 @@ export class ContainerStore {
                 ...options.labels ?? {},
                 [ContainerLabels.NAME]: name,
                 [ContainerLabels.HOSTNAME]: hostname,
-                [ContainerLabels.PLATFORM]: FormatPlatform(resolved.platform),
+                [ContainerLabels.PLATFORM]: formatPlatform(resolved.platform),
                 [ContainerLabels.LOG_URI]: logUri,
                 [ContainerLabels.STATE_DIR]: stateDir,
                 [ContainerLabels.NETWORKS]: JSON.stringify(network === 'cni' ? cniNetworks.map((item): string => item.network.name) : [network]),
@@ -763,7 +763,7 @@ export class ContainerStore {
             case M.ProcessStatus.STOPPED:
                 state.status = restarting ? 'restarting' : 'exited'
                 state.exitCode = task.exitStatus ?? 0
-                state.finishedAt = TimestampDate(task.exitedAt) ?? state.finishedAt
+                state.finishedAt = timestampDate(task.exitedAt) ?? state.finishedAt
                 break
             case M.ProcessStatus.CREATED:
                 state.status = 'created'
@@ -795,12 +795,12 @@ export class ContainerStore {
     protected async deleteTask(id: string): Promise<void> {
         const deleted: Message | undefined = await this.client.deleteTask(id).catch(async (error: unknown): Promise<Message | undefined> => {
             //A task still running (a stop of its restart monitor meanwhile): killed
-            if (!IsGRPCError(error, GRPCStatus.FAILED_PRECONDITION)) throw error
-            await this.client.kill(id, SignalNumber('SIGKILL'), {all: true}).catch((): undefined => undefined)
+            if (!isGRPCError(error, GRPCStatus.FAILED_PRECONDITION)) throw error
+            await this.client.kill(id, signalNumber('SIGKILL'), {all: true}).catch((): undefined => undefined)
             await this.client.wait(id).catch((): undefined => undefined)
             return await this.client.deleteTask(id)
         })
-        if (deleted) await this.writeState(id, {exitCode: deleted.exitStatus ?? 0, finishedAt: (TimestampDate(deleted.exitedAt) ?? new Date()).toISOString()})
+        if (deleted) await this.writeState(id, {exitCode: deleted.exitStatus ?? 0, finishedAt: (timestampDate(deleted.exitedAt) ?? new Date()).toISOString()})
     }
 
     /**
@@ -827,11 +827,11 @@ export class ContainerStore {
         await mkdir(path.dirname(this.logFile(container.id)), {recursive: true})
         const rootfs: SnapshotMount[] = await this.client.snapshotMounts(container.snapshotter || this.options.snapshotter, container.snapshotKey || container.id)
         await this.client.createTask({containerId: container.id, rootfs: rootfs, stdout: logUri, stderr: logUri}).catch((error: unknown): never => {
-            throw SeccompHint(error)
+            throw seccompHint(error)
         })
         try {
             const pid: number = await this.client.startTask(container.id).catch((error: unknown): never => {
-                throw SeccompHint(error)
+                throw seccompHint(error)
             })
             await this.writeState(container.id, {startedAt: new Date().toISOString(), finishedAt: undefined, exitCode: undefined})
             if (container.labels?.[ContainerLabels.RESTART_POLICY]) await this.label(container, {[ContainerLabels.RESTART_STATUS]: 'running'})
@@ -855,7 +855,7 @@ export class ContainerStore {
             return true
         } catch (error: unknown) {
             if (abort.signal.aborted) return false
-            if (IsGRPCError(error, GRPCStatus.NOT_FOUND)) return true
+            if (isGRPCError(error, GRPCStatus.NOT_FOUND)) return true
             throw error
         } finally {
             clearTimeout(timer)
@@ -874,12 +874,12 @@ export class ContainerStore {
         if (!task) return
         if (task.status === M.ProcessStatus.PAUSED) await this.client.resume(container.id)
         if (task.status === M.ProcessStatus.RUNNING || task.status === M.ProcessStatus.PAUSED) {
-            const signal: number = SignalNumber(options.signal ?? container.labels?.[ContainerLabels.STOP_SIGNAL] ?? 'SIGTERM')
+            const signal: number = signalNumber(options.signal ?? container.labels?.[ContainerLabels.STOP_SIGNAL] ?? 'SIGTERM')
             await this.client.kill(container.id, signal).catch((error: unknown): void => {
-                if (!IsGRPCError(error, GRPCStatus.NOT_FOUND)) throw error
+                if (!isGRPCError(error, GRPCStatus.NOT_FOUND)) throw error
             })
             if (!(await this.waitExit(container.id, (options.timeout ?? 10) * 1000))) {
-                await this.client.kill(container.id, SignalNumber('SIGKILL'), {all: true}).catch((): undefined => undefined)
+                await this.client.kill(container.id, signalNumber('SIGKILL'), {all: true}).catch((): undefined => undefined)
                 await this.waitExit(container.id, 10000)
             }
         }
@@ -893,8 +893,8 @@ export class ContainerStore {
      * @param all
      */
     public async kill(container: Message, signal: string | number = 'SIGKILL', all: boolean = false): Promise<void> {
-        if (SignalNumber(signal) === SignalNumber('SIGKILL') && container.labels?.[ContainerLabels.RESTART_POLICY]) await this.label(container, {[ContainerLabels.RESTART_STATUS]: 'stopped'})
-        await this.client.kill(container.id, SignalNumber(signal), {all: all}).catch((error: unknown): never => {
+        if (signalNumber(signal) === signalNumber('SIGKILL') && container.labels?.[ContainerLabels.RESTART_POLICY]) await this.label(container, {[ContainerLabels.RESTART_STATUS]: 'stopped'})
+        await this.client.kill(container.id, signalNumber(signal), {all: all}).catch((error: unknown): never => {
             throw this.taskError(container, error)
         })
     }
@@ -944,7 +944,7 @@ export class ContainerStore {
         try {
             return (await this.client.wait(container.id, '', signal)).exitStatus
         } catch (error: unknown) {
-            if (!IsGRPCError(error, GRPCStatus.NOT_FOUND)) throw error
+            if (!isGRPCError(error, GRPCStatus.NOT_FOUND)) throw error
             return (await this.readState(container.id)).exitCode ?? 0
         }
     }
@@ -957,7 +957,7 @@ export class ContainerStore {
      * @protected
      */
     protected taskError(container: Message, error: unknown): unknown {
-        if (!IsGRPCError(error, GRPCStatus.NOT_FOUND)) return error
+        if (!isGRPCError(error, GRPCStatus.NOT_FOUND)) return error
         return Object.assign(new Error(`The container ${ContainerStore.Name(container)} is not running (${error.message})`, {cause: error}), {code: 'NOT_RUNNING'})
     }
 
@@ -972,7 +972,7 @@ export class ContainerStore {
             if (!force) throw Object.assign(new Error(`The container ${ContainerStore.Name(container)} is running: stop it or remove it by force`), {code: 'RUNNING'})
             if (container.labels?.[ContainerLabels.RESTART_POLICY]) await this.label(container, {[ContainerLabels.RESTART_STATUS]: 'stopped'})
             if (task.status === M.ProcessStatus.PAUSED) await this.client.resume(container.id).catch((): undefined => undefined)
-            await this.client.kill(container.id, SignalNumber('SIGKILL'), {all: true}).catch((): undefined => undefined)
+            await this.client.kill(container.id, signalNumber('SIGKILL'), {all: true}).catch((): undefined => undefined)
             await this.waitExit(container.id, 10000)
         }
         if (task) await this.client.deleteTask(container.id).catch((): undefined => undefined)
@@ -994,8 +994,8 @@ export class ContainerStore {
         if (task?.status !== M.ProcessStatus.RUNNING) throw Object.assign(new Error(`The container ${ContainerStore.Name(container)} is not running`), {code: 'NOT_RUNNING'})
         const spec: Record<string, any> = ContainerdClient.FromJson(container.spec) ?? {}
         let user: ProcessUser | undefined
-        if (options.user) user = await ResolveUser(await this.client.snapshotMounts(container.snapshotter || this.options.snapshotter, container.snapshotKey || container.id), options.user)
-        const process: Record<string, any> = ExecProcessSpec(spec, {
+        if (options.user) user = await resolveUser(await this.client.snapshotMounts(container.snapshotter || this.options.snapshotter, container.snapshotKey || container.id), options.user)
+        const process: Record<string, any> = execProcessSpec(spec, {
             args: options.cmd,
             env: Object.entries(options.env ?? {}).map(([key, value]): string => `${key}=${value}`),
             cwd: options.workingDir,
@@ -1048,7 +1048,7 @@ export class ContainerStore {
                 await this.client.closeIO(container.id, execId).catch((): undefined => undefined)
             }
             const timer: NodeJS.Timeout | undefined = options.timeout ? setTimeout((): void => {
-                this.client.kill(container.id, SignalNumber('SIGKILL'), {execId: execId}).catch((): undefined => undefined)
+                this.client.kill(container.id, signalNumber('SIGKILL'), {execId: execId}).catch((): undefined => undefined)
             }, options.timeout) : undefined
             try {
                 const {exitStatus} = await waiting
@@ -1129,7 +1129,7 @@ export class ContainerStore {
         const unlimited = (value: number): number => !value || value >= 2 ** 62 ? totalmem() : value
         const onlineCpus: number = availableParallelism()
         const stats: Omit<ContainerResourceStats, 'cpu'> & { cpu: Omit<ContainerResourceStats['cpu'], 'percent'> } = {
-            read: TimestampDate(metric?.timestamp) ?? new Date(),
+            read: timestampDate(metric?.timestamp) ?? new Date(),
             pids: {current: 0, limit: 0},
             cpu: {usage: 0, user: 0, system: 0, throttledPeriods: 0, throttledTime: 0, onlineCpus: onlineCpus},
             memory: {usage: 0, workingSet: 0, limit: totalmem(), cache: 0, swap: 0, oomKills: 0},
@@ -1137,7 +1137,7 @@ export class ContainerStore {
             networks: {}
         }
         if (type.endsWith('cgroups.v2.Metrics')) {
-            const metrics: Message = Counters(decode(M.CgroupV2Metrics, data))
+            const metrics: Message = metricCounters(decode(M.CgroupV2Metrics, data))
             stats.pids = {current: metrics.pids?.current ?? 0, limit: metrics.pids?.limit ?? 0}
             stats.cpu = {
                 usage: (metrics.cpu?.usageUsec ?? 0) * 1000,
@@ -1163,7 +1163,7 @@ export class ContainerStore {
                 stats.blkio.writeOps += entry.wios ?? 0
             }
         } else if (type.endsWith('cgroups.v1.Metrics')) {
-            const metrics: Message = Counters(decode(M.CgroupV1Metrics, data))
+            const metrics: Message = metricCounters(decode(M.CgroupV1Metrics, data))
             stats.pids = {current: metrics.pids?.current ?? 0, limit: metrics.pids?.limit ?? 0}
             stats.cpu = {
                 usage: metrics.cpu?.usage?.total ?? 0,
@@ -1234,9 +1234,9 @@ export class ContainerStore {
         if (!ProcessFifo.Supported()) throw new Error('The terminals of the containers need mkfifo')
         const spec: Record<string, any> = ContainerdClient.FromJson(container.spec) ?? {}
         let user: ProcessUser | undefined
-        if (options.user) user = await ResolveUser(await this.client.snapshotMounts(container.snapshotter || this.options.snapshotter, container.snapshotKey || container.id), options.user)
+        if (options.user) user = await resolveUser(await this.client.snapshotMounts(container.snapshotter || this.options.snapshotter, container.snapshotKey || container.id), options.user)
         const env: Record<string, string> = {TERM: 'xterm', ...options.env ?? {}}
-        const process: Record<string, any> = ExecProcessSpec(spec, {
+        const process: Record<string, any> = execProcessSpec(spec, {
             args: options.cmd,
             env: Object.entries(env).map(([key, value]): string => `${key}=${value}`),
             cwd: options.workingDir,
@@ -1292,7 +1292,7 @@ export class ContainerStore {
                 exited: exited,
                 close: async (): Promise<void> => {
                     if (cleaned) return
-                    await this.client.kill(container.id, SignalNumber('SIGKILL'), {execId: execId}).catch((): undefined => undefined)
+                    await this.client.kill(container.id, signalNumber('SIGKILL'), {execId: execId}).catch((): undefined => undefined)
                     await exited.catch((): undefined => undefined)
                 }
             }
@@ -1329,7 +1329,7 @@ export class ContainerStore {
             if (update.memorySwap !== undefined) {
                 if (update.memorySwap > 0 && !(resources.memory.limit > 0)) throw Object.assign(new Error('The swap limit of a container (memorySwap) needs its memory limit (memoryLimit)'), {code: 'INVALID_VALUE'})
                 //0: no swap limit; discarded when the kernel does not limit the swap
-                if (!removed.swap && SwapLimitSupported()) resources.memory.swap = update.memorySwap || -1
+                if (!removed.swap && isSwapLimitSupported()) resources.memory.swap = update.memorySwap || -1
             }
             if (update.oomKillDisable !== undefined) resources.memory.disableOOMKiller = update.oomKillDisable
             if (resources.memory.swap > 0 && resources.memory.swap < resources.memory.limit) throw Object.assign(new Error('The swap limit of a container (memorySwap, its memory and its swap) is less than its memory limit (memoryLimit)'), {code: 'INVALID_VALUE'})
@@ -1371,7 +1371,7 @@ export class ContainerStore {
         if (removed.swap) taskResources.memory.swap = -1
         //The default weight of the kernel
         if (removed.shares) taskResources.cpu.shares = 1024
-        if (removed.cpus) taskResources.cpu.cpus = await OnlineCpus()
+        if (removed.cpus) taskResources.cpu.cpus = await onlineCpuSet()
         await this.client.updateTask(container.id, taskResources)
     }
 
@@ -1388,7 +1388,7 @@ export class ContainerStore {
         try {
             return await this.images.commit({
                 image: container.image,
-                platform: container.labels?.[ContainerLabels.PLATFORM] ? ParsePlatform(container.labels[ContainerLabels.PLATFORM]) : HostPlatform(),
+                platform: container.labels?.[ContainerLabels.PLATFORM] ? parsePlatform(container.labels[ContainerLabels.PLATFORM]) : hostPlatform(),
                 snapshotKey: container.snapshotKey || container.id,
                 name: options.name,
                 changes: options.changes,
@@ -1412,7 +1412,7 @@ export class ContainerStore {
         const running: boolean = !!task && task.status !== M.ProcessStatus.STOPPED && !!task.pid
         const tree: FileTree = running
             ? new DirectoryTree(`/proc/${task!.pid}/root`)
-            : new LayersTree(LayerDirectories(await this.client.snapshotMounts(container.snapshotter || this.options.snapshotter, container.snapshotKey || container.id)))
+            : new LayersTree(layerDirectories(await this.client.snapshotMounts(container.snapshotter || this.options.snapshotter, container.snapshotKey || container.id)))
         const resolved: string = await tree.resolve(file)
         const root: { stats: Stats, path: string } | undefined = await tree.lstat(resolved)
         if (!root) throw Object.assign(new Error(`The path ${file} does not exist in the container ${ContainerStore.Name(container)}`), {code: 'PATH_NOT_FOUND'})

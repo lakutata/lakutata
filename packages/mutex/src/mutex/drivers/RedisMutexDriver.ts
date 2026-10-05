@@ -1,6 +1,6 @@
 import {MutexDriver, type DriverLock} from './MutexDriver.js'
-import {LoadDriver} from '../lib/LoadDriver.js'
-import {LockToken} from '../lib/Names.js'
+import {loadDriver} from '../lib/LoadDriver.js'
+import {lockToken} from '../lib/Names.js'
 
 /**
  * The Redis connection of a {@link RedisMutexDriver}: a `url`, or a `host` and a `port`.
@@ -127,7 +127,7 @@ export class RedisMutexDriver extends MutexDriver {
         //Reconnecting: the calls fail at once until it is connected again (no new client)
         if (current?.isOpen) throw new Error('The Redis server of the locks is not reachable: reconnecting')
         this.#connecting ??= (async (): Promise<any> => {
-            const {createClient} = await LoadDriver<{ createClient: (options: Record<string, unknown>) => any }>('createClient', 'redis')
+            const {createClient} = await loadDriver<{ createClient: (options: Record<string, unknown>) => any }>('createClient', 'redis')
             const options = this.connection
             const client = createClient({
                 ...options.url ? {url: options.url} : {},
@@ -186,7 +186,7 @@ export class RedisMutexDriver extends MutexDriver {
      */
     public async acquire(name: string, ttl: number): Promise<DriverLock | undefined> {
         const client = await this.client()
-        const token: string = LockToken()
+        const token: string = lockToken()
         const fence: number = Number(await client.eval(ACQUIRE, {keys: [this.key(name), `${this.key(name)}:fence`], arguments: [token, String(Math.ceil(ttl))]}))
         return fence ? {token: token, fence: fence} : undefined
     }

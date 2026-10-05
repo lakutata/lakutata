@@ -7,7 +7,7 @@ import {objectHash, type ObjectHashOptions} from '../exports/Utils.js'
  * A pseudo random generator with a seed (mulberry32)
  * @param seed
  */
-function Random(seed: number): () => number {
+function seededRandom(seed: number): () => number {
     return (): number => {
         seed = (seed + 0x6D2B79F5) | 0
         let t: number = Math.imul(seed ^ (seed >>> 15), 1 | seed)
@@ -16,7 +16,7 @@ function Random(seed: number): () => number {
     }
 }
 
-const random: () => number = Random(20261002)
+const random: () => number = seededRandom(20261002)
 
 const pick = <T>(values: T[]): T => values[Math.floor(random() * values.length)]
 
@@ -36,7 +36,7 @@ function named(): number {
  * A random value: the primitives, the objects of the types the upstream knows and does not know, nested
  * @param depth
  */
-function Value(depth: number = 0): unknown {
+function randomValue(depth: number = 0): unknown {
     switch (Math.floor(random() * (depth > 2 ? 10 : 15))) {
         case 0:
             return pick([null, undefined, true, false, 0, -0, NaN, Infinity, -1.5, 7, 2n, -3n])
@@ -62,14 +62,14 @@ function Value(depth: number = 0): unknown {
             return pick([{}, {b: 1, a: 2}, {a: 2, b: 1}])
         case 10:
         case 11:
-            return Array.from({length: Math.floor(random() * 4)}, (): unknown => Value(depth + 1))
+            return Array.from({length: Math.floor(random() * 4)}, (): unknown => randomValue(depth + 1))
         case 12:
-            return new Set(Array.from({length: Math.floor(random() * 4)}, (): unknown => Value(depth + 1)))
+            return new Set(Array.from({length: Math.floor(random() * 4)}, (): unknown => randomValue(depth + 1)))
         case 13:
-            return new Map(Array.from({length: Math.floor(random() * 3)}, (): [unknown, unknown] => [Value(depth + 1), Value(depth + 1)]))
+            return new Map(Array.from({length: Math.floor(random() * 3)}, (): [unknown, unknown] => [randomValue(depth + 1), randomValue(depth + 1)]))
         default: {
             const object: Record<string, unknown> = {}
-            for (let index: number = 0; index < Math.floor(random() * 5); index++) object[pick(['a', 'b', 'c', 'Z', '0', 'prototype', 'constructor', 'key'])] = Value(depth + 1)
+            for (let index: number = 0; index < Math.floor(random() * 5); index++) object[pick(['a', 'b', 'c', 'Z', '0', 'prototype', 'constructor', 'key'])] = randomValue(depth + 1)
             //A circular object
             if (random() < 0.1) object.self = object
             return object
@@ -80,7 +80,7 @@ function Value(depth: number = 0): unknown {
 /**
  * Random options
  */
-function Options(): ObjectHashOptions | undefined {
+function randomOptions(): ObjectHashOptions | undefined {
     if (random() < 0.2) return undefined
     const options: Record<string, unknown> = {}
     const choices: Record<string, unknown[]> = {
@@ -105,7 +105,7 @@ function Options(): ObjectHashOptions | undefined {
  * The hash or the error of a function (the buffers as their hex)
  * @param fn
  */
-function Outcome(fn: () => unknown): { value?: unknown, error?: string } {
+function outcomeOf(fn: () => unknown): { value?: unknown, error?: string } {
     try {
         const value: unknown = fn()
         return {value: Buffer.isBuffer(value) ? `buffer:${value.toString('hex')}` : value}
@@ -119,10 +119,10 @@ describe('objectHash', (): void => {
     it('hashes as object-hash', (): void => {
         const counts: Record<string, number> = {value: 0, error: 0}
         for (let run: number = 0; run < 4000; run++) {
-            const value: unknown = Value()
-            const options: ObjectHashOptions | undefined = Options()
-            const expected: { value?: unknown, error?: string } = Outcome((): unknown => UpstreamObjectHash(value as any, options as any))
-            assert.deepStrictEqual(Outcome((): unknown => objectHash(value, options)), expected, `run ${run}`)
+            const value: unknown = randomValue()
+            const options: ObjectHashOptions | undefined = randomOptions()
+            const expected: { value?: unknown, error?: string } = outcomeOf((): unknown => UpstreamObjectHash(value as any, options as any))
+            assert.deepStrictEqual(outcomeOf((): unknown => objectHash(value, options)), expected, `run ${run}`)
             counts[expected.error === undefined ? 'value' : 'error']++
         }
         assert.ok(counts.value > 2000 && counts.error > 100, JSON.stringify(counts))

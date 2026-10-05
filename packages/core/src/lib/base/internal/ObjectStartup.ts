@@ -36,7 +36,7 @@ const startups: WeakMap<object, Startup> = new WeakMap()
  * @returns The startup, its failure handled (it is delivered to the objects getting the object).
  * @internal
  */
-export function RunObjectStartup(object: object, startup: () => Promise<void>): Promise<void> {
+export function runObjectStartup(object: object, startup: () => Promise<void>): Promise<void> {
     const frame: StartupFrame = {object: object, active: true}
     const running: Promise<void> = startupFrames.run([...(startupFrames.getStore() ?? []), frame], async (): Promise<void> => {
         try {
@@ -58,7 +58,7 @@ export function RunObjectStartup(object: object, startup: () => Promise<void>): 
  * @returns true within its startup.
  * @internal
  */
-export function IsInObjectStartup(object: object): boolean {
+export function isInObjectStartup(object: object): boolean {
     return !!startupFrames.getStore()?.some((frame: StartupFrame): boolean => frame.active && frame.object === object)
 }
 
@@ -68,9 +68,9 @@ export function IsInObjectStartup(object: object): boolean {
  * @returns Resolves once it started, rejects with the error of its startup.
  * @internal
  */
-export async function WaitForObjectStartup(object: object): Promise<void> {
+export async function waitForObjectStartup(object: object): Promise<void> {
     const startup: Startup | undefined = startups.get(object)
-    if (!startup || IsInObjectStartup(object)) return
+    if (!startup || isInObjectStartup(object)) return
     await startup.promise
 }
 
@@ -81,8 +81,8 @@ export async function WaitForObjectStartup(object: object): Promise<void> {
  * @returns Resolves once its startup ended; undefined when there is nothing to wait for.
  * @internal
  */
-export function WaitForObjectStartupEnd(object: object): Promise<void> | undefined {
+export function waitForObjectStartupEnd(object: object): Promise<void> | undefined {
     const startup: Startup | undefined = startups.get(object)
-    if (!startup || startup.ended || IsInObjectStartup(object)) return undefined
+    if (!startup || startup.ended || isInObjectStartup(object)) return undefined
     return startup.promise.catch(DevNull)
 }

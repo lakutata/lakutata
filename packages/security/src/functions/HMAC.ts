@@ -1,6 +1,6 @@
 import {createHmac} from 'node:crypto'
 import {constantTimeEqual} from './TimingSafeEqual.js'
-import {AssertKey} from '../lib/AssertKey.js'
+import {assertKey} from '../lib/AssertKey.js'
 
 /**
  * The hash functions of the HMAC signatures: `'sha256'` (43-character signatures), `'sha384'` (64) or `'sha512'` (86).
@@ -29,7 +29,7 @@ export type HMACAlgorithm = 'sha256' | 'sha384' | 'sha512'
  * ```
  */
 export function hmac(data: string | Uint8Array, key: string | Uint8Array, algorithm: HMACAlgorithm = 'sha256'): string {
-    AssertKey(key)
+    assertKey(key)
     return createHmac(algorithm, key).update(data).digest('base64url')
 }
 

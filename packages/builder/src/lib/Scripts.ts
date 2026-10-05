@@ -66,7 +66,7 @@ const ARCHIVES: string[] = ['tar.gz', 'zip']
  * The moments the installers of lakutata run the scripts at: all of them, but the archives
  * @param target
  */
-function LakutataHooks(target: string): readonly InstallerHook[] {
+function lakutataHooks(target: string): readonly InstallerHook[] {
     return ARCHIVES.includes(target) ? [] : INSTALLER_HOOKS
 }
 
@@ -76,7 +76,7 @@ function LakutataHooks(target: string): readonly InstallerHook[] {
  * @param file
  * @param where its place in the configuration
  */
-function Read(project: string, file: unknown, where: string): ScriptFile {
+function read(project: string, file: unknown, where: string): ScriptFile {
     if (typeof file !== 'string' || !file) throw new Error(`The script ${where} must be a file of the project`)
     const absolute: string = path.resolve(project, file)
     if (!existsSync(absolute) || !statSync(absolute).isFile()) throw new Error(`The script ${where} (${file}) does not exist`)
@@ -91,14 +91,14 @@ function Read(project: string, file: unknown, where: string): ScriptFile {
  * @param where
  * @param windows
  */
-function Hooks(project: string, scripts: unknown, where: string, windows: boolean): Partial<Record<InstallerHook, ScriptFile>> {
+function installerHooks(project: string, scripts: unknown, where: string, windows: boolean): Partial<Record<InstallerHook, ScriptFile>> {
     if (scripts === undefined) return {}
     if (!scripts || typeof scripts !== 'object' || Array.isArray(scripts)) throw new Error(`The scripts ${where} must be {"preinstall": "<file>", "postinstall": "<file>", "preremove": "<file>", "postremove": "<file>"}`)
     const hooks: Partial<Record<InstallerHook, ScriptFile>> = {}
     for (const [hook, file] of Object.entries(scripts)) {
         if (!INSTALLER_HOOKS.includes(hook as InstallerHook)) throw new Error(`The script ${where}.${hook} is not one of ${INSTALLER_HOOKS.join(', ')}`)
         if (windows && typeof file === 'string' && !/\.ps1$/i.test(file)) throw new Error(`The script ${where}.${hook} (${file}) must be a script of PowerShell (.ps1)`)
-        hooks[hook as InstallerHook] = Read(project, file, `${where}.${hook}`)
+        hooks[hook as InstallerHook] = read(project, file, `${where}.${hook}`)
     }
     return hooks
 }
@@ -116,17 +116,17 @@ function Hooks(project: string, scripts: unknown, where: string, windows: boolea
  * @param hooks the moments each installer runs the scripts at (the installers of lakutata by default)
  * @param native whether the packages of Linux run native scripts (the ones of lakutata)
  */
-export function ResolveScripts(project: string, platform: 'linux' | 'mac' | 'win', config: PlatformScripts | undefined, targets: string[], warnings: string[], hooks: (target: string) => readonly InstallerHook[] = LakutataHooks, native: boolean = true): Record<string, TargetScripts> {
+export function resolveScripts(project: string, platform: 'linux' | 'mac' | 'win', config: PlatformScripts | undefined, targets: string[], warnings: string[], hooks: (target: string) => readonly InstallerHook[] = lakutataHooks, native: boolean = true): Record<string, TargetScripts> {
     const windows: boolean = platform === 'win'
     const where: string = `lakutata.installer.${platform}`
-    const common: Partial<Record<InstallerHook, ScriptFile>> = Hooks(project, config?.scripts, `${where}.scripts`, windows)
+    const common: Partial<Record<InstallerHook, ScriptFile>> = installerHooks(project, config?.scripts, `${where}.scripts`, windows)
     const resolved: Record<string, TargetScripts> = {}
     const unrun: string[] = []
     for (const target of targets) {
         const options: unknown = config?.[target]
         if (options !== undefined && (!options || typeof options !== 'object' || Array.isArray(options))) throw new Error(`${where}.${target} must be an object`)
         const own = (options ?? {}) as { scripts?: unknown, nativeScripts?: unknown, include?: unknown }
-        const scripts: TargetScripts = {hooks: {...common, ...Hooks(project, own.scripts, `${where}.${target}.scripts`, windows)}, native: {}}
+        const scripts: TargetScripts = {hooks: {...common, ...installerHooks(project, own.scripts, `${where}.${target}.scripts`, windows)}, native: {}}
         if (own.nativeScripts !== undefined) {
             if (!native || platform !== 'linux' || ARCHIVES.includes(target)) throw new Error(`${where}.${target}.nativeScripts: the native scripts are the ones of the packages of Linux lakutata makes (deb, rpm, apk, archlinux), not the ones of Electron`)
             if (!own.nativeScripts || typeof own.nativeScripts !== 'object' || Array.isArray(own.nativeScripts)) throw new Error(`${where}.${target}.nativeScripts must be {"<script>": "<file>"}`)
@@ -134,13 +134,13 @@ export function ResolveScripts(project: string, platform: 'linux' | 'mac' | 'win
             const names: readonly string[] = target === 'apk' || target === 'archlinux' ? NATIVE_HOOKS : INSTALLER_HOOKS
             for (const [hook, file] of Object.entries(own.nativeScripts)) {
                 if (!names.includes(hook)) throw new Error(`${where}.${target}.nativeScripts.${hook} is not a script of ${target} (${names.join(', ')})`)
-                scripts.native[hook as NativeHook] = Read(project, file, `${where}.${target}.nativeScripts.${hook}`)
+                scripts.native[hook as NativeHook] = read(project, file, `${where}.${target}.nativeScripts.${hook}`)
             }
         }
         if (own.include !== undefined) {
             if (!windows || target !== 'nsis') throw new Error(`${where}.${target}.include: the file of NSIS is included by the installer of NSIS (win.nsis.include)`)
             if (typeof own.include === 'string' && !/\.nsh$/i.test(own.include)) throw new Error(`${where}.nsis.include (${own.include}) must be a file of NSIS (.nsh)`)
-            scripts.include = Read(project, own.include, `${where}.nsis.include`)
+            scripts.include = read(project, own.include, `${where}.nsis.include`)
         }
         //The ones the installer does not run
         const run: readonly InstallerHook[] = hooks(target)
@@ -161,7 +161,7 @@ export function ResolveScripts(project: string, platform: 'linux' | 'mac' | 'win
  * @param prefix the directory of the application (LAKUTATA_INSTALL_DIR)
  * @param args the arguments given to it (sh)
  */
-export function EmbeddedShell(script: ScriptFile, prefix: string, args: string): string[] {
+export function embeddedShell(script: ScriptFile, prefix: string, args: string): string[] {
     const first: string = script.content.split('\n', 1)[0]
     const interpreter: string = first.startsWith('#!') ? first.slice(2).trim() : '/bin/sh'
     //Not a line of the script
@@ -185,7 +185,7 @@ export function EmbeddedShell(script: ScriptFile, prefix: string, args: string):
  * @param prefix the directory of the application (LAKUTATA_INSTALL_DIR)
  * @param args the arguments given to it (sh)
  */
-export function EncodedShell(script: ScriptFile, prefix: string, args: string): string[] {
+export function encodedShell(script: ScriptFile, prefix: string, args: string): string[] {
     const first: string = script.content.split('\n', 1)[0]
     const interpreter: string = first.startsWith('#!') ? first.slice(2).trim() : '/bin/sh'
     return [

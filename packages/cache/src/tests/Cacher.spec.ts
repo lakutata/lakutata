@@ -5,8 +5,8 @@ import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {Container} from '@lakutata/core'
 import {Cacher, CacheDriverNotFoundException, MongoCacheOptions, MysqlCacheOptions, PostgresCacheOptions} from '../exports/Cache.js'
-import {Deserialize, Serialize} from '../cache/lib/Serializer.js'
-import {LoadDriver} from '../cache/lib/LoadDriver.js'
+import {deserialize, serialize} from '../cache/lib/Serializer.js'
+import {loadDriver} from '../cache/lib/LoadDriver.js'
 
 /**
  * Wait
@@ -134,8 +134,8 @@ describe('Cacher', (): void => {
         await container.destroy()
         //Remove the entry from the first store only
         const l1: string = path.join(directory, 'l1.json')
-        const content: { cache: [string, unknown][] } = Deserialize(await readFile(l1, 'utf8'))
-        await writeFile(l1, Serialize({cache: content.cache.filter(([key]): boolean => key !== 'a'), lastExpire: Date.now()}))
+        const content: { cache: [string, unknown][] } = deserialize(await readFile(l1, 'utf8'))
+        await writeFile(l1, serialize({cache: content.cache.filter(([key]): boolean => key !== 'a'), lastExpire: Date.now()}))
         const reopened: Container = new Container()
         const tiers: Cacher = await reopened.set(Cacher, {
             stores: [
@@ -149,7 +149,7 @@ describe('Cacher', (): void => {
         const expires: number = await tiers.getTTL('a')
         assert.strictEqual(await tiers.wrap('a', (): string => 'computed'), 'both')
         await reopened.destroy()
-        const first: { cache: [string, { expire?: number }][] } = Deserialize(await readFile(l1, 'utf8'))
+        const first: { cache: [string, { expire?: number }][] } = deserialize(await readFile(l1, 'utf8'))
         const copied: number = first.cache.find(([key]): boolean => key === 'a')![1].expire!
         assert.ok(Math.abs(copied - expires) < 50)
     }))
@@ -199,7 +199,7 @@ describe('Cacher', (): void => {
     }))
 
     it('reports the missing drivers', async (): Promise<void> => {
-        await assert.rejects(LoadDriver('createClient', 'lakutata-missing-driver'), (error: Error): boolean => error instanceof CacheDriverNotFoundException && error.message.includes('npm install lakutata-missing-driver'))
+        await assert.rejects(loadDriver('createClient', 'lakutata-missing-driver'), (error: Error): boolean => error instanceof CacheDriverNotFoundException && error.message.includes('npm install lakutata-missing-driver'))
     })
 })
 
@@ -216,13 +216,13 @@ describe('Cache serializer', (): void => {
             [{value: null, expires: 5}, '{"value":null,"expires":5}'],
             [{value: 'expiring', expires: undefined}, '{"value":"expiring"}']
         ]
-        for (const [data, text] of cases) assert.strictEqual(Serialize(data), text)
+        for (const [data, text] of cases) assert.strictEqual(serialize(data), text)
     })
 
     it('round trips the values', (): void => {
         const values: unknown[] = ['', ':', '::a', ':base64:', 'a:b', {':key': ':v'}, [':a', [':b']], Buffer.from([0, 255]), {nested: {buffer: Buffer.from('x')}}, 1.5, true, null]
-        for (const value of values) assert.deepStrictEqual(Deserialize(Serialize({value: value})), {value: value}, JSON.stringify(value))
+        for (const value of values) assert.deepStrictEqual(deserialize(serialize({value: value})), {value: value}, JSON.stringify(value))
         //Formatted documents are read too
-        assert.deepStrictEqual(Deserialize('{ "value" : [ "::a" ] }'), {value: [':a']})
+        assert.deepStrictEqual(deserialize('{ "value" : [ "::a" ] }'), {value: [':a']})
     })
 })

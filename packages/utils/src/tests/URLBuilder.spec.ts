@@ -47,7 +47,7 @@ const ATTRIBUTES: string[] = ['auth', 'hash', 'host', 'hostname', 'href', 'origi
  * default port depends on it), the host name and the port of the host unless they are given
  * @param attributes
  */
-function UpstreamBuild(attributes: URLAttributes): string {
+function upstreamBuild(attributes: URLAttributes): string {
     const url: any = (UpstreamUrlParse as any)('')
     const host: any = (UpstreamUrlParse as any)('')
     if (attributes.host !== undefined) host.set('host', attributes.host)
@@ -70,7 +70,7 @@ function UpstreamBuild(attributes: URLAttributes): string {
  * A pseudo random generator with a seed (mulberry32)
  * @param seed
  */
-function Random(seed: number): () => number {
+function seededRandom(seed: number): () => number {
     return (): number => {
         seed = (seed + 0x6D2B79F5) | 0
         let t: number = Math.imul(seed ^ (seed >>> 15), 1 | seed)
@@ -79,14 +79,14 @@ function Random(seed: number): () => number {
     }
 }
 
-const random: () => number = Random(20261002)
+const random: () => number = seededRandom(20261002)
 
 const pick = <T>(values: T[]): T => values[Math.floor(random() * values.length)]
 
 /**
  * A random address, of random parts: protocols, slashes, credentials, hosts, ports, paths, queries, hashes
  */
-function Address(): string {
+function randomAddress(): string {
     const parts: string[] = [
         pick(['', '', ' ', '\t', '\u0000', ' ']),
         pick(['http:', 'https:', 'HTTP:', 'ftp:', 'file:', 'ws:', 'wss:', 'mailto:', 'postgresql:', 'redis:', 'custom+x:', 'C:', '', '', 'javascript:']),
@@ -107,7 +107,7 @@ function Address(): string {
 /**
  * Random attributes of a URL
  */
-function Attributes(): URLAttributes {
+function randomAttributes(): URLAttributes {
     const attributes: Record<string, unknown> = {}
     const choices: Record<string, unknown[]> = {
         auth: ['user:pw', 'user', '%41:%42', ''],
@@ -132,7 +132,7 @@ function Attributes(): URLAttributes {
  * The result or the error of a function
  * @param fn
  */
-function Outcome(fn: () => unknown): { value?: unknown, error?: string } {
+function outcomeOf(fn: () => unknown): { value?: unknown, error?: string } {
     try {
         return {value: fn()}
     } catch (error) {
@@ -146,17 +146,17 @@ describe('URLBuilder', (): void => {
         //The attributes only: 2.x built the URL by changing the URL of its previous builds, and ignored slashes
         const attributes = (url: any): Record<string, unknown> => Object.fromEntries(ATTRIBUTES.map((key: string): [string, unknown] => [key, url[key]]))
         for (let run: number = 0; run < 5000; run++) {
-            const address: string = Address()
-            assert.deepStrictEqual(Outcome((): unknown => attributes(URLBuilder.parse(address))), Outcome((): unknown => attributes(UpstreamURLBuilder.parse(address))), JSON.stringify(address))
+            const address: string = randomAddress()
+            assert.deepStrictEqual(outcomeOf((): unknown => attributes(URLBuilder.parse(address))), outcomeOf((): unknown => attributes(UpstreamURLBuilder.parse(address))), JSON.stringify(address))
             const parsed: URLAttributes = attributes(UpstreamURLBuilder.parse(address)) as URLAttributes
-            assert.strictEqual(URLBuilder.parse(address).toString(), UpstreamBuild(parsed), JSON.stringify(address))
+            assert.strictEqual(URLBuilder.parse(address).toString(), upstreamBuild(parsed), JSON.stringify(address))
         }
     })
 
     it('builds the URLs as url-parse, the protocol first', (): void => {
         for (let run: number = 0; run < 5000; run++) {
-            const attributes: URLAttributes = Attributes()
-            assert.deepStrictEqual(Outcome((): unknown => new URLBuilder(attributes).toString()), Outcome((): unknown => UpstreamBuild(attributes)), JSON.stringify(attributes))
+            const attributes: URLAttributes = randomAttributes()
+            assert.deepStrictEqual(outcomeOf((): unknown => new URLBuilder(attributes).toString()), outcomeOf((): unknown => upstreamBuild(attributes)), JSON.stringify(attributes))
         }
     })
 
@@ -213,7 +213,7 @@ describe('URLBuilder', (): void => {
             }
         }
         for (let run: number = 0; run < 3000; run++) {
-            const address: string = Address()
+            const address: string = randomAddress()
             const location: unknown = pick([undefined, true, {}, 'https://base.com/a/b/c?q#h', {protocol: 'http:', host: 'l.com', hostname: 'l.com', pathname: '/p/q', slashes: true}, 'ftp://x/y/'])
             const ported: any = new UrlParse(address, location)
             const upstream: any = new (UpstreamUrlParse as any)(address, location)
@@ -224,7 +224,7 @@ describe('URLBuilder', (): void => {
                 const flag: unknown = pick([undefined, true])
                 const setPorted = (): unknown => own(ported.set(part, value, flag))
                 const setUpstream = (): unknown => own(upstream.set(part, value, flag))
-                assert.deepStrictEqual(typeOf(Outcome(setPorted), setPorted), typeOf(Outcome(setUpstream), setUpstream), `${JSON.stringify(address)} set ${part} ${JSON.stringify(value)} ${flag}`)
+                assert.deepStrictEqual(typeOf(outcomeOf(setPorted), setPorted), typeOf(outcomeOf(setUpstream), setUpstream), `${JSON.stringify(address)} set ${part} ${JSON.stringify(value)} ${flag}`)
             }
             assert.strictEqual(ported.toString(), upstream.toString())
         }

@@ -31,7 +31,7 @@ let lastTZZone: string = 'UTC'
  * The default time zone: the TZ environment variable, else the time zone of the system; like Date, an invalid TZ
  * environment variable gives UTC
  */
-export function DefaultZone(): string {
+export function defaultZone(): string {
     const tz: string | undefined = process.env.TZ
     if (tz) {
         if (tz !== lastTZ) {
@@ -93,7 +93,7 @@ let zoneNames: string[] | undefined
  * The names of the time zones the runtime supports, by their current IANA names: the time zones of the places Intl lists
  * (renamed as the IANA database names them now), UTC and the fixed offsets Etc/GMT-14…Etc/GMT+12, which Intl does not list
  */
-export function ZoneNames(): string[] {
+export function supportedZoneNames(): string[] {
     if (!zoneNames) {
         const names: Set<string> = new Set()
         for (const zone of Intl.supportedValuesOf('timeZone')) {
@@ -138,7 +138,7 @@ function fieldFormatter(zone: string): Intl.DateTimeFormat {
  * @param zone
  * @throws RangeError when the time zone is not supported
  */
-export function AssertZone(zone: string): void {
+export function assertZone(zone: string): void {
     if (!isZone(zone)) throw new RangeError(`Invalid time zone: ${zone}`)
 }
 
@@ -147,7 +147,7 @@ export function AssertZone(zone: string): void {
  * @param zone
  * @param instant milliseconds since the epoch
  */
-export function OffsetAt(zone: string, instant: number): number {
+export function offsetAt(zone: string, instant: number): number {
     if (isNaN(instant)) return NaN
     const cacheable: boolean = instant >= 0
     const bucket: number = Math.floor(instant / QUARTER_HOUR)
@@ -222,7 +222,7 @@ function computeOffset(zone: string, instant: number): number {
  * @param zone
  * @param instant
  */
-export function ZoneAbbreviation(zone: string, instant: number): string {
+export function zoneAbbreviation(zone: string, instant: number): string {
     return zoneName(zone, instant, 'short')
 }
 
@@ -231,7 +231,7 @@ export function ZoneAbbreviation(zone: string, instant: number): string {
  * @param zone
  * @param instant
  */
-export function ZoneLongName(zone: string, instant: number): string {
+export function zoneLongName(zone: string, instant: number): string {
     return zoneName(zone, instant, 'long')
 }
 

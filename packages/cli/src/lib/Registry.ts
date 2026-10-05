@@ -15,7 +15,7 @@ export type PackageVersion = {
  * The URL of a package on the registry (the scope separator is encoded)
  * @param name
  */
-function PackageURL(name: string): string {
+function packageURL(name: string): string {
     return `${Settings.registry}/${name.replace('/', '%2f')}`
 }
 
@@ -23,7 +23,7 @@ function PackageURL(name: string): string {
  * The parts of a version
  * @param version
  */
-function VersionParts(version: string): { numbers: number[], prerelease: string[] } | undefined {
+function versionParts(version: string): { numbers: number[], prerelease: string[] } | undefined {
     const matched: RegExpExecArray | null = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+.*)?$/.exec(version)
     return matched ? {numbers: [Number(matched[1]), Number(matched[2]), Number(matched[3])], prerelease: matched[4] ? matched[4].split('.') : []} : undefined
 }
@@ -34,8 +34,8 @@ function VersionParts(version: string): { numbers: number[], prerelease: string[
  * @param a
  * @param b
  */
-export function CompareVersions(a: string, b: string): number {
-    const [x, y] = [VersionParts(a)!, VersionParts(b)!]
+export function compareVersions(a: string, b: string): number {
+    const [x, y] = [versionParts(a)!, versionParts(b)!]
     const numbers: number = x.numbers[0] - y.numbers[0] || x.numbers[1] - y.numbers[1] || x.numbers[2] - y.numbers[2]
     if (numbers) return numbers
     if (!x.prerelease.length || !y.prerelease.length) return y.prerelease.length - x.prerelease.length
@@ -56,13 +56,13 @@ export function CompareVersions(a: string, b: string): number {
  * @param versions
  * @param major any major version when undefined
  */
-export function NewestVersion(versions: string[], major?: number): string | undefined {
+export function newestVersion(versions: string[], major?: number): string | undefined {
     const candidates: string[] = versions.filter((version: string): boolean => {
-        const parts = VersionParts(version)
+        const parts = versionParts(version)
         return !!parts && (major === undefined || parts.numbers[0] === major)
     })
-    const releases: string[] = candidates.filter((version: string): boolean => !VersionParts(version)!.prerelease.length)
-    return (releases.length ? releases : candidates).sort(CompareVersions).at(-1)
+    const releases: string[] = candidates.filter((version: string): boolean => !versionParts(version)!.prerelease.length)
+    return (releases.length ? releases : candidates).sort(compareVersions).at(-1)
 }
 
 /**
@@ -71,11 +71,11 @@ export function NewestVersion(versions: string[], major?: number): string | unde
  * @param name
  * @param major
  */
-export async function MajorManifest(name: string, major: number): Promise<Record<string, any> | undefined> {
+export async function majorManifest(name: string, major: number): Promise<Record<string, any> | undefined> {
     try {
-        const pkg: PackageVersion | undefined = await ResolvePackage(name, major)
+        const pkg: PackageVersion | undefined = await resolvePackage(name, major)
         if (!pkg) return undefined
-        const response: Response = await fetch(`${PackageURL(name)}/${encodeURIComponent(pkg.version)}`, {signal: AbortSignal.timeout(15000)})
+        const response: Response = await fetch(`${packageURL(name)}/${encodeURIComponent(pkg.version)}`, {signal: AbortSignal.timeout(15000)})
         return response.ok ? await response.json() as Record<string, any> : undefined
     } catch {
         return undefined
@@ -86,7 +86,7 @@ export async function MajorManifest(name: string, major: number): Promise<Record
  * The directory of the cached archives of a package
  * @param name
  */
-function CacheDirectory(name: string): string {
+function cacheDirectory(name: string): string {
     return path.join(Settings.cacheDirectory, 'packages', name)
 }
 
@@ -96,13 +96,13 @@ function CacheDirectory(name: string): string {
  * @param wanted a version ("1.2.3"), a major version (3) or the newest version (undefined)
  * @return undefined when the package does not exist
  */
-export async function ResolvePackage(name: string, wanted?: string | number): Promise<PackageVersion | undefined> {
-    const response: Response = await fetch(PackageURL(name), {headers: {Accept: 'application/vnd.npm.install-v1+json'}, signal: AbortSignal.timeout(15000)})
+export async function resolvePackage(name: string, wanted?: string | number): Promise<PackageVersion | undefined> {
+    const response: Response = await fetch(packageURL(name), {headers: {Accept: 'application/vnd.npm.install-v1+json'}, signal: AbortSignal.timeout(15000)})
     if (response.status === 404) return undefined
     if (!response.ok) throw new Error(`The package ${name} cannot be fetched from ${Settings.registry}: ${response.status} ${response.statusText}`)
     const metadata: { versions: Record<string, { dist: { tarball: string } }> } = await response.json() as any
     const versions: string[] = Object.keys(metadata.versions ?? {})
-    const version: string | undefined = typeof wanted === 'string' ? (versions.includes(wanted) ? wanted : undefined) : NewestVersion(versions, wanted)
+    const version: string | undefined = typeof wanted === 'string' ? (versions.includes(wanted) ? wanted : undefined) : newestVersion(versions, wanted)
     if (!version) throw new Error(`The package ${name} has no version ${typeof wanted === 'number' ? `${wanted}.x` : wanted} (${versions.join(', ') || 'no version'})`)
     return {name: name, version: version, tarball: metadata.versions[version].dist.tarball}
 }
@@ -111,8 +111,8 @@ export async function ResolvePackage(name: string, wanted?: string | number): Pr
  * The archive of a version of a package, downloaded once and cached
  * @param pkg
  */
-export async function DownloadPackage(pkg: PackageVersion): Promise<Buffer> {
-    const file: string = path.join(CacheDirectory(pkg.name), `${pkg.version}.tgz`)
+export async function downloadPackage(pkg: PackageVersion): Promise<Buffer> {
+    const file: string = path.join(cacheDirectory(pkg.name), `${pkg.version}.tgz`)
     try {
         return await readFile(file)
     } catch {
@@ -131,24 +131,24 @@ export async function DownloadPackage(pkg: PackageVersion): Promise<Buffer> {
  * @param name
  * @param major
  */
-export async function CachedPackage(name: string, major?: number): Promise<{ version: string, archive: Buffer } | undefined> {
+export async function cachedPackage(name: string, major?: number): Promise<{ version: string, archive: Buffer } | undefined> {
     let files: string[]
     try {
-        files = await readdir(CacheDirectory(name))
+        files = await readdir(cacheDirectory(name))
     } catch {
         return undefined
     }
-    const version: string | undefined = NewestVersion(files.filter((file: string): boolean => file.endsWith('.tgz')).map((file: string): string => file.slice(0, -4)), major)
-    return version ? {version: version, archive: await readFile(path.join(CacheDirectory(name), `${version}.tgz`))} : undefined
+    const version: string | undefined = newestVersion(files.filter((file: string): boolean => file.endsWith('.tgz')).map((file: string): string => file.slice(0, -4)), major)
+    return version ? {version: version, archive: await readFile(path.join(cacheDirectory(name), `${version}.tgz`))} : undefined
 }
 
 /**
  * The package.json of the latest version of a package, undefined when it cannot be fetched
  * @param name
  */
-export async function LatestManifest(name: string): Promise<Record<string, any> | undefined> {
+export async function latestManifest(name: string): Promise<Record<string, any> | undefined> {
     try {
-        const response: Response = await fetch(`${PackageURL(name)}/latest`, {signal: AbortSignal.timeout(5000)})
+        const response: Response = await fetch(`${packageURL(name)}/latest`, {signal: AbortSignal.timeout(5000)})
         return response.ok ? await response.json() as Record<string, any> : undefined
     } catch {
         return undefined

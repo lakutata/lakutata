@@ -1,6 +1,6 @@
 import {MutexDriver, type DriverLock} from './MutexDriver.js'
-import {LoadDriver} from '../lib/LoadDriver.js'
-import {LockToken, NameDigest, NameKey64} from '../lib/Names.js'
+import {loadDriver} from '../lib/LoadDriver.js'
+import {lockToken, nameDigest, nameKey64} from '../lib/Names.js'
 
 /**
  * The PostgreSQL connection of a {@link PostgresMutexDriver}.
@@ -118,7 +118,7 @@ export class PostgresMutexDriver extends MutexDriver {
     protected async client(): Promise<any> {
         if (this.#client) return this.#client
         this.#connecting ??= (async (): Promise<any> => {
-            const pg = await LoadDriver<{ Client: new (config: Record<string, unknown>) => any }>('Client', 'pg')
+            const pg = await loadDriver<{ Client: new (config: Record<string, unknown>) => any }>('Client', 'pg')
             const client = new pg.Client(this.config())
             const lost = (): void => {
                 if (this.#client !== client) return
@@ -148,7 +148,7 @@ export class PostgresMutexDriver extends MutexDriver {
     protected async pool(): Promise<any> {
         //Created once: the first uses at the same time share it
         this.#table ??= (async (): Promise<void> => {
-            const pg = await LoadDriver<{ Pool: new (config: Record<string, unknown>) => any }>('Pool', 'pg')
+            const pg = await loadDriver<{ Pool: new (config: Record<string, unknown>) => any }>('Pool', 'pg')
             const pool = new pg.Pool({...this.config(), max: 4})
             pool.on('error', (): void => undefined)
             this.#pool = pool
@@ -176,14 +176,14 @@ export class PostgresMutexDriver extends MutexDriver {
      * @throws {MutexDriverNotFoundException} When the package `pg` is not installed.
      */
     public async acquire(name: string, ttl: number): Promise<DriverLock | undefined> {
-        const token: string = LockToken()
+        const token: string = lockToken()
         if (this.mode === 'table') {
             const pool = await this.pool()
             const result = await pool.query(
                 `INSERT INTO ${this.table} (key, name, token, fence, expires_at) VALUES ($1, $2, $3, nextval('${this.table}_fence'), now() + $4 * interval '1 millisecond')
                  ON CONFLICT (key) DO UPDATE SET name = excluded.name, token = excluded.token, fence = excluded.fence, expires_at = excluded.expires_at
                  WHERE ${this.table}.expires_at <= now() RETURNING fence`,
-                [NameDigest(this.prefix + name), name, token, Math.ceil(ttl)]
+                [nameDigest(this.prefix + name), name, token, Math.ceil(ttl)]
             )
             return result.rows.length ? {token: token, fence: Number(result.rows[0].fence)} : undefined
         }
@@ -192,7 +192,7 @@ export class PostgresMutexDriver extends MutexDriver {
         this.#held.set(name, undefined)
         try {
             const client = await this.client()
-            const result = await client.query('SELECT pg_try_advisory_lock($1::bigint) AS locked', [NameKey64(this.prefix + name)])
+            const result = await client.query('SELECT pg_try_advisory_lock($1::bigint) AS locked', [nameKey64(this.prefix + name)])
             if (!result.rows[0].locked) {
                 this.#held.delete(name)
                 return undefined
@@ -214,13 +214,13 @@ export class PostgresMutexDriver extends MutexDriver {
     public async release(name: string, lock: DriverLock): Promise<boolean> {
         if (this.mode === 'table') {
             const pool = await this.pool()
-            return (await pool.query(`DELETE FROM ${this.table} WHERE key = $1 AND token = $2`, [NameDigest(this.prefix + name), lock.token])).rowCount === 1
+            return (await pool.query(`DELETE FROM ${this.table} WHERE key = $1 AND token = $2`, [nameDigest(this.prefix + name), lock.token])).rowCount === 1
         }
         if (this.#held.get(name) !== lock.token) return false
         this.#held.delete(name)
         const client = this.#client
         if (!client) return false
-        return !!(await client.query('SELECT pg_advisory_unlock($1::bigint) AS unlocked', [NameKey64(this.prefix + name)])).rows[0].unlocked
+        return !!(await client.query('SELECT pg_advisory_unlock($1::bigint) AS unlocked', [nameKey64(this.prefix + name)])).rows[0].unlocked
     }
 
     /**
@@ -235,7 +235,7 @@ export class PostgresMutexDriver extends MutexDriver {
     public async extend(name: string, lock: DriverLock, ttl: number): Promise<boolean> {
         if (this.mode === 'table') {
             const pool = await this.pool()
-            return (await pool.query(`UPDATE ${this.table} SET expires_at = now() + $3 * interval '1 millisecond' WHERE key = $1 AND token = $2`, [NameDigest(this.prefix + name), lock.token, Math.ceil(ttl)])).rowCount === 1
+            return (await pool.query(`UPDATE ${this.table} SET expires_at = now() + $3 * interval '1 millisecond' WHERE key = $1 AND token = $2`, [nameDigest(this.prefix + name), lock.token, Math.ceil(ttl)])).rowCount === 1
         }
         //Held as long as its connection: checked by a query (a connection cut silently fails it)
         const client = this.#client

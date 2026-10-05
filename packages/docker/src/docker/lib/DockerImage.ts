@@ -1,7 +1,7 @@
 import {Provider, DTO} from '@lakutata/core'
 import {Transient, Configurable} from '@lakutata/core/decorator/di'
 import type {DockerClient} from '../../client/DockerClient.js'
-import {FollowProgress} from '../../client/DockerStreams.js'
+import {followProgress} from '../../client/DockerStreams.js'
 import {Time} from '@lakutata/utils/Time'
 import {ImageConfig} from '../types/ImageConfig.js'
 import {ImageTagOptions} from '../options/image/ImageTagOptions.js'
@@ -20,7 +20,7 @@ import {parseEnvToRecord} from './ParseEnvToRecord.js'
 import type {Docker} from '../Docker.js'
 import {ContainerSettingOptions} from '../options/container/ContainerSettingOptions.js'
 import {type DockerContainer} from './DockerContainer.js'
-import {RegistryAuth} from './RegistryAuth.js'
+import {registryAuth} from './RegistryAuth.js'
 
 /**
  * An image of the Docker daemon, with its tags, platform, size and configuration as inspected, and its operations: tag,
@@ -236,8 +236,8 @@ export class DockerImage extends Provider {
         await this.tag({repo: options.repo, tag: tag})
         await this.syncImageInfo()
         let pushException: DockerImagePushException | undefined
-        const readableStream: NodeJS.ReadableStream = await this.getClient().pushImage(options.repo, {tag: tag}, RegistryAuth(options.auth))
-        await FollowProgress(readableStream, (outputObject: Record<string, any>): void => {
+        const readableStream: NodeJS.ReadableStream = await this.getClient().pushImage(options.repo, {tag: tag}, registryAuth(options.auth))
+        await followProgress(readableStream, (outputObject: Record<string, any>): void => {
             if (outputObject.error && !pushException) pushException = new DockerImagePushException(outputObject.error)
             if (options.outputCallback) options.outputCallback(outputObject)
         })

@@ -4,7 +4,7 @@ import {
     DI_TARGET_CONSTRUCTOR_INJECTS
 } from '../../../constants/DIMetadataKey.js'
 import {objectConstructor} from '@lakutata/utils/ObjectConstructor'
-import {MergedDeclarations, OwnDeclarations, REMOVED} from './MemberDeclarations.js'
+import {mergedDeclarations, ownDeclarations, REMOVED} from './MemberDeclarations.js'
 import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
 
 
@@ -26,8 +26,8 @@ export type ObjectInjectionMap = Map<string | symbol, {
  * @param transform
  * @constructor
  */
-export function SetObjectInjectItem<ClassPrototype extends BaseObject>(target: ClassPrototype, propertyKey: string | symbol, name: string | symbol | Function, transform: InjectionTransformFunction): void {
-    OwnDeclarations(DI_TARGET_CONSTRUCTOR_INJECTS, objectConstructor(target)).set(propertyKey, {
+export function setObjectInjectItem<ClassPrototype extends BaseObject>(target: ClassPrototype, propertyKey: string | symbol, name: string | symbol | Function, transform: InjectionTransformFunction): void {
+    ownDeclarations(DI_TARGET_CONSTRUCTOR_INJECTS, objectConstructor(target)).set(propertyKey, {
         name: name,
         transform: transform
     })
@@ -39,8 +39,8 @@ export function SetObjectInjectItem<ClassPrototype extends BaseObject>(target: C
  * @param propertyKey
  * @constructor
  */
-export function RemoveObjectInjectItem<ClassPrototype extends BaseObject>(target: ClassPrototype, propertyKey: string | symbol): void {
-    OwnDeclarations(DI_TARGET_CONSTRUCTOR_INJECTS, objectConstructor(target)).set(propertyKey, REMOVED)
+export function removeObjectInjectItem<ClassPrototype extends BaseObject>(target: ClassPrototype, propertyKey: string | symbol): void {
+    ownDeclarations(DI_TARGET_CONSTRUCTOR_INJECTS, objectConstructor(target)).set(propertyKey, REMOVED)
 }
 
 /**
@@ -49,8 +49,8 @@ export function RemoveObjectInjectItem<ClassPrototype extends BaseObject>(target
  * @param target
  * @constructor
  */
-export function GetObjectInjectItemsByPrototype<ClassPrototype extends BaseObject>(target: ClassPrototype): ObjectInjectionMap {
-    return MergedDeclarations(DI_TARGET_CONSTRUCTOR_INJECTS, objectConstructor(target))
+export function getObjectInjectItemsByPrototype<ClassPrototype extends BaseObject>(target: ClassPrototype): ObjectInjectionMap {
+    return mergedDeclarations(DI_TARGET_CONSTRUCTOR_INJECTS, objectConstructor(target))
 }
 
 /**
@@ -58,7 +58,7 @@ export function GetObjectInjectItemsByPrototype<ClassPrototype extends BaseObjec
  * @param target
  * @constructor
  */
-export function MarkObjectAsAutoload<ClassConstructor extends typeof BaseObject>(target: ClassConstructor): ClassConstructor {
+export function markObjectAsAutoload<ClassConstructor extends typeof BaseObject>(target: ClassConstructor): ClassConstructor {
     if (!Reflect.hasOwnMetadata(DI_TARGET_CONSTRUCTOR_AUTOLOAD, target)) Reflect.defineMetadata(DI_TARGET_CONSTRUCTOR_AUTOLOAD, true, target)
     return target
 }
@@ -68,6 +68,6 @@ export function MarkObjectAsAutoload<ClassConstructor extends typeof BaseObject>
  * @param target
  * @constructor
  */
-export function GetObjectIsAutoload<ClassConstructor extends typeof BaseObject>(target: ClassConstructor): boolean {
+export function getObjectIsAutoload<ClassConstructor extends typeof BaseObject>(target: ClassConstructor): boolean {
     return !!Reflect.getOwnMetadata(DI_TARGET_CONSTRUCTOR_AUTOLOAD, target)
 }

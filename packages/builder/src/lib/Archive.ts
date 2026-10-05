@@ -1,6 +1,6 @@
 import {cp, rm, stat} from 'node:fs/promises'
 import path from 'node:path'
-import {Run} from './Processes.js'
+import {runCommand} from './Processes.js'
 import type {InstallerPlan} from './Installer.js'
 
 /**
@@ -11,12 +11,12 @@ import type {InstallerPlan} from './Installer.js'
  * @param work
  * @param outdir
  */
-export async function ArchiveDirectory(plan: InstallerPlan, arch: string, work: string, outdir: string): Promise<{ target: string, file: string, size: number }> {
+export async function archiveDirectory(plan: InstallerPlan, arch: string, work: string, outdir: string): Promise<{ target: string, file: string, size: number }> {
     const base: string = `${plan.name}-${plan.version}-${process.platform}-${arch}`
     await rm(path.join(work, base), {recursive: true, force: true})
     await cp(plan.directory, path.join(work, base), {recursive: true, verbatimSymlinks: true})
     const file: string = path.join(outdir, `${base}.tar.gz`)
-    const archived = await Run('tar', ['-czf', file, base], work)
+    const archived = await runCommand('tar', ['-czf', file, base], work)
     if (archived.code !== 0) throw new Error(`The tar.gz archive cannot be made: ${archived.output.trim()}`)
     return {target: 'tar.gz', file: file, size: (await stat(file)).size}
 }

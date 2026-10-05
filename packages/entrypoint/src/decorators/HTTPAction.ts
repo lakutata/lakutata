@@ -1,6 +1,6 @@
 import {Controller, type ControllerProperty} from '../lib/Controller.js'
 import {MethodDecorator, DTO} from '@lakutata/core'
-import {RegisterHTTPAction} from '../lib/ControllerEntrypoint.js'
+import {registerHTTPAction} from '../lib/ControllerEntrypoint.js'
 import {ActionOptions} from '../lib/ActionOptions.js'
 import {getActionDTOAndOptions} from '../lib/GetActionDTOAndOptions.js'
 import {HTTPContext} from '../context/HTTPContext.js'
@@ -185,7 +185,7 @@ export function HTTPAction<ClassPrototype extends Controller, Method, DTOConstru
         const route: string = r.toString()
         const methods: string[] = Array.isArray(m) ? m : [m]
         const [dtoConstructor, actionOptions] = getActionDTOAndOptions(dtoConstructorOrOptions, options)
-        RegisterHTTPAction(route, methods, target, propertyKey, dtoConstructor, actionOptions)
+        registerHTTPAction(route, methods, target, propertyKey, dtoConstructor, actionOptions)
         return descriptor
     }
 }

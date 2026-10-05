@@ -4,8 +4,8 @@ import {Controller} from 'lakutata/com/entrypoint'
 import {CLIAction} from 'lakutata/decorator/ctrl'
 import {checkCatalogs, generateMessageTypes, loadCatalogs, type CatalogIssue, type Catalogs} from 'lakutata/com/i18n'
 import {I18nDTO} from '../dtos/I18nDTO.js'
-import {Done, Styled, Warn} from '../lib/Output.js'
-import {AddLocale} from '../lib/I18n.js'
+import {done, styled, warn} from '../lib/Output.js'
+import {addLocale} from '../lib/I18n.js'
 
 /**
  * The commands of the messages of the languages (lakutata/com/i18n)
@@ -22,13 +22,13 @@ export class I18nController extends Controller {
                 const issues: CatalogIssue[] = checkCatalogs(catalogs, input.default)
                 for (const issue of issues) {
                     const where: string = issue.key ? `${issue.locale} ${issue.key}` : issue.locale
-                    process.stdout.write(`${issue.level === 'error' ? Styled('red', '✖') : Styled('yellow', '!')} ${Styled('bold', where)}: ${issue.message}\n`)
+                    process.stdout.write(`${issue.level === 'error' ? styled('red', '✖') : styled('yellow', '!')} ${styled('bold', where)}: ${issue.message}\n`)
                 }
                 const errors: number = issues.filter((issue: CatalogIssue): boolean => issue.level === 'error').length
                 const warnings: number = issues.length - errors
                 const summary: string = `${catalogs.size} language${catalogs.size === 1 ? '' : 's'} (${[...catalogs.keys()].sort().join(', ')}), ${errors} error${errors === 1 ? '' : 's'}, ${warnings} warning${warnings === 1 ? '' : 's'}`
                 if (errors || (input.strict && warnings)) throw new Error(`The messages have problems: ${summary}`)
-                Done(`Messages checked: ${summary}`)
+                done(`Messages checked: ${summary}`)
                 return undefined
             }
             case 'types': {
@@ -36,15 +36,15 @@ export class I18nController extends Controller {
                 const file: string = path.resolve(input.out)
                 await mkdir(path.dirname(file), {recursive: true})
                 await writeFile(file, declaration)
-                Done(`Types of the messages of ${input.default} declared: ${relative(file)}`)
+                done(`Types of the messages of ${input.default} declared: ${relative(file)}`)
                 return undefined
             }
             case 'add': {
                 if (!input.locale) throw new Error('The language is required: lakutata i18n add <locale>')
                 if (directories.length !== 1) throw new Error('A language is added to one directory (--dir)')
-                const files: string[] = await AddLocale(directories[0], input.locale, input.default)
-                Done(`Messages of ${input.locale} added: ${files.map(relative).join(', ')}`)
-                Warn(`They are the messages of ${input.default}: translate them (lakutata i18n check tells the ones which are not)`)
+                const files: string[] = await addLocale(directories[0], input.locale, input.default)
+                done(`Messages of ${input.locale} added: ${files.map(relative).join(', ')}`)
+                warn(`They are the messages of ${input.default}: translate them (lakutata i18n check tells the ones which are not)`)
                 return undefined
             }
         }

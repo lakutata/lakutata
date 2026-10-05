@@ -1,4 +1,4 @@
-import {ValidateXML} from './internal/XMLValidator.js'
+import {validateXML} from './internal/XMLValidator.js'
 
 /**
  * Tell whether a string is a well-formed XML document: one root element, every tag closed and nested properly, with an
@@ -16,5 +16,5 @@ import {ValidateXML} from './internal/XMLValidator.js'
  * ```
  */
 export function isXML(string: string): boolean {
-    return typeof string === 'string' && ValidateXML(string)
+    return typeof string === 'string' && validateXML(string)
 }

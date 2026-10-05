@@ -8,7 +8,7 @@ import {GlobPattern} from '../lib/pattern/GlobPattern.js'
  * A pseudo-random generator with a seed: the failures are reproduced
  * @param seed
  */
-function Random(seed: number): () => number {
+function seededRandom(seed: number): () => number {
     let state: number = seed >>> 0
     return (): number => {
         state = (state + 0x6D2B79F5) >>> 0
@@ -27,7 +27,7 @@ const SUBJECT_VALUES: unknown[] = ['x', 'y', 'z', '1', '2', 'xy', 'xz', 'yz', ''
  * The results of a list, compared without the order of the patterns of a same value
  * @param results
  */
-function Listed(results: { match: Record<string, any>, data: any }[]): string[] {
+function listed(results: { match: Record<string, any>, data: any }[]): string[] {
     return results.map(({match, data}): string => `${JSON.stringify(match)} → ${data}`)
 }
 
@@ -35,7 +35,7 @@ describe('The patterns of the actions', (): void => {
 
     it('match as patrun, from which they are rewritten', (): void => {
         for (let trial: number = 0; trial < 600; trial++) {
-            const random: () => number = Random(trial + 1)
+            const random: () => number = seededRandom(trial + 1)
             const pick = <T>(values: T[]): T => values[Math.floor(random() * values.length)]
             const globMatch: boolean = trial % 5 !== 0
             const patterns: PatternManager = new PatternManager({globMatch: globMatch})
@@ -67,8 +67,8 @@ describe('The patterns of the actions', (): void => {
                 const partial: Record<string, any> = {}
                 for (let keyIndex: number = 0, keys: number = Math.floor(random() * 3); keyIndex < keys; keyIndex++) partial[pick(KEYS)] = pick(['x', 'y', '*', 'x*', '1', '?'])
                 const context: string = `trial ${trial}, patterns ${JSON.stringify(added)}, partial ${JSON.stringify(partial)}`
-                assert.deepStrictEqual(Listed(patterns.list(partial)), Listed(upstream.list(partial)), `list, ${context}`)
-                assert.deepStrictEqual(Listed(patterns.list(partial, true)), Listed(upstream.list(partial, true)), `list exact, ${context}`)
+                assert.deepStrictEqual(listed(patterns.list(partial)), listed(upstream.list(partial)), `list, ${context}`)
+                assert.deepStrictEqual(listed(patterns.list(partial, true)), listed(upstream.list(partial, true)), `list exact, ${context}`)
             }
         }
     })

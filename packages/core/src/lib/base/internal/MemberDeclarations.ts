@@ -16,7 +16,7 @@ type OwnDeclarations<Declaration> = Map<string | symbol, Declaration | typeof RE
  * @param metadataKey
  * @param target
  */
-export function OwnDeclarations<Declaration>(metadataKey: string | symbol, target: Function): OwnDeclarations<Declaration> {
+export function ownDeclarations<Declaration>(metadataKey: string | symbol, target: Function): OwnDeclarations<Declaration> {
     let declarations: OwnDeclarations<Declaration> | undefined = Reflect.getOwnMetadata(metadataKey, target)
     if (!declarations) {
         declarations = new Map()
@@ -31,7 +31,7 @@ export function OwnDeclarations<Declaration>(metadataKey: string | symbol, targe
  * @param metadataKey
  * @param target
  */
-export function MergedDeclarations<Declaration>(metadataKey: string | symbol, target: Function): Map<string | symbol, Declaration> {
+export function mergedDeclarations<Declaration>(metadataKey: string | symbol, target: Function): Map<string | symbol, Declaration> {
     const merged: Map<string | symbol, Declaration> = new Map()
     for (const constructor of [...objectParentConstructors(target).reverse(), target]) {
         const own: OwnDeclarations<Declaration> | undefined = Reflect.getOwnMetadata(metadataKey, constructor)

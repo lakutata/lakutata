@@ -34,7 +34,7 @@ export interface FastifyResponder {
  * @param reply
  * @param data
  */
-function SendJSON(reply: FastifyReply, data: unknown): void {
+function sendJSON(reply: FastifyReply, data: unknown): void {
     reply.type('application/json; charset=utf-8').send(JSON.stringify(data))
 }
 
@@ -49,11 +49,11 @@ export const FastifyJSONResponder: FastifyResponder = {
             reply.code(reply.statusCode === 200 ? 204 : reply.statusCode).send()
             return
         }
-        SendJSON(reply, data)
+        sendJSON(reply, data)
     },
     error: (reply: FastifyReply, error: unknown): void => {
         reply.code(statusOfError(error))
-        SendJSON(reply, describeError(error))
+        sendJSON(reply, describeError(error))
     }
 }
 
@@ -113,11 +113,11 @@ export type FastifyJSONEnvelopeOptions = {
  */
 export function fastifyJSONEnvelope(options: FastifyJSONEnvelopeOptions = {}): FastifyResponder {
     return {
-        success: (reply: FastifyReply, data: unknown): void => SendJSON(reply, {errno: null, errMsg: null, data: data === undefined ? null : data}),
+        success: (reply: FastifyReply, data: unknown): void => sendJSON(reply, {errno: null, errMsg: null, data: data === undefined ? null : data}),
         error: (reply: FastifyReply, error: unknown, _request: FastifyRequest, origin?: HTTPErrorOrigin): void => {
             const status: number | undefined = origin === 'action' ? options.actionErrorStatus ?? options.errorStatus : options.errorStatus
             reply.code(status ?? statusOfError(error))
-            SendJSON(reply, {...describeError(error), data: null})
+            sendJSON(reply, {...describeError(error), data: null})
         }
     }
 }

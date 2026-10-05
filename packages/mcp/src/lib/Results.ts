@@ -8,7 +8,7 @@ import {isCallToolResult, type CallToolResult, type ContentBlock, type GetPrompt
  * JSON with the big integers as strings
  * @param value
  */
-function Stringify(value: unknown): string {
+function stringify(value: unknown): string {
     return JSON.stringify(value, (key: string, item: unknown): unknown => typeof item === 'bigint' ? item.toString() : item, 2)
 }
 
@@ -16,7 +16,7 @@ function Stringify(value: unknown): string {
  * Whether a value is a plain object
  * @param value
  */
-function IsPlainObject(value: unknown): value is Record<string, unknown> {
+function isPlainObject(value: unknown): value is Record<string, unknown> {
     if (!value || typeof value !== 'object') return false
     const prototype: unknown = Object.getPrototypeOf(value)
     return prototype === Object.prototype || prototype === null
@@ -26,7 +26,7 @@ function IsPlainObject(value: unknown): value is Record<string, unknown> {
  * Whether a content type is a text
  * @param mimeType
  */
-function IsText(mimeType: string): boolean {
+function isText(mimeType: string): boolean {
     return mimeType.startsWith('text/') || /[/+]json$/.test(mimeType) || /[/+]xml$/.test(mimeType)
 }
 
@@ -34,7 +34,7 @@ function IsText(mimeType: string): boolean {
  * The bytes of a file result
  * @param source
  */
-async function ReadSource(source: string | Buffer | Readable): Promise<Buffer> {
+async function readSource(source: string | Buffer | Readable): Promise<Buffer> {
     if (Buffer.isBuffer(source)) return source
     if (typeof source === 'string') return await readFile(path.resolve(source))
     const chunks: Buffer[] = []
@@ -45,7 +45,7 @@ async function ReadSource(source: string | Buffer | Readable): Promise<Buffer> {
 /**
  * The event streams have no MCP result
  */
-function EventsNotSupported(): TypeError {
+function eventsNotSupported(): TypeError {
     return new TypeError('The event streams are not results of MCP actions, report the progress with context.progress() instead')
 }
 
@@ -53,14 +53,14 @@ function EventsNotSupported(): TypeError {
  * The content of a file: an image, an audio clip, a text or an embedded resource
  * @param result
  */
-async function FileContent(result: FileResult): Promise<ContentBlock> {
-    const data: Buffer = await ReadSource(result.source)
+async function fileContent(result: FileResult): Promise<ContentBlock> {
+    const data: Buffer = await readSource(result.source)
     const filename: string | undefined = result.options.filename ?? (typeof result.source === 'string' ? path.basename(result.source) : undefined)
     const mimeType: string = result.options.contentType ?? 'application/octet-stream'
     if (mimeType.startsWith('image/')) return {type: 'image', data: data.toString('base64'), mimeType: mimeType}
     if (mimeType.startsWith('audio/')) return {type: 'audio', data: data.toString('base64'), mimeType: mimeType}
     const uri: string = `file:///${encodeURIComponent(filename ?? 'result')}`
-    if (IsText(mimeType)) return {type: 'resource', resource: {uri: uri, mimeType: mimeType, text: data.toString('utf8')}}
+    if (isText(mimeType)) return {type: 'resource', resource: {uri: uri, mimeType: mimeType, text: data.toString('utf8')}}
     return {type: 'resource', resource: {uri: uri, mimeType: mimeType, blob: data.toString('base64')}}
 }
 
@@ -98,17 +98,17 @@ async function FileContent(result: FileResult): Promise<ContentBlock> {
  */
 export async function toToolResult(result: unknown, output: boolean = false): Promise<CallToolResult> {
     if (result instanceof StatusResult) return await toToolResult(result.data, output)
-    if (result instanceof FileResult) return {content: [await FileContent(result)]}
-    if (result instanceof EventsResult) throw EventsNotSupported()
+    if (result instanceof FileResult) return {content: [await fileContent(result)]}
+    if (result instanceof EventsResult) throw eventsNotSupported()
     if (result === undefined || result === null) return {content: []}
     if (typeof result === 'string') return {content: [{type: 'text', text: result}]}
     if (isCallToolResult(result)) return result as CallToolResult
-    const text: string = Stringify(result)
+    const text: string = stringify(result)
     const toolResult: CallToolResult = {content: [{type: 'text', text: text}]}
     //A class instance (a DTO) gives its JSON, an object, as the structured content of a tool declaring an output
-    if (IsPlainObject(result) || (output && typeof result === 'object' && !Array.isArray(result))) {
+    if (isPlainObject(result) || (output && typeof result === 'object' && !Array.isArray(result))) {
         const structured: unknown = text === undefined ? undefined : JSON.parse(text)
-        if (IsPlainObject(structured)) toolResult.structuredContent = structured
+        if (isPlainObject(structured)) toolResult.structuredContent = structured
     }
     return toolResult
 }
@@ -117,8 +117,8 @@ export async function toToolResult(result: unknown, output: boolean = false): Pr
  * The type of a value returned by an action, for the error of a tool declaring an output
  * @param result
  */
-export function ResultType(result: unknown): string {
-    if (result instanceof StatusResult) return ResultType(result.data)
+export function resultType(result: unknown): string {
+    if (result instanceof StatusResult) return resultType(result.data)
     if (result === undefined || result === null) return String(result)
     if (Array.isArray(result)) return 'an array'
     if (isCallToolResult(result)) return 'a CallToolResult without structuredContent'
@@ -130,7 +130,7 @@ export function ResultType(result: unknown): string {
  * The message of an error
  * @param error
  */
-export function ErrorMessage(error: unknown): string {
+export function errorMessage(error: unknown): string {
     const {errno, errMsg, message} = (error && typeof error === 'object' ? error : {}) as { errno?: unknown, errMsg?: unknown, message?: unknown }
     const text: string = typeof errMsg === 'string' && errMsg ? errMsg : typeof message === 'string' && message ? message : String(error)
     return errno === undefined ? text : `${String(errno)}: ${text}`
@@ -152,7 +152,7 @@ export function ErrorMessage(error: unknown): string {
  * ```
  */
 export function toErrorResult(error: unknown): CallToolResult {
-    return {isError: true, content: [{type: 'text', text: ErrorMessage(error)}]}
+    return {isError: true, content: [{type: 'text', text: errorMessage(error)}]}
 }
 
 /**
@@ -181,26 +181,26 @@ export function toErrorResult(error: unknown): CallToolResult {
  */
 export async function toResourceResult(uri: string, result: unknown, mimeType?: string): Promise<ReadResourceResult> {
     if (result instanceof StatusResult) return await toResourceResult(uri, result.data, mimeType)
-    if (result instanceof EventsResult) throw EventsNotSupported()
+    if (result instanceof EventsResult) throw eventsNotSupported()
     if (result === undefined || result === null) return {contents: []}
-    if (IsPlainObject(result) && Array.isArray(result.contents)) return result as ReadResourceResult
+    if (isPlainObject(result) && Array.isArray(result.contents)) return result as ReadResourceResult
     if (typeof result === 'string') return {contents: [{uri: uri, mimeType: mimeType ?? 'text/plain', text: result}]}
     if (result instanceof FileResult || result instanceof Uint8Array) {
-        const data: Buffer = result instanceof FileResult ? await ReadSource(result.source) : Buffer.from(result)
+        const data: Buffer = result instanceof FileResult ? await readSource(result.source) : Buffer.from(result)
         const type: string = (result instanceof FileResult ? result.options.contentType : undefined) ?? mimeType ?? 'application/octet-stream'
-        return {contents: [IsText(type) ? {uri: uri, mimeType: type, text: data.toString('utf8')} : {uri: uri, mimeType: type, blob: data.toString('base64')}]}
+        return {contents: [isText(type) ? {uri: uri, mimeType: type, text: data.toString('utf8')} : {uri: uri, mimeType: type, blob: data.toString('base64')}]}
     }
-    return {contents: [{uri: uri, mimeType: mimeType ?? 'application/json', text: Stringify(result)}]}
+    return {contents: [{uri: uri, mimeType: mimeType ?? 'application/json', text: stringify(result)}]}
 }
 
 /**
  * A message of a prompt
  * @param message
  */
-function PromptMessageOf(message: unknown): PromptMessage {
+function promptMessageOf(message: unknown): PromptMessage {
     if (typeof message === 'string') return {role: 'user', content: {type: 'text', text: message}}
-    if (IsPlainObject(message) && (message.role === 'user' || message.role === 'assistant') && IsPlainObject(message.content)) return message as unknown as PromptMessage
-    return {role: 'user', content: {type: 'text', text: Stringify(message)}}
+    if (isPlainObject(message) && (message.role === 'user' || message.role === 'assistant') && isPlainObject(message.content)) return message as unknown as PromptMessage
+    return {role: 'user', content: {type: 'text', text: stringify(message)}}
 }
 
 /**
@@ -227,7 +227,7 @@ function PromptMessageOf(message: unknown): PromptMessage {
 export function toPromptResult(result: unknown, description?: string): GetPromptResult {
     if (result instanceof StatusResult) return toPromptResult(result.data, description)
     if (result instanceof FileResult || result instanceof EventsResult) throw new TypeError('The prompts are made of messages: strings or {role, content}')
-    if (IsPlainObject(result) && Array.isArray(result.messages)) return result as GetPromptResult
-    const messages: PromptMessage[] = result === undefined || result === null ? [] : (Array.isArray(result) ? result : [result]).map(PromptMessageOf)
+    if (isPlainObject(result) && Array.isArray(result.messages)) return result as GetPromptResult
+    const messages: PromptMessage[] = result === undefined || result === null ? [] : (Array.isArray(result) ? result : [result]).map(promptMessageOf)
     return description ? {description: description, messages: messages} : {messages: messages}
 }

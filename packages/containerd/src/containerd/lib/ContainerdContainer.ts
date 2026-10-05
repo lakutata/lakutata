@@ -21,7 +21,7 @@ import {ContainerRemoveOptions} from '../options/container/ContainerRemoveOption
 import {ContainerExecOptions} from '../options/container/ContainerExecOptions.js'
 import {ContainerLogsOptions} from '../options/container/ContainerLogsOptions.js'
 import {ContainerdContainerNotFoundException} from '../exceptions/ContainerdContainerNotFoundException.js'
-import {ContainerdError} from './ContainerdErrors.js'
+import {containerdError} from './ContainerdErrors.js'
 import {ContainerdContainerTTY} from './ContainerdContainerTTY.js'
 import {ContainerTTYOptions} from '../options/container/ContainerTTYOptions.js'
 import {ContainerResourceOptions} from '../options/container/ContainerResourceOptions.js'
@@ -30,7 +30,7 @@ import {ContainerExportDirectoryOptions} from '../options/container/ContainerExp
 import type {ContainerCreateOptions} from '../options/container/ContainerCreateOptions.js'
 import type {ContainerdContainerStats} from '../types/ContainerdContainerStats.js'
 import {ContainerdContainerStateException} from '../exceptions/ContainerdContainerStateException.js'
-import {ParseReference} from '../../client/Reference.js'
+import {parseReference} from '../../client/Reference.js'
 
 /**
  * A container of the {@link Containerd} component's namespace, with the operations of a Docker container: start, stop,
@@ -243,7 +243,7 @@ export class ContainerdContainer extends Provider {
         try {
             return await operation(this.record)
         } catch (error: unknown) {
-            throw ContainerdError(error)
+            throw containerdError(error)
         } finally {
             await this.syncContainerInfo().catch((): undefined => undefined)
         }
@@ -333,7 +333,7 @@ export class ContainerdContainer extends Provider {
         try {
             return await this.getStore().wait(this.record, this.#abortController.signal)
         } catch (error: unknown) {
-            throw ContainerdError(error)
+            throw containerdError(error)
         } finally {
             await this.syncContainerInfo().catch((): undefined => undefined)
         }
@@ -351,7 +351,7 @@ export class ContainerdContainer extends Provider {
         try {
             await this.getStore().remove(this.record, !!options.force)
         } catch (error: unknown) {
-            throw ContainerdError(error)
+            throw containerdError(error)
         }
     }
 
@@ -378,7 +378,7 @@ export class ContainerdContainer extends Provider {
                 timeout: options.timeout
             })
         } catch (error: unknown) {
-            throw ContainerdError(error)
+            throw containerdError(error)
         }
     }
 
@@ -408,7 +408,7 @@ export class ContainerdContainer extends Provider {
         try {
             return await this.getStore().stats(this.record, interval)
         } catch (error: unknown) {
-            throw ContainerdError(error)
+            throw containerdError(error)
         }
     }
 
@@ -500,7 +500,7 @@ export class ContainerdContainer extends Provider {
         if (options.repoTag) {
             name = options.repoTag
         } else {
-            const reference = ParseReference(this.imageName)
+            const reference = parseReference(this.imageName)
             name = `${reference.registry}/${reference.repository}:commit-${Date.now()}`
         }
         try {
@@ -512,7 +512,7 @@ export class ContainerdContainer extends Provider {
                 author: options.author
             })
         } catch (error: unknown) {
-            throw ContainerdError(error)
+            throw containerdError(error)
         }
         return await this.getContainerd().getImage(name)
     }
@@ -531,7 +531,7 @@ export class ContainerdContainer extends Provider {
         try {
             await this.getStore().archive(this.record, options.path, typeof options.destination === 'string' ? createWriteStream(options.destination) : options.destination)
         } catch (error: unknown) {
-            throw ContainerdError(error)
+            throw containerdError(error)
         }
     }
 
@@ -544,7 +544,7 @@ export class ContainerdContainer extends Provider {
         try {
             return await this.getStore().processes(this.record)
         } catch (error: unknown) {
-            throw ContainerdError(error)
+            throw containerdError(error)
         }
     }
 }

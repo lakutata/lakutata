@@ -2,7 +2,7 @@ import * as os from 'node:os'
 import {Component} from '@lakutata/core'
 import {IMonitor} from './interfaces/IMonitor.js'
 import {IMemoryMonitorStatistics} from './interfaces/IMemoryMonitorStatistics.js'
-import {Round, Samples} from './lib/Samples.js'
+import {round, Samples} from './lib/Samples.js'
 
 /**
  * The memory monitor: measures the memory of the process, in bytes, with `process.memoryUsage()`: its resident set
@@ -68,20 +68,20 @@ export class MemoryMonitor extends Component implements IMonitor<IMemoryMonitorS
         return {
             physicalTotal: this.#totalMemorySize,
             physicalUsed: latest.rss,
-            physicalUsage: Round(latest.rss / this.#totalMemorySize * 100, this.#fractionDigits),
+            physicalUsage: round(latest.rss / this.#totalMemorySize * 100, this.#fractionDigits),
             physicalUsedMin: this.#physical.min,
             physicalUsedMax: this.#physical.max,
-            physicalUsedAvg: Round(this.#physical.mean, this.#fractionDigits),
+            physicalUsedAvg: round(this.#physical.mean, this.#fractionDigits),
             physicalUsedP50: this.#physical.percentile(50),
             physicalUsedP90: this.#physical.percentile(90),
             physicalUsedP95: this.#physical.percentile(95),
             physicalUsedP99: this.#physical.percentile(99),
             heapTotal: latest.heapTotal,
             heapUsed: latest.heapUsed,
-            heapUsage: Round(latest.heapTotal ? latest.heapUsed / latest.heapTotal * 100 : 0, this.#fractionDigits),
+            heapUsage: round(latest.heapTotal ? latest.heapUsed / latest.heapTotal * 100 : 0, this.#fractionDigits),
             heapUsedMin: this.#heap.min,
             heapUsedMax: this.#heap.max,
-            heapUsedAvg: Round(this.#heap.mean, this.#fractionDigits),
+            heapUsedAvg: round(this.#heap.mean, this.#fractionDigits),
             heapUsedP50: this.#heap.percentile(50),
             heapUsedP90: this.#heap.percentile(90),
             heapUsedP95: this.#heap.percentile(95),
@@ -89,7 +89,7 @@ export class MemoryMonitor extends Component implements IMonitor<IMemoryMonitorS
             externalUsed: latest.external,
             externalUsedMin: this.#external.min,
             externalUsedMax: this.#external.max,
-            externalUsedAvg: Round(this.#external.mean, this.#fractionDigits),
+            externalUsedAvg: round(this.#external.mean, this.#fractionDigits),
             externalUsedP50: this.#external.percentile(50),
             externalUsedP90: this.#external.percentile(90),
             externalUsedP95: this.#external.percentile(95),

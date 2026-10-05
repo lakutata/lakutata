@@ -19,7 +19,7 @@ export type GlobSegment =
  * Split a list of a brace at its top level commas
  * @param body
  */
-function SplitAlternatives(body: string): string[] {
+function splitAlternatives(body: string): string[] {
     const parts: string[] = []
     let depth: number = 0
     let start: number = 0
@@ -44,7 +44,7 @@ function SplitAlternatives(body: string): string[] {
  * The values of a sequence brace ({1..3}, {a..c}, {1..10..2}), undefined when it is not a sequence
  * @param body
  */
-function Sequence(body: string): string[] | undefined {
+function sequence(body: string): string[] | undefined {
     const match: RegExpExecArray | null = /^(-?\d+|[a-zA-Z])\.\.(-?\d+|[a-zA-Z])(?:\.\.(-?\d+))?$/.exec(body)
     if (!match) return undefined
     const numeric: boolean = /\d/.test(match[1])
@@ -71,7 +71,7 @@ function Sequence(body: string): string[] | undefined {
  * @param pattern
  * @constructor
  */
-export function ExpandBraces(pattern: string): string[] {
+export function expandBraces(pattern: string): string[] {
     let depth: number = 0
     let open: number = -1
     for (let i: number = 0; i < pattern.length; i++) {
@@ -84,10 +84,10 @@ export function ExpandBraces(pattern: string): string[] {
             const prefix: string = pattern.substring(0, open)
             const body: string = pattern.substring(open + 1, i)
             const suffix: string = pattern.substring(i + 1)
-            const alternatives: string[] | undefined = Sequence(body) ?? (SplitAlternatives(body).length > 1 ? SplitAlternatives(body) : undefined)
+            const alternatives: string[] | undefined = sequence(body) ?? (splitAlternatives(body).length > 1 ? splitAlternatives(body) : undefined)
             //Not a list nor a sequence: the brace is kept as it is, the braces after it are expanded
-            if (!alternatives) return ExpandBraces(suffix).map((rest: string): string => `${prefix}{${body}}${rest}`)
-            return alternatives.flatMap((alternative: string): string[] => ExpandBraces(`${prefix}${alternative}${suffix}`))
+            if (!alternatives) return expandBraces(suffix).map((rest: string): string => `${prefix}{${body}}${rest}`)
+            return alternatives.flatMap((alternative: string): string[] => expandBraces(`${prefix}${alternative}${suffix}`))
         }
     }
     return [pattern]
@@ -98,7 +98,7 @@ export function ExpandBraces(pattern: string): string[] {
  * @param segment
  * @param start
  */
-function CharacterClass(segment: string, start: number): { source: string, end: number } | undefined {
+function parseCharacterClass(segment: string, start: number): { source: string, end: number } | undefined {
     let i: number = start + 1
     let source: string = '['
     if (segment[i] === '!' || segment[i] === '^') {
@@ -128,7 +128,7 @@ function CharacterClass(segment: string, start: number): { source: string, end: 
  * Remove the escapes of a name
  * @param segment
  */
-function Unescape(segment: string): string {
+function unescape(segment: string): string {
     return segment.replace(/\\(.)/g, '$1')
 }
 
@@ -136,7 +136,7 @@ function Unescape(segment: string): string {
  * Whether a segment has a wildcard or a class (not escaped)
  * @param segment
  */
-function IsMagic(segment: string): boolean {
+function isMagic(segment: string): boolean {
     return MAGIC.test(segment.replace(/\\./g, ''))
 }
 
@@ -146,9 +146,9 @@ function IsMagic(segment: string): boolean {
  * @param nocase
  * @constructor
  */
-export function CompileSegment(segment: string, nocase: boolean): GlobSegment {
+export function compileSegment(segment: string, nocase: boolean): GlobSegment {
     if (segment === '**') return {type: 'globstar'}
-    if (!IsMagic(segment)) return {type: 'name', name: Unescape(segment)}
+    if (!isMagic(segment)) return {type: 'name', name: unescape(segment)}
     let source: string = '^'
     for (let i: number = 0; i < segment.length; i++) {
         const char: string = segment[i]
@@ -161,7 +161,7 @@ export function CompileSegment(segment: string, nocase: boolean): GlobSegment {
         } else if (char === '?') {
             source += '[^/]'
         } else if (char === '[') {
-            const characterClass: { source: string, end: number } | undefined = CharacterClass(segment, i)
+            const characterClass: { source: string, end: number } | undefined = parseCharacterClass(segment, i)
             if (characterClass) {
                 source += characterClass.source
                 i = characterClass.end

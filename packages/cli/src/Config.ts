@@ -11,7 +11,7 @@ import {MigrationController} from './controllers/MigrationController.js'
 import {NativeController} from './controllers/NativeController.js'
 import {I18nController} from './controllers/I18nController.js'
 import {LANGUAGE_VARIABLE, LanguageMiddleware} from './lib/Language.js'
-import {ToolPackage} from './lib/Versions.js'
+import {toolPackage} from './lib/Versions.js'
 
 /**
  * The controllers of the commands of the tool
@@ -33,8 +33,8 @@ export const MESSAGES = {'zh-CN': zhCN, 'zh-TW': zhTW}
 /**
  * The application of the tool
  */
-export function Config(): ApplicationOptions {
-    const tool = ToolPackage()
+export function installerConfig(): ApplicationOptions {
+    const tool = toolPackage()
     return {
         id: 'cli.lakutata.app',
         name: 'lakutata-cli',

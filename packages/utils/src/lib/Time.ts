@@ -1,17 +1,17 @@
-import {AssertZone, DefaultZone, OffsetAt, ZoneAbbreviation, ZoneLongName, ZoneNames} from './time/Zone.js'
+import {assertZone, defaultZone, offsetAt, zoneAbbreviation, zoneLongName, supportedZoneNames} from './time/Zone.js'
 import {
-    DayOfYear,
-    DayOfYearFromWeeks,
-    DaysInMonth,
+    dayOfYearOf,
+    dayOfYearFromWeeks,
+    daysInMonth,
     ISO_WEEK,
-    IsLeapYear,
+    isLeapYear,
     LOCALE_WEEK,
-    LocalMilliseconds,
-    WeekOfYear,
-    WeeksInYear,
+    localMilliseconds,
+    weekOfYear,
+    weeksInYear,
     type WeekRules
 } from './time/Calendar.js'
-import {DEFAULT_FORMAT, DEFAULT_UTC_FORMAT, type FormatContext, FormatTime} from './time/Format.js'
+import {DEFAULT_FORMAT, DEFAULT_UTC_FORMAT, type FormatContext, formatTime} from './time/Format.js'
 
 /**
  * The units of time accepted by the `Time` methods, by their long name (`'day'`), plural (`'days'`) or short name
@@ -197,14 +197,14 @@ function absFloor(value: number): number {
  */
 function localToInstant(zone: string, local: number, preferred: number = NaN): number {
     if (isNaN(local)) return NaN
-    if (!isNaN(preferred) && OffsetAt(zone, local - preferred * 60000) === preferred) return local - preferred * 60000
+    if (!isNaN(preferred) && offsetAt(zone, local - preferred * 60000) === preferred) return local - preferred * 60000
     //The offsets of the day before and of the day after: the ones around a transition
-    const before: number = OffsetAt(zone, local - 864e5)
-    const after: number = OffsetAt(zone, local + 864e5)
+    const before: number = offsetAt(zone, local - 864e5)
+    const after: number = offsetAt(zone, local + 864e5)
     let earliest: number = NaN
     for (const offset of before === after ? [before] : [before, after]) {
         const instant: number = local - offset * 60000
-        if (OffsetAt(zone, instant) === offset && (isNaN(earliest) || instant < earliest)) earliest = instant
+        if (offsetAt(zone, instant) === offset && (isNaN(earliest) || instant < earliest)) earliest = instant
     }
     //In a gap, the offset before it: the wall clock moves forward by its length
     return isNaN(earliest) ? local - before * 60000 : earliest
@@ -235,11 +235,11 @@ function parseTimeString(input: string, zone: string): number {
         //Date reads a date alone in UTC, a date and time in the process's time zone: both in the zone instead
         const [, year, month, date, hours, minutes, seconds, fraction] = iso
         const milliseconds: number = fraction ? parseInt(fraction.padEnd(3, '0').slice(0, 3), 10) : 0
-        return localToInstant(zone, LocalMilliseconds(parseInt(year, 10), parseInt(month, 10) - 1, date ? parseInt(date, 10) : 1, hours ? parseInt(hours, 10) : 0, minutes ? parseInt(minutes, 10) : 0, seconds ? parseInt(seconds, 10) : 0, milliseconds))
+        return localToInstant(zone, localMilliseconds(parseInt(year, 10), parseInt(month, 10) - 1, date ? parseInt(date, 10) : 1, hours ? parseInt(hours, 10) : 0, minutes ? parseInt(minutes, 10) : 0, seconds ? parseInt(seconds, 10) : 0, milliseconds))
     }
     if (ZONE_DESIGNATOR.test(input)) return parsed.getTime()
     //Another format read by Date in the process's time zone: its wall clock in the zone instead
-    return localToInstant(zone, LocalMilliseconds(parsed.getFullYear(), parsed.getMonth(), parsed.getDate(), parsed.getHours(), parsed.getMinutes(), parsed.getSeconds(), parsed.getMilliseconds()))
+    return localToInstant(zone, localMilliseconds(parsed.getFullYear(), parsed.getMonth(), parsed.getDate(), parsed.getHours(), parsed.getMinutes(), parsed.getSeconds(), parsed.getMilliseconds()))
 }
 
 /**
@@ -255,18 +255,18 @@ function arrayToTime(input: (number | string)[], zone: string): number {
         return typeof field === 'number' ? field : parseInt(field, 10)
     })
     const nowInstant: number = Date.now()
-    const now: Date = new Date(nowInstant + OffsetAt(zone, nowInstant) * 60000)
+    const now: Date = new Date(nowInstant + offsetAt(zone, nowInstant) * 60000)
     const current: number[] = [now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()]
     let i: number = 0
     for (; i < 3 && fields[i] === undefined; i++) fields[i] = current[i]
     for (; i < 7; i++) if (fields[i] === undefined) fields[i] = i === 2 ? 1 : 0
     const [year, month, date, hours, minutes, seconds, milliseconds] = fields as number[]
     const overflow: boolean = month < 0 || month > 11 ||
-        date < 1 || date > DaysInMonth(year, month) ||
+        date < 1 || date > daysInMonth(year, month) ||
         hours < 0 || hours > 24 || (hours === 24 && (minutes !== 0 || seconds !== 0 || milliseconds !== 0)) ||
         minutes < 0 || minutes > 59 || seconds < 0 || seconds > 59 || milliseconds < 0 || milliseconds > 999
     if (overflow) return NaN
-    return localToInstant(zone, LocalMilliseconds(year, month, date, hours, minutes, seconds, milliseconds))
+    return localToInstant(zone, localMilliseconds(year, month, date, hours, minutes, seconds, milliseconds))
 }
 
 /**
@@ -339,7 +339,7 @@ export class Time extends Date {
      * @throws {RangeError} When `inp` is a string which is not a date (`''`, `'tomorrow'`).
      */
     constructor(inp?: TimeInput) {
-        const zone: string = inp instanceof Time ? inp.#zone : DefaultZone()
+        const zone: string = inp instanceof Time ? inp.#zone : defaultZone()
         super(inputToInstant(inp, zone))
         this.#zone = zone
     }
@@ -351,7 +351,7 @@ export class Time extends Date {
      * @returns A new array of names.
      */
     public static timezones(): string[] {
-        return ZoneNames()
+        return supportedZoneNames()
     }
 
     /**
@@ -417,7 +417,7 @@ export class Time extends Date {
     #offset(): number {
         const instant: number = this.getTime()
         if (instant !== this.#offsetInstant) {
-            this.#offsetMinutes = OffsetAt(this.#zone, instant)
+            this.#offsetMinutes = offsetAt(this.#zone, instant)
             this.#offsetInstant = instant
         }
         return this.#offsetMinutes
@@ -450,7 +450,7 @@ export class Time extends Date {
      */
     static #setMonth(local: Date, month: number): void {
         if (isNaN(month)) return
-        const date: number = Math.min(local.getUTCDate(), DaysInMonth(local.getUTCFullYear(), month))
+        const date: number = Math.min(local.getUTCDate(), daysInMonth(local.getUTCFullYear(), month))
         local.setUTCMonth(month, date)
     }
 
@@ -462,8 +462,8 @@ export class Time extends Date {
      */
     static #setYear(local: Date, year: number): void {
         if (isNaN(year)) return
-        if (IsLeapYear(local.getUTCFullYear()) && local.getUTCMonth() === 1 && local.getUTCDate() === 29) {
-            local.setUTCFullYear(year, 1, DaysInMonth(year, 1))
+        if (isLeapYear(local.getUTCFullYear()) && local.getUTCMonth() === 1 && local.getUTCDate() === 29) {
+            local.setUTCFullYear(year, 1, daysInMonth(year, 1))
         } else {
             local.setUTCFullYear(year)
         }
@@ -503,8 +503,8 @@ export class Time extends Date {
     public timezone(tz: string): Time
     public timezone(tz?: string): string | Time {
         if (tz === undefined || tz === null) return this.#zone
-        const zone: string = tz === '' ? DefaultZone() : tz
-        AssertZone(zone)
+        const zone: string = tz === '' ? defaultZone() : tz
+        assertZone(zone)
         const time: Time = new Time(this.getTime())
         time.#zone = zone
         return time
@@ -653,7 +653,7 @@ export class Time extends Date {
      */
     public dayOfYear(value: number): Time
     public dayOfYear(value?: number): number | Time {
-        const dayOfYear: number = DayOfYear(this.#local().getTime())
+        const dayOfYear: number = dayOfYearOf(this.#local().getTime())
         return value === undefined ? dayOfYear : this.add(value - dayOfYear, 'd')
     }
 
@@ -671,7 +671,7 @@ export class Time extends Date {
      */
     public weeks(value: number): Time
     public weeks(value?: number): number | Time {
-        const week: number = WeekOfYear(this.#local().getTime(), LOCALE_WEEK).week
+        const week: number = weekOfYear(this.#local().getTime(), LOCALE_WEEK).week
         return value === undefined ? week : this.add((value - week) * 7, 'd')
     }
 
@@ -689,7 +689,7 @@ export class Time extends Date {
      */
     public isoWeeks(value: number): Time
     public isoWeeks(value?: number): number | Time {
-        const week: number = WeekOfYear(this.#local().getTime(), ISO_WEEK).week
+        const week: number = weekOfYear(this.#local().getTime(), ISO_WEEK).week
         return value === undefined ? week : this.add((value - week) * 7, 'd')
     }
 
@@ -753,10 +753,10 @@ export class Time extends Date {
      */
     #weekYear(rules: WeekRules, value?: number): number | Time {
         const local: Date = this.#local()
-        const {week, year} = WeekOfYear(local.getTime(), rules)
+        const {week, year} = weekOfYear(local.getTime(), rules)
         if (value === undefined) return year
-        const target: { year: number, dayOfYear: number } = DayOfYearFromWeeks(value, Math.min(week, WeeksInYear(value, rules)), local.getUTCDay() || (rules.dow ? 7 : 0), rules)
-        const date: Date = new Date(LocalMilliseconds(target.year, 0, target.dayOfYear))
+        const target: { year: number, dayOfYear: number } = dayOfYearFromWeeks(value, Math.min(week, weeksInYear(value, rules)), local.getUTCDay() || (rules.dow ? 7 : 0), rules)
+        const date: Date = new Date(localMilliseconds(target.year, 0, target.dayOfYear))
         return this.#setLocal((fields: Date): void => {
             Time.#setYear(fields, date.getUTCFullYear())
             Time.#setMonth(fields, date.getUTCMonth())
@@ -786,7 +786,7 @@ export class Time extends Date {
      * @returns 52 or 53.
      */
     public weeksInYear(): number {
-        return WeeksInYear(this.#local().getUTCFullYear(), LOCALE_WEEK)
+        return weeksInYear(this.#local().getUTCFullYear(), LOCALE_WEEK)
     }
 
     /**
@@ -794,7 +794,7 @@ export class Time extends Date {
      * @returns 52 or 53.
      */
     public isoWeeksInYear(): number {
-        return WeeksInYear(this.#local().getUTCFullYear(), ISO_WEEK)
+        return weeksInYear(this.#local().getUTCFullYear(), ISO_WEEK)
     }
 
     /**
@@ -960,18 +960,18 @@ export class Time extends Date {
         const floor = (size: number): number => time - ((time % size) + size) % size + next * size - next
         switch (normalizeUnit(unit)) {
             case 'year':
-                return LocalMilliseconds(year + next, 0, 1) - next
+                return localMilliseconds(year + next, 0, 1) - next
             case 'quarter':
-                return LocalMilliseconds(year, month - (month % 3) + next * 3, 1) - next
+                return localMilliseconds(year, month - (month % 3) + next * 3, 1) - next
             case 'month':
-                return LocalMilliseconds(year, month + next, 1) - next
+                return localMilliseconds(year, month + next, 1) - next
             case 'week':
-                return LocalMilliseconds(year, month, date - (local.getUTCDay() + 7 - LOCALE_WEEK.dow) % 7 + next * 7) - next
+                return localMilliseconds(year, month, date - (local.getUTCDay() + 7 - LOCALE_WEEK.dow) % 7 + next * 7) - next
             case 'isoWeek':
-                return LocalMilliseconds(year, month, date - ((local.getUTCDay() || 7) - 1) + next * 7) - next
+                return localMilliseconds(year, month, date - ((local.getUTCDay() || 7) - 1) + next * 7) - next
             case 'day':
             case 'date':
-                return LocalMilliseconds(year, month, date + next) - next
+                return localMilliseconds(year, month, date + next) - next
             case 'hour':
                 return floor(36e5)
             case 'minute':
@@ -1040,10 +1040,10 @@ export class Time extends Date {
             local: new Date(instant + offset * 60000),
             instant,
             offset,
-            abbreviation: (): string => ZoneAbbreviation(this.#zone, instant)
+            abbreviation: (): string => zoneAbbreviation(this.#zone, instant)
         }
         //At an offset of zero, the default format ends with Z
-        return FormatTime(format || (offset === 0 ? DEFAULT_UTC_FORMAT : DEFAULT_FORMAT), context)
+        return formatTime(format || (offset === 0 ? DEFAULT_UTC_FORMAT : DEFAULT_FORMAT), context)
     }
 
     /**
@@ -1129,7 +1129,7 @@ export class Time extends Date {
      */
     public daysInMonth(): number {
         const local: Date = this.#local()
-        return DaysInMonth(local.getUTCFullYear(), local.getUTCMonth())
+        return daysInMonth(local.getUTCFullYear(), local.getUTCMonth())
     }
 
     /**
@@ -1166,7 +1166,7 @@ export class Time extends Date {
      */
     public toTimeString(): string {
         if (isNaN(this.getTime())) return 'Invalid Date'
-        return `${this.format('HH:mm:ss [GMT]ZZ')} (${ZoneLongName(this.#zone, this.getTime())})`
+        return `${this.format('HH:mm:ss [GMT]ZZ')} (${zoneLongName(this.#zone, this.getTime())})`
     }
 
     /**
@@ -1276,7 +1276,7 @@ export class Time extends Date {
      * @returns `true` for a leap year.
      */
     public isLeapYear(): boolean {
-        return IsLeapYear(this.#local().getUTCFullYear())
+        return isLeapYear(this.#local().getUTCFullYear())
     }
 
     /**

@@ -1,7 +1,7 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {buildDockerHttpsConnectionOptions, buildDockerSocketConnectionOptions, buildDockerSSHConnectionOptions, Docker, parseEnvToRecord, parseRepositoryTag} from '../exports/Docker.js'
-import {EnginePortBindings, EngineRestartPolicy, ParseRestartPolicy} from '../docker/lib/EngineSettings.js'
+import {enginePortBindings, engineRestartPolicy, parseRestartPolicy} from '../docker/lib/EngineSettings.js'
 
 describe('The helpers of the Docker component', (): void => {
 
@@ -25,15 +25,15 @@ describe('The helpers of the Docker component', (): void => {
     })
 
     it('turns the restart policies into the ones of the Engine API, and back', (): void => {
-        assert.deepStrictEqual(EngineRestartPolicy('on-failure:3'), {Name: 'on-failure', MaximumRetryCount: 3})
-        assert.deepStrictEqual(EngineRestartPolicy('always'), {Name: 'always'})
-        assert.strictEqual(ParseRestartPolicy({Name: 'on-failure', MaximumRetryCount: 3}), 'on-failure:3')
-        assert.strictEqual(ParseRestartPolicy({Name: 'on-failure', MaximumRetryCount: 0}), 'on-failure')
-        assert.strictEqual(ParseRestartPolicy({Name: ''}), '')
+        assert.deepStrictEqual(engineRestartPolicy('on-failure:3'), {Name: 'on-failure', MaximumRetryCount: 3})
+        assert.deepStrictEqual(engineRestartPolicy('always'), {Name: 'always'})
+        assert.strictEqual(parseRestartPolicy({Name: 'on-failure', MaximumRetryCount: 3}), 'on-failure:3')
+        assert.strictEqual(parseRestartPolicy({Name: 'on-failure', MaximumRetryCount: 0}), 'on-failure')
+        assert.strictEqual(parseRestartPolicy({Name: ''}), '')
     })
 
     it('binds each host port once', (): void => {
-        assert.deepStrictEqual(EnginePortBindings([{port: 80, type: 'tcp', hostPorts: [8080, 8080]}, {port: 80, type: 'tcp', hostPorts: [8081]}, {port: 53, type: 'udp'}]), {
+        assert.deepStrictEqual(enginePortBindings([{port: 80, type: 'tcp', hostPorts: [8080, 8080]}, {port: 80, type: 'tcp', hostPorts: [8081]}, {port: 53, type: 'udp'}]), {
             '80/tcp': [{HostPort: '8080'}, {HostPort: '8081'}],
             '53/udp': null
         })

@@ -56,7 +56,7 @@ class EchoController extends Controller {
  * Start an entrypoint with an HTTP service adapter on a random port
  * @param options
  */
-async function Start(options: HTTPServiceEntrypointOptions = {}): Promise<{ url: string, container: Container, entrypoint: Entrypoint }> {
+async function start(options: HTTPServiceEntrypointOptions = {}): Promise<{ url: string, container: Container, entrypoint: Entrypoint }> {
     let port: number = 0
     const container: Container = new Container()
     const entrypoint: Entrypoint = await container.set(Entrypoint, buildEntrypoints({
@@ -79,7 +79,7 @@ async function Start(options: HTTPServiceEntrypointOptions = {}): Promise<{ url:
  * @param data
  * @param clientId
  */
-async function Invoke(url: string, data: unknown, clientId?: string): Promise<any> {
+async function invoke(url: string, data: unknown, clientId?: string): Promise<any> {
     const response: Response = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json', ...clientId ? {id: clientId} : {}}, body: typeof data === 'string' ? data : JSON.stringify(data)})
     return {status: response.status, ...await response.json() as Record<string, unknown>}
 }
@@ -88,7 +88,7 @@ async function Invoke(url: string, data: unknown, clientId?: string): Promise<an
  * The events of a stream (Server-Sent Events), as they are received
  * @param url
  */
-async function Events(url: string): Promise<{ next: () => Promise<{ event: string, data: unknown }>, close: () => void }> {
+async function scriptEvents(url: string): Promise<{ next: () => Promise<{ event: string, data: unknown }>, close: () => void }> {
     const aborted: AbortController = new AbortController()
     const response: Response = await fetch(url, {signal: aborted.signal})
     assert.match(response.headers.get('content-type')!, /^text\/event-stream/)
@@ -118,14 +118,14 @@ async function Events(url: string): Promise<{ next: () => Promise<{ event: strin
 describe('HTTP service adapter', (): void => {
 
     it('answers the requests with the responses of the actions, their client given by their header id', async (): Promise<void> => {
-        const {url, container} = await Start()
-        assert.deepStrictEqual(await Invoke(url, {cmd: 'echo', value: 3}), {status: 200, success: true, error: null, payload: {value: 3, method: 'POST'}})
-        assert.deepStrictEqual(await Invoke(url, {cmd: 'whoami'}, 'postman'), {status: 200, success: true, error: null, payload: 'postman'})
-        const invalid = await Invoke(url, {cmd: 'echo', value: 'x'})
+        const {url, container} = await start()
+        assert.deepStrictEqual(await invoke(url, {cmd: 'echo', value: 3}), {status: 200, success: true, error: null, payload: {value: 3, method: 'POST'}})
+        assert.deepStrictEqual(await invoke(url, {cmd: 'whoami'}, 'postman'), {status: 200, success: true, error: null, payload: 'postman'})
+        const invalid = await invoke(url, {cmd: 'echo', value: 'x'})
         assert.strictEqual(invalid.error.errno, 'E_INVALID_VALUE')
-        assert.strictEqual((await Invoke(url, {cmd: 'unknown'})).success, false)
+        assert.strictEqual((await invoke(url, {cmd: 'unknown'})).success, false)
         //Not JSON
-        const malformed = await Invoke(url, '{cmd')
+        const malformed = await invoke(url, '{cmd')
         assert.deepStrictEqual([malformed.status, malformed.success, malformed.error.message], [400, false, 'The body of the request is not JSON'])
         //The other paths
         const other: Response = await fetch(`${url}/other`)
@@ -137,19 +137,19 @@ describe('HTTP service adapter', (): void => {
     })
 
     it('refuses the bodies larger than its limit, serves the requests under its path', async (): Promise<void> => {
-        const {url, container} = await Start({path: '/api/', limit: 64})
-        assert.strictEqual((await Invoke(`${url}/api`, {cmd: 'echo', value: 1})).payload.value, 1)
-        const large = await Invoke(`${url}/api`, {cmd: 'echo', value: 1, padding: 'x'.repeat(100)})
+        const {url, container} = await start({path: '/api/', limit: 64})
+        assert.strictEqual((await invoke(`${url}/api`, {cmd: 'echo', value: 1})).payload.value, 1)
+        const large = await invoke(`${url}/api`, {cmd: 'echo', value: 1, padding: 'x'.repeat(100)})
         assert.deepStrictEqual([large.status, large.error.message], [413, 'The body of the request is larger than 64 bytes'])
         await container.destroy()
     })
 
     it('streams the events pushed to the clients (Server-Sent Events), to every client', async (): Promise<void> => {
-        const {url, container, entrypoint} = await Start()
-        const tool = await Events(`${url}/events?id=postman`)
+        const {url, container, entrypoint} = await start()
+        const tool = await scriptEvents(`${url}/events?id=postman`)
         //Its id given first, an id given by the adapter without it
         assert.deepStrictEqual(await tool.next(), {event: 'client', data: ['postman']})
-        const anonymous = await Events(`${url}/events`)
+        const anonymous = await scriptEvents(`${url}/events`)
         const {data: [id]} = await anonymous.next() as { data: string[] }
         assert.match(id, /^[0-9a-f-]{36}$/)
         assert.strictEqual(entrypoint.notify('postman', 'progress', 1, {step: 'a'}), true)
@@ -166,10 +166,10 @@ describe('HTTP service adapter', (): void => {
     })
 
     it('sends the data of the status results, refuses the files', async (): Promise<void> => {
-        const {url, container} = await Start()
+        const {url, container} = await start()
         try {
-            assert.deepStrictEqual(await Invoke(url, {cmd: 'created'}), {status: 200, success: true, error: null, payload: {id: 7}})
-            const file = await Invoke(url, {cmd: 'file'})
+            assert.deepStrictEqual(await invoke(url, {cmd: 'created'}), {status: 200, success: true, error: null, payload: {id: 7}})
+            const file = await invoke(url, {cmd: 'file'})
             assert.strictEqual(file.success, false)
             assert.match(file.error.message, /cannot send a FileResult/)
         } finally {
@@ -178,7 +178,7 @@ describe('HTTP service adapter', (): void => {
     })
 
     it('aborts the signal of the controllers once their clients are gone', async (): Promise<void> => {
-        const {url, container} = await Start()
+        const {url, container} = await start()
         try {
             const abort: AbortController = new AbortController()
             const request: Promise<unknown> = fetch(url, {method: 'POST', body: JSON.stringify({cmd: 'wait'}), signal: abort.signal}).catch((): undefined => undefined)
@@ -193,13 +193,13 @@ describe('HTTP service adapter', (): void => {
     })
 
     it('stops gracefully, its streams closed', async (): Promise<void> => {
-        const {url, container} = await Start()
-        const stream = await Events(`${url}/events?id=desk`)
+        const {url, container} = await start()
+        const stream = await scriptEvents(`${url}/events?id=desk`)
         await stream.next()
-        const inProgress: Promise<any> = Invoke(url, {cmd: 'slow'})
+        const inProgress: Promise<any> = invoke(url, {cmd: 'slow'})
         await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 20))
         const destroyed: Promise<void> = container.destroy()
-        assert.strictEqual((await Invoke(url, {cmd: 'echo', value: 1})).error.errno, 'E_ENTRYPOINT_STOPPED')
+        assert.strictEqual((await invoke(url, {cmd: 'echo', value: 1})).error.errno, 'E_ENTRYPOINT_STOPPED')
         assert.deepStrictEqual(await inProgress, {status: 200, success: true, error: null, payload: 'slow'})
         await destroyed
         await assert.rejects(stream.next(), /The stream ended|terminated|aborted/)

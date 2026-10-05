@@ -3,7 +3,7 @@ import {Singleton} from '../../decorators/di/Lifetime.js'
 import {EventEmitter, type event, type ListenerFn, type EventAndListener} from '../base/EventEmitter.js'
 import {Provider} from './Provider.js'
 import {DefineObjectType, ObjectType} from '../base/internal/ObjectType.js'
-import {GetObjectContainer} from '../base/internal/ObjectContainer.js'
+import {getObjectContainer} from '../base/internal/ObjectContainer.js'
 import {Container} from './Container.js'
 import {Configurable} from '../../decorators/di/Configurable.js'
 import {DTO} from '../dto/DTO.js'
@@ -95,7 +95,7 @@ export class Component extends Provider {
      * @protected
      */
     protected get container(): Container {
-        return GetObjectContainer(this)
+        return getObjectContainer(this)
     }
 
     /**
@@ -107,7 +107,7 @@ export class Component extends Provider {
      * @protected
      */
     protected createScope(): Container {
-        return GetObjectContainer(this).createScope()
+        return getObjectContainer(this).createScope()
     }
 
     /**

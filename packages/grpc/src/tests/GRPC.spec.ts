@@ -7,7 +7,7 @@ import {gzipSync} from 'node:zlib'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {decode, encode, formatGRPCTimeout, GRPCConnection, GRPCError, GRPCServer, GRPCStatus, parseGRPCTimeout, type GRPCServerCall, type Message, type Schema} from '../exports/GRPC.js'
-import {CreateTestCertificates, OpenSSLAvailable, type TestCertificates} from './support/Certificates.js'
+import {createTestCertificates, openSSLAvailable, type TestCertificates} from './support/Certificates.js'
 
 const Text: Schema = {text: {no: 1, type: 'string'}, count: {no: 2, type: 'uint32'}}
 
@@ -115,8 +115,8 @@ describe('The gRPC client and server', (): void => {
         }
     })
 
-    it('serves over TLS, the certificates of the clients required by its authority', {skip: !OpenSSLAvailable() && 'openssl creates the certificates of the tests'}, async (): Promise<void> => {
-        const certificates: TestCertificates = CreateTestCertificates(directory)
+    it('serves over TLS, the certificates of the clients required by its authority', {skip: !openSSLAvailable() && 'openssl creates the certificates of the tests'}, async (): Promise<void> => {
+        const certificates: TestCertificates = createTestCertificates(directory)
         const handler = async (call: GRPCServerCall): Promise<void> => {
             await call.send(Text, {text: `${(await call.request(Text)).text} over TLS`})
         }

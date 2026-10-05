@@ -55,7 +55,7 @@ class RPCController extends Controller {
  * Start an entrypoint with a JSON-RPC adapter
  * @param options
  */
-async function Start(options: JSONRPCServiceEntrypointOptions): Promise<{ port: number, container: Container, entrypoint: Entrypoint }> {
+async function start(options: JSONRPCServiceEntrypointOptions): Promise<{ port: number, container: Container, entrypoint: Entrypoint }> {
     let port: number = 0
     const container: Container = new Container()
     const entrypoint: Entrypoint = await container.set(Entrypoint, buildEntrypoints({
@@ -78,7 +78,7 @@ async function Start(options: JSONRPCServiceEntrypointOptions): Promise<{ port: 
  * @param body
  * @param headers
  */
-async function Post(port: number, body: unknown, headers: Record<string, string> = {}): Promise<{ status: number, body: any }> {
+async function post(port: number, body: unknown, headers: Record<string, string> = {}): Promise<{ status: number, body: any }> {
     const response: Response = await fetch(`http://127.0.0.1:${port}/rpc`, {method: 'POST', headers: {'Content-Type': 'application/json', ...headers}, body: typeof body === 'string' ? body : JSON.stringify(body)})
     const text: string = await response.text()
     return {status: response.status, body: text ? JSON.parse(text) : undefined}
@@ -87,22 +87,22 @@ async function Post(port: number, body: unknown, headers: Record<string, string>
 describe('The JSON-RPC 2.0 service adapter', (): void => {
 
     it('dispatches the requests of HTTP to the service actions', async (): Promise<void> => {
-        const {port, container} = await Start({path: '/rpc'})
+        const {port, container} = await start({path: '/rpc'})
         try {
-            assert.deepStrictEqual((await Post(port, {jsonrpc: '2.0', method: 'echo', params: {value: 3}, id: 1})).body, {jsonrpc: '2.0', id: 1, result: {value: 3, method: 'echo', transport: 'http', http: 'POST'}})
-            assert.deepStrictEqual((await Post(port, {jsonrpc: '2.0', method: 'whoami', id: 'a'}, {id: 'client-1'})).body, {jsonrpc: '2.0', id: 'a', result: 'client-1'})
-            assert.deepStrictEqual((await Post(port, {jsonrpc: '2.0', method: 'nothing', id: 2})).body, {jsonrpc: '2.0', id: 2, result: null})
+            assert.deepStrictEqual((await post(port, {jsonrpc: '2.0', method: 'echo', params: {value: 3}, id: 1})).body, {jsonrpc: '2.0', id: 1, result: {value: 3, method: 'echo', transport: 'http', http: 'POST'}})
+            assert.deepStrictEqual((await post(port, {jsonrpc: '2.0', method: 'whoami', id: 'a'}, {id: 'client-1'})).body, {jsonrpc: '2.0', id: 'a', result: 'client-1'})
+            assert.deepStrictEqual((await post(port, {jsonrpc: '2.0', method: 'nothing', id: 2})).body, {jsonrpc: '2.0', id: 2, result: null})
             //A notification: no response
-            assert.deepStrictEqual(await Post(port, {jsonrpc: '2.0', method: 'echo', params: {value: 1}}), {status: 204, body: undefined})
+            assert.deepStrictEqual(await post(port, {jsonrpc: '2.0', method: 'echo', params: {value: 1}}), {status: 204, body: undefined})
         } finally {
             await container.destroy()
         }
     })
 
     it('answers the errors as JSON-RPC defines them', async (): Promise<void> => {
-        const {port, container} = await Start({path: '/rpc'})
+        const {port, container} = await start({path: '/rpc'})
         try {
-            const error = async (body: unknown): Promise<any> => (await Post(port, body)).body.error
+            const error = async (body: unknown): Promise<any> => (await post(port, body)).body.error
             assert.strictEqual((await error('{not json')).code, JSONRPCErrorCode.PARSE_ERROR)
             assert.strictEqual((await error({method: 'echo', id: 1})).code, JSONRPCErrorCode.INVALID_REQUEST)
             assert.strictEqual((await error({jsonrpc: '2.0', method: 'echo', params: 'x', id: 1})).code, JSONRPCErrorCode.INVALID_REQUEST)
@@ -121,9 +121,9 @@ describe('The JSON-RPC 2.0 service adapter', (): void => {
     })
 
     it('answers the batches, without their notifications', async (): Promise<void> => {
-        const {port, container} = await Start({path: '/rpc'})
+        const {port, container} = await start({path: '/rpc'})
         try {
-            const {body} = await Post(port, [
+            const {body} = await post(port, [
                 {jsonrpc: '2.0', method: 'echo', params: {value: 1}, id: 1},
                 {jsonrpc: '2.0', method: 'echo', params: {value: 2}},
                 {jsonrpc: '2.0', method: 'missing', id: 2},
@@ -132,20 +132,20 @@ describe('The JSON-RPC 2.0 service adapter', (): void => {
             ])
             assert.deepStrictEqual(body.map((response: any): unknown => [response.id, 'error' in response ? response.error.code : response.result?.value ?? response.result]), [[1, 1], [2, JSONRPCErrorCode.METHOD_NOT_FOUND], [null, JSONRPCErrorCode.INVALID_REQUEST], [3, null]])
             //A batch of notifications: no response
-            assert.strictEqual((await Post(port, [{jsonrpc: '2.0', method: 'echo', params: {value: 1}}])).status, 204)
+            assert.strictEqual((await post(port, [{jsonrpc: '2.0', method: 'echo', params: {value: 1}}])).status, 204)
         } finally {
             await container.destroy()
         }
     })
 
     it('maps the methods to the patterns as the options say', async (): Promise<void> => {
-        const positional = await Start({path: '/rpc', positionalParams: 'args'})
+        const positional = await start({path: '/rpc', positionalParams: 'args'})
         try {
-            assert.strictEqual((await Post(positional.port, {jsonrpc: '2.0', method: 'sum', params: [1, 2, 3], id: 1})).body.result, 6)
+            assert.strictEqual((await post(positional.port, {jsonrpc: '2.0', method: 'sum', params: [1, 2, 3], id: 1})).body.result, 6)
         } finally {
             await positional.container.destroy()
         }
-        const mapped = await Start({
+        const mapped = await start({
             path: '/rpc',
             toPattern: (method: string, params): Record<string, unknown> => {
                 const [service, cmd] = method.split('.')
@@ -153,14 +153,14 @@ describe('The JSON-RPC 2.0 service adapter', (): void => {
             }
         })
         try {
-            assert.strictEqual((await Post(mapped.port, {jsonrpc: '2.0', method: 'user.get', params: {id: 7}, id: 1})).body.result, 'user 7')
+            assert.strictEqual((await post(mapped.port, {jsonrpc: '2.0', method: 'user.get', params: {id: 7}, id: 1})).body.result, 'user 7')
         } finally {
             await mapped.container.destroy()
         }
     })
 
     it('dispatches the messages of WebSocket, pushes the events as notifications', async (): Promise<void> => {
-        const {port, container, entrypoint} = await Start({transport: 'websocket', path: '/ws'})
+        const {port, container, entrypoint} = await start({transport: 'websocket', path: '/ws'})
         const {WebSocket} = await import('ws')
         const socket = new WebSocket(`ws://127.0.0.1:${port}/ws`, {headers: {id: 'socket-1'}})
         const messages: any[] = []
@@ -190,7 +190,7 @@ describe('The JSON-RPC 2.0 service adapter', (): void => {
     })
 
     it('closes the WebSocket connections which do not answer the pings', async (): Promise<void> => {
-        const {port, container, entrypoint} = await Start({transport: 'websocket', heartbeat: 100})
+        const {port, container, entrypoint} = await start({transport: 'websocket', heartbeat: 100})
         const {WebSocket} = await import('ws')
         const answering = new WebSocket(`ws://127.0.0.1:${port}/`, {headers: {id: 'answering'}})
         const silent = new WebSocket(`ws://127.0.0.1:${port}/`, {headers: {id: 'silent'}})
@@ -214,7 +214,7 @@ describe('The JSON-RPC 2.0 service adapter', (): void => {
         let written: string = ''
         output.on('data', (chunk: Buffer): unknown => written += chunk.toString())
         let ended: boolean = false
-        const {container} = await Start({transport: 'stdio', input: input, output: output, end: (): void => void (ended = true)})
+        const {container} = await start({transport: 'stdio', input: input, output: output, end: (): void => void (ended = true)})
         try {
             input.end(`${JSON.stringify({jsonrpc: '2.0', method: 'echo', params: {value: 4}, id: 1})}\n`)
             for (let attempt = 0; attempt < 50 && !ended; attempt++) await new Promise((resolve): unknown => setTimeout(resolve, 20))
@@ -231,7 +231,7 @@ describe('The JSON-RPC 2.0 service adapter', (): void => {
             const output: PassThrough = new PassThrough()
             let written: string = ''
             output.on('data', (chunk: Buffer): unknown => written += chunk.toString())
-            const {container, entrypoint} = await Start({transport: 'stdio', framing: framing, input: input, output: output})
+            const {container, entrypoint} = await start({transport: 'stdio', framing: framing, input: input, output: output})
             try {
                 const frame = (message: unknown): string => {
                     const text: string = JSON.stringify(message)
@@ -263,7 +263,7 @@ describe('The JSON-RPC 2.0 service adapter', (): void => {
             const output: PassThrough = new PassThrough()
             let written: string = ''
             output.on('data', (chunk: Buffer): unknown => written += chunk.toString())
-            const {container} = await Start({transport: 'stdio', framing: framing, input: input, output: output, limit: 100})
+            const {container} = await start({transport: 'stdio', framing: framing, input: input, output: output, limit: 100})
             try {
                 const frame = (message: unknown): string => {
                     const text: string = JSON.stringify(message)

@@ -34,7 +34,7 @@ const CRC_TABLE: Uint32Array = ((): Uint32Array => {
  * The CRC-32 of a chunk of PNG (its type and its data)
  * @param data
  */
-function Crc32(data: Buffer): number {
+function crc32(data: Buffer): number {
     let crc: number = 0xffffffff
     for (const byte of data) crc = CRC_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8)
     return (crc ^ 0xffffffff) >>> 0
@@ -46,7 +46,7 @@ function Crc32(data: Buffer): number {
  * @param b the byte above
  * @param c the byte above on the left
  */
-function Paeth(a: number, b: number, c: number): number {
+function paeth(a: number, b: number, c: number): number {
     const p: number = a + b - c
     const pa: number = Math.abs(p - a), pb: number = Math.abs(p - b), pc: number = Math.abs(p - c)
     return pa <= pb && pa <= pc ? a : pb <= pc ? b : c
@@ -58,7 +58,7 @@ function Paeth(a: number, b: number, c: number): number {
  * @param data
  * @param file its name, in the errors
  */
-export function DecodePng(data: Buffer, file: string = 'the image'): Image {
+export function decodePng(data: Buffer, file: string = 'the image'): Image {
     if (data.length < 8 || !data.subarray(0, 8).equals(PNG_SIGNATURE)) throw new Error(`${file} is not a PNG image`)
     let offset: number = 8
     let width: number = 0, height: number = 0, depth: number = 0, type: number = 0, interlace: number = 0
@@ -101,7 +101,7 @@ export function DecodePng(data: Buffer, file: string = 'the image'): Image {
             const a: number = x >= left ? row[x - left] : 0
             const b: number = above ? above[x] : 0
             const c: number = above && x >= left ? above[x - left] : 0
-            const predicted: number = filter === 0 ? 0 : filter === 1 ? a : filter === 2 ? b : filter === 3 ? (a + b) >> 1 : filter === 4 ? Paeth(a, b, c) : -1
+            const predicted: number = filter === 0 ? 0 : filter === 1 ? a : filter === 2 ? b : filter === 3 ? (a + b) >> 1 : filter === 4 ? paeth(a, b, c) : -1
             if (predicted < 0) throw new Error(`${file} has an unknown filter (${filter})`)
             row[x] = (source[x] + predicted) & 0xff
         }
@@ -146,13 +146,13 @@ export function DecodePng(data: Buffer, file: string = 'the image'): Image {
  * Encode an image into a PNG file (RGBA, 8 bits)
  * @param image
  */
-export function EncodePng(image: Image): Buffer {
+export function encodePng(image: Image): Buffer {
     const chunk = (name: string, data: Buffer): Buffer => {
         const typed: Buffer = Buffer.concat([Buffer.from(name, 'latin1'), data])
         const length: Buffer = Buffer.alloc(4)
         length.writeUInt32BE(data.length)
         const crc: Buffer = Buffer.alloc(4)
-        crc.writeUInt32BE(Crc32(typed))
+        crc.writeUInt32BE(crc32(typed))
         return Buffer.concat([length, typed, crc])
     }
     const header: Buffer = Buffer.alloc(13)
@@ -179,7 +179,7 @@ export function EncodePng(image: Image): Buffer {
  * @param image
  * @param size
  */
-export function Resize(image: Image, size: number): Image {
+export function resize(image: Image, size: number): Image {
     if (image.width === size && image.height === size) return image
     //Separable: the columns, then the rows
     const pass = (source: Float64Array, width: number, height: number, target: number, horizontal: boolean): Float64Array => {
@@ -231,10 +231,10 @@ export const ICO_SIZES: number[] = [16, 20, 24, 32, 40, 48, 64, 128, 256]
  * reads: the resources of the executables, NSIS, Windows Installer), the PNG of 256
  * @param image
  */
-export function IcoFile(image: Image): Buffer {
+export function icoFile(image: Image): Buffer {
     const images: Buffer[] = ICO_SIZES.map((size: number): Buffer => {
-        const resized: Image = Resize(image, size)
-        if (size >= 256) return EncodePng(resized)
+        const resized: Image = resize(image, size)
+        if (size >= 256) return encodePng(resized)
         //BITMAPINFOHEADER, its height the one of the colors and of the mask; the rows from the bottom, BGRA, then the mask
         const header: Buffer = Buffer.alloc(40)
         header.writeUInt32LE(40, 0)
@@ -285,12 +285,12 @@ const ICNS_TYPES: [string, number][] = [['icp4', 16], ['icp5', 32], ['ic11', 32]
  * The icon of macOS (icns) of an image: its PNG in the sizes of macOS, but the ones larger than it
  * @param image
  */
-export function IcnsFile(image: Image): Buffer {
+export function icnsFile(image: Image): Buffer {
     const encoded: Map<number, Buffer> = new Map()
     const entries: Buffer[] = []
     for (const [type, size] of ICNS_TYPES) {
         if (size > image.width) continue
-        if (!encoded.has(size)) encoded.set(size, EncodePng(Resize(image, size)))
+        if (!encoded.has(size)) encoded.set(size, encodePng(resize(image, size)))
         const data: Buffer = encoded.get(size)!
         const header: Buffer = Buffer.alloc(8)
         header.write(type, 0, 'latin1')
@@ -314,12 +314,12 @@ export const LINUX_SIZES: number[] = [16, 24, 32, 48, 64, 128, 256, 512]
  * @param image
  * @param directory
  */
-export async function WriteLinuxIcons(image: Image, directory: string): Promise<string[]> {
+export async function writeLinuxIcons(image: Image, directory: string): Promise<string[]> {
     await mkdir(directory, {recursive: true})
     const files: string[] = []
     for (const size of LINUX_SIZES.filter((size: number): boolean => size <= image.width)) {
         const file: string = path.join(directory, `${size}x${size}.png`)
-        await writeFile(file, EncodePng(Resize(image, size)))
+        await writeFile(file, encodePng(resize(image, size)))
         files.push(file)
     }
     return files
@@ -331,7 +331,7 @@ export async function WriteLinuxIcons(image: Image, directory: string): Promise<
  * @param file
  * @param ico
  */
-export async function SetExecutableIcon(file: string, ico: Buffer): Promise<void> {
+export async function setExecutableIcon(file: string, ico: Buffer): Promise<void> {
     const {NtExecutable, NtExecutableResource, Data, Resource} = await import('resedit')
     const executable = NtExecutable.from(await readFile(file), {ignoreCert: true})
     const resource = NtExecutableResource.from(executable)
@@ -348,13 +348,13 @@ export async function SetExecutableIcon(file: string, ico: Buffer): Promise<void
  * @param project
  * @param manifest
  */
-export function ApplicationIcon(project: string, manifest: Record<string, any>): { file: string, image: Image } | undefined {
+export function applicationIcon(project: string, manifest: Record<string, any>): { file: string, image: Image } | undefined {
     const declared: unknown = manifest.lakutata?.icon
     if (declared === undefined) return undefined
     if (typeof declared !== 'string' || !declared) throw new Error('The icon of the application (lakutata.icon of its package.json) must be a PNG image of the project')
     const file: string = path.resolve(project, declared)
     if (!existsSync(file)) throw new Error(`The icon of the application ${declared} (lakutata.icon) does not exist`)
-    const image: Image = DecodePng(readFileSync(file), declared)
+    const image: Image = decodePng(readFileSync(file), declared)
     if (image.width !== image.height) throw new Error(`The icon of the application ${declared} must be square (it is ${image.width}x${image.height})`)
     if (image.width < 256) throw new Error(`The icon of the application ${declared} must be 256 pixels at least (it is ${image.width}): its icons are made from it`)
     return {file: file, image: image}

@@ -27,7 +27,7 @@ const CHUNK: RegExp = new RegExp(`\\s*[${OPENING}]*(?:[${WIDE}]|[^\\s${WIDE}]+)[
  * The width of a text in a terminal, the wide characters taking two columns
  * @param text
  */
-export function DisplayWidth(text: string): number {
+export function displayWidth(text: string): number {
     let width: number = 0
     for (const character of stripVTControlCharacters(text)) width += WIDE_CHARACTER.test(character) ? 2 : 1
     return width
@@ -39,7 +39,7 @@ export function DisplayWidth(text: string): number {
  * @param width
  * @param minimum the width under which the text is not wrapped
  */
-export function BoxWrap(text: string, width: number, minimum: number = 40): string {
+export function boxWrap(text: string, width: number, minimum: number = 40): string {
     if (width < minimum) return text
     const wrapped: string[] = []
     for (const line of text.split(/\r\n|\n/)) {
@@ -49,9 +49,9 @@ export function BoxWrap(text: string, width: number, minimum: number = 40): stri
             continue
         }
         let current: string = chunks.shift()!
-        let currentWidth: number = DisplayWidth(current)
+        let currentWidth: number = displayWidth(current)
         for (const chunk of chunks) {
-            const chunkWidth: number = DisplayWidth(chunk)
+            const chunkWidth: number = displayWidth(chunk)
             if (currentWidth + chunkWidth <= width) {
                 current += chunk
                 currentWidth += chunkWidth
@@ -60,7 +60,7 @@ export function BoxWrap(text: string, width: number, minimum: number = 40): stri
             wrapped.push(current)
             //The space at the break removed
             current = chunk.trimStart()
-            currentWidth = DisplayWidth(current)
+            currentWidth = displayWidth(current)
         }
         wrapped.push(current)
     }

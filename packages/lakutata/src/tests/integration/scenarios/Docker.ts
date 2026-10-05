@@ -1,7 +1,7 @@
 import assert from 'node:assert'
 import {Application} from '../../../exports/Lakutata.js'
 import {Docker, type DockerContainer, type DockerImage, type NetworkInfo} from '../../../exports/DockerComponent.js'
-import {RunChecks} from '../support/Scenario.js'
+import {runChecks} from '../support/Scenario.js'
 
 /**
  * The image of the containers of the checks: an image of the machine (no pull), LAKUTATA_DOCKER_IMAGE or postgres:16-alpine
@@ -22,7 +22,7 @@ Application
             docker: {class: Docker}
         }
     }))
-    .onLaunched((app: Application): Promise<void> => RunChecks(app, async (check): Promise<void> => {
+    .onLaunched((app: Application): Promise<void> => runChecks(app, async (check): Promise<void> => {
         const docker: Docker = await app.getObject<Docker>('docker')
         let image: DockerImage | undefined
         let network: NetworkInfo | undefined

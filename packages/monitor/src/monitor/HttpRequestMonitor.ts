@@ -2,7 +2,7 @@ import {PerformanceObserver, type PerformanceObserverEntryList} from 'node:perf_
 import {Component} from '@lakutata/core'
 import {IMonitor} from './interfaces/IMonitor.js'
 import {IHttpRequestMonitorStatistics} from './interfaces/IHttpRequestMonitorStatistics.js'
-import {Round, Samples} from './lib/Samples.js'
+import {round, Samples} from './lib/Samples.js'
 
 /**
  * The HTTP request monitor: measures how long the HTTP requests received by the process take, in milliseconds, from
@@ -63,14 +63,14 @@ export class HttpRequestMonitor extends Component implements IMonitor<IHttpReque
     public get statistics(): IHttpRequestMonitorStatistics {
         return {
             count: this.#durations.count,
-            min: Round(this.#durations.min, this.#fractionDigits),
-            max: Round(this.#durations.max, this.#fractionDigits),
-            avg: Round(this.#durations.mean, this.#fractionDigits),
-            stdDev: Round(this.#durations.stdDev, this.#fractionDigits),
-            p50: Round(this.#durations.percentile(50), this.#fractionDigits),
-            p90: Round(this.#durations.percentile(90), this.#fractionDigits),
-            p95: Round(this.#durations.percentile(95), this.#fractionDigits),
-            p99: Round(this.#durations.percentile(99), this.#fractionDigits)
+            min: round(this.#durations.min, this.#fractionDigits),
+            max: round(this.#durations.max, this.#fractionDigits),
+            avg: round(this.#durations.mean, this.#fractionDigits),
+            stdDev: round(this.#durations.stdDev, this.#fractionDigits),
+            p50: round(this.#durations.percentile(50), this.#fractionDigits),
+            p90: round(this.#durations.percentile(90), this.#fractionDigits),
+            p95: round(this.#durations.percentile(95), this.#fractionDigits),
+            p99: round(this.#durations.percentile(99), this.#fractionDigits)
         }
     }
 

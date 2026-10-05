@@ -20,7 +20,7 @@ import {
     verifyHMAC
 } from '../../../exports/Security.js'
 import {PasswordHash} from '../../../exports/PasswordHashProvider.js'
-import {FreePort, RunChecks} from '../support/Scenario.js'
+import {freePort, runChecks} from '../support/Scenario.js'
 
 /**
  * The key of the webhooks, shared with their sender
@@ -30,7 +30,7 @@ const WEBHOOK_KEY: string = generateSecret()
 /**
  * The webhooks are signed: HMAC of their body in the header x-signature
  */
-async function VerifyWebhook(invocation: ActionInvocation, next: Next): Promise<unknown> {
+async function verifyWebhook(invocation: ActionInvocation, next: Next): Promise<unknown> {
     const context: HTTPContext = invocation.context as HTTPContext
     const signature: unknown = context.request.headers['x-signature']
     if (typeof signature !== 'string' || !verifyHMAC(JSON.stringify(context.data), signature, WEBHOOK_KEY)) throw new InvalidSignatureException('The signature of the webhook is not valid')
@@ -48,7 +48,7 @@ class WebhookController extends Controller {
     }
 }
 
-const [port, oldKey, newKey] = [await FreePort(), generateSecret(), generateSecret()]
+const [port, oldKey, newKey] = [await freePort(), generateSecret(), generateSecret()]
 
 Application
     .run(() => ({
@@ -58,7 +58,7 @@ Application
             log: {level: 'warn'},
             entrypoint: buildEntrypoints({
                 controllers: [WebhookController],
-                middlewares: [VerifyWebhook],
+                middlewares: [verifyWebhook],
                 http: expressHTTPEntrypoint({port: port, host: '127.0.0.1', respond: jsonEnvelope({errorStatus: 200})})
             })
         },
@@ -72,7 +72,7 @@ Application
         },
         bootstrap: ['entrypoint']
     }))
-    .onLaunched((app: Application): Promise<void> => RunChecks(app, async (check): Promise<void> => {
+    .onLaunched((app: Application): Promise<void> => runChecks(app, async (check): Promise<void> => {
         const webhook = async (body: Record<string, unknown>, signature?: string): Promise<any> => await (await fetch(`http://127.0.0.1:${port}/webhooks/payment`, {
             method: 'POST',
             headers: {'content-type': 'application/json', ...(signature ? {'x-signature': signature} : {})},

@@ -1,5 +1,5 @@
 import {format as utilFormat} from 'node:util'
-import {GetAppId, GetAppName} from './BasicInfo.js'
+import {getAppId, getAppName} from './BasicInfo.js'
 import {templating} from '@lakutata/utils/Templating'
 import {As} from '@lakutata/utils/As'
 import {camelCase} from '@lakutata/utils/CamelCase'
@@ -111,11 +111,11 @@ export abstract class Exception extends Error {
     /**
      * The ID of the application the exception was created in, "Unknown" before the application's options are loaded.
      */
-    public readonly appId: string = GetAppId()
+    public readonly appId: string = getAppId()
     /**
      * The name of the application the exception was created in, "Unknown" before the application's options are loaded.
      */
-    public readonly appName: string = GetAppName()
+    public readonly appName: string = getAppName()
     /**
      * The formatted message, a copy of `message` kept as an own property (sent with the error by the entrypoints).
      */

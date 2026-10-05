@@ -3,7 +3,7 @@ import type {Controller} from '@lakutata/entrypoint'
 import type {ActionOptions} from '@lakutata/entrypoint/channel'
 import type {MCPContext} from '../context/MCPContext.js'
 import type {MCPMetadata} from '../lib/Metadata.js'
-import {RegisterMCPAction} from '../lib/RegisterMCPAction.js'
+import {registerMCPAction} from '../lib/RegisterMCPAction.js'
 
 /**
  * The options of {@link MCPTool}: the options of a controller action (`name`, `description`, `acl`, `rule`,
@@ -157,7 +157,7 @@ export function MCPTool<ClassPrototype extends Controller, Method>(name: string,
 export function MCPTool<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(name: string, dtoConstructor: DTOConstructor, options: MCPToolOptions): MethodDecorator<ClassPrototype, Method, any>
 export function MCPTool<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(name: string, dtoConstructorOrOptions?: DTOConstructor | MCPToolOptions, options?: MCPToolOptions): MethodDecorator<ClassPrototype, Method, any> {
     return (target: ClassPrototype, propertyKey: any, descriptor: TypedPropertyDescriptor<Method>): TypedPropertyDescriptor<Method> => {
-        RegisterMCPAction('tool', name, target, propertyKey, dtoConstructorOrOptions, options, SplitOptions)
+        registerMCPAction('tool', name, target, propertyKey, dtoConstructorOrOptions, options, SplitOptions)
         return descriptor
     }
 }

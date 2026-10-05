@@ -2,7 +2,7 @@ import {Component} from './Component.js'
 import {Singleton} from '../../decorators/di/Lifetime.js'
 import {__destroy, __init, __revive, type BaseObject} from '../base/BaseObject.js'
 import {Container} from './Container.js'
-import {GetObjectContainer} from '../base/internal/ObjectContainer.js'
+import {getObjectContainer} from '../base/internal/ObjectContainer.js'
 import {BootstrapAsyncFunction, BootstrapOption, ModuleOptions} from '../../options/ModuleOptions.js'
 import {ModuleConfigLoader} from '../base/internal/ModuleConfigLoader.js'
 import {isAsyncFunction} from 'node:util/types'
@@ -12,8 +12,8 @@ import {As} from '@lakutata/utils/As'
 import {IBaseObjectConstructor} from '../../interfaces/IBaseObjectConstructor.js'
 import {DefineObjectType, ObjectType} from '../base/internal/ObjectType.js'
 import {nonceString} from '@lakutata/utils/NonceString'
-import {CheckObjectOptions} from '../base/internal/ObjectOptionsCheck.js'
-import {CurrentMode} from '../foundation/BasicInfo.js'
+import {checkObjectOptions} from '../base/internal/ObjectOptionsCheck.js'
+import {currentMode} from '../foundation/BasicInfo.js'
 import {MODULE_INITIALIZATION} from '../base/internal/ModuleInitialization.js'
 
 export const MODULE_INITIALIZED: string = `_$.MODULE.INITIALIZED_${nonceString()}`
@@ -112,7 +112,7 @@ export class Module extends Component {
      * @protected
      */
     protected get container(): Container {
-        return GetObjectContainer(this)
+        return getObjectContainer(this)
     }
 
     /**
@@ -167,7 +167,7 @@ export class Module extends Component {
                     ...hooks,
                     async (): Promise<void> => {
                         //Load objects stage
-                        if (this.#checkOptions) CheckObjectOptions(this.#objects)
+                        if (this.#checkOptions) checkObjectOptions(this.#objects)
                         await this.container.load(this.#objects)
                     },
                     async (): Promise<void> => {
@@ -226,7 +226,7 @@ export class Module extends Component {
      * @returns The mode.
      */
     public mode(): 'development' | 'production' {
-        return CurrentMode()
+        return currentMode()
     }
 
     /**

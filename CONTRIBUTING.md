@@ -2,12 +2,12 @@
 
 ## Naming
 
-The functions of lakutata are named in camel case, as JavaScript's own; the classes, the types, the decorators and four
-helpers are named in Pascal case:
+The functions of lakutata, exported or internal (the helpers of a module, of the tests, of the scripts), are named in
+camel case, as JavaScript's own; the classes, the types, the decorators and four helpers are named in Pascal case:
 
 | Declaration | Case | Examples |
 |---|---|---|
-| Functions exported by a module (helpers, option builders, adapters) | camel | `buildEntrypoints`, `expressHTTPEntrypoint`, `delay`, `md5`, `isEmptyObject` |
+| Functions, exported or internal (helpers, option builders, adapters) | camel | `buildEntrypoints`, `expressHTTPEntrypoint`, `delay`, `md5`, `isEmptyObject` |
 | Classes, interfaces, types, enums | Pascal | `Application`, `ActionPattern`, `HTTPErrorOrigin` |
 | Decorators | Pascal | `@Inject`, `@Configurable`, `@ServiceAction`, `@Synchronized` |
 | The helpers `As`, `DevNull`, `Glob` and `GlobSync` | Pascal | see below |
@@ -24,7 +24,12 @@ match the same patterns). A function whose camel case name would be the name of 
 else gets another name (`constantTimeEqual`, not `timingSafeEqual` of `node:crypto`, which throws for values of
 different lengths).
 
-The names of the libraries lakutata re-exports (TypeORM, dbus-sdk) are kept as they are. The functions of 2.x renamed in
+A function whose camel case name would be the name of a variable or a parameter of its scope (a factory `random()`
+called as `const random = random()`) is named after what it does instead (`seededRandom`, `clientIdOf`, `toWebRequest`).
+The components of React keep their Pascal case, as the constructor functions called with `new`.
+
+The names of the libraries lakutata re-exports (TypeORM, dbus-sdk) and of the code vendored in it (the engine of the
+validation) are kept as they are. The functions of 2.x renamed in
 camel case have no alias: the projects and the SDKs built on 2.x rename their calls when they move to 3.0.
 
 ## Documenting the public API

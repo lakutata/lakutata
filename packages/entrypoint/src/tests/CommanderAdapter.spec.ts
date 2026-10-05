@@ -196,12 +196,12 @@ const CHINESE: Record<string, string> = {
     'help.separator': '，'
 }
 
-type Run = { code: number | undefined, stdout: string, stderr: string }
+type runCommand = { code: number | undefined, stdout: string, stderr: string }
 
 /**
  * A stream collecting what is written to it
  */
-function Collector(): PassThrough & { text: () => string } {
+function collector(): PassThrough & { text: () => string } {
     const stream: PassThrough = new PassThrough()
     const chunks: Buffer[] = []
     stream.on('data', (chunk: Buffer): unknown => chunks.push(chunk))
@@ -214,9 +214,9 @@ function Collector(): PassThrough & { text: () => string } {
  * @param options
  * @param wait ms, how long the exit is waited for
  */
-async function Run(argv: string[], options: CommanderCLIEntrypointOptions = {}, wait: number = 3000): Promise<Run> {
-    const stdout = Collector()
-    const stderr = Collector()
+async function runCommand(argv: string[], options: CommanderCLIEntrypointOptions = {}, wait: number = 3000): Promise<runCommand> {
+    const stdout = collector()
+    const stderr = collector()
     let exited: (code: number) => void
     const code: Promise<number> = new Promise((resolve: (code: number) => void): void => {
         exited = resolve
@@ -234,64 +234,64 @@ async function Run(argv: string[], options: CommanderCLIEntrypointOptions = {}, 
 describe('Commander adapter', (): void => {
 
     it('runs the commands with the options of their input', async (): Promise<void> => {
-        const run: Run = await Run(['device:add', '--sn', 'A1', '--retries', '5', '--no-verify', '--force', '--mode', 'safe', '--ports', '80', '443', '--labels', '{"site":"north"}', '--device-name', 'Pump'])
+        const run: runCommand = await runCommand(['device:add', '--sn', 'A1', '--retries', '5', '--no-verify', '--force', '--mode', 'safe', '--ports', '80', '443', '--labels', '{"site":"north"}', '--device-name', 'Pump'])
         assert.strictEqual(run.code, 0, run.stderr)
         assert.deepStrictEqual(JSON.parse(run.stdout), {sn: 'A1', retries: 5, verify: false, force: true, mode: 'safe', ports: [80, 443], labels: {site: 'north'}, deviceName: 'Pump'})
         //The defaults come from the DTO
-        assert.deepStrictEqual(JSON.parse((await Run(['device:add', '--sn', 'A2'])).stdout), {sn: 'A2', retries: 3, verify: true})
+        assert.deepStrictEqual(JSON.parse((await runCommand(['device:add', '--sn', 'A2'])).stdout), {sn: 'A2', retries: 3, verify: true})
     })
 
     it('gives the flags of a boolean or a value an optional value', async (): Promise<void> => {
-        assert.strictEqual(JSON.parse((await Run(['device:add', '--sn', 'A3'])).stdout).link, undefined)
-        assert.strictEqual(JSON.parse((await Run(['device:add', '--sn', 'A3', '--link'])).stdout).link, true)
-        assert.strictEqual(JSON.parse((await Run(['device:add', '--link', 'cable', '--sn', 'A3'])).stdout).link, 'cable')
-        const invalid: Run = await Run(['device:add', '--sn', 'A3', '--link', 'radio'])
+        assert.strictEqual(JSON.parse((await runCommand(['device:add', '--sn', 'A3'])).stdout).link, undefined)
+        assert.strictEqual(JSON.parse((await runCommand(['device:add', '--sn', 'A3', '--link'])).stdout).link, true)
+        assert.strictEqual(JSON.parse((await runCommand(['device:add', '--link', 'cable', '--sn', 'A3'])).stdout).link, 'cable')
+        const invalid: runCommand = await runCommand(['device:add', '--sn', 'A3', '--link', 'radio'])
         assert.notStrictEqual(invalid.code, 0)
         assert.match(invalid.stderr, /Allowed choices are "wifi", "cable"/)
-        const help: Run = await Run(['device:add', '--help'])
+        const help: runCommand = await runCommand(['device:add', '--help'])
         assert.match(help.stdout, /--link \[value\][\s\S]*choices: "wifi", "cable"/)
     })
 
     it('writes the results', async (): Promise<void> => {
-        assert.deepStrictEqual(await Run(['hello']), {code: 0, stdout: 'hello\n', stderr: ''})
-        assert.deepStrictEqual(await Run(['quiet']), {code: 0, stdout: '', stderr: ''})
-        assert.deepStrictEqual(JSON.parse((await Run(['status'])).stdout), {created: true})
-        assert.strictEqual((await Run(['file'])).stdout, 'ab')
-        assert.strictEqual((await Run(['watch'])).stdout, '{\n  "n": 1\n}\ndone\n')
-        assert.strictEqual((await Run(['hello'], {format: (result: unknown): string => `<${result}>`})).stdout, '<hello>')
+        assert.deepStrictEqual(await runCommand(['hello']), {code: 0, stdout: 'hello\n', stderr: ''})
+        assert.deepStrictEqual(await runCommand(['quiet']), {code: 0, stdout: '', stderr: ''})
+        assert.deepStrictEqual(JSON.parse((await runCommand(['status'])).stdout), {created: true})
+        assert.strictEqual((await runCommand(['file'])).stdout, 'ab')
+        assert.strictEqual((await runCommand(['watch'])).stdout, '{\n  "n": 1\n}\ndone\n')
+        assert.strictEqual((await runCommand(['hello'], {format: (result: unknown): string => `<${result}>`})).stdout, '<hello>')
     })
 
     it('fails with the errors of the arguments and of the actions', async (): Promise<void> => {
-        const missing: Run = await Run(['device:add'])
+        const missing: runCommand = await runCommand(['device:add'])
         assert.strictEqual(missing.code, 1)
         assert.match(missing.stderr, /required option '--sn <value>' not specified/)
-        const invalid: Run = await Run(['device:add', '--sn', 'A1', '--retries', 'many'])
+        const invalid: runCommand = await runCommand(['device:add', '--sn', 'A1', '--retries', 'many'])
         assert.strictEqual(invalid.code, 1)
         assert.match(invalid.stderr, /Not a number/)
-        const choice: Run = await Run(['device:add', '--sn', 'A1', '--mode', 'slow'])
+        const choice: runCommand = await runCommand(['device:add', '--sn', 'A1', '--mode', 'slow'])
         assert.match(choice.stderr, /Allowed choices are "fast", "safe"/)
         //Validated by the DTO
-        const validated: Run = await Run(['device:add', '--sn', 'A1', '--retries', '0'])
+        const validated: runCommand = await runCommand(['device:add', '--sn', 'A1', '--retries', '0'])
         assert.strictEqual(validated.code, 1)
         assert.match(validated.stderr, /^error: .*retries/)
-        assert.deepStrictEqual(await Run(['device:fail']), {code: 1, stdout: '', stderr: 'error: The device is offline\n'})
-        const unknown: Run = await Run(['device:ad'])
+        assert.deepStrictEqual(await runCommand(['device:fail']), {code: 1, stdout: '', stderr: 'error: The device is offline\n'})
+        const unknown: runCommand = await runCommand(['device:ad'])
         assert.strictEqual(unknown.code, 1)
         assert.match(unknown.stderr, /unknown command 'device:ad'.*\n.*device:add/)
-        assert.strictEqual((await Run(['hello', 'extra'])).code, 1)
+        assert.strictEqual((await runCommand(['hello', 'extra'])).code, 1)
     })
 
     it('gives the positional arguments to the properties of their names', async (): Promise<void> => {
-        assert.deepStrictEqual(await Run(['sum', 'total', '1.5', '2', '3']), {code: 0, stdout: 'total=6.5 (plain)\n', stderr: ''})
-        assert.strictEqual((await Run(['sum', 'total', '1.5', '2', '--round', '--format', 'fancy'])).stdout, 'total=4 (fancy)\n')
-        const invalid: Run = await Run(['sum', 'total', 'x'])
+        assert.deepStrictEqual(await runCommand(['sum', 'total', '1.5', '2', '3']), {code: 0, stdout: 'total=6.5 (plain)\n', stderr: ''})
+        assert.strictEqual((await runCommand(['sum', 'total', '1.5', '2', '--round', '--format', 'fancy'])).stdout, 'total=4 (fancy)\n')
+        const invalid: runCommand = await runCommand(['sum', 'total', 'x'])
         assert.strictEqual(invalid.code, 1)
         assert.match(invalid.stderr, /Not a number/)
-        const missing: Run = await Run(['sum', 'total'])
+        const missing: runCommand = await runCommand(['sum', 'total'])
         assert.strictEqual(missing.code, 1)
         assert.match(missing.stderr, /missing required argument 'numbers'/)
         //The arguments are described with their properties, they are not options
-        const help: Run = await Run(['sum', '--help'])
+        const help: runCommand = await runCommand(['sum', '--help'])
         assert.match(help.stdout, /Usage: tool sum \[options\] <label> <numbers\.\.\.>/)
         assert.match(help.stdout, /label\s+The label of the sum/)
         assert.doesNotMatch(help.stdout, /--label|--numbers/)
@@ -299,7 +299,7 @@ describe('Commander adapter', (): void => {
 
     it('nests the commands in their groups, whose help lists them', async (): Promise<void> => {
         const run = async (argv: string[], translate?: CommanderCLIEntrypointOptions['translate']): Promise<{ code: number | undefined, output: string }> => {
-            const stdout = Collector()
+            const stdout = collector()
             let code: number | undefined
             const container: Container = new Container()
             await container.set(Entrypoint, buildEntrypoints({
@@ -342,21 +342,21 @@ describe('Commander adapter', (): void => {
     })
 
     it('writes the help and the version', async (): Promise<void> => {
-        const help: Run = await Run(['--help'])
+        const help: runCommand = await runCommand(['--help'])
         assert.strictEqual(help.code, 0)
         assert.match(help.stdout, /Usage: tool/)
         assert.match(help.stdout, /device:add/)
-        const commandHelp: Run = await Run(['device:add', '--help'])
+        const commandHelp: runCommand = await runCommand(['device:add', '--help'])
         assert.match(commandHelp.stdout, /--sn <value>\s+The serial number/)
         assert.match(commandHelp.stdout, /--retries <value>\s+\(default: 3\)/)
         assert.match(commandHelp.stdout, /--no-verify/)
         assert.match(commandHelp.stdout, /--mode <value>\s+\(choices: "fast", "safe"\)/)
-        assert.deepStrictEqual(await Run(['--version']), {code: 0, stdout: '1.2.3\n', stderr: ''})
-        const none: Run = await Run([])
+        assert.deepStrictEqual(await runCommand(['--version']), {code: 0, stdout: '1.2.3\n', stderr: ''})
+        const none: runCommand = await runCommand([])
         assert.strictEqual(none.code, 1)
         assert.match(none.stderr, /Usage: tool/)
         //The application keeps running
-        assert.strictEqual((await Run([], {noCommand: 'ignore'}, 200)).code, undefined)
+        assert.strictEqual((await runCommand([], {noCommand: 'ignore'}, 200)).code, undefined)
     })
 
     it('gives the help in the language of the user, the names of the commands and options kept', async (): Promise<void> => {
@@ -366,7 +366,7 @@ describe('Commander adapter', (): void => {
             return (CHINESE[text.key] ?? text.text).replace(/\{(\w+)\}/g, (all: string, name: string): string => text.params?.[name] ?? all)
         }
         const run = async (argv: string[]): Promise<string> => {
-            const stdout = Collector()
+            const stdout = collector()
             const container: Container = new Container()
             await container.set(Entrypoint, buildEntrypoints({
                 controllers: [GreetController],
@@ -386,7 +386,7 @@ describe('Commander adapter', (): void => {
         assert.ok(['description', 'commands.greet.description', 'commands.greet.arguments.name', 'commands.greet.options.title', 'help.negate'].every((key: string): boolean => asked.includes(key)), asked.join(', '))
         //Without the translation: the English texts
         const english: string = await (async (): Promise<string> => {
-            const stdout = Collector()
+            const stdout = collector()
             const container: Container = new Container()
             await container.set(Entrypoint, buildEntrypoints({controllers: [GreetController], cli: commanderCLIEntrypoint({bin: 'tool', interactive: false, argv: ['greet', '--help'], stdout: stdout, stderr: stdout, exit: (): undefined => undefined})}))
             await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 300))
@@ -398,7 +398,7 @@ describe('Commander adapter', (): void => {
 
     it('prompts in the language of the user', async (): Promise<void> => {
         const stdin: PassThrough = new PassThrough()
-        const stdout = Collector()
+        const stdout = collector()
         const typing: Promise<void> = (async (): Promise<void> => {
             await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 200))
             stdin.write('Dr.\r')
@@ -422,7 +422,7 @@ describe('Commander adapter', (): void => {
 
     it('prompts for the missing required options', async (): Promise<void> => {
         const stdin: PassThrough = new PassThrough()
-        const stdout = Collector()
+        const stdout = collector()
         //Each answer is typed once its prompt is shown
         const typing: Promise<void> = (async (): Promise<void> => {
             for (const answer of ['admin\r', 'abc\r', 'd\r', '\u001b[B\r']) {

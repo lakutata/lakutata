@@ -3,7 +3,7 @@ import type {ChannelActionInfo, ChannelRuntime} from '@lakutata/entrypoint'
 import {McpServer, ProtocolError, ProtocolErrorCode, ResourceTemplate, type CallToolResult, type GetPromptResult, type ReadResourceResult, type ServerContext, type StandardSchemaWithJSON, type Variables} from '@modelcontextprotocol/server'
 import {MCPAuthInfo, MCPContext, MCPRequestKind} from '../context/MCPContext.js'
 import type {MCPMetadata} from './Metadata.js'
-import {ErrorMessage, ResultType, toErrorResult, toPromptResult, toResourceResult, toToolResult} from './Results.js'
+import {errorMessage, resultType, toErrorResult, toPromptResult, toResourceResult, toToolResult} from './Results.js'
 
 /**
  * The description of an MCP server, given to the clients when they connect (`initialize`); the options of
@@ -31,7 +31,7 @@ export type MCPServerInfo = {
  * A schema of the SDK from a JSON schema: the input is validated by the DTO of the action, in its pipeline
  * @param schema
  */
-function Schema(schema: JSONSchema): StandardSchemaWithJSON {
+function toStandardSchema(schema: JSONSchema): StandardSchemaWithJSON {
     return {
         '~standard': {
             version: 1,
@@ -49,11 +49,11 @@ function Schema(schema: JSONSchema): StandardSchemaWithJSON {
  * The protocol error of an error of a resource or of a prompt: the errors of the client (4xx) are invalid parameters
  * @param error
  */
-function ToProtocolError(error: unknown): ProtocolError {
+function toProtocolError(error: unknown): ProtocolError {
     if (error instanceof ProtocolError) return error
     const {statusCode, errno} = (error && typeof error === 'object' ? error : {}) as { statusCode?: unknown, errno?: unknown }
     const code: number = typeof statusCode === 'number' && statusCode >= 400 && statusCode < 500 ? ProtocolErrorCode.InvalidParams : ProtocolErrorCode.InternalError
-    return new ProtocolError(code, ErrorMessage(error), errno === undefined ? undefined : {errno: errno})
+    return new ProtocolError(code, errorMessage(error), errno === undefined ? undefined : {errno: errno})
 }
 
 /**
@@ -64,7 +64,7 @@ function ToProtocolError(error: unknown): ProtocolError {
  * @param context
  * @param uri
  */
-function RequestContext(kind: MCPRequestKind, name: string, data: Record<string, unknown>, context: ServerContext, uri?: string): MCPContext {
+function requestContext(kind: MCPRequestKind, name: string, data: Record<string, unknown>, context: ServerContext, uri?: string): MCPContext {
     const progressToken: unknown = context.mcpReq._meta?.progressToken
     return new MCPContext({
         kind: kind,
@@ -87,7 +87,7 @@ function RequestContext(kind: MCPRequestKind, name: string, data: Record<string,
  * The input of a request
  * @param args
  */
-function Input(args: unknown): Record<string, unknown> {
+function input(args: unknown): Record<string, unknown> {
     return args && typeof args === 'object' ? {...args as Record<string, unknown>} : {}
 }
 
@@ -97,22 +97,22 @@ function Input(args: unknown): Record<string, unknown> {
  * @param runtime
  * @param action
  */
-function RegisterTool(server: McpServer, runtime: ChannelRuntime<MCPContext>, action: ChannelActionInfo): void {
+function registerTool(server: McpServer, runtime: ChannelRuntime<MCPContext>, action: ChannelActionInfo): void {
     const name: string = action.address.tool
     const {title, annotations, outputSchema} = action as unknown as MCPMetadata
     server.registerTool(name, {
         title: title,
         description: action.description || action.name,
-        inputSchema: Schema(action.jsonSchema),
-        outputSchema: outputSchema ? Schema(outputSchema) : undefined,
+        inputSchema: toStandardSchema(action.jsonSchema),
+        outputSchema: outputSchema ? toStandardSchema(outputSchema) : undefined,
         annotations: annotations
     }, async (args: unknown, context: ServerContext): Promise<CallToolResult> => {
         try {
-            const result: unknown = await runtime.dispatchTo(action, RequestContext('tool', name, Input(args), context), {signal: context.mcpReq.signal})
+            const result: unknown = await runtime.dispatchTo(action, requestContext('tool', name, input(args), context), {signal: context.mcpReq.signal})
             const toolResult: CallToolResult = await toToolResult(result, !!outputSchema)
             //A tool declaring an output answers an object: the error names the action rather than the SDK's validation
             if (outputSchema && !toolResult.isError && toolResult.structuredContent === undefined) {
-                return toErrorResult(new TypeError(`The tool ${name} declares an output, but its action ${action.name} returned ${ResultType(result)} instead of an object`))
+                return toErrorResult(new TypeError(`The tool ${name} declares an output, but its action ${action.name} returned ${resultType(result)} instead of an object`))
             }
             return toolResult
         } catch (error: unknown) {
@@ -127,7 +127,7 @@ function RegisterTool(server: McpServer, runtime: ChannelRuntime<MCPContext>, ac
  * @param runtime
  * @param action
  */
-function RegisterResource(server: McpServer, runtime: ChannelRuntime<MCPContext>, action: ChannelActionInfo): void {
+function registerResource(server: McpServer, runtime: ChannelRuntime<MCPContext>, action: ChannelActionInfo): void {
     const uri: string = action.address.resource
     const {title, mimeType, resourceName, resourceAnnotations} = action as unknown as MCPMetadata
     const config = {
@@ -138,10 +138,10 @@ function RegisterResource(server: McpServer, runtime: ChannelRuntime<MCPContext>
     }
     const read = async (url: URL, variables: Variables, context: ServerContext): Promise<ReadResourceResult> => {
         try {
-            const result: unknown = await runtime.dispatchTo(action, RequestContext('resource', uri, {}, context, url.href), {signal: context.mcpReq.signal, params: variables})
+            const result: unknown = await runtime.dispatchTo(action, requestContext('resource', uri, {}, context, url.href), {signal: context.mcpReq.signal, params: variables})
             return await toResourceResult(url.href, result, mimeType)
         } catch (error: unknown) {
-            throw ToProtocolError(error)
+            throw toProtocolError(error)
         }
     }
     if (/\{[^}]+}/.test(uri)) {
@@ -157,19 +157,19 @@ function RegisterResource(server: McpServer, runtime: ChannelRuntime<MCPContext>
  * @param runtime
  * @param action
  */
-function RegisterPrompt(server: McpServer, runtime: ChannelRuntime<MCPContext>, action: ChannelActionInfo): void {
+function registerPrompt(server: McpServer, runtime: ChannelRuntime<MCPContext>, action: ChannelActionInfo): void {
     const name: string = action.address.prompt
     const {title} = action as unknown as MCPMetadata
     const description: string | undefined = action.description || undefined
     server.registerPrompt(name, {
         title: title,
         description: description,
-        argsSchema: Schema(action.jsonSchema)
+        argsSchema: toStandardSchema(action.jsonSchema)
     }, async (args: unknown, context: ServerContext): Promise<GetPromptResult> => {
         try {
-            return toPromptResult(await runtime.dispatchTo(action, RequestContext('prompt', name, Input(args), context), {signal: context.mcpReq.signal}), description)
+            return toPromptResult(await runtime.dispatchTo(action, requestContext('prompt', name, input(args), context), {signal: context.mcpReq.signal}), description)
         } catch (error: unknown) {
-            throw ToProtocolError(error)
+            throw toProtocolError(error)
         }
     })
 }
@@ -230,13 +230,13 @@ export function buildMCPServer(runtime: ChannelRuntime<MCPContext>, info: MCPSer
     for (const action of runtime.actions) {
         switch (action.kind as MCPRequestKind) {
             case 'tool':
-                RegisterTool(server, runtime, action)
+                registerTool(server, runtime, action)
                 break
             case 'resource':
-                RegisterResource(server, runtime, action)
+                registerResource(server, runtime, action)
                 break
             case 'prompt':
-                RegisterPrompt(server, runtime, action)
+                registerPrompt(server, runtime, action)
                 break
         }
     }

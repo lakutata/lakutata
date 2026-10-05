@@ -4,7 +4,7 @@
  * @param basePath
  * @param ancestors
  */
-function PropertyPaths(target: Record<string, any>, basePath: string, ancestors: Set<object>): string[] {
+function propertyPaths(target: Record<string, any>, basePath: string, ancestors: Set<object>): string[] {
     const paths: string[] = []
     ancestors.add(target)
     for (const key of Object.keys(target)) {
@@ -12,7 +12,7 @@ function PropertyPaths(target: Record<string, any>, basePath: string, ancestors:
         const value: unknown = target[key]
         //null is a leaf, and so is an object containing itself (a circular reference)
         if (typeof value === 'object' && value !== null && !ancestors.has(value)) {
-            paths.push(...PropertyPaths(value, currentPath, ancestors))
+            paths.push(...propertyPaths(value, currentPath, ancestors))
         } else {
             paths.push(currentPath)
         }
@@ -41,5 +41,5 @@ function PropertyPaths(target: Record<string, any>, basePath: string, ancestors:
  * ```
  */
 export function getObjectPropertyPaths(target: Record<string, any>, basePath: string = ''): string[] {
-    return PropertyPaths(target, basePath, new Set())
+    return propertyPaths(target, basePath, new Set())
 }

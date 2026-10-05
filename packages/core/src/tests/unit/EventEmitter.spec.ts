@@ -122,7 +122,7 @@ class UpstreamEmitter {
  * A pseudo random generator with a seed (mulberry32)
  * @param seed
  */
-function Random(seed: number): () => number {
+function seededRandom(seed: number): () => number {
     return (): number => {
         seed = (seed + 0x6D2B79F5) | 0
         let t: number = Math.imul(seed ^ (seed >>> 15), 1 | seed)
@@ -150,9 +150,9 @@ const flush = async (): Promise<void> => {
  * Describe an event (symbols as text)
  * @param value
  */
-function Describe(value: unknown): unknown {
+function describeEvent(value: unknown): unknown {
     if (typeof value === 'symbol') return value.toString()
-    if (Array.isArray(value)) return value.map(Describe)
+    if (Array.isArray(value)) return value.map(describeEvent)
     if (value instanceof Error) return `Error: ${value.message}`
     if (value && typeof value === 'object' && value.constructor?.name === 'Immediate') return 'Immediate'
     return value
@@ -164,8 +164,8 @@ function Describe(value: unknown): unknown {
  * @param create
  * @param seed
  */
-async function Script(create: () => any, seed: number): Promise<unknown[]> {
-    const random: () => number = Random(seed)
+async function runScript(create: () => any, seed: number): Promise<unknown[]> {
+    const random: () => number = seededRandom(seed)
     const pick = <T>(values: T[]): T => values[Math.floor(random() * values.length)]
     const log: unknown[] = []
     const emitter: any = create()
@@ -175,7 +175,7 @@ async function Script(create: () => any, seed: number): Promise<unknown[]> {
     //The listeners: they log their calls, return or throw
     const listeners: ListenerFn[] = Array.from({length: 6}, (_: unknown, id: number): ListenerFn => {
         const listener = function (this: any, ...args: any[]): unknown {
-            log.push(['call', id, Describe(this?.event), Describe(args)])
+            log.push(['call', id, describeEvent(this?.event), describeEvent(args)])
             if (id === 5 && throwing) throw new Error(`listener ${id}`)
             return `result ${id}`
         }
@@ -189,7 +189,7 @@ async function Script(create: () => any, seed: number): Promise<unknown[]> {
     }
     const record = (name: string, fn: () => unknown): void => {
         try {
-            log.push([name, Describe(fn())])
+            log.push([name, describeEvent(fn())])
         } catch (error) {
             log.push([name, 'throws', (error as Error).message])
         }
@@ -236,10 +236,10 @@ async function Script(create: () => any, seed: number): Promise<unknown[]> {
                 try {
                     result = await emitter.emitRequest(event, ...values)
                 } catch (error) {
-                    result = ['rejects', Describe(error)]
+                    result = ['rejects', describeEvent(error)]
                 }
                 throwing = false
-                log.push(['emitRequest', Describe(event), Describe(result)])
+                log.push(['emitRequest', describeEvent(event), describeEvent(result)])
                 await flush()
                 break
             }
@@ -257,7 +257,7 @@ async function Script(create: () => any, seed: number): Promise<unknown[]> {
                 break
             default:
                 throwing = true
-                record('emit ' + JSON.stringify(Describe(event)), (): unknown => emitter.emit(event, ...values))
+                record('emit ' + JSON.stringify(describeEvent(event)), (): unknown => emitter.emit(event, ...values))
                 throwing = false
                 log.push(['sync point'])
                 await flush()
@@ -271,7 +271,7 @@ describe('EventEmitter', (): void => {
 
     const rejections: string[] = []
     const warnings: string[] = []
-    const onRejection = (reason: unknown): number => rejections.push(String(Describe(reason)))
+    const onRejection = (reason: unknown): number => rejections.push(String(describeEvent(reason)))
     const onWarning = (warning: Error): number => warnings.push(warning.message)
     const printers: NodeJS.WarningListener[] = []
 
@@ -292,10 +292,10 @@ describe('EventEmitter', (): void => {
         for (let run: number = 0; run < 300; run++) {
             rejections.length = 0
             warnings.length = 0
-            const expected: unknown[] = await Script((): UpstreamEmitter => new UpstreamEmitter(), run)
+            const expected: unknown[] = await runScript((): UpstreamEmitter => new UpstreamEmitter(), run)
             const expectedRejections: string[] = rejections.splice(0)
             const expectedWarnings: string[] = warnings.splice(0)
-            const actual: unknown[] = await Script((): EventEmitter => new EventEmitter(), run)
+            const actual: unknown[] = await runScript((): EventEmitter => new EventEmitter(), run)
             assert.deepStrictEqual(actual, expected, `run ${run}`)
             assert.deepStrictEqual(rejections, expectedRejections, `the unhandled rejections of run ${run}`)
             assert.deepStrictEqual(warnings, expectedWarnings, `the warnings of run ${run}`)

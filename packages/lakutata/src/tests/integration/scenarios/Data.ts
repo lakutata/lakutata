@@ -9,7 +9,7 @@ import {FlexibleDTO, paginator, PaginationResultDTO, PaginationSearchDTO, fromJs
 import {Column, Entity, PrimaryGeneratedColumn} from '../../../exports/ORMDecorators.js'
 import type {Repository} from '../../../exports/ORM.js'
 import {buildDatabaseOptions, Database} from '../../../exports/DatabaseComponent.js'
-import {FreePort, RunChecks} from '../support/Scenario.js'
+import {freePort, runChecks} from '../support/Scenario.js'
 
 @Entity('device')
 class Device {
@@ -82,7 +82,7 @@ class DeviceController extends Controller {
     }
 }
 
-const port: number = await FreePort()
+const port: number = await freePort()
 
 Application
     .run(() => ({
@@ -99,7 +99,7 @@ Application
         },
         bootstrap: ['db', 'entrypoint']
     }))
-    .onLaunched((app: Application): Promise<void> => RunChecks(app, async (check): Promise<void> => {
+    .onLaunched((app: Application): Promise<void> => runChecks(app, async (check): Promise<void> => {
         const db: Database = await app.getObject<Database>('db')
         await db.getRepository(Device).save(Array.from({length: 25}, (_value: unknown, index: number): Partial<Device> => ({sn: `SN-${index + 1}`, site: index % 5 === 0 ? 'north' : 'south'})))
         const request = async (method: string, route: string, body?: unknown): Promise<any> => await (await fetch(`http://127.0.0.1:${port}${route}`, {

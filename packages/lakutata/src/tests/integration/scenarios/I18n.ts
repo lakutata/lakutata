@@ -12,7 +12,7 @@ import {CLIAction, GET, POST, ServiceAction} from '../../../exports/CTRLDecorato
 import {Autoload, Inject, Scoped} from '../../../exports/DIDecorators.js'
 import {Accept, Expect} from '../../../exports/DTODecorators.js'
 import {buildI18nOptions, I18n, I18nMiddleware, I18nMissingKeyException, Translator} from '../../../exports/I18nComponent.js'
-import {FreePort, MemoryStream, RunChecks} from '../support/Scenario.js'
+import {freePort, MemoryStream, runChecks} from '../support/Scenario.js'
 
 //The messages of the application: a file by language, a directory by language whose files prefix their keys; the
 //messages of the validation errors by their codes
@@ -110,7 +110,7 @@ class OrderController extends Controller {
     }
 }
 
-const [httpPort, ioPort] = [await FreePort(), await FreePort()]
+const [httpPort, ioPort] = [await freePort(), await freePort()]
 const cliOutput: MemoryStream = new MemoryStream()
 let cliExited: (code: number) => void
 const cliCode: Promise<number> = new Promise((resolve: (code: number) => void): unknown => cliExited = resolve)
@@ -132,7 +132,7 @@ Application
         },
         bootstrap: ['i18n', 'entrypoint']
     }))
-    .onLaunched((app: Application): Promise<void> => RunChecks(app, async (check): Promise<void> => {
+    .onLaunched((app: Application): Promise<void> => runChecks(app, async (check): Promise<void> => {
         const request = async (route: string, headers: Record<string, string>, body?: unknown): Promise<{ data: unknown, errMsg: string | null }> => await (await fetch(`http://127.0.0.1:${httpPort}${route}`, {
             method: body === undefined ? 'GET' : 'POST',
             headers: {'content-type': 'application/json', ...headers},

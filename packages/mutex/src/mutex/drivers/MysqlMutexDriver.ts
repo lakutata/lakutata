@@ -1,6 +1,6 @@
 import {MutexDriver, type DriverLock} from './MutexDriver.js'
-import {LoadDriver} from '../lib/LoadDriver.js'
-import {LockToken, NameDigest} from '../lib/Names.js'
+import {loadDriver} from '../lib/LoadDriver.js'
+import {lockToken, nameDigest} from '../lib/Names.js'
 
 /**
  * The MySQL (or MariaDB) connection of a {@link MysqlMutexDriver}.
@@ -105,7 +105,7 @@ export class MysqlMutexDriver extends MutexDriver {
      * @returns The MySQL lock name.
      */
     protected lockName(name: string): string {
-        return `lakutata:${NameDigest(this.prefix + name).slice(0, 55)}`
+        return `lakutata:${nameDigest(this.prefix + name).slice(0, 55)}`
     }
 
     /**
@@ -117,7 +117,7 @@ export class MysqlMutexDriver extends MutexDriver {
     protected async session(): Promise<any> {
         if (this.#connection) return this.#connection
         this.#connecting ??= (async (): Promise<any> => {
-            const mysql = await LoadDriver<{ createConnection: (config: Record<string, unknown>) => Promise<any> }>('createConnection', 'mysql2/promise')
+            const mysql = await loadDriver<{ createConnection: (config: Record<string, unknown>) => Promise<any> }>('createConnection', 'mysql2/promise')
             const connection = await mysql.createConnection(this.config())
             const lost = (): void => {
                 if (this.#connection !== connection) return
@@ -145,7 +145,7 @@ export class MysqlMutexDriver extends MutexDriver {
     protected async pool(): Promise<any> {
         //Created once: the first uses at the same time share it
         this.#table ??= (async (): Promise<void> => {
-            const mysql = await LoadDriver<{ createPool: (config: Record<string, unknown>) => any }>('createPool', 'mysql2/promise')
+            const mysql = await loadDriver<{ createPool: (config: Record<string, unknown>) => any }>('createPool', 'mysql2/promise')
             const pool = mysql.createPool({...this.config(), connectionLimit: 4})
             this.#pool = pool
             await this.#pool.query(`CREATE TABLE IF NOT EXISTS \`${this.table}\` (\`key\` VARCHAR(64) PRIMARY KEY, name TEXT NOT NULL, token VARCHAR(64) NOT NULL, fence BIGINT NOT NULL, expires_at DATETIME(3) NOT NULL)`)
@@ -173,14 +173,14 @@ export class MysqlMutexDriver extends MutexDriver {
      * @throws {MutexDriverNotFoundException} When the package `mysql2` is not installed.
      */
     public async acquire(name: string, ttl: number): Promise<DriverLock | undefined> {
-        const token: string = LockToken()
+        const token: string = lockToken()
         if (this.mode === 'table') {
             const connection = await (await this.pool()).getConnection()
             try {
                 //The fencing token: the counter incremented, read by the connection (LAST_INSERT_ID)
                 await connection.query(`UPDATE \`${this.table}_fence\` SET value = LAST_INSERT_ID(value + 1) WHERE id = 1`)
                 const [[{fence}]] = await connection.query('SELECT LAST_INSERT_ID() AS fence')
-                const key: string = NameDigest(this.prefix + name)
+                const key: string = nameDigest(this.prefix + name)
                 //Taken when it is expired: the columns kept otherwise (expires_at assigned last, read before)
                 await connection.query(
                     `INSERT INTO \`${this.table}\` (\`key\`, name, token, fence, expires_at) VALUES (?, ?, ?, ?, NOW(3) + INTERVAL ? MICROSECOND)
@@ -220,7 +220,7 @@ export class MysqlMutexDriver extends MutexDriver {
      */
     public async release(name: string, lock: DriverLock): Promise<boolean> {
         if (this.mode === 'table') {
-            const [result] = await (await this.pool()).query(`DELETE FROM \`${this.table}\` WHERE \`key\` = ? AND token = ?`, [NameDigest(this.prefix + name), lock.token])
+            const [result] = await (await this.pool()).query(`DELETE FROM \`${this.table}\` WHERE \`key\` = ? AND token = ?`, [nameDigest(this.prefix + name), lock.token])
             return result.affectedRows === 1
         }
         if (this.#held.get(name) !== lock.token) return false
@@ -242,7 +242,7 @@ export class MysqlMutexDriver extends MutexDriver {
      */
     public async extend(name: string, lock: DriverLock, ttl: number): Promise<boolean> {
         if (this.mode === 'table') {
-            const [result] = await (await this.pool()).query(`UPDATE \`${this.table}\` SET expires_at = NOW(3) + INTERVAL ? MICROSECOND WHERE \`key\` = ? AND token = ?`, [Math.ceil(ttl) * 1000, NameDigest(this.prefix + name), lock.token])
+            const [result] = await (await this.pool()).query(`UPDATE \`${this.table}\` SET expires_at = NOW(3) + INTERVAL ? MICROSECOND WHERE \`key\` = ? AND token = ?`, [Math.ceil(ttl) * 1000, nameDigest(this.prefix + name), lock.token])
             return result.affectedRows === 1
         }
         //Held as long as its connection: checked by a query (a connection cut silently fails it)

@@ -19,7 +19,7 @@ type TarEntry = {
  * @param offset
  * @param length
  */
-function Field(header: Buffer, offset: number, length: number): string {
+function readField(header: Buffer, offset: number, length: number): string {
     const field: Buffer = header.subarray(offset, offset + length)
     const end: number = field.indexOf(0)
     return field.subarray(0, end < 0 ? length : end).toString('utf8')
@@ -31,8 +31,8 @@ function Field(header: Buffer, offset: number, length: number): string {
  * @param offset
  * @param length
  */
-function Octal(header: Buffer, offset: number, length: number): number {
-    const text: string = Field(header, offset, length).trim()
+function octal(header: Buffer, offset: number, length: number): number {
+    const text: string = readField(header, offset, length).trim()
     return text ? parseInt(text, 8) : 0
 }
 
@@ -40,7 +40,7 @@ function Octal(header: Buffer, offset: number, length: number): number {
  * The records of an extended (pax) header
  * @param data
  */
-function PaxRecords(data: Buffer): Record<string, string> {
+function paxRecords(data: Buffer): Record<string, string> {
     const records: Record<string, string> = {}
     let offset: number = 0
     while (offset < data.length) {
@@ -60,7 +60,7 @@ function PaxRecords(data: Buffer): Record<string, string> {
  * The entries of a tar archive (ustar, with the long names of pax and GNU)
  * @param archive
  */
-export function ReadTar(archive: Buffer): TarEntry[] {
+export function readTar(archive: Buffer): TarEntry[] {
     const entries: TarEntry[] = []
     let offset: number = 0
     let longName: string | undefined
@@ -69,28 +69,28 @@ export function ReadTar(archive: Buffer): TarEntry[] {
         const header: Buffer = archive.subarray(offset, offset + 512)
         //Two empty blocks end the archive
         if (header.every((byte: number): boolean => byte === 0)) break
-        const size: number = Octal(header, 124, 12)
-        const type: string = Field(header, 156, 1) || '0'
+        const size: number = octal(header, 124, 12)
+        const type: string = readField(header, 156, 1) || '0'
         const data: Buffer = archive.subarray(offset + 512, offset + 512 + size)
         offset += 512 + Math.ceil(size / 512) * 512
         if (type === 'x') {
-            const records: Record<string, string> = PaxRecords(data)
+            const records: Record<string, string> = paxRecords(data)
             longName = records.path ?? longName
             longLink = records.linkpath ?? longLink
             continue
         }
         if (type === 'L') {
-            longName = Field(data, 0, data.length)
+            longName = readField(data, 0, data.length)
             continue
         }
         if (type === 'K') {
-            longLink = Field(data, 0, data.length)
+            longLink = readField(data, 0, data.length)
             continue
         }
         if (type === 'g') continue
-        const prefix: string = Field(header, 345, 155)
-        const name: string = longName ?? (prefix ? `${prefix}/${Field(header, 0, 100)}` : Field(header, 0, 100))
-        entries.push({name: name, type: type, mode: Octal(header, 100, 8), data: data, linkName: longLink ?? Field(header, 157, 100)})
+        const prefix: string = readField(header, 345, 155)
+        const name: string = longName ?? (prefix ? `${prefix}/${readField(header, 0, 100)}` : readField(header, 0, 100))
+        entries.push({name: name, type: type, mode: octal(header, 100, 8), data: data, linkName: longLink ?? readField(header, 157, 100)})
         longName = undefined
         longLink = undefined
     }
@@ -104,10 +104,10 @@ export function ReadTar(archive: Buffer): TarEntry[] {
  * @param select the path of an entry in the directory, from its path in the archive (without its leading "/"), undefined to skip it
  * @return the paths of the files extracted, relative to the directory
  */
-export async function ExtractTarGz(archive: Buffer, directory: string, select: (name: string) => string | undefined = (name: string): string => name): Promise<string[]> {
+export async function extractTarGz(archive: Buffer, directory: string, select: (name: string) => string | undefined = (name: string): string => name): Promise<string[]> {
     const root: string = path.resolve(directory)
     const files: string[] = []
-    for (const entry of ReadTar(gunzipSync(archive))) {
+    for (const entry of readTar(gunzipSync(archive))) {
         const selected: string | undefined = select(entry.name.split('/').filter((part: string): boolean => !!part).join('/'))
         if (!selected) continue
         const target: string = path.resolve(root, selected)
@@ -145,7 +145,7 @@ export async function ExtractTarGz(archive: Buffer, directory: string, select: (
  * Select the entries of an archive under a path, without it
  * @param prefix the path ("package/template"), or the number of the leading elements removed
  */
-export function Under(prefix: string | number): (name: string) => string | undefined {
+export function under(prefix: string | number): (name: string) => string | undefined {
     if (typeof prefix === 'number') return (name: string): string | undefined => name.split('/').slice(prefix).join('/') || undefined
     const start: string = `${prefix.replace(/\/+$/, '')}/`
     return (name: string): string | undefined => name.startsWith(start) ? name.slice(start.length) || undefined : undefined

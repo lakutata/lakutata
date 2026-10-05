@@ -17,7 +17,7 @@ const PATH_TEMPLATE: RegExp = /^\/$|^(\/([A-Za-z0-9_]+|\{[A-Za-z_][A-Za-z0-9_]*}
  * Check the name of an interface
  * @param name
  */
-export function CheckInterfaceName(name: string): string {
+export function checkInterfaceName(name: string): string {
     if (typeof name !== 'string' || name.length > 255 || !INTERFACE_NAME.test(name)) throw new TypeError(`Invalid DBus interface name "${name}": dot-separated elements of letters, digits and "_", such as "com.example.Device"`)
     return name
 }
@@ -27,7 +27,7 @@ export function CheckInterfaceName(name: string): string {
  * @param name
  * @param kind
  */
-export function CheckMemberName(name: string, kind: string): string {
+export function checkMemberName(name: string, kind: string): string {
     if (typeof name !== 'string' || name.length > 255 || !MEMBER_NAME.test(name)) throw new TypeError(`Invalid DBus ${kind} name "${name}": letters, digits and "_", not starting with a digit`)
     return name
 }
@@ -36,7 +36,7 @@ export function CheckMemberName(name: string, kind: string): string {
  * Check an object path, or a template of object paths
  * @param path
  */
-export function CheckPathTemplate(path: string): string {
+export function checkPathTemplate(path: string): string {
     if (typeof path !== 'string' || !PATH_TEMPLATE.test(path)) throw new TypeError(`Invalid DBus object path "${path}": "/" separated elements of letters, digits and "_", or variables such as "{sn}"`)
     return path
 }
@@ -55,9 +55,9 @@ export type PathTemplate = {
  * Compile a template of object paths
  * @param template
  */
-export function CompilePathTemplate(template: string): PathTemplate {
+export function compilePathTemplate(template: string): PathTemplate {
     const variables: string[] = []
-    const expression: RegExp = new RegExp(`^${CheckPathTemplate(template).replace(/\{([A-Za-z_][A-Za-z0-9_]*)}/g, (matched: string, name: string): string => {
+    const expression: RegExp = new RegExp(`^${checkPathTemplate(template).replace(/\{([A-Za-z_][A-Za-z0-9_]*)}/g, (matched: string, name: string): string => {
         variables.push(name)
         return '([A-Za-z0-9_]+)'
     })}$`)
@@ -76,7 +76,7 @@ export function CompilePathTemplate(template: string): PathTemplate {
  * The name of the DBus error of an exception: its errno, or its name
  * @param error
  */
-export function ErrorName(error: unknown): string {
+export function errorName(error: unknown): string {
     const {errno, name} = (error && typeof error === 'object' ? error : {}) as { errno?: unknown, name?: unknown }
     const candidate: string = String(errno ?? name ?? 'Error')
     //A dotted name is a full DBus error name, the others are prefixed by the service name

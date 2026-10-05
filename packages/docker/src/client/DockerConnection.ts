@@ -100,7 +100,7 @@ export const DOCKER_MIN_API_VERSION: string = '1.41'
  * @param a
  * @param b
  */
-export function CompareAPIVersions(a: string, b: string): number {
+export function compareAPIVersions(a: string, b: string): number {
     const [x, y] = [a, b].map((version: string): number[] => version.replace(/^v/, '').split('.').map(Number))
     return (x[0] - y[0]) || ((x[1] ?? 0) - (y[1] ?? 0))
 }
@@ -109,7 +109,7 @@ export function CompareAPIVersions(a: string, b: string): number {
  * The certificates of a CA file, split (a file may have several)
  * @param file
  */
-function SplitCA(file: string): string[] {
+function splitCA(file: string): string[] {
     return readFileSync(file, 'utf8').split(/(?<=-----END CERTIFICATE-----)\s*/).map((certificate: string): string => certificate.trim()).filter(Boolean)
 }
 
@@ -118,7 +118,7 @@ function SplitCA(file: string): string[] {
  * DOCKER_CLIENT_TIMEOUT), else the socket of the platform: the named pipe on Windows, the socket of the user (Docker
  * Desktop) or /var/run/docker.sock
  */
-export function DefaultConnectionOptions(): DockerConnectionOptions {
+export function defaultConnectionOptions(): DockerConnectionOptions {
     const dockerHost: string | undefined = process.env.DOCKER_HOST
     if (!dockerHost) {
         if (platform() === 'win32') return {socketPath: '//./pipe/docker_engine'}
@@ -142,7 +142,7 @@ export function DefaultConnectionOptions(): DockerConnectionOptions {
     }
     const certPath: string | undefined = process.env.DOCKER_CERT_PATH
     if (certPath) {
-        options.ca = SplitCA(path.join(certPath, 'ca.pem'))
+        options.ca = splitCA(path.join(certPath, 'ca.pem'))
         options.cert = readFileSync(path.join(certPath, 'cert.pem'))
         options.key = readFileSync(path.join(certPath, 'key.pem'))
     }
@@ -154,7 +154,7 @@ export function DefaultConnectionOptions(): DockerConnectionOptions {
  * The query string of the parameters of a request
  * @param query
  */
-function QueryString(query: Record<string, unknown> = {}): string {
+function queryString(query: Record<string, unknown> = {}): string {
     const parameters: URLSearchParams = new URLSearchParams()
     for (const [key, value] of Object.entries(query)) {
         if (value === undefined || value === null) continue
@@ -174,7 +174,7 @@ function QueryString(query: Record<string, unknown> = {}): string {
  * Whether a body is a stream
  * @param body
  */
-function IsStream(body: unknown): body is NodeJS.ReadableStream {
+function isStream(body: unknown): body is NodeJS.ReadableStream {
     return !!body && typeof (body as NodeJS.ReadableStream).pipe === 'function'
 }
 
@@ -209,7 +209,7 @@ export class DockerConnection {
     constructor(options: DockerConnectionOptions = {}) {
         //The options given (a timeout, headers…) apply over the ones of the environment, the ones not given keep them
         const given: DockerConnectionOptions = Object.fromEntries(Object.entries(options).filter(([, value]: [string, unknown]): boolean => value !== undefined))
-        this.#options = given.socketPath || given.host ? given : {...DefaultConnectionOptions(), ...given}
+        this.#options = given.socketPath || given.host ? given : {...defaultConnectionOptions(), ...given}
         this.#protocol = this.#options.protocol ?? (this.#options.key && this.#options.cert && this.#options.ca ? 'https' : 'http')
         if (this.#options.version) this.#version = this.#options.version.replace(/^v/, '')
         if (this.#protocol !== 'ssh') {
@@ -233,9 +233,9 @@ export class DockerConnection {
         if (this.#version) return this.#version
         const version: { ApiVersion?: string, MinAPIVersion?: string } = await this.request({method: 'GET', path: '/version', statusCodes: {200: true, 500: 'server error'}})
         const daemon: string = version.ApiVersion ?? DOCKER_MIN_API_VERSION
-        let negotiated: string = CompareAPIVersions(daemon, DOCKER_API_VERSION) < 0 ? daemon : DOCKER_API_VERSION
+        let negotiated: string = compareAPIVersions(daemon, DOCKER_API_VERSION) < 0 ? daemon : DOCKER_API_VERSION
         //The daemon no longer supports the version of the client
-        if (version.MinAPIVersion && CompareAPIVersions(negotiated, version.MinAPIVersion) < 0) negotiated = version.MinAPIVersion
+        if (version.MinAPIVersion && compareAPIVersions(negotiated, version.MinAPIVersion) < 0) negotiated = version.MinAPIVersion
         this.#version = negotiated
         return negotiated
     }
@@ -292,7 +292,7 @@ export class DockerConnection {
         const versioned: string = this.#version ? `/v${this.#version}${request.path}` : request.path
         const options: RequestOptions = {
             method: request.method,
-            path: `${versioned}${QueryString(request.query)}`,
+            path: `${versioned}${queryString(request.query)}`,
             headers: headers,
             signal: request.signal,
             timeout: this.#options.timeout
@@ -319,7 +319,7 @@ export class DockerConnection {
      * @param hijack upgrade the connection to a raw stream (the TTYs, the attached executions)
      */
     protected async send(request: DockerRequest, hijack: boolean = false): Promise<{ response?: IncomingMessage, socket?: Duplex, request: ClientRequest }> {
-        const streamingBody: boolean = IsStream(request.body)
+        const streamingBody: boolean = isStream(request.body)
         const options: RequestOptions = await this.requestOptions(request, streamingBody)
         const headers: Record<string, string> = options.headers as Record<string, string>
         let payload: string | undefined

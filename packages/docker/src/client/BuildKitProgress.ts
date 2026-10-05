@@ -66,7 +66,7 @@ type ProtobufField = {
  * The fields of a protobuf message (the wire format: varints, 64 and 32 bits values, length-delimited values)
  * @param buffer
  */
-function ProtobufFields(buffer: Buffer): ProtobufField[] {
+function protobufFields(buffer: Buffer): ProtobufField[] {
     const fields: ProtobufField[] = []
     let offset: number = 0
     const varint = (): bigint => {
@@ -117,11 +117,11 @@ const integer = (value: bigint | Buffer): number => Buffer.isBuffer(value) ? 0 :
  * A google.protobuf.Timestamp, in milliseconds since the epoch
  * @param value
  */
-function Timestamp(value: bigint | Buffer): number | undefined {
+function timestamp(value: bigint | Buffer): number | undefined {
     if (!Buffer.isBuffer(value)) return undefined
     let seconds: number = 0
     let nanos: number = 0
-    for (const field of ProtobufFields(value)) {
+    for (const field of protobufFields(value)) {
         if (field.number === 1) seconds = integer(field.value)
         if (field.number === 2) nanos = integer(field.value)
     }
@@ -133,10 +133,10 @@ function Timestamp(value: bigint | Buffer): number | undefined {
  * Decode the progress of a build: the "aux" of a message "moby.buildkit.trace"
  * @param aux the base64 of a StatusResponse
  */
-export function DecodeBuildKitStatus(aux: string): BuildKitStatus {
+export function decodeBuildKitStatus(aux: string): BuildKitStatus {
     const status: BuildKitStatus = {vertexes: [], statuses: [], logs: [], warnings: []}
-    for (const field of ProtobufFields(Buffer.from(aux, 'base64'))) {
-        const message: ProtobufField[] = ProtobufFields(bytes(field.value))
+    for (const field of protobufFields(Buffer.from(aux, 'base64'))) {
+        const message: ProtobufField[] = protobufFields(bytes(field.value))
         const get = (number: number): bigint | Buffer | undefined => message.find((candidate: ProtobufField): boolean => candidate.number === number)?.value
         switch (field.number) {
             case 1:
@@ -144,8 +144,8 @@ export function DecodeBuildKitStatus(aux: string): BuildKitStatus {
                     digest: text(get(1) ?? 0n),
                     name: text(get(3) ?? 0n),
                     cached: integer(get(4) ?? 0n) === 1,
-                    started: Timestamp(get(5) ?? 0n),
-                    completed: Timestamp(get(6) ?? 0n),
+                    started: timestamp(get(5) ?? 0n),
+                    completed: timestamp(get(6) ?? 0n),
                     error: text(get(7) ?? 0n) || undefined
                 })
                 break
@@ -156,7 +156,7 @@ export function DecodeBuildKitStatus(aux: string): BuildKitStatus {
                     name: text(get(3) ?? 0n),
                     current: integer(get(4) ?? 0n),
                     total: integer(get(5) ?? 0n),
-                    completed: Timestamp(get(8) ?? 0n)
+                    completed: timestamp(get(8) ?? 0n)
                 })
                 break
             case 3:

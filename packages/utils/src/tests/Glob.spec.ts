@@ -37,7 +37,7 @@ const OPTIONS: GlobOptions[] = [
  * Sort the results of the upstream (in no order)
  * @param results
  */
-function Sorted(results: string[]): string[] {
+function sorted(results: string[]): string[] {
     return [...results].sort()
 }
 
@@ -59,7 +59,7 @@ describe('Glob', (): void => {
         for (const options of OPTIONS) {
             for (const pattern of PATTERNS) {
                 const settings: GlobOptions = {...options, cwd: root}
-                assert.deepStrictEqual(GlobSync(pattern, settings), Sorted(UpstreamGlobSync(pattern, settings) as string[]), `${pattern} ${JSON.stringify(options)}`)
+                assert.deepStrictEqual(GlobSync(pattern, settings), sorted(UpstreamGlobSync(pattern, settings) as string[]), `${pattern} ${JSON.stringify(options)}`)
             }
         }
     })
@@ -67,15 +67,15 @@ describe('Glob', (): void => {
     it('matches the absolute patterns and the patterns of a sub directory as the upstream glob', (): void => {
         for (const pattern of ['a/*', '**/*.js', 'src/**']) {
             const absolute: string = path.join(root, pattern)
-            assert.deepStrictEqual(GlobSync(absolute), Sorted(UpstreamGlobSync(absolute)), absolute)
-            assert.deepStrictEqual(GlobSync(pattern, {cwd: path.join(root, 'a')}), Sorted(UpstreamGlobSync(pattern, {cwd: path.join(root, 'a')})), `${pattern} in a`)
+            assert.deepStrictEqual(GlobSync(absolute), sorted(UpstreamGlobSync(absolute)), absolute)
+            assert.deepStrictEqual(GlobSync(pattern, {cwd: path.join(root, 'a')}), sorted(UpstreamGlobSync(pattern, {cwd: path.join(root, 'a')})), `${pattern} in a`)
         }
-        assert.deepStrictEqual(GlobSync(['a/*.js', 'src/*.ts', 'a/*.js'], {cwd: root}), Sorted(UpstreamGlobSync(['a/*.js', 'src/*.ts', 'a/*.js'], {cwd: root})))
+        assert.deepStrictEqual(GlobSync(['a/*.js', 'src/*.ts', 'a/*.js'], {cwd: root}), sorted(UpstreamGlobSync(['a/*.js', 'src/*.ts', 'a/*.js'], {cwd: root})))
     })
 
     it('gives the same results asynchronously', async (): Promise<void> => {
         for (const pattern of PATTERNS) assert.deepStrictEqual(await Glob(pattern, {cwd: root}), GlobSync(pattern, {cwd: root}), pattern)
-        assert.deepStrictEqual(await Glob('**/*.ts', {cwd: root}), Sorted(await UpstreamGlob('**/*.ts', {cwd: root})))
+        assert.deepStrictEqual(await Glob('**/*.ts', {cwd: root}), sorted(await UpstreamGlob('**/*.ts', {cwd: root})))
     })
 
     it('follows the links of directories when asked, without looping on their cycles', async (): Promise<void> => {

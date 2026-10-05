@@ -5,15 +5,15 @@ import {Time} from '@lakutata/utils/Time'
 import {type Message} from '@lakutata/grpc'
 import type {ImageStore, ResolvedImage} from '../../client/ImageStore.js'
 import type {RegistryOptions} from '../../client/Registry.js'
-import {FormatPlatform, ParsePlatform, type Platform} from '../../client/Platforms.js'
-import {ParseReference} from '../../client/Reference.js'
+import {formatPlatform, parsePlatform, type Platform} from '../../client/Platforms.js'
+import {parseReference} from '../../client/Reference.js'
 import {type Containerd} from '../Containerd.js'
 import type {ContainerdImageConfig} from '../types/ContainerdImageConfig.js'
 import {ImagePushOptions} from '../options/image/ImagePushOptions.js'
 import {ImageExportOptions} from '../options/image/ImageExportOptions.js'
 import {ContainerdImagePushException} from '../exceptions/ContainerdImagePushException.js'
 import {ContainerdImageExportException} from '../exceptions/ContainerdImageExportException.js'
-import {ContainerdError} from './ContainerdErrors.js'
+import {containerdError} from './ContainerdErrors.js'
 
 /**
  * An image of the {@link Containerd} component's namespace: its name, digest, platforms, size and configuration, and
@@ -151,10 +151,10 @@ export class ContainerdImage extends Provider {
         try {
             platforms = await store.platforms(this.name)
             const supported: string[] = this.getContainerd().supportedPlatforms()
-            const preferred: Platform | undefined = platforms.find((platform: Platform): boolean => supported.includes(FormatPlatform(platform))) ?? platforms[0]
+            const preferred: Platform | undefined = platforms.find((platform: Platform): boolean => supported.includes(formatPlatform(platform))) ?? platforms[0]
             resolved = await store.resolve(this.name, preferred)
         } catch (error: unknown) {
-            throw ContainerdError(error)
+            throw containerdError(error)
         }
         const image: Message = resolved.image
         const config = resolved.config.config ?? {}
@@ -162,10 +162,10 @@ export class ContainerdImage extends Provider {
         this.digest = image.target.digest
         this.mediaType = image.target.mediaType
         this.labels = image.labels ?? {}
-        this.createdAt = new Time(TimestampMilliseconds(image.createdAt))
-        this.updatedAt = new Time(TimestampMilliseconds(image.updatedAt))
-        this.platforms = platforms.map(FormatPlatform)
-        this.platform = FormatPlatform(resolved.platform)
+        this.createdAt = new Time(timestampMilliseconds(image.createdAt))
+        this.updatedAt = new Time(timestampMilliseconds(image.updatedAt))
+        this.platforms = platforms.map(formatPlatform)
+        this.platform = formatPlatform(resolved.platform)
         this.os = resolved.platform.os
         this.arch = resolved.platform.architecture
         this.variant = resolved.platform.variant
@@ -198,7 +198,7 @@ export class ContainerdImage extends Provider {
         try {
             return await this.getContainerd().getImage(await this.getStore().tag(this.name, name))
         } catch (error: unknown) {
-            throw ContainerdError(error)
+            throw containerdError(error)
         }
     }
 
@@ -221,12 +221,12 @@ export class ContainerdImage extends Provider {
         try {
             await this.getStore().push(this.name, {
                 reference: options.reference,
-                platform: options.platform ? ParsePlatform(options.platform) : undefined,
-                registry: options.auth ? {...registry, credentials: {...registry.credentials, [ParseReference(options.reference ?? this.name).registry]: options.auth}} : registry,
+                platform: options.platform ? parsePlatform(options.platform) : undefined,
+                registry: options.auth ? {...registry, credentials: {...registry.credentials, [parseReference(options.reference ?? this.name).registry]: options.auth}} : registry,
                 progress: options.progressCallback
             })
         } catch (error: unknown) {
-            throw ContainerdError(error, ContainerdImagePushException)
+            throw containerdError(error, ContainerdImagePushException)
         }
     }
 
@@ -242,7 +242,7 @@ export class ContainerdImage extends Provider {
         try {
             await this.getStore().export([this.name], options.destination)
         } catch (error: unknown) {
-            throw ContainerdError(error, ContainerdImageExportException)
+            throw containerdError(error, ContainerdImageExportException)
         }
     }
 
@@ -255,7 +255,7 @@ export class ContainerdImage extends Provider {
         try {
             await this.getStore().remove(this.name)
         } catch (error: unknown) {
-            throw ContainerdError(error)
+            throw containerdError(error)
         }
     }
 }
@@ -264,7 +264,7 @@ export class ContainerdImage extends Provider {
  * The milliseconds of a Timestamp
  * @param timestamp
  */
-function TimestampMilliseconds(timestamp: Message | undefined): number {
+function timestampMilliseconds(timestamp: Message | undefined): number {
     return timestamp ? Number(timestamp.seconds ?? 0) * 1000 + Math.floor(Number(timestamp.nanos ?? 0) / 1e6) : Date.now()
 }
 

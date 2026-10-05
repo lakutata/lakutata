@@ -3,8 +3,8 @@ import assert from 'node:assert'
 import {chmod, mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import {NetworkStore, ParseIPv6Subnet, ParseSubnet, type CNINetwork} from '../client/Networks.js'
-import {ResolvConf} from '../client/ContainerStore.js'
+import {NetworkStore, parseIPv6Subnet, parseSubnet, type CNINetwork} from '../client/Networks.js'
+import {resolvConf} from '../client/ContainerStore.js'
 
 describe('The networks of CNI', (): void => {
 
@@ -34,16 +34,16 @@ describe('The networks of CNI', (): void => {
     })
 
     it('parses the subnets', (): void => {
-        assert.deepStrictEqual(ParseSubnet('10.4.1.7/24'), {network: 0x0a040100, broadcast: 0x0a0401ff, prefix: 24, cidr: '10.4.1.0/24'})
-        assert.throws((): unknown => ParseSubnet('10.4.1.0/31'))
-        assert.throws((): unknown => ParseSubnet('10.4.1.300/24'))
+        assert.deepStrictEqual(parseSubnet('10.4.1.7/24'), {network: 0x0a040100, broadcast: 0x0a0401ff, prefix: 24, cidr: '10.4.1.0/24'})
+        assert.throws((): unknown => parseSubnet('10.4.1.0/31'))
+        assert.throws((): unknown => parseSubnet('10.4.1.300/24'))
     })
 
     it('parses the subnets of IPv6', (): void => {
-        assert.deepStrictEqual([ParseIPv6Subnet('fd00:4:10::7/64').cidr, ParseIPv6Subnet('fd00:4:10::/64').first], ['fd00:4:10::/64', 'fd00:4:10::1'])
-        assert.strictEqual(ParseIPv6Subnet('2001:db8::1:0:0:0/80').cidr, '2001:db8:0:0:1::/80')
-        assert.throws((): unknown => ParseIPv6Subnet('fd00::/127'))
-        assert.throws((): unknown => ParseIPv6Subnet('10.0.0.0/64'))
+        assert.deepStrictEqual([parseIPv6Subnet('fd00:4:10::7/64').cidr, parseIPv6Subnet('fd00:4:10::/64').first], ['fd00:4:10::/64', 'fd00:4:10::1'])
+        assert.strictEqual(parseIPv6Subnet('2001:db8::1:0:0:0/80').cidr, '2001:db8:0:0:1::/80')
+        assert.throws((): unknown => parseIPv6Subnet('fd00::/127'))
+        assert.throws((): unknown => parseIPv6Subnet('10.0.0.0/64'))
     })
 
     it('creates the networks of IPv4 and IPv6', async (): Promise<void> => {
@@ -120,8 +120,8 @@ describe('The networks of CNI', (): void => {
     })
 
     it('gives the containers on their own networks name servers they reach', (): void => {
-        assert.strictEqual(ResolvConf('nameserver 127.0.0.53\noptions edns0\n', true), 'options edns0\nnameserver 8.8.8.8\nnameserver 8.8.4.4\n')
-        assert.strictEqual(ResolvConf('nameserver 127.0.0.53\nnameserver 192.168.1.1\n', true), 'nameserver 192.168.1.1\n')
-        assert.strictEqual(ResolvConf('nameserver 127.0.0.53\n', false), 'nameserver 127.0.0.53\n')
+        assert.strictEqual(resolvConf('nameserver 127.0.0.53\noptions edns0\n', true), 'options edns0\nnameserver 8.8.8.8\nnameserver 8.8.4.4\n')
+        assert.strictEqual(resolvConf('nameserver 127.0.0.53\nnameserver 192.168.1.1\n', true), 'nameserver 192.168.1.1\n')
+        assert.strictEqual(resolvConf('nameserver 127.0.0.53\n', false), 'nameserver 127.0.0.53\n')
     })
 })

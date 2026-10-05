@@ -1,6 +1,6 @@
 import {ResolutionStack} from './DependencyInjectionContainer.js'
 import {DependencyInjectionException} from '../../exceptions/di/DependencyInjectionException.js'
-import {ResolveConstructorNameBySymbol} from './ConstructorSymbol.js'
+import {resolveConstructorNameBySymbol} from './ConstructorSymbol.js'
 import {As} from '@lakutata/utils/As'
 import {isSymbol} from '@lakutata/utils/IsSymbol'
 
@@ -99,9 +99,9 @@ export class DependencyInjectionResolutionError extends ExtendableError {
         resolutionStack: ResolutionStack,
         message?: string
     ) {
-        if (isSymbol(name)) name = ResolveConstructorNameBySymbol(name as any).toString()
+        if (isSymbol(name)) name = resolveConstructorNameBySymbol(name as any).toString()
         const purifiedName: string = (name as any).split('_$$').reverse()[0]
-        resolutionStack = resolutionStack.map((val) => isSymbol(val) ? (ResolveConstructorNameBySymbol(val as any) as any).toString() : val.name)
+        resolutionStack = resolutionStack.map((val) => isSymbol(val) ? (resolveConstructorNameBySymbol(val as any) as any).toString() : val.name)
         resolutionStack.push(As(purifiedName))
         const resolutionPathString: string = resolutionStack.join(' -> ')
         let msg: string = `Could not resolve '${purifiedName}'.`

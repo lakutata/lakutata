@@ -3,8 +3,8 @@ import assert from 'node:assert'
 import {mkdirSync, mkdtempSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import {ApplyEdits} from '../lib/native/TextEdits.js'
-import {FindGypTarget, GypDocument, type GypDict, type GypList} from '../lib/native/Gyp.js'
+import {applyEdits} from '../lib/native/TextEdits.js'
+import {findGypTarget, GypDocument, type GypDict, type GypList} from '../lib/native/Gyp.js'
 import {CMakeDocument} from '../lib/native/CMake.js'
 import {TomlDocument} from '../lib/native/Toml.js'
 
@@ -13,7 +13,7 @@ import {TomlDocument} from '../lib/native/Toml.js'
  * @param before
  * @param after
  */
-function Added(before: string, after: string): string[] {
+function addedLines(before: string, after: string): string[] {
     const lines: string[] = after.split('\n')
     const original: string[] = before.split('\n')
     const added: string[] = []
@@ -124,11 +124,11 @@ text''',
         mkdirSync(path.join(directory, 'cpp'))
         writeFileSync(path.join(directory, 'binding.gyp'), '{"includes": ["cpp/addon.gypi"]}\n')
         writeFileSync(path.join(directory, 'cpp', 'addon.gypi'), '{\n  "targets": [\n    {"target_name": "first"},\n    {"target_name": "second"}\n  ]\n}\n')
-        const {document, target} = await FindGypTarget(path.join(directory, 'binding.gyp'), 'second')
+        const {document, target} = await findGypTarget(path.join(directory, 'binding.gyp'), 'second')
         assert.strictEqual(document.file, path.join(directory, 'cpp', 'addon.gypi'))
         assert.strictEqual((GypDocument.get(target, 'target_name') as { value: string }).value, 'second')
-        await assert.rejects(FindGypTarget(path.join(directory, 'binding.gyp')), /several targets \(first, second\): --target/)
-        await assert.rejects(FindGypTarget(path.join(directory, 'binding.gyp'), 'third'), /no target third \(first, second\)/)
+        await assert.rejects(findGypTarget(path.join(directory, 'binding.gyp')), /several targets \(first, second\): --target/)
+        await assert.rejects(findGypTarget(path.join(directory, 'binding.gyp'), 'third'), /no target third \(first, second\)/)
     })
 })
 
@@ -163,7 +163,7 @@ argument]=] "a \\"quoted\\" one" unquoted(nested parentheses) -Da="b c")
         document = document.applied()
         document.insertAfterTarget(document.target('capture'), ['target_link_libraries(${PROJECT_NAME} PRIVATE "-framework IOKit")'], 'APPLE')
         document = document.applied()
-        assert.deepStrictEqual(Added(text, document.text), [
+        assert.deepStrictEqual(addedLines(text, document.text), [
             'target_link_libraries(${PROJECT_NAME} PRIVATE z)',
             'if(APPLE)',
             '    target_link_libraries(${PROJECT_NAME} PRIVATE "-framework IOKit")',
@@ -247,10 +247,10 @@ value = "a b"
         //A file created
         const created: TomlDocument = new TomlDocument('new.toml', '')
         created.addToStringList(['env'], 'LAKUTATA_NATIVE', ['rustc-link-lib=z'], ';')
-        assert.strictEqual(ApplyEdits('', created.changes), '[env]\nLAKUTATA_NATIVE = "rustc-link-lib=z"\n')
+        assert.strictEqual(applyEdits('', created.changes), '[env]\nLAKUTATA_NATIVE = "rustc-link-lib=z"\n')
         //An entry after the last line without its newline
         const unterminated: TomlDocument = new TomlDocument('end.toml', '[env]\nA = "1"')
         unterminated.addToStringList(['env'], 'B', ['2'], ';')
-        assert.strictEqual(ApplyEdits(unterminated.text, unterminated.changes), '[env]\nA = "1"\nB = "2"\n')
+        assert.strictEqual(applyEdits(unterminated.text, unterminated.changes), '[env]\nA = "1"\nB = "2"\n')
     })
 })

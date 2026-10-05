@@ -106,7 +106,7 @@ const HASHES: string[] = [...getHashes(), 'passthrough']
 
 const ENCODINGS: string[] = ['buffer', 'hex', 'binary', 'base64']
 
-function ApplyDefaults(object: any, source: ObjectHashOptions = {}): HashingOptions {
+function applyDefaults(object: any, source: ObjectHashOptions = {}): HashingOptions {
     const options: HashingOptions = {
         algorithm: (source.algorithm || 'sha1').toLowerCase(),
         encoding: (source.encoding || 'hex').toLowerCase(),
@@ -393,7 +393,7 @@ class TypeHasher {
  * ```
  */
 export function objectHash(value: any, options?: ObjectHashOptions): string {
-    const hashingOptions: HashingOptions = ApplyDefaults(value, options)
+    const hashingOptions: HashingOptions = applyDefaults(value, options)
     if (hashingOptions.algorithm === 'passthrough') {
         const output: StringOutput = new StringOutput()
         new TypeHasher(hashingOptions, output).dispatch(value)

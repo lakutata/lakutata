@@ -26,14 +26,14 @@ import {DockerAuthOptions} from './options/auth/DockerAuthOptions.js'
 import {readFile} from 'node:fs/promises'
 import path from 'node:path'
 import {DockerClient, type DockerRegistryAuth} from '../client/DockerClient.js'
-import {PackBuildContext} from '../client/BuildContext.js'
-import {BuildKitProgress, DecodeBuildKitStatus} from '../client/BuildKitProgress.js'
-import {FollowProgress} from '../client/DockerStreams.js'
-import {ParseBaseImages} from './lib/ParseBaseImages.js'
+import {packBuildContext} from '../client/BuildContext.js'
+import {BuildKitProgress, decodeBuildKitStatus} from '../client/BuildKitProgress.js'
+import {followProgress} from '../client/DockerStreams.js'
+import {parseBaseImages} from './lib/ParseBaseImages.js'
 import {type IdResponse} from '../client/types/IdResponse.js'
 import {DockerContainerNotFoundException} from './exceptions/DockerContainerNotFoundException.js'
-import {RegistryAuth} from './lib/RegistryAuth.js'
-import {EngineBinds, EngineDevices, EngineEndpoints, EnginePortBindings, EngineRestartPolicy} from './lib/EngineSettings.js'
+import {registryAuth} from './lib/RegistryAuth.js'
+import {engineBinds, engineDevices, engineEndpoints, enginePortBindings, engineRestartPolicy} from './lib/EngineSettings.js'
 
 /**
  * The Docker component: drives a Docker daemon over the Docker Engine API, to pull, build, import, export, tag and push
@@ -285,7 +285,7 @@ export class Docker extends Component {
      */
     @Accept(DockerAuthOptions.required())
     public async loginRepository(options: DockerAuthOptions): Promise<void> {
-        await this.#client.checkAuth(RegistryAuth(options))
+        await this.#client.checkAuth(registryAuth(options))
     }
 
     /**
@@ -348,12 +348,12 @@ export class Docker extends Component {
      */
     @Accept(ImagePullOptions.required())
     public async pullImage(options: ImagePullOptions): Promise<DockerImage> {
-        const auth: DockerRegistryAuth | undefined = RegistryAuth(options.auth)
+        const auth: DockerRegistryAuth | undefined = registryAuth(options.auth)
         const tag: string = options.tag ? options.tag : 'latest'
         try {
             const readableStream: NodeJS.ReadableStream = await this.#client.pullImage({fromImage: options.repo, tag: tag, platform: options.platform}, auth, this.#abortController.signal)
             let pullError: string | undefined
-            await FollowProgress(readableStream, (outputObject: Record<string, any>): void => {
+            await followProgress(readableStream, (outputObject: Record<string, any>): void => {
                 if (options.outputCallback) options.outputCallback(outputObject)
                 if (outputObject.error && !pullError) pullError = outputObject.error
             })
@@ -385,17 +385,17 @@ export class Docker extends Component {
     @Accept(ImageBuildOptions.required())
     public async buildImage(options: ImageBuildOptions): Promise<DockerImage> {
         const dockerfile: string = options.dockerfile ? options.dockerfile : 'Dockerfile'
-        const auth: DockerRegistryAuth | undefined = RegistryAuth(options.auth)
+        const auth: DockerRegistryAuth | undefined = registryAuth(options.auth)
         try {
             //The base images of a private registry are pulled with the credentials (BuildKit is not given them)
             if (auth) {
                 const content: string = await readFile(path.resolve(options.workdir, dockerfile), {encoding: 'utf-8'})
-                for (const baseImage of ParseBaseImages(content, options.buildargs)) {
+                for (const baseImage of parseBaseImages(content, options.buildargs)) {
                     const [repo, tag] = [baseImage.replace(/:([^:/@]+)$/, ''), /:([^:/@]+)$/.exec(baseImage)?.[1]]
                     await this.pullImage({repo: repo, tag: tag, platform: options.platform, auth: options.auth, outputCallback: options.outputCallback})
                 }
             }
-            const context: NodeJS.ReadableStream = PackBuildContext({directory: options.workdir, entries: options.files, always: [dockerfile]})
+            const context: NodeJS.ReadableStream = packBuildContext({directory: options.workdir, entries: options.files, always: [dockerfile]})
             const registryConfig: Record<string, DockerRegistryAuth> | undefined = auth ? {[auth.serveraddress ?? 'https://index.docker.io/v1/']: auth} : undefined
             const readableStream: NodeJS.ReadableStream = await this.#client.buildImage(context, {
                 dockerfile: dockerfile,
@@ -414,10 +414,10 @@ export class Docker extends Component {
             const progress: BuildKitProgress = new BuildKitProgress()
             let imageId: string | undefined
             let buildError: string | undefined
-            await FollowProgress(readableStream, (outputObject: Record<string, any>): void => {
+            await followProgress(readableStream, (outputObject: Record<string, any>): void => {
                 if (outputObject.error && !buildError) buildError = outputObject.error
                 if (outputObject.id === 'moby.buildkit.trace' && typeof outputObject.aux === 'string') {
-                    for (const line of progress.lines(DecodeBuildKitStatus(outputObject.aux))) options.outputCallback?.({id: outputObject.id, stream: line})
+                    for (const line of progress.lines(decodeBuildKitStatus(outputObject.aux))) options.outputCallback?.({id: outputObject.id, stream: line})
                     return
                 }
                 if (outputObject.aux && typeof outputObject.aux === 'object' && outputObject.aux.ID) imageId = outputObject.aux.ID
@@ -485,7 +485,7 @@ export class Docker extends Component {
         let loadedImage: string | undefined
         try {
             const readableStream: NodeJS.ReadableStream = await this.#client.loadImage(loadImagePassThrough, {quiet: options.quiet})
-            await FollowProgress(readableStream, (outputObject: Record<string, any>): void => {
+            await followProgress(readableStream, (outputObject: Record<string, any>): void => {
                 if (outputObject.error && !importError) importError = outputObject.error
                 //"Loaded image ID: sha256:…" or "Loaded image: repo:tag"
                 const loaded: RegExpExecArray | null = /Loaded image(?: ID)?: (\S+)/.exec(outputObject.stream ?? '')
@@ -601,18 +601,18 @@ export class Docker extends Component {
                 Memory: options.memoryLimit,
                 CpusetCpus: options.cpuSet ? options.cpuSet.join(',') : undefined,
                 Privileged: options.privileged,
-                RestartPolicy: options.restartPolicy ? EngineRestartPolicy(options.restartPolicy) : undefined,
+                RestartPolicy: options.restartPolicy ? engineRestartPolicy(options.restartPolicy) : undefined,
                 OomKillDisable: options.OOMKillDisable,
-                PortBindings: EnginePortBindings(options.ports ?? []),
-                Binds: EngineBinds(options.binds ?? []),
-                Devices: EngineDevices(options.devices ?? []),
+                PortBindings: enginePortBindings(options.ports ?? []),
+                Binds: engineBinds(options.binds ?? []),
+                Devices: engineDevices(options.devices ?? []),
                 CapAdd: options.capabilities,
                 Cgroup: options.cgroup,
                 CgroupParent: options.cgroupParent,
                 PidMode: options.pidMode
             },
             NetworkingConfig: {
-                EndpointsConfig: EngineEndpoints(options.networks ?? [])
+                EndpointsConfig: engineEndpoints(options.networks ?? [])
             }
         }, {name: options.name, platform: platform})
         return await this.getContainer(rawContainer.Id)

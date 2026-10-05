@@ -3,10 +3,10 @@ import {existsSync} from 'node:fs'
 import {readFile, writeFile, mkdir} from 'node:fs/promises'
 import path from 'node:path'
 import {promisify} from 'node:util'
-import {FindGypTarget, GypDocument, NormalizeCondition, type GypDict, type GypNode} from './Gyp.js'
-import {CMakeArgumentText, CMakeDocument} from './CMake.js'
+import {findGypTarget, GypDocument, normalizeCondition, type GypDict, type GypNode} from './Gyp.js'
+import {cMakeArgumentText, CMakeDocument} from './CMake.js'
 import {TomlDocument} from './Toml.js'
-import {ApplyEdits} from './TextEdits.js'
+import {applyEdits} from './TextEdits.js'
 
 const run = promisify(execFile)
 
@@ -61,7 +61,7 @@ export type NativeChangeResult = {
  * The build system of a native addon, by its build file
  * @param directory
  */
-export function DetectBuildSystem(directory: string): NativeBuildSystem {
+export function detectBuildSystem(directory: string): NativeBuildSystem {
     const builds: NativeBuildSystem[] = (['gyp', 'cmake', 'rust'] as NativeBuildSystem[]).filter((build: NativeBuildSystem): boolean => existsSync(path.join(directory, {gyp: 'binding.gyp', cmake: 'CMakeLists.txt', rust: 'Cargo.toml'}[build])))
     if (!builds.length) throw new Error(`${directory} is not a native addon (no binding.gyp, CMakeLists.txt nor Cargo.toml)`)
     if (builds.length > 1) throw new Error(`${directory} has the build files of ${builds.join(', ')}: only one build system is changed`)
@@ -90,7 +90,7 @@ type LibraryFile = {
  * @param directory
  * @param value
  */
-function LibraryOfFile(directory: string, value: string): LibraryFile | undefined {
+function libraryOfFile(directory: string, value: string): LibraryFile | undefined {
     if (!/[\\/]/.test(value) && !/\.(a|lib|so(\.\d+)*|dylib|dll)$/.test(value)) return undefined
     const absolute: string = path.resolve(directory, value)
     if (!existsSync(absolute)) throw new Error(`${value} does not exist in ${directory}`)
@@ -111,7 +111,7 @@ function LibraryOfFile(directory: string, value: string): LibraryFile | undefine
  * @param directory
  * @param library
  */
-function ImportLibrary(directory: string, library: LibraryFile): string {
+function importLibrary(directory: string, library: LibraryFile): string {
     const file: string = library.file.replace(/\.dll$/, '.lib')
     if (!existsSync(path.join(directory, file))) throw new Error(`The import library of ${library.file} (${file}) does not exist: Windows links a DLL by its import library`)
     return file
@@ -122,7 +122,7 @@ function ImportLibrary(directory: string, library: LibraryFile): string {
  * @param change
  * @param library
  */
-function ScopeOf(change: NativeChange, library?: LibraryFile): Scope {
+function scopeOf(change: NativeChange, library?: LibraryFile): Scope {
     if (change.framework) {
         if (change.platform && change.platform !== 'mac') throw new Error('The frameworks are the libraries of macOS')
         return 'mac'
@@ -140,7 +140,7 @@ function ScopeOf(change: NativeChange, library?: LibraryFile): Scope {
  * @param directory
  * @param library
  */
-async function InstallNameNotes(directory: string, library: LibraryFile): Promise<string[]> {
+async function installNameNotes(directory: string, library: LibraryFile): Promise<string[]> {
     if (library.platform !== 'mac' || library.kind !== 'dynamic' || process.platform !== 'darwin') return []
     try {
         //otool -D prints the file, then its install name (none for a file which is not a dynamic library)
@@ -160,8 +160,8 @@ async function InstallNameNotes(directory: string, library: LibraryFile): Promis
  * @param library
  * @param scope
  */
-async function ChangeGyp(directory: string, change: NativeChange, library: LibraryFile | undefined, scope: Scope): Promise<string[]> {
-    const located = await FindGypTarget(path.join(directory, 'binding.gyp'), change.target)
+async function changeGyp(directory: string, change: NativeChange, library: LibraryFile | undefined, scope: Scope): Promise<string[]> {
+    const located = await findGypTarget(path.join(directory, 'binding.gyp'), change.target)
     const name: GypNode | undefined = GypDocument.get(located.target, 'target_name')
     const targetName: string | undefined = name?.kind === 'string' ? name.value : undefined
     let document: GypDocument = located.document
@@ -188,7 +188,7 @@ async function ChangeGyp(directory: string, change: NativeChange, library: Libra
             const list: GypNode | undefined = GypDocument.get(target(), 'conditions')
             if (list?.kind !== 'list') return undefined
             for (const item of list.items) {
-                if (item.kind === 'list' && item.items[0]?.kind === 'string' && NormalizeCondition(item.items[0].value) === NormalizeCondition(condition) && item.items[1]?.kind === 'dict') return item.items[1]
+                if (item.kind === 'list' && item.items[0]?.kind === 'string' && normalizeCondition(item.items[0].value) === normalizeCondition(condition) && item.items[1]?.kind === 'dict') return item.items[1]
             }
             return undefined
         }
@@ -233,7 +233,7 @@ async function ChangeGyp(directory: string, change: NativeChange, library: Libra
         //Linux: by its name (-l:libfoo.so), not its path, which the addon would need (a library without its soname)
         add('libraries', library.platform === 'linux'
             ? [`-L${module(path.posix.dirname(library.file))}`, `-l:${path.posix.basename(library.file)}`]
-            : [module(library.platform === 'win' ? ImportLibrary(directory, library) : library.file)])
+            : [module(library.platform === 'win' ? importLibrary(directory, library) : library.file)])
         //Copied next to the addon, found there at run time
         const scope: GypDict = scoped()
         const copies: GypNode | undefined = GypDocument.get(scope, 'copies')
@@ -262,7 +262,7 @@ async function ChangeGyp(directory: string, change: NativeChange, library: Libra
  * @param library
  * @param scope
  */
-async function ChangeCMake(directory: string, change: NativeChange, library: LibraryFile | undefined, scope: Scope): Promise<string[]> {
+async function changeCMake(directory: string, change: NativeChange, library: LibraryFile | undefined, scope: Scope): Promise<string[]> {
     let document: CMakeDocument = await CMakeDocument.read(path.join(directory, 'CMakeLists.txt'))
     const target = document.target(change.target)
     const conditions: Record<string, string> = {mac: 'APPLE', linux: 'CMAKE_SYSTEM_NAME STREQUAL "Linux"', win: 'WIN32', unix: 'NOT WIN32'}
@@ -273,7 +273,7 @@ async function ChangeCMake(directory: string, change: NativeChange, library: Lib
         const missing: string[][] = lines.filter((line: string[]): boolean => !document.has(line[0], line.slice(1)))
         if (!missing.length) return
         const current = document.target(change.target)
-        document.insertAfterTarget(current, missing.map((line: string[]): string => `${line[0]}(${line.slice(1).map(CMakeArgumentText).join(' ')})`), scope === undefined ? undefined : conditions[scope])
+        document.insertAfterTarget(current, missing.map((line: string[]): string => `${line[0]}(${line.slice(1).map(cMakeArgumentText).join(' ')})`), scope === undefined ? undefined : conditions[scope])
         document = document.applied()
         changed = true
     }
@@ -296,7 +296,7 @@ async function ChangeCMake(directory: string, change: NativeChange, library: Lib
         commands([link(source(library.file))])
     } else if (library?.kind === 'dynamic') {
         commands([
-            link(source(library.platform === 'win' ? ImportLibrary(directory, library) : library.file)),
+            link(source(library.platform === 'win' ? importLibrary(directory, library) : library.file)),
             ...(library.platform === 'win' ? [] : [['set_target_properties', name, 'PROPERTIES', 'BUILD_RPATH', library.platform === 'mac' ? '@loader_path' : '$ORIGIN']]),
             //Copied next to the addon, found there at run time
             ['add_custom_command', 'TARGET', name, 'POST_BUILD', 'COMMAND', '${CMAKE_COMMAND}', '-E', 'copy_if_different', source(library.file), `$<TARGET_FILE_DIR:${name}>`]
@@ -317,7 +317,7 @@ async function ChangeCMake(directory: string, change: NativeChange, library: Lib
  * @param library
  * @param scope
  */
-async function ChangeRust(directory: string, change: NativeChange, library: LibraryFile | undefined, scope: Scope): Promise<string[]> {
+async function changeRust(directory: string, change: NativeChange, library: LibraryFile | undefined, scope: Scope): Promise<string[]> {
     if (change.action !== 'link') throw new Error(`The Rust addons have no ${change.action === 'include' ? 'directory of headers' : 'definition'} of C: their libraries are crates (--crate), the -sys crates building and linking the native libraries`)
     if (change.pkgConfig) throw new Error('The Rust addons find the libraries of pkg-config by their -sys crates (--crate), whose build scripts use the pkg-config crate')
     if (change.crate) {
@@ -336,7 +336,7 @@ async function ChangeRust(directory: string, change: NativeChange, library: Libr
     } else if (library?.kind === 'static') {
         directives.push(`rustc-link-search=native=${path.posix.dirname(library.file)}`, `rustc-link-lib=static=${library.name}`)
     } else if (library?.kind === 'dynamic') {
-        if (library.platform === 'win') ImportLibrary(directory, library)
+        if (library.platform === 'win') importLibrary(directory, library)
         directives.push(`rustc-link-search=native=${path.posix.dirname(library.file)}`, `rustc-link-lib=dylib=${library.name}`)
         if (library.platform === 'mac') directives.push('rustc-cdylib-link-arg=-Wl,-rpath,@loader_path')
         if (library.platform === 'linux') directives.push('rustc-cdylib-link-arg=-Wl,-rpath,$ORIGIN')
@@ -348,7 +348,7 @@ async function ChangeRust(directory: string, change: NativeChange, library: Libr
     const files: string[] = []
     if (document.addToStringList(['env'], variable, directives, ';')) {
         await mkdir(path.dirname(file), {recursive: true})
-        await writeFile(file, ApplyEdits(document.text, document.changes))
+        await writeFile(file, applyEdits(document.text, document.changes))
         files.push('.cargo/config.toml')
     }
     if (library?.kind === 'dynamic') {
@@ -374,15 +374,15 @@ async function ChangeRust(directory: string, change: NativeChange, library: Libr
  * @param directory
  * @param change
  */
-export async function ChangeNative(directory: string, change: NativeChange): Promise<NativeChangeResult> {
-    const build: NativeBuildSystem = DetectBuildSystem(directory)
+export async function changeNative(directory: string, change: NativeChange): Promise<NativeChangeResult> {
+    const build: NativeBuildSystem = detectBuildSystem(directory)
     if (change.crate && build !== 'rust') throw new Error('The crates are the libraries of the Rust addons')
-    const library: LibraryFile | undefined = change.action === 'link' && !change.crate && !change.pkgConfig && !change.framework ? LibraryOfFile(directory, change.value) : undefined
-    const scope: Scope = ScopeOf(change, library)
+    const library: LibraryFile | undefined = change.action === 'link' && !change.crate && !change.pkgConfig && !change.framework ? libraryOfFile(directory, change.value) : undefined
+    const scope: Scope = scopeOf(change, library)
     const files: string[] = build === 'gyp'
-        ? await ChangeGyp(directory, change, library, scope)
-        : build === 'cmake' ? await ChangeCMake(directory, change, library, scope) : await ChangeRust(directory, change, library, scope)
-    const notes: string[] = library ? await InstallNameNotes(directory, library) : []
+        ? await changeGyp(directory, change, library, scope)
+        : build === 'cmake' ? await changeCMake(directory, change, library, scope) : await changeRust(directory, change, library, scope)
+    const notes: string[] = library ? await installNameNotes(directory, library) : []
     if (scope !== undefined && scope !== 'unix' && scope !== (process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'win' : 'linux')) notes.push(`The change is for ${scope}: it is built and tried there`)
     return {build: build, files: files, notes: notes}
 }

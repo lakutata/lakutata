@@ -6,7 +6,7 @@ import {CLIContext} from '../context/CLIContext.js'
 import {ServiceContext} from '../context/ServiceContext.js'
 import {HTTPContext} from '../context/HTTPContext.js'
 import type {AccessControlRuleHandler} from './AccessControlRule.js'
-import {MiddlewareDefinition, ValidateMiddlewares} from './Middleware.js'
+import {MiddlewareDefinition, validateMiddlewares} from './Middleware.js'
 import {getPrefix, PrefixOptions} from './Prefix.js'
 import {ChannelDefinition, getChannel} from '../channel/Channel.js'
 import {CLIChannel, HTTPChannel, ServiceChannel} from '../channel/BuiltinChannels.js'
@@ -104,7 +104,7 @@ const COMPONENT_CTRL_MAP: symbol = Symbol('COMPONENT.CTRL.MAP')
  * The metadata key of the actions of a channel
  * @param channel
  */
-function ChannelActionsKey(channel: string): string {
+function channelActionsKey(channel: string): string {
     return `ENTRYPOINT.CHANNEL.ACTIONS.${channel}`
 }
 
@@ -135,7 +135,7 @@ function getActionInfo<ClassPrototype extends Controller>(controllerPrototype: C
  * Validate action pattern definition
  * @param actionPattern
  */
-function ValidateActionPatternDefinition(actionPattern: ActionPattern): ActionPattern {
+function validateActionPatternDefinition(actionPattern: ActionPattern): ActionPattern {
     const depth: number = getObjectNestingDepth(actionPattern)
     if (depth > 2) throw new InvalidActionPatternDepthException('The maximum nesting depth of ActionPattern objects cannot be greater than 2 levels. The current nesting depth of the object is {0} levels', [depth])
     return actionPattern
@@ -147,8 +147,8 @@ function ValidateActionPatternDefinition(actionPattern: ActionPattern): ActionPa
  * @param target
  * @constructor
  */
-function GetInternalControllerActionPatternMap(channel: string, target: IBaseObjectConstructor<Controller>): InternalActionPatternMap {
-    const key: string = ChannelActionsKey(channel)
+function getInternalControllerActionPatternMap(channel: string, target: IBaseObjectConstructor<Controller>): InternalActionPatternMap {
+    const key: string = channelActionsKey(channel)
     const internalActionPatternMap: InternalActionPatternMap = new Map()
     //From the farthest parent: the closest declaration of an action wins
     objectParentConstructors(target).reverse().forEach(parentConstructor => {
@@ -163,7 +163,7 @@ function GetInternalControllerActionPatternMap(channel: string, target: IBaseObj
  * The channels of the actions of a controller, its parent classes included
  * @param target
  */
-export function GetControllerChannels(target: IBaseObjectConstructor<Controller>): string[] {
+export function getControllerChannels(target: IBaseObjectConstructor<Controller>): string[] {
     const names: Set<string> = new Set()
     for (const constructor of [target, ...objectParentConstructors(target)]) {
         const own: Set<string> | undefined = Reflect.getOwnMetadata(CONTROLLER_CHANNELS, constructor)
@@ -180,14 +180,14 @@ export function GetControllerChannels(target: IBaseObjectConstructor<Controller>
  * @param details
  * @constructor
  */
-export function RegisterChannelAction(channel: ChannelDefinition, target: IBaseObjectConstructor<Controller>, actionPattern: ActionPattern, details: ActionDetails): void {
-    actionPattern = ValidateActionPatternDefinition(channel.validate ? channel.validate(actionPattern) : actionPattern)
-    const internalActionPatternMap: InternalActionPatternMap = GetInternalControllerActionPatternMap(channel.name, target)
+export function registerChannelAction(channel: ChannelDefinition, target: IBaseObjectConstructor<Controller>, actionPattern: ActionPattern, details: ActionDetails): void {
+    actionPattern = validateActionPatternDefinition(channel.validate ? channel.validate(actionPattern) : actionPattern)
+    const internalActionPatternMap: InternalActionPatternMap = getInternalControllerActionPatternMap(channel.name, target)
     internalActionPatternMap.set(objectHash(actionPattern), {
         pattern: actionPattern,
         details: {...details, pattern: actionPattern}
     })
-    Reflect.defineMetadata(ChannelActionsKey(channel.name), internalActionPatternMap, target)
+    Reflect.defineMetadata(channelActionsKey(channel.name), internalActionPatternMap, target)
     const own: Set<string> = Reflect.getOwnMetadata(CONTROLLER_CHANNELS, target) || new Set()
     Reflect.defineMetadata(CONTROLLER_CHANNELS, own.add(channel.name), target)
 }
@@ -231,14 +231,14 @@ export function registerControllerAction<ClassPrototype extends Controller, DTOC
 ): void {
     const constructor: IBaseObjectConstructor<Controller> = As<IBaseObjectConstructor<Controller>>(objectConstructor(controllerPrototype))
     const actionInfo: ActionInfo = getActionInfo(controllerPrototype, propertyKey, actionOptions, channel.identify(actionPattern))
-    RegisterChannelAction(channel, constructor, actionPattern, {
+    registerChannelAction(channel, constructor, actionPattern, {
         ...actionInfo,
         pattern: actionPattern,
         constructor: constructor,
         method: propertyKey,
         dtoConstructor: dtoConstructor,
         jsonSchema: dtoConstructor.toJsonSchema(),
-        middlewares: ValidateMiddlewares(actionOptions.middlewares ?? []),
+        middlewares: validateMiddlewares(actionOptions.middlewares ?? []),
         getActionInfo: () => actionInfo
     })
 }
@@ -249,7 +249,7 @@ export function registerControllerAction<ClassPrototype extends Controller, DTOC
  * @param controllerConstructor
  * @constructor
  */
-export function BindControllerToComponent(component: Component, controllerConstructor: IBaseObjectConstructor<Controller>): void {
+export function bindControllerToComponent(component: Component, controllerConstructor: IBaseObjectConstructor<Controller>): void {
     const totalInternalActionPatternMap: Map<string, InternalActionPatternMap> = Reflect.getOwnMetadata(COMPONENT_CTRL_MAP, component) || new Map()
     const prefix: PrefixOptions | undefined = getPrefix(controllerConstructor)
     //The actions inherited from a parent controller are run by the registered controller
@@ -257,7 +257,7 @@ export function BindControllerToComponent(component: Component, controllerConstr
         const details: ActionDetails = {...value.details, constructor: controllerConstructor}
         const prefixed: ActionPattern | undefined = prefix && channel.prefix ? channel.prefix(prefix, value.pattern) : undefined
         if (prefixed === undefined) return ['', {pattern: value.pattern, details: details}]
-        const pattern: ActionPattern = ValidateActionPatternDefinition(channel.validate ? channel.validate(prefixed) : prefixed)
+        const pattern: ActionPattern = validateActionPatternDefinition(channel.validate ? channel.validate(prefixed) : prefixed)
         //A prefixed action is named after the registered controller, so the controllers sharing a parent have distinct actions
         const action: string = `${controllerConstructor.className}:${String(details.method)}`
         details.name = details.name === details.action ? action : details.name
@@ -268,10 +268,10 @@ export function BindControllerToComponent(component: Component, controllerConstr
         details.getActionInfo = (): ActionInfo => actionInfo
         return [objectHash(pattern), {pattern: pattern, details: details}]
     }
-    for (const name of GetControllerChannels(controllerConstructor)) {
+    for (const name of getControllerChannels(controllerConstructor)) {
         const channel: ChannelDefinition = getChannel(name)
         const map: InternalActionPatternMap = totalInternalActionPatternMap.get(name) ?? new Map()
-        GetInternalControllerActionPatternMap(name, controllerConstructor).forEach((value: InternalActionPatternMapValue, hash: string): void => {
+        getInternalControllerActionPatternMap(name, controllerConstructor).forEach((value: InternalActionPatternMapValue, hash: string): void => {
             const [prefixedHash, bound] = bind(channel, value)
             map.set(prefixedHash || hash, bound)
         })
@@ -285,7 +285,7 @@ export function BindControllerToComponent(component: Component, controllerConstr
  * @constructor
  * @param component
  */
-export function GetComponentControllerActionMap(component: Component): Map<string, ActionPatternMap> {
+export function getComponentControllerActionMap(component: Component): Map<string, ActionPatternMap> {
     const totalInternalActionPatternMap: Map<string, InternalActionPatternMap> = Reflect.getOwnMetadata(COMPONENT_CTRL_MAP, component) || new Map()
     const totalActionPatternMap: Map<string, ActionPatternMap> = new Map()
     totalInternalActionPatternMap.forEach((map: InternalActionPatternMap, channel: string): void => {
@@ -306,7 +306,7 @@ export function GetComponentControllerActionMap(component: Component): Map<strin
  * @param actionOptions
  * @constructor
  */
-export function RegisterHTTPAction<ClassPrototype extends Controller, DTOConstructor extends typeof DTO = typeof DTO>(
+export function registerHTTPAction<ClassPrototype extends Controller, DTOConstructor extends typeof DTO = typeof DTO>(
     route: string,
     methods: string[],
     controllerPrototype: ClassPrototype,
@@ -326,7 +326,7 @@ export function RegisterHTTPAction<ClassPrototype extends Controller, DTOConstru
  * @param actionOptions
  * @constructor
  */
-export function RegisterCLIAction<ClassPrototype extends Controller, DTOConstructor extends typeof DTO = typeof DTO>(
+export function registerCLIAction<ClassPrototype extends Controller, DTOConstructor extends typeof DTO = typeof DTO>(
     command: string,
     controllerPrototype: ClassPrototype,
     propertyKey: ControllerProperty<ClassPrototype>,
@@ -345,7 +345,7 @@ export function RegisterCLIAction<ClassPrototype extends Controller, DTOConstruc
  * @param actionOptions
  * @constructor
  */
-export function RegisterServiceAction<ClassPrototype extends Controller, DTOConstructor extends typeof DTO = typeof DTO>(
+export function registerServiceAction<ClassPrototype extends Controller, DTOConstructor extends typeof DTO = typeof DTO>(
     pattern: ActionPattern,
     controllerPrototype: ClassPrototype,
     propertyKey: ControllerProperty<ClassPrototype>,

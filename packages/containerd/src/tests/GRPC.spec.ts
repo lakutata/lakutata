@@ -5,14 +5,14 @@ import {mkdtemp, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {GRPCConnection, GRPCError, GRPCStatus, decode, encode, type Message} from '@lakutata/grpc'
-import {ContainerdClient, IsGRPCError} from '../client/ContainerdClient.js'
+import {ContainerdClient, isGRPCError} from '../client/ContainerdClient.js'
 import * as M from '../client/Messages.js'
 
 /**
  * A frame of gRPC
  * @param data
  */
-function Frame(data: Uint8Array): Buffer {
+function encodeFrame(data: Uint8Array): Buffer {
     const frame: Buffer = Buffer.alloc(5 + data.length)
     frame.writeUInt32BE(data.length, 1)
     frame.set(data, 5)
@@ -23,7 +23,7 @@ function Frame(data: Uint8Array): Buffer {
  * The messages of the frames of a request
  * @param stream
  */
-async function Frames(stream: ServerHttp2Stream): Promise<Buffer[]> {
+async function readFrames(stream: ServerHttp2Stream): Promise<Buffer[]> {
     const chunks: Buffer[] = []
     for await (const chunk of stream) chunks.push(chunk as Buffer)
     let buffer: Buffer = Buffer.concat(chunks)
@@ -57,28 +57,28 @@ describe('The gRPC client of containerd', (): void => {
                 for (const frame of message) stream.write(frame)
                 stream.end()
             }
-            const requests: Buffer[] = await Frames(stream)
+            const requests: Buffer[] = await readFrames(stream)
             switch (method) {
                 case '/containerd.services.version.v1.Version/Version':
-                    return reply([Frame(encode(M.VersionResponse, {version: '1.7.0', revision: 'test'}))])
+                    return reply([encodeFrame(encode(M.VersionResponse, {version: '1.7.0', revision: 'test'}))])
                 case '/containerd.services.images.v1.Images/Get':
                     return reply([], GRPCStatus.NOT_FOUND, `image "${decode(M.GetImageRequest, requests[0]).name}": not found`)
                 case '/containerd.services.content.v1.Content/Read': {
                     //Its chunks in a frame split over writes
-                    const frames: Buffer = Buffer.concat(['ab', 'cd', 'ef'].map((data: string): Buffer => Frame(encode(M.ReadContentResponse, {data: Buffer.from(data)}))))
+                    const frames: Buffer = Buffer.concat(['ab', 'cd', 'ef'].map((data: string): Buffer => encodeFrame(encode(M.ReadContentResponse, {data: Buffer.from(data)}))))
                     return reply([frames.subarray(0, 3), frames.subarray(3, 11), frames.subarray(11)])
                 }
                 case '/containerd.services.content.v1.Content/Write': {
                     const writes: Message[] = requests.map((request: Buffer): Message => decode(M.WriteContentRequest, request))
                     const data: string = writes.filter((write: Message): boolean => write.action === M.WriteAction.WRITE).map((write: Message): string => Buffer.from(write.data).toString()).join('')
                     const commit: Message = writes[writes.length - 1]
-                    return reply(writes.map((write: Message): Buffer => Frame(encode(M.WriteContentResponse, {action: write.action, offset: data.length, digest: write.action === M.WriteAction.COMMIT ? commit.expected : ''}))))
+                    return reply(writes.map((write: Message): Buffer => encodeFrame(encode(M.WriteContentResponse, {action: write.action, offset: data.length, digest: write.action === M.WriteAction.COMMIT ? commit.expected : ''}))))
                 }
                 case '/containerd.services.content.v1.Content/Info':
                     return reply([], GRPCStatus.NOT_FOUND, 'not found')
                 case '/containerd.services.events.v1.Events/Subscribe':
                     stream.respond({':status': 200, 'content-type': 'application/grpc'})
-                    stream.write(Frame(encode(M.Envelope, {namespace: 'test', topic: '/tasks/exit', event: {typeUrl: 'containerd.events.TaskExit', value: encode(M.EVENTS['containerd.events.TaskExit'], {containerId: 'c', exitStatus: 3})}})))
+                    stream.write(encodeFrame(encode(M.Envelope, {namespace: 'test', topic: '/tasks/exit', event: {typeUrl: 'containerd.events.TaskExit', value: encode(M.EVENTS['containerd.events.TaskExit'], {containerId: 'c', exitStatus: 3})}})))
                     return
                 default:
                     return reply([], GRPCStatus.UNIMPLEMENTED, `unknown ${method}`)
@@ -99,7 +99,7 @@ describe('The gRPC client of containerd', (): void => {
             assert.deepStrictEqual(await client.version(), {version: '1.7.0', revision: 'test'})
             assert.strictEqual(await client.getImage('alpine'), undefined)
             assert.strictEqual(seen.find((call): boolean => call.path.endsWith('.Images/Get'))!.headers['containerd-namespace'], 'test')
-            await assert.rejects(client.grpc.unary('/unknown/Method', M.Empty, {}, M.Empty), (error: unknown): boolean => IsGRPCError(error, GRPCStatus.UNIMPLEMENTED) && (error as GRPCError).message === 'unknown /unknown/Method')
+            await assert.rejects(client.grpc.unary('/unknown/Method', M.Empty, {}, M.Empty), (error: unknown): boolean => isGRPCError(error, GRPCStatus.UNIMPLEMENTED) && (error as GRPCError).message === 'unknown /unknown/Method')
         } finally {
             client.close()
         }
@@ -144,7 +144,7 @@ describe('The gRPC client of containerd', (): void => {
 
     it('fails the calls when containerd is not there', async (): Promise<void> => {
         const connection: GRPCConnection = new GRPCConnection(path.join(directory, 'none.sock'))
-        await assert.rejects(connection.unary('/containerd.services.version.v1.Version/Version', M.Empty, {}, M.VersionResponse), (error: unknown): boolean => IsGRPCError(error, GRPCStatus.UNAVAILABLE))
+        await assert.rejects(connection.unary('/containerd.services.version.v1.Version/Version', M.Empty, {}, M.VersionResponse), (error: unknown): boolean => isGRPCError(error, GRPCStatus.UNAVAILABLE))
         connection.close()
     })
 })

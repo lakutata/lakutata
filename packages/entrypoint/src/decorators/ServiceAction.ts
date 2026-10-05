@@ -1,6 +1,6 @@
 import {Controller, type ControllerProperty} from '../lib/Controller.js'
 import {MethodDecorator, ActionPattern, DTO} from '@lakutata/core'
-import {RegisterServiceAction} from '../lib/ControllerEntrypoint.js'
+import {registerServiceAction} from '../lib/ControllerEntrypoint.js'
 import {getActionDTOAndOptions} from '../lib/GetActionDTOAndOptions.js'
 import {ActionOptions} from '../lib/ActionOptions.js'
 import {ServiceContext} from '../context/ServiceContext.js'
@@ -121,7 +121,7 @@ export function ServiceAction<ClassPrototype extends Controller, Method, DTOCons
 export function ServiceAction<ClassPrototype extends Controller, Method, DTOConstructor extends typeof DTO = typeof DTO>(pattern: ActionPattern, dtoConstructorOrOptions?: DTOConstructor | ActionOptions<ServiceContext>, options?: ActionOptions<ServiceContext>): MethodDecorator<ClassPrototype, Method, ControllerProperty<ClassPrototype>> {
     return (target: ClassPrototype, propertyKey: ControllerProperty<ClassPrototype>, descriptor: TypedPropertyDescriptor<Method>): TypedPropertyDescriptor<Method> => {
         const [dtoConstructor, actionOptions] = getActionDTOAndOptions(dtoConstructorOrOptions, options)
-        RegisterServiceAction(pattern, target, propertyKey, dtoConstructor, actionOptions)
+        registerServiceAction(pattern, target, propertyKey, dtoConstructor, actionOptions)
         return descriptor
     }
 }

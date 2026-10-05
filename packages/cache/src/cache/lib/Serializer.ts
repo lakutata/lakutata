@@ -42,7 +42,7 @@ function reviver(key: string, value: unknown): unknown {
  * Serialize data
  * @param data
  */
-export function Serialize(data: unknown): string {
+export function serialize(data: unknown): string {
     return JSON.stringify(data, replacer) ?? 'null'
 }
 
@@ -50,6 +50,6 @@ export function Serialize(data: unknown): string {
  * Deserialize data
  * @param text
  */
-export function Deserialize<T = unknown>(text: string): T {
+export function deserialize<T = unknown>(text: string): T {
     return ESCAPED_STRING.test(text) ? JSON.parse(text, reviver) : JSON.parse(text)
 }

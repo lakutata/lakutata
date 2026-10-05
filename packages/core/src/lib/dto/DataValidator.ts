@@ -31,7 +31,7 @@ import {LinkSchema} from '../validation/interfaces/LinkSchema.js'
 import {BigIntSchema} from '../validation/interfaces/BigIntSchema.js'
 import {pure} from '../validation/engine/schema/fastpath.js'
 import {type CronOptions} from '../../types/CronOptions.js'
-import {IsValidCron} from './internal/CronValidator.js'
+import {isValidCron} from './internal/CronValidator.js'
 
 export class DataValidator {
 
@@ -205,7 +205,7 @@ export class DataValidator {
             allowSevenAsSunday: options?.allowSevenAsSunday !== undefined ? options.allowSevenAsSunday : true
         }
         return this.String<TSchema>().custom(pure((value: TSchema, helpers: CustomHelpers) => {
-            if (typeof value === 'string' && IsValidCron(value, cronOptions)) return value
+            if (typeof value === 'string' && isValidCron(value, cronOptions)) return value
             return helpers.error('any.invalid')
         }), 'Cron Validation')
     }

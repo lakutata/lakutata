@@ -2,8 +2,8 @@ import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {BaseObject} from '../../lib/base/BaseObject.js'
 import {Component} from '../../lib/core/Component.js'
-import {Container, RegisterTeardownHook} from '../../lib/core/Container.js'
-import {SetLifecycleErrorReporter} from '../../lib/foundation/LifecycleErrorReporter.js'
+import {Container, registerTeardownHook} from '../../lib/core/Container.js'
+import {setLifecycleErrorReporter} from '../../lib/foundation/LifecycleErrorReporter.js'
 import {Module} from '../../lib/core/Module.js'
 import {ObjectDestroyedException} from '../../exceptions/ObjectDestroyedException.js'
 import {LifetimeLockedException} from '../../exceptions/di/LifetimeLockedException.js'
@@ -185,7 +185,7 @@ class DestroyCounter extends BaseObject {
 await describe('Lifecycle Test', async function (): Promise<void> {
     await it('container destroy settles when a transient object throws in destroy()', async (): Promise<void> => {
         const reported: Error[] = []
-        SetLifecycleErrorReporter((error: Error): void => void reported.push(error))
+        setLifecycleErrorReporter((error: Error): void => void reported.push(error))
         const root: Container = new Container()
         await root.load([Owner, ThrowOnDestroy, DestroyCounter])
         const owner: Owner = await root.get(Owner)
@@ -196,7 +196,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         assert.equal(DestroyCounter.count, 1, 'other objects are still destroyed')
         assert.equal(reported.length, 1, 'the destroy error is reported, not swallowed')
         assert.match(reported[0].message, /ThrowOnDestroy.*destroy failed/, 'the report names the failing object')
-        SetLifecycleErrorReporter()
+        setLifecycleErrorReporter()
     })
 
     await it('dispose() destroys the objects created by the disposed object', async (): Promise<void> => {
@@ -231,7 +231,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
 
     await it('dispose() throws its own destroy() error and reports errors of cascaded children', async (): Promise<void> => {
         const reported: Error[] = []
-        SetLifecycleErrorReporter((error: Error): void => void reported.push(error))
+        setLifecycleErrorReporter((error: Error): void => void reported.push(error))
         const root: Container = new Container()
         await root.load([Owner, ThrowOnDestroy, HolderWithFailingLeaf])
         const owner: Owner = await root.get(Owner)
@@ -239,7 +239,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         await (await owner.take(HolderWithFailingLeaf)).dispose()
         assert.equal(reported.length, 1, 'the failing child is reported, not thrown to the caller')
         await root.destroy()
-        SetLifecycleErrorReporter()
+        setLifecycleErrorReporter()
     })
 
     await it('await using disposes the object when the block exits', async (): Promise<void> => {
@@ -406,13 +406,13 @@ await describe('Lifecycle Test', async function (): Promise<void> {
 
     await it('a destroy error delivered to dispose() is not reported again', async (): Promise<void> => {
         const reported: Error[] = []
-        SetLifecycleErrorReporter((error: Error): void => void reported.push(error))
+        setLifecycleErrorReporter((error: Error): void => void reported.push(error))
         const root: Container = new Container()
         await root.load([Owner, ThrowOnDestroy])
         await assert.rejects((await (await root.get(Owner)).take(ThrowOnDestroy)).dispose())
         await root.destroy()
         assert.equal(reported.length, 0)
-        SetLifecycleErrorReporter()
+        setLifecycleErrorReporter()
     })
 
     await it('a destroyed container refuses to resolve or build objects', async (): Promise<void> => {
@@ -438,11 +438,11 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         const scope: Container = root.createScope()
         const scoped: ScopedObject = await scope.build(ScopedObject)
         const seen: boolean[] = []
-        RegisterTeardownHook(root, async (): Promise<void> => {
+        registerTeardownHook(root, async (): Promise<void> => {
             await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 10))
             seen.push(scoped.destroyed)
         })
-        const unregistered: () => void = RegisterTeardownHook(root, async (): Promise<void> => {
+        const unregistered: () => void = registerTeardownHook(root, async (): Promise<void> => {
             seen.push(true)
         })
         unregistered()
@@ -482,7 +482,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
             assert.deepStrictEqual(events, ['GracefulHolder.beforeDestroy', 'Leaf.destroy', 'GracefulHolder.destroy'])
             await root.destroy()
             const reported: Error[] = []
-            SetLifecycleErrorReporter((error: Error): void => void reported.push(error))
+            setLifecycleErrorReporter((error: Error): void => void reported.push(error))
             const other: Container = new Container()
             await other.load([GracefulHolder])
             await other.get(GracefulHolder)
@@ -492,7 +492,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
             assert.ok(reported.some((error: Error): boolean => /beforeDestroy failed/.test(error.message)))
         } finally {
             GracefulHolder.failing = false
-            SetLifecycleErrorReporter()
+            setLifecycleErrorReporter()
         }
     })
 
@@ -525,7 +525,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
 
     await it('an error of launched() is reported, with the hook named', async (): Promise<void> => {
         const reported: [Error, string][] = []
-        SetLifecycleErrorReporter((error: Error, message: string): void => void reported.push([error, message]))
+        setLifecycleErrorReporter((error: Error, message: string): void => void reported.push([error, message]))
         LaunchAware.failing = true
         try {
             const root: Container = new Container()
@@ -538,7 +538,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
             await root.destroy()
         } finally {
             LaunchAware.failing = false
-            SetLifecycleErrorReporter()
+            setLifecycleErrorReporter()
         }
     })
 

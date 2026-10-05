@@ -4,7 +4,7 @@ import {DataSource} from '../../../exports/ORM.js'
 import {Column, Entity, PrimaryGeneratedColumn} from '../../../exports/ORMDecorators.js'
 import {buildDatabaseOptions, Database} from '../../../exports/DatabaseComponent.js'
 import {buildCacherOptions, Cacher} from '../../../exports/CacherComponent.js'
-import {RunChecks} from '../support/Scenario.js'
+import {runChecks} from '../support/Scenario.js'
 
 /**
  * The server of the scenario: POSTGRES_URL (the PostgreSQL of packages/orm/docker-compose.test.yml), a database created
@@ -29,7 +29,7 @@ class Device {
  * The cache stored in a table of the database, as oims declares its caches
  * @param namespace
  */
-const PostgresCache = (namespace: string): ReturnType<typeof buildCacherOptions> => buildCacherOptions({
+const postgresCache = (namespace: string): ReturnType<typeof buildCacherOptions> => buildCacherOptions({
     stores: {
         type: 'postgres',
         host: server.hostname,
@@ -50,12 +50,12 @@ Application
         components: {
             log: {level: 'warn'},
             db: buildDatabaseOptions({type: 'postgres', url: databaseURL(name), entities: [Device], synchronize: true}),
-            tokens: PostgresCache('integration.tokens'),
-            sessions: PostgresCache('integration.sessions')
+            tokens: postgresCache('integration.tokens'),
+            sessions: postgresCache('integration.sessions')
         },
         bootstrap: ['db']
     }))
-    .onLaunched((app: Application): Promise<void> => RunChecks(app, async (check): Promise<void> => {
+    .onLaunched((app: Application): Promise<void> => runChecks(app, async (check): Promise<void> => {
         try {
             const tokens: Cacher = await app.getObject<Cacher>('tokens')
             const sessions: Cacher = await app.getObject<Cacher>('sessions')

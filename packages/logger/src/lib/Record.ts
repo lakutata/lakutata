@@ -1,8 +1,8 @@
 //Derived from the upstream projects listed in THIRD_PARTY_NOTICES.md (rewritten in TypeScript)
 import {hostname} from 'node:os'
-import {Format} from './Format.js'
-import {SerializeError, SerializeRequest, SerializeResponse} from './Serializers.js'
-import {Stringify} from './Stringify.js'
+import {format} from './Format.js'
+import {serializeError, serializeRequest, serializeResponse} from './Serializers.js'
+import {stringify} from './Stringify.js'
 
 export const LEVELS: Record<string, number> = {trace: 10, debug: 20, info: 30, warn: 40, error: 50, fatal: 60, silent: Infinity}
 
@@ -12,7 +12,7 @@ const HOSTNAME: string = hostname()
  * The JSON of a log value, undefined if it is not logged
  * @param value
  */
-function ValueJSON(value: unknown): string | undefined {
+function valueJSON(value: unknown): string | undefined {
     switch (typeof value) {
         case 'undefined':
         case 'function':
@@ -24,7 +24,7 @@ function ValueJSON(value: unknown): string | undefined {
         case 'string':
             return JSON.stringify(value)
         default:
-            return Stringify(value)
+            return stringify(value)
     }
 }
 
@@ -44,7 +44,7 @@ export type LogRecord = {
  * The bindings of the log lines of an application: pid, hostname and name
  * @param name
  */
-export function Bindings(name: string): LogBindings {
+export function logBindings(name: string): LogBindings {
     return {json: `,"pid":${process.pid},"hostname":${JSON.stringify(HOSTNAME)},"name":${JSON.stringify(name)}`, name: name}
 }
 
@@ -53,7 +53,7 @@ export function Bindings(name: string): LogBindings {
  * @param value
  * @param json
  */
-function ParsedValue(value: unknown, json: string): unknown {
+function parsedValue(value: unknown, json: string): unknown {
     switch (typeof value) {
         case 'string':
         case 'boolean':
@@ -71,7 +71,7 @@ function ParsedValue(value: unknown, json: string): unknown {
  * @param key
  * @param value
  */
-function SetParsed(log: Record<string, unknown>, key: string, value: unknown): void {
+function setParsed(log: Record<string, unknown>, key: string, value: unknown): void {
     key === '__proto__' ? Object.defineProperty(log, key, {value: value, enumerable: true, writable: true, configurable: true}) : log[key] = value
 }
 
@@ -85,7 +85,7 @@ function SetParsed(log: Record<string, unknown>, key: string, value: unknown): v
  * @param parse whether to also build the parsed line
  * @param redacted the lower-case names of the headers of an HTTP request or response written as [Redacted]
  */
-export function BuildRecord(level: number, bindings: LogBindings, args: unknown[], parse: boolean = false, redacted: ReadonlySet<string> = new Set()): LogRecord {
+export function buildRecord(level: number, bindings: LogBindings, args: unknown[], parse: boolean = false, redacted: ReadonlySet<string> = new Set()): LogRecord {
     let object: any = null
     let message: unknown
     let [first, ...rest] = args
@@ -93,9 +93,9 @@ export function BuildRecord(level: number, bindings: LogBindings, args: unknown[
         message = first
         if (first !== null) {
             if ((first as any).method && (first as any).headers && (first as any).socket) {
-                first = {req: SerializeRequest(first, redacted)}
+                first = {req: serializeRequest(first, redacted)}
             } else if (typeof (first as any).setHeader === 'function') {
-                first = {res: SerializeResponse(first, redacted)}
+                first = {res: serializeResponse(first, redacted)}
             }
         }
         let formatArgs: unknown[]
@@ -106,9 +106,9 @@ export function BuildRecord(level: number, bindings: LogBindings, args: unknown[
             formatArgs = rest
         }
         object = first
-        message = Format(message, formatArgs)
+        message = format(message, formatArgs)
     } else {
-        message = Format(first === undefined ? rest.shift() : first, rest)
+        message = format(first === undefined ? rest.shift() : first, rest)
     }
     if (object === undefined || object === null) {
         object = {}
@@ -124,18 +124,18 @@ export function BuildRecord(level: number, bindings: LogBindings, args: unknown[
     for (const key in object) {
         let value: unknown = object[key]
         if (!Object.prototype.hasOwnProperty.call(object, key) || value === undefined) continue
-        if (key === 'err') value = SerializeError(value)
-        const json: string | undefined = ValueJSON(value)
+        if (key === 'err') value = serializeError(value)
+        const json: string | undefined = valueJSON(value)
         if (json === undefined) continue
         line += `,${JSON.stringify(key)}:${json}`
-        if (log) SetParsed(log, key, ParsedValue(value, json))
+        if (log) setParsed(log, key, parsedValue(value, json))
     }
     if (message !== undefined && typeof message !== 'function') {
-        const json: string | undefined = typeof message === 'string' ? JSON.stringify(message) : ValueJSON(message)
+        const json: string | undefined = typeof message === 'string' ? JSON.stringify(message) : valueJSON(message)
         //A message which cannot be serialized (a symbol) is omitted
         if (json !== undefined) {
             line += `,"msg":${json}`
-            if (log) SetParsed(log, 'msg', ParsedValue(message, json))
+            if (log) setParsed(log, 'msg', parsedValue(message, json))
         }
     }
     return {line: `${line}}\n`, log: log}

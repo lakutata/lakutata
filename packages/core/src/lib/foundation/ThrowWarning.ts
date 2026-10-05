@@ -9,6 +9,6 @@ class Warning extends Error {
  * @param message
  * @constructor
  */
-export function ThrowWarning(message: string): boolean {
+export function throwWarning(message: string): boolean {
     return process.emit('warning', new Warning(message))
 }

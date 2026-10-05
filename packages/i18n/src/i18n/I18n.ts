@@ -2,9 +2,9 @@ import path from 'node:path'
 import {Component, DTO, loadValidationMessages, registerValidationMessages, type ComponentOptions, type ComponentOptionsBuilder} from '@lakutata/core'
 import {Configurable} from '@lakutata/core/decorator/di'
 import type {I18nOptions} from './interfaces/I18nOptions.js'
-import {FlattenMessages, LoadDirectory, MergeMessages, type Catalogs, type NestedMessages} from './lib/Catalog.js'
+import {flattenMessages, loadDirectory, mergeMessages, type Catalogs, type NestedMessages} from './lib/Catalog.js'
 import {fallbackChain, negotiateLocale, normalizeLocale} from './lib/Locale.js'
-import {FormatMessage, parseMessage, type FormatContext, type MessagePart} from './lib/MessageFormat.js'
+import {formatMessage, parseMessage, type FormatContext, type MessagePart} from './lib/MessageFormat.js'
 import {LocaleTranslator} from './lib/LocaleTranslator.js'
 import type {ITranslator} from './interfaces/ITranslator.js'
 import type {MessageKey, MessageParams} from './types/I18nMessages.js'
@@ -196,7 +196,7 @@ export class I18n extends Component {
             this.#fallbacks[this.locale(locale, 'fallback')] = (Array.isArray(fallbacks) ? fallbacks : [fallbacks]).map((fallback: string): string => this.locale(fallback, 'fallback'))
         }
         const directories: string[] = this.directory === undefined ? [] : Array.isArray(this.directory) ? this.directory : [this.directory]
-        for (const directory of directories) await LoadDirectory(this.#catalogs, this.resolvePath(directory))
+        for (const directory of directories) await loadDirectory(this.#catalogs, this.resolvePath(directory))
         for (const [locale, messages] of Object.entries(this.messages ?? {})) this.merge(locale, messages)
         this.#supported = this.locales
             ? this.locales.map((locale: string): string => this.locale(locale, 'locales'))
@@ -385,8 +385,8 @@ export class I18n extends Component {
      */
     protected merge(locale: string, messages: NestedMessages): Map<string, string> {
         const tag: string = this.locale(locale, 'messages')
-        const flattened: Map<string, string> = FlattenMessages(messages, `messages of ${tag}`)
-        MergeMessages(this.#catalogs, tag, flattened)
+        const flattened: Map<string, string> = flattenMessages(messages, `messages of ${tag}`)
+        mergeMessages(this.#catalogs, tag, flattened)
         //The messages replaced are parsed again
         for (const key of this.#parsed.keys()) if (key.startsWith(`${tag}\u0000`)) this.#parsed.delete(key)
         return flattened
@@ -458,7 +458,7 @@ export class I18n extends Component {
             return key
         }
         //Formatted in the language asked, its numbers and plurals too
-        return FormatMessage(message.parts, (params ?? {}) as Record<string, unknown>, this.context(tag), `${message.locale}: ${key}`)
+        return formatMessage(message.parts, (params ?? {}) as Record<string, unknown>, this.context(tag), `${message.locale}: ${key}`)
     }
 
     /**
@@ -475,7 +475,7 @@ export class I18n extends Component {
      */
     public format(message: string, params?: Record<string, unknown>, locale: string = this.#default): string {
         const tag: string = normalizeLocale(locale) ?? this.#default
-        return FormatMessage(parseMessage(message), params ?? {}, this.context(tag), `message "${message}"`)
+        return formatMessage(parseMessage(message), params ?? {}, this.context(tag), `message "${message}"`)
     }
 
     /**

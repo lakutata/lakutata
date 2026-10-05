@@ -6,11 +6,11 @@ import path from 'node:path'
 import type {Readable} from 'node:stream'
 import {pipeline} from 'node:stream/promises'
 import {extract as tarExtract, pack as tarPack, type Header, type Pack} from 'tar-stream'
-import {ContainerdClient, IsGRPCError, type ContentDescriptor} from './ContainerdClient.js'
+import {ContainerdClient, isGRPCError, type ContentDescriptor} from './ContainerdClient.js'
 import {GRPCStatus, type Message} from '@lakutata/grpc'
-import {FormatPlatform, HostPlatform, MatchPlatform, NormalizePlatform, PlatformRank, type Platform} from './Platforms.js'
-import {ImageName, ParseReference, type ImageReference} from './Reference.js'
-import {Digest, IsIndex, IsManifest, MediaTypes, RegistryClient, type RegistryOptions} from './Registry.js'
+import {formatPlatform, hostPlatform, matchPlatform, normalizePlatform, platformRank, type Platform} from './Platforms.js'
+import {imageName, parseReference, type ImageReference} from './Reference.js'
+import {digestOf, isIndex, isManifest, MediaTypes, RegistryClient, type RegistryOptions} from './Registry.js'
 
 /**
  * A manifest of an image (OCI, Docker)
@@ -127,7 +127,7 @@ const Labels = {
  * The bytes of a stream, whole
  * @param chunks
  */
-async function Collect(chunks: AsyncIterable<Uint8Array>): Promise<Buffer> {
+async function collect(chunks: AsyncIterable<Uint8Array>): Promise<Buffer> {
     const all: Buffer[] = []
     for await (const chunk of chunks) all.push(Buffer.from(chunk))
     return Buffer.concat(all)
@@ -137,7 +137,7 @@ async function Collect(chunks: AsyncIterable<Uint8Array>): Promise<Buffer> {
  * The identifiers of the chain of layers (OCI): the ones of the snapshots of their unpacking
  * @param diffIds
  */
-export function ChainIds(diffIds: string[]): string[] {
+export function chainIds(diffIds: string[]): string[] {
     const chain: string[] = []
     for (const diffId of diffIds) {
         chain.push(chain.length ? `sha256:${createHash('sha256').update(`${chain[chain.length - 1]} ${diffId}`).digest('hex')}` : diffId)
@@ -149,8 +149,8 @@ export function ChainIds(diffIds: string[]): string[] {
  * The platform of the configuration of an image
  * @param config
  */
-function ConfigPlatform(config: ImageConfigFile): Platform {
-    return NormalizePlatform({os: config.os, architecture: config.architecture, variant: config.variant})
+function configPlatform(config: ImageConfigFile): Platform {
+    return normalizePlatform({os: config.os, architecture: config.architecture, variant: config.variant})
 }
 
 /**
@@ -167,7 +167,7 @@ export class ImageStore {
      * @param runnablePlatforms the platforms the machine runs, unpacked by the pulls and the imports (the one of the
      * machine by default)
      */
-    constructor(protected readonly client: ContainerdClient, public readonly snapshotter: string, public readonly temporary: string = os.tmpdir(), public readonly runnablePlatforms: () => Platform[] = (): Platform[] => [HostPlatform()]) {
+    constructor(protected readonly client: ContainerdClient, public readonly snapshotter: string, public readonly temporary: string = os.tmpdir(), public readonly runnablePlatforms: () => Platform[] = (): Platform[] => [hostPlatform()]) {
     }
 
     /**
@@ -187,8 +187,8 @@ export class ImageStore {
     protected async chooseManifest(index: ImageIndex, platform: Platform, local: boolean): Promise<ContentDescriptor | undefined> {
         let best: { descriptor: ContentDescriptor, rank: number } | undefined
         for (const descriptor of index.manifests) {
-            if (!IsManifest(descriptor.mediaType) || !descriptor.platform) continue
-            const rank: number | undefined = PlatformRank(descriptor.platform, platform)
+            if (!isManifest(descriptor.mediaType) || !descriptor.platform) continue
+            const rank: number | undefined = platformRank(descriptor.platform, platform)
             if (rank === undefined || (best && best.rank <= rank)) continue
             if (local && !(await this.client.contentInfo(descriptor.digest))) continue
             best = {descriptor: descriptor, rank: rank}
@@ -201,7 +201,7 @@ export class ImageStore {
      * @param name
      */
     public async get(name: string): Promise<Message | undefined> {
-        return await this.client.getImage(ImageName(name)) ?? (ImageName(name) === name ? undefined : await this.client.getImage(name))
+        return await this.client.getImage(imageName(name)) ?? (imageName(name) === name ? undefined : await this.client.getImage(name))
     }
 
     /**
@@ -209,19 +209,19 @@ export class ImageStore {
      * @param name
      * @param platform the one of the machine by default
      */
-    public async resolve(name: string, platform: Platform = HostPlatform()): Promise<ResolvedImage> {
+    public async resolve(name: string, platform: Platform = hostPlatform()): Promise<ResolvedImage> {
         const image: Message | undefined = await this.get(name)
         if (!image) throw Object.assign(new Error(`The image ${name} does not exist`), {code: 'NOT_FOUND'})
         const target: ContentDescriptor = image.target
         let manifestDescriptor: ContentDescriptor = target
-        if (IsIndex(target.mediaType)) {
+        if (isIndex(target.mediaType)) {
             const chosen: ContentDescriptor | undefined = await this.chooseManifest(await this.readJson<ImageIndex>(target.digest), platform, true)
-            if (!chosen) throw Object.assign(new Error(`The image ${name} has no manifest of the platform ${FormatPlatform(platform)}`), {code: 'PLATFORM'})
+            if (!chosen) throw Object.assign(new Error(`The image ${name} has no manifest of the platform ${formatPlatform(platform)}`), {code: 'PLATFORM'})
             manifestDescriptor = chosen
         }
         const manifest: ImageManifest = await this.readJson<ImageManifest>(manifestDescriptor.digest)
         const config: ImageConfigFile = await this.readJson<ImageConfigFile>(manifest.config.digest)
-        return {image: image, name: image.name, target: target, manifestDescriptor: manifestDescriptor, manifest: manifest, config: config, platform: ConfigPlatform(config)}
+        return {image: image, name: image.name, target: target, manifestDescriptor: manifestDescriptor, manifest: manifest, config: config, platform: configPlatform(config)}
     }
 
     /**
@@ -231,10 +231,10 @@ export class ImageStore {
     public async platforms(name: string): Promise<Platform[]> {
         const image: Message | undefined = await this.get(name)
         if (!image) return []
-        if (!IsIndex(image.target.mediaType)) return [ConfigPlatform(await this.readJson<ImageConfigFile>((await this.readJson<ImageManifest>(image.target.digest)).config.digest))]
+        if (!isIndex(image.target.mediaType)) return [configPlatform(await this.readJson<ImageConfigFile>((await this.readJson<ImageManifest>(image.target.digest)).config.digest))]
         const platforms: Platform[] = []
         for (const descriptor of (await this.readJson<ImageIndex>(image.target.digest)).manifests) {
-            if (descriptor.platform && IsManifest(descriptor.mediaType) && await this.client.contentInfo(descriptor.digest)) platforms.push(NormalizePlatform(descriptor.platform))
+            if (descriptor.platform && isManifest(descriptor.mediaType) && await this.client.contentInfo(descriptor.digest)) platforms.push(normalizePlatform(descriptor.platform))
         }
         return platforms
     }
@@ -249,7 +249,7 @@ export class ImageStore {
         const config: ImageConfigFile = await this.readJson<ImageConfigFile>(manifest.config.digest)
         const diffIds: string[] = config.rootfs?.diff_ids ?? []
         if (diffIds.length !== manifest.layers.length) throw new Error(`The image ${manifest.config.digest} has ${manifest.layers.length} layers and ${diffIds.length} identifiers of them`)
-        const chain: string[] = ChainIds(diffIds)
+        const chain: string[] = chainIds(diffIds)
         for (let index = 0; index < chain.length; index++) {
             if (await this.client.statSnapshot(this.snapshotter, chain[index])) continue
             const key: string = `extract-${randomBytes(6).toString('hex')}-${chain[index]}`
@@ -261,7 +261,7 @@ export class ImageStore {
             } catch (error: unknown) {
                 await this.client.removeSnapshot(this.snapshotter, key)
                 //Unpacked meanwhile
-                if (IsGRPCError(error, GRPCStatus.ALREADY_EXISTS)) continue
+                if (isGRPCError(error, GRPCStatus.ALREADY_EXISTS)) continue
                 throw error
             }
         }
@@ -280,7 +280,7 @@ export class ImageStore {
      */
     protected async writeImage(manifest: ImageManifest, blob: (descriptor: ContentDescriptor) => Promise<Uint8Array | AsyncIterable<Uint8Array>>, lease: string, labels: Record<string, string>, progress?: (progress: TransferProgress) => void): Promise<void> {
         const configData: Uint8Array | AsyncIterable<Uint8Array> = await blob(manifest.config)
-        const configBytes: Buffer = configData instanceof Uint8Array ? Buffer.from(configData) : await Collect(configData)
+        const configBytes: Buffer = configData instanceof Uint8Array ? Buffer.from(configData) : await collect(configData)
         await this.client.writeContent(manifest.config, configBytes, lease, labels)
         const config: ImageConfigFile = JSON.parse(configBytes.toString('utf8')) as ImageConfigFile
         for (let index = 0; index < manifest.layers.length; index++) {
@@ -321,25 +321,25 @@ export class ImageStore {
      * @param options
      */
     public async pull(reference: string, options: PullOptions = {}): Promise<string> {
-        const parsed: ImageReference = ParseReference(reference)
+        const parsed: ImageReference = parseReference(reference)
         const registry: RegistryClient = new RegistryClient(parsed, options.registry)
-        const platforms: Platform[] | 'all' = options.platforms ?? [HostPlatform()]
+        const platforms: Platform[] | 'all' = options.platforms ?? [hostPlatform()]
         const source: Record<string, string> = {[Labels.source(parsed.registry)]: parsed.repository}
         const lease: string = await this.client.createLease()
         try {
             const root = await registry.resolve(parsed.digest ?? parsed.tag!)
             const manifests: { descriptor: ContentDescriptor, data: Buffer, index?: number }[] = []
-            if (IsIndex(root.descriptor.mediaType)) {
+            if (isIndex(root.descriptor.mediaType)) {
                 const index: ImageIndex = JSON.parse(root.data.toString('utf8')) as ImageIndex
                 const chosen: Set<ContentDescriptor> = new Set()
                 if (platforms === 'all') {
-                    index.manifests.filter((descriptor: ContentDescriptor): boolean => IsManifest(descriptor.mediaType) && descriptor.platform?.os !== 'unknown').forEach((descriptor: ContentDescriptor): unknown => chosen.add(descriptor))
+                    index.manifests.filter((descriptor: ContentDescriptor): boolean => isManifest(descriptor.mediaType) && descriptor.platform?.os !== 'unknown').forEach((descriptor: ContentDescriptor): unknown => chosen.add(descriptor))
                 } else {
                     for (const platform of platforms) {
                         const descriptor: ContentDescriptor | undefined = await this.chooseManifest(index, platform, false)
                         if (!descriptor) {
-                            const available: string = index.manifests.filter((item: ContentDescriptor): boolean => !!item.platform && item.platform.os !== 'unknown').map((item: ContentDescriptor): string => FormatPlatform(NormalizePlatform(item.platform!))).join(', ')
-                            throw Object.assign(new Error(`The image ${parsed.name} has no manifest of the platform ${FormatPlatform(platform)} (it has ${available})`), {code: 'PLATFORM'})
+                            const available: string = index.manifests.filter((item: ContentDescriptor): boolean => !!item.platform && item.platform.os !== 'unknown').map((item: ContentDescriptor): string => formatPlatform(normalizePlatform(item.platform!))).join(', ')
+                            throw Object.assign(new Error(`The image ${parsed.name} has no manifest of the platform ${formatPlatform(platform)} (it has ${available})`), {code: 'PLATFORM'})
                         }
                         chosen.add(descriptor)
                     }
@@ -353,7 +353,7 @@ export class ImageStore {
                 await this.writeImage(manifest, (blob: ContentDescriptor): Promise<AsyncIterable<Uint8Array>> => registry.fetchBlob(blob), lease, source, options.progress)
                 await this.client.writeContent(descriptor, data, lease, {...source, ...this.manifestLabels(manifest)})
             }
-            if (IsIndex(root.descriptor.mediaType)) {
+            if (isIndex(root.descriptor.mediaType)) {
                 const labels: Record<string, string> = {...source}
                 manifests.forEach(({descriptor, index}): unknown => labels[Labels.contentRef('m', index)] = descriptor.digest)
                 await this.client.writeContent(root.descriptor, root.data, lease, labels)
@@ -375,15 +375,15 @@ export class ImageStore {
     protected async unpackFor(name: string, lease: string): Promise<void> {
         const image: Message | undefined = await this.get(name)
         if (!image) return
-        const manifests: ContentDescriptor[] = IsIndex(image.target.mediaType)
-            ? (await this.readJson<ImageIndex>(image.target.digest)).manifests.filter((descriptor: ContentDescriptor): boolean => IsManifest(descriptor.mediaType))
+        const manifests: ContentDescriptor[] = isIndex(image.target.mediaType)
+            ? (await this.readJson<ImageIndex>(image.target.digest)).manifests.filter((descriptor: ContentDescriptor): boolean => isManifest(descriptor.mediaType))
             : [image.target]
         const runnable: Platform[] = this.runnablePlatforms()
         for (const descriptor of manifests) {
             if (!(await this.client.contentInfo(descriptor.digest))) continue
             const manifest: ImageManifest = await this.readJson<ImageManifest>(descriptor.digest)
-            const platform: Platform = descriptor.platform ? NormalizePlatform(descriptor.platform) : ConfigPlatform(await this.readJson<ImageConfigFile>(manifest.config.digest))
-            if (!runnable.some((item: Platform): boolean => MatchPlatform(platform, item))) continue
+            const platform: Platform = descriptor.platform ? normalizePlatform(descriptor.platform) : configPlatform(await this.readJson<ImageConfigFile>(manifest.config.digest))
+            if (!runnable.some((item: Platform): boolean => matchPlatform(platform, item))) continue
             await this.unpack(manifest, lease)
         }
     }
@@ -398,7 +398,7 @@ export class ImageStore {
     public async push(name: string, options: { reference?: string, platform?: Platform, registry?: RegistryOptions, progress?: (progress: TransferProgress) => void } = {}): Promise<void> {
         const image: Message | undefined = await this.get(name)
         if (!image) throw Object.assign(new Error(`The image ${name} does not exist`), {code: 'NOT_FOUND'})
-        const parsed: ImageReference = ParseReference(options.reference ?? image.name)
+        const parsed: ImageReference = parseReference(options.reference ?? image.name)
         const registry: RegistryClient = new RegistryClient(parsed, options.registry)
         const tag: string = parsed.tag ?? parsed.digest!
         const pushManifest = async (descriptor: ContentDescriptor, reference: string): Promise<void> => {
@@ -411,10 +411,10 @@ export class ImageStore {
             await registry.pushManifest(reference, descriptor.mediaType, data)
         }
         const target: ContentDescriptor = image.target
-        if (!IsIndex(target.mediaType)) {
+        if (!isIndex(target.mediaType)) {
             if (options.platform) {
-                const platform: Platform = ConfigPlatform(await this.readJson<ImageConfigFile>((await this.readJson<ImageManifest>(target.digest)).config.digest))
-                if (!MatchPlatform(platform, options.platform)) throw Object.assign(new Error(`The image ${name} has no manifest of the platform ${FormatPlatform(options.platform)} to push (it is ${FormatPlatform(platform)})`), {code: 'PLATFORM'})
+                const platform: Platform = configPlatform(await this.readJson<ImageConfigFile>((await this.readJson<ImageManifest>(target.digest)).config.digest))
+                if (!matchPlatform(platform, options.platform)) throw Object.assign(new Error(`The image ${name} has no manifest of the platform ${formatPlatform(options.platform)} to push (it is ${formatPlatform(platform)})`), {code: 'PLATFORM'})
             }
             return await pushManifest(target, tag)
         }
@@ -425,8 +425,8 @@ export class ImageStore {
             for (const descriptor of local) await pushManifest(descriptor, descriptor.digest)
             return await registry.pushManifest(tag, target.mediaType, await this.client.readAll(target.digest))
         }
-        const chosen: ContentDescriptor | undefined = await this.chooseManifest(index, options.platform ?? HostPlatform(), true)
-        if (!chosen) throw Object.assign(new Error(`The image ${name} has no manifest of the platform ${FormatPlatform(options.platform ?? HostPlatform())} to push`), {code: 'PLATFORM'})
+        const chosen: ContentDescriptor | undefined = await this.chooseManifest(index, options.platform ?? hostPlatform(), true)
+        if (!chosen) throw Object.assign(new Error(`The image ${name} has no manifest of the platform ${formatPlatform(options.platform ?? hostPlatform())} to push`), {code: 'PLATFORM'})
         await pushManifest(chosen, tag)
     }
 
@@ -437,11 +437,11 @@ export class ImageStore {
      */
     public async commit(options: { image: string, platform: Platform, snapshotKey: string, name: string, changes?: ImageConfigChanges, comment?: string, author?: string }): Promise<string> {
         const base: ResolvedImage = await this.resolve(options.image, options.platform)
-        const name: string = ImageName(options.name)
+        const name: string = imageName(options.name)
         const lease: string = await this.client.createLease()
         const view: string = `commit-${randomBytes(6).toString('hex')}`
         try {
-            const chain: string[] = ChainIds(base.config.rootfs?.diff_ids ?? [])
+            const chain: string[] = chainIds(base.config.rootfs?.diff_ids ?? [])
             const left = chain.length ? await this.client.viewSnapshot(this.snapshotter, view, chain[chain.length - 1], lease) : []
             const right = await this.client.snapshotMounts(this.snapshotter, options.snapshotKey)
             const layer: ContentDescriptor = await this.client.diff(left, right, lease)
@@ -469,7 +469,7 @@ export class ImageStore {
             if (options.author) config.author = options.author
             config.history = [...config.history ?? [], {created: created, created_by: 'lakutata commit', ...options.comment ? {comment: options.comment} : {}, ...options.author ? {author: options.author} : {}}]
             const configData: Buffer = Buffer.from(JSON.stringify(config))
-            const configDescriptor: ContentDescriptor = {mediaType: MediaTypes.OCI_CONFIG, digest: Digest(configData), size: configData.length}
+            const configDescriptor: ContentDescriptor = {mediaType: MediaTypes.OCI_CONFIG, digest: digestOf(configData), size: configData.length}
             await this.client.writeContent(configDescriptor, configData, lease)
             const manifest: ImageManifest = {
                 schemaVersion: 2,
@@ -478,7 +478,7 @@ export class ImageStore {
                 layers: [...base.manifest.layers.map((item: ContentDescriptor): ContentDescriptor => ({mediaType: item.mediaType, digest: item.digest, size: item.size})), {mediaType: layer.mediaType, digest: layer.digest, size: Number(layer.size)}]
             }
             const manifestData: Buffer = Buffer.from(JSON.stringify(manifest))
-            const manifestDescriptor: ContentDescriptor = {mediaType: MediaTypes.OCI_MANIFEST, digest: Digest(manifestData), size: manifestData.length}
+            const manifestDescriptor: ContentDescriptor = {mediaType: MediaTypes.OCI_MANIFEST, digest: digestOf(manifestData), size: manifestData.length}
             await this.client.writeContent(manifestDescriptor, manifestData, lease, this.manifestLabels(manifest))
             await this.client.putImage({name: name, target: manifestDescriptor}, lease)
             await this.unpack(manifest, lease)
@@ -497,7 +497,7 @@ export class ImageStore {
     public async tag(name: string, reference: string): Promise<string> {
         const image: Message | undefined = await this.get(name)
         if (!image) throw Object.assign(new Error(`The image ${name} does not exist`), {code: 'NOT_FOUND'})
-        const target: string = ImageName(reference)
+        const target: string = imageName(reference)
         await this.client.putImage({name: target, target: image.target, labels: image.labels})
         return target
     }
@@ -529,7 +529,7 @@ export class ImageStore {
             const blobFile = (digest: string): string => file(`blobs/${digest.replace(':', '/')}`)
             const exists = async (name: string): Promise<boolean> => !!(await stat(name).catch((): undefined => undefined))
             const names: string[] = []
-            const named = (name: string | undefined): string | undefined => options.name ? ImageName(options.name) : name ? ImageName(name) : undefined
+            const named = (name: string | undefined): string | undefined => options.name ? imageName(options.name) : name ? imageName(name) : undefined
             const index: ImageIndex | undefined = await exists(file('index.json')) ? JSON.parse(await readFile(file('index.json'), 'utf8')) as ImageIndex : undefined
             const entries = await exists(file('manifest.json')) ? JSON.parse(await readFile(file('manifest.json'), 'utf8')) as { Config: string, RepoTags?: string[] | null, Layers: string[] }[] : []
             if (options.name) {
@@ -555,20 +555,20 @@ export class ImageStore {
                     const layerFiles: Map<string, string> = new Map()
                     for (const layer of entry.Layers) {
                         const data: Buffer = await readFile(file(layer))
-                        const digest: string = Digest(data)
+                        const digest: string = digestOf(data)
                         const magic: string = data.subarray(0, 4).toString('hex')
                         const mediaType: string = magic.startsWith('1f8b') ? MediaTypes.DOCKER_LAYER_GZIP : magic === '28b52ffd' ? 'application/vnd.oci.image.layer.v1.tar+zstd' : MediaTypes.DOCKER_LAYER
                         layers.push({mediaType: mediaType, digest: digest, size: data.length})
                         layerFiles.set(digest, file(layer))
                     }
-                    const manifest: ImageManifest = {schemaVersion: 2, mediaType: MediaTypes.DOCKER_MANIFEST, config: {mediaType: MediaTypes.DOCKER_CONFIG, digest: Digest(configData), size: configData.length}, layers: layers}
+                    const manifest: ImageManifest = {schemaVersion: 2, mediaType: MediaTypes.DOCKER_MANIFEST, config: {mediaType: MediaTypes.DOCKER_CONFIG, digest: digestOf(configData), size: configData.length}, layers: layers}
                     const manifestData: Buffer = Buffer.from(JSON.stringify(manifest))
-                    const descriptor: ContentDescriptor = {mediaType: MediaTypes.DOCKER_MANIFEST, digest: Digest(manifestData), size: manifestData.length}
+                    const descriptor: ContentDescriptor = {mediaType: MediaTypes.DOCKER_MANIFEST, digest: digestOf(manifestData), size: manifestData.length}
                     await this.writeImage(manifest, async (blob: ContentDescriptor): Promise<Uint8Array | AsyncIterable<Uint8Array>> => blob.digest === manifest.config.digest ? configData : createReadStream(layerFiles.get(blob.digest)!), lease, {})
                     await this.client.writeContent(descriptor, manifestData, lease, this.manifestLabels(manifest))
                     const tags: string[] = options.name ? [options.name] : entry.RepoTags?.length ? entry.RepoTags : [`import-${Date.now()}@${descriptor.digest}`]
                     for (const tag of tags) {
-                        const name: string = ImageName(tag)
+                        const name: string = imageName(tag)
                         await this.client.putImage({name: name, target: descriptor}, lease)
                         names.push(name)
                     }
@@ -590,8 +590,8 @@ export class ImageStore {
      * @param lease
      */
     protected async writeTree(descriptor: ContentDescriptor, blob: (descriptor: ContentDescriptor) => Promise<AsyncIterable<Uint8Array>>, lease: string): Promise<void> {
-        const data: Buffer = await Collect(await blob(descriptor))
-        if (IsIndex(descriptor.mediaType)) {
+        const data: Buffer = await collect(await blob(descriptor))
+        if (isIndex(descriptor.mediaType)) {
             const index: ImageIndex = JSON.parse(data.toString('utf8')) as ImageIndex
             const labels: Record<string, string> = {}
             for (let position = 0; position < index.manifests.length; position++) {
@@ -649,22 +649,22 @@ export class ImageStore {
             const target: ContentDescriptor = {mediaType: image.target.mediaType, digest: image.target.digest, size: Number(image.target.size)}
             const reference: ImageReference | undefined = (() => {
                 try {
-                    return ParseReference(image.name)
+                    return parseReference(image.name)
                 } catch {
                     return undefined
                 }
             })()
             entries.push({...target, annotations: {'io.containerd.image.name': image.name, ...reference?.tag ? {'org.opencontainers.image.ref.name': reference.tag} : {}}})
             blobs.set(target.digest, target)
-            const manifests: ContentDescriptor[] = IsIndex(target.mediaType) ? (await this.readJson<ImageIndex>(target.digest)).manifests : [target]
+            const manifests: ContentDescriptor[] = isIndex(target.mediaType) ? (await this.readJson<ImageIndex>(target.digest)).manifests : [target]
             let first: ImageManifest | undefined
             for (const descriptor of manifests) {
-                if (!IsManifest(descriptor.mediaType) || !(await this.client.contentInfo(descriptor.digest))) continue
+                if (!isManifest(descriptor.mediaType) || !(await this.client.contentInfo(descriptor.digest))) continue
                 const manifest: ImageManifest = await this.readJson<ImageManifest>(descriptor.digest)
                 blobs.set(descriptor.digest, descriptor)
                 for (const blob of [manifest.config, ...manifest.layers]) blobs.set(blob.digest, blob)
                 const config: ImageConfigFile = await this.readJson<ImageConfigFile>(manifest.config.digest)
-                if (!first || PlatformRank(ConfigPlatform(config), HostPlatform()) !== undefined) first = manifest
+                if (!first || platformRank(configPlatform(config), hostPlatform()) !== undefined) first = manifest
             }
             if (first && reference) {
                 const short: string = reference.registry === 'docker.io' ? reference.repository.replace(/^library\//, '') : `${reference.registry}/${reference.repository}`

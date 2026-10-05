@@ -16,7 +16,7 @@ let work: string
  * @param args
  * @param cwd
  */
-function Run(args: string[], cwd: string, env: Record<string, string> = {}): Promise<{ code: number, output: string }> {
+function runCommand(args: string[], cwd: string, env: Record<string, string> = {}): Promise<{ code: number, output: string }> {
     return new Promise((resolve: (result: { code: number, output: string }) => void): void => {
         execFile(process.execPath, [CLI, ...args], {cwd: cwd, env: {...process.env, npm_config_user_agent: '', ...env}}, (error: ExecFileException | null, stdout: string, stderr: string): void => resolve({
             code: error ? (typeof error.code === 'number' ? error.code : 1) : 0,
@@ -30,7 +30,7 @@ function Run(args: string[], cwd: string, env: Record<string, string> = {}): Pro
  * @param name
  * @param files the files, by path relative to the package
  */
-function Package(name: string, files: Record<string, string>): string {
+function createPackage(name: string, files: Record<string, string>): string {
     const directory: string = path.join(work, name)
     for (const [file, content] of Object.entries({'package.json': JSON.stringify({name: name}), 'src/App.ts': 'export {}', ...files})) {
         mkdirSync(path.dirname(path.join(directory, file)), {recursive: true})
@@ -47,31 +47,31 @@ describe('lakutata clean', (): void => {
     after((): void => rmSync(work, {recursive: true, force: true}))
 
     it('removes the paths given, the missing ones skipped', async (): Promise<void> => {
-        const project: string = Package('paths', {'build/App.js': '', 'dist/app.cjs': '', '.next/cache/a': '', 'coverage.json': ''})
-        const removed = await Run(['clean', 'build', 'dist', '.next', 'coverage.json', 'missing'], project)
+        const project: string = createPackage('paths', {'build/App.js': '', 'dist/app.cjs': '', '.next/cache/a': '', 'coverage.json': ''})
+        const removed = await runCommand(['clean', 'build', 'dist', '.next', 'coverage.json', 'missing'], project)
         assert.strictEqual(removed.code, 0, removed.output)
         assert.match(removed.output, /Removed build, dist, \.next, coverage\.json/)
         for (const file of ['build', 'dist', '.next', 'coverage.json']) assert.ok(!existsSync(path.join(project, file)), file)
         assert.ok(existsSync(path.join(project, 'src', 'App.ts')))
-        const nothing = await Run(['clean', 'build'], project)
+        const nothing = await runCommand(['clean', 'build'], project)
         assert.strictEqual(nothing.code, 0, nothing.output)
         assert.match(nothing.output, /Nothing to remove \(build\)/)
     })
 
     it('removes the outDir and the declarationDir of the tsconfig.json by default, its comments and trailing commas read', async (): Promise<void> => {
-        const project: string = Package('tsconfig', {
+        const project: string = createPackage('tsconfig', {
             'tsconfig.json': '{\n  // The output\n  "$schema": "https://json.schemastore.org/tsconfig", /* the schema */\n  "compilerOptions": {\n    "outDir": "build",\n    "declarationDir": "types",\n  },\n}\n',
             'build/App.js': '',
             'types/App.d.ts': ''
         })
-        const removed = await Run(['clean'], project)
+        const removed = await runCommand(['clean'], project)
         assert.strictEqual(removed.code, 0, removed.output)
         assert.match(removed.output, /Removed build, types/)
         assert.ok(!existsSync(path.join(project, 'build')) && !existsSync(path.join(project, 'types')))
     })
 
     it('reads the outDir of the configurations extended, relative to the one giving it, the closest winning', async (): Promise<void> => {
-        const project: string = Package('extends', {
+        const project: string = createPackage('extends', {
             'configs/base.json': '{"compilerOptions": {"outDir": "../out", "declarationDir": "../declarations"}}',
             'node_modules/shared-config/package.json': JSON.stringify({name: 'shared-config'}),
             'node_modules/shared-config/tsconfig.json': '{"compilerOptions": {"strict": true}}',
@@ -80,7 +80,7 @@ describe('lakutata clean', (): void => {
             'declarations/App.d.ts': '',
             'typings/App.d.ts': ''
         })
-        const removed = await Run(['clean'], project)
+        const removed = await runCommand(['clean'], project)
         assert.strictEqual(removed.code, 0, removed.output)
         assert.match(removed.output, /Removed out, typings/)
         //The declarationDir of the base is replaced by the one of the package
@@ -89,8 +89,8 @@ describe('lakutata clean', (): void => {
 
     it('cleans in the scripts of an application run by a migration command (the tool ignores the commands of the migrations)', async (): Promise<void> => {
         for (const env of [{MIGRATION_GENERATE: 'src/migrations'}, {MIGRATION_SHOW: '1'}, {migration_run: '1'}] as Record<string, string>[]) {
-            const project: string = Package(`migration-${Object.keys(env)[0]}`, {'tsconfig.json': '{"compilerOptions": {"outDir": "build"}}', 'build/App.js': ''})
-            const removed = await Run(['clean'], project, env)
+            const project: string = createPackage(`migration-${Object.keys(env)[0]}`, {'tsconfig.json': '{"compilerOptions": {"outDir": "build"}}', 'build/App.js': ''})
+            const removed = await runCommand(['clean'], project, env)
             assert.strictEqual(removed.code, 0, removed.output)
             assert.match(removed.output, /Removed build/)
             assert.ok(!existsSync(path.join(project, 'build')))
@@ -98,19 +98,19 @@ describe('lakutata clean', (): void => {
     })
 
     it('asks for the paths without tsconfig.json or outDir', async (): Promise<void> => {
-        const none = await Run(['clean'], Package('none', {}))
+        const none = await runCommand(['clean'], createPackage('none', {}))
         assert.notStrictEqual(none.code, 0)
         assert.match(none.output, /has no tsconfig\.json: give the paths removed/)
-        const noOutDir = await Run(['clean'], Package('noOutDir', {'tsconfig.json': '{"compilerOptions": {"noEmit": true}}'}))
+        const noOutDir = await runCommand(['clean'], createPackage('noOutDir', {'tsconfig.json': '{"compilerOptions": {"noEmit": true}}'}))
         assert.notStrictEqual(noOutDir.code, 0)
         assert.match(noOutDir.output, /gives no outDir: give the paths removed/)
     })
 
     it('removes nothing outside of the package, nor the package, its sources, its dependencies or its manifest', async (): Promise<void> => {
-        const project: string = Package('safe', {'build/App.js': '', 'node_modules/x/index.js': ''})
+        const project: string = createPackage('safe', {'build/App.js': '', 'node_modules/x/index.js': ''})
         writeFileSync(path.join(work, 'outside.txt'), '')
         for (const target of ['../outside.txt', path.join(work, 'outside.txt'), '.', 'src', 'src/App.ts', 'node_modules', 'node_modules/x', 'package.json']) {
-            const refused = await Run(['clean', 'build', target], project)
+            const refused = await runCommand(['clean', 'build', target], project)
             assert.notStrictEqual(refused.code, 0, target)
             assert.match(refused.output, /is not inside the package|is protected/, target)
         }

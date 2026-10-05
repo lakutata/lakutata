@@ -26,7 +26,7 @@ import {Expect} from '../../../exports/DTODecorators.js'
 import {Column, Entity, PrimaryGeneratedColumn} from '../../../exports/ORMDecorators.js'
 import {buildDatabaseOptions, Database} from '../../../exports/DatabaseComponent.js'
 import {As, ObjectPath} from '../../../exports/Utils.js'
-import {FreePort, RunChecks} from '../support/Scenario.js'
+import {freePort, runChecks} from '../support/Scenario.js'
 
 /**
  * The responses of the HTTP entrypoint of the applications of lakutata 2.x
@@ -75,7 +75,7 @@ class DeviceController extends Controller {
     }
 }
 
-const [httpPort, ioPort] = [await FreePort(), await FreePort()]
+const [httpPort, ioPort] = [await freePort(), await freePort()]
 let cliMap: CLIMap
 let cliHandler: CLIEntrypointHandler
 
@@ -83,7 +83,7 @@ let cliHandler: CLIEntrypointHandler
  * The HTTP entrypoint as the applications of lakutata 2.x build it: an Express application whose routes are the ones
  * of the route map, the results enveloped
  */
-const SetupHttpEntrypoint = (): ReturnType<typeof buildHTTPEntrypoint> => buildHTTPEntrypoint(async (module: Module, routeMap: HTTPRouteMap, handler: HTTPEntrypointHandler, onDestroy: EntrypointDestroyerRegistrar): Promise<void> => {
+const setupHttpEntrypoint = (): ReturnType<typeof buildHTTPEntrypoint> => buildHTTPEntrypoint(async (module: Module, routeMap: HTTPRouteMap, handler: HTTPEntrypointHandler, onDestroy: EntrypointDestroyerRegistrar): Promise<void> => {
     const app: Express = express()
     app.use(express.json())
     const db: Database = await module.getObject<Database>('db')
@@ -116,7 +116,7 @@ Application
             db: buildDatabaseOptions({type: 'sqlite', database: ':memory:', entities: [Device], synchronize: true}),
             entrypoint: buildEntrypoints({
                 controllers: [DeviceController],
-                http: SetupHttpEntrypoint(),
+                http: setupHttpEntrypoint(),
                 service: buildServiceEntrypoint((_module: Module, handler: ServiceEntrypointHandler, onDestroy: EntrypointDestroyerRegistrar): void => {
                     const server: Server = createServer()
                     const ioServer: SocketIOServer = new SocketIOServer(server)
@@ -138,7 +138,7 @@ Application
         },
         bootstrap: ['entrypoint']
     }))
-    .onLaunched((app: Application): Promise<void> => RunChecks(app, async (check): Promise<void> => {
+    .onLaunched((app: Application): Promise<void> => runChecks(app, async (check): Promise<void> => {
         const request = async (method: string, route: string, body?: unknown): Promise<APIResponse> => await (await fetch(`http://127.0.0.1:${httpPort}${route}`, {
             method: method,
             headers: body ? {'content-type': 'application/json'} : {},

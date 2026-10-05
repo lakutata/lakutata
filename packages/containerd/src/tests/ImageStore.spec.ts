@@ -11,8 +11,8 @@ import {pack as tarPack, type Pack} from 'tar-stream'
 import type {Message} from '@lakutata/grpc'
 import type {ContainerdClient, ContentDescriptor} from '../client/ContainerdClient.js'
 import {ImageStore} from '../client/ImageStore.js'
-import {ParsePlatform, type Platform} from '../client/Platforms.js'
-import {Digest, MediaTypes} from '../client/Registry.js'
+import {parsePlatform, type Platform} from '../client/Platforms.js'
+import {digestOf, MediaTypes} from '../client/Registry.js'
 
 /**
  * A containerd of the tests: its content, its images and its snapshots in memory, the layers it applies
@@ -110,24 +110,24 @@ class LayoutImage {
         for (const platform of [...platforms, 'unknown/unknown']) {
             const [os, architecture, variant] = platform.split('/')
             const layer: Buffer = Buffer.from(`${name} ${platform}`)
-            const config: Buffer = this.blob(JSON.stringify({architecture: architecture, os: os, ...variant ? {variant: variant} : {}, rootfs: {type: 'layers', diff_ids: [Digest(layer)]}}))
+            const config: Buffer = this.blob(JSON.stringify({architecture: architecture, os: os, ...variant ? {variant: variant} : {}, rootfs: {type: 'layers', diff_ids: [digestOf(layer)]}}))
             this.blob(layer)
-            this.layers.set(platform, Digest(layer))
+            this.layers.set(platform, digestOf(layer))
             const manifest: Buffer = this.blob(JSON.stringify({
                 schemaVersion: 2,
                 mediaType: MediaTypes.OCI_MANIFEST,
-                config: {mediaType: MediaTypes.OCI_CONFIG, digest: Digest(config), size: config.length},
-                layers: [{mediaType: MediaTypes.OCI_LAYER, digest: Digest(layer), size: layer.length}]
+                config: {mediaType: MediaTypes.OCI_CONFIG, digest: digestOf(config), size: config.length},
+                layers: [{mediaType: MediaTypes.OCI_LAYER, digest: digestOf(layer), size: layer.length}]
             }))
-            manifests.push({mediaType: MediaTypes.OCI_MANIFEST, digest: Digest(manifest), size: manifest.length, platform: {os: os, architecture: architecture, ...variant ? {variant: variant} : {}}})
+            manifests.push({mediaType: MediaTypes.OCI_MANIFEST, digest: digestOf(manifest), size: manifest.length, platform: {os: os, architecture: architecture, ...variant ? {variant: variant} : {}}})
         }
         const index: Buffer = this.blob(JSON.stringify({schemaVersion: 2, mediaType: MediaTypes.OCI_INDEX, manifests: manifests}))
-        this.index = {mediaType: MediaTypes.OCI_INDEX, digest: Digest(index), size: index.length, annotations: {'io.containerd.image.name': name}}
+        this.index = {mediaType: MediaTypes.OCI_INDEX, digest: digestOf(index), size: index.length, annotations: {'io.containerd.image.name': name}}
     }
 
     protected blob(content: string | Buffer): Buffer {
         const data: Buffer = Buffer.from(content)
-        this.blobs.set(Digest(data), data)
+        this.blobs.set(digestOf(data), data)
         return data
     }
 }
@@ -137,7 +137,7 @@ class LayoutImage {
  * @param file
  * @param images
  */
-async function WriteLayout(file: string, images: LayoutImage[]): Promise<void> {
+async function writeLayout(file: string, images: LayoutImage[]): Promise<void> {
     const archive: Pack = tarPack()
     const output: Promise<void> = pipeline(archive, createWriteStream(file))
     const entry = (name: string, data: Buffer): void => void archive.entry({name: name, size: data.length}, data)
@@ -161,8 +161,8 @@ describe('The image store', (): void => {
 
     before(async (): Promise<void> => {
         directory = await mkdtemp(path.join(tmpdir(), 'lakutata-image-store-'))
-        await WriteLayout(path.join(directory, 'multi.tar'), [multi])
-        await WriteLayout(path.join(directory, 'two.tar'), [multi, other])
+        await writeLayout(path.join(directory, 'multi.tar'), [multi])
+        await writeLayout(path.join(directory, 'two.tar'), [multi, other])
         const body = async (request: IncomingMessage): Promise<Buffer> => {
             const chunks: Buffer[] = []
             for await (const chunk of request) chunks.push(chunk as Buffer)
@@ -193,7 +193,7 @@ describe('The image store', (): void => {
         await rm(directory, {recursive: true, force: true})
     })
 
-    const store = (client: FakeClient, platforms: string[]): ImageStore => new ImageStore(client as unknown as ContainerdClient, 'overlayfs', directory, (): Platform[] => platforms.map(ParsePlatform))
+    const store = (client: FakeClient, platforms: string[]): ImageStore => new ImageStore(client as unknown as ContainerdClient, 'overlayfs', directory, (): Platform[] => platforms.map(parsePlatform))
 
     it('unpacks the imported images for the platforms the machine runs only, not their attestations', async (): Promise<void> => {
         const client: FakeClient = new FakeClient()
@@ -234,12 +234,12 @@ describe('The image store', (): void => {
         await images.import(path.join(directory, 'multi.tar'), {unpack: false})
         const registry = {insecure: [host]}
         //All the platforms present: the one asked alone, under the tag
-        await images.push('multi:1', {reference: `${host}/team/multi:arm64`, platform: ParsePlatform('linux/arm64'), registry: registry})
+        await images.push('multi:1', {reference: `${host}/team/multi:arm64`, platform: parsePlatform('linux/arm64'), registry: registry})
         assert.deepStrictEqual([...manifests.keys()], ['arm64'])
         assert.strictEqual(manifests.get('arm64')!.mediaType, MediaTypes.OCI_MANIFEST)
         assert.deepStrictEqual(JSON.parse(manifests.get('arm64')!.data.toString()).layers.map((layer: ContentDescriptor): string => layer.digest), [multi.layers.get('linux/arm64/v8')])
         assert.ok(!blobs.has(multi.layers.get('linux/amd64')!))
-        await assert.rejects(images.push('multi:1', {reference: `${host}/team/multi:mips`, platform: ParsePlatform('linux/mips'), registry: registry}), /no manifest of the platform linux\/mips/)
+        await assert.rejects(images.push('multi:1', {reference: `${host}/team/multi:mips`, platform: parsePlatform('linux/mips'), registry: registry}), /no manifest of the platform linux\/mips/)
         //Without a platform: every manifest, the index under the tag
         manifests.clear()
         await images.push('multi:1', {reference: `${host}/team/multi:all`, registry: registry})

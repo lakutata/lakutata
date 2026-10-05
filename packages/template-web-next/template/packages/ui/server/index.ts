@@ -34,7 +34,7 @@ export type UIHandler = ((request: IncomingMessage, response: ServerResponse, ne
  * server/standalone.ts), or the ui package
  * @param options
  */
-function Directory(options: RenderOptions): string {
+function directory(options: RenderOptions): string {
     if (!options.standalone) return fileURLToPath(new URL('../../', import.meta.url))
     const {dir} = JSON.parse(readFileSync(path.join(options.standalone, 'ui.json'), 'utf8')) as { dir: string }
     return path.join(options.standalone, dir)
@@ -45,7 +45,7 @@ function Directory(options: RenderOptions): string {
  * @param options
  */
 export default function renderUI(options: RenderOptions = {}): UIHandler {
-    const dir: string = Directory(options)
+    const dir: string = directory(options)
     //Required from the application: the one of the standalone build is not bundled with the service
     const createNextServer = createRequire(path.join(dir, 'package.json'))('next') as typeof nextModule.default
     //The configuration of the standalone build is the one it was built with (next.config.ts is not in it)

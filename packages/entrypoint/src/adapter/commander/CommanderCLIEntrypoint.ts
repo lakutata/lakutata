@@ -3,14 +3,14 @@ import {createReadStream} from 'node:fs'
 import path from 'node:path'
 import type {Readable} from 'node:stream'
 import {type Application, type Module} from '@lakutata/core'
-import {ApplicationOf} from '../../lib/ApplicationOf.js'
+import {applicationOf} from '../../lib/ApplicationOf.js'
 import type {ChannelActionInfo, ChannelRuntime, EntrypointAdapter} from '../../channel/EntrypointAdapter.js'
 import type {MiddlewareDefinition} from '../../lib/Middleware.js'
 import {CLIContext} from '../../context/CLIContext.js'
 import {CLIChannel} from '../../channel/BuiltinChannels.js'
 import {EventsResult, FileResult, StatusResult} from '../../lib/Result.js'
-import {LoadPrompts, Prompt, PromptStreams} from './Prompt.js'
-import {BoxWrap, DisplayWidth} from './Width.js'
+import {loadPrompts, prompt, PromptStreams} from './Prompt.js'
+import {boxWrap, displayWidth} from './Width.js'
 
 /**
  * The JSON schema of a property of the input of an action
@@ -147,7 +147,7 @@ export type CommanderCLIEntrypointOptions = {
  * The English texts, their arguments filled
  * @param text
  */
-function English(text: CLIText): string {
+function english(text: CLIText): string {
     return text.text.replace(/\{(\w+)\}/g, (all: string, name: string): string => text.params?.[name] ?? all)
 }
 
@@ -166,7 +166,7 @@ const TITLES: Record<string, string> = {
  * The type of a property, without null
  * @param schema
  */
-function TypeOf(schema: PropertySchema): string | undefined {
+function typeOf(schema: PropertySchema): string | undefined {
     const types: string[] = ([] as string[]).concat(schema.type ?? []).filter((type: string): boolean => type !== 'null')
     if (types.length) return types[0]
     if (schema.enum?.length) return typeof schema.enum[0]
@@ -177,7 +177,7 @@ function TypeOf(schema: PropertySchema): string | undefined {
  * The kebab case of a property name (deviceId → device-id)
  * @param name
  */
-function KebabCase(name: string): string {
+function kebabCase(name: string): string {
     return name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').replace(/_/g, '-').toLowerCase()
 }
 
@@ -186,9 +186,9 @@ function KebabCase(name: string): string {
  * @param schema
  * @param value
  */
-function ParseValue(schema: PropertySchema, value: string): unknown {
+function parseValue(schema: PropertySchema, value: string): unknown {
     let parsed: unknown
-    switch (TypeOf(schema)) {
+    switch (typeOf(schema)) {
         case 'integer':
         case 'number': {
             parsed = Number(value)
@@ -223,12 +223,12 @@ function ParseValue(schema: PropertySchema, value: string): unknown {
  * @param say the text of the help in the language of the user
  * @param command the name of the command
  */
-function PropertyOption(property: string, schema: PropertySchema, mandatory: boolean, say: (key: string, text: string, params?: Record<string, string>) => string, command: string): Option[] {
-    const flag: string = `--${KebabCase(property)}`
+function propertyOption(property: string, schema: PropertySchema, mandatory: boolean, say: (key: string, text: string, params?: Record<string, string>) => string, command: string): Option[] {
+    const flag: string = `--${kebabCase(property)}`
     //A boolean or a value (DTO.Alternatives(DTO.Boolean(), …)): a flag taking an optional value
     const alternatives: PropertySchema[] = Array.isArray(schema.anyOf) ? schema.anyOf as PropertySchema[] : []
-    const valued: PropertySchema | undefined = alternatives.some((alternative: PropertySchema): boolean => TypeOf(alternative) === 'boolean')
-        ? alternatives.find((alternative: PropertySchema): boolean => TypeOf(alternative) !== 'boolean')
+    const valued: PropertySchema | undefined = alternatives.some((alternative: PropertySchema): boolean => typeOf(alternative) === 'boolean')
+        ? alternatives.find((alternative: PropertySchema): boolean => typeOf(alternative) !== 'boolean')
         : undefined
     const hints: string[] = []
     const choices: unknown[] | undefined = schema.enum ?? schema.items?.enum ?? valued?.enum
@@ -238,17 +238,17 @@ function PropertyOption(property: string, schema: PropertySchema, mandatory: boo
     //The hints after the description, " (default: 1)"
     const description: string = hints.length ? `${text}${say('help.hints', ' ({hints})', {hints: hints.join(say('help.separator', ', '))})}`.trim() : text
     //--flag gives true, --flag <value> the value
-    if (valued) return [new Option(`${flag} [value]`, description).argParser((value: string): unknown => ParseValue(valued, value))]
-    const type: string | undefined = TypeOf(schema)
+    if (valued) return [new Option(`${flag} [value]`, description).argParser((value: string): unknown => parseValue(valued, value))]
+    const type: string | undefined = typeOf(schema)
     if (type === 'boolean') {
         const options: Option[] = [new Option(flag, description)]
         //A flag on by default is turned off by its negation
-        if (schema.default === true) options.push(new Option(`--no-${KebabCase(property)}`, say('help.negate', 'Turn off {flag}', {flag: flag})))
+        if (schema.default === true) options.push(new Option(`--no-${kebabCase(property)}`, say('help.negate', 'Turn off {flag}', {flag: flag})))
         return options
     }
     const option: Option = type === 'array'
-        ? new Option(`${flag} <values...>`, description).argParser((value: string, previous: unknown[] | undefined): unknown[] => [...(Array.isArray(previous) ? previous : []), ParseValue(schema.items ?? {}, value)])
-        : new Option(`${flag} <${type === 'object' ? 'json' : 'value'}>`, description).argParser((value: string): unknown => ParseValue(schema, value))
+        ? new Option(`${flag} <values...>`, description).argParser((value: string, previous: unknown[] | undefined): unknown[] => [...(Array.isArray(previous) ? previous : []), parseValue(schema.items ?? {}, value)])
+        : new Option(`${flag} <${type === 'object' ? 'json' : 'value'}>`, description).argParser((value: string): unknown => parseValue(schema, value))
     return [option.makeOptionMandatory(mandatory)]
 }
 
@@ -256,7 +256,7 @@ function PropertyOption(property: string, schema: PropertySchema, mandatory: boo
  * The default format of a result
  * @param result
  */
-function DefaultFormat(result: unknown): string | Uint8Array | undefined {
+function defaultFormat(result: unknown): string | Uint8Array | undefined {
     if (result === undefined || result === null) return undefined
     if (typeof result === 'string') return result.endsWith('\n') ? result : `${result}\n`
     if (result instanceof Uint8Array) return result
@@ -267,7 +267,7 @@ function DefaultFormat(result: unknown): string | Uint8Array | undefined {
  * The message of an error
  * @param error
  */
-function ErrorMessage(error: unknown): string {
+function errorMessage(error: unknown): string {
     if (error && typeof error === 'object') {
         const {errMsg, message} = error as { errMsg?: unknown, message?: unknown }
         if (typeof errMsg === 'string' && errMsg) return errMsg
@@ -339,7 +339,7 @@ export function commanderCLIEntrypoint(options: CommanderCLIEntrypointOptions = 
     const stdout: NodeJS.WritableStream = options.stdout ?? process.stdout
     const stderr: NodeJS.WritableStream = options.stderr ?? process.stderr
     const stdin: NodeJS.ReadableStream = options.stdin ?? process.stdin
-    const format: (result: unknown) => string | Uint8Array | undefined = options.format ?? DefaultFormat
+    const format: (result: unknown) => string | Uint8Array | undefined = options.format ?? defaultFormat
     //Aborts the prompts and the event streams when the adapter stops
     const stopController: AbortController = new AbortController()
 
@@ -374,7 +374,7 @@ export function commanderCLIEntrypoint(options: CommanderCLIEntrypointOptions = 
     const interactive = async (): Promise<boolean> => {
         if (options.interactive === false) return false
         if (options.interactive !== true && !((stdin as { isTTY?: boolean }).isTTY && (stdout as { isTTY?: boolean }).isTTY)) return false
-        return !!(await LoadPrompts())
+        return !!(await loadPrompts())
     }
 
     /**
@@ -388,12 +388,12 @@ export function commanderCLIEntrypoint(options: CommanderCLIEntrypointOptions = 
      */
     const execute = async (runtime: ChannelRuntime<CLIContext>, action: ChannelActionInfo, data: Record<string, unknown>, prompting: boolean, describe: (property: string) => string | undefined, say: (key: string, text: string) => string): Promise<number> => {
         try {
-            if (prompting) await Prompt(action, data, {input: stdin, output: stdout, signal: stopController.signal} satisfies PromptStreams, describe, say)
+            if (prompting) await prompt(action, data, {input: stdin, output: stdout, signal: stopController.signal} satisfies PromptStreams, describe, say)
             const context: CLIContext = new CLIContext({command: action.address.command, data: data})
             await output(await runtime.dispatchTo(action, context))
             return 0
         } catch (error: unknown) {
-            stderr.write(`error: ${ErrorMessage(error)}\n`)
+            stderr.write(`error: ${errorMessage(error)}\n`)
             return 1
         }
     }
@@ -407,7 +407,7 @@ export function commanderCLIEntrypoint(options: CommanderCLIEntrypointOptions = 
         if (!argv.length && options.noCommand === 'ignore') return undefined
         const prompting: boolean = await interactive()
         //The texts of the help and of the prompts in the language of the user
-        const translate: CLITranslate = options.translate ? await options.translate(runtime.module) : English
+        const translate: CLITranslate = options.translate ? await options.translate(runtime.module) : english
         const say = (key: string, text: string, params?: Record<string, string>): string => translate({key: key, text: text, params: params})
         const program: Command = new Command(options.bin ?? path.basename(process.argv[1] ?? 'cli', path.extname(process.argv[1] ?? '')))
             .exitOverride()
@@ -421,8 +421,8 @@ export function commanderCLIEntrypoint(options: CommanderCLIEntrypointOptions = 
                 .configureHelp({
                     styleTitle: (title: string): string => TITLES[title] ? say(TITLES[title], title) : title,
                     //The widths of the wide characters (Chinese, Japanese, Korean), their lines wrapped between them
-                    displayWidth: DisplayWidth,
-                    boxWrap: (text: string, width: number): string => BoxWrap(text, width)
+                    displayWidth: displayWidth,
+                    boxWrap: (text: string, width: number): string => boxWrap(text, width)
                 })
                 .helpOption('-h, --help', say('help.helpOption', 'display help for command'))
             if (runtime.actions.length) program.helpCommand('help [command]', say('help.helpCommand', 'display help for command'))
@@ -434,7 +434,7 @@ export function commanderCLIEntrypoint(options: CommanderCLIEntrypointOptions = 
          * @param group its name
          * @param names the names of its groups and its own
          */
-        const Group = (parent: Command, group: string, names: string[]): Command => {
+        const commandGroup = (parent: Command, group: string, names: string[]): Command => {
             const created: Command = parent.command(group)
             const description: string | undefined = options.groups?.[names.join(' ')]
             if (description) created.description(say(`commands.${names.join('.')}.description`, description))
@@ -453,7 +453,7 @@ export function commanderCLIEntrypoint(options: CommanderCLIEntrypointOptions = 
             const names: string[] = first < 0 ? words : words.slice(0, first)
             let parent: Command = program
             names.slice(0, -1).forEach((group: string, index: number): void => {
-                parent = parent.commands.find((existing: Command): boolean => existing.name() === group) ?? Group(parent, group, names.slice(0, index + 1))
+                parent = parent.commands.find((existing: Command): boolean => existing.name() === group) ?? commandGroup(parent, group, names.slice(0, index + 1))
             })
             const command: Command = parent.command([names.at(-1), ...words.slice(names.length)].join(' ')).allowExcessArguments(false)
             //The key of its texts: the names of its groups and its own
@@ -470,9 +470,9 @@ export function commanderCLIEntrypoint(options: CommanderCLIEntrypointOptions = 
                 if (!propertySchema) continue
                 if (propertySchema.description) argument.description = describe(argument.name())!
                 if (argument.variadic) {
-                    argument.argParser((value: string, previous: unknown[] | undefined): unknown[] => [...(Array.isArray(previous) ? previous : []), ParseValue(propertySchema.items ?? {}, value)])
+                    argument.argParser((value: string, previous: unknown[] | undefined): unknown[] => [...(Array.isArray(previous) ? previous : []), parseValue(propertySchema.items ?? {}, value)])
                 } else {
-                    argument.argParser((value: string): unknown => ParseValue(propertySchema, value))
+                    argument.argParser((value: string): unknown => parseValue(propertySchema, value))
                 }
             }
             //The properties by the attribute names of their options
@@ -480,7 +480,7 @@ export function commanderCLIEntrypoint(options: CommanderCLIEntrypointOptions = 
             for (const [property, propertySchema] of Object.entries(schema.properties ?? {})) {
                 if (positional.includes(property)) continue
                 const mandatory: boolean = !prompting && required.has(property) && propertySchema.default === undefined
-                for (const option of PropertyOption(property, propertySchema, mandatory, say, name)) {
+                for (const option of propertyOption(property, propertySchema, mandatory, say, name)) {
                     command.addOption(option)
                     properties.set(option.attributeName(), property)
                 }
@@ -516,7 +516,7 @@ export function commanderCLIEntrypoint(options: CommanderCLIEntrypointOptions = 
         const mode: CommanderCLIEntrypointOptions['exit'] = options.exit ?? 'application'
         if (typeof mode === 'function') return await mode(code)
         if (mode === 'none') return
-        const application: Application | undefined = mode === 'application' ? ApplicationOf(runtime.module) : undefined
+        const application: Application | undefined = mode === 'application' ? applicationOf(runtime.module) : undefined
         if (application) return application.exit(code)
         process.exitCode = code
     }
@@ -531,11 +531,11 @@ export function commanderCLIEntrypoint(options: CommanderCLIEntrypointOptions = 
             runtime.ready
                 .then((): Promise<number | undefined> | undefined => stopController.signal.aborted ? undefined : run(runtime))
                 .catch((error: unknown): number => {
-                    stderr.write(`error: ${ErrorMessage(error)}\n`)
+                    stderr.write(`error: ${errorMessage(error)}\n`)
                     return 1
                 })
                 .then((code: number | undefined): unknown => code === undefined || stopController.signal.aborted ? undefined : exit(runtime, code))
-                .catch((error: unknown): unknown => stderr.write(`error: ${ErrorMessage(error)}\n`))
+                .catch((error: unknown): unknown => stderr.write(`error: ${errorMessage(error)}\n`))
         },
         stop: (): void => {
             //A command not started yet is not run, the prompts and the event streams are ended

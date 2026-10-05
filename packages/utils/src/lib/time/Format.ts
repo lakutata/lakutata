@@ -2,7 +2,7 @@
  * The formatting of the times: the format tokens of the moment library (English), for compatibility with the format
  * strings written for it.
  */
-import {DayOfYear, ISO_WEEK, LOCALE_WEEK, WeekOfYear} from './Calendar.js'
+import {dayOfYearOf, ISO_WEEK, LOCALE_WEEK, weekOfYear} from './Calendar.js'
 
 /**
  * What the tokens are computed from
@@ -65,7 +65,7 @@ function zeroFill(value: number, length: number, forceSign: boolean = false): st
  * The English ordinal of a number
  * @param value
  */
-export function Ordinal(value: number): string {
+export function ordinal(value: number): string {
     const lastDigit: number = value % 10
     const suffix: string = Math.trunc((value % 100) / 10) === 1 ? 'th' : lastDigit === 1 ? 'st' : lastDigit === 2 ? 'nd' : lastDigit === 3 ? 'rd' : 'th'
     return `${value}${suffix}`
@@ -76,7 +76,7 @@ export function Ordinal(value: number): string {
  * @param offset minutes
  * @param separator
  */
-export function FormatOffset(offset: number, separator: string): string {
+export function formatOffset(offset: number, separator: string): string {
     const sign: string = offset < 0 ? '-' : '+'
     const minutes: number = Math.abs(offset)
     return sign + zeroFill(Math.trunc(minutes / 60), 2) + separator + zeroFill(Math.trunc(minutes) % 60, 2)
@@ -97,7 +97,7 @@ function tokenValue(token: string, context: FormatContext): string | undefined {
         case 'MM':
             return zeroFill(local.getUTCMonth() + 1, 2)
         case 'Mo':
-            return Ordinal(local.getUTCMonth() + 1)
+            return ordinal(local.getUTCMonth() + 1)
         case 'MMM':
             return MONTHS_SHORT[local.getUTCMonth()]
         case 'MMMM':
@@ -105,23 +105,23 @@ function tokenValue(token: string, context: FormatContext): string | undefined {
         case 'Q':
             return `${Math.ceil((local.getUTCMonth() + 1) / 3)}`
         case 'Qo':
-            return Ordinal(Math.ceil((local.getUTCMonth() + 1) / 3))
+            return ordinal(Math.ceil((local.getUTCMonth() + 1) / 3))
         case 'D':
             return `${local.getUTCDate()}`
         case 'DD':
             return zeroFill(local.getUTCDate(), 2)
         case 'Do':
-            return Ordinal(local.getUTCDate())
+            return ordinal(local.getUTCDate())
         case 'DDD':
-            return `${DayOfYear(local.getTime())}`
+            return `${dayOfYearOf(local.getTime())}`
         case 'DDDD':
-            return zeroFill(DayOfYear(local.getTime()), 3)
+            return zeroFill(dayOfYearOf(local.getTime()), 3)
         case 'DDDo':
-            return Ordinal(DayOfYear(local.getTime()))
+            return ordinal(dayOfYearOf(local.getTime()))
         case 'd':
             return `${local.getUTCDay()}`
         case 'do':
-            return Ordinal(local.getUTCDay())
+            return ordinal(local.getUTCDay())
         case 'dd':
             return WEEKDAYS_MIN[local.getUTCDay()]
         case 'ddd':
@@ -133,17 +133,17 @@ function tokenValue(token: string, context: FormatContext): string | undefined {
         case 'E':
             return `${local.getUTCDay() || 7}`
         case 'w':
-            return `${WeekOfYear(local.getTime(), LOCALE_WEEK).week}`
+            return `${weekOfYear(local.getTime(), LOCALE_WEEK).week}`
         case 'ww':
-            return zeroFill(WeekOfYear(local.getTime(), LOCALE_WEEK).week, 2)
+            return zeroFill(weekOfYear(local.getTime(), LOCALE_WEEK).week, 2)
         case 'wo':
-            return Ordinal(WeekOfYear(local.getTime(), LOCALE_WEEK).week)
+            return ordinal(weekOfYear(local.getTime(), LOCALE_WEEK).week)
         case 'W':
-            return `${WeekOfYear(local.getTime(), ISO_WEEK).week}`
+            return `${weekOfYear(local.getTime(), ISO_WEEK).week}`
         case 'WW':
-            return zeroFill(WeekOfYear(local.getTime(), ISO_WEEK).week, 2)
+            return zeroFill(weekOfYear(local.getTime(), ISO_WEEK).week, 2)
         case 'Wo':
-            return Ordinal(WeekOfYear(local.getTime(), ISO_WEEK).week)
+            return ordinal(weekOfYear(local.getTime(), ISO_WEEK).week)
         case 'Y':
             return year <= 9999 ? zeroFill(year, 4) : `+${year}`
         case 'YY':
@@ -155,17 +155,17 @@ function tokenValue(token: string, context: FormatContext): string | undefined {
         case 'YYYYYY':
             return zeroFill(year, 6, true)
         case 'gg':
-            return zeroFill(WeekOfYear(local.getTime(), LOCALE_WEEK).year % 100, 2)
+            return zeroFill(weekOfYear(local.getTime(), LOCALE_WEEK).year % 100, 2)
         case 'gggg':
-            return zeroFill(WeekOfYear(local.getTime(), LOCALE_WEEK).year, 4)
+            return zeroFill(weekOfYear(local.getTime(), LOCALE_WEEK).year, 4)
         case 'ggggg':
-            return zeroFill(WeekOfYear(local.getTime(), LOCALE_WEEK).year, 5)
+            return zeroFill(weekOfYear(local.getTime(), LOCALE_WEEK).year, 5)
         case 'GG':
-            return zeroFill(WeekOfYear(local.getTime(), ISO_WEEK).year % 100, 2)
+            return zeroFill(weekOfYear(local.getTime(), ISO_WEEK).year % 100, 2)
         case 'GGGG':
-            return zeroFill(WeekOfYear(local.getTime(), ISO_WEEK).year, 4)
+            return zeroFill(weekOfYear(local.getTime(), ISO_WEEK).year, 4)
         case 'GGGGG':
-            return zeroFill(WeekOfYear(local.getTime(), ISO_WEEK).year, 5)
+            return zeroFill(weekOfYear(local.getTime(), ISO_WEEK).year, 5)
         case 'N':
         case 'NN':
         case 'NNN':
@@ -179,7 +179,7 @@ function tokenValue(token: string, context: FormatContext): string | undefined {
         case 'yyyy':
             return zeroFill(year > 0 ? year : 1 - year, token.length)
         case 'yo':
-            return Ordinal(year > 0 ? year : 1 - year)
+            return ordinal(year > 0 ? year : 1 - year)
         case 'a':
             return hours > 11 ? 'pm' : 'am'
         case 'A':
@@ -213,9 +213,9 @@ function tokenValue(token: string, context: FormatContext): string | undefined {
         case 'ss':
             return zeroFill(local.getUTCSeconds(), 2)
         case 'Z':
-            return FormatOffset(context.offset, ':')
+            return formatOffset(context.offset, ':')
         case 'ZZ':
-            return FormatOffset(context.offset, '')
+            return formatOffset(context.offset, '')
         case 'z':
         case 'zz':
             return context.abbreviation()
@@ -301,7 +301,7 @@ function compileFormat(format: string): CompiledFormat {
  * @param format
  * @param context
  */
-export function FormatTime(format: string, context: FormatContext): string {
+export function formatTime(format: string, context: FormatContext): string {
     if (isNaN(context.instant)) return 'Invalid date'
     let output: string = ''
     for (const part of compileFormat(format)) output += 'literal' in part ? part.literal : tokenValue(part.token, context) as string

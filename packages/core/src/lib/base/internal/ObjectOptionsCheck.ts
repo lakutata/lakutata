@@ -1,10 +1,10 @@
 import {BaseObject} from '../BaseObject.js'
 import {LoadObjectOptions, OBJECT_ID} from '../../../options/LoadObjectOptions.js'
-import {GetObjectConfigurableProperties, ObjectConfigurablePropertyMap} from './ObjectConfiguration.js'
+import {getObjectConfigurableProperties, ObjectConfigurablePropertyMap} from './ObjectConfiguration.js'
 import {DTO} from '../../dto/DTO.js'
 import {InvalidValueException} from '../../../exceptions/dto/InvalidValueException.js'
 import {InvalidObjectOptionsException} from '../../../exceptions/di/InvalidObjectOptionsException.js'
-import {ThrowWarning} from '../../foundation/ThrowWarning.js'
+import {throwWarning} from '../../foundation/ThrowWarning.js'
 import {As} from '@lakutata/utils/As'
 
 /**
@@ -21,7 +21,7 @@ const DECLARATION_OPTIONS: Set<string> = new Set(['class', 'id'])
  * @param loadOptions
  * @constructor
  */
-export function CheckObjectOptions(loadOptions: (LoadObjectOptions | typeof BaseObject | string)[]): void {
+export function checkObjectOptions(loadOptions: (LoadObjectOptions | typeof BaseObject | string)[]): void {
     const errors: string[] = []
     const warnings: string[] = []
     for (const declaration of loadOptions) {
@@ -29,13 +29,13 @@ export function CheckObjectOptions(loadOptions: (LoadObjectOptions | typeof Base
         const target: typeof BaseObject = declaration.class
         const id: string | symbol | undefined = declaration[OBJECT_ID]
         const object: string = typeof id === 'string' ? `"${id}" (${target.name})` : target.name
-        const properties: ObjectConfigurablePropertyMap = GetObjectConfigurableProperties(As<BaseObject>(target.prototype))
+        const properties: ObjectConfigurablePropertyMap = getObjectConfigurableProperties(As<BaseObject>(target.prototype))
         for (const name of Object.keys(declaration)) {
             const value: unknown = declaration[name]
             if (DECLARATION_OPTIONS.has(name) || value === undefined) continue
             const property: ReturnType<ObjectConfigurablePropertyMap['get']> = properties.get(name)
             if (!property) {
-                if (!target.acceptsOption(name, value)) warnings.push(UnknownOptionMessage(object, name, properties))
+                if (!target.acceptsOption(name, value)) warnings.push(unknownOptionMessage(object, name, properties))
                 continue
             }
             try {
@@ -47,7 +47,7 @@ export function CheckObjectOptions(loadOptions: (LoadObjectOptions | typeof Base
             }
         }
     }
-    warnings.forEach((warning: string): unknown => ThrowWarning(warning))
+    warnings.forEach((warning: string): unknown => throwWarning(warning))
     if (errors.length) throw new InvalidObjectOptionsException(errors.join('\n'))
 }
 
@@ -58,7 +58,7 @@ export function CheckObjectOptions(loadOptions: (LoadObjectOptions | typeof Base
  * @param properties
  * @constructor
  */
-function UnknownOptionMessage(object: string, name: string, properties: ObjectConfigurablePropertyMap): string {
+function unknownOptionMessage(object: string, name: string, properties: ObjectConfigurablePropertyMap): string {
     const names: string[] = [...properties.keys()].filter((key: string | symbol): key is string => typeof key === 'string').sort()
     const hint: string = names.length ? `its configurable properties: ${names.join(', ')}` : 'it has no configurable property'
     return `The option "${name}" of ${object} is not a configurable property, it is ignored (${hint})`

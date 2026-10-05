@@ -1,6 +1,6 @@
 import {DTO} from '../../lib/dto/DTO.js'
 import {ClassDecorator} from '../../types/ClassDecorator.js'
-import {SetObjectIndexSignatureSchema} from '../../lib/dto/ObjectSchemaValidation.js'
+import {setObjectIndexSignatureSchema} from '../../lib/dto/ObjectSchemaValidation.js'
 import {Schema} from '../../lib/validation/types/Schema.js'
 
 /**
@@ -30,5 +30,5 @@ import {Schema} from '../../lib/validation/types/Schema.js'
  * ```
  */
 export function IndexSignature<ClassConstructor extends typeof DTO>(schema: Schema): ClassDecorator<ClassConstructor> {
-    return (target: ClassConstructor): ClassConstructor => SetObjectIndexSignatureSchema(target, schema)
+    return (target: ClassConstructor): ClassConstructor => setObjectIndexSignatureSchema(target, schema)
 }

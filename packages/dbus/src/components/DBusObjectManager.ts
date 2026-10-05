@@ -1,7 +1,7 @@
 import {Component} from '@lakutata/core'
 import {Autoload, Singleton} from '@lakutata/core/decorator/di'
 import type {DBusPropertyDefinition, DBusSignalDefinition} from '../lib/Declarations.js'
-import {CheckPathTemplate} from '../lib/Names.js'
+import {checkPathTemplate} from '../lib/Names.js'
 
 /**
  * What a DBus adapter does for the object manager while it runs
@@ -150,7 +150,7 @@ export class DBusObjectManager extends Component {
      * @throws {TypeError} When the path is invalid, or is a template (it contains braces).
      */
     public addObject(path: string): boolean {
-        CheckPathTemplate(path)
+        checkPathTemplate(path)
         if (/[{}]/.test(path)) throw new TypeError(`The object path "${path}" is a template, not the path of an object`)
         if (this.#objects.has(path)) return false
         this.#objects.add(path)

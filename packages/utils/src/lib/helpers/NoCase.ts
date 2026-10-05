@@ -1,4 +1,4 @@
-import {type Locale, Split, ToLower} from './internal/CaseWords.js'
+import {type Locale, split, toLower} from './internal/CaseWords.js'
 
 /**
  * How a string is split into words by the case conversions (`noCase`, `camelCase`).
@@ -42,7 +42,7 @@ export interface NoCaseOptions extends SplitOptions {
  * ```
  */
 export function noCase(input: string, options?: NoCaseOptions): string {
-    return Split(input, options)
-        .map(ToLower(options?.locale))
+    return split(input, options)
+        .map(toLower(options?.locale))
         .join(' ')
 }

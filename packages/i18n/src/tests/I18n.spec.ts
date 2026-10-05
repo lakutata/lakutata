@@ -24,7 +24,7 @@ import {
  * Create an i18n component
  * @param options
  */
-async function Create(options: I18nOptions): Promise<I18n> {
+async function create(options: I18nOptions): Promise<I18n> {
     return await new Container().set(I18n, options as Record<string, unknown>)
 }
 
@@ -35,15 +35,15 @@ async function Create(options: I18nOptions): Promise<I18n> {
  * @param locale
  * @param options
  */
-async function Format(message: string, params: Record<string, unknown>, locale: string, options: I18nOptions = {}): Promise<string> {
-    return (await Create({missing: 'throw', ...options})).format(message, params, locale)
+async function format(message: string, params: Record<string, unknown>, locale: string, options: I18nOptions = {}): Promise<string> {
+    return (await create({missing: 'throw', ...options})).format(message, params, locale)
 }
 
 /**
  * The warnings emitted while a function runs
  * @param run
  */
-async function Warnings(run: () => unknown): Promise<string[]> {
+async function collectWarnings(run: () => unknown): Promise<string[]> {
     const warnings: string[] = []
     const onWarning = (warning: Error): number => warnings.push(warning.message)
     const printers: NodeJS.WarningListener[] = process.listeners('warning')
@@ -99,50 +99,50 @@ describe('The languages', (): void => {
 
 describe('The messages', (): void => {
     it('give their arguments, numbers, currencies, percents, dates and times in the language', async (): Promise<void> => {
-        assert.strictEqual(await Format('Hello, {name}! You have {count} items.', {name: 'Ada', count: 1234.5}, 'en'), 'Hello, Ada! You have 1,234.5 items.')
-        assert.strictEqual(await Format('{n, number}', {n: 1234.5}, 'de'), '1.234,5')
-        assert.strictEqual(await Format('{n, number, integer}', {n: 1234.56}, 'en'), '1,235')
-        assert.strictEqual(await Format('{n, number, percent}', {n: 0.25}, 'en'), '25%')
-        assert.strictEqual(await Format('{n, number, currency/EUR}', {n: 9.5}, 'en'), '€9.50')
-        assert.strictEqual(await Format('{n, number, currency}', {n: 9.5, currency: 'USD'}, 'en'), '$9.50')
-        assert.strictEqual(await Format('{n, number, currency}', {n: 9.5}, 'zh-CN', {currency: 'CNY'}), '¥9.50')
-        await assert.rejects(Format('{n, number, currency}', {n: 9.5}, 'en'), I18nMissingParameterException)
+        assert.strictEqual(await format('Hello, {name}! You have {count} items.', {name: 'Ada', count: 1234.5}, 'en'), 'Hello, Ada! You have 1,234.5 items.')
+        assert.strictEqual(await format('{n, number}', {n: 1234.5}, 'de'), '1.234,5')
+        assert.strictEqual(await format('{n, number, integer}', {n: 1234.56}, 'en'), '1,235')
+        assert.strictEqual(await format('{n, number, percent}', {n: 0.25}, 'en'), '25%')
+        assert.strictEqual(await format('{n, number, currency/EUR}', {n: 9.5}, 'en'), '€9.50')
+        assert.strictEqual(await format('{n, number, currency}', {n: 9.5, currency: 'USD'}, 'en'), '$9.50')
+        assert.strictEqual(await format('{n, number, currency}', {n: 9.5}, 'zh-CN', {currency: 'CNY'}), '¥9.50')
+        await assert.rejects(format('{n, number, currency}', {n: 9.5}, 'en'), I18nMissingParameterException)
         //Without a currency and with missing: 'key', a plain number and a warning, once
-        const lenient: I18n = await Create({messages: {en: {total: 'Total: {n, number, currency}'}}, missing: 'key'})
-        const warnings: string[] = await Warnings((): void => {
+        const lenient: I18n = await create({messages: {en: {total: 'Total: {n, number, currency}'}}, missing: 'key'})
+        const warnings: string[] = await collectWarnings((): void => {
             assert.strictEqual(lenient.t('total', {n: 1234.5}), 'Total: 1,234.5')
             assert.strictEqual(lenient.t('total', {n: 9.5}), 'Total: 9.5')
         })
         assert.deepStrictEqual(warnings, ['en: total: the currency is missing (currency/XXX, the "currency" argument, or the currency of the configuration)'])
         const at: Date = new Date(Date.UTC(2026, 9, 3, 14, 5))
-        assert.strictEqual(await Format('{at, date, long} {at, time, short}', {at: at}, 'en', {timeZone: 'UTC'}), 'October 3, 2026 2:05 PM')
-        assert.strictEqual(await Format('{at, date, long}', {at: at.getTime()}, 'zh-CN', {timeZone: 'UTC'}), '2026年10月3日')
-        assert.strictEqual(await Format('{at, date, short}', {at: {toDate: (): Date => at}}, 'en', {timeZone: 'Asia/Shanghai'}), '10/3/26')
+        assert.strictEqual(await format('{at, date, long} {at, time, short}', {at: at}, 'en', {timeZone: 'UTC'}), 'October 3, 2026 2:05 PM')
+        assert.strictEqual(await format('{at, date, long}', {at: at.getTime()}, 'zh-CN', {timeZone: 'UTC'}), '2026年10月3日')
+        assert.strictEqual(await format('{at, date, short}', {at: {toDate: (): Date => at}}, 'en', {timeZone: 'Asia/Shanghai'}), '10/3/26')
     })
 
     it('choose by the plural rules of the language, its exact values first, offsets and ordinals too', async (): Promise<void> => {
         const items: string = '{count, plural, =0 {none} one {# item} few {# items (few)} many {# items (many)} other {# items}}'
-        assert.deepStrictEqual(await Promise.all([0, 1, 2, 1000].map((count: number): Promise<string> => Format(items, {count: count}, 'en'))), ['none', '1 item', '2 items', '1,000 items'])
+        assert.deepStrictEqual(await Promise.all([0, 1, 2, 1000].map((count: number): Promise<string> => format(items, {count: count}, 'en'))), ['none', '1 item', '2 items', '1,000 items'])
         //Chinese has no plural forms
-        assert.deepStrictEqual(await Promise.all([1, 2].map((count: number): Promise<string> => Format(items, {count: count}, 'zh-CN'))), ['1 items', '2 items'])
+        assert.deepStrictEqual(await Promise.all([1, 2].map((count: number): Promise<string> => format(items, {count: count}, 'zh-CN'))), ['1 items', '2 items'])
         //Russian: one (1, 21), few (2-4, 22), many (5-20)
-        assert.deepStrictEqual(await Promise.all([1, 3, 5, 21, 22].map((count: number): Promise<string> => Format(items, {count: count}, 'ru'))), ['1 item', '3 items (few)', '5 items (many)', '21 item', '22 items (few)'])
+        assert.deepStrictEqual(await Promise.all([1, 3, 5, 21, 22].map((count: number): Promise<string> => format(items, {count: count}, 'ru'))), ['1 item', '3 items (few)', '5 items (many)', '21 item', '22 items (few)'])
         //Arabic: few (3-10), many (11-99); the digits of Egypt
-        assert.deepStrictEqual(await Promise.all([3, 11].map((count: number): Promise<string> => Format(items, {count: count}, 'ar'))), ['3 items (few)', '11 items (many)'])
-        assert.strictEqual(await Format(items, {count: 3}, 'ar-EG'), '٣ items (few)')
+        assert.deepStrictEqual(await Promise.all([3, 11].map((count: number): Promise<string> => format(items, {count: count}, 'ar'))), ['3 items (few)', '11 items (many)'])
+        assert.strictEqual(await format(items, {count: 3}, 'ar-EG'), '٣ items (few)')
         const guests: string = '{guests, plural, offset:1 =0 {nobody} =1 {{host}} one {{host} and # other} other {{host} and # others}}'
-        assert.strictEqual(await Format(guests, {guests: 1, host: 'Ada'}, 'en'), 'Ada')
-        assert.strictEqual(await Format(guests, {guests: 2, host: 'Ada'}, 'en'), 'Ada and 1 other')
-        assert.strictEqual(await Format(guests, {guests: 4, host: 'Ada'}, 'en'), 'Ada and 3 others')
+        assert.strictEqual(await format(guests, {guests: 1, host: 'Ada'}, 'en'), 'Ada')
+        assert.strictEqual(await format(guests, {guests: 2, host: 'Ada'}, 'en'), 'Ada and 1 other')
+        assert.strictEqual(await format(guests, {guests: 4, host: 'Ada'}, 'en'), 'Ada and 3 others')
         const place: string = '{place, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}'
-        assert.deepStrictEqual(await Promise.all([1, 2, 3, 4, 11, 22].map((value: number): Promise<string> => Format(place, {place: value}, 'en'))), ['1st', '2nd', '3rd', '4th', '11th', '22nd'])
+        assert.deepStrictEqual(await Promise.all([1, 2, 3, 4, 11, 22].map((value: number): Promise<string> => format(place, {place: value}, 'en'))), ['1st', '2nd', '3rd', '4th', '11th', '22nd'])
     })
 
     it('choose by a value, # of a plural inside of a select, the apostrophes quoting', async (): Promise<void> => {
         const message: string = '{count, plural, one {{role, select, admin {# admin} other {# user}}} other {{role, select, admin {# admins} other {# users}}}}'
-        assert.strictEqual(await Format(message, {count: 2, role: 'admin'}, 'en'), '2 admins')
-        assert.strictEqual(await Format(message, {count: 1, role: 'guest'}, 'en'), '1 user')
-        assert.strictEqual(await Format("It's '{literal}' and '' and '#' {n, plural, other {'#'#}}", {n: 3}, 'en'), "It's {literal} and ' and '#' #3")
+        assert.strictEqual(await format(message, {count: 2, role: 'admin'}, 'en'), '2 admins')
+        assert.strictEqual(await format(message, {count: 1, role: 'guest'}, 'en'), '1 user')
+        assert.strictEqual(await format("It's '{literal}' and '' and '#' {n, plural, other {'#'#}}", {n: 3}, 'en'), "It's {literal} and ' and '#' #3")
     })
 
     it('tell where their syntax is wrong', (): void => {
@@ -183,7 +183,7 @@ describe('The i18n component', (): void => {
     after((): void => rmSync(directory, {recursive: true, force: true}))
 
     it('loads the messages of its directories and of its options, the later ones replacing the earlier ones', async (): Promise<void> => {
-        const i18n: I18n = await Create({directory: directory, messages: {en: {app: {name: 'Store'}}, ja: {order: {created: '{customer} の注文を作成しました'}}}, missing: 'throw'})
+        const i18n: I18n = await create({directory: directory, messages: {en: {app: {name: 'Store'}}, ja: {order: {created: '{customer} の注文を作成しました'}}}, missing: 'throw'})
         assert.deepStrictEqual(i18n.getLocales(), ['en', 'ja', 'zh-CN', 'zh-TW'])
         assert.strictEqual(i18n.getDefaultLocale(), 'en')
         assert.strictEqual(i18n.t('app.name'), 'Store')
@@ -198,7 +198,7 @@ describe('The i18n component', (): void => {
     })
 
     it('falls back to its fallbacks, the language alone, then the default language, in the language asked', async (): Promise<void> => {
-        const i18n: I18n = await Create({directory: directory, locales: ['en', 'zh-CN', 'zh-TW'], fallback: {'zh-TW': 'zh-CN'}, missing: 'throw'})
+        const i18n: I18n = await create({directory: directory, locales: ['en', 'zh-CN', 'zh-TW'], fallback: {'zh-TW': 'zh-CN'}, missing: 'throw'})
         assert.deepStrictEqual(i18n.getLocales(), ['en', 'zh-CN', 'zh-TW'])
         //zh-TW has no order.created: zh-CN
         assert.strictEqual(i18n.t('order.created', {customer: '小明'}, 'zh-TW'), '已为 小明 创建订单')
@@ -218,11 +218,11 @@ describe('The i18n component', (): void => {
     })
 
     it('throws on a missing message or argument, or gives its key and warns once', async (): Promise<void> => {
-        const strict: I18n = await Create({directory: directory, missing: 'throw'})
+        const strict: I18n = await create({directory: directory, missing: 'throw'})
         assert.throws((): unknown => strict.t('order.missing', {}, 'zh-CN'), (error: Error): boolean => error instanceof I18nMissingKeyException && error.message === 'No message "order.missing" in zh-CN, zh, en')
         assert.throws((): unknown => strict.t('order.created', {}, 'zh-CN'), (error: Error): boolean => error instanceof I18nMissingParameterException && error.message === 'zh-CN: order.created: the argument "customer" is missing')
-        const lenient: I18n = await Create({directory: directory, missing: 'key'})
-        const warnings: string[] = await Warnings((): void => {
+        const lenient: I18n = await create({directory: directory, missing: 'key'})
+        const warnings: string[] = await collectWarnings((): void => {
             assert.strictEqual(lenient.t('order.missing', {}, 'zh-CN'), 'order.missing')
             assert.strictEqual(lenient.t('order.missing', {}, 'zh-CN'), 'order.missing')
             assert.strictEqual(lenient.t('order.created', {}, 'zh-CN'), '已为 {customer} 创建订单')
@@ -241,7 +241,7 @@ describe('The i18n component', (): void => {
         const environment: string | undefined = process.env.NODE_ENV
         try {
             process.env.NODE_ENV = 'production'
-            assert.strictEqual((await Create({directory: directory})).t('order.missing'), 'order.missing')
+            assert.strictEqual((await create({directory: directory})).t('order.missing'), 'order.missing')
         } finally {
             if (environment === undefined) delete process.env.NODE_ENV
             else process.env.NODE_ENV = environment
@@ -249,7 +249,7 @@ describe('The i18n component', (): void => {
     })
 
     it('supports the languages added at run time, unless its languages are given', async (): Promise<void> => {
-        const i18n: I18n = await Create({messages: {en: {hello: 'Hello'}}, missing: 'throw'})
+        const i18n: I18n = await create({messages: {en: {hello: 'Hello'}}, missing: 'throw'})
         assert.deepStrictEqual(i18n.getLocales(), ['en'])
         await i18n.addMessages('fr', {hello: 'Bonjour'})
         await i18n.addMessages('de', {hello: 'Hallo'})
@@ -258,7 +258,7 @@ describe('The i18n component', (): void => {
         assert.strictEqual(i18n.t('hello', {}, i18n.negotiate(['de-AT'])), 'Hallo')
         //Invalid: thrown by the call, nothing added
         assert.throws((): unknown => i18n.addMessages('not a tag', {hello: 'x'}), I18nCatalogException)
-        const fixed: I18n = await Create({locales: ['en'], messages: {en: {hello: 'Hello'}}, missing: 'throw'})
+        const fixed: I18n = await create({locales: ['en'], messages: {en: {hello: 'Hello'}}, missing: 'throw'})
         await fixed.addMessages('fr', {hello: 'Bonjour'})
         assert.deepStrictEqual(fixed.getLocales(), ['en'])
         assert.strictEqual(fixed.negotiate(['fr']), 'en')
@@ -269,19 +269,19 @@ describe('The i18n component', (): void => {
         const broken: string = mkdtempSync(path.join(tmpdir(), 'lakutata-i18n-broken-'))
         try {
             writeFileSync(path.join(broken, 'en.json'), '{"a": ')
-            await assert.rejects(Create({directory: broken}), (error: Error): boolean => error instanceof I18nCatalogException && error.message.startsWith(path.join(broken, 'en.json')))
+            await assert.rejects(create({directory: broken}), (error: Error): boolean => error instanceof I18nCatalogException && error.message.startsWith(path.join(broken, 'en.json')))
             writeFileSync(path.join(broken, 'en.json'), JSON.stringify({a: ['not', 'a', 'message']}))
-            await assert.rejects(Create({directory: broken}), /en\.json: the messages must be an object \(a\)/)
+            await assert.rejects(create({directory: broken}), /en\.json: the messages must be an object \(a\)/)
             writeFileSync(path.join(broken, 'en.json'), JSON.stringify({'a.b': 'dotted'}))
-            await assert.rejects(Create({directory: broken}), /invalid key "a\.b"/)
+            await assert.rejects(create({directory: broken}), /invalid key "a\.b"/)
             rmSync(path.join(broken, 'en.json'))
             writeFileSync(path.join(broken, 'english.json'), '{}')
-            await assert.rejects(Create({directory: broken}), /"english" is not the tag of a language/)
-            await assert.rejects(Create({directory: path.join(broken, 'missing')}), /the directory of the messages does not exist/)
-            await assert.rejects(Create({defaultLocale: 'not a tag'}), /defaultLocale: "not a tag" is not the tag of a language/)
-            await assert.rejects(Create({directory: '@app/locales'}), /the alias of "@app\/locales" is resolved by an application/)
+            await assert.rejects(create({directory: broken}), /"english" is not the tag of a language/)
+            await assert.rejects(create({directory: path.join(broken, 'missing')}), /the directory of the messages does not exist/)
+            await assert.rejects(create({defaultLocale: 'not a tag'}), /defaultLocale: "not a tag" is not the tag of a language/)
+            await assert.rejects(create({directory: '@app/locales'}), /the alias of "@app\/locales" is resolved by an application/)
             //A syntax error is told by the key of its message, when it is used
-            const i18n: I18n = await Create({messages: {en: {bad: '{n, plural, one {x}}'}}})
+            const i18n: I18n = await create({messages: {en: {bad: '{n, plural, one {x}}'}}})
             assert.throws((): unknown => i18n.t('bad'), /^.*en: bad: the "other" option is required at 1/)
         } finally {
             rmSync(broken, {recursive: true, force: true})

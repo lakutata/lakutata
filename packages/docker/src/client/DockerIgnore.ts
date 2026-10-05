@@ -21,7 +21,7 @@ const SEPARATOR: string = path.sep
  * filepath.Clean of Go
  * @param file
  */
-function CleanPath(file: string): string {
+function cleanPath(file: string): string {
     return path.normalize(file).replace(SEPARATOR === '\\' ? /(?<=.)\\$/ : /(?<=.)\/$/, '')
 }
 
@@ -29,7 +29,7 @@ function CleanPath(file: string): string {
  * filepath.ToSlash of Go
  * @param file
  */
-function ToSlash(file: string): string {
+function toSlash(file: string): string {
     return SEPARATOR === '/' ? file : file.replace(/\\/g, '/')
 }
 
@@ -37,7 +37,7 @@ function ToSlash(file: string): string {
  * filepath.FromSlash of Go
  * @param file
  */
-function FromSlash(file: string): string {
+function fromSlash(file: string): string {
     return SEPARATOR === '/' ? file : file.replace(/\//g, SEPARATOR)
 }
 
@@ -84,13 +84,13 @@ export class DockerIgnore {
             pattern = pattern.substring(1).trim()
         }
         if (pattern.length > 0) {
-            pattern = ToSlash(CleanPath(pattern))
+            pattern = toSlash(cleanPath(pattern))
             if (pattern.length > 1 && pattern.startsWith('/')) pattern = pattern.slice(1)
         }
         if (negative) pattern = `!${pattern}`
         pattern = pattern.trim()
         if (!pattern) return undefined
-        pattern = CleanPath(pattern)
+        pattern = cleanPath(pattern)
         if (pattern.startsWith('!')) {
             if (pattern.length === 1) return undefined
             negative = true
@@ -156,8 +156,8 @@ export class DockerIgnore {
      * @param file
      */
     protected test(file: string): boolean {
-        const local: string = FromSlash(file)
-        const parent: string = CleanPath(path.dirname(local))
+        const local: string = fromSlash(file)
+        const parent: string = cleanPath(path.dirname(local))
         const parentDirectories: string[] = parent.split(SEPARATOR)
         let matched: boolean = false
         for (const rule of this.#rules) {

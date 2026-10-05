@@ -1,7 +1,7 @@
 import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
 import {Application} from 'lakutata'
-import {Config} from '../config/Config.js'
+import {installerConfig} from '../config/Config.js'
 
 const PORT: number = Number(process.env.TEST_PORT ?? 18083)
 
@@ -14,7 +14,7 @@ describe('{$APP_NAME}', (): void => {
         //The pages of the build of next
         process.env.NODE_ENV = 'production'
         app = await new Promise<Application>((resolve: (app: Application) => void): void => {
-            Application.run(Config(PORT)).onLaunched((launched: Application): void => resolve(launched))
+            Application.run(installerConfig(PORT)).onLaunched((launched: Application): void => resolve(launched))
         })
     })
 

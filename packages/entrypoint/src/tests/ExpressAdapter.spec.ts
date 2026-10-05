@@ -96,7 +96,7 @@ class DeviceController extends Controller {
  * @param options
  * @param entrypointOptions
  */
-async function Start(options: ExpressHTTPEntrypointOptions = {}, entrypointOptions: Record<string, unknown> = {}): Promise<{ url: string, container: Container }> {
+async function start(options: ExpressHTTPEntrypointOptions = {}, entrypointOptions: Record<string, unknown> = {}): Promise<{ url: string, container: Container }> {
     let server: Server | undefined
     const container: Container = new Container()
     await container.set(Entrypoint, buildEntrypoints({
@@ -118,7 +118,7 @@ async function Start(options: ExpressHTTPEntrypointOptions = {}, entrypointOptio
 describe('Express adapter', (): void => {
 
     it('dispatches the requests to the actions', async (): Promise<void> => {
-        const {url, container} = await Start()
+        const {url, container} = await start()
         //The route parameters take precedence over the query and the body
         assert.deepStrictEqual(await (await fetch(`${url}/device/sn-1?name=Pump&sn=other`)).json(), {sn: 'sn-1', name: 'Pump'})
         const posted: Response = await fetch(`${url}/device/sn-2`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({sn: 'other', name: 'Valve'})})
@@ -128,7 +128,7 @@ describe('Express adapter', (): void => {
     })
 
     it('writes the errors with their status', async (): Promise<void> => {
-        const {url, container} = await Start()
+        const {url, container} = await start()
         const invalid: Response = await fetch(`${url}/device/sn-1`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name: 1})})
         assert.strictEqual(invalid.status, 400)
         assert.strictEqual(((await invalid.json()) as any).errno, 'E_INVALID_VALUE')
@@ -146,7 +146,7 @@ describe('Express adapter', (): void => {
     it('writes the results with their status, headers, files and events', async (): Promise<void> => {
         fileDirectory = await mkdtemp(path.join(tmpdir(), 'express-adapter-'))
         await writeFile(path.join(fileDirectory, 'hello.txt'), 'hello')
-        const {url, container} = await Start()
+        const {url, container} = await start()
         const created: Response = await fetch(`${url}/created`, {method: 'POST'})
         assert.strictEqual(created.status, 201)
         assert.strictEqual(created.headers.get('location'), '/device/1')
@@ -166,7 +166,7 @@ describe('Express adapter', (): void => {
     })
 
     it('mounts the application routes, the fallback and the envelope', async (): Promise<void> => {
-        const {url, container} = await Start({
+        const {url, container} = await start({
             before: (app, {actionPrefixes, isActionPath}): void => {
                 assert.deepStrictEqual(actionPrefixes.sort(), ['/buffer', '/created', '/device', '/empty', '/events', '/file', '/missing', '/slow'])
                 assert.ok(isActionPath('/device/x') && !isActionPath('/devices'))
@@ -186,7 +186,7 @@ describe('Express adapter', (): void => {
     })
 
     it('answers the errors of the actions with the status of the envelope, the others with theirs', async (): Promise<void> => {
-        const {url, container} = await Start({
+        const {url, container} = await start({
             //An authenticator of the requests, as the applications of lakutata 2.x add it
             before: (app): void => {
                 app.use((request, _response, next): void => request.headers['x-token'] ? next() : next(new UnauthorizedException('Not logged in')))
@@ -212,7 +212,7 @@ describe('Express adapter', (): void => {
             signals.push(invocation.signal!)
             return next()
         }
-        const {url, container} = await Start({middlewares: [traced('adapter')]}, {middlewares: [traced('global')]})
+        const {url, container} = await start({middlewares: [traced('adapter')]}, {middlewares: [traced('global')]})
         await fetch(`${url}/device/a`)
         assert.deepStrictEqual(trace, ['global', 'adapter'])
         signals = []
@@ -226,13 +226,13 @@ describe('Express adapter', (): void => {
     })
 
     it('stops gracefully', async (): Promise<void> => {
-        const {url, container} = await Start()
+        const {url, container} = await start()
         const inProgress: Promise<Response> = fetch(`${url}/slow`)
         await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 20))
         await container.destroy()
         assert.strictEqual(await (await inProgress).json(), 'slow')
         await assert.rejects(fetch(`${url}/device/a`))
-        const impatient = await Start({}, {shutdownTimeout: 20})
+        const impatient = await start({}, {shutdownTimeout: 20})
         const aborted: Promise<Response> = fetch(`${impatient.url}/slow`)
         await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 20))
         await impatient.container.destroy()
@@ -249,7 +249,7 @@ describe('Express adapter', (): void => {
         //Not hashed: a name of lowercase words
         await writeFile(path.join(ui, 'assets', 'my-component.js'), 'console.log(2)')
         assert.throws((): unknown => staticUI(ui, {assetsMaxAge: 'soon'}), /Invalid duration/)
-        const {url, container} = await Start({fallback: staticUI(ui, {assetsMaxAge: '30d'})})
+        const {url, container} = await start({fallback: staticUI(ui, {assetsMaxAge: '30d'})})
         const page: Response = await fetch(`${url}/`, {headers: {Accept: 'text/html'}})
         assert.strictEqual(await page.text(), '<div id="app"></div>')
         assert.strictEqual(page.headers.get('cache-control'), 'no-cache')

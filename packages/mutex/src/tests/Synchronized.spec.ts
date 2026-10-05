@@ -62,7 +62,7 @@ class OrderController extends Controller {
 /**
  * An instance of an application: its locks, its HTTP service entrypoint
  */
-async function Start(): Promise<{ url: string, container: Container, mutex: Mutex }> {
+async function start(): Promise<{ url: string, container: Container, mutex: Mutex }> {
     let port: number = 0
     const container: Container = new Container()
     const mutex: Mutex = await container.setNamed('mutex', Mutex, {retryDelay: 10})
@@ -73,7 +73,7 @@ async function Start(): Promise<{ url: string, container: Container, mutex: Mute
     return {url: `http://127.0.0.1:${port}`, container: container, mutex: mutex}
 }
 
-async function Invoke(url: string, data: unknown, options: { id?: string, signal?: AbortSignal } = {}): Promise<any> {
+async function invoke(url: string, data: unknown, options: { id?: string, signal?: AbortSignal } = {}): Promise<any> {
     const response: Response = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json', ...options.id ? {id: options.id} : {}}, body: JSON.stringify(data), signal: options.signal})
     return await response.json()
 }
@@ -81,11 +81,11 @@ async function Invoke(url: string, data: unknown, options: { id?: string, signal
 describe('The synchronized actions', (): void => {
 
     it('runs the actions of a same lock one at a time, the other ones in parallel', async (): Promise<void> => {
-        const {url, container} = await Start()
+        const {url, container} = await start()
         try {
             most = {}
             mostTotal = 0
-            const results = await Promise.all([1, 1, 1, 2, 2, 2].map((id: number): Promise<any> => Invoke(url, {cmd: 'pay', id: id})))
+            const results = await Promise.all([1, 1, 1, 2, 2, 2].map((id: number): Promise<any> => invoke(url, {cmd: 'pay', id: id})))
             assert.deepStrictEqual(results.map((result: any): number => result.payload), [1, 1, 1, 2, 2, 2])
             assert.deepStrictEqual(most, {1: 1, 2: 1})
             assert.strictEqual(mostTotal, 2)
@@ -95,30 +95,30 @@ describe('The synchronized actions', (): void => {
     })
 
     it('locks once the input is validated, fails at once when it does not wait', async (): Promise<void> => {
-        const {url, container, mutex} = await Start()
+        const {url, container, mutex} = await start()
         try {
-            const first: Promise<any> = Invoke(url, {cmd: 'reindex'})
+            const first: Promise<any> = invoke(url, {cmd: 'reindex'})
             await sleep(50)
-            const second = await Invoke(url, {cmd: 'reindex'})
+            const second = await invoke(url, {cmd: 'reindex'})
             assert.strictEqual(second.error.errno, 'E_MUTEX_TIMEOUT')
             assert.strictEqual(second.error.statusCode, 409)
             assert.strictEqual((await first).payload, 'reindexed')
             //An input refused before the lock: its validation error, the lock of the order not held
-            const holding: Promise<any> = Invoke(url, {cmd: 'pay', id: 7})
+            const holding: Promise<any> = invoke(url, {cmd: 'pay', id: 7})
             await sleep(20)
-            assert.strictEqual((await Invoke(url, {cmd: 'pay', id: 'x'})).error.errno, 'E_INVALID_VALUE')
+            assert.strictEqual((await invoke(url, {cmd: 'pay', id: 'x'})).error.errno, 'E_INVALID_VALUE')
             await holding
             //A lock of the context (its client)
-            const exporting: Promise<any> = Invoke(url, {cmd: 'export'}, {id: 'desk'})
+            const exporting: Promise<any> = invoke(url, {cmd: 'export'}, {id: 'desk'})
             await sleep(30)
-            assert.strictEqual((await Invoke(url, {cmd: 'export'}, {id: 'desk'})).error.errno, 'E_MUTEX_TIMEOUT')
-            assert.strictEqual((await Invoke(url, {cmd: 'export'}, {id: 'phone'})).payload, 'exported')
+            assert.strictEqual((await invoke(url, {cmd: 'export'}, {id: 'desk'})).error.errno, 'E_MUTEX_TIMEOUT')
+            assert.strictEqual((await invoke(url, {cmd: 'export'}, {id: 'phone'})).payload, 'exported')
             await exporting
             //A field of the template missing
-            assert.match((await Invoke(url, {cmd: 'missing'})).error.message, /needs the field deviceId/)
+            assert.match((await invoke(url, {cmd: 'missing'})).error.message, /needs the field deviceId/)
             //Released after an error
-            assert.strictEqual((await Invoke(url, {cmd: 'fail', id: 3})).error.message, 'The payment failed')
-            assert.strictEqual((await Invoke(url, {cmd: 'pay', id: 3})).payload, 3)
+            assert.strictEqual((await invoke(url, {cmd: 'fail', id: 3})).error.message, 'The payment failed')
+            assert.strictEqual((await invoke(url, {cmd: 'pay', id: 3})).payload, 3)
             assert.strictEqual(mutex.heldLocks.length, 0)
         } finally {
             await container.destroy()
@@ -126,12 +126,12 @@ describe('The synchronized actions', (): void => {
     })
 
     it('stops waiting for the lock once its client is gone', async (): Promise<void> => {
-        const {url, container, mutex} = await Start()
+        const {url, container, mutex} = await start()
         try {
-            const holding: Promise<any> = Invoke(url, {cmd: 'pay', id: 9})
+            const holding: Promise<any> = invoke(url, {cmd: 'pay', id: 9})
             await sleep(20)
             const abort: AbortController = new AbortController()
-            const waiting: Promise<unknown> = Invoke(url, {cmd: 'pay', id: 9}, {signal: abort.signal}).catch((): undefined => undefined)
+            const waiting: Promise<unknown> = invoke(url, {cmd: 'pay', id: 9}, {signal: abort.signal}).catch((): undefined => undefined)
             await sleep(20)
             abort.abort()
             await waiting

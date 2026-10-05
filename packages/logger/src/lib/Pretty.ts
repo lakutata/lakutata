@@ -18,7 +18,7 @@ const ERROR_KEYS: Set<string> = new Set(['err', 'error'])
  * The JSON of a property value, indented by 2 spaces
  * @param value
  */
-function PropertyJSON(value: unknown): string | undefined {
+function propertyJSON(value: unknown): string | undefined {
     switch (typeof value) {
         case 'number':
         case 'boolean':
@@ -41,7 +41,7 @@ const SUSPECT_CONSTRUCTOR: RegExp = /"(?:c|\\u0063)(?:o|\\u006[Ff])(?:n|\\u006[E
  * Remove the "__proto__" properties of a parsed log, false if it has a constructor with a prototype (not printed as a log)
  * @param log
  */
-function Sanitize(log: object): boolean {
+function sanitize(log: object): boolean {
     let next: any[] = [log]
     try {
         while (next.length) {
@@ -67,7 +67,7 @@ function Sanitize(log: object): boolean {
  * @param input
  * @param ident
  */
-function JoinLines(input: string, ident: string = IDENT): string {
+function joinLines(input: string, ident: string = IDENT): string {
     const lines: string[] = input.split(/\r?\n/)
     for (let index: number = 1; index < lines.length; index++) lines[index] = ident + lines[index]
     return lines.join(EOL)
@@ -77,7 +77,7 @@ function JoinLines(input: string, ident: string = IDENT): string {
  * Whether a value is a plain object
  * @param value
  */
-function IsObject(value: unknown): boolean {
+function isObjectValue(value: unknown): boolean {
     return Object.prototype.toString.call(value) === '[object Object]'
 }
 
@@ -86,7 +86,7 @@ function IsObject(value: unknown): boolean {
  * @param value
  * @param length
  */
-function Pad(value: number, length: number = 2): string {
+function pad(value: number, length: number = 2): string {
     return String(value).padStart(length, '0')
 }
 
@@ -94,7 +94,7 @@ function Pad(value: number, length: number = 2): string {
  * The time of a log, HH:MM:ss.SSS in the local time zone
  * @param log
  */
-function PrettyTime(log: Record<string, any>): string | undefined {
+function prettyTime(log: Record<string, any>): string | undefined {
     let time: any = null
     if ('time' in log) {
         time = log.time
@@ -105,7 +105,7 @@ function PrettyTime(log: Record<string, any>): string | undefined {
     let date: Date = new Date(time)
     if (isNaN(date.getTime())) date = new Date(+time)
     if (isNaN(date.getTime())) return `[${time}]`
-    return `[${Pad(date.getHours())}:${Pad(date.getMinutes())}:${Pad(date.getSeconds())}.${Pad(date.getMilliseconds(), 3)}]`
+    return `[${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}]`
 }
 
 /**
@@ -113,7 +113,7 @@ function PrettyTime(log: Record<string, any>): string | undefined {
  * @param log
  * @param palette
  */
-function PrettyLevel(log: Record<string, any>, palette: Palette): string | undefined {
+function prettyLevel(log: Record<string, any>, palette: Palette): string | undefined {
     if (!hasOwn(log, 'level')) return undefined
     const level: any = log.level
     if (level === undefined) return undefined
@@ -132,7 +132,7 @@ function PrettyLevel(log: Record<string, any>, palette: Palette): string | undef
  * The metadata of a log: (name/pid on hostname) <caller>
  * @param log
  */
-function PrettyMetadata(log: Record<string, any>): string | undefined {
+function prettyMetadata(log: Record<string, any>): string | undefined {
     let line: string = ''
     if (log.name || log.pid || log.hostname) {
         line += '('
@@ -150,9 +150,9 @@ function PrettyMetadata(log: Record<string, any>): string | undefined {
  * @param key
  * @param lines
  */
-function PrettyError(key: string, lines: string): string {
+function prettyError(key: string, lines: string): string {
     let result: string = ''
-    const splitLines: string[] = `${IDENT}${key}: ${JoinLines(lines)}${EOL}`.split(EOL)
+    const splitLines: string[] = `${IDENT}${key}: ${joinLines(lines)}${EOL}`.split(EOL)
     for (let index: number = 0; index < splitLines.length; index++) {
         if (index) result += EOL
         const line: string = splitLines[index]
@@ -175,7 +175,7 @@ function PrettyError(key: string, lines: string): string {
  * @param excludeLoggerKeys
  * @param ident
  */
-function PrettyObject(log: Record<string, any>, palette: Palette, skipKeys: string[], excludeLoggerKeys: boolean = true, ident: string = IDENT): string {
+function prettyObject(log: Record<string, any>, palette: Palette, skipKeys: string[], excludeLoggerKeys: boolean = true, ident: string = IDENT): string {
     let result: string = ''
     let errors: [string, unknown][] | undefined
     for (const key in log) {
@@ -185,16 +185,16 @@ function PrettyObject(log: Record<string, any>, palette: Palette, skipKeys: stri
             (errors ??= []).push([key, value])
             continue
         }
-        let lines: string | undefined = PropertyJSON(value)
+        let lines: string | undefined = propertyJSON(value)
         if (lines === undefined) continue
         if (lines.includes('\\\\')) lines = lines.replace(/\\\\/gi, '\\')
-        const joinedLines: string = lines.includes('\n') ? JoinLines(lines, ident) : lines
+        const joinedLines: string = lines.includes('\n') ? joinLines(lines, ident) : lines
         result += `${ident}${palette.property(key)}:${joinedLines.startsWith(EOL) ? '' : ' '}${joinedLines}${EOL}`
     }
     if (!errors) return result
     for (const [key, value] of errors) {
         const lines: string | undefined = JSON.stringify(value, null, 2)
-        if (lines !== undefined) result += PrettyError(key, lines)
+        if (lines !== undefined) result += prettyError(key, lines)
     }
     return result
 }
@@ -204,11 +204,11 @@ function PrettyObject(log: Record<string, any>, palette: Palette, skipKeys: stri
  * @param log
  * @param palette
  */
-function PrettyErrorLog(log: Record<string, any>, palette: Palette): string {
-    let result: string = `${IDENT}${JoinLines(log.stack)}${EOL}`
+function prettyErrorLog(log: Record<string, any>, palette: Palette): string {
+    let result: string = `${IDENT}${joinLines(log.stack)}${EOL}`
     //The error properties to print: none
     if ('' in log) {
-        result += IsObject(log['']) ? `${IDENT}: {${EOL}${PrettyObject(log[''], palette, [], false, IDENT + IDENT)}${IDENT}}${EOL}` : `${IDENT}: ${log['']}${EOL}`
+        result += isObjectValue(log['']) ? `${IDENT}: {${EOL}${prettyObject(log[''], palette, [], false, IDENT + IDENT)}${IDENT}}${EOL}` : `${IDENT}: ${log['']}${EOL}`
     }
     return result
 }
@@ -220,7 +220,7 @@ function PrettyErrorLog(log: Record<string, any>, palette: Palette): string {
  * @param palette
  * @param parsed the parsed line, if it is known (the log is changed)
  */
-export function Pretty(line: string, palette: Palette, parsed?: Record<string, unknown>): string {
+export function pretty(line: string, palette: Palette, parsed?: Record<string, unknown>): string {
     let log: Record<string, any>
     if (parsed) {
         log = parsed
@@ -230,22 +230,22 @@ export function Pretty(line: string, palette: Palette, parsed?: Record<string, u
         } catch {
             return line + EOL
         }
-        if (!IsObject(log)) return line + EOL
+        if (!isObjectValue(log)) return line + EOL
     }
-    if ((SUSPECT_PROTO.test(line) || SUSPECT_CONSTRUCTOR.test(line)) && !Sanitize(log)) return line + EOL
+    if ((SUSPECT_PROTO.test(line) || SUSPECT_CONSTRUCTOR.test(line)) && !sanitize(log)) return line + EOL
     const message: string | undefined = 'msg' in log && (typeof log.msg === 'string' || typeof log.msg === 'number' || typeof log.msg === 'boolean') ? palette.message(log.msg) : undefined
     //The host name is not printed
     if (hasOwn(log, 'hostname')) delete log.hostname
-    const level: string | undefined = PrettyLevel(log, palette)
-    const metadata: string | undefined = PrettyMetadata(log)
-    const time: string | undefined = PrettyTime(log)
+    const level: string | undefined = prettyLevel(log, palette)
+    const metadata: string | undefined = prettyMetadata(log)
+    const time: string | undefined = prettyTime(log)
     let result: string = time ?? ''
     if (level) result = result ? `${result} ${level}` : level
     if (metadata) result = result ? `${result} ${metadata}:` : metadata
     if (!result.endsWith(':') && result !== '') result += ':'
     if (message !== undefined) result = result ? `${result} ${message}` : message
     if (result.length) result += EOL
-    if (log.type === 'Error' && typeof log.stack === 'string') return result + PrettyErrorLog(log, palette)
+    if (log.type === 'Error' && typeof log.stack === 'string') return result + prettyErrorLog(log, palette)
     const skipKeys: string[] = ['msg', 'level', 'time'].filter((key: string): boolean => typeof log[key] === 'string' || typeof log[key] === 'number' || typeof log[key] === 'boolean')
-    return result + PrettyObject(log, palette, skipKeys)
+    return result + prettyObject(log, palette, skipKeys)
 }

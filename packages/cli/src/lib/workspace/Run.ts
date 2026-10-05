@@ -1,8 +1,8 @@
 import os from 'node:os'
 import {LaunchEnvironment} from '../Environment.js'
-import {SpawnCommand} from '../Processes.js'
-import {Styled, Warn} from '../Output.js'
-import {MatchName, type Workspace, type WorkspacePackage} from './Workspace.js'
+import {spawnCommand} from '../Processes.js'
+import {styled, warn} from '../Output.js'
+import {matchName, type Workspace, type WorkspacePackage} from './Workspace.js'
 
 export type RunOptions = {
     /**
@@ -42,9 +42,9 @@ const COLORS = ['cyan', 'magenta', 'yellow', 'green', 'blue', 'red'] as const
  * @param args
  * @param prefix
  */
-function RunPackageScript(pkg: WorkspacePackage, script: string, args: string[], prefix: string): Promise<number> {
+function runPackageScript(pkg: WorkspacePackage, script: string, args: string[], prefix: string): Promise<number> {
     return new Promise((resolve: (code: number) => void): void => {
-        const child = SpawnCommand('npm', ['run', script, ...(args.length ? ['--', ...args] : [])], {cwd: pkg.directory, env: LaunchEnvironment})
+        const child = spawnCommand('npm', ['run', script, ...(args.length ? ['--', ...args] : [])], {cwd: pkg.directory, env: LaunchEnvironment})
         const forward = (stream: NodeJS.ReadableStream, target: NodeJS.WritableStream): void => {
             let pending: string = ''
             stream.on('data', (chunk: Buffer): void => {
@@ -74,12 +74,12 @@ function RunPackageScript(pkg: WorkspacePackage, script: string, args: string[],
  * @param script
  * @param options
  */
-export async function RunScript(workspace: Workspace, script: string, options: RunOptions = {}): Promise<RunResult> {
-    const inScope = (pkg: WorkspacePackage): boolean => !options.scope?.length || options.scope.some((pattern: string): boolean => MatchName(pkg.name, pattern))
+export async function runScript(workspace: Workspace, script: string, options: RunOptions = {}): Promise<RunResult> {
+    const inScope = (pkg: WorkspacePackage): boolean => !options.scope?.length || options.scope.some((pattern: string): boolean => matchName(pkg.name, pattern))
     const selected: WorkspacePackage[] = workspace.packages.filter((pkg: WorkspacePackage): boolean => inScope(pkg) && !!pkg.scripts[script])
     const skipped: string[] = workspace.packages.filter((pkg: WorkspacePackage): boolean => inScope(pkg) && !pkg.scripts[script]).map((pkg: WorkspacePackage): string => pkg.name)
     const selectedNames: Set<string> = new Set(selected.map((pkg: WorkspacePackage): string => pkg.name))
-    if (!options.parallel) for (const cycle of workspace.cycles()) Warn(`The packages depend on each other: ${cycle.join(' → ')}, they run in the order of their names`)
+    if (!options.parallel) for (const cycle of workspace.cycles()) warn(`The packages depend on each other: ${cycle.join(' → ')}, they run in the order of their names`)
     //The selected packages each one waits for (through the packages without the script too); the cycles are broken by name
     const waitsFor: Map<string, Set<string>> = new Map(selected.map((pkg: WorkspacePackage): [string, Set<string>] => {
         if (options.parallel) return [pkg.name, new Set()]
@@ -102,8 +102,8 @@ export async function RunScript(workspace: Workspace, script: string, options: R
                 if (running.size >= concurrency) break
                 if (done.has(pkg.name) || blocked.has(pkg.name) || running.has(pkg.name) || failed.includes(pkg.name)) continue
                 if (![...waitsFor.get(pkg.name)!].every((name: string): boolean => done.has(name))) continue
-                const prefix: string = Styled(COLORS[selected.indexOf(pkg) % COLORS.length], `${pkg.name.padEnd(width)} │`)
-                running.set(pkg.name, RunPackageScript(pkg, script, options.args ?? [], prefix).then((code: number): void => {
+                const prefix: string = styled(COLORS[selected.indexOf(pkg) % COLORS.length], `${pkg.name.padEnd(width)} │`)
+                running.set(pkg.name, runPackageScript(pkg, script, options.args ?? [], prefix).then((code: number): void => {
                     running.delete(pkg.name)
                     if (code === 0) {
                         done.add(pkg.name)

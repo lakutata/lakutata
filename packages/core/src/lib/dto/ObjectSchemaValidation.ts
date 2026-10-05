@@ -32,7 +32,7 @@ let schemaRevision: number = 0
  * Invalidate every cached DTO schema
  * @constructor
  */
-export function InvalidateDTOSchemas(): void {
+export function invalidateDTOSchemas(): void {
     schemaRevision++
 }
 
@@ -43,7 +43,7 @@ export function InvalidateDTOSchemas(): void {
  * @param build
  * @constructor
  */
-export function GetCachedDTOSchema<T>(cache: WeakMap<Function, CachedSchema<T>>, target: Function, build: () => T): T {
+export function getCachedDTOSchema<T>(cache: WeakMap<Function, CachedSchema<T>>, target: Function, build: () => T): T {
     const cached: CachedSchema<T> | undefined = cache.get(target)
     if (cached && cached.revision === schemaRevision) return cached.value
     const value: T = build()
@@ -58,9 +58,9 @@ const objectSchemaCache: WeakMap<Function, CachedSchema<ObjectSchema>> = new Wea
  * @param target
  * @constructor
  */
-export function DefineObjectAsDTO<ClassConstructor extends typeof DTO>(target: ClassConstructor): ClassConstructor {
+export function defineObjectAsDTO<ClassConstructor extends typeof DTO>(target: ClassConstructor): ClassConstructor {
     Reflect.defineMetadata(DTO_CONSTRUCTOR, true, target)
-    InvalidateDTOSchemas()
+    invalidateDTOSchemas()
     return target
 }
 
@@ -69,7 +69,7 @@ export function DefineObjectAsDTO<ClassConstructor extends typeof DTO>(target: C
  * @param target
  * @constructor
  */
-export function IsDTO<ClassConstructor extends typeof DTO>(target: ClassConstructor): boolean {
+export function isDTO<ClassConstructor extends typeof DTO>(target: ClassConstructor): boolean {
     return !!Reflect.getMetadata(DTO_CONSTRUCTOR, target)
 }
 
@@ -79,9 +79,9 @@ export function IsDTO<ClassConstructor extends typeof DTO>(target: ClassConstruc
  * @param schema
  * @constructor
  */
-export function SetObjectIndexSignatureSchema<ClassConstructor extends typeof DTO>(target: ClassConstructor, schema: Schema): ClassConstructor {
+export function setObjectIndexSignatureSchema<ClassConstructor extends typeof DTO>(target: ClassConstructor, schema: Schema): ClassConstructor {
     Reflect.defineMetadata(DTO_INDEX_SIGNATURE_SCHEMA, schema, target)
-    InvalidateDTOSchemas()
+    invalidateDTOSchemas()
     return target
 }
 
@@ -90,7 +90,7 @@ export function SetObjectIndexSignatureSchema<ClassConstructor extends typeof DT
  * @param target
  * @constructor
  */
-export function GetObjectIndexSignatureSchemaByPrototype<ClassPrototype extends DTO>(target: ClassPrototype): Schema | null {
+export function getObjectIndexSignatureSchemaByPrototype<ClassPrototype extends DTO>(target: ClassPrototype): Schema | null {
     if (Reflect.hasOwnMetadata(DTO_INDEX_SIGNATURE_SCHEMA, objectConstructor(target))) return Reflect.getOwnMetadata(DTO_INDEX_SIGNATURE_SCHEMA, objectConstructor(target))
     for (const parentConstructor of objectParentConstructors(objectConstructor(target))) {
         if (Reflect.hasOwnMetadata(DTO_INDEX_SIGNATURE_SCHEMA, parentConstructor)) return Reflect.getOwnMetadata(DTO_INDEX_SIGNATURE_SCHEMA, parentConstructor)
@@ -103,8 +103,8 @@ export function GetObjectIndexSignatureSchemaByPrototype<ClassPrototype extends 
  * @param target
  * @constructor
  */
-export function GetObjectIndexSignatureSchemaByConstructor<ClassConstructor extends typeof DTO>(target: ClassConstructor): Schema | null {
-    return GetObjectIndexSignatureSchemaByPrototype(objectPrototype(target))
+export function getObjectIndexSignatureSchemaByConstructor<ClassConstructor extends typeof DTO>(target: ClassConstructor): Schema | null {
+    return getObjectIndexSignatureSchemaByPrototype(objectPrototype(target))
 }
 
 /**
@@ -114,10 +114,10 @@ export function GetObjectIndexSignatureSchemaByConstructor<ClassConstructor exte
  * @param schema
  * @constructor
  */
-export function SetObjectPropertySchema<ClassPrototype extends DTO>(target: ClassPrototype, propertyKey: string | symbol, schema: Schema): void {
+export function setObjectPropertySchema<ClassPrototype extends DTO>(target: ClassPrototype, propertyKey: string | symbol, schema: Schema): void {
     if (isSymbol(propertyKey)) return
     //Only for DTO class
-    if (!IsDTO(As(objectConstructor(target)))) return
+    if (!isDTO(As(objectConstructor(target)))) return
     propertyKey = As<string>(propertyKey)
     let objectPropertySchemaMap: ObjectPropertySchemaMap
     if (Reflect.hasOwnMetadata(DTO_PROPERTY_SCHEMAS, objectConstructor(target))) {
@@ -134,7 +134,7 @@ export function SetObjectPropertySchema<ClassPrototype extends DTO>(target: Clas
     }
     objectPropertySchemaMap.set(propertyKey, schema)
     Reflect.defineMetadata(DTO_PROPERTY_SCHEMAS, objectPropertySchemaMap, objectConstructor(target))
-    InvalidateDTOSchemas()
+    invalidateDTOSchemas()
 }
 
 /**
@@ -142,7 +142,7 @@ export function SetObjectPropertySchema<ClassPrototype extends DTO>(target: Clas
  * @param target
  * @constructor
  */
-export function GetObjectPropertySchemas<ClassPrototype extends DTO>(target: ClassPrototype): ObjectPropertySchemaMap {
+export function getObjectPropertySchemas<ClassPrototype extends DTO>(target: ClassPrototype): ObjectPropertySchemaMap {
     const objectPropertySchemaMap: ObjectPropertySchemaMap = new Map()
     const parentObjectPropertySchemaMaps: (typeof objectPropertySchemaMap)[] = []
     objectParentConstructors(objectConstructor(target)).forEach((parentConstructor: Function): void => {
@@ -160,11 +160,11 @@ export function GetObjectPropertySchemas<ClassPrototype extends DTO>(target: Cla
  * @param target
  * @constructor
  */
-export function GetObjectSchemaByPrototype<ClassPrototype extends DTO>(target: ClassPrototype): ObjectSchema {
+export function getObjectSchemaByPrototype<ClassPrototype extends DTO>(target: ClassPrototype): ObjectSchema {
     //Schemas are immutable, so the schema built for a class is shared until a schema definition changes
-    return GetCachedDTOSchema(objectSchemaCache, objectConstructor(target), (): ObjectSchema => {
+    return getCachedDTOSchema(objectSchemaCache, objectConstructor(target), (): ObjectSchema => {
         const schemaMap: SchemaMap = {}
-        GetObjectPropertySchemas(target).forEach((propertySchema: Schema, propertyKey: string): void => {
+        getObjectPropertySchemas(target).forEach((propertySchema: Schema, propertyKey: string): void => {
             schemaMap[propertyKey] = propertySchema
         })
         const refinement: ObjectSchemaRefinement | undefined = Reflect.getMetadata(DTO_OBJECT_REFINEMENT, objectConstructor(target))
@@ -177,8 +177,8 @@ export function GetObjectSchemaByPrototype<ClassPrototype extends DTO>(target: C
  * @param target
  * @constructor
  */
-export function GetObjectSchemaByConstructor<ClassConstructor extends typeof DTO>(target: ClassConstructor): ObjectSchema {
-    return GetObjectSchemaByPrototype(objectPrototype(target))
+export function getObjectSchemaByConstructor<ClassConstructor extends typeof DTO>(target: ClassConstructor): ObjectSchema {
+    return getObjectSchemaByPrototype(objectPrototype(target))
 }
 
 /**
@@ -187,8 +187,8 @@ export function GetObjectSchemaByConstructor<ClassConstructor extends typeof DTO
  * @param refinement
  * @constructor
  */
-export function SetObjectSchemaRefinement<ClassConstructor extends typeof DTO>(target: ClassConstructor, refinement: ObjectSchemaRefinement): ClassConstructor {
+export function setObjectSchemaRefinement<ClassConstructor extends typeof DTO>(target: ClassConstructor, refinement: ObjectSchemaRefinement): ClassConstructor {
     Reflect.defineMetadata(DTO_OBJECT_REFINEMENT, refinement, target)
-    InvalidateDTOSchemas()
+    invalidateDTOSchemas()
     return target
 }

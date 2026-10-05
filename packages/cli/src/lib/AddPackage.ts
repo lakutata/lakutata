@@ -64,7 +64,7 @@ type Files = Record<string, string>
  * depending on them
  * @param outDir
  */
-function TSConfig(outDir: string): string {
+function tsConfig(outDir: string): string {
     return `${JSON.stringify({
         compilerOptions: {
             target: 'ES2022',
@@ -88,7 +88,7 @@ function TSConfig(outDir: string): string {
  * @param name
  * @param version
  */
-function LibraryFiles(name: string, version: string): Files {
+function libraryFiles(name: string, version: string): Files {
     return {
         'package.json': `${JSON.stringify({
             name: name,
@@ -106,7 +106,7 @@ function LibraryFiles(name: string, version: string): Files {
                 test: 'node --test "build/tests/**/*.spec.js"'
             }
         }, null, 2)}\n`,
-        'tsconfig.json': TSConfig('build'),
+        'tsconfig.json': tsConfig('build'),
         'src/index.ts': `/**
  * Greet someone
  * @param name
@@ -138,7 +138,7 @@ export type NativeBuild = 'gyp' | 'cmake' | 'rust'
  * The build files of an addon built by node-gyp: binding.gyp, its options commented
  * @param target
  */
-function GypFiles(target: string): Files {
+function gypFiles(target: string): Files {
     return {
         'binding.gyp': `# The build of the addon by node-gyp (gyp: a Python literal, its comments start with #)
 {
@@ -202,7 +202,7 @@ function GypFiles(target: string): Files {
   ]
 }
 `,
-        'cpp/binding.cc': CppBinding(target)
+        'cpp/binding.cc': cppBinding(target)
     }
 }
 
@@ -210,7 +210,7 @@ function GypFiles(target: string): Files {
  * The build files of an addon built by cmake-js: CMakeLists.txt, its options commented
  * @param target
  */
-function CMakeFiles(target: string): Files {
+function cMakeFiles(target: string): Files {
     return {
         'CMakeLists.txt': `# The build of the addon by cmake-js (npm run build:native)
 cmake_minimum_required(VERSION 3.15)
@@ -264,7 +264,7 @@ if(MSVC AND CMAKE_JS_NODELIB_DEF AND CMAKE_JS_NODELIB_TARGET)
     execute_process(COMMAND \${CMAKE_AR} /def:\${CMAKE_JS_NODELIB_DEF} /out:\${CMAKE_JS_NODELIB_TARGET} \${CMAKE_STATIC_LINKER_FLAGS})
 endif()
 `,
-        'cpp/binding.cc': CppBinding(target)
+        'cpp/binding.cc': cppBinding(target)
     }
 }
 
@@ -273,7 +273,7 @@ endif()
  * @param target
  * @param version
  */
-function RustFiles(target: string, version: string): Files {
+function rustFiles(target: string, version: string): Files {
     return {
         'Cargo.toml': `[package]
 name = "${target}"
@@ -344,7 +344,7 @@ pub fn greet(name: String) -> String {
  * The C++ of an addon (node-addon-api)
  * @param target
  */
-function CppBinding(target: string): string {
+function cppBinding(target: string): string {
     return `#include <napi.h>
 
 /**
@@ -398,11 +398,11 @@ architecture of the machine (\`rustup target add\` builds the other ones).`
  * @param version
  * @param build
  */
-function NativeFiles(name: string, version: string, build: NativeBuild): Files {
+function nativeFiles(name: string, version: string, build: NativeBuild): Files {
     const target: string = name.replace(/^@[^/]+\//, '').replace(/[^A-Za-z0-9_]/g, '_')
     const builds: Record<NativeBuild, { files: Files, buildNative: string, install: string, sources: string[], dependencies: Record<string, string>, devDependencies: Record<string, string>, toolchain: string }> = {
         gyp: {
-            files: GypFiles(target),
+            files: gypFiles(target),
             buildNative: 'node-gyp rebuild',
             //Built when installed (node-gyp-build builds it without prebuilt binaries)
             install: 'node-gyp-build',
@@ -412,7 +412,7 @@ function NativeFiles(name: string, version: string, build: NativeBuild): Files {
             toolchain: 'Python and a C++ toolchain (the Xcode command line tools on macOS, build-essential on Linux, the Visual Studio Build Tools on Windows)'
         },
         cmake: {
-            files: CMakeFiles(target),
+            files: cMakeFiles(target),
             buildNative: 'cmake-js rebuild',
             install: 'cmake-js compile',
             sources: ['cpp', 'CMakeLists.txt'],
@@ -421,7 +421,7 @@ function NativeFiles(name: string, version: string, build: NativeBuild): Files {
             toolchain: 'CMake and a C++ toolchain (the Xcode command line tools on macOS, build-essential on Linux, the Visual Studio Build Tools on Windows)'
         },
         rust: {
-            files: RustFiles(target, version),
+            files: rustFiles(target, version),
             buildNative: 'napi build --release --output-dir build/Release',
             install: 'napi build --release --output-dir build/Release',
             sources: ['rust', 'Cargo.toml', 'build.rs'],
@@ -495,7 +495,7 @@ describe('${name}', (): void => {
     })
 })
 `,
-        'tsconfig.json': TSConfig('dist'),
+        'tsconfig.json': tsConfig('dist'),
         'README.md': `# ${name}
 
 A native addon: ${NATIVE_GUIDES[build]}
@@ -521,7 +521,7 @@ Building the addon needs ${chosen.toolchain}.
  * workspace; a package of the workspace may depend on it
  * @param options
  */
-export async function AddPackage(options: AddPackageOptions): Promise<AddPackageResult> {
+export async function addPackage(options: AddPackageOptions): Promise<AddPackageResult> {
     if (!/^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/.test(options.name)) throw new Error(`"${options.name}" is not a name of package (lower case, digits, - . _ ~, an optional @scope/)`)
     const workspace: Workspace = await Workspace.find()
     if (workspace.packages.some((pkg: WorkspacePackage): boolean => pkg.name === options.name)) throw new Error(`The workspace has already a package ${options.name}`)
@@ -530,7 +530,7 @@ export async function AddPackage(options: AddPackageOptions): Promise<AddPackage
     const directory: string = path.join(workspace.root, 'packages', options.name.replace(/^@[^/]+\//, ''))
     if (existsSync(directory)) throw new Error(`${path.relative(process.cwd(), directory) || directory} exists already`)
     const version: string = workspace.lerna?.data.version ?? workspace.manifest.data.version ?? '0.0.1'
-    const files: Files = options.native ? NativeFiles(options.name, version, options.native) : LibraryFiles(options.name, version)
+    const files: Files = options.native ? nativeFiles(options.name, version, options.native) : libraryFiles(options.name, version)
     for (const [file, content] of Object.entries(files)) {
         await mkdir(path.dirname(path.join(directory, file)), {recursive: true})
         await writeFile(path.join(directory, file), content)

@@ -740,14 +740,14 @@ describe('clone()', () => {
 
     it('clones legacy extended Error with function property', () => {
 
-        const CustomError = function () {
+        const customError = function () {
 
             Error.call(this)
         }
 
-        Object.setPrototypeOf(CustomError.prototype, Error.prototype)
+        Object.setPrototypeOf(customError.prototype, Error.prototype)
 
-        const a = new CustomError('hello')
+        const a = new customError('hello')
         a.fun = new Function()
 
         const b = Utils.clone(a)

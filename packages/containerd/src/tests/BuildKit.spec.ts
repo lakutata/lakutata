@@ -6,10 +6,10 @@ import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {Duplex} from 'node:stream'
 import {GRPCConnection, decode, encode, type Message, type Schema} from '@lakutata/grpc'
-import {BuildKitSession, GoFileMode, PatternExpression, WalkDirectory, type SyncEntry} from '../client/BuildKit.js'
+import {BuildKitSession, goFileMode, patternExpression, walkDirectory, type SyncEntry} from '../client/BuildKit.js'
 import * as B from '../client/BuildKitMessages.js'
 
-function Frame(schema: Schema, message: Message): Buffer {
+function encodeFrame(schema: Schema, message: Message): Buffer {
     const data: Uint8Array = encode(schema, message)
     const frame: Buffer = Buffer.alloc(5 + data.length)
     frame.writeUInt32BE(data.length, 1)
@@ -22,7 +22,7 @@ function Frame(schema: Schema, message: Message): Buffer {
  * @param stream
  * @param schema
  */
-async function* Messages(stream: AsyncIterable<Buffer>, schema: Schema): AsyncGenerator<Message> {
+async function* messages(stream: AsyncIterable<Buffer>, schema: Schema): AsyncGenerator<Message> {
     let buffer: Buffer = Buffer.alloc(0)
     for await (const chunk of stream) {
         buffer = Buffer.concat([buffer, chunk])
@@ -63,11 +63,11 @@ describe('The builds with BuildKit', (): void => {
             if (headers[':path'] !== '/moby.buildkit.v1.Control/Session') return void stream.respond({':status': 404})
             stream.respond({':status': 200, 'content-type': 'application/grpc'})
             const tunnel: Duplex = new Duplex({
-                write: (chunk: Buffer, _encoding: BufferEncoding, callback: () => void): void => void stream.write(Frame(B.BytesMessage, {data: chunk}), callback),
+                write: (chunk: Buffer, _encoding: BufferEncoding, callback: () => void): void => void stream.write(encodeFrame(B.BytesMessage, {data: chunk}), callback),
                 read: (): void => undefined
             })
             ;(async (): Promise<void> => {
-                for await (const message of Messages(stream as AsyncIterable<Buffer>, B.BytesMessage)) tunnel.push(Buffer.from(message.data))
+                for await (const message of messages(stream as AsyncIterable<Buffer>, B.BytesMessage)) tunnel.push(Buffer.from(message.data))
                 tunnel.push(null)
             })().catch((): void => void tunnel.push(null))
             const client: ClientHttp2Session = http2.connect('http://session', {createConnection: (): Duplex => tunnel})
@@ -85,28 +85,28 @@ describe('The builds with BuildKit', (): void => {
     })
 
     it('matches the patterns of fsutil', (): void => {
-        assert.ok(PatternExpression('Dockerfile').test('Dockerfile'))
-        assert.ok(!PatternExpression('Dockerfile').test('src/Dockerfile'))
-        assert.ok(PatternExpression('*.Dockerfile').test('App.Dockerfile'))
-        assert.ok(PatternExpression('src/**/*.js').test('src/a/b/c.js'))
-        assert.ok(PatternExpression('src/**/*.js').test('src/c.js'))
-        assert.ok(PatternExpression('file.[ch]').test('file.c'))
-        assert.ok(!PatternExpression('file.[!ch]').test('file.c'))
+        assert.ok(patternExpression('Dockerfile').test('Dockerfile'))
+        assert.ok(!patternExpression('Dockerfile').test('src/Dockerfile'))
+        assert.ok(patternExpression('*.Dockerfile').test('App.Dockerfile'))
+        assert.ok(patternExpression('src/**/*.js').test('src/a/b/c.js'))
+        assert.ok(patternExpression('src/**/*.js').test('src/c.js'))
+        assert.ok(patternExpression('file.[ch]').test('file.c'))
+        assert.ok(!patternExpression('file.[!ch]').test('file.c'))
     })
 
     it('gives the modes of the files as Go does', async (): Promise<void> => {
-        assert.strictEqual(GoFileMode(await lstat(path.join(context, 'src'), {bigint: true})), (0x80000000 | 0o755) >>> 0)
-        assert.strictEqual(GoFileMode(await lstat(path.join(context, 'Linked.Dockerfile'), {bigint: true})) & 0x08000000, 0x08000000)
+        assert.strictEqual(goFileMode(await lstat(path.join(context, 'src'), {bigint: true})), (0x80000000 | 0o755) >>> 0)
+        assert.strictEqual(goFileMode(await lstat(path.join(context, 'Linked.Dockerfile'), {bigint: true})) & 0x08000000, 0x08000000)
     })
 
     it('walks the directories as fsutil does: their order, their patterns', async (): Promise<void> => {
-        const paths = async (filter = {}): Promise<string[]> => (await WalkDirectory(context, filter)).map((entry: SyncEntry): string => entry.path)
+        const paths = async (filter = {}): Promise<string[]> => (await walkDirectory(context, filter)).map((entry: SyncEntry): string => entry.path)
         assert.deepStrictEqual(await paths(), ['Dockerfile', 'Linked.Dockerfile', 'b.txt', 'node_modules', 'node_modules/x', 'node_modules/x/index.js', 'src', 'src/deep', 'src/deep/big.bin', 'src/index.js'])
         assert.deepStrictEqual(await paths({exclude: ['node_modules', '**/*.bin']}), ['Dockerfile', 'Linked.Dockerfile', 'b.txt', 'src', 'src/deep', 'src/index.js'])
         assert.deepStrictEqual(await paths({include: ['src/deep/big.bin']}), ['src', 'src/deep', 'src/deep/big.bin'])
         //The Dockerfile linked: its target followed
         assert.deepStrictEqual(await paths({include: ['Linked.Dockerfile'], followPaths: ['Linked.Dockerfile']}), ['Dockerfile', 'Linked.Dockerfile'])
-        const [file] = await WalkDirectory(context, {include: ['b.txt']})
+        const [file] = await walkDirectory(context, {include: ['b.txt']})
         assert.strictEqual(file.stat.size, 1)
         assert.strictEqual(typeof file.stat.modTime, 'bigint')
     })
@@ -127,25 +127,25 @@ describe('The builds with BuildKit', (): void => {
             const call = (method: string, metadata: Record<string, string> = {}): ClientHttp2Stream => client.request({':method': 'POST', ':path': method, 'content-type': 'application/grpc', 'te': 'trailers', ...metadata})
             //Its health
             const health: ClientHttp2Stream = call('/grpc.health.v1.Health/Check')
-            health.end(Frame(B.HealthCheckRequest, {}))
-            for await (const message of Messages(health as AsyncIterable<Buffer>, B.HealthCheckResponse)) assert.strictEqual(message.status, 1)
+            health.end(encodeFrame(B.HealthCheckRequest, {}))
+            for await (const message of messages(health as AsyncIterable<Buffer>, B.HealthCheckResponse)) assert.strictEqual(message.status, 1)
             //The credentials of Docker Hub, by the host of its registry
             const credentials: ClientHttp2Stream = call('/moby.filesync.v1.Auth/Credentials')
-            credentials.end(Frame(B.CredentialsRequest, {host: 'registry-1.docker.io'}))
-            for await (const message of Messages(credentials as AsyncIterable<Buffer>, B.CredentialsResponse)) assert.deepStrictEqual(message, {username: 'user', secret: 'secret'})
+            credentials.end(encodeFrame(B.CredentialsRequest, {host: 'registry-1.docker.io'}))
+            for await (const message of messages(credentials as AsyncIterable<Buffer>, B.CredentialsResponse)) assert.deepStrictEqual(message, {username: 'user', secret: 'secret'})
             //The files of the context, as the receiver of fsutil asks them
             const copy: ClientHttp2Stream = call('/moby.filesync.v1.FileSync/DiffCopy', {'dir-name': 'context', 'exclude-patterns': 'node_modules'})
             const stats: Message[] = []
             const files: Map<number, Buffer[]> = new Map()
             let finished: boolean = false
-            for await (const packet of Messages(copy as AsyncIterable<Buffer>, B.Packet)) {
+            for await (const packet of messages(copy as AsyncIterable<Buffer>, B.Packet)) {
                 const type: number = packet.type ?? B.PacketType.STAT
                 if (type === B.PacketType.STAT && packet.stat) {
                     stats.push(packet.stat)
                 } else if (type === B.PacketType.STAT) {
                     //The last stat: the files requested
-                    stats.forEach((stat: Message, id: number): unknown => (stat.mode & 0x80000000) || (stat.mode & 0x08000000) ? undefined : copy.write(Frame(B.Packet, {type: B.PacketType.REQ, id: id})))
-                    if (!stats.some((stat: Message): boolean => !((stat.mode & 0x80000000) || (stat.mode & 0x08000000)))) copy.end(Frame(B.Packet, {type: B.PacketType.FIN}))
+                    stats.forEach((stat: Message, id: number): unknown => (stat.mode & 0x80000000) || (stat.mode & 0x08000000) ? undefined : copy.write(encodeFrame(B.Packet, {type: B.PacketType.REQ, id: id})))
+                    if (!stats.some((stat: Message): boolean => !((stat.mode & 0x80000000) || (stat.mode & 0x08000000)))) copy.end(encodeFrame(B.Packet, {type: B.PacketType.FIN}))
                 } else if (type === B.PacketType.DATA) {
                     const id: number = packet.id ?? 0
                     if (!files.has(id)) files.set(id, [])
@@ -154,7 +154,7 @@ describe('The builds with BuildKit', (): void => {
                     } else {
                         (files.get(id) as Buffer[] & { done?: boolean }).done = true
                         const regular: number = stats.filter((stat: Message): boolean => !((stat.mode & 0x80000000) || (stat.mode & 0x08000000))).length
-                        if ([...files.values()].filter((chunks: Buffer[] & { done?: boolean }): boolean => !!chunks.done).length === regular) copy.end(Frame(B.Packet, {type: B.PacketType.FIN}))
+                        if ([...files.values()].filter((chunks: Buffer[] & { done?: boolean }): boolean => !!chunks.done).length === regular) copy.end(encodeFrame(B.Packet, {type: B.PacketType.FIN}))
                     }
                 } else if (type === B.PacketType.FIN) {
                     finished = true

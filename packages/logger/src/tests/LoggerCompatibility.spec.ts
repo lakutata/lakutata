@@ -3,8 +3,8 @@ import assert from 'node:assert'
 import {Writable} from 'node:stream'
 import {pino, Logger as PinoLogger} from 'pino'
 import {prettyFactory} from 'pino-pretty'
-import {Bindings, BuildRecord} from '../lib/Record.js'
-import {Pretty} from '../lib/Pretty.js'
+import {logBindings, buildRecord} from '../lib/Record.js'
+import {pretty} from '../lib/Pretty.js'
 import {COLOR_PALETTE, PLAIN_PALETTE} from '../lib/Colors.js'
 
 //The logger of 2.x (pino + pino-pretty) is the reference of the log format
@@ -32,7 +32,7 @@ const prettyPlain: (line: string) => string = prettyFactory({colorize: false})
  * @param level
  * @param args
  */
-function ReferenceRecord(level: string, args: unknown[]): string {
+function referenceRecord(level: string, args: unknown[]): string {
     written = '';
     (reference as any)[level](...args)
     return written
@@ -42,7 +42,7 @@ function ReferenceRecord(level: string, args: unknown[]): string {
  * Hide the times, which differ between the loggers
  * @param text
  */
-function WithoutTime(text: string): string {
+function withoutTime(text: string): string {
     return text.replace(/"time":\d+/, '"time":0').replace(/^\[\d\d:\d\d:\d\d\.\d\d\d]/, '[time]')
 }
 
@@ -50,7 +50,7 @@ function WithoutTime(text: string): string {
  * Whether a text is valid JSON
  * @param text
  */
-function IsJSON(text: string): boolean {
+function isJSON(text: string): boolean {
     try {
         JSON.parse(text)
         return true
@@ -64,16 +64,16 @@ function IsJSON(text: string): boolean {
  * @param args
  * @param label
  */
-function Compare(args: unknown[], label: string): void {
+function compare(args: unknown[], label: string): void {
     for (const [level, levelNumber] of LEVELS) {
         //The arguments are built twice, the loggers may change them (serializing an error tags it)
         let expected: string
         try {
-            expected = ReferenceRecord(level, args)
+            expected = referenceRecord(level, args)
         } catch (e) {
             let error: Error | undefined
             try {
-                BuildRecord(levelNumber, Bindings(NAME), args)
+                buildRecord(levelNumber, logBindings(NAME), args)
             } catch (actualError) {
                 error = actualError as Error
             }
@@ -86,35 +86,35 @@ function Compare(args: unknown[], label: string): void {
             }
             continue
         }
-        const actual: string = BuildRecord(levelNumber, Bindings(NAME), args).line
-        if (!IsJSON(expected)) {
+        const actual: string = buildRecord(levelNumber, logBindings(NAME), args).line
+        if (!isJSON(expected)) {
             //2.x writes invalid lines for the properties named like the members of Object.prototype, the logger does not
-            assert.ok(IsJSON(actual), `valid JSON ${label}`)
+            assert.ok(isJSON(actual), `valid JSON ${label}`)
             continue
         }
-        assert.strictEqual(WithoutTime(actual), WithoutTime(expected), `JSON ${label}`)
+        assert.strictEqual(withoutTime(actual), withoutTime(expected), `JSON ${label}`)
         const line: string = expected.slice(0, -1)
         let colored: string
         try {
             colored = prettyColored(line)
         } catch {
             //The reference fails on some logs (a level which is not a number or a string), the logger does not
-            assert.strictEqual(typeof Pretty(line, COLOR_PALETTE), 'string')
+            assert.strictEqual(typeof pretty(line, COLOR_PALETTE), 'string')
             continue
         }
-        assert.strictEqual(Pretty(line, COLOR_PALETTE), colored, `colored ${label}`)
+        assert.strictEqual(pretty(line, COLOR_PALETTE), colored, `colored ${label}`)
         //The parsed line built with the JSON line gives the same output
-        const parsed: Record<string, unknown> | undefined = BuildRecord(levelNumber, Bindings(NAME), args, true).log
+        const parsed: Record<string, unknown> | undefined = buildRecord(levelNumber, logBindings(NAME), args, true).log
         if (parsed) {
             parsed.time = JSON.parse(line).time
-            assert.strictEqual(Pretty(line, COLOR_PALETTE, parsed), colored, `parsed ${label}`)
+            assert.strictEqual(pretty(line, COLOR_PALETTE, parsed), colored, `parsed ${label}`)
         }
-        assert.strictEqual(Pretty(line, PLAIN_PALETTE), prettyPlain(line), `plain ${label}`)
+        assert.strictEqual(pretty(line, PLAIN_PALETTE), prettyPlain(line), `plain ${label}`)
     }
 }
 
 //Deterministic pseudo random numbers (mulberry32)
-function Random(seed: number): () => number {
+function seededRandom(seed: number): () => number {
     return (): number => {
         seed = (seed + 0x6D2B79F5) | 0
         let t: number = Math.imul(seed ^ (seed >>> 15), 1 | seed)
@@ -153,7 +153,7 @@ describe('Logger compatibility with 2.x', (): void => {
             [(): void => undefined],
             [123n]
         ]
-        cases.forEach((args: unknown[], index: number): void => Compare(args, `message ${index}`))
+        cases.forEach((args: unknown[], index: number): void => compare(args, `message ${index}`))
     })
 
     it('formats the objects', (): void => {
@@ -201,7 +201,7 @@ describe('Logger compatibility with 2.x', (): void => {
             [{method: 'GET', headers: {}, socket: {}, originalUrl: '/original', info: {id: 'i', remoteAddress: 'r'}}],
             [{setHeader: (): void => undefined, headersSent: true, statusCode: 200, getHeaders: (): object => ({a: 'b'})}, 'response']
         ]
-        cases.forEach((args: unknown[], index: number): void => Compare(args, `object ${index}`))
+        cases.forEach((args: unknown[], index: number): void => compare(args, `object ${index}`))
     })
 
     it('formats the errors', (): void => {
@@ -230,11 +230,11 @@ describe('Logger compatibility with 2.x', (): void => {
             [{err: withCause, other: 1}, 'err key'],
             [{err: new Error('err key without message')}]
         ]
-        cases.forEach((args: unknown[], index: number): void => Compare(args, `error ${index}`))
+        cases.forEach((args: unknown[], index: number): void => compare(args, `error ${index}`))
     })
 
     it('formats random logs like 2.x', (): void => {
-        const random: () => number = Random(20260928)
+        const random: () => number = seededRandom(20260928)
         const pick = <T>(items: T[]): T => items[Math.floor(random() * items.length)]
         const keys: string[] = ['id', 'user', 'msg', 'err', 'error', 'data', 'list', 'level', 'name', 'x y', 'ünï', '0', 'type', 'stack']
         const value = (depth: number): unknown => {
@@ -268,7 +268,7 @@ describe('Logger compatibility with 2.x', (): void => {
             if (random() < 0.7) args.push(pick(['message', 'with %s', '%d items', '%j', '%o and %s', '%%']))
             const extra: number = Math.floor(random() * 3)
             for (let item: number = 0; item < extra; item++) args.push(value(1))
-            Compare(args, `random ${index}`)
+            compare(args, `random ${index}`)
         }
     })
 })

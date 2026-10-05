@@ -5,7 +5,7 @@ import {Duplex, type Readable, type Writable} from 'node:stream'
 import {type Message} from '@lakutata/grpc'
 import type {ContainerStore, ContainerTerminal} from '../../client/ContainerStore.js'
 import {ContainerTTYConsoleSizeOptions} from '../options/container/ContainerTTYConsoleSizeOptions.js'
-import {ContainerdError} from './ContainerdErrors.js'
+import {containerdError} from './ContainerdErrors.js'
 
 /**
  * An interactive terminal in a running container: a process (a shell by default) run with a pseudo terminal, as
@@ -102,7 +102,7 @@ export class ContainerdContainerTTY extends Provider {
                 user: this.user
             })
         } catch (error: unknown) {
-            throw ContainerdError(error)
+            throw containerdError(error)
         }
     }
 

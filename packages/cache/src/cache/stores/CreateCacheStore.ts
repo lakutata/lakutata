@@ -13,7 +13,7 @@ import {MysqlStore} from './MysqlStore.js'
  * Create the store of the options
  * @param options
  */
-export function CreateCacheStore(options: CacheStoreOptions): CacheStore | undefined {
+export function createCacheStore(options: CacheStoreOptions): CacheStore | undefined {
     switch (options.type) {
         case 'memory':
             return new MemoryStore(options.sweepInterval)

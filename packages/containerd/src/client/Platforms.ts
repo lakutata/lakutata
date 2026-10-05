@@ -30,7 +30,7 @@ const ARCHITECTURES: Readonly<Record<string, string>> = {
  * emulators of QEMU, Rosetta, whatever their names
  * @param entry the content of the entry
  */
-export function BinfmtPlatforms(entry: string): Platform[] {
+export function binfmtPlatforms(entry: string): Platform[] {
     if (!/^enabled$/m.test(entry)) return []
     const offset: string | undefined = entry.match(/^offset (\d+)$/m)?.[1]
     const magic: string | undefined = entry.match(/^magic ([0-9a-f]+)$/m)?.[1]
@@ -69,7 +69,7 @@ export function BinfmtPlatforms(entry: string): Platform[] {
  * A platform written as OCI writes it (linux/arm64/v8)
  * @param platform
  */
-export function FormatPlatform(platform: Platform): string {
+export function formatPlatform(platform: Platform): string {
     return [platform.os, platform.architecture, platform.variant].filter(Boolean).join('/')
 }
 
@@ -77,7 +77,7 @@ export function FormatPlatform(platform: Platform): string {
  * The variant of an architecture given without it: the one its images are matched to (arm64 is v8, arm v7)
  * @param platform
  */
-export function NormalizePlatform(platform: Platform): Platform {
+export function normalizePlatform(platform: Platform): Platform {
     const architecture: string = ({x86_64: 'amd64', aarch64: 'arm64', armhf: 'arm', armel: 'arm', i386: '386'} as Record<string, string>)[platform.architecture] ?? platform.architecture
     let variant: string | undefined = platform.variant || undefined
     if (architecture === 'arm64' && !variant) variant = 'v8'
@@ -89,20 +89,20 @@ export function NormalizePlatform(platform: Platform): Platform {
  * Parse a platform: linux/arm64, linux/arm/v7, or an architecture (arm64), on Linux
  * @param value
  */
-export function ParsePlatform(value: string): Platform {
+export function parsePlatform(value: string): Platform {
     const parts: string[] = value.trim().toLowerCase().split('/').filter(Boolean)
     if (!parts.length || parts.length > 3) throw new Error(`The platform "${value}" is not valid (linux/arm64, linux/arm/v7)`)
     const [os, architecture, variant] = parts.length === 1 ? ['linux', parts[0], undefined] : parts
-    return NormalizePlatform({os: os, architecture: architecture, variant: variant})
+    return normalizePlatform({os: os, architecture: architecture, variant: variant})
 }
 
 /**
  * The platform of the machine running Node.js
  */
-export function HostPlatform(): Platform {
+export function hostPlatform(): Platform {
     const architecture: string = ARCHITECTURES[process.arch] ?? process.arch
     const arm: unknown = (process.config.variables as Record<string, unknown>).arm_version
-    return NormalizePlatform({os: process.platform === 'win32' ? 'windows' : process.platform, architecture: architecture, variant: architecture === 'arm' && arm ? `v${arm}` : undefined})
+    return normalizePlatform({os: process.platform === 'win32' ? 'windows' : process.platform, architecture: architecture, variant: architecture === 'arm' && arm ? `v${arm}` : undefined})
 }
 
 /**
@@ -111,8 +111,8 @@ export function HostPlatform(): Platform {
  * @param image
  * @param platform
  */
-export function MatchPlatform(image: Platform, platform: Platform): boolean {
-    const [a, b] = [NormalizePlatform(image), NormalizePlatform(platform)]
+export function matchPlatform(image: Platform, platform: Platform): boolean {
+    const [a, b] = [normalizePlatform(image), normalizePlatform(platform)]
     if (a.os !== b.os || a.architecture !== b.architecture) return false
     if (a.architecture === 'arm') return Number(a.variant?.slice(1) ?? 7) <= Number(b.variant?.slice(1) ?? 7)
     return (a.variant ?? '') === (b.variant ?? '')
@@ -124,9 +124,9 @@ export function MatchPlatform(image: Platform, platform: Platform): boolean {
  * @param image
  * @param platform
  */
-export function PlatformRank(image: Platform, platform: Platform): number | undefined {
-    if (!MatchPlatform(image, platform)) return undefined
-    const [a, b] = [NormalizePlatform(image), NormalizePlatform(platform)]
+export function platformRank(image: Platform, platform: Platform): number | undefined {
+    if (!matchPlatform(image, platform)) return undefined
+    const [a, b] = [normalizePlatform(image), normalizePlatform(platform)]
     return a.architecture === 'arm' ? Number(b.variant?.slice(1) ?? 7) - Number(a.variant?.slice(1) ?? 7) : 0
 }
 
@@ -135,8 +135,8 @@ export function PlatformRank(image: Platform, platform: Platform): number | unde
  * binfmt_misc (enabled)
  * @param binfmt the directory of binfmt_misc
  */
-export function SupportedPlatforms(binfmt: string = '/proc/sys/fs/binfmt_misc'): Platform[] {
-    const platforms: Platform[] = [HostPlatform()]
+export function supportedPlatforms(binfmt: string = '/proc/sys/fs/binfmt_misc'): Platform[] {
+    const platforms: Platform[] = [hostPlatform()]
     //The machines of x64 run the ones of 386
     if (platforms[0].architecture === 'amd64') platforms.push({os: 'linux', architecture: '386'})
     let entries: string[] = []
@@ -149,11 +149,11 @@ export function SupportedPlatforms(binfmt: string = '/proc/sys/fs/binfmt_misc'):
         if (entry === 'status' || entry === 'register') continue
         let emulated: Platform[]
         try {
-            emulated = BinfmtPlatforms(readFileSync(path.join(binfmt, entry), 'utf8'))
+            emulated = binfmtPlatforms(readFileSync(path.join(binfmt, entry), 'utf8'))
         } catch {
             continue
         }
-        for (const platform of emulated) if (!platforms.some((known: Platform): boolean => FormatPlatform(known) === FormatPlatform(platform))) platforms.push(platform)
+        for (const platform of emulated) if (!platforms.some((known: Platform): boolean => formatPlatform(known) === formatPlatform(platform))) platforms.push(platform)
     }
     return platforms
 }

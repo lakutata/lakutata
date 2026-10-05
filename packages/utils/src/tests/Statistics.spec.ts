@@ -8,7 +8,7 @@ import {Statistics} from '../exports/Utils.js'
  * A pseudo random generator with a seed (mulberry32)
  * @param seed
  */
-function Random(seed: number): () => number {
+function seededRandom(seed: number): () => number {
     return (): number => {
         seed = (seed + 0x6D2B79F5) | 0
         let t: number = Math.imul(seed ^ (seed >>> 15), 1 | seed)
@@ -17,7 +17,7 @@ function Random(seed: number): () => number {
     }
 }
 
-const random: () => number = Random(20261001)
+const random: () => number = seededRandom(20261001)
 
 const pick = <T>(values: T[]): T => values[Math.floor(random() * values.length)]
 
@@ -25,7 +25,7 @@ const pick = <T>(values: T[]): T => values[Math.floor(random() * values.length)]
  * A random array of numbers: empty, short or long (quickselect changes above 600), with duplicates, negative,
  * decimal or zero
  */
-function Numbers(): number[] {
+function numbers(): number[] {
     const length: number = pick([0, 1, 2, 3, 5, 10, 50, 700])
     const kind: number = Math.floor(random() * 4)
     return Array.from({length: length}, (): number => {
@@ -42,48 +42,48 @@ const probability = (): number => pick([0, 1, 0.5, 0.25, 0.75, 0.1, 0.99, -0.1, 
  * The arguments of the functions compared, for a run
  */
 const ARGUMENTS: Record<string, () => unknown[]> = {
-    sum: (): unknown[] => [Numbers()], mean: (): unknown[] => [Numbers()], average: (): unknown[] => [Numbers()],
-    min: (): unknown[] => [Numbers()], max: (): unknown[] => [Numbers()], product: (): unknown[] => [Numbers()],
-    extent: (): unknown[] => [Numbers()], mode: (): unknown[] => [Numbers()], median: (): unknown[] => [Numbers()],
-    variance: (): unknown[] => [Numbers()], standardDeviation: (): unknown[] => [Numbers()],
-    sampleVariance: (): unknown[] => [Numbers()], sampleStandardDeviation: (): unknown[] => [Numbers()],
-    sampleSkewness: (): unknown[] => [Numbers()], harmonicMean: (): unknown[] => [Numbers()],
-    geometricMean: (): unknown[] => [Numbers()], logAverage: (): unknown[] => [Numbers()],
-    rootMeanSquare: (): unknown[] => [Numbers()], medianAbsoluteDeviation: (): unknown[] => [Numbers()],
-    interquartileRange: (): unknown[] => [Numbers()], coefficientOfVariation: (): unknown[] => [Numbers()],
-    sumNthPowerDeviations: (): unknown[] => [Numbers(), pick([1, 2, 3, 4])],
-    quantile: (): unknown[] => [Numbers(), random() < 0.3 ? [probability(), probability(), probability()] : probability()],
-    quantileRank: (): unknown[] => [Numbers(), pick([0, 5, -1, 50, 2.5, 1000])],
+    sum: (): unknown[] => [numbers()], mean: (): unknown[] => [numbers()], average: (): unknown[] => [numbers()],
+    min: (): unknown[] => [numbers()], max: (): unknown[] => [numbers()], product: (): unknown[] => [numbers()],
+    extent: (): unknown[] => [numbers()], mode: (): unknown[] => [numbers()], median: (): unknown[] => [numbers()],
+    variance: (): unknown[] => [numbers()], standardDeviation: (): unknown[] => [numbers()],
+    sampleVariance: (): unknown[] => [numbers()], sampleStandardDeviation: (): unknown[] => [numbers()],
+    sampleSkewness: (): unknown[] => [numbers()], harmonicMean: (): unknown[] => [numbers()],
+    geometricMean: (): unknown[] => [numbers()], logAverage: (): unknown[] => [numbers()],
+    rootMeanSquare: (): unknown[] => [numbers()], medianAbsoluteDeviation: (): unknown[] => [numbers()],
+    interquartileRange: (): unknown[] => [numbers()], coefficientOfVariation: (): unknown[] => [numbers()],
+    sumNthPowerDeviations: (): unknown[] => [numbers(), pick([1, 2, 3, 4])],
+    quantile: (): unknown[] => [numbers(), random() < 0.3 ? [probability(), probability(), probability()] : probability()],
+    quantileRank: (): unknown[] => [numbers(), pick([0, 5, -1, 50, 2.5, 1000])],
     addToMean: (): unknown[] => [random() * 10, pick([0, 1, 5]), random() * 10],
     subtractFromMean: (): unknown[] => [random() * 10, pick([1, 2, 5]), random() * 10],
     combineMeans: (): unknown[] => [random(), 3, random(), 4],
     combineVariances: (): unknown[] => [random(), random(), 3, random(), random(), 4],
     zScore: (): unknown[] => [random() * 10, random() * 10, pick([1, 2, 0])],
     sampleCovariance: (): unknown[] => {
-        const x: number[] = Numbers()
-        return [x, random() < 0.8 ? x.map((value: number): number => value * random()) : Numbers()]
+        const x: number[] = numbers()
+        return [x, random() < 0.8 ? x.map((value: number): number => value * random()) : numbers()]
     },
     sampleCorrelation: (): unknown[] => {
-        const x: number[] = Numbers()
+        const x: number[] = numbers()
         return [x, x.map((value: number): number => value + random())]
     },
     linearRegression: (): unknown[] => [Array.from({length: pick([1, 2, 5, 20])}, (): number[] => [random() * 10, random() * 10])],
-    tTest: (): unknown[] => [Numbers(), random() * 10],
-    tTestTwoSample: (): unknown[] => [Numbers(), Numbers(), pick([undefined, 0, 1])],
+    tTest: (): unknown[] => [numbers(), random() * 10],
+    tTestTwoSample: (): unknown[] => [numbers(), numbers(), pick([undefined, 0, 1])],
     bernoulliDistribution: (): unknown[] => [probability()],
     binomialDistribution: (): unknown[] => [pick([0, 1, 5, 10, 2.5, -1]), probability()],
     poissonDistribution: (): unknown[] => [pick([0, 1, 3.5, 10, -1])],
-    chunk: (): unknown[] => [Numbers(), pick([1, 2, 3, 0, 1.5])],
+    chunk: (): unknown[] => [numbers(), pick([1, 2, 3, 0, 1.5])],
     factorial: (): unknown[] => [pick([0, 1, 5, 10, 20, -1, 2.5])],
     //Not the fractions below 10: the upstream overflows the stack between 0 and 1, and is imprecise below 10 (see the
     //fixes below)
     gamma: (): unknown[] => [pick([1, 5, 0, -1, 10.1, 12.5, -10.5, 30.25])],
     gammaln: (): unknown[] => [pick([1, 5, 0, -1, 0.5, 2.5, 100])],
     approxEqual: (): unknown[] => [pick([0, 1, 1.00001, 2]), pick([0, 1, 2]), pick([undefined, 0.1, 0.0001])],
-    combinations: (): unknown[] => [Numbers().slice(0, 6), pick([1, 2, 3])],
-    combinationsReplacement: (): unknown[] => [Numbers().slice(0, 5), pick([1, 2, 3])],
+    combinations: (): unknown[] => [numbers().slice(0, 6), pick([1, 2, 3])],
+    combinationsReplacement: (): unknown[] => [numbers().slice(0, 5), pick([1, 2, 3])],
     cumulativeStdLogisticProbability: (): unknown[] => [(random() - 0.5) * 20],
-    jenks: (): unknown[] => [Numbers().slice(0, 60), pick([1, 2, 3, 5])],
+    jenks: (): unknown[] => [numbers().slice(0, 60), pick([1, 2, 3, 5])],
     logit: (): unknown[] => [probability()],
     probit: (): unknown[] => [probability()],
     epsilonValue: (): unknown[] => []
@@ -93,7 +93,7 @@ const ARGUMENTS: Record<string, () => unknown[]> = {
  * The result or the error of a function
  * @param fn
  */
-function Outcome(fn: () => unknown): { value?: unknown, error?: string } {
+function outcomeOf(fn: () => unknown): { value?: unknown, error?: string } {
     try {
         return {value: fn()}
     } catch (error) {
@@ -115,14 +115,14 @@ describe('Statistics', (): void => {
                 const input: unknown[] = args()
                 //The functions may change their inputs (combinations), each one gets a copy
                 const copy = (): unknown[] => structuredClone(input)
-                assert.deepStrictEqual(Outcome((): unknown => port[name](...copy())), Outcome((): unknown => upstream[name](...copy())), `${name}(${JSON.stringify(input).slice(0, 200)})`)
+                assert.deepStrictEqual(outcomeOf((): unknown => port[name](...copy())), outcomeOf((): unknown => upstream[name](...copy())), `${name}(${JSON.stringify(input).slice(0, 200)})`)
             }
         }
     })
 
     it('selects, shuffles and samples as simple-statistics with the same random source', (): void => {
         for (let run: number = 0; run < 200; run++) {
-            const x: number[] = Numbers()
+            const x: number[] = numbers()
             const k: number = Math.floor(random() * Math.max(x.length, 1))
             const portArray: number[] = x.slice()
             const upstreamArray: number[] = x.slice()
@@ -130,9 +130,9 @@ describe('Statistics', (): void => {
             Upstream.quickselect(upstreamArray, k)
             assert.deepStrictEqual(portArray, upstreamArray)
             const seed: number = Math.floor(random() * 1e9)
-            assert.deepStrictEqual(Port.shuffle(x, Random(seed)), Upstream.shuffle(x, Random(seed)))
-            assert.deepStrictEqual(Port.sample(x, 3, Random(seed)), Upstream.sample(x, 3, Random(seed)))
-            assert.deepStrictEqual(Port.sampleWithReplacement(x, 4, Random(seed)), Upstream.sampleWithReplacement(x, 4, Random(seed)))
+            assert.deepStrictEqual(Port.shuffle(x, seededRandom(seed)), Upstream.shuffle(x, seededRandom(seed)))
+            assert.deepStrictEqual(Port.sample(x, 3, seededRandom(seed)), Upstream.sample(x, 3, seededRandom(seed)))
+            assert.deepStrictEqual(Port.sampleWithReplacement(x, 4, seededRandom(seed)), Upstream.sampleWithReplacement(x, 4, seededRandom(seed)))
         }
     })
 

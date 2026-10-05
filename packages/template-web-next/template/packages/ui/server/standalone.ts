@@ -15,16 +15,16 @@ const ui: string = fileURLToPath(new URL('../../', import.meta.url))
  * @param from
  * @param to
  */
-function Copy(from: string, to: string): void {
+function copyPackages(from: string, to: string): void {
     if (!statSync(from).isDirectory()) return copyFileSync(from, to)
     mkdirSync(to, {recursive: true})
-    for (const entry of readdirSync(from)) Copy(path.join(from, entry), path.join(to, entry))
+    for (const entry of readdirSync(from)) copyPackages(path.join(from, entry), path.join(to, entry))
 }
 
 const standalone: string = path.join(ui, '.next', 'standalone')
 //The path of the application from the root of the files traced (the one of the workspace)
 const {relativeAppDir} = JSON.parse(readFileSync(path.join(ui, '.next', 'required-server-files.json'), 'utf8')) as { relativeAppDir: string }
 const application: string = path.join(standalone, relativeAppDir)
-Copy(path.join(ui, '.next', 'static'), path.join(application, '.next', 'static'))
-if (existsSync(path.join(ui, 'public'))) Copy(path.join(ui, 'public'), path.join(application, 'public'))
+copyPackages(path.join(ui, '.next', 'static'), path.join(application, '.next', 'static'))
+if (existsSync(path.join(ui, 'public'))) copyPackages(path.join(ui, 'public'), path.join(application, 'public'))
 writeFileSync(path.join(standalone, 'ui.json'), JSON.stringify({dir: relativeAppDir}))

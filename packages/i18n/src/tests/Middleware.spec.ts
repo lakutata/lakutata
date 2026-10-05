@@ -25,7 +25,7 @@ class TestMiddleware extends I18nMiddleware {
  * @param url
  * @param headers
  */
-function HTTP(url: string, headers: Record<string, string>): HTTPContext {
+function http(url: string, headers: Record<string, string>): HTTPContext {
     const request: IncomingMessage = new IncomingMessage(new Socket())
     request.url = url
     request.headers = headers
@@ -49,19 +49,19 @@ describe('The I18n middleware', (): void => {
     })
 
     it('reads the languages of an HTTP request: its query, its cookie, then Accept-Language', (): void => {
-        assert.deepStrictEqual(middleware.languages(HTTP('/orders?lang=ja', {'cookie': 'theme=dark; lang=zh-CN', 'accept-language': 'en;q=0.5, fr'})), ['ja', 'zh-CN', 'fr', 'en'])
+        assert.deepStrictEqual(middleware.languages(http('/orders?lang=ja', {'cookie': 'theme=dark; lang=zh-CN', 'accept-language': 'en;q=0.5, fr'})), ['ja', 'zh-CN', 'fr', 'en'])
         //An invalid query or cookie is ignored
-        assert.deepStrictEqual(middleware.languages(HTTP('/orders?lang=not+a+tag', {'cookie': 'lang=%E0%A4%A', 'accept-language': 'ja'})), ['ja'])
-        assert.deepStrictEqual(middleware.languages(HTTP('/orders', {})), [])
+        assert.deepStrictEqual(middleware.languages(http('/orders?lang=not+a+tag', {'cookie': 'lang=%E0%A4%A', 'accept-language': 'ja'})), ['ja'])
+        assert.deepStrictEqual(middleware.languages(http('/orders', {})), [])
     })
 
     it('reads the languages of the HTTP request of the HTTP service and JSON-RPC adapters', (): void => {
         process.env = {LANG: 'ja_JP.UTF-8'}
-        const request: IncomingMessage = HTTP('/rpc?lang=ja', {'cookie': 'lang=zh-CN', 'accept-language': 'fr, en;q=0.5'}).request
+        const request: IncomingMessage = http('/rpc?lang=ja', {'cookie': 'lang=zh-CN', 'accept-language': 'fr, en;q=0.5'}).request
         //The HTTP service adapter, JSON-RPC over HTTP
         assert.deepStrictEqual(middleware.languages(new ServiceContext({data: {}, request: request})), ['ja', 'zh-CN', 'fr', 'en'])
         //JSON-RPC over WebSocket: the request opening the connection, the socket having no handshake
-        assert.deepStrictEqual(middleware.languages(new ServiceContext({data: {}, socket: {readyState: 1}, request: HTTP('/rpc', {'accept-language': 'zh-CN'}).request})), ['zh-CN'])
+        assert.deepStrictEqual(middleware.languages(new ServiceContext({data: {}, socket: {readyState: 1}, request: http('/rpc', {'accept-language': 'zh-CN'}).request})), ['zh-CN'])
     })
 
     it('reads the languages of a Socket.IO connection, of the environment for the command line and Electron, none for the schedules', (): void => {
@@ -79,7 +79,7 @@ describe('The I18n middleware', (): void => {
 
     it('gives the request its language and its translator', async (): Promise<void> => {
         const scope: Container = container.createScope()
-        const context: HTTPContext = HTTP('/', {'accept-language': 'zh-TW,zh;q=0.9'})
+        const context: HTTPContext = http('/', {'accept-language': 'zh-TW,zh;q=0.9'})
         const invocation = {context: context, container: scope, action: {}} as unknown as ActionInvocation
         const result: unknown = await middleware.handle(invocation, async (): Promise<string> => (await scope.get(Translator)).t('hello'))
         assert.strictEqual(context.locale, 'zh-CN')
@@ -131,7 +131,7 @@ describe('The I18n middleware', (): void => {
         const run = async (fail: () => never | Promise<never>): Promise<unknown> => {
             const scope: Container = container.createScope()
             try {
-                return await middleware.handle({context: HTTP('/', {'accept-language': 'zh-CN'}), container: scope, action: {}} as unknown as ActionInvocation, async (): Promise<never> => await fail())
+                return await middleware.handle({context: http('/', {'accept-language': 'zh-CN'}), container: scope, action: {}} as unknown as ActionInvocation, async (): Promise<never> => await fail())
             } catch (error) {
                 return error
             } finally {
@@ -139,7 +139,7 @@ describe('The I18n middleware', (): void => {
             }
         }
         //The validations of the request in its language
-        await middleware.handle({context: HTTP('/', {'accept-language': 'zh-CN'}), container: container.createScope(), action: {}} as unknown as ActionInvocation, async (): Promise<void> => {
+        await middleware.handle({context: http('/', {'accept-language': 'zh-CN'}), container: container.createScope(), action: {}} as unknown as ActionInvocation, async (): Promise<void> => {
             assert.strictEqual(currentValidationLanguage(), 'zh-CN')
         })
         //A message of its errno, the parameters given one by one

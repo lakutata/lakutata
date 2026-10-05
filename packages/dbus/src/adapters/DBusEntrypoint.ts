@@ -5,9 +5,9 @@ import {LocalInterface, LocalObject, LocalService, RequestNameFlags, RequestName
 import {DBusChannel} from '../channel/DBusChannel.js'
 import {DBusContext} from '../context/DBusContext.js'
 import {ATTACH, DBusObjectManager, type DBusObjectSink, STORE} from '../components/DBusObjectManager.js'
-import {type DBusInterfaceDeclaration, type DBusPropertyDefinition, type DBusSignalDefinition, GetDBusInterfaceDeclaration} from '../lib/Declarations.js'
-import {CheckInterfaceName, CompilePathTemplate, ErrorName, type PathTemplate} from '../lib/Names.js'
-import {Encodable, SchemaSignature} from '../lib/Signature.js'
+import {type DBusInterfaceDeclaration, type DBusPropertyDefinition, type DBusSignalDefinition, getDBusInterfaceDeclaration} from '../lib/Declarations.js'
+import {checkInterfaceName, compilePathTemplate, errorName, type PathTemplate} from '../lib/Names.js'
+import {toEncodable, schemaSignature} from '../lib/Signature.js'
 
 /**
  * The options of {@link dbusEntrypoint}: the bus to connect to, and the service name to own on it.
@@ -76,7 +76,7 @@ type ExportedObject = {
  * The connection options of a bus
  * @param bus
  */
-function ConnectOptions(bus: string): ConnectOpts {
+function connectOptions(bus: string): ConnectOpts {
     if (bus === 'session') return {busAddress: process.env.DBUS_SESSION_BUS_ADDRESS}
     if (bus === 'system') return {busAddress: process.env.DBUS_SYSTEM_BUS_ADDRESS ?? 'unix:path=/var/run/dbus/system_bus_socket'}
     if (/^[a-z]+:/.test(bus)) return {busAddress: bus}
@@ -87,10 +87,10 @@ function ConnectOptions(bus: string): ConnectOpts {
  * The error given to the caller of a method
  * @param error
  */
-function MethodError(error: unknown): Error {
+function toMethodError(error: unknown): Error {
     const {errMsg, message} = (error && typeof error === 'object' ? error : {}) as { errMsg?: unknown, message?: unknown }
     const methodError: Error = new Error(typeof errMsg === 'string' && errMsg ? errMsg : typeof message === 'string' ? message : String(error))
-    methodError.name = ErrorName(error)
+    methodError.name = errorName(error)
     return methodError
 }
 
@@ -139,7 +139,7 @@ function MethodError(error: unknown): Error {
  * ```
  */
 export function dbusEntrypoint(options: DBusEntrypointOptions): EntrypointAdapter<DBusContext> {
-    CheckInterfaceName(options.service)
+    checkInterfaceName(options.service)
     let service: LocalService | undefined
     let detach: (() => void) | undefined
     const exported: Map<string, ExportedObject> = new Map()
@@ -153,7 +153,7 @@ export function dbusEntrypoint(options: DBusEntrypointOptions): EntrypointAdapte
         const interfacesAt = (path: string, name: string): { declaration?: DBusInterfaceDeclaration, methods: ChannelActionInfo[] } => {
             let template: TemplateInterfaces | undefined = templates.get(path)
             if (!template) {
-                template = {template: CompilePathTemplate(path), interfaces: new Map()}
+                template = {template: compilePathTemplate(path), interfaces: new Map()}
                 templates.set(path, template)
             }
             let interfaces = template.interfaces.get(name)
@@ -164,7 +164,7 @@ export function dbusEntrypoint(options: DBusEntrypointOptions): EntrypointAdapte
             return interfaces
         }
         for (const controller of runtime.controllers) {
-            const declaration: DBusInterfaceDeclaration | undefined = GetDBusInterfaceDeclaration(controller)
+            const declaration: DBusInterfaceDeclaration | undefined = getDBusInterfaceDeclaration(controller)
             if (declaration) interfacesAt(declaration.path, declaration.interface).declaration = declaration
         }
         for (const action of runtime.actions) {
@@ -181,7 +181,7 @@ export function dbusEntrypoint(options: DBusEntrypointOptions): EntrypointAdapte
      */
     const resultSignature = (action: ChannelActionInfo): string | undefined => {
         if (action.address.returns !== undefined) return action.address.returns
-        return action.returnSchema ? SchemaSignature(action.returnSchema) : undefined
+        return action.returnSchema ? schemaSignature(action.returnSchema) : undefined
     }
 
     return {
@@ -218,10 +218,10 @@ export function dbusEntrypoint(options: DBusEntrypointOptions): EntrypointAdapte
                             try {
                                 result = await runtime.dispatchTo(action, context, {params: variables})
                             } catch (error: unknown) {
-                                throw MethodError(error)
+                                throw toMethodError(error)
                             }
                             if (!returns) return undefined
-                            return Encodable(returns === 'a{sv}' && (result === undefined || result === null) ? {} : result)
+                            return toEncodable(returns === 'a{sv}' && (result === undefined || result === null) ? {} : result)
                         }
                     })
                 }
@@ -229,7 +229,7 @@ export function dbusEntrypoint(options: DBusEntrypointOptions): EntrypointAdapte
                     localInterface.defineProperty({
                         name: property.name,
                         type: property.type,
-                        getter: (): unknown => Encodable(manager.getPropertyValue(path, property)),
+                        getter: (): unknown => toEncodable(manager.getPropertyValue(path, property)),
                         //A value written by a client is validated synchronously: its errors are given to the client
                         setter: property.writable ? (value: unknown): void => {
                             let validated: unknown
@@ -237,7 +237,7 @@ export function dbusEntrypoint(options: DBusEntrypointOptions): EntrypointAdapte
                                 validated = property.validate(value)
                             } catch (error: unknown) {
                                 //The errors given to DBus are plain errors (the name of an exception is read only)
-                                throw MethodError(error)
+                                throw toMethodError(error)
                             }
                             manager[STORE]({path: path, interface: name, property: property, value: validated})
                         } : undefined,
@@ -282,7 +282,7 @@ export function dbusEntrypoint(options: DBusEntrypointOptions): EntrypointAdapte
                 fixed.add(template.template)
                 addObject(template.template)
             }
-            const connect: ConnectOpts = ConnectOptions(options.bus ?? 'session')
+            const connect: ConnectOpts = connectOptions(options.bus ?? 'session')
             let flags: number = RequestNameFlags.DBUS_NAME_FLAG_DO_NOT_QUEUE
             if (options.replaceExisting) flags |= RequestNameFlags.DBUS_NAME_FLAG_REPLACE_EXISTING
             if (options.allowReplacement) flags |= RequestNameFlags.DBUS_NAME_FLAG_ALLOW_REPLACEMENT
@@ -301,7 +301,7 @@ export function dbusEntrypoint(options: DBusEntrypointOptions): EntrypointAdapte
                 emitSignal: (path: string, signal: DBusSignalDefinition<any>, data: unknown): boolean => {
                     const emitters = exported.get(path)?.signals.get(signal.name)?.filter((candidate): boolean => candidate.signal === signal)
                     if (!emitters?.length) return false
-                    emitters.forEach(({emitter}): unknown => emitter.emit(signal.name, Encodable(data)))
+                    emitters.forEach(({emitter}): unknown => emitter.emit(signal.name, toEncodable(data)))
                     return true
                 },
                 propertyChanged: (path: string, property: DBusPropertyDefinition<any>): void => {

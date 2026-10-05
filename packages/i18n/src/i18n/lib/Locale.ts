@@ -31,7 +31,7 @@ export function normalizeLocale(tag: string): string | undefined {
  * The language of a tag, without its script and region: zh-Hant-TW → zh
  * @param locale
  */
-export function LanguageOf(locale: string): string {
+export function languageOf(locale: string): string {
     return locale.split('-')[0].toLowerCase()
 }
 
@@ -80,7 +80,7 @@ export function environmentLocales(environment: NodeJS.ProcessEnv = process.env)
     //LANGUAGE is used by gettext only when the locale is not C
     const locale: string | undefined = environment.LC_ALL || environment.LC_MESSAGES || environment.LANG
     const list: string[] = locale && normalizeLocale(locale) !== undefined && environment.LANGUAGE ? environment.LANGUAGE.split(':') : []
-    return Unique([...list, ...(locale ? [locale] : [])].map(normalizeLocale).filter((tag: string | undefined): tag is string => tag !== undefined))
+    return unique([...list, ...(locale ? [locale] : [])].map(normalizeLocale).filter((tag: string | undefined): tag is string => tag !== undefined))
 }
 
 /**
@@ -89,9 +89,9 @@ export function environmentLocales(environment: NodeJS.ProcessEnv = process.env)
  * @param variable the environment variable of the application
  * @param environment
  */
-export function ProcessLocales(variable?: string, environment: NodeJS.ProcessEnv = process.env): string[] {
+export function processLocales(variable?: string, environment: NodeJS.ProcessEnv = process.env): string[] {
     const own: string | undefined = variable ? normalizeLocale(environment[variable] ?? '') : undefined
-    return Unique([...(own ? [own] : []), ...environmentLocales(environment), new Intl.DateTimeFormat().resolvedOptions().locale])
+    return unique([...(own ? [own] : []), ...environmentLocales(environment), new Intl.DateTimeFormat().resolvedOptions().locale])
 }
 
 /**
@@ -122,10 +122,10 @@ export function negotiateLocale(requested: string[], supported: string[], defaul
         const locale: string | undefined = normalizeLocale(tag)
         if (!locale) continue
         const lower: string = locale.toLowerCase()
-        const language: string = LanguageOf(locale)
+        const language: string = languageOf(locale)
         const matched: string | undefined = find((candidate: string): boolean => candidate.toLowerCase() === lower) ??
             find((candidate: string): boolean => candidate.toLowerCase() === language) ??
-            find((candidate: string): boolean => LanguageOf(candidate) === language)
+            find((candidate: string): boolean => languageOf(candidate) === language)
         if (matched) return matched
     }
     return defaultLocale
@@ -166,6 +166,6 @@ export function fallbackChain(locale: string, fallbacks: Record<string, string[]
  * The values once, in their order
  * @param values
  */
-function Unique(values: string[]): string[] {
+function unique(values: string[]): string[] {
     return [...new Set(values)]
 }

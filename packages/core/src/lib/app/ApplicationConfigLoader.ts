@@ -2,7 +2,7 @@ import {ModuleConfigLoader} from '../base/internal/ModuleConfigLoader.js'
 import {LoadObjectOptions} from '../../options/LoadObjectOptions.js'
 import {BaseObject} from '../base/BaseObject.js'
 import {ApplicationOptions} from '../../options/ApplicationOptions.js'
-import {ResolveMode, SetBasicInfo} from '../foundation/BasicInfo.js'
+import {resolveMode, setBasicInfo} from '../foundation/BasicInfo.js'
 import {Application} from './Application.js'
 
 /**
@@ -18,12 +18,12 @@ export class ApplicationConfigLoader extends ModuleConfigLoader {
      */
     constructor(app: Application, applicationOptions: ApplicationOptions, presetLoadOptions: (LoadObjectOptions | typeof BaseObject | string)[] = []) {
         if (ApplicationOptions.isValid(applicationOptions)) {
-            process.title = SetBasicInfo({
+            process.title = setBasicInfo({
                 appId: applicationOptions.id,
                 appName: applicationOptions.name,
                 timezone: applicationOptions.timezone ? applicationOptions.timezone : 'auto',
                 //MODE, NODE_ENV, the options, development
-                mode: ResolveMode(applicationOptions.mode)
+                mode: resolveMode(applicationOptions.mode)
             }).appId
         }
         super(app, applicationOptions, presetLoadOptions)

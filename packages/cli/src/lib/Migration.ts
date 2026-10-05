@@ -3,7 +3,7 @@ import {mkdir, readdir, readFile, writeFile} from 'node:fs/promises'
 import path from 'node:path'
 import {camelCase} from 'lakutata/utils'
 import {LaunchEnvironment} from './Environment.js'
-import {SpawnCommand} from './Processes.js'
+import {spawnCommand} from './Processes.js'
 
 /**
  * The application of a package, started by its script
@@ -66,7 +66,7 @@ export type ExecuteMigrationsOptions = MigrationApplication & {
  * The files of a directory, none when it does not exist
  * @param directory
  */
-async function Files(directory: string): Promise<string[]> {
+async function listFiles(directory: string): Promise<string[]> {
     return existsSync(directory) ? await readdir(directory) : []
 }
 
@@ -77,14 +77,14 @@ async function Files(directory: string): Promise<string[]> {
  * @param env
  * @return the exit code of the application
  */
-async function StartApplication(application: MigrationApplication, env: Record<string, string>): Promise<number> {
+async function startApplication(application: MigrationApplication, env: Record<string, string>): Promise<number> {
     const manifest: { scripts?: Record<string, string> } = JSON.parse(await readFile(path.join(application.directory, 'package.json'), 'utf8'))
     if (!manifest.scripts?.[application.script]) throw new Error(`The package ${application.directory} has no script "${application.script}" building and starting the application (--script)`)
     //The variables of a previous command are not inherited
     const base: NodeJS.ProcessEnv = Object.fromEntries(Object.entries(LaunchEnvironment).filter(([name]): boolean => !name.toUpperCase().startsWith('MIGRATION_')))
     return await new Promise((resolve: (code: number) => void, reject: (error: Error) => void): void => {
         //The output of the application is the one of the command; the package managers are scripts on Windows
-        const child = SpawnCommand('npm', ['run', application.script], {
+        const child = spawnCommand('npm', ['run', application.script], {
             cwd: application.directory,
             stdio: 'inherit',
             env: {...base, ...env, ...(application.database ? {MIGRATION_DATABASE: application.database} : {})}
@@ -100,11 +100,11 @@ async function StartApplication(application: MigrationApplication, env: Record<s
  * changes into the directory, and exits (as `cross-env MIGRATION_GENERATE=<dir> npm run <script>` in lakutata 2.x)
  * @param options
  */
-export async function GenerateMigrations(options: GenerateMigrationsOptions): Promise<GenerateMigrationsResult> {
+export async function generateMigrations(options: GenerateMigrationsOptions): Promise<GenerateMigrationsResult> {
     const directory: string = path.resolve(options.directory, options.dir)
-    const before: Set<string> = new Set(await Files(directory))
-    const code: number = await StartApplication(options, {MIGRATION_GENERATE: options.dir})
-    const files: string[] = (await Files(directory)).filter((file: string): boolean => !before.has(file)).sort()
+    const before: Set<string> = new Set(await listFiles(directory))
+    const code: number = await startApplication(options, {MIGRATION_GENERATE: options.dir})
+    const files: string[] = (await listFiles(directory)).filter((file: string): boolean => !before.has(file)).sort()
     return {code: code, files: files.map((file: string): string => path.join(options.dir, file))}
 }
 
@@ -115,8 +115,8 @@ export async function GenerateMigrations(options: GenerateMigrationsOptions): Pr
  * @param options
  * @return the exit code of the application
  */
-export async function ExecuteMigrations(options: ExecuteMigrationsOptions): Promise<number> {
-    return await StartApplication(options, {
+export async function executeMigrations(options: ExecuteMigrationsOptions): Promise<number> {
+    return await startApplication(options, {
         [`MIGRATION_${options.action.toUpperCase()}`]: '1',
         ...(options.transaction ? {MIGRATION_TRANSACTION: options.transaction} : {}),
         ...(options.fake ? {MIGRATION_FAKE: '1'} : {})
@@ -152,7 +152,7 @@ export type CreateMigrationOptions = {
  * @param options
  * @return the migration, relative to the package
  */
-export async function CreateMigration(options: CreateMigrationOptions): Promise<string> {
+export async function createMigration(options: CreateMigrationOptions): Promise<string> {
     const timestamp: number = options.timestamp ?? Date.now()
     const manifest: Record<string, Record<string, string> | undefined> = JSON.parse(await readFile(path.join(options.directory, 'package.json'), 'utf8'))
     const module: string = manifest.dependencies?.['@lakutata/orm'] || manifest.devDependencies?.['@lakutata/orm'] ? '@lakutata/orm' : 'lakutata/orm'

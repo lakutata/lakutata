@@ -1,7 +1,7 @@
 import {Component} from '@lakutata/core'
 import {IMonitor} from './interfaces/IMonitor.js'
 import {ICpuMonitorStatistics} from './interfaces/ICpuMonitorStatistics.js'
-import {Round, Samples} from './lib/Samples.js'
+import {round, Samples} from './lib/Samples.js'
 
 /**
  * The CPU monitor: measures the CPU time the process uses (user plus system, all its threads), as a percentage of one
@@ -59,14 +59,14 @@ export class CpuMonitor extends Component implements IMonitor<ICpuMonitorStatist
      */
     public get statistics(): ICpuMonitorStatistics {
         return {
-            usage: Round(this.#samples.latest, this.#fractionDigits),
-            usageMin: Round(this.#samples.min, this.#fractionDigits),
-            usageMax: Round(this.#samples.max, this.#fractionDigits),
-            usageAvg: Round(this.#samples.mean, this.#fractionDigits),
-            usageP50: Round(this.#samples.percentile(50), this.#fractionDigits),
-            usageP90: Round(this.#samples.percentile(90), this.#fractionDigits),
-            usageP95: Round(this.#samples.percentile(95), this.#fractionDigits),
-            usageP99: Round(this.#samples.percentile(99), this.#fractionDigits)
+            usage: round(this.#samples.latest, this.#fractionDigits),
+            usageMin: round(this.#samples.min, this.#fractionDigits),
+            usageMax: round(this.#samples.max, this.#fractionDigits),
+            usageAvg: round(this.#samples.mean, this.#fractionDigits),
+            usageP50: round(this.#samples.percentile(50), this.#fractionDigits),
+            usageP90: round(this.#samples.percentile(90), this.#fractionDigits),
+            usageP95: round(this.#samples.percentile(95), this.#fractionDigits),
+            usageP99: round(this.#samples.percentile(99), this.#fractionDigits)
         }
     }
 

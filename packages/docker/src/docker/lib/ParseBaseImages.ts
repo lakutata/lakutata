@@ -6,7 +6,7 @@
  * @param dockerfile the content of the Dockerfile
  * @param buildargs
  */
-export function ParseBaseImages(dockerfile: string, buildargs: Record<string, string> = {}): string[] {
+export function parseBaseImages(dockerfile: string, buildargs: Record<string, string> = {}): string[] {
     //The instructions continued on the next lines (a backslash at the end of a line)
     const instructions: string[] = dockerfile.replace(/\\\r?\n/g, ' ').split(/\r?\n/).map((line: string): string => line.trim()).filter((line: string): boolean => !!line && !line.startsWith('#'))
     const variables: Record<string, string> = {}

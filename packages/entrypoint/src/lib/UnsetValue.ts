@@ -4,7 +4,7 @@
  * the actions, as 2.x
  */
 
-function IsObject(val: unknown): val is Record<string, any> {
+function isObjectValue(val: unknown): val is Record<string, any> {
     return val != null && typeof val === 'object' && !Array.isArray(val)
 }
 
@@ -12,19 +12,19 @@ function IsObject(val: unknown): val is Record<string, any> {
  * The type of a value (kind-of)
  * @param val
  */
-function KindOf(val: any): string {
+function kindOf(val: any): string {
     if (val === undefined) return 'undefined'
     if (val === null) return 'null'
     const type: string = typeof val
     if (type === 'boolean' || type === 'string' || type === 'number' || type === 'symbol') return type
-    if (type === 'function') return CtorName(val) === 'GeneratorFunction' ? 'generatorfunction' : 'function'
+    if (type === 'function') return ctorName(val) === 'GeneratorFunction' ? 'generatorfunction' : 'function'
     if (Array.isArray(val)) return 'array'
     if (val.constructor && typeof val.constructor.isBuffer === 'function' && val.constructor.isBuffer(val)) return 'buffer'
-    if (IsArguments(val)) return 'arguments'
+    if (isArguments(val)) return 'arguments'
     if (val instanceof Date || (typeof val.toDateString === 'function' && typeof val.getDate === 'function' && typeof val.setDate === 'function')) return 'date'
     if (val instanceof Error || (typeof val.message === 'string' && val.constructor && typeof val.constructor.stackTraceLimit === 'number')) return 'error'
     if (val instanceof RegExp || (typeof val.flags === 'string' && typeof val.ignoreCase === 'boolean' && typeof val.multiline === 'boolean' && typeof val.global === 'boolean')) return 'regexp'
-    switch (CtorName(val)) {
+    switch (ctorName(val)) {
         case 'Symbol':
             return 'symbol'
         case 'Promise':
@@ -46,7 +46,7 @@ function KindOf(val: any): string {
         case 'Uint32Array':
         case 'Float32Array':
         case 'Float64Array':
-            return CtorName(val)!.toLowerCase()
+            return ctorName(val)!.toLowerCase()
     }
     if (typeof val.throw === 'function' && typeof val.return === 'function' && typeof val.next === 'function') return 'generator'
     const tag: string = Object.prototype.toString.call(val)
@@ -65,11 +65,11 @@ function KindOf(val: any): string {
     return tag.slice(8, -1).toLowerCase().replace(/\s/g, '')
 }
 
-function CtorName(val: any): string | null {
+function ctorName(val: any): string | null {
     return typeof val.constructor === 'function' ? val.constructor.name : null
 }
 
-function IsArguments(val: any): boolean {
+function isArguments(val: any): boolean {
     try {
         if (typeof val.length === 'number' && typeof val.callee === 'function') return true
     } catch (error) {
@@ -83,8 +83,8 @@ function IsArguments(val: any): boolean {
  * regular expression, buffer or error message
  * @param val
  */
-function HasValues(val: any): boolean {
-    switch (KindOf(val)) {
+function hasValues(val: any): boolean {
+    switch (kindOf(val)) {
         case 'boolean':
         case 'date':
         case 'function':
@@ -108,15 +108,15 @@ function HasValues(val: any): boolean {
             return val.size !== 0
         case 'array':
         case 'object':
-            for (const key of Object.keys(val)) if (HasValues(val[key])) return true
+            for (const key of Object.keys(val)) if (hasValues(val[key])) return true
             return false
         default:
             return true
     }
 }
 
-function IsValidObject(val: unknown): boolean {
-    return IsObject(val) || Array.isArray(val) || typeof val === 'function'
+function isValidObject(val: unknown): boolean {
+    return isObjectValue(val) || Array.isArray(val) || typeof val === 'function'
 }
 
 /**
@@ -125,8 +125,8 @@ function IsValidObject(val: unknown): boolean {
  * @param target
  * @param path
  */
-function GetValue(target: any, path: string | string[]): any {
-    if (!IsValidObject(target)) return target
+function getValue(target: any, path: string | string[]): any {
+    if (!isValidObject(target)) return target
     const isArray: boolean = Array.isArray(path)
     if (typeof path !== 'string' && !isArray) return target
     if (typeof path === 'string' && path in target) return target[path]
@@ -152,7 +152,7 @@ function GetValue(target: any, path: string | string[]): any {
             }
             if (!hasProp) return undefined
         }
-    } while (++idx < len && IsValidObject(target))
+    } while (++idx < len && isValidObject(target))
     return idx === len ? target : undefined
 }
 
@@ -161,9 +161,9 @@ function GetValue(target: any, path: string | string[]): any {
  * @param obj
  * @param path
  */
-function HasValue(obj: unknown, path: string | string[]): boolean {
+function hasValue(obj: unknown, path: string | string[]): boolean {
     const isObject: boolean = obj != null && (typeof obj === 'object' || typeof obj === 'function')
-    if (isObject && (typeof path === 'string' || Array.isArray(path))) return HasValues(GetValue(obj, path))
+    if (isObject && (typeof path === 'string' || Array.isArray(path))) return hasValues(getValue(obj, path))
     return false
 }
 
@@ -173,14 +173,14 @@ function HasValue(obj: unknown, path: string | string[]): boolean {
  * @param obj
  * @param prop
  */
-export function UnsetValue(obj: any, prop: string | string[]): boolean {
-    if (!IsObject(obj)) throw new TypeError('expected an object.')
+export function unsetValue(obj: any, prop: string | string[]): boolean {
+    if (!isObjectValue(obj)) throw new TypeError('expected an object.')
     const isArray: boolean = Array.isArray(prop)
     if (!isArray && Object.prototype.hasOwnProperty.call(obj, prop as string)) {
         delete obj[prop as string]
         return true
     }
-    if (HasValue(obj, prop)) {
+    if (hasValue(obj, prop)) {
         const segs: string[] = isArray ? (prop as string[]).slice() : (prop as string).split('.')
         let last: string = segs.pop()!
         while (segs.length && segs[segs.length - 1].slice(-1) === '\\') last = segs.pop()!.slice(0, -1) + '.' + last

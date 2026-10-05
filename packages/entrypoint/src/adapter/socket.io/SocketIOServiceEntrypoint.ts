@@ -94,7 +94,7 @@ export function socketOfContext(context: ServiceContext): Socket | undefined {
  * own id otherwise
  * @param socket
  */
-function ClientId(socket: Socket): string {
+function clientIdOf(socket: Socket): string {
     const given: unknown = socket.handshake.auth?.id ?? socket.handshake.headers.id ?? socket.handshake.query.id
     const id: unknown = Array.isArray(given) ? given[0] : given
     return typeof id === 'string' && id && id.length <= 200 ? id : socket.id
@@ -185,7 +185,7 @@ export function socketIOServiceEntrypoint(options: SocketIOServiceEntrypointOpti
             }
             namespace = io.of(options.namespace ?? '/')
             onConnection = (socket: Socket): void => {
-                const clientId: string = ClientId(socket)
+                const clientId: string = clientIdOf(socket)
                 if (!clients.has(clientId)) clients.set(clientId, new Set())
                 clients.get(clientId)!.add(socket)
                 //The requests of a socket in progress, aborted when it disconnects

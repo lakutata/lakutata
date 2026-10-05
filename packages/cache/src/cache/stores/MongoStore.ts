@@ -1,6 +1,6 @@
 import {SerializedCacheStore, SerializedEntry} from './SerializedCacheStore.js'
 import {MongoCacheOptions} from '../options/MongoCacheOptions.js'
-import {LoadDriver} from '../lib/LoadDriver.js'
+import {loadDriver} from '../lib/LoadDriver.js'
 
 type MongoDocument = {
     key: string
@@ -40,7 +40,7 @@ interface MongoDriver {
  * Escape the regular expression characters
  * @param text
  */
-function EscapeRegExp(text: string): string {
+function escapeRegExp(text: string): string {
     return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
@@ -59,7 +59,7 @@ export class MongoStore extends SerializedCacheStore {
     }
 
     public async connect(): Promise<void> {
-        const driver: MongoDriver = await LoadDriver<MongoDriver>('MongoClient', 'mongodb')
+        const driver: MongoDriver = await loadDriver<MongoDriver>('MongoClient', 'mongodb')
         const options: MongoCacheOptions = this.options
         const auth: string = options.username ? `${encodeURIComponent(options.username)}:${encodeURIComponent(options.password ?? '')}@` : ''
         this.client = new driver.MongoClient(`mongodb://${auth}${options.host}:${options.port ?? 27017}`)
@@ -114,6 +114,6 @@ export class MongoStore extends SerializedCacheStore {
     }
 
     public async clear(): Promise<void> {
-        await this.collection.deleteMany(this.namespace ? {key: {$regex: `^${EscapeRegExp(this.namespace)}:`}} : {})
+        await this.collection.deleteMany(this.namespace ? {key: {$regex: `^${escapeRegExp(this.namespace)}:`}} : {})
     }
 }

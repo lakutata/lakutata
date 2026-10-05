@@ -43,12 +43,12 @@ const packages = readdirSync(PACKAGES)
 /**
  * The JSDoc blocks of a declaration (the one of its statement for a variable)
  */
-function Docs(node) {
+function docs(node) {
     const host = ts.isVariableDeclaration(node) ? node.parent.parent : node
     return ts.getJSDocCommentsAndTags(host).filter(doc => ts.isJSDoc(doc))
 }
 
-function Text(comment) {
+function commentText(comment) {
     if (!comment) return ''
     return typeof comment === 'string' ? comment : comment.map(part => part.text ?? '').join('')
 }
@@ -56,21 +56,21 @@ function Text(comment) {
 /**
  * Whether a declaration has a description (the text of its JSDoc before its tags)
  */
-function Described(node) {
-    return Docs(node).some(doc => Text(doc.comment).trim().length > 0)
+function described(node) {
+    return docs(node).some(doc => commentText(doc.comment).trim().length > 0)
 }
 
-function Tags(node) {
-    return Docs(node).flatMap(doc => doc.tags ?? [])
+function tags(node) {
+    return docs(node).flatMap(doc => doc.tags ?? [])
 }
 
 /**
  * The examples of a declaration, read from the text of its comments: the parser of TypeScript ends a tag at a line
  * starting with "@", the decorators of an example included, so the lines inside a code fence are kept in it
  */
-function Examples(node) {
+function examplesOf(node) {
     const examples = []
-    for (const doc of Docs(node)) {
+    for (const doc of docs(node)) {
         const lines = doc.getText().replace(/^\/\*\*/, '').replace(/\*\/$/, '').split('\n').map(line => line.replace(/^\s*\* ?/, ''))
         let current
         let fenced = false
@@ -90,7 +90,7 @@ function Examples(node) {
 /**
  * The function-like node of a declaration: a function, a method, or a variable holding an arrow or a function
  */
-function Callable(node) {
+function callableOf(node) {
     if (ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node) || ts.isMethodSignature(node)) return node
     if ((ts.isVariableDeclaration(node) || ts.isPropertyDeclaration(node)) && node.initializer && (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer))) return node.initializer
     return undefined
@@ -99,8 +99,8 @@ function Callable(node) {
 /**
  * The parameters without their @param (with a description)
  */
-function MissingParams(node, callable) {
-    const documented = new Map(Tags(node).filter(tag => ts.isJSDocParameterTag(tag)).map(tag => [tag.name.getText(), Text(tag.comment).trim()]))
+function missingParams(node, callable) {
+    const documented = new Map(tags(node).filter(tag => ts.isJSDocParameterTag(tag)).map(tag => [tag.name.getText(), commentText(tag.comment).trim()]))
     const missing = []
     callable.parameters.forEach((parameter, index) => {
         if (ts.isIdentifier(parameter.name)) {
@@ -117,7 +117,7 @@ function MissingParams(node, callable) {
 /**
  * The overloads of a function or a method: the implementation is not documented when there are overloads
  */
-function Signatures(declarations) {
+function signatures(declarations) {
     const withBody = declarations.filter(declaration => declaration.body)
     return declarations.length > 1 && withBody.length ? declarations.filter(declaration => !declaration.body) : declarations
 }
@@ -125,15 +125,15 @@ function Signatures(declarations) {
 /**
  * The members of a type: the ones of its literals, intersections and unions
  */
-function TypeMembers(type) {
+function typeMembers(type) {
     if (!type) return []
     if (ts.isTypeLiteralNode(type)) return [...type.members]
-    if (ts.isIntersectionTypeNode(type) || ts.isUnionTypeNode(type)) return type.types.flatMap(TypeMembers)
-    if (ts.isParenthesizedTypeNode(type)) return TypeMembers(type.type)
+    if (ts.isIntersectionTypeNode(type) || ts.isUnionTypeNode(type)) return type.types.flatMap(typeMembers)
+    if (ts.isParenthesizedTypeNode(type)) return typeMembers(type.type)
     return []
 }
 
-function MemberName(member) {
+function memberNameOf(member) {
     if (!member.name) return undefined
     if (ts.isPrivateIdentifier(member.name) || ts.isComputedPropertyName(member.name)) return undefined
     return member.name.getText().replace(/^['"]|['"]$/g, '')
@@ -142,7 +142,7 @@ function MemberName(member) {
 /**
  * The violations of a package, by key
  */
-function Audit(pkg) {
+function audit(pkg) {
     const directory = path.join(PACKAGES, pkg)
     const sources = path.join(directory, 'src')
     const barrels = readdirSync(path.join(sources, 'exports')).filter(file => file.endsWith('.ts')).map(file => path.join(sources, 'exports', file))
@@ -165,31 +165,31 @@ function Audit(pkg) {
             seen.add(symbol)
             const name = symbol.name
             const file = declarations[0].getSourceFile().fileName
-            const callables = declarations.filter(Callable)
+            const callables = declarations.filter(callableOf)
             const isClass = declarations.some(ts.isClassDeclaration)
             //The description: on one of its declarations (an overload, the merged ones)
-            if (!declarations.some(Described)) report(`${pkg}: ${name}: description`, file)
+            if (!declarations.some(described)) report(`${pkg}: ${name}: description`, file)
             //The example of the classes and the functions, not of the exceptions
-            const texts = declarations.flatMap(Examples)
+            const texts = declarations.flatMap(examplesOf)
             for (const text of texts) examples.push({pkg, name, text, file})
             if ((isClass || callables.length) && !name.endsWith('Exception') && !texts.length) report(`${pkg}: ${name}: @example`, file)
             //The parameters of the functions
-            for (const declaration of Signatures(callables)) {
-                if (!Docs(declaration).length) continue
-                for (const parameter of MissingParams(declaration, Callable(declaration))) report(`${pkg}: ${name}: @param ${parameter}`, file)
+            for (const declaration of signatures(callables)) {
+                if (!docs(declaration).length) continue
+                for (const parameter of missingParams(declaration, callableOf(declaration))) report(`${pkg}: ${name}: @param ${parameter}`, file)
             }
             //The members
             const members = new Map()
             for (const declaration of declarations) {
                 let list = []
                 if (ts.isClassDeclaration(declaration) || ts.isInterfaceDeclaration(declaration)) list = [...declaration.members]
-                else if (ts.isTypeAliasDeclaration(declaration)) list = TypeMembers(declaration.type)
+                else if (ts.isTypeAliasDeclaration(declaration)) list = typeMembers(declaration.type)
                 else if (ts.isEnumDeclaration(declaration)) list = [...declaration.members]
                 for (const member of list) {
                     if (ts.isConstructorDeclaration(member) || ts.isClassStaticBlockDeclaration(member) || ts.isIndexSignatureDeclaration(member)) continue
                     const flags = ts.getCombinedModifierFlags(member)
                     if (flags & ts.ModifierFlags.Private) continue
-                    const memberName = MemberName(member)
+                    const memberName = memberNameOf(member)
                     if (!memberName) continue
                     if (!members.has(memberName)) members.set(memberName, [])
                     members.get(memberName).push(member)
@@ -203,10 +203,10 @@ function Audit(pkg) {
             }
             for (const [memberName, nodes] of members) {
                 if (inherited.has(memberName)) continue
-                if (!nodes.some(Described)) report(`${pkg}: ${name}.${memberName}: description`, file)
-                for (const node of Signatures(nodes.filter(Callable))) {
-                    if (!Docs(node).length) continue
-                    for (const parameter of MissingParams(node, Callable(node))) report(`${pkg}: ${name}.${memberName}: @param ${parameter}`, file)
+                if (!nodes.some(described)) report(`${pkg}: ${name}.${memberName}: description`, file)
+                for (const node of signatures(nodes.filter(callableOf))) {
+                    if (!docs(node).length) continue
+                    for (const parameter of missingParams(node, callableOf(node))) report(`${pkg}: ${name}.${memberName}: @param ${parameter}`, file)
                 }
             }
         }
@@ -228,7 +228,7 @@ function Audit(pkg) {
 /**
  * Compile the examples against the built typings
  */
-function CompileExamples(examples) {
+function compileExamples(examples) {
     rmSync(EXAMPLES, {recursive: true, force: true})
     if (!examples.length) return []
     mkdirSync(EXAMPLES, {recursive: true})
@@ -258,7 +258,7 @@ const baseline = existsSync(BASELINE) ? JSON.parse(readFileSync(BASELINE, 'utf8'
 const current = {}
 const examples = []
 for (const pkg of packages) {
-    const result = Audit(pkg)
+    const result = audit(pkg)
     current[pkg] = result.violations
     examples.push(...result.examples)
 }
@@ -266,7 +266,7 @@ for (const pkg of packages) {
 //check are listed in the baseline as the declarations
 const exampleFailures = []
 if (!args['skip-examples']) {
-    for (const {example, message} of CompileExamples(examples)) {
+    for (const {example, message} of compileExamples(examples)) {
         if (example.name.startsWith('README.md')) current[example.pkg].set(`${example.pkg}: ${example.name}: compiles`, path.relative(ROOT, example.file))
         else exampleFailures.push(message)
     }

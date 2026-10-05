@@ -21,7 +21,7 @@ import {Schedule} from '../exports/CTRLDecorators.js'
  * Wait
  * @param ms
  */
-function Sleep(ms: number): Promise<void> {
+function sleep(ms: number): Promise<void> {
     return new Promise((resolve: () => void): unknown => setTimeout(resolve, ms))
 }
 
@@ -82,14 +82,14 @@ class JobController extends Controller {
     public async slow(): Promise<void> {
         slowRunning++
         slowConcurrency = Math.max(slowConcurrency, slowRunning)
-        await Sleep(90)
+        await sleep(90)
         slowRunning--
     }
 
     @Schedule({every: '30ms', overlap: true})
     public async parallel(): Promise<void> {
         runs.push({name: 'parallel', context: this.context as ScheduleContext})
-        await Sleep(90)
+        await sleep(90)
     }
 
     @Schedule('* * * * * *')
@@ -108,7 +108,7 @@ class JobController extends Controller {
  * @param options
  * @param entrypointOptions
  */
-async function Start(options: ScheduleEntrypointOptions = {}, entrypointOptions: Record<string, unknown> = {}): Promise<Container> {
+async function start(options: ScheduleEntrypointOptions = {}, entrypointOptions: Record<string, unknown> = {}): Promise<Container> {
     runs.length = 0
     slowRunning = 0
     slowConcurrency = 0
@@ -126,8 +126,8 @@ describe('Schedule adapter', (): void => {
             return next()
         }
         const errors: string[] = []
-        const container: Container = await Start({onError: (error: unknown, action: ChannelActionInfo): void => void errors.push(`${action.name}: ${(error as Error).message}`)}, {middlewares: [traced]})
-        await Sleep(1150)
+        const container: Container = await start({onError: (error: unknown, action: ChannelActionInfo): void => void errors.push(`${action.name}: ${(error as Error).message}`)}, {middlewares: [traced]})
+        await sleep(1150)
         await container.destroy()
         const ticks: ScheduleContext[] = runs.filter((run): boolean => run.name === 'tick').map((run): ScheduleContext => run.context)
         assert.ok(ticks.length >= 15, `${ticks.length} ticks`)
@@ -144,8 +144,8 @@ describe('Schedule adapter', (): void => {
 
     it('skips the runs overlapping the previous one, unless the action overlaps', async (): Promise<void> => {
         const skipped: string[] = []
-        const container: Container = await Start({onSkip: (action: ChannelActionInfo): void => void skipped.push(action.name), onError: (): void => undefined})
-        await Sleep(300)
+        const container: Container = await start({onSkip: (action: ChannelActionInfo): void => void skipped.push(action.name), onError: (): void => undefined})
+        await sleep(300)
         await container.destroy()
         assert.strictEqual(slowConcurrency, 1)
         assert.ok(skipped.includes('slow job'))
@@ -161,11 +161,11 @@ describe('Schedule adapter', (): void => {
         console.error = (...args: unknown[]): void => void errors.push(args)
         let skips: number = 0
         try {
-            const container: Container = await Start({onError: (): void => undefined, onSkip: (): never => {
+            const container: Container = await start({onError: (): void => undefined, onSkip: (): never => {
                 skips++
                 throw new Error('The handler failed')
             }})
-            await Sleep(300)
+            await sleep(300)
             await container.destroy()
         } finally {
             console.error = original
@@ -177,14 +177,14 @@ describe('Schedule adapter', (): void => {
     })
 
     it('runs immediately and waits for the runs in progress when it stops', async (): Promise<void> => {
-        const container: Container = await Start({onError: (): void => undefined})
+        const container: Container = await start({onError: (): void => undefined})
         //The slow job runs immediately
-        await Sleep(10)
+        await sleep(10)
         assert.strictEqual(slowRunning, 1)
         await container.destroy()
         assert.strictEqual(slowRunning, 0)
         const count: number = runs.length
-        await Sleep(100)
+        await sleep(100)
         assert.strictEqual(runs.length, count)
     })
 
@@ -192,7 +192,7 @@ describe('Schedule adapter', (): void => {
         runs.length = 0
         const container: Container = new Container()
         const entrypoint: Entrypoint = await container.set(Entrypoint, buildEntrypoints({controllers: [JobController]}))
-        await Sleep(100)
+        await sleep(100)
         assert.strictEqual(runs.length, 0)
         //The scheduled actions are described
         assert.deepStrictEqual(entrypoint.getActions('schedule').actions.map((action: any): unknown => action.schedule).sort(), ['cron * * * * * *', 'every 20ms', 'every 25ms', 'every 30ms', 'every 40ms'])
@@ -220,7 +220,7 @@ describe('Schedule adapter', (): void => {
                 instances.push(container)
             }
             exclusiveRuns.length = 0
-            await Sleep(700)
+            await sleep(700)
         } finally {
             for (const container of instances) await container.destroy()
         }
@@ -240,7 +240,7 @@ describe('Schedule adapter', (): void => {
         try {
             await container.set(Entrypoint, buildEntrypoints({controllers: [ExclusiveController], schedule: scheduleEntrypoint()}))
             exclusiveRuns.length = 0
-            await Sleep(300)
+            await sleep(300)
         } finally {
             console.error = original
             await container.destroy()

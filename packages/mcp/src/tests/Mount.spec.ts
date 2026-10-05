@@ -22,7 +22,7 @@ class HealthController extends Controller {
  * Start an express adapter mounting the MCP handler
  * @param parseBody the express application parses the JSON bodies before the MCP handler
  */
-async function Start(parseBody: boolean): Promise<{ url: string, container: Container }> {
+async function start(parseBody: boolean): Promise<{ url: string, container: Container }> {
     let server: Server | undefined
     const mcp: HTTPMCPEntrypointAdapter = httpMCPEntrypoint({listen: false})
     const container: Container = new Container()
@@ -46,7 +46,7 @@ describe('HTTP MCP adapter mounted on another server', (): void => {
 
     for (const parseBody of [false, true]) {
         it(`shares the port of the express adapter${parseBody ? ', the body parsed by express' : ''}`, async (): Promise<void> => {
-            const {url, container} = await Start(parseBody)
+            const {url, container} = await start(parseBody)
             const client: Client = new Client({name: 'test', version: '1.0.0'})
             await client.connect(new StreamableHTTPClientTransport(new URL(`${url}/mcp`)))
             assert.deepStrictEqual((await client.callTool({name: 'device_status', arguments: {sn: 'A1'}})).structuredContent, {sn: 'A1', online: true})

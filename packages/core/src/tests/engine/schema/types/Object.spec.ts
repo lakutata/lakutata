@@ -1394,10 +1394,10 @@ describe('object', () => {
 
         it('uses constructor name for default type name', () => {
 
-            const Foo = function Foo() {
+            const foo = function Foo() {
             }
 
-            const schema = Engine.object().instance(Foo)
+            const schema = Engine.object().instance(foo)
             Helper.validate(schema, [[{}, false, {
                 message: '"value" must be an instance of "Foo"',
                 path: [],
@@ -1408,10 +1408,10 @@ describe('object', () => {
 
         it('uses custom type name if supplied', () => {
 
-            const Foo = function () {
+            const foo = function () {
             }
 
-            const schema = Engine.object().instance(Foo, 'Bar')
+            const schema = Engine.object().instance(foo, 'Bar')
             Helper.validate(schema, [[{}, false, {
                 message: '"value" must be an instance of "Bar"',
                 path: [],
@@ -1422,10 +1422,10 @@ describe('object', () => {
 
         it('overrides constructor name with custom name', () => {
 
-            const Foo = function Foo() {
+            const foo = function Foo() {
             }
 
-            const schema = Engine.object().instance(Foo, 'Bar')
+            const schema = Engine.object().instance(foo, 'Bar')
             Helper.validate(schema, [[{}, false, {
                 message: '"value" must be an instance of "Bar"',
                 path: [],
@@ -1448,11 +1448,11 @@ describe('object', () => {
 
         it('uses the constructor reference in the schema description', () => {
 
-            const Foo = function Foo() { }
+            const foo = function Foo() { }
 
-            const description = Engine.object().instance(Foo).describe()
+            const description = Engine.object().instance(foo).describe()
 
-            expect(new Foo()).to.be.an.instanceof(description.rules[0].args.constructor)
+            expect(new foo()).to.be.an.instanceof(description.rules[0].args.constructor)
         })
     })
 

@@ -28,7 +28,7 @@ const INVALID: number = -1
  * Whether a character is a white space
  * @param char
  */
-function IsWhiteSpace(char: string | undefined): boolean {
+function isWhiteSpace(char: string | undefined): boolean {
     return char === ' ' || char === '\t' || char === '\n' || char === '\r'
 }
 
@@ -36,7 +36,7 @@ function IsWhiteSpace(char: string | undefined): boolean {
  * Whether a string is a name of tag or of attribute
  * @param name
  */
-function IsName(name: string): boolean {
+function isName(name: string): boolean {
     return NAME.test(name)
 }
 
@@ -46,7 +46,7 @@ function IsName(name: string): boolean {
  * @param i
  * @returns the index of its end, INVALID for an XML declaration which is not at the start of the document
  */
-function ReadProcessingInstruction(xml: string, i: number): number {
+function readProcessingInstruction(xml: string, i: number): number {
     const start: number = i
     for (; i < xml.length; i++) {
         if (xml[i] === '?' || xml[i] === ' ') {
@@ -67,7 +67,7 @@ function ReadProcessingInstruction(xml: string, i: number): number {
  * @param i
  * @returns the index of its end
  */
-function ReadCommentAndCDATA(xml: string, i: number): number {
+function readCommentAndCDATA(xml: string, i: number): number {
     if (xml.length > i + 5 && xml[i + 1] === '-' && xml[i + 2] === '-') {
         for (i += 3; i < xml.length; i++) {
             if (xml[i] === '-' && xml[i + 1] === '-' && xml[i + 2] === '>') {
@@ -102,7 +102,7 @@ function ReadCommentAndCDATA(xml: string, i: number): number {
  * @param i
  * @returns undefined when a quote is not closed
  */
-function ReadAttributes(xml: string, i: number): { value: string, index: number, tagClosed: boolean } | undefined {
+function readAttributes(xml: string, i: number): { value: string, index: number, tagClosed: boolean } | undefined {
     const start: number = i
     let quote: string = ''
     let tagClosed: boolean = false
@@ -128,13 +128,13 @@ function ReadAttributes(xml: string, i: number): { value: string, index: number,
  * Whether the attributes of a tag are valid: separated, with a value when "=" is given, with valid and unique names
  * @param attributes
  */
-function ValidateAttributes(attributes: string): boolean {
+function validateAttributes(attributes: string): boolean {
     const names: Set<string> = new Set()
     ATTRIBUTE.lastIndex = 0
     for (let match: RegExpExecArray | null = ATTRIBUTE.exec(attributes); match; match = ATTRIBUTE.exec(attributes)) {
         //No space before the attribute (a="1"b="2"), or "=" without value
         if (match[1].length === 0 || (match[3] !== undefined && match[4] === undefined)) return false
-        if (!IsName(match[2]) || names.has(match[2])) return false
+        if (!isName(match[2]) || names.has(match[2])) return false
         names.add(match[2])
     }
     return true
@@ -146,7 +146,7 @@ function ValidateAttributes(attributes: string): boolean {
  * @param i
  * @returns the index of its ";", INVALID when it is not a reference
  */
-function ReadNumericReference(xml: string, i: number): number {
+function readNumericReference(xml: string, i: number): number {
     let digit: RegExp = /\d/
     if (xml[i] === 'x') {
         i++
@@ -165,10 +165,10 @@ function ReadNumericReference(xml: string, i: number): number {
  * @param i
  * @returns the index of its ";", INVALID when it is not a reference
  */
-function ReadReference(xml: string, i: number): number {
+function readReference(xml: string, i: number): number {
     i++
     if (xml[i] === ';') return INVALID
-    if (xml[i] === '#') return ReadNumericReference(xml, i + 1)
+    if (xml[i] === '#') return readNumericReference(xml, i + 1)
     for (let count: number = 0; i < xml.length; i++, count++) {
         if (/\w/.test(xml[i]) && count < 20) continue
         if (xml[i] === ';') break
@@ -183,7 +183,7 @@ function ReadReference(xml: string, i: number): number {
  * @param xml
  * @constructor
  */
-export function ValidateXML(xml: string): boolean {
+export function validateXML(xml: string): boolean {
     //The tags opened and not closed yet
     const tags: string[] = []
     let tagFound: boolean = false
@@ -193,12 +193,12 @@ export function ValidateXML(xml: string): boolean {
     if (xml[0] === '﻿') xml = xml.substring(1)
     for (let i: number = 0; i < xml.length; i++) {
         if (xml[i] === '<' && xml[i + 1] === '?') {
-            i = ReadProcessingInstruction(xml, i + 2)
+            i = readProcessingInstruction(xml, i + 2)
             if (i === INVALID) return false
         } else if (xml[i] === '<') {
             i++
             if (xml[i] === '!') {
-                i = ReadCommentAndCDATA(xml, i)
+                i = readCommentAndCDATA(xml, i)
                 continue
             }
             let closingTag: boolean = false
@@ -208,22 +208,22 @@ export function ValidateXML(xml: string): boolean {
             }
             //The name of the tag
             const nameStart: number = i
-            while (i < xml.length && xml[i] !== '>' && !IsWhiteSpace(xml[i])) i++
+            while (i < xml.length && xml[i] !== '>' && !isWhiteSpace(xml[i])) i++
             let tagName: string = xml.substring(nameStart, i).trim()
             if (tagName[tagName.length - 1] === '/') {
                 //A self closing tag without attribute
                 tagName = tagName.substring(0, tagName.length - 1)
                 i--
             }
-            if (!IsName(tagName)) return false
-            const read: { value: string, index: number, tagClosed: boolean } | undefined = ReadAttributes(xml, i)
+            if (!isName(tagName)) return false
+            const read: { value: string, index: number, tagClosed: boolean } | undefined = readAttributes(xml, i)
             if (!read) return false
             let attributes: string = read.value
             i = read.index
             if (attributes[attributes.length - 1] === '/') {
                 //A self closing tag
                 attributes = attributes.substring(0, attributes.length - 1)
-                if (!ValidateAttributes(attributes)) return false
+                if (!validateAttributes(attributes)) return false
                 //A second root element (the upstream does not check it for a self closing tag)
                 if (reachedRoot) return false
                 //A self closing root element is the whole root (the upstream accepts anything after it)
@@ -234,7 +234,7 @@ export function ValidateXML(xml: string): boolean {
                 if (tags.pop() !== tagName) return false
                 if (tags.length === 0) reachedRoot = true
             } else {
-                if (!ValidateAttributes(attributes)) return false
+                if (!validateAttributes(attributes)) return false
                 //A second root element
                 if (reachedRoot) return false
                 tags.push(tagName)
@@ -244,26 +244,26 @@ export function ValidateXML(xml: string): boolean {
             for (i++; i < xml.length; i++) {
                 if (xml[i] === '<') {
                     if (xml[i + 1] === '!') {
-                        i = ReadCommentAndCDATA(xml, i + 1)
+                        i = readCommentAndCDATA(xml, i + 1)
                         continue
                     } else if (xml[i + 1] === '?') {
                         //From the target, as at the top level (the upstream reads it from the "?", so a misplaced XML
                         //declaration in an element or after the root is not detected)
-                        i = ReadProcessingInstruction(xml, i + 2)
+                        i = readProcessingInstruction(xml, i + 2)
                         if (i === INVALID) return false
                     } else {
                         break
                     }
                 } else if (xml[i] === '&') {
-                    i = ReadReference(xml, i)
+                    i = readReference(xml, i)
                     if (i === INVALID) return false
-                } else if (reachedRoot && !IsWhiteSpace(xml[i])) {
+                } else if (reachedRoot && !isWhiteSpace(xml[i])) {
                     //Text after the root element
                     return false
                 }
             }
             if (xml[i] === '<') i--
-        } else if (!IsWhiteSpace(xml[i])) {
+        } else if (!isWhiteSpace(xml[i])) {
             return false
         }
     }

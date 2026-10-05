@@ -11,7 +11,7 @@ export const DOTFILES: string[] = ['gitignore', 'npmrc', 'npmignore', 'gitattrib
  * The path of a file of a template in the project: "_gitignore" becomes ".gitignore"
  * @param file relative to the template
  */
-export function ProjectPath(file: string): string {
+export function projectPath(file: string): string {
     const name: string = path.basename(file)
     return name.startsWith('_') && DOTFILES.includes(name.slice(1)) ? path.join(path.dirname(file), `.${name.slice(1)}`) : file
 }
@@ -21,7 +21,7 @@ export function ProjectPath(file: string): string {
  * descriptions), their files in its features/<name> directory
  * @param packageRoot the directory of the package of the template
  */
-export async function ReadTemplateFeatures(packageRoot: string): Promise<Record<string, string>> {
+export async function readTemplateFeatures(packageRoot: string): Promise<Record<string, string>> {
     const manifest: string = path.join(packageRoot, 'package.json')
     if (!existsSync(manifest)) return {}
     const features: unknown = JSON.parse(await readFile(manifest, 'utf8'))?.lakutata?.features
@@ -37,7 +37,7 @@ export async function ReadTemplateFeatures(packageRoot: string): Promise<Record<
  * Whether a value is a plain object (of JSON)
  * @param value
  */
-function IsObject(value: unknown): value is Record<string, unknown> {
+function isObjectValue(value: unknown): value is Record<string, unknown> {
     return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
@@ -46,10 +46,10 @@ function IsObject(value: unknown): value is Record<string, unknown> {
  * @param target
  * @param source
  */
-export function MergeJson(target: unknown, source: unknown): unknown {
-    if (!IsObject(target) || !IsObject(source)) return source
+export function mergeJson(target: unknown, source: unknown): unknown {
+    if (!isObjectValue(target) || !isObjectValue(source)) return source
     const merged: Record<string, unknown> = {...target}
-    for (const [key, value] of Object.entries(source)) merged[key] = key in target ? MergeJson(target[key], value) : value
+    for (const [key, value] of Object.entries(source)) merged[key] = key in target ? mergeJson(target[key], value) : value
     return merged
 }
 
@@ -58,11 +58,11 @@ export function MergeJson(target: unknown, source: unknown): unknown {
  * @param directory
  * @param base
  */
-async function ListFiles(directory: string, base: string = directory): Promise<string[]> {
+async function listFiles(directory: string, base: string = directory): Promise<string[]> {
     const files: string[] = []
     for (const entry of await readdir(directory, {withFileTypes: true})) {
         const file: string = path.join(directory, entry.name)
-        if (entry.isDirectory()) files.push(...await ListFiles(file, base))
+        if (entry.isDirectory()) files.push(...await listFiles(file, base))
         else files.push(path.relative(base, file))
     }
     return files
@@ -75,14 +75,14 @@ async function ListFiles(directory: string, base: string = directory): Promise<s
  * @param project
  * @return the files added to the project, relative to it
  */
-export async function ApplyFeatureFiles(featureDirectory: string, project: string): Promise<string[]> {
+export async function applyFeatureFiles(featureDirectory: string, project: string): Promise<string[]> {
     const added: string[] = []
-    for (const file of await ListFiles(featureDirectory)) {
-        const relative: string = ProjectPath(file)
+    for (const file of await listFiles(featureDirectory)) {
+        const relative: string = projectPath(file)
         const target: string = path.join(project, relative)
         await mkdir(path.dirname(target), {recursive: true})
         if (existsSync(target) && file.endsWith('.json')) {
-            const merged: unknown = MergeJson(JSON.parse(await readFile(target, 'utf8')), JSON.parse(await readFile(path.join(featureDirectory, file), 'utf8')))
+            const merged: unknown = mergeJson(JSON.parse(await readFile(target, 'utf8')), JSON.parse(await readFile(path.join(featureDirectory, file), 'utf8')))
             await writeFile(target, `${JSON.stringify(merged, null, 2)}\n`)
             continue
         }
@@ -105,7 +105,7 @@ const MARKER: RegExp = /^\s*(?:\/\/|#|<!--|\/\*)\s*@(if|else|end)\b\s*(!?[a-z][a
  * @param enabled the features enabled
  * @param file the file, for the errors
  */
-export function ApplyFeatureBlocks(text: string, enabled: Set<string>, file: string): string {
+export function applyFeatureBlocks(text: string, enabled: Set<string>, file: string): string {
     if (!/@(?:if|else|end)\b/.test(text)) return text
     const lines: string[] = text.split('\n')
     const kept: string[] = []

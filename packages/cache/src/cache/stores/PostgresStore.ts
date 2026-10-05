@@ -1,7 +1,7 @@
 import {SerializedCacheStore, SerializedEntry} from './SerializedCacheStore.js'
 import {PostgresCacheOptions} from '../options/PostgresCacheOptions.js'
-import {LoadDriver} from '../lib/LoadDriver.js'
-import {LikePrefix} from '../lib/LikePrefix.js'
+import {loadDriver} from '../lib/LoadDriver.js'
+import {likePrefix} from '../lib/LikePrefix.js'
 
 type PostgresRow = {
     key: string
@@ -24,7 +24,7 @@ interface PostgresDriver {
  * An identifier of the SQL text, the plain names are kept unquoted as in 2.x (and so folded to lower case)
  * @param name
  */
-function Identifier(name: string): string {
+function identifier(name: string): string {
     return /^[A-Za-z_][A-Za-z0-9_$]*$/.test(name) ? name : `"${name.replace(/"/g, '""')}"`
 }
 
@@ -43,7 +43,7 @@ export class PostgresStore extends SerializedCacheStore {
     }
 
     public async connect(): Promise<void> {
-        const driver: PostgresDriver = await LoadDriver<PostgresDriver>('Pool', 'pg')
+        const driver: PostgresDriver = await loadDriver<PostgresDriver>('Pool', 'pg')
         const options: PostgresCacheOptions = this.options
         this.pool = new driver.Pool({
             host: options.host,
@@ -54,8 +54,8 @@ export class PostgresStore extends SerializedCacheStore {
             max: options.maxPoolSize
         })
         this.pool.on('error', (error: Error): void => this.onError(error))
-        const schema: string = Identifier(options.schema ?? 'public')
-        this.table = `${schema}.${Identifier(options.table)}`
+        const schema: string = identifier(options.schema ?? 'public')
+        this.table = `${schema}.${identifier(options.table)}`
         try {
             if (schema !== 'public') await this.pool.query(`CREATE SCHEMA IF NOT EXISTS ${schema}`)
             await this.pool.query(`CREATE TABLE IF NOT EXISTS ${this.table}(key VARCHAR(255) PRIMARY KEY, value TEXT)`)
@@ -103,7 +103,7 @@ export class PostgresStore extends SerializedCacheStore {
 
     public async clear(): Promise<void> {
         if (this.namespace) {
-            await this.pool.query(`DELETE FROM ${this.table} WHERE key LIKE $1 ESCAPE '!'`, [LikePrefix(this.namespace)])
+            await this.pool.query(`DELETE FROM ${this.table} WHERE key LIKE $1 ESCAPE '!'`, [likePrefix(this.namespace)])
         } else {
             await this.pool.query(`DELETE FROM ${this.table}`)
         }

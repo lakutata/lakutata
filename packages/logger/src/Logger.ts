@@ -2,9 +2,9 @@ import {Application, Component, DTO} from '@lakutata/core'
 import {Configurable, Singleton} from '@lakutata/core/decorator/di'
 import type {ILogger} from '@lakutata/core/com/logger'
 import {Stream} from 'node:stream'
-import {Bindings, BuildRecord, LEVELS, LogBindings, LogRecord} from './lib/Record.js'
+import {logBindings, buildRecord, LEVELS, LogBindings, LogRecord} from './lib/Record.js'
 import {REDACTED_HEADERS} from './lib/Serializers.js'
-import {Pretty} from './lib/Pretty.js'
+import {pretty} from './lib/Pretty.js'
 import {COLOR_PALETTE, Palette, PLAIN_PALETTE} from './lib/Colors.js'
 import {Destination} from './lib/Destination.js'
 
@@ -146,7 +146,7 @@ export class Logger extends Component implements ILogger {
      */
     protected async init(): Promise<void> {
         this.#threshold = LEVELS[this.level]
-        this.#bindings = Bindings(Application.appName)
+        this.#bindings = logBindings(Application.appName)
         this.#redacted = new Set(this.redactedHeaders.map((name: string): string => name.toLowerCase()))
         this.#outputs = this.destinations.map((stream: NodeJS.WritableStream): Output => ({
             destination: new Destination(stream, this.sync),
@@ -173,7 +173,7 @@ export class Logger extends Component implements ILogger {
      */
     protected write(level: number, args: unknown[]): void {
         if (level < this.#threshold) return
-        const record: LogRecord = BuildRecord(level, this.#bindings, args, this.#pretty, this.#redacted)
+        const record: LogRecord = buildRecord(level, this.#bindings, args, this.#pretty, this.#redacted)
         let prettyLines: Map<Palette, string> | undefined
         for (const output of this.#outputs) {
             if (!output.palette) {
@@ -184,7 +184,7 @@ export class Logger extends Component implements ILogger {
             let line: string | undefined = prettyLines.get(output.palette)
             if (line === undefined) {
                 //The parsed line is changed by the formatting, it is used once
-                line = Pretty(record.line.slice(0, -1), output.palette, prettyLines.size ? undefined : record.log)
+                line = pretty(record.line.slice(0, -1), output.palette, prettyLines.size ? undefined : record.log)
                 prettyLines.set(output.palette, line)
             }
             output.destination.write(line)

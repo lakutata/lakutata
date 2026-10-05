@@ -16,7 +16,7 @@ export type TestCertificates = {
 /**
  * Whether openssl is there
  */
-export function OpenSSLAvailable(): boolean {
+export function openSSLAvailable(): boolean {
     return spawnSync('openssl', ['version'], {stdio: 'ignore'}).status === 0
 }
 
@@ -24,7 +24,7 @@ export function OpenSSLAvailable(): boolean {
  * Create the certificates of the tests with openssl, in a directory
  * @param directory
  */
-export function CreateTestCertificates(directory: string): TestCertificates {
+export function createTestCertificates(directory: string): TestCertificates {
     const run = (...args: string[]): void => {
         const result = spawnSync('openssl', args, {cwd: directory, encoding: 'utf8'})
         if (result.status !== 0) throw new Error(`openssl ${args.join(' ')} failed: ${result.stderr}`)

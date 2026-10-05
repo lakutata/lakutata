@@ -4,7 +4,7 @@ import {Configurable} from '@lakutata/core/decorator/di'
 import {ServiceResponseCodec} from '@lakutata/entrypoint/channel'
 import {GRPCConnection, type GRPCCompression, type GRPCTLSOptions} from '../lib/GRPC.js'
 import type {Message} from '../lib/Protobuf.js'
-import {EventsRequest, FromJSONBytes, InvokeRequest, InvokeResponse, JSONBytes, SERVICE_METHODS, ServiceEvent} from './ServiceProto.js'
+import {EventsRequest, fromJSONBytes, InvokeRequest, InvokeResponse, jsonBytes, SERVICE_METHODS, ServiceEvent} from './ServiceProto.js'
 
 /**
  * The options of a {@link GRPCServiceProxy}, given to {@link buildGRPCServiceProxy}.
@@ -228,11 +228,11 @@ export class GRPCServiceProxy extends Component {
      * timeout passed), `RESOURCE_EXHAUSTED` (a request or response over a size limit), `CANCELLED`.
      */
     public async invoke<T extends Record<string, any>>(input: ActionPattern<T>, timeout: number = 10 * 60 * 1000): Promise<any> {
-        const response: Message = await this.#connection.unary(SERVICE_METHODS.INVOKE, InvokeRequest, {data: JSONBytes(input)}, InvokeResponse, {
+        const response: Message = await this.#connection.unary(SERVICE_METHODS.INVOKE, InvokeRequest, {data: jsonBytes(input)}, InvokeResponse, {
             metadata: {id: this.#id},
             timeout: timeout
         })
-        return ServiceResponseCodec.decode({success: !!response.success, payload: FromJSONBytes(response.payload) ?? null, error: (FromJSONBytes(response.error) ?? null) as Error | null}, this.address)
+        return ServiceResponseCodec.decode({success: !!response.success, payload: fromJSONBytes(response.payload) ?? null, error: (fromJSONBytes(response.error) ?? null) as Error | null}, this.address)
     }
 
     /**
@@ -303,7 +303,7 @@ export class GRPCServiceProxy extends Component {
                 for await (const event of this.#connection.serverStream(SERVICE_METHODS.EVENTS, EventsRequest, {}, ServiceEvent, {metadata: {id: this.#id}, signal: abort.signal})) {
                     const listeners = this.#listeners.get(event.event ?? '')
                     if (!listeners) continue
-                    const args: unknown[] = (FromJSONBytes(event.args) as unknown[] | undefined) ?? []
+                    const args: unknown[] = (fromJSONBytes(event.args) as unknown[] | undefined) ?? []
                     for (const entry of [...listeners]) {
                         if (entry.once) listeners.delete(entry)
                         try {

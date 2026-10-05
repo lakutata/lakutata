@@ -1,6 +1,6 @@
 import {DTO} from '../../lib/dto/DTO.js'
 import {PropertyDecorator} from '../../types/PropertyDecorator.js'
-import {SetObjectPropertySchema} from '../../lib/dto/ObjectSchemaValidation.js'
+import {setObjectPropertySchema} from '../../lib/dto/ObjectSchemaValidation.js'
 import {Schema} from '../../lib/validation/types/Schema.js'
 
 /**
@@ -38,5 +38,5 @@ import {Schema} from '../../lib/validation/types/Schema.js'
  * ```
  */
 export function Expect<ClassPrototype extends DTO>(schema: Schema): PropertyDecorator<ClassPrototype> {
-    return (target: ClassPrototype, propertyKey: string | symbol): void => SetObjectPropertySchema(target, propertyKey, schema)
+    return (target: ClassPrototype, propertyKey: string | symbol): void => setObjectPropertySchema(target, propertyKey, schema)
 }

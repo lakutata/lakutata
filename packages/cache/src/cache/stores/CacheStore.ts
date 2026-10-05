@@ -10,7 +10,7 @@ export type CacheStoreSetEntry = {
  * Whether an entry has expired
  * @param entry
  */
-export function IsExpired(entry: CacheEntry): boolean {
+export function isExpired(entry: CacheEntry): boolean {
     return typeof entry.expires === 'number' && Date.now() > entry.expires
 }
 
@@ -18,7 +18,7 @@ export function IsExpired(entry: CacheEntry): boolean {
  * The expiration time of a ttl
  * @param ttl
  */
-export function ExpiresOf(ttl?: number): number | undefined {
+export function expiresOf(ttl?: number): number | undefined {
     return ttl ? Date.now() + ttl : undefined
 }
 

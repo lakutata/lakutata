@@ -12,7 +12,7 @@ export type Builder = typeof import('@lakutata/builder')
  * installed with the tool
  * @param project
  */
-export async function LoadBuilder(project: string): Promise<Builder> {
+export async function loadBuilder(project: string): Promise<Builder> {
     for (const base of [path.join(project, 'package.json'), import.meta.url]) {
         let entry: string
         try {

@@ -1,8 +1,8 @@
-import {AppendAsyncConstructor} from './Append.js'
+import {appendAsyncConstructor} from './Append.js'
 
 export class AsyncConstructor extends Object {
     constructor(asyncConstructor: () => PromiseLike<void>) {
         super()
-        AppendAsyncConstructor(this, asyncConstructor)
+        appendAsyncConstructor(this, asyncConstructor)
     }
 }

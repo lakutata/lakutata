@@ -1,6 +1,6 @@
 import {createCipheriv, createDecipheriv, hkdfSync, randomBytes, scrypt as scryptCallback, type ScryptOptions} from 'node:crypto'
 import {DecryptionFailedException} from '../exceptions/DecryptionFailedException.js'
-import {AssertKey} from '../lib/AssertKey.js'
+import {assertKey} from '../lib/AssertKey.js'
 
 /**
  * The versions of the encrypted data: the key derivation (the cipher is AES-256-GCM)
@@ -112,7 +112,7 @@ function open(part: { header: Buffer, iv: Buffer, tag: Buffer, ciphertext: Buffe
  * ```
  */
 export function encryptByKey(data: string | Uint8Array, key: string | Uint8Array): string {
-    AssertKey(key)
+    assertKey(key)
     const salt: Buffer = randomBytes(SALT_LENGTH)
     return seal(KEY_VERSION, salt, deriveKey(key, salt), data)
 }
@@ -146,7 +146,7 @@ export function encryptByKey(data: string | Uint8Array, key: string | Uint8Array
  */
 export function decryptByKey(encrypted: string, keys: string | Uint8Array | (string | Uint8Array)[]): Buffer {
     const candidates: (string | Uint8Array)[] = Array.isArray(keys) ? keys : [keys]
-    candidates.forEach(AssertKey)
+    candidates.forEach(assertKey)
     const part: ReturnType<typeof parts> = parts(encrypted, KEY_VERSION)
     if (part) {
         for (const key of candidates) {

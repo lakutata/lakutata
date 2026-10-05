@@ -67,7 +67,7 @@ const registry: Map<string, MCPMetadata> = new Map()
  * @param metadata
  * @return the id of the metadata, undefined without metadata
  */
-export function RegisterMCPMetadata(metadata: MCPMetadata): string | undefined {
+export function registerMCPMetadata(metadata: MCPMetadata): string | undefined {
     if (!Object.keys(metadata).length) return undefined
     const id: string = `mcp-${registry.size + 1}`
     registry.set(id, metadata)
@@ -78,6 +78,6 @@ export function RegisterMCPMetadata(metadata: MCPMetadata): string | undefined {
  * The metadata of an action
  * @param id
  */
-export function GetMCPMetadata(id: unknown): MCPMetadata {
+export function getMCPMetadata(id: unknown): MCPMetadata {
     return typeof id === 'string' ? registry.get(id) ?? {} : {}
 }

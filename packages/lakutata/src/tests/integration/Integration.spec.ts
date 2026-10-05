@@ -38,7 +38,7 @@ const SCENARIOS: { file: string, title: string, electron?: boolean, output?: Reg
  * Run a scenario
  * @param file
  */
-function Run(file: string, electron: boolean = false): Promise<{ code: number, checks: CheckResult[], output: string }> {
+function runCommand(file: string, electron: boolean = false): Promise<{ code: number, checks: CheckResult[], output: string }> {
     return new Promise((resolve: (result: { code: number, checks: CheckResult[], output: string }) => void): void => {
         //The application of the scenario is not a test of the runner
         const {NODE_TEST_CONTEXT, ELECTRON_RUN_AS_NODE, ...env} = process.env
@@ -58,7 +58,7 @@ function Run(file: string, electron: boolean = false): Promise<{ code: number, c
 describe('The integration of the packages', (): void => {
     for (const scenario of SCENARIOS) {
         it(scenario.title, {skip: scenario.skip}, async (t): Promise<void> => {
-            const result = await Run(scenario.file, scenario.electron)
+            const result = await runCommand(scenario.file, scenario.electron)
             //Its checks ran: an application failing to launch runs none
             assert.ok(result.checks.length, `No check ran:\n${result.output}`)
             for (const check of result.checks) {

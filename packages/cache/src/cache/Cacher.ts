@@ -13,7 +13,7 @@ import {PostgresCacheOptions} from './options/PostgresCacheOptions.js'
 import {MysqlCacheOptions} from './options/MysqlCacheOptions.js'
 import {CacheStore} from './stores/CacheStore.js'
 import {MemoryStore} from './stores/MemoryStore.js'
-import {CreateCacheStore} from './stores/CreateCacheStore.js'
+import {createCacheStore} from './stores/CreateCacheStore.js'
 import {CacheEntry} from './lib/Serializer.js'
 
 /**
@@ -150,7 +150,7 @@ type StoreHit = {
  * Resolve with the first defined result, or undefined when none is
  * @param promises
  */
-function FirstDefined<T>(promises: Promise<T | undefined>[]): Promise<T | undefined> {
+function firstDefined<T>(promises: Promise<T | undefined>[]): Promise<T | undefined> {
     return new Promise((resolve: (value: T | undefined) => void): void => {
         let remaining: number = promises.length
         if (!remaining) return resolve(undefined)
@@ -317,7 +317,7 @@ export class Cacher extends Component {
     protected async init(): Promise<void> {
         const storeConfigs: CacheStoreOptions[] = this.stores ? Array.isArray(this.stores) ? this.stores : [this.stores] : []
         const stores: CacheStore[] = storeConfigs
-            .map((storeOptions: CacheStoreOptions): CacheStore | undefined => CreateCacheStore(storeOptions))
+            .map((storeOptions: CacheStoreOptions): CacheStore | undefined => createCacheStore(storeOptions))
             .filter((store: CacheStore | undefined): store is CacheStore => !!store)
         if (!stores.length) stores.push(new MemoryStore())
         for (const store of stores) store.onError = (error: Error): void => this.report(error)
@@ -381,7 +381,7 @@ export class Cacher extends Component {
      */
     protected async read(key: string): Promise<StoreHit | undefined> {
         const stores: CacheStore[] = this.#stores
-        if (this.nonBlocking && stores.length > 1) return FirstDefined(stores.map(async (store: CacheStore, index: number): Promise<StoreHit | undefined> => {
+        if (this.nonBlocking && stores.length > 1) return firstDefined(stores.map(async (store: CacheStore, index: number): Promise<StoreHit | undefined> => {
             const entry: CacheEntry | undefined = await this.readStore(store, key)
             return entry ? {entry: entry, index: index} : undefined
         }))
@@ -478,7 +478,7 @@ export class Cacher extends Component {
         const stores: CacheStore[] = this.#stores
         if (this.nonBlocking && stores.length > 1) {
             const results: Promise<(CacheEntry | undefined)[]>[] = stores.map((store: CacheStore): Promise<(CacheEntry | undefined)[]> => readMany(store, keys))
-            return Promise.all(keys.map(async (key: string, index: number): Promise<any> => (await FirstDefined(results.map(async (result: Promise<(CacheEntry | undefined)[]>): Promise<CacheEntry | undefined> => (await result)[index])))?.value))
+            return Promise.all(keys.map(async (key: string, index: number): Promise<any> => (await firstDefined(results.map(async (result: Promise<(CacheEntry | undefined)[]>): Promise<CacheEntry | undefined> => (await result)[index])))?.value))
         }
         const values: any[] = new Array(keys.length).fill(undefined)
         let missing: number[] = keys.map((key: string, index: number): number => index)

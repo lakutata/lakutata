@@ -123,6 +123,6 @@ export class Samples {
  * @param fractionDigits
  * @constructor
  */
-export function Round(value: number, fractionDigits: number): number {
+export function round(value: number, fractionDigits: number): number {
     return parseFloat(value.toFixed(fractionDigits))
 }

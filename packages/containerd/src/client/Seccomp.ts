@@ -138,7 +138,7 @@ const CLONE_NAMESPACES: number = 0x00020000 | 0x04000000 | 0x08000000 | 0x100000
  * @param major
  * @param minor
  */
-function KernelAtLeast(kernel: string, major: number, minor: number): boolean {
+function kernelAtLeast(kernel: string, major: number, minor: number): boolean {
     const match: RegExpMatchArray | null = kernel.match(/^(\d+)\.(\d+)/)
     if (!match) return false
     return Number(match[1]) > major || (Number(match[1]) === major && Number(match[2]) >= minor)
@@ -148,7 +148,7 @@ function KernelAtLeast(kernel: string, major: number, minor: number): boolean {
  * Whether the kernel filters the system calls (the Seccomp field of the status of the processes)
  * @param status the status of a process
  */
-export function SeccompSupported(status?: string): boolean {
+export function seccompSupported(status?: string): boolean {
     try {
         return /^Seccomp:/m.test(status ?? readFileSync('/proc/self/status', 'utf8'))
     } catch {
@@ -162,14 +162,14 @@ export function SeccompSupported(status?: string): boolean {
  * @param arch the architecture of the machine, as Node.js names it
  * @param kernel the release of its kernel
  */
-export function DefaultSeccompProfile(capabilities: string[], arch: string = process.arch, kernel: string = release()): SeccompProfile {
+export function defaultSeccompProfile(capabilities: string[], arch: string = process.arch, kernel: string = release()): SeccompProfile {
     const allow = (names: string[], args?: SeccompSyscall['args']): SeccompSyscall => ({names: names, action: 'SCMP_ACT_ALLOW', args: args ?? []})
     const syscalls: SeccompSyscall[] = [
         allow([...ALLOWED]),
         allow(['socket'], [{index: 0, value: AF_VSOCK, op: 'SCMP_CMP_NE'}]),
         ...[0x0, 0x0008, 0x20000, 0x20008, 0xffffffff].map((value: number): SeccompSyscall => allow(['personality'], [{index: 0, value: value, op: 'SCMP_CMP_EQ'}]))
     ]
-    if (KernelAtLeast(kernel, 4, 8)) syscalls.push(allow(['process_vm_readv', 'process_vm_writev', 'ptrace']))
+    if (kernelAtLeast(kernel, 4, 8)) syscalls.push(allow(['process_vm_readv', 'process_vm_writev', 'ptrace']))
     if (ARCHITECTURE_SYSCALLS[arch]) syscalls.push(allow([...ARCHITECTURE_SYSCALLS[arch]]))
     for (const capability of capabilities) {
         if (CAPABILITY_SYSCALLS[capability]) syscalls.push(allow([...CAPABILITY_SYSCALLS[capability]]))

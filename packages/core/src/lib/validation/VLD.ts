@@ -28,7 +28,7 @@ import {ReferenceOptions} from './interfaces/ReferenceOptions.js'
 import {Reference} from './interfaces/Reference.js'
 import {BigIntSchema} from './interfaces/BigIntSchema.js'
 import {SchemaValidationException} from './exceptions/SchemaValidationException.js'
-import {WithCause} from '../helpers/internal/WithCause.js'
+import {withCause} from '../helpers/internal/WithCause.js'
 import {CacheConfiguration} from './interfaces/CacheConfiguration.js'
 import {CompileOptions} from './interfaces/CompileOptions.js'
 import {Extension} from './interfaces/Extension.js'
@@ -405,7 +405,7 @@ class ValidateMethods {
             return this.validateIn(data, schema, options)
         } catch (error) {
             //An invalid value of the code running in a language: validated again in it, for its errors
-            const language: string | undefined = InLanguage(options)
+            const language: string | undefined = inLanguage(options)
             if (!language) throw error
             return this.validateIn(data, schema, {...options, errors: {...As<Record<string, unknown>>(options).errors as object, language: language}} as ValidationOptions)
         }
@@ -430,7 +430,7 @@ class ValidateMethods {
             error = result.error
             value = As<T>(result.value)
         }
-        if (error) throw WithCause(new InvalidValueException(error.message), error)
+        if (error) throw withCause(new InvalidValueException(error.message), error)
         return value
     }
 
@@ -445,7 +445,7 @@ class ValidateMethods {
             return await this.validateAsyncIn(data, schema, options)
         } catch (error) {
             //An invalid value of the code running in a language: validated again in it, for its errors
-            const language: string | undefined = InLanguage(options)
+            const language: string | undefined = inLanguage(options)
             if (!language) throw error
             return await this.validateAsyncIn(data, schema, {...options, errors: {...As<Record<string, unknown>>(options).errors as object, language: language}} as ValidationOptions)
         }
@@ -470,7 +470,7 @@ class ValidateMethods {
                 return As<T>(await As<Base>(schema).validateAsync(data, As<Preferences>(options)))
             }
         } catch (e) {
-            throw WithCause(new InvalidValueException((e as Error).message), e)
+            throw withCause(new InvalidValueException((e as Error).message), e)
         }
     }
 }
@@ -480,7 +480,7 @@ class ValidateMethods {
  * validation gives its own
  * @param options
  */
-function InLanguage(options: ValidationOptions): string | undefined {
+function inLanguage(options: ValidationOptions): string | undefined {
     const language: string | undefined = currentValidationLanguage()
     return language && !(As<{ errors?: { language?: unknown } }>(options).errors?.language) ? language : undefined
 }

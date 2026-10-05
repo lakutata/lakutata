@@ -9,7 +9,7 @@ import {grpcCallOfContext, grpcServiceEntrypoint, GRPCServiceProxy, SERVICE_PROT
 import {mkdtemp, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import {CreateTestCertificates, OpenSSLAvailable, type TestCertificates} from './support/Certificates.js'
+import {createTestCertificates, openSSLAvailable, type TestCertificates} from './support/Certificates.js'
 
 class OrderDTO extends DTO {
     @Expect(DTO.Number().required())
@@ -42,7 +42,7 @@ class OrderController extends Controller {
 /**
  * Start an entrypoint with a gRPC service adapter, and a proxy of it
  */
-async function Start(): Promise<{ container: Container, entrypoint: Entrypoint, proxy: GRPCServiceProxy, port: number }> {
+async function start(): Promise<{ container: Container, entrypoint: Entrypoint, proxy: GRPCServiceProxy, port: number }> {
     let port: number = 0
     const container: Container = new Container()
     const entrypoint: Entrypoint = await container.set(Entrypoint, buildEntrypoints({
@@ -56,7 +56,7 @@ async function Start(): Promise<{ container: Container, entrypoint: Entrypoint, 
 describe('The service actions over gRPC', (): void => {
 
     it('invokes the actions through the proxy', async (): Promise<void> => {
-        const {container, proxy} = await Start()
+        const {container, proxy} = await start()
         try {
             assert.deepStrictEqual(await proxy.invoke({cmd: 'order.get', id: 7}), {id: 7, client: 'proxy-1', path: '/lakutata.service.v1.Service/Invoke'})
             await assert.rejects(proxy.invoke({cmd: 'order.close'}), (error: unknown): boolean => error instanceof ServiceInvokeException && error.message === 'The order is closed' && (error as any).errno === 'E_ORDER')
@@ -86,7 +86,7 @@ describe('The service actions over gRPC', (): void => {
     })
 
     it('pushes the events to the clients', async (): Promise<void> => {
-        const {container, entrypoint, proxy} = await Start()
+        const {container, entrypoint, proxy} = await start()
         try {
             const received: unknown[][] = []
             const once: unknown[][] = []
@@ -123,11 +123,11 @@ describe('The service actions over gRPC', (): void => {
         }
     })
 
-    it('invokes the actions over mutual TLS', {skip: !OpenSSLAvailable() && 'openssl creates the certificates of the tests'}, async (): Promise<void> => {
+    it('invokes the actions over mutual TLS', {skip: !openSSLAvailable() && 'openssl creates the certificates of the tests'}, async (): Promise<void> => {
         const directory: string = await mkdtemp(path.join(tmpdir(), 'lakutata-grpc-tls-'))
         const container: Container = new Container()
         try {
-            const certificates: TestCertificates = CreateTestCertificates(directory)
+            const certificates: TestCertificates = createTestCertificates(directory)
             let port: number = 0
             await container.set(Entrypoint, buildEntrypoints({
                 controllers: [OrderController],

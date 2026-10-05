@@ -1,5 +1,5 @@
 import {MutexDriver, type DriverLock} from './MutexDriver.js'
-import {LockToken} from '../lib/Names.js'
+import {lockToken} from '../lib/Names.js'
 
 /**
  * The locks of the process, shared by its components: the ones of a single instance (its development, its tests)
@@ -54,7 +54,7 @@ export class MemoryMutexDriver extends MutexDriver {
         const key: string = this.prefix + name
         const current = this.#locks.get(key)
         if (current && current.expires > Date.now()) return undefined
-        const lock: DriverLock = {token: LockToken(), fence: ++FENCE}
+        const lock: DriverLock = {token: lockToken(), fence: ++FENCE}
         this.#locks.set(key, {token: lock.token, expires: Date.now() + ttl})
         return lock
     }

@@ -161,7 +161,7 @@ export function jsonRPCRequestOfContext(context: ServiceContext): JSONRPCRequest
  * @param message
  * @param data
  */
-function ErrorResponse(id: string | number | null, code: number, message: string, data?: unknown): JSONRPCResponse {
+function errorResponse(id: string | number | null, code: number, message: string, data?: unknown): JSONRPCResponse {
     return {jsonrpc: '2.0', id: id, error: {code: code, message: message, ...data === undefined ? {} : {data: data}}}
 }
 
@@ -169,7 +169,7 @@ function ErrorResponse(id: string | number | null, code: number, message: string
  * The code of an error of an action
  * @param error
  */
-function ErrorCode(error: unknown): number {
+function errorCode(error: unknown): number {
     if (error instanceof ControllerActionNotFoundException) return JSONRPCErrorCode.METHOD_NOT_FOUND
     if (error instanceof InvalidValueException) return JSONRPCErrorCode.INVALID_PARAMS
     if (error instanceof EntrypointStoppedException) return JSONRPCErrorCode.STOPPING
@@ -227,16 +227,16 @@ export class JSONRPCProtocol {
         if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate) || candidate.jsonrpc !== '2.0' || typeof candidate.method !== 'string'
             || (candidate.params !== undefined && (candidate.params === null || typeof candidate.params !== 'object'))
             || (candidate.id !== undefined && candidate.id !== null && typeof candidate.id !== 'string' && typeof candidate.id !== 'number')) {
-            return ErrorResponse(id, JSONRPCErrorCode.INVALID_REQUEST, 'The request is not a request of JSON-RPC 2.0')
+            return errorResponse(id, JSONRPCErrorCode.INVALID_REQUEST, 'The request is not a request of JSON-RPC 2.0')
         }
         const notification: boolean = !('id' in candidate)
         const respond = (response: JSONRPCResponse): JSONRPCResponse | undefined => notification ? undefined : response
-        if (dispatch.stopping()) return respond(ErrorResponse(id, JSONRPCErrorCode.STOPPING, 'The entrypoint is stopping'))
+        if (dispatch.stopping()) return respond(errorResponse(id, JSONRPCErrorCode.STOPPING, 'The entrypoint is stopping'))
         let data: Record<string, unknown>
         try {
             data = this.pattern(candidate as JSONRPCRequest)
         } catch (error: unknown) {
-            return respond(ErrorResponse(id, (error as { jsonrpcCode?: number }).jsonrpcCode ?? JSONRPCErrorCode.INVALID_PARAMS, (error as Error).message))
+            return respond(errorResponse(id, (error as { jsonrpcCode?: number }).jsonrpcCode ?? JSONRPCErrorCode.INVALID_PARAMS, (error as Error).message))
         }
         try {
             const context: ServiceContext = new ServiceContext({
@@ -250,7 +250,7 @@ export class JSONRPCProtocol {
             return respond({jsonrpc: '2.0', id: id, result: result === undefined ? null : result})
         } catch (error: unknown) {
             //The error of the action: its message, the whole error as its data (as the other service adapters give it)
-            return respond(ErrorResponse(id, ErrorCode(error), (error as Error)?.message || String(error), ServiceResponseCodec.encodeError(error).error))
+            return respond(errorResponse(id, errorCode(error), (error as Error)?.message || String(error), ServiceResponseCodec.encodeError(error).error))
         }
     }
 
@@ -264,10 +264,10 @@ export class JSONRPCProtocol {
         try {
             parsed = JSON.parse(message)
         } catch {
-            return ErrorResponse(null, JSONRPCErrorCode.PARSE_ERROR, 'The message is not JSON')
+            return errorResponse(null, JSONRPCErrorCode.PARSE_ERROR, 'The message is not JSON')
         }
         if (!Array.isArray(parsed)) return await this.one(parsed, dispatch)
-        if (!parsed.length) return ErrorResponse(null, JSONRPCErrorCode.INVALID_REQUEST, 'The batch is empty')
+        if (!parsed.length) return errorResponse(null, JSONRPCErrorCode.INVALID_REQUEST, 'The batch is empty')
         const responses: (JSONRPCResponse | undefined)[] = await Promise.all(parsed.map((request: unknown): Promise<JSONRPCResponse | undefined> => this.one(request, dispatch)))
         const answered: JSONRPCResponse[] = responses.filter((response: JSONRPCResponse | undefined): response is JSONRPCResponse => !!response)
         return answered.length ? answered : undefined

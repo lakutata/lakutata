@@ -6,7 +6,7 @@ import {Container} from '../../lib/core/Container.js'
 import {Inject} from '../../decorators/di/Inject.js'
 import {Configurable} from '../../decorators/di/Configurable.js'
 import {DTO} from '../../lib/dto/DTO.js'
-import {CheckObjectOptions} from '../../lib/base/internal/ObjectOptionsCheck.js'
+import {checkObjectOptions} from '../../lib/base/internal/ObjectOptionsCheck.js'
 import {OBJECT_ID} from '../../options/LoadObjectOptions.js'
 
 /**
@@ -153,7 +153,7 @@ class ConfiguredAgainCache extends InjectingCache {
  * Create a component of a container holding the dependencies
  * @param target
  */
-async function Create<T extends Component>(target: new (...args: any[]) => T): Promise<T> {
+async function create<T extends Component>(target: new (...args: any[]) => T): Promise<T> {
     const container: Container = new Container()
     await container.load([
         {class: Alpha, [OBJECT_ID]: 'alpha'},
@@ -169,55 +169,55 @@ const kinds = (component: Base): string[] => [component.dependency, component.ot
 describe('The injections of the subclasses', (): void => {
 
     it('are inherited', async (): Promise<void> => {
-        assert.deepStrictEqual(kinds(await Create(Inheriting)), ['Alpha', 'Beta', 'Alpha'])
+        assert.deepStrictEqual(kinds(await create(Inheriting)), ['Alpha', 'Beta', 'Alpha'])
     })
 
     it('declared again inject the object of the subclass, the parent unchanged', async (): Promise<void> => {
-        assert.deepStrictEqual(kinds(await Create(Middle)), ['Beta', 'Beta', 'Alpha'])
-        assert.deepStrictEqual(kinds(await Create(Base)), ['Alpha', 'Beta', 'Alpha'])
+        assert.deepStrictEqual(kinds(await create(Middle)), ['Beta', 'Beta', 'Alpha'])
+        assert.deepStrictEqual(kinds(await create(Base)), ['Alpha', 'Beta', 'Alpha'])
     })
 
     it('declared again over several levels take the closest declaration, the siblings do not share theirs', async (): Promise<void> => {
         //A subclass declaring nothing takes the declaration of its parent, not the one of its grandparent
-        assert.deepStrictEqual(kinds(await Create(Leaf)), ['Beta', 'Beta', 'Alpha'])
-        assert.deepStrictEqual(kinds(await Create(Top)), ['Gamma', 'Beta', 'Alpha'])
-        assert.deepStrictEqual(kinds(await Create(Sibling)), ['Gamma', 'Beta', 'Alpha'])
-        assert.deepStrictEqual(kinds(await Create(Middle)), ['Beta', 'Beta', 'Alpha'])
+        assert.deepStrictEqual(kinds(await create(Leaf)), ['Beta', 'Beta', 'Alpha'])
+        assert.deepStrictEqual(kinds(await create(Top)), ['Gamma', 'Beta', 'Alpha'])
+        assert.deepStrictEqual(kinds(await create(Sibling)), ['Gamma', 'Beta', 'Alpha'])
+        assert.deepStrictEqual(kinds(await create(Middle)), ['Beta', 'Beta', 'Alpha'])
     })
 
     it('declared again change the class injected, the name injected and the transform', async (): Promise<void> => {
-        const byClass: ByClass = await Create(ByClass)
+        const byClass: ByClass = await create(ByClass)
         assert.ok(byClass.dependency instanceof Gamma)
         assert.deepStrictEqual(kinds(byClass), ['Gamma', 'Beta', 'Gamma'])
-        assert.strictEqual((await Create(Transformed)).dependency, 'BETA')
+        assert.strictEqual((await create(Transformed)).dependency, 'BETA')
     })
 
     it('win over the initializer of the property', async (): Promise<void> => {
-        assert.deepStrictEqual(kinds(await Create(Initialized)), ['Alpha', 'Beta', 'Alpha'])
+        assert.deepStrictEqual(kinds(await create(Initialized)), ['Alpha', 'Beta', 'Alpha'])
     })
 
     it('declared again as configurable properties are configured only, and the configurable properties declared again as injections are injected only', async (): Promise<void> => {
         //The parent injects, the subclass configures: nothing injected
-        assert.strictEqual((await Create(ConfiguredCache)).cache, 'memory')
+        assert.strictEqual((await create(ConfiguredCache)).cache, 'memory')
         const configured: ConfiguredCache = await new Container().set(ConfiguredCache as any, {cache: 'redis'}) as ConfiguredCache
         assert.strictEqual(configured.cache, 'redis')
-        await assert.rejects(Create(InjectedCache), /Unable to inject value for property cache/)
+        await assert.rejects(create(InjectedCache), /Unable to inject value for property cache/)
         //The parent configures, the subclass injects: the injection is kept
-        assert.ok((await Create(InjectingCache)).cache instanceof Alpha)
-        assert.strictEqual((await Create(ConfigurableCache)).cache, 'memory')
+        assert.ok((await create(InjectingCache)).cache instanceof Alpha)
+        assert.strictEqual((await create(ConfigurableCache)).cache, 'memory')
         //Declared again over several levels: the closest declaration
-        assert.ok((await Create(InjectedAgainCache)).cache instanceof Alpha)
-        assert.strictEqual((await Create(ConfiguredAgainCache)).cache, 3)
+        assert.ok((await create(InjectedAgainCache)).cache instanceof Alpha)
+        assert.strictEqual((await create(ConfiguredAgainCache)).cache, 3)
         //The startup check knows the configurable properties only
         const warnings: string[] = []
         const onWarning = (warning: Error): number => warnings.push(warning.message)
         const printers: NodeJS.WarningListener[] = process.listeners('warning')
         process.removeAllListeners('warning')
         process.on('warning', onWarning)
-        CheckObjectOptions([{class: InjectingCache, cache: 'redis'} as any, {class: ConfiguredCache, cache: 'redis'} as any])
+        checkObjectOptions([{class: InjectingCache, cache: 'redis'} as any, {class: ConfiguredCache, cache: 'redis'} as any])
         process.off('warning', onWarning)
         printers.forEach((printer: NodeJS.WarningListener): unknown => process.on('warning', printer))
         assert.deepStrictEqual(warnings, ['The option "cache" of InjectingCache is not a configurable property, it is ignored (its configurable properties: maxListeners)'])
-        assert.throws((): void => CheckObjectOptions([{class: ConfiguredAgainCache, cache: 'redis'} as any]), /"cache" must be a number/)
+        assert.throws((): void => checkObjectOptions([{class: ConfiguredAgainCache, cache: 'redis'} as any]), /"cache" must be a number/)
     })
 })

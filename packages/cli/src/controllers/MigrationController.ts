@@ -2,8 +2,8 @@ import path from 'node:path'
 import {Controller} from 'lakutata/com/entrypoint'
 import {CLIAction} from 'lakutata/decorator/ctrl'
 import {MigrationDTO} from '../dtos/MigrationDTO.js'
-import {Done} from '../lib/Output.js'
-import {CreateMigration, ExecuteMigrations, GenerateMigrations, type GenerateMigrationsResult} from '../lib/Migration.js'
+import {done} from '../lib/Output.js'
+import {createMigration, executeMigrations, generateMigrations, type GenerateMigrationsResult} from '../lib/Migration.js'
 import {Workspace, type WorkspacePackage} from '../lib/workspace/Workspace.js'
 
 /**
@@ -24,24 +24,24 @@ export class MigrationController extends Controller {
         switch (input.action) {
             case 'create': {
                 if (!input.name) throw new Error('The name of the migration is required: lakutata migration create <name>')
-                const file: string = await CreateMigration({directory: directory, dir: input.dir, name: input.name})
-                Done(`Migration created: ${relative(file)} (given to the migrations of the options of its database)`)
+                const file: string = await createMigration({directory: directory, dir: input.dir, name: input.name})
+                done(`Migration created: ${relative(file)} (given to the migrations of the options of its database)`)
                 return undefined
             }
             case 'generate': {
-                const result: GenerateMigrationsResult = await GenerateMigrations({directory: directory, dir: input.dir, script: input.script, database: input.database})
+                const result: GenerateMigrationsResult = await generateMigrations({directory: directory, dir: input.dir, script: input.script, database: input.database})
                 if (result.files.length) {
-                    Done(`Migrations generated: ${result.files.map(relative).join(', ')}`)
+                    done(`Migrations generated: ${result.files.map(relative).join(', ')}`)
                     return undefined
                 }
                 //The application tells why (no change of the schema, the failure)
                 if (result.code !== 0) throw new Error(`No migration generated (the application exited with the code ${result.code})`)
-                Done('No migration generated: the application has no Database component or provider')
+                done('No migration generated: the application has no Database component or provider')
                 return undefined
             }
             default: {
                 //The application tells what it did
-                const code: number = await ExecuteMigrations({directory: directory, script: input.script, database: input.database, action: input.action, transaction: input.transaction, fake: input.fake})
+                const code: number = await executeMigrations({directory: directory, script: input.script, database: input.database, action: input.action, transaction: input.transaction, fake: input.fake})
                 if (code !== 0) throw new Error(`The command ${input.action} of the migrations failed (the application exited with the code ${code})`)
                 return undefined
             }

@@ -31,7 +31,7 @@ import {
     type ContainerdEvent,
     type ContainerdProgress
 } from '../../exports/Containerd.js'
-import {FormatPlatform, HostPlatform} from '../../client/Platforms.js'
+import {formatPlatform, hostPlatform} from '../../client/Platforms.js'
 
 /**
  * The tests run with the containerd of the machine (CONTAINERD_TEST=1, as root): in the namespace lakutata-test, they
@@ -105,14 +105,14 @@ describe('The containerd component with the containerd of the machine', {skip: !
 
     it('connects to containerd and detects the platforms of the machine', async (): Promise<void> => {
         assert.match((await containerd.version()).version, /^\d|^v\d/)
-        assert.strictEqual(containerd.supportedPlatforms()[0], FormatPlatform(HostPlatform()))
+        assert.strictEqual(containerd.supportedPlatforms()[0], formatPlatform(hostPlatform()))
     })
 
     it('pulls an image, names it again, exports and imports it', async (): Promise<void> => {
         const progress: ContainerdProgress[] = []
         const image: ContainerdImage = await containerd.pullImage({image: ALPINE, progressCallback: (item: ContainerdProgress): unknown => progress.push(item)})
         assert.strictEqual(image.name, 'docker.io/library/alpine:3.20')
-        assert.strictEqual(image.platform, FormatPlatform(HostPlatform()))
+        assert.strictEqual(image.platform, formatPlatform(hostPlatform()))
         assert.deepStrictEqual(image.platforms, [image.platform])
         assert.deepStrictEqual(image.config.cmd, ['/bin/sh'])
         assert.ok(image.config.env.PATH)
@@ -132,10 +132,10 @@ describe('The containerd component with the containerd of the machine', {skip: !
     })
 
     it('pulls the image of another platform', async (): Promise<void> => {
-        const other: string = HostPlatform().architecture === 'amd64' ? 'linux/arm64' : 'linux/amd64'
+        const other: string = hostPlatform().architecture === 'amd64' ? 'linux/arm64' : 'linux/amd64'
         const image: ContainerdImage = await containerd.pullImage({image: ALPINE, platform: other, unpack: containerd.supportedPlatforms().includes(other)})
         assert.ok(image.platforms.includes(other))
-        assert.ok(image.platforms.includes(FormatPlatform(HostPlatform())))
+        assert.ok(image.platforms.includes(formatPlatform(hostPlatform())))
         await assert.rejects(containerd.pullImage({image: ALPINE, platform: 'linux/mips'}), ContainerdPlatformException)
         if (!containerd.supportedPlatforms().includes(other)) return
         //Run by the emulator of binfmt_misc
@@ -573,7 +573,7 @@ describe('The containerd component with the containerd of the machine', {skip: !
             }
             const reference: string = `localhost:${REGISTRY_PORT}/lakutata-test/alpine:pushed`
             const image: ContainerdImage = await containerd.getImage(ALPINE)
-            await image.push({reference: reference, platform: FormatPlatform(HostPlatform())})
+            await image.push({reference: reference, platform: formatPlatform(hostPlatform())})
             const tags = await (await fetch(`http://localhost:${REGISTRY_PORT}/v2/lakutata-test/alpine/tags/list`)).json() as { tags: string[] }
             assert.deepStrictEqual(tags.tags, ['pushed'])
             const pulled: ContainerdImage = await containerd.pullImage({image: reference})
@@ -681,7 +681,7 @@ describe('The containerd component with the containerd of the machine', {skip: !
                 outputCallback: (line: string): unknown => lines.push(line)
             })
             assert.strictEqual(image.name, `docker.io/${tag}`)
-            assert.strictEqual(image.platform, FormatPlatform(HostPlatform()))
+            assert.strictEqual(image.platform, formatPlatform(hostPlatform()))
             assert.strictEqual(image.config.labels.built, 'yes')
             assert.ok(lines.some((line: string): boolean => line.includes('RUN echo')), lines.join('\n'))
             const container: ContainerdContainer = await containerd.createContainer({image: tag})

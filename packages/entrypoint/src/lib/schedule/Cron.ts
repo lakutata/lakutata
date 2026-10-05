@@ -43,7 +43,7 @@ const formatters: Map<string, Intl.DateTimeFormat> = new Map()
  * @param time
  * @param timezone
  */
-function Wall(time: number, timezone?: string): WallClock {
+function wallClock(time: number, timezone?: string): WallClock {
     if (!timezone) {
         const date: Date = new Date(time)
         return {
@@ -88,7 +88,7 @@ function Wall(time: number, timezone?: string): WallClock {
  * A wall clock time as a number, to compare them
  * @param clock
  */
-function WallKey(clock: WallClock): number {
+function wallKey(clock: WallClock): number {
     return Date.UTC(clock.year, clock.month - 1, clock.day, clock.hour, clock.minute, clock.second)
 }
 
@@ -102,13 +102,13 @@ function WallKey(clock: WallClock): number {
  * @param second
  * @param timezone
  */
-function Instant(year: number, month: number, day: number, hour: number, minute: number, second: number, timezone?: string): number {
+function instant(year: number, month: number, day: number, hour: number, minute: number, second: number, timezone?: string): number {
     if (!timezone) return new Date(year, month - 1, day, hour, minute, second).getTime()
     const wall: number = Date.UTC(year, month - 1, day, hour, minute, second)
     //The offset of the time zone at the instant, found again at the corrected instant (the offset changes with the daylight saving time)
     let time: number = wall
     for (let pass: number = 0; pass < 2; pass++) {
-        const clock: WallClock = Wall(time, timezone)
+        const clock: WallClock = wallClock(time, timezone)
         const offset: number = Date.UTC(clock.year, clock.month - 1, clock.day, clock.hour, clock.minute, clock.second) - time
         time = wall - offset
     }
@@ -123,7 +123,7 @@ function Instant(year: number, month: number, day: number, hour: number, minute:
  * @param names the names of the values from min
  * @param expression
  */
-function ParseField(text: string, min: number, max: number, names: string[] | undefined, expression: string): Field {
+function parseField(text: string, min: number, max: number, names: string[] | undefined, expression: string): Field {
     const invalid = (reason: string): Error => new SyntaxError(`Invalid cron expression "${expression}": ${reason}`)
     const value = (item: string): number => {
         const index: number = names ? names.indexOf(item.toLowerCase()) : -1
@@ -197,12 +197,12 @@ export class Cron {
         const fields: string[] = (MACROS[normalized] ?? normalized).split(/\s+/)
         if (fields.length === 5) fields.unshift('0')
         if (fields.length !== 6) throw new SyntaxError(`Invalid cron expression "${expression}": 5 or 6 fields are expected`)
-        this.#second = ParseField(fields[0], 0, 59, undefined, expression)
-        this.#minute = ParseField(fields[1], 0, 59, undefined, expression)
-        this.#hour = ParseField(fields[2], 0, 23, undefined, expression)
-        this.#day = ParseField(fields[3], 1, 31, undefined, expression)
-        this.#month = ParseField(fields[4], 1, 12, MONTHS, expression)
-        const weekday: Field = ParseField(fields[5], 0, 7, WEEKDAYS, expression)
+        this.#second = parseField(fields[0], 0, 59, undefined, expression)
+        this.#minute = parseField(fields[1], 0, 59, undefined, expression)
+        this.#hour = parseField(fields[2], 0, 23, undefined, expression)
+        this.#day = parseField(fields[3], 1, 31, undefined, expression)
+        this.#month = parseField(fields[4], 1, 12, MONTHS, expression)
+        const weekday: Field = parseField(fields[5], 0, 7, WEEKDAYS, expression)
         //7 is Sunday too
         if (weekday.values.delete(7)) weekday.values.add(0)
         this.#weekday = weekday
@@ -229,25 +229,25 @@ export class Cron {
         const timezone: string | undefined = this.timezone
         const start: number = Math.floor(new Date(after).getTime() / 1000) * 1000
         //When the clocks go back, the times of the repeated hour match once
-        const afterKey: number = WallKey(Wall(start, timezone))
+        const afterKey: number = wallKey(wallClock(start, timezone))
         let time: number = start + 1000
         //Eight years of candidates at most: a leap day on a weekday comes back within them
         const limit: number = time + 8 * 366 * 24 * 3600 * 1000
         while (time < limit) {
-            const clock: WallClock = Wall(time, timezone)
+            const clock: WallClock = wallClock(time, timezone)
             let candidate: number | undefined
             if (!this.#month.values.has(clock.month)) {
-                candidate = Instant(clock.year, clock.month + 1, 1, 0, 0, 0, timezone)
+                candidate = instant(clock.year, clock.month + 1, 1, 0, 0, 0, timezone)
             } else if (!this.#dayMatches(clock)) {
-                candidate = Instant(clock.year, clock.month, clock.day + 1, 0, 0, 0, timezone)
+                candidate = instant(clock.year, clock.month, clock.day + 1, 0, 0, 0, timezone)
             } else if (!this.#hour.values.has(clock.hour)) {
-                candidate = Instant(clock.year, clock.month, clock.day, clock.hour + 1, 0, 0, timezone)
+                candidate = instant(clock.year, clock.month, clock.day, clock.hour + 1, 0, 0, timezone)
             } else if (!this.#minute.values.has(clock.minute)) {
-                candidate = Instant(clock.year, clock.month, clock.day, clock.hour, clock.minute + 1, 0, timezone)
+                candidate = instant(clock.year, clock.month, clock.day, clock.hour, clock.minute + 1, 0, timezone)
             } else if (!this.#second.values.has(clock.second)) {
-                candidate = Instant(clock.year, clock.month, clock.day, clock.hour, clock.minute, clock.second + 1, timezone)
-            } else if (WallKey(clock) <= afterKey) {
-                candidate = time + (afterKey - WallKey(clock)) + 1000
+                candidate = instant(clock.year, clock.month, clock.day, clock.hour, clock.minute, clock.second + 1, timezone)
+            } else if (wallKey(clock) <= afterKey) {
+                candidate = time + (afterKey - wallKey(clock)) + 1000
             } else {
                 return new Date(time)
             }

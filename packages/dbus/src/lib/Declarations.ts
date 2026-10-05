@@ -1,6 +1,6 @@
 import {DTO, type Schema} from '@lakutata/core'
-import {CheckInterfaceName, CheckMemberName, CheckPathTemplate} from './Names.js'
-import {SchemaSignature} from './Signature.js'
+import {checkInterfaceName, checkMemberName, checkPathTemplate} from './Names.js'
+import {schemaSignature} from './Signature.js'
 
 /**
  * A D-Bus signal, built by {@link defineDBusSignal}: list it in the `signals` of `@DBusInterface`, and emit it with
@@ -151,12 +151,12 @@ export type DBusInterfaceDeclaration = {
  * ```
  */
 export function defineDBusSignal<T = Record<string, unknown>>(name: string, data: typeof DTO | string = 'a{sv}'): DBusSignalDefinition<T> {
-    CheckMemberName(name, 'signal')
+    checkMemberName(name, 'signal')
     const isDTO: boolean = typeof data === 'function'
     return {
         kind: 'signal',
         name: name,
-        type: isDTO ? SchemaSignature(data as typeof DTO) : data as string,
+        type: isDTO ? schemaSignature(data as typeof DTO) : data as string,
         validate: (value: T): T => isDTO ? (data as typeof DTO).validate(value) : value
     }
 }
@@ -191,7 +191,7 @@ export function defineDBusSignal<T = Record<string, unknown>>(name: string, data
  * ```
  */
 export function defineDBusProperty<T = unknown>(name: string, type: string, options: DBusPropertyOptions<T> = {}): DBusPropertyDefinition<T> {
-    CheckMemberName(name, 'property')
+    checkMemberName(name, 'property')
     const schema: Schema | undefined = options.schema
     return {
         kind: 'property',
@@ -210,9 +210,9 @@ const DBUS_INTERFACE: symbol = Symbol('DBUS.INTERFACE')
  * @param controller
  * @param declaration
  */
-export function SetDBusInterfaceDeclaration(controller: Function, declaration: DBusInterfaceDeclaration): void {
-    CheckInterfaceName(declaration.interface)
-    CheckPathTemplate(declaration.path)
+export function setDBusInterfaceDeclaration(controller: Function, declaration: DBusInterfaceDeclaration): void {
+    checkInterfaceName(declaration.interface)
+    checkPathTemplate(declaration.path)
     Reflect.defineMetadata(DBUS_INTERFACE, declaration, controller)
 }
 
@@ -220,6 +220,6 @@ export function SetDBusInterfaceDeclaration(controller: Function, declaration: D
  * The declaration of the interface of a controller, or of its nearest parent class declaring one
  * @param controller
  */
-export function GetDBusInterfaceDeclaration(controller: Function): DBusInterfaceDeclaration | undefined {
+export function getDBusInterfaceDeclaration(controller: Function): DBusInterfaceDeclaration | undefined {
     return Reflect.getMetadata(DBUS_INTERFACE, controller)
 }

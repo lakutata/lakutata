@@ -6,7 +6,7 @@ import type {MiddlewareDefinition} from '../../lib/Middleware.js'
 import type {ServiceContext} from '../../context/ServiceContext.js'
 import {ServiceChannel} from '../../channel/BuiltinChannels.js'
 import {JSONRPCErrorCode, JSONRPCProtocol, type JSONRPCDispatch, type JSONRPCMappingOptions, type JSONRPCResponse} from './JSONRPCProtocol.js'
-import {ApplicationOf} from '../../lib/ApplicationOf.js'
+import {applicationOf} from '../../lib/ApplicationOf.js'
 
 /**
  * The options of {@link jsonRPCServiceEntrypoint}: its transport, and how the requests map to the service actions (see
@@ -101,7 +101,7 @@ const CORS_HEADERS: OutgoingHttpHeaders = {
  * The id of the client of a request of HTTP (its header id, its query id)
  * @param request
  */
-function ClientId(request: IncomingMessage): string | undefined {
+function clientIdOf(request: IncomingMessage): string | undefined {
     const url: URL = new URL(request.url ?? '/', 'http://localhost')
     const given: string | string[] | null | undefined = request.headers.id ?? url.searchParams.get('id')
     const id: string | undefined = Array.isArray(given) ? given[0] : given ?? undefined
@@ -113,7 +113,7 @@ function ClientId(request: IncomingMessage): string | undefined {
  * @param request
  * @param limit
  */
-async function ReadBody(request: IncomingMessage, limit: number): Promise<string> {
+async function readBody(request: IncomingMessage, limit: number): Promise<string> {
     const chunks: Buffer[] = []
     let size: number = 0
     for await (const chunk of request) {
@@ -134,7 +134,7 @@ async function ReadBody(request: IncomingMessage, limit: number): Promise<string
  * @param ended
  * @param oversized
  */
-function ReadMessages(input: Readable, framing: 'newline' | 'content-length', limit: number, receive: (message: string) => void, ended: () => void, oversized: () => void): () => void {
+function readMessages(input: Readable, framing: 'newline' | 'content-length', limit: number, receive: (message: string) => void, ended: () => void, oversized: () => void): () => void {
     let buffer: Buffer = Buffer.alloc(0)
     //The bytes of an oversized message still to skip (content-length), or its line being skipped (newline)
     let skipping: number = 0
@@ -348,12 +348,12 @@ export function jsonRPCServiceEntrypoint(options: JSONRPCServiceEntrypointOption
                     //The requests in progress answered first
                     void Promise.allSettled([...inProgress]).then(async (): Promise<void> => {
                         if (typeof mode === 'function') return await mode()
-                        if (mode === 'application') ApplicationOf(runtime.module)?.exit(0)
+                        if (mode === 'application') applicationOf(runtime.module)?.exit(0)
                     })
                 }
                 //A message over the limit: an Invalid Request error, without id (it is not read)
                 const oversized = (): unknown => write(JSON.stringify({jsonrpc: '2.0', id: null, error: {code: JSONRPCErrorCode.INVALID_REQUEST, message: `The message is larger than ${limit} bytes`}}))
-                stopReading = ReadMessages(options.input ?? process.stdin, options.framing ?? 'newline', limit, (message: string): void => void answer(runtime, message, {clientId: 'stdio'}, write), ended, oversized)
+                stopReading = readMessages(options.input ?? process.stdin, options.framing ?? 'newline', limit, (message: string): void => void answer(runtime, message, {clientId: 'stdio'}, write), ended, oversized)
                 return
             }
             if (transport === 'http') {
@@ -367,8 +367,8 @@ export function jsonRPCServiceEntrypoint(options: JSONRPCServiceEntrypointOption
                     response.once('close', (): void => {
                         if (!response.writableFinished) aborted.abort()
                     })
-                    ReadBody(request, limit).then((body: string): void => {
-                        void answer(runtime, body, {clientId: ClientId(request), extra: {request: request}, signal: aborted.signal}, (message: string): void => {
+                    readBody(request, limit).then((body: string): void => {
+                        void answer(runtime, body, {clientId: clientIdOf(request), extra: {request: request}, signal: aborted.signal}, (message: string): void => {
                             response.writeHead(200, {...CORS_HEADERS, 'Content-Type': 'application/json; charset=utf-8'}).end(message)
                         }).then((): void => {
                             //Only notifications: no content
@@ -392,7 +392,7 @@ export function jsonRPCServiceEntrypoint(options: JSONRPCServiceEntrypointOption
             //Whether each connection answered the last ping
             const alive: WeakMap<WebSocketLike, boolean> = new WeakMap()
             ;(webSocketServer as any).on('connection', (socket: WebSocketLike, request: IncomingMessage): void => {
-                const clientId: string = ClientId(request) ?? randomUUID()
+                const clientId: string = clientIdOf(request) ?? randomUUID()
                 const send = (message: string): void => {
                     if (socket.readyState === 1) socket.send(message)
                 }
