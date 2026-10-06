@@ -199,7 +199,15 @@ describe('Cacher', (): void => {
     }))
 
     it('reports the missing drivers', async (): Promise<void> => {
-        await assert.rejects(loadDriver('createClient', 'lakutata-missing-driver'), (error: Error): boolean => error instanceof CacheDriverNotFoundException && error.message.includes('npm install lakutata-missing-driver'))
+        await assert.rejects(loadDriver('createClient', 'lakutata-missing-driver'), (error: Error): boolean => error instanceof CacheDriverNotFoundException && error.message.includes('npm install lakutata-missing-driver') && (error.cause as { code?: string })?.code !== undefined)
+        //A bundled application: the driver was not installed when it was bundled
+        const packaged: symbol = Symbol.for('lakutata.packaged')
+        ;(globalThis as Record<symbol, unknown>)[packaged] = {resources: (): string => '/resources'}
+        try {
+            await assert.rejects(loadDriver('createClient', 'lakutata-missing-driver'), (error: Error): boolean => error instanceof CacheDriverNotFoundException && error.message.includes('not installed when the application was bundled'))
+        } finally {
+            delete (globalThis as Record<symbol, unknown>)[packaged]
+        }
     })
 })
 

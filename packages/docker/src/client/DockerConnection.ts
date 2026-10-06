@@ -247,9 +247,8 @@ export class DockerConnection {
         return this.#sshAgent ??= (async (): Promise<Agent> => {
             let ssh2: any
             try {
-                //An optional dependency, loaded where it is installed
-                const ssh2Module: string = 'ssh2'
-                ssh2 = await import(ssh2Module)
+                //An optional dependency, imported by its name written out (the bundlers follow it)
+                ssh2 = await import('ssh2')
             } catch {
                 throw new Error('The SSH connections to Docker need the package ssh2: npm install ssh2')
             }
