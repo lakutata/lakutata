@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/security",
-  "version": "3.0.0-beta.4",
+  "version": "3.0.0-beta.5",
   "description": "Security providers and functions of the lakutata framework (password hashing, signatures, encryption).",
   "type": "module",
   "main": "./dist/cjs/exports/Security.js",
@@ -29,7 +29,7 @@
     "test:unit": "npm run compile && node --test \"dist/esm/tests/*.spec.js\""
   },
   "peerDependencies": {
-    "@lakutata/core": "3.0.0-beta.4"
+    "@lakutata/core": "3.0.0-beta.5"
   },
   "engines": {
     "node": ">=22"
