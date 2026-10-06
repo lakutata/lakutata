@@ -78,7 +78,10 @@ if (execFileSync('git', ['status', '--porcelain'], {cwd: ROOT, encoding: 'utf8'}
 const current = JSON.parse(readFileSync(new URL('../../lerna.json', import.meta.url), 'utf8')).version
 //The version of the commit already tagged: its publication is resumed
 const tagged = execFileSync('git', ['tag', '--points-at', 'HEAD'], {cwd: ROOT, encoding: 'utf8'}).split('\n').includes(`v${current}`)
-const resumed = tagged && (!options.version || options.version === current)
+//The version tagged is of the channel released (a prerelease of it, or a release for latest): a release of another
+//channel starts from it (3.0.0-beta.6 tagged, released as 3.0.0)
+const ofChannel = channel === 'latest' ? !current.includes('-') : current.includes(`-${channel}.`)
+const resumed = tagged && ofChannel && (!options.version || options.version === current)
 const version = resumed ? current : nextVersion(current)
 if (channel === 'latest' && version.includes('-')) throw new Error(`${version} is a prerelease: release it with its channel`)
 if (channel !== 'latest' && !version.includes(`-${channel}.`)) throw new Error(`${version} is not a prerelease of the channel ${channel}`)
