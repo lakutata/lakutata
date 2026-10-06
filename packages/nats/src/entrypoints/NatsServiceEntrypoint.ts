@@ -129,22 +129,3 @@ export function natsServiceEntrypoint(natsComponentName: string, options: NatsSe
         }
     }
 }
-
-/**
- * The former name of {@link natsServiceEntrypoint}, kept for the applications written for 2.x; it behaves the same.
- * @param natsComponentName The name of the NATS component, as registered in the components.
- * @param options The subject, the queue group, the adapter name and its middlewares.
- * @returns The adapter, to give to the `service` option of `buildEntrypoints`.
- * @example
- * ```typescript
- * import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
- * import {setupNatsServiceEntrypoint} from '@lakutata/nats'
- *
- * class OrderController extends Controller {
- * }
- *
- * //The same as natsServiceEntrypoint('nats')
- * export const entrypoint = buildEntrypoints({controllers: [OrderController], service: setupNatsServiceEntrypoint('nats')})
- * ```
- */
-export const setupNatsServiceEntrypoint: (natsComponentName: string, options?: NatsServiceEntrypointOptions) => EntrypointAdapter<ServiceContext> = natsServiceEntrypoint

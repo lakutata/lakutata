@@ -10,7 +10,7 @@ import {
     buildServiceProxy,
     messagePackCodec,
     ServiceProxy,
-    setupNatsServiceEntrypoint
+    natsServiceEntrypoint
 } from '../../exports/Nats.js'
 
 const codec = messagePackCodec()
@@ -48,7 +48,7 @@ describe('old/new version compatibility (bare NATS simulating the real legacy ve
                 nats: buildNatsClientOptions({servers: n.url}), //New version (bulk defaults to true)
                 entrypoint: buildEntrypoints({
                     controllers: [EchoController],
-                    service: setupNatsServiceEntrypoint('nats') //New version server, serviceId = appId
+                    service: natsServiceEntrypoint('nats') //New version server, serviceId = appId
                 })
             },
             providers: {

@@ -9,7 +9,7 @@ import {
     buildNatsClientOptions,
     buildServiceProxy,
     ServiceProxy,
-    setupNatsServiceEntrypoint
+    natsServiceEntrypoint
 } from '../../exports/Nats.js'
 
 class SlowController extends Controller {
@@ -44,7 +44,7 @@ describe('graceful shutdown drain', (): void => {
                 nats: buildNatsClientOptions({servers: natsUrl}),
                 entrypoint: buildEntrypoints({
                     controllers: [SlowController],
-                    service: setupNatsServiceEntrypoint('nats')
+                    service: natsServiceEntrypoint('nats')
                 })
             },
             providers: {

@@ -10,7 +10,7 @@ import {
     NatsBulkException,
     ServiceInvokeException,
     ServiceProxy,
-    setupNatsServiceEntrypoint
+    natsServiceEntrypoint
 } from '../../exports/Nats.js'
 
 //1.5MB: larger than max_payload (default 1MB), so a successful transfer proves it went through the Object Store rather than directly
@@ -58,7 +58,7 @@ describe('S2 RPC large data relay', (): void => {
                 natsCold: buildNatsClientOptions({servers: n.url}),
                 entrypoint: buildEntrypoints({
                     controllers: [BulkController],
-                    service: setupNatsServiceEntrypoint('nats')
+                    service: natsServiceEntrypoint('nats')
                 })
             },
             providers: {

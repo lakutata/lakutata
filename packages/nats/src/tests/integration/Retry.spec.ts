@@ -12,7 +12,7 @@ import {
     NatsRequestTimeoutException,
     ServiceInvokeException,
     ServiceProxy,
-    setupNatsServiceEntrypoint
+    natsServiceEntrypoint
 } from '../../exports/Nats.js'
 
 class RetryController extends Controller {
@@ -53,7 +53,7 @@ describe('#7 NoResponders safe retry', (): void => {
                 nats: buildNatsClientOptions({servers: n.url}),
                 entrypoint: buildEntrypoints({
                     controllers: [RetryController],
-                    service: setupNatsServiceEntrypoint('nats')
+                    service: natsServiceEntrypoint('nats')
                 })
             },
             providers: {

@@ -157,7 +157,9 @@ Application
   `Entrypoint.notify()` does not reach the NATS clients (NATS has no client ids).
 - When the entrypoint stops, its subscription is drained: no new request is received (the callers retry, see below)
   and the requests in progress are answered.
-- `setupNatsServiceEntrypoint` is its 2.x name, kept as an alias.
+- It is `SetupNatsServiceEntrypoint` of 2.x, renamed as the functions of 3.0 (no alias): the applications of 2.x rename
+  their calls, as the ones of `BuildServiceProxy` (`buildServiceProxy`), `JSONCodec` (`jsonCodec`) and `MessagePackCodec`
+  (`messagePackCodec`).
 
 ### Invoking a service: the service proxy
 
@@ -269,7 +271,6 @@ Application.run({
 | `messagePackCodec`, `jsonCodec` | The codecs of the payloads |
 | `StringCodec`, `Codec`, `Subscription`, `RetentionPolicy` | Re-exported from `nats` |
 | `natsServiceEntrypoint` | The service adapter of an entrypoint served over NATS |
-| `setupNatsServiceEntrypoint` | Its 2.x name |
 | `NatsServiceEntrypointOptions` | Its options: `subject`, `queue`, `name`, `middlewares` |
 | `ServiceProxy` | The singleton provider invoking the actions of a remote service and listening to its events |
 | `buildServiceProxy` | Builds the provider options of a `ServiceProxy` |

@@ -10,7 +10,7 @@ import {
     buildServiceProxy,
     NATS,
     ServiceProxy,
-    setupNatsServiceEntrypoint
+    natsServiceEntrypoint
 } from '../../exports/Nats.js'
 
 /**
@@ -39,7 +39,7 @@ describe('Phase 0 smoke', (): void => {
                 nats: buildNatsClientOptions({servers: process.env.NATS_URL!}),
                 entrypoint: buildEntrypoints({
                     controllers: [EchoController],
-                    service: setupNatsServiceEntrypoint('nats')
+                    service: natsServiceEntrypoint('nats')
                 })
             },
             providers: {

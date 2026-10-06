@@ -1,4 +1,4 @@
-export {natsServiceEntrypoint, setupNatsServiceEntrypoint, type NatsServiceEntrypointOptions} from '../entrypoints/NatsServiceEntrypoint.js'
+export {natsServiceEntrypoint, type NatsServiceEntrypointOptions} from '../entrypoints/NatsServiceEntrypoint.js'
 export {ServiceProxy, buildServiceProxy, type BuildServiceProxyOptions} from '../providers/ServiceProxy.js'
 export {RetentionPolicy} from 'nats'
 export {NATS, buildNatsClientOptions} from '../components/NATS.js'

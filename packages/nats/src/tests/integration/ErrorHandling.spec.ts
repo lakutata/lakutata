@@ -13,7 +13,7 @@ import {
     NatsRequestTimeoutException,
     ServiceInvokeException,
     ServiceProxy,
-    setupNatsServiceEntrypoint
+    natsServiceEntrypoint
 } from '../../exports/Nats.js'
 
 //A deliberately failing codec: encode always produces bad msgpack bytes (declares a 1-item array with no data, so the server decode throws),
@@ -66,7 +66,7 @@ describe('error handling / crash protection / reply guard', (): void => {
                 natsBad: buildNatsClientOptions({servers: n.url, codec: badCodec}),
                 entrypoint: buildEntrypoints({
                     controllers: [TestController],
-                    service: setupNatsServiceEntrypoint('nats')
+                    service: natsServiceEntrypoint('nats')
                 })
             },
             providers: {
