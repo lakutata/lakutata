@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/logger",
-  "version": "3.0.0-beta.5",
+  "version": "3.0.0-beta.6",
   "description": "The logger component of the lakutata framework.",
   "type": "module",
   "main": "./dist/cjs/exports/Logger.js",
@@ -29,7 +29,7 @@
     "test:unit": "npm run compile && node --test \"dist/esm/tests/*.spec.js\""
   },
   "peerDependencies": {
-    "@lakutata/core": "3.0.0-beta.5"
+    "@lakutata/core": "3.0.0-beta.6"
   },
   "engines": {
     "node": ">=22"
