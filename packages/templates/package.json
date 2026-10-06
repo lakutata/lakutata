@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/templates",
-  "version": "3.0.0-beta.6",
+  "version": "3.0.0",
   "description": "The catalog of the official templates of the lakutata projects, read by @lakutata/cli.",
   "keywords": [
     "lakutata"

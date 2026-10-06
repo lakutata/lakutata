@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/template-electron-vue",
-  "version": "3.0.0-beta.6",
+  "version": "3.0.0",
   "description": "The Electron template of the lakutata projects with Vue: the main process is a lakutata application serving the actions of its controllers to the Vue renderer (Vite) over IPC, packaged by electron-builder.",
   "keywords": [
     "lakutata",
