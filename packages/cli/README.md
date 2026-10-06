@@ -210,7 +210,11 @@ holds the files loaded at run time: the packages of the addons and of the shared
 other packages the JavaScript they load (traced) and their other files (the data they read), the packages loading their
 files by paths which cannot be followed (`require(path.join(__dirname, name))`) all their files; the types, the source
 maps, the TypeScript sources and the documentation of the packages are left out. The addons of
-the application itself (`require('./x.node')`, `createRequire(import.meta.url)('./x.node')`) are there too.
+the application itself (`require('./x.node')`, `createRequire(import.meta.url)('./x.node')`) are there too. The
+packages of the framework, and the ones built on it, are bundled with the application whatever they depend on (one copy
+of the framework, its classes and its container): their native dependencies are in the tree. The optional dependencies
+of a package which are not installed (the drivers of the stores the application does not use: `peerDependenciesMeta`
+optional, `optionalDependencies`) are left out: loading one throws at run time, as without the bundle.
 
 The files the application reads by their paths are not followed by the bundler: the scripts it runs on their own (its
 workers, `new Worker()`, the pools of workers given a file; its child processes, `fork()`; the modules it loads by their

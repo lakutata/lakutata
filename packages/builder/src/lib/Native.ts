@@ -64,6 +64,16 @@ export type NativeIndex = {
 }
 
 /**
+ * Whether a package is the framework, or built on it (it depends on it)
+ * @param manifest
+ */
+function sharesFramework(manifest: Record<string, any>): boolean {
+    const name: string = String(manifest.name ?? '')
+    if (name === 'lakutata' || name.startsWith('@lakutata/')) return true
+    return ['dependencies', 'peerDependencies', 'optionalDependencies'].some((field: string): boolean => !!manifest[field] && ('lakutata' in manifest[field] || '@lakutata/core' in manifest[field]))
+}
+
+/**
  * The shared libraries: the addons, and the libraries they are linked with (sharp and libvips)
  */
 const ADDON: RegExp = /\.node$/
@@ -287,7 +297,11 @@ export class NativeCollector {
         if (!root || root === this.project) return false
         const info: PackageInfo | undefined = this.package(root)
         if (!info) return false
-        return info.addons || this.dependencies(root).some(({root: dependency}): boolean => !!this.package(dependency)?.addons)
+        if (info.addons) return true
+        //A package of the framework, or built on it, shares it with the application: bundled with it (one copy of its
+        //classes, its container), its native dependencies loaded by their names, which the bundler follows
+        if (sharesFramework(info.manifest)) return false
+        return this.dependencies(root).some(({root: dependency}): boolean => !!this.package(dependency)?.addons)
     }
 
     /**
@@ -298,6 +312,19 @@ export class NativeCollector {
     protected async resolve(build: PluginBuild, args: { path: string, kind: any, resolveDir: string, importer: string }): Promise<string | undefined> {
         const result = await build.resolve(args.path, {kind: args.kind, resolveDir: args.resolveDir, importer: args.importer, pluginData: {[RESOLVING]: true}})
         return result.errors.length || result.external || !result.path ? undefined : realpathSync(result.path)
+    }
+
+    /**
+     * Whether a package is an optional dependency of the package of a module: an optional peer dependency
+     * (peerDependenciesMeta) or an optional dependency
+     * @param specifier
+     * @param importer
+     */
+    protected isOptionalOf(specifier: string, importer: string): boolean {
+        const name: string | undefined = specifierPackage(specifier)
+        const root: string | undefined = name && importer ? this.packageRoot(existsSync(importer) ? realpathSync(importer) : importer) : undefined
+        const manifest: Record<string, any> | undefined = root ? this.package(root)?.manifest : undefined
+        return !!name && !!manifest && (!!manifest.peerDependenciesMeta?.[name]?.optional || !!manifest.optionalDependencies?.[name])
     }
 
     /**
@@ -312,7 +339,9 @@ export class NativeCollector {
                 build.onResolve({filter: /.*/}, async (args) => {
                     if (args.pluginData?.[RESOLVING] || isBuiltin(args.path) || args.kind === 'entry-point') return undefined
                     const file: string | undefined = await this.resolve(build, args)
-                    if (!file) return undefined
+                    //An optional dependency of the package importing it, not installed: left out, it throws when it is
+                    //loaded at run time, as without the bundle (the drivers of the stores the application does not use)
+                    if (!file) return this.isOptionalOf(args.path, args.importer) ? {path: args.path, external: true} : undefined
                     const root: string | undefined = this.packageRoot(file)
                     if (this.isNative(root)) {
                         const name: string | undefined = specifierPackage(args.path)
