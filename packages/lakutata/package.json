@@ -1,6 +1,6 @@
 {
   "name": "lakutata",
-  "version": "3.0.0-beta.3",
+  "version": "3.0.0-beta.4",
   "description": "An IoC-based universal application framework.",
   "type": "module",
   "exports": {
@@ -326,18 +326,18 @@
     "typescript"
   ],
   "dependencies": {
-    "@lakutata/cache": "3.0.0-beta.3",
-    "@lakutata/containerd": "3.0.0-beta.3",
-    "@lakutata/core": "3.0.0-beta.3",
-    "@lakutata/docker": "3.0.0-beta.3",
-    "@lakutata/entrypoint": "3.0.0-beta.3",
-    "@lakutata/i18n": "3.0.0-beta.3",
-    "@lakutata/logger": "3.0.0-beta.3",
-    "@lakutata/monitor": "3.0.0-beta.3",
-    "@lakutata/mutex": "3.0.0-beta.3",
-    "@lakutata/orm": "3.0.0-beta.3",
-    "@lakutata/security": "3.0.0-beta.3",
-    "@lakutata/utils": "3.0.0-beta.3"
+    "@lakutata/cache": "3.0.0-beta.4",
+    "@lakutata/containerd": "3.0.0-beta.4",
+    "@lakutata/core": "3.0.0-beta.4",
+    "@lakutata/docker": "3.0.0-beta.4",
+    "@lakutata/entrypoint": "3.0.0-beta.4",
+    "@lakutata/i18n": "3.0.0-beta.4",
+    "@lakutata/logger": "3.0.0-beta.4",
+    "@lakutata/monitor": "3.0.0-beta.4",
+    "@lakutata/mutex": "3.0.0-beta.4",
+    "@lakutata/orm": "3.0.0-beta.4",
+    "@lakutata/security": "3.0.0-beta.4",
+    "@lakutata/utils": "3.0.0-beta.4"
   },
   "files": [
     "dist",
