@@ -30,7 +30,11 @@ export class PackController extends Controller {
         //The native addons and the scripts of the workers are next to the bundle, which is distributed with them
         if (result.nativeDirectory) {
             const addons: boolean = !!result.native!.modules.length || result.native!.files.some((file): boolean => file.path.endsWith('.node'))
-            const contents: string[] = [...addons ? [`the native addons (${result.native!.modules.join(', ') || 'of the application'})`] : [], ...result.workers.length ? [`the scripts of the workers (${result.workers.join(', ')})`] : []]
+            const contents: string[] = [
+                ...addons ? [`the native addons (${result.native!.modules.join(', ') || 'of the application'})`] : [],
+                ...result.workers.length ? [`the scripts run on their own (${result.workers.join(', ')})`] : [],
+                ...result.files.length ? [`the files read by their paths (${result.files.join(', ')})`] : []
+            ]
             done(`${path.relative(process.cwd(), result.nativeDirectory)}: ${contents.join(' and ')}, distributed with the bundle`)
         }
         if (result.resourcesDirectory) done(`${path.relative(process.cwd(), result.resourcesDirectory)}: the resources (${result.resources.join(', ')}), distributed with the bundle`)
@@ -45,7 +49,8 @@ export class PackController extends Controller {
         step(`${result.runtime} embedded`)
         if (result.native.length) step(result.directory ? `Native addons next to the executable: ${result.native.join(', ')}` : `Native addons embedded, extracted at the first run: ${result.native.join(', ')}`)
         if (result.resources.length) step(result.directory ? `Resources next to the executable: ${result.resources.join(', ')}` : `Resources embedded, extracted at the first run: ${result.resources.join(', ')}`)
-        if (result.workers.length) step(result.directory ? `Scripts of the workers next to the executable: ${result.workers.join(', ')}` : `Scripts of the workers embedded, extracted at the first run: ${result.workers.join(', ')}`)
+        if (result.workers.length) step(result.directory ? `Scripts run on their own next to the executable: ${result.workers.join(', ')}` : `Scripts run on their own embedded, extracted at the first run: ${result.workers.join(', ')}`)
+        if (result.files.length) step(result.directory ? `Files read by their paths next to the executable: ${result.files.join(', ')}` : `Files read by their paths embedded, extracted at the first run: ${result.files.join(', ')}`)
         for (const warning of result.warnings) warn(warning)
         if (result.directory) done(`${path.relative(process.cwd(), result.directory)}: the executable and what it loads, distributed together`)
         done(`${path.relative(process.cwd(), result.file)} (${result.platform}, ${megabytes(result.size)})`)

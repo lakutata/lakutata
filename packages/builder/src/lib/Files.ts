@@ -5,9 +5,10 @@ import path from 'node:path'
 import {parse} from 'acorn'
 
 /**
- * The directory of the scripts run on their own in the native tree
+ * The directory of the files the application reads by their paths in the native tree: the scripts it runs on their own
+ * (bundled), the other files and the directories of data (copied), their directories as in the project
  */
-export const WORKERS_DIRECTORY: string = '.lakutata/workers'
+export const FILES_DIRECTORY: string = '.lakutata/files'
 
 /**
  * A piece of a path to a script: a text, or an expression known at run time only (the source of the expression)
@@ -35,6 +36,49 @@ type ScriptPath = {
  * The scripts run on their own: the CommonJS scripts, which they are bundled as
  */
 const SCRIPT: RegExp = /\.c?js$/
+
+/**
+ * The code a directory of data must not hold: the scripts, which need their packages, and the packages
+ */
+const CODE: RegExp = /\.(c|m)?js$|^package\.json$|^node_modules$/
+
+/**
+ * What a path from a module gives: the directory of its pattern, the parts from it, the scripts to bundle and the files
+ * to copy (the files of its directories of data), or why it cannot be shipped
+ */
+type Targets = {
+    directory: string
+    rest: Part[]
+    scripts: string[]
+    files: string[]
+    /**
+     * The files and the directories it names (the roots of the files)
+     */
+    roots: string[]
+    refused?: 'ancestor' | 'code'
+}
+
+/**
+ * The files of a directory, deep
+ * @param directory
+ */
+function filesOf(directory: string): string[] {
+    const files: string[] = []
+    for (const entry of readdirSync(directory, {withFileTypes: true})) {
+        const at: string = path.join(directory, entry.name)
+        if (entry.isDirectory()) files.push(...filesOf(at))
+        else if (entry.isFile()) files.push(at)
+    }
+    return files
+}
+
+/**
+ * Whether a directory holds code: scripts, packages
+ * @param directory
+ */
+function holdsCode(directory: string): boolean {
+    return readdirSync(directory, {withFileTypes: true}).some((entry): boolean => CODE.test(entry.name) || (entry.isDirectory() && holdsCode(path.join(directory, entry.name))))
+}
 
 /**
  * The modules of the worker threads
@@ -262,17 +306,27 @@ function templateText(text: string): string {
  * workers (new Worker(), the pools of workers given a file), of its child processes (fork()), the modules it loads by
  * their paths (require(path.join(__dirname, 'x.js'))), in its modules and in the ones of its packages. A path to a script
  * given from its module, wherever it is written, is found when the module is bundled: the script is bundled on its own
- * into the native tree (WORKERS_DIRECTORY, the directories mirrored), and the expression rewritten to it. A path known at
+ * into the native tree (FILES_DIRECTORY, the directories mirrored), and the expression rewritten to it. A path known at
  * run time only in part (a template, a concatenation, an argument of path.join: `${name}.js`) gives every script of its
  * directory its pattern matches, the expression of the part kept. The scripts of the workers of node (worker_threads)
  * whose paths cannot be followed are warned of, in the modules of the application (the packages start workers from the
  * paths their users give)
  */
-export class WorkerCollector {
+export class FileCollector {
     /**
      * The scripts: their paths in the native tree, and their files
      */
     public readonly scripts: Map<string, string> = new Map()
+
+    /**
+     * The other files: their paths in the native tree, and their files
+     */
+    public readonly files: Map<string, string> = new Map()
+
+    /**
+     * The files and the directories of data the paths name
+     */
+    public readonly roots: Set<string> = new Set()
 
     public readonly warnings: string[] = []
 
@@ -294,11 +348,17 @@ export class WorkerCollector {
      */
     protected keyOf(directory: string): string {
         const relative: string = path.relative(this.project, directory)
-        if (!relative) return '_'
         if (!relative.startsWith('..')) return relative.split(path.sep).join('/')
         const segments: string[] = directory.split(path.sep)
         const modules: number = segments.indexOf('node_modules')
         return modules >= 0 ? segments.slice(modules).join('/') : `_outside/${createHash('sha256').update(directory).digest('hex').slice(0, 16)}`
+    }
+
+    /**
+     * The files of the scripts
+     */
+    public scriptPaths(): Set<string> {
+        return new Set(this.scripts.values())
     }
 
     /**
@@ -314,12 +374,12 @@ export class WorkerCollector {
     }
 
     /**
-     * The scripts a path gives: the file, or the ones its pattern matches; their directory and the parts of their paths
-     * from it
+     * What a path gives: the file or the directory, or the ones its pattern matches (an expression matches a part of a
+     * name); the directory they are named from, the parts of their paths from it
      * @param found
      * @param file the module
      */
-    protected scriptsOf(found: ScriptPath, file: string): { directory: string, rest: Part[], files: string[] } {
+    protected targetsOf(found: ScriptPath, file: string): Targets {
         //The directory: the texts before the first expression, up to their last separator
         const firstExpression: number = found.parts.findIndex((part: Part): boolean => 'expression' in part)
         const leading: Part[] = firstExpression < 0 ? found.parts : found.parts.slice(0, firstExpression)
@@ -327,24 +387,45 @@ export class WorkerCollector {
         const cut: number = prefix.lastIndexOf('/')
         const directory: string = path.resolve(path.join(found.base ?? path.dirname(file), prefix.slice(0, cut + 1)))
         const rest: Part[] = [...prefix.slice(cut + 1) ? [{text: prefix.slice(cut + 1)}] : [], ...found.parts.slice(leading.length)]
-        if (firstExpression < 0) {
-            const script: string = path.join(directory, prefix.slice(cut + 1))
-            return {directory: directory, rest: rest, files: SCRIPT.test(script) && existsSync(script) && statSync(script).isFile() ? [script] : []}
+        const targets: Targets = {directory: directory, rest: rest, scripts: [], files: [], roots: []}
+        //A file: bundled when it is a script, copied otherwise; a directory of data: its files copied
+        const take = (at: string, strict: boolean): void => {
+            const stats = statSync(at)
+            if (stats.isFile()) {
+                (SCRIPT.test(at) ? targets.scripts : targets.files).push(at)
+                targets.roots.push(at)
+            } else if (stats.isDirectory()) {
+                //A directory holding the module (the application, its packages), or holding code: not shipped
+                if ((file + path.sep).startsWith(at + path.sep)) {
+                    if (strict) targets.refused = 'ancestor'
+                } else if (holdsCode(at)) {
+                    if (strict) targets.refused = 'code'
+                } else {
+                    targets.files.push(...filesOf(at))
+                    targets.roots.push(at)
+                }
+            }
         }
-        //The pattern: an expression matches a part of a segment
+        if (firstExpression < 0) {
+            const target: string = path.join(directory, prefix.slice(cut + 1))
+            if (existsSync(target)) take(target, true)
+            return targets
+        }
         const pattern: RegExp = new RegExp(`^${rest.map((part: Part): string => 'text' in part ? part.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '[^/]*').join('')}$`)
         const depth: number = rest.map((part: Part): string => 'text' in part ? part.text : '').join('').split('/').length
-        const files: string[] = []
         const search = (at: string, relative: string, level: number): void => {
             if (level > depth || !existsSync(at)) return
             for (const entry of readdirSync(at, {withFileTypes: true})) {
                 const name: string = relative ? `${relative}/${entry.name}` : entry.name
-                if (entry.isDirectory() && entry.name !== 'node_modules') search(path.join(at, entry.name), name, level + 1)
-                else if (entry.isFile() && SCRIPT.test(entry.name) && pattern.test(name)) files.push(path.join(at, entry.name))
+                if (entry.name === 'node_modules') continue
+                if (pattern.test(name) && (entry.isFile() || entry.isDirectory())) take(path.join(at, entry.name), false)
+                else if (entry.isDirectory()) search(path.join(at, entry.name), name, level + 1)
             }
         }
         search(directory, '', 1)
-        return {directory: directory, rest: rest, files: files.sort()}
+        targets.scripts.sort()
+        targets.files.sort()
+        return targets
     }
 
     /**
@@ -416,21 +497,33 @@ export class WorkerCollector {
             if (node.type === 'PropertyDefinition' && !node.computed && node.key && node.value) remember(members, node.key.name, node.value)
             if (node.type === 'AssignmentExpression' && node.operator === '=' && node.left.type === 'MemberExpression' && node.left.object.type === 'ThisExpression' && !node.left.computed) remember(members, node.left.property.name, node.right)
         })
-        //The paths to scripts, wherever they are written
+        //The paths to files, wherever they are written
         const edits: { start: number, end: number, text: string }[] = []
         const followed: Set<any> = new Set()
         walk(program, (node: any): boolean => {
             const found: ScriptPath | undefined = scriptPathOf(node, source, file)
             if (!found) return true
-            const {directory, rest, files} = this.scriptsOf(found, file)
-            //A path to another file (a directory, a data file, a file not found): left as it is
-            if (!files.length) return true
-            const key: string = this.keyOf(directory)
-            for (const script of files) this.scripts.set(`${WORKERS_DIRECTORY}/${key}/${path.relative(directory, script).split(path.sep).join('/')}`, script)
-            const relative: string = `\`${rest.map((part: Part): string => 'text' in part ? templateText(part.text) : `\${${part.expression}}`).join('')}\``
-            const text: string = found.kind === 'url' ? `new URL(${relative}, require.lakutataWorkerURL(${JSON.stringify(key)}))` :
-                found.kind === 'url-text' ? `(require.lakutataWorkerURL(${JSON.stringify(key)}) + ${relative})` :
-                    `require("node:path").join(require.lakutataWorker(${JSON.stringify(key)}), ${relative})`
+            const targets: Targets = this.targetsOf(found, file)
+            const written: string = source.slice(node.start, node.end)
+            if (targets.refused === 'ancestor') {
+                this.warn(file, node.loc.start.line, `the path (${written}) is a directory holding the module, which is not where it is once bundled (the bundle is elsewhere, the code and the packages of the application are not shipped): declare the files it reads as resources (lakutata.resources) and read them from resourcesPath()`)
+                return false
+            }
+            if (targets.refused === 'code') {
+                this.warn(file, node.loc.start.line, `the path (${written}) is a directory of scripts or of packages, which need their packages at run time: it is not shipped with the bundle — import its scripts, or declare it as a resource (lakutata.resources) with what it loads`)
+                return false
+            }
+            //A path to nothing yet (a directory the application creates): left as it is
+            if (!targets.scripts.length && !targets.files.length) return true
+            const key: string = this.keyOf(targets.directory)
+            const at = (target: string): string => [FILES_DIRECTORY, key, path.relative(targets.directory, target).split(path.sep).join('/')].filter(Boolean).join('/')
+            for (const script of targets.scripts) this.scripts.set(at(script), script)
+            for (const data of targets.files) this.files.set(at(data), data)
+            for (const root of targets.roots) this.roots.add(root)
+            const relative: string = `\`${targets.rest.map((part: Part): string => 'text' in part ? templateText(part.text) : `\${${part.expression}}`).join('')}\``
+            const text: string = found.kind === 'url' ? `new URL(${relative}, require.lakutataFilesURL(${JSON.stringify(key)}))` :
+                found.kind === 'url-text' ? `(require.lakutataFilesURL(${JSON.stringify(key)}) + ${relative})` :
+                    `require("node:path").join(require.lakutataFiles(${JSON.stringify(key)}), ${relative})`
             followed.add(node)
             edits.push({start: node.start, end: node.end, text: text})
             return false

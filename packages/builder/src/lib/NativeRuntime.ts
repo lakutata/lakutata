@@ -153,7 +153,7 @@ export function lakutataNativeRequire(nodeRequire: NodeJS.Require, config: Nativ
 
     //The files loaded by their paths (the scripts of the tree): the require of an executable of Node.js loads the modules of
     //node only
-    const require = ((id: string): unknown => fromTree(id) ? tree()(id) : path.isAbsolute(id) ? createRequire(id)(id) : nodeRequire(id)) as NodeJS.Require & { lakutataNative(key: string): unknown, lakutataWorker(key: string): string, lakutataWorkerURL(key: string): string, lakutataScript(): boolean }
+    const require = ((id: string): unknown => fromTree(id) ? tree()(id) : path.isAbsolute(id) ? createRequire(id)(id) : nodeRequire(id)) as NodeJS.Require & { lakutataNative(key: string): unknown, lakutataFiles(key: string): string, lakutataFilesURL(key: string): string, lakutataScript(): boolean }
     require.resolve = ((id: string, options?: { paths?: string[] }): string => fromTree(id) ? tree().resolve(id, options) : nodeRequire.resolve(id, options)) as NodeJS.RequireResolve
     require.cache = nodeRequire.cache
     require.main = nodeRequire.main
@@ -164,15 +164,15 @@ export function lakutataNativeRequire(nodeRequire: NodeJS.Require, config: Nativ
         process.dlopen(addon as NodeJS.Module, path.join(locate(), ...key.split('/')))
         return addon.exports
     }
-    //The scripts of the workers of the application, bundled into the tree (WORKERS_DIRECTORY): the directory of a key, its URL
-    const workers = (key: string): string => path.join(locate(), '.lakutata', 'workers', ...key.split('/'))
-    require.lakutataWorker = workers
-    require.lakutataWorkerURL = (key: string): string => (nodeRequire('node:url') as typeof import('node:url')).pathToFileURL(workers(key) + path.sep).href
+    //The files the application reads by their paths, in the tree (FILES_DIRECTORY): the directory of a key, its URL
+    const files = (key: string): string => path.join(locate(), '.lakutata', 'files', ...key.split('/'))
+    require.lakutataFiles = files
+    require.lakutataFilesURL = (key: string): string => (nodeRequire('node:url') as typeof import('node:url')).pathToFileURL(files(key) + path.sep).href
     //An executable started to run a script of its tree (fork(), spawn(process.execPath, [script]): process.execPath is the
     //executable): it runs the script as node runs it, the application not started
     require.lakutataScript = (): boolean => {
         if (!config.embedded || config.root !== undefined) return false
-        const scripts: string = path.join(locate(), '.lakutata', 'workers') + path.sep
+        const scripts: string = path.join(locate(), '.lakutata', 'files') + path.sep
         const at: number = [1, 2].find((index: number): boolean => !!process.argv[index] && path.resolve(process.argv[index]).startsWith(scripts)) ?? -1
         if (at < 0) return false
         const script: string = path.resolve(process.argv[at])

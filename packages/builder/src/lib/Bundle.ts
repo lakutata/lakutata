@@ -1,9 +1,9 @@
-import {existsSync, readdirSync, realpathSync, statSync} from 'node:fs'
+import {existsSync, readdirSync, readFileSync, realpathSync, statSync} from 'node:fs'
 import {chmod, cp, mkdir, readFile, rm, stat, writeFile} from 'node:fs/promises'
 import path from 'node:path'
 import {hashNativeTree, NativeCollector, type NativeFile, type NativeTree, writeNativeTree} from './Native.js'
 import {EMBEDDED_RESOURCES, nativeBanner, packagedBanner} from './NativeRuntime.js'
-import {WORKERS_DIRECTORY, WorkerCollector} from './Workers.js'
+import {FILES_DIRECTORY, FileCollector} from './Files.js'
 
 /**
  * The application bundled into one file
@@ -80,7 +80,13 @@ export type BundleResult = {
      */
     workers: string[]
     /**
-     * What the bundle cannot follow: the scripts of the workers given by paths known at run time only
+     * The other files and the directories of data the application reads by their paths (from the project), copied into
+     * the native tree
+     */
+    files: string[]
+    /**
+     * What the bundle cannot follow: the scripts of the workers given by paths known at run time only, the directories
+     * which cannot be shipped (holding the modules, holding code), the scripts bundled twice
      */
     warnings: string[]
 }
@@ -137,6 +143,18 @@ export function resourceFiles(project: string, manifest: Record<string, any>): {
 }
 
 /**
+ * A package.json copied into the tree, its type CommonJS; undefined when it is not JSON (copied as it is)
+ * @param file
+ */
+function commonJSManifest(file: string): Buffer | undefined {
+    try {
+        return Buffer.from(`${JSON.stringify({...JSON.parse(readFileSync(file, 'utf8')), type: 'commonjs'}, null, 2)}\n`)
+    } catch {
+        return undefined
+    }
+}
+
+/**
  * The code with a code before it, after its hashbang
  * @param code
  * @param first
@@ -163,7 +181,7 @@ export async function bundleProject(options: BundleOptions): Promise<BundleResul
     if (!existsSync(entry)) throw new Error(`The entry ${path.relative(process.cwd(), entry) || entry} does not exist: build the project first`)
     const outfile: string = path.resolve(project, options.outfile ?? path.join('dist', `${name}.cjs`))
     const collector: NativeCollector = new NativeCollector(project, options.runtime)
-    const workers: WorkerCollector = new WorkerCollector(project)
+    const files: FileCollector = new FileCollector(project)
     //esbuild is loaded by the commands which need it
     const {build} = await import('esbuild')
     //The application, and each script of its workers (the bundler does not follow new Worker()): their native packages
@@ -190,7 +208,7 @@ export async function bundleProject(options: BundleOptions): Promise<BundleResul
                 //Bun replaces process.env.NODE_ENV with the mode of its build: the one of the run is read
                 ...options.runtime === 'bun' ? {'process.env.NODE_ENV': 'globalThis.process.env.NODE_ENV'} : {}
             },
-            plugins: [collector.plugin([(source: string, file: string): string | undefined => workers.transform(source, file)])],
+            plugins: [collector.plugin([(source: string, file: string): string | undefined => files.transform(source, file)])],
             logLevel: 'silent'
         }).catch((error: Error & { errors?: { text: string, location?: { file: string, line: number } }[] }): never => {
             const messages: string[] = (error.errors ?? []).map(({text, location}): string => location ? `${location.file}:${location.line}: ${text}` : text)
@@ -212,33 +230,36 @@ export async function bundleProject(options: BundleOptions): Promise<BundleResul
     const resourcesDirectory: string = path.resolve(path.dirname(outfile), options.directories?.resources ?? `${base}.resources`)
     //The scripts of the workers, until the ones they start are bundled too
     const scripts: Map<string, string> = new Map()
-    for (let pending: [string, string][] = [...workers.scripts]; pending.length; pending = [...workers.scripts].filter(([at]): boolean => !scripts.has(at))) {
+    for (let pending: [string, string][] = [...files.scripts]; pending.length; pending = [...files.scripts].filter(([at]): boolean => !scripts.has(at))) {
         for (const [at, script] of pending) scripts.set(at, (await bundle(script, path.join(nativeDirectory, ...at.split('/')))).code)
     }
-    workers.warnBundled(application.inputs)
+    files.warnBundled(application.inputs)
     const embedded: boolean = options.native === 'embedded'
     let native: NativeTree | undefined = await collector.collect()
     const resources = resourceFiles(project, manifest)
-    if (scripts.size) {
+    if (scripts.size || files.files.size) {
         //The scripts run from the tree: their require loads the native packages from it, their resources are the ones of
         //the application (an executable gives them from the tree it extracted)
         const modules: string[] = native?.modules ?? []
-        const files: NativeFile[] = [{path: `${WORKERS_DIRECTORY}/package.json`, source: manifestFile, mode: 0o644, content: Buffer.from('{"type": "commonjs"}\n')}]
+        const tree: NativeFile[] = [{path: `${FILES_DIRECTORY}/package.json`, source: manifestFile, mode: 0o644, content: Buffer.from('{"type": "commonjs"}\n')}]
         for (const [at, script] of [...scripts].sort(([a], [b]): number => a.localeCompare(b))) {
             const directory: string = path.dirname(path.join(nativeDirectory, ...at.split('/')))
             const banner: string = packagedBanner(path.relative(directory, resourcesDirectory).split(path.sep).join('/')) +
                 nativeBanner({name: name, hash: '', directory: '', modules: modules, embedded: embedded, root: path.relative(directory, nativeDirectory).split(path.sep).join('/')})
-            files.push({path: at, source: workers.scripts.get(at)!, mode: 0o644, content: Buffer.from(prepend(script, banner))})
+            tree.push({path: at, source: files.scripts.get(at)!, mode: 0o644, content: Buffer.from(prepend(script, banner))})
         }
-        const all: NativeFile[] = [...native?.files ?? [], ...files]
+        //The other files the application reads by their paths, as they are; a package.json read by its package (its
+        //version) is of the CommonJS scripts of the tree next to it (its type would make them ES modules)
+        for (const [at, data] of files.files) tree.push({path: at, source: data, mode: statSync(data).mode & 0o777, content: path.basename(data) === 'package.json' ? commonJSManifest(data) : undefined})
+        const all: NativeFile[] = [...native?.files ?? [], ...tree]
         native = {modules: modules, files: all, links: native?.links ?? [], hash: hashNativeTree(all, native?.links ?? [])}
     }
     await rm(nativeDirectory, {recursive: true, force: true})
     await rm(resourcesDirectory, {recursive: true, force: true})
     //The resources of an executable are extracted with its native tree
     if (embedded && resources.files.length) {
-        const files: NativeFile[] = [...native?.files ?? [], ...resources.files.map((file: NativeFile): NativeFile => ({...file, path: `${EMBEDDED_RESOURCES}/${file.path}`}))]
-        native = {modules: native?.modules ?? [], files: files, links: native?.links ?? [], hash: hashNativeTree(files, native?.links ?? [])}
+        const embeddedFiles: NativeFile[] = [...native?.files ?? [], ...resources.files.map((file: NativeFile): NativeFile => ({...file, path: `${EMBEDDED_RESOURCES}/${file.path}`}))]
+        native = {modules: native?.modules ?? [], files: embeddedFiles, links: native?.links ?? [], hash: hashNativeTree(embeddedFiles, native?.links ?? [])}
     }
     if (native && embedded) {
         //An executable runs the scripts of its tree it is started for (fork()) instead of the application
@@ -272,7 +293,8 @@ export async function bundleProject(options: BundleOptions): Promise<BundleResul
         nativeDirectory: native && !embedded ? nativeDirectory : undefined,
         resources: resources.declared,
         resourcesDirectory: resources.files.length && !embedded ? resourcesDirectory : undefined,
-        workers: [...new Set([...scripts.keys()].map((at: string): string => workers.nameOf(workers.scripts.get(at)!)))].sort(),
-        warnings: workers.warnings
+        workers: [...new Set([...scripts.keys()].map((at: string): string => files.nameOf(files.scripts.get(at)!)))].sort(),
+        files: [...files.roots].filter((root: string): boolean => !files.scriptPaths().has(root)).map((root: string): string => files.nameOf(root)).sort(),
+        warnings: files.warnings
     }
 }

@@ -340,6 +340,7 @@ export async function buildElectronInstaller(project: string, manifest: Record<s
             size: bundle.size,
             native: bundle.native?.modules ?? [],
             workers: bundle.workers,
+            files: bundle.files,
             resources: bundle.resources,
             runtime: `Electron v${electronVersion}`,
             warnings: []

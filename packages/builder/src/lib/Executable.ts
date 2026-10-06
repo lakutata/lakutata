@@ -40,6 +40,11 @@ export type ExecutableResult = {
      */
     workers: string[]
     /**
+     * The other files and the directories of data the application reads by their paths (from the project), with the
+     * native addons
+     */
+    files: string[]
+    /**
      * The resources of the application (their paths in the resources)
      */
     resources: string[]
@@ -254,6 +259,7 @@ export async function buildExecutable(options: ExecutableOptions): Promise<Execu
             size: (await stat(file)).size,
             native: bundle.native?.modules ?? [],
             workers: bundle.workers,
+            files: bundle.files,
             resources: bundle.resources,
             directory: directory ? target : undefined,
             runtime: runtime,

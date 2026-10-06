@@ -212,13 +212,25 @@ files by paths which cannot be followed (`require(path.join(__dirname, name))`) 
 maps, the TypeScript sources and the documentation of the packages are left out. The addons of
 the application itself (`require('./x.node')`, `createRequire(import.meta.url)('./x.node')`) are there too.
 
-The scripts the application runs on their own by their paths are not followed by the bundler: the scripts of its
-workers (`new Worker()`, the pools of workers given a file), of its child processes (`fork()`), the modules it loads by
-their paths (`require(path.join(__dirname, 'x.js'))`). A path to a script (a `.js` or `.cjs` file) given from its module
-is found wherever it is written, in the modules of the application and in the ones of its packages (the scripts of the
-pools of workers): the script is bundled on its own with what it loads (a CommonJS file, whatever the type of the
-project) into the native tree (`dist/<name>.native/.lakutata/workers/`, its directories as in the project, the packages
-linked from outside of it under `node_modules/`), and the expression rewritten to it. The paths followed:
+The files the application reads by their paths are not followed by the bundler: the scripts it runs on their own (its
+workers, `new Worker()`, the pools of workers given a file; its child processes, `fork()`; the modules it loads by their
+paths, `require(path.join(__dirname, 'x.js'))`), its data (`fs.readFileSync(path.join(__dirname, 'defaults.json'))`, a
+directory of schemas). And the bundle is not where its modules were: `path.resolve(__dirname, '../../schema')` of a
+module of `build/config/` is the `schema/` of the project, not once bundled in `dist/`. A path to a file given from its
+module is found wherever it is written, in the modules of the application and in the ones of its packages, and the
+expression rewritten to the file in the native tree (`dist/<name>.native/.lakutata/files/`, the directories as in the
+project, the packages linked from outside of it under `node_modules/`):
+
+| The path names | |
+|---|---|
+| a script (`.js`, `.cjs`) | bundled on its own with what it loads (a CommonJS file, whatever the type of the project) |
+| another file | copied (a `package.json` its type CommonJS, as the scripts next to it) |
+| a directory of data | its files copied |
+| a directory holding the module (`path.join(__dirname, '..')`: the application, its packages) | not shipped, warned of: its files are declared as resources (`lakutata.resources`, below) |
+| a directory holding scripts or packages (`package.json`, `node_modules`) | not shipped, warned of: its scripts need their packages at run time |
+| nothing yet (a directory the application creates) | left as it is |
+
+The paths followed:
 
 | Path | |
 |---|---|
@@ -227,17 +239,16 @@ linked from outside of it under `node_modules/`), and the expression rewritten t
 | `path.join(__dirname, 'worker.js')`, `path.resolve(__dirname, …)` | `import.meta.dirname`, `path.dirname(fileURLToPath(import.meta.url))` too |
 | `__dirname + '/worker.js'`, `` `${__dirname}/worker.js` `` | |
 | `require.resolve('./worker')`, `require.resolve(path.resolve(__dirname, '../lib/worker'))` | the extension found as node finds it |
-| `` path.join(__dirname, 'jobs', `${name}.js`) ``, `` new URL(`./jobs/${name}.js`, import.meta.url) `` | known in part: every script of the directory its pattern matches (an expression matches a part of a name), its expression kept |
+| `` path.join(__dirname, 'locales', `${lang}.json`) ``, `` new URL(`./jobs/${name}.js`, import.meta.url) `` | known in part: every file and directory its pattern matches (an expression matches a part of a name), its expression kept |
 
-The code of tsc (`(0, node_path_1.join)(__dirname, 'worker.js')`) is followed. The paths to other files (a directory, a
-data file) are left as they are: they are resources (below). A script also imported by the application is warned of:
-it is bundled twice, its module apart in each (its state, its classes). The workers of node (`worker_threads`) whose
-scripts cannot be followed are warned of with their file and line, in the modules of the application (the packages start
-workers from the paths their users give): a path known at run time only (`new Worker(file)`, a variable or a property of
-a class holding one of the paths above is followed), or a path relative to the current directory of the process
-(`new Worker('./worker.js')`, which node reads from there, not from the module); their scripts are given from the
-directory of their module, or shipped as resources (`lakutata.resources`). The workers running a source (`eval: true`)
-need nothing.
+The code of tsc (`(0, node_path_1.join)(__dirname, 'worker.js')`) is followed. A script also imported by the application
+is warned of: it is bundled twice, its module apart in each (its state, its classes). The workers of node
+(`worker_threads`) whose scripts cannot be followed are warned of with their file and line, in the modules of the
+application (the packages start workers from the paths their users give): a path known at run time only
+(`new Worker(file)`, a variable or a property of a class holding one of the paths above is followed), or a path relative
+to the current directory of the process (`new Worker('./worker.js')`, which node reads from there, not from the module);
+their scripts are given from the directory of their module, or shipped as resources. The workers running a source
+(`eval: true`) need nothing. The warnings name the modules of the application only, with their file and line.
 
 The resources of the application, the files it reads at run time (the built pages of a web application, templates,
 data), are declared by the `lakutata.resources` of its `package.json`, as the `extraResources` of electron-builder:
@@ -277,7 +288,7 @@ linux/arm64`, as the cross builds of the templates).
 | `--layout <file\|directory>` | one file (by default), or a directory: `dist/<name>/` holding the executable, its native addons (`native/`) and its resources (`resources/`), loaded from there without extraction (the installers, the images) |
 | `--entry`, `--no-minify`, `--external` | as `lakutata package bundle` |
 
-The native addons, the scripts of the workers and the resources are embedded in the executable (`--layout file`): at its
+The native addons, the files read by their paths and the resources are embedded in the executable (`--layout file`): at its
 first run, it extracts them into its cache directory (`~/.cache/<name>`, `~/Library/Caches/<name>` on macOS,
 `%LOCALAPPDATA%\<name>\Cache` on Windows, or `LAKUTATA_NATIVE_DIR`; the temporary directory when it cannot be written),
 in a directory named after their content:

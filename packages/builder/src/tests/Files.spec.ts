@@ -81,7 +81,7 @@ const EXPECTED: string = [
     'package: pooled'
 ].join('\n')
 
-describe('The scripts of the workers of a bundle', (): void => {
+describe('The files a bundle reads by their paths', (): void => {
 
     let work: string
     let common: string
@@ -142,7 +142,7 @@ exports.run = (file) => new Worker(file)
         const result = await bundleProject({project: common})
         assert.deepStrictEqual(result.warnings, [])
         assert.deepStrictEqual(result.workers, ['build/jobs/a.js', 'build/jobs/b.js', 'build/lib/helper.js', 'build/lib/nested.js', 'build/worker.js', 'node_modules/pool/job.js', 'shared/worker.js'])
-        const workers: string = path.join(result.nativeDirectory!, '.lakutata', 'workers')
+        const workers: string = path.join(result.nativeDirectory!, '.lakutata', 'files')
         //The directories of the scripts, mirrored; the scripts bundled as CommonJS whatever the type of the project
         assert.ok(existsSync(path.join(workers, 'build', 'jobs', 'a.js')) && !existsSync(path.join(workers, 'build', 'jobs', 'notes.md')))
         assert.ok(existsSync(path.join(workers, 'shared', 'worker.js')) && existsSync(path.join(workers, 'package.json')))
@@ -254,7 +254,7 @@ main()
         for (const script of ['build/child.js', 'build/lib/Double.js', 'build/lib/legacy.js', 'build/lib/plugin.js', 'build/lib/pooled.js', 'workers/predict.js']) assert.ok(result.workers.includes(script), script)
         assert.ok(result.workers.some((script: string): boolean => script.endsWith('piscina/dist/worker.js')))
         //The packages linked from outside of the project are named from their node_modules in the tree
-        const workers: string = path.join(result.nativeDirectory!, '.lakutata', 'workers')
+        const workers: string = path.join(result.nativeDirectory!, '.lakutata', 'files')
         assert.ok(existsSync(path.join(workers, 'node_modules', 'piscina', 'dist', 'worker.js')))
         assert.strictEqual(runWithout(project, result.outfile, ['build', 'workers', 'node_modules']), [
             'piscina 4', 'workerpool 6', 'tinypool 6', 'property 50', 'assigned legacy', 'fork child', 'require plugin'
@@ -275,6 +275,47 @@ main()
         assert.strictEqual(execFileSync(result.file, [], {cwd: tmpdir(), env: {PATH: '', LAKUTATA_NATIVE_DIR: path.join(work, 'anywhere-bun')}, timeout: 60000}).toString().trim(), [
             'piscina 4', 'workerpool skipped', 'tinypool 6', 'property 50', 'assigned legacy', 'fork child', 'require plugin'
         ].join('\n'))
+    })
+
+    it('copies the files and the directories of data the application reads by their paths, warns of the ones it cannot ship', async (): Promise<void> => {
+        const project: string = path.join(work, 'resources')
+        //The module reading them is deeper than the bundle (build/config, dist): their paths from it are not the same
+        writeProject(project, {
+            'package.json': JSON.stringify({name: 'resources', version: '1.0.0', main: 'build/index.js'}),
+            'build/index.js': 'require(\'./config/loader.js\')\n',
+            'build/config/loader.js': `const path = require('node:path')
+const fs = require('node:fs')
+const schemas = path.resolve(__dirname, '../../schema')
+const defaults = JSON.parse(fs.readFileSync(path.join(__dirname, 'defaults.json'), 'utf8'))
+const messages = (lang) => JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'locales', \`\${lang}.json\`), 'utf8'))
+const project = path.join(__dirname, '..')
+const plugins = path.join(__dirname, '..', '..', 'plugins')
+const logs = path.join(__dirname, '..', '..', 'logs')
+const deep = fs.readFileSync(path.join(schemas, 'nested', 'deep.schema'), 'utf8').trim()
+console.log([fs.readdirSync(schemas).sort().join(','), deep, defaults.mode, messages('en').hello, messages('zh').hello, path.basename(logs)].join('\\n'))
+`,
+            'build/config/defaults.json': JSON.stringify({mode: 'default'}),
+            'schema/core.schema': 'core\n',
+            'schema/extra.schema': 'extra\n',
+            'schema/nested/deep.schema': 'deep\n',
+            'locales/en.json': JSON.stringify({hello: 'Hello'}),
+            'locales/zh.json': JSON.stringify({hello: '你好'}),
+            'locales/readme.txt': 'Not a catalog\n',
+            'plugins/a.js': 'module.exports = 1\n'
+        })
+        const result = await bundleProject({project: project})
+        assert.deepStrictEqual(result.files, ['build/config/defaults.json', 'locales/en.json', 'locales/zh.json', 'schema'])
+        const files: string = path.join(result.nativeDirectory!, '.lakutata', 'files')
+        assert.ok(existsSync(path.join(files, 'schema', 'nested', 'deep.schema')) && !existsSync(path.join(files, 'locales', 'readme.txt')))
+        //The directory holding the module, the directory of scripts: warned of; the directory to come: left as it is
+        assert.deepStrictEqual(result.warnings.map((warning: string): string => warning.replace(/: the path .*/, '')), ['build/config/loader.js:6', 'build/config/loader.js:7'])
+        assert.match(result.warnings[0], /directory holding the module.*lakutata\.resources/)
+        assert.match(result.warnings[1], /directory of scripts or of packages/)
+        const expected: string = ['core.schema,extra.schema,nested', 'deep', 'default', 'Hello', '你好', 'logs'].join('\n')
+        assert.strictEqual(runWithout(project, result.outfile, ['build', 'schema', 'locales', 'plugins']), expected)
+        const executable = await buildExecutable({project: project, outdir: path.join(project, 'executable')})
+        assert.deepStrictEqual(executable.files, result.files)
+        assert.strictEqual(execFileSync(executable.file, [], {cwd: tmpdir(), env: {PATH: '', LAKUTATA_NATIVE_DIR: path.join(work, 'resources-node')}, timeout: 60000}).toString().trim(), expected)
     })
 
     it('warns of the scripts bundled with the application and run on their own too', async (): Promise<void> => {
