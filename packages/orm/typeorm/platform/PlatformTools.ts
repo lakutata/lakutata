@@ -6,6 +6,7 @@ import fs from "fs"
 import path from "path"
 import { highlight } from "sql-highlight"
 import { type DatabaseType } from "../driver/types/DatabaseType"
+import { requireDriverPackage } from "./DriverPackages"
 
 export { EventEmitter } from "events"
 export { ReadStream } from "fs"
@@ -81,8 +82,8 @@ export class PlatformTools {
         // this is useful when we are using typeorm package globally installed and it accesses drivers
         // that are not installed globally
         try {
-            // eslint-disable-next-line @typescript-eslint/no-require-imports
-            return require(name)
+            // lakutata: the drivers required by their names written out, which the bundlers follow
+            return requireDriverPackage(name)
         } catch {
             // eslint-disable-next-line @typescript-eslint/no-require-imports
             return require(
