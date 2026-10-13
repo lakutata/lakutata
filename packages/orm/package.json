@@ -63,14 +63,14 @@
     "@sqltools/formatter": "^1.2.5",
     "ansis": "4.2.0",
     "reflect-metadata": "0.2.2",
-    "typeorm": "0.3.31"
+    "typeorm": "1.1.2"
   },
   "peerDependencies": {
     "@lakutata/core": "3.0.0",
     "@lakutata/utils": "3.0.0"
   },
   "engines": {
-    "node": ">=22"
+    "node": "^22.13.0 || >=24.11.0"
   },
   "files": [
     "dist",

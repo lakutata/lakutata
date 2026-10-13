@@ -34,7 +34,7 @@ npx @lakutata/cli create --name my-app   # a new project from a template (web, s
 npm install lakutata                      # or the framework in an existing project
 ```
 
-Node.js 22 or later, ESM (`"type": "module"`). The TypeScript options the framework needs are published as
+Node.js 22.13 or later (24.11 or later on Node.js 24), ESM (`"type": "module"`). The TypeScript options the framework needs are published as
 `lakutata/tsconfig.json`:
 
 ```json
@@ -45,7 +45,7 @@ Node.js 22 or later, ESM (`"type": "module"`). The TypeScript options the framew
 ```
 
 The transports and the integrations use optional peer dependencies, installed when used: `express` or `fastify`,
-`commander`, `socket.io`, `ws`, the database drivers (`pg`, `mysql2`, `sqlite3`…), the cache stores (`redis`…), see each
+`commander`, `socket.io`, `ws`, the database drivers (`pg`, `mysql2`, `better-sqlite3`…), the cache stores (`redis`…), see each
 package's README.
 
 ## Usage

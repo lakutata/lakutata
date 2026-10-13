@@ -1,6 +1,6 @@
 # @lakutata/orm
 
-The ORM of the lakutata framework, built on [TypeORM](https://typeorm.io) 0.3: the `Database` component (a
+The ORM of the lakutata framework, built on [TypeORM](https://typeorm.io) 1: the `Database` component (a
 connection shared by the application), the `Database` provider (a connection of its own), the entity decorators, the
 TypeORM API (repositories, find operators, query builders, migrations), and the migration commands of the applications
 (`MIGRATION_GENERATE`, `MIGRATION_RUN`, `MIGRATION_REVERT`, `MIGRATION_SHOW`).
@@ -21,14 +21,14 @@ connection options:
 | Database | `type` | Install |
 |---|---|---|
 | PostgreSQL, CockroachDB | `postgres`, `cockroachdb` | `pg` |
-| MySQL, MariaDB | `mysql`, `mariadb` | `mysql2` |
-| SQLite | `sqlite` / `better-sqlite3` | `sqlite3` / `better-sqlite3` |
+| MySQL, MariaDB | `mysql`, `mariadb` | `mysql2` (3.15.3 or later) |
+| SQLite | `better-sqlite3` | `better-sqlite3` (12) |
 | SQLite in memory (WebAssembly) | `sqljs` | `sql.js` |
-| Microsoft SQL Server | `mssql` | `mssql` |
+| Microsoft SQL Server | `mssql` | `mssql` (12) |
 | Oracle | `oracle` | `oracledb` |
-| MongoDB | `mongodb` | `mongodb` (5 or 6) |
+| MongoDB | `mongodb` | `mongodb` (7) |
 | SAP HANA | `sap` | `@sap/hana-client` |
-| Google Cloud Spanner | `spanner` | `@google-cloud/spanner` |
+| Google Cloud Spanner | `spanner` | `@google-cloud/spanner` (8) |
 
 The query result cache stored in Redis (`cache: {type: 'redis'}` or `'ioredis'`) needs `redis` or `ioredis`.
 
@@ -106,7 +106,7 @@ The common connection options (see the TypeORM documentation for the options of 
 
 | Option | What it sets |
 |---|---|
-| `type` | The driver: `'postgres'`, `'mysql'`, `'sqlite'`… |
+| `type` | The driver: `'postgres'`, `'mysql'`, `'better-sqlite3'`… |
 | `url` or `host`, `port`, `username`, `password`, `database` | The server and the database |
 | `schema` | The PostgreSQL schema of the tables (default `public`) |
 | `entities` | The entity classes, `EntitySchema`s, or glob paths of their compiled files (`'dist/entities/*.js'`) |
@@ -115,6 +115,16 @@ The common connection options (see the TypeORM documentation for the options of 
 | `logging`, `logger` | What TypeORM logs (`true`, `['error', 'schema']`…) and where |
 | `poolSize`, `extra` | The connection pool size; the options passed to the driver (`extra: {max: 20}` for `pg`) |
 | `subscribers`, `namingStrategy`, `cache` | The entity subscribers, the naming of the tables and columns, the query result cache |
+
+The framework sets one option of its own: `invalidWhereValuesBehavior` is `{null: 'ignore', undefined: 'ignore'}` by
+default, the behavior of TypeORM 0.3 (TypeORM 1 throws by default): a property of a where condition whose value is
+`null` or `undefined` is left out of the condition. Each key given replaces its default
+(`invalidWhereValuesBehavior: {undefined: 'throw'}` throws on the undefined values). With the default,
+`findOneBy({id: undefined})` finds the first row: check the values taken from the requests before querying with them.
+
+A database created with TypeORM 0.3 whose table or column names have characters outside ASCII: TypeORM 1 names their
+indices and constraints differently, and the migrations generated rename them. The `NamingStrategyV03` of the package
+`@typeorm/legacy-naming-strategies` (`namingStrategy: new NamingStrategyV03()`) keeps the names of TypeORM 0.3.
 
 ### Entities
 
@@ -196,6 +206,8 @@ An entity may also extend `BaseEntity` (from `lakutata/orm`) for the active reco
 
 `lakutata/orm` exports the TypeORM API: the repositories, the find operators (`In`, `ILike`, `Between`, `MoreThan`,
 `IsNull`, `Not`, `Raw`, `ArrayContains`, `JsonContains`…), the query builders, the entity manager and the errors.
+The find options take objects: `relations: {author: true}`, `select: {id: true, title: true}` (TypeORM 1 removed
+the arrays of names).
 
 ```typescript
 import {Component} from 'lakutata'
@@ -436,7 +448,7 @@ The entities of a database are the ones of its connection options, and for a `Da
 | `Repository`, `EntityManager`, `QueryRunner`, `SelectQueryBuilder`, `DataSource`, `BaseEntity`… | `lakutata/orm` | The TypeORM classes and types |
 | `In`, `ILike`, `Between`, `MoreThan`, `IsNull`, `Not`, `Raw`… | `lakutata/orm` | The TypeORM find operators |
 | `MigrationInterface`, `Migration`, `MigrationExecutor` | `lakutata/orm` | The migrations |
-| `DataSourceOptions`, `PostgresConnectionOptions`, `MysqlConnectionOptions`… | `lakutata/orm` | The connection options of each driver |
+| `DataSourceOptions`, `PostgresDataSourceOptions`, `MysqlDataSourceOptions`… | `lakutata/orm` | The connection options of each driver (their names of TypeORM 0.3, `PostgresConnectionOptions`…, deprecated) |
 | `QueryFailedError`, `EntityNotFoundError`, `TypeORMError`… | `lakutata/orm` | The TypeORM errors |
 
 The typings document the declarations of lakutata with examples; the TypeORM ones are documented by

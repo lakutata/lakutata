@@ -91,7 +91,7 @@ Application
         timezone: 'Asia/Shanghai',
         components: {
             log: {level: 'warn'},
-            db: buildDatabaseOptions({type: 'sqlite', database: ':memory:', entities: [Device], synchronize: true}),
+            db: buildDatabaseOptions({type: 'better-sqlite3', database: ':memory:', entities: [Device], synchronize: true}),
             entrypoint: buildEntrypoints({
                 controllers: [DeviceController],
                 http: expressHTTPEntrypoint({port: port, host: '127.0.0.1', respond: jsonEnvelope({errorStatus: 200})})

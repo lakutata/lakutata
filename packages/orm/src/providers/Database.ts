@@ -21,6 +21,7 @@ import {Provider} from '@lakutata/core'
 import {EntitySchema, type MixedList} from 'typeorm'
 import {As} from '@lakutata/utils'
 import {type MigrationRunOptions} from '../types/MigrationRunOptions.js'
+import {connectionOptionsOf} from '../lib/ConnectionOptions.js'
 
 /**
  * Build the registration of a {@link Database} provider, for the `providers` of the application options: the provider
@@ -225,7 +226,7 @@ export class Database extends Provider {
             ...this.options,
             entities: [...As<any[]>(this.options.entities ? this.options.entities : []), ...As<any[]>(entities)]
         }
-        this.#datasource = await (new DataSource(options)).initialize()
+        this.#datasource = await (new DataSource(connectionOptionsOf(options))).initialize()
     }
 
     /**

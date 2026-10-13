@@ -178,7 +178,7 @@ Application
             visitor: {class: Visitor},
             stamp: {class: Stamp},
             //A database provider: a connection per object, given to the objects of a request (its file in an alias)
-            visits: BuildDatabaseProviderOptions({type: 'sqlite', database: path.resolve('@data', 'visits.db'), entities: [Visit], synchronize: true})
+            visits: BuildDatabaseProviderOptions({type: 'better-sqlite3', database: path.resolve('@data', 'visits.db'), entities: [Visit], synchronize: true})
         },
         bootstrap: ['accounting', 'httpRequests', 'entrypoint']
     }))

@@ -1,6 +1,6 @@
 # Lakutata ORM 集成
 
-框架的 ORM（`@lakutata/orm` 包）基于 [TypeORM](https://typeorm.io) 0.3。`lakutata` 包通过四个子路径重新导出它：
+框架的 ORM（`@lakutata/orm` 包）基于 [TypeORM](https://typeorm.io) 1。`lakutata` 包通过四个子路径重新导出它：
 
 | 子路径 | 内容 |
 |---|---|
@@ -18,12 +18,12 @@ TypeORM 是该包的依赖，数据库驱动则不是。请按连接的 `type` �
 | 数据库 | `type` | 需安装 |
 |---|---|---|
 | PostgreSQL、CockroachDB | `postgres`、`cockroachdb` | `pg` |
-| MySQL、MariaDB | `mysql`、`mariadb` | `mysql2` |
-| SQLite | `sqlite` / `better-sqlite3` | `sqlite3` / `better-sqlite3` |
+| MySQL、MariaDB | `mysql`、`mariadb` | `mysql2`（3.15.3 及以上） |
+| SQLite | `better-sqlite3` | `better-sqlite3`（12） |
 | 内存中的 SQLite（WebAssembly） | `sqljs` | `sql.js` |
-| Microsoft SQL Server | `mssql` | `mssql` |
+| Microsoft SQL Server | `mssql` | `mssql`（12） |
 | Oracle | `oracle` | `oracledb` |
-| MongoDB | `mongodb` | `mongodb`（5 或 6） |
+| MongoDB | `mongodb` | `mongodb`（7） |
 
 ```shell
 npm install lakutata pg
@@ -107,7 +107,7 @@ Application
 
 | 选项 | 含义 |
 |---|---|
-| `type` | 驱动：`'postgres'`、`'mysql'`、`'sqlite'` 等 |
+| `type` | 驱动：`'postgres'`、`'mysql'`、`'better-sqlite3'` 等 |
 | `url` 或 `host`、`port`、`username`、`password`、`database` | 服务器和数据库 |
 | `entities` | 实体类、`EntitySchema`，或其编译后文件的 glob 路径（`'dist/entities/*.js'`） |
 | `synchronize` | 每次连接时根据实体更新表结构（默认 `false`）：仅用于开发 |
@@ -115,6 +115,10 @@ Application
 | `logging`、`logger` | TypeORM 记录哪些日志以及记录到哪里 |
 | `poolSize`、`extra` | 连接池大小；传给驱动的选项 |
 | `subscribers`、`namingStrategy`、`cache` | 实体订阅者、表名和列名的命名策略、查询结果缓存 |
+
+框架自己设置了一个选项：`invalidWhereValuesBehavior` 默认为 `{null: 'ignore', undefined: 'ignore'}`，即 TypeORM 0.3 的行为（TypeORM 1 默认抛出错误）：where 条件中值为 `null` 或 `undefined` 的属性不参与条件。给出的每个键会替换对应的默认值（`invalidWhereValuesBehavior: {undefined: 'throw'}` 在遇到 undefined 值时抛出错误）。在默认设置下，`findOneBy({id: undefined})` 会查到第一行：用请求中的值查询前请先检查这些值。
+
+用 TypeORM 0.3 创建、表名或列名含有非 ASCII 字符的数据库：TypeORM 1 生成的索引和约束名称与之前不同，生成的迁移会重命名它们。`@typeorm/legacy-naming-strategies` 包的 `NamingStrategyV03`（`namingStrategy: new NamingStrategyV03()`）可以保持 TypeORM 0.3 的名称。
 
 组件提供数据源的 TypeORM API：`getRepository()`、`getTreeRepository()`、`getMongoRepository()`、`manager`、`transaction()`、`query()`、`createQueryBuilder()`、`createQueryRunner()`、`synchronize()`、`runMigrations()`、`undoLastMigration()`、`showMigrations()`。
 
@@ -182,7 +186,7 @@ export class OrderLine {
 
 ## 4. 查询
 
-`lakutata/orm` 导出了查询操作符（`In`、`ILike`、`Between`、`MoreThan`、`IsNull`、`Not`、`Raw` 等）、仓储和查询构建器。
+`lakutata/orm` 导出了查询操作符（`In`、`ILike`、`Between`、`MoreThan`、`IsNull`、`Not`、`Raw` 等）、仓储和查询构建器。查询选项使用对象：`relations: {author: true}`、`select: {id: true, title: true}`（TypeORM 1 删除了名称数组的写法）。
 
 ```typescript
 import {Component} from 'lakutata'

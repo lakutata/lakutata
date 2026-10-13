@@ -6,6 +6,7 @@ import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {stripVTControlCharacters} from 'node:util'
 import {Container} from '@lakutata/core'
+import {As} from '@lakutata/utils'
 import {BaseEntity, DataSource, EntitySchema, type MigrationInterface, type QueryRunner} from '../exports/ORM.js'
 import {Column, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn} from '../exports/ORMDecorators.js'
 import {buildDatabaseOptions, Database} from '../exports/DatabaseComponent.js'
@@ -108,13 +109,13 @@ async function inDirectory(fn: (directory: string) => Promise<void>): Promise<vo
 describe('The ORM', (): void => {
 
     it('builds the options of the database components and providers', (): void => {
-        assert.deepStrictEqual(buildDatabaseOptions({type: 'sqlite', database: ':memory:'}), {class: Database, options: {type: 'sqlite', database: ':memory:'}})
-        assert.strictEqual(BuildDatabaseProviderOptions({type: 'sqlite', database: ':memory:'}).class, DatabaseProvider)
+        assert.deepStrictEqual(buildDatabaseOptions({type: 'better-sqlite3', database: ':memory:'}), {class: Database, options: {type: 'better-sqlite3', database: ':memory:'}})
+        assert.strictEqual(BuildDatabaseProviderOptions({type: 'better-sqlite3', database: ':memory:'}).class, DatabaseProvider)
     })
 
     it('connects the Database component, and queries with the repositories, the transactions and the query builders', async (): Promise<void> => {
         const container: Container = new Container()
-        const database: Database = await container.set(Database, {options: {type: 'sqlite', database: ':memory:', entities: [Author, Book], synchronize: true}})
+        const database: Database = await container.set(Database, {options: {type: 'better-sqlite3', database: ':memory:', entities: [Author, Book], synchronize: true}})
         assert.ok(database.hasMetadata(Author) && database.hasMetadata(Book))
         const author: Author = await database.getRepository(Author).save({name: 'Ada'})
         await database.getRepository(Book).save([{title: 'Notes', author: author}, {title: 'Letters', author: author}])
@@ -138,10 +139,26 @@ describe('The ORM', (): void => {
         assert.strictEqual(manager.connection.isInitialized, false)
     })
 
+    it('ignores the null and undefined values of the where conditions, unless the options set their behavior', async (): Promise<void> => {
+        const container: Container = new Container()
+        const database: Database = await container.set(Database, {options: {type: 'better-sqlite3', database: ':memory:', entities: [Author, Book], synchronize: true}})
+        await database.getRepository(Author).save([{name: 'Ada'}, {name: 'Grace'}])
+        assert.strictEqual((await database.getRepository(Author).findBy({name: undefined})).length, 2)
+        assert.strictEqual((await database.getRepository(Author).findBy({name: As<string>(null)})).length, 2)
+        //A key given replaces its default, the other one keeps it
+        const strict: DatabaseProvider = await container.set(DatabaseProvider, {
+            options: {type: 'better-sqlite3', database: ':memory:', entities: [Author, Book], synchronize: true, invalidWhereValuesBehavior: {undefined: 'throw'}}
+        })
+        await strict.getRepository(Author).save([{name: 'Ada'}, {name: 'Grace'}])
+        await assert.rejects(strict.getRepository(Author).findBy({name: undefined}), /Undefined value encountered/)
+        assert.strictEqual((await strict.getRepository(Author).findBy({name: As<string>(null)})).length, 2)
+        await container.destroy()
+    })
+
     it('adds the entities of the Database provider to the ones of its options', async (): Promise<void> => {
         const container: Container = new Container()
         const database: DatabaseProvider = await container.set(DatabaseProvider, {
-            options: {type: 'sqlite', database: ':memory:', entities: [Author, Book], synchronize: true},
+            options: {type: 'better-sqlite3', database: ':memory:', entities: [Author, Book], synchronize: true},
             entities: [Note]
         })
         assert.ok(database.hasMetadata(Author) && database.hasMetadata('note'))
@@ -153,7 +170,7 @@ describe('The ORM', (): void => {
     describe('The execution of the migrations', (): void => {
 
         it('runs the pending migrations when the database connects (migrationsRun), once', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
-            const options = {type: 'sqlite' as const, database: path.join(directory, 'app.db'), synchronize: false, migrationsRun: true, migrations: MIGRATIONS}
+            const options = {type: 'better-sqlite3' as const, database: path.join(directory, 'app.db'), synchronize: false, migrationsRun: true, migrations: MIGRATIONS}
             const container: Container = new Container()
             const database: Database = await container.set(Database, {options: options})
             assert.deepStrictEqual(await tables(database), ['note', 'tag'])
@@ -170,7 +187,7 @@ describe('The ORM', (): void => {
 
         it('lists, runs and reverts the migrations in the code', async (): Promise<void> => {
             const container: Container = new Container()
-            const database: Database = await container.set(Database, {options: {type: 'sqlite', database: ':memory:', migrations: MIGRATIONS}})
+            const database: Database = await container.set(Database, {options: {type: 'better-sqlite3', database: ':memory:', migrations: MIGRATIONS}})
             //Pending migrations
             assert.strictEqual(await database.showMigrations(), true)
             assert.deepStrictEqual((await database.runMigrations()).map((migration): string => migration.name), ['CreateNote1700000000000', 'CreateTag1700000000001'])
@@ -189,7 +206,7 @@ describe('The ORM', (): void => {
 
         it('runs the migrations of the Database provider as the ones of the component', async (): Promise<void> => {
             const container: Container = new Container()
-            const database: DatabaseProvider = await container.set(DatabaseProvider, {options: {type: 'sqlite', database: ':memory:', migrationsRun: true, migrations: MIGRATIONS}})
+            const database: DatabaseProvider = await container.set(DatabaseProvider, {options: {type: 'better-sqlite3', database: ':memory:', migrationsRun: true, migrations: MIGRATIONS}})
             assert.deepStrictEqual(await tables(database), ['note', 'tag'])
             await database.undoLastMigration()
             assert.deepStrictEqual(await tables(database), ['note'])
@@ -214,7 +231,7 @@ describe('The ORM', (): void => {
                 `import {buildDatabaseOptions} from '${new URL('../exports/DatabaseComponent.js', import.meta.url)}'`,
                 'class CreateNote1700000000000 { name = \'CreateNote1700000000000\'; async up(q) { await q.query(\'CREATE TABLE "note" ("id" integer PRIMARY KEY)\') } async down(q) { await q.query(\'DROP TABLE "note"\') } }',
                 `class CreateTag1700000000001 { name = 'CreateTag1700000000001'; async up(q) { ${options.failing ? 'throw new Error(\'the tag fails\')' : 'await q.query(\'CREATE TABLE "tag" ("id" integer PRIMARY KEY)\')'} } async down(q) { await q.query('DROP TABLE "tag"') } }`,
-                `const components = Object.fromEntries(${JSON.stringify(databases)}.map((name) => [name, buildDatabaseOptions({type: 'sqlite', database: name + '.db', migrations: [CreateNote1700000000000, CreateTag1700000000001]${options.transactionMode ? `, migrationsTransactionMode: '${options.transactionMode}'` : ''}})]))`,
+                `const components = Object.fromEntries(${JSON.stringify(databases)}.map((name) => [name, buildDatabaseOptions({type: 'better-sqlite3', database: name + '.db', migrations: [CreateNote1700000000000, CreateTag1700000000001]${options.transactionMode ? `, migrationsTransactionMode: '${options.transactionMode}'` : ''}})]))`,
                 'Application.run({id: \'migration.test\', name: \'MigrationTest\', components: components})'
             ].join('\n')
             const base: NodeJS.ProcessEnv = Object.fromEntries(Object.entries(process.env).filter(([name]): boolean => !name.toUpperCase().startsWith('MIGRATION_')))
@@ -228,7 +245,7 @@ describe('The ORM', (): void => {
          * @param file
          */
         async function tablesOf(file: string): Promise<string[]> {
-            const dataSource: DataSource = await new DataSource({type: 'sqlite', database: file}).initialize()
+            const dataSource: DataSource = await new DataSource({type: 'better-sqlite3', database: file}).initialize()
             try {
                 return await tables(dataSource)
             } finally {
@@ -310,7 +327,7 @@ describe('The ORM', (): void => {
          * @param dependencies the dependencies of the project
          * @param title the options of the column title of Note
          */
-        async function generate(directory: string, dependencies: Record<string, string>, title: Record<string, string> = {}, objects: string = 'components: {db: buildDatabaseOptions({type: \'sqlite\', database: \'project.db\', entities: [Note]})}'): Promise<SpawnSyncReturns<string>> {
+        async function generate(directory: string, dependencies: Record<string, string>, title: Record<string, string> = {}, objects: string = 'components: {db: buildDatabaseOptions({type: \'better-sqlite3\', database: \'project.db\', entities: [Note]})}'): Promise<SpawnSyncReturns<string>> {
             await writeFile(path.join(directory, 'package.json'), JSON.stringify({name: 'project', type: 'module', dependencies: dependencies}))
             const script: string = [
                 `import {Application} from '${import.meta.resolve('@lakutata/core')}'`,
@@ -362,7 +379,7 @@ describe('The ORM', (): void => {
         }))
 
         it('generates the migrations of the entities given apart to a Database provider', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
-            const result: SpawnSyncReturns<string> = await generate(directory, {'@lakutata/orm': '2.0.126'}, {}, 'providers: {db: {class: DatabaseProvider, options: {type: \'sqlite\', database: \'project.db\'}, entities: [Note]}}')
+            const result: SpawnSyncReturns<string> = await generate(directory, {'@lakutata/orm': '2.0.126'}, {}, 'providers: {db: {class: DatabaseProvider, options: {type: \'better-sqlite3\', database: \'project.db\'}, entities: [Note]}}')
             assert.strictEqual(result.status, 0, result.stdout + result.stderr)
             const [file] = await readdir(path.join(directory, 'migrations'))
             assert.match(await readFile(path.join(directory, 'migrations', file), 'utf8'), /CREATE TABLE "note"/)
@@ -370,15 +387,15 @@ describe('The ORM', (): void => {
 
         it('succeeds when a database of several has changes', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
             //The second database has the schema already
-            const dataSource: DataSource = await new DataSource({type: 'sqlite', database: path.join(directory, 'second.db'), entities: [Note], synchronize: true}).initialize()
+            const dataSource: DataSource = await new DataSource({type: 'better-sqlite3', database: path.join(directory, 'second.db'), entities: [Note], synchronize: true}).initialize()
             await dataSource.destroy()
-            const result: SpawnSyncReturns<string> = await generate(directory, {'@lakutata/orm': '2.0.126'}, {}, 'components: {first: buildDatabaseOptions({type: \'sqlite\', database: \'first.db\', entities: [Note]}), second: buildDatabaseOptions({type: \'sqlite\', database: \'second.db\', entities: [Note]})}')
+            const result: SpawnSyncReturns<string> = await generate(directory, {'@lakutata/orm': '2.0.126'}, {}, 'components: {first: buildDatabaseOptions({type: \'better-sqlite3\', database: \'first.db\', entities: [Note]}), second: buildDatabaseOptions({type: \'better-sqlite3\', database: \'second.db\', entities: [Note]})}')
             assert.strictEqual(result.status, 0, result.stdout + result.stderr)
             assert.deepStrictEqual((await readdir(path.join(directory, 'migrations'))).map((file: string): string => file.replace(/^\d+/, '')), ['-first.ts'])
         }))
 
         it('fails when the schema has no changes', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
-            const dataSource: DataSource = await new DataSource({type: 'sqlite', database: path.join(directory, 'project.db'), entities: [Note], synchronize: true}).initialize()
+            const dataSource: DataSource = await new DataSource({type: 'better-sqlite3', database: path.join(directory, 'project.db'), entities: [Note], synchronize: true}).initialize()
             await dataSource.destroy()
             await mkdir(path.join(directory, 'migrations'))
             const result: SpawnSyncReturns<string> = await generate(directory, {'@lakutata/orm': '2.0.126'})

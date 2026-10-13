@@ -304,7 +304,7 @@
     }
   },
   "engines": {
-    "node": ">=22"
+    "node": "^22.13.0 || >=24.11.0"
   },
   "author": "alex.ma",
   "license": "MIT",

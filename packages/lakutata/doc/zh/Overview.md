@@ -6,7 +6,7 @@
 
 ## 环境要求
 
-- Node.js 22 或更高版本。
+- Node.js 22.13 或更高版本（Node.js 24 需 24.11 或更高）。
 - ESM（`"type": "module"`）；包里同时提供了 CommonJS 构建。
 - TypeScript 需开启 `experimentalDecorators` 和 `emitDecoratorMetadata`。框架所需的编译选项以 `lakutata/tsconfig.json` 发布。
 
@@ -24,7 +24,7 @@ npm install lakutata                      # 或在已有项目中安装框架
 }
 ```
 
-传输方式和各项集成依赖可选的 peer 依赖，用到时再安装：`express` 或 `fastify`、`commander`、`socket.io`、`ws`、数据库驱动（`pg`、`mysql2`、`sqlite3` 等）、缓存存储（`redis` 等）。
+传输方式和各项集成依赖可选的 peer 依赖，用到时再安装：`express` 或 `fastify`、`commander`、`socket.io`、`ws`、数据库驱动（`pg`、`mysql2`、`better-sqlite3` 等）、缓存存储（`redis` 等）。
 
 ## 第一个应用
 

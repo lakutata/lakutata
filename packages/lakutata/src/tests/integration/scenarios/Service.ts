@@ -204,7 +204,7 @@ Application
         name: 'IntegrationService',
         components: {
             log: {pretty: false, sync: true, destinations: [logs]},
-            db: buildDatabaseOptions({type: 'sqlite', database: ':memory:', entities: [Order], synchronize: false, migrationsRun: true, migrations: [CreateOrder1700000000000]}),
+            db: buildDatabaseOptions({type: 'better-sqlite3', database: ':memory:', entities: [Order], synchronize: false, migrationsRun: true, migrations: [CreateOrder1700000000000]}),
             cache: buildCacherOptions({}),
             entrypoint: buildEntrypoints({
                 controllers: [OrderController],

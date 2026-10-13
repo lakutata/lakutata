@@ -48,7 +48,7 @@ Application
         components: {
             log: {level: 'warn'},
             recorder: {class: Recorder},
-            db: buildDatabaseOptions({type: 'sqlite', database: path.join(mkdtempSync(path.join(tmpdir(), 'lakutata-shutdown-')), 'app.db')}),
+            db: buildDatabaseOptions({type: 'better-sqlite3', database: path.join(mkdtempSync(path.join(tmpdir(), 'lakutata-shutdown-')), 'app.db')}),
             entrypoint: buildEntrypoints({
                 controllers: [SlowController],
                 http: expressHTTPEntrypoint({port: port, host: '127.0.0.1', respond: jsonEnvelope({errorStatus: 200})})

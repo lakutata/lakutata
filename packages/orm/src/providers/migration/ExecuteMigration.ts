@@ -5,6 +5,7 @@ import {DataSource} from 'typeorm/data-source/DataSource.js'
 import {MigrationExecutor} from 'typeorm/migration/MigrationExecutor.js'
 import {type Migration} from 'typeorm/migration/Migration.js'
 import ansi from 'ansis'
+import {connectionOptionsOf} from '../../lib/ConnectionOptions.js'
 
 /**
  * The actions on the migrations of a database
@@ -70,7 +71,7 @@ export class ExecuteMigration extends Provider {
      */
     protected async init(): Promise<void> {
         const app: Application = await this.getObject(Application)
-        const dataSource: DataSource = new DataSource({...this.dataSource, synchronize: false, migrationsRun: false, dropSchema: false} as DataSourceOptions)
+        const dataSource: DataSource = new DataSource(connectionOptionsOf({...this.dataSource, synchronize: false, migrationsRun: false, dropSchema: false} as DataSourceOptions))
         let failed: boolean = false
         try {
             await dataSource.initialize()

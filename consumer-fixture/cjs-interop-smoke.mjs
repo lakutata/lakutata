@@ -18,11 +18,15 @@ const check = async (name, fn) => {
 
 // The CJS builds of the packages are loaded by require
 const {createRequire} = await import('node:module')
+const {pathToFileURL} = await import('node:url')
 const requireCJS = createRequire(import.meta.url)
 
-// typeorm (the Database component of @lakutata/orm) — named imports from deep subpaths
-const {DataSource} = await import('typeorm/data-source/DataSource.js')
-await check('typeorm DataSource construct', () => { new DataSource({type: 'sqlite', database: ':memory:'}) })
+// typeorm (the Database component of @lakutata/orm) — named imports from deep subpaths, typeorm resolved as
+// @lakutata/orm resolves it (npm nests it under the package when the root holds the versions of its optional peers it
+// does not accept: mongodb 6, redis 4)
+const requireOrm = createRequire(new URL('../packages/orm/package.json', import.meta.url))
+const {DataSource} = await import(pathToFileURL(requireOrm.resolve('typeorm/data-source/DataSource.js')).href)
+await check('typeorm DataSource construct', () => { new DataSource({type: 'better-sqlite3', database: ':memory:'}) })
 await check('CJS @lakutata/orm loads typeorm', () => {
     if (typeof requireCJS('../packages/orm/dist/cjs/exports/DatabaseComponent.js').Database !== 'function') throw new Error('Database missing')
     if (typeof requireCJS('../packages/orm/dist/cjs/exports/ORM.js').DataSource !== 'function') throw new Error('DataSource missing')

@@ -14,6 +14,7 @@ import {camelCase} from 'typeorm/util/StringUtils.js'
 import {PlatformTools} from 'typeorm/platform/PlatformTools.js'
 import {CommandUtils} from 'typeorm/commands/CommandUtils.js'
 import ansi from 'ansis'
+import {connectionOptionsOf} from '../../lib/ConnectionOptions.js'
 
 @Transient()
 export class GenerateMigration extends Provider {
@@ -71,7 +72,7 @@ export class GenerateMigration extends Provider {
 
     protected async init(): Promise<void> {
         this.#app = await this.getObject(Application)
-        this.#dataSource = new DataSource(this.dataSource)
+        this.#dataSource = new DataSource(connectionOptionsOf(this.dataSource))
         this.#dataSource.setOptions({
             synchronize: false,
             migrationsRun: false,

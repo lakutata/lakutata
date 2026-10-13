@@ -19,6 +19,7 @@ import {ReplicationMode} from 'typeorm/driver/types/ReplicationMode.js'
 import {QueryResultCache} from 'typeorm/cache/QueryResultCache.js'
 import {IsolationLevel} from 'typeorm/driver/types/IsolationLevel.js'
 import {type MigrationRunOptions} from '../types/MigrationRunOptions.js'
+import {connectionOptionsOf} from '../lib/ConnectionOptions.js'
 
 /**
  * Build the registration of a {@link Database} component, for the `components` of the application options: the
@@ -224,7 +225,7 @@ export class Database extends Component {
      * @protected
      */
     protected async init(): Promise<void> {
-        this.#datasource = await (new DataSource(this.options)).initialize()
+        this.#datasource = await (new DataSource(connectionOptionsOf(this.options))).initialize()
     }
 
     /**

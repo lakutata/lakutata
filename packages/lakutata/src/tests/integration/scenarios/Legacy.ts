@@ -113,7 +113,7 @@ Application
         name: 'IntegrationLegacy',
         components: {
             log: {level: 'warn'},
-            db: buildDatabaseOptions({type: 'sqlite', database: ':memory:', entities: [Device], synchronize: true}),
+            db: buildDatabaseOptions({type: 'better-sqlite3', database: ':memory:', entities: [Device], synchronize: true}),
             entrypoint: buildEntrypoints({
                 controllers: [DeviceController],
                 http: setupHttpEntrypoint(),

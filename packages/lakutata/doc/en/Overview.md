@@ -12,7 +12,7 @@ controllers).
 
 ## Requirements
 
-- Node.js 22 or later.
+- Node.js 22.13 or later (24.11 or later on Node.js 24).
 - ESM (`"type": "module"`); the package also ships CommonJS builds.
 - TypeScript with `experimentalDecorators` and `emitDecoratorMetadata`. The package publishes the compiler options the
   framework needs as `lakutata/tsconfig.json`.
@@ -32,7 +32,7 @@ npm install lakutata                      # or the framework in an existing proj
 ```
 
 The transports and the integrations use optional peer dependencies, installed when used: `express` or `fastify`,
-`commander`, `socket.io`, `ws`, the database drivers (`pg`, `mysql2`, `sqlite3`…), the cache stores (`redis`…).
+`commander`, `socket.io`, `ws`, the database drivers (`pg`, `mysql2`, `better-sqlite3`…), the cache stores (`redis`…).
 
 ## A first application
 

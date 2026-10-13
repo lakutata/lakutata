@@ -43,7 +43,7 @@ function createProject(directory: string, options: { database?: boolean, synchro
         //The migrations of the commands run, revert and show
         'class CreateLog1700000000000 { name = \'CreateLog1700000000000\'; async up(q) { await q.query(\'CREATE TABLE "log" ("id" integer PRIMARY KEY)\') } async down(q) { await q.query(\'DROP TABLE "log"\') } }',
         'class CreateTag1700000000001 { name = \'CreateTag1700000000001\'; async up(q) { await q.query(\'CREATE TABLE "tag" ("id" integer PRIMARY KEY)\') } async down(q) { await q.query(\'DROP TABLE "tag"\') } }',
-        `const components = Object.fromEntries(${JSON.stringify(databases)}.map((name) => [name, buildDatabaseOptions({type: 'sqlite', database: name + '.db', entities: [Note], migrations: [CreateLog1700000000000, CreateTag1700000000001]})]))`,
+        `const components = Object.fromEntries(${JSON.stringify(databases)}.map((name) => [name, buildDatabaseOptions({type: 'better-sqlite3', database: name + '.db', entities: [Note], migrations: [CreateLog1700000000000, CreateTag1700000000001]})]))`,
         'Application.run({id: \'migration.app\', name: \'MigrationApp\', components: components})'
     ].join('\n'))
     return directory
