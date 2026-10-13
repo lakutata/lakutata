@@ -127,3 +127,13 @@ packages, then runs it whole:
 
 The declarations not documented yet are listed in `scripts/api-docs/baseline.json`: the check fails on a new one, and
 on one documented since (its entry removed with `node scripts/api-docs/check.mjs --update`). The baseline only shrinks.
+
+## The source of TypeORM
+
+`@lakutata/orm` holds the source of TypeORM in `packages/orm/typeorm`, built into `dist/typeorm` and imported as
+`#typeorm/*` (`packages/orm/typeorm/README.md`). It keeps the style of TypeORM, which ESLint does not check.
+
+- A change of lakutata goes in new files where possible; a change of a file of TypeORM is marked with a `lakutata:`
+  comment. It is committed apart from the upgrades.
+- An upgrade merges the source of a newer tag of TypeORM three ways (`node scripts/typeorm/sync.mjs <tag>`), keeping the
+  changes of lakutata; it lists the conflicts left in the files. The upgrade commit holds the source of TypeORM only.

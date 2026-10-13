@@ -15,7 +15,9 @@ the query builder and the migrations.
 
 ## 1. Installation
 
-TypeORM is a dependency of the package; the database driver is not. Install the driver of the `type` of the connection:
+The source of TypeORM 1.1.2 (MIT) is part of the package: no package `typeorm` is installed, and the libraries built on
+the package `typeorm` (its NestJS module, the libraries of naming strategies…) do not share it. The database driver is
+not a dependency: install the driver of the `type` of the connection:
 
 | Database | `type` | Install |
 |---|---|---|
@@ -127,8 +129,8 @@ default, the behavior of TypeORM 0.3 (TypeORM 1 throws by default): a property o
 `findOneBy({id: undefined})` finds the first row: check the values taken from the requests before querying with them.
 
 A database created with TypeORM 0.3 whose table or column names have characters outside ASCII: TypeORM 1 names their
-indices and constraints differently, and the migrations generated rename them. The `NamingStrategyV03` of the package
-`@typeorm/legacy-naming-strategies` (`namingStrategy: new NamingStrategyV03()`) keeps the names of TypeORM 0.3.
+indices and constraints differently, and the migrations generated rename them. The `NamingStrategyV03` of
+`lakutata/orm` (`namingStrategy: new NamingStrategyV03()`) keeps the names of TypeORM 0.3.
 
 The component gives the TypeORM API of a data source: `getRepository()`, `getTreeRepository()`,
 `getMongoRepository()`, `manager`, `transaction()`, `query()`, `createQueryBuilder()`, `createQueryRunner()`,

@@ -13,7 +13,7 @@
 
 ## 1. 安装
 
-TypeORM 是该包的依赖，数据库驱动则不是。请按连接的 `type` 安装对应的驱动：
+TypeORM 1.1.2 的源码（MIT 许可）包含在该包中：不会安装 `typeorm` 包，基于 `typeorm` 包的库（它的 NestJS 模块、命名策略库等）不会与它共用。数据库驱动不是该包的依赖，请按连接的 `type` 安装对应的驱动：
 
 | 数据库 | `type` | 需安装 |
 |---|---|---|
@@ -118,7 +118,7 @@ Application
 
 框架自己设置了一个选项：`invalidWhereValuesBehavior` 默认为 `{null: 'ignore', undefined: 'ignore'}`，即 TypeORM 0.3 的行为（TypeORM 1 默认抛出错误）：where 条件中值为 `null` 或 `undefined` 的属性不参与条件。给出的每个键会替换对应的默认值（`invalidWhereValuesBehavior: {undefined: 'throw'}` 在遇到 undefined 值时抛出错误）。在默认设置下，`findOneBy({id: undefined})` 会查到第一行：用请求中的值查询前请先检查这些值。
 
-用 TypeORM 0.3 创建、表名或列名含有非 ASCII 字符的数据库：TypeORM 1 生成的索引和约束名称与之前不同，生成的迁移会重命名它们。`@typeorm/legacy-naming-strategies` 包的 `NamingStrategyV03`（`namingStrategy: new NamingStrategyV03()`）可以保持 TypeORM 0.3 的名称。
+用 TypeORM 0.3 创建、表名或列名含有非 ASCII 字符的数据库：TypeORM 1 生成的索引和约束名称与之前不同，生成的迁移会重命名它们。`lakutata/orm` 的 `NamingStrategyV03`（`namingStrategy: new NamingStrategyV03()`）可以保持 TypeORM 0.3 的名称。
 
 组件提供数据源的 TypeORM API：`getRepository()`、`getTreeRepository()`、`getMongoRepository()`、`manager`、`transaction()`、`query()`、`createQueryBuilder()`、`createQueryRunner()`、`synchronize()`、`runMigrations()`、`undoLastMigration()`、`showMigrations()`。
 

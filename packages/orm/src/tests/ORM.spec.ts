@@ -7,7 +7,7 @@ import path from 'node:path'
 import {stripVTControlCharacters} from 'node:util'
 import {Container} from '@lakutata/core'
 import {As} from '@lakutata/utils'
-import {BaseEntity, DataSource, EntitySchema, type MigrationInterface, type QueryRunner} from '../exports/ORM.js'
+import {BaseEntity, DataSource, DefaultNamingStrategy, EntitySchema, type MigrationInterface, NamingStrategyV03, type QueryRunner} from '../exports/ORM.js'
 import {Column, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn} from '../exports/ORMDecorators.js'
 import {buildDatabaseOptions, Database} from '../exports/DatabaseComponent.js'
 import {buildDatabaseOptions as BuildDatabaseProviderOptions, Database as DatabaseProvider} from '../exports/DatabaseProvider.js'
@@ -153,6 +153,14 @@ describe('The ORM', (): void => {
         await assert.rejects(strict.getRepository(Author).findBy({name: undefined}), /Undefined value encountered/)
         assert.strictEqual((await strict.getRepository(Author).findBy({name: As<string>(null)})).length, 2)
         await container.destroy()
+    })
+
+    it('names the indices of the names outside ASCII as TypeORM 0.3 with NamingStrategyV03', (): void => {
+        //The names of TypeORM 0.3.31 and 1.1.2 for the index of the column name of the table author_ä_profile
+        assert.strictEqual(new NamingStrategyV03().indexName('author_ä_profile', ['name']), 'IDX_7c80da203eeefc6a00b847e985')
+        assert.strictEqual(new DefaultNamingStrategy().indexName('author_ä_profile', ['name']), 'IDX_5297ad7c6c564ba9950ce3d76c')
+        //The names outside ASCII only differ
+        assert.strictEqual(new NamingStrategyV03().indexName('author', ['name']), new DefaultNamingStrategy().indexName('author', ['name']))
     })
 
     it('adds the entities of the Database provider to the ones of its options', async (): Promise<void> => {
