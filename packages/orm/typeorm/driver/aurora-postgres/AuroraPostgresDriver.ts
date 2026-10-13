@@ -1,0 +1,211 @@
+import type { DataSource } from "../../data-source/DataSource"
+import type { ColumnMetadata } from "../../metadata/ColumnMetadata"
+import { PlatformTools } from "../../platform/PlatformTools"
+import { ApplyValueTransformers } from "../../util/ApplyValueTransformers"
+import { DriverUtils } from "../DriverUtils"
+import { PostgresDriver } from "../postgres/PostgresDriver"
+import type { IsolationLevel } from "../types/IsolationLevel"
+import type { ReplicationMode } from "../types/ReplicationMode"
+import type { AuroraPostgresDataSourceOptions } from "./AuroraPostgresDataSourceOptions"
+import { AuroraPostgresQueryRunner } from "./AuroraPostgresQueryRunner"
+
+abstract class PostgresWrapper extends PostgresDriver {
+    declare options: any
+
+    abstract createQueryRunner(mode: ReplicationMode): any
+}
+
+export class AuroraPostgresDriver extends PostgresWrapper {
+    // -------------------------------------------------------------------------
+    // Static Properties
+    // -------------------------------------------------------------------------
+
+    /**
+     * Transaction isolation levels supported by this driver.
+     *
+     * @see https://www.postgresql.org/docs/current/transaction-iso.html
+     */
+    static readonly supportedIsolationLevels: IsolationLevel[] = [
+        "READ UNCOMMITTED",
+        "READ COMMITTED",
+        "REPEATABLE READ",
+        "SERIALIZABLE",
+    ]
+
+    // -------------------------------------------------------------------------
+    // Public Properties
+    // -------------------------------------------------------------------------
+
+    /** Isolation levels supported by this driver. */
+    supportedIsolationLevels = AuroraPostgresDriver.supportedIsolationLevels
+
+    /**
+     * Aurora Data API underlying library.
+     */
+    DataApiDriver: any
+
+    client: any
+
+    /**
+     * Represent transaction support by this driver
+     */
+    transactionSupport = "nested" as const
+
+    // -------------------------------------------------------------------------
+    // Public Implemented Properties
+    // -------------------------------------------------------------------------
+
+    /**
+     * DataSource options.
+     */
+    options: AuroraPostgresDataSourceOptions
+
+    /**
+     * Master database used to perform all write queries.
+     */
+    database?: string
+
+    // -------------------------------------------------------------------------
+    // Constructor
+    // -------------------------------------------------------------------------
+
+    constructor(dataSource: DataSource) {
+        super()
+        this.dataSource = dataSource
+        this.options = dataSource.options as AuroraPostgresDataSourceOptions
+        this.isReplicated = false
+
+        // load data-api package
+        this.loadDependencies()
+
+        this.client = new this.DataApiDriver(
+            this.options.region,
+            this.options.secretArn,
+            this.options.resourceArn,
+            this.options.database,
+            (query: string, parameters?: any[]) =>
+                this.dataSource.logger.logQuery(query, parameters),
+            this.options.serviceConfigOptions,
+            this.options.formatOptions,
+        )
+
+        this.database = DriverUtils.buildDriverOptions(this.options).database
+    }
+
+    // -------------------------------------------------------------------------
+    // Public Implemented Methods
+    // -------------------------------------------------------------------------
+
+    /**
+     * Performs connection to the database.
+     * Based on pooling options, it can either create connection immediately,
+     * either create a pool and create connection when needed.
+     */
+    async connect(): Promise<void> {}
+
+    /**
+     * Closes connection with database.
+     */
+    async disconnect(): Promise<void> {}
+
+    /**
+     * Creates a query runner used to execute database queries.
+     *
+     * @param mode
+     */
+    createQueryRunner(mode: ReplicationMode): AuroraPostgresQueryRunner {
+        return new AuroraPostgresQueryRunner(
+            this,
+            new this.DataApiDriver(
+                this.options.region,
+                this.options.secretArn,
+                this.options.resourceArn,
+                this.options.database,
+                (query: string, parameters?: any[]) =>
+                    this.dataSource.logger.logQuery(query, parameters),
+                this.options.serviceConfigOptions,
+                this.options.formatOptions,
+            ),
+            mode,
+        )
+    }
+
+    /**
+     * Prepares given value to a value to be persisted, based on its column type and metadata.
+     *
+     * @param value
+     * @param columnMetadata
+     */
+    preparePersistentValue(value: any, columnMetadata: ColumnMetadata): any {
+        if (this.options.formatOptions?.castParameters === false) {
+            return super.preparePersistentValue(value, columnMetadata)
+        }
+
+        if (columnMetadata.transformer)
+            value = ApplyValueTransformers.transformTo(
+                columnMetadata.transformer,
+                value,
+            )
+
+        return this.client.preparePersistentValue(value, columnMetadata)
+    }
+
+    /**
+     * Prepares given value to a value to be persisted, based on its column type and metadata.
+     *
+     * @param value
+     * @param columnMetadata
+     */
+    prepareHydratedValue(value: any, columnMetadata: ColumnMetadata): any {
+        if (this.options.formatOptions?.castParameters === false) {
+            return super.prepareHydratedValue(value, columnMetadata)
+        }
+
+        if (columnMetadata.transformer)
+            value = ApplyValueTransformers.transformFrom(
+                columnMetadata.transformer,
+                value,
+            )
+
+        return this.client.prepareHydratedValue(value, columnMetadata)
+    }
+
+    // -------------------------------------------------------------------------
+    // Protected Methods
+    // -------------------------------------------------------------------------
+
+    /**
+     * If driver dependency is not given explicitly, then try to load it via "require".
+     */
+    protected loadDependencies(): void {
+        const driver =
+            this.options.driver ??
+            PlatformTools.load("typeorm-aurora-data-api-driver")
+        const { pg } = driver
+
+        this.DataApiDriver = pg
+    }
+
+    /**
+     * Executes given query.
+     *
+     * @param connection
+     * @param query
+     */
+    protected executeQuery(connection: any, query: string) {
+        return this.dataSource.query(query)
+    }
+
+    /**
+     * Makes any action after connection (e.g. create extensions in Postgres driver).
+     */
+    async afterConnect(): Promise<void> {
+        const extensionsMetadata = await this.checkMetadataForExtensions()
+
+        if (extensionsMetadata.hasExtensions) {
+            await this.enableExtensions(extensionsMetadata, this.dataSource)
+        }
+
+        return Promise.resolve()
+    }
+}

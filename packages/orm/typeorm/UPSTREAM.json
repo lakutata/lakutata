@@ -1,0 +1,20 @@
+{
+  "repository": "https://github.com/typeorm/typeorm.git",
+  "tag": "1.1.2",
+  "commit": "a0ea55323662dcd3cff1fa5ab6153be43ded80a7",
+  "sources": [
+    {
+      "from": [
+        "packages/typeorm/src",
+        "src"
+      ],
+      "to": "."
+    },
+    {
+      "from": [
+        "packages/legacy-naming-strategies/src"
+      ],
+      "to": "legacy-naming-strategies"
+    }
+  ]
+}

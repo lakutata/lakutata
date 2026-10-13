@@ -1,0 +1,57 @@
+import { FindOperator } from "../FindOperator"
+import type { ObjectLiteral } from "../../common/ObjectLiteral"
+
+/**
+ * Find Options Operator.
+ *
+ * @example
+ * { someField: Raw("12") }
+ *
+ * @param value
+ */
+export function Raw<T>(value: string): FindOperator<any>
+
+/**
+ * Find Options Operator.
+ *
+ * @example
+ * { someField: Raw((columnAlias) => `${columnAlias} = 5`) }
+ *
+ * @param sqlGenerator
+ */
+export function Raw<T>(
+    sqlGenerator: (columnAlias: string) => string,
+): FindOperator<any>
+
+/**
+ * Find Options Operator.
+ * For escaping parameters use next syntax:
+ *
+ * @example
+ * { someField: Raw((columnAlias) => `${columnAlias} = :value`, { value: 5 }) }
+ *
+ * @param sqlGenerator
+ * @param parameters
+ */
+export function Raw<T>(
+    sqlGenerator: (columnAlias: string) => string,
+    parameters: ObjectLiteral,
+): FindOperator<any>
+
+export function Raw<T>(
+    valueOrSqlGenerator: string | ((columnAlias: string) => string),
+    sqlGeneratorParameters?: ObjectLiteral,
+): FindOperator<any> {
+    if (typeof valueOrSqlGenerator !== "function") {
+        return new FindOperator("raw", valueOrSqlGenerator, false)
+    }
+
+    return new FindOperator(
+        "raw",
+        [],
+        true,
+        true,
+        valueOrSqlGenerator,
+        sqlGeneratorParameters,
+    )
+}

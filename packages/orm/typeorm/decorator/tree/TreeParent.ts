@@ -1,0 +1,40 @@
+import { getMetadataArgsStorage } from "../../globals"
+import type { RelationMetadataArgs } from "../../metadata-args/RelationMetadataArgs"
+import type { OnDeleteType } from "../../metadata/types/OnDeleteType"
+import type { RelationOptions } from "../options/RelationOptions"
+
+/**
+ * Marks an entity property as a parent of the tree.
+ * "Tree parent" indicates who owns (is a parent) of this entity in tree structure.
+ *
+ * @param options
+ * @param options.onDelete
+ */
+export function TreeParent(options?: {
+    onDelete?: OnDeleteType
+}): PropertyDecorator {
+    return function (object: Object, propertyName: string) {
+        options ??= {} as RelationOptions
+
+        // now try to determine it its lazy relation
+        const reflectedType =
+            Reflect && (Reflect as any).getMetadata
+                ? Reflect.getMetadata("design:type", object, propertyName)
+                : undefined
+        const isLazy =
+            (reflectedType &&
+                typeof reflectedType.name === "string" &&
+                reflectedType.name.toLowerCase() === "promise") ??
+            false
+
+        getMetadataArgsStorage().relations.push({
+            isTreeParent: true,
+            target: object.constructor,
+            propertyName: propertyName,
+            isLazy: isLazy,
+            relationType: "many-to-one",
+            type: () => object.constructor,
+            options: options,
+        } as RelationMetadataArgs)
+    }
+}

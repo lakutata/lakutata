@@ -1,0 +1,17 @@
+import { FindOperator } from "../FindOperator"
+
+/**
+ * Find Options Operator.
+ *
+ * @example
+ * { someField: Between(x, y) }
+ *
+ * @param from
+ * @param to
+ */
+export function Between<T>(
+    from: T | FindOperator<T>,
+    to: T | FindOperator<T>,
+): FindOperator<T> {
+    return new FindOperator("between", [from, to] as any, true, true)
+}
