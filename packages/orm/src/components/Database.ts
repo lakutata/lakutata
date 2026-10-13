@@ -25,7 +25,8 @@ import {connectionOptionsOf} from '../lib/ConnectionOptions.js'
  * Build the registration of a {@link Database} component, for the `components` of the application options: the
  * component class with its TypeORM connection options.
  * @param options The TypeORM connection options (`DataSourceOptions`): the driver `type`, the connection settings, the
- * `entities`, the `migrations`, `synchronize`, `migrationsRun`, `logging`… Passed to TypeORM as they are.
+ * `entities`, the `migrations`, `synchronize`, `migrationsRun`, `logging`… Passed to TypeORM, with the null and
+ * undefined values of the where conditions ignored unless they set `invalidWhereValuesBehavior` (see {@link Database}).
  * @returns The registration `{class: Database, options}`.
  * @example
  * ```typescript
@@ -78,6 +79,11 @@ export const buildDatabaseOptions: (options: DataSourceOptions) => {
  * launches when it is listed in `bootstrap`, otherwise on its first use): a connection failure rejects its creation
  * with the driver error. TypeORM applies `synchronize` and `migrationsRun` of the options while connecting. It
  * disconnects when the application stops.
+ *
+ * The where conditions leave out their properties whose value is `null` or `undefined`, as TypeORM 0.3 did (TypeORM 1
+ * throws on them by default): `findOneBy({id: undefined})` finds the first row, check the values taken from the
+ * requests. The `invalidWhereValuesBehavior` of the options changes it, each key given replacing its default
+ * (`{undefined: 'throw'}` throws on the undefined values).
  *
  * An application may register several of them (one per database), each under its own name. Their names are the ones
  * the migration commands of the application (`MIGRATION_GENERATE`, `MIGRATION_RUN`…) select with `MIGRATION_DATABASE`.
@@ -147,7 +153,8 @@ export class Database extends Component {
 
     /**
      * The TypeORM connection options, given by the registration (see {@link buildDatabaseOptions}). Not validated by
-     * lakutata: TypeORM checks them while connecting.
+     * lakutata: TypeORM checks them while connecting. Their `invalidWhereValuesBehavior` defaults to
+     * `{null: 'ignore', undefined: 'ignore'}`, each key given replacing its default.
      */
     @Configurable()
     protected readonly options: DataSourceOptions

@@ -28,7 +28,8 @@ import {connectionOptionsOf} from '../lib/ConnectionOptions.js'
  * class with its TypeORM connection options. Its `entities` option, added to the entities of the connection options,
  * is set by spreading the registration: `{...buildDatabaseOptions(options), entities: [User]}`.
  * @param options The TypeORM connection options (`DataSourceOptions`): the driver `type`, the connection settings, the
- * `entities`, the `migrations`, `synchronize`, `migrationsRun`, `logging`… Passed to TypeORM as they are.
+ * `entities`, the `migrations`, `synchronize`, `migrationsRun`, `logging`… Passed to TypeORM, with the null and
+ * undefined values of the where conditions ignored unless they set `invalidWhereValuesBehavior` (see {@link Database}).
  * @returns The registration `{class: Database, options}`.
  * @example
  * ```typescript
@@ -76,7 +77,9 @@ export const buildDatabaseOptions: (options: DataSourceOptions) => {
  * which created it. It suits a short use (a job, a script, a tenant database); the requests of a busy application
  * share the `Database` component instead. A connection failure rejects its creation with the driver error.
  *
- * The entities of its `entities` option are added to the entities of its connection options.
+ * The entities of its `entities` option are added to the entities of its connection options. Its where conditions leave
+ * out their properties whose value is `null` or `undefined`, as the ones of the `Database` component (TypeORM 1 throws
+ * on them by default), unless the options set `invalidWhereValuesBehavior`.
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
@@ -134,7 +137,8 @@ export class Database extends Provider {
 
     /**
      * The TypeORM connection options, given by the registration (see {@link buildDatabaseOptions}). Not validated by
-     * lakutata: TypeORM checks them while connecting.
+     * lakutata: TypeORM checks them while connecting. Their `invalidWhereValuesBehavior` defaults to
+     * `{null: 'ignore', undefined: 'ignore'}`, each key given replacing its default.
      */
     @Configurable()
     protected readonly options: DataSourceOptions
